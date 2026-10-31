@@ -255,6 +255,22 @@ def _answer(q: Question, answered: dict[str, Any], recipe: dict[str, Any] | None
     return q.plan_job in {str(s.get("job")) for s in recipe.get("steps") or []}
 
 
+def answers_revision(stage: Stage, answers: dict[str, Any] | None, recipe: dict[str, Any] | None) -> str:
+    """What a try of this stage ran with, as one short word: the stage's own answers (its questions' keys, and the Prepare
+    Images operations) and its steps' models and settings. A try result keeps the one it ran with; the listing carries the
+    current one; they differ when the answers or the chosen model changed since (`wide.output.stale-says-so`). Nothing of
+    another stage is in it."""
+    import hashlib
+    import json
+
+    given = (answers or {}).get("job_answers") or {}
+    keys = {q.key for q in stage.questions} | ({prepare_operations.ANSWER} if stage.id == "prepare-images" else set())
+    steps = [{k: s.get(k) for k in ("id", "job", "model", "settings", "runs_on")}
+             for s in (recipe or {}).get("steps") or [] if str(s.get("job")) in stage.jobs]
+    blob = json.dumps({"answers": {k: given[k] for k in sorted(keys) if k in given}, "steps": steps}, sort_keys=True, default=str)
+    return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:12]
+
+
 def listing(recipe: dict[str, Any] | None, answers: dict[str, Any] | None = None,
             tried: dict[str, dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     """The thirteen stages, in pipeline order, each on or off in this project's recipe, with its questions (answered where the
@@ -283,6 +299,7 @@ def listing(recipe: dict[str, Any] | None, answers: dict[str, Any] | None = None
                            "read_by_a_step": q.read_by_a_step, "open_ended": q.open_ended,
                            "suggestions": suggested_kinds(stage.id, result) if q.open_ended else []}
                           for q in stage.questions],
+            "answers_revision": answers_revision(stage, answers, recipe),
             "operations": prepare_operations.listing(answered) if stage.id == "prepare-images" else [],
             "needs": [{"stage": n, "why": f"{stage.title} needs {titles[n]}"} for n in stage.needs],
             "sampleable": sampleable(stage), "tried_by": "bake-off" if stage.id in TRIED_BY_THE_BAKEOFF else "workflow",

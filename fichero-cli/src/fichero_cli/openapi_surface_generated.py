@@ -14126,6 +14126,7 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         first_pages: Optional[int] = typer.Option(None, '--first-pages', help='plan Start on the first N pages of the project in Finder order ("run fewer pages", #6295); never with `folder_id`.'),
         folder_id: Optional[str] = typer.Option(None, '--folder-id', help='plan Start on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); omit for the whole project.'),
+        steps: Optional[str] = typer.Option(None, '--steps', help="plan Start on these steps alone (comma-separated step ids), over the whole project: one stage's Run this step (`wide.output.run-this-step`); 422 for an id the recipe does not have."),
         summary: Optional[bool] = typer.Option(None, '--summary/--no-summary', help="a lean answer for an agent: each step's candidates are its picked and recommended ones (else its first), not the whole menu, which grows with the models this Mac has; the whole plan is this GET without it (openapi.mcp.answers-fit-an-agent)"),
     ) -> None:
         """Get Start Plan (GET /api/recipes/project/start)."""
@@ -14134,6 +14135,7 @@ def register_generated_openapi_commands(
             params = {
                 "first_pages": first_pages,
                 "folder_id": folder_id,
+                "steps": steps,
                 "summary": summary,
             }
             return client.request("GET", endpoint_path, params=params)
@@ -14147,6 +14149,7 @@ def register_generated_openapi_commands(
         first_pages: Optional[int] = typer.Option(None, '--first-pages', help='run the recipe on the first N pages of the project in Finder order alone ("run fewer pages", #6295); never with `folder_id` or `documents`.'),
         folder_id: Optional[str] = typer.Option(None, '--folder-id', help='run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project.'),
         redo: Optional[list[str]] = typer.Option(None, '--redo', help='step ids to run again on pages that already have their output; the others run only on pages that do not. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        steps: Optional[list[str]] = typer.Option(None, '--steps', help="run these steps alone over the whole project (one stage's Run this step, `wide.output.run-this-step`); empty: the whole recipe. A list: repeat the flag, or give the values comma-separated, or as JSON."),
     ) -> None:
         """Start Project (POST /api/recipes/project/start)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14158,12 +14161,14 @@ def register_generated_openapi_commands(
                 "first_pages": first_pages,
                 "folder_id": folder_id,
                 "redo": redo,
+                "steps": steps,
             }, {
                 "accept_unpriced": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Accept Unpriced', 'description': "cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`)", 'x-cli-required': False},
                 "documents": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Documents', 'description': "run the recipe on these pages alone, as a finished run's `missed.documents` names them (source.recipe.run-again-on-what-was-missed, #6170); never with `folder_id`", 'x-cli-required': False},
                 "first_pages": {'type': 'integer', 'minimum': 1.0, 'nullable': True, 'title': 'First Pages', 'description': 'run the recipe on the first N pages of the project in Finder order alone ("run fewer pages", #6295); never with `folder_id` or `documents`', 'x-cli-required': False},
                 "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'description': 'run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project', 'x-cli-required': False},
                 "redo": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Redo', 'description': 'step ids to run again on pages that already have their output; the others run only on pages that do not', 'x-cli-required': False},
+                "steps": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Steps', 'description': "run these steps alone over the whole project (one stage's Run this step, `wide.output.run-this-step`); empty: the whole recipe", 'x-cli-required': False},
             }, required=False)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)

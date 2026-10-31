@@ -9779,6 +9779,11 @@
             "type": "string"
           },
           {
+            "name": "steps",
+            "required": false,
+            "type": "string"
+          },
+          {
             "name": "summary",
             "required": false,
             "type": "boolean"

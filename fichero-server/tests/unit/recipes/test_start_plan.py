@@ -205,3 +205,23 @@ def test_wide_a_stage_ticked_after_the_first_start_is_in_the_next_plan(client, d
     write_start(library, None)  # before the first yes the whole recipe runs and nothing is proposed
     _save(client, unstarted_library_recipe)
     assert read_proposed(library) is None
+
+
+def test_wide_run_this_step_plans_one_stages_steps_alone_over_the_whole_project(client, db, pages, tmp_path):
+    """`wide.output.run-this-step` (#5806): Start with `steps` is the same plan limited to those step ids, over the whole project,
+    so a stage's page runs just its step without unticking the rest; an id the recipe lacks is refused in words."""
+    from tests.unit.recipes.test_recipe_execution_to_spec import _recipe as recipe_of
+    from tests.unit.recipes.test_recipe_execution_to_spec import _save
+
+    _save(client, recipe_of(tmp_path, PREP, LINES, READ))
+    whole = client.get("/api/recipes/project/start").json()
+    assert [r["card"] for r in whole["runs"]] == ["prepare", "workflow"]
+    one = client.get("/api/recipes/project/start", params={"steps": "prep"})
+    assert one.status_code == 200, one.text
+    plan = one.json()
+    assert [r["steps"] for r in plan["runs"]] == [["prep"]] and plan["refusals"] == []
+    assert plan["estimate"]["pages"] == whole["estimate"]["pages"], "over the whole project, not a sample"
+    missing = client.get("/api/recipes/project/start", params={"steps": "nope"})
+    assert missing.status_code == 422 and "no step nope" in missing.text
+    refused = client.post("/api/recipes/project/start", json={"steps": ["nope"]})
+    assert refused.status_code == 422 and "no step nope" in refused.text

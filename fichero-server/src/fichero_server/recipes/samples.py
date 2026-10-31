@@ -317,7 +317,10 @@ def start_try(db: Any, stage_id: str, setup: dict[str, Any], *, page_ids: list[s
     if not ids:
         raise ValueError("This project has no pages to try it on yet")
     now = utc_now_iso(timespec="seconds")
-    result: dict[str, Any] = {"stage": stage_id, "pages": ids, "tried_at": now, "state": "waiting"}
+    from fichero_server.recipes.stages import answers_revision
+
+    result: dict[str, Any] = {"stage": stage_id, "pages": ids, "tried_at": now, "state": "waiting",
+                              "answers_revision": answers_revision(stage, setup.get("answers"), recipe)}
     if stage_id in TRIED_BY_THE_BAKEOFF and not candidates and _bakeoff_ready(db, ids):
         from fichero_server.recipes.discovery import known_cards
         from fichero_server.recipes.start import count_pages

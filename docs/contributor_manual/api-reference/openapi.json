@@ -16484,6 +16484,18 @@
             "description": "plan Start on the first N pages of the project in Finder order (\"run fewer pages\", #6295); never with `folder_id`"
           },
           {
+            "name": "steps",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "plan Start on these steps alone (comma-separated step ids), over the whole project: one stage's Run this step (`wide.output.run-this-step`); 422 for an id the recipe does not have",
+              "title": "Steps"
+            },
+            "description": "plan Start on these steps alone (comma-separated step ids), over the whole project: one stage's Run this step (`wide.output.run-this-step`); 422 for an id the recipe does not have"
+          },
+          {
             "name": "summary",
             "in": "query",
             "required": false,
@@ -94066,6 +94078,12 @@
             "type": "array",
             "title": "Questions"
           },
+          "answers_revision": {
+            "type": "string",
+            "title": "Answers Revision",
+            "description": "the stage's answers and chosen models now, as one short word; a try result whose `answers_revision` differs ran with earlier ones and is shown stale (`wide.output.stale-says-so`)",
+            "default": ""
+          },
           "operations": {
             "items": {
               "$ref": "#/components/schemas/PrepareOperation"
@@ -95851,6 +95869,12 @@
             "nullable": true,
             "title": "Job Id"
           },
+          "answers_revision": {
+            "type": "string",
+            "nullable": true,
+            "title": "Answers Revision",
+            "description": "the stage's answers and models this try ran with; compare with the stage listing's `answers_revision`: unequal is stale"
+          },
           "bakeoff": {
             "type": "string",
             "nullable": true,
@@ -96607,6 +96631,14 @@
             "nullable": true,
             "title": "First Pages",
             "description": "run the recipe on the first N pages of the project in Finder order alone (\"run fewer pages\", #6295); never with `folder_id` or `documents`"
+          },
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps",
+            "description": "run these steps alone over the whole project (one stage's Run this step, `wide.output.run-this-step`); empty: the whole recipe"
           },
           "accept_unpriced": {
             "items": {

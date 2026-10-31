@@ -522,6 +522,8 @@ class SetupStage(BaseModel):
     on: bool = Field(description="whether this project's recipe has any of its jobs")
     jobs_in_recipe: list[str]
     questions: list[StageQuestion]
+    answers_revision: str = Field(default="", description="the stage's answers and chosen models now, as one short word; a try result "
+                                  "whose `answers_revision` differs ran with earlier ones and is shown stale (`wide.output.stale-says-so`)")
     operations: list[PrepareOperation] = Field(default_factory=list, description="Prepare Images only: its operations in order, "
                                                "each selectable, empty for every other stage")
     needs: list[StageNeed] = Field(description="the stages it needs, ticked with it")
@@ -705,6 +707,8 @@ class StageTryResult(BaseModel):
     how: Optional[str] = None
     error: Optional[str] = None
     job_id: Optional[str] = None
+    answers_revision: Optional[str] = Field(default=None, description=(
+        "the stage's answers and models this try ran with; compare with the stage listing's `answers_revision`: unequal is stale"))
     bakeoff: Optional[str] = None
     candidates: list[TryCandidate] = Field(default_factory=list)
     left_out: Optional[str] = Field(default=None, description=(
@@ -2634,7 +2638,8 @@ _PLAN_READS: ContextVar[dict | None] = ContextVar("start_plan_reads", default=No
 
 
 def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list[str] | tuple[str, ...] = (),
-                first_pages: Optional[int] = None, memo: Optional[dict] = None) -> dict[str, Any]:
+                first_pages: Optional[int] = None, memo: Optional[dict] = None,
+                steps: Optional[list[str] | tuple[str, ...]] = None) -> dict[str, Any]:
     """The Start plan, over the whole project or one folder's live pages (`source.recipe.folder-scoped-start`).
     LookupError for a folder not in the project. `memo`: another plan's reads of the library in this same request, kept: the
     setup, the jobs, the caps and the spending are read fresh every time."""
@@ -2656,6 +2661,11 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     # Before the first yes Start runs the whole recipe, the added layer with it; after it, only what an
     # added layer proposes for the material already there, and what did not finish.
     only = set(proposal["steps"]) | set(unfinished) if started and proposal else None
+    if steps:  # one stage's Run this step (`wide.output.run-this-step`): these steps alone, over the whole project
+        known = {str(s.get("id")) for s in (setup["recipe"] or {}).get("steps") or []}
+        if missing := [sid for sid in steps if sid not in known]:
+            raise LookupError(f"the recipe has no step {', '.join(missing)}")
+        only = set(steps)
     from fichero_server.recipes.recipe import fit_overrides
 
     notes = fit_overrides(setup["recipe"]) if setup["recipe"] else []  # a kept choice never refuses Start (#6259)
@@ -2804,10 +2814,11 @@ def _compute_bakeoff_offer(db: Database, setup: dict, volume: int) -> dict | Non
 
 
 @single_flight
-async def _plan_once(*, db: Database, folder_id: Optional[str], clusters: tuple[str, ...], first_pages: Optional[int], setup_saved: Any = None) -> dict[str, Any]:
+async def _plan_once(*, db: Database, folder_id: Optional[str], clusters: tuple[str, ...], first_pages: Optional[int], setup_saved: Any = None,
+                     steps: tuple[str, ...] = ()) -> dict[str, Any]:
     """`setup_saved` only keys the flight: a load after a save gets a plan of its own. A plan a caller is already waiting for is shared: past the app's deadline, asking again stacked plans, each from the start.
     Off the loop: the plan reads every page's lines (variant A's price) and waits on the database's gate."""
-    return await asyncio.to_thread(lambda: _start_plan(db, folder_id, clusters=clusters, **only_if_set(first_pages=first_pages)))
+    return await asyncio.to_thread(lambda: _start_plan(db, folder_id, clusters=clusters, **only_if_set(first_pages=first_pages), steps=steps or None))
 
 
 @router.get("/project/start", response_model=StartPlan,
@@ -2819,6 +2830,9 @@ async def get_start_plan(
         "(source.recipe.folder-scoped-start); omit for the whole project")),
     first_pages: Optional[int] = Query(default=None, ge=1, description=(
         "plan Start on the first N pages of the project in Finder order (\"run fewer pages\", #6295); never with `folder_id`")),
+    steps: Optional[str] = Query(default=None, description=(
+        "plan Start on these steps alone (comma-separated step ids), over the whole project: one stage's Run this step "
+        "(`wide.output.run-this-step`); 422 for an id the recipe does not have")),
     summary: bool = Query(False, description=(
         "a lean answer for an agent: each step's candidates are its picked and recommended ones (else its first), "
         "not the whole menu, which grows with the models this Mac has; the whole plan is this GET without it "
@@ -2830,7 +2844,8 @@ async def get_start_plan(
     from fichero_server.recipes.project import setup_stamp
 
     try:
-        plan = await _plan_once(db=db, folder_id=folder_id, clusters=tuple(_cluster_names(http)), first_pages=first_pages, setup_saved=setup_stamp(_library(db)))
+        plan = await _plan_once(db=db, folder_id=folder_id, clusters=tuple(_cluster_names(http)), first_pages=first_pages, setup_saved=setup_stamp(_library(db)),
+                               steps=tuple(x for x in (steps or "").split(",") if x))
     except LookupError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if summary:
@@ -2855,6 +2870,7 @@ class StartParams(BaseModel):
                                 "only to one of them")
     first_pages: Optional[int] = Field(default=None, ge=1, description="run on the first N pages of the project in "
                                        "Finder order alone (#6295); never with `folder_id` or `documents`")
+    steps: list[str] = Field(default_factory=list, description="run these steps alone (`wide.output.run-this-step`)")
 
 
 class StartRequest(BaseModel):
@@ -2872,6 +2888,9 @@ class StartRequest(BaseModel):
     first_pages: Optional[int] = Field(default=None, ge=1, description=(
         "run the recipe on the first N pages of the project in Finder order alone (\"run fewer pages\", #6295); "
         "never with `folder_id` or `documents`"))
+    steps: list[str] = Field(default_factory=list, description=(
+        "run these steps alone over the whole project (one stage's Run this step, `wide.output.run-this-step`); "
+        "empty: the whole recipe"))
     accept_unpriced: list[str] = Field(default_factory=list, description=(
         "cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: "
         "counted at an assumed price and listed apart, and recorded in the project by the one accept action "
@@ -2883,13 +2902,14 @@ NO_MATERIAL = "This project has no material yet: add your pages in Set Up › Yo
 
 
 def _accept_asked(db: Database, accepted: list[str], folder_id: Optional[str], clusters: list[str], ctx: ActionContext,
-                  memo: Optional[dict] = None, first_pages: Optional[int] = None) -> None:
+                  memo: Optional[dict] = None, first_pages: Optional[int] = None,
+                  steps: Optional[list[str]] = None) -> None:
     """Start's yes to the cloud models with no listed price it names: the ones sent (`StartRequest.accept_unpriced`), else
     every one the plan lists, since pressing Start is the yes (#6259), taken before Start's own action so it outlives a refused Start
     (`ai.where.accept-unpriced-cloud-model`). Each by `cloud.accept_unpriced`, the one accept action.
     Only a model the plan names can be accepted here."""
     try:
-        plan = _start_plan(db, folder_id, clusters=clusters, memo=memo, **only_if_set(first_pages=first_pages))
+        plan = _start_plan(db, folder_id, clusters=clusters, memo=memo, steps=steps or None, **only_if_set(first_pages=first_pages))
     except LookupError as exc:  # a folder not in the project
         raise ValueError(str(exc)) from exc
     asked = set(plan["cloud_cap"]["unpriced_models"]) if plan.get("cloud_cap") else set()
@@ -2936,12 +2956,14 @@ async def start_project(
             # Read here, outside any transaction; the action's plan inside its transaction reuses these reads and asks the
             # caps again, so the spending check still runs under the gate, just before the run is queued.
             _accept_asked(db, request.accept_unpriced if request else [], folder_id, clusters, ctx, memo=reads,
-                          first_pages=first if not request or request.documents is None else None)
+                          first_pages=first if not request or request.documents is None else None,
+                          steps=request.steps if request else None)
             token = _PLAN_READS.set(reads)
             try:
                 registry.invoke(db, "project.start", {"redo": request.redo if request else [], "folder_id": folder_id,
                                                   "documents": request.documents if request else None,
                                                   "first_pages": request.first_pages if request else None,
+                                                  "steps": request.steps if request else [],
                                                   "clusters": clusters}, ctx)
             finally:
                 _PLAN_READS.reset(token)
@@ -2951,7 +2973,8 @@ async def start_project(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     clusters = _cluster_names(http)
     return StartPlan(**await asyncio.to_thread(lambda: _as_started(
-        db, _start_plan(db, folder_id, clusters=clusters, memo=reads, **only_if_set(first_pages=first)), reads)))
+        db, _start_plan(db, folder_id, clusters=clusters, memo=reads, steps=(request.steps if request else None) or None,
+                        **only_if_set(first_pages=first)), reads)))
 
 
 class UseInsteadRequest(BaseModel):
@@ -3243,7 +3266,8 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
                          and not set(pages_for(db, {}, [d])) <= project]:
                 raise ValueError(f"{len(stray)} of those pages are not in the project")
         try:
-            plan = _start_plan(db, params.folder_id, clusters=params.clusters, memo=_PLAN_READS.get(), **only_if_set(first_pages=params.first_pages))
+            plan = _start_plan(db, params.folder_id, clusters=params.clusters, memo=_PLAN_READS.get(), steps=params.steps or None,
+                               **only_if_set(first_pages=params.first_pages))
         except LookupError as exc:  # a folder not in the project
             raise ValueError(str(exc)) from exc
         if NO_MATERIAL in plan["refusals"]:  # said alone: nothing else matters until there is material (#5813)
