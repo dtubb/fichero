@@ -389,9 +389,11 @@ address answered while the link named `.local`.
 
 - `sharing.card-keeps-its-code` — **[BROKEN]** (→ #5915, its second half; new issue 1 below) the card re-mints only when: the code expires
   (`sharing.pairing-code-renews-at-expiry`, built), Sharing is turned on, the sharing address or pin changes, or the person asks for a new one.
-  **A health check, a Multi-user flip, a Devices refresh or the engine's phase passing through `starting` never clears the card.**
-  `refreshKey` drops `isBackendRunning`; instead, when the engine is not ready the card shows its blocker (`.engineNotRunning`) over the
-  *kept* code and mints once the engine is back only if the kept code has expired. *Test:* `ShareSettingsRefreshKeyTests.swift`: the key is
+  **A health check, a Multi-user flip, a Devices refresh or the engine's phase passing through `starting` never clears the card**, but
+  **an engine restart does**: codes live in the engine's memory (`_PAIRING_CODES`), so a code is kept only across the SAME engine process,
+  told by health's `engine_pid` (`PairingCardRefresh.sameEngine`; review M1). `refreshKey` drops `isBackendRunning`; when the engine is not
+  ready the card shows its blocker (`.engineNotRunning`) over the *kept* code; when it is back it mints again only if the card is empty or
+  the code came from another engine process. *Test:* `ShareSettingsRefreshKeyTests.swift`: the key is
   unchanged across `isBackendRunning` true→false→true; changes on address/pin/sharing. `PairingCodeRenewalTests.swift` (exists) stays.
 - `sharing.qr-drawn-once-per-payload` — **[BROKEN]** (→ #5915; new issue 1 below) the QR image is made once per payload string and kept in `@State`
   (`.task(id: inviteLinkString)`), never in a computed property the body re-runs; both encoders use `.sortedKeys` (and `.withoutEscapingSlashes`

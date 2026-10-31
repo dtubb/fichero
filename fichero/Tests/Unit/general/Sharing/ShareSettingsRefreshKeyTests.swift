@@ -25,18 +25,30 @@ struct ShareSettingsRefreshKeyTests {
                                        engineHost: "uds", didBootstrap: true) != base)
     }
 
-    @Test("the engine coming back mints only when the card is empty and unblocked")
-    func engineReturnMintsOnlyIntoAnEmptyCard() {
-        #expect(PairingCardRefresh.mintsWhenEngineChanges(isRunning: true, hasCode: false, blocked: false))
-        #expect(!PairingCardRefresh.mintsWhenEngineChanges(isRunning: true, hasCode: true, blocked: false), "a code is up: keep it")
-        #expect(!PairingCardRefresh.mintsWhenEngineChanges(isRunning: false, hasCode: false, blocked: true), "away: nothing to mint from")
-        #expect(!PairingCardRefresh.mintsWhenEngineChanges(isRunning: true, hasCode: false, blocked: true), "sharing off: no code")
+    @Test("the engine coming back mints into an empty card, or over a code another engine process minted")
+    func engineReturnMintsOnlyWhenTheCodeIsNotThisEngines() {
+        #expect(PairingCardRefresh.mintsWhenEngineChanges(isRunning: true, hasCode: false, blocked: false, sameEngine: false))
+        #expect(!PairingCardRefresh.mintsWhenEngineChanges(isRunning: true, hasCode: true, blocked: false, sameEngine: true),
+                "the same engine still holds this code: keep it (a health check)")
+        #expect(PairingCardRefresh.mintsWhenEngineChanges(isRunning: true, hasCode: true, blocked: false, sameEngine: false),
+                "a restart: the engine lost this code, mint again")
+        #expect(!PairingCardRefresh.mintsWhenEngineChanges(isRunning: false, hasCode: false, blocked: true, sameEngine: false), "away")
+        #expect(!PairingCardRefresh.mintsWhenEngineChanges(isRunning: true, hasCode: false, blocked: true, sameEngine: false), "sharing off")
     }
 
-    @Test("a momentary engine-not-running blocker keeps the code; anything else clears it")
+    @Test("a momentary engine-not-running blocker keeps the code only for the same engine process")
     func momentaryBlockerKeepsTheCode() {
-        #expect(PairingCardRefresh.keepsCode(whenBlockedBy: true, hasCode: true))
-        #expect(!PairingCardRefresh.keepsCode(whenBlockedBy: false, hasCode: true), "sharing off or address lost: the card clears")
-        #expect(!PairingCardRefresh.keepsCode(whenBlockedBy: true, hasCode: false), "nothing to keep")
+        #expect(PairingCardRefresh.keepsCode(whenBlockedBy: true, hasCode: true, sameEngine: true))
+        #expect(!PairingCardRefresh.keepsCode(whenBlockedBy: true, hasCode: true, sameEngine: false), "another process: the code is dead")
+        #expect(!PairingCardRefresh.keepsCode(whenBlockedBy: false, hasCode: true, sameEngine: true), "sharing off or address lost: the card clears")
+        #expect(!PairingCardRefresh.keepsCode(whenBlockedBy: true, hasCode: false, sameEngine: true), "nothing to keep")
+    }
+
+    @Test("the engine process is the same only when both pids are known and equal")
+    func sameEngineNeedsBothPids() {
+        #expect(PairingCardRefresh.sameEngine(codePID: 4242, currentPID: 4242))
+        #expect(!PairingCardRefresh.sameEngine(codePID: 4242, currentPID: 4343), "restarted")
+        #expect(!PairingCardRefresh.sameEngine(codePID: nil, currentPID: 4242), "unknown: never vouch for the code")
+        #expect(!PairingCardRefresh.sameEngine(codePID: 4242, currentPID: nil))
     }
 }

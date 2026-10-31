@@ -105,10 +105,21 @@ extension ShareSettingsView {
         }
     }
 
+    /// The engine process now running, by health's pid; nil when unknown (an external engine, or none yet).
+    var currentEnginePID: Int? { appState.enginePID?().map { Int($0) } }
+
+    /// Whether the code on the card came from the engine process now running (`PairingCardRefresh.sameEngine`).
+    var codeIsFromThisEngine: Bool {
+        PairingCardRefresh.sameEngine(codePID: codeEnginePID, currentPID: currentEnginePID)
+    }
+
     func refreshPairingCode() async {
-        // A health check in flight is not a reason to blank the card: the code it holds is still good until it expires.
-        if PairingCardRefresh.keepsCode(whenBlockedBy: pairingBlocker == .engineNotRunning, hasCode: pairingCode != nil) { return }
+        // A health check in flight is not a reason to blank the card: the code it holds is still good until it expires,
+        // as long as the SAME engine process holds it (a restart loses the engine's codes).
+        if PairingCardRefresh.keepsCode(whenBlockedBy: pairingBlocker == .engineNotRunning, hasCode: pairingCode != nil,
+                                        sameEngine: codeIsFromThisEngine) { return }
         pairingCode = nil
+        codeEnginePID = nil
         shareError = nil
         guard pairingBlocker == nil else { return }
         isGeneratingCode = true
@@ -117,6 +128,7 @@ extension ShareSettingsView {
             try await Task.sleep(for: .milliseconds(200))
             try Task.checkCancellation()
             pairingCode = try await PairingService(apiRoot: EngineConfig.host).createPairingCode()
+            codeEnginePID = currentEnginePID
         } catch {
             if !error.isCancellationError { shareError = error.localizedDescription }
         }

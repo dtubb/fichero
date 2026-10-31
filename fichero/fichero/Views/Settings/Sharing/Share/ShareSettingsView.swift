@@ -56,6 +56,8 @@ struct ShareSettingsView: View {
     /// The QR, drawn once per link and kept (`sharing.qr-drawn-once-per-payload`): a computed image was rebuilt on every
     /// body evaluation (the Devices poll every 10 s), which the person saw as the picture flashing.
     @State var qrImage: PlatformImage?
+    /// The engine process (health's pid) that minted the code on the card: a code outlives a health check, never a restart.
+    @State var codeEnginePID: Int?
     /// Which address the QR and Copy Link carry (`sharing.share-sheet-offers-both-addresses`); nil = the model's default.
     @State var addressChoice: AddressChoice?
     var showAddDevice: Bool {
@@ -144,11 +146,13 @@ struct ShareSettingsView: View {
             guard didBootstrap else { return }
             await refreshPairingCode()
         }
-        // The engine coming back mints only when the card has nothing to show; its going away never clears the card.
+        // The engine coming back mints when the card has nothing to show, or shows a code another engine process minted
+        // (a restart loses the engine's codes); its going away never clears the card.
         .onChange(of: appState.isBackendRunning) { _, running in
             guard didBootstrap,
                   PairingCardRefresh.mintsWhenEngineChanges(isRunning: running, hasCode: pairingCode != nil,
-                                                            blocked: pairingBlocker != nil) else { return }
+                                                            blocked: pairingBlocker != nil, sameEngine: codeIsFromThisEngine)
+            else { return }
             Task { await refreshPairingCode() }
         }
         .task(id: inviteLinkString) { qrImage = makeQRCodeImage() }
