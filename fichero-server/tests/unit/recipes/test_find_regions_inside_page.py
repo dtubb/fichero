@@ -420,3 +420,16 @@ def test_a_passed_over_rendition_is_warned_about_and_a_page_with_none_is_not_cou
     assert any("passed over" in r.message and r.levelname == "WARNING" for r in caplog.records)
     clean = _page(db, tmp_path, BOX)
     assert "renditions_passed_over" not in find_regions(db, [clean.id], "run-2", "blla", provider="kraken")
+
+
+def test_a_good_turned_rendition_with_a_missing_parent_file_is_not_guessed_and_its_readings_stop_counting(db, tmp_path):
+    """The turn's map needs its parent's frame; with the parent's file gone the page reads the photograph (no guess of 'no tag':
+    a wrong guess stores wrong positions silently). Its signature is then `original`, not the turn's file name, so
+    `working_lines.unread_by` (a reading counts only when read from the current image's signature) reads the page again."""
+    from fichero_server.media.current_image import ORIGINAL, current_page_image
+
+    page = _bad_rendition_page(db, tmp_path, "parent with no transform, file missing")
+
+    current = current_page_image(db, page, library_root=tmp_path)
+
+    assert current.is_original and current.signature == ORIGINAL != "ok.png" and current.passed_over == 1
