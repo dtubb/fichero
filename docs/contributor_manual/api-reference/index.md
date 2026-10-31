@@ -1729,3 +1729,13 @@ Spec: `docs/contributor_manual/specs/source/models-chains-and-projects.md` (`sou
 - `GET /api/settings/compute`: how hard local model work may push this Mac (`priority`: `balanced`, the default, keeps the Mac usable; `fast` drops the throttle; `background` yields to everything) and on which processor (`device`: `auto`, `cpu`, `gpu`), plus `effective`, what applies now (`FICHERO_COMPUTE_PRIORITY` / `FICHERO_COMPUTE_DEVICE` override the saved choice for a test run).
 - `PUT /api/settings/compute`: save those preferences (owner only); Kraken reads them on its next page.
 - A Kraken reader rides the run-level override: `provider_override: "kraken"` with `model_override` a catalogue id (`kraken-catmus-medieval`) or a `.mlmodel` path sets the reader of every node that reads lines with Kraken; a workflow with no such node refuses it (`400`).
+
+## Catalogue columns, workbook, Prepare Images and caps
+
+- `GET /api/documents/{doc_id}/template` — the columns of a scope: its rows' effective prototype (the union when they differ), narrowed by the saved choice.
+- `PUT /api/documents/{doc_id}/column-choice` — save which columns the scope shows (`hide`, `only_kind`) as one undoable step; `DELETE` clears the choice (back to the union).
+- `POST /api/export/catalogue-workbook` — the catalogue workbook of a folder or project in its archive's template (`target_id`, `format` xlsx or csv zip, `prototype_key`, `proposals`). The file comes back as base64, or, with `kept_export_id`, is queued into that kept export (a write). Reads are checked against the body's `target_id` and every page under it.
+- `POST /api/images/batch-prepare/preview` — the first, middle and last page of a folder with a square or turn applied, before a batch runs (`folder_id`, `operation`, `source_document_id`). Writes nothing; each page shown is read-checked.
+- `GET /api/recipes/prepare-images/check` — Prepare Images' pages to check: every page with an open proposal, then one confident page in twenty.
+- `GET /api/recipes/prepare-images/facts` — what the Prepare Images card shows besides its questions: answers suggested from five sample pages, the time estimate on this Mac, and how many pages need a check.
+- `PUT /api/recipes/project/cloud-cap` — change the project's monthly cloud cap (`cap_usd`) and/or its total cap (`project_cap_usd`, or `clear_project_cap`) without touching the rest of Set Up; one audited, undoable step.
