@@ -72,6 +72,7 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
     from PIL import Image
 
     from fichero_server.llm import LLMConfig
+    from fichero_server.media.current_image import current_page_image
     from fichero_server.media.upright import upright_size
     from fichero_server.models import Document
     from fichero_server.workflows.tools.detect_regions import TOOL_CONFIG
@@ -106,6 +107,11 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
         doc = db.get(Document, doc_id)
         # The page's image as every step finds it: a copied page's stored path is inside the package (#5668).
         path = _resolve_abs_path(doc, library) if doc is not None else ""
+        # THE page's current image (`media/current_image.py`, #6296): both finders see it, and what they find is carried back to the photograph.
+        page_image = current_page_image(db, doc, library_root=library) if doc is not None else None
+        page_image = page_image.for_geometry() if page_image is not None else None  # the boxes are carried back: needs a known frame
+        if page_image is not None and not page_image.is_original:
+            path = page_image.path
         rendered, page_index = None, None
         if doc is not None and getattr(doc, "parent_id", None) and not doc.path:  # a page cut from a PDF has the PDF's path, not its own
             parent = db.get(Document, doc.parent_id)
@@ -129,6 +135,8 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
                 account["no_image"] += 1
                 continue
             found_geometry, regions_here = _find_on(db, doc, path, width, height, provider, model, run_id, library, page_index)
+            if page_image is not None and page_image.path == path:
+                found_geometry = page_image.geometry_to_photograph(found_geometry)
         finally:
             if rendered is not None:
                 Path(rendered).unlink(missing_ok=True)

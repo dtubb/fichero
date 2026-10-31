@@ -18,6 +18,7 @@ import difflib
 import logging
 import re
 import unicodedata
+from typing import Any
 
 from PIL import Image
 
@@ -108,10 +109,6 @@ def _crop_data_uri(page: Image.Image, polygon_px: list) -> str:
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
-def _crop(page: Image.Image, box: OCRGeometryBox) -> str:
-    return _crop_data_uri(page, box.metadata["polygon_px"])
-
-
 def lines_per_call(config) -> int:
     """How many line pictures one call carries: `LINES_PER_CALL`, or what a model Fichero trained says
     on its card (a student trained on one picture at a time is asked one at a time)."""
@@ -168,22 +165,28 @@ def _request_groups(found: list[OCRGeometryBox], granularity: str | None, per_ca
 
 async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, language: str | None = None,
                      apple: bool = False, granularity: str | None = None,
-                     page_context: bool | None = None) -> OCRGeometryResult:
+                     page_context: bool | None = None, page_image: Any = None) -> OCRGeometryResult:
     """Kraken's lines (`segment_to_geometry`) with each one's text read by `config`'s vision model, or, with
     `apple`, by Apple Vision on each line's own picture (one line a call: its answer IS the reading, not a JSON
-    array, and it is not checked for loops, as only a generative model loops)."""
+    array, and it is not checked for loops, as only a generative model loops).
+
+    `page_image` (`media/current_image.PageImage`): the lines are measured on the page's photograph and `image_path` is the page's
+    current image (edits applied); each line's outline is carried onto it before it is cut, so the crop is the line as edited."""
     from fichero_server.llm import LLMConfig, vision
 
     if apple:
         config = LLMConfig(provider="apple", model="apple-vision")
 
-    page = open_in_frame(image_path, frame_of(lines.metadata, *(b.metadata for b in lines.boxes[:1])))
+    lines_frame = frame_of(lines.metadata, *(b.metadata for b in lines.boxes[:1]))
+    carried = page_image.lines_map(lines_frame) if page_image is not None else None
+    page = open_in_frame(image_path, None if carried is not None else lines_frame)
     found = [b for b in lines.boxes if b.metadata.get("polygon_px") and b.level == OCRGeometryLevel.LINE]
     # Kraken's regions are kept, first, as the lines' parents (#5487); a line names its region by position.
     kept = [(i, b) for i, b in enumerate(lines.boxes) if b.level != OCRGeometryLevel.LINE]
     regions = [b for _i, b in kept]
     moved = {i: n for n, (i, _b) in enumerate(kept)}
-    crops = [_crop(page, b) for b in found]
+    crops = [_crop_data_uri(page, carried.carry_pixels(b.metadata["polygon_px"]) if carried is not None
+                            else b.metadata["polygon_px"]) for b in found]
     # Variant B (`source.recipe.kraken-lines-cloud-reads`): a generative model gets the page ONCE per request, reduced,
     # beside the batch of lines; never once a line, and never for a reader trained on one picture or Apple's.
     # A reader that runs on this Mac (any local provider) reads a line as trained: the page costs its memory, not money.

@@ -100,17 +100,28 @@ def working_lines(db: Any, document_id: str, *, model: str | None = None) -> Wor
     return None
 
 
-def unread_by(db: Any, found: WorkingLines, model: str | None) -> WorkingLines:
+def unread_by(db: Any, found: WorkingLines, model: str | None, image: str | None = None) -> WorkingLines:
     """The page's lines this reader has not yet read: a page stopped half-read is read on from there, so a line already read
     (or looked at, no writing) is not paid for again (`source.recipe.read-resumes-per-line`). A reading counts for the
     reader whose page artifact it came from (`model` is that reader's stamp; None: any reader's). All the lines when none is
-    read, and when every one is (a page then asked for again is read whole, as a redo is)."""
+    read, and when every one is (a page then asked for again is read whole, as a redo is).
+
+    `image` (`media/current_image.PageImage.signature`, #6296): a reading counts only when it was read from that image, so after an
+    edit or an Undo in Preview the page is read again from what it is now. A line's 'looked, no writing' mark records no image
+    and still counts."""
+    from fichero_server.media.current_image import read_from
     from fichero_server.models import Artifact, ContentRepresentation
 
-    artifacts = {a.id: a.model for a in db.query(Artifact, document_id=found.lines[0].document_id)} if found.lines else {}
+    artifacts = {a.id: a for a in db.query(Artifact, document_id=found.lines[0].document_id)} if found.lines else {}
+
+    def counts(artifact_id: Any) -> bool:
+        artifact = artifacts.get(artifact_id)
+        if model is not None and getattr(artifact, "model", None) != model:
+            return False
+        return image is None or (artifact is not None and read_from(artifact) == image)
+
     read = {r.segment_id for r in db.query(ContentRepresentation, document_id=found.lines[0].document_id)
-            if r.segment_id and not r.retracted_at
-            and (model is None or artifacts.get(r.derived_from_artifact_id) == model)} if found.lines else set()
+            if r.segment_id and not r.retracted_at and counts(r.derived_from_artifact_id)} if found.lines else set()
     left = [x for x in found.lines if x.id not in read
             and not (isinstance((x.metadata or {}).get(NO_WRITING_MARK), dict)
                      and (model is None or x.metadata[NO_WRITING_MARK].get("model") in (model, "")))]
