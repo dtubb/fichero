@@ -9,7 +9,9 @@
 > "Rulings". Tags: [OK] built · [PARTIAL] exists, not wired · [MISSING] not built · [BROKEN] fails today ·
 > [PROPOSED] needs a ruling.
 
-> See also: `dev-workflows.md` (proposed: expressing these steps as Fichero app workflows, the stdlib runner staying until proven).
+> See also: `dev-workflows.md` (rewritten 2026-10-31, PROPOSED: Fichero builds Fichero; this runner is its bridge and oracle and retires
+> per that spec's § Dry runs and rollout; the 2026-10-31 shape — the worker steers a cluster, scripts guard, land per cluster, models by
+> configuration — is specified there, not here).
 
 ## Intent
 
