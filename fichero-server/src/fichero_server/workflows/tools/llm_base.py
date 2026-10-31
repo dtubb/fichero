@@ -54,6 +54,9 @@ from fichero_server.workflows.tools.llm_prompting import (  # noqa: F401 (re-exp
 
 logger = logging.getLogger(__name__)
 
+#: Keys a run adds to a reading's `Artifact.data` that say how it was made (`vision_base`, `save_artifact`); never a document field's value.
+PROVENANCE_KEYS = frozenset({IMAGE_READ, "episode_id", "thinking", "read_flag", "read_onto_pass", "compare_group", "segment_id"})
+
 
 class ArtifactLookupError(Exception):
     """The artifact result-cache lookup could not run to completion.
@@ -970,8 +973,9 @@ def _save_artifact_sync(
             if not isinstance(doc.metadata, dict):
                 doc.metadata = {}
             if final_metadata_field:
-                # The image marker (#6296) is provenance for the cache, not the field's value: without more, the field is the text.
-                shown = {k: v for k, v in (data or {}).items() if k != IMAGE_READ}
+                # What rides on the artifact for the cache and the inspector (the image it was read from, its episode, its
+                # thinking...) is provenance, not the field's value: without more, the field is the text (#6320).
+                shown = {k: v for k, v in (data or {}).items() if k not in PROVENANCE_KEYS}
                 doc.metadata[final_metadata_field] = shown if shown else content[:1000]
             if custom_metadata:
                 doc.metadata.update(custom_metadata)
