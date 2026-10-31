@@ -679,7 +679,8 @@ def pages_with_names(db: Any, model: str | None = None) -> set[str]:
         return {doc_id for e in db.query_fields(KnowledgeEntity, ("source_document_ids",)) for doc_id in (e.source_document_ids or [])}
     forms, out, covered = _forms(model), set(), {}
     for e in db.query_fields(KnowledgeEntity, ("source_document_ids", "attribution_chain")):  # never the mentions (#6236)
-        e.attribution_chain = [SimpleNamespace(**a) if isinstance(a, dict) else a for a in e.attribution_chain or []]
+        e.attribution_chain = [SimpleNamespace(**{"role": None, "label": None, "document_id": None, **a}) if isinstance(a, dict) else a
+                               for a in e.attribution_chain or []]  # a stored step takes the model's defaults
         steps = [(getattr(a.role, "value", a.role), a.label, a.document_id, getattr(a, "document_ids", None) or [])
                  for a in e.attribution_chain]
         extractors = [(label, doc, more) for role, label, doc, more in steps if role == "extractor"]

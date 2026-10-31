@@ -5640,7 +5640,7 @@ class Database(DatabaseEmbeddingMixin):
             f"""SELECT id, parent_id FROM documents WHERE id IN ({",".join("?" * len(ids))})
                 AND COALESCE(json_extract_string(metadata, '$.split_source_id'), '') NOT IN ('', 'false', '0')
                 AND NOT (CASE WHEN COALESCE(exclude_from_processing, FALSE)
-                         THEN COALESCE(json_extract_string(metadata, '$.blank.blank'), '') = 'true' ELSE FALSE END)""",
+                         THEN COALESCE(CAST(json_extract(metadata, '$.blank.blank') AS VARCHAR), '') = 'true' ELSE FALSE END)""",
             ids, committed=True)]
 
     def unit_of_work_count(self) -> int:

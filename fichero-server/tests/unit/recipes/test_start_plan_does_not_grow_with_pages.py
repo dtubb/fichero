@@ -349,3 +349,23 @@ def test_a_reload_after_a_save_does_not_join_the_plan_from_before_it(db, tmp_pat
 
     before, after = asyncio.run(in_flight_then_saved())
     assert (before["cap_seen"], after["cap_seen"]) == (1, 99)
+
+
+def test_a_partial_attribution_step_answers_as_the_model_did(db, monkeypatch):
+    """A stored step missing `label` or `document_id` took the model's defaults; it must not stop the plan."""
+    from types import SimpleNamespace
+
+    entities = [SimpleNamespace(source_document_ids=["named"], attribution_chain=[{"role": "extractor"}]),
+                SimpleNamespace(source_document_ids=["by-a-person"], attribution_chain=[{"role": "editor"}])]
+    monkeypatch.setattr(db, "query_fields", lambda *a, **k: entities)
+    assert done.pages_with_names(db, "some-model") == {"by-a-person"}
+
+
+def test_only_a_true_blank_mark_hides_a_cut_page(db):
+    """As the rule per page has it (`done.split_pages`): a mark of the word "true" isn't a mark."""
+    marked = _cut_page(db, "here", blank={"blank": True})
+    word = _cut_page(db, "here", blank={"blank": "true"})
+    for page in (marked, word):
+        page.exclude_from_processing = True
+        db.save(page)
+    assert [row[0] for row in db.cut_pages_of([marked.id, word.id])] == [word.id]
