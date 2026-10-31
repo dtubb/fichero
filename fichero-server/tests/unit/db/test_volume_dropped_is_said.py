@@ -94,3 +94,28 @@ def test_another_io_error_is_not_taken_for_a_dropped_volume(library, monkeypatch
     with pytest.raises(duckdb.IOException) as err:
         library.execute_fetchall("SELECT 1")
     assert not isinstance(err.value, volume_dropped.LibraryVolumeNotReachable)
+
+
+def test_an_invalidated_database_on_a_disk_that_answers_is_reopened_not_refused(library, monkeypatch):
+    """The disk still answers (the file stats) but DuckDB says 'invalidated ... Input/output error': that is a handle to
+    reopen, not an outage, so no 503 and the statement is retried on the reopened connection."""
+    real = library.conn
+    state = {"failed": 0}
+
+    class Conn:
+        def __getattr__(self, name):
+            return getattr(real, name)
+
+        def execute(self, *args, **kwargs):
+            if state["failed"] == 0:
+                state["failed"] += 1
+                raise duckdb.FatalException(
+                    "FATAL Error: database has been invalidated because of a previous fatal error: Input/output error")
+            return real.execute(*args, **kwargs)
+
+    reopened = []
+    monkeypatch.setattr(library, "conn", Conn())
+    monkeypatch.setattr(library, "_reconnect_after_invalidated", lambda: (reopened.append(1), setattr(library, "conn", real)))
+    assert library.execute_fetchall("SELECT 1") == [(1,)]
+    assert reopened == [1]
+    assert not volume_dropped.is_down(library.path)

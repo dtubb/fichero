@@ -59,15 +59,27 @@ class Disk:
         self.image = image
         self.device, self.mount = _attach(image)
 
+    def _own_device(self) -> str | None:
+        """The device THIS test's image is attached as, found by the image's own path: a device name is reused by macOS
+        for another disk once detached, so a remembered name is never detached."""
+        info = plistlib.loads(subprocess.run(["hdiutil", "info", "-plist"], capture_output=True).stdout)
+        for image in info.get("images", []):
+            if Path(image.get("image-path", "")).resolve() == self.image.resolve():
+                return next((e["dev-entry"] for e in image["system-entities"] if e.get("mount-point")), None)
+        return None
+
     def unplug(self) -> None:
-        subprocess.run(["hdiutil", "detach", "-force", self.device], check=True, capture_output=True)
+        device = self._own_device()
+        assert device, "the test image is not attached"
+        subprocess.run(["hdiutil", "detach", "-force", device], check=True, capture_output=True)
+        self.device = None
 
     def replug(self) -> None:
         self.device, self.mount = _attach(self.image)
 
     def cleanup(self) -> None:
-        if self.device:
-            subprocess.run(["hdiutil", "detach", "-force", self.device], capture_output=True)
+        if getattr(self, "image", None) and (device := self._own_device()):
+            subprocess.run(["hdiutil", "detach", "-force", device], capture_output=True)
         shutil.rmtree(self.dir, ignore_errors=True)
 
 
@@ -113,7 +125,8 @@ def test_a_real_unplug_is_one_503_one_log_line_and_recovers(disk, caplog):
         said = [r for r in caplog.records if r.levelno >= logging.ERROR and "library" in r.getMessage().lower()
                 and "reach" in r.getMessage().lower()]
         assert len(said) == 1, [r.getMessage() for r in said]
-        assert not [r for r in caplog.records if "is back" in r.getMessage()], "a cached read ended the outage"
+        assert volume_dropped.is_down(db.path), "a read served from cache ended the outage"
+        assert not [r for r in caplog.records if "answers again" in r.getMessage()], "a cached read ended the outage"
         entries = [k for k in failure_ledger.counts() if k.startswith("library-volume|")]
         assert len(entries) == 1, entries
 
