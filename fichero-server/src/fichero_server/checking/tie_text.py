@@ -184,6 +184,30 @@ WAIT_FOR_KRAKEN_SECONDS = 15
 MOST_WAITS_FOR_KRAKEN = 60
 
 
+#: Kraken's reads of given lines, by (image bytes, model, frame, line shapes): each candidate of a try runs the tie on its own copy
+#: of the project, and the same input with the same model is never read twice (owner rule, #6127).
+_READS: dict[tuple[Any, ...], list[Any]] = {}
+
+
+def _read_once(path: Any, model_path: str, lines: list[dict[str, Any]], frame: str | None) -> list[Any]:
+    """`read_given_lines`, answered from `_READS` when this image, reader and lines were already read (ids left out of the key:
+    a copy's lines carry their own ids, the reads come back in the order given)."""
+    import hashlib
+
+    from fichero_server.llm import kraken_runtime
+
+    key = None
+    if Path(path).is_file():
+        shapes = json.dumps([[ln.get("polygon"), ln.get("baseline")] for ln in lines], sort_keys=True)
+        key = (hashlib.sha256(Path(path).read_bytes()).hexdigest(), model_path, frame, shapes)
+        if key in _READS:
+            return list(_READS[key])
+    reads = kraken_runtime.read_given_lines(path, model_path, lines, frame=frame)
+    if key is not None:
+        _READS[key] = list(reads)
+    return reads
+
+
 def kraken_is_reading(db: Any, doc_id: str) -> bool:
     """Whether a live run of the shipped Transcribe (Kraken) workflow in this project is reading this page. Read runs
     it beside the cloud reader (#6127); the tie waits for its reads rather than read the lines a second time, which also
@@ -394,10 +418,10 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
                 jobs.come_back_after(db, job_id, WAIT_FOR_KRAKEN_SECONDS)
                 raise jobs.JobDeferred("Waiting for Kraken's reads of the lines")
             if current is None or current.is_original:
-                reads = kraken_runtime.read_given_lines(photo, model_path, lines, frame=found.frame)
+                reads = _read_once(photo, model_path, lines, found.frame)
             else:
                 moved, opened_in = current.carry_lines(lines, found.frame)
-                reads = kraken_runtime.read_given_lines(current.path, model_path, moved, frame=opened_in)
+                reads = _read_once(current.path, model_path, moved, opened_in)
         aligned = tie_lines(reading.content, reads)
         if page_is_draft(aligned):
             counts["drafts"] += 1

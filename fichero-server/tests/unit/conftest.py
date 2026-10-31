@@ -54,6 +54,16 @@ def _unit_test_single_user_env(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _tie_reads_are_not_remembered_between_tests():
+    """The tie remembers Kraken's reads by (image, model, lines) within a process (#6127); a test's fake reader must not
+    be answered from another test's."""
+    from fichero_server.checking import tie_text
+
+    tie_text._READS.clear()
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _unit_test_auth_header():
     """Re-attach the auth middleware bound to the engine bootstrap token.
 
