@@ -383,7 +383,8 @@ replaces the Kraken figure before #6212 is coded.
   (a settings-row marker), so an open no longer parses every row's metadata; a row changed later shows through the canvas
   read's fallback. One press of Start reads the library's pages once and outside the writer gate, so the views go on; the
   setup, the jobs, the caps and the spending are read again inside the transaction just before the run is queued, so
-  the spending check and the queuing stay one step. Two callers of the plan at once share one plan. The answer aims to arrive inside
+  the spending check and the queuing stay one step. The pages and lines in that press's figures may be as old as the first
+  plan plus any wait for the gate; a page arriving in that window is in the next plan's count. Two callers of the plan at once share one plan. The answer aims to arrive inside
   the app's 60 s request deadline: measured, not held by a test, 31 s for the whole library and 21 s for a box on a loaded
   M1 Pro. The tests bound memory and what is read, not time. Was: the Air (2026-10-30) at 256 MiB per instance and 8
   threads: 55 document views and two recipe starts answered 500, one page was lost. Unverified on the Air until a build

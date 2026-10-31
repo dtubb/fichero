@@ -222,16 +222,6 @@ def _serve(conn: Any, model_name: str, cache_dir: str, threads: int, env: dict[s
     _stop_lancedbs_loop()
     _let_go_of_the_engines_files(conn.fileno())
     try:
-        # A fake model imports no onnxruntime: a test's process is not launched with OBJC_DISABLE_INITIALIZE_FORK_SAFETY, as
-        # the app launches the engine (EmbeddedBackendService+Spawn.swift), and an ObjC class first set up in a fork crashes.
-        try:  # the engine asks nothing of Microsoft's servers (#5847: a telemetry thread sat in NetworkInformation)
-            if not os.environ.get("FICHERO_EMBED_FAKE_INIT_SECONDS"):
-                import onnxruntime
-
-                onnxruntime.disable_telemetry_events()
-        except Exception as exc:  # noqa: BLE001 -- an older onnxruntime has no such switch
-            os.environ["FICHERO_EMBED_TELEMETRY_SWITCH"] = f"missing: {type(exc).__name__}"  # the child's own note
-            logger.warning("embedder child: onnxruntime telemetry switch unavailable: %s", exc)
         if os.environ.get("FICHERO_EMBED_FAKE_INIT_SECONDS"):  # tests: a slow, fake model load
             import time
 

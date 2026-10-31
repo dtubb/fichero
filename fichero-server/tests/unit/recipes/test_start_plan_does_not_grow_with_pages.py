@@ -369,3 +369,27 @@ def test_only_a_true_blank_mark_hides_a_cut_page(db):
         page.exclude_from_processing = True
         db.save(page)
     assert [row[0] for row in db.cut_pages_of([marked.id, word.id])] == [word.id]
+
+
+def test_a_page_arriving_while_the_first_plan_runs_is_left_out_of_that_press_s_count_only(client, db, folder, with_material, monkeypatch):  # noqa: F811
+    """The window: from the first plan's read of the pages until the run is queued, which is that plan plus any wait for the
+    writer gate. The run's count may be that old; a fresh read of the pages is not."""
+    from fichero_server.api.routes.system import recipes as routes
+    from fichero_server.execution import jobs
+    from fichero_server.recipes import runner
+
+    _set_up(client)
+    pages_before = len(done.pages_for(db, {}, None))
+    real = routes._accept_asked
+
+    def a_page_arrives_after(*args, **kwargs):
+        out = real(*args, **kwargs)
+        db.save(with_material.model_copy(update={"id": "arrived-in-the-window", "name": "arrived.png"}))
+        return out
+
+    monkeypatch.setattr(routes, "_accept_asked", a_page_arrives_after)
+    answer = client.post("/api/recipes/project/start", json={})
+    assert answer.status_code == 200, answer.text
+    [run] = jobs.find_jobs(db, kinds=[runner.KIND])
+    assert runner.name_and_pages(db, run["id"])[1] == pages_before
+    assert "arrived-in-the-window" in done.pages_for(db, {}, None)
