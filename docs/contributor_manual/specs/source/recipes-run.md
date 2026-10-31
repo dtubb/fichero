@@ -288,6 +288,15 @@ replaces the Kraken figure before #6212 is coded.
   queued run and for a RUNNING one (its step's child, the step run's record and log, its failed pages' names, what its
   page waits for, the queue rows, the timings and the list's parents read committed too; review b20). Left: the
   M4 run sampling `/api/health` within 1 s. Test: fichero-server/tests/unit/core/test_loop_lag_activity_polls.py.
+- `recipes-run.engine.embedder-child-knows-its-model` — **[OK]** the search model's child registers a custom model
+  (bge-m3) itself before loading it, since the seed it forks from never saw the engine's registration. A model this
+  build cannot load (not supported, a file missing) is said once at error, fails the embed job with the sentence, and
+  is not tried again for an hour or until a download finishes. Any other load failure (out of memory, a lock, a child
+  that died) backs off 120 s and the embed job comes back. Was: the Air logged 31,385 "not supported" lines in 3 h.
+  Test: `fichero-server/tests/unit/db/test_embedder_child_knows_bge_m3.py`.
+- `recipes-run.engine.poll-shared-within-one-loop` — **[OK]** the UDS and sharing servers run on separate event loops,
+  so a poll shares an in-flight answer only with polls on its own loop. Was: 8 run-status polls answered 500 ("attached
+  to a different loop"). Test: `fichero-server/tests/unit/core/test_single_flight_per_loop.py`.
 - `recipes-run.engine.embedder-child-never-downloads` — **[PARTIAL]** (#6218) the search model's forked child never
   fetches the model: a model not in the cache is refused before any fork ("The search model is not downloaded yet"),
   the embed job (the import's, or Search's make-a-vector) waits and comes back while the app's download job fetches it
@@ -356,13 +365,26 @@ replaces the Kraken figure before #6212 is coded.
   18 GB in 25 minutes) is pinned at its seam by `fichero-server/tests/unit/jobs/test_engine_memory.py`;
   the whole-run assertion is written in the load leg and not yet run on the M4. Test: fichero-server/tests/perf/test_recipe_run_100_pages.py.
 - `recipes-run.memory.duckdb-cap-applies` — **[OK]** (#6177) every open DuckDB instance runs under its
-  share of the budget (about 10% of physical memory split across the open instances, a 256 MiB floor,
+  share of the budget (10% of physical memory, never under 1 GiB; the engine's own app and global databases take a
+  slice, 5% of the budget or twice their file, in 32 MiB steps, 64 MiB at least and an equal share at most; the
+  libraries split the rest, 256 MiB at least; below 12 GB of memory each instance runs 2 threads,
   `fichero-server/tests/unit/core/test_duckdb_memory_budget.py`); a refused spill-directory switch
   ("Cannot switch temporary directory after the current one has been used") is logged once and never
   skips the cap. Was: `apply_memory_limit` set the spill directory first, the instance that had already
   spilled refused, the exception skipped the cap, and the instance ran at DuckDB's default of 80% of RAM
   (Ann's log: the warning 6,671 times); fixed in ef6ffa17e, the refusal now said at debug. Test:
   `fichero-server/tests/unit/core/test_duckdb_memory_budget.py::test_a_refused_spill_directory_does_not_stop_the_cap_from_applying`.
+- `recipes-run.memory.fits-a-small-mac-at-scale` — **[OK]** on an 8 GB Mac with four instances open, a library of about
+  70,000 documents answers the document view, the Trash, the recipe start's reads (`train_offers._roots`, the
+  Catalogue's `folders_to_describe`) and a recipe's writes at once, with no out-of-memory and a median view under the
+  test's bound. Those reads ask for the columns they use: the Trash reads the deleted rows and the folders above them,
+  the plan reads no line boxes. Was: the Air (2026-10-30) at 256 MiB per instance and 8 threads: 55 document views and
+  two recipe starts answered 500, one page was lost. Unverified on the Air until a build with this runs there. Tests:
+  `fichero-server/tests/unit/db/test_air_scale_memory.py`, `fichero-server/tests/unit/recipes/test_catalogue_reads_no_line_boxes.py`,
+  `fichero-server/tests/unit/api/test_trash.py::test_a_trash_poll_reads_the_trash_and_the_folders_above_it_not_the_library`.
+- `recipes-run.memory.out-of-memory-says-so` — **[OK]** a request DuckDB cannot fit in its share answers 503 with
+  `Retry-After: 5` and a sentence, never a 500 and a stack trace; the log says it once per route. Test:
+  `fichero-server/tests/unit/api/test_out_of_memory_answers_503.py`.
 - `recipes-run.memory.one-heavy-model` — **[OK]** (#6000, #6167; `activity.lane.small-mac-one-heavy-model` (B)
   and `designer.model.one-resident-local-model` (G) own it) on a Mac of 16 GB or less the model lane never
   keeps two heavy models loaded: before a Kraken load it stops the served MLX model and before a served
@@ -600,15 +622,15 @@ Not changed: the batch loop and its checkpoints (`source.recipe.batch-at-archive
 - Size: S
 
 #### Step 1.3 — The engine answers while a run goes (#6178)
-- Behaviours: `recipes-run.engine.answers-while-a-run-goes`
-- Tests: fichero-server/tests/unit/core/test_loop_lag_activity_polls.py
+- Behaviours: `recipes-run.engine.answers-while-a-run-goes`, `recipes-run.engine.poll-shared-within-one-loop`
+- Tests: fichero-server/tests/unit/core/test_loop_lag_activity_polls.py, fichero-server/tests/unit/core/test_single_flight_per_loop.py
 - Size: S
 
 ### Stage 2 — Memory bounded
 
 #### Step 2.1 — The DuckDB cap applies (#6177)
-- Behaviours: `recipes-run.memory.duckdb-cap-applies`
-- Tests: fichero-server/tests/unit/core/test_duckdb_memory_budget.py
+- Behaviours: `recipes-run.memory.duckdb-cap-applies`, `recipes-run.memory.fits-a-small-mac-at-scale`, `recipes-run.memory.out-of-memory-says-so`
+- Tests: fichero-server/tests/unit/core/test_duckdb_memory_budget.py, fichero-server/tests/unit/db/test_air_scale_memory.py, fichero-server/tests/unit/api/test_out_of_memory_answers_503.py
 - Size: S
 
 #### Step 2.2 — One heavy model on a small Mac; the fan-out decodes only admitted pages (#6000, #6167, #5846)
@@ -623,8 +645,8 @@ Not changed: the batch loop and its checkpoints (`source.recipe.batch-at-archive
 - Size: M
 
 #### Step 2.4 — The search model never downloads in its child; a fresh library opens lean (#6218, #6221)
-- Behaviours: `recipes-run.engine.embedder-child-never-downloads`, `recipes-run.engine.fresh-library-opens-lean`
-- Tests: fichero-server/tests/unit/search/test_embedder_child_downloads_before_fork.py, fichero-server/tests/unit/db/test_fresh_library_open_statements_6221.py
+- Behaviours: `recipes-run.engine.embedder-child-never-downloads`, `recipes-run.engine.embedder-child-knows-its-model`, `recipes-run.engine.fresh-library-opens-lean`
+- Tests: fichero-server/tests/unit/search/test_embedder_child_downloads_before_fork.py, fichero-server/tests/unit/db/test_embedder_child_knows_bge_m3.py, fichero-server/tests/unit/db/test_fresh_library_open_statements_6221.py
 - Size: S
 
 ### Stage 3 — Order, once-at-the-end, timings
