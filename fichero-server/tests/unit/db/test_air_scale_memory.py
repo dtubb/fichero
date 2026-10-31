@@ -243,6 +243,29 @@ def probed(built_library, tmp_path_factory):
     return run
 
 
+def test_the_canvas_backfill_fits_the_floor(built_library, tmp_path, monkeypatch):
+    """Review M1: at the 256 MiB floor it failed on every open ("failed to allocate 16.0 MiB (244.5/256 MiB)"); the failure
+    was recorded and the open went on."""
+    import shutil
+
+    import duckdb
+
+    from fichero_server.db import Database
+
+    monkeypatch.setenv(ds.DUCKDB_MEMORY_LIMIT_ENV, "256MiB")
+    monkeypatch.setattr(ds, "physical_memory_bytes", lambda: AIR_MEMORY)
+    (tmp_path / "L.fichero").mkdir()
+    path = tmp_path / "L.fichero" / "fichero.duckdb"
+    shutil.copy(built_library, path)
+    with duckdb.connect(str(path)) as raw:  # as an older build left it, whichever test opened the library first
+        raw.execute("DELETE FROM librarysettings WHERE id = 'canvas_layout_backfilled'")
+    db = Database(path)
+    assert int(db.conn.execute("SELECT current_setting('threads')").fetchone()[0]) == ds.THREADS_ON_A_SMALL_MAC
+    assert db.migration_failures == [], [f"{m.migration}: {m.message.splitlines()[0]}" for m in db.migration_failures]
+    assert db.conn.execute("SELECT count(*) FROM librarysettings WHERE id = 'canvas_layout_backfilled'").fetchone()[0] == 1
+    db.close()
+
+
 def test_counting_for_training_stays_lean(probed):
     """Review H1: `_teacher` and the pass counts read every transcription whole on each plan and finished step: +2.1 GiB."""
     assert probed("assert train_offers._teacher(db) == 'a-vision-model'; train_offers.counted(db)") <= READER_PEAK_MIB
