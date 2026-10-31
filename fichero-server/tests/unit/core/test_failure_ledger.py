@@ -178,3 +178,4 @@ def test_health_still_answers_when_the_ledger_raises(monkeypatch):
     monkeypatch.setattr(ledger, "degraded", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
     health = api_main._with_server_proof(HealthResponse(status="healthy"), None)
     assert health.status == "healthy" and health.degraded == []
+    assert health.dependencies["failure_ledger"] == "failed: RuntimeError", "a broken ledger must not read as healthy"

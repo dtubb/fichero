@@ -2199,8 +2199,11 @@ def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthRes
     response.dependencies = {**response.dependencies, **startup_warnings.as_dependencies()}
     try:
         response.degraded = [DegradedFailure(**vars(d)) for d in failure_ledger.degraded()]
-    except Exception:  # noqa: BLE001 -- health must never fail because of the ledger
+    except Exception as exc:  # noqa: BLE001 -- health must never fail because of the ledger
         response.degraded = []
+        # An empty list must not read as "nothing is degraded": say the ledger is broken, in the log and in health.
+        logger.warning("failure ledger failed while building /api/health: %s", type(exc).__name__)
+        response.dependencies = {**response.dependencies, "failure_ledger": f"failed: {type(exc).__name__}"}
     missing_routes = _missing_routes()
     if missing_routes:
         response.status = "unhealthy"
