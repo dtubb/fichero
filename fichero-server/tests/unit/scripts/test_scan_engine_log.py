@@ -83,8 +83,10 @@ def test_written_plus_held_over_the_ceiling_is_exit_1_not_clean(tmp_path):
     assert _run(_log(tmp_path / "b.log", 45, 5)).returncode == 0  # 50 is not "more than 50"
 
 
-def test_an_allow_regex_naming_the_cause_covers_the_summary_too(tmp_path):
-    assert _run(_log(tmp_path / "c.log", 5, 6000), "--allow", "search model stopped").returncode == 0
+def test_an_allow_must_cover_the_summarys_own_template_too(tmp_path):
+    log = _log(tmp_path / "c.log", 5, 6000)
+    assert _run(log, "--allow", "search model stopped").returncode == 1  # names the cause only: the summary stays visible
+    assert _run(log, "--allow", "Failed to create embedding").returncode == 0
 
 
 def test_a_bad_allow_regex_is_exit_2_not_1():
@@ -211,3 +213,49 @@ def test_an_empty_rotated_partner_is_skipped_not_an_error(tmp_path):
     full.write_text(_lines("fichero_server.db", "WARNING", "same 7", 60))
     assert _run(str(empty), str(full)).returncode == 1
     assert _run(str(empty)).returncode == 2
+
+
+def test_summary_shapes_that_cannot_be_matched_fail_instead_of_passing(tmp_path):
+    for raw, written in (
+        ("%s failed: %s", "doc failed: boom"),  # starts and ends with a spec
+        ("%s took: %s", "Took /Vol/a for x"),  # does not match the written line at all
+        ("Loaded 100%% of %s", "Loaded 100% of doc"),  # a literal %%
+    ):
+        log = tmp_path / "a.log"
+        log.write_text(
+            _lines("fichero_server.db", "WARNING", written, 45)
+            + _lines("fichero_server.db", "WARNING", f"{raw} — repeated 9 times in the last minute")
+        )
+        result = _run(str(log))
+        assert result.returncode == 1, (raw, result.stdout)
+
+
+def test_a_summary_never_lands_on_an_unrelated_allowed_template(tmp_path):
+    log = tmp_path / "a.log"
+    log.write_text(
+        _lines("fichero_server.db", "WARNING", "Failed to read cache: known", 3)
+        + _lines("fichero_server.db", "WARNING", "Failed to %s: %s — repeated 6000 times in the last minute")
+    )
+    assert _run(str(log), "--allow", "read cache").returncode == 1
+
+
+def test_a_path_with_an_apostrophe_is_still_one_template(tmp_path):
+    m = _module()
+    assert m.normalise("not found: /Vol/OBrien's Papers/doc 1.tif") == m.normalise("not found: /Other/x/y 2.tif")
+    log = tmp_path / "a.log"
+    log.write_text("".join(
+        _lines("fichero_server.db", "WARNING", f"missing path='/V/O'Brien Papers/box {i}/doc.tif': gone") for i in range(60)
+    ))
+    result = _run(str(log))
+    assert result.returncode == 1 and len(result.stdout.splitlines()) == 1, result.stdout
+
+
+def test_allow_on_a_prefix_covers_a_merged_tail_as_the_spec_says(tmp_path):
+    # Documented limit: the unquoted-path swallow merges failures sharing a prefix, and an --allow on it hides both.
+    log = tmp_path / "a.log"
+    log.write_text(
+        _lines("fichero_server.db", "ERROR", "Export failed: /a/b/doc 1: disk full", 30)
+        + _lines("fichero_server.db", "ERROR", "Export failed: /a/b/doc 2: no token", 30)
+    )
+    assert _run(str(log)).returncode == 1  # merged: 60 under one template, reported, not lost
+    assert _run(str(log), "--allow", "Export").returncode == 0
