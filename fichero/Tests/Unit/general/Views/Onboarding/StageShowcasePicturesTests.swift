@@ -221,4 +221,28 @@ struct StageNotInPlanTests {
     @Test func theWordsNameTheStage() {
         #expect(SetupStagePage.notInPlanWords(stage: "Find Regions") == "Find Regions is not in this plan yet.")
     }
+
+    @Test("each operation's frame at 0, 0.5 and 1 differs, and the last is the finished page")
+    func operationFramesMove() {
+        for operation in OperationFrame.operations {
+            let first = OperationFrame.at(0, operation: operation)
+            let middle = OperationFrame.at(0.5, operation: operation)
+            let last = OperationFrame.at(1, operation: operation)
+            #expect(first != middle && middle != last, "\(operation) moves")
+            #expect(OperationFrame.at(1, operation: operation) == last, "\(operation) holds its last frame")
+            #expect(OperationFrame.descriptions[operation] != nil)
+        }
+        #expect(OperationFrame.at(1, operation: "straighten").tilt == 0)
+        #expect(OperationFrame.at(1, operation: "split").gutterGap > 0)
+    }
+
+    @Test("the stage plays the four operations in turn, each from 0 to 1")
+    func theStagePlaysTheFourInTurn() {
+        #expect(OperationFrame.turn(at: 0).operation == "split")
+        #expect(OperationFrame.turn(at: 0.3).operation == "straighten")
+        #expect(OperationFrame.turn(at: 0.6).operation == "crop")
+        #expect(OperationFrame.turn(at: 1).operation == "clarity")
+        #expect(OperationFrame.turn(at: 1).progress == 1)
+        #expect(OperationFrame.turn(at: 0.5).progress == 0)
+    }
 }

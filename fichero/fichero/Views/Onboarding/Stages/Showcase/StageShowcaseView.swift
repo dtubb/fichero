@@ -111,7 +111,12 @@ enum StageShowcaseCatalogue {
     @ViewBuilder
     private static func pagePicture(for stageId: String, showcase: StageShowcase, progress: Double) -> some View {
         switch stageId {
-        case "prepare-images": PrepareImagesPicture(showcase: showcase, progress: progress)
+        case "prepare-images":
+            if FeatureManager.shared.isWideSetUpEnabled {
+                PrepareOperationsPicture(showcase: showcase, progress: progress)
+            } else {
+                PrepareImagesPicture(showcase: showcase, progress: progress)
+            }
         case "find-regions": FindRegionsPicture(showcase: showcase, progress: progress)
         case "find-lines": FindLinesPicture(showcase: showcase, progress: progress)
         case "read": ReadPicture(showcase: showcase, progress: progress)
