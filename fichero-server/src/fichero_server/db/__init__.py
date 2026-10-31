@@ -3633,23 +3633,55 @@ class Database(DatabaseEmbeddingMixin):
             if (hydrated := self._hydrate_row(model, columns, row)) is not None
         ]
 
-    def query_fields(self, model: Type[BaseModel], fields: Sequence[str], **filters) -> list[SimpleNamespace]:
-        """Only `fields` of the rows `query(model, **filters)` returns, JSON read but not hydrated: for a scan that
-        compares a few fields of every row. A names page read and validated every stored entity whole, its
-        mentions and all, to compare their names (#6236). Read-only records: `get` the one row to change."""
-        for name in (*fields, *filters):
+    def query_fields(self, model: Type[BaseModel], fields: Sequence[str], *, not_null: Sequence[str] = (), **filters) -> list[SimpleNamespace]:
+        """Only `fields` of the rows `query(model, **filters)` returns (and, of those, the rows with every `not_null`
+        column set), JSON read but not hydrated: for a scan that compares a few fields of every row. A names page read
+        and validated every stored entity whole, its mentions and all, to compare their names (#6236). Read-only
+        records: `get` the one row to change."""
+        for name in (*fields, *filters, *not_null):
             if not _VALID_IDENTIFIER.match(name):
                 raise ValueError(f"Invalid column name: {name}")
         self._ensure_table(model)
-        where = " AND ".join(f"{k} IS NULL" if v is None else f"{k} = ${k}" for k, v in filters.items()) or "TRUE"
-        rows, columns = self._execute_fetch_with_columns(
+        where = " AND ".join([*(f"{k} IS NULL" if v is None else f"{k} = ${k}" for k, v in filters.items()),
+                              *(f"{k} IS NOT NULL" for k in not_null)]) or "TRUE"
+        rows, columns = self._fields_fetch(
             f"SELECT {', '.join(fields)} FROM {self._sql_table_name(model)} WHERE {where}",
             {k: getattr(v, "value", v) for k, v in filters.items() if v is not None},
         )
+        return self._field_records(model, fields, rows, columns)
+
+    def query_fields_in(self, model: Type[BaseModel], fields: Sequence[str], column: str, values) -> list[SimpleNamespace]:
+        """`query_fields` for the rows whose `column` is one of `values`, chunked as `query_in` is."""
+        for name in (*fields, column):
+            if not _VALID_IDENTIFIER.match(name):
+                raise ValueError(f"Invalid column name: {name}")
+        self._ensure_table(model)
+        values, out = list(dict.fromkeys(values)), []
+        if len(values) > 500:  # one scan with the list as one value, not a scan of the column for each 500 (70 for a box)
+            rows, columns = self._fields_fetch(
+                f"SELECT {', '.join(fields)} FROM {self._sql_table_name(model)} WHERE {column} IN (SELECT unnest($values))",
+                {"values": values},
+            )
+            return self._field_records(model, fields, rows, columns)
+        for start in range(0, len(values), 500):
+            chunk = values[start : start + 500]
+            rows, columns = self._fields_fetch(
+                f"SELECT {', '.join(fields)} FROM {self._sql_table_name(model)} "
+                f"WHERE {column} IN ({','.join(f'$v{i}' for i in range(len(chunk)))})",
+                {f"v{i}": value for i, value in enumerate(chunk)},
+            )
+            out.extend(self._field_records(model, fields, rows, columns))
+        return out
+
+    def _fields_fetch(self, sql: str, params: dict):
+        """A `query_fields` read: of what was committed, off the transaction gate, under a caller's `reading_committed` (#6178)."""
+        return (self._read_fetch_with_columns if self._reads_committed_now() else self._execute_fetch_with_columns)(sql, params)
+
+    def _field_records(self, model: Type[BaseModel], fields: Sequence[str], rows, columns) -> list[SimpleNamespace]:
         out = []
         for row in rows:
             parsed = self._parse_json_fields(model, dict(zip(columns, row)))
-            if "id" in parsed and parsed["id"] is None:
+            if "id" in columns and parsed["id"] is None:
                 continue  # a null-PK ghost, skipped as `_hydrate_row` skips it
             out.append(SimpleNamespace(**{name: parsed[name] for name in fields}))
         return out
@@ -5599,11 +5631,28 @@ class Database(DatabaseEmbeddingMixin):
         # A page hidden as blank (`media.blank_page.mark_blank`: excluded AND `metadata.blank.blank` true) is never a unit of
         # work. A page excluded for any other reason stays one, as it was before blank marking existed: no migration, and
         # pages a person excluded in earlier libraries are still counted, sampled and run.
-        "d.deleted_at IS NULL AND NOT (COALESCE(d.exclude_from_processing, FALSE) "
-        "AND COALESCE(json_extract_string(d.metadata, '$.blank.blank'), '') = 'true') "
+        # CASE, not AND: inside a NOT, an AND parses every row's metadata as JSON (line boxes and all).
+        "d.deleted_at IS NULL AND NOT (CASE WHEN COALESCE(d.exclude_from_processing, FALSE) "
+        "THEN COALESCE(json_extract_string(d.metadata, '$.blank.blank'), '') = 'true' ELSE FALSE END) "
         "AND COALESCE(d.node_kind, '') NOT IN ('workflow', 'entry') "
         "AND (d.doc_type = 'page' OR (d.doc_type = 'file' AND NOT EXISTS (SELECT 1 FROM documents c "
         "WHERE c.parent_id = d.id AND c.deleted_at IS NULL AND COALESCE(c.node_kind, '') <> 'entry')))")
+
+    def documents_attributes_naming(self, value: str) -> list[tuple[str, Any]]:
+        """(id, attributes) of the documents whose attributes mention `value`: one scan of one column for a whole library."""
+        rows = self.execute_fetchall(
+            "SELECT id, attributes FROM documents WHERE contains(CAST(attributes AS VARCHAR), ?)", [f'"{value}"'], committed=True)
+        return [(row[0], json.loads(row[1]) if isinstance(row[1], str) else row[1]) for row in rows]
+
+    def cut_pages_of(self, ids: list[str]) -> list[tuple[str, str | None]]:
+        """(id, parent_id) of these `chunk` rows that are pages cut from a photograph and not hidden as blank: JSON read
+        here, a batch at a time, so a cut page's line boxes never reach Python (`recipes.done.split_pages`)."""
+        return [tuple(row) for row in self.execute_fetchall(
+            f"""SELECT id, parent_id FROM documents WHERE id IN ({",".join("?" * len(ids))})
+                AND COALESCE(json_extract_string(metadata, '$.split_source_id'), '') NOT IN ('', 'false', '0')
+                AND NOT (CASE WHEN COALESCE(exclude_from_processing, FALSE)
+                         THEN COALESCE(CAST(json_extract(metadata, '$.blank.blank') AS VARCHAR), '') = 'true' ELSE FALSE END)""",
+            ids, committed=True)]
 
     def unit_of_work_count(self) -> int:
         """Every page, and every file that has no pages: what a recipe's estimate counts (`_UNIT_OF_WORK_WHERE`)."""
@@ -5623,9 +5672,13 @@ class Database(DatabaseEmbeddingMixin):
         wanted = [r[0] for r in self.execute_fetchall(
             f"SELECT d.id FROM documents d WHERE {self._UNIT_OF_WORK_WHERE}", committed=True)]
 
+        keys: dict[str, tuple] = {}  # each folder's key once, shared by the pages under it: a key a page was 400 MB at 70k
+
         def node(doc_id: str) -> tuple:
-            name, sort_order, sequence, _parent = rows[doc_id]
-            return in_folder_order(SimpleNamespace(id=doc_id, name=name, sort_order=sort_order, sequence=sequence))
+            if doc_id not in keys:
+                name, sort_order, sequence, _parent = rows[doc_id]
+                keys[doc_id] = in_folder_order(SimpleNamespace(id=doc_id, name=name, sort_order=sort_order, sequence=sequence))
+            return keys[doc_id]
 
         def path(doc_id: str) -> tuple:
             out, seen, parent = [], {doc_id}, rows[doc_id][3]
@@ -6419,10 +6472,13 @@ class Database(DatabaseEmbeddingMixin):
             # anyway — so an entirely unembedded library looked identical to a
             # fully embedded one. The outcome now carries its reason so a
             # caller can count and report causes rather than a bare failure.
-            logger.warning("Failed to create embedding for %s: %s", doc.id, e, extra={"ledgered": True})
             from fichero_server.core import failure_ledger
             from fichero_server.db.embed_process import EmbedderUnavailable
 
+            # A model that cannot load is said ONCE, by the loader (`embeddings._get_shared_embedder`); the Air logged
+            # this warning 31,385 times for one cause (2026-10-30). The outcome below still carries the words.
+            (logger.debug if isinstance(e, EmbedderUnavailable) else logger.warning)(
+                "Failed to create embedding for %s: %s", doc.id, e, extra={"ledgered": True})
             failure_ledger.note(
                 "search", "embed", type(e.__cause__ or e).__name__,
                 sentence="Search is not indexing new pages: the search model cannot be loaded"

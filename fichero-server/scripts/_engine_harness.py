@@ -28,12 +28,15 @@ version of this harness hardcoded one checkout). Override with
 
 from __future__ import annotations
 
+import atexit
 import os
 import secrets
+import signal
 import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -87,8 +90,69 @@ def _free_tcp_port() -> int:
     return port
 
 
+#: The engines this process started and has not stopped: ended at exit, on SIGTERM/SIGINT/SIGHUP, whatever the script
+#: that started them did. Four of them were found on the Air on 2026-10-30, left by check scripts that died: 1.5-1.7 GB
+#: each, 6.4 GB of an 8 GB Mac, since Oct 24.
+_LIVE: "set[EngineProcess]" = set()
+_LIVE_LOCK = threading.Lock()
+_HOOKS_INSTALLED = False
+
+
+def _stop_every_engine(*_args) -> None:
+    with _LIVE_LOCK:
+        engines = list(_LIVE)
+    for engine in engines:
+        try:
+            engine.stop()
+        except Exception:  # noqa: BLE001 -- nothing to do about it at exit
+            pass
+
+
+def _install_hooks() -> None:
+    """Once: stop every live engine at interpreter exit and on the signals that kill a script outright. A handler is set
+    only where none is (a test runner's own stays), and the default action follows so the signal still ends the process.
+    SIGINT is not here: Python turns it into KeyboardInterrupt, which ends the script through atexit."""
+    global _HOOKS_INSTALLED
+    if _HOOKS_INSTALLED:
+        return
+    _HOOKS_INSTALLED = True
+    atexit.register(_stop_every_engine)
+    if threading.current_thread() is not threading.main_thread():
+        return
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        if signal.getsignal(sig) not in (signal.SIG_DFL, None):
+            continue
+
+        def ended(signum, _frame):
+            _stop_every_engine()
+            signal.signal(signum, signal.SIG_DFL)
+            os.kill(os.getpid(), signum)
+
+        signal.signal(sig, ended)
+
+
+#: The child's own watch (`-c`): the engine ends itself when the process that started it is gone (SIGKILL, a crash: no
+#: atexit runs then). `os.getppid()` turns 1 (launchd) when the parent dies. Then it runs uvicorn's `main` in place.
+_WATCH_THE_PARENT = """
+import os, sys, threading, time
+parent = os.getppid()
+def watch():
+    while os.getppid() == parent:
+        time.sleep(1.0)
+    os._exit(0)
+threading.Thread(target=watch, daemon=True, name="parent-watch").start()
+sys.argv = ["uvicorn", *sys.argv[1:]]
+from uvicorn.main import main
+main()
+"""
+
+
 class EngineProcess:
-    """A uvicorn subprocess bound to a UDS or a TCP loopback port."""
+    """A uvicorn subprocess bound to a UDS or a TCP loopback port.
+
+    Never left behind: it runs in its own process group (so its own children go with it), it ends itself when the
+    process that started it is gone, and the starter stops it at exit or on a signal (`_install_hooks`).
+    """
 
     def __init__(self, proc: subprocess.Popen, *, token: str, base_path: str,
                  uds_path: str | None = None, port: int | None = None,
@@ -99,6 +163,8 @@ class EngineProcess:
         self.uds_path = uds_path
         self.port = port
         self.log_path = log_path
+        with _LIVE_LOCK:
+            _LIVE.add(self)
 
     # --- httpx transport helpers -------------------------------------------
     def httpx_kwargs(self) -> dict:
@@ -111,16 +177,26 @@ class EngineProcess:
             )
         return dict(base_url=f"http://127.0.0.1:{self.port}")
 
+    def _signal_group(self, sig: int) -> None:
+        try:
+            os.killpg(self.proc.pid, sig)  # the engine and anything it forked (its embedder seed, a worker)
+        except ProcessLookupError:
+            pass
+        except PermissionError:  # not our group after all: the one process
+            self.proc.send_signal(sig)
+
     def stop(self) -> None:
         if self.proc.poll() is None:
-            self.proc.terminate()
+            self._signal_group(signal.SIGTERM)
             try:
                 self.proc.wait(timeout=10)
             except subprocess.TimeoutExpired:
-                self.proc.kill()
+                self._signal_group(signal.SIGKILL)
                 self.proc.wait(timeout=10)
         if self.uds_path:
             Path(self.uds_path).unlink(missing_ok=True)
+        with _LIVE_LOCK:
+            _LIVE.discard(self)
 
 
 def start_engine(*, transport: str = "uds", token: str | None = None,
@@ -144,7 +220,7 @@ def start_engine(*, transport: str = "uds", token: str | None = None,
         uds_path = _short_sock_path()
         Path(uds_path).unlink(missing_ok=True)
         cmd = [
-            sys.executable, "-m", "uvicorn",
+            sys.executable, "-c", _WATCH_THE_PARENT,
             "fichero_server.api.uds_transport:app",
             "--uds", uds_path,
             "--log-level", "warning",
@@ -155,7 +231,7 @@ def start_engine(*, transport: str = "uds", token: str | None = None,
         uds_path = None
         port = _free_tcp_port()
         cmd = [
-            sys.executable, "-m", "uvicorn",
+            sys.executable, "-c", _WATCH_THE_PARENT,
             "fichero_server.api.main:app",
             "--host", "127.0.0.1",
             "--port", str(port),
@@ -165,7 +241,10 @@ def start_engine(*, transport: str = "uds", token: str | None = None,
     else:
         raise ValueError(f"unknown transport {transport!r}")
 
-    proc = subprocess.Popen(cmd, env=env, stdout=logf, stderr=subprocess.STDOUT)
+    _install_hooks()
+    # Its own process group: `stop` ends the engine and whatever it forked, and a Ctrl-C to the script's group does
+    # not reach it half-way (the hook stops it in order).
+    proc = subprocess.Popen(cmd, env=env, stdout=logf, stderr=subprocess.STDOUT, start_new_session=True)
     ep = EngineProcess(proc, token=token, base_path=base_path,
                        uds_path=uds_path, port=port, log_path=log_path)
 

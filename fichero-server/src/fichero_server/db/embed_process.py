@@ -25,11 +25,6 @@ from typing import Any, NamedTuple, NoReturn
 
 logger = logging.getLogger(__name__)
 
-# onnxruntime's telemetry starts a Network.framework path monitor when it is imported, and that crashes (SIGSEGV in
-# nw_path_monitor_start) in a forked child (#6286). Set before anything imports onnxruntime: the seed, every worker forked
-# from it and the kreuzberg fork worker inherit it. Assigned, not defaulted: an inherited value cannot turn it back on.
-os.environ["ORT_DISABLE_TELEMETRY"] = "1"
-
 #: How long the child may take to load the model before it is killed and the embed job fails.
 INIT_TIMEOUT_SECONDS = 300.0
 #: How long one batch of texts may take.
@@ -52,7 +47,22 @@ def load_failure_words(payload: str, cached: bool) -> str:
     if missing and not cached:
         return ("Search can't index yet: its model isn't downloaded, and fetching it failed. Check the internet "
                 "connection; it tries again later and nothing already indexed is lost.")
-    return f"The search model could not be loaded: {text}"
+    if any(mark in text.lower() for mark in _WILL_NEVER_LOAD):
+        return f"{WILL_NOT_LOAD} {text}"
+    return f"The search model could not be loaded this time; it tries again in a few minutes: {text}"
+
+
+#: How a load failure that this build will never get past begins: fastembed does not know the model (the Air's bge-m3,
+#: 2026-10-30), or onnxruntime says the model file is missing or broken. Waiting for memory will not mend it, so the embed
+#: lane says so once and holds (`embeddings.DEFECT_BACKOFF_SECONDS`) instead of trying every page. Only these exact
+#: words: anything else -- out of memory, a lock, some other file not there for a moment -- is this moment's, and backs off.
+WILL_NOT_LOAD = "Search indexing is off: the search model could not be loaded."
+_WILL_NEVER_LOAD = ("is not supported in textembedding", "no_suchfile", "invalid_protobuf", "protobuf parsing failed")
+
+
+def is_a_load_defect(words: str) -> bool:
+    """Whether `words` (an `EmbedderUnavailable`'s) say this build cannot load the model, as against not yet, or not now."""
+    return words.startswith(WILL_NOT_LOAD)
 
 
 def in_process() -> bool:
@@ -147,10 +157,24 @@ def materialise_model_links(cache_dir: str) -> None:
                     os.unlink(tmp)
 
 
+def register_custom_model(model_name: str) -> None:
+    """Tell THIS process's fastembed about `model_name` when it is one of ours that fastembed's catalogue lacks (bge-m3).
+
+    The engine registers it when it checks the cache (`_cached`), but the model loads in a child the SEED forked at
+    engine start, before any registration ran, so the child's fastembed had never heard of it: every embed on the Air
+    failed with "Model BAAI/bge-m3 is not supported in TextEmbedding", 31,385 times in a morning (2026-10-30)."""
+    from fichero_server.db.embeddings import SUPPORTED_EMBEDDING_SPACES, _register_fastembed_model_for_space
+
+    space = SUPPORTED_EMBEDDING_SPACES.get(model_name.lower())
+    if space is not None:
+        _register_fastembed_model_for_space(space)
+
+
 def load_text_embedding(model_name: str, cache_dir: str, threads: int) -> Any:
     """fastembed's `TextEmbedding`, retried once with the cache's links made real if the load escapes the model folder (#6024)."""
     from fastembed import TextEmbedding
 
+    register_custom_model(model_name)
     try:  # only a load that fails this way touches the cache: a model that loads is never rewritten
         return TextEmbedding(model_name=model_name, cache_dir=cache_dir, threads=threads)
     except Exception as exc:  # noqa: BLE001 -- the cache's files are links into blobs/
@@ -198,16 +222,6 @@ def _serve(conn: Any, model_name: str, cache_dir: str, threads: int, env: dict[s
     _stop_lancedbs_loop()
     _let_go_of_the_engines_files(conn.fileno())
     try:
-        # A fake model imports no onnxruntime: a test's process is not launched with OBJC_DISABLE_INITIALIZE_FORK_SAFETY, as
-        # the app launches the engine (EmbeddedBackendService+Spawn.swift), and an ObjC class first set up in a fork crashes.
-        try:  # the engine asks nothing of Microsoft's servers (#5847: a telemetry thread sat in NetworkInformation)
-            if not os.environ.get("FICHERO_EMBED_FAKE_INIT_SECONDS"):
-                import onnxruntime
-
-                onnxruntime.disable_telemetry_events()
-        except Exception as exc:  # noqa: BLE001 -- an older onnxruntime has no such switch
-            os.environ["FICHERO_EMBED_TELEMETRY_SWITCH"] = f"missing: {type(exc).__name__}"  # the child's own note
-            logger.warning("embedder child: onnxruntime telemetry switch unavailable: %s", exc)
         if os.environ.get("FICHERO_EMBED_FAKE_INIT_SECONDS"):  # tests: a slow, fake model load
             import time
 

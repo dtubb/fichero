@@ -1,0 +1,160 @@
+"""The 2026-10-30 Air: "Model BAAI/bge-m3 is not supported in TextEmbedding", 31,385 times, one per document.
+
+fastembed 0.8.0's catalogue lacks bge-m3; the engine registers it (`add_custom_model`) in its own process, but the
+model loads in a child the seed forked at engine start, before any registration ran. The child must register the
+model itself. And a model whose files are here and still will not load is said once and parks the lane: no download
+mends it, and a retry per document is 31k warnings.
+"""
+from __future__ import annotations
+
+import logging
+import os
+import subprocess
+import sys
+import textwrap
+
+import pytest
+
+from fichero_server.db import embed_process, embeddings
+
+#: The seed's child, for real: a fresh process (its fastembed never saw the engine's registration) runs `_serve` over a
+#: Pipe, as the forked child does. fastembed's `TextEmbedding.__init__` is stubbed with its own catalogue check, so no
+#: model files are needed: the load the child makes answers exactly what fastembed 0.8 would say about the name.
+_CHILD = textwrap.dedent("""
+    import json, multiprocessing, sys
+    from fastembed import TextEmbedding
+
+    def knows(name):
+        return any(m.model.lower() == name.lower() for m in TextEmbedding._list_supported_models())
+
+    def stub_init(self, model_name, cache_dir=None, threads=None, **kw):
+        if not knows(model_name):
+            raise ValueError(f"Model {model_name} is not supported in TextEmbedding.")
+
+    TextEmbedding.__init__ = stub_init
+    before = knows(sys.argv[1])
+    from fichero_server.db import embed_process
+
+    parent, child = multiprocessing.Pipe()
+    pid = __import__("os").fork()
+    if pid == 0:
+        parent.close()
+        embed_process._serve(child, sys.argv[1], sys.argv[2], 1, {})
+    child.close()
+    kind, payload = parent.recv()
+    parent.close()
+    __import__("os").waitpid(pid, 0)
+    print(json.dumps({"before": before, "kind": kind, "payload": payload}))
+""")
+
+
+def test_the_seed_s_child_loads_bge_m3_it_never_saw_registered(tmp_path):
+    """What the Air's child did: `_serve` -> `load_text_embedding("BAAI/bge-m3")` in a process that never registered it.
+    Without the registration in the loader it answers ("error", "ValueError: Model BAAI/bge-m3 is not supported...")."""
+    import json
+
+    out = subprocess.run([sys.executable, "-c", _CHILD, embeddings.BGE_M3_EMBEDDING_SPACE.fastembed_model_name, str(tmp_path)],
+                         capture_output=True, text=True, timeout=120, env={**os.environ, "FICHERO_EMBED_IN_PROCESS": "1"})
+    assert out.returncode == 0, out.stderr[-800:]
+    seen = json.loads(out.stdout.strip().splitlines()[-1])
+    assert seen["before"] is False, "fastembed now ships bge-m3: the registration can go"
+    assert seen["kind"] == "ready", seen["payload"]
+
+
+def test_a_model_that_will_not_load_is_said_once_and_not_tried_per_document(monkeypatch, caplog):
+    """The files are cached, the load fails (the Air's ValueError): one ERROR in the log, and the next embed is refused
+    at once with the same words -- no new child, no 120 s back-off to expire."""
+    loads = []
+
+    class _Refuses:
+        def __init__(self, model_name, cache_dir, threads):
+            loads.append(model_name)
+            raise embed_process.EmbedderUnavailable(
+                embed_process.load_failure_words("ValueError: Model BAAI/bge-m3 is not supported in TextEmbedding", cached=True))
+
+    monkeypatch.setattr(embed_process, "RemoteEmbedder", _Refuses)
+    monkeypatch.setattr(embed_process, "in_process", lambda: False)
+    monkeypatch.setattr(embeddings, "_LOAD_FAILURES", {})
+    monkeypatch.setattr(embeddings, "_LOAD_FAILURE_SAID", set())
+    monkeypatch.setattr(embeddings, "_EMBEDDER_CACHE", {})
+    monkeypatch.setattr(embeddings, "LOAD_FAILURE_BACKOFF_SECONDS", 0.0)  # even with no back-off: a defect holds
+    with caplog.at_level(logging.DEBUG):
+        for _ in range(5):
+            with pytest.raises(embed_process.EmbedderUnavailable) as raised:
+                embeddings._get_shared_embedder("BAAI/bge-m3", "/nowhere")
+    assert loads == ["BAAI/bge-m3"], "the load was tried again for a later document"
+    assert embed_process.is_a_load_defect(str(raised.value))
+    said = [r for r in caplog.records if r.levelno >= logging.ERROR and "bge-m3" in r.getMessage()]
+    assert len(said) == 1, [r.getMessage() for r in said]
+    embeddings.forget_load_failures()  # a download finished or a person asked: tried afresh
+    with pytest.raises(embed_process.EmbedderUnavailable):
+        embeddings._get_shared_embedder("BAAI/bge-m3", "/nowhere")
+    assert len(loads) == 2
+
+
+def test_a_missing_download_still_backs_off_and_retries(monkeypatch):
+    """The other failure -- not downloaded yet -- keeps its shape: refused for the back-off, then tried again."""
+    monkeypatch.setattr(embeddings, "_LOAD_FAILURES", {"m": (0.0, "The search model is not downloaded yet: it is being fetched")})
+    monkeypatch.setattr(embeddings, "LOAD_FAILURE_BACKOFF_SECONDS", 0.0)
+    assert embeddings.load_failure_in_force("m") is None
+    monkeypatch.setattr(embeddings, "LOAD_FAILURE_BACKOFF_SECONDS", 10**9)
+    assert embeddings.load_failure_in_force("m")
+
+
+def test_a_load_defect_waits_out_the_hold_rather_than_failing_the_job(monkeypatch):
+    """Review L1: a failed embed job had nothing to requeue it when the hour ended, so its page stayed out of search. It
+    comes back after the hold, with the sentence as its reason, and no download is queued: none would mend it."""
+    from fichero_server.execution import jobs
+    from fichero_server.importers import derivatives
+
+    back: list[tuple[str, float]] = []
+    monkeypatch.setattr(jobs, "come_back_after", lambda _db, job, seconds: back.append((job, seconds)))
+    monkeypatch.setattr(jobs._current, "job_id", "the-job", raising=False)
+    monkeypatch.setattr(derivatives, "_fetch_the_search_model", lambda _db: pytest.fail("no download mends a defect"))
+    words = embed_process.load_failure_words("ValueError: Model X is not supported in TextEmbedding.", cached=True)
+    with pytest.raises(jobs.JobDeferred, match="could not be loaded"):
+        derivatives.wait_for_the_search_model(object(), words)
+    assert back == [("the-job", embeddings.DEFECT_BACKOFF_SECONDS)]
+
+
+# --- review M2: only a model this build cannot load is a defect, and even that hold ends ----------------------------
+
+
+@pytest.mark.parametrize("payload", [
+    "MemoryError: ",
+    "RuntimeException: [ONNXRuntimeError] : 6 : RUNTIME_EXCEPTION : Failed to allocate memory for requested buffer",
+    "OSError: [Errno 35] Resource temporarily unavailable: '/models/embeddings/model.onnx.lock'",
+    "FileNotFoundError: [Errno 2] No such file or directory: '/tmp/onnx-scratch'",
+    "RuntimeError: the temporary folder does not exist",
+])
+def test_a_load_that_failed_for_want_of_memory_or_a_lock_backs_off_and_defers(monkeypatch, payload):
+    """The Air under memory pressure: one allocation failure must not turn search off for the session. It backs off
+    (120 s) like a missing download, and the embed job comes back rather than failing."""
+    words = embed_process.load_failure_words(payload, cached=True)
+    assert not embed_process.is_a_load_defect(words), words
+    monkeypatch.setattr(embeddings, "_LOAD_FAILURES", {"m": (0.0, words)})
+    monkeypatch.setattr(embeddings, "LOAD_FAILURE_BACKOFF_SECONDS", 0.0)
+    assert embeddings.load_failure_in_force("m") is None
+
+
+def test_a_model_this_build_does_not_know_is_a_defect():
+    words = embed_process.load_failure_words("ValueError: Model BAAI/bge-m3 is not supported in TextEmbedding.", cached=True)
+    assert embed_process.is_a_load_defect(words)
+
+
+@pytest.mark.parametrize("payload", [
+    "NoSuchFile: [ONNXRuntimeError] : 3 : NO_SUCHFILE : Load model from /m/model.onnx failed. File doesn't exist",
+    "InvalidProtobuf: [ONNXRuntimeError] : 7 : INVALID_PROTOBUF : Load model from /m/model.onnx failed:Protobuf parsing failed.",
+])
+def test_a_missing_or_broken_model_file_is_a_defect(payload):
+    assert embed_process.is_a_load_defect(embed_process.load_failure_words(payload, cached=True))
+
+
+def test_a_defect_is_held_for_a_long_back_off_not_forever(monkeypatch):
+    """No caller asks again (only a finished download clears it), so an indefinite hold needed an engine restart."""
+    words = embed_process.load_failure_words("ValueError: Model X is not supported in TextEmbedding.", cached=True)
+    monkeypatch.setattr(embeddings, "_LOAD_FAILURES", {"m": (0.0, words)})
+    monkeypatch.setattr(embeddings.time, "monotonic", lambda: embeddings.DEFECT_BACKOFF_SECONDS - 1)
+    assert embeddings.load_failure_in_force("m") == words
+    monkeypatch.setattr(embeddings.time, "monotonic", lambda: embeddings.DEFECT_BACKOFF_SECONDS + 1)
+    assert embeddings.load_failure_in_force("m") is None

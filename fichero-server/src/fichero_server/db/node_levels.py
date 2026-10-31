@@ -62,6 +62,16 @@ class NodeLevel(str, Enum):
     content = "content"
 
 
+def containers_to_look_through(db, documents: list[Document], level: "NodeLevel | str" = NodeLevel.stored) -> list[Document]:
+    """The rows `resolve_level(db, documents, level)` will ask the children of: none at the stored tier, else the
+    containers that prefer their children. A caller that prefetches children fetches these, not every row's (the
+    Air read every page of 66 folders -- 4,000 rows of text -- for a sidebar view that showed the folders, 2026-10-30)."""
+    if NodeLevel(level) is NodeLevel.stored:
+        return []
+    cache: dict[str, bool] = {}
+    return [doc for doc in documents if _prefers_children(db, doc, cache)]
+
+
 def _prefers_children(db, doc: Document, cache: dict[str, bool]) -> bool:
     key = doc.prototype_key
     if not key:

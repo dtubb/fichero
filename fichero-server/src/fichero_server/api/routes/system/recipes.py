@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+from contextvars import ContextVar
 import logging
 from enum import Enum
 from pathlib import Path
@@ -2570,17 +2571,23 @@ def _reader_notes(runs: list[dict[str, Any]]) -> list[str]:
     return out
 
 
+#: What one Start press already read of the library (`done`'s memo): the plan is built before `project.start`'s transaction and
+#: its action's plan asks again, so the writer gate is held for the seconds the fresh answers take, not for reading 70k pages.
+_PLAN_READS: ContextVar[dict | None] = ContextVar("start_plan_reads", default=None)
+
+
 def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list[str] | tuple[str, ...] = (),
-                first_pages: Optional[int] = None) -> dict[str, Any]:
+                first_pages: Optional[int] = None, memo: Optional[dict] = None) -> dict[str, Any]:
     """The Start plan, over the whole project or one folder's live pages (`source.recipe.folder-scoped-start`).
-    LookupError for a folder not in the project."""
+    LookupError for a folder not in the project. `memo`: another plan's reads of the library in this same request, kept: the
+    setup, the jobs, the caps and the spending are read fresh every time."""
     from fichero_server.recipes import runner
     from fichero_server.recipes.done import annotate, material
     from fichero_server.recipes.layers import addable_now, explain
     from fichero_server.recipes.project import read_proposed, read_start
     from fichero_server.recipes.answers import spend_cap
     from fichero_server.recipes.start import place_runs, plan_start
-    from fichero_server.recipes.train_offers import counted, offered, train_ahead, train_offers
+    from fichero_server.recipes.train_offers import offered, train_ahead, train_offers
 
     library = _library(db)
     setup = read_project_setup(library)
@@ -2599,9 +2606,9 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
                       **{k: (setup["answers"] or {}).get(k) for k in ("job_answers", "job_answers_by_folder")})
     if first_pages is not None and folder_id:
         raise LookupError("Start takes a folder or the first pages, not both")
-    within = runner.folder_scope(db, folder_id) if folder_id else set(first_pages_of(db, first_pages)) if first_pages else None
-    pages = material(db, within)
-    memo: dict = {}  # what each step has done on each page, asked once for the estimate and the notes
+    memo = {} if memo is None else memo  # what each step has done on each page, asked once for the estimate and the notes
+    within = runner.folder_scope(db, folder_id) if folder_id else set(first_pages_of(db, first_pages, memo)) if first_pages else None
+    pages = material(db, within, memo)
     plan["estimate"] = estimate_on(db, plan, pages, within, memo)
     plan["estimate"]["counted"] = pages["sentence"]
     place_runs(plan["runs"], pages["pages"], cloud_allowed=places.may_leave_to(setup["answers"], "acenet"),
@@ -2611,7 +2618,10 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     # Pages whose originals are in iCloud, not on this Mac: warned of, with the offer to copy them in (#5669).
     from fichero_server.importers.keep_a_copy import summary as in_icloud
 
-    plan["in_icloud"] = in_icloud(db, within, of=pages["pages"])
+    icloud_key = ("in_icloud", folder_id, first_pages)
+    if icloud_key not in memo:
+        memo[icloud_key] = in_icloud(db, within, of=pages["pages"])
+    plan["in_icloud"] = memo[icloud_key]
     if plan["in_icloud"] and not plan["in_icloud"]["room"]:
         plan["refusals"] = [*plan["refusals"], plan["in_icloud"]["refusal"]]
     plan["started"] = started
@@ -2636,7 +2646,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     held = held_after_failure(db) if setting["mode"] == "here" else None
     if held:  # the last training here failed: said on the plan, where the person looks (#5440)
         setting = {**setting, "why": held}
-    every_offer = train_offers(setup["recipe"], counted(db), stays_local=train_local, setting=setting,
+    every_offer = train_offers(setup["recipe"], _counted_once(db, memo), stays_local=train_local, setting=setting,
                                spend_cap=cap, clusters=clusters, noise_band=read_noise_band(library), stays_why=train_why)
     plan["train_offers"] = offered(every_offer)
     plan["train_ahead"] = train_ahead(every_offer)
@@ -2650,7 +2660,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     plan["cloud_cap"] = cloud_spend.plan_line(str(library), estimate_usd=plan["estimate"].get("total_cost_usd"),
                                               cloud_models=cloud_models, pages=plan["estimate"]["pages"])
     if plan["cloud_cap"]["over"] and not folder_id:
-        plan["cloud_cap"]["fewer_pages"] = first_pages_that_fit(db, plan, plan["cloud_cap"], plan["estimate"]["pages"], lambda within: estimate_on(db, plan, material(db, within), within, {}))
+        plan["cloud_cap"]["fewer_pages"] = first_pages_that_fit(db, plan, plan["cloud_cap"], plan["estimate"]["pages"], lambda within: estimate_on(db, plan, material(db, within, memo), within, memo), memo=memo)
     cap_refusals(plan)
     plan["step_choices"] = _step_choices_of(setup, may_leave=places.may_leave_to(setup["answers"], "cloud"),
                                             pages=plan["estimate"].get("pages"), clusters=clusters)
@@ -2665,7 +2675,15 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     return plan
 
 
-def _as_started(db: Database, plan: dict[str, Any]) -> dict[str, Any]:
+def _counted_once(db: Database, memo: dict) -> dict[str, Any]:
+    from fichero_server.recipes.train_offers import counted
+
+    if "counted" not in memo:
+        memo["counted"] = counted(db)
+    return memo["counted"]
+
+
+def _as_started(db: Database, plan: dict[str, Any], memo: Optional[dict] = None) -> dict[str, Any]:
     """The plan as Start started it (#5498): its runs, workflows and skipped steps are the queued run's, so the
     response's `started.workflows` and `runs` name the same thing, never the plan for next time."""
     from fichero_server.recipes import runner
@@ -2683,12 +2701,12 @@ def _as_started(db: Database, plan: dict[str, Any]) -> dict[str, Any]:
     plan["workflows"] = [r for r in plan["runs"] if r["card"] == "workflow"]
     counted = plan["estimate"].get("counted")
     within = (runner.folder_scope(db, plan["folder_id"]) if plan.get("folder_id")
-              else set(first_pages_of(db, plan["first_pages"])) if plan.get("first_pages") else None)  # the run's own pages (#6295)
+              else set(first_pages_of(db, plan["first_pages"], memo)) if plan.get("first_pages") else None)  # the run's own pages (#6295)
     from fichero_server.recipes.done import material, todo_counts
 
-    memo: dict = {}
+    memo = {} if memo is None else memo
     plan["estimate"] = {**estimate(plan["workflows"], plan["estimate"]["pages"], catalogue=catalogue_runs(plan["runs"]),
-                                   folders=folders_covering(db, material(db, within)["ids"]),
+                                   folders=folders_covering(db, material(db, within, memo)["ids"], memo),
                                    todo=todo_counts(db, plan, within, set(started["redo"]), memo=memo)), "counted": counted}
     return annotate(db, plan, within=within, redo=set(started["redo"]), memo=memo)  # its notes say what it redoes (#5689)
 
@@ -2728,6 +2746,13 @@ def _compute_bakeoff_offer(db: Database, setup: dict, volume: int) -> dict | Non
             "ready": ready["ready"], "readiness_sentence": ready.get("sentence")}
 
 
+@single_flight
+async def _plan_once(*, db: Database, folder_id: Optional[str], clusters: tuple[str, ...], first_pages: Optional[int], setup_saved: Any = None) -> dict[str, Any]:
+    """`setup_saved` only keys the flight: a load after a save gets a plan of its own. A plan a caller is already waiting for is shared: past the app's deadline, asking again stacked plans, each from the start.
+    Off the loop: the plan reads every page's lines (variant A's price) and waits on the database's gate."""
+    return await asyncio.to_thread(lambda: _start_plan(db, folder_id, clusters=clusters, **only_if_set(first_pages=first_pages)))
+
+
 @router.get("/project/start", response_model=StartPlan,
             openapi_extra={"x-fichero-agent-defaults": {"summary": True}})
 async def get_start_plan(
@@ -2745,12 +2770,14 @@ async def get_start_plan(
 ) -> StartPlan:
     """What Start would run on this project, or on one folder of it, with the estimate, before anything runs
     (`source.onboard.estimate-before-start`). 422 for a folder not in the project."""
+    from fichero_server.recipes.project import setup_stamp
+
     try:
-        # Off the loop: the plan reads every page's lines (variant A's price) and waits on the database's gate.
-        plan = await asyncio.to_thread(lambda: _start_plan(db, folder_id, clusters=_cluster_names(http), **only_if_set(first_pages=first_pages)))
+        plan = await _plan_once(db=db, folder_id=folder_id, clusters=tuple(_cluster_names(http)), first_pages=first_pages, setup_saved=setup_stamp(_library(db)))
     except LookupError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if summary:
+        plan = copy.deepcopy(plan)  # another caller may share this plan
         for step in plan.get("step_choices") or []:
             cands = step.get("candidates") or []
             step["candidates"] = [c for c in cands if c.get("picked") or c.get("recommended")] or cands[:1]
@@ -2798,13 +2825,14 @@ class StartRequest(BaseModel):
 NO_MATERIAL = "This project has no material yet: add your pages in Set Up › Your Material, then press Start."
 
 
-def _accept_asked(db: Database, accepted: list[str], folder_id: Optional[str], clusters: list[str], ctx: ActionContext) -> None:
+def _accept_asked(db: Database, accepted: list[str], folder_id: Optional[str], clusters: list[str], ctx: ActionContext,
+                  memo: Optional[dict] = None, first_pages: Optional[int] = None) -> None:
     """Start's yes to the cloud models with no listed price it names: the ones sent (`StartRequest.accept_unpriced`), else
     every one the plan lists, since pressing Start is the yes (#6259), taken before Start's own action so it outlives a refused Start
     (`ai.where.accept-unpriced-cloud-model`). Each by `cloud.accept_unpriced`, the one accept action.
     Only a model the plan names can be accepted here."""
     try:
-        plan = _start_plan(db, folder_id, clusters=clusters)
+        plan = _start_plan(db, folder_id, clusters=clusters, memo=memo, **only_if_set(first_pages=first_pages))
     except LookupError as exc:  # a folder not in the project
         raise ValueError(str(exc)) from exc
     asked = set(plan["cloud_cap"]["unpriced_models"]) if plan.get("cloud_cap") else set()
@@ -2839,6 +2867,8 @@ async def start_project(
         # The yes to a cloud model with no price is its own audited action, taken BEFORE Start's: inside Start's
         # transaction a refused Start would roll the audit row back and leave the acceptance kept without it.
         clusters = _cluster_names(http)
+        reads: dict = {}  # one press of Start reads the library once
+        first = request.first_pages if request else None  # the answer describes the run queued, not the whole project (#6295)
 
         if request and request.documents is not None and folder_id:  # said first: the accept's plan would call the folder unknown
             raise ValueError("Start takes a folder or some pages, not both")
@@ -2846,19 +2876,25 @@ async def start_project(
             raise ValueError("Start takes the first pages, a folder, or some pages: one of them")
 
         def accept_then_start() -> None:  # the accept builds the Start plan: off the loop with the start (#6178)
-            _accept_asked(db, request.accept_unpriced if request else [], folder_id, clusters, ctx)
-            registry.invoke(db, "project.start", {"redo": request.redo if request else [], "folder_id": folder_id,
+            # Read here, outside any transaction; the action's plan inside its transaction reuses these reads and asks the
+            # caps again, so the spending check still runs under the gate, just before the run is queued.
+            _accept_asked(db, request.accept_unpriced if request else [], folder_id, clusters, ctx, memo=reads,
+                          first_pages=first if not request or request.documents is None else None)
+            token = _PLAN_READS.set(reads)
+            try:
+                registry.invoke(db, "project.start", {"redo": request.redo if request else [], "folder_id": folder_id,
                                                   "documents": request.documents if request else None,
                                                   "first_pages": request.first_pages if request else None,
                                                   "clusters": clusters}, ctx)
+            finally:
+                _PLAN_READS.reset(token)
 
         await asyncio.to_thread(accept_then_start)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     clusters = _cluster_names(http)
-    first = request.first_pages if request else None  # the answer describes the run queued, not the whole project (#6295)
     return StartPlan(**await asyncio.to_thread(lambda: _as_started(
-        db, _start_plan(db, folder_id, clusters=clusters, **only_if_set(first_pages=first)))))
+        db, _start_plan(db, folder_id, clusters=clusters, memo=reads, **only_if_set(first_pages=first)), reads)))
 
 
 class UseInsteadRequest(BaseModel):
@@ -3140,7 +3176,7 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
 
             # An import run's documents are the imported top-level ones: a PDF or a cut photograph is the
             # project's through its pages (importers/derivatives.py).
-            project = set(pages_for(db, {}, None))
+            project = set(pages_for(db, {}, None, memo=_PLAN_READS.get()))
             from fichero_server.models import Document
 
             if any(getattr(d.doc_type, "value", d.doc_type) == "folder"
@@ -3150,7 +3186,7 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
                          and not set(pages_for(db, {}, [d])) <= project]:
                 raise ValueError(f"{len(stray)} of those pages are not in the project")
         try:
-            plan = _start_plan(db, params.folder_id, clusters=params.clusters, **only_if_set(first_pages=params.first_pages))
+            plan = _start_plan(db, params.folder_id, clusters=params.clusters, memo=_PLAN_READS.get(), **only_if_set(first_pages=params.first_pages))
         except LookupError as exc:  # a folder not in the project
             raise ValueError(str(exc)) from exc
         if NO_MATERIAL in plan["refusals"]:  # said alone: nothing else matters until there is material (#5813)
@@ -3170,9 +3206,9 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
             "recipe_version": recipe.get("version"),
             "workflows": [w["workflow"] for w in plan["workflows"]],
             "pages": plan["estimate"]["pages"],
-            "job_id": runner.enqueue(db, plan, documents=first_pages_of(db, params.first_pages) if params.first_pages else params.documents,
+            "job_id": runner.enqueue(db, plan, documents=first_pages_of(db, params.first_pages, _PLAN_READS.get()) if params.first_pages else params.documents,
                                      first_pages=params.first_pages, started_by=started_by_for(ctx), redo=params.redo,
-                                     folder_id=params.folder_id),
+                                     folder_id=params.folder_id, plan_reads=_PLAN_READS.get()),
             "folder_id": params.folder_id,
         }
         # Start runs what an added layer proposed (source.onboard.add-layer): the proposal is done with.

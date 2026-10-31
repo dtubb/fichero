@@ -38,6 +38,7 @@ from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Callable, Sequence
 
+import duckdb
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -1289,6 +1290,25 @@ async def _handle_missing_module(_request: Request, exc: ModuleNotFoundError):
                    "Reinstall the engine's dependencies."},
         status_code=503,
     )
+
+
+@app.exception_handler(duckdb.OutOfMemoryException)
+async def _handle_duckdb_out_of_memory(request: Request, exc: duckdb.OutOfMemoryException):
+    """A query did not fit DuckDB's share of memory (the Air, 2026-10-30: 55 document views answered with a stack
+    trace). 503 with a sentence: the app shows it and asks again; nothing is lost. Logged once per route, not per poll."""
+    route = request.url.path
+    if route not in _OUT_OF_MEMORY_SAID:
+        _OUT_OF_MEMORY_SAID.add(route)
+        logger.error("DuckDB ran out of its memory share on %s: %s", route, str(exc).splitlines()[0])
+    return JSONResponse(
+        {"detail": "The library is short of memory for this request right now; it will be tried again. "
+                   "If this keeps happening, quit other apps or close a library you are not using."},
+        status_code=503,
+        headers={"Retry-After": "5"},
+    )
+
+
+_OUT_OF_MEMORY_SAID: set[str] = set()
 
 
 @app.exception_handler(LibraryVolumeNotReachable)

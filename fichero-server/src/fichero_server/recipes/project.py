@@ -60,6 +60,17 @@ def read_saved_answers(library: Path) -> dict[str, Any]:
     return dict(saved) if isinstance(saved, dict) else {}
 
 
+def setup_stamp(library: Path) -> tuple[int | None, ...]:
+    """When the setup was last saved, for a plan already running not to answer a load after the save."""
+    def changed(part: str) -> int | None:
+        try:
+            return _path(library, part).stat().st_mtime_ns
+        except OSError:
+            return None
+
+    return tuple(changed(part) for part in sorted(_FILES))
+
+
 def write_project_setup(library: Path, answers: dict | None, recipe: dict | None) -> None:
     """Save (or, with None, remove) the answers and the recipe. Refuses code or credentials in
     either: a recipe is data and names providers, never keys."""

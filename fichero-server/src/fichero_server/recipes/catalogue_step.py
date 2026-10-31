@@ -25,15 +25,16 @@ def _is_folder(doc: Any) -> bool:
     return getattr(doc.doc_type, "value", doc.doc_type) == "folder"
 
 
-def folders_covering(db: Any, page_ids: list[str]) -> list[Any]:
+def folders_covering(db: Any, page_ids: list[str], memo: dict | None = None) -> list[Any]:
     """The folders above these pages (all the way up), deepest first; each once. Reads the pages and then each level of
-    their parents, a read a level, not the library (#6268)."""
+    their parents, a read a level, not the library (#6268), and only the tree's columns: a whole box's 35k pages read
+    whole raised the engine's peak by 2 GiB."""
     from fichero_server.models import Document
 
-    nodes: dict[str, Any] = {}
-    todo = set(page_ids)
+    nodes: dict[str, Any] = {} if memo is None else memo.setdefault("catalogue_nodes", {})
+    todo = set(page_ids) - nodes.keys()
     while todo:
-        for doc in db.query_in(Document, "id", todo):
+        for doc in db.query_fields_in(Document, ("id", "name", "parent_id", "doc_type", "deleted_at"), "id", todo):
             nodes[doc.id] = doc
         todo = {d.parent_id for d in nodes.values() if d.parent_id and d.parent_id not in nodes} - todo
     seen: dict[str, Any] = {}
@@ -54,11 +55,17 @@ def folders_covering(db: Any, page_ids: list[str]) -> list[Any]:
     return sorted(seen.values(), key=lambda d: (-level(d), d.name))
 
 
+#: What `_below`'s readers use of a node. Never `metadata`: a read page's line boxes are most of its row, and reading them
+#: for every page under a folder on each plan was the third query to fail at the Air's cap (2026-10-30).
+_BELOW_FIELDS = ("id", "name", "doc_type", "deleted_at", "sequence", "page_content")
+
+
 def _below(db: Any, folder_id: str) -> tuple[list[Any], list[Any]]:
-    """(direct child folders, every non-folder node under the folder at any depth), live ones only."""
+    """(direct child folders, every non-folder node under the folder at any depth), live ones only, `_BELOW_FIELDS` of each."""
     from fichero_server.models import Document
 
-    children = [c for c in db.query(Document, parent_id=folder_id) or [] if not c.deleted_at]
+    # ponytail: holds the subtree's text in Python (170 MB for a whole 69k box); sha1(page_content) in SQL if a plan shows up in RSS
+    children = [c for c in db.query_fields(Document, _BELOW_FIELDS, parent_id=folder_id) if not c.deleted_at]
     folders = [c for c in children if _is_folder(c)]
     leaves = [c for c in children if not _is_folder(c)]
     for sub in folders:
@@ -155,18 +162,71 @@ def unread_pages(db: Any, leaves: list[Any], run_pages: list[str], failed_ids: A
             and (d.id in failed or (d.id in with_a_line and not (d.page_content or "").strip()))]
 
 
-def folders_to_describe(db: Any, page_ids: list[str]) -> tuple[list[Any], int]:
+def folders_to_describe(db: Any, page_ids: list[str], memo: dict | None = None) -> tuple[list[Any], int]:
     """(the folders above these pages a run would describe, how many are already described): `describe_folders`'s own rule,
-    read without running it. A folder with no reading under it is neither."""
+    read without running it. A folder with no reading under it is neither. Each level of the tree is read once for all the
+    folders on it, and each page's digest is taken once, so a box's pages are not read again for each folder above them;
+    `memo`, one plan's, keeps that across the estimate and the notes."""
+    memo = {} if memo is None else memo
+    folders = folders_covering(db, page_ids, memo)
+    state = memo.setdefault("catalogue_state", {})
+    _read_the_trees(db, [f.id for f in folders if f.id not in state], memo)
     todo, current = [], 0
-    for folder in folders_covering(db, page_ids):
-        leaves = _below(db, folder.id)[1]
-        old = _latest(db, folder.id)
-        if old is not None and (old.data or {}).get("covers") == coverage(leaves):
-            current += 1
-        elif any((d.page_content or "").strip() for d in leaves):
+    for folder in folders:
+        if folder.id not in state:
+            state[folder.id] = _folder_state(db, folder.id, memo)
+        current += state[folder.id] == "current"
+        if state[folder.id] == "todo":
             todo.append(folder)
     return todo, current
+
+
+def _read_the_trees(db: Any, folder_ids: list[str], memo: dict) -> None:
+    """Under these folders, each level once: `memo["catalogue_under"]` is a folder's (child folder ids, its pages' (id, digest
+    of the reading, has a reading)). The text is hashed and let go, and a saved description is read only for these folders."""
+    from fichero_server.models import Artifact, Document
+
+    under = memo.setdefault("catalogue_under", {})
+    level = [f for f in folder_ids if f not in under]
+    while level:
+        for f in level:
+            under[f] = ([], [])
+        for start in range(0, len(level), 500):
+            for c in db.query_fields_in(Document, _BELOW_FIELDS + ("parent_id",), "parent_id", level[start : start + 500]):
+                if c.deleted_at or c.parent_id not in under:
+                    continue
+                if _is_folder(c):
+                    under[c.parent_id][0].append(c.id)
+                else:
+                    text = c.page_content or ""
+                    under[c.parent_id][1].append((c.id, hashlib.sha1(text.encode()).digest(), bool(text.strip())))
+        level = [c for f in level for c in under[f][0] if c not in under]
+    described = memo.setdefault("catalogue_described", {})
+    wanted = [f for f in under if f not in described]
+    for f in wanted:
+        described[f] = None
+    for start in range(0, len(wanted), 500):
+        for a in db.query_fields_in(Artifact, ("document_id", "artifact_type", "version", "created_at", "data"), "document_id", wanted[start : start + 500]):
+            if a.artifact_type == ARTIFACT_TYPE and (described[a.document_id] is None or (a.version, a.created_at) > described[a.document_id][:2]):
+                described[a.document_id] = (a.version, a.created_at, (a.data or {}).get("covers"))
+
+
+def _folder_state(db: Any, folder_id: str, memo: dict) -> str | None:
+    """"current" (its saved description covers what is under it now), "todo", or None (no reading under it)."""
+    under, stack, pages = memo["catalogue_under"], [folder_id], []
+    while stack:
+        subs, own = under[stack.pop()]
+        stack += subs
+        pages += own
+    old = memo["catalogue_described"][folder_id]
+    if old is not None:
+        h = hashlib.sha1()
+        for page, digest, _ in sorted(pages):
+            h.update(page.encode())
+            h.update(digest)
+        if old[2] == h.hexdigest():
+            return "current"
+    return "todo" if any(has_text for *_, has_text in pages) else None
 
 
 #: `Document.metadata` key marking a folder's content as the Catalogue stage's description (the artifact it came from),

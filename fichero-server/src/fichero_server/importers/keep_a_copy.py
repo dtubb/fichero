@@ -40,11 +40,15 @@ def pages_in_icloud(db: Any, within: set[str] | None = None) -> list[tuple[Any, 
 
     package = Path(db.path).parent
     out = []
-    for doc in (db.query(Document) if within is None else db.query_in(Document, "id", within)):
-        if doc.deleted_at is not None:
+    fields = ("id", "name", "path", "deleted_at")  # a plan asks this over the whole library: never the page's text or line boxes
+    for doc in (db.query_fields(Document, fields) if within is None else db.query_fields_in(Document, fields, "id", within)):
+        if doc.deleted_at is not None or not doc.path or not Path(doc.path).is_absolute():
+            continue
+        # The stat first: 70k resolved paths took longer than the plan's reads, and almost no page is in iCloud.
+        if not Path(doc.path).exists() or dataless.dataless_reason(Path(doc.path)) is None:
             continue
         original = _linked_original(package, doc)
-        if original is None or not original.exists() or dataless.dataless_reason(original) is None:
+        if original is None:
             continue
         out.append((doc, original, getattr(original.stat(), "st_size", 0) or 0))
     return out

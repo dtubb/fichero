@@ -192,8 +192,8 @@ def counted(db: Any) -> dict[str, Any]:
     from fichero_server.training.yolo_set import REGION_KINDS
 
     pages, _ = ground_truth(db, None)
-    regions = {s.document_id for s in db.query(Segment, provenance_kind="human")
-               if s.kind in REGION_KINDS and s.deleted_at is None}
+    regions = {s.document_id for s in db.query_fields(Segment, ("document_id", "kind"), provenance_kind="human", deleted_at=None)
+               if s.kind in REGION_KINDS}
     return {"pages": pages, "unmarked": unmarked_import_pages(db), "region_pages": len(regions),
             "teacher": _teacher(db), "scope_ids": _roots(db)}
 
@@ -201,15 +201,16 @@ def counted(db: Any) -> dict[str, Any]:
 def _teacher(db: Any) -> str | None:
     """The model that read lines on the most pages here: the reader a distillation learns from. None: nothing read."""
     from fichero_server.models import Artifact
-    from fichero_server.models.segments import SegmentPass
+    from fichero_server.recipes.bakeoff import _live_passes
 
     # A reader writes a pass of its own, or readings onto the page's lines from its page artifact (#5487), so both
     # name it (as `training.kraken_set.teacher_pass` matches them). A person's ground-truth pass never teaches here.
+    # Named columns, not `SELECT *`: 21k transcriptions with their line boxes were 1.3 GB, on every plan and finished step.
     pages: dict[str, set[str]] = {}
-    for p in db.query(SegmentPass):
-        if not p.deleted_at and p.model and not getattr(p, "ground_truth", False) and p.model not in ("human", "manual"):
+    for p in _live_passes(db):
+        if p.model and not p.ground_truth and p.model not in ("human", "manual"):
             pages.setdefault(p.model, set()).add(p.document_id)
-    for a in db.query(Artifact, artifact_type="transcription"):
+    for a in db.query_fields(Artifact, ("model", "document_id"), artifact_type="transcription"):
         if a.model and a.model not in ("human", "manual"):
             pages.setdefault(a.model, set()).add(a.document_id)
     return max(pages, key=lambda m: (len(pages[m]), m)) if pages else None
@@ -219,7 +220,9 @@ def _roots(db: Any) -> list[str]:
     """The project's top-level live items: what a training run looks through when no folder is chosen."""
     from fichero_server.models import Document
 
-    return sorted(d.id for d in db.query(Document, parent_id=None) if not d.deleted_at)
+    # Two columns, not `SELECT *`: on the Air this read every root's page text and line boxes and was the query that
+    # turned a recipe start into a 500 at 256 MiB (2026-10-30).
+    return sorted(d.id for d in db.query_fields(Document, ["id", "deleted_at"], parent_id=None) if not d.deleted_at)
 
 
 def train_offers(recipe: dict | None, counts: dict[str, Any], *, stays_local: bool,
