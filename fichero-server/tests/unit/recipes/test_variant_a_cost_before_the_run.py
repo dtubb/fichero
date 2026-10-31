@@ -109,7 +109,7 @@ def test_the_start_plan_route_builds_the_plan_off_the_event_loop(monkeypatch, tm
     monkeypatch.setattr(route, "_start_plan", lambda db, folder, clusters=(): seen.append(threading.get_ident()) or {})
     monkeypatch.setattr(route, "StartPlan", lambda **kw: kw)
     monkeypatch.setattr(route, "_library", lambda db: tmp_path)
-    asyncio.run(route.get_start_plan(None, None, None))
+    asyncio.run(route.get_start_plan(None, None, None, None))
     assert seen and seen[0] != threading.get_ident()
 
 

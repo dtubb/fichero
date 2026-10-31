@@ -1617,7 +1617,7 @@ async def model_candidates(
     from starlette.concurrency import run_in_threadpool
 
     from fichero_server.recipes.assemble import (
-        READ_MATERIALS, READING_JOBS, _refusal, lists_project_languages, needs_permission, rank_key)
+        READ_MATERIALS, READING_JOBS, _refusal, lists_project_languages, needs_permission, offered_to_compare, rank_key)
     from fichero_server.recipes.assemble import other_period
     from fichero_server.recipes.discovery import (
         NO_PROJECT,
@@ -1699,14 +1699,13 @@ async def model_candidates(
         if c.id in rank:
             return None
         made_for = _refusal(job, c, a, material)
-        if made_for is not None and made_for[0] == "no-reader-for-material":
+        if made_for is not None and made_for[0] == "no-reader-for-material" and not offered_to_compare(c, material):
             return made_for[1]  # a print reader says it is for print, before it says it cannot run here
         if not c.runs_here:
             return f"Fichero cannot run it yet: {c.cannot_run_because or 'not in this build'}"
-        if c.offered_only:
-            # Yours to choose, never the rules': no rank, and refused only where it could not do the job here.
-            return (_refusal(job, c, a, material) or (None, None))[1]
-        return (_refusal(job, c, a, material) or (None, None))[1]
+        if made_for is not None and made_for[0] == "no-reader-for-material":
+            return None  # offered to compare on this material (`offered_to_compare`): no rank, never the default
+        return (made_for or (None, None))[1]  # an offered-only model is the person's to choose, refused only where it could not do the job
 
     from fichero_server.llm.local_inference import fit_estimate
     from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS
@@ -1754,7 +1753,7 @@ async def model_candidates(
         open_licence=c.open_licence, size_gb=c.size_gb or None,
         memory_gb=None if not c.memory_gb and c.source == "hugging-face" else c.memory_gb,
         size=size_words(c.size_gb), cer_published=c.cer_published,
-        cer_measured_here=c.cer_measured_here, measured=measured(c), in_recipe_rules=not c.offered_only,
+        cer_measured_here=c.cer_measured_here, measured=measured(c), in_recipe_rules=not c.offered_only and not offered_to_compare(c, material),
         rule_rank=rank.get(c.id), refused=refused(c), needs_permission=needs_permission(c, a),
         installed=candidate_installed(c), download=downloads[c.id],
         places=[PlaceOption(**o) for o in places_it_can_run(c, this_mac_gb=mac_gb, hf_ready=hf_ready, clusters=cluster_names)],
@@ -2818,7 +2817,7 @@ async def _plan_once(*, db: Database, folder_id: Optional[str], clusters: tuple[
                      steps: tuple[str, ...] = ()) -> dict[str, Any]:
     """`setup_saved` only keys the flight: a load after a save gets a plan of its own. A plan a caller is already waiting for is shared: past the app's deadline, asking again stacked plans, each from the start.
     Off the loop: the plan reads every page's lines (variant A's price) and waits on the database's gate."""
-    return await asyncio.to_thread(lambda: _start_plan(db, folder_id, clusters=clusters, **only_if_set(first_pages=first_pages), steps=steps or None))
+    return await asyncio.to_thread(lambda: _start_plan(db, folder_id, clusters=clusters, **only_if_set(first_pages=first_pages, steps=steps or None)))
 
 
 @router.get("/project/start", response_model=StartPlan,
@@ -2909,7 +2908,7 @@ def _accept_asked(db: Database, accepted: list[str], folder_id: Optional[str], c
     (`ai.where.accept-unpriced-cloud-model`). Each by `cloud.accept_unpriced`, the one accept action.
     Only a model the plan names can be accepted here."""
     try:
-        plan = _start_plan(db, folder_id, clusters=clusters, memo=memo, steps=steps or None, **only_if_set(first_pages=first_pages))
+        plan = _start_plan(db, folder_id, clusters=clusters, memo=memo, **only_if_set(first_pages=first_pages, steps=steps or None))
     except LookupError as exc:  # a folder not in the project
         raise ValueError(str(exc)) from exc
     asked = set(plan["cloud_cap"]["unpriced_models"]) if plan.get("cloud_cap") else set()
@@ -2973,8 +2972,8 @@ async def start_project(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     clusters = _cluster_names(http)
     return StartPlan(**await asyncio.to_thread(lambda: _as_started(
-        db, _start_plan(db, folder_id, clusters=clusters, memo=reads, steps=(request.steps if request else None) or None,
-                        **only_if_set(first_pages=first)), reads)))
+        db, _start_plan(db, folder_id, clusters=clusters, memo=reads,
+                        **only_if_set(first_pages=first, steps=(request.steps if request else None) or None)), reads)))
 
 
 class UseInsteadRequest(BaseModel):
@@ -3266,8 +3265,8 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
                          and not set(pages_for(db, {}, [d])) <= project]:
                 raise ValueError(f"{len(stray)} of those pages are not in the project")
         try:
-            plan = _start_plan(db, params.folder_id, clusters=params.clusters, memo=_PLAN_READS.get(), steps=params.steps or None,
-                               **only_if_set(first_pages=params.first_pages))
+            plan = _start_plan(db, params.folder_id, clusters=params.clusters, memo=_PLAN_READS.get(),
+                               **only_if_set(first_pages=params.first_pages, steps=params.steps or None))
         except LookupError as exc:  # a folder not in the project
             raise ValueError(str(exc)) from exc
         if NO_MATERIAL in plan["refusals"]:  # said alone: nothing else matters until there is material (#5813)

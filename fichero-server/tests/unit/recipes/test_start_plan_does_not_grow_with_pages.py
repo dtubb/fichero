@@ -339,7 +339,7 @@ def test_a_reload_after_a_save_does_not_join_the_plan_from_before_it(db, tmp_pat
     monkeypatch.setattr(routes, "StartPlan", lambda **kw: kw)
 
     def reload():
-        return routes.get_start_plan(http=SimpleNamespace(), folder_id=None, summary=False, first_pages=None, db=db)
+        return routes.get_start_plan(http=SimpleNamespace(), folder_id=None, summary=False, first_pages=None, steps=None, db=db)
 
     async def in_flight_then_saved():
         first = asyncio.ensure_future(reload())
