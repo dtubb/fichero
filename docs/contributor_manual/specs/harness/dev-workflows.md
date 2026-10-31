@@ -11,8 +11,9 @@
 > wired · [GAP] not built · [BROKEN] fails today · [PROPOSED] decided here, not yet ruled. Issues: #6116 (the
 > pipeline), #2067 (Research), #4402 (controls).
 >
-> What merges and retires: `harness/deterministic-conductor.md` stays the spec of the stdlib runner (`pipeline/`), the
-> **bridge and oracle** here, and retires with it (§ Rollout). `ui/research.md` keeps the Research surface (chat, panes,
+> What merges and retires: `pipeline/` is **frozen** (maintainer, 2026-10-31): no further investment; its ideas, the
+> check ladder and the `scripts/` guards are reused where the engine can call them directly; it retires once the engine
+> runs real clusters (§ Rollout). `harness/deterministic-conductor.md` stays as its record and retires with it. `ui/research.md` keeps the Research surface (chat, panes,
 > workspace); its orchestration lines (`research.manager-with-workers-orchestration`,
 > `research.future.agent-operates-projects`, `research.per-model-tool-grants`) are owned here.
 > `ui/activity-and-automatic-work.md` (approved 2026-10-27) keeps the one job model, lanes, throttling and durability;
@@ -38,8 +39,7 @@ configuration only.
 ## Prior art (adopt, don't invent)
 
 Microsoft Conductor (declared steps, script steps routed on exit codes, caps, validate before run); LangGraph
-(`interrupt()` + checkpointer: already the engine); our runner (`pipeline/`: the behaviour to reproduce and the
-oracle); GitHub (`gh`, REST) as the public record of work state; macOS Activity Monitor (a dense sortable table with
+(`interrupt()` + checkpointer: already the engine); our runner (`pipeline/`, frozen: the ideas and the ladder to reuse); GitHub (`gh`, REST) as the public record of work state; macOS Activity Monitor (a dense sortable table with
 disclosure rows, a few toolbar icons, a search field, a small summary strip); operators who run coding agents on
 128 GB Macs for weeks (several small models at once, one pinned per role, a session per task on a cached prefix, a
 tool-call repair layer). Not adopted: a second orchestrator, a second task store, a second question queue, a second
@@ -75,7 +75,7 @@ activity list.
 - CLI and MCP: `fichero workflow …`, `fichero workflow-execution …`, the generated OpenAPI surface; `fichero-mcp`
   exposes the same routes (`fichero_research_*`, …). No chat verb lists specs, milestones or issues; no GitHub code
   in the engine.
-- The runner (`pipeline/`): journal and state machine, tmux Pi/API workers behind a key wrapper, model-free brief
+- The runner (`pipeline/`, frozen 2026-10-31): journal and state machine, tmux Pi/API workers behind a key wrapper, model-free brief
   localisation, feeder and brief lint, the check ladder (ready, red-on-base, fast guards, contract-current; the trial
   branch adds diff-bound and failing-run-pasted), verdicts bound to a sha, `land` (fast-forward to integration only),
   closer, `plan`/`plan-approve`, budgets in turns and dollars, a batch session with a handoff and park/wake, `gh.py`
@@ -86,6 +86,11 @@ activity list.
   models (gpt-oss-20b, qwen3.5-9b, qwen3.5-35b-a3b, granite-4.2-8b) all 7/7 on clear triage items and all over-call the
   unclear ones; a 30B coder printed its tool call as text; a 35B hit the compaction crash; a 9B ran out of time: small
   models fit triage and routing, not yet a coding task. Qwen3.8-27B hosted: tests 6/6, review 3/3, lead 7.5/8.
+  Small-model trial (`briefs/local-small-report.md`, 2026-10-31): no open small model finished the exact edit (a 30B
+  coder's tool call came back as text and ran nothing; a 35B ended in Pi's "Cannot continue from message role:
+  assistant"; a 9B timed out); triage models guessed on the four unclear items unless offered an explicit UNKNOWN.
+  Pi's error appears with a 35B through OpenRouter, so it is a harness fault to fix at the OpenRouter stage, before any
+  local model is judged.
 
 ## Decisions
 
@@ -106,6 +111,11 @@ activity list.
 - **One worker kind, two capability sets** (Builder: worktree, shell, git, step tools, scratch base path, contributor
   tier; Researcher: read-only library actions, web search and fetch, note/source/task writes through the audited layer
   as the user's account, no shell). A session never holds both.
+- **`pipeline/` is frozen.** Claude Code workers and the Lead carry the real work, as today, until the engine runs real
+  clusters; the engine calls the `scripts/` guards and `lane_ready_check.sh` directly, ports the brief builder's
+  localisation and the ladder's rungs where it needs them, and never waits on parity with the runner; a comparison is
+  made only where a cheap one already exists (the same scenario's events). Its open issues are closed or retargeted
+  to this spec's steps (the list is in the plan).
 - **Models by configuration, picked by results, profiles per machine.** Nothing in code names a model. Pi is a
   worker kind, like `claude` and `fake`, not the assumption.
 - **Small-context handoff is a core requirement**, not a compromise: the Researcher's normal machine is a 24 GB
@@ -157,7 +167,7 @@ back along its list and says so.
   PR state are pulled with `gh` every five minutes and on open and stored by URL; Fichero's edits (create, title, body,
   comment, label, milestone, close, reopen) go out through **one guarded sync step**: a typed operation with a grant
   (`dev-workflows.security.capability-grants`), the public-repo check of `dev-workflows.combined.public-boundary`, then
-  `pipeline/gh.py`'s journaled writer; the first stage pulls only, against this repo on a scratch base path.
+  the engine's journaled writer; the first stage pulls only, against this repo on a scratch base path.
   **Conflict rule:** on work state (open/closed, labels, milestone, assignee) GitHub wins when both sides changed since
   the last sync; on Fichero's own fields (spec, plan step, behaviour ids, run, cost) Fichero wins; on text (title,
   body, a comment) a conflict is a question in the queue showing both versions, never resolved by itself. Test:
@@ -169,8 +179,8 @@ back along its list and says so.
   operation, the target URL and who or what asked. Test:
   `fichero-server/tests/unit/security/test_public_boundary.py::test_private_text_is_refused_and_every_write_is_logged`.
 - `dev-workflows.run.engine-records-are-truth` [PROPOSED] (maintainer 2026-10-31) — a run's truth is the engine's own
-  records, the checkpointer and the jobs table, from the first slice; the pipeline journal is a log that mirrors them
-  while `pipeline/` is the bridge; work state is GitHub's after the sync; Activity rows are views of the records. Test:
+  records, the checkpointer and the jobs table, from the first slice; a run log (TSV and rows) is written from them;
+  work state is GitHub's after the sync; Activity rows are views of the records. Test:
   `fichero-server/tests/unit/workflows/test_engine_records_are_truth.py::test_run_state_reads_from_records_not_the_journal`.
 - `dev-workflows.run.supervision` [PROPOSED] (maintainer 2026-10-31) — the harness runs supervised: a supervisor (the Lead
   session, a Sonnet builder, or the maintainer) can **stop** any run, worker or the whole harness (a hold, during which
@@ -183,7 +193,7 @@ back along its list and says so.
   and issues, cited tests); the guards stay the binding; the app and CLI list specs with tag counts. Test:
   `fichero-server/tests/unit/research/test_spec_and_plan_layers.py::test_spec_layer`.
 - `dev-workflows.combined.plan-layer` [GAP] (#6116) — a plan is the spec's build order as steps with dependencies and
-  issues; the runner's `plan`/`plan-approve` (dry run by default) propose and file it; a plan is a typed proposal the
+  issues; a plan step (ported from the runner's `plan`/`plan-approve`, dry run by default) proposes and files it; a plan is a typed proposal the
   person accepts before any `gh` write. Test: `fichero-server/tests/unit/research/test_spec_and_plan_layers.py::test_plan_layer`.
 - `dev-workflows.combined.approvals` [GAP] (#6116) — three approvals, each a `HumanReviewRequest` in the one queue: a
   spec's status flip, a plan (issues filed), a check-file or acceptance-line change; everything else runs without a
@@ -199,7 +209,7 @@ back along its list and says so.
 
 - `dev-workflows.worker.steers` [PROPOSED] — a worker session owns one task's judgement and calls the steps as tools
   (`brief`, `check`, `request-review`, `land`, `close`, `update-issue`, `file-bug`, `ask`, and for research `search`,
-  `fetch`, `save-source`, `note`), each a runner transition with its check; scripts act between tasks and as guards
+  `fetch`, `save-source`, `note`), each an engine step with its check; scripts act between tasks and as guards
   (wake, ack re-send within ten minutes, budgets, verdict bound to a sha, the ladder before any land). Test:
   `fichero-server/tests/unit/workflows/test_cluster_run.py::test_worker_steers_through_step_tools`.
 - `dev-workflows.worker.handoff` [PROPOSED] — at 85 % of the context window, or at a task boundary, the runner writes
@@ -234,8 +244,8 @@ back along its list and says so.
 - `dev-workflows.node.git` [GAP] (#6116) — a closed list of operations as typed inputs (worktree add/remove, status, diff
   stat, rebase onto, merge --no-ff, range-diff, log of a range, push to the integration branch); refuses any push to
   `main` or a `v*` tag; push is its own node. Test: `fichero-server/tests/unit/workflows/test_git_gh_nodes.py::test_git_node`.
-- `dev-workflows.node.gh` [GAP] (#6116) — reads and writes as typed operations through the runner's one journaled writer
-  (`pipeline/gh.py`), with an allow-list per workflow. Test: `fichero-server/tests/unit/workflows/test_git_gh_nodes.py::test_gh_node`.
+- `dev-workflows.node.gh` [GAP] (#6116) — reads and writes as typed operations through one journaled writer in the engine
+  (ported from `pipeline/gh.py`: dry run by default, every write logged), with an allow-list per workflow. Test: `fichero-server/tests/unit/workflows/test_git_gh_nodes.py::test_gh_node`.
 - `dev-workflows.node.human-question` [PARTIAL] (#6116) — `ask_human()` + resume exist; the node parks the run with a
   typed question (text, options, the artifact) and resumes durably across an engine restart from Activity, the
   Research workspace, the CLI chat or a page. Test:
@@ -352,8 +362,7 @@ back along its list and says so.
   `fichero-server/tests/unit/workflows/test_controls_reach_the_call.py::test_stop_cancels_a_running_call`.
 - `dev-workflows.ux.workers-are-rows` [PROPOSED] — every Builder worker, handoff, review, question and landing, and every
   Researcher session, source saved and question, is a row under its task in the same table, with Working on, Progress,
-  Time, Cost, State and Why filled; the runner's journal events are mirrored into job rows until the engine carries the
-  loop. What lacks parent links or a current item today and must gain them: a workflow run's spaCy step (no row), a
+  Time, Cost, State and Why filled. What lacks parent links or a current item today and must gain them: a workflow run's spaCy step (no row), a
   recipe run's own status beside its row, the runner's items (no job row). Test:
   `fichero-server/tests/unit/api/test_workers_are_rows.py::test_worker_handoff_review_rows_under_task`.
 
@@ -382,13 +391,12 @@ back along its list and says so.
   including a malformed one, one commit per issue over a three-issue cluster, the handoff and the successor, ask-park-
   answer-resume across a restart, NOT_READY and a rework round, the ladder rungs tripping, a dead worker and an
   unbriefed one, a 429, a 5xx and a context overflow, a false done, the budget stop, land and close against a fake
-  `gh`, a research task saving three sources with quotes, and a complete log row; the same scenario is the oracle
-  against `pipeline/`. Test: `fichero-server/tests/unit/workflows/test_dev_item_matches_runner.py::test_scenario_matches_the_runner`.
-- `dev-workflows.rollout.stdlib-runner-stays` [GAP] (#6116) — `pipeline/` is the bridge and oracle; a part of it retires only
-  when the engine runs the same scenario to the same events, in this order: `coder.py` (worker node), `runner.land`
-  (git/gh nodes), `runner.tick` and `steps.py` (the task workflows), `site.py`/`web.py` (Activity), `feeder.py`/`plan.py`
-  (the sync and plan layer); `core.py` last, when the engine's records carry every event the journal did (the journal stays as a log). Test:
-  `fichero-server/tests/unit/workflows/test_dev_item_matches_runner.py::test_runner_stays_until_matched`.
+  `gh`, a research task saving three sources with quotes, and a complete log row. Test: `fichero-server/tests/unit/workflows/test_dev_item_matches_runner.py::test_scenario_matches_the_runner`.
+- `dev-workflows.rollout.pipeline-frozen` [PROPOSED] (maintainer 2026-10-31) — `pipeline/` takes no new code; what the engine
+  needs from it is ported, not called: the brief localisation (`localise.py`), the ladder's rungs as script-node
+  commands over `scripts/check_*.py` and `lane_ready_check.sh`, the closer's residue rule, the `gh` writer, the run-log
+  columns; it is removed once the engine has landed real clusters for two weeks; no step of this spec waits on parity
+  with it. Test: `fichero-server/tests/unit/workflows/test_pipeline_frozen.py::test_engine_calls_scripts_not_pipeline`.
 
 ## Rulings
 
@@ -418,8 +426,8 @@ Thin slices through November 2026, each one a Claude Code builder can take from 
 - Size: M
 
 #### Step 1.2 — the worker node: claude today, fake for the dry run
-- Behaviours: `dev-workflows.node.worker`, `dev-workflows.rollout.dry-run`, `dev-workflows.rollout.stdlib-runner-stays`
-- Tests: fichero-server/tests/unit/workflows/test_worker_node.py, fichero-server/tests/unit/workflows/test_dev_item_matches_runner.py
+- Behaviours: `dev-workflows.node.worker`, `dev-workflows.rollout.dry-run`, `dev-workflows.rollout.pipeline-frozen`
+- Tests: fichero-server/tests/unit/workflows/test_worker_node.py, fichero-server/tests/unit/workflows/test_dev_item_matches_runner.py, fichero-server/tests/unit/workflows/test_pipeline_frozen.py
 - Size: M
 
 #### Step 1.3 — the Builder cluster: order, one commit per issue, the worker steers
@@ -528,7 +536,7 @@ failing case. The table is the pinning the guard reads.
 | `dev-workflows.node.validate-before-run` | 1.1 |
 | `dev-workflows.node.worker` | 1.2 |
 | `dev-workflows.rollout.dry-run` | 1.2 |
-| `dev-workflows.rollout.stdlib-runner-stays` | 1.2 |
+| `dev-workflows.rollout.pipeline-frozen` | 1.2 |
 | `dev-workflows.builder.cluster` | 1.3 |
 | `dev-workflows.worker.steers` | 1.3 |
 | `dev-workflows.worker.stop-and-ask` | 1.3 |
@@ -580,7 +588,6 @@ failing case. The table is the pinning the guard reads.
 |-----|---------------|------|------|
 | Backend (pytest) | y | nodes, task workflows, review and land, recovery, sync, layers, grants, secrets, researcher tasks, the decider | `fichero-server/tests/unit/workflows/`, `tests/unit/research/`, `tests/unit/security/`, `tests/unit/sources/`, `tests/unit/api/` |
 | CLI (pytest) | y | chat verbs are audited actions | `fichero-cli/tests/test_chat_dev_verbs.py` |
-| Runner (pytest) | y | the oracle: the same scenario, the same events | `pipeline/tests/` |
 | Swift unit | y | the table's rows, columns, in-place update, lazy children | `fichero/Tests/Unit/general/Models/ActivityTableTests.swift` |
 | UI (XCUITest) | later | the table on a 100k-page library | Stage 2 follow-up |
 
@@ -591,9 +598,10 @@ failing case. The table is the pinning the guard reads.
 | `docs/contributor_manual/how-fichero-is-built.md` | Fichero builds itself through its workflows; how to run a cluster on a scratch path; the Researcher as the same harness |
 | `ui/research.md` | the surface; points here for orchestration and tasks |
 | `ui/activity-and-automatic-work.md` | the job model, lanes, throttling; points here for the window's columns and worker rows |
-| `harness/deterministic-conductor.md` | the bridge runner; retires per § Rollout |
+| `harness/deterministic-conductor.md` | the frozen runner's record; retires with it |
 
 ## Open questions for the maintainer
 
-1. Which external catalogue connector comes first for `researcher.search-libraries` (a national library's OPAC, an
-   archive aggregator, a citation index), or none until the person asks?
+1. The external catalogue connector for `researcher.search-libraries`: proposed none until a person asks; the first
+   Researcher tasks run over the person's own libraries plus web search, which is what exists today (`local_search`
+   and the web tools) and what the two trial tasks need.
