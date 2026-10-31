@@ -3,7 +3,7 @@ It answers each POST /v1/chat/completions with the next scripted step, streamed 
 every request. A step is a dict:
   text   the assistant's words            tools  [(name, args-dict), ...] tool calls
   usage  {"prompt": n, "cached": n, "out": n}  what the turn reports (drives the 85 % handoff)
-  fail   "500" an HTTP 500 | "drop" the connection closed mid-stream | "hang" no answer | "error:<text>" a 400 with that body
+  fail   "500" (any status) an HTTP error | "drop" the connection closed mid-stream | "hang" no answer | "error:<text>" a 400 with that body
 or a callable(request_body) -> step, so a step can read the brief the runner sent. Past the end of the script every
 request gets `idle` (a short text, tiny usage): a worker with nothing left to do just stops."""
 from __future__ import annotations
@@ -46,8 +46,8 @@ class FakeModel:
                 body = json.loads(self.rfile.read(int(self.headers.get("content-length", 0))) or b"{}")
                 step = fm.next_step(body)
                 fail = step.get("fail", "")
-                if fail == "500":
-                    return self._send(500, {"error": {"message": "fake server error 500", "type": "server_error"}})
+                if fail.isdigit():  # an HTTP error status: "429", "500", "503"
+                    return self._send(int(fail), {"error": {"message": f"fake server error {fail}", "type": "server_error"}})
                 if fail.startswith("error:"):
                     return self._send(400, {"error": {"message": fail[6:], "type": "invalid_request_error"}})
                 if fail == "hang":

@@ -303,3 +303,14 @@ def test_context_cap_is_the_providers_else_the_global_one():
 def test_session_counts_output_tokens_and_failed_tool_calls():
     st = coder.parse_session(Path(__file__).parent / "fixtures" / "pi-session-redacted.jsonl")
     assert st["tool_errors"] == 2 and st["output"] > 100, (st["tool_errors"], st["output"])
+
+
+def test_an_mcp_sdk_without_fastmcp_stops_start(monkeypatch):
+    """mcp 2.x renamed FastMCP: the worker's done/ask/verdict server would crash on start and the worker would run without
+    them (seen on the Air, 2026-10-31); `mcp` merely being importable is not enough."""
+    import importlib.util
+    import pytest
+    real = importlib.util.find_spec
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name, *a: None if name == "mcp.server.fastmcp" else real(name, *a))
+    with pytest.raises(RuntimeError, match="FastMCP"):
+        coder.require_mcp_sdk()

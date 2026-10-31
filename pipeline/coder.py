@@ -69,8 +69,12 @@ def mcp_config(cfg: dict, d: Path, docs: bool) -> Path:
 def require_mcp_sdk() -> None:
     """The worker's report/ask/done tools are served by the runner's python: no MCP SDK there must stop `start`,
     not leave a worker without its done tool (first live run, 2026-10-25)."""
-    if importlib.util.find_spec("mcp") is None:
-        raise RuntimeError(f"{sys.executable} cannot import the MCP SDK (`mcp`): the worker would have no done/ask "
+    try:
+        found = importlib.util.find_spec("mcp.server.fastmcp")  # mcp 2.x renamed it: the server would crash on start
+    except ImportError:
+        found = None
+    if found is None:
+        raise RuntimeError(f"{sys.executable} cannot import the MCP SDK's FastMCP (`mcp<2`): the worker would have no done/ask "
                            "tools; run the runner with the repo venv's python")
 
 
