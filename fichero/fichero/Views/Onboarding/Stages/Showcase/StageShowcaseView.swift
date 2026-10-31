@@ -100,7 +100,7 @@ enum StageShowcaseCatalogue {
 
     /// One frame of a stage's picture.
     @ViewBuilder
-    static func picture(for stageId: String, showcase: StageShowcase, progress: Double) -> some View {
+    @MainActor static func picture(for stageId: String, showcase: StageShowcase, progress: Double) -> some View {
         if pageStages.contains(stageId) {
             pagePicture(for: stageId, showcase: showcase, progress: progress)
         } else {
@@ -109,7 +109,7 @@ enum StageShowcaseCatalogue {
     }
 
     @ViewBuilder
-    private static func pagePicture(for stageId: String, showcase: StageShowcase, progress: Double) -> some View {
+    @MainActor private static func pagePicture(for stageId: String, showcase: StageShowcase, progress: Double) -> some View {
         switch stageId {
         case "prepare-images":
             if FeatureManager.shared.isWideSetUpEnabled {
