@@ -47,7 +47,7 @@ def localise(repo: str, text: str, skip: set[str] = frozenset()) -> dict:
     names = [w for w in dict.fromkeys(names) if len(w) > 3 and (files or symbolish(w))]
     symbols = {}
     for w in names[:12]:
-        hits = (files and _grep(repo, w, files)) or _grep(repo, w, [])
+        hits = _grep(repo, w, files)  # files named: look in them only (repo-wide found nine unrelated Swift tests, 6139)
         if hits:
             symbols[w] = hits
     touched = set(files) | {h.split(":", 1)[0] for hs in symbols.values() for h in hs}

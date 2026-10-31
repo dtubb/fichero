@@ -1,0 +1,11 @@
+{
+ "number": 6139,
+ "title": "pipeline repair overwrites start arguments it was not given (drops from_file, so retry briefs the umbrella issue)",
+ "author": "dtubb",
+ "labels": [
+  "type:bug"
+ ],
+ "milestone": "studio-trial",
+ "part_of": false,
+ "body": "`pipeline repair <issue> --base X` writes an `item` line whose `from_file`, `provider`, `model` and `ids` come only from what it was given, and state() replaces the whole start_args with that line, so a later `retry` briefs the umbrella issue.\nSpec `pipeline.resume-from-journal` (deterministic-conductor.md).\nAcceptance: `repair` changes only the arguments it is given; base, from_file, milestone, provider, model and ids are carried over from the item's start_args (ids re-read only when a new from_file is given).\nFiles: pipeline/core.py (repair).\nTest: pipeline/tests/test_core.py::test_repair_with_only_a_base_keeps_the_other_start_arguments (new; use the scratch, issues and fake_coder fixtures as test_retry_refuses_a_record_without_start_args_and_repair_fixes_it does: start a from_file item, `core.repair(key, base=...)`, expect start_args from_file, milestone, provider, model, ids unchanged and base changed).\nFailing command: PYTHONPATH=. OMP_NUM_THREADS=2 python -m pytest -q -p no:cacheprovider pipeline/tests/test_core.py::test_repair_with_only_a_base_keeps_the_other_start_arguments\nDiff bound: 60"
+}

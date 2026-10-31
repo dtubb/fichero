@@ -1,0 +1,11 @@
+{
+ "number": 6202,
+ "title": "Runner: _since follows the last `since` a repair wrote (step 3 of approve-checks/adopt/_since)",
+ "author": "dtubb",
+ "labels": [
+  "type:bug"
+ ],
+ "milestone": "studio-trial",
+ "part_of": true,
+ "body": "Step 3 of #6202 only: `core._since()` returns the FIRST `since` recorded for (key, task), so `repair --since <sha>` is ignored. Every other `since` line for the pair repeats the same sha, so the last one is the repair's when there is one.\nSpec `pipeline.pinned-checks` (deterministic-conductor.md).\nAcceptance: after `repair --since S` the checks, the review base and the handoff measure from S.\nFiles: pipeline/core.py (_since).\nTest: pipeline/tests/test_core.py::test_since_follows_the_last_repair (new; scratch fixture: start an item, `core.repair(key, since=<another sha>)`, expect `core._since(key, task)` to be that sha).\nFailing command: PYTHONPATH=. OMP_NUM_THREADS=2 python -m pytest -q -p no:cacheprovider pipeline/tests/test_core.py::test_since_follows_the_last_repair\nDiff bound: 30"
+}

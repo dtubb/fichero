@@ -1012,3 +1012,16 @@ def test_open_model_coders_are_capped_apart_from_the_roster(scratch, issues, fak
     with pytest.raises(RuntimeError, match="open-model cap"):
         core.start([1001], provider="openrouter", model="qwen/y")
     assert core.start([1002])["items"]["1002"] == "checked", "a Sonnet coder is not counted against it"
+
+
+def test_an_issue_that_names_its_files_is_localised_to_those_files_only(scratch, issues):
+    """The brief's "Where" said "edit these, do not search further" over nine unrelated Swift tests and a spec path (6139, 2026-10-31):
+    a symbol not found inside the named files was grepped repo-wide, and the spec lines' paths counted as files to edit."""
+    repo = scratch["repo"]
+    (repo / "src" / "other.py").write_text("def retry():\n    return 1\n")
+    (repo / "specs" / "s.md").write_text("- `demo.one` [MISSING] — acceptance. See src/other.py. Test: tests/test_1.py\n")
+    git(repo, "add", ".")
+    git(repo, "commit", "-qm", "more")
+    iss = dict(issues[1001], body="Spec `demo.one`.\nAcceptance: x.\nFiles: src/mod.py (base).\nTest: tests/test_new.py::test_x\nUse `retry` here.")
+    loc = core.localised(iss, "t", "1001")
+    assert loc["files"] == ["src/mod.py"] and loc["symbols"] == {} and loc["size"] == "small", loc  # `retry` is in other.py, not named

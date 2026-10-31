@@ -360,7 +360,9 @@ def localised(issue: dict, task: str, key: str) -> dict:
     """Where the issue's change goes, found without a model (the spec citations, then git grep); only when that finds
     nothing, ONE small-tier call names the paths, which are then checked like any other. Journaled `localised`."""
     c = cfg()
-    text = (issue.get("body") or "") + "\n" + "\n".join(spec_lines(set(issue_ids(issue))))
+    body = issue.get("body") or ""
+    # an issue with its own `Files:` line is exact: the spec lines' paths (other files, the spec itself) are not files to edit
+    text = body if re.search(r"^Files?:", body, re.M) else body + "\n" + "\n".join(spec_lines(set(issue_ids(issue))))
     ids = set(issue_ids(issue))
     loc = localise.localise(c["repo"]["path"], text, skip=ids)
     default = next((r["max_lines"] for r in c["ladder"] if r.get("kind") == "diff-bound"), None)
