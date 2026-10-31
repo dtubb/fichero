@@ -1642,6 +1642,8 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
                 why = f"{_title_of(card)} was not run: Fichero hit an error working out its pages (the log has the detail)."
                 here[index]["state"] = states[index] = "failed"
                 _settle(step, "failed", None, why)
+                _note_batch(step, batch, "failed", None, why)  # the run's end names it (never a plain Done), and Stop-on-repeat counts it
+                step["outright_in_a_row"] = step.get("outright_in_a_row", 0) + 1
                 problems.append(why)
                 jobs.save_detail(db, job_id, json.dumps(detail))
                 continue
