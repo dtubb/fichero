@@ -407,6 +407,8 @@ struct ClaimsLibraryContent: View {
     }
 }
 
+// MARK: - Rows and source actions
+
 extension ClaimsLibraryContent {
     /// Resolve claims → sortable rows, filtered by the active search text over the
     /// claim's own words and its source page name.

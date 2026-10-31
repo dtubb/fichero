@@ -457,6 +457,8 @@ class FolderAccessManager {
     }
 }
 
+// MARK: - Restoring and clearing bookmarks
+
 @MainActor extension FolderAccessManager {
     /// Restore bookmarks on app launch
     private func restoreBookmarks() {

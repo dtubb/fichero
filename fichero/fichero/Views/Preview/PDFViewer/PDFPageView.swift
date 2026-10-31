@@ -386,6 +386,8 @@ struct PDFPageView: UIViewRepresentable {
     }
 }
 
+// MARK: - Coordinator
+
 extension PDFPageView {
     @MainActor
     final class Coordinator: NSObject, PDFViewDelegate, UIGestureRecognizerDelegate {

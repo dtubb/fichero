@@ -524,6 +524,8 @@ struct ReadingPaneView: View {
     }
 }
 
+// MARK: - Reader focus and its providers
+
 extension ReadingPaneView {
     /// Publish the reader's window-scoped focus keys — but ONLY from the PRIMARY reader pane. A
     /// window-scoped `focusedSceneValue` admits one publisher per key; a workspace's second reader

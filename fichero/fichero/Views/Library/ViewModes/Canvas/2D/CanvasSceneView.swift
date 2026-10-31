@@ -410,9 +410,11 @@ struct CanvasSceneView: View {
     /// a rubber band selected cards and then nothing could be done with them).
     @State var groupDragOrigins: [String: SIMD3<Double>] = [:]
     @State var lastTapAt: Date = .distantPast
+}
 
-    // MARK: - Gestures
+// MARK: - Gestures
 
+extension CanvasSceneView {
     func draggedWorld(
         start: SIMD3<Float>, translation: CGSize, viewHeight: CGFloat, id: String
     ) -> SIMD3<Double> {
@@ -427,9 +429,7 @@ struct CanvasSceneView: View {
             preservingZ: existingZ
         )
     }
-}
 
-extension CanvasSceneView {
     /// Background drag. The policy this encodes (#4290), and it is the INVERSE of
     /// what shipped: a plain drag never pans. Space held → pan the ortho camera;
     /// otherwise → rubber-band marquee multi-select (⇧ or not, so the old

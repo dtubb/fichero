@@ -461,9 +461,11 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         case .link: .systemGray
         }
     }
+}
 
-    // MARK: - Edges (rebuilt wholesale — few and cheap, per the contract)
+// MARK: - Edges (rebuilt wholesale — few and cheap, per the contract)
 
+@MainActor extension CanvasOrtho2DRenderer {
     // Internal, not private: the op-application extension (+Ops.swift) needs
     // it and Swift's `private` is FILE-scoped — the same trade documented on
     // CanvasSceneView's split state.
@@ -484,9 +486,7 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         if let entity = placedEntity(id) { return entity.position }
         return placeablesById[id].map { Canvas2DProjection.scenePosition($0.position) }
     }
-}
 
-@MainActor extension CanvasOrtho2DRenderer {
     /// A thin FLAT rectangle in the z=0 plane between two points — the RealityKit
     /// twin of the 2D `Path` stroke (no 3D tube; true-flat for the ortho camera).
     private func makeConnector(

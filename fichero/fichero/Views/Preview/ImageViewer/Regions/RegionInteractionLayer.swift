@@ -273,9 +273,11 @@ struct RegionInteractionLayer: View {
             height: abs(current.y - start.y)
         )
     }
+}
 
-    // MARK: - Gestures
+// MARK: - Gestures
 
+extension RegionInteractionLayer {
     /// Where a normalized image point lands in this layer.
     private func layerPoint(_ normalized: CGPoint, in size: CGSize) -> CGPoint? {
         guard let rect = BoundingBoxGeometry.viewRect(
@@ -374,9 +376,7 @@ struct RegionInteractionLayer: View {
             at: location, boxes: boxes.map { $0.box.bbox }, in: size, visible: visible
         ) != nil
     }
-}
 
-extension RegionInteractionLayer {
     /// Click = select; ⇧-click = add/toggle; click-away = deselect (regions
     /// AND marquees — the honest reading of "click-away clears").
     private func handleTap(at location: CGPoint, in size: CGSize) {

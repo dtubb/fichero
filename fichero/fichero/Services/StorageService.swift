@@ -373,6 +373,8 @@ class StorageService {
     nonisolated static func flightKey(_ docId: String, _ epoch: Int) -> String { "\(docId)#\(epoch)" }
 }
 
+// MARK: - Cache, decoding and URLs
+
 @MainActor extension StorageService {
     /// Evict a document's cached images — call when the user knows a
     /// thumbnail has changed (e.g., after a rebuild/reindex).

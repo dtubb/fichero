@@ -546,6 +546,8 @@ final class DocumentStore {
     }
 }
 
+// MARK: - Status refresh and child lookups
+
 @MainActor extension DocumentStore {
     @MainActor
     func refreshPendingStatusesOnly(in parentId: String) async {

@@ -133,6 +133,8 @@ struct WorkflowEditor: View {
     }
 }
 
+// MARK: - Body and layout
+
 extension WorkflowEditor {
     var body: some View {
         VStack(spacing: 0) {

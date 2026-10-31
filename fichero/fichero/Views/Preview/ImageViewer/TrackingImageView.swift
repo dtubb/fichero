@@ -322,6 +322,8 @@ class TrackingImageView: NSImageView {
     }
 }
 
+// MARK: - Drawing the loupe
+
 extension TrackingImageView {
     /// Draws the clipped, magnified image circle plus its border and crosshair.
     private func drawLoupeMagnifiedImage(in rect: NSRect, targetPosition: CGPoint, image: NSImage) {

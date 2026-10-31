@@ -301,6 +301,8 @@ struct SegmentInspectorView: View {
     }
 }
 
+// MARK: - The path head
+
 extension SegmentInspectorView {
     private var pathHead: some View {
         HStack(spacing: 4) {

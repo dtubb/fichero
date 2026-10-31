@@ -286,6 +286,8 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
     }
 }
 
+// MARK: - Web view callbacks
+
 extension DocumentKGWebPaneCoordinatoriOS {
     /// A genuine fetch failure (pinned remote unreachable, engine non-2xx) fails
     /// the `fichero-server://` provisional navigation. Fall back to the static

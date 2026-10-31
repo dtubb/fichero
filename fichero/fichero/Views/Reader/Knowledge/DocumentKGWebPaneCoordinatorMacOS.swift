@@ -323,6 +323,8 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     }
 }
 
+// MARK: - Web view callbacks
+
 extension DocumentKGWebPaneCoordinatorMacOS {
     private func loadFailurePageIfEngineLoad(_ webView: WKWebView, error: any Error) {
         if error.isCancellationError { return }

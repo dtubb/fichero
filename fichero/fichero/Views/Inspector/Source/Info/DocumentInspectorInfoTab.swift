@@ -169,9 +169,11 @@ struct DocumentInspectorInfoTab: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+}
 
-    // MARK: - Sections
+// MARK: - Sections
 
+extension DocumentInspectorInfoTab {
     @ViewBuilder
     private var statusSection: some View {
         attributeSection("Status", attributes: [.state]) {
@@ -307,9 +309,7 @@ struct DocumentInspectorInfoTab: View {
             // `InspectorAttribute` has no case for either.
         }
     }
-}
 
-extension DocumentInspectorInfoTab {
     /// Format-specific structural facts — page count for PDFs, pixel
     /// dimensions for images. Only renders when at least one value exists.
     @ViewBuilder

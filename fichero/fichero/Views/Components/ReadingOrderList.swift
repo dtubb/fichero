@@ -312,6 +312,8 @@ struct ReadingOrderList: View {
     }
 }
 
+// MARK: - Key rows and the step control
+
 extension ReadingOrderList {
     /// The keys, as buttons so they are discoverable and so the shortcuts have a home.
     private func keyRow(_ store: ReadingOrderStore) -> some View {

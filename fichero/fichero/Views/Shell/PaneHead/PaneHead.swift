@@ -375,6 +375,8 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     }
 }
 
+// MARK: - Crumbs and controls
+
 extension PaneHead {
     @ViewBuilder
     private func crumbSegmentCore(_ crumb: PaneCrumb, isLeaf: Bool) -> some View {

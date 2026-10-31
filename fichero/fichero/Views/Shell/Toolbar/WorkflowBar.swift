@@ -454,6 +454,8 @@ struct WorkflowBar: View {
     }
 }
 
+// MARK: - Tools and family items
+
 extension WorkflowBar {
     /// The Tools entry — the node editor's palette, reachable without opening
     /// the node editor, which was the whole complaint that started this bar.

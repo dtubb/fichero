@@ -341,6 +341,8 @@ class ImportService {
     }
 }
 
+// MARK: - Ingesting a file in place
+
 @MainActor extension ImportService {
     private func ingestFileInPlace(
         _ url: URL,
