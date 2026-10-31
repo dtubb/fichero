@@ -139,7 +139,8 @@ def prepare_pages(db: Any, documents: list[str], run_id: str,
     from PIL import Image, ImageOps
 
     from fichero_server.llm.kraken_runtime import upright_size
-    from fichero_server.models import Document, Rendition
+    from fichero_server.models import Document, NodeRegion, Rendition
+    from fichero_server.models.anchors import RegionConfidence
     from fichero_server.workflows.tools.sources import _resolve_abs_path
 
     library = Path(db.path).parent
@@ -175,7 +176,11 @@ def prepare_pages(db: Any, documents: list[str], run_id: str,
             db.save(Rendition(document_id=doc.id, role=ROLE, path=str(relative), is_primary=False,
                               pixel_width=shown_width, pixel_height=shown_height, producer_run_id=run_id,
                               producer_tool="prepare-the-image",
-                              note=f"faded (grey spread {spread}/255): contrast raised"))
+                              note=f"faded (grey spread {spread}/255): contrast raised",
+                              # The page's own frame, said in a transform like the other operations' (the whole page,
+                              # no cut, no turn), so no step has to guess it from the picture's shape (`wide.faded.*`).
+                              transform=NodeRegion(rect=[0.0, 0.0, 1.0, 1.0], confidence=RegionConfidence.measured,
+                                                   method="clarity")))
             account["prepared"] += 1
         except Exception as exc:  # noqa: BLE001 -- one page that fails is skipped and said; the others still go on
             logger.warning("prepare: %s skipped: %s", doc_id, exc)

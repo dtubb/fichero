@@ -264,3 +264,27 @@ def test_wide_chain_a_passed_over_rendition_is_a_row_with_its_reason_not_only_a_
     assert current_page_image(db, doc).passed_over == 1
     chain = image_chain(db, doc)
     assert chain["read_from"] == ORIGINAL and chain["steps"][0]["reads_this"] and chain["passed_over"][0]["why"] == why
+
+
+def test_wide_faded_the_prepared_rendition_carries_its_own_transform_and_is_followed_as_the_pages_frame(db, tmp_path):
+    """`wide.faded.find-lines-reads-the-clarified-copy`: Clarity's `prepared` rendition records the whole page as its transform
+    like the other operations' renditions, so Find Lines segments it and its lines map back without a guess from its shape."""
+    from fichero_server.recipes.prepare import prepare_pages
+
+    path = tmp_path / "faded.png"
+    image = Image.new("RGB", (W, H), (215, 215, 205))
+    draw = ImageDraw.Draw(image)
+    for y in range(10, 90, 12):
+        for x in range(10, 190, 24):
+            draw.rectangle([x, y, x + 14, y + 5], fill=(160, 160, 160))
+    image.save(path)
+    doc = Document(name="faded.png", doc_type=DocType.file, file_type=FileType.image, path=str(path))
+    db.save(doc)
+
+    assert prepare_pages(db, [doc.id], "run-1")["prepared"] == 1
+
+    (made,) = [r for r in db.query(Rendition, document_id=doc.id) if r.role == "prepared"]
+    assert made.transform is not None and made.transform.rect == [0.0, 0.0, 1.0, 1.0]
+    found = current_page_image(db, doc)
+    assert found.kind == RENDITION and found.to_image is not None
+    assert found.to_image.carry([[0.25, 0.5]])[0] == pytest.approx([0.25, 0.5])

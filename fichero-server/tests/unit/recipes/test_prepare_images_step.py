@@ -130,7 +130,7 @@ def test_start_prepares_the_faded_page_and_lines_read_the_prepared_copy(client, 
     assert read["state"] == "done"
 
     (made,) = [r for r in db.query(Rendition, document_id=faded.id) if r.role == "prepared"]
-    assert not made.is_primary and made.transform is None
+    assert not made.is_primary and made.transform.rect == [0.0, 0.0, 1.0, 1.0]  # the page's own frame, said (wide.faded.*)
     library = Path(db.path).parent
     stored = library / made.path
     assert stored.is_file() and not Path(made.path).is_absolute()
