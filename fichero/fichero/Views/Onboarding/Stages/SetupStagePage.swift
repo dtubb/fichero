@@ -48,13 +48,20 @@ struct SetupStagePage: View {
             RecipeLeftOffRows(store: store, onlyJobs: Set(stage.jobs))
             if !stage.questions.isEmpty {
                 Divider()
-                ForEach(stage.questions, id: \.key) { question in
+                // The second review's mode is asked beside that step's model picker, once there is a second step.
+                ForEach(stage.questions.filter { $0.key != RecipeSetupStore.secondReviewModeQuestion }, id: \.key) { question in
                     SetupStageQuestionField(
                         question: question,
                         store: store,
                         answer: Binding(
                             get: { Self.answer(to: question, in: store.jobAnswers) },
-                            set: { store.jobAnswers[question: question.key] = $0 }
+                            set: { newValue in
+                                if question.key == RecipeSetupStore.leaveOutQuestion, case .yesNo(let on) = newValue {
+                                    store.setLeaveOut(on)  // the stage's tick follows the toggle
+                                } else {
+                                    store.jobAnswers[question: question.key] = newValue
+                                }
+                            }
                         )
                     )
                 }
@@ -101,6 +108,10 @@ struct SetupStagePage: View {
                     // The samples' thumbnails come from this project's storage (Organise's strip).
                     .environment(project?.storageService)
             }
+        }
+        // Leave Out's toggle is the step's on/off: propose the plan again so this page's steps follow it (#6070).
+        .onChange(of: store.jobAnswers.other[RecipeSetupStore.leaveOutQuestion]) {
+            if stage.jobs.contains("leave-out") { Task { await store.assemble() } }
         }
         // A try's result changes what an open question suggests (the kinds it found): ask the engine's list again.
         .onChange(of: tryStore?.result) { Task { await store.loadStages() } }

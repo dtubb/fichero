@@ -495,6 +495,14 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                 and (given != [] or answer in _EMPTY_IS_AN_ANSWER)):
             settings[setting] = given
         bar = (job_answers or {}).get(CERTAINTY_BAR_ANSWER) if job == "correct" else None
+        has_bar = bar not in (None, "", WHOLE_PAGE) or settings.get("only_below_confidence") not in (None, "")
+        if has_bar and settings.get("review_mode") not in (None, "", "in-turn"):
+            # The unsure-lines path asks the model about each line's current reading, so compare and both would be ignored.
+            skip(sid, f"{label}: it reviews {settings['review_mode']}, which needs the whole page, and this step sends the "
+                      "second model only the lines Kraken is unsure of",
+                 "answer \"Send the second model only the lines Kraken is unsure of?\" No, or review in turn, in the "
+                 "project's setup; or take the step's own certainty bar out")
+            continue
         if bar not in (None, "", WHOLE_PAGE) and "only_below_confidence" not in settings:
             try:
                 number = float(bar)
@@ -696,6 +704,11 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             # Kraken reads, the model re-reads only the lines Kraken was under this sure of (variant A).
             entry["tool_config"] = {**entry.get("tool_config", {}), "transcribe_review": {
                 "only_below_confidence": float(settings["only_below_confidence"])}}
+        if job == "correct" and settings.get("review_mode") not in (None, "in-turn"):
+            # The second reviewer's way with the first's work (#6257): compare, or both; in turn is what it does unasked.
+            entry["tool_config"] = {**entry.get("tool_config", {}),
+                                    "transcribe_review": {**(entry.get("tool_config") or {}).get("transcribe_review", {}),
+                                                          "review_mode": settings["review_mode"]}}
         runs.append(entry)
     for item in recipe.get("by_hand") or []:
         if only is None or item.get("job") in only:

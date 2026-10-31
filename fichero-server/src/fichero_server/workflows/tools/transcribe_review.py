@@ -54,6 +54,13 @@ REVIEW_CONFIG = {
         "description": "The pass this review makes (abbreviations, orthography, names-and-dates): with no prompt set, its prompt is built from the project and its profile; recorded with the corrections",
         "x-group": "advanced",
     },
+    "review_mode": {
+        "type": "string",
+        "enum": ["in-turn", "compare", "both"],
+        "default": "in-turn",
+        "description": "A second review's way with the first (#6257): in-turn reviews the first's result; compare reviews the reading the first started from, on its own; both is given that reading and the first's version and settles them, marking what it cannot as uncertain",
+        "x-group": "advanced",
+    },
     "skip_if_artifact_exists": {
         "type": "boolean",
         "default": True,
@@ -111,6 +118,8 @@ ANSWER_BY_ID = (
 #: A line that starts with a segment id (a uuid, hex): the lines as shown, and an earlier pass's answer by id, which the
 #: next pass of a preset is given as its context.
 _SHOWN_LINE = re.compile(r"^[0-9a-f]{32} \| ", re.MULTILINE)
+#: A row of the settle block a second review in `both` mode is given (`tool_context.as_prompt_context`): the first review's version of a line.
+_SETTLE_ROW = re.compile(r"^their version of ([0-9a-f]{32}): ")
 
 
 def shows_segment_lines(prior_text: Any) -> bool:
@@ -221,7 +230,10 @@ def _within_budget(prior_text: Any, model: str, prompt: str = "", files: list | 
         message = (f"{left} of the page's {len(listed)} lines were left out to fit the model's budget of {budget} "
                    "tokens; they are not reviewed in this pass")
         dropped = set(listed[len(keep):])
-        texts[index] = "\n".join(row for i, row in enumerate(rows) if i not in dropped) + f"\n\n({message}.)"
+        gone = {rows[i][:32] for i in dropped}  # the settle block (#6257) names no line the model was not shown
+        kept = [row for i, row in enumerate(rows) if i not in dropped
+                and not ((m := _SETTLE_ROW.match(row)) and m.group(1) in gone)]
+        texts[index] = "\n".join(kept) + f"\n\n({message}.)"
         logging.getLogger(__name__).warning("review context: %s", message)
         said.append(message)
     return (texts if isinstance(prior_text, list) else texts[0]), said
@@ -288,8 +300,8 @@ async def _review_whole_page(inputs: dict[str, Any], state: State, llm_config: L
 
 
 def _answered_by(db: Any, document_id: str, provider: str, model: str) -> set[str]:
-    """The lines of a page that already carry a reading from a review by this same model (a re-run does not ask them
-    again, or pay for them again)."""
+    """The lines of a page that already carry a reading from a review by this same model (a re-run does not ask
+    them again, or pay for them again). The unsure-lines path only runs in turn, so there is no other mode to tell apart."""
     from fichero_server.models import Artifact, ContentRepresentation
 
     made = {a.id for a in db.query(Artifact, document_id=document_id, artifact_type="transcription_review")
@@ -431,6 +443,10 @@ async def transcribe_review(
 ) -> dict[str, Any]:
     """Re-check an image against its prior transcription and emit a corrected version."""
 
+    if inputs.get("only_below_confidence") is not None and inputs.get("review_mode") not in (None, "", "in-turn"):
+        # the unsure-lines path asks about each line's current reading, so compare and both would be ignored (#6257)
+        raise ValueError(f"review_mode {inputs['review_mode']!r} needs the whole page; it cannot be combined with "
+                         "only_below_confidence, which sends the model only the unsure lines")
     files = inputs.get("files") or state.get("input_files", [])
     # #4298: recover aligned documents from upstream node outputs when the
     # `documents` port is unwired, so a page-scoped review stays scoped to
@@ -465,7 +481,8 @@ async def transcribe_review(
         # newest transcription -- what `_existing_transcription_context` sent, and the lines too.
         from fichero_server.tool_context import with_page_context
 
-        prior_text = with_page_context(None, documents, files, state.get("library_path", ""), confidence=True)
+        prior_text = with_page_context(None, documents, files, state.get("library_path", ""), confidence=True,
+                                       review_mode=inputs.get("review_mode") or "in-turn")
     prior_text = _with_line_scripts(prior_text, documents, files, state.get("library_path", ""))
     input_metadata = inputs.get("metadata")
 
@@ -511,13 +528,14 @@ async def transcribe_review(
         import asyncio
 
         unresolved = await asyncio.to_thread(_onto_lines, result, library_path, state.get("task_id"),
-                                             inputs.get("lens"))
+                                             inputs.get("lens"), inputs.get("review_mode"))
         if unresolved:
             await _re_ask_pages(result, unresolved, library_path, state.get("task_id"), llm_config)
     return result
 
 
-def _onto_lines(result: dict[str, Any], library_path: str, run_id: str | None, lens: str | None = None) -> list[str]:
+def _onto_lines(result: dict[str, Any], library_path: str, run_id: str | None, lens: str | None = None,
+                review_mode: str | None = None) -> list[str]:
     """The review's corrections become the page's text (#5654, `source.job.correct-onto-lines`): each
     saved review is put onto its page's lines as readings (`working_lines.correct_lines`), and what was
     done is said per page in the step's notes and its per-file result (`lines`). A review that cannot be
@@ -543,7 +561,8 @@ def _onto_lines(result: dict[str, Any], library_path: str, run_id: str | None, l
                              **({"unreadable_lines": unread} if unread else {})}
             db.save(artifact)
         _made, said = correct_lines(db, document_id=artifact.document_id, text=artifact.content or "",
-                                    artifact_id=artifact.id, run_id=run_id, library_path=library_path)
+                                    artifact_id=artifact.id, run_id=run_id, library_path=library_path,
+                                    settling=review_mode == "both")
         page = db.get(Document, artifact.document_id)
         notes.append(f"{getattr(page, 'name', None) or artifact.document_id}: {said}")
         if artifact_id in by_artifact:
