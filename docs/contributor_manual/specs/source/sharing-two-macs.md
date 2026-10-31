@@ -347,7 +347,7 @@ address answered while the link named `.local`.
   (Swift Testing, written with the slice): rows from a `SharingStateRecord` with and without a tailnet address; default row; the payload for
   each row carries the right pin; both links carry the same code. UI: `SharingPaneUITests/testAddDeviceSheetShowsBothAddressRows` in
   `fichero-ui-mac` (seeded sharing state).
-- `sharing.state-names-every-address` — **[GAP]** (engine, additive) `GET /api/pair/sharing` gains `public_base_url` (the sharing
+- `sharing.state-names-every-address` — **[GAP]** → #5049 (engine, additive) `GET /api/pair/sharing` gains `public_base_url` (the sharing
   address the engine was started with), `lan_ip` and `tailnet_forward: "ours" | "foreign" | "none"`, so the app, the CLI and a tester read
   the host's addresses from one place instead of guessing (the first step of `sharing.address-choice`, §4, which stays the fuller design).
   Additive response fields: the Swift client ignores unknown keys until the regen that consumes them. *Test:*
