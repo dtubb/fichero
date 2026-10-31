@@ -88,6 +88,7 @@ _KIND_MODULES = (
     "fichero_server.training.job",
     "fichero_server.workflows.task_workers",
     "fichero_server.remote_read.job",
+    "fichero_server.remote_read.cloud_batch",  # a cloud batch left waiting by a restart needs its runner (#6320)
     "fichero_server.training.reasons_job",
     "fichero_server.training.local",
     "fichero_server.training.yolo_local",
