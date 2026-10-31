@@ -1936,8 +1936,8 @@ class Database(DatabaseEmbeddingMixin):
                             volume_dropped.recovered(self.path)
                         return result
                     except duckdb.Error as exc:
-                        if volume_dropped.is_volume_error(exc):
-                            raise volume_dropped.outage(self.path, exc) from exc
+                        if (down := volume_dropped.classify(self.path, exc)) is not None:
+                            raise down from exc
                         if self._is_invalidated_error(exc):
                             # The cause, always (#5644): "invalidated" also means "closed", and a
                             # FATAL behind it went unseen for weeks without its own words here.
@@ -2124,8 +2124,12 @@ class Database(DatabaseEmbeddingMixin):
                             )
                             columns = [desc[0] for desc in cur.description]
                             rows = fetch_one(cur) if fetch == "one" else cur.fetchall()
+                        if volume_dropped.is_down(self.path):
+                            volume_dropped.recovered(self.path)
                         return rows, columns
                     except duckdb.Error as exc:
+                        if (down := volume_dropped.classify(self.path, exc)) is not None:
+                            raise down from exc
                         if self._is_invalidated_error(exc):
                             # The cause, always (#5644): "invalidated" also means "closed", and a
                             # FATAL behind it went unseen for weeks without its own words here.
@@ -2187,13 +2191,25 @@ class Database(DatabaseEmbeddingMixin):
             self._tx_state.after_rollback_hooks = hooks
         hooks.append(hook)
 
+    @contextmanager
+    def _volume_guard(self):
+        """A statement outside the retry loops (commit, CHECKPOINT, BEGIN, COMMIT): a DuckDB error from a disk that is not
+        answering is the typed outage, not a raw 500 (#6311)."""
+        try:
+            yield
+        except duckdb.Error as exc:
+            down = volume_dropped.classify(self.path, exc)
+            if down is None:
+                raise
+            raise down from exc
+
     def _ensure_transaction_started(self) -> None:
         if not self.in_transaction or getattr(self._tx_state, "started", False):
             return
         self._transaction_gate.acquire()
         try:
             try:
-                with self._lock:
+                with self._lock, self._volume_guard():
                     self.conn.execute("BEGIN TRANSACTION")
             except duckdb.Error as exc:
                 if not self._is_invalidated_error(exc):
@@ -2267,12 +2283,12 @@ class Database(DatabaseEmbeddingMixin):
             started = bool(getattr(self._tx_state, "started", False))
             if outermost and started:
                 if getattr(self._tx_state, "rollback_only", False):
-                    with self._lock:
+                    with self._lock, self._volume_guard():
                         self.conn.execute("ROLLBACK")
                     hooks = list(getattr(self._tx_state, "after_rollback_hooks", []))
                     raise_rollback_only = True
                 else:
-                    with self._lock:
+                    with self._lock, self._volume_guard():
                         self.conn.execute("COMMIT")
                     hooks = list(getattr(self._tx_state, "after_commit_hooks", []))
         except Exception:
@@ -2280,7 +2296,7 @@ class Database(DatabaseEmbeddingMixin):
             if not outermost:
                 self._tx_state.rollback_only = True
             if outermost and started:
-                with self._lock:
+                with self._lock, self._volume_guard():
                     self.conn.execute("ROLLBACK")
             if outermost:
                 hooks = list(getattr(self._tx_state, "after_rollback_hooks", []))
@@ -3383,6 +3399,8 @@ class Database(DatabaseEmbeddingMixin):
                     # or the retry mints its cursor from the same dead
                     # connection and this path fails where `get` survives.
                     self._read_conn = None
+                    if (down := volume_dropped.classify(self.path, exc)) is not None:
+                        raise down from exc
                     if self._is_invalidated_error(exc):
                         self._reconnect_after_invalidated()
                     if attempt == 1:
@@ -3409,8 +3427,8 @@ class Database(DatabaseEmbeddingMixin):
                     return rows, columns
                 except duckdb.Error as exc:
                     self._read_conn = None
-                    if volume_dropped.is_volume_error(exc):
-                        raise volume_dropped.outage(self.path, exc) from exc
+                    if (down := volume_dropped.classify(self.path, exc)) is not None:
+                        raise down from exc
                     if self._is_invalidated_error(exc):
                         self._reconnect_after_invalidated()
                     if attempt == 1:
@@ -4015,7 +4033,8 @@ class Database(DatabaseEmbeddingMixin):
 
     def commit(self) -> None:
         """Commit pending DuckDB work through the typed DB wrapper."""
-        self.conn.commit()
+        with self._volume_guard():
+            self.conn.commit()
 
     def knowledge_claim_entity_id_values(
         self,
@@ -5724,7 +5743,7 @@ class Database(DatabaseEmbeddingMixin):
         TABLES, copying after one produced the full schema. That failure was
         silent — the copy was a valid, non-empty, entirely empty database.
         """
-        with self._lock:
+        with self._lock, self._volume_guard():
             self.conn.execute("CHECKPOINT")
 
     def count(self, model: Type[T], **filters) -> int:
@@ -8016,6 +8035,8 @@ class Database(DatabaseEmbeddingMixin):
                     try:
                         return self.conn.execute(sql)
                     except duckdb.Error as exc:
+                        if (down := volume_dropped.classify(self.path, exc)) is not None:
+                            raise down from exc
                         if self._is_invalidated_error(exc):
                             logger.warning(
                                 "DuckDB connection for %s was invalidated during schema reconciliation; see the next line for what was done",

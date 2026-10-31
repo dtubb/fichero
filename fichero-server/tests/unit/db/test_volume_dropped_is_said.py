@@ -62,8 +62,8 @@ def test_n_requests_make_one_503_one_log_line_one_ledger_entry_then_recover(libr
         assert {r.status_code for r in responses} == {503}, [r.status_code for r in responses]
         body = responses[0].json()
         assert body["reason"] == "library_volume_not_reachable" and body["library"] == "Archive Work"
-        assert "volume disconnected" in body["detail"] and "/Volumes" not in body["detail"]
-        lines = [r for r in caplog.records if "volume disconnected" in r.getMessage() and r.levelno >= logging.ERROR]
+        assert "can't reach the library's disk" in body["detail"] and "/Volumes" not in body["detail"]
+        lines = [r for r in caplog.records if "reach the disk" in r.getMessage() and r.levelno >= logging.ERROR]
         assert len(lines) == 1, [r.getMessage() for r in lines]
         counts = {k: v for k, v in failure_ledger.counts().items() if k.startswith("library-volume|")}
         assert list(counts.values()) == [7], counts
