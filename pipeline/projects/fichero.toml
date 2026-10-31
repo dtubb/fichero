@@ -60,6 +60,7 @@ paths = ["fichero-server/src/", "fichero/fichero/"]
 needs_mb = 4000
 [[ladder]]
 name = "fast-guards"
+enabled = false                      # studio trial: `ready` above already runs this same guard set (lane_ready_check.sh step 4b); twice was ~2x the minutes
 glob = "{pinned}/scripts/check_*.py"
 timeout_s = 60                       # the default budget of one guard; [ladder.budget_s] overrides it per guard
 # ONE list of what the nightly gate runs instead, each with its reason. A guard not named here runs on every check.
@@ -204,6 +205,11 @@ kind = "pi"
 provider = "openrouter"
 tier = "big"
 model = "anthropic/claude-sonnet-5.5"
+# stage 2: the 27B as the reviewer (`REVIEWER=2 pipeline/studio-stage1.sh openrouter ...`), pinned in models.json
+[[roles.reviewer]]
+kind = "pi"
+provider = "openrouter"
+tier = "big"
 [[roles.manager]]
 kind = "pi"
 provider = "anthropic"

@@ -11,5 +11,6 @@ if [ ! -d "$copy" ]; then
   [ ! -e "$here/.studio-pi" ] || ln -s "$here/.studio-pi" "$copy/.studio-pi"   # gitignored, so not in the copy
 fi
 export PIPELINE_STATE=${PIPELINE_STATE:-$HOME/.local/state/pipeline/$(basename "$here")}
+export PIPELINE_LOGS=${PIPELINE_LOGS:-$here/agent-work/status/briefs}   # the logs belong to the checkout, not to the copy
 cd "$copy"
 PYTHONPATH=. exec "${PY:-$here/../integration/.venv/bin/python}" -m pipeline "$@"

@@ -5,11 +5,13 @@ done lines); output tokens, tool calls and tool errors are the session's, shown 
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from pipeline import ROOT, checks, coder, core, journal
 
-LOG = ROOT / "agent-work" / "status" / "briefs" / "studio-run-log.tsv"
+BRIEFS = Path(os.environ.get("PIPELINE_LOGS") or ROOT / "agent-work" / "status" / "briefs")  # a pinned copy writes to its checkout
+LOG = BRIEFS / "studio-run-log.tsv"
 COLUMNS = ("date item stage role model provider precision ctx_cap prompt_tokens cached_tokens output_tokens tool_calls "
            "tool_errors diff_lines wall_min cost_usd pi_cost_usd ladder binding_verdict shadow_verdict rework_rounds "
            "false_done notes").split()
@@ -94,7 +96,7 @@ def _t(ts: str) -> float:
     return time.mktime(time.strptime(ts, "%Y-%m-%dT%H:%M:%S"))
 
 
-HANDOFF_LOG = ROOT / "agent-work" / "status" / "briefs" / "studio-handoff-log.tsv"
+HANDOFF_LOG = BRIEFS / "studio-handoff-log.tsv"
 HANDOFF_COLUMNS = "task n tokens_at_handoff ctx_cap pct note_bytes builder_note issues_before issues_after redid lost".split()
 
 
@@ -137,7 +139,7 @@ def write_handoffs(path: Path | None = None, **kw) -> dict:
     return {"path": str(path), "rows": len(rs)}
 
 
-CLUSTER_LOG = ROOT / "agent-work" / "status" / "briefs" / "studio-cluster-log.tsv"
+CLUSTER_LOG = BRIEFS / "studio-cluster-log.tsv"
 CLUSTER_COLUMNS = ("task issues prompt_tokens cached_tokens cache_hit output_tokens cost_usd prompt_per_issue cost_per_issue "
                    "solo_prompt_per_issue solo_cost_per_issue ratio_prompt ratio_cost").split()
 
