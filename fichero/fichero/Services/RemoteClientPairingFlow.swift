@@ -359,7 +359,8 @@ enum RemoteClientPairing {
             AuthTokenMiddleware.holdTransientRemoteToken(result.deviceToken, hostString: host)
             defer { AuthTokenMiddleware.dropTransientRemoteToken(hostString: host) }
             if let client = try? FicheroClient(baseURL: result.apiRoot, expectedSPKIPin: expectedSPKIPin) {
-                let revoked = await (revoke.map { await $0(client) } ?? revokeOwnPairing(client: client))
+                let revoked: Bool
+                if let revoke { revoked = await revoke(client) } else { revoked = await revokeOwnPairing(client: client) }
                 if !revoked { logger.warning("Pairing: the host did not revoke the unsaved device") }
             }
             throw RemoteClientPairingError.tokenNotSaved
