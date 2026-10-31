@@ -1257,9 +1257,19 @@ def _holding_the_served_model(job_id: str, cards: list[dict[str, Any]]):
             module.let_go_served_models(job_id)
 
 
+class RunEnded(RuntimeError):
+    """The run's own end in words ("Done with failures: ...", "Stopped: ..."): said as it is, never wrapped (#6298)."""
+
+
 def _run(db: Any, job_id: str) -> dict[str, Any]:
     try:
         return _run_the_plan(db, job_id)
+    except (RunEnded, *_RUN_CONTROL):
+        raise
+    except Exception as exc:  # noqa: BLE001 -- a slip in the run's own plan ends it in plain words, its work kept (#6298)
+        logger.exception("run %s: stopped on an error", job_id)
+        raise RuntimeError("The run stopped on an error in Fichero. What it finished is kept, and Start carries on from there; "
+                           "the log has the detail.") from exc
     finally:  # stopped, failed, paused or done: a page saved before Search got to it is embedded after all (#6126)
         try:
             end_search_watch(db, job_id, (jobs.read_job(db, job_id) or {}).get("started_by") or "owner")
@@ -1322,7 +1332,12 @@ def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
         jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
         raise jobs.JobCancelled(words)
     over = f" over {total} {'folder' if total == 1 else 'folders'}" if total else ""
-    failures = _failures_words(db, cards, steps, total)
+    try:
+        failures = _failures_words(db, cards, steps, total)
+    except Exception:  # noqa: BLE001 -- the run's work is done; only the words about it failed (#6298)
+        logger.exception("run %s: could not word its failures", job_id)
+        failed = [", ".join(c["steps"]) for c, st in zip(cards, steps) if st.get("failed_batches")]
+        failures = ("some steps failed or lost pages: " + "; ".join(failed) + " (see each step)") if failed else ""
     if halted:
         words = f"Stopped: {halted}{folders}"
     elif failures:
@@ -1332,7 +1347,7 @@ def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
                                                          if detail["skipped"] else "")
     jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
     if halted or failures:
-        raise RuntimeError(words)
+        raise RunEnded(words)
     return {"steps": steps}
 
 
@@ -1479,7 +1494,13 @@ def _start_beside(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str,
                   index: int) -> _Beside | None:
     """Step `index` started on its own thread while the step before it runs; its end is taken when its turn comes."""
     card, step = detail["runs"][index], detail["steps"][index]
-    documents, scratch, kinds = _step_pages(db, card, step, batch, tree, detail)
+    try:
+        documents, scratch, kinds = _step_pages(db, card, step, batch, tree, detail)
+    except _RUN_CONTROL:
+        raise
+    except Exception:  # noqa: BLE001 -- start nothing beside; the step's own turn works its pages out under its guard (#6298)
+        logger.exception("recipe step %s: could not start beside the step before it", ", ".join(card["steps"]))
+        return None
     card = _text_is_the_hosted_readers(_asked_again(card, set(detail.get("redo") or [])))
     if not documents or _stop_asked(job_id):
         return None
