@@ -244,3 +244,12 @@ class TestTheBaselineSaysSomething:
 
     def test_the_baseline_is_smaller_than_the_defective_one_it_replaced(self):
         assert len(check_endpoint_coverage_matrix.KNOWN_GAPS) < 443
+
+
+class TestTheCatalogueWorkbookRouteHasAnHonestGap:
+    def test_the_route_with_no_app_door_is_a_named_known_gap(self):
+        reason = check_endpoint_coverage_matrix.KNOWN_GAPS["POST /api/export/catalogue-workbook"]
+        assert "catalogue.export.app-doors" in reason
+        assert "POST /api/export/catalogue-workbook" not in {
+            endpoint for endpoint, row in _rows().items() if row.gap and endpoint not in check_endpoint_coverage_matrix.KNOWN_GAPS
+        }

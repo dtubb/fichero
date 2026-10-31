@@ -42,7 +42,11 @@ extension RecipeSetupStore {
     }
 
     /// The chosen stages, in the engine's order: one page each.
-    var chosenStageIds: [String] { stageChoice?.chosenInOrder ?? [] }
+    var chosenStageIds: [String] { stageIds(keeping: nil) }
+
+    /// The chosen stages, plus `current` while the person is on its page: unticking a stage on its own page (Leave Out's
+    /// toggle) must not drop the page from under them, or Continue and Back would lose their place.
+    func stageIds(keeping current: String?) -> [String] { stageChoice?.inOrder(keeping: current) ?? [] }
 
     /// Each stage's title, for its page's name in the window's list.
     var stageTitles: [String: String] {
@@ -55,7 +59,48 @@ extension RecipeSetupStore {
     func toggle(stage id: String) {
         stageChoice?.toggle(id)
         applyStageChoiceToJobs()
+        // Leave Out's own question is the step's on/off (`source.recipe.leave-out-stage`): the tick and the toggle agree.
+        if id == Self.leaveOutStage, let choice = stageChoice {
+            jobAnswers[question: Self.leaveOutQuestion] = .yesNo(choice.chosen.contains(id))
+        }
     }
+
+    /// Leave Out turned on or off from anywhere but the chooser (its page's toggle, Ready's take out and put back): the
+    /// answer is saved and the stage's tick follows, so the three never disagree. A tick that cannot change (another
+    /// chosen stage needs the stage) leaves the answer as the tick has it.
+    func setLeaveOut(_ on: Bool) {
+        jobAnswers[question: Self.leaveOutQuestion] = .yesNo(on)
+        guard let choice = stageChoice else { return }
+        if choice.chosen.contains(Self.leaveOutStage) != on { stageChoice?.toggle(Self.leaveOutStage) }
+        let ticked = stageChoice?.chosen.contains(Self.leaveOutStage) ?? on
+        jobAnswers[question: Self.leaveOutQuestion] = .yesNo(ticked)
+        // only this job's lines: the other steps taken out on Ready stay taken out
+        removedJobs.removeAll { $0 == Self.leaveOutStage }
+        addedJobs.removeAll { $0 == Self.leaveOutStage }
+        if ticked { addedJobs.append(Self.leaveOutStage) } else { removedJobs.append(Self.leaveOutStage) }
+    }
+
+    /// Take a step out of the plan; the engine proposes the plan again without it, and Ready saves that, so
+    /// Start runs the plan as shown and Set Up… reopens with it.
+    func takeOut(job: String) async {
+        guard !removedJobs.contains(job) else { return }
+        removedJobs.append(job)
+        if job == Self.leaveOutStage { setLeaveOut(false) }  // the saved answer follows the plan, never contradicts it
+        await assemble()
+    }
+
+    /// Put a step taken out back into the plan.
+    func putBack(job: String) async {
+        removedJobs.removeAll { $0 == job }
+        if job == Self.leaveOutStage { setLeaveOut(true) }
+        await assemble()
+    }
+
+    /// The Leave Out stage and its one job (`recipes/stages.py`).
+    static let leaveOutStage = "leave-out"
+
+    /// The stage question that turns Leave Out on or off (`recipes/assemble.LEAVE_OUT_QUESTION`).
+    static let leaveOutQuestion = "leave_out"
 
     /// A goal (a purpose) as a shortcut: it ticks the stages that carry its jobs, and stays a goal of the project.
     func applyGoal(_ purposeId: String) {
@@ -88,6 +133,7 @@ extension RecipeSetupStore {
     /// Read the count again (after material was added) and keep it as the pages answer, so the estimate is the
     /// material's, not a guess typed earlier.
     func countPages() async {
+        runFirstPages = nil  // new material: the first N pages are no longer the question
         await loadStartPlan()
         if let counted = countedPages, counted > 0 { pages = counted }
     }

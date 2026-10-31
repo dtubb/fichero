@@ -3,7 +3,7 @@
 Where the project's sample shows faded pages, setup proposes `prepare-the-image` as a step; Start runs it as its own
 card (`prepare`) after any split and before lines. Each faded page gets a NEW rendition (role `prepared`, the page's
 own frame: `transform` None, never primary) with its contrast raised; the original file is never written to. The
-steps after it, lines and reading, read that rendition in place of the original (`vision_base.frame_true_rendition_path`),
+steps after it, lines and reading, read that rendition in place of the original (`media/current_image.current_page_image`),
 and a page already prepared is not prepared again.
 
 ponytail: "faded" is one measured number, the spread between the page's darkest and lightest 1% of grey

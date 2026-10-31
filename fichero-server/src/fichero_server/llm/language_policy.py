@@ -1011,18 +1011,13 @@ def stated_direction_source(get_document: Any, document: Any) -> Any:
     `get_document(id)` loads a parent (the caller's own db read). Walks `parent_id` up from the
     page's parent; a cycle or a missing parent ends the walk.
     """
-    seen: set[str] = set()
-    parent_id = _doc_get(document, "parent_id") if document is not None else None
-    while parent_id and parent_id not in seen:
-        seen.add(parent_id)
-        parent = get_document(parent_id)
-        if parent is None:
-            return None
-        if _stated_fact(parent, value_field="direction", meta_field="direction_meta",
-                        level=LEVEL_DOCUMENT, noun="source") is not None:
-            return parent
-        parent_id = _doc_get(parent, "parent_id")
-    return None
+    from fichero_server.models.node_prototypes import nearest_ancestor  # the one ancestor walk
+
+    return nearest_ancestor(
+        document, get_document,
+        lambda parent: _stated_fact(parent, value_field="direction", meta_field="direction_meta",
+                                    level=LEVEL_DOCUMENT, noun="source") is not None,
+    )
 
 
 def resolve_direction(

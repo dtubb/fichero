@@ -114,3 +114,77 @@ def test_a_yolo_region_found_in_the_crop_comes_back_in_whole_image_fractions(db,
     (seg,) = [s for s in db.query(Segment, document_id=page.id) if s.deleted_at is None]
     x, y, w, h = seg.bbox_x, seg.bbox_y, seg.bbox_w, seg.bbox_h
     assert (round(x, 4), round(y, 4), round(w, 4), round(h, 4)) == (0.3, 0.1, 0.3, 0.4)
+
+
+# With #6296 the finder reads the page's CURRENT image while the page box stays on the photograph. Unconverted, the box would cut
+# the wrong part of an edited page and the lines would land beside the ink.
+
+def _edited(db, page, operations):
+    from fichero_server.models import ImageEditChain
+
+    db.save(ImageEditChain(document_id=page.id, operations=operations))
+
+
+def test_a_page_box_on_a_page_cropped_in_preview_cuts_the_same_paper_and_the_lines_land_on_the_photograph(db, tmp_path, monkeypatch):
+    from fichero_server.recipes.regions import find_regions
+
+    seen: list = []
+    monkeypatch.setattr(kraken_runtime, "segment_lines", _stub(seen))
+    page = _page(db, tmp_path, BOX)
+    _edited(db, page, [{"op": "crop", "params": {"left": 200, "top": 40, "width": 800, "height": 720}}])
+
+    account = find_regions(db, [page.id], "run-1", "blla", provider="kraken")
+
+    assert seen == [(600, 640)], "the box's own paper, measured on the edited image (800 x 720)"
+    ((x, y, _w, _h),) = _lines(db, page)
+    assert abs(x - (0.3 + 20 / W)) < 1e-6 and abs(y - (0.1 + 20 / H)) < 1e-6, "cut -> edited image -> photograph"
+    assert abs(account["area_saved"] - (1 - 600 * 640 / (800 * 720))) < 1e-6, "the share of the image read, not of the photograph"
+    assert (account["lines_inside"], account["lines_outside"]) == (1, 0)
+
+
+def test_a_page_box_on_a_page_turned_in_preview_is_turned_with_it(db, tmp_path, monkeypatch):
+    from fichero_server.recipes.regions import find_regions
+
+    seen: list = []
+    monkeypatch.setattr(kraken_runtime, "segment_lines", _stub(seen))
+    page = _page(db, tmp_path, BOX)
+    _edited(db, page, [{"op": "rotate", "params": {"angle": 90}}])
+
+    account = find_regions(db, [page.id], "run-1", "blla", provider="kraken")
+
+    assert seen == [(640, 600)], "the same paper, a quarter turn round"
+    ((x, y, w, h),) = _lines(db, page)
+    assert BOX[0] <= x and x + w <= BOX[0] + BOX[2] + 1e-6 and BOX[1] <= y and y + h <= BOX[1] + BOX[3] + 1e-6
+    assert (account["lines_inside"], account["lines_outside"]) == (1, 0)
+
+
+def test_a_rendition_already_cut_to_the_page_is_not_cut_again(db, tmp_path, monkeypatch):
+    from fichero_server.models import NodeRegion, Rendition
+    from fichero_server.recipes.regions import find_regions
+
+    seen: list = []
+    monkeypatch.setattr(kraken_runtime, "segment_lines", _stub(seen))
+    page = _page(db, tmp_path, BOX)
+    crop = tmp_path / "crop.png"
+    Image.new("RGB", (600, 640), (200, 200, 200)).save(crop)
+    db.save(Rendition(document_id=page.id, role="crop", path=str(crop), pixel_width=600, pixel_height=640,
+                      transform=NodeRegion(rect=BOX)))
+
+    account = find_regions(db, [page.id], "run-1", "blla", provider="kraken")
+
+    assert seen == [(600, 640)] and "cropped" not in account, "the box is the whole rendition"
+    ((x, y, _w, _h),) = _lines(db, page)
+    assert abs(x - (0.3 + 20 / W)) < 1e-6 and abs(y - (0.1 + 20 / H)) < 1e-6
+
+
+def test_a_box_off_the_edited_image_leaves_the_edit_whole(db, tmp_path, monkeypatch):
+    from fichero_server.recipes.regions import find_regions
+
+    seen: list = []
+    monkeypatch.setattr(kraken_runtime, "segment_lines", _stub(seen))
+    page = _page(db, tmp_path, [0.0, 0.0, 0.2, 0.2])
+    _edited(db, page, [{"op": "crop", "params": {"left": 500, "top": 400, "width": 500, "height": 400}}])
+
+    account = find_regions(db, [page.id], "run-1", "blla", provider="kraken")
+
+    assert seen == [(500, 400)] and "cropped" not in account, "a person's edit is the last word"

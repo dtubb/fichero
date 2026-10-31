@@ -22,7 +22,14 @@ struct RecipeReadyFields: View {
         // Native grouped sections, as System Settings draws them (#5840): a box per step, then the parts.
         Form {
             if let error = store.errorMessage {
-                Section { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange) }
+                Section {
+                    Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                    // A Start refused while the plan is over a cap offers its fixes here, where the error is (#6295): the plan's
+                    // `cloud_cap.over` decides, not the words of the error.
+                    if let cap = store.startPlan?.cloudCap, CloudCapFix.isOver(cap) {
+                        CloudCapOffers(store: store, line: cap, undo: project?.actionsService)
+                    }
+                }
             }
             if store.isAssembling {
                 Section { ProgressView() }
@@ -144,7 +151,7 @@ struct RecipeReadyFields: View {
     static func start(store: RecipeSetupStore, keptExports: KeptExportStore?) async -> Bool {
         if let keptExports, !(await keptExports.keepDrafts()) { return false }
         guard await store.save() else { return false }
-        return await store.start()
+        return await store.start(firstPages: store.runFirstPages)
     }
 }
 

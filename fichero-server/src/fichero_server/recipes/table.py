@@ -189,6 +189,7 @@ def units(db: Any, documents: list[str], prototype: str) -> list[Any]:
     """The step's units among these pages: each page, and each live entry under it, whose kind is `prototype`
     (or one under it), in the pages' order."""
     from fichero_server.models import Document
+    from fichero_server.models.node_prototypes import resolve_node_prototype
 
     under = _kinds_under(db, prototype)
     out = []
@@ -196,10 +197,12 @@ def units(db: Any, documents: list[str], prototype: str) -> list[Any]:
         page = db.get(Document, doc_id)
         if page is None or page.deleted_at is not None:
             continue
-        if under(page.prototype_key):
+        # the EFFECTIVE kind (`proto.runs.read-the-effective-prototype`): a page beneath a folder whose kind names
+        # its pages' kind is asked the questions with no assignment of its own
+        if under(resolve_node_prototype(db, page).key):
             out.append(page)
         entries = sorted((d for d in db.query(Document, parent_id=page.id)
-                          if d.deleted_at is None and d.node_kind == "entry" and under(d.prototype_key)),
+                          if d.deleted_at is None and d.node_kind == "entry" and under(resolve_node_prototype(db, d).key)),
                          key=lambda d: d.sequence or 0)
         out += entries
     return out

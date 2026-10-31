@@ -80,6 +80,24 @@ def page_crop(path: str, box: list[float] | None, out_dir: str) -> tuple[str, tu
     return out, (left, top), full
 
 
+def page_box_on(page_image: Any, box: list[float] | None) -> list[float] | None:
+    """The document's `page_box` (fractions of the upright photograph) as fractions of the page's current image (#6296): a
+    Preview edit or a rendition may have cropped or turned it. A crop that already cut to the paper leaves a box that is the
+    whole image, which `page_crop` does not cut again; a box off the image has no area and is not cut either. A turn takes the
+    box that holds the four carried corners."""
+    if not box or len(box) != 4 or page_image is None or page_image.to_image is None:
+        return box
+    from PIL import Image
+
+    from fichero_server.media.current_image import _clamp_rect
+
+    with Image.open(page_image.path) as opened:
+        if int(opened.getexif().get(0x0112, 1) or 1) != 1:
+            # ponytail: a copy that keeps an orientation tag has `to_image` in its raw pixels, the crop is upright: not cut.
+            return None
+    return _clamp_rect(page_image.to_image.carry_rect(box))
+
+
 def shift_payload(payload: dict[str, Any], left: int, top: int, width: int, height: int) -> dict[str, Any]:
     """Kraken's raw answer about a crop, put back in the whole upright image's pixels: every outline and baseline moved by
     the crop's corner, the frame the whole image's size."""
@@ -110,6 +128,7 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
     from PIL import Image
 
     from fichero_server.llm import LLMConfig
+    from fichero_server.media.current_image import current_page_image
     from fichero_server.media.upright import upright_size
     from fichero_server.models import Document
     from fichero_server.workflows.tools.detect_regions import TOOL_CONFIG
@@ -144,6 +163,11 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
         doc = db.get(Document, doc_id)
         # The page's image as every step finds it: a copied page's stored path is inside the package (#5668).
         path = _resolve_abs_path(doc, library) if doc is not None else ""
+        # THE page's current image (`media/current_image.py`, #6296): both finders see it, and what they find is carried back to the photograph.
+        page_image = current_page_image(db, doc, library_root=library) if doc is not None else None
+        page_image = page_image.for_geometry() if page_image is not None else None  # the boxes are carried back: needs a known frame
+        if page_image is not None and not page_image.is_original:
+            path = page_image.path
         rendered, page_index = None, None
         if doc is not None and getattr(doc, "parent_id", None) and not doc.path:  # a page cut from a PDF has the PDF's path, not its own
             parent = db.get(Document, doc.parent_id)
@@ -167,16 +191,22 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
                 account["no_image"] += 1
                 continue
             page_started = time.monotonic()
+            # The page box is on the photograph, the finder reads the current image: the box is carried onto it (#6189, #6296).
+            on_current = page_image if page_image is not None and page_image.path == path else None
+            photo_box = (doc.metadata or {}).get("page_box") if page_index is None else None
+            box = page_box_on(on_current, photo_box)
             with tempfile.TemporaryDirectory() as scratch:
-                cut = page_crop(path, (doc.metadata or {}).get("page_box") if page_index is None else None, scratch)
+                cut = page_crop(path, box, scratch)
                 found_geometry, regions_here = _find_on(db, doc, cut[0] if cut else path, width, height, provider, model,
                                                         run_id, library, page_index, cut)
+            # `_find_on` has put a cut's answer back on the current image; from there it goes to the photograph.
+            if on_current is not None:
+                found_geometry = on_current.geometry_to_photograph(found_geometry)
             if cut:  # said only when a page was cut to its paper: how many, the share of the image not read, the seconds
-                box = doc.metadata["page_box"]
                 account["cropped"] = account.get("cropped", 0) + 1
                 account["area_saved"] = account.get("area_saved", 0.0) + 1 - float(box[2]) * float(box[3])
                 account["seconds"] = account.get("seconds", 0.0) + time.monotonic() - page_started
-                inside, outside = _lines_by_page_box(found_geometry, box)
+                inside, outside = _lines_by_page_box(found_geometry, photo_box)
                 account["lines_inside"] = account.get("lines_inside", 0) + inside
                 account["lines_outside"] = account.get("lines_outside", 0) + outside
         finally:

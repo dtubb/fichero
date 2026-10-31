@@ -2347,6 +2347,7 @@ from fichero_server.api.routes.document import (  # noqa: E402
     georeference as document_georeference,
     inspector as document_inspector,
     renditions,
+    templates as document_templates,
     notes,
     segment_pictures as document_segment_pictures,
     segment_readings as document_segment_readings,
@@ -2408,6 +2409,7 @@ from fichero_server.api.routes.system import (  # noqa: E402
     migrations,
     prepare_images,
     projects,
+    recipe_cloud_cap,
     recipes,
     registries,
     settings,
@@ -2518,6 +2520,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # Recipes (#4951): the job registry, checking a recipe, and assembling one from setup's answers.
     (recipes.router, "/api", ["recipes"]),
     (prepare_images.router, "/api", ["recipes"]),
+    (recipe_cloud_cap.router, "/api", ["recipes"]),  # #6295: its own module, recipes.py is over a thousand lines
     # Topics (#5471): each topic's and each recipe job's explanation, written once.
     (topics.router, "/api", ["topics"]),
     (citations.router, "/api", ["citations"]),
@@ -2538,6 +2541,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # Datasets Stage 2 (spec §3/§4): the one renderer query — grid paging,
     # typed filters, date bins, facet counts — over attribute JSON.
     (dataset.router, "/api/documents", ["documents"]),
+    (document_templates.router, "/api/documents", ["documents"]),
     (references.router, "/api", ["references"]),
     # Inspectors mount under /documents/* and /entities/* — tag with the
     # owning resource so the OpenAPI generator groups operations under

@@ -1,5 +1,6 @@
 // Set Up's one store: the saved recipe, the jobs, Try, the start plan and what the cloud would be sent. The plan's step
-// checkboxes live in RecipeSetupStore+PlanSteps.swift, which keeps this file under SwiftLint's 1000 lines.
+// checkboxes live in `+PlanEdits`, taking a step out in `+Stages`, #6295's own state in `+CloudCaps`: this file stays under
+// SwiftLint's 1000 lines.
 import FicheroAPIClient
 import Foundation
 import Observation
@@ -90,6 +91,8 @@ final class RecipeSetupStore {
     var spendCapUsd: Double?
     /// The cloud spend cap a month the person set; nil is the engine's US$10 (`ai.where.cloud-spend-cap`, #5943).
     var cloudSpendCapUsd: Double?
+    /// The most the project may spend on cloud calls in all; nil is no such limit (`answers.cloud_project_cap_usd`, #6295).
+    var cloudProjectCapUsd: Double?
     /// Whether working copies may stay on the cluster; nil follows pages-may-leave (`source.onboard.copies-may-stay-on-cluster`).
     var copiesMayStay: Bool?
     /// The three settings as the engine holds them (`GET /api/recipes/stages`): what the fields show when unanswered.
@@ -353,6 +356,11 @@ final class RecipeSetupStore {
     /// Material is being added: Start waits for it, so it never runs on a project that has nothing yet.
     var isAddingMaterial = false
 
+    /// "Run fewer pages" (#6295): the plan shown covers only the first N pages of the project in Finder order, as the engine
+    /// counts them; nil: every page. Never with a folder. Start sends it only when the caller names it (`start(firstPages:)`),
+    /// and it is cleared once a Start is accepted or the material changes: it is for that one Start.
+    var runFirstPages: Int?
+
     /// The folder the shown plan covers (`source.recipe.folder-scoped-start`); nil: the whole project.
     private(set) var startPlanFolderId: String?
 
@@ -361,7 +369,7 @@ final class RecipeSetupStore {
     func loadStartPlan(folderId: String? = nil) async {
         do {
             if case .ok(let success) = try await client.api.getStartPlanApiRecipesProjectStartGet(
-                query: .init(folderId: folderId)
+                query: .init(folderId: folderId, firstPages: folderId == nil ? runFirstPages : nil)
             ) {
                 startPlan = try success.body.json
                 if startPlanFolderId != folderId { startPlanFolderId = folderId }
@@ -387,11 +395,11 @@ final class RecipeSetupStore {
     /// without it, the whole project, sent as before (no body). `redo`: the steps to run again on pages that already have
     /// their output, as a new pass (`source.recipe.step-rerun-on-folder`, #6170). `documents`: a run's pages alone, as
     /// its `missed` names them (a run an import started, #6170).
-    func start(folderId: String? = nil, redo: [String] = [], documents: [String]? = nil) async -> Bool {
+    func start(folderId: String? = nil, redo: [String] = [], documents: [String]? = nil, firstPages first: Int? = nil) async -> Bool {
         do {
             let body: Operations.StartProjectApiRecipesProjectStartPost.Input.Body? =
-                folderId == nil && redo.isEmpty && documents == nil
-                ? nil : .json(.init(redo: redo.isEmpty ? nil : redo, folderId: folderId, documents: documents))
+                folderId == nil && redo.isEmpty && documents == nil && first == nil
+                ? nil : .json(.init(redo: redo.isEmpty ? nil : redo, folderId: folderId, documents: documents, firstPages: first))
             switch try await client.api.startProjectApiRecipesProjectStartPost(body: body) {
             case .ok(let success):
                 var started = try success.body.json
@@ -399,6 +407,7 @@ final class RecipeSetupStore {
                 // menus do not empty when the run starts.
                 if (started.stepChoices ?? []).isEmpty, let kept = startPlan?.stepChoices { started.stepChoices = kept }
                 startPlan = started
+                runFirstPages = nil  // "the first N pages" was for this Start alone (#6295)
                 if startPlanFolderId != folderId { startPlanFolderId = folderId }
                 // The first yes: its steps can now run again, named as the setup's `redo_steps` names them (no reload).
                 if redoSteps.isEmpty {
@@ -506,12 +515,13 @@ final class RecipeSetupStore {
                            jobAnswersByFolder: jobAnswersByFolder, removedJobs: removedJobs,
                            period: period, hands: hands, place: place,
                            hfSpendCapUsd: spendCapUsd, cloudSpendCapUsd: cloudSpendCapUsd,
+                           cloudProjectCapUsd: cloudProjectCapUsd,
                            copiesMayStayOnCluster: copiesMayStay)
     }
 
     /// The answers as the project last saved them, as JSON, so a save keeps every field the
     /// engine wrote that setup does not ask about (`answers.layers`, `mac_memory_gb`, …).
-    private var savedAnswers: Data?
+    var savedAnswers: Data?
 
     /// Setup's answers over the saved ones: a field setup asks about takes setup's value; any
     /// other field the engine saved stays as it was (`source.onboard.add-layer`). The old
@@ -550,6 +560,7 @@ final class RecipeSetupStore {
         if let value = saved.place { place = value }
         spendCapUsd = saved.hfSpendCapUsd
         cloudSpendCapUsd = saved.cloudSpendCapUsd
+        cloudProjectCapUsd = saved.cloudProjectCapUsd
         copiesMayStay = saved.copiesMayStayOnCluster
         if let value = saved.ingestMode {
             // The engine's ingest modes are lowercase; the app's enum is upper.
@@ -944,7 +955,7 @@ extension RecipeSetupStore {
     }
 
     /// The engine's own sentence from a response the generated client could not decode.
-    private static func engineWords(_ error: Error) async -> String? {
+    static func engineWords(_ error: Error) async -> String? {
         guard let clientError = error as? ClientError, let body = clientError.responseBody,
               let data = try? await Data(collecting: body, upTo: 1 << 16) else { return nil }
         return EngineErrorDetail.message(from: data)

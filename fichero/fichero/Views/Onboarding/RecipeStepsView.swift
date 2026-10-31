@@ -54,6 +54,8 @@ struct RecipeStepsView: View {
                     Label(words, systemImage: "arrow.clockwise").font(.callout).foregroundStyle(.secondary)
                 }
                 if onFix != nil { planEditControls(for: step) }  // Ready only: take a step out (#5627)
+                // The second Review model's mode sits with its model picker (#6257).
+                if onFix != nil, step.id == RecipeSetupStore.secondReviewStepId { SecondReviewModePicker(store: store) }
                 if onFix != nil, finder != nil, store.offersFinder(step.job) {
                     Button(store.readsMaterial(step.job) ? "Find a Reader…" : "Choose a Model…") {
                         findingFor = FinderStep(id: step.id, job: step.job)

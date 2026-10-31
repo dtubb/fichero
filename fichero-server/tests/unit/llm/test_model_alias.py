@@ -38,11 +38,11 @@ class TestResolveModelAlias:
         with patch("fichero_server.db.app.get_app_db") as mock_db:
             mock_db.return_value.get_setting.side_effect = lambda k: {
                 "default_large_provider": "anthropic",
-                "default_large_model": "claude-sonnet-4-6",
+                "default_large_model": "claude-sonnet-5-5",
             }.get(k)
             assert resolve_model_alias("$large", "") == (
                 "anthropic",
-                "claude-sonnet-4-6",
+                "claude-sonnet-5-5",
             )
 
     def test_resolves_medium_alias(self):

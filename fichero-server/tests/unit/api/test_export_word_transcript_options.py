@@ -1,68 +1,52 @@
-"""POST /api/export/word transcript options (#6287): include_images."""
-
+"""catalogue.export.word-transcript-options (#6287): images off, a page break per page, blank pages listed once."""
 import zipfile
 
-from fichero_server.api.routes.ingest.export import WordExportRequest
 from fichero_server.models import DocType, Document, FileType
 
 
-def _folder_with_image(db, *, image_exists=True):
-    folder = Document(id="w6287-folder", name="Box", doc_type=DocType.folder)
-    image_path = db.path.parent / "files" / "scan.jpg"
-    image_path.parent.mkdir(parents=True, exist_ok=True)
-    if image_exists:
-        image_path.write_bytes(b"jpg bytes")
-    page = Document(
-        id="w6287-page",
-        name="Page 1",
-        parent_id=folder.id,
-        doc_type=DocType.file,
-        file_type=FileType.image,
-        path=str(image_path),
-        page_content="Page transcription.",
-    )
+def _folder_with_pages(db, tmp_path):
+    folder = Document(id="tw-folder", name="Doc uno", doc_type=DocType.folder)
+    image = db.path.parent / "files" / "a.jpg"
+    image.parent.mkdir(parents=True, exist_ok=True)
+    image.write_bytes(b"jpg bytes")
     db.save(folder)
-    db.save(page)
+    for n, (text, attrs) in enumerate([("Texto uno.", {}), ("", {"material": "blank"}), ("", {"material": "blank"}),
+                                       ("", {"material": "blank"}), ("Texto dos.", {})], start=17):
+        db.save(Document(id=f"tw-{n}", name=f"IMG_{n:03d}.jpg", parent_id=folder.id, doc_type=DocType.file,
+                         file_type=FileType.image, path=str(image), page_content=text, attributes=attrs, sequence=n))
     return folder
 
 
-def _export(client, folder, out, **extra):
-    r = client.post(
-        "/api/export/word",
-        json={"target_id": folder.id, "output_path": str(out), **extra},
-    )
+def _xml(client, folder, tmp_path, **options):
+    out = tmp_path / "t.docx"
+    r = client.post("/api/export/word", json={"target_id": folder.id, "output_path": str(out),
+                                              "include_knowledge_graph": False, **options})
     assert r.status_code == 200, r.text
     with zipfile.ZipFile(out) as docx:
-        return docx.namelist(), docx.read("word/document.xml").decode()
+        return docx.read("word/document.xml").decode(), set(docx.namelist())
 
 
-def test_request_model_default_includes_images():
-    assert WordExportRequest(output_path="x.docx").include_images is True
+def test_the_defaults_are_the_readers_export_unchanged(client, db, tmp_path):
+    xml, names = _xml(client, _folder_with_pages(db, tmp_path), tmp_path)
+    assert "<w:tbl>" in xml and "word/media/image1.jpg" in names
+    assert 'w:type="page"' not in xml and "Páginas en blanco" not in xml
 
 
-def test_default_and_true_embed_images(client, db, tmp_path):
-    folder = _folder_with_image(db)
-    names, _ = _export(client, folder, tmp_path / "a.docx")
-    assert any(n.startswith("word/media/") for n in names)
-    names, _ = _export(client, folder, tmp_path / "b.docx", include_images=True)
-    assert any(n.startswith("word/media/") for n in names)
+def test_images_off_prints_neither_image_nor_note(client, db, tmp_path):
+    xml, names = _xml(client, _folder_with_pages(db, tmp_path), tmp_path, include_images=False)
+    assert "<w:tbl>" not in xml and not any(n.startswith("word/media") for n in names)
+    assert "Image not included" not in xml and "Texto uno." in xml and "IMG_017.jpg" in xml
 
 
-def test_images_off_has_no_media_and_no_note(client, db, tmp_path):
-    folder = _folder_with_image(db)
-    names, xml = _export(client, folder, tmp_path / "c.docx", include_images=False)
-    assert not any(n.startswith("word/media/") for n in names)
-    assert "Page transcription." in xml
-    assert "Image not included" not in xml
+def test_a_page_break_comes_before_each_page(client, db, tmp_path):
+    xml, _ = _xml(client, _folder_with_pages(db, tmp_path), tmp_path, include_images=False, page_break_per_page=True)
+    assert xml.count('<w:br w:type="page"/>') == 5
 
 
-def test_images_off_never_touches_a_missing_scan(client, db, tmp_path, monkeypatch):
-    folder = _folder_with_image(db, image_exists=False)
-
-    def boom(*a, **k):
-        raise AssertionError("image source must not be resolved")
-
-    monkeypatch.setattr("fichero_server.export_service._docx_image_source", boom)
-    names, xml = _export(client, folder, tmp_path / "d.docx", include_images=False)
-    assert not any(n.startswith("word/media/") for n in names)
-    assert "Image not included" not in xml
+def test_blank_pages_are_listed_once_at_the_end_as_ranges(client, db, tmp_path):
+    xml, _ = _xml(client, _folder_with_pages(db, tmp_path), tmp_path, include_images=False,
+                  page_break_per_page=True, blank_pages_listed_once=True)
+    assert xml.count("No text content available.") == 0
+    assert xml.count("Páginas en blanco: IMG_018\u2013IMG_020") == 1
+    assert xml.count('<w:br w:type="page"/>') == 2  # the two read pages only
+    assert xml.index("Texto dos.") < xml.index("Páginas en blanco")

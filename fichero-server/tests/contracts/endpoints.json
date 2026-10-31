@@ -3522,6 +3522,30 @@
         "response_model": "fichero_server__models__DocumentListResponse"
       },
       {
+        "method": "DELETE",
+        "path": "/documents/{doc_id}/column-choice",
+        "operation_id": "clear_column_choice_api_documents__doc_id__column_choice_delete",
+        "summary": "Clear Column Choice",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ColumnChoiceAnswer"
+      },
+      {
+        "method": "PUT",
+        "path": "/documents/{doc_id}/column-choice",
+        "operation_id": "put_column_choice_api_documents__doc_id__column_choice_put",
+        "summary": "Put Column Choice",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": "ColumnChoice",
+        "response_model": "ColumnChoiceAnswer"
+      },
+      {
         "method": "POST",
         "path": "/documents/{doc_id}/duplicate",
         "operation_id": "duplicate_document_api_documents__doc_id__duplicate_post",
@@ -3800,6 +3824,18 @@
         "query_params": [],
         "request_model": null,
         "response_model": "PutBackResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/documents/{doc_id}/template",
+        "operation_id": "get_scope_template_api_documents__doc_id__template_get",
+        "summary": "Get Scope Template",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ScopeTemplate"
       },
       {
         "method": "GET",
@@ -4471,6 +4507,16 @@
       }
     ],
     "export": [
+      {
+        "method": "POST",
+        "path": "/export/catalogue-workbook",
+        "operation_id": "export_catalogue_workbook_route_api_export_catalogue_workbook_post",
+        "summary": "The catalogue workbook of a folder or project, in its archive's template",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CatalogueWorkbookRequest",
+        "response_model": "CatalogueWorkbookResponse"
+      },
       {
         "method": "POST",
         "path": "/export/eleventy-site",
@@ -9638,6 +9684,16 @@
         "response_model": "ProjectSetup"
       },
       {
+        "method": "PUT",
+        "path": "/recipes/project/cloud-cap",
+        "operation_id": "change_cloud_cap_api_recipes_project_cloud_cap_put",
+        "summary": "Change Cloud Cap",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CloudCapChange",
+        "response_model": "CloudCapChanged"
+      },
+      {
         "method": "POST",
         "path": "/recipes/project/layers",
         "operation_id": "change_project_layers_api_recipes_project_layers_post",
@@ -9698,6 +9754,11 @@
         "summary": "Get Start Plan",
         "path_params": [],
         "query_params": [
+          {
+            "name": "first_pages",
+            "required": false,
+            "type": "integer"
+          },
           {
             "name": "folder_id",
             "required": false,

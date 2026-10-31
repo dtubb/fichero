@@ -100,17 +100,28 @@ def working_lines(db: Any, document_id: str, *, model: str | None = None) -> Wor
     return None
 
 
-def unread_by(db: Any, found: WorkingLines, model: str | None) -> WorkingLines:
+def unread_by(db: Any, found: WorkingLines, model: str | None, image: str | None = None) -> WorkingLines:
     """The page's lines this reader has not yet read: a page stopped half-read is read on from there, so a line already read
     (or looked at, no writing) is not paid for again (`source.recipe.read-resumes-per-line`). A reading counts for the
     reader whose page artifact it came from (`model` is that reader's stamp; None: any reader's). All the lines when none is
-    read, and when every one is (a page then asked for again is read whole, as a redo is)."""
+    read, and when every one is (a page then asked for again is read whole, as a redo is).
+
+    `image` (`media/current_image.PageImage.signature`, #6296): a reading counts only when it was read from that image, so after an
+    edit or an Undo in Preview the page is read again from what it is now. A line's 'looked, no writing' mark records no image
+    and still counts."""
+    from fichero_server.media.current_image import read_from
     from fichero_server.models import Artifact, ContentRepresentation
 
-    artifacts = {a.id: a.model for a in db.query(Artifact, document_id=found.lines[0].document_id)} if found.lines else {}
+    artifacts = {a.id: a for a in db.query(Artifact, document_id=found.lines[0].document_id)} if found.lines else {}
+
+    def counts(artifact_id: Any) -> bool:
+        artifact = artifacts.get(artifact_id)
+        if model is not None and getattr(artifact, "model", None) != model:
+            return False
+        return image is None or (artifact is not None and read_from(artifact) == image)
+
     read = {r.segment_id for r in db.query(ContentRepresentation, document_id=found.lines[0].document_id)
-            if r.segment_id and not r.retracted_at
-            and (model is None or artifacts.get(r.derived_from_artifact_id) == model)} if found.lines else set()
+            if r.segment_id and not r.retracted_at and counts(r.derived_from_artifact_id)} if found.lines else set()
     left = [x for x in found.lines if x.id not in read
             and not (isinstance((x.metadata or {}).get(NO_WRITING_MARK), dict)
                      and (model is None or x.metadata[NO_WRITING_MARK].get("model") in (model, "")))]
@@ -303,6 +314,8 @@ def _as_lines(db: Any, shown: list[tuple[str, str | None, str]], answer: list[st
 NOT_TIED = "not tied to lines"
 #: The flag a review gives each line (`source.job.review-is-segment-native`).
 LINE_FLAGS = ("certain", "uncertain", "unreadable")
+#: The certainty a settling review's `uncertain` line is given when the reading it corrects had none or a surer one (#6257).
+UNSETTLED_CONFIDENCE = 0.5
 #: Where a line's short note starts: ` | note: ...` at its end (#5724).
 _BOX = re.compile(r"^-?[\d.]+(\s+-?[\d.]+){3}$")
 _NOTE = re.compile(r"\s*\|\s*note:\s*(.*)$", re.IGNORECASE)
@@ -336,6 +349,7 @@ def correct_lines(
     run_id: str | None,
     level: str = "as_written",
     library_path: str | None = None,
+    settling: bool = False,
 ) -> tuple[list[str], str]:
     """A correcting step's text (the paleographer's review, `correct`, #5654) put onto the page's lines.
 
@@ -346,8 +360,10 @@ def correct_lines(
     artifact, whose model made it, and from the line's counting reading, which it corrects). A line it left
     unchanged gets nothing; a line whose counting reading is a person's gets nothing (a run never writes
     over a person). An answer that cannot be matched writes nothing and says why, starting `NOT_TIED`: the
-    artifact stays the step's only output, never guessed onto the lines. Returns (readings made, what was
-    done, in words). The page's text cache follows from the readings (`actions/page_text_cache.py`)."""
+    artifact stays the step's only output, never guessed onto the lines. With `settling` (a second review that settles
+    two readings, `review_mode` both, #6257) a line it flags `uncertain` always gets a reading, even in the text already
+    there, no surer than `UNSETTLED_CONFIDENCE`: the lower certainty is how a person finds what it could not settle.
+    Returns (readings made, what was done, in words). The page's text cache follows from the readings (`actions/page_text_cache.py`)."""
     from fichero_server.api.routes.document.segment_readings import document_text
     from fichero_server.models import ContentRepresentation
 
@@ -367,15 +383,19 @@ def correct_lines(
     by_id: dict[str, str] = {}
     unreadable: set[str] = set()
     uncertain: set[str] = set()
+    tied = 0  # answer lines that name a listed line: a line named twice is still two answer lines, the later one wins
     for line in answer:
         segment_id, flag, said_text, _note = answer_line(line)
         if segment_id in ids and "|" in line:
+            tied += 1
             by_id[segment_id] = said_text
+            unreadable.discard(segment_id)
+            uncertain.discard(segment_id)
             if flag == "unreadable":
                 unreadable.add(segment_id)
             elif flag == "uncertain":
                 uncertain.add(segment_id)
-    if answer and len(by_id) == len(answer):
+    if answer and tied == len(answer):
         corrected = dict(by_id)
     elif len(answer) == len(shown):
         corrected = {segment_id: new for (segment_id, _, _), new in zip(shown, answer)}
@@ -387,7 +407,8 @@ def correct_lines(
     readings, derived_from, people = [], {}, 0
     for segment_id, representation_id, old in shown:
         new = corrected.get(segment_id)
-        if not new or segment_id in unreadable or " ".join(new.split()) == " ".join(old.split()):
+        unchanged = bool(new) and " ".join(new.split()) == " ".join(old.split())
+        if not new or segment_id in unreadable or (unchanged and not (settling and segment_id in uncertain)):
             continue
         if representation_id is None and segment_id in people_lines:
             people += 1
@@ -398,6 +419,8 @@ def correct_lines(
             continue
         # an uncertain correction is no surer than the reading it corrects (#5694)
         sure = getattr(counting.get(representation_id), "machine_confidence", None) if segment_id in uncertain else None
+        if settling and segment_id in uncertain:
+            sure = UNSETTLED_CONFIDENCE if sure is None else min(sure, UNSETTLED_CONFIDENCE)
         readings.append((segment_id, new, sure))
         derived_from[segment_id] = representation_id
     made = write_readings(db, document_id=document_id, readings=readings, artifact_id=artifact_id,

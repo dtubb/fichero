@@ -93,6 +93,10 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
         cap = out["cloud_spend_cap_usd"]
         if isinstance(cap, bool) or not isinstance(cap, (int, float)) or cap < 0:
             problems.append("The cloud spending cap is a number of dollars, 0 or more.")
+    if "cloud_project_cap_usd" in out:
+        cap = out["cloud_project_cap_usd"]
+        if isinstance(cap, bool) or not isinstance(cap, (int, float)) or cap < 0:
+            problems.append("The project's total cloud spending cap is a number of dollars, 0 or more.")
     chosen = dict(out.get("directions") or {})
     bad = {s: d for s, d in chosen.items() if d not in SETUP_DIRECTIONS}
     if bad:
@@ -125,6 +129,12 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
             unknown = [k for k in said if k not in lens_ids()]
             if unknown:
                 problems.append(f"A review lens is {', '.join(lens_ids())}; not {', '.join(map(repr, unknown))}.")
+    from fichero_server.tool_context import REVIEW_MODES
+
+    if isinstance(job_answers, dict) and job_answers.get("second_review_mode") not in (None, *REVIEW_MODES):
+        problems.append(f"The second review's mode is {', '.join(REVIEW_MODES)}; not {job_answers['second_review_mode']!r}.")
+    if isinstance(job_answers, dict) and job_answers.get("leave_out") is not None and not isinstance(job_answers["leave_out"], bool):
+        problems.append(f"Leave Out is yes or no, not {job_answers['leave_out']!r}.")
     if isinstance(job_answers, dict) and job_answers.get("review_certainty_bar") not in (None, "", "whole-page"):
         bar = job_answers["review_certainty_bar"]
         try:

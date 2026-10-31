@@ -39,6 +39,7 @@ needs, each lane with its own threads:
 The scheduler finds a library through the database manager on every scan and never holds a
 closed one: querying a closed `Database` would silently reopen its file.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -81,19 +82,32 @@ MAX_ATTEMPTS = 3
 KRAKEN_MODEL_PREFIX = "kraken:"
 #: Modules that register kinds, imported before the first scan so a job left waiting at quit runs
 #: after relaunch even before anything in this session enqueues one.
-_KIND_MODULES = ("fichero_server.actions.page_text_cache", "fichero_server.importers.derivatives",
-                 "fichero_server.training.job", "fichero_server.workflows.task_workers",
-                 "fichero_server.remote_read.job", "fichero_server.training.reasons_job",
-                 "fichero_server.training.local", "fichero_server.training.yolo_local", "fichero_server.sync_folder", "fichero_server.checking.job",
-                 "fichero_server.recipes.runner", "fichero_server.training.evaluation",
-                 "fichero_server.kept_export", "fichero_server.recipes.discovery", "fichero_server.recipes.bakeoff",
-                 "fichero_server.api.routes.kg.review", "fichero_server.recipes.samples",
-                 "fichero_server.importers.iiif_source",
-                 # A model download and a Find the Documents run left waiting by a restart need their runner
-                 # registered when the queue first looks, not when something else happens to (2026-10-11).
-                 "fichero_server.llm.local_models", "fichero_server.finddocs.job",
-                 # The run history's housekeeping (#5711): a run log from before moved into lines, a chunk at a time.
-                 "fichero_server.workflows.run_log_tidy")
+_KIND_MODULES = (
+    "fichero_server.actions.page_text_cache",
+    "fichero_server.importers.derivatives",
+    "fichero_server.training.job",
+    "fichero_server.workflows.task_workers",
+    "fichero_server.remote_read.job",
+    "fichero_server.training.reasons_job",
+    "fichero_server.training.local",
+    "fichero_server.training.yolo_local",
+    "fichero_server.sync_folder",
+    "fichero_server.checking.job",
+    "fichero_server.recipes.runner",
+    "fichero_server.training.evaluation",
+    "fichero_server.kept_export",
+    "fichero_server.recipes.discovery",
+    "fichero_server.recipes.bakeoff",
+    "fichero_server.api.routes.kg.review",
+    "fichero_server.recipes.samples",
+    "fichero_server.importers.iiif_source",
+    # A model download and a Find the Documents run left waiting by a restart need their runner
+    # registered when the queue first looks, not when something else happens to (2026-10-11).
+    "fichero_server.llm.local_models",
+    "fichero_server.finddocs.job",
+    # The run history's housekeeping (#5711): a run log from before moved into lines, a chunk at a time.
+    "fichero_server.workflows.run_log_tidy",
+)
 #: Lane -> how many of its jobs run at once (`activity.throttle.lanes`). `remote`: work sent to another
 #: place (a training run on Hugging Face Jobs, #5398). It waits on the network, holds no model here and
 #: never holds the local ML lane.
@@ -103,7 +117,17 @@ _KIND_MODULES = ("fichero_server.actions.page_text_cache", "fichero_server.impor
 #: once, so a Find Lines compare never queues behind the Read try waiting on a reader download.
 #: `search`: looking for models online (`find-models`): a few small metadata calls that must never wait behind a
 #: multi-GB download holding the network lane (#5809).
-LANES = {"local-ml": 1, "embed": 1, "images": 2, "remote": 2, "database": 1, "network": 4, "search": 2, "recipes": 1, "tries": 2}
+LANES = {
+    "local-ml": 1,
+    "embed": 1,
+    "images": 2,
+    "remote": 2,
+    "database": 1,
+    "network": 4,
+    "search": 2,
+    "recipes": 1,
+    "tries": 2,
+}
 #: The one exception to the model lane's one job at a time (#5654, `compute.memory.reads-follow-memory`):
 #: calls to the engine's own model server for the model it has loaded share the lane, as many at once as
 #: that model's need and this Mac's memory allow (`local_inference.reads_at_once_for_model`, at most
@@ -128,6 +152,8 @@ _gentle_until: float | None = None
 def resuming_gently() -> bool:
     """Whether the gentle minute after a restart is on (`recipes-run.restart.resumes-at-once-gently`)."""
     return _gentle_until is not None and time.monotonic() < _gentle_until
+
+
 #: The lanes whose background jobs the Mac's state holds (battery, memory, heat) and that wait for the thumbnails.
 #: "embed" is the search embedder, a child process since #5847: it has a lane of its own so that an embed beside a
 #: Kraken page neither unloads Kraken's models nor reloads them for the next step (`_heavy_switch` only looks at
@@ -234,7 +260,15 @@ KINDS: dict[str, Kind] = {}
 
 
 #: A slip in Fichero's own code, not a failure with something to say: its text alone ("'x'") tells the person nothing.
-_SLIPS = (KeyError, IndexError, AttributeError, TypeError, NameError, AssertionError, ZeroDivisionError)
+_SLIPS = (
+    KeyError,
+    IndexError,
+    AttributeError,
+    TypeError,
+    NameError,
+    AssertionError,
+    ZeroDivisionError,
+)
 
 
 def failed_reason(kind: str, exc: BaseException) -> str:
@@ -242,21 +276,42 @@ def failed_reason(kind: str, exc: BaseException) -> str:
     from fichero_server.core.failure_text import failure_text
 
     if isinstance(exc, MissingInWords):
-        return str(exc)  # refused in words ("No local runtime installs model: X"), not a missing key (b23, #6240)
+        return str(
+            exc
+        )  # refused in words ("No local runtime installs model: X"), not a missing key (b23, #6240)
     if isinstance(exc, _SLIPS):
         return f"{kind_name(kind)} could not finish: an error in Fichero ({type(exc).__name__}: {failure_text(exc)})"
     return failure_text(exc)
 
 
-def register_kind(kind: str, run: Callable[["Database", str], Any] | None, *, model: str | None,
-                  qos: Callable[[], None] = set_background_qos, lane: str = "local-ml",
-                  name: str | None = None, cancel: Callable[["Database", str], str] | None = None,
-                  pause: Callable[["Database", str, bool], str] | None = None, first: bool = False,
-                  no_retry: str | None = None, says_per_item: bool = False) -> None:
+def register_kind(
+    kind: str,
+    run: Callable[["Database", str], Any] | None,
+    *,
+    model: str | None,
+    qos: Callable[[], None] = set_background_qos,
+    lane: str = "local-ml",
+    name: str | None = None,
+    cancel: Callable[["Database", str], str] | None = None,
+    pause: Callable[["Database", str, bool], str] | None = None,
+    first: bool = False,
+    no_retry: str | None = None,
+    says_per_item: bool = False,
+) -> None:
     if lane not in LANES:
         raise ValueError(f"no lane {lane!r}")
-    KINDS[kind] = Kind(run=run, model=model, qos=qos, lane=lane, name=name, cancel=cancel, pause=pause,
-                       first=first, no_retry=no_retry, says_per_item=says_per_item)
+    KINDS[kind] = Kind(
+        run=run,
+        model=model,
+        qos=qos,
+        lane=lane,
+        name=name,
+        cancel=cancel,
+        pause=pause,
+        first=first,
+        no_retry=no_retry,
+        says_per_item=says_per_item,
+    )
 
 
 def kind_name(kind: str) -> str:
@@ -308,7 +363,9 @@ def queue_of(job_id: str) -> tuple[tuple[str, ...], str, tuple[str, ...]] | None
         if rest not in KINDS:
             load_kinds()
         return ((rest,), kind_name(rest), (prefix,)) if rest in KINDS else None
-    if sep or not job_id.isidentifier():  # a job's id is a uuid, a step's "<run>:<node>"
+    if (
+        sep or not job_id.isidentifier()
+    ):  # a job's id is a uuid, a step's "<run>:<node>"
         return None
     if job_id not in QUEUES:
         load_kinds()
@@ -323,7 +380,13 @@ def queue_of(job_id: str) -> tuple[tuple[str, ...], str, tuple[str, ...]] | None
 # kind is never picked by the lane, so a recipe's Find Regions waited for good.) Named as the recipe job registry names them.
 # Utility QoS: a person is waiting for these pages, and background measured ~18 times slower for
 # Kraken (#4959).
-for _attached in ("find-lines", "find-regions", "read-a-line", "read-a-page", "ask-a-model"):
+for _attached in (
+    "find-lines",
+    "find-regions",
+    "read-a-line",
+    "read-a-page",
+    "ask-a-model",
+):
     register_kind(_attached, None, model=None, qos=set_utility_qos)
 
 #: True while this task holds a lane slot: a model call made inside work that already holds one
@@ -338,7 +401,9 @@ _call_row: ContextVar[tuple[Any, str] | None] = ContextVar("_call_row", default=
 #: Set while a person is looking at the result of the code running (a stage try): the lane rows it hands in are watched,
 #: and (with `job`) the try's own row says "Waiting: ..." while its page waits for the lane (#5839).
 _person_waiting: ContextVar[bool] = ContextVar("_person_waiting", default=False)
-_waiting_job: ContextVar[tuple[Any, str, dict[str, str]] | None] = ContextVar("_waiting_job", default=None)
+_waiting_job: ContextVar[tuple[Any, str, dict[str, str]] | None] = ContextVar(
+    "_waiting_job", default=None
+)
 
 
 @contextlib.contextmanager
@@ -346,7 +411,9 @@ def person_is_waiting(db: "Database | None" = None, job_id: str | None = None):
     """Every model-lane row `submit` makes inside this is watched: ahead of a bulk run's rows (#5839). With `job_id`,
     that row (the try's own) takes on the reason its page waits for, and reads running again once the page starts."""
     token = _person_waiting.set(True)
-    job_token = _waiting_job.set((db, job_id, {}) if db is not None and job_id else None)
+    job_token = _waiting_job.set(
+        (db, job_id, {}) if db is not None and job_id else None
+    )
     try:
         yield
     finally:
@@ -357,29 +424,46 @@ def person_is_waiting(db: "Database | None" = None, job_id: str | None = None):
 def wait_on(db: "Database", job_id: str, words: str) -> None:
     """A running job starts waiting for something: its reason says what, and Activity lists it as waiting (#5839)."""
     if _has_column(db, "waiting_on"):
-        db.execute("UPDATE jobs SET reason = ?, waiting_on = ? WHERE id = ?", [words, words, job_id])
+        db.execute(
+            "UPDATE jobs SET reason = ?, waiting_on = ? WHERE id = ?",
+            [words, words, job_id],
+        )
 
 
 def wait_over(db: "Database", job_id: str) -> None:
     """The wait ended: the row reads running again, its wait's words gone from its reason."""
     if _has_column(db, "waiting_on"):
-        db.execute("UPDATE jobs SET reason = CASE WHEN reason = waiting_on THEN NULL ELSE reason END, "
-                   "waiting_on = NULL WHERE id = ?", [job_id])
+        db.execute(
+            "UPDATE jobs SET reason = CASE WHEN reason = waiting_on THEN NULL ELSE reason END, "
+            "waiting_on = NULL WHERE id = ?",
+            [job_id],
+        )
 
 
 #: How often a try's row looks again at what its waiting page waits for.
 ECHO_WAIT_SECONDS = 1.0
 
 
-async def _echo_wait(db: "Database", call_id: str, job: tuple[Any, str, dict[str, str]]) -> None:
+async def _echo_wait(
+    db: "Database", call_id: str, job: tuple[Any, str, dict[str, str]]
+) -> None:
     """Say on `job`'s row what the call row `call_id` waits for, until cancelled (the page started). Pages of one try
     wait side by side: the first to wait owns the row's words (`claim`), the others say nothing, so they do not flicker."""
     job_db, job_id, claim = job
     try:
         while True:
             said = state_and_reason(db, call_id)
-            if said and said[0] == "waiting" and said[1] and claim.setdefault("by", call_id) == call_id:
-                wait_on(job_db, job_id, said[1] if said[1].startswith("Waiting") else f"Waiting: {said[1]}")
+            if (
+                said
+                and said[0] == "waiting"
+                and said[1]
+                and claim.setdefault("by", call_id) == call_id
+            ):
+                wait_on(
+                    job_db,
+                    job_id,
+                    said[1] if said[1].startswith("Waiting") else f"Waiting: {said[1]}",
+                )
             await asyncio.sleep(ECHO_WAIT_SECONDS)
     finally:
         if claim.get("by") == call_id:
@@ -417,25 +501,34 @@ def note_call_log(message: str, *, level: str = "info") -> None:
     db, job_id = held
     row = db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])
     detail = json.loads(row[0]) if row and row[0] else {}
-    detail.setdefault("log", []).append({"at": utc_now().isoformat(), "level": level, "message": message})
+    detail.setdefault("log", []).append(
+        {"at": utc_now().isoformat(), "level": level, "message": message}
+    )
     db.execute("UPDATE jobs SET detail = ? WHERE id = ?", [json.dumps(detail), job_id])
 
 
-def logged_lines(db: "Database", job_ids: list[str]) -> list[tuple[str, dict[str, Any]]]:
+def logged_lines(
+    db: "Database", job_ids: list[str]
+) -> list[tuple[str, dict[str, Any]]]:
     """The lines `note_call_log` kept on these rows, as (row id, {"at", "level", "message"})."""
     if not job_ids:
         return []
     _ensure(db)
     rows = db.execute_fetchall(
         f"SELECT id, detail FROM jobs WHERE id IN ({', '.join('?' for _ in job_ids)}) AND detail LIKE ?",
-        [*job_ids, '%"log"%'])
+        [*job_ids, '%"log"%'],
+    )
     out = []
     for job_id, detail in rows:
         try:
             entries = json.loads(detail).get("log") or []
         except (TypeError, ValueError, AttributeError):
             continue
-        out.extend((job_id, entry) for entry in entries if isinstance(entry, dict) and entry.get("message"))
+        out.extend(
+            (job_id, entry)
+            for entry in entries
+            if isinstance(entry, dict) and entry.get("message")
+        )
     return out
 
 
@@ -456,11 +549,16 @@ def _pause_run(db: "Database", job_id: str, paused: bool) -> str:
     from fichero_server.execution.cancellation import request_pause
 
     if not paused:
-        raise ValueError("A paused run is resumed with its Resume (it restarts from its checkpoint)")
+        raise ValueError(
+            "A paused run is resumed with its Resume (it restarts from its checkpoint)"
+        )
     request_pause(job_id)
     # Said on the row at once: the runner clears its flag as it settles, and the row is what keeps
     # the run's pages off the lanes in between (`_run_stopped`).
-    db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'", [PAUSING, job_id])
+    db.execute(
+        "UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'",
+        [PAUSING, job_id],
+    )
     return _job_row(db, job_id)[1]
 
 
@@ -468,7 +566,10 @@ def _cancel_run(db: "Database", job_id: str) -> str:
     from fichero_server.execution.cancellation import request_cancellation
 
     request_cancellation(job_id)
-    db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'", [STOPPING, job_id])
+    db.execute(
+        "UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'",
+        [STOPPING, job_id],
+    )
     return _job_row(db, job_id)[1]
 
 
@@ -476,16 +577,28 @@ PAUSING = "Pausing at its next step"
 STOPPING = "Stopping at its next step"
 #: A running page a person stopped: its result is dropped when it returns.
 STOPPING_PAGE = "Stopping: what it reads is not kept"
-register_kind("workflow", None, model=None, name="Workflow run", cancel=_cancel_run, pause=_pause_run)
+register_kind(
+    "workflow",
+    None,
+    model=None,
+    name="Workflow run",
+    cancel=_cancel_run,
+    pause=_pause_run,
+)
 register_kind("workflow-step", None, model=None, name="Step")
 # A batch: one workflow over many items, each item a run of the one runner, its child (#5374).
 register_kind("batch", None, model=None, name="Batch")
+
+
 def _cancel_chain(db: "Database", job_id: str) -> str:
     """Stop a chain: the steps not yet started are skipped and the step run in flight is cancelled (its own run row)."""
     from fichero_server.api.routes.workflow.chains import stop_chain
 
     stop_chain(job_id)
-    db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'", [STOPPING, job_id])
+    db.execute(
+        "UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'",
+        [STOPPING, job_id],
+    )
     return _job_row(db, job_id)[1]
 
 
@@ -493,8 +606,14 @@ def _cancel_chain(db: "Database", job_id: str) -> str:
 register_kind("chain", None, model=None, name="Chain run", cancel=_cancel_chain)
 RUN_KINDS = ("workflow", "workflow-step", "batch", "chain")
 #: The run record's words for its state -> the job table's.
-_RUN_STATES = {"accepted": "waiting", "running": "running", "completed": "done", "failed": "failed",
-               "cancelled": "cancelled", "paused": "paused"}
+_RUN_STATES = {
+    "accepted": "waiting",
+    "running": "running",
+    "completed": "done",
+    "failed": "failed",
+    "cancelled": "cancelled",
+    "paused": "paused",
+}
 
 
 def _library_from_db_path(db_path: str | Path) -> "Database | None":
@@ -503,8 +622,17 @@ def _library_from_db_path(db_path: str | Path) -> "Database | None":
     return db_manager.open_database(DatabaseManager._cache_key(Path(db_path).parent))
 
 
-def _record(db: "Database", job_id: str, *, kind: str, subject: str, parent_id: str | None, state: str,
-            reason: str | None, name: str | None) -> None:
+def _record(
+    db: "Database",
+    job_id: str,
+    *,
+    kind: str,
+    subject: str,
+    parent_id: str | None,
+    state: str,
+    reason: str | None,
+    name: str | None,
+) -> None:
     _ensure(db)
     now = utc_now()
     finished = now if state in ("done", "failed", "cancelled") else None
@@ -513,23 +641,49 @@ def _record(db: "Database", job_id: str, *, kind: str, subject: str, parent_id: 
         "finished_at, parent_id, detail) VALUES (?, ?, ?, ?, ?, 0, 'workflow', ?, ?, ?, ?, ?) "
         "ON CONFLICT (id) DO UPDATE SET state = excluded.state, reason = excluded.reason, "
         "finished_at = excluded.finished_at, started_at = COALESCE(jobs.started_at, excluded.started_at)",
-        [job_id, kind, subject, state, reason, now, now if state == "running" else None, finished, parent_id,
-         json.dumps({"name": name}) if name else None],
+        [
+            job_id,
+            kind,
+            subject,
+            state,
+            reason,
+            now,
+            now if state == "running" else None,
+            finished,
+            parent_id,
+            json.dumps({"name": name}) if name else None,
+        ],
     )
 
 
-def record_run(db_path: str | Path, thread_id: str, *, status: str, name: str | None = None,
-               reason: str | None = None) -> None:
+def record_run(
+    db_path: str | Path,
+    thread_id: str,
+    *,
+    status: str,
+    name: str | None = None,
+    reason: str | None = None,
+) -> None:
     """The run's row follows the run's own record (`activity.jobs-are-a-tree`)."""
     db = _library_from_db_path(db_path)
     if db is None or status not in _RUN_STATES:
         return
-    _record(db, thread_id, kind="workflow", subject=thread_id, parent_id=None, state=_RUN_STATES[status],
-            reason=reason, name=name)
+    _record(
+        db,
+        thread_id,
+        kind="workflow",
+        subject=thread_id,
+        parent_id=None,
+        state=_RUN_STATES[status],
+        reason=reason,
+        name=name,
+    )
     if _RUN_STATES[status] == "cancelled":
         settle_stopped_children(db, thread_id)
     elif status in ("completed", "failed"):
-        _reopen_for_queued_retries(db, thread_id)  # pages retried while it ran are read now, within this run
+        _reopen_for_queued_retries(
+            db, thread_id
+        )  # pages retried while it ran are read now, within this run
 
 
 def settle_stopped_children(db: "Database", run_id: str) -> int:
@@ -542,7 +696,12 @@ def settle_stopped_children(db: "Database", run_id: str) -> int:
     frontier = [run_id]
     while frontier:  # the run's descendants: steps, sub-runs under them, pages
         marks = ", ".join("?" for _ in frontier)
-        children = [r[0] for r in db.execute_fetchall(f"SELECT id FROM jobs WHERE parent_id IN ({marks})", frontier)]
+        children = [
+            r[0]
+            for r in db.execute_fetchall(
+                f"SELECT id FROM jobs WHERE parent_id IN ({marks})", frontier
+            )
+        ]
         found += children
         frontier = [c for c in children if c not in found[: len(found) - len(children)]]
     ended = [i for i in found if i not in live]
@@ -550,49 +709,109 @@ def settle_stopped_children(db: "Database", run_id: str) -> int:
         return 0
     marks = ", ".join("?" for _ in ended)
     before = db.execute_fetchone(
-        f"SELECT count(*) FROM jobs WHERE id IN ({marks}) AND state IN ('waiting', 'running', 'paused')", ended)[0]
-    db.execute(f"UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ?{_clear_waiting_on(db)} "
-               f"WHERE id IN ({marks}) AND state IN ('waiting', 'running', 'paused')",
-               [stopped_by(run_id), utc_now(), *ended])
+        f"SELECT count(*) FROM jobs WHERE id IN ({marks}) AND state IN ('waiting', 'running', 'paused')",
+        ended,
+    )[0]
+    db.execute(
+        f"UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ?{_clear_waiting_on(db)} "
+        f"WHERE id IN ({marks}) AND state IN ('waiting', 'running', 'paused')",
+        [stopped_by(run_id), utc_now(), *ended],
+    )
     return int(before)
 
 
 #: The batch record's words for its state -> the job table's.
-_BATCH_STATES = {"pending": "waiting", "running": "running", "paused": "paused", "completed": "done",
-                 "partial_failure": "done", "failed": "failed", "cancelled": "cancelled"}  # partly failed:
+_BATCH_STATES = {
+    "pending": "waiting",
+    "running": "running",
+    "paused": "paused",
+    "completed": "done",
+    "partial_failure": "done",
+    "failed": "failed",
+    "cancelled": "cancelled",
+}  # partly failed:
 # done, its failed runs counted under it
 
 
-def record_batch(db: "Database", batch_id: str, *, status: str, name: str | None = None,
-                 reason: str | None = None) -> None:
+def record_batch(
+    db: "Database",
+    batch_id: str,
+    *,
+    status: str,
+    name: str | None = None,
+    reason: str | None = None,
+) -> None:
     """A batch's row follows the batch's own record; its runs are its children (`set_parent`)."""
     if status in _BATCH_STATES:
         if status == "partial_failure" and not reason:
             reason = "Partial: some of its runs failed"  # the state stays done until a real partial state exists (#5937)
-        _record(db, batch_id, kind="batch", subject=batch_id, parent_id=None, state=_BATCH_STATES[status],
-                reason=reason, name=name)
+        _record(
+            db,
+            batch_id,
+            kind="batch",
+            subject=batch_id,
+            parent_id=None,
+            state=_BATCH_STATES[status],
+            reason=reason,
+            name=name,
+        )
 
 
-def record_chain(db: "Database", execution_id: str, *, status: str, name: str | None = None,
-                 reason: str | None = None) -> None:
+def record_chain(
+    db: "Database",
+    execution_id: str,
+    *,
+    status: str,
+    name: str | None = None,
+    reason: str | None = None,
+) -> None:
     """A chain's row follows its execution; its step runs are its children (`set_parent`), so a chain shows in Activity
     as one run with its steps under it (`activity.run.one-way-to-run`)."""
-    states = {"pending": "waiting", "running": "running", "completed": "done", "failed": "failed", "cancelled": "cancelled"}
+    states = {
+        "pending": "waiting",
+        "running": "running",
+        "completed": "done",
+        "failed": "failed",
+        "cancelled": "cancelled",
+    }
     if status in states:
-        _record(db, execution_id, kind="chain", subject=execution_id, parent_id=None, state=states[status],
-                reason=reason, name=name)
+        _record(
+            db,
+            execution_id,
+            kind="chain",
+            subject=execution_id,
+            parent_id=None,
+            state=states[status],
+            reason=reason,
+            name=name,
+        )
         if states[status] == "cancelled":
             settle_stopped_children(db, execution_id)
 
 
-def record_step(db_path: str | Path, thread_id: str, node_id: str, *, status: str, name: str | None = None,
-                reason: str | None = None) -> None:
+def record_step(
+    db_path: str | Path,
+    thread_id: str,
+    node_id: str,
+    *,
+    status: str,
+    name: str | None = None,
+    reason: str | None = None,
+) -> None:
     """A step's row, a child of its run's."""
     db = _library_from_db_path(db_path)
     if db is None or not thread_id or node_id in _ROUTING_NODES:
         return
-    _record(db, step_id(thread_id, node_id), kind="workflow-step", subject=step_id(thread_id, node_id),
-            parent_id=thread_id, state=_RUN_STATES.get(status, status), reason=reason, name=name)
+    _record(
+        db,
+        step_id(thread_id, node_id),
+        kind="workflow-step",
+        subject=step_id(thread_id, node_id),
+        parent_id=thread_id,
+        state=_RUN_STATES.get(status, status),
+        reason=reason,
+        name=name,
+    )
 
 
 #: The builder's routing functions, which LangGraph reports like steps; not steps of the workflow.
@@ -609,25 +828,62 @@ def _ensure_step_row(db: "Database", step: str) -> None:
     from fichero_server.workflows.node_context import get_current_node
 
     node = get_current_node()
-    if node is None or not node.run_id or db.execute_fetchone("SELECT 1 FROM jobs WHERE id = ?", [step]):
+    if (
+        node is None
+        or not node.run_id
+        or db.execute_fetchone("SELECT 1 FROM jobs WHERE id = ?", [step])
+    ):
         return
-    if db.execute_fetchone("SELECT 1 FROM jobs WHERE id = ? AND kind = 'workflow'", [node.run_id]):
-        _record(db, step, kind="workflow-step", subject=step, parent_id=node.run_id, state="running",
-                reason=None, name=node.step or node.node_label or None)
+    if db.execute_fetchone(
+        "SELECT 1 FROM jobs WHERE id = ? AND kind = 'workflow'", [node.run_id]
+    ):
+        _record(
+            db,
+            step,
+            kind="workflow-step",
+            subject=step,
+            parent_id=node.run_id,
+            state="running",
+            reason=None,
+            name=node.step or node.node_label or None,
+        )
 
 
-def record_child_run(db: "Database", child_id: str, *, parent_step: str | None, name: str | None) -> None:
+def record_child_run(
+    db: "Database", child_id: str, *, parent_step: str | None, name: str | None
+) -> None:
     """A sub-workflow's run: a run row, a child of the step that called it (#5375)."""
-    _record(db, child_id, kind="workflow", subject=child_id, parent_id=parent_step, state="running",
-            reason=None, name=name)
+    _record(
+        db,
+        child_id,
+        kind="workflow",
+        subject=child_id,
+        parent_id=parent_step,
+        state="running",
+        reason=None,
+        name=name,
+    )
 
 
-def finish_child_run(db: "Database", child_id: str, *, state: str, reason: str | None = None) -> None:
+def finish_child_run(
+    db: "Database", child_id: str, *, state: str, reason: str | None = None
+) -> None:
     """A sub-workflow's run ended: its row and its steps' rows say how."""
-    _record(db, child_id, kind="workflow", subject=child_id, parent_id=None, state=state, reason=reason,
-            name=None)
-    db.execute("UPDATE jobs SET state = ?, finished_at = ? WHERE parent_id = ? AND kind = 'workflow-step' "
-               "AND state NOT IN ('done', 'failed', 'cancelled')", [state, utc_now(), child_id])
+    _record(
+        db,
+        child_id,
+        kind="workflow",
+        subject=child_id,
+        parent_id=None,
+        state=state,
+        reason=reason,
+        name=None,
+    )
+    db.execute(
+        "UPDATE jobs SET state = ?, finished_at = ? WHERE parent_id = ? AND kind = 'workflow-step' "
+        "AND state NOT IN ('done', 'failed', 'cancelled')",
+        [state, utc_now(), child_id],
+    )
 
 
 def _current_step() -> str | None:
@@ -635,7 +891,11 @@ def _current_step() -> str | None:
     from fichero_server.workflows.node_context import get_current_node
 
     node = get_current_node()
-    return step_id(node.run_id, node.step or node.node_id) if node and node.run_id else None
+    return (
+        step_id(node.run_id, node.step or node.node_id)
+        if node and node.run_id
+        else None
+    )
 
 
 def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
@@ -646,11 +906,26 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
         "WITH RECURSIVE t AS (SELECT * FROM jobs WHERE id = ? UNION ALL "
         "SELECT j.* FROM jobs j JOIN t ON j.parent_id = t.id) "
         "SELECT id, kind, subject, model, state, reason, parent_id, created_at, finished_at, started_at, detail, "
-        "started_by FROM t", [job_id], committed=True)
+        "started_by FROM t",
+        [job_id],
+        committed=True,
+    )
     if not rows:
         return None
-    names = ("id", "kind", "subject", "model", "state", "reason", "parent_id", "created_at", "finished_at",
-             "started_at", "detail", "started_by")
+    names = (
+        "id",
+        "kind",
+        "subject",
+        "model",
+        "state",
+        "reason",
+        "parent_id",
+        "created_at",
+        "finished_at",
+        "started_at",
+        "detail",
+        "started_by",
+    )
     nodes = {row[0]: {**dict(zip(names, row)), "children": []} for row in rows}
     for node in sorted(nodes.values(), key=lambda n: n["created_at"]):
         if node["id"] != job_id and node["parent_id"] in nodes:
@@ -661,30 +936,58 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
     # A page's row is named by its file (SM_NPQ_C01_004.jpg), never its id (#5560, and the details view's
     # "the page's document id and display name beside `subject`", #5561): a subject that is a document's
     # id gives `document_id` and that document's name; one that is a path, its last part.
-    leaf_subjects = [n["subject"] for n in nodes.values() if n["kind"] not in RUN_KINDS and n["subject"]]
-    names: dict[str, str] = dict(db.execute_fetchall(
-        f"SELECT id, name FROM documents WHERE id IN ({', '.join('?' for _ in leaf_subjects)})",
-        leaf_subjects, committed=True)) if leaf_subjects else {}
+    leaf_subjects = [
+        n["subject"]
+        for n in nodes.values()
+        if n["kind"] not in RUN_KINDS and n["subject"]
+    ]
+    names: dict[str, str] = (
+        dict(
+            db.execute_fetchall(
+                f"SELECT id, name FROM documents WHERE id IN ({', '.join('?' for _ in leaf_subjects)})",
+                leaf_subjects,
+                committed=True,
+            )
+        )
+        if leaf_subjects
+        else {}
+    )
     for node in nodes.values():
         subject = node["subject"] or ""
         is_page = node["kind"] not in RUN_KINDS
         node["document_id"] = subject if is_page and subject in names else None
-        node["display_name"] = (names.get(subject) or (Path(subject).name if "/" in subject else None)
-                                if is_page else _run_kind_name(node))
+        node["display_name"] = (
+            names.get(subject) or (Path(subject).name if "/" in subject else None)
+            if is_page
+            else _run_kind_name(node)
+        )
 
     now = utc_now()
 
     def roll(node: dict[str, Any]) -> list[dict[str, Any]]:
         """Fill in the node's roll-up; returns the model calls' usage under it."""
         detail = node.pop("detail")
-        usage = list((json.loads(detail) if detail else {}).get("usage", [])) if node["kind"] not in RUN_KINDS else []
-        failed = 1 if node["state"] == "failed" and not node["children"] and node["kind"] not in RUN_KINDS else 0
+        usage = (
+            list((json.loads(detail) if detail else {}).get("usage", []))
+            if node["kind"] not in RUN_KINDS
+            else []
+        )
+        failed = (
+            1
+            if node["state"] == "failed"
+            and not node["children"]
+            and node["kind"] not in RUN_KINDS
+            else 0
+        )
         # A page is one page however many steps read it (#5959, `activity.run.pages-counted-once`): `units` holds, per page
         # (document), one (done, failed) entry for each step that read it; `extra` counts what has no document of its own.
         units: dict[str, list[tuple[bool, bool]]] = {}
         extra = [0, 0, 0]  # done, total, failed
         if not node["children"] and node["kind"] in RUN_KINDS:
-            node["done"], node["total"] = 0, 0  # a step that handed nothing to a lane has no pages
+            node["done"], node["total"] = (
+                0,
+                0,
+            )  # a step that handed nothing to a lane has no pages
         elif not node["children"]:
             if node["document_id"]:
                 units[node["document_id"]] = [(node["state"] == "done", failed == 1)]
@@ -692,9 +995,20 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
             else:
                 node["done"], node["total"] = (1 if node["state"] == "done" else 0), 1
                 counted = json.loads(detail) if detail else {}
-                if isinstance(counted.get("total"), int) and counted["total"] > 0 and isinstance(counted.get("done"), int):
+                if (
+                    isinstance(counted.get("total"), int)
+                    and counted["total"] > 0
+                    and isinstance(counted.get("done"), int)
+                ):
                     # A leaf that counts its own pages (a try: its pages live in a scratch copy that is gone after) says so
-                    node["done"], node["total"] = (counted["total"] if node["state"] == "done" else counted["done"]), counted["total"]
+                    node["done"], node["total"] = (
+                        (
+                            counted["total"]
+                            if node["state"] == "done"
+                            else counted["done"]
+                        ),
+                        counted["total"],
+                    )
                 extra = [node["done"], node["total"], failed]
         else:
             for child in node["children"]:
@@ -704,7 +1018,9 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
             last: dict[Any, dict[str, Any]] = {}
             for child in node["children"]:  # in the order they were made
                 page = child["document_id"] and not child["children"]
-                last[(child["kind"], child["document_id"]) if page else child["id"]] = child
+                last[(child["kind"], child["document_id"]) if page else child["id"]] = (
+                    child
+                )
             for child in last.values():
                 for document, entries in child["_units"].items():
                     units.setdefault(document, []).extend(entries)
@@ -712,23 +1028,50 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
                     extra[i] += child["_extra"][i]
             # A page is done only when it is done in every step that has not finished: a page missing from a FINISHED step was
             # skipped there by design; missing from an unfinished one it has not been reached yet (## 682).
-            pending = [c for c in last.values() if c["kind"] in RUN_KINDS and c["state"] != "done"]
+            pending = [
+                c
+                for c in last.values()
+                if c["kind"] in RUN_KINDS and c["state"] != "done"
+            ]
             node["done"] = extra[0] + sum(
-                1 for document, e in units.items()
-                if all(d for d, _ in e) and all(document in c["_units"] for c in pending))
+                1
+                for document, e in units.items()
+                if all(d for d, _ in e)
+                and all(document in c["_units"] for c in pending)
+            )
             node["total"] = extra[1] + len(units)
             failed += extra[2] + sum(1 for e in units.values() if any(f for _, f in e))
         node["_units"], node["_extra"] = units, extra
         node["name"] = kind_name(node["kind"])
-        node["failed"] = failed  # the pages under it that failed; each says why on its own row
+        node["failed"] = (
+            failed  # the pages under it that failed; each says why on its own row
+        )
         # What a running row works on now (#5561): its running child by name, and what that one works on.
         running = next((c for c in node["children"] if c["state"] == "running"), None)
-        node["working_on"] = (", ".join(p for p in (running["display_name"] or running["name"], running["working_on"]) if p)
-                              if running is not None and node["state"] in ("running", "paused") else None)
+        node["working_on"] = (
+            ", ".join(
+                p
+                for p in (
+                    running["display_name"] or running["name"],
+                    running["working_on"],
+                )
+                if p
+            )
+            if running is not None and node["state"] in ("running", "paused")
+            else None
+        )
         # How long it took: its own start to its finish (or until now, while it runs).
-        start = node["started_at"] or (node["created_at"] if node["kind"] in RUN_KINDS else None)
-        end = node["finished_at"] or (now if node["state"] in ("running", "paused") else None)
-        node["seconds"] = max(0.0, (ensure_utc(end) - ensure_utc(start)).total_seconds()) if start and end else None
+        start = node["started_at"] or (
+            node["created_at"] if node["kind"] in RUN_KINDS else None
+        )
+        end = node["finished_at"] or (
+            now if node["state"] in ("running", "paused") else None
+        )
+        node["seconds"] = (
+            max(0.0, (ensure_utc(end) - ensure_utc(start)).total_seconds())
+            if start and end
+            else None
+        )
         # Cost from the vendored price list, summed; null unless every call under it is priced
         # (never zero, never a guess).
         totals = aggregate_usage(usage)
@@ -746,13 +1089,23 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
 
     root = nodes[job_id]
     roll(root)
-    for node in nodes.values():  # absolute times, as the engine recorded them (#5561, never "now")
+    for node in (
+        nodes.values()
+    ):  # absolute times, as the engine recorded them (#5561, never "now")
         node.pop("_units", None)  # the roll-up's working, not part of the answer
         node.pop("_extra", None)
-        if node["started_at"] is None and node["kind"] in RUN_KINDS and node["state"] != "waiting":
-            node["started_at"] = node["created_at"]  # a run row written before it said when it started
+        if (
+            node["started_at"] is None
+            and node["kind"] in RUN_KINDS
+            and node["state"] != "waiting"
+        ):
+            node["started_at"] = node[
+                "created_at"
+            ]  # a run row written before it said when it started
         for key in ("started_at", "finished_at", "created_at"):
-            node[key] = ensure_utc(node[key]).isoformat() if node[key] is not None else None
+            node[key] = (
+                ensure_utc(node[key]).isoformat() if node[key] is not None else None
+            )
     return root
 
 
@@ -778,7 +1131,9 @@ def waiting_reason_under(db: "Database", run_id: str) -> str | None:
     row = db.execute_fetchone(
         "SELECT id, kind, state, reason, created_at, run_after FROM jobs WHERE (parent_id = ? OR parent_id LIKE ?) "
         "AND (state = 'waiting' OR (state = 'running' AND reason LIKE 'Waiting%')) ORDER BY created_at LIMIT 1",
-        [run_id, f"{run_id}:%"], committed=True)
+        [run_id, f"{run_id}:%"],
+        committed=True,
+    )
     if row is None:
         return None
     job_id, kind, state, reason, created_at, run_after = row
@@ -786,7 +1141,9 @@ def waiting_reason_under(db: "Database", run_id: str) -> str | None:
         return reason
     if _lane_held_by(db, _lane_of(job_id, kind), run_id):
         return None  # its turn behind this run's own pages: the run is reading, not waiting (#5685)
-    return waiting_reason(db, job_id, kind, stored=reason, created_at=created_at, run_after=run_after)
+    return waiting_reason(
+        db, job_id, kind, stored=reason, created_at=created_at, run_after=run_after
+    )
 
 
 def _lane_held_by(db: "Database", lane_name: str, run_id: str) -> bool:
@@ -800,7 +1157,9 @@ def _lane_held_by(db: "Database", lane_name: str, run_id: str) -> bool:
         current: str | None = job_id
         while current and current not in seen and current != run_id:
             seen.add(current)
-            row = db.execute_fetchone("SELECT parent_id FROM jobs WHERE id = ?", [current], committed=True)
+            row = db.execute_fetchone(
+                "SELECT parent_id FROM jobs WHERE id = ?", [current], committed=True
+            )
             current = row[0] if row else None
         if current != run_id:
             return False
@@ -812,23 +1171,30 @@ def last_heard(db: "Database", run_id: str) -> Any:
     _ensure(db)
     row = db.execute_fetchone(
         "SELECT max(greatest(COALESCE(finished_at, created_at), COALESCE(started_at, created_at))) FROM jobs "
-        "WHERE id = ? OR id LIKE ? OR parent_id LIKE ?", [run_id, f"{run_id}:%", f"{run_id}:%"])
+        "WHERE id = ? OR id LIKE ? OR parent_id LIKE ?",
+        [run_id, f"{run_id}:%", f"{run_id}:%"],
+    )
     return row[0] if row else None
 
 
 def parent_kind(db: "Database", job_id: str) -> str | None:
     """The kind of the job a job's row is under (a recipe's step run is under its run-a-recipe row); None for none."""
     _ensure(db)
-    row = db.execute_fetchone("SELECT p.kind FROM jobs c JOIN jobs p ON p.id = c.parent_id WHERE c.id = ?", [job_id])
+    row = db.execute_fetchone(
+        "SELECT p.kind FROM jobs c JOIN jobs p ON p.id = c.parent_id WHERE c.id = ?",
+        [job_id],
+    )
     return row[0] if row else None
 
 
 def fail_run_rows(db: "Database", run_id: str, reason: str) -> None:
     """A run the engine did not finish (#5555): its row and its unfinished steps' rows fail with `reason`."""
     _ensure(db)
-    db.execute("UPDATE jobs SET state = 'failed', reason = ?, finished_at = ? WHERE (id = ? OR id LIKE ?) "
-               "AND kind IN ('workflow', 'workflow-step') AND state NOT IN ('done', 'failed', 'cancelled')",
-               [reason, utc_now(), run_id, f"{run_id}:%"])
+    db.execute(
+        "UPDATE jobs SET state = 'failed', reason = ?, finished_at = ? WHERE (id = ? OR id LIKE ?) "
+        "AND kind IN ('workflow', 'workflow-step') AND state NOT IN ('done', 'failed', 'cancelled')",
+        [reason, utc_now(), run_id, f"{run_id}:%"],
+    )
 
 
 def _key(db: "Database") -> str:
@@ -862,8 +1228,13 @@ def apply_added_columns(execute: Callable[..., Any], path: str) -> bool:
             done = False
             if f"{path}|{statement}" not in _ALTER_FAILURES_LOGGED:
                 _ALTER_FAILURES_LOGGED.add(f"{path}|{statement}")
-                logger.error("%s: could not apply %r (%s: %s); the jobs list degrades until it can",
-                             path, statement, type(exc).__name__, str(exc).splitlines()[0][:200])
+                logger.error(
+                    "%s: could not apply %r (%s: %s); the jobs list degrades until it can",
+                    path,
+                    statement,
+                    type(exc).__name__,
+                    str(exc).splitlines()[0][:200],
+                )
     return done
 
 
@@ -889,9 +1260,13 @@ def _has_column(db: "Database", name: str) -> bool:
     connection's `_jobs_columns_on` is set)."""
     if getattr(db, "_jobs_columns_on", None) is db.conn:
         return True
-    return db.execute_fetchone(
-        "SELECT 1 FROM information_schema.columns WHERE table_name = 'jobs' AND column_name = ?", [name]
-    ) is not None
+    return (
+        db.execute_fetchone(
+            "SELECT 1 FROM information_schema.columns WHERE table_name = 'jobs' AND column_name = ?",
+            [name],
+        )
+        is not None
+    )
 
 
 def _has_cleared_at(db: "Database") -> bool:
@@ -904,8 +1279,16 @@ def _clear_waiting_on(db: "Database") -> str:
     return ", waiting_on = NULL" if _has_column(db, "waiting_on") else ""
 
 
-def enqueue(db: "Database", kind: str, subject: str, *, started_by: str = "automatic",
-            detail: str | None = None, run_after: Any = None, watched: bool = False) -> str:
+def enqueue(
+    db: "Database",
+    kind: str,
+    subject: str,
+    *,
+    started_by: str = "automatic",
+    detail: str | None = None,
+    run_after: Any = None,
+    watched: bool = False,
+) -> str:
     """Queue one job, inside the caller's transaction if it has one. A job of this kind already
     WAITING for this subject is reused: it reads its input when it runs, so it covers this change
     too (many corrections to a page make one job). `detail` (JSON) is written with a new row.
@@ -913,15 +1296,20 @@ def enqueue(db: "Database", kind: str, subject: str, *, started_by: str = "autom
     (`activity.throttle.watched-first`); a reused job becomes watched too. Returns the job id."""
     _ensure(db)
     row = db.execute_fetchone(
-        "SELECT id FROM jobs WHERE kind = ? AND subject = ? AND state = 'waiting'", [kind, subject]
+        "SELECT id FROM jobs WHERE kind = ? AND subject = ? AND state = 'waiting'",
+        [kind, subject],
     )
     if row:
         job_id = row[0]
     else:
-        job_id = _insert(db, kind, subject, KINDS[kind].model if kind in KINDS else None, started_by)
+        job_id = _insert(
+            db, kind, subject, KINDS[kind].model if kind in KINDS else None, started_by
+        )
         if detail is not None:
             db.execute("UPDATE jobs SET detail = ? WHERE id = ?", [detail, job_id])
-    if run_after is not None:  # a quiet period: each new change pushes it later (one job for a run of changes)
+    if (
+        run_after is not None
+    ):  # a quiet period: each new change pushes it later (one job for a run of changes)
         db.execute("UPDATE jobs SET run_after = ? WHERE id = ?", [run_after, job_id])
     if watched:
         db.execute("UPDATE jobs SET watched = TRUE WHERE id = ?", [job_id])
@@ -934,16 +1322,29 @@ def enqueue(db: "Database", kind: str, subject: str, *, started_by: str = "autom
 FAR_SIDE_KINDS = ("train-a-model", "read-at-scale", "cloud-batch")
 
 
-def details_of_kinds(db: "Database", kinds: tuple[str, ...] | list[str]) -> list[tuple[datetime, dict[str, Any]]]:
+def details_of_kinds(
+    db: "Database", kinds: tuple[str, ...] | list[str]
+) -> list[tuple[datetime, dict[str, Any]]]:
     """Every row of these kinds as (created_at in UTC, its detail), oldest first."""
     _ensure(db)
-    rows = db.execute_fetchall(f"SELECT created_at, detail FROM jobs WHERE kind IN ({', '.join('?' for _ in kinds)}) "
-                               "ORDER BY created_at", list(kinds))
+    rows = db.execute_fetchall(
+        f"SELECT created_at, detail FROM jobs WHERE kind IN ({', '.join('?' for _ in kinds)}) "
+        "ORDER BY created_at",
+        list(kinds),
+    )
     return [(ensure_utc(at), json.loads(raw or "{}")) for at, raw in rows]
 
 
-def enqueue_remote(db: "Database", kind: str, subject: str, *, target: str, detail: str,
-                   reason: str, started_by: str) -> str:
+def enqueue_remote(
+    db: "Database",
+    kind: str,
+    subject: str,
+    *,
+    target: str,
+    detail: str,
+    reason: str,
+    started_by: str,
+) -> str:
     """Queue one job sent to another place, with where it runs and its detail (JSON) written in the
     same statement, so the scheduler never claims it before it knows what to do."""
     _ensure(db)
@@ -958,8 +1359,15 @@ def enqueue_remote(db: "Database", kind: str, subject: str, *, target: str, deta
     return job_id
 
 
-def record_not_run(db: "Database", kind: str, subject: str, *, reason: str, detail: str,
-                   started_by: str) -> str:
+def record_not_run(
+    db: "Database",
+    kind: str,
+    subject: str,
+    *,
+    reason: str,
+    detail: str,
+    started_by: str,
+) -> str:
     """A job that was asked for and could not run, as a finished row that says why (#5575): `failed`, so
     Activity lists it among the failures with its reason, and nothing is queued."""
     _ensure(db)
@@ -976,7 +1384,10 @@ def record_not_run(db: "Database", kind: str, subject: str, *, reason: str, deta
 def requeue(db: "Database", job_id: str, *, reason: str) -> None:
     """Put a finished stored job back to waiting (a reading run whose failed shards are re-sent)."""
     _ensure(db)
-    db.execute("UPDATE jobs SET state = 'waiting', reason = ?, finished_at = NULL WHERE id = ?", [reason, job_id])
+    db.execute(
+        "UPDATE jobs SET state = 'waiting', reason = ?, finished_at = NULL WHERE id = ?",
+        [reason, job_id],
+    )
     key = _key(db)
     db.add_after_commit_hook(lambda: _scheduler.wake(key))
 
@@ -992,11 +1403,27 @@ def read_job(db: "Database", job_id: str) -> dict[str, Any] | None:
     """One job's row (its `detail` as stored, JSON text), or None."""
     _ensure(db)
     row = db.execute_fetchone(
-        "SELECT id, kind, subject, state, reason, detail, created_at, started_by FROM jobs WHERE id = ?", [job_id],
-        committed=True)
+        "SELECT id, kind, subject, state, reason, detail, created_at, started_by FROM jobs WHERE id = ?",
+        [job_id],
+        committed=True,
+    )
     if row is None:
         return None
-    return dict(zip(("id", "kind", "subject", "state", "reason", "detail", "created_at", "started_by"), row))
+    return dict(
+        zip(
+            (
+                "id",
+                "kind",
+                "subject",
+                "state",
+                "reason",
+                "detail",
+                "created_at",
+                "started_by",
+            ),
+            row,
+        )
+    )
 
 
 def times(db: "Database", job_ids: list[str]) -> dict[str, tuple[Any, Any]]:
@@ -1006,7 +1433,10 @@ def times(db: "Database", job_ids: list[str]) -> dict[str, tuple[Any, Any]]:
     if not ids:
         return {}
     rows = db.execute_fetchall(
-        f"SELECT id, started_at, finished_at FROM jobs WHERE id IN ({', '.join('?' * len(ids))})", ids, committed=True)
+        f"SELECT id, started_at, finished_at FROM jobs WHERE id IN ({', '.join('?' * len(ids))})",
+        ids,
+        committed=True,
+    )
     return {r[0]: (r[1], r[2]) for r in rows}
 
 
@@ -1016,7 +1446,9 @@ def times(db: "Database", job_ids: list[str]) -> dict[str, tuple[Any, Any]]:
 _FINISHED_COST: dict[tuple[str, Any], tuple[int, float, bool]] = {}
 
 
-def cost_under(db: "Database", job_ids: list[str], ended: dict[str, tuple[Any, Any]] | None = None) -> float | None:
+def cost_under(
+    db: "Database", job_ids: list[str], ended: dict[str, tuple[Any, Any]] | None = None
+) -> float | None:
     """The dollars of every model call under these jobs, as `tree` rolls them up: null unless every call is priced, and
     null for no calls or a free sum (a local step says its time, never "$0"; `recipes-run.timing.cost-per-step`, #6234).
 
@@ -1028,7 +1460,12 @@ def cost_under(db: "Database", job_ids: list[str], ended: dict[str, tuple[Any, A
     ids = [i for i in dict.fromkeys(job_ids) if i]
     if not ids:
         return None
-    key = {i: (i, ended[i][1]) if ended and ended.get(i) and ended[i][1] is not None else None for i in ids}
+    key = {
+        i: (i, ended[i][1])
+        if ended and ended.get(i) and ended[i][1] is not None
+        else None
+        for i in ids
+    }
     unread = [i for i in ids if key[i] is None or key[i] not in _FINISHED_COST]
     usage: dict[str, list[dict[str, Any]]] = {i: [] for i in unread}
     if unread:
@@ -1036,7 +1473,9 @@ def cost_under(db: "Database", job_ids: list[str], ended: dict[str, tuple[Any, A
             f"WITH RECURSIVE t AS (SELECT id AS root, id, kind, detail FROM jobs WHERE id IN ({', '.join('?' * len(unread))}) "
             "UNION ALL SELECT t.root, j.id, j.kind, j.detail FROM jobs j JOIN t ON j.parent_id = t.id) "
             f"SELECT root, detail FROM t WHERE detail IS NOT NULL AND kind NOT IN ({', '.join('?' * len(RUN_KINDS))})",
-            [*unread, *RUN_KINDS], committed=True)
+            [*unread, *RUN_KINDS],
+            committed=True,
+        )
         for root, detail in rows:
             usage[root].extend((json.loads(detail) or {}).get("usage", []))
     rolled = []
@@ -1061,9 +1500,14 @@ def say(db: "Database", job_id: str, reason: str) -> None:
     _heard_from(job_id)
 
 
-def save_detail(db: "Database", job_id: str, detail: str, *, reason: str | None = None) -> None:
+def save_detail(
+    db: "Database", job_id: str, detail: str, *, reason: str | None = None
+) -> None:
     """Store a job's `detail` (JSON text) and, when given, its reason in words."""
-    db.execute("UPDATE jobs SET detail = ?, reason = COALESCE(?, reason) WHERE id = ?", [detail, reason, job_id])
+    db.execute(
+        "UPDATE jobs SET detail = ?, reason = COALESCE(?, reason) WHERE id = ?",
+        [detail, reason, job_id],
+    )
     _heard_from(job_id)
 
 
@@ -1091,34 +1535,47 @@ def _live_call():
 
 def job_id_for(db: "Database", kind: str, subject: str) -> str | None:
     """The newest job of this kind on this subject."""
-    row = db.execute_fetchone("SELECT id FROM jobs WHERE kind = ? AND subject = ? ORDER BY created_at DESC LIMIT 1",
-                              [kind, subject])
+    row = db.execute_fetchone(
+        "SELECT id FROM jobs WHERE kind = ? AND subject = ? ORDER BY created_at DESC LIMIT 1",
+        [kind, subject],
+    )
     return row[0] if row else None
 
 
 def newest_job_id_of_kinds(db: "Database", kinds: tuple[str, ...]) -> str | None:
     """The newest job of any of these kinds, on any subject."""
-    row = db.execute_fetchone(f"SELECT id FROM jobs WHERE kind IN ({', '.join('?' for _ in kinds)}) "
-                              "ORDER BY created_at DESC LIMIT 1", list(kinds))
+    row = db.execute_fetchone(
+        f"SELECT id FROM jobs WHERE kind IN ({', '.join('?' for _ in kinds)}) "
+        "ORDER BY created_at DESC LIMIT 1",
+        list(kinds),
+    )
     return row[0] if row else None
 
 
 def end_cancelled(db: "Database", job_id: str, reason: str) -> None:
     """End a job whose work elsewhere was cancelled from here while nothing here was following it
     (an adopted job this engine could not reach, #5449): `cancelled`, with the reason."""
-    db.execute("UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ? WHERE id = ?",
-               [reason, utc_now(), job_id])
+    db.execute(
+        "UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ? WHERE id = ?",
+        [reason, utc_now(), job_id],
+    )
 
 
 def come_back_after(db: "Database", job_id: str, seconds: float) -> None:
     """A job about to raise `JobDeferred` asks not to be taken up again for `seconds` (a download whose
     connection broke on every try waits a while before it tries again, #5660)."""
-    db.execute("UPDATE jobs SET run_after = ? WHERE id = ?", [utc_now() + timedelta(seconds=seconds), job_id])
+    db.execute(
+        "UPDATE jobs SET run_after = ? WHERE id = ?",
+        [utc_now() + timedelta(seconds=seconds), job_id],
+    )
 
 
 def say_pausing(db: "Database", job_id: str) -> None:
     """A running job asked to pause says so until it does (#5933)."""
-    db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'", [PAUSING, job_id])
+    db.execute(
+        "UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'",
+        [PAUSING, job_id],
+    )
 
 
 def wake_lane(db: "Database") -> None:
@@ -1129,7 +1586,10 @@ def wake_lane(db: "Database") -> None:
 
 def say_stopping(db: "Database", job_id: str) -> None:
     """A running job asked to stop says so until it does (#5609)."""
-    db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'", [STOPPING, job_id])
+    db.execute(
+        "UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'",
+        [STOPPING, job_id],
+    )
 
 
 #: Who stopped a job, by its id, for the words its row ends with (`activity.recipe-run.stop-reaches-its-step`):
@@ -1168,12 +1628,16 @@ def stopped_by(job_id: str | None) -> str:
 
 def cancel_waiting(db: "Database", job_id: str) -> None:
     """End a job that has not started: `cancelled`, "Stopped by you" (or by whom else asked)."""
-    db.execute("UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ? "
-               "WHERE id = ? AND state IN ('waiting', 'paused')", [stopped_by(job_id), utc_now(), job_id])
+    db.execute(
+        "UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ? "
+        "WHERE id = ? AND state IN ('waiting', 'paused')",
+        [stopped_by(job_id), utc_now(), job_id],
+    )
 
 
-def enqueue_many(db: "Database", kind: str, subjects: list[str], *,
-                 started_by: str = "automatic") -> list[Future]:
+def enqueue_many(
+    db: "Database", kind: str, subjects: list[str], *, started_by: str = "automatic"
+) -> list[Future]:
     """`enqueue` for many subjects in a few statements (an import queues thousands of pages
     inside its own transaction, where a statement per page would be felt). Returns one future
     per subject, resolved with the job's result when it finishes in this process; a job finished
@@ -1184,9 +1648,12 @@ def enqueue_many(db: "Database", kind: str, subjects: list[str], *,
     ids: dict[str, str] = {}
     for chunk in _chunks(list(dict.fromkeys(subjects)), 500):
         marks = ", ".join("?" for _ in chunk)
-        ids.update(db.execute_fetchall(
-            f"SELECT subject, id FROM jobs WHERE kind = ? AND state = 'waiting' AND subject IN ({marks})",
-            [kind, *chunk]))
+        ids.update(
+            db.execute_fetchall(
+                f"SELECT subject, id FROM jobs WHERE kind = ? AND state = 'waiting' AND subject IN ({marks})",
+                [kind, *chunk],
+            )
+        )
     new = [subject for subject in dict.fromkeys(subjects) if subject not in ids]
     model = KINDS[kind].model if kind in KINDS else None
     now = utc_now()
@@ -1196,7 +1663,11 @@ def enqueue_many(db: "Database", kind: str, subjects: list[str], *,
         db.execute(
             "INSERT INTO jobs (id, kind, subject, model, state, attempts, started_by, created_at) VALUES "
             + ", ".join("(?, ?, ?, ?, 'waiting', 0, ?, ?)" for _ in rows),
-            [value for job_id, subject in rows for value in (job_id, kind, subject, model, started_by, now)],
+            [
+                value
+                for job_id, subject in rows
+                for value in (job_id, kind, subject, model, started_by, now)
+            ],
         )
     futures = [_scheduler.watch(ids[subject]) for subject in subjects]
     key = _key(db)
@@ -1205,15 +1676,21 @@ def enqueue_many(db: "Database", kind: str, subjects: list[str], *,
 
 
 def _chunks(items: list, size: int) -> list[list]:
-    return [items[i:i + size] for i in range(0, len(items), size)]
+    return [items[i : i + size] for i in range(0, len(items), size)]
 
 
 def _is_attached(kind: str) -> bool:
     return kind in KINDS and KINDS[kind].run is None
 
 
-def _insert(db: "Database", kind: str, subject: str, model: str | None, started_by: str,
-            watched: bool = False) -> str:
+def _insert(
+    db: "Database",
+    kind: str,
+    subject: str,
+    model: str | None,
+    started_by: str,
+    watched: bool = False,
+) -> str:
     job_id = str(uuid.uuid4())
     db.execute(
         "INSERT INTO jobs (id, kind, subject, model, state, attempts, started_by, watched, created_at) "
@@ -1223,9 +1700,18 @@ def _insert(db: "Database", kind: str, subject: str, model: str | None, started_
     return job_id
 
 
-def submit(db: "Database", kind: str, subject: str, *, model: str, fn: Callable[[], Any],
-           started_by: str = "workflow", lane: str = "local-ml", run_id: str | None = None,
-           parent_id: str | None = None) -> Future:
+def submit(
+    db: "Database",
+    kind: str,
+    subject: str,
+    *,
+    model: str,
+    fn: Callable[[], Any],
+    started_by: str = "workflow",
+    lane: str = "local-ml",
+    run_id: str | None = None,
+    parent_id: str | None = None,
+) -> Future:
     """Hand the local-model lane one piece of work a caller is WAITING for (a workflow step's
     Kraken page) and return a future for its result.
 
@@ -1241,7 +1727,9 @@ def submit(db: "Database", kind: str, subject: str, *, model: str, fn: Callable[
     `resume` cancels it."""
     _ensure(db)
     future: Future = Future()
-    job_id = _insert(db, kind, subject, model, started_by, watched=_person_waiting.get())
+    job_id = _insert(
+        db, kind, subject, model, started_by, watched=_person_waiting.get()
+    )
     parent = _current_step()
     if parent:  # a page of a step of a run (`activity.jobs-are-a-tree`)
         _ensure_step_row(db, parent)
@@ -1268,8 +1756,15 @@ STOP_POLL_MAX_SECONDS = 1.0
 STOP_POLL_SECONDS = 0.25
 
 
-async def run_on_lane(library_path: str | None, kind: str, subject: str, *, model: str,
-                      fn: Callable[[], Any], run_id: str | None = None) -> Any:
+async def run_on_lane(
+    library_path: str | None,
+    kind: str,
+    subject: str,
+    *,
+    model: str,
+    fn: Callable[[], Any],
+    run_id: str | None = None,
+) -> Any:
     """`submit` for an async caller with a library path. Work outside an open project has no
     table to be a row in, and runs on a worker thread as it did before the queue.
 
@@ -1293,7 +1788,11 @@ TRASHED_PAGE = "Skipped: the page was moved to the Trash"
 
 def _in_the_trash(db: "Database", subject: str | None) -> bool:
     """The job's subject is a document in the Trash; a subject that is no document (a file name, a run) is not."""
-    found = db.execute_fetchone("SELECT deleted_at FROM documents WHERE id = ?", [subject]) if subject else None
+    found = (
+        db.execute_fetchone("SELECT deleted_at FROM documents WHERE id = ?", [subject])
+        if subject
+        else None
+    )
     return bool(found and found[0] is not None)
 
 
@@ -1310,17 +1809,27 @@ def _withdrawn(db: "Database", future: Future, run_id: str | None) -> BaseExcept
     if run_id and _pause_requested(run_id):
         return WorkflowPaused(run_id)
     job_id = getattr(future, "job_id", None)
-    found = db.execute_fetchone("SELECT reason FROM jobs WHERE id = ?", [job_id]) if job_id else None
-    said = (found[0] if found else None) or stopped_by(job_id)  # the words its withdrawal wrote on the row
+    found = (
+        db.execute_fetchone("SELECT reason FROM jobs WHERE id = ?", [job_id])
+        if job_id
+        else None
+    )
+    said = (found[0] if found else None) or stopped_by(
+        job_id
+    )  # the words its withdrawal wrote on the row
     if run_id and said == "Paused with its run":
         # The run's pause flag is cleared once it has settled, which can be before this waiter wakes: the row's words
         # still say why it was withdrawn. A paused page is not a failed one (it would be recorded as the page's error
         # and never read on Resume: `activity.durable.paused-stays-paused`).
         return WorkflowPaused(run_id)
     if said == TRASHED_PAGE:
-        return PageStopped(said)  # skipped as a stopped page is: the run goes on to its next page
+        return PageStopped(
+            said
+        )  # skipped as a stopped page is: the run goes on to its next page
     if said == CLOSED_BEFORE_RUN or not said.startswith("Stopped"):
-        return JobCancelled(said)  # closed, or withdrawn for another reason: not a person's Stop of this page
+        return JobCancelled(
+            said
+        )  # closed, or withdrawn for another reason: not a person's Stop of this page
     return PageStopped(said)  # skip this page; the run goes on
 
 
@@ -1366,15 +1875,23 @@ def _wait_for_lane_blocking(db: "Database", future: Future, run_id: str | None) 
             raise _withdrawn(db, future, run_id) from None
         if run_id and _stop_requested(run_id):
             _stop_the_page(db, future, run_id)
-        if not _still_open(db) and _scheduler.withdraw(db, future, reason=CLOSED_BEFORE_RUN):
+        if not _still_open(db) and _scheduler.withdraw(
+            db, future, reason=CLOSED_BEFORE_RUN
+        ):
             raise JobCancelled(CLOSED_BEFORE_RUN)
-        if run_id and _pause_requested(run_id) and _scheduler.withdraw(db, future, reason="Paused with its run"):
+        if (
+            run_id
+            and _pause_requested(run_id)
+            and _scheduler.withdraw(db, future, reason="Paused with its run")
+        ):
             from fichero_server.execution.cancellation import WorkflowPaused
 
             raise WorkflowPaused(run_id)
 
 
-async def _wait_for_lane(db: "Database", future: Future, signal: "asyncio.Future", run_id: str | None) -> Any:
+async def _wait_for_lane(
+    db: "Database", future: Future, signal: "asyncio.Future", run_id: str | None
+) -> Any:
     """Wait for `signal`, withdrawing the job and raising `WorkflowCancelled` if the run is
     stopped while the job is still waiting for the lane, or `JobCancelled` if its project closes
     (#5608: it waited for good, a lane never looks at a closed project)."""
@@ -1382,7 +1899,10 @@ async def _wait_for_lane(db: "Database", future: Future, signal: "asyncio.Future
     while True:
         # A page that has waited a while looks less often (Fable review #18: 500 waiting pages woke 2,000 times a second):
         # 0.25 s, 0.5 s, then `STOP_POLL_MAX_SECONDS`. A Stop is felt within that.
-        done, _ = await asyncio.wait({signal}, timeout=min(STOP_POLL_MAX_SECONDS, STOP_POLL_SECONDS * 2 ** min(polls, 6)))
+        done, _ = await asyncio.wait(
+            {signal},
+            timeout=min(STOP_POLL_MAX_SECONDS, STOP_POLL_SECONDS * 2 ** min(polls, 6)),
+        )
         polls += 1
         if done:
             if signal.cancelled():  # the scheduler withdrew it: its run stopped or paused, or this page alone was stopped
@@ -1390,9 +1910,15 @@ async def _wait_for_lane(db: "Database", future: Future, signal: "asyncio.Future
             return signal.result()
         if run_id and _stop_requested(run_id):
             _stop_the_page(db, future, run_id)
-        if not _still_open(db) and _scheduler.withdraw(db, future, reason=CLOSED_BEFORE_RUN):
+        if not _still_open(db) and _scheduler.withdraw(
+            db, future, reason=CLOSED_BEFORE_RUN
+        ):
             raise JobCancelled(CLOSED_BEFORE_RUN)
-        if run_id and _pause_requested(run_id) and _scheduler.withdraw(db, future, reason="Paused with its run"):
+        if (
+            run_id
+            and _pause_requested(run_id)
+            and _scheduler.withdraw(db, future, reason="Paused with its run")
+        ):
             from fichero_server.execution.cancellation import WorkflowPaused
 
             raise WorkflowPaused(run_id)
@@ -1406,7 +1932,9 @@ def _run_stopped(run_id: str | None, db: "Database | None" = None) -> str | None
         return None
     from fichero_server.workflows.run_account import closed_mid_run
 
-    if closed_mid_run(run_id):  # its project closed while it ran (#5608): not a person's Stop
+    if closed_mid_run(
+        run_id
+    ):  # its project closed while it ran (#5608): not a person's Stop
         return CLOSED_BEFORE_RUN
     if _stop_requested(run_id):
         return "Stopped by you"
@@ -1417,14 +1945,20 @@ def _run_stopped(run_id: str | None, db: "Database | None" = None) -> str | None
         # step that called it, #5375): a paused or ended parent holds its child's pages too.
         job_id, depth = run_id, 0
         while job_id and depth < 12:
-            row = db.execute_fetchone("SELECT state, reason, kind, parent_id FROM jobs WHERE id = ?", [job_id])
+            row = db.execute_fetchone(
+                "SELECT state, reason, kind, parent_id FROM jobs WHERE id = ?", [job_id]
+            )
             if row is None:
                 break
             if row[2] == "workflow":
                 if row[0] == "paused" or row[1] == PAUSING:
                     return "Paused with its run"
                 if row[0] in ("cancelled", "failed", "done") or row[1] == STOPPING:
-                    return "Stopped by you" if row[1] == STOPPING or row[0] == "cancelled" else "Its run had ended"
+                    return (
+                        "Stopped by you"
+                        if row[1] == STOPPING or row[0] == "cancelled"
+                        else "Its run had ended"
+                    )
             job_id, depth = row[3], depth + 1
     return None
 
@@ -1445,10 +1979,19 @@ def first_reason(db: "Database", first_kinds: list[str], since: Any) -> str:
     marks = ", ".join("?" for _ in first_kinds)
     failed = db.execute_fetchall(
         f"SELECT reason FROM jobs WHERE kind IN ({marks}) AND state = 'failed' AND reason IS NOT NULL "
-        f"AND finished_at >= ? ORDER BY finished_at DESC LIMIT 4", [*first_kinds, since], committed=True)
-    if any(is_set_aside(r[0]) for r in failed):  # its own row says why, once; this one only says it is waiting on it
+        f"AND finished_at >= ? ORDER BY finished_at DESC LIMIT 4",
+        [*first_kinds, since],
+        committed=True,
+    )
+    if any(
+        is_set_aside(r[0]) for r in failed
+    ):  # its own row says why, once; this one only says it is waiting on it
         return "Waiting for thumbnails (set aside)"
-    return FIRST_REASON + ("; failed: " + "; ".join(r[0] for r in failed) if failed else "")
+    return FIRST_REASON + (
+        "; failed: " + "; ".join(r[0] for r in failed) if failed else ""
+    )
+
+
 #: The page jobs that read: the text the embedder and spaCy work on comes out of them.
 READING_KINDS = ("find-lines", "read-a-line", "read-a-page", "ask-a-model")
 READING_FIRST_REASON = "Waiting for reading to finish"
@@ -1470,16 +2013,33 @@ HOLD_LIMIT_SECONDS = 900.0
 SLOW_CALL_SECONDS = 60.0
 
 
-async def hold_lane(library_path: str | None, kind: str, subject: str, *, model: str,
-                    work: Callable[[], Any], run_id: str | None = None, lane: str = "local-ml") -> Any:
+async def hold_lane(
+    library_path: str | None,
+    kind: str,
+    subject: str,
+    *,
+    model: str,
+    work: Callable[[], Any],
+    run_id: str | None = None,
+    lane: str = "local-ml",
+) -> Any:
     """Run async `work` (a call to a model) as a job on a lane: `lane_slot` around it."""
-    async with lane_slot(library_path, kind, subject, model=model, run_id=run_id, lane=lane):
+    async with lane_slot(
+        library_path, kind, subject, model=model, run_id=run_id, lane=lane
+    ):
         return await work()
 
 
 @contextlib.asynccontextmanager
-async def lane_slot(library_path: str | None, kind: str, subject: str, *, model: str,
-                    run_id: str | None = None, lane: str = "local-ml"):
+async def lane_slot(
+    library_path: str | None,
+    kind: str,
+    subject: str,
+    *,
+    model: str,
+    run_id: str | None = None,
+    lane: str = "local-ml",
+):
     """Hold a slot on a lane while the body runs (a call to a model: one served on this Mac on the
     local-model lane, a cloud one on the network lane). The call stays in the caller, on its event
     loop; the lane's thread holds the slot while it runs, so the lane's cap holds for the whole
@@ -1500,30 +2060,50 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
 
     def hold() -> None:
         try:
-            loop.call_soon_threadsafe(lambda: granted.done() or granted.set_result(None))
+            loop.call_soon_threadsafe(
+                lambda: granted.done() or granted.set_result(None)
+            )
         except Exception as exc:  # noqa: BLE001 -- the caller's loop is gone: so is the caller
             raise JobCancelled("Its run had ended before this page started") from exc
         waited = 0.0
         live_calls = _scheduler.lanes[lane].live_calls
-        live_calls.add(current_job_id())  # slow, never stuck while it waits on its answer (#6213)
+        live_calls.add(
+            current_job_id()
+        )  # slow, never stuck while it waits on its answer (#6213)
         # A live call keeps its slot past the limit: freeing the lane under it would let another heavy job start beside the model
         # (or unload it). Only the words change; the call's own timeout or a Stop ends it (#5938).
-        while not release.wait(min(SLOW_CALL_SECONDS, HOLD_LIMIT_SECONDS - waited) if waited < HOLD_LIMIT_SECONDS else SLOW_CALL_SECONDS):
+        while not release.wait(
+            min(SLOW_CALL_SECONDS, HOLD_LIMIT_SECONDS - waited)
+            if waited < HOLD_LIMIT_SECONDS
+            else SLOW_CALL_SECONDS
+        ):
             waited += SLOW_CALL_SECONDS
-            if loop.is_closed():  # the caller's loop is gone, so its finally never runs: let the slot go
+            if (
+                loop.is_closed()
+            ):  # the caller's loop is gone, so its finally never runs: let the slot go
                 break
             if job_ref:  # in words, so a model server that stopped answering is not a silent 15 minutes
-                words = (f"Waiting for the model to answer ({waited / 60:g} min so far)" if waited >= 60
-                         else f"Waiting for the model to answer ({waited:g} s so far)")
+                words = (
+                    f"Waiting for the model to answer ({waited / 60:g} min so far)"
+                    if waited >= 60
+                    else f"Waiting for the model to answer ({waited:g} s so far)"
+                )
                 if waited >= HOLD_LIMIT_SECONDS:
                     words = f"This call has run {round(waited / 60, 1):g} min and keeps its place; Stop ends it"
-                db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'", [words, job_ref[0]])
+                db.execute(
+                    "UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'",
+                    [words, job_ref[0]],
+                )
         if outcome["result"] is None:
             raise JobCancelled("Its run had ended before this page was read")
         if outcome["result"] == STOPPED_BY_YOU:
-            raise JobCancelled(STOPPED_BY_YOU)  # its run was stopped while the call ran: 'cancelled', not 'failed'
+            raise JobCancelled(
+                STOPPED_BY_YOU
+            )  # its run was stopped while the call ran: 'cancelled', not 'failed'
         if outcome["result"] == PAUSED_WITH_ITS_RUN:
-            raise JobCancelled(PAUSED_WITH_ITS_RUN)  # its run was paused while the call waited: 'cancelled', not 'failed'
+            raise JobCancelled(
+                PAUSED_WITH_ITS_RUN
+            )  # its run was paused while the call waited: 'cancelled', not 'failed'
         if outcome["result"] != "done":
             raise RuntimeError(outcome["result"])
 
@@ -1532,27 +2112,44 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
     token = None
     guard = None
     waiting_job = _waiting_job.get()
-    echo = asyncio.ensure_future(_echo_wait(db, future.job_id, waiting_job)) if waiting_job else None
+    echo = (
+        asyncio.ensure_future(_echo_wait(db, future.job_id, waiting_job))
+        if waiting_job
+        else None
+    )
     try:
         waiting = asyncio.wrap_future(future)
         try:
             await _wait_for_lane(db, future, _first_of(granted, waiting), run_id)
         except asyncio.CancelledError:
             # its caller is gone: the slot is not wanted
-            _scheduler.withdraw(db, future, reason="Its run had ended before this page started")
+            _scheduler.withdraw(
+                db, future, reason="Its run had ended before this page started"
+            )
             raise
         if echo is not None:  # the page starts: the try's row reads running again
             echo.cancel()
         token = _holding.set(True)
         _call_row.set((db, future.job_id))
         stop_state: dict[str, bool] = {"fired": False, "over": False}
-        guard = asyncio.ensure_future(_end_call_on_stop(run_id, asyncio.current_task(), stop_state)) if run_id else None
+        guard = (
+            asyncio.ensure_future(
+                _end_call_on_stop(run_id, asyncio.current_task(), stop_state)
+            )
+            if run_id
+            else None
+        )
+
         async def stopped() -> None:
             """The run was stopped while the call ran: balance the cancel, book what a cloud call may have cost, raise the stop."""
             asyncio.current_task().uncancel()
             outcome["result"] = STOPPED_BY_YOU
-            if lane == "network":  # a cloud call may have been billed: a Stop never hides spend
-                await asyncio.to_thread(_note_stopped_cost, model)  # off the loop: it reads and writes the library's database
+            if (
+                lane == "network"
+            ):  # a cloud call may have been billed: a Stop never hides spend
+                await asyncio.to_thread(
+                    _note_stopped_cost, model
+                )  # off the loop: it reads and writes the library's database
             from fichero_server.execution.cancellation import WorkflowCancelled
 
             raise WorkflowCancelled(run_id) from None
@@ -1564,20 +2161,31 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
                 raise  # cancelled by someone else (its caller went away): not ours to turn into a stop
             await stopped()
         except Exception as exc:
-            from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused
+            from fichero_server.execution.cancellation import (
+                WorkflowCancelled,
+                WorkflowPaused,
+            )
 
             # A Pause or Stop from its run is not a failure of the call (#5936): the slot's row ends cancelled, in those words.
-            outcome["result"] = (PAUSED_WITH_ITS_RUN if isinstance(exc, WorkflowPaused)
-                                 else STOPPED_BY_YOU if isinstance(exc, WorkflowCancelled)
-                                 else str(exc) or type(exc).__name__)
+            outcome["result"] = (
+                PAUSED_WITH_ITS_RUN
+                if isinstance(exc, WorkflowPaused)
+                else STOPPED_BY_YOU
+                if isinstance(exc, WorkflowCancelled)
+                else str(exc) or type(exc).__name__
+            )
             raise
         finally:
             stop_state["over"] = True
-        if stop_state["fired"]:  # the callee swallowed the cancel and came back normally: the Stop still stands
+        if stop_state[
+            "fired"
+        ]:  # the callee swallowed the cancel and came back normally: the Stop still stands
             await stopped()
         outcome["result"] = "done"
         if _scheduler.is_stopping(future.job_id):
-            raise PageStopped(stopped_by(future.job_id))  # stopped while it ran: the caller's next step is skipped
+            raise PageStopped(
+                stopped_by(future.job_id)
+            )  # stopped while it ran: the caller's next step is skipped
     finally:
         if echo is not None:
             echo.cancel()
@@ -1607,14 +2215,29 @@ def _note_stopped_cost(model: str) -> None:
     if row and row[0] and json.loads(row[0]).get("usage"):
         return  # the provider did answer with usage before the Stop: that is the figure
     provider, _, name = (model or "").partition(":")
-    note_usage({"provider": provider, "model": name, "kind": "stopped", "input_tokens": STOPPED_CALL_INPUT_TOKENS,
-                "output_tokens": 0, "total_tokens": STOPPED_CALL_INPUT_TOKENS, "cache_read_tokens": 0,
-                "estimated": True, "place": "cloud"})
-    note_call_log(f"Stopped before the provider answered: its cost is booked as an ESTIMATE (a floor of "
-                  f"{STOPPED_CALL_INPUT_TOKENS} input tokens), not what it billed.", level="warning")
+    note_usage(
+        {
+            "provider": provider,
+            "model": name,
+            "kind": "stopped",
+            "input_tokens": STOPPED_CALL_INPUT_TOKENS,
+            "output_tokens": 0,
+            "total_tokens": STOPPED_CALL_INPUT_TOKENS,
+            "cache_read_tokens": 0,
+            "estimated": True,
+            "place": "cloud",
+        }
+    )
+    note_call_log(
+        f"Stopped before the provider answered: its cost is booked as an ESTIMATE (a floor of "
+        f"{STOPPED_CALL_INPUT_TOKENS} input tokens), not what it billed.",
+        level="warning",
+    )
 
 
-async def _end_call_on_stop(run_id: str, task: "asyncio.Task | None", state: dict[str, bool]) -> None:
+async def _end_call_on_stop(
+    run_id: str, task: "asyncio.Task | None", state: dict[str, bool]
+) -> None:
     """While a model call holds its slot, look at its run's Stop every `STOP_POLL_SECONDS` and end the call the moment it is
     pressed (`activity.run.stop-reaches-in-flight-calls`): cancel the awaiting task, which `lane_slot` turns into
     `WorkflowCancelled`. Without this a Stop waited for the call to answer, up to the hold limit with a hung server."""
@@ -1632,6 +2255,7 @@ async def _end_call_on_stop(run_id: str, task: "asyncio.Task | None", state: dic
 
 def _first_of(granted: "asyncio.Future", lane: "asyncio.Future") -> "asyncio.Future":
     """`granted`, or the lane's own failure if the job fails before it is granted."""
+
     def failed(done: "asyncio.Future") -> None:
         if granted.done():
             return
@@ -1652,22 +2276,32 @@ def _stop_requested(run_id: str) -> bool:
 
 #: A job set aside after its interruptions says so once, short (#5844): "Stopped 3 times by the engine stopping; set
 #: aside. Resume to carry on." Such a row offers Resume (#5615). Rows stored before #5844 begin "Interrupted 3 times".
-_SET_ASIDE = re.compile(r"^(Stopped \d+ times? by the engine stopping|Interrupted \d+ times?)")
+_SET_ASIDE = re.compile(
+    r"^(Stopped \d+ times? by the engine stopping|Interrupted \d+ times?)"
+)
 
 
 def is_set_aside(reason: str | None) -> bool:
     """Whether this is the reason of a job set aside after its interruptions."""
     return bool(reason and _SET_ASIDE.match(reason))
+
+
 #: What a set-aside row offers: Retry (`POST /api/activity/jobs/{id}/retry`) carries it on from where it was.
 RESUME = "Resume"
 
 
 def _clock(at: Any) -> str:
     """A time as the person reads it: the Mac's local clock, never UTC (#5844)."""
-    return ensure_utc(at).astimezone().strftime("%Y-%m-%d %H:%M") if at is not None else "at a time not recorded"
+    return (
+        ensure_utc(at).astimezone().strftime("%Y-%m-%d %H:%M")
+        if at is not None
+        else "at a time not recorded"
+    )
 
 
-def set_aside_reason(attempts: int, started_at: Any = None, found_at: Any = None) -> str:
+def set_aside_reason(
+    attempts: int, started_at: Any = None, found_at: Any = None
+) -> str:
     """Why a job was set aside, said once and short (#5844): what stopped it, that it is set aside, what carries it
     on. Only the engine stopping (the app quit, or the engine or the Mac stopped) leaves a job running at an open;
     the times are in the job's log, not its row."""
@@ -1681,11 +2315,25 @@ def offer_for(kind: str, state: str, reason: str | None) -> str | None:
     if kind not in KINDS:
         load_kinds()
     registered = KINDS.get(kind)
-    return RESUME if registered is not None and registered.run is not None and not registered.no_retry else None
+    return (
+        RESUME
+        if registered is not None
+        and registered.run is not None
+        and not registered.no_retry
+        else None
+    )
 
 
-def run_on_lane_blocking(library_path: str | None, kind: str, subject: str, *, model: str,
-                         fn: Callable[[], Any], parent_id: str | None = None, run_id: str | None = None) -> Any:
+def run_on_lane_blocking(
+    library_path: str | None,
+    kind: str,
+    subject: str,
+    *,
+    model: str,
+    fn: Callable[[], Any],
+    parent_id: str | None = None,
+    run_id: str | None = None,
+) -> Any:
     """`run_on_lane` for a synchronous caller. `parent_id` is the row the page hangs under when the caller is not a workflow
     node (a recipe step names its run's row): its tree, its starter (`person_waits_on`) and its Stop are then the run's own.
 
@@ -1698,7 +2346,9 @@ def run_on_lane_blocking(library_path: str | None, kind: str, subject: str, *, m
     if db is None or getattr(_current, "lane", None) == "local-ml":
         with _live_call():
             return fn()
-    future = submit(db, kind, subject, model=model, fn=fn, parent_id=parent_id, run_id=run_id)
+    future = submit(
+        db, kind, subject, model=model, fn=fn, parent_id=parent_id, run_id=run_id
+    )
     return _wait_for_lane_blocking(db, future, run_id)
 
 
@@ -1714,12 +2364,21 @@ def settle_made_thumbnails(db: "Database") -> int:
         return 0
     package = Path(db.path).parent
     marks = ", ".join("?" for _ in first_kinds)
-    made = [row[0] for row in db.execute_fetchall(
-        f"SELECT id, subject FROM jobs WHERE kind IN ({marks}) AND state IN ('waiting', 'failed') "
-        "AND parent_id IS NULL", first_kinds) if has_thumbnail(row[1], package)]
+    made = [
+        row[0]
+        for row in db.execute_fetchall(
+            f"SELECT id, subject FROM jobs WHERE kind IN ({marks}) AND state IN ('waiting', 'failed') "
+            "AND parent_id IS NULL",
+            first_kinds,
+        )
+        if has_thumbnail(row[1], package)
+    ]
     for job_id in made:
-        db.execute("UPDATE jobs SET state = 'done', reason = NULL, finished_at = COALESCE(finished_at, ?) "
-                   "WHERE id = ?", [utc_now(), job_id])
+        db.execute(
+            "UPDATE jobs SET state = 'done', reason = NULL, finished_at = COALESCE(finished_at, ?) "
+            "WHERE id = ?",
+            [utc_now(), job_id],
+        )
     return len(made)
 
 
@@ -1740,10 +2399,15 @@ def requeue_orphaned_first(db: "Database") -> int:
     cutoff = utc_now() - timedelta(seconds=ORPHAN_FIRST_GRACE_SECONDS)
     found = db.execute_fetchall(
         f"SELECT id FROM jobs WHERE state = 'running' AND kind IN ({marks}) AND parent_id IS NULL "
-        f"AND started_at < ?{not_live}", [*first_kinds, cutoff, *live])
+        f"AND started_at < ?{not_live}",
+        [*first_kinds, cutoff, *live],
+    )
     for (job_id,) in found:
-        db.execute(f"UPDATE jobs SET state = 'waiting', reason = 'Interrupted; carries on'{_clear_waiting_on(db)} "
-                   "WHERE id = ? AND state = 'running'", [job_id])
+        db.execute(
+            f"UPDATE jobs SET state = 'waiting', reason = 'Interrupted; carries on'{_clear_waiting_on(db)} "
+            "WHERE id = ? AND state = 'running'",
+            [job_id],
+        )
     return len(found)
 
 
@@ -1761,8 +2425,12 @@ def resume(db: "Database") -> None:
     # while a page runs must leave it running, in every update below (review 278: an attached Kraken page was cancelled).
     live = _scheduler.running_ids()
     not_live = f" AND id NOT IN ({', '.join('?' for _ in live)})" if live else ""
-    if db.execute_fetchone(f"SELECT 1 FROM jobs WHERE state = 'running'{not_live} LIMIT 1", live):
-        _gentle_until = time.monotonic() + GENTLE_START_SECONDS  # a dead engine left work: resume it, gently (#6216)
+    if db.execute_fetchone(
+        f"SELECT 1 FROM jobs WHERE state = 'running'{not_live} LIMIT 1", live
+    ):
+        _gentle_until = (
+            time.monotonic() + GENTLE_START_SECONDS
+        )  # a dead engine left work: resume it, gently (#6216)
     # A page's work, handed in by a caller that is gone. NOT a run's or a batch's own row: those are not pages, and a
     # page's words on them read wrong (Fable review #7). The runs are settled by `mark_interrupted_runs` on open; a batch
     # row left running by a killed engine is settled here, in its own words.
@@ -1792,8 +2460,10 @@ def resume(db: "Database") -> None:
         [MAX_ATTEMPTS, *FAR_SIDE_KINDS, *FAR_SIDE_KINDS, *live],
     ):
         # What interrupted it, when, and what carries it on, in words (#5615): not "Interrupted 3 times; set aside".
-        db.execute("UPDATE jobs SET state = 'failed', finished_at = ?, reason = ? WHERE id = ?",
-                   [now, set_aside_reason(attempts, started_at, now), job_id])
+        db.execute(
+            "UPDATE jobs SET state = 'failed', finished_at = ?, reason = ? WHERE id = ?",
+            [now, set_aside_reason(attempts, started_at, now), job_id],
+        )
     # A job a person stopped that was still winding down when the engine went away is not taken up again
     # (#5609): it ends as stopped. (A workflow run's row is settled with its record, `mark_interrupted_runs`.)
     db.execute(
@@ -1804,7 +2474,8 @@ def resume(db: "Database") -> None:
     # (Same rule: only rows no live thread runs were left by an engine that is gone; owner, 2026-10-19.)
     db.execute(
         f"UPDATE jobs SET state = 'waiting', reason = 'Interrupted; carries on'{_clear_waiting_on(db)} "
-        f"WHERE state = 'running'{not_live}", live
+        f"WHERE state = 'running'{not_live}",
+        live,
     )
     # A page whose thumbnail is already there needs no job: one left queued, interrupted just now, or set aside after
     # its kills, would hold the heavy work queued after it for good (#5845). After the reset above, so a thumbnail job
@@ -1812,6 +2483,7 @@ def resume(db: "Database") -> None:
     settle_made_thumbnails(db)
     if db.execute_fetchone("SELECT 1 FROM jobs WHERE state = 'waiting' LIMIT 1"):
         _scheduler.wake(_key(db))
+
 
 #: Job rows that are a workflow run or a batch of runs, not a page job.
 _RUN_KINDS = ("workflow", "batch")
@@ -1833,7 +2505,11 @@ def live_work(db: "Database") -> tuple[list[str], int, int]:
     )
     # A workflow run's row says running, but only a thread of this engine runs it: one with no live thread is a phantom a
     # dead process left, and never refuses a release (#6213, `recipes-run.isolation.release-never-refused-by-a-phantom`).
-    live = {tid for tid, s in list(_running_workflows.items()) if not is_terminal(s.get("status"))}
+    live = {
+        tid
+        for tid, s in list(_running_workflows.items())
+        if not is_terminal(s.get("status"))
+    }
     names: list[str] = []
     for run_id, detail, state, kind in runs:
         if kind == "workflow" and state == "running" and run_id not in live:
@@ -1843,29 +2519,48 @@ def live_work(db: "Database") -> tuple[list[str], int, int]:
         except (TypeError, ValueError):
             name = run_id
         names.append(f"{name}, {run_id}, {state}")
-    counts = dict(db.execute_fetchall(
-        f"SELECT state, count(*) FROM jobs WHERE state IN ('waiting', 'running') "
-        f"AND kind NOT IN ('workflow-step', {marks}) GROUP BY state",
-        list(_RUN_KINDS),
-    ))
+    counts = dict(
+        db.execute_fetchall(
+            f"SELECT state, count(*) FROM jobs WHERE state IN ('waiting', 'running') "
+            f"AND kind NOT IN ('workflow-step', {marks}) GROUP BY state",
+            list(_RUN_KINDS),
+        )
+    )
     return names, int(counts.get("running", 0)), int(counts.get("waiting", 0))
 
 
-def count_jobs(db: "Database", kind: str, *, subject_prefix: str,
-               states: tuple[str, ...] = ("waiting", "running", "paused")) -> int:
+def count_jobs(
+    db: "Database",
+    kind: str,
+    *,
+    subject_prefix: str,
+    states: tuple[str, ...] = ("waiting", "running", "paused"),
+) -> int:
     """How many jobs of this kind, on subjects starting so, are not finished."""
     _ensure(db)
-    return int(db.execute_fetchone(
-        f"SELECT count(*) FROM jobs WHERE kind = ? AND subject LIKE ? AND state IN ({', '.join('?' for _ in states)})",
-        [kind, subject_prefix + "%", *states])[0])
+    return int(
+        db.execute_fetchone(
+            f"SELECT count(*) FROM jobs WHERE kind = ? AND subject LIKE ? AND state IN ({', '.join('?' for _ in states)})",
+            [kind, subject_prefix + "%", *states],
+        )[0]
+    )
 
 
-def find_jobs(db: "Database", *, kinds: list[str], states: list[str] | None = None, job_id: str | None = None,
-              limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
+def find_jobs(
+    db: "Database",
+    *,
+    kinds: list[str],
+    states: list[str] | None = None,
+    job_id: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
     """Rows of these kinds, newest first, optionally only in these states or only this id."""
     _ensure(db)
-    sql = (f"SELECT id, kind, state, reason, detail, created_at, started_at, finished_at FROM jobs "
-           f"WHERE kind IN ({', '.join('?' for _ in kinds)})")
+    sql = (
+        f"SELECT id, kind, state, reason, detail, created_at, started_at, finished_at FROM jobs "
+        f"WHERE kind IN ({', '.join('?' for _ in kinds)})"
+    )
     params: list[Any] = list(kinds)
     if states:
         sql += f" AND state IN ({', '.join('?' for _ in states)})"
@@ -1873,9 +2568,21 @@ def find_jobs(db: "Database", *, kinds: list[str], states: list[str] | None = No
     if job_id is not None:
         sql += " AND id = ?"
         params.append(job_id)
-    rows = db.execute_fetchall(sql + " ORDER BY created_at DESC LIMIT ? OFFSET ?", [*params, limit, offset],
-                             committed=True)
-    names = ("id", "kind", "state", "reason", "detail", "created_at", "started_at", "finished_at")
+    rows = db.execute_fetchall(
+        sql + " ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        [*params, limit, offset],
+        committed=True,
+    )
+    names = (
+        "id",
+        "kind",
+        "state",
+        "reason",
+        "detail",
+        "created_at",
+        "started_at",
+        "finished_at",
+    )
     return [dict(zip(names, row)) for row in rows]
 
 
@@ -1884,13 +2591,27 @@ def jobs_on_subjects(db: "Database", subjects: list[str]) -> list[dict[str, Any]
     their document as their subject), newest first, in one statement per 500 subjects
     (`activity.document.what-has-been-run`, #5434)."""
     _ensure(db)
-    names = ("id", "kind", "subject", "model", "state", "reason", "parent_id", "created_at", "started_at",
-             "finished_at")
+    names = (
+        "id",
+        "kind",
+        "subject",
+        "model",
+        "state",
+        "reason",
+        "parent_id",
+        "created_at",
+        "started_at",
+        "finished_at",
+    )
     rows: list[dict[str, Any]] = []
     for chunk in _chunks(list(dict.fromkeys(subjects)), 500):
         marks = ", ".join("?" for _ in chunk)
-        rows += [dict(zip(names, row)) for row in db.execute_fetchall(
-            f"SELECT {', '.join(names)} FROM jobs WHERE subject IN ({marks})", chunk)]
+        rows += [
+            dict(zip(names, row))
+            for row in db.execute_fetchall(
+                f"SELECT {', '.join(names)} FROM jobs WHERE subject IN ({marks})", chunk
+            )
+        ]
     return rows
 
 
@@ -1915,8 +2636,12 @@ def set_parent(db: "Database", job_id: str, parent_id: str) -> None:
 def running_child(db: "Database", parent_id: str) -> str | None:
     """The newest job under `parent_id` not yet ended (a recipe run's step it is running now), or None."""
     _ensure(db)
-    row = db.execute_fetchone("SELECT id FROM jobs WHERE parent_id = ? AND state IN ('waiting', 'running', 'paused') "
-                              "ORDER BY created_at DESC, rowid DESC LIMIT 1", [parent_id], committed=True)
+    row = db.execute_fetchone(
+        "SELECT id FROM jobs WHERE parent_id = ? AND state IN ('waiting', 'running', 'paused') "
+        "ORDER BY created_at DESC, rowid DESC LIMIT 1",
+        [parent_id],
+        committed=True,
+    )
     return row[0] if row else None
 
 
@@ -1941,18 +2666,25 @@ def pause_job(db: "Database", job_id: str, paused: bool) -> str:
     if registered is not None and registered.pause is not None:
         return registered.pause(db, job_id, paused)
     if _is_attached(kind):
-        raise ValueError("This page belongs to a workflow run that is waiting for it: pause the run instead")
+        raise ValueError(
+            "This page belongs to a workflow run that is waiting for it: pause the run instead"
+        )
     return pause_stored(db, job_id, paused, state)
 
 
 def pause_stored(db: "Database", job_id: str, paused: bool, state: str) -> str:
     """The plain pause of a stored row: a waiting one is held, a paused one is let go. Its state after."""
     if paused and state == "waiting":
-        db.execute("UPDATE jobs SET state = 'paused', reason = 'Paused by you' WHERE id = ? AND state = 'waiting'",
-                   [job_id])
+        db.execute(
+            "UPDATE jobs SET state = 'paused', reason = 'Paused by you' WHERE id = ? AND state = 'waiting'",
+            [job_id],
+        )
         return "paused"
     if not paused and state == "paused":
-        db.execute("UPDATE jobs SET state = 'waiting', reason = NULL WHERE id = ? AND state = 'paused'", [job_id])
+        db.execute(
+            "UPDATE jobs SET state = 'waiting', reason = NULL WHERE id = ? AND state = 'paused'",
+            [job_id],
+        )
         key = _key(db)
         db.add_after_commit_hook(lambda: _scheduler.wake(key))
         return "waiting"
@@ -1975,8 +2707,11 @@ def cancel_job(db: "Database", job_id: str) -> str:
     if state == "failed":
         # A job set aside (or failed) that a person stops has nothing running: it ends cancelled, so Delete and Stop
         # work on it, and it no longer offers Resume (#5845).
-        db.execute("UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = COALESCE(finished_at, ?) "
-                   "WHERE id = ? AND state = 'failed'", [stopped_by(job_id), utc_now(), job_id])
+        db.execute(
+            "UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = COALESCE(finished_at, ?) "
+            "WHERE id = ? AND state = 'failed'",
+            [stopped_by(job_id), utc_now(), job_id],
+        )
         return "cancelled"
     if state == "running" and _is_attached(kind) and job_id in _scheduler.running_ids():
         # A page a run is waiting for, mid-read: nothing can interrupt the model midway, so it is marked stopping, its
@@ -1999,10 +2734,16 @@ def stop_everything(db: "Database") -> int:
     over the library, so nothing may be writing (`safety.net.restore-stops-the-workers-first`, #5246). Each stop
     is the per-job stop (`cancel_job`): a running job finishes the item it is on. Nothing is restarted here."""
     _ensure(db)
-    ids = [r[0] for r in db.execute_fetchall(
-        "SELECT id FROM jobs WHERE state IN ('waiting', 'running', 'paused') ORDER BY created_at")]
+    ids = [
+        r[0]
+        for r in db.execute_fetchall(
+            "SELECT id FROM jobs WHERE state IN ('waiting', 'running', 'paused') ORDER BY created_at"
+        )
+    ]
     for job_id in ids:
-        _STOPPED_BY.setdefault(job_id, "")  # the engine's own stop names nobody; a person's stop already asked keeps theirs (#6005)
+        _STOPPED_BY.setdefault(
+            job_id, ""
+        )  # the engine's own stop names nobody; a person's stop already asked keeps theirs (#6005)
         try:
             cancel_job(db, job_id)
         except KeyError:
@@ -2024,38 +2765,56 @@ def row_state(db: "Database", job_id: str) -> str:
 
 def _queue_rows(db: "Database", kinds: tuple[str, ...], states: tuple[str, ...]) -> int:
     _ensure(db)
-    return int(db.execute_fetchone(
-        f"SELECT count(*) FROM jobs WHERE kind IN ({', '.join('?' for _ in kinds)}) "
-        f"AND state IN ({', '.join('?' for _ in states)})", [*kinds, *states])[0])
+    return int(
+        db.execute_fetchone(
+            f"SELECT count(*) FROM jobs WHERE kind IN ({', '.join('?' for _ in kinds)}) "
+            f"AND state IN ({', '.join('?' for _ in states)})",
+            [*kinds, *states],
+        )[0]
+    )
 
 
 def _pause_queue(db: "Database", kinds: tuple[str, ...], paused: bool) -> str:
     """Pause every waiting job of these kinds, or resume every paused one (`activity.pause.per-queue`)."""
     stored = [k for k in kinds if not _is_attached(k)]
     if not stored:
-        raise ValueError("These pages belong to a workflow run that is waiting for them: pause the run instead")
+        raise ValueError(
+            "These pages belong to a workflow run that is waiting for them: pause the run instead"
+        )
     marks = ", ".join("?" for _ in stored)
     if paused:
-        db.execute(f"UPDATE jobs SET state = 'paused', reason = ? WHERE state = 'waiting' AND kind IN ({marks})",
-                   [PAUSED_REASON, *stored])
+        db.execute(
+            f"UPDATE jobs SET state = 'paused', reason = ? WHERE state = 'waiting' AND kind IN ({marks})",
+            [PAUSED_REASON, *stored],
+        )
     else:
-        db.execute(f"UPDATE jobs SET state = 'waiting', reason = NULL WHERE state = 'paused' AND kind IN ({marks})",
-                   stored)
+        db.execute(
+            f"UPDATE jobs SET state = 'waiting', reason = NULL WHERE state = 'paused' AND kind IN ({marks})",
+            stored,
+        )
         key = _key(db)
         db.add_after_commit_hook(lambda: _scheduler.wake(key))
     if _queue_rows(db, tuple(stored), ("running",)):
         return "running"
-    return "paused" if paused else ("waiting" if _queue_rows(db, tuple(stored), ("waiting",)) else "done")
+    return (
+        "paused"
+        if paused
+        else ("waiting" if _queue_rows(db, tuple(stored), ("waiting",)) else "done")
+    )
 
 
 def _cancel_queue(db: "Database", kinds: tuple[str, ...]) -> str:
     """Stop every job of these kinds not started (`activity.pause.per-queue`); running ones finish their item."""
     stored = [k for k in kinds if not _is_attached(k)]
     if not stored:
-        raise ValueError("These pages belong to a workflow run that is waiting for them: stop the run instead")
-    db.execute(f"UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? "
-               f"WHERE state IN ('waiting', 'paused') AND kind IN ({', '.join('?' for _ in stored)})",
-               [utc_now(), *stored])
+        raise ValueError(
+            "These pages belong to a workflow run that is waiting for them: stop the run instead"
+        )
+    db.execute(
+        f"UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? "
+        f"WHERE state IN ('waiting', 'paused') AND kind IN ({', '.join('?' for _ in stored)})",
+        [utc_now(), *stored],
+    )
     return "running" if _queue_rows(db, tuple(stored), ("running",)) else "cancelled"
 
 
@@ -2073,17 +2832,24 @@ def queue_tree(db: "Database", job_id: str) -> dict[str, Any] | None:
     marks = ", ".join("?" for _ in kinds)
     live_since = db.execute_fetchone(
         f"SELECT min(created_at) FROM jobs WHERE kind IN ({marks}) AND state IN ('waiting', 'running', 'paused')",
-        list(kinds), committed=True)[0]
+        list(kinds),
+        committed=True,
+    )[0]
     if live_since is None:
         return None
     # The work in hand: what is not finished, and what finished since then (an import's thumbnails, made
     # before its embeds were picked up), back to the oldest of those.
     since = db.execute_fetchone(
         f"SELECT min(created_at) FROM jobs WHERE kind IN ({marks}) AND (state IN ('waiting', 'running', 'paused') "
-        f"OR finished_at >= ?)", [*kinds, live_since], committed=True)[0]
+        f"OR finished_at >= ?)",
+        [*kinds, live_since],
+        committed=True,
+    )[0]
     counts = db.execute_fetchall(
         f"SELECT kind, state, count(*) FROM jobs WHERE kind IN ({marks}) AND created_at >= ? GROUP BY kind, state",
-        [*kinds, since], committed=True)
+        [*kinds, since],
+        committed=True,
+    )
     by_kind: dict[str, dict[str, int]] = {k: {} for k in kinds}
     for kind, state, n in counts:
         by_kind[kind][state] = int(n)
@@ -2092,11 +2858,20 @@ def queue_tree(db: "Database", job_id: str) -> dict[str, Any] | None:
         rows = db.execute_fetchall(
             "SELECT id FROM jobs WHERE kind = ? AND created_at >= ? AND state IN ('running', 'done', 'failed', "
             "'cancelled') ORDER BY state = 'running' DESC, COALESCE(finished_at, started_at, created_at) DESC "
-            "LIMIT ?", [kind, since, QUEUE_PAGES_SHOWN], committed=True)
+            "LIMIT ?",
+            [kind, since, QUEUE_PAGES_SHOWN],
+            committed=True,
+        )
         shown[kind] = [r[0] for r in rows]
-    waiting_first = {kind: db.execute_fetchone(
-        "SELECT id, reason, created_at, run_after FROM jobs WHERE kind = ? AND state = 'waiting' "
-        "ORDER BY created_at, rowid LIMIT 1", [kind], committed=True) for kind in kinds}
+    waiting_first = {
+        kind: db.execute_fetchone(
+            "SELECT id, reason, created_at, run_after FROM jobs WHERE kind = ? AND state = 'waiting' "
+            "ORDER BY created_at, rowid LIMIT 1",
+            [kind],
+            committed=True,
+        )
+        for kind in kinds
+    }
     now = utc_now()
     children = []
     for kind in kinds:
@@ -2108,39 +2883,108 @@ def queue_tree(db: "Database", job_id: str) -> dict[str, Any] | None:
         for page in pages:  # a page on no document is named by what it works on, never by its kind alone
             page["display_name"] = page["display_name"] or page["subject"]
         first = waiting_first[kind]
-        state = ("running" if tally.get("running") else "waiting" if tally.get("waiting")
-                 else "paused" if tally.get("paused") else "failed" if tally.get("failed") and not tally.get("done")
-                 else "done")
-        reason = (waiting_reason(db, first[0], kind, stored=first[1], created_at=first[2], run_after=first[3])
-                  if state == "waiting" and first is not None else PAUSED_REASON if state == "paused" else None)
+        state = (
+            "running"
+            if tally.get("running")
+            else "waiting"
+            if tally.get("waiting")
+            else "paused"
+            if tally.get("paused")
+            else "failed"
+            if tally.get("failed") and not tally.get("done")
+            else "done"
+        )
+        reason = (
+            waiting_reason(
+                db,
+                first[0],
+                kind,
+                stored=first[1],
+                created_at=first[2],
+                run_after=first[3],
+            )
+            if state == "waiting" and first is not None
+            else PAUSED_REASON
+            if state == "paused"
+            else None
+        )
         running = next((p for p in pages if p["state"] == "running"), None)
-        children.append({
-            "id": f"{job_id}|{kind}", "kind": kind, "name": kind_name(kind), "subject": kind,
-            "document_id": None, "display_name": kind_name(kind), "model": KINDS[kind].model if kind in KINDS else None,
-            "state": state, "reason": reason, "parent_id": job_id, "started_at": None, "finished_at": None,
-            "created_at": ensure_utc(since).isoformat(), "started_by": None,
-            "working_on": running["display_name"] if running else None,
-            "done": tally.get("done", 0), "total": sum(tally.values()), "failed": tally.get("failed", 0),
-            "seconds": None, "tokens": 0, "cost_usd": None, "unpriced_models": [], "children": pages,
-        })
+        children.append(
+            {
+                "id": f"{job_id}|{kind}",
+                "kind": kind,
+                "name": kind_name(kind),
+                "subject": kind,
+                "document_id": None,
+                "display_name": kind_name(kind),
+                "model": KINDS[kind].model if kind in KINDS else None,
+                "state": state,
+                "reason": reason,
+                "parent_id": job_id,
+                "started_at": None,
+                "finished_at": None,
+                "created_at": ensure_utc(since).isoformat(),
+                "started_by": None,
+                "working_on": running["display_name"] if running else None,
+                "done": tally.get("done", 0),
+                "total": sum(tally.values()),
+                "failed": tally.get("failed", 0),
+                "seconds": None,
+                "tokens": 0,
+                "cost_usd": None,
+                "unpriced_models": [],
+                "children": pages,
+            }
+        )
     if not children:
         return None
     running_stage = next((c for c in children if c["state"] == "running"), None)
-    state = ("running" if running_stage else "waiting" if any(c["state"] == "waiting" for c in children)
-             else "paused" if any(c["state"] == "paused" for c in children) else "done")
-    reason = next((c["reason"] for c in children if c["state"] == state and c["reason"]), None) \
-        if state in ("waiting", "paused") else None
+    state = (
+        "running"
+        if running_stage
+        else "waiting"
+        if any(c["state"] == "waiting" for c in children)
+        else "paused"
+        if any(c["state"] == "paused" for c in children)
+        else "done"
+    )
+    reason = (
+        next(
+            (c["reason"] for c in children if c["state"] == state and c["reason"]), None
+        )
+        if state in ("waiting", "paused")
+        else None
+    )
     return {
-        "id": job_id, "kind": "queue", "name": name, "subject": job_id, "document_id": None, "display_name": name,
-        "model": None, "state": state, "reason": reason, "parent_id": None,
-        "started_at": ensure_utc(since).isoformat(), "finished_at": None, "created_at": ensure_utc(since).isoformat(),
+        "id": job_id,
+        "kind": "queue",
+        "name": name,
+        "subject": job_id,
+        "document_id": None,
+        "display_name": name,
+        "model": None,
+        "state": state,
+        "reason": reason,
+        "parent_id": None,
+        "started_at": ensure_utc(since).isoformat(),
+        "finished_at": None,
+        "created_at": ensure_utc(since).isoformat(),
         "started_by": "automatic",
-        "working_on": (", ".join(p for p in (running_stage["name"], running_stage["working_on"]) if p)
-                       if running_stage else None),
-        "done": sum(c["done"] for c in children), "total": sum(c["total"] for c in children),
+        "working_on": (
+            ", ".join(
+                p for p in (running_stage["name"], running_stage["working_on"]) if p
+            )
+            if running_stage
+            else None
+        ),
+        "done": sum(c["done"] for c in children),
+        "total": sum(c["total"] for c in children),
         "failed": sum(c["failed"] for c in children),
-        "seconds": max(0.0, (now - ensure_utc(since)).total_seconds()), "tokens": 0, "cost_usd": None,
-        "unpriced_models": [], "children": children,
+        "seconds": max(0.0, (now - ensure_utc(since)).total_seconds()),
+        "tokens": 0,
+        "cost_usd": None,
+        "unpriced_models": [],
+        "children": children,
     }
 
 
@@ -2158,17 +3002,26 @@ def live_run_ids() -> list[str]:
     """The workflow runs this engine is running now."""
     from fichero_server.execution.runner import _running_workflows  # noqa: PLC0415
 
-    return [t for t, state in list(_running_workflows.items()) if (state.get("status") or "") in ("accepted", "running")]
+    return [
+        t
+        for t, state in list(_running_workflows.items())
+        if (state.get("status") or "") in ("accepted", "running")
+    ]
 
 
-def queue_page_retry(db: "Database", page_job_id: str, run_id: str, document: str) -> None:
+def queue_page_retry(
+    db: "Database", page_job_id: str, run_id: str, document: str
+) -> None:
     """Take a retried page into its live run's queue: its row waits, and the run reads it when its pass ends."""
     with _PAGE_RETRIES_LOCK:
         queued = _PAGE_RETRIES.setdefault(run_id, [])
         if document not in queued:
             queued.append(document)
-    db.execute("UPDATE jobs SET state = 'waiting', reason = ?, finished_at = NULL WHERE id = ? "
-               "AND state IN ('failed', 'cancelled')", [QUEUED_RETRY, page_job_id])
+    db.execute(
+        "UPDATE jobs SET state = 'waiting', reason = ?, finished_at = NULL WHERE id = ? "
+        "AND state IN ('failed', 'cancelled')",
+        [QUEUED_RETRY, page_job_id],
+    )
 
 
 def take_page_retries(run_id: str) -> list[str]:
@@ -2193,7 +3046,9 @@ def run_of_page(db: "Database", job_id: str) -> str | None:
     current: str | None = job_id
     while current and current not in seen:
         seen.add(current)
-        row = db.execute_fetchone("SELECT kind, parent_id FROM jobs WHERE id = ?", [current])
+        row = db.execute_fetchone(
+            "SELECT kind, parent_id FROM jobs WHERE id = ?", [current]
+        )
         if row is None:
             return None
         if row[0] == "workflow" and current != job_id:
@@ -2213,9 +3068,12 @@ def _retry_kind(db: "Database", kind: str) -> str:
     _ensure(db)
     live = _scheduler.running_ids()
     not_live = f" AND id NOT IN ({', '.join('?' for _ in live)})" if live else ""
-    db.execute("UPDATE jobs SET state = 'waiting', reason = 'Retried by you', attempts = 0, finished_at = NULL, run_after = NULL"
-               f"{', cleared_at = NULL' if _has_cleared_at(db) else ''}{_clear_waiting_on(db)} "
-               f"WHERE kind = ? AND parent_id IS NULL AND (state = 'failed' OR (state = 'running'{not_live}))", [kind, *live])
+    db.execute(
+        "UPDATE jobs SET state = 'waiting', reason = 'Retried by you', attempts = 0, finished_at = NULL, run_after = NULL"
+        f"{', cleared_at = NULL' if _has_cleared_at(db) else ''}{_clear_waiting_on(db)} "
+        f"WHERE kind = ? AND parent_id IS NULL AND (state = 'failed' OR (state = 'running'{not_live}))",
+        [kind, *live],
+    )
     key = _key(db)
     db.add_after_commit_hook(lambda: _scheduler.wake(key))
     return "waiting"
@@ -2234,24 +3092,40 @@ def retry_job(db: "Database", job_id: str) -> str:
     if kind not in KINDS:
         load_kinds()  # a project opened with nothing waiting: its kinds not yet registered by a lane (#5615)
     registered = KINDS.get(kind)
-    if kind == "workflow":  # the row IS a run: it is run again as a new run over its pages (`activity.retry.one-row`)
-        raise ValueError("A workflow run is run again over the pages it did not do, as a new run: Retry on its row "
-                         "in Activity, or Read Again, does that")
+    if (
+        kind == "workflow"
+    ):  # the row IS a run: it is run again as a new run over its pages (`activity.retry.one-row`)
+        raise ValueError(
+            "A workflow run is run again over the pages it did not do, as a new run: Retry on its row "
+            "in Activity, or Read Again, does that"
+        )
     if registered is None or registered.run is None:
-        raise ValueError("This is work a workflow run (or a training) handed in and waits for: retry that instead")
+        raise ValueError(
+            "This is work a workflow run (or a training) handed in and waits for: retry that instead"
+        )
     if registered.no_retry:
         raise ValueError(registered.no_retry)
     if state not in ("failed", "cancelled"):
         return state
     subject = db.execute_fetchone("SELECT subject FROM jobs WHERE id = ?", [job_id])[0]
-    if db.execute_fetchone("SELECT id FROM jobs WHERE kind = ? AND subject = ? AND state IN ('waiting', 'paused') "
-                           "AND id <> ?", [kind, subject, job_id]):
+    if db.execute_fetchone(
+        "SELECT id FROM jobs WHERE kind = ? AND subject = ? AND state IN ('waiting', 'paused') "
+        "AND id <> ?",
+        [kind, subject, job_id],
+    ):
         raise ValueError("The same work is already waiting to run")
-    detail = json.loads(db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])[0] or "{}")
+    detail = json.loads(
+        db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])[0] or "{}"
+    )
     detail.pop("cancel", None)
-    detail.pop("interrupted", None)  # a download's rounds of broken connections start again (#5660)
-    db.execute("UPDATE jobs SET state = 'waiting', reason = 'Retried by you', attempts = 0, finished_at = NULL, "
-               f"{'cleared_at = NULL, ' if _has_cleared_at(db) else ''}run_after = NULL, detail = ? WHERE id = ?", [json.dumps(detail) if detail else None, job_id])
+    detail.pop(
+        "interrupted", None
+    )  # a download's rounds of broken connections start again (#5660)
+    db.execute(
+        "UPDATE jobs SET state = 'waiting', reason = 'Retried by you', attempts = 0, finished_at = NULL, "
+        f"{'cleared_at = NULL, ' if _has_cleared_at(db) else ''}run_after = NULL, detail = ? WHERE id = ?",
+        [json.dumps(detail) if detail else None, job_id],
+    )
     key = _key(db)
     db.add_after_commit_hook(lambda: _scheduler.wake(key))
     return "waiting"
@@ -2335,7 +3209,9 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     with the reason in words. Read by `/api/activity/jobs`."""
     _ensure(db)
     cleared_filter = " AND cleared_at IS NULL" if _has_cleared_at(db) else ""
-    waiting_on_col = "waiting_on" if _has_column(db, "waiting_on") else "NULL AS waiting_on"
+    waiting_on_col = (
+        "waiting_on" if _has_column(db, "waiting_on") else "NULL AS waiting_on"
+    )
     # Not every waiting row (an import queues thousands) fetched and sorted per poll (#5843): the count of each group,
     # and the few rows that stand for it. A "queue" group is a kind's running and waiting jobs as ONE row (#5839: a
     # recipe run or a try is a thing of its own, so each keeps its row); a (waiting|paused, kind) group is the rest.
@@ -2343,30 +3219,42 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     own = ", ".join(f"'{k}'" for k in sorted(_OWN_ROW_KINDS))
     queued = f"(parent_id IS NULL AND kind NOT IN ({own}))"
     really_going = "waiting_on IS NULL" if _has_column(db, "waiting_on") else "TRUE"
-    counts = {(g, kind): n for g, kind, n in db.execute_fetchall(
-        f"SELECT CASE WHEN state IN ('waiting', 'running') AND {queued} THEN 'queue' ELSE state END AS g, kind, COUNT(*) "
-        f"FROM jobs WHERE state IN ('waiting', 'paused', 'running') AND {runs} GROUP BY g, kind", committed=True)}
+    counts = {
+        (g, kind): n
+        for g, kind, n in db.execute_fetchall(
+            f"SELECT CASE WHEN state IN ('waiting', 'running') AND {queued} THEN 'queue' ELSE state END AS g, kind, COUNT(*) "
+            f"FROM jobs WHERE state IN ('waiting', 'paused', 'running') AND {runs} GROUP BY g, kind",
+            committed=True,
+        )
+    }
     parts = [f"SELECT * FROM jobs WHERE state = 'running' AND {runs} AND NOT {queued}"]
     params: list[Any] = []
-    for (g, kind) in counts:
+    for g, kind in counts:
         if g == "queue":
             # The first row of the kind (running before waiting, then the lane's pick), and one job really going,
             # which makes the row Running.
             parts.append(
                 f"(SELECT * FROM jobs WHERE kind = ? AND {queued} AND state IN ('running', 'waiting') "
                 f"ORDER BY CASE state WHEN 'running' THEN 0 ELSE 1 END, "
-                f"CASE WHEN state = 'waiting' THEN -{_PERSON_RANK_SQL} ELSE 0 END, epoch_ms(created_at), rowid LIMIT 1)")
-            parts.append(f"(SELECT * FROM jobs WHERE kind = ? AND {queued} AND state = 'running' AND {really_going} LIMIT 1)")
+                f"CASE WHEN state = 'waiting' THEN -{_PERSON_RANK_SQL} ELSE 0 END, epoch_ms(created_at), rowid LIMIT 1)"
+            )
+            parts.append(
+                f"(SELECT * FROM jobs WHERE kind = ? AND {queued} AND state = 'running' AND {really_going} LIMIT 1)"
+            )
             params += [kind, kind]
         elif g in ("waiting", "paused"):
             first = f"{_PERSON_RANK_SQL} DESC, " if g == "waiting" else ""
             # A paused job is never in a "queue" group (that holds waiting and running ones), so every paused job of
             # the kind stands for the kind's paused row; only waiting ones of a kind with its own rows are left here.
             own_only = f"AND NOT {queued} " if g == "waiting" else ""
-            parts.append(f"(SELECT * FROM jobs WHERE state = ? AND kind = ? {own_only}"
-                         f"ORDER BY {first}epoch_ms(created_at), rowid LIMIT 1)")
+            parts.append(
+                f"(SELECT * FROM jobs WHERE state = ? AND kind = ? {own_only}"
+                f"ORDER BY {first}epoch_ms(created_at), rowid LIMIT 1)"
+            )
             params += [g, kind]
-    parts.append(f"(SELECT * FROM jobs WHERE state = 'failed' AND {runs}{cleared_filter} ORDER BY finished_at DESC LIMIT ?)")
+    parts.append(
+        f"(SELECT * FROM jobs WHERE state = 'failed' AND {runs}{cleared_filter} ORDER BY finished_at DESC LIMIT ?)"
+    )
     params.append(failed_limit)
     rows = db.execute_fetchall(
         "SELECT id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, "
@@ -2379,35 +3267,84 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
         committed=True,
     )
     out: list[dict[str, Any]] = []
-    reps: dict[tuple[str, str], dict[str, Any]] = {}  # a row fetched twice (first and really going) folds into its group
+    reps: dict[
+        tuple[str, str], dict[str, Any]
+    ] = {}  # a row fetched twice (first and really going) folds into its group
     # Runs and their steps are listed from the run record (`/api/activity/jobs` merges them); their rows
     # are read as a tree with `tree()`. Pages carry their step as `parent_id`.
-    for job_id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, started_by, waiting_on in rows:
+    for (
+        job_id,
+        kind,
+        subject,
+        state,
+        reason,
+        attempts,
+        created_at,
+        parent_id,
+        run_after,
+        finished_at,
+        started_by,
+        waiting_on,
+    ) in rows:
         # A running row that is waiting for something (a try whose page waits for the lane, a page held for Kraken or
         # memory) is listed as waiting until the wait ends: by the row's `waiting_on`, not by its reason's words (#5839).
         shown = "waiting" if state == "running" and waiting_on else state
-        one_row = state in ("waiting", "running") and parent_id is None and kind not in _OWN_ROW_KINDS
+        one_row = (
+            state in ("waiting", "running")
+            and parent_id is None
+            and kind not in _OWN_ROW_KINDS
+        )
         # The first row of a group stands for all of its jobs (`activity.pause.per-queue`: pausing 137 pages lists one row).
-        group = ("queue", kind) if one_row else (state, kind) if state in ("waiting", "paused") else None
+        group = (
+            ("queue", kind)
+            if one_row
+            else (state, kind)
+            if state in ("waiting", "paused")
+            else None
+        )
         if group is not None and group in reps:
             rep = reps[group]
-            if shown == "running" and rep["state"] != "running":  # a job that is really going makes the row running
+            if (
+                shown == "running" and rep["state"] != "running"
+            ):  # a job that is really going makes the row running
                 rep.update(state="running", reason=reason, subject=subject)
             continue
         if state == "waiting":
-            reason = waiting_reason(db, job_id, kind, stored=reason, created_at=created_at, run_after=run_after)
+            reason = waiting_reason(
+                db,
+                job_id,
+                kind,
+                stored=reason,
+                created_at=created_at,
+                run_after=run_after,
+            )
         count = counts.get(group, 1)
-        row = {"id": job_id, "kind": kind, "subject": subject, "state": shown, "reason": reason,
-               "attempts": attempts, "created_at": created_at, "count": count, "parent_id": parent_id,
-               "started_by": started_by,
-               # When it failed: its end, for a failed row only; a retry sets it waiting and clears its end.
-               "failed_at": finished_at if state == "failed" else None,
-               # When any ended job ended: the window's DONE TODAY goes by it (#5960).
-               "finished_at": finished_at if state not in ("waiting", "running", "paused") else None}
+        row = {
+            "id": job_id,
+            "kind": kind,
+            "subject": subject,
+            "state": shown,
+            "reason": reason,
+            "attempts": attempts,
+            "created_at": created_at,
+            "count": count,
+            "parent_id": parent_id,
+            "started_by": started_by,
+            # When it failed: its end, for a failed row only; a retry sets it waiting and clears its end.
+            "failed_at": finished_at if state == "failed" else None,
+            # When any ended job ended: the window's DONE TODAY goes by it (#5960).
+            "finished_at": finished_at
+            if state not in ("waiting", "running", "paused")
+            else None,
+        }
         if group is not None:
             reps[group] = row
-            if count > 1:  # a row for many jobs is the kind's queue: Stop and Pause on it reach every one not started
-                row["id"] = f"paused:{kind}" if group[0] == "paused" else f"waiting:{kind}"  # `queue_of` reads this id
+            if (
+                count > 1
+            ):  # a row for many jobs is the kind's queue: Stop and Pause on it reach every one not started
+                row["id"] = (
+                    f"paused:{kind}" if group[0] == "paused" else f"waiting:{kind}"
+                )  # `queue_of` reads this id
         out.append(row)
     # How many of this kind's work are already done (since its oldest job still queued was queued), so a row reads
     # "12 of 41" (#5839). Only for the rows that stand for a whole kind.
@@ -2415,19 +3352,40 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
         if group_kind == "queue":
             since = db.execute_fetchone(
                 "SELECT MIN(created_at) FROM jobs WHERE kind = ? AND parent_id IS NULL "
-                "AND state IN ('waiting', 'running', 'paused')", [name], committed=True)[0]
-            rep["done"] = 0 if since is None else db.execute_fetchone(
-                "SELECT count(*) FROM jobs WHERE kind = ? AND parent_id IS NULL AND state = 'done' AND finished_at >= ?",
-                [name, since], committed=True)[0]
+                "AND state IN ('waiting', 'running', 'paused')",
+                [name],
+                committed=True,
+            )[0]
+            rep["done"] = (
+                0
+                if since is None
+                else db.execute_fetchone(
+                    "SELECT count(*) FROM jobs WHERE kind = ? AND parent_id IS NULL AND state = 'done' AND finished_at >= ?",
+                    [name, since],
+                    committed=True,
+                )[0]
+            )
     # The run each row's work is for (#5615): a page's parent is its step's row ("<run id>:<step name>"),
     # whose own parent is the run.
     parents = sorted({r["parent_id"] for r in out if r["parent_id"]})
     if parents:
-        known = {pid: (pkind, grand) for pid, pkind, grand in db.execute_fetchall(
-            f"SELECT id, kind, parent_id FROM jobs WHERE id IN ({', '.join('?' for _ in parents)})", parents, committed=True)}
+        known = {
+            pid: (pkind, grand)
+            for pid, pkind, grand in db.execute_fetchall(
+                f"SELECT id, kind, parent_id FROM jobs WHERE id IN ({', '.join('?' for _ in parents)})",
+                parents,
+                committed=True,
+            )
+        }
         for r in out:
             pkind, grand = known.get(r["parent_id"], (None, None))
-            r["run_id"] = grand if pkind == "workflow-step" else r["parent_id"] if pkind in _RUN_KINDS else None
+            r["run_id"] = (
+                grand
+                if pkind == "workflow-step"
+                else r["parent_id"]
+                if pkind in _RUN_KINDS
+                else None
+            )
     return out
 
 
@@ -2440,7 +3398,8 @@ def seconds_per_item(db: "Database", kind: str) -> float | None:
     rows = db.execute_fetchall(
         "SELECT epoch(finished_at) - epoch(started_at) FROM jobs WHERE kind = ? AND state = 'done' "
         "AND started_at IS NOT NULL AND finished_at IS NOT NULL ORDER BY finished_at DESC LIMIT ?",
-        [kind, MEASURED_ITEMS])
+        [kind, MEASURED_ITEMS],
+    )
     times = sorted(r[0] for r in rows if r[0] is not None and r[0] >= 0)
     return times[len(times) // 2] if times else None
 
@@ -2449,8 +3408,13 @@ def queue_summary(db: "Database", rows: list[dict[str, Any]]) -> dict[str, Any] 
     """The whole queue in one line (#5839): done, left and about how long is left, from `snapshot`'s one-row-per-kind
     rows. The time counts only kinds with a measured time per item (jobs one after another, so a rough upper bound);
     None when nothing is queued, and no time when nothing is measured."""
-    queued = [r for r in rows if r["state"] in ("waiting", "running", "paused") and r["parent_id"] is None
-              and r["kind"] not in _OWN_ROW_KINDS]
+    queued = [
+        r
+        for r in rows
+        if r["state"] in ("waiting", "running", "paused")
+        and r["parent_id"] is None
+        and r["kind"] not in _OWN_ROW_KINDS
+    ]
     left = sum(r["count"] for r in queued)
     if not left:
         return None
@@ -2462,10 +3426,16 @@ def queue_summary(db: "Database", rows: list[dict[str, Any]]) -> dict[str, Any] 
         if per is not None:
             seconds += per * r["count"]
             measured = True
-    return {"done": done, "left": left, "seconds_left": round(seconds) if measured else None}
+    return {
+        "done": done,
+        "left": left,
+        "seconds_left": round(seconds) if measured else None,
+    }
 
 
-def items_of_kind(db: "Database", kind: str, *, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
+def items_of_kind(
+    db: "Database", kind: str, *, limit: int = 50, offset: int = 0
+) -> list[dict[str, Any]]:
     """One kind's queued jobs, each its own line, in the order the lane picks them (running first), for a row that
     expands to its pages (#5839)."""
     _ensure(db)
@@ -2475,9 +3445,17 @@ def items_of_kind(db: "Database", kind: str, *, limit: int = 50, offset: int = 0
         "AND state IN ('waiting', 'running', 'paused') "
         f"ORDER BY CASE WHEN state = 'running' AND {waiting_col} IS NULL THEN 0 WHEN state = 'running' THEN 1 "
         f"WHEN state = 'waiting' THEN 2 ELSE 3 END, {_PERSON_RANK_SQL} DESC, created_at, rowid LIMIT ? OFFSET ?",
-        [kind, limit, offset])
-    return [{"id": i, "subject": subj, "state": "waiting" if state == "running" and w else state, "reason": reason}
-            for i, subj, state, reason, w in rows]
+        [kind, limit, offset],
+    )
+    return [
+        {
+            "id": i,
+            "subject": subj,
+            "state": "waiting" if state == "running" and w else state,
+            "reason": reason,
+        }
+        for i, subj, state, reason, w in rows
+    ]
 
 
 def clear_failed(db: "Database") -> list[str]:
@@ -2488,12 +3466,18 @@ def clear_failed(db: "Database") -> list[str]:
     _ensure(db)
     if not _has_cleared_at(db):
         return []  # nothing can be marked cleared; the failure was logged when the column was tried
-    ids = [row[0] for row in db.execute_fetchall(
-        "SELECT id FROM jobs WHERE state = 'failed' AND kind NOT IN ('workflow', 'workflow-step') "
-        "AND cleared_at IS NULL ORDER BY id")]
+    ids = [
+        row[0]
+        for row in db.execute_fetchall(
+            "SELECT id FROM jobs WHERE state = 'failed' AND kind NOT IN ('workflow', 'workflow-step') "
+            "AND cleared_at IS NULL ORDER BY id"
+        )
+    ]
     if ids:
         marks = ", ".join("?" * len(ids))
-        db.execute(f"UPDATE jobs SET cleared_at = ? WHERE id IN ({marks})", [utc_now(), *ids])
+        db.execute(
+            f"UPDATE jobs SET cleared_at = ? WHERE id IN ({marks})", [utc_now(), *ids]
+        )
     return ids
 
 
@@ -2501,9 +3485,17 @@ def clear_failed(db: "Database") -> list[str]:
 _OWN_ROW_KINDS = frozenset({"run-a-recipe", "try-a-stage"})
 
 #: What a waiting row calls the lane it waits for (`activity.waiting-says-why`, #5606).
-LANE_WORDS = {"local-ml": "the model lane", "embed": "the small-model lane", "images": "the thumbnail lane", "remote": "the remote lane",
-              "database": "the database lane", "network": "the network lane", "search": "the search lane", "recipes": "the recipe lane",
-              "tries": "the tries lane"}
+LANE_WORDS = {
+    "local-ml": "the model lane",
+    "embed": "the small-model lane",
+    "images": "the thumbnail lane",
+    "remote": "the remote lane",
+    "database": "the database lane",
+    "network": "the network lane",
+    "search": "the search lane",
+    "recipes": "the recipe lane",
+    "tries": "the tries lane",
+}
 #: Lane work that reads for a run: its holder "is reading".
 _READING_KINDS = frozenset({"find-lines", "read-a-line", "read-a-page", "ask-a-model"})
 PAUSED_REASON = "Paused by you"
@@ -2527,14 +3519,22 @@ def _lane_of(job_id: str, kind: str) -> str:
 def _holder_words(db: "Database", job_id: str) -> str:
     """What a running job is, in words: the run it reads for ("Review the Reading is reading"),
     else its kind ("Embed for search is running")."""
-    row = db.execute_fetchone("SELECT kind, parent_id FROM jobs WHERE id = ?", [job_id], committed=True)
+    row = db.execute_fetchone(
+        "SELECT kind, parent_id FROM jobs WHERE id = ?", [job_id], committed=True
+    )
     if row is None:
         return "work in another project is running"
     kind, parent = row
     seen: set[str] = set()
-    while parent and parent not in seen:  # the nearest named run above it (a sub-workflow's own name)
+    while (
+        parent and parent not in seen
+    ):  # the nearest named run above it (a sub-workflow's own name)
         seen.add(parent)
-        up = db.execute_fetchone("SELECT kind, parent_id, detail FROM jobs WHERE id = ?", [parent], committed=True)
+        up = db.execute_fetchone(
+            "SELECT kind, parent_id, detail FROM jobs WHERE id = ?",
+            [parent],
+            committed=True,
+        )
         if up is None:
             break
         if up[0] == "workflow":
@@ -2551,8 +3551,15 @@ def pages_at_cap_reason(count: int) -> str:
     return f"Waiting: {words} pages of this model are already reading"
 
 
-def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None = None,
-                   created_at: Any = None, run_after: Any = None) -> str:
+def waiting_reason(
+    db: "Database",
+    job_id: str,
+    kind: str,
+    *,
+    stored: str | None = None,
+    created_at: Any = None,
+    run_after: Any = None,
+) -> str:
     """THE one place a waiting row's reason is decided (`activity.waiting-says-why`, #5606): what it
     truly waits for now, never None. In order: paused by you (not work a person waits for); the lane
     full, naming what holds it ("Waiting for the model lane: Review the Reading is reading"), which
@@ -2567,19 +3574,40 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
     lane_name = _lane_of(job_id, kind)
     lane = _scheduler.lanes.get(lane_name)
     words = LANE_WORDS.get(lane_name, f"the {lane_name} lane")
-    running = [r for r in lane.holding() if r != job_id] if lane is not None else []  # a stuck job holds no slot (#6213)
+    running = (
+        [r for r in lane.holding() if r != job_id] if lane is not None else []
+    )  # a stuck job holds no slot (#6213)
     if running:  # only a job that is running holds a lane: never name one whose row says otherwise
         marks = ", ".join("?" for _ in running)
-        not_running = {row[0] for row in db.execute_fetchall(
-            f"SELECT id FROM jobs WHERE id IN ({marks}) AND state <> 'running'", running, committed=True)}
+        not_running = {
+            row[0]
+            for row in db.execute_fetchall(
+                f"SELECT id FROM jobs WHERE id IN ({marks}) AND state <> 'running'",
+                running,
+                committed=True,
+            )
+        }
         running = [r for r in running if r not in not_running]
-    if lane is not None and running and lane_name in _GENTLE_LANES and resuming_gently():
+    if (
+        lane is not None
+        and running
+        and lane_name in _GENTLE_LANES
+        and resuming_gently()
+    ):
         return f"Waiting: {RESUMING_WORDS}"
     if lane is not None and len(running) >= lane.slots:
-        if lane_name == "local-ml" and len(running) >= 2:  # the cap of pages at once, not a lane held by something else
-            found = db.execute_fetchone("SELECT model FROM jobs WHERE id = ?", [job_id], committed=True)
+        if (
+            lane_name == "local-ml" and len(running) >= 2
+        ):  # the cap of pages at once, not a lane held by something else
+            found = db.execute_fetchone(
+                "SELECT model FROM jobs WHERE id = ?", [job_id], committed=True
+            )
             same = {lane.running.get(r) for r in running}
-            if found and (found[0] or "").startswith(KRAKEN_MODEL_PREFIX) and same == {found[0]}:
+            if (
+                found
+                and (found[0] or "").startswith(KRAKEN_MODEL_PREFIX)
+                and same == {found[0]}
+            ):
                 return pages_at_cap_reason(len(running))
         return f"Waiting for {words}: {_holder_words(db, running[0])}"
     if lane_name in HEAVY_LANES:
@@ -2591,17 +3619,32 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
     if lane_name in THROTTLED_LANES:
         from fichero_server.execution.throttle import why_wait
 
-        found = db.execute_fetchone("SELECT model FROM jobs WHERE id = ?", [job_id], committed=True)
+        found = db.execute_fetchone(
+            "SELECT model FROM jobs WHERE id = ?", [job_id], committed=True
+        )
         model = found[0] if found else None
-        held = why_wait(person_waiting=attached or _watched(db, job_id), model=model,
-                        loaded=lane is not None and model is not None and model == lane.loaded_model)
+        held = why_wait(
+            person_waiting=attached or _watched(db, job_id),
+            model=model,
+            loaded=lane is not None
+            and model is not None
+            and model == lane.loaded_model,
+        )
         if held:
             return held
         first_kinds = [name for name, k in KINDS.items() if k.first]
-        if first_kinds and not paused and created_at is not None and db.execute_fetchone(
+        if (
+            first_kinds
+            and not paused
+            and created_at is not None
+            and db.execute_fetchone(
                 f"SELECT 1 FROM jobs WHERE kind IN ({', '.join('?' for _ in first_kinds)}) "
                 f"AND state IN ('waiting', 'running') AND created_at <= ? LIMIT 1",
-                [*first_kinds, created_at], committed=True) is not None:
+                [*first_kinds, created_at],
+                committed=True,
+            )
+            is not None
+        ):
             return first_reason(db, first_kinds, created_at)
     if stored and not _decided_here(stored):
         return stored
@@ -2617,12 +3660,22 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
 #: Every literal `started_by=` in the engine is decided here or in `PERSON_STARTERS` (a test reads the source, so a new
 #: starter must be decided): "import" (the recipe run and downloads an import starts by itself), "schedule" and
 #: "trigger" (a scheduled workflow, a watched-folder trigger) are nobody waiting at the Mac.
-BACKGROUND_STARTERS = ("automatic", "sync", "kept export", "import", "schedule", "trigger")
+BACKGROUND_STARTERS = (
+    "automatic",
+    "sync",
+    "kept export",
+    "import",
+    "schedule",
+    "trigger",
+)
 #: The literal starters that are a person's (or an account's, agent's: `started_by_for`): not background. "correction"
 #: follows the person's own edit and they wait to see the names (ruled 2026-10-19), so its re-embed and re-read go first.
 PERSON_STARTERS = ("owner", "person", "workflow", "correction")
-_PERSON_WAITS_SQL = ("(COALESCE(watched, FALSE) OR COALESCE(started_by, 'automatic') NOT IN ("
-                     + ", ".join(f"'{who}'" for who in BACKGROUND_STARTERS) + "))")
+_PERSON_WAITS_SQL = (
+    "(COALESCE(watched, FALSE) OR COALESCE(started_by, 'automatic') NOT IN ("
+    + ", ".join(f"'{who}'" for who in BACKGROUND_STARTERS)
+    + "))"
+)
 
 
 #: Who goes first when a lane picks, and in the order Activity lists the waiting rows (#5839): work a person is
@@ -2639,7 +3692,10 @@ def person_waits_on(db: "Database", job_id: str) -> bool:
     current, last = job_id, None
     for _ in range(8):
         row = db.execute_fetchone(
-            "SELECT parent_id, COALESCE(started_by, 'automatic'), COALESCE(watched, FALSE) FROM jobs WHERE id = ?", [current], committed=True)
+            "SELECT parent_id, COALESCE(started_by, 'automatic'), COALESCE(watched, FALSE) FROM jobs WHERE id = ?",
+            [current],
+            committed=True,
+        )
         if row is None:
             break
         parent, started_by, watched = row
@@ -2654,7 +3710,9 @@ def person_waits_on(db: "Database", job_id: str) -> bool:
 
 def _watched(db: "Database", job_id: str) -> bool:
     """A person waits on this stored job (`activity.throttle.watched-first`)."""
-    row = db.execute_fetchone(f"SELECT {_PERSON_WAITS_SQL} FROM jobs WHERE id = ?", [job_id], committed=True)
+    row = db.execute_fetchone(
+        f"SELECT {_PERSON_WAITS_SQL} FROM jobs WHERE id = ?", [job_id], committed=True
+    )
     return bool(row and row[0])
 
 
@@ -2664,20 +3722,30 @@ def state_and_reason(db: "Database", job_id: str) -> tuple[str, str | None] | No
     `waiting_reason` decides it, any other row's as stored. None when there is no such row."""
     _ensure(db)
     row = db.execute_fetchone(
-        "SELECT kind, state, reason, created_at, run_after FROM jobs WHERE id = ?", [job_id], committed=True)
+        "SELECT kind, state, reason, created_at, run_after FROM jobs WHERE id = ?",
+        [job_id],
+        committed=True,
+    )
     if row is None:
         return None
     kind, state, reason, created_at, run_after = row
     if state == "waiting":
-        reason = waiting_reason(db, job_id, kind, stored=reason, created_at=created_at, run_after=run_after)
+        reason = waiting_reason(
+            db, job_id, kind, stored=reason, created_at=created_at, run_after=run_after
+        )
     return state, reason
 
 
 def read_again_runs(db: "Database") -> set[str]:
     """The workflow runs a newer run read again (Retry, or Read Again): their thread ids (`activity.retry.one-row`)."""
     prefix = "read-again:"
-    return {row[0][len(prefix):] for row in db.execute_fetchall(
-        "SELECT started_by FROM jobs WHERE kind = 'workflow' AND started_by LIKE 'read-again:%'", committed=True)}
+    return {
+        row[0][len(prefix) :]
+        for row in db.execute_fetchall(
+            "SELECT started_by FROM jobs WHERE kind = 'workflow' AND started_by LIKE 'read-again:%'",
+            committed=True,
+        )
+    }
 
 
 def waiting_reason_of(db: "Database", kinds: list[str]) -> str | None:
@@ -2688,14 +3756,21 @@ def waiting_reason_of(db: "Database", kinds: list[str]) -> str | None:
     if not kinds:
         return None
     marks = ", ".join("?" for _ in kinds)
-    if db.execute_fetchone(f"SELECT 1 FROM jobs WHERE kind IN ({marks}) AND state = 'running' LIMIT 1", kinds):
+    if db.execute_fetchone(
+        f"SELECT 1 FROM jobs WHERE kind IN ({marks}) AND state = 'running' LIMIT 1",
+        kinds,
+    ):
         return None
     row = db.execute_fetchone(
         f"SELECT id, kind, reason, created_at, run_after FROM jobs WHERE kind IN ({marks}) AND state = 'waiting' "
-        f"ORDER BY created_at, rowid LIMIT 1", kinds)
+        f"ORDER BY created_at, rowid LIMIT 1",
+        kinds,
+    )
     if row is None:
         return None
-    return waiting_reason(db, row[0], row[1], stored=row[2], created_at=row[3], run_after=row[4])
+    return waiting_reason(
+        db, row[0], row[1], stored=row[2], created_at=row[3], run_after=row[4]
+    )
 
 
 _current = threading.local()
@@ -2703,7 +3778,9 @@ _current = threading.local()
 
 #: Whether a person started the RUN the code now executing is of, set by `process_vision` from `person_waits_on`. A
 #: workflow thread has no `_current`; a context variable follows the run into its tasks and `asyncio.to_thread` (review 344).
-_run_is_a_persons: ContextVar[bool | None] = ContextVar("_run_is_a_persons", default=None)
+_run_is_a_persons: ContextVar[bool | None] = ContextVar(
+    "_run_is_a_persons", default=None
+)
 
 
 def current_job_is_a_persons() -> bool:
@@ -2767,7 +3844,9 @@ def _stop_local_model_server(reason: str = "") -> bool:
     starts again on the next request (30 to 300 s); runs are step-major, so the lane switches families rarely. A server the person
     runs themselves is left alone. Before 2026-10-21 this did nothing, and a 7B model stayed beside Kraken for its 10 idle minutes."""
     module = sys.modules.get("fichero_server.api.routes.ai.local_inference")
-    return True if module is None else module.release_served_models(reason)  # False: a call still reads from it, nothing freed
+    return (
+        True if module is None else module.release_served_models(reason)
+    )  # False: a call still reads from it, nothing freed
 
 
 def release_idle_models(besides: "str | set[str | None] | None" = None) -> list[str]:
@@ -2777,7 +3856,12 @@ def release_idle_models(besides: "str | set[str | None] | None" = None) -> list[
     freed: list[str] = []
     keep = besides if isinstance(besides, (set, frozenset)) else {besides}
     runtime = sys.modules.get("fichero_server.llm.kraken_runtime")
-    if "kraken" not in keep and runtime is not None and runtime._RESIDENT and runtime._INFERENCE_LOCK.acquire(blocking=False):
+    if (
+        "kraken" not in keep
+        and runtime is not None
+        and runtime._RESIDENT
+        and runtime._INFERENCE_LOCK.acquire(blocking=False)
+    ):
         try:
             runtime.release_resident_models("memory is tight")
             freed.append("Kraken")
@@ -2785,7 +3869,9 @@ def release_idle_models(besides: "str | set[str | None] | None" = None) -> list[
             runtime._INFERENCE_LOCK.release()
     embeddings = sys.modules.get("fichero_server.db.embeddings")
     if "embedder" not in keep and embeddings is not None:
-        freed += embeddings.release_idle_embedders(idle_seconds=0, reason="memory is tight")
+        freed += embeddings.release_idle_embedders(
+            idle_seconds=0, reason="memory is tight"
+        )
     return freed
 
 
@@ -2803,33 +3889,47 @@ MODEL_ORDER = ("kraken", "local-model", "spacy", "embedder")
 
 def _model_rank(model: str | None) -> int:
     family = _family(model)
-    return MODEL_ORDER.index(family) if family in MODEL_ORDER else MODEL_ORDER.index("local-model")
+    return (
+        MODEL_ORDER.index(family)
+        if family in MODEL_ORDER
+        else MODEL_ORDER.index("local-model")
+    )
 
 
 def _model_rank_sql() -> str:
     """`_model_rank` as SQL over the `model` column, so a library's own pick follows the same order."""
     local = " OR ".join(f"model LIKE '{p}:%'" for p in sorted(LOCAL_MODEL_SERVERS))
-    whens = [f"WHEN model LIKE '{KRAKEN_MODEL_PREFIX}%' THEN {MODEL_ORDER.index('kraken')}"]
+    whens = [
+        f"WHEN model LIKE '{KRAKEN_MODEL_PREFIX}%' THEN {MODEL_ORDER.index('kraken')}"
+    ]
     if local:
         whens.append(f"WHEN {local} THEN {MODEL_ORDER.index('local-model')}")
-    whens += [f"WHEN model = 'spacy' THEN {MODEL_ORDER.index('spacy')}", f"WHEN model = 'embedder' THEN {MODEL_ORDER.index('embedder')}"]
+    whens += [
+        f"WHEN model = 'spacy' THEN {MODEL_ORDER.index('spacy')}",
+        f"WHEN model = 'embedder' THEN {MODEL_ORDER.index('embedder')}",
+    ]
     return f"CASE {' '.join(whens)} ELSE {MODEL_ORDER.index('local-model')} END"
 
 
 #: The heavy models the lane frees when it switches from one to another (`activity.lane.group-by-
 #: model`: a switch unloads the old model first). A light one (spaCy) stays loaded beside them.
-_RELEASE = {"kraken": _release_kraken, "embedder": _release_embedder,
-            # Converting a trained model for MLX (#5398) holds a 7B model's weights itself; it frees
-            # nothing when it ends (its process exits), but switching TO it frees Kraken or the embedder.
-            "mlx-convert": lambda _reason="": None,
-            "local-model": _stop_local_model_server}
+_RELEASE = {
+    "kraken": _release_kraken,
+    "embedder": _release_embedder,
+    # Converting a trained model for MLX (#5398) holds a 7B model's weights itself; it frees
+    # nothing when it ends (its process exits), but switching TO it frees Kraken or the embedder.
+    "mlx-convert": lambda _reason="": None,
+    "local-model": _stop_local_model_server,
+}
 #: A background job for another heavy model waits until the loaded one has had no work for this
 #: long, so work that arrives in bursts (a run's Kraken pages, each followed by its page's embed)
 #: does not swap two models in and out page by page. Work a person waits for switches at once.
 SWITCH_AFTER_QUIET_SECONDS = 20.0
 #: A job whose release of the loaded model found a call still using it asks again this often, for this long, then goes back to waiting.
 RELEASE_RETRY_SECONDS = 1.0
-RELEASE_KEEP_WAITING_SECONDS = 120.0  # one no-progress window of a local read (## 847: 300 s held a Stop too long)
+RELEASE_KEEP_WAITING_SECONDS = (
+    120.0  # one no-progress window of a local read (## 847: 300 s held a Stop too long)
+)
 #: How many times one claim makes a scan again because the lane moved during it (`activity.lane.one-model-at-a-time`, #5920).
 MAX_RESCANS = 8
 
@@ -2847,17 +3947,25 @@ def _loaded_work_queued(keys: list[str], lane: "_Lane") -> bool:
     family = _family(lane.loaded_model)
     if family == "kraken" and _kraken_pages_in_flight():
         return True
-    prefixes = ([KRAKEN_MODEL_PREFIX] if family == "kraken" else
-                [f"{p}:" for p in sorted(LOCAL_MODEL_SERVERS)] if family == "local-model" else
-                [family] if family else [])
+    prefixes = (
+        [KRAKEN_MODEL_PREFIX]
+        if family == "kraken"
+        else [f"{p}:" for p in sorted(LOCAL_MODEL_SERVERS)]
+        if family == "local-model"
+        else [family]
+        if family
+        else []
+    )
     if not prefixes:
         return False
     like = " OR ".join("COALESCE(model, '') LIKE ?" for _ in prefixes)
     for key in keys:
         db = db_manager.open_database(key)
         if db is not None and db.execute_fetchone(
-                f"SELECT 1 FROM jobs WHERE state = 'waiting' AND (run_after IS NULL OR run_after <= ?) "
-                f"AND ({like}) LIMIT 1", [utc_now(), *[p + "%" for p in prefixes]]):
+            f"SELECT 1 FROM jobs WHERE state = 'waiting' AND (run_after IS NULL OR run_after <= ?) "
+            f"AND ({like}) LIMIT 1",
+            [utc_now(), *[p + "%" for p in prefixes]],
+        ):
             return True
     return False
 
@@ -2869,8 +3977,11 @@ def _kraken_pages_in_flight() -> bool:
 
 
 def _heavy_switch(loaded: str | None, model: str | None) -> bool:
-    return (_family(loaded) in _RELEASE and _family(model) in _RELEASE
-            and _family(loaded) != _family(model))
+    return (
+        _family(loaded) in _RELEASE
+        and _family(model) in _RELEASE
+        and _family(loaded) != _family(model)
+    )
 
 
 def is_light(model: str | None) -> bool:
@@ -2885,8 +3996,12 @@ def _model_need_bytes(model: str | None) -> int | None:
     if _family(model) == "kraken":
         from fichero_server.llm import kraken_runtime
 
-        sized = getattr(kraken_runtime, "kraken_need_bytes", None)  # resident-aware, when this build has it
-        return sized() if sized is not None else kraken_runtime._kraken_memory_need_bytes()
+        sized = getattr(
+            kraken_runtime, "kraken_need_bytes", None
+        )  # resident-aware, when this build has it
+        return (
+            sized() if sized is not None else kraken_runtime._kraken_memory_need_bytes()
+        )
     from fichero_server.execution.throttle import model_need
 
     return model_need(model).get("need_bytes")
@@ -2911,12 +4026,18 @@ def _fits_beside(model: str | None) -> tuple[bool, str]:
     if physical is not None and physical <= SMALL_MAC_BYTES:
         # One heavy model at a time (owner, via the manager, 2026-10-21). macOS's 'free' counts compressible pages and file cache,
         # so it read adequate while swap was full and a 7B model ran beside Kraken at 0.1 tok/s.
-        return False, f"this Mac has {physical / 1024**3:.0f} GB or less: one heavy model at a time"
+        return (
+            False,
+            f"this Mac has {physical / 1024**3:.0f} GB or less: one heavy model at a time",
+        )
     need, free = _model_need_bytes(model), memory_available_bytes()
     if need is None or free is None:
         return False, f"{model} cannot be sized, so the loaded model is freed"
     gib = 1024**3
-    return free >= need, f"{model} needs {need / gib:.1f} GiB, {free / gib:.1f} GiB is free"
+    return (
+        free >= need,
+        f"{model} needs {need / gib:.1f} GiB, {free / gib:.1f} GiB is free",
+    )
 
 
 class _Lane:
@@ -2971,18 +4092,30 @@ class _Lane:
         its own: handed to the lane it is a live call (`_live_call`), slow, never stuck."""
         if self.name == "images":
             cutoff = time.monotonic() - STUCK_IMAGE_JOB_SECONDS
-            return {job_id for job_id, at in list(self.started.items()) if at < cutoff and job_id in self.running}
+            return {
+                job_id
+                for job_id, at in list(self.started.items())
+                if at < cutoff and job_id in self.running
+            }
         if self.name != "local-ml":
             return set()
         cutoff = time.monotonic() - STUCK_MODEL_JOB_SECONDS
-        return {job_id for job_id in list(self.running) if job_id not in self.live_calls
-                and getattr(KINDS.get(self.kinds.get(job_id, "")), "says_per_item", False)
-                and self.heard.get(job_id, self.started.get(job_id, cutoff + 1)) < cutoff}
+        return {
+            job_id
+            for job_id in list(self.running)
+            if job_id not in self.live_calls
+            and getattr(KINDS.get(self.kinds.get(job_id, "")), "says_per_item", False)
+            and self.heard.get(job_id, self.started.get(job_id, cutoff + 1)) < cutoff
+        }
 
     def holding(self) -> dict[str, str | None]:
         """The running jobs that hold a slot of this lane: every one but the stuck."""
         stuck = self.stuck()
-        return {job_id: model for job_id, model in list(self.running.items()) if job_id not in stuck}
+        return {
+            job_id: model
+            for job_id, model in list(self.running.items())
+            if job_id not in stuck
+        }
 
     @property
     def threads_wanted(self) -> int:
@@ -2992,7 +4125,12 @@ class _Lane:
 
         return max(self.slots, LOCAL_READS_CEILING)
 
-    def may_start(self, kind: str, model: str | None, is_person: Callable[[], bool] = lambda: False) -> bool:
+    def may_start(
+        self,
+        kind: str,
+        model: str | None,
+        is_person: Callable[[], bool] = lambda: False,
+    ) -> bool:
         """Whether a job may start now: a free slot, or on the model lane a call to the engine's own
         model server joining the calls to the same model already running, up to its reads at once."""
         running = self.holding()
@@ -3001,12 +4139,20 @@ class _Lane:
             return True
         if gentle:
             return False
-        if (self.name == "local-ml" and (model or "").startswith(KRAKEN_MODEL_PREFIX) and not (set(running) & self.calls)
-                and set(running.values()) == {model}):
+        if (
+            self.name == "local-ml"
+            and (model or "").startswith(KRAKEN_MODEL_PREFIX)
+            and not (set(running) & self.calls)
+            and set(running.values()) == {model}
+        ):
             # A second page of the model already running, for a person's run, when memory holds both
             # (`activity.lane.same-model-pages-together`).
             return len(running) < _kraken_pages_at_once() and is_person()
-        if self.name != "local-ml" or kind != CO_RUN_KIND or not (model or "").startswith("omlx:"):
+        if (
+            self.name != "local-ml"
+            or kind != CO_RUN_KIND
+            or not (model or "").startswith("omlx:")
+        ):
             return False
         if set(running) - self.calls or set(running.values()) != {model}:
             return False
@@ -3030,8 +4176,12 @@ class _Scheduler:
         self._kinds_loaded = False
         #: Work handed in by waiting callers, by job id: (the work, the caller's future).
         self._attached: dict[str, tuple[Callable[[], Any], Future]] = {}
-        self._stopping: set[str] = set()  # running pages a person stopped: their result is dropped
-        self._yielding_since: dict[str, float] = {}  # heavy lane -> when it began stepping aside for a person's page
+        self._stopping: set[str] = (
+            set()
+        )  # running pages a person stopped: their result is dropped
+        self._yielding_since: dict[
+            str, float
+        ] = {}  # heavy lane -> when it began stepping aside for a person's page
         #: Futures waiting on stored jobs, by job id (`enqueue_many`).
         self._watchers: dict[str, list[Future]] = {}
         _SCHEDULERS.add(self)
@@ -3040,8 +4190,14 @@ class _Scheduler:
     def loaded_model(self) -> str | None:
         return self.lanes["local-ml"].loaded_model
 
-    def attach(self, job_id: str, fn: Callable[[], Any], future: Future, lane: str = "local-ml",
-               run_id: str | None = None) -> None:
+    def attach(
+        self,
+        job_id: str,
+        fn: Callable[[], Any],
+        future: Future,
+        lane: str = "local-ml",
+        run_id: str | None = None,
+    ) -> None:
         with self._lock:
             self._attached[job_id] = (fn, future, lane, run_id)
 
@@ -3051,7 +4207,9 @@ class _Scheduler:
             self._watchers.setdefault(job_id, []).append(future)
         return future
 
-    def withdraw(self, db: "Database", future: Future, reason: str = "Stopped by you") -> bool:
+    def withdraw(
+        self, db: "Database", future: Future, reason: str = "Stopped by you"
+    ) -> bool:
         """Cancel handed-in work that has not started. False when it already runs."""
         if not future.cancel():
             return False
@@ -3059,8 +4217,11 @@ class _Scheduler:
         with self._lock:
             self._attached.pop(job_id, None)
         try:
-            db.execute("UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ? "
-                       "WHERE id = ? AND state = 'waiting'", [reason, utc_now(), job_id])
+            db.execute(
+                "UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ? "
+                "WHERE id = ? AND state = 'waiting'",
+                [reason, utc_now(), job_id],
+            )
         except Exception:  # noqa: BLE001 -- its project closed (#5608): the row is settled when it opens (`resume`)
             if _still_open(db):
                 raise
@@ -3078,8 +4239,11 @@ class _Scheduler:
         from fichero_server.workflows.run_account import closed_mid_run
 
         with self._lock:
-            waiting = {job: entry for job, entry in self._attached.items()
-                       if not (entry[3] and closed_mid_run(entry[3]))}
+            waiting = {
+                job: entry
+                for job, entry in self._attached.items()
+                if not (entry[3] and closed_mid_run(entry[3]))
+            }
             for job in waiting:
                 del self._attached[job]
         for _fn, future, _lane, _run in waiting.values():
@@ -3096,8 +4260,14 @@ class _Scheduler:
                 # A lane with no library to look at has no thread (#5503): one would only poll.
                 while lane.libraries and len(lane.threads) < lane.threads_wanted:
                     # The local-ML lane's one thread keeps the name tests and logs know it by.
-                    name = "fichero-jobs" if lane.name == "local-ml" else f"fichero-jobs-{lane.name}"
-                    thread = threading.Thread(target=self._loop, args=(lane,), name=name, daemon=True)
+                    name = (
+                        "fichero-jobs"
+                        if lane.name == "local-ml"
+                        else f"fichero-jobs-{lane.name}"
+                    )
+                    thread = threading.Thread(
+                        target=self._loop, args=(lane,), name=name, daemon=True
+                    )
                     lane.threads.append(thread)
                     thread.start()
         for lane in self.lanes.values():
@@ -3121,7 +4291,9 @@ class _Scheduler:
             lane.event.clear()
             images = self.lanes["images"]
             if images.libraries and len(images.threads) < images.threads_wanted:
-                self.wake(None)  # its threads are stuck: no other wake may come to start the one beside them (#6213)
+                self.wake(
+                    None
+                )  # its threads are stuck: no other wake may come to start the one beside them (#6213)
             # An error in a scan ends this thread (logged by threading's excepthook); the next
             # wake (an enqueue, a library open, a pause change) starts a new one. A caller waiting
             # on handed-in work hears the error rather than waiting forever.
@@ -3136,7 +4308,9 @@ class _Scheduler:
                         lane.kinds.pop(picked[2][0], None)
                         lane.live_calls.discard(picked[2][0])
                         lane.calls.discard(picked[2][0])
-                        if lane.name in HEAVY_LANES:  # a heavy job held for this one may go now
+                        if (
+                            lane.name in HEAVY_LANES
+                        ):  # a heavy job held for this one may go now
                             for name in HEAVY_LANES:
                                 if name != lane.name:
                                     self.lanes[name].event.set()
@@ -3175,9 +4349,16 @@ class _Scheduler:
                 else:
                     lane.libraries.discard(key)
                     lane.rewoken.discard(key)
-            ending = [t for lane in self.lanes.values() if not lane.libraries for t in lane.threads]
+            ending = [
+                t
+                for lane in self.lanes.values()
+                if not lane.libraries
+                for t in lane.threads
+            ]
         if key is None:
-            self._fail_attached(RuntimeError("The engine closed every project before this work ran"))
+            self._fail_attached(
+                RuntimeError("The engine closed every project before this work ran")
+            )
         for lane in self.lanes.values():
             lane.event.set()
         current = threading.current_thread()
@@ -3190,7 +4371,10 @@ class _Scheduler:
         """A person stopped this running page: say so on its row, and drop its result when it returns."""
         with self._lock:
             self._stopping.add(job_id)
-        db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'", [STOPPING_PAGE, job_id])
+        db.execute(
+            "UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'",
+            [STOPPING_PAGE, job_id],
+        )
 
     def is_stopping(self, job_id: str) -> bool:
         with self._lock:
@@ -3203,13 +4387,17 @@ class _Scheduler:
     def heavy_running(self, besides: str | None = None) -> str | None:
         """A job running on a heavy lane now (its id), other than `besides`, or None."""
         for name in HEAVY_LANES:
-            for job_id in self.lanes[name].holding():  # a stuck job holds nothing (#6213)
+            for job_id in self.lanes[
+                name
+            ].holding():  # a stuck job holds nothing (#6213)
                 if job_id != besides:
                     return job_id
         return None
 
     @staticmethod
-    def _ask_to_free_idle(lane: _Lane, reason: str | None, model: str | None = None) -> None:
+    def _ask_to_free_idle(
+        lane: _Lane, reason: str | None, model: str | None = None
+    ) -> None:
         """A memory hold asks the next claim to free the idle models, keeping the held job's own family."""
         if memory_holds(reason):
             with lane.free_lock:
@@ -3219,13 +4407,18 @@ class _Scheduler:
         """If the last claim for this lane was held by memory, let go of the models the engine holds idle now, with no lock held
         (the lane's loaded family stays: its next page is the one this claim may be about to start)."""
         with lane.free_lock:
-            keep, lane.free_idle_for = lane.free_idle_for, None  # the check and the clear are one step
+            keep, lane.free_idle_for = (
+                lane.free_idle_for,
+                None,
+            )  # the check and the clear are one step
         if keep is None:
             return
         freed = release_idle_models(besides={*keep, _family(lane.loaded_model)})
         if freed:
             logger.info("model-lane: released %s, memory was tight", ", ".join(freed))
-            lane.look_again_at = time.monotonic()  # look again at once: memory may be free now
+            lane.look_again_at = (
+                time.monotonic()
+            )  # look again at once: memory may be free now
 
     def _claim(self, lane: _Lane) -> tuple[str, Any, tuple, Any] | None:
         """Pick the next job for this lane and mark it running, as one step among its threads. A heavy
@@ -3274,9 +4467,17 @@ class _Scheduler:
         from fichero_server.execution.throttle import decide
 
         with self._lock:
-            handed = {job_id: entry for job_id, entry in self._attached.items()
-                      if entry[2] in HEAVY_LANES and entry[2] != besides}
-            keys = [key for name in HEAVY_LANES if name != besides for key in self.lanes[name].libraries]
+            handed = {
+                job_id: entry
+                for job_id, entry in self._attached.items()
+                if entry[2] in HEAVY_LANES and entry[2] != besides
+            }
+            keys = [
+                key
+                for name in HEAVY_LANES
+                if name != besides
+                for key in self.lanes[name].libraries
+            ]
         if not handed:
             return False
         for key in set(keys):
@@ -3285,9 +4486,14 @@ class _Scheduler:
                 continue
             marks = ", ".join("?" for _ in handed)
             for job_id, model in db.execute_fetchall(
-                    f"SELECT id, model FROM jobs WHERE state = 'waiting' AND id IN ({marks})", list(handed)):
+                f"SELECT id, model FROM jobs WHERE state = 'waiting' AND id IN ({marks})",
+                list(handed),
+            ):
                 # The RUN's starter decides (`person_waits_on`), never the page's own row ('workflow' for every page).
-                if person_waits_on(db, job_id) and decide(True, model=model).action != "hold":
+                if (
+                    person_waits_on(db, job_id)
+                    and decide(True, model=model).action != "hold"
+                ):
                     return True
         return False
 
@@ -3307,53 +4513,97 @@ class _Scheduler:
                     lane_look_again = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
             rescans = 0
             while True:
-                before = (lane.loaded_model, frozenset(lane.running), _kraken_pages_in_flight())
+                before = (
+                    lane.loaded_model,
+                    frozenset(lane.running),
+                    _kraken_pages_in_flight(),
+                )
                 picked = self._next(lane, background=held is None)
                 if picked is None:
                     break
-                if (lane.loaded_model, frozenset(lane.running), _kraken_pages_in_flight()) != before:
+                if (
+                    lane.loaded_model,
+                    frozenset(lane.running),
+                    _kraken_pages_in_flight(),
+                ) != before:
                     rescans += 1
-                    if rescans > MAX_RESCANS:  # a lane that keeps moving: look again in a moment, never spin (## 608)
-                        lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
+                    if (
+                        rescans > MAX_RESCANS
+                    ):  # a lane that keeps moving: look again in a moment, never spin (## 608)
+                        lane.look_again_at = (
+                            time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
+                        )
                         return None
                     # The lane moved while this scan ran (a job finished and its model became the loaded one): the choice was
                     # made for a lane that no longer exists, so it is made again (#5920, `activity.lane.one-model-at-a-time`).
                     continue
                 key, db, row = picked
-                if not lane.may_start(row[1], row[3], lambda: person_waits_on(db, row[0])):
+                if not lane.may_start(
+                    row[1], row[3], lambda: person_waits_on(db, row[0])
+                ):
                     return None  # the lane is full: its running job's thread picks this when it ends
                 if lane.name in THROTTLED_LANES:
                     # memory and heat hold even these; memory by this job's own model's need (#5654)
-                    reason = why_wait(person_waiting=True, model=row[3], loaded=row[3] == lane.loaded_model)
+                    reason = why_wait(
+                        person_waiting=True,
+                        model=row[3],
+                        loaded=row[3] == lane.loaded_model,
+                    )
                     if reason:
                         self._ask_to_free_idle(lane, reason, row[3])
-                        db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'waiting'", [reason, row[0]])
-                        lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
+                        db.execute(
+                            "UPDATE jobs SET reason = ? WHERE id = ? AND state = 'waiting'",
+                            [reason, row[0]],
+                        )
+                        lane.look_again_at = (
+                            time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
+                        )
                         return None
                 with self._lock:
                     handed_in = self._attached.pop(row[0], None)
                 if handed_in is None and _is_attached(row[1]):
                     continue  # withdrawn between the scan and now (Stop, Pause, a caller gone)
-                stopped = _run_stopped(handed_in[3], db) if handed_in is not None else None
-                if stopped:  # its run was stopped or paused while it waited: nobody wants it now
+                stopped = (
+                    _run_stopped(handed_in[3], db) if handed_in is not None else None
+                )
+                if (
+                    stopped
+                ):  # its run was stopped or paused while it waited: nobody wants it now
                     handed_in[1].cancel()
-                    db.execute("UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ? WHERE id = ?",
-                               [stopped, utc_now(), row[0]])
+                    db.execute(
+                        "UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ? WHERE id = ?",
+                        [stopped, utc_now(), row[0]],
+                    )
                     continue
-                if handed_in is not None and _in_the_trash(db, row[2]):  # trashed while it waited: never read (#6232)
+                if handed_in is not None and _in_the_trash(
+                    db, row[2]
+                ):  # trashed while it waited: never read (#6232)
                     handed_in[1].cancel()
-                    db.execute("UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ? WHERE id = ?",
-                               [TRASHED_PAGE, utc_now(), row[0]])
+                    db.execute(
+                        "UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ? WHERE id = ?",
+                        [TRASHED_PAGE, utc_now(), row[0]],
+                    )
                     continue
-                if handed_in is not None and not handed_in[1].set_running_or_notify_cancel():
-                    db.execute("UPDATE jobs SET state = 'cancelled', reason = 'Stopped before it started', "
-                               "finished_at = ? WHERE id = ?", [utc_now(), row[0]])
+                if (
+                    handed_in is not None
+                    and not handed_in[1].set_running_or_notify_cancel()
+                ):
+                    db.execute(
+                        "UPDATE jobs SET state = 'cancelled', reason = 'Stopped before it started', "
+                        "finished_at = ? WHERE id = ?",
+                        [utc_now(), row[0]],
+                    )
                     continue
                 db.execute(
                     "UPDATE jobs SET state = 'running', started_at = ?, attempts = attempts + 1, "
                     f"reason = ?{_clear_waiting_on(db)} WHERE id = ? AND state = 'waiting'",
-                    [utc_now(), "Running although background work is paused"
-                     if handed_in is not None and is_paused() else None, row[0]],
+                    [
+                        utc_now(),
+                        "Running although background work is paused"
+                        if handed_in is not None and is_paused()
+                        else None,
+                        row[0],
+                    ],
                 )
                 lane.running[row[0]] = row[3]
                 lane.started[row[0]] = time.monotonic()
@@ -3368,7 +4618,11 @@ class _Scheduler:
     def _say_why_background_waits(self, lane: _Lane, reason: str) -> None:
         from fichero_server.db.manager import db_manager
 
-        stored = [name for name, kind in KINDS.items() if kind.run is not None and kind.lane == lane.name]
+        stored = [
+            name
+            for name, kind in KINDS.items()
+            if kind.run is not None and kind.lane == lane.name
+        ]
         with self._lock:
             keys = list(lane.libraries)
         # Said once per change, not once per scan (every 5 s while held, one write per open project): the list recomputes
@@ -3377,18 +4631,26 @@ class _Scheduler:
         said = (reason, tuple(sorted(keys)))
         now = time.monotonic()
         last = getattr(lane, "_said_held", None)
-        if last is not None and last[0] == said and now - last[1] < SAY_WHY_AGAIN_SECONDS:
+        if (
+            last is not None
+            and last[0] == said
+            and now - last[1] < SAY_WHY_AGAIN_SECONDS
+        ):
             return
         lane._said_held = (said, now)  # type: ignore[attr-defined]
         for key in keys:
             db = db_manager.open_database(key)
             if db is not None and stored:
-                db.execute(f"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND kind IN "
-                           f"({', '.join('?' for _ in stored)}) AND reason IS DISTINCT FROM ? "
-                           f"AND NOT {_PERSON_WAITS_SQL}",
-                           [reason, *stored, reason])
+                db.execute(
+                    f"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND kind IN "
+                    f"({', '.join('?' for _ in stored)}) AND reason IS DISTINCT FROM ? "
+                    f"AND NOT {_PERSON_WAITS_SQL}",
+                    [reason, *stored, reason],
+                )
 
-    def _next(self, lane: _Lane, *, background: bool = True) -> tuple[str, Any, tuple] | None:
+    def _next(
+        self, lane: _Lane, *, background: bool = True
+    ) -> tuple[str, Any, tuple] | None:
         from fichero_server.db.manager import db_manager
 
         # A look-again time is this scan's to set: one left from an earlier scan would make an idle
@@ -3400,12 +4662,23 @@ class _Scheduler:
         # Only a scan that looked at every kind may forget an idle library.
         paused = is_paused()
         full_scan = background and not paused
-        stored = [] if paused else [
-            name for name, kind in KINDS.items() if kind.run is not None and kind.lane == lane.name]
+        stored = (
+            []
+            if paused
+            else [
+                name
+                for name, kind in KINDS.items()
+                if kind.run is not None and kind.lane == lane.name
+            ]
+        )
         with self._lock:
             keys = list(lane.libraries)
             lane.rewoken.clear()
-            attached = [job_id for job_id, entry in self._attached.items() if entry[2] == lane.name]
+            attached = [
+                job_id
+                for job_id, entry in self._attached.items()
+                if entry[2] == lane.name
+            ]
         # A closed library is forgotten by every scan, paused or not: opening it again resumes its
         # jobs. Kept, it would hold its lane's threads polling for good (#5503).
         closed = {key for key in keys if db_manager.open_database(key) is None}
@@ -3419,34 +4692,58 @@ class _Scheduler:
                     lane.libraries.difference_update(set(keys) - lane.rewoken)
             return None
         watched_only = "" if full_scan else f" AND {_PERSON_WAITS_SQL}"
-        where = " OR ".join(filter(None, [
-            f"(kind IN ({', '.join('?' for _ in stored)}){watched_only})" if stored else "",
-            f"id IN ({', '.join('?' for _ in attached)})" if attached else "",
-        ]))
+        where = " OR ".join(
+            filter(
+                None,
+                [
+                    f"(kind IN ({', '.join('?' for _ in stored)}){watched_only})"
+                    if stored
+                    else "",
+                    f"id IN ({', '.join('?' for _ in attached)})" if attached else "",
+                ],
+            )
+        )
         where, params = f"({where})", [*stored, *attached]
         held_back = False
         # Thumbnails first (`activity.lane.thumbnails-first`, #5585): heavy local work waits for the
         # `first` jobs queued at or before it. Not while paused: those would never run.
-        first_kinds = [name for name, kind in KINDS.items() if kind.first] if lane.name in THROTTLED_LANES else []
+        first_kinds = (
+            [name for name, kind in KINDS.items() if kind.first]
+            if lane.name in THROTTLED_LANES
+            else []
+        )
         first_clause = ""
         if first_kinds and not is_paused():
             marks = ", ".join("?" for _ in first_kinds)
-            first_clause = (f"EXISTS (SELECT 1 FROM jobs AS f WHERE f.kind IN ({marks}) "
-                            f"AND f.state IN ('waiting', 'running') AND f.created_at <= jobs.created_at)")
+            first_clause = (
+                f"EXISTS (SELECT 1 FROM jobs AS f WHERE f.kind IN ({marks}) "
+                f"AND f.state IN ('waiting', 'running') AND f.created_at <= jobs.created_at)"
+            )
             waiting_on_first = (f"{where} AND {first_clause}", [*params, *first_kinds])
             where += f" AND NOT {first_clause}"
             params += first_kinds
         # Embedding and name-reading work on the TEXT, so they come after the reading (owner, 2026-10-19 16:27): a
         # background text job waits while any reading page of the library is queued or running, whatever was queued
         # first. A person's own (a correction's re-embed) never waits behind background reading.
-        text_kinds = ([name for name, kind in KINDS.items() if kind.run is not None and kind.lane == "embed"
-                       and is_light(kind.model)] if lane.name == "embed" else [])
+        text_kinds = (
+            [
+                name
+                for name, kind in KINDS.items()
+                if kind.run is not None
+                and kind.lane == "embed"
+                and is_light(kind.model)
+            ]
+            if lane.name == "embed"
+            else []
+        )
         text_held_sql = ""
         text_params: list[Any] = []
         if text_kinds:
-            text_held_sql = (f"(kind IN ({', '.join('?' for _ in text_kinds)}) AND {_PERSON_RANK_SQL} = 0 AND EXISTS "
-                             f"(SELECT 1 FROM jobs AS r WHERE r.kind IN ({', '.join('?' for _ in READING_KINDS)}) "
-                             f"AND r.state IN ('waiting', 'running')))")
+            text_held_sql = (
+                f"(kind IN ({', '.join('?' for _ in text_kinds)}) AND {_PERSON_RANK_SQL} = 0 AND EXISTS "
+                f"(SELECT 1 FROM jobs AS r WHERE r.kind IN ({', '.join('?' for _ in READING_KINDS)}) "
+                f"AND r.state IN ('waiting', 'running')))"
+            )
             text_params = [*text_kinds, *READING_KINDS]
             where += f" AND NOT {text_held_sql}"
             params += text_params
@@ -3461,12 +4758,18 @@ class _Scheduler:
             for model in list(lane.running.values()):
                 provider = (model or "").split(":", 1)[0]
                 counts[provider] = counts.get(provider, 0) + 1
-            full = [provider for provider, n in counts.items() if provider and n >= share]
+            full = [
+                provider for provider, n in counts.items() if provider and n >= share
+            ]
             # A library whose waiting rows are only held back by a share is not idle: it is looked
             # at again when one of those running calls ends (the lane's thread loops at once).
             held_back = bool(full)
             if full:
-                share_clause = " AND NOT (" + " OR ".join("COALESCE(model, '') LIKE ?" for _ in full) + ")"
+                share_clause = (
+                    " AND NOT ("
+                    + " OR ".join("COALESCE(model, '') LIKE ?" for _ in full)
+                    + ")"
+                )
                 share_params = [f"{provider}:%" for provider in full]
         # One model at a time (owner ruling, 2026-10-19; #5846's affinity for every model): the lane's next background job is
         # the oldest for the model already loaded, and it switches to another heavy model only when the loaded one has
@@ -3475,15 +4778,27 @@ class _Scheduler:
         # its queued pages follow it.
         quiet_from = lane.loaded_used_at + SWITCH_AFTER_QUIET_SECONDS
         others = [f for f in _RELEASE if f != _family(lane.loaded_model)]
-        loaded_work = (_family(lane.loaded_model) in _RELEASE and time.monotonic() < lane.loaded_used_at + LOADED_WORK_HOLD_SECONDS
-                       and _loaded_work_queued(keys, lane))
+        loaded_work = (
+            _family(lane.loaded_model) in _RELEASE
+            and time.monotonic() < lane.loaded_used_at + LOADED_WORK_HOLD_SECONDS
+            and _loaded_work_queued(keys, lane)
+        )
         if loaded_work:
             quiet_from = max(quiet_from, time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS)
-        if _family(lane.loaded_model) in _RELEASE and (time.monotonic() < quiet_from or loaded_work) and others:
+        if (
+            _family(lane.loaded_model) in _RELEASE
+            and (time.monotonic() < quiet_from or loaded_work)
+            and others
+        ):
             held_parts, held_params = [], []
             for f in others:
-                prefixes = ([KRAKEN_MODEL_PREFIX] if f == "kraken" else
-                            [f"{p}:" for p in sorted(LOCAL_MODEL_SERVERS)] if f == "local-model" else [])
+                prefixes = (
+                    [KRAKEN_MODEL_PREFIX]
+                    if f == "kraken"
+                    else [f"{p}:" for p in sorted(LOCAL_MODEL_SERVERS)]
+                    if f == "local-model"
+                    else []
+                )
                 if prefixes:
                     held_parts += ["COALESCE(model, '') LIKE ?"] * len(prefixes)
                     held_params += [p + "%" for p in prefixes]
@@ -3502,7 +4817,9 @@ class _Scheduler:
             held_back = True
         # Work a person is waiting for goes first (`activity.throttle.watched-first`): a long
         # background job that stepped aside for it must not take the lane straight back.
-        attached_first = f"(id IN ({', '.join('?' for _ in attached)})) DESC, " if attached else ""
+        attached_first = (
+            f"(id IN ({', '.join('?' for _ in attached)})) DESC, " if attached else ""
+        )
         candidates = []
         idle = []
         for key in keys:
@@ -3526,22 +4843,41 @@ class _Scheduler:
             # at this look), and the library forgotten as idle with that work waiting until the next
             # wake. Asked first, a thumbnail done since lets the pick below take the work.
             if first_clause:
-                requeue_orphaned_first(db)  # a running row no thread runs would hold the gate for good (#6203)
-            held_by_first = bool(first_clause) and db.execute_fetchone(
-                f"SELECT 1 FROM jobs WHERE state = 'waiting' AND {waiting_on_first[0]} LIMIT 1",
-                waiting_on_first[1]) is not None
-            if held_by_first:  # each held row says why, and the lane looks again soon (not idle)
-                since = db.execute_fetchone(f"SELECT MIN(created_at) FROM jobs WHERE state = 'waiting' AND {waiting_on_first[0]}",
-                                            waiting_on_first[1])[0]
+                requeue_orphaned_first(
+                    db
+                )  # a running row no thread runs would hold the gate for good (#6203)
+            held_by_first = (
+                bool(first_clause)
+                and db.execute_fetchone(
+                    f"SELECT 1 FROM jobs WHERE state = 'waiting' AND {waiting_on_first[0]} LIMIT 1",
+                    waiting_on_first[1],
+                )
+                is not None
+            )
+            if (
+                held_by_first
+            ):  # each held row says why, and the lane looks again soon (not idle)
+                since = db.execute_fetchone(
+                    f"SELECT MIN(created_at) FROM jobs WHERE state = 'waiting' AND {waiting_on_first[0]}",
+                    waiting_on_first[1],
+                )[0]
                 said_first = first_reason(db, first_kinds, since)
-                db.execute(f"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND {waiting_on_first[0]} "
-                           f"AND reason IS DISTINCT FROM ?", [said_first, *waiting_on_first[1], said_first])
+                db.execute(
+                    f"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND {waiting_on_first[0]} "
+                    f"AND reason IS DISTINCT FROM ?",
+                    [said_first, *waiting_on_first[1], said_first],
+                )
                 due = time.monotonic() + FIRST_LOOK_AGAIN_SECONDS
                 lane.look_again_at = min(lane.look_again_at or due, due)
             if text_held_sql and db.execute_fetchone(
-                    f"SELECT 1 FROM jobs WHERE state = 'waiting' AND {text_held_sql} LIMIT 1", text_params):
-                db.execute(f"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND {text_held_sql} "
-                           f"AND reason IS DISTINCT FROM ?", [READING_FIRST_REASON, *text_params, READING_FIRST_REASON])
+                f"SELECT 1 FROM jobs WHERE state = 'waiting' AND {text_held_sql} LIMIT 1",
+                text_params,
+            ):
+                db.execute(
+                    f"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND {text_held_sql} "
+                    f"AND reason IS DISTINCT FROM ?",
+                    [READING_FIRST_REASON, *text_params, READING_FIRST_REASON],
+                )
                 due = time.monotonic() + FIRST_LOOK_AGAIN_SECONDS
                 lane.look_again_at = min(lane.look_again_at or due, due)
                 held_back = True  # waiting, not absent: the library stays on the lane
@@ -3554,11 +4890,16 @@ class _Scheduler:
                 spare = bool(share_clause) and row is not None
             later = db.execute_fetchone(
                 f"SELECT min(run_after) FROM jobs WHERE state = 'waiting' AND run_after > ? AND {where}",
-                [now, *params])[0]
-            if later is not None:  # a job waiting out its quiet period: look again when it ends
+                [now, *params],
+            )[0]
+            if (
+                later is not None
+            ):  # a job waiting out its quiet period: look again when it ends
                 from fichero_server.core.timeutil import ensure_utc
 
-                due = time.monotonic() + max(0.0, (ensure_utc(later) - ensure_utc(now)).total_seconds())
+                due = time.monotonic() + max(
+                    0.0, (ensure_utc(later) - ensure_utc(now)).total_seconds()
+                )
                 lane.look_again_at = min(lane.look_again_at or due, due)
             if row:
                 candidates.append((key, db, row, spare))
@@ -3571,10 +4912,21 @@ class _Scheduler:
             return None
         # Across libraries the same rule: within its share first, then waited-for work (handed in, then a
         # person's own), then the loaded model, then the model order (Kraken, MLX, spaCy, embed), then the oldest.
-        candidates.sort(key=lambda c: (c[3], c[2][0] not in attached, -c[2][6], c[2][3] != lane.loaded_model, _model_rank(c[2][3]), c[2][4]))
+        candidates.sort(
+            key=lambda c: (
+                c[3],
+                c[2][0] not in attached,
+                -c[2][6],
+                c[2][3] != lane.loaded_model,
+                _model_rank(c[2][3]),
+                c[2][4],
+            )
+        )
         return candidates[0][:3]
 
-    def _work(self, db: "Database", job_id: str, kind: "Kind", subject: str, handed_in: Any) -> Any:
+    def _work(
+        self, db: "Database", job_id: str, kind: "Kind", subject: str, handed_in: Any
+    ) -> Any:
         """Run one job's work. Memory too short to load its model is never a failure (#5524): a
         stored job goes back to waiting with the reason (`JobDeferred`; the throttle's same memory
         check holds it until it fits, and it resumes from its own checkpoint), and handed-in work,
@@ -3616,17 +4968,26 @@ class _Scheduler:
                 return
             time.sleep(self.MEMORY_POLL_SECONDS)
 
-    def _run(self, lane: _Lane, key: str, db: "Database", row: tuple, handed_in: Any) -> None:
+    def _run(
+        self, lane: _Lane, key: str, db: "Database", row: tuple, handed_in: Any
+    ) -> None:
         from fichero_server.db.manager import db_manager
         from fichero_server.execution.cancellation import WorkflowPaused
 
         job_id, kind_name, subject, model, *_ = row
         kind = KINDS[kind_name]
-        held: str | None = None  # why this job did not start: the lane could not release the loaded model
+        held: str | None = (
+            None  # why this job did not start: the lane could not release the loaded model
+        )
         if lane.name == "local-ml":
-            queued = sum(1 for other, m in list(lane.running.items())
-                         if other != job_id and (m or "").startswith(KRAKEN_MODEL_PREFIX))
-            if _kraken_busy(queued):  # a Kraken page outside the queue: no second heavy model beside it
+            queued = sum(
+                1
+                for other, m in list(lane.running.items())
+                if other != job_id and (m or "").startswith(KRAKEN_MODEL_PREFIX)
+            )
+            if _kraken_busy(
+                queued
+            ):  # a Kraken page outside the queue: no second heavy model beside it
                 wait_on(db, job_id, "Waiting for Kraken (another page is using it)")
                 while _kraken_busy(queued):
                     time.sleep(self.KRAKEN_POLL_SECONDS)
@@ -3634,18 +4995,31 @@ class _Scheduler:
             if _heavy_switch(lane.loaded_model, model):
                 fits, why = _fits_beside(model)
                 if fits:
-                    logger.info("model-lane: keep %s loaded beside %s (%s)", _family(lane.loaded_model), _family(model), why)
+                    logger.info(
+                        "model-lane: keep %s loaded beside %s (%s)",
+                        _family(lane.loaded_model),
+                        _family(model),
+                        why,
+                    )
                 else:
                     # The reason FIRST, then the release: it takes the family's own lock, which a model call in flight may
                     # hold, and the row must not sit silent behind it (Fable review #19).
-                    wait_on(db, job_id, f"Waiting for {_family(lane.loaded_model)} to let go of its models")
+                    wait_on(
+                        db,
+                        job_id,
+                        f"Waiting for {_family(lane.loaded_model)} to let go of its models",
+                    )
                     try:
                         release = _RELEASE[_family(lane.loaded_model)]
                         reason = f"memory: {why}; the lane switches to {_family(model)} for job {job_id}"
                         freed = release(reason)
-                        if freed is False:  # a call still reads from the loaded model: nothing loads beside it, so the job keeps waiting
-                            said = (f"Waiting: a call is still using the {_family(lane.loaded_model)} model, and {_family(model)} loads when "
-                                    "it ends (this Mac holds one heavy model at a time)")
+                        if (
+                            freed is False
+                        ):  # a call still reads from the loaded model: nothing loads beside it, so the job keeps waiting
+                            said = (
+                                f"Waiting: a call is still using the {_family(lane.loaded_model)} model, and {_family(model)} loads when "
+                                "it ends (this Mac holds one heavy model at a time)"
+                            )
                             wait_on(db, job_id, said)
                             give_up = time.monotonic() + RELEASE_KEEP_WAITING_SECONDS
                             while freed is False and time.monotonic() < give_up:
@@ -3654,25 +5028,38 @@ class _Scheduler:
                                         break
                                 time.sleep(RELEASE_RETRY_SECONDS)
                                 freed = release(reason)
-                            if freed is False:  # still in use: back to waiting with the reason; Kraken has not loaded
+                            if (
+                                freed is False
+                            ):  # still in use: back to waiting with the reason; Kraken has not loaded
                                 held = said
                     finally:
                         wait_over(db, job_id)
             if model is not None and not is_light(model) and held is None:
                 lane.loaded_model = model
-        if os.environ.get("FICHERO_JOB_QOS", "1") != "0":  # the test suite runs jobs at normal priority
-            watched = handed_in is None and db.execute_fetchone(
-                "SELECT COALESCE(watched, FALSE) FROM jobs WHERE id = ?", [job_id])[0]
+        if (
+            os.environ.get("FICHERO_JOB_QOS", "1") != "0"
+        ):  # the test suite runs jobs at normal priority
+            watched = (
+                handed_in is None
+                and db.execute_fetchone(
+                    "SELECT COALESCE(watched, FALSE) FROM jobs WHERE id = ?", [job_id]
+                )[0]
+            )
             # A job a person waits on runs at utility QoS whatever its kind's class (`watched-first`).
             set_utility_qos() if watched else kind.qos()
         state, reason, result, error = "done", None, None, None
         _current.job_id = job_id
         _current.lane = lane.name
         _current.done_note = None
-        _current.person = person_waits_on(db, job_id)  # who started the RUN this page is of, not the page's own row
+        _current.person = person_waits_on(
+            db, job_id
+        )  # who started the RUN this page is of, not the page's own row
         # The job's project is the project its model calls belong to (the egress gate, #5368): a worker thread does not
         # carry the caller's context, and a stored job has none.
-        from fichero_server.observability.episodes import _episode_library_path, set_library
+        from fichero_server.observability.episodes import (
+            _episode_library_path,
+            set_library,
+        )
 
         library_token = set_library(key)
         try:
@@ -3681,14 +5068,18 @@ class _Scheduler:
                     stopped_meanwhile = job_id in self._stopping
                 if stopped_meanwhile:  # Stop during the release wait ends the page stopped, not deferred (## 847)
                     raise PageStopped(stopped_by(job_id))
-                raise JobDeferred(held)  # back to waiting with its reason; it asks again soon
+                raise JobDeferred(
+                    held
+                )  # back to waiting with its reason; it asks again soon
             result = self._work(db, job_id, kind, subject, handed_in)
             with self._lock:
                 stopping = job_id in self._stopping
             if stopping:  # a person stopped this page while it ran: what it made is dropped, and its run goes on
                 result = None
                 raise PageStopped(stopped_by(job_id))
-            reason = getattr(_current, "done_note", None)  # a job that finished with something to say (`note_done`)
+            reason = getattr(
+                _current, "done_note", None
+            )  # a job that finished with something to say (`note_done`)
         except JobCancelled as exc:
             state, reason, error = "cancelled", str(exc) or "Stopped by you", exc
         except WorkflowPaused as exc:  # its run was paused while the page waited (an MLX memory wait): paused, not failed
@@ -3698,7 +5089,14 @@ class _Scheduler:
         except JobOutOfReach as exc:
             state, reason, error = "running", str(exc), exc
         except Exception as exc:  # noqa: BLE001 -- recorded on the row, and handed to whoever waits
-            logger.warning("job %s (%s on %s) failed: %s", job_id, kind_name, subject, exc)
+            logger.warning(
+                "job %s (%s on %s) failed: %s",
+                job_id,
+                kind_name,
+                subject,
+                exc,
+                exc_info=True,
+            )
             state, reason, error = "failed", failed_reason(kind_name, exc), exc
         finally:
             _current.job_id = None
@@ -3709,15 +5107,27 @@ class _Scheduler:
             _episode_library_path.reset(library_token)
         if model is not None and model == lane.loaded_model:
             lane.loaded_used_at = time.monotonic()
-        dropped = _DROPPED_PAGES.pop(job_id, None)  # on every end, the deferred one too: never left behind
-        if dropped is not None and state in ("waiting", "running"):  # its run stopped: it ends, never back to waiting
+        dropped = _DROPPED_PAGES.pop(
+            job_id, None
+        )  # on every end, the deferred one too: never left behind
+        if dropped is not None and state in (
+            "waiting",
+            "running",
+        ):  # its run stopped: it ends, never back to waiting
             state, reason = "cancelled", dropped[0]
-        if state in ("waiting", "running"):  # deferred or out of reach: not finished, and not failed;
+        if state in (
+            "waiting",
+            "running",
+        ):  # deferred or out of reach: not finished, and not failed;
             # it comes back (deferred: soon; out of reach: when the library next opens), and its watchers wait on
-            current = db_manager.open_database(key)  # the project's connection NOW: a reopen made a new one (Fable #8, #14)
+            current = db_manager.open_database(
+                key
+            )  # the project's connection NOW: a reopen made a new one (Fable #8, #14)
             if current is not None:
-                current.execute(f"UPDATE jobs SET state = ?, reason = ?{_clear_waiting_on(current)}, attempts = attempts - 1 WHERE id = ?",
-                                [state, reason, job_id])
+                current.execute(
+                    f"UPDATE jobs SET state = ?, reason = ?{_clear_waiting_on(current)}, attempts = attempts - 1 WHERE id = ?",
+                    [state, reason, job_id],
+                )
             if state == "waiting":
                 lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
                 # Its project has waiting work again: a scan while this job ran saw its row `running`, found
@@ -3727,12 +5137,18 @@ class _Scheduler:
                     lane.libraries.add(key)
             return
         # The row first, then whoever waits: a caller told the outcome must find it on the row.
-        if dropped is not None and state == "done":  # its run stopped and dropped what it read: it did not finish
+        if (
+            dropped is not None and state == "done"
+        ):  # its run stopped and dropped what it read: it did not finish
             state, reason = "cancelled", dropped[0]
         current = db_manager.open_database(key)
-        if current is not None:  # the same project, reopened while it ran: the row is written on the connection it has now
-            current.execute(f"UPDATE jobs SET state = ?, reason = ?, finished_at = ?{_clear_waiting_on(current)} WHERE id = ?",
-                            [state, reason, utc_now(), job_id])
+        if (
+            current is not None
+        ):  # the same project, reopened while it ran: the row is written on the connection it has now
+            current.execute(
+                f"UPDATE jobs SET state = ?, reason = ?, finished_at = ?{_clear_waiting_on(current)} WHERE id = ?",
+                [state, reason, utc_now(), job_id],
+            )
         # (closed while it ran: the row stays `running` and resumes when the library opens)
         with self._lock:
             waiting = self._watchers.pop(job_id, [])
@@ -3755,7 +5171,9 @@ _SCHEDULERS: "weakref.WeakSet[_Scheduler]" = weakref.WeakSet()
 STOP_TIMEOUT_SECONDS = 2.0
 
 
-def stop(key: str | None, timeout: float = STOP_TIMEOUT_SECONDS) -> list[threading.Thread]:
+def stop(
+    key: str | None, timeout: float = STOP_TIMEOUT_SECONDS
+) -> list[threading.Thread]:
     """A library's database is closing (`key`, from `DatabaseManager._cache_key`), or every one is
     (None: the engine is shutting down). Its job threads stop looking at it, and a lane left with
     no library ends its threads, waited for up to `timeout`. Called only by the database manager,
@@ -3766,8 +5184,12 @@ def stop(key: str | None, timeout: float = STOP_TIMEOUT_SECONDS) -> list[threadi
     for scheduler in list(_SCHEDULERS):
         left += scheduler.stop(key, deadline)
     if left:
-        logger.warning("%d job thread(s) still finishing a job after %.1fs: %s", len(left), timeout,
-                       ", ".join(t.name for t in left))
+        logger.warning(
+            "%d job thread(s) still finishing a job after %.1fs: %s",
+            len(left),
+            timeout,
+            ", ".join(t.name for t in left),
+        )
     return left
 
 
@@ -3778,16 +5200,24 @@ def note_done(words: str) -> None:
 
 def is_queued_or_running(db, kind: str, subject: str) -> bool:
     """True while a job of this kind and subject waits or runs (so a second is not queued)."""
-    return db.execute_fetchone(
-        "SELECT id FROM jobs WHERE kind = ? AND subject = ? AND state IN ('waiting', 'running')", [kind, subject]
-    ) is not None
+    return (
+        db.execute_fetchone(
+            "SELECT id FROM jobs WHERE kind = ? AND subject = ? AND state IN ('waiting', 'running')",
+            [kind, subject],
+        )
+        is not None
+    )
 
 
 def failed_since(db, kind: str, subject: str, since) -> bool:
     """True when a job of this kind and subject failed at or after `since`."""
-    return db.execute_fetchone(
-        "SELECT 1 FROM jobs WHERE kind = ? AND subject = ? AND state = 'failed' AND finished_at >= ? LIMIT 1",
-        [kind, subject, since]) is not None
+    return (
+        db.execute_fetchone(
+            "SELECT 1 FROM jobs WHERE kind = ? AND subject = ? AND state = 'failed' AND finished_at >= ? LIMIT 1",
+            [kind, subject, since],
+        )
+        is not None
+    )
 
 
 def queue_state(db, own_kinds: list[str], since=None) -> str | None:
@@ -3795,16 +5225,34 @@ def queue_state(db, own_kinds: list[str], since=None) -> str | None:
     image lane runs behind it (a workflow, batch or far-side row does not count); "over" when its jobs have all
     ended, one failed since `since`, and none waits or runs; else None."""
     marks = ", ".join("?" for _ in own_kinds)
-    running = [r[0] for r in db.execute_fetchall(
-        f"SELECT DISTINCT kind FROM jobs WHERE state = 'running' AND kind NOT IN ({marks})", own_kinds)]
-    if any(k in KINDS and KINDS[k].lane in ("local-ml", "images") and k not in RUN_KINDS
-           and k not in FAR_SIDE_KINDS for k in running):
+    running = [
+        r[0]
+        for r in db.execute_fetchall(
+            f"SELECT DISTINCT kind FROM jobs WHERE state = 'running' AND kind NOT IN ({marks})",
+            own_kinds,
+        )
+    ]
+    if any(
+        k in KINDS
+        and KINDS[k].lane in ("local-ml", "images")
+        and k not in RUN_KINDS
+        and k not in FAR_SIDE_KINDS
+        for k in running
+    ):
         return "moving"
-    if since is not None and db.execute_fetchone(
+    if (
+        since is not None
+        and db.execute_fetchone(
             f"SELECT 1 FROM jobs WHERE kind IN ({marks}) AND state IN ('waiting', 'running', 'paused') LIMIT 1",
-            own_kinds) is None and db.execute_fetchone(
+            own_kinds,
+        )
+        is None
+        and db.execute_fetchone(
             f"SELECT 1 FROM jobs WHERE kind IN ({marks}) AND state = 'failed' AND finished_at >= ? LIMIT 1",
-            [*own_kinds, since]) is not None:
+            [*own_kinds, since],
+        )
+        is not None
+    ):
         return "over"
     return None
 

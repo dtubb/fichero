@@ -63,7 +63,7 @@ struct PrototypeEditorSheet: View {
                         Image(systemName: "lock")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
-                            .help("Built-in prototype — editable, not deletable")
+                            .help("Built-in prototype — editing a catalogue kind makes a copy for this project; not deletable")
                     }
                 }
                 .tag(proto.key)

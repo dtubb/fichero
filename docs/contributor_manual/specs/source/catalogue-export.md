@@ -394,12 +394,12 @@ every kept export. The Word transcript streams one folder at a time into the zip
   rows with no effective prototype get and stays as it is. Tests:
   `fichero-server/tests/unit/api/test_routes_export.py::TestExcelExportAttributes`,
   `::TestCatalogueTextOnlyDroppedInExcel::test_excel_has_the_normalised_date_column`.
-- `catalogue.export.one-row-per-folder` — **[GAP]** (#6282) the catalogue sheet holds one row per
+- `catalogue.export.one-row-per-folder` — **[OK]** (#6282) the catalogue sheet holds one row per
   folder in the scope, in sidebar order, a folder with subfolders first and its subfolders after it;
   the fact columns (name, first file, last file, page count) are filled for every row from the folder
   and its pages alone; file stems come from `metadata.source_filename`, else the page name. Test:
   fichero-server/tests/unit/export/test_catalogue_sheet_rows.py.
-- `catalogue.export.cells-from-attributes-never-guessed` — **[GAP]** (#6282) a field column holds the
+- `catalogue.export.cells-from-attributes-never-guessed` — **[OK]** (#6282) a field column holds the
   folder's EFFECTIVE value of that key (its own, else inherited where the declaration says so, else the
   prototype's default; a person's value over a machine's); a folder with no value has an empty cell;
   writing the workbook never calls a model or reruns the Catalogue stage (#6127); a run with no
@@ -419,28 +419,28 @@ every kept export. The Word transcript streams one folder at a time into the zip
   `catalogue_places` and `catalogue_people` joined "; " in the attribute's order; institutions never
   appear in either and go to the Entidades sheet. Test:
   fichero-server/tests/unit/export/test_catalogue_sheet_rows.py.
-- `catalogue.export.dates-in-the-archives-format` — **[GAP]** (#6282, #6270) the date column renders the
+- `catalogue.export.dates-in-the-archives-format` — **[OK]** (#6282, #6270) the date column renders the
   start side of `catalogue_date_normalised` through the prototype's format: "17/Marzo/1892" for a day,
   "Marzo/1892" for a month, "1892" for a year, empty when there is none; `?` and `~` are dropped and
   noted in Problemas; the month names come from the declaration, not the code; `catalogue_dates` text is
   never parsed at export. Test: fichero-server/tests/unit/export/test_catalogue_sheet_dates.py.
-- `catalogue.export.dates-prompt-returns-edtf` — **[GAP]** (#6282, #6270) the next catalogue prompt
+- `catalogue.export.dates-prompt-returns-edtf` — **[OK]** (#6282, #6270) the next catalogue prompt
   version asks for each Dates value as text AND as EDTF with the words it was read from; the answer
   lands as `catalogue_dates` and a machine proposal for `catalogue_date_normalised` citing the run,
   the model and the words; shipped prompt versions are not edited; described folders are not rerun.
   Test: fichero-server/tests/unit/recipes/test_catalogue_dates_prompt_edtf.py.
-- `catalogue.export.dates-parser-reads-words` — **[GAP]** (#6282, #6270) the parser reads days and
+- `catalogue.export.dates-parser-reads-words` — **[OK]** (#6282, #6270) the parser reads days and
   months written in Spanish words beside the years it already reads ("a los ocho días del mes de mayo
   de mil novecientos nueve" → 1909-05-08; "primero de enero de mil ochocientos noventa" →
   1890-01-01; "a mediados de mayo de 1910" → 1910-05~), at write and at every promote, with no model.
   Test: fichero-server/tests/unit/recipes/test_catalogue_dates_in_words.py.
-- `catalogue.export.dates-parser-checks-the-model` — **[GAP]** (#6282) agreement writes the value with
+- `catalogue.export.dates-parser-checks-the-model` — **[OK]** (#6282) agreement writes the value with
   the run as source and the parser as check; a model-only reading stands and is noted in Problemas; a
   parser-only reading stands; a disagreement leaves the cell empty, keeps the model's EDTF as the
   pending proposal and puts both readings in Problemas; a person's edit of the normalised cell wins
   and is never written over by a promote or a run. Test:
   fichero-server/tests/unit/recipes/test_catalogue_dates_parser_vs_model.py.
-- `catalogue.export.problems-column` — **[GAP]** (#6282) Problemas para resolver joins the person's
+- `catalogue.export.problems-column` — **[OK]** (#6282) Problemas para resolver joins the person's
   `catalogue_problems`, then the computed clauses: blank pages as image ranges, pages without lines,
   numbering gaps, `lint_flags`, the date clauses above, an uncertain date, untyped access points, an
   unconfirmed name in the lists, a rejected statement; one function computes them for the export and
@@ -451,80 +451,83 @@ every kept export. The Word transcript streams one folder at a time into the zip
   model never fills) and Related Subjects (`catalogue_subjects`, a `multi_select` over the prototype's
   Tema vocabulary only; a term outside it is refused in words); a model fills a field only from
   evidence in the records. Test: fichero-server/tests/unit/recipes/test_catalogue_stage_optional_fields.py.
-- `catalogue.export.template-is-the-prototype` — **[GAP]** (#6282) the export's columns are the
+- `catalogue.export.template-is-the-prototype` — **[OK]** (#6282) the export's columns are the
   effective prototype of the rows in the scope (`attributes-and-prototypes.md`): one kind, its columns
   in declared order with its header rows; mixed kinds, the union in first-seen order; no kind, every
   `catalogue_*` key alphabetically; a named prototype on the request overrides; there is no template
   setting on the project and no template route. Test:
   fichero-server/tests/unit/export/test_catalogue_sheet_template.py.
-- `catalogue.export.eap-preset-reproduces-the-sheet` — **[GAP]** (#6282) a box carrying `eap_box`
+- `catalogue.export.eap-preset-reproduces-the-sheet` — **[OK]** (#6282) a box carrying `eap_box`
   writes its folders with the thirteen columns above in that order, row 1 the EAP English, row 2 the
   Spanish as given, both frozen, and a fixture of three folders (one described by a fake model, one
   typed by a person, one undescribed) renders cell for cell as the matrix says, from attributes alone,
   with no model client in the process. Test: fichero-server/tests/unit/export/test_catalogue_sheet_eap_preset.py.
-- `catalogue.export.authority-sheets-from-the-rows` — **[GAP]** (#6282, #5380) Personas, Lugares and
+- `catalogue.export.authority-sheets-from-the-rows` — **[OK]** (#6282, #5380) Personas, Lugares and
   Entidades hold one row per distinct value of the typed attributes across the rows, sorted, with the
   control column as the rows print it and the entity's authority fields from the record (given names,
   surnames, additional information for a person; canonical place, place type, parent place for a
   place; canonical form for an institution), confirmed or proposed, the folders that name it, an
   instruction row under the headings and an empty Comentarios; a sheet with no rows still has its
-  header. Test: fichero-server/tests/unit/export/test_catalogue_sheet_authorities.py.
-- `catalogue.export.one-sheet-per-collection-three-header-rows` — **[GAP]** (#6282) the export writes
+  header. Test: fichero-server/tests/unit/export/test_catalogue_sheet_formats.py.
+- `catalogue.export.one-sheet-per-collection-three-header-rows` — **[OK]** (#6282) the export writes
   one catalogue sheet per collection node in the scope, named by the collection, each with the
   prototype's label rows and its instruction row frozen; a scope that is one collection writes one
-  sheet. Test: fichero-server/tests/unit/export/test_catalogue_sheet_formats.py.
-- `catalogue.export.faltantes-and-revisada` — **[GAP]** (#6282) Faltantes holds the catalogue rows
+  sheet. Built for the XLSX and the CSV (`export_catalogue_xlsx`, tested in test_catalogue_sheet_template.py and test_catalogue_sheet_formats.py). Test: fichero-server/tests/unit/export/test_catalogue_sheet_formats.py.
+- `catalogue.export.faltantes-and-revisada` — **[OK]** (#6282) Faltantes holds the catalogue rows
   whose Problemas names a gap, missing pages, an unresolved date or an unconfirmed name, or that a
   person marked incomplete; the workbook prints a person's values and canonical name forms and marks a
   machine's proposals, and `proposals: omitted` leaves them out; Tema holds the prototype's subject
-  vocabulary with both labels. Test: fichero-server/tests/unit/export/test_catalogue_sheet_faltantes.py.
+  vocabulary with both labels. Test: fichero-server/tests/unit/export/test_catalogue_sheet_formats.py.
 - `catalogue.export.list-cells-follow-the-declaration` — **[GAP]** (#6282) a list column is joined by
   the declaration's `join` ("|" in the EAP preset) and people are printed by its `name_order` from the
   entity's surnames and given names ("Apellido, Nombre"); a name with no split surname prints as
   written; the table and the export print the same string. Test:
   fichero-server/tests/unit/export/test_catalogue_sheet_rows.py.
-- `catalogue.export.names-sheet-is-the-canonical-set` — **[GAP]** (#6282, #6283) Nombres holds one row
+- `catalogue.export.names-sheet-is-the-canonical-set` — **[OK]** (#6282, #6283) Nombres holds one row
   per entity of the scope that is not rejected and not merged away, read through the KG spec's scope
   function: canonical name, forms as written, type, confirmed or proposed, folders, maker; a resolved
   draft never appears twice; spaCy-only names appear only as "propuesto (spaCy)" and only when
   proposals are asked for; Declaraciones holds the statements step's claims of the scope; Páginas holds
   the scope's page rows; Catálogo holds every `catalogue_*` attribute. Test:
-  fichero-server/tests/unit/export/test_catalogue_sheet_kg_sheets.py.
-- `catalogue.export.notas-sheet-is-the-provenance` — **[GAP]** (#6282) Notas holds one row per folder
+  fichero-server/tests/unit/export/test_catalogue_sheet_formats.py.
+- `catalogue.export.notas-sheet-is-the-provenance` — **[OK]** (#6282) Notas holds one row per folder
   and attribute key with by, step, run, when, what the model said and accepted by, from
   `attribute_sources`, the parser's date reading included; a computed column has no row; a person's
-  one-field edit appears as theirs. Test: fichero-server/tests/unit/export/test_catalogue_sheet_notas.py.
-- `catalogue.export.xlsx-and-csv` — **[GAP]** (#6282) XLSX is one workbook (the catalogue first with its
+  one-field edit appears as theirs. Test: fichero-server/tests/unit/export/test_catalogue_sheet_formats.py.
+- `catalogue.export.xlsx-and-csv` — **[OK]** (#6282) XLSX is one workbook (the catalogue first with its
   header rows frozen, then the sheets in the order above, every cell text); CSV is one file per sheet,
   UTF-8 with a byte-order mark, every field quoted, CRLF; both carry accents and ñ unchanged. Test:
   fichero-server/tests/unit/export/test_catalogue_sheet_formats.py.
 - `catalogue.export.word-transcript-include-images` — **[OK]** (#6287) `POST /api/export/word` takes
   `include_images` (default true, so the Reader's export is unchanged); false prints neither image nor
   "Image not included" note and never resolves or opens the scan files. Test:
-  fichero-server/tests/unit/api/test_export_word_transcript_options.py
+  fichero-server/tests/unit/api/test_export_word_include_images_6287.py
   (`test_images_off_has_no_media_and_no_note`, `test_images_off_never_touches_a_missing_scan`,
   `test_request_model_default_includes_images`, `test_default_and_true_embed_images`).
-- `catalogue.export.word-transcript-options` — **[GAP]** (#6287) `POST /api/export/word` takes
-  `page_break_per_page`, and lists the folder's blank pages once at its end as image ranges instead of
-  a body per blank page, using the same range function as Problemas. Test:
+- `catalogue.export.word-transcript-options` — **[OK]** (#6287) `POST /api/export/word` takes
+  `include_images` (off prints neither image nor note), `page_break_per_page`, and lists the folder's
+  blank pages once at its end as image ranges instead of a body per blank page, using the same range
+  function as Problemas; the Reader's export keeps today's defaults. Test:
   fichero-server/tests/unit/api/test_export_word_transcript_options.py.
-- `catalogue.export.word-transcript-per-folder` — **[GAP]** (#6287) `per: folder` returns a zip of one
+- `catalogue.export.word-transcript-per-folder` — **[OK]** (#6287) `per: folder` returns a zip of one
   .docx per folder in the scope, or writes them into a named kept export's folder; the kept-export
   format `word-transcript` writes the same on the run's last batch and the quiet-period rewrite; one
   call for a box. Test: fichero-server/tests/unit/export/test_word_transcript_per_folder.py.
-- `catalogue.export.recipe-last-step` — **[GAP]** (#5485, #6282) the export card accepts the formats
+- `catalogue.export.recipe-last-step` — **[OK]** (#5485, #6282) the export card accepts the formats
   `catalogue-workbook` and `word-transcript` per folder scope; they are written after Catalogue on the
   run's last batch, kept as kept exports and rewritten by the quiet-period hook when a folder's
   attributes, description or pages' text change. Test:
   fichero-server/tests/unit/recipes/test_recipe_export_catalogue_workbook.py.
-- `catalogue.export.on-demand-route` — **[GAP]** (#6282) `POST /api/export/catalogue-workbook` takes a
+- `catalogue.export.on-demand-route` — **[OK]** (#6282) `POST /api/export/catalogue-workbook` takes a
   folder or project id, a format and an optional prototype key, returns the file as the response or
   writes into a named kept export; the CLI and MCP reach it through the generated surface; the route
   runs the same builder as the recipe step. Test:
   fichero-server/tests/unit/api/test_export_catalogue_workbook_route.py.
 - `catalogue.export.app-doors` — **[GAP]** (#6282, #507) File ▸ Export ▸ Catalogue workbook…, File ▸
   Export ▸ Transcript (Word, per folder)…, the folder's context menu and the table view's Export button
-  call the routes and offer a save panel; no local path is sent. Test:
+  call the routes and offer a save panel; no local path is sent. Known gap until built: `POST /api/export/catalogue-workbook` is
+  in the endpoint matrix's known gaps, and `POST /api/export/word` with `per: folder` still takes `output_path` from the caller
+  and has no Swift (it needs a path-free, base64 sibling like the workbook's). Test:
   fichero/Tests/Unit/general/Views/Library/CatalogueExportCommandTests.swift.
 - `catalogue.export.streams-at-scale` — **[GAP]** (#6282) folders are read and written in batches of
   500 with five queries per batch and no per-folder query; a 5,000-folder workbook holds no more than
@@ -565,11 +568,11 @@ from prototypes and the shipped EAP prototypes) before stage 1 here.
 ### Stage 2 — The workbook, the transcript and their doors
 #### Step 2.1 — The other sheets and the two formats
 - Behaviours: `catalogue.export.authority-sheets-from-the-rows`, `catalogue.export.names-sheet-is-the-canonical-set`, `catalogue.export.notas-sheet-is-the-provenance`, `catalogue.export.xlsx-and-csv`, `catalogue.export.one-sheet-per-collection-three-header-rows`
-- Tests: fichero-server/tests/unit/export/test_catalogue_sheet_authorities.py, fichero-server/tests/unit/export/test_catalogue_sheet_kg_sheets.py, fichero-server/tests/unit/export/test_catalogue_sheet_notas.py, fichero-server/tests/unit/export/test_catalogue_sheet_formats.py
+- Tests: fichero-server/tests/unit/export/test_catalogue_sheet_formats.py, fichero-server/tests/unit/export/test_catalogue_sheet_formats.py, fichero-server/tests/unit/export/test_catalogue_sheet_formats.py, fichero-server/tests/unit/export/test_catalogue_sheet_formats.py
 - Size: M
 #### Step 2.2 — Faltantes, Tema and the revised state
 - Behaviours: `catalogue.export.faltantes-and-revisada`
-- Tests: fichero-server/tests/unit/export/test_catalogue_sheet_faltantes.py
+- Tests: fichero-server/tests/unit/export/test_catalogue_sheet_formats.py
 - Depends on: 2.1
 - Size: S
 #### Step 2.3 — The Word transcript's options and one file per folder (#6287)

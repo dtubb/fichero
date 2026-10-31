@@ -14,6 +14,7 @@ Provides:
 
 from __future__ import annotations
 from fichero_server.media import quartz_warm  # (#5745: warm() resolves Quartz names under a lock at first use)
+from fichero_server.media.current_image import IMAGE_READ, ORIGINAL
 
 import asyncio
 import collections
@@ -3844,48 +3845,23 @@ def _substitute_region_crops(
     return substituted
 
 
-def frame_true_rendition_path(
-    library_path: str, doc_id: str | None, roles: tuple[str, ...]
-) -> str | None:
-    """Absolute path of the doc's first rendition in ``roles`` (in that order)
-    that IS the node's own frame and whose bytes exist — else None.
-
-    ``transform is None`` is the Rendition contract for "identical frame:
-    anchors pass straight through", which is exactly the guarantee the OCR
-    geometry needs. A cropped/deskewed rendition (transform set) is refused
-    here; consuming it correctly is the bbox program's frame-identity work.
-    Failure is always None, never an exception — the caller falls back to
-    the original pixels.
-    """
-    if not library_path or not doc_id:
-        return None
+def _current_page_image_of(library_path: str, doc_id: str) -> Any:
+    """The page's current image (`media/current_image.current_page_image`), or None for a node with no image file of its own
+    (a PDF page, a page by reference) and for a region node, which is read on its own crop. A failure to find it is the
+    original, never a failed page: the log says why."""
     try:
         from fichero_server.db import db_manager
-        from fichero_server.models import Rendition
+        from fichero_server.media.current_image import current_page_image
+        from fichero_server.models import Document
 
         db = db_manager.get_database(library_path)
-        renditions = db.query(Rendition, document_id=str(doc_id))
-    except Exception:
+        doc = db.get(Document, doc_id)
+        if doc is None or doc.region_in_parent is not None:
+            return None
+        return current_page_image(db, doc)
+    except Exception as exc:  # noqa: BLE001 -- the page is read on its photograph, and the log says why
+        logger.warning("page image: the current image of %s could not be worked out (%s): the original is read", doc_id, exc)
         return None
-    for role in roles:
-        for rendition in renditions:
-            if (
-                rendition.role == role
-                and rendition.transform is None
-                and rendition.materialized
-            ):
-                candidate = Path(rendition.path)
-                if not candidate.is_absolute():
-                    candidate = Path(library_path) / rendition.path
-                if candidate.exists():
-                    return str(candidate)
-    return None
-
-
-#: The renditions lines and reading read in place of the original, first found
-#: first: the recipe's prepared page (`recipes/prepare.py`, #5580), then a
-#: background-removed one (faint pencil, 2026-08-24 eval).
-READ_FROM_ROLES = ("prepared", "background_removed")
 
 
 def page_direction(library_path: str | None, doc_id: str | None) -> dict[str, str]:
@@ -3911,14 +3887,6 @@ def page_direction(library_path: str | None, doc_id: str | None) -> dict[str, st
         return {}
     said = resolved.language if resolved.status != STATUS_UNKNOWN else None
     return {"direction": said} if said and said != "ltr" else {}
-
-
-def _frame_true_background_removed_path(
-    library_path: str, doc_id: str | None
-) -> str | None:
-    """The page's frame-true prepared or background_removed rendition (see
-    :func:`frame_true_rendition_path`), else None."""
-    return frame_true_rendition_path(library_path, doc_id, READ_FROM_ROLES)
 
 
 class _KrakenPageGate:
@@ -4519,20 +4487,17 @@ async def process_vision(
             _segment_target = segment_target_of(
                 page_doc_dict_by_index[file_index] if file_index < len(page_doc_dict_by_index) else None
             )
+            # THE page's current image (`media/current_image.py`, #6296): the edit chain applied, else the newest rendition, else
+            # the original. Every reader below sends it, and what a finder measures on it is carried back to the photograph.
+            _page_image = None
             if library_path and doc_id_for_file and _segment_target is None:
-                from fichero_server.db import db_manager
-                from fichero_server.models import Document
-                from fichero_server.db.storage import resolve_edited_source
-
-                live_doc = db_manager.get_database(library_path).get(Document, doc_id_for_file)
-                if live_doc:
-                    edited = resolve_edited_source(
-                        live_doc,
-                        db_manager.get_database(library_path),
-                        page=(requested_page_index or 0) + 1,
-                    )
-                    if edited:
-                        file_path = str(edited)
+                _page_image = _current_page_image_of(library_path, doc_id_for_file)
+                if _page_image is not None and (vision_mode == "kraken" or (vision_mode == "apple" and not keep_text)):
+                    # a step that finds or cuts lines needs a frame it can follow (a whole-page read does not)
+                    _page_image = _page_image.for_geometry()
+                if _page_image is not None and not _page_image.is_original:
+                    file_path = _page_image.path
+                    logger.info("page image for %s: %s", doc_id_for_file, _page_image.why)
             # `return_boxes` is a VISIBLE toggle on the transcribe node (it has
             # no `x-hidden` in the config schema, so the editor renders it), but
             # only the Gemini LLM path can honour it. Ticking it with any other
@@ -4574,6 +4539,10 @@ async def process_vision(
                         _boxes_unsupported_reason,
                     )
                     _boxes_requested = False
+            if _boxes_requested and _page_image is not None and _page_image.frame_unknown:
+                # the boxes are the point and are stored on the photograph: an edit whose place on it is not known is not sent
+                _page_image = _page_image.for_geometry()
+                file_path = _page_image.path
             # Pre-loaded page-doc dict (eliminates db.get re-fetch in save_artifact, #2430)
             _preloaded_doc = (
                 page_doc_dict_by_index[file_index]
@@ -4819,6 +4788,7 @@ async def process_vision(
                         library_path=library_path,
                         provider=cache_provider,
                         model=cache_model,
+                        image=_page_image.signature if _page_image is not None else None,
                     )
                 except ArtifactLookupError as exc:
                     # Skip-if-done cache read FAILED — we cannot prove a cached
@@ -4902,16 +4872,8 @@ async def process_vision(
                     # rendition vs ~2/3 on the original). A rendition with
                     # transform=None IS the node's frame by contract, so the
                     # normalized boxes stay valid everywhere.
-                    _ocr_path = _frame_true_background_removed_path(
-                        library_path, doc_id_for_file
-                    ) or file_path
-                    if _ocr_path != file_path:
-                        logger.info(
-                            "Apple Vision: using background_removed rendition for %s",
-                            Path(file_path).name,
-                        )
                     _vision_result = await apple_vision_ocr_with_geometry_async(
-                        _ocr_path,
+                        file_path,  # the page's current image (`_page_image`)
                         language,
                         # The page's existing transcript anchors the recovery
                         # of lines Vision misses at ordinary spacing.
@@ -4919,6 +4881,8 @@ async def process_vision(
                     )
                     text = _vision_result.text
                     page_geometry = _apple_geometry_result(_vision_result)
+                    if _page_image is not None:  # its boxes are fractions of that image: carried to the photograph
+                        page_geometry = _page_image.geometry_to_photograph(page_geometry)
                 if not keep_text:
                     # Apple as a line FINDER (image, requested PDF page, every PDF page): its boxes, never its text
                     # (`source.recipe.apple-finds-lines-on-print`).
@@ -4952,14 +4916,16 @@ async def process_vision(
                     from fichero_server.execution.jobs import run_on_lane
                     from fichero_server.llm import working_lines as _wl
 
-                    with _Image.open(image_path) as _im:
+                    _lines_on = _page_image if _page_image is not None and image_path == _page_image.path else None
+                    with _Image.open(_lines_on.photograph if _lines_on is not None else image_path) as _im:
                         _w, _h = found.page_size(_im)  # in the frame the lines were measured on (`media/upright.py`)
                     from fichero_server.db import db_manager as _dbm
 
                     def _unread(stamp: str | None) -> Any:
                         if read_all_lines:
                             return found
-                        return _wl.unread_by(_dbm.get_database(library_path), found, stamp)
+                        return _wl.unread_by(_dbm.get_database(library_path), found, stamp,
+                                             image=_lines_on.signature if _lines_on is not None else ORIGINAL)
 
                     if not kraken_recognition_model:
                         from fichero_server.llm.line_reader import read_lines
@@ -4972,7 +4938,7 @@ async def process_vision(
                                             model=effective_config.model),
                             effective_config, language=language,
                             **({"apple": True} if lines_read_by == "apple" else {}),
-                            granularity=read_granularity,
+                            granularity=read_granularity, page_image=_lines_on,
                         )
                         return _wl.whole_page(_dbm.get_database(library_path), whole, read, effective_config.model)
                     from fichero_server.llm import kraken_runtime as _kr
@@ -4988,10 +4954,13 @@ async def process_vision(
                     found = _unread(_stamp)
                     geometry = _wl.as_geometry(found, _w, _h, provider=_provider, model=_stamp)
                     _px = [_wl.in_pixels(row, _w, _h) for row in found.lines]
+                    _read_frame = found.frame
+                    if _lines_on is not None:  # the lines are carried onto the current image, which is opened as it is
+                        _px, _read_frame = _lines_on.carry_lines(_px, found.frame)
                     _texts = await run_on_lane(
                         library_path, "read-a-line", subject, model=f"{_provider}:{_stamp}", run_id=task_id,
-                        fn=(lambda: _tr.read_lines(image_path, _trocr_repo, _px, frame=found.frame)) if _trocr_repo
-                        else (lambda: _kr.read_given_lines(image_path, _model_path, _px, frame=found.frame)),
+                        fn=(lambda: _tr.read_lines(image_path, _trocr_repo, _px, frame=_read_frame)) if _trocr_repo
+                        else (lambda: _kr.read_given_lines(image_path, _model_path, _px, frame=_read_frame)),
                     )
                     _boxes, _joined, _cursor, _blank = [], [], 0, []
                     for _box, _text in zip(geometry.boxes, _texts):
@@ -5099,6 +5068,10 @@ async def process_vision(
                                 **({"apple": True} if lines_read_by == "apple" else {}),
                                 granularity=read_granularity,
                             )
+                    if _found_lines is None and _page_image is not None and image_path == _page_image.path:
+                        # Found (and read) on the page's current image: its lines are carried back to the photograph, the
+                        # frame every stored line is in (`media/current_image.py`).
+                        result = _page_image.geometry_to_photograph(result)
                     if page_index is not None:
                         result = result.model_copy(
                             update={
@@ -5173,11 +5146,8 @@ async def process_vision(
                         text = "\n\n".join(t for t in per_page_texts if t)
                         parsed = text
                 else:
-                    _ocr_path = _frame_true_background_removed_path(
-                        library_path, doc_id_for_file
-                    ) or file_path
                     page_geometry = await _kraken_process_image(
-                        _ocr_path, page_index=None
+                        file_path, page_index=None  # the page's current image (`_page_image`)
                     )
                     text = page_geometry.text
                     parsed = text
@@ -5360,9 +5330,7 @@ async def process_vision(
                         # A page the recipe prepared is read from its prepared
                         # rendition, the page's own frame (#5580).
                         image_uri = await file_to_data_uri_async(
-                            frame_true_rendition_path(
-                                library_path, doc_id_for_file, ("prepared",)
-                            ) or file_path,
+                            file_path,  # the page's current image (`_page_image`)
                             max_dimension=max_image_dimension,
                         )
 
@@ -5419,6 +5387,8 @@ async def process_vision(
                             llm_config=effective_config,
                             page_index=requested_page_index,
                         )
+                        if _page_image is not None:  # the model's fractions are of the image it was sent: carried to the photograph
+                            page_geometry = _page_image.geometry_to_photograph(page_geometry)
                         parsed = parse_output(text, output_format, output_options)
                     else:
                         # #4309: no geometry from this pass — say WHY on the
@@ -5815,9 +5785,11 @@ async def process_vision(
                 # it local to this closure and UnboundLocalError every read
                 # above (the parameter lives in the enclosing scope).
                 effective_artifact_data = artifact_data
+                if _page_image is not None:  # what the model was sent: the skip-if-done cache and the line resume compare it (#6296)
+                    effective_artifact_data = {**(artifact_data or {}), IMAGE_READ: _page_image.signature}
                 if page_thinking_single:
                     effective_artifact_data = {
-                        **(artifact_data or {}),
+                        **(effective_artifact_data or {}),
                         "thinking": page_thinking_single,
                     }
                 # Provenance join (2026-08-12, Daniel: "can we click on an
