@@ -154,7 +154,7 @@ def _two_candidates(monkeypatch, page_id, columns):
     def reading(text, box):
         return {"kind": "transcription", "level": None, "text": text, "bbox": box}
 
-    result = {"stage": "read", "candidates": [
+    result = {"stage": "read", "pages": [page_id, "p2", "p3"], "candidates": [
         {**columns[0], "card": "a", "name": "A", "per_page": [{"id": page_id, "readings": [reading("Yten dixo", [0.2, 0.30, 0.4, 0.2])]}]},
         {**columns[1], "card": "b", "name": "B", "per_page": [{"id": page_id, "readings": [reading("Yten dixo", [0.2, 0.30, 0.4, 0.2])]}]}]}
     monkeypatch.setattr(samples, "read_result", lambda db, stage, recipe: result)
@@ -204,6 +204,24 @@ def test_wide_a_candidates_head_carries_its_error_rate_time_price_and_why_a_figu
     unmeasured = {"cer": None, "seconds": None, "local": False, "cost_usd": {"value": 0.12, "basis": "estimate", "measured": False}}
     _two_candidates(monkeypatch, doc.id, [measured, unmeasured])
     a, b = _compare(client, doc.id, "?try_stage=read")["readers"]
-    assert a["measure"] == {"cer": 0.042, "seconds": 18.0, "cost_usd": 0.0, "cost_basis": "runs on this Mac", "local": True, "not_measured": None}
+    assert {k: a["measure"][k] for k in ("cer", "seconds", "cost_usd", "cost_basis", "local", "not_measured")} == {
+        "cer": 0.042, "seconds": 18.0, "cost_usd": 0.0, "cost_basis": "runs on this Mac", "local": True, "not_measured": None}
     assert b["measure"]["cer"] is None and b["measure"]["cost_usd"] == 0.12 and b["measure"]["cost_basis"] == "estimate"
     assert "not measured: error rate and time" in b["measure"]["not_measured"]
+
+
+def test_wide_a_candidates_head_scales_its_sample_figures_to_the_whole_project(db, client, tmp_path, monkeypatch):
+    """`wide.compare.price-and-time-per-candidate`: pages an hour, the project's cost and hours, from the sample's seconds and cost and
+    the project's page count, with the basis said; an unmeasured candidate has none of them and says why."""
+    doc = _real_page(db, tmp_path)
+    measured = {"cer": 0.04, "seconds": 18.0, "local": False, "cost_usd": {"value": 0.30, "basis": "measured", "measured": True}}
+    unmeasured = {"cer": None, "seconds": None, "local": False, "cost_usd": {"value": None, "basis": "unknown", "measured": False}}
+    _two_candidates(monkeypatch, doc.id, [measured, unmeasured])
+    monkeypatch.setattr("fichero_server.recipes.start.count_pages", lambda db_: 300)
+    a, b = _compare(client, doc.id, "?try_stage=read")["readers"]
+    a, b = _compare(client, doc.id, "?try_stage=read")["readers"]
+    assert a["measure"]["seconds_per_page"] == 6.0 and a["measure"]["pages_per_hour"] == 600.0
+    assert a["measure"]["project_pages"] == 300 and a["measure"]["project_hours"] == 0.5
+    assert a["measure"]["project_cost_usd"] == 30.0 and "3 sample pages" in a["measure"]["project_basis"]
+    assert all(b["measure"][k] is None for k in ("seconds_per_page", "pages_per_hour", "project_hours", "project_cost_usd"))
+    assert b["measure"]["not_measured"]

@@ -60070,6 +60070,42 @@
             "nullable": true,
             "title": "Not Measured",
             "description": "why a figure is missing, in words"
+          },
+          "seconds_per_page": {
+            "type": "number",
+            "nullable": true,
+            "title": "Seconds Per Page",
+            "description": "the sample's seconds divided by its pages"
+          },
+          "pages_per_hour": {
+            "type": "number",
+            "nullable": true,
+            "title": "Pages Per Hour",
+            "description": "pages an hour at the sample's rate"
+          },
+          "project_pages": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Project Pages",
+            "description": "the pages the whole project would run over"
+          },
+          "project_cost_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Project Cost Usd",
+            "description": "the sample's cost per page times the project's pages"
+          },
+          "project_hours": {
+            "type": "number",
+            "nullable": true,
+            "title": "Project Hours",
+            "description": "the project's pages at the sample's rate, in hours"
+          },
+          "project_basis": {
+            "type": "string",
+            "nullable": true,
+            "title": "Project Basis",
+            "description": "how the whole-project figures were worked out, in words"
           }
         },
         "type": "object",

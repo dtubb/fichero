@@ -353,6 +353,7 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
     counts = dict.fromkeys(COUNTS, 0)
     flagged: list[dict[str, Any]] = []
     missing: list[dict[str, str]] = []
+    per_page: dict[str, dict[str, Any]] = {}  # each page's own figures, for the Read try (`wide.nomodel.tie-figures-on-his-pages`)
     stopped = False
     for doc in _descendants(db, request.scope_ids):
         if getattr(doc.doc_type, "value", doc.doc_type) not in ("file", "page"):
@@ -400,12 +401,15 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
         aligned = tie_lines(reading.content, reads)
         if page_is_draft(aligned):
             counts["drafts"] += 1
+            per_page[doc.id] = {"tied": 0, "doubtful": 0, "untied": 0, "draft": True}
             flagged.append({"document_id": doc.id, "flag": DRAFT,
                             "score": round(sum(s["score"] for s in aligned) / len(aligned), 3)})
             continue
+        here = per_page[doc.id] = {"tied": 0, "doubtful": 0, "untied": 0, "draft": False}
         for row, scored in zip(found.lines, aligned):
             if not scored["text"]:
                 counts["untied"] += 1
+                here["untied"] += 1
                 continue
             made = registry.invoke(db, "representation.create", {
                 "document_id": doc.id, "segment_id": row.id, "kind": request.kind, "content": scored["text"],
@@ -415,6 +419,7 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
                 "machine_confidence": scored["score"]}, ctx).result
             if scored["tied"]:
                 counts["tied"] += 1
+                here["tied"] += 1
                 continue
             reasons = (f"{DOUBTFUL}: agrees {scored['score']:.2f} with Kraken's rough read of the line, "
                        f"below {THRESHOLD:.2f} (rough read: {scored['rough_read']!r})")
@@ -422,10 +427,11 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
                 "layer": "readings", "target_id": made["id"], "verdict": "reject", "reasons": reasons,
                 "checker_model": request.model, "segment_id": row.id}, ctx)
             counts["doubtful"] += 1
+            here["doubtful"] += 1
             flagged.append({"document_id": doc.id, "segment_id": row.id, "reading_id": made["id"],
                             "flag": DOUBTFUL, "score": scored["score"]})
         counts["pages_tied"] += 1
-    return {"counts": counts, "flagged": flagged, "missing": missing, "stopped": stopped,
+    return {"counts": counts, "flagged": flagged, "missing": missing, "stopped": stopped, "per_page": per_page,
             "thresholds": {"tie": THRESHOLD, "policy": "accent-blind"}}
 
 

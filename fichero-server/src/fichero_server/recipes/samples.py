@@ -512,7 +512,7 @@ def _cards_for(setup: dict[str, Any], step: dict[str, Any], wanted: list[str] | 
     """The cards compared for the step: `wanted` in its order, else the step's own and the per-step finder's next
     ones runnable here (`source.find.candidates-fit-the-step`), up to `COMPARED`."""
     from fichero_server.api.routes.system.recipes import _answers
-    from fichero_server.recipes.assemble import _rank_key, _refusal
+    from fichero_server.recipes.assemble import _rank_key, _refusal, offered_to_compare
     from fichero_server.recipes.discovery import discover, known_cards, step_candidates
 
     job = str(step.get("job"))
@@ -545,6 +545,12 @@ def _cards_for(setup: dict[str, Any], step: dict[str, Any], wanted: list[str] | 
                and job in ("read-a-line", "read-a-page") else None)
     chosen, left = choose_try_candidates(own_card, [c for c in fits if c.id != own], frontier, limit=COMPARED,
                                          variant_a=variant)
+    # A card offered to compare on this material (Apple's lines on handwriting) joins when there is room, after the rules' own
+    # choices: the person sees what it finds beside Kraken's and adopts it only then (`wide.faded.segmenter-choices-named`).
+    offered = [c for c in found if job in c.jobs and c.runs_here and offered_to_compare(c, a.material)
+               and (_refusal(job, c, a, a.material) or ("no-reader-for-material",))[0] == "no-reader-for-material"
+               and c.id not in {x.id for x in chosen}]
+    chosen = [*chosen, *offered[:max(0, COMPARED - len(chosen))]]
     if left_out is not None:
         left_out.extend(left)
     return chosen
@@ -816,9 +822,16 @@ def _run_try_watched(db: Any, subject: str) -> dict[str, Any]:
                       state=run["state"], seconds=run["seconds"], per_page=run["made"]["per_page"],
                       names=run["made"]["names"], measures=measures, agreement=measures["agreement"],
                       cer=measures["cer"], why=run.get("error"),
+                      **({"tie": run["made"]["tie"]} if "tie" in run["made"] else {}),  # the tie's figures, per candidate
                       cost_usd=cost_figure(by_card_cards[column["card"]], column["cost_usd"]["value"], column["local"],
                                            run.get("spent")))
     result["candidates"] = columns
+    if stage_id == "find-lines" and own["state"] == "done":
+        try:
+            result["line_counts"] = line_counts_on_both(db, result["pages"], job_id)
+        except Exception as exc:  # noqa: BLE001 -- the counts are a courtesy; the try's own answer stands, and says they are missing
+            logger.warning("the try's line counts on both images could not be made: %s", exc, exc_info=True)
+            result["line_counts"] = {"pages": {}, "not_clarified": [], "error": f"the two counts could not be made: {exc}"}
     result["recommendation"] = _recommend(db, library, columns, total)
     result["progress"] = finished_progress(own["state"], own["made"]["per_page"], total, stage_id)
     _write(library, stage_id, result)
@@ -948,6 +961,12 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
                              person=True)  # a try is one a person presses and watches
                 ran.append({"steps": card["steps"], "state": "done", "why": None})
                 continue
+            if card.get("card") == "check" and card.get("check") == "tie-text-to-lines":
+                _say_on_row(db, job_id, stage_id, f"Trying {stage.title}: tying the page text to its lines")
+                tied, state, why = _tie_on(copy, card, pages, back, job_id)
+                extra["tie"] = tied
+                ran.append({"steps": card["steps"], "state": state, "why": why})
+                continue
             if card.get("card") != "workflow":
                 ran.append({"steps": card.get("steps"), "state": "skipped", "why": "not tried on samples yet"})
                 continue
@@ -1012,6 +1031,57 @@ def _spent(copy: Any, threads: list[str]) -> dict[str, Any] | None:
         logger.warning("the try's cost could not be measured from its runs' usage: %s", exc, exc_info=True)
         return {"not_measured": f"cost not measured: {exc}"}
     return {"model_calls": calls, "total_tokens": tokens, "cost_usd": cost} if calls else None
+
+
+def _count_lines(db: Any, doc: Any, path: str, run_id: str) -> int:
+    """How many lines Kraken's segmenter finds on one image file, through the model lane like every Kraken page."""
+    from fichero_server.execution import jobs
+    from fichero_server.llm.kraken_runtime import geometry_from_segmentation, segment_lines
+    from fichero_server.media.ocr_geometry import OCRGeometryLevel
+    from fichero_server.workflows.tools.vision_base import page_direction
+
+    library = str(Path(db.path).parent)
+    direction = page_direction(library, doc.id)
+    segmented = jobs.run_on_lane_blocking(library, "find-regions", doc.id, model="kraken:blla", parent_id=run_id, run_id=run_id,
+                                          fn=lambda: segment_lines(path, **direction))
+    found = geometry_from_segmentation(segmented, source_name=doc.name, direction=direction.get("direction"))
+    return sum(1 for b in found.boxes if b.level is OCRGeometryLevel.LINE)
+
+
+def line_counts_on_both(db: Any, pages: list[str], run_id: str) -> dict[str, Any]:
+    """Find Lines' two counts for the pages whose current image is a clarified copy (Prepare Images' `prepared` rendition): the
+    lines the segmenter finds on the photograph and on the copy (`wide.faded.line-counts-before-and-after`, #6271). `not_clarified`
+    names the pages that have no such copy, so the app can say Clarity is off for them. Read from the project's own pages: nothing is
+    copied or written."""
+    from fichero_server.media.current_image import RENDITION, current_page_image
+    from fichero_server.models import Document
+
+    counted: dict[str, dict[str, int]] = {}
+    without: list[str] = []
+    for page in pages:
+        doc = db.get(Document, page)
+        current = current_page_image(db, doc, library_root=Path(db.path).parent) if doc is not None else None
+        if current is None or current.kind != RENDITION or "(prepared)" not in (current.why or ""):
+            without.append(page)
+            continue
+        counted[page] = {"photograph": _count_lines(db, doc, current.photograph, run_id),
+                         "clarified": _count_lines(db, doc, current.path, run_id)}
+    return {"pages": counted, "not_clarified": without}
+
+
+def _tie_on(copy: Any, card: dict[str, Any], pages: list[str], back: dict[str, str],
+            parent: str) -> tuple[dict[str, Any], str, str | None]:
+    """The tie (`tie-text-to-lines`) on the copy, after Read: its counts, in all and per page, keyed by the project's own
+    page ids (`wide.nomodel.tie-figures-on-his-pages`, #5721). The tie is a check job, not a workflow, so the try runs it here."""
+    import json
+
+    from fichero_server.execution import jobs
+    from fichero_server.recipes import runner
+
+    child, state, why = runner._run_check(copy, card, pages, parent, "try")
+    result = json.loads((jobs.read_job(copy, child) or {}).get("detail") or "{}").get("result") or {} if child else {}
+    per_page = {back.get(page, page): figures for page, figures in (result.get("per_page") or {}).items()}
+    return {"counts": result.get("counts") or {}, "pages": per_page}, state, why
 
 
 def _organise(copy: Any, card: dict[str, Any], pages: list[str],

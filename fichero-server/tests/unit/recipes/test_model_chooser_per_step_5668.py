@@ -179,3 +179,43 @@ def test_a_steps_search_is_its_own_job_and_a_step_without_one_says_so(jobs_run_b
     hub = next(s for s in body["sources"] if s["source"] == "hugging-face")
     assert hub["detail"] == discovery.NO_STEP_SEARCH
     assert not any("readers only" in s["detail"] for s in body["sources"])
+
+
+# --- wide.faded.segmenter-choices-named: Apple's line card is a candidate on handwriting, never the default -------------
+
+APPLE_LINES = "apple:vision/find-lines@os"
+KRAKEN_BLLA = "kraken:builtin/blla@bundled"
+
+
+def test_wide_apples_line_card_is_offered_on_handwriting_but_never_chosen_by_the_rules(client, with_material):
+    """`wide.faded.segmenter-choices-named` (#6271): the Find Lines page names Kraken `blla` and Apple Vision's lines. On handwriting
+    Apple's card is a candidate to compare (not refused, no rule rank, not in the rules), and the assembled default stays Kraken."""
+    r = client.post("/api/recipes/assemble", json={"languages": ["es"], "scripts": ["Latn"], "mac_memory_gb": 16,
+                                                    "jobs": ["find-lines"]})
+    assert r.status_code == 200, r.text
+    step = next(s for s in r.json()["steps"] if s["job"] == "find-lines")
+    assert step["model"] == {"kraken": "blla", "kraken_version": "bundled"}, "never the default on handwriting"
+
+    items = {i["id"]: i for i in _candidates(client, "find-lines", material="handwriting")["items"]}
+    assert set(items) >= {KRAKEN_BLLA, APPLE_LINES}
+    apple = items[APPLE_LINES]
+    assert apple["refused"] is None and apple["rule_rank"] is None and apple["in_recipe_rules"] is False
+    assert items[KRAKEN_BLLA]["rule_rank"] == 1 and items[KRAKEN_BLLA]["refused"] is None
+    on_print = {i["id"]: i for i in _candidates(client, "find-lines", material="print")["items"]}
+    assert on_print[APPLE_LINES]["in_recipe_rules"] is True, "on print it is the rules' own card, as before"
+
+
+def test_wide_the_find_lines_try_compares_kraken_and_apples_lines_on_handwriting(monkeypatch):
+    from fichero_server.recipes import samples
+    from fichero_server.recipes.cards import all_seed_cards
+
+    seed = [c for c in all_seed_cards() if c.id in (KRAKEN_BLLA, APPLE_LINES)]
+    from fichero_server.recipes import discovery
+
+    monkeypatch.setattr(discovery, "discover", lambda a, **k: (seed, []))
+    monkeypatch.setattr(discovery, "known_cards", lambda a, include_not_built=False: seed)
+    step = {"id": "lines", "job": "find-lines", "model": {"kraken": "blla", "kraken_version": "bundled"},
+            "card": {"id": KRAKEN_BLLA}}
+    setup = {"answers": {"purposes": ["transcribe"], "languages": ["es"], "scripts": ["Latn"],
+                         "materials": ["handwriting"]}, "recipe": {"steps": [step]}}
+    assert [c.id for c in samples._cards_for(setup, step, None)] == [KRAKEN_BLLA, APPLE_LINES]

@@ -423,6 +423,12 @@ class CompareMeasure(BaseModel):
     cost_basis: Optional[str] = Field(default=None, description="what the cost figure is: measured, an estimate or an upper bound")
     local: bool = Field(default=False, description="it runs on this Mac, free")
     not_measured: Optional[str] = Field(default=None, description="why a figure is missing, in words")
+    seconds_per_page: Optional[float] = Field(default=None, description="the sample's seconds divided by its pages")
+    pages_per_hour: Optional[float] = Field(default=None, description="pages an hour at the sample's rate")
+    project_pages: Optional[int] = Field(default=None, description="the pages the whole project would run over")
+    project_cost_usd: Optional[float] = Field(default=None, description="the sample's cost per page times the project's pages")
+    project_hours: Optional[float] = Field(default=None, description="the project's pages at the sample's rate, in hours")
+    project_basis: Optional[str] = Field(default=None, description="how the whole-project figures were worked out, in words")
 
 
 class CompareReader(BaseModel):
@@ -520,7 +526,7 @@ def frame_of(db: Database, document: Document, width: Optional[int], height: Opt
     return frame, carry
 
 
-def candidate_measure(column: dict[str, Any]) -> CompareMeasure:
+def candidate_measure(column: dict[str, Any], *, sample_pages: int = 0, project_pages: int | None = None) -> CompareMeasure:
     """A Try column's figures for the head of its compare column: the error rate on the checked lines, the seconds, what it cost
     on the sample pages with its basis; a figure it does not have says why (`wide.compare.price-and-time-per-candidate`)."""
     cost = column.get("cost_usd") or {}
@@ -528,9 +534,18 @@ def candidate_measure(column: dict[str, Any]) -> CompareMeasure:
     missing = [name for name, got in (("error rate", column.get("cer")), ("time", column.get("seconds"))) if got is None]
     why = column.get("why") or (f"not measured: {' and '.join(missing)} (no checked lines to compare with, or not run to the end)"
                                 if missing else None)
-    return CompareMeasure(cer=column.get("cer"), seconds=column.get("seconds"),
-                          cost_usd=value if isinstance(value, (int, float)) else None, cost_basis=cost.get("basis"),
-                          local=bool(column.get("local")), not_measured=why)
+    seconds = column.get("seconds")
+    cost_usd = value if isinstance(value, (int, float)) else None
+    scaled: dict[str, Any] = {}
+    if seconds is not None and sample_pages > 0 and project_pages:
+        per_page = seconds / sample_pages
+        scaled = {"seconds_per_page": round(per_page, 2), "project_pages": project_pages,
+                  "pages_per_hour": round(3600 / per_page, 1) if per_page > 0 else None,
+                  "project_hours": round(per_page * project_pages / 3600, 2),
+                  "project_basis": f"scaled from the {sample_pages} sample pages to the project's {project_pages}",
+                  **({"project_cost_usd": round(cost_usd / sample_pages * project_pages, 2)} if cost_usd is not None else {})}
+    return CompareMeasure(cer=column.get("cer"), seconds=seconds, cost_usd=cost_usd, cost_basis=cost.get("basis"),
+                          local=bool(column.get("local")), not_measured=why, **scaled)
 
 
 def compare_lines(raw: list[dict[str, Any]]) -> list[CompareLine]:
@@ -677,12 +692,15 @@ def try_compare(db: Database, page_id: str, stage: str, *, only: set[str] | None
     frame, carry = frame_of(db, document, width, height)
     readers: list[CompareReader] = []
     groups: list[dict[str, Any]] = []   # one per matched line: {"box": [...], "readings": {reader: text}}
+    from fichero_server.recipes.start import count_pages
+
+    sample_pages, project_pages = len(result.get("pages") or []), count_pages(db)
     for column in result.get("candidates") or []:
         page = next((p for p in column.get("per_page") or [] if p.get("id") == page_id), None)
         if page is None:
             continue
         reader = CompareReader(id=str(column["card"]), label=str(column.get("name") or column["card"]), kind="candidate",
-                               measure=candidate_measure(column))
+                               measure=candidate_measure(column, sample_pages=sample_pages, project_pages=project_pages))
         placed = [r for r in page.get("readings") or [] if r.get("kind") == "transcription" and r.get("bbox") and r.get("text")]
         if not placed:
             continue

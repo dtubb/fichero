@@ -213,6 +213,9 @@ class Card:
     #: a catalogue text model still to download, a cloud model): the finder gives it no rule rank, so a model the
     #: person already has keeps rank 1 (`source.recipe.local-text-models-are-cards`).
     offered_only: bool = False
+    #: Materials the card is offered for as a candidate to compare beside the rules' choice, where `material` refuses it: never the
+    #: rules' default and given no rank (Apple Vision's lines on handwriting, `wide.faded.segmenter-choices-named`, #6271).
+    compare_on: frozenset[str] = frozenset()
     #: A frontier cloud model counted as multilingual (#5718): not refused a rewrite for a language it does not list.
     multilingual: bool = False
     #: Whether its model is already on this Mac (#5583): True or False for a model a person downloads before
@@ -311,6 +314,11 @@ def needs_permission(card: Card, a: Answers) -> bool:
     """A cloud candidate the project may not use yet: shown greyed, "needs permission", until the person has said
     pages may leave this Mac (`source.onboard.pages-may-leave`, #5768)."""
     return not card.local and card.runs_on.startswith("cloud:") and not a.cloud_allowed
+
+
+def offered_to_compare(card: Card, material: str) -> bool:
+    """True where `material` refuses the card but its `compare_on` offers it as a candidate to compare, never as the default."""
+    return material in card.compare_on and bool(card.material) and material not in card.material
 
 
 def _refusal(job: str, card: Card, a: Answers, material: str) -> tuple[str, str] | None:
