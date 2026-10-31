@@ -94,6 +94,9 @@ struct SetupStageSamples: View {
         if let error = result.failure {
             Label(error, systemImage: "xmark.octagon").font(.callout).foregroundStyle(.red)
         }
+        if FeatureManager.shared.isWideSetUpEnabled {
+            StepResultFiguresView(result: result, name: { store.name(of: $0) })
+        }
         // Each model beside the others on each page (#6034).
         let compared = (result.candidates ?? []).filter { !($0.perPage ?? []).isEmpty }
         if compared.count > 1 {
