@@ -54,11 +54,17 @@ def folders_covering(db: Any, page_ids: list[str]) -> list[Any]:
     return sorted(seen.values(), key=lambda d: (-level(d), d.name))
 
 
+#: What `_below`'s readers use of a node. Never `metadata`: a read page's line boxes are most of its row, and reading them
+#: for every page under a folder on each plan was the third query to fail at the Air's cap (2026-10-30).
+_BELOW_FIELDS = ("id", "name", "doc_type", "deleted_at", "sequence", "page_content")
+
+
 def _below(db: Any, folder_id: str) -> tuple[list[Any], list[Any]]:
-    """(direct child folders, every non-folder node under the folder at any depth), live ones only."""
+    """(direct child folders, every non-folder node under the folder at any depth), live ones only, `_BELOW_FIELDS` of each."""
     from fichero_server.models import Document
 
-    children = [c for c in db.query(Document, parent_id=folder_id) or [] if not c.deleted_at]
+    # ponytail: holds the subtree's text in Python (170 MB for a whole 69k box); sha1(page_content) in SQL if a plan shows up in RSS
+    children = [c for c in db.query_fields(Document, _BELOW_FIELDS, parent_id=folder_id) if not c.deleted_at]
     folders = [c for c in children if _is_folder(c)]
     leaves = [c for c in children if not _is_folder(c)]
     for sub in folders:
