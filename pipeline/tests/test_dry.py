@@ -299,3 +299,19 @@ def test_the_feeder_cuts_clusters_and_the_next_cluster_starts_after_the_first(dr
     briefs = sorted((core.STATE / "briefs").rglob("issue-*-attempt-1.md"))
     assert len(briefs) == 3 and all("Diff bound: 20 lines" in b.read_text() and "src/mod.py" in b.read_text() for b in briefs)
     assert {t for t in core.state()["tasks"]} == {"cluster-1", "cluster-2"}
+
+
+def test_with_the_real_servers_pi_sends_exactly_the_small_tool_list(dry):
+    """The runner's real mcp.json (jcodemunch, pipeline; jdocmunch only when the brief cites docs): the SMALL_TOOLS are direct
+    tools and no other tool of those servers is."""
+    if not shutil.which("jcodemunch-mcp"):
+        pytest.skip("jcodemunch-mcp is not installed on this machine")
+    shutil.copy(ROOT / "pipeline" / "pi-agent" / "mcp.json", Path(core.cfg()["workers"]["agent_dir"]) / "mcp.json")
+    for k in ("first", "second"):  # the first session may be ahead of the adapter's metadata cache; the second never is
+        dry.script(finish())
+        core.start([1001], task=k, from_file=str(dry.folder), provider="openrouter", model=MODEL)
+    names = tool_names(dry.requests[-1])
+    want = {f"{srv}_{t}" for srv, ts in coder.SMALL_TOOLS.items() if srv != "jdocmunch" for t in ts}
+    assert want <= set(names), (sorted(want - set(names)), names)
+    assert [n for n in names if n.startswith(("jcodemunch_", "jdocmunch_", "pipeline_")) and n not in want] == [], names
+    print("TOOLS SENT:", names)
