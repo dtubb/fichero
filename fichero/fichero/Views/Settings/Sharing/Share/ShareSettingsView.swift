@@ -58,6 +58,8 @@ struct ShareSettingsView: View {
     @State var qrImage: PlatformImage?
     /// The engine process (health's pid) that minted the code on the card: a code outlives a health check, never a restart.
     @State var codeEnginePID: Int?
+    /// The engine process health last named (`refreshEnginePID`); what `codeEnginePID` is compared with.
+    @State var healthEnginePID: Int?
     /// Which address the QR and Copy Link carry (`sharing.share-sheet-offers-both-addresses`); nil = the model's default.
     @State var addressChoice: AddressChoice?
     var showAddDevice: Bool {
@@ -153,11 +155,14 @@ struct ShareSettingsView: View {
         // The engine coming back mints when the card has nothing to show, or shows a code another engine process minted
         // (a restart loses the engine's codes); its going away never clears the card.
         .onChange(of: appState.isBackendRunning) { _, running in
-            guard didBootstrap,
-                  PairingCardRefresh.mintsWhenEngineChanges(isRunning: running, hasCode: pairingCode != nil,
-                                                            blocked: pairingBlocker != nil, sameEngine: codeIsFromThisEngine)
-            else { return }
-            Task { await refreshPairingCode() }
+            guard didBootstrap else { return }
+            Task {
+                if running { await refreshEnginePID() }  // the pid health names now, to compare with the code's
+                guard PairingCardRefresh.mintsWhenEngineChanges(isRunning: running, hasCode: pairingCode != nil,
+                                                                blocked: pairingBlocker != nil, sameEngine: codeIsFromThisEngine)
+                else { return }
+                await refreshPairingCode()
+            }
         }
         .task(id: inviteLinkString) { qrImage = makeQRCodeImage() }
         // A code is replaced when it expires, not left on screen past the time it names (#5915). The task is keyed on

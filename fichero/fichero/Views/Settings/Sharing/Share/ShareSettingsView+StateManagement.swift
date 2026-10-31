@@ -108,8 +108,18 @@ extension ShareSettingsView {
         await refreshSharingState()
     }
 
-    /// The engine process now running, by health's pid; nil when unknown (an external engine, or none yet).
-    var currentEnginePID: Int? { appState.enginePID?().map { Int($0) } }
+    /// The engine process now running, by health's `engine_pid`; nil until health has answered once. Not
+    /// `backendService.backendPID`, which is nil for an adopted engine (Dev Local, an external one): that re-minted on every
+    /// health check (review N3).
+    var currentEnginePID: Int? { healthEnginePID }
+
+    /// Asks health who is running. A failed read keeps the last pid: a health check in flight must not make the card forget
+    /// which engine its code came from.
+    func refreshEnginePID() async {
+        guard let response = try? await appState.ficheroClient.api.healthCheckApiHealthGet(headers: .init()),
+              case .ok(let ok) = response, let pid = (try? ok.body.json)?.enginePid else { return }
+        healthEnginePID = pid
+    }
 
     /// Whether the code on the card came from the engine process now running (`PairingCardRefresh.sameEngine`).
     var codeIsFromThisEngine: Bool {
@@ -117,6 +127,7 @@ extension ShareSettingsView {
     }
 
     func refreshPairingCode() async {
+        await refreshEnginePID()
         // A health check in flight is not a reason to blank the card: the code it holds is still good until it expires,
         // as long as the SAME engine process holds it (a restart loses the engine's codes).
         if PairingCardRefresh.keepsCode(whenBlockedBy: pairingBlocker == .engineNotRunning, hasCode: pairingCode != nil,
