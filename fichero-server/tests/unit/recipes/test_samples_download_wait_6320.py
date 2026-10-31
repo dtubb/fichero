@@ -9,7 +9,7 @@ def test_a_download_that_never_moves_ends_the_wait_in_words(monkeypatch):
     monkeypatch.setattr(jobs, "current_job_id", lambda: None)
     plan = {"downloads": [{"name": "Reader X", "job_id": "d1"}]}
     said = samples._await_downloads(None, plan, every=0.01, limit=0.05)
-    assert said is not None and "Reader X" in said and "goes on" in said
+    assert said is not None and "Reader X" in said and "may be stuck" in said and "Activity" in said
 
 
 def test_a_slow_download_that_keeps_reporting_progress_is_waited_for(monkeypatch):
