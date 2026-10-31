@@ -348,10 +348,12 @@ final class RecipeSetupStore {
     /// as the engine plans it (GET /api/recipes/project/start).
     private(set) var startPlan: Components.Schemas.StartPlan?
 
-    /// Start is offered only when the engine has a plan with nothing refused. A model already downloading is not
-    /// a refusal (#5660): its steps wait for it after Start, so Start stays pressable while it downloads.
+    /// Start is offered only when the engine has a plan with something to run and nothing refused. A model already downloading is not
+    /// a refusal (#5660): its steps wait for it after Start, so Start stays pressable while it downloads. Any run counts, whatever its
+    /// card: Prepare Images, Find Regions, Leave Out, Find the Documents, Catalogue and Search are runs, not workflows
+    /// (`wide.start.enabled-on-any-run`, #5806); a plan from an engine that lists workflows only still counts.
     var canStart: Bool {
-        !isAddingMaterial && (startPlan.map { $0.refusals.isEmpty && !$0.workflows.isEmpty } ?? false)
+        !isAddingMaterial && (startPlan.map { $0.refusals.isEmpty && !($0.runs.isEmpty && $0.workflows.isEmpty) } ?? false)
     }
     /// Material is being added: Start waits for it, so it never runs on a project that has nothing yet.
     var isAddingMaterial = false

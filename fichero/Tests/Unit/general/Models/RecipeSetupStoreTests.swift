@@ -497,6 +497,30 @@ struct RecipeSetupStoreTests {
         #expect(RecipeStartFields.cost(nil) == "price unknown")
     }
 
+    /// WHY (`wide.start.enabled-on-any-run`, #5806): a plan whose only steps are cards (Prepare Images alone) has `runs` and no workflows;
+    /// Start was disabled with "every step is skipped" though the engine would run it.
+    @Test("Start is offered for a plan with a card run and no workflow, and not for a plan with nothing to run")
+    func startReadsRunsNotWorkflows() async {
+        let cardOnly = makeStore { request in
+            Self.reply(request, 200, """
+                {"runs":[{"card":"prepare","steps":["prep"],"job":"prepare-the-image","runs_on":"this-mac"}],"skipped":[],"workflows":[],"offered":[],"refusals":[],
+                 "estimate":{"pages":49,"runs":[],"total_cost_usd":0}}
+                """)
+        }
+        await cardOnly.loadStartPlan()
+        #expect(cardOnly.canStart)
+        #expect(cardOnly.startDisabledReason == nil)
+
+        let empty = makeStore { request in
+            Self.reply(request, 200, """
+                {"runs":[],"skipped":[],"workflows":[],"offered":[],"refusals":[],"estimate":{"pages":49,"runs":[],"total_cost_usd":0}}
+                """)
+        }
+        await empty.loadStartPlan()
+        #expect(empty.canStart == false)
+        #expect(empty.startDisabledReason?.contains("every step is skipped") == true)
+    }
+
     /// WHY (#5616): a step the last run did not finish runs again at Start; Ready says so under the step, with
     /// why, so the person is not surprised it runs again (and knows why it did not before).
     @Test("Ready says what the last run left undone under the step, and that it runs again")
