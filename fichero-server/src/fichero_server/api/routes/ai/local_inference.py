@@ -26,8 +26,6 @@ from fichero_server.llm.local_inference import (
     ManagedLocalInferenceProcess,
 )
 from fichero_server.llm.local_model_facts import get_local_inference_capabilities
-from fichero_server.llm.mlx_model_store import get_mlx_model_store
-from fichero_server.llm.mlx_runtime import get_mlx_runtime
 
 logger = logging.getLogger(__name__)
 
@@ -564,3 +562,15 @@ def delete_local_inference_model(
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return LocalInferenceModelDeleteResponse(status="ok", freed_bytes=freed)
+
+
+def get_mlx_model_store():
+    from fichero_server.llm.mlx_model_store import get_mlx_model_store as _get  # lazy: the app import budget (#5798)
+
+    return _get()
+
+
+def get_mlx_runtime():
+    from fichero_server.llm.mlx_runtime import get_mlx_runtime as _get  # lazy: the app import budget (#5798)
+
+    return _get()

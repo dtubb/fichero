@@ -27,13 +27,11 @@ from fichero_server.llm.model_recommendations import (
 )
 from fichero_server.models import Document, Workflow
 from fichero_server.db.storage import ensure_display, get_display
-from fichero_server.workflows.resolver import resolve_inputs
 from fichero_server.workflows.model_comparison import (
     ComparisonRequest,
     ModelSpec,
     get_comparison_engine,
 )
-from fichero_server.workflows.registry import get_tool_def
 from fichero_server.workflows.types import NodeDef, State, WorkflowDef
 
 router = APIRouter(prefix="/model-comparison", tags=["model-comparison"])
@@ -547,6 +545,8 @@ def _node_inputs(
         "parallel_file": "",
         "parallel_document": None,
     }
+    from fichero_server.workflows.resolver import resolve_inputs  # lazy: the app import budget (#5798)
+
     resolved = resolve_inputs(
         {**node.inputs, **mapped_inputs},
         state,
@@ -882,6 +882,8 @@ async def compare_workflow_node(
     node = next((n for n in workflow.nodes if n.id == request.node_id), None)
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
+    from fichero_server.workflows.registry import get_tool_def  # lazy: the app import budget (#5798)
+
     if not get_tool_def(node.tool):
         raise HTTPException(status_code=404, detail=f"Unknown tool: {node.tool}")
 

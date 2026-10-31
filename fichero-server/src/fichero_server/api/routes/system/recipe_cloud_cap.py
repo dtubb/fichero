@@ -18,7 +18,6 @@ from fichero_server.api.routes.system.recipes import (
     read_project_setup)
 from fichero_server.db import Database
 from fichero_server.recipes.cloud_cap import CloudCapChange, CloudCapChanged
-from fichero_server.recipes.project import read_saved_answers
 
 router = APIRouter(prefix="/recipes")
 
@@ -34,6 +33,8 @@ async def change_cloud_cap(
     (`answers.cloud_project_cap_usd`), and nothing else in its setup: Set Up's "Raise the cap to N" (#6295). One
     `project.save_setup`, so audited and undoable as one step; the answer names the audit row."""
     from fichero_server.llm import spend
+
+    from fichero_server.recipes.project import read_saved_answers  # lazy: it pulls recipes.recipe, jobs and topics into the app import (#5798)
 
     answers = read_saved_answers(_library(db))
     asked = {key: value for key, value in ((spend.CAP_KEY, request.cap_usd), (spend.PROJECT_CAP_KEY, request.project_cap_usd))
