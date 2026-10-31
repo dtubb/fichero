@@ -13,10 +13,11 @@ from __future__ import annotations
 
 from enum import Enum
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from fichero_server.api.main import get_library_database
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import assert_library_read_authorized, get_library_database
 from fichero_server.db import Database
 from fichero_server.models import DocType, Document, Segment
 from fichero_server.models.segments import (
@@ -124,7 +125,10 @@ class ResolvedLocation(Location):
 
 @router.post("/resolve", response_model=ResolvedLocation)
 @off_loop
-def resolve_location(location: Location, db: Database = Depends(get_library_database)) -> ResolvedLocation:
+def resolve_location(
+    location: Location, db: Database = Depends(get_library_database), http: Request = None,
+    library_path: str = Depends(require_library_path),
+) -> ResolvedLocation:
     """Resolve a page-child anchor once, for every UI/MCP caller.
 
     Source-model slice 4 (#4922): a `segmentId` is followed through
@@ -188,6 +192,9 @@ def resolve_location(location: Location, db: Database = Depends(get_library_data
     if not location.document_id:
         raise HTTPException(422, "segmentId resolved to no document")
 
+    # the document (named, or the one the segment lives on) is in the body: the page ids and a segment's box go back (#6320)
+    if http is not None:  # None: an in-process call, not a request (a request always brings it)
+        assert_library_read_authorized(http, library_path, named=[location.document_id])
     document = db.get(Document, location.document_id)
     if document is None:
         raise HTTPException(404, "Document not found")

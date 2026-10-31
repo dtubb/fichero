@@ -13,12 +13,13 @@ from datetime import datetime
 from fichero_server.core.timeutil import utc_now
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, field_validator
 
 from fichero_server.api.auth import action_context
 from fichero_server.api.change_stream import emit_change
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import get_library_database, get_library_database_for_write, read_check
 from fichero_server.actions.registry import audit_with_digests, registry
 from fichero_server.api.routes.document.segment_conversion import (
     AnchorBasis,
@@ -560,7 +561,11 @@ class EphemeralCropRequest(BaseModel):
 async def crop_ephemeral(
     request: EphemeralCropRequest,
     db: Database = Depends(get_library_database),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
 ):
+    # the document is in the body, which the read dependency never sees (#6320)
+    await read_check(http, library_path, db, [request.document_id])
     ann = Annotation(
         document_id=request.document_id,
         kind=request.kind,

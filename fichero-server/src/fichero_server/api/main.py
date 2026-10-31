@@ -36,7 +36,7 @@ from fichero_server.core.single_flight import single_flight
 import logging
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Any, Callable, Sequence
 
 import duckdb
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -1816,8 +1816,11 @@ def assert_library_write_authorized(
     request: Request,
     library_path: str,
     target_id: str | None = None,
+    *,
+    named: list[str | None] | None = None,
 ) -> None:
-    """Authorize a user-initiated mutation before touching a library DB."""
+    """Authorize a user-initiated mutation before touching a library DB. `named`: the ids a handler read from the BODY (see
+    `assert_library_read_authorized`)."""
     from fichero_server.security import authz
     from fichero_server.api.auth import library_access_denial_payload
 
@@ -1826,7 +1829,8 @@ def assert_library_write_authorized(
 
     user = getattr(getattr(request, "state", None), "user", None)
     # Every id the request names, not only the first (#5180); none -> the library itself.
-    targets = [target_id] if target_id is not None else (authz.target_ids_from_request(request) or [None])
+    targets = named if named is not None else (
+        [target_id] if target_id is not None else (authz.target_ids_from_request(request) or [None]))
     try:
         for target in targets:
             authz.assert_can_write(user, library_path, target)
@@ -1839,6 +1843,60 @@ def assert_library_write_authorized(
                 detail=str(exc),
             )
         ) from exc
+
+
+def assert_library_writes_every(request: Request, library_path: str, named: list[str | None], scope: Callable[[], Sequence[str]]) -> None:
+    """The write twin of `assert_library_reads_every`: each named id, then every document `scope()` lists, must be writable."""
+    from fichero_server.api.auth import library_access_denial_payload
+    from fichero_server.security import authz
+
+    assert_library_write_authorized(request, library_path, named=named)
+    if getattr(getattr(request, "state", None), "bootstrap_auth", False):
+        return
+    user = getattr(getattr(request, "state", None), "user", None)
+    try:
+        for doc_id in scope():
+            authz.assert_can_write(user, library_path, doc_id)
+    except authz.AuthorizationError as exc:
+        raise LibraryAccessDeniedError(
+            library_access_denial_payload(request, library_path, required="write", detail=str(exc))) from exc
+
+
+def documents_under(db: Any, target_id: str | None) -> list[str]:
+    """The live documents a read or write of `target_id` reaches: the folder and everything under it, or (None or empty) every
+    live document, as the exporters read an empty id."""
+    from fichero_server.db.document_tree import live_document_rows
+    from fichero_server.recipes.runner import folder_scope
+
+    if not target_id:
+        return list(live_document_rows(db))
+    try:
+        return sorted(folder_scope(db, target_id))
+    except LookupError:  # not a live document: the route says so itself
+        return []
+
+
+async def read_check(request: Request, library_path: str, db: Any, ids: Sequence[str | None], *, deep: bool = True) -> None:
+    """Off the event loop (for a scoped caller it is a folder walk and one lookup per page): every id the BODY names, with
+    everything under it, is readable by the caller. An empty or missing id is the whole project."""
+    import asyncio
+
+    if request is None:  # an in-process call, not a request (a request always brings it)
+        return
+    named = [i or None for i in ids] or [None]
+    await asyncio.to_thread(assert_library_reads_every, request, library_path, named,
+                            lambda: [d for i in named for d in (documents_under(db, i) if deep or not i else [i])])
+
+
+async def write_check(request: Request, library_path: str, db: Any, ids: Sequence[str | None], *, deep: bool = True) -> None:
+    """`read_check` for a route that writes: every document the body reaches must be writable."""
+    import asyncio
+
+    if request is None:
+        return
+    named = [i or None for i in ids] or [None]
+    await asyncio.to_thread(assert_library_writes_every, request, library_path, named,
+                            lambda: [d for i in named for d in (documents_under(db, i) if deep or not i else [i])])
 
 
 def readable_documents(request: Request | None, library_path: str | None, scope: list[str]) -> list[str]:

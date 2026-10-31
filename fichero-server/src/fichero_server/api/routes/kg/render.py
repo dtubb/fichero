@@ -5,10 +5,11 @@ from __future__ import annotations
 import logging
 from fichero_server.core.timeutil import utc_now
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import get_library_database, get_library_database_for_write, read_check
 from fichero_server.api.auth import action_context
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.db import Database
@@ -66,6 +67,8 @@ bio_router = APIRouter(prefix="/kg/entities", tags=["knowledge-graph"])
 async def render_paragraph(
     request: ParagraphRenderRequest,
     db: Database = Depends(get_library_database),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
 ) -> ParagraphRenderResponse:
     """Render the supplied claims as a paragraph with citation metadata."""
 
@@ -76,6 +79,10 @@ async def render_paragraph(
             raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
         claims.append(claim)
 
+    # the claims' text and source ids go back: the caller must read the pages they rest on (#6320)
+    sources = sorted({c.source_document_id for c in claims if c.source_document_id})
+    if sources:
+        await read_check(http, library_path, db, sources, deep=False)
     return render_paragraph_claims(claims, style=request.style)
 
 

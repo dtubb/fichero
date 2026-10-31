@@ -11,13 +11,13 @@ from fichero_server.core.timeutil import utc_now
 import re
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.api.library_header import require_library_path
 from fichero_server.api.auth import action_context, request_actor
 from fichero_server.api.change_stream import emit_change
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.main import get_library_database, get_library_database_for_write, read_check, write_check
 from fichero_server.actions.registry import registry
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
@@ -997,6 +997,7 @@ async def resolve_claim_source(
         default=None, alias="X-Fichero-Origin-Window"
     ),
     actor: str = Depends(request_actor),
+    http: Request = None,
 ) -> ClaimSourceResolveResponse:
     """Resolve claim/SVO selectors to exact source provenance anchor."""
     selected: KnowledgeClaim | None = None
@@ -1043,6 +1044,10 @@ async def resolve_claim_source(
             )
         )
         selected = candidates[0]
+
+    # the claim's excerpt and source go back: the caller must read the page it rests on (#6320)
+    if selected.source_document_id:
+        await read_check(http, x_fichero_library_path, db, [selected.source_document_id], deep=False)
 
     emit_change(
         x_fichero_library_path,
@@ -1159,12 +1164,15 @@ async def assign_time_period(
         default=None, alias="X-Fichero-Origin-Window"
     ),
     actor: str = Depends(request_actor),
+    http: Request = None,
 ) -> ClaimAssignTimePeriodResponse:
     """Assign a user-curated period to many claims at once.
 
     This powers timeline seeding from user decisions (page range / folder scope)
     by writing directly into `KnowledgeClaim.time_start/time_end`.
     """
+    # a write to the claims resting on this document (and under it): the body names it, the dependency never sees it (#6320)
+    await write_check(http, x_fichero_library_path, db, [request.source_document_id], deep=request.include_descendants)
     response, updated_ids = assign_time_period_impl(db, request)
 
     if updated_ids:
@@ -1192,8 +1200,10 @@ async def assign_time_period_from_metadata(
         default=None, alias="X-Fichero-Origin-Window"
     ),
     actor: str = Depends(request_actor),
+    http: Request = None,
 ) -> ClaimAssignTimePeriodFromMetadataResponse:
     """Assign claim dates from the source document's metadata date field."""
+    await write_check(http, x_fichero_library_path, db, [request.source_document_id], deep=request.include_descendants)
     response, updated_ids = assign_time_period_from_metadata_impl(db, request)
 
     if updated_ids:

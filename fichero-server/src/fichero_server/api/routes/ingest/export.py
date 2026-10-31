@@ -15,7 +15,7 @@ from fichero_server.api.auth import action_context
 from fichero_server.api.library_header import optional_library_path
 from fichero_server.api.library_header import require_library_path
 from fichero_server.api.main import (
-    assert_library_reads_every, assert_library_write_authorized, get_library_database,
+    assert_library_reads_every, assert_library_write_authorized, documents_under, get_library_database,
     get_library_database_for_write)
 from fichero_server.db import Database
 from fichero_server.export_service import (
@@ -470,25 +470,12 @@ class CatalogueWorkbookResponse(BaseModel):
     job_id: str | None = Field(default=None, description="The queued write, when kept_export_id was given")
 
 
-def _documents_under(db: Database, target_id: str | None) -> list[str]:
-    """The live documents a workbook of `target_id` (None or empty: the library, as the exporters read it) reads."""
-    from fichero_server.db.document_tree import live_document_rows
-    from fichero_server.recipes.runner import folder_scope
-
-    if not target_id:
-        return list(live_document_rows(db))
-    try:
-        return sorted(folder_scope(db, target_id))
-    except LookupError:  # not a live document: the export says so itself
-        return []
-
-
 async def _read_checked(http: Request, library_path: str, db: Database, target_id: str | None) -> None:
     """The id is in the body, which the write dependency never sees (a decoy id in the query stood in): read-check it and every page
     under it before a file is written (#6320)."""
     target_id = target_id or None  # an empty id is the whole project to the exporters: it must be checked as the whole project
     # off the event loop: for a scoped caller this is the folder walk plus one authz lookup per page
-    await asyncio.to_thread(assert_library_reads_every, http, library_path, [target_id], lambda: _documents_under(db, target_id))
+    await asyncio.to_thread(assert_library_reads_every, http, library_path, [target_id], lambda: documents_under(db, target_id))
 
 
 _WORKBOOK_TYPES = {"xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "csv": "application/zip"}
