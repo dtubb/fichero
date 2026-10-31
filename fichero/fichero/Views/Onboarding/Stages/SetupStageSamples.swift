@@ -50,6 +50,10 @@ struct SetupStageSamples: View {
                     }
                 }
             }
+            if FeatureManager.shared.isWideSetUpEnabled, let first = store.samples.first {
+                RenditionChainStripView(client: store.client, pageId: first.id)
+                    .id(first.id)
+            }
             HStack(alignment: .firstTextBaseline) {
                 Button("Compare on These Pages") { compare() }
                     .disabled(store.isTrying || store.samples.isEmpty || store.result?.isUnderWay == true)
