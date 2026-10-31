@@ -25,19 +25,25 @@ def detect_deskew_angle(image: Image.Image) -> float:
     return float(np.median(angles)) if angles else 0.0
 
 
+#: The automatic straighten does nothing under this many degrees (`prep.straighten-and-flatten`).
+STRAIGHTEN_MIN_DEGREES = 0.3
+
+
+def auto_straighten_angle(image: Image.Image) -> float:
+    """The Hough skew angle, or 0.0 where it is under `STRAIGHTEN_MIN_DEGREES` (a page already square writes no row)."""
+    angle = detect_deskew_angle(image)
+    return angle if abs(angle) >= STRAIGHTEN_MIN_DEGREES else 0.0
+
+
 def detect_content_bbox(image: Image.Image) -> tuple[int, int, int, int]:
     """Find the non-border content rectangle using a local threshold."""
-    gray = image.convert("L")
-    pixels = gray.load()
-    xs, ys = [], []
-    for y in range(gray.height):
-        for x in range(gray.width):
-            if pixels[x, y] > 20:
-                xs.append(x)
-                ys.append(y)
-    if not xs:
+    import numpy as np
+
+    mask = np.asarray(image.convert("L")) > 20
+    if not mask.any():
         return 0, 0, image.width, image.height
-    left, top, right, bottom = min(xs), min(ys), max(xs) + 1, max(ys) + 1
+    cols, rows = np.flatnonzero(mask.any(axis=0)), np.flatnonzero(mask.any(axis=1))
+    left, top, right, bottom = int(cols[0]), int(rows[0]), int(cols[-1]) + 1, int(rows[-1]) + 1
     return left, top, right - left, bottom - top
 
 
@@ -246,6 +252,42 @@ def apply_fuzzy_clean(
     return cleaned
 
 
+#: The two contrast profiles of the legacy `enhance.DocumentEnhancer` (clip, tile, gain, lift): handwriting and typescript.
+CLAHE_PROFILES = {"handwritten": (2.2, 8, 1.1, -5.0), "typescript": (1.6, 16, 1.0, 0.0)}
+#: Params that make `contrast` the CLAHE step; a chain row with only `factor` keeps the old PIL contrast.
+_CLAHE_PARAMS = {"clip", "tile", "gain", "lift", "profile"}
+
+
+def apply_clahe_contrast(image: Image.Image, *, profile: str = "handwritten", clip: float | None = None,
+                         tile: int | None = None, gain: float | None = None, lift: float | None = None) -> Image.Image:
+    """Local contrast on the lightness channel: LAB, CLAHE on L, then L x gain + lift (`image.enhance.contrast-clahe`,
+    #6190). Ported from the legacy `enhance.py` step 1 (handwritten: clip 2.2, tile 8, x1.1 -5; typescript: clip 1.6,
+    tile 16). The colour channels are untouched, so a page stays the colour it was. OpenCV is bundled; without it the
+    page is returned unchanged."""
+    try:
+        import cv2
+        import numpy as np
+    except ImportError:
+        return image
+    d_clip, d_tile, d_gain, d_lift = CLAHE_PROFILES.get(profile, CLAHE_PROFILES["handwritten"])
+    clip, tile = d_clip if clip is None else float(clip), max(1, d_tile if tile is None else int(tile))  # a 0 tile crashes cv2
+    gain, lift = d_gain if gain is None else float(gain), d_lift if lift is None else float(lift)
+    alpha = image.getchannel("A") if image.mode in {"RGBA", "LA"} else None
+    if image.mode.startswith("I"):  # 16/32-bit greys: scaled to 8 bits, not clipped (RGB conversion clipped them to white)
+        grey = np.asarray(image, dtype=np.float64)
+        span = max(float(grey.max() - grey.min()), 1.0)
+        image = Image.fromarray(((grey - grey.min()) * (255 / span)).astype(np.uint8))
+    tile = max(1, min(tile, min(image.size) // 8))  # tiles under 8 px turned a tiny uniform image white
+    lab = cv2.cvtColor(np.asarray(image.convert("RGB")), cv2.COLOR_RGB2LAB)
+    light = cv2.createCLAHE(clipLimit=clip, tileGridSize=(tile, tile)).apply(lab[:, :, 0])
+    lab[:, :, 0] = cv2.convertScaleAbs(light, alpha=gain, beta=lift)
+    out = Image.fromarray(cv2.cvtColor(lab, cv2.COLOR_LAB2RGB))
+    if alpha is not None:
+        out = out.convert("RGBA")
+        out.putalpha(alpha)
+    return out
+
+
 def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
     """Apply one saved image-edit operation; shared by preview and consumers."""
     name = str(op.get("op", "")).strip().lower()
@@ -253,7 +295,7 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
     if not isinstance(params, dict):
         raise HTTPException(400, f"Invalid params for operation: {name}")
     if name in {"rotate", "straighten", "auto_deskew"}:
-        angle = detect_deskew_angle(image) if name == "auto_deskew" and "angle" not in params else float(params.get("angle", 0))
+        angle = auto_straighten_angle(image) if name == "auto_deskew" and "angle" not in params else float(params.get("angle", 0))
         # Exact quarter turns are LOSSLESS transposes (Daniel, 2026-08-30:
         # "edits seemed to make the quality worse" — every rotate-left click
         # was bicubic-resampling the whole page). Only a fractional angle
@@ -273,6 +315,12 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
             resample=Image.Resampling.BICUBIC,
             fillcolor="white",
         )
+    if name == "mark_blank":  # a page's blank mark changes no pixel (`media.blank_page`)
+        return image
+    if name == "square":  # the page warped to a rectangle from its four corners (`media.square_page`)
+        from fichero_server.media.square_page import square_page
+
+        return square_page(image, params["quad"])[0]
     if name == "crop":
         base = ImageOps.exif_transpose(image) if bool(params.get("auto_orient", True)) else image
         missing = {key for key in ("left", "top", "width", "height") if key not in params}
@@ -293,6 +341,8 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
         return ImageOps.flip(image)
     if name == "brightness":
         return ImageEnhance.Brightness(image).enhance(float(params.get("factor", 1.0)))
+    if name == "contrast" and _CLAHE_PARAMS & params.keys():
+        return apply_clahe_contrast(image, **{k: params[k] for k in _CLAHE_PARAMS if k in params})
     if name == "contrast":
         return ImageEnhance.Contrast(image).enhance(float(params.get("factor", 1.0)))
     if name == "sharpen":

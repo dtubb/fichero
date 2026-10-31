@@ -3905,6 +3905,16 @@ def fichero_images_undo_batch_operation(
     return _rt.call("POST", f"/api/images/batch-apply/{batch_id}/undo")
 
 
+def fichero_images_batch_prepare_preview(
+    *,
+    folder_id: Annotated[str, Field(description='Folder Id.')],
+    operation: Annotated[dict[str, Any], Field(description="The correction to copy, in fractions of the upright frame (a square's four corners) or degrees (a turn).")],
+    source_document_id: Annotated[Optional[str], Field(description='the page the correction was made on: it already has it, so it is left out.')] = None,
+) -> Any:
+    "Batch Prepare Preview\n\nThe folder's first, middle and last page with the correction applied, before anything runs. Writes no row.\n\nRoute: POST /api/images/batch-prepare/preview (toolset `images`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/images/batch-prepare/preview", json=_rt.body({"folder_id": folder_id, "operation": operation, "source_document_id": source_document_id}))
+
+
 def fichero_images_batch_crop(
     *,
     auto_orient: Annotated[Optional[bool], Field(description='Auto Orient. Default: true.')] = None,
@@ -6556,6 +6566,18 @@ def fichero_recipes_put_places(
 ) -> Any:
     "Put Places\n\nAllow these places, with no project open (the setting is the app's, so is its audit row). Every project is\ncapped by them: stricter, never looser. Owner only: it decides where every project's pages may go.\n\nRoute: PUT /api/recipes/places (toolset `recipes`; changes data, as the agent account when one exists)."
     return _rt.call("PUT", "/api/recipes/places", json=_rt.body({"places": places}))
+
+
+def fichero_recipes_prepare_images_check(
+) -> Any:
+    'Prepare Images Check\n\nPages to check (`prep.check.worklist-of-proposals-and-a-sample`): every page with an open proposal, then one\nconfident page in twenty.\n\nRoute: GET /api/recipes/prepare-images/check (toolset `recipes`; reads).'
+    return _rt.call("GET", "/api/recipes/prepare-images/check")
+
+
+def fichero_recipes_prepare_images_facts(
+) -> Any:
+    'Prepare Images Facts\n\nWhat the Prepare Images card shows besides its questions (`prep.setup.three-questions-suggested-from-a-sample`,\n`prep.estimate.time-on-this-mac-before-start`): answers suggested from five sample pages, and the time line.\n\nRoute: GET /api/recipes/prepare-images/facts (toolset `recipes`; reads).'
+    return _rt.call("GET", "/api/recipes/prepare-images/facts")
 
 
 def fichero_recipes_get_project_setup(
@@ -9640,6 +9662,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_iiif_import_from", "iiif", "POST", "/api/iiif/import", fichero_iiif_import_from),
     GeneratedTool("fichero_images_batch_apply_operation", "images", "POST", "/api/images/batch-apply", fichero_images_batch_apply_operation),
     GeneratedTool("fichero_images_undo_batch_operation", "images", "POST", "/api/images/batch-apply/{batch_id}/undo", fichero_images_undo_batch_operation),
+    GeneratedTool("fichero_images_batch_prepare_preview", "images", "POST", "/api/images/batch-prepare/preview", fichero_images_batch_prepare_preview),
     GeneratedTool("fichero_images_batch_crop", "images", "POST", "/api/images/crops/batch", fichero_images_batch_crop),
     GeneratedTool("fichero_images_crop_child", "images", "POST", "/api/images/{document_id}/crop", fichero_images_crop_child),
     GeneratedTool("fichero_images_delete_edit_chain", "images", "DELETE", "/api/images/{document_id}/edits", fichero_images_delete_edit_chain),
@@ -9924,6 +9947,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_search_languages", "recipes", "GET", "/api/recipes/languages", fichero_recipes_search_languages),
     GeneratedTool("fichero_recipes_get_places", "recipes", "GET", "/api/recipes/places", fichero_recipes_get_places),
     GeneratedTool("fichero_recipes_put_places", "recipes", "PUT", "/api/recipes/places", fichero_recipes_put_places),
+    GeneratedTool("fichero_recipes_prepare_images_check", "recipes", "GET", "/api/recipes/prepare-images/check", fichero_recipes_prepare_images_check),
+    GeneratedTool("fichero_recipes_prepare_images_facts", "recipes", "GET", "/api/recipes/prepare-images/facts", fichero_recipes_prepare_images_facts),
     GeneratedTool("fichero_recipes_get_project_setup", "recipes", "GET", "/api/recipes/project", fichero_recipes_get_project_setup),
     GeneratedTool("fichero_recipes_save_project_setup", "recipes", "PUT", "/api/recipes/project", fichero_recipes_save_project_setup),
     GeneratedTool("fichero_recipes_allow_cloud", "recipes", "POST", "/api/recipes/project/allow-cloud", fichero_recipes_allow_cloud),

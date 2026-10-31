@@ -17338,6 +17338,50 @@
         }
       }
     },
+    "/api/recipes/prepare-images/check": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Prepare Images Check",
+        "description": "Pages to check (`prep.check.worklist-of-proposals-and-a-sample`): every page with an open proposal, then one\nconfident page in twenty.",
+        "operationId": "prepare_images_check_api_recipes_prepare_images_check_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrepareCheckList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/prepare-images/facts": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Prepare Images Facts",
+        "description": "What the Prepare Images card shows besides its questions (`prep.setup.three-questions-suggested-from-a-sample`,\n`prep.estimate.time-on-this-mac-before-start`): answers suggested from five sample pages, and the time line.",
+        "operationId": "prepare_images_facts_api_recipes_prepare_images_facts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrepareImagesFacts"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/project/cloud-cap": {
       "put": {
         "tags": [
@@ -27199,6 +27243,49 @@
                 "schema": {
                   "type": "string",
                   "format": "binary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/images/batch-prepare/preview": {
+      "post": {
+        "tags": [
+          "images",
+          "images"
+        ],
+        "summary": "Batch Prepare Preview",
+        "description": "The folder's first, middle and last page with the correction applied, before anything runs. Writes no row.",
+        "operationId": "batch_prepare_preview_api_images_batch_prepare_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchPrepareRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchPreparePreview"
                 }
               }
             }
@@ -54781,6 +54868,113 @@
         ],
         "title": "BatchListResponse",
         "description": "Standardized envelope for GET /api/batch list endpoints."
+      },
+      "BatchPrepareOperation": {
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "square",
+              "rotate"
+            ],
+            "title": "Op"
+          },
+          "quad": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Quad"
+          },
+          "angle": {
+            "type": "number",
+            "maximum": 360.0,
+            "minimum": -360.0,
+            "nullable": true,
+            "title": "Angle"
+          }
+        },
+        "type": "object",
+        "required": [
+          "op"
+        ],
+        "title": "BatchPrepareOperation",
+        "description": "The correction to copy, in fractions of the upright frame (a square's four corners) or degrees (a turn)."
+      },
+      "BatchPreparePreview": {
+        "properties": {
+          "previews": {
+            "items": {
+              "$ref": "#/components/schemas/BatchPreparePreviewItem"
+            },
+            "type": "array",
+            "title": "Previews"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages",
+            "description": "how many pages the batch would change"
+          }
+        },
+        "type": "object",
+        "required": [
+          "previews",
+          "pages"
+        ],
+        "title": "BatchPreparePreview"
+      },
+      "BatchPreparePreviewItem": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "image_base64": {
+            "type": "string",
+            "title": "Image Base64",
+            "description": "the page with the correction applied, a small JPEG; nothing is written"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "name",
+          "image_base64"
+        ],
+        "title": "BatchPreparePreviewItem"
+      },
+      "BatchPrepareRequest": {
+        "properties": {
+          "folder_id": {
+            "type": "string",
+            "title": "Folder Id"
+          },
+          "operation": {
+            "$ref": "#/components/schemas/BatchPrepareOperation"
+          },
+          "source_document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Document Id",
+            "description": "the page the correction was made on: it already has it, so it is left out"
+          }
+        },
+        "type": "object",
+        "required": [
+          "folder_id",
+          "operation"
+        ],
+        "title": "BatchPrepareRequest"
       },
       "BatchProgressResponse": {
         "properties": {
@@ -82837,6 +83031,133 @@
           "reason"
         ],
         "title": "PredictionUncertaintySpan"
+      },
+      "PrepareCheckItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kinds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Kinds",
+            "description": "the proposals open on the page: page_box, turn, blank; none for a sample page"
+          },
+          "words": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Words",
+            "description": "what is unsure, in words"
+          },
+          "sample": {
+            "type": "boolean",
+            "title": "Sample",
+            "description": "a confident page checked as a sample"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kinds",
+          "words",
+          "sample"
+        ],
+        "title": "PrepareCheckItem"
+      },
+      "PrepareCheckList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PrepareCheckItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "proposed": {
+            "type": "integer",
+            "title": "Proposed",
+            "description": "how many items are proposals (they come first); the rest are the sample"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count",
+          "proposed"
+        ],
+        "title": "PrepareCheckList"
+      },
+      "PrepareImagesFacts": {
+        "properties": {
+          "suggestions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PrepareSuggestion"
+            },
+            "type": "object",
+            "title": "Suggestions",
+            "description": "by question key: the answers five sample pages suggest (three of five agree)"
+          },
+          "estimate": {
+            "type": "string",
+            "title": "Estimate",
+            "description": "the time line under the questions: the seed figure, marked as an estimate"
+          },
+          "how_it_works": {
+            "type": "string",
+            "title": "How It Works",
+            "description": "the engine's sentence naming the operations"
+          },
+          "to_check": {
+            "type": "integer",
+            "title": "To Check",
+            "description": "Pages to check: pages with a proposal plus the sample (`/prepare-images/check`)",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "estimate",
+          "how_it_works"
+        ],
+        "title": "PrepareImagesFacts"
+      },
+      "PrepareSuggestion": {
+        "properties": {
+          "value": {
+            "title": "Value",
+            "description": "the suggested answer"
+          },
+          "agree": {
+            "type": "string",
+            "title": "Agree",
+            "description": "how many of the sample pages agree, e.g. \"3 of 5\""
+          },
+          "why": {
+            "type": "string",
+            "title": "Why"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "agree",
+          "why"
+        ],
+        "title": "PrepareSuggestion"
       },
       "PresetModelSpec": {
         "properties": {

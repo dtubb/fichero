@@ -128,6 +128,15 @@ extension ImageEditorView {
 
             editsClipboardMenu
 
+            if compareMode == .single, let found = PageCorners(pageRegion: activeDocument.metadata["page_region"]?.value) {
+                toolButton("viewfinder", help: pageCorners == nil ? "Show the page corners — drag one, press Return to square" : "Hide the page corners") {
+                    pageCorners = pageCorners == nil ? found : nil
+                }
+                .accessibilityIdentifier("imageEditPageCorners")
+            }
+
+            applyToFolderButton
+
             if marqueeSelection != nil && compareMode == .single {
                 Divider().frame(height: 20)
                 toolButton("crop", help: "Crop to selection") {
@@ -286,6 +295,19 @@ extension ImageEditorView {
         return 1
     }
 
+    /// Return on the corner handles: square the page from the corrected corners, `who: person`.
+    func squareFromCorners() async {
+        guard let corners = pageCorners else { return }
+        pageCorners = nil
+        guard let actionsService = actionStore?.actionsService else { return }
+        let model = model
+        _ = try? await AuditedAction.run(
+            "image.square", params: ImageSquareRequest(documentId: activeDocument.id, quad: corners.quad, page: model.page),
+            actionName: "Square Page", actionsService: actionsService, steps: windowSteps,
+            afterChange: { await model.reload() }
+        )
+    }
+
     /// Map the marquee (normalized image space) to source pixels and crop.
     private func cropToSelection() async {
         guard let selection = marqueeSelection, let pixelSize = model.preview?.pixelSize else { return }
@@ -378,7 +400,7 @@ extension ImageEditorView {
         done()
     }
 
-    private func toolButton(_ systemImage: String, help: String, action: @escaping () -> Void) -> some View {
+    func toolButton(_ systemImage: String, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
         }

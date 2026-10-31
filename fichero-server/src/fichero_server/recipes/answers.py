@@ -144,6 +144,10 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
         if not ok:
             problems.append(f"The certainty under which a line goes to the second model is a number above 0 and up to "
                             f"1 (or the whole page), not {bar!r}.")
+    by_folder = out.get(BY_FOLDER)
+    if by_folder is not None and (not isinstance(by_folder, dict) or any(
+            not isinstance(k, str) or not isinstance(v, dict) for k, v in by_folder.items())):
+        problems.append("An answer for one folder is kept under the folder's id: {folder id: {question: answer}}.")
     cap = out.get(SPEND_CAP)
     if cap is not None and (isinstance(cap, bool) or not isinstance(cap, (int, float)) or cap < 0):
         problems.append(f"The Hugging Face spend cap is an amount in dollars a month, $0 or more, not {cap!r}.")
@@ -156,6 +160,9 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
     return out
 
 
+#: Answers a folder gives for itself, over the project's (`prep.setup.three-questions-suggested-from-a-sample`): the
+#: Prepare Images questions, `{folder id: {question key: answer}}`, read by the Start plan.
+BY_FOLDER = "job_answers_by_folder"
 #: The ruled money-and-place answers (#5769, ruled 2026-10-17).
 SPEND_CAP = "hf_spend_cap_usd"
 COPIES_STAY = "copies_may_stay_on_cluster"

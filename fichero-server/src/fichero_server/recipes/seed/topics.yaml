@@ -18,11 +18,12 @@ topics:
     kind: job
     title: Prepare the image
     short: >-
-      Crops, straightens, rotates or brightens a page and keeps the result as a new version of the
-      image; the original is never changed.
+      Crops, straightens, rotates or brightens a page and keeps the result as a new version of the image; the original is
+      never changed.
     long: >-
-      Damaged or faded pages read far better prepared. Every later step reads the prepared version,
-      and you can always go back to the scan as it came.
+      How it works: finds each page, squares and flattens it, turns it upright by its text and straightens it, hides
+      blank pages, and brightens faded ones. Every later step reads the prepared version, and you can always go back to
+      the scan as it came.
   - id: leave-out
     kind: job
     title: Leave out

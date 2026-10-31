@@ -122,7 +122,8 @@ def _plan(db: Any) -> dict[str, Any]:
     stays_local = not places.may_leave_to(answers, "cloud")
     # New material runs only what What runs by itself ticks; with Nothing runs automatically, nothing (#5478).
     return plan_start(setup["recipe"], stays_local=stays_local, automatic=answers.get("automatic"),
-                      job_answers=answers.get("job_answers"), db=db)
+                      job_answers=answers.get("job_answers"),
+                      job_answers_by_folder=answers.get("job_answers_by_folder"), db=db)
 
 
 def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, started_by: str,
@@ -757,16 +758,7 @@ def _run_catalogue(db: Any, card: dict[str, Any], documents: list[str], parent: 
     return None, "done", None
 
 
-def _run_prepare(db: Any, documents: list[str], parent: str,
-                 step: dict[str, Any]) -> tuple[str | None, str, str | None]:
-    """Each faded page gets a prepared rendition (`source.onboard.auto.prepare-damaged-images`, #5580); the step's
-    account (`prepared`) says how many it prepared, how many were clear and how many had no image to look at."""
-    from fichero_server.recipes.prepare import prepare_pages
-
-    step["prepared"] = prepare_pages(db, documents, parent, stop=lambda: _stop_asked(parent))
-    if _stop_asked(parent):  # stopped before its next page (#5609): the account counts the pages it looked at
-        return None, "cancelled", "Stopped by you"
-    return None, "done", None
+from fichero_server.recipes.prepare_run import run_prepare as _run_prepare  # noqa: E402  (the step lives in its own module)
 
 
 def _run_regions(db: Any, card: dict[str, Any], documents: list[str], parent: str,
@@ -1729,7 +1721,7 @@ def _run_card(db: Any, card: dict[str, Any], documents: list[str], kinds: dict[s
     elif card["card"] == "catalogue":
         child, state, why = _run_catalogue(db, card, documents, job_id, scratch)
     elif card["card"] == "prepare":
-        child, state, why = _run_prepare(db, documents, job_id, scratch)
+        child, state, why = _run_prepare(db, documents, job_id, scratch, paper=card.get("paper") or [])
     elif card["card"] == "leave-out":
         from fichero_server.recipes.leave_out import run_step
 

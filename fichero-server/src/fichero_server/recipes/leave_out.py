@@ -5,7 +5,8 @@ left-out flag Read and the Reader already skip) and `metadata["left_out"]` says 
 Inspector (`segment.update`, `is_furniture` false). A line is left out when it is
 
 * too small to be useful: far thinner than the page's median line, or a speck (`too small`),
-* off the page: its centre is outside the page's box, e.g. the black scanner bed (`off the page`),
+* off the page: its centre is outside the page's box, e.g. the black scanner bed (`off the page`); on a ruler or a colour
+  card page-crop found beside the paper, `ruler` / `colour card` (`page_furniture` metadata) instead,
 * damaged or bleed-through: Kraken's shape confidence is very low AND the ink contrast under it is low
   (`likely bleed-through`).
 
@@ -23,6 +24,10 @@ from typing import Any
 TOO_SMALL = "too small"
 OFF_THE_PAGE = "off the page"
 BLEED = "likely bleed-through"
+RULER = "ruler"
+COLOUR_CARD = "colour card"
+#: Page-crop's names for the furniture it left out (`page_furniture` metadata), and the reason each gives a line on it.
+FURNITURE_REASONS = {"ruler": RULER, "colour card": COLOUR_CARD}
 #: A line whose thinner side is under this share of the page's median line is too small to be a line of writing.
 THIN_BELOW = 0.25
 #: Fewer lines than this on a page and the median says nothing: only a speck is too small.
@@ -39,6 +44,7 @@ def _thickness(line: dict[str, float]) -> float:
 
 
 def decide(lines: list[dict[str, Any]], *, page_box: list[float] | None = None,
+           furniture: list[dict[str, Any]] | None = None,
            contrast_of: Callable[[dict[str, Any]], float | None] | None = None,
            too_small: bool = True, off_page: bool = True, bleed: bool = True) -> dict[str, str]:
     """Which lines to leave out, and why: `{id: reason}`. Each line is `{id, x, y, w, h, confidence}` (fractions of the
@@ -52,6 +58,11 @@ def decide(lines: list[dict[str, Any]], *, page_box: list[float] | None = None,
             bx, by, bw, bh = page_box
             if not (bx <= cx <= bx + bw and by <= cy <= by + bh):
                 reason = OFF_THE_PAGE
+                for item in furniture or []:  # outside the page AND on a named strip or card: say which
+                    fx, fy, fw, fh = item["box"]
+                    if fx <= cx <= fx + fw and fy <= cy <= fy + fh and item.get("kind") in FURNITURE_REASONS:
+                        reason = FURNITURE_REASONS[item["kind"]]
+                        break
         if reason is None and too_small:
             if ln["w"] * ln["h"] < SPECK_AREA or (median and _thickness(ln) < THIN_BELOW * median):
                 reason = TOO_SMALL
@@ -106,6 +117,7 @@ def leave_out_pages(db: Any, documents: list[str], run_id: str,
         account["pages"] += 1
         doc = db.get(Document, doc_id)
         page_box = ((doc.metadata or {}).get("page_box") if doc is not None else None)
+        furniture = (doc.metadata or {}).get("page_furniture") if doc is not None else None
         # The rules judge every line (the median is the page's own); only a machine's, still-kept line can be marked.
         lines = [{"id": r.id, "x": r.bbox_x, "y": r.bbox_y, "w": r.bbox_w, "h": r.bbox_h, "confidence": r.confidence}
                  for r in rows if not r.is_furniture]
@@ -113,7 +125,7 @@ def leave_out_pages(db: Any, documents: list[str], run_id: str,
         unsure = any(ln["confidence"] is not None and ln["confidence"] < LOW_CONFIDENCE for ln in lines)
         image = _open_image(_resolve_abs_path(doc, str(library))) if unsure and doc is not None else None
         contrast = (lambda ln: _ink_contrast(image, ln)) if image is not None else None
-        verdicts = decide(lines, page_box=page_box, contrast_of=contrast)
+        verdicts = decide(lines, page_box=page_box, furniture=furniture, contrast_of=contrast)
         updates: list[dict[str, Any]] = []
         whys: dict[str, int] = {}
         for row in rows:

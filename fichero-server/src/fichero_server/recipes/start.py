@@ -15,6 +15,8 @@ from __future__ import annotations
 from typing import Any
 
 from fichero_server.recipes.assemble import APPLE_LINES_PIN
+from fichero_server.recipes.folder_answers import prepare_how, with_folder_answers
+from fichero_server.recipes.folder_overrides import with_folder_overrides
 from fichero_server.workflows.validation import KRAKEN_READER_PROVIDER
 
 #: job -> the shipped workflow that carries it out, by its stable key: the file the preset ships in, which a
@@ -144,7 +146,8 @@ JOB_ANSWER_SETTINGS = {"find-names-tag-words": ("entity_kinds", "kinds"),
                        "translate-transliterate-normalise": ("normalise_how_far", "target"),
                        "correct": ("review_lenses", "lenses"),
                        "work-out-dates": ("calendars", "calendars"),
-                       "find-regions": ("layout", "layout")}
+                       "find-regions": ("layout", "layout"),
+                       "prepare-the-image": ("the_paper", "paper")}
 #: Setup's answer to "send the second model only the lines Kraken is unsure of?": "whole-page" or the bar, 0 to 1.
 CERTAINTY_BAR_ANSWER, WHOLE_PAGE = "review_certainty_bar", "whole-page"
 #: Job answers whose empty list says "none of them", never "not answered".
@@ -367,7 +370,7 @@ def _automatic_skip(step: dict, automatic: dict | None) -> tuple[str, str] | Non
 
 def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None = None,
                automatic: dict | None = None, job_answers: dict | None = None,
-               db: Any = None) -> dict[str, Any]:
+               job_answers_by_folder: dict | None = None, db: Any = None) -> dict[str, Any]:
     """What Start would run, in order, what it skips and why, and what refuses it outright.
 
     Returns `{"runs": [...], "workflows": [...], "skipped": [...], "offered": [...], "refusals": [...]}`.
@@ -383,7 +386,9 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     (`answers.automatic`), given for a run new material starts by itself (an import after Start), never for Start:
     with Nothing runs automatically every step is skipped, else every step not ticked (#5478). `job_answers` are
     setup's answers under a purpose (`answers.job_answers`): each reaches the step it configures as its setting
-    (`JOB_ANSWER_SETTINGS`) where the recipe does not already set it (#5478). With the project's `db`, a model
+    (`JOB_ANSWER_SETTINGS`) where the recipe does not already set it (#5478). `job_answers_by_folder` is a folder's own
+    answers to Prepare Images' questions, `{folder id: {question: answer}}`: the folder's pages run the step with them
+    (`recipes.folder_answers`). With the project's `db`, a model
     already downloading does not refuse Start: its download is marked `downloading` (with its progress), `waiting`
     says so in words, and the run's steps on it wait for it to land (#5660, #5583).
     """
@@ -530,6 +535,9 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             continue
         if job in OTHER_CARDS:
             entry: dict[str, Any] = {"steps": [sid], "job": job, "card": OTHER_CARDS[job], "runs_on": runs_on}
+            if job == "prepare-the-image":  # the optional operations the paper answer switches on
+                entry["paper"] = list(settings.get("paper") or [])
+                entry["how"] = prepare_how(entry["paper"])
             if job == "tie-text-to-lines":
                 reader = _kraken_reader_for(pin)
                 if reader is None:
@@ -713,6 +721,7 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     for item in recipe.get("by_hand") or []:
         if only is None or item.get("job") in only:
             skip(item.get("job", "?"), item.get("why", ""), item.get("fix", ""))
+    runs = with_folder_answers(runs, job_answers, job_answers_by_folder, skip, names)
     # Each card declares what it takes and gives, so a run knows which steps a failure stops (#5498).
     jobs_of = {s.get("id"): s.get("job", "") for s in recipe.get("steps") or []}
     for run in runs:
@@ -721,7 +730,7 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     # waits for it (`source.onboard.no-model-step-kept`, #5668): Organise's Split into entries with no text model on
     # this Mac no longer refuses Read and Names.
     runs = _without_what_waits(runs, needs_a_model, recipe, skip, names)
-    runs, folder_skipped, folder_refusals = _with_folder_overrides(
+    runs, folder_skipped, folder_refusals = with_folder_overrides(
         recipe, runs, only=only, stays_local=stays_local, automatic=automatic, job_answers=job_answers, db=db)
     skipped += folder_skipped
     kept_ids = {s.get("id") for s in needs_a_model}
@@ -756,62 +765,6 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     return {"runs": runs, "workflows": [r for r in runs if r["card"] == "workflow"], "skipped": skipped,
             "built_in": built_in, "offered": offered, "refusals": refusals, "downloads": downloads, "elsewhere": elsewhere,
             "waiting": waiting, "start_downloads": start_downloads(downloads), "fallbacks": fallbacks}
-
-
-def _with_folder_overrides(recipe: dict, runs: list[dict[str, Any]], **plan_args: Any
-                           ) -> tuple[list[dict[str, Any]], list[dict[str, str | None]], list[str]]:
-    """A reader chosen for one folder runs on that folder's pages (`source.try.use-this-scope`, #6135): for each folder
-    override, the step is planned again with the override as its choice and that plan's runs are added, tagged
-    `folder_id`; every run of the step leaves the other override folders' pages out (`exclude_folders`, applied by
-    the runner, nested folders to the innermost). Returns (the runs, what the folder's plan skipped, what it refuses).
-    A folder whose reader cannot be planned keeps the project's reader and says why."""
-    from fichero_server.recipes.bakeoff import apply_project_overrides
-
-    overrides = [o for o in recipe.get("overrides") or [] if o.get("scope") == "folder" and o.get("folder_id")]
-    if not overrides:
-        return runs, [], []
-    out, skipped, refusals = list(runs), [], []
-    names = step_names(recipe)
-    db = plan_args.get("db")
-    if db is not None:  # an override outlives its folder when the folder is trashed: it is skipped, with the why
-        from fichero_server.recipes.runner import folder_scope
-
-        live = []
-        for o in overrides:
-            try:
-                folder_scope(db, o["folder_id"])
-                live.append(o)
-            except LookupError:
-                skipped.append({"step": o.get("step"), "fix": None, "why": (
-                    f"For the folder {o['folder_id']}: it is no longer in this project, so its own reader is not used "
-                    "and its pages keep the project's")})
-        overrides = live
-    for sid in dict.fromkeys(o.get("step") for o in overrides):
-        base = [r for r in out if sid in r["steps"]]
-        mine = [o for o in overrides if o.get("step") == sid]
-        folders = list(dict.fromkeys(o["folder_id"] for o in mine))
-        if not base:
-            continue
-        for run in base:
-            run["exclude_folders"] = list(folders)
-        for o in mine:
-            as_project = apply_project_overrides({**recipe, "overrides": [{**o, "scope": "project"}]}, [])
-            plan = plan_start({**as_project, "overrides": []}, **plan_args)  # the whole recipe: the run keeps the steps it chains
-            own = [r for r in plan["runs"] if sid in r["steps"]]
-            skipped += [{**s, "why": f"For the folder {o['folder_id']}: {s['why']}"} for s in plan["skipped"]
-                        if s.get("step") == sid]
-            # only this step's own refusals: the whole recipe is planned again, and another step's repeats nothing new
-            refusals += [f"For the folder {o['folder_id']}: {r}" for r in plan["refusals"]
-                         if sid in r or names.get(sid, sid) in r]
-            if not own:  # nothing runs for the folder's reader: its pages stay with the project's
-                for run in base:
-                    run["exclude_folders"] = [f for f in run["exclude_folders"] if f != o["folder_id"]]
-                continue
-            for run in own:
-                run["folder_id"] = o["folder_id"]
-                run["exclude_folders"] = [f for f in folders if f != o["folder_id"]]
-            out += own
-    return out, skipped, refusals
 
 
 #: A step's `place` when the person put it on Hugging Face Jobs (`source.recipe.step-runs-on-huggingface`): its own key,

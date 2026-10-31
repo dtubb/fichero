@@ -32,6 +32,8 @@ from fichero_server.models.anchors import NodeRegion, RegionConfidence
 from fichero_server.split_carry import carry_readings_over
 from fichero_server.execution.batch import BatchItemStatus, BatchStatus
 from fichero_server.db.storage import resolve_pdf_render_source, resolve_source
+from fichero_server.api.routes.ingest.image_prepare_shared import (  # noqa: F401
+    ContrastOperationRequest, MarkBlankOperationRequest, SquareOperationRequest, _answer_proposal, _invert_proposals, _proposal_state)
 # NOTE: apply_operation is imported inside the functions that render (#3985) and
 # apply_fuzzy_clean inside the one handler that uses it
 # (#3950). Importing any module in the tools package runs tools/__init__.py,
@@ -111,9 +113,9 @@ _OPERATION_MODELS = {
     "crop": CropOperationRequest, "rotate": RotateOperationRequest,
     "straighten": StraightenOperationRequest, "enhance": EnhanceOperationRequest,
     "remove_background": RemoveBackgroundOperationRequest, "segment": SegmentOperationRequest,
-    "brightness": FactorOperationRequest, "contrast": FactorOperationRequest,
+    "brightness": FactorOperationRequest, "contrast": ContrastOperationRequest,
     "sharpen": FactorOperationRequest, "fuzzy_clean": FuzzyCleanOperationRequest,
-    "denoise": DenoiseOperationRequest,
+    "denoise": DenoiseOperationRequest, "square": SquareOperationRequest, "mark_blank": MarkBlankOperationRequest,
 }
 _PARAMETERLESS_OPERATIONS = {"flip_horizontal", "flip_vertical", "auto_levels", "grayscale", "auto_crop_border", "adaptive_binarize"}
 
@@ -952,7 +954,9 @@ def rotate_image_impl(
         "page": page,
         "params": {"angle": request.angle, "expand": request.expand},
     }
-    return _render_and_append(db, document_id, source_path, op, page)
+    chain = _render_and_append(db, document_id, source_path, op, page)
+    _answer_proposal(db, doc, "turn")  # a person's turn answers the run's unsure turn
+    return chain
 
 
 def straighten_image_impl(
@@ -1625,24 +1629,6 @@ def _action_crop(
 
 
 @action(
-    "image.rotate",
-    RotateImageActionParams,
-    domains=["image"],
-    undoable=True,
-    invert=_invert_image_chain,
-)
-def _action_rotate(
-    db: Database, params: RotateImageActionParams, ctx: ActionContext
-) -> tuple[dict, ChangeSpec]:
-    before_ops = _chain_ops_snapshot(db, params.document_id)
-    chain = rotate_image_impl(db, params.document_id, params)
-    after_ops = [dict(op) for op in chain.operations]
-    return _chain_result(chain), _image_chain_spec(
-        params.document_id, before_ops, after_ops
-    )
-
-
-@action(
     "image.straighten",
     StraightenImageActionParams,
     domains=["image"],
@@ -1800,3 +1786,8 @@ def _action_crop_image_child(
         emit_type="image.cropped",
         document_ids=[params.source_id, child.id],
     )
+
+
+# The prepare-images actions (square, blank, proposals, batch) live in their own module; imported last so they register with
+# the rest and `mark_blank_impl` stays reachable from here.
+from fichero_server.api.routes.ingest.image_prepare_actions import mark_blank_impl, square_image_impl  # noqa: E402, F401

@@ -9,6 +9,7 @@ model makes them a machine's pass (never a person's) and the Layers list names w
 from __future__ import annotations
 
 import asyncio
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -52,6 +53,61 @@ def progress_words(done: int, total: int, *, elapsed: float = 0.0, seconds_left:
         said += f", about {max(1, math.ceil(seconds_left / 60))} min left"
     return said
 
+
+
+def page_crop(path: str, box: list[float] | None, out_dir: str) -> tuple[str, tuple[int, int], tuple[int, int]] | None:
+    """The page's crop for the finder when the document has a `page_box` (`prep.page.detected-before-lines`, #6189): the
+    upright image cut to the box (fractions `[x, y, w, h]` of the whole upright image), saved in `out_dir`. Returns
+    `(crop path, (left, top) in pixels, (whole width, whole height))`, or None for no box, a box that is the whole image,
+    or one too small to hold a page: the finder then sees the whole image, as before."""
+    if not box or len(box) != 4:
+        return None
+    from PIL import Image
+
+    from fichero_server.media.upright import upright
+
+    x, y, w, h = (float(v) for v in box)
+    if not (0 <= x and 0 <= y and w > 0.05 and h > 0.05 and x + w <= 1.000001 and y + h <= 1.000001) or w * h > 0.97:
+        return None
+    with Image.open(path) as opened:
+        image = upright(opened)
+        full = image.size
+        left, top = round(x * full[0]), round(y * full[1])
+        crop = image.crop((left, top, min(full[0], left + max(1, round(w * full[0]))),
+                           min(full[1], top + max(1, round(h * full[1])))))
+        out = str(Path(out_dir) / "page_crop.png")
+        crop.save(out)
+    return out, (left, top), full
+
+
+def page_box_on(page_image: Any, box: list[float] | None) -> list[float] | None:
+    """The document's `page_box` (fractions of the upright photograph) as fractions of the page's current image (#6296): a
+    Preview edit or a rendition may have cropped or turned it. A crop that already cut to the paper leaves a box that is the
+    whole image, which `page_crop` does not cut again; a box off the image has no area and is not cut either. A turn takes the
+    box that holds the four carried corners."""
+    if not box or len(box) != 4 or page_image is None or page_image.to_image is None:
+        return box
+    from PIL import Image
+
+    from fichero_server.media.current_image import _clamp_rect
+
+    with Image.open(page_image.path) as opened:
+        if int(opened.getexif().get(0x0112, 1) or 1) != 1:
+            # ponytail: a copy that keeps an orientation tag has `to_image` in its raw pixels, the crop is upright: not cut.
+            return None
+    return _clamp_rect(page_image.to_image.carry_rect(box))
+
+
+def shift_payload(payload: dict[str, Any], left: int, top: int, width: int, height: int) -> dict[str, Any]:
+    """Kraken's raw answer about a crop, put back in the whole upright image's pixels: every outline and baseline moved by
+    the crop's corner, the frame the whole image's size."""
+    def move(points: Any) -> list[list[float]]:
+        return [[float(px) + left, float(py) + top] for px, py in points or []]
+
+    return {**payload, "width": width, "height": height,
+            "regions": [{**r, "polygon": move(r.get("polygon"))} for r in payload.get("regions") or []],
+            "lines": [{**ln, "polygon": move(ln.get("polygon")), "baseline": move(ln.get("baseline"))}
+                      for ln in payload.get("lines") or []]}
 
 
 def find_regions(db: Any, documents: list[str], run_id: str, model: str,
@@ -134,9 +190,25 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
             except (AttributeError, TypeError, OSError):
                 account["no_image"] += 1
                 continue
-            found_geometry, regions_here = _find_on(db, doc, path, width, height, provider, model, run_id, library, page_index)
-            if page_image is not None and page_image.path == path:
-                found_geometry = page_image.geometry_to_photograph(found_geometry)
+            page_started = time.monotonic()
+            # The page box is on the photograph, the finder reads the current image: the box is carried onto it (#6189, #6296).
+            on_current = page_image if page_image is not None and page_image.path == path else None
+            photo_box = (doc.metadata or {}).get("page_box") if page_index is None else None
+            box = page_box_on(on_current, photo_box)
+            with tempfile.TemporaryDirectory() as scratch:
+                cut = page_crop(path, box, scratch)
+                found_geometry, regions_here = _find_on(db, doc, cut[0] if cut else path, width, height, provider, model,
+                                                        run_id, library, page_index, cut)
+            # `_find_on` has put a cut's answer back on the current image; from there it goes to the photograph.
+            if on_current is not None:
+                found_geometry = on_current.geometry_to_photograph(found_geometry)
+            if cut:  # said only when a page was cut to its paper: how many, the share of the image not read, the seconds
+                account["cropped"] = account.get("cropped", 0) + 1
+                account["area_saved"] = account.get("area_saved", 0.0) + 1 - float(box[2]) * float(box[3])
+                account["seconds"] = account.get("seconds", 0.0) + time.monotonic() - page_started
+                inside, outside = _lines_by_page_box(found_geometry, photo_box)
+                account["lines_inside"] = account.get("lines_inside", 0) + inside
+                account["lines_outside"] = account.get("lines_outside", 0) + outside
         finally:
             if rendered is not None:
                 Path(rendered).unlink(missing_ok=True)
@@ -153,10 +225,31 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
     return account
 
 
+def _lines_by_page_box(found_geometry: Any, box: list[float]) -> tuple[int, int]:
+    """Lines whose centre is inside / outside the page box (`prep.page.kraken-time-saved-is-reported`): after a crop none
+    are outside; the figure is there so the run summary shows it, and a regression shows up as a number."""
+    from fichero_server.media.ocr_geometry import OCRGeometryLevel
+
+    x, y, w, h = (float(v) for v in box)
+    inside = outside = 0
+    for b in found_geometry.boxes:
+        if b.level is not OCRGeometryLevel.LINE:
+            continue
+        cx, cy = b.bbox[0] + b.bbox[2] / 2, b.bbox[1] + b.bbox[3] / 2
+        if x <= cx <= x + w and y <= cy <= y + h:
+            inside += 1
+        else:
+            outside += 1
+    return inside, outside
+
+
 def _find_on(db: Any, doc: Any, path: str, width: int, height: int, provider: str, model: str, run_id: str,
-             library: str, page_index: int | None) -> tuple[Any, int]:
+             library: str, page_index: int | None, cut: tuple[str, tuple[int, int], tuple[int, int]] | None = None
+             ) -> tuple[Any, int]:
     """One page image's geometry and how many regions it found: Kraken's segmenter (regions and lines in one pass, through the
     model lane) or a YOLO model. A page rendered from a PDF names its render in the geometry: the page and the resolution (#4892)."""
+    from PIL import Image
+
     from fichero_server.execution import jobs
     from fichero_server.llm.yolo_runtime import detect_regions
 
@@ -174,12 +267,22 @@ def _find_on(db: Any, doc: Any, path: str, width: int, height: int, provider: st
         segmented = jobs.run_on_lane_blocking(
             library, "find-regions", doc.id, model="kraken:blla", parent_id=run_id, run_id=run_id,
             fn=lambda path=path, direction=direction: segment_lines(path, **direction))
+        if cut:  # the finder saw only the page's crop: its answer is put back in the whole image's pixels
+            segmented = shift_payload(segmented, *cut[1], *cut[2])
         found_geometry = geometry_from_segmentation(segmented, source_name=doc.name, direction=direction.get("direction"))
         regions_here = sum(1 for b in found_geometry.boxes if b.level is OCRGeometryLevel.REGION)
     else:
         from fichero_server.workflows.tools.vision_base import page_direction
 
         found = detect_regions(path, model)
+        if cut:  # the crop's fractions are put back as fractions of the whole image
+            from dataclasses import replace
+
+            (left, top), (full_w, full_h) = cut[1], cut[2]
+            with Image.open(path) as crop:
+                cw, ch = crop.size
+            found = [replace(r, rect=((left + r.rect[0] * cw) / full_w, (top + r.rect[1] * ch) / full_h,
+                                      r.rect[2] * cw / full_w, r.rect[3] * ch / full_h)) for r in found]
         found_geometry = geometry(found, width, height, model=model, provider=provider,
                                   direction=page_direction(library, doc.id).get("direction"))
         # YOLO reads the file through OpenCV, which applies the EXIF orientation: its boxes are on the upright page.

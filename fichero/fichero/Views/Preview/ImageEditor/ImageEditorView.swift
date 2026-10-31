@@ -57,6 +57,10 @@ struct ImageEditorView: View {
 
     /// Marquee selection in normalized image space (0…1); nil when none (#1265).
     @State var marqueeSelection: CGRect?
+    /// The four dashed corner handles on the found page; nil when they are not showing (`prep.square.corner-handles-correct-it`).
+    @State var pageCorners: PageCorners?
+    /// "Apply to the rest of this folder": the sheet with three previews (`prep.check.apply-correction-to-the-folder`).
+    @State var showBatchPrepare = false
     @State var compareMode: CompareMode = .single
     @State var compareSplit: CGFloat = 0.5
     /// Canvas zoom for the COMPARE modes (Daniel, 2026-09-01: the editor had
@@ -78,6 +82,8 @@ struct ImageEditorView: View {
     @State var showPasteManyConfirm = false
 
     @Environment(AnnotationStore.self) var annotationStore
+    @Environment(ActionStore.self) var actionStore: ActionStore?
+    @Environment(WindowSteps.self) var windowSteps: WindowSteps?
     // A SECONDARY preview pane must not co-publish the window-scoped \.previewSelectAll /
     // \.imageEditUndoAction keys — one publisher per key, or the scene loops (spec
     // panes.instance-safe). Set on every duplicate leaf by PaneSpec.paneNodeView.
@@ -115,10 +121,19 @@ struct ImageEditorView: View {
             // Inspector's panel one divider apart; see his 9:50pm screenshot).
             canvas
         })
+        .sheet(isPresented: $showBatchPrepare) {
+            if let correction = BatchPrepare.correction(in: model.chain.operations), let folderId = activeDocument.parentId {
+                ImageBatchPrepareSheet(
+                    folderId: folderId, sourceDocumentId: activeDocument.id, correction: correction,
+                    documents: siblingEditableDocs,
+                    onApplied: { ids in ids.forEach { storageService.invalidateImageCache(for: $0) } })
+            }
+        }
         .task(id: document.id) {
             // External selection changed (host drove a new document).
             activeDocumentID = document.id
             marqueeSelection = nil
+            pageCorners = nil
             await model.configure(
                 apiClient: apiClient,
                 documentId: document.id,
@@ -145,6 +160,7 @@ struct ImageEditorView: View {
         .onChange(of: model.chain.operations.count) { _, _ in
             // An op changed the rendered image — a stale region would mismap.
             marqueeSelection = nil
+            pageCorners = nil
         }
         // The Inspector's Edits facet drives a SECOND ImageEditorModel over
         // the same document (Add Step, Update Step, Revert). Applying one of

@@ -1,8 +1,6 @@
-// Set Up's one store: the saved recipe, the jobs, Try, the start plan and (since 5b9b4aeb3) what the cloud
-// would be sent and its estimate. Over SwiftLint's limit; the cost part moves to its own extension file when
-// Swift builds are allowed again (#5904). #6295 took the plan-editing section out (`+PlanEdits`) and put its own
-// state in `+CloudCaps`, so this file is shorter than it was. ponytail: a comment, not a split, so nothing needs compiling now.
-// swiftlint:disable file_length
+// Set Up's one store: the saved recipe, the jobs, Try, the start plan and what the cloud would be sent. The plan's step
+// checkboxes live in `+PlanEdits`, taking a step out in `+Stages`, #6295's own state in `+CloudCaps`: this file stays under
+// SwiftLint's 1000 lines.
 import FicheroAPIClient
 import Foundation
 import Observation
@@ -104,6 +102,8 @@ final class RecipeSetupStore {
     var automatic: RecipeSetupAnswers.Automatic?
     /// The questions a ticked purpose opens under it (section 7b step 3, `answers.job_answers`).
     var jobAnswers = RecipeSetupAnswers.JobAnswers()
+    /// A folder's own answers to Prepare Images' questions, by folder id then question key (`answers.job_answers_by_folder`).
+    var jobAnswersByFolder: [String: [String: StageAnswer]] = [:]
 
     // MARK: What the engine gave back
 
@@ -111,6 +111,10 @@ final class RecipeSetupStore {
     private(set) var purposeOptions: [Components.Schemas.PurposeInfo] = []
     /// The stages of Set Up, from the engine, in pipeline order (`GET /api/recipes/stages`, section 7c/7d).
     var stages: [Components.Schemas.SetupStage] = []
+    /// The Prepare Images card's suggestions, time line and sentence, from the engine (`loadPrepareFacts`).
+    var prepareFacts: Components.Schemas.PrepareImagesFacts?
+    /// Pages to check after a Prepare Images run (`GET /api/recipes/prepare-images/check`, `loadPrepareCheck`).
+    var prepareCheck: Components.Schemas.PrepareCheckList?
     /// Which stages are chosen (`source.onboard.stages.choose-first`); nil until the stages have loaded.
     var stageChoice: SetupStageChoice?
     /// When, where and in which hand the material was written (section 7d, About the material).
@@ -507,7 +511,8 @@ final class RecipeSetupStore {
         RecipeSetupAnswers(purposes: purposes, jobs: addedJobs, languages: languages, scripts: scripts,
                            directions: directions, materials: materials, pages: pages,
                            cloudAllowed: cloudAnswered ? cloudAllowed : nil, ingestMode: wayIn.savedName,
-                           layers: layers, automatic: automatic, jobAnswers: jobAnswers, removedJobs: removedJobs,
+                           layers: layers, automatic: automatic, jobAnswers: jobAnswers,
+                           jobAnswersByFolder: jobAnswersByFolder, removedJobs: removedJobs,
                            period: period, hands: hands, place: place,
                            hfSpendCapUsd: spendCapUsd, cloudSpendCapUsd: cloudSpendCapUsd,
                            cloudProjectCapUsd: cloudProjectCapUsd,
@@ -549,6 +554,7 @@ final class RecipeSetupStore {
         }
         if let value = saved.automatic { automatic = value }
         if let value = saved.jobAnswers { jobAnswers = value }
+        jobAnswersByFolder = saved.jobAnswersByFolder ?? [:]
         if let value = saved.period { period = value }
         if let value = saved.hands { hands = value }
         if let value = saved.place { place = value }

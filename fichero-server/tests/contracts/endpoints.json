@@ -5702,6 +5702,16 @@
       },
       {
         "method": "POST",
+        "path": "/images/batch-prepare/preview",
+        "operation_id": "batch_prepare_preview_api_images_batch_prepare_preview_post",
+        "summary": "Batch Prepare Preview",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "BatchPrepareRequest",
+        "response_model": "BatchPreparePreview"
+      },
+      {
+        "method": "POST",
         "path": "/images/crops/batch",
         "operation_id": "batch_crop_images_api_images_crops_batch_post",
         "summary": "Batch Crop Images",
@@ -9562,6 +9572,26 @@
         "query_params": [],
         "request_model": "PlacesSetting",
         "response_model": "PlacesView"
+      },
+      {
+        "method": "GET",
+        "path": "/recipes/prepare-images/check",
+        "operation_id": "prepare_images_check_api_recipes_prepare_images_check_get",
+        "summary": "Prepare Images Check",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PrepareCheckList"
+      },
+      {
+        "method": "GET",
+        "path": "/recipes/prepare-images/facts",
+        "operation_id": "prepare_images_facts_api_recipes_prepare_images_facts_get",
+        "summary": "Prepare Images Facts",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PrepareImagesFacts"
       },
       {
         "method": "GET",

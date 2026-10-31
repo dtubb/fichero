@@ -15,9 +15,12 @@ operation's effect on reading (`prep.judged-by-reading`), and the image-preparat
 """
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 #: The rendition role the step writes, and the steps after it read.
 ROLE = "prepared"
@@ -64,6 +67,18 @@ def contrast_spread(path: str | None) -> int | None:
         return 0
 
     return level(range(255, -1, -1)) - level(range(256))
+
+
+#: What each paper answer switches on. "faded" raises the contrast (built); the other two name operations that are not built
+#: (`prep.suppress-ruling`, `image.enhance.bleed-through-suppression`): the answer is kept and the plan says so, never silently.
+NOT_BUILT_YET = {"ruled": "Ruling is not taken out yet: the answer is kept for when it is.",
+                 "show-through": "Show-through is not taken out yet: the answer is kept for when it is."}
+
+
+def runs_contrast(paper: list[str] | None) -> bool:
+    """The paper answer's gate for the contrast step: no answer looks at each page and raises the faded ones; an answer
+    runs it only when it says faded."""
+    return not paper or "faded" in paper
 
 
 def is_faded(path: str | None) -> bool:
@@ -132,29 +147,37 @@ def prepare_pages(db: Any, documents: list[str], run_id: str,
     for doc_id in documents:
         if stop is not None and stop():
             break
-        doc = db.get(Document, doc_id)
-        # The page's image as every step finds it (`source.pages.image-found-wherever-kept`, #5668).
-        path = _resolve_abs_path(doc, str(library)) if doc is not None else None
-        spread = contrast_spread(path)
-        if spread is None:
-            account["no_image"] += 1
-            continue
-        if not BLANK_BELOW <= spread < FADED_BELOW:
-            account["clear"] += 1  # clear enough, or blank: nothing to raise
-            continue
-        relative = Path("files") / ROLE / f"{doc.id}.png"
-        with Image.open(path) as image:
-            # The original's own pixels and orientation tag: the same frame, so the lines found on it are the page's.
-            exif = image.getexif()
-            base = image if image.mode in ("RGB", "L") else image.convert("RGB")
-            # The faded ink raised: the darkest 1% to black, the lightest 1% to white (the measure's own cut).
-            out = ImageOps.autocontrast(base, cutoff=1)
-            shown_width, shown_height = upright_size(image)  # the size in the frame the page is shown in
-        (library / relative).parent.mkdir(parents=True, exist_ok=True)
-        out.save(library / relative, format="PNG", exif=exif)
-        db.save(Rendition(document_id=doc.id, role=ROLE, path=str(relative), is_primary=False,
-                          pixel_width=shown_width, pixel_height=shown_height, producer_run_id=run_id,
-                          producer_tool="prepare-the-image",
-                          note=f"faded (grey spread {spread}/255): contrast raised"))
-        account["prepared"] += 1
+        try:
+            doc = db.get(Document, doc_id)
+            # The page's image as every step finds it (`source.pages.image-found-wherever-kept`, #5668).
+            path = _resolve_abs_path(doc, str(library)) if doc is not None else None
+            spread = contrast_spread(path)
+            if spread is None:
+                account["no_image"] += 1
+                continue
+            if not BLANK_BELOW <= spread < FADED_BELOW:
+                account["clear"] += 1  # clear enough, or blank: nothing to raise
+                continue
+            with Image.open(path) as image:
+                # A JPEG stays a JPEG (a PNG of a photograph is 2.4x the file, #5386); any other source is written as PNG.
+                jpeg = image.format in ("JPEG", "MPO")  # an iPhone photograph is an MPO
+                relative = Path("files") / ROLE / f"{doc.id}.{'jpg' if jpeg else 'png'}"
+                # The original's own pixels and orientation tag: the same frame, so the lines found on it are the page's.
+                exif = image.getexif()
+                base = image if image.mode in ("RGB", "L") else image.convert("RGB")
+                # The faded ink raised: the darkest 1% to black, the lightest 1% to white (the measure's own cut).
+                out = ImageOps.autocontrast(base, cutoff=1)
+                shown_width, shown_height = upright_size(image)  # the size in the frame the page is shown in
+            (library / relative).parent.mkdir(parents=True, exist_ok=True)
+            partial = (library / relative).with_suffix(".part")  # written whole or not at all: an interrupt leaves no orphan
+            out.save(partial, **({"format": "JPEG", "quality": 95} if jpeg else {"format": "PNG"}), exif=exif)
+            partial.replace(library / relative)
+            db.save(Rendition(document_id=doc.id, role=ROLE, path=str(relative), is_primary=False,
+                              pixel_width=shown_width, pixel_height=shown_height, producer_run_id=run_id,
+                              producer_tool="prepare-the-image",
+                              note=f"faded (grey spread {spread}/255): contrast raised"))
+            account["prepared"] += 1
+        except Exception as exc:  # noqa: BLE001 -- one page that fails is skipped and said; the others still go on
+            logger.warning("prepare: %s skipped: %s", doc_id, exc)
+            account["failed"] = account.get("failed", 0) + 1
     return account

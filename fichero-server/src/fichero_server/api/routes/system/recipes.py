@@ -2595,8 +2595,8 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     from fichero_server.recipes.recipe import fit_overrides
 
     notes = fit_overrides(setup["recipe"]) if setup["recipe"] else []  # a kept choice never refuses Start (#6259)
-    plan = plan_start(setup["recipe"], stays_local=stays_local, only=only,
-                      job_answers=(setup["answers"] or {}).get("job_answers"), db=db)
+    plan = plan_start(setup["recipe"], stays_local=stays_local, only=only, db=db,
+                      **{k: (setup["answers"] or {}).get(k) for k in ("job_answers", "job_answers_by_folder")})
     if first_pages is not None and folder_id:
         raise LookupError("Start takes a folder or the first pages, not both")
     within = runner.folder_scope(db, folder_id) if folder_id else set(first_pages_of(db, first_pages)) if first_pages else None
