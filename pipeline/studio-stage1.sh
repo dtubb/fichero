@@ -1,9 +1,9 @@
 #!/bin/bash
-# Studio trial, stage 1: the named items through the runner and Pi (Haiku 5.5 codes, Sonnet 5.5 reviews).
+# Studio trial, stage 1: the named items through the runner and Pi (Sonnet 5.5 codes and reviews; CODER=haiku for Haiku 5.5).
 # usage: pipeline/studio-stage1.sh openrouter|anthropic [issue ...]      default items: 6214 6100
 # openrouter: both models via OpenRouter, pinned to the Anthropic endpoint (the OpenRouter key in ~/.config/openrouter/).
 # anthropic: direct, with the Anthropic key in ~/.config/anthropic/.
-# Spends real money (est. US$0.3-1 for two items; the daily cap is 10). Windows are in the tmux session `studio`
+# Spends real money (est. US$2-6 for three items, US$1.5-4 for two; the daily cap is 8). Windows are in the tmux session `studio`
 # (tmux attach -t studio). Nothing lands (auto_land = false) and nothing is picked from GitHub (feed = false).
 set -eu
 cd "$(dirname "$0")/.."
@@ -13,9 +13,9 @@ PY=${PY:-../integration/.venv/bin/python}   # the runner's python must import th
 export PYTHONPATH=.
 case "$via" in
   openrouter) [ -s ~/.config/openrouter/key ] || { echo "no OpenRouter key file"; exit 1; }
-              coder=anthropic/claude-haiku-5.5; reviewer=1; provider=openrouter ;;
+              coder=anthropic/claude-sonnet-5.5; [ "${CODER:-}" = haiku ] && coder=anthropic/claude-haiku-5.5; reviewer=1; provider=openrouter ;;
   anthropic)  [ -s ~/.config/anthropic/key ] || [ -s ~/.config/anthropic/key-lane ] || { echo "no Anthropic key file"; exit 1; }
-              coder=claude-haiku-5-5; reviewer=0; provider=anthropic ;;
+              coder=claude-sonnet-5-5; [ "${CODER:-}" = haiku ] && coder=claude-haiku-5-5; reviewer=0; provider=anthropic ;;
   *) echo "openrouter or anthropic"; exit 1 ;;
 esac
 for n in "$@"; do

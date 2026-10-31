@@ -37,7 +37,7 @@ def test_current_profile_loads_with_every_required_section():
     assert config.pi_model_id(config.at_tier(cfg, coders[0], "small")) == "anthropic/claude-haiku-5-5", "the small tier"
     assert all(w.get("tier") for role in cfg["roles"].values() for w in role), "roles name a tier, not a model"
     assert all(w["kind"] == "pi" for role in cfg["roles"].values() for w in role), "no other worker kind on this branch"
-    assert cfg["workers"]["cost_cap_usd"] == 5.0 and cfg["workers"]["daily_cap_usd"] == 10.0, "US$5 per session, US$10 per day (studio trial)"
+    assert cfg["workers"]["cost_cap_usd"] == 5.0 and cfg["workers"]["daily_cap_usd"] == 8.0, "US$5 per session, US$8 per day (studio trial)"
     import json
     declared = {m["id"] for m in json.load(open(config.ROOT / "pipeline/pi-agent/models.json"))["providers"]["anthropic"]["models"]}
     assert {"claude-sonnet-5-5", "claude-haiku-5-5", "claude-opus-5-5"} <= declared, "Pi knows the models' context and price"
