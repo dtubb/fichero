@@ -8,7 +8,9 @@ result, never a raise.
 
 from __future__ import annotations
 
+import fnmatch
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -33,6 +35,7 @@ class Config:
     min_guards: int = 0                 # fewer guards found than this = blind = not green
     contract_paths: tuple = ()          # a diff touching these runs the contract guards
     contract_guards: tuple = ()         # guard script paths (relative)
+    spec_dir: str = ""                  # folder of the specs whose item acceptance a worker may not rewrite ("" = none)
     check_paths: tuple = ()             # files/folders that judge a diff: run from the pinned copy, never the worker's
     test_globs: tuple = ("test_*.py", "*_test.py")
     max_files: int = 25
@@ -53,7 +56,7 @@ def load(root) -> Config:
         guard_skip=frozenset(c.get("guard_skip", ())), guard_timeout_s=c.get("guard_timeout_s", d.guard_timeout_s),
         min_guards=c.get("min_guards", d.min_guards), contract_paths=tuple(c.get("contract_paths", d.contract_paths)),
         contract_guards=tuple(c.get("contract_guards", d.contract_guards)),
-        check_paths=tuple(c.get("check_paths", d.check_paths)), test_globs=tuple(c.get("test_globs", d.test_globs)), max_files=c.get("max_files", d.max_files),
+        spec_dir=c.get("spec_dir", d.spec_dir), check_paths=tuple(c.get("check_paths", d.check_paths)), test_globs=tuple(c.get("test_globs", d.test_globs)), max_files=c.get("max_files", d.max_files),
         max_lines=c.get("max_lines", d.max_lines))
 
 
@@ -254,6 +257,66 @@ def pinned_violations(root, since: str, head: str, cfg: Config, pinned) -> list[
     return bad
 
 
+SKIP_LINE = r"(?m)^\s*(?:@pytest\.mark\.(?:skip|skipif|xfail)\b|pytestmark\b.*\bpytest\.mark\.(?:skip|skipif|xfail)\b|pytest\.(?:skip|xfail)\()"
+
+
+def weakened_tests(root, since: str, head: str, cfg: Config) -> list[str]:
+    """Existing test files the diff weakens: a test function removed, fewer `assert`s, or more skip/xfail markers
+    (conftest.py counts: it can skip everything). New test files are free. Ported from the frozen pipeline.
+    ponytail: counts per file by regex; a renamed file is not compared; an AST diff if a worker games the counts."""
+    base = (_lines(root, "merge-base", since, head) or [since])[0]
+
+    def counts(rev, f):
+        t = "\n".join(_lines(root, "show", f"{rev}:{f}") or [])
+        return (set(re.findall(r"(?m)^\s*(?:async )?def (test_\w+)", t)), len(re.findall(r"\bassert\b", t)),
+                len(re.findall(SKIP_LINE, t)))
+    bad = []
+    for row in _lines(root, "diff", "--name-status", "--no-renames", "--diff-filter=MD", f"{since}...{head}") or []:
+        f = row.split("\t", 1)[1]
+        if not (f.endswith(".py") and (f.endswith("conftest.py") or any(fnmatch.fnmatch(Path(f).name, g) for g in cfg.test_globs))):
+            continue
+        (t0, a0, s0), (t1, a1, s1) = counts(base, f), counts(head, f)
+        if t0 - t1 or a1 < a0 or s1 > s0:
+            bad.append(f)
+    return bad
+
+
+TAG_RE = re.compile(r"\[(?:OK|PARTIAL|MISSING|GAP|BROKEN|PROPOSED)[^\]]*\]|\(#\d+\)")
+
+
+def _acceptance_lines(text: str, ids) -> list[str]:
+    """The behaviour bullets (`- \\`area.id\\``, continuation lines included) that name one of `ids`, with status
+    tags and `(#N)` removed, so flipping [PROPOSED] to [OK] or adding the issue number is not a change."""
+    out, lines = [], text.splitlines()
+    for i, line in enumerate(lines):
+        if re.match(r"\s*- `[a-z][a-z0-9-]*\.[a-z0-9.-]+`", line) and any(f"`{x}`" in line for x in ids):
+            block = [line]
+            for nxt in lines[i + 1:]:
+                if not (nxt.startswith("  ") and not nxt.lstrip().startswith("- ")):
+                    break
+                block.append(nxt)
+            out.append(" ".join(b.strip() for b in block))
+    return [re.sub(r"\s+", " ", TAG_RE.sub("", s)).strip() for s in out]
+
+
+def acceptance_changed(root, since: str, head: str, cfg: Config, ids) -> list[str]:
+    """Lines of the item's own acceptance that differ between `since` and `head` in a changed spec file: a worker
+    may not rewrite what it is judged on (it asks instead). A tag flip or an added (#N) is not a change.
+    ponytail: stricter than the frozen pipeline (no [OK]-flip-with-prose rule); a flip that also edits prose asks."""
+    if not cfg.spec_dir or not ids:
+        return []
+    hits = []
+    for row in _lines(root, "diff", "--name-status", "--no-renames", "--diff-filter=MD", f"{since}...{head}") or []:
+        f = row.split("\t", 1)[1]
+        if not (f.startswith(cfg.spec_dir.rstrip("/") + "/") and f.endswith(".md")):
+            continue
+        before = _acceptance_lines("\n".join(_lines(root, "show", f"{since}:{f}") or []), ids)
+        after = _acceptance_lines("\n".join(_lines(root, "show", f"{head}:{f}") or []), ids)
+        if before != after:
+            hits += [f"{f}: - {x[:160]}" for x in before if x not in after] + [f"{f}: + {x[:160]}" for x in after if x not in before]
+    return hits
+
+
 def _scratch_tree(root, head: str, pinned, cfg: Config) -> str:
     """A detached worktree of `head` with the pinned copy's check files laid over it: the checks judge the worker's
     committed code, never its uncommitted edits and never its own copies of the checks."""
@@ -271,14 +334,16 @@ def _scratch_tree(root, head: str, pinned, cfg: Config) -> str:
     return tree
 
 
-def run_ladder(root, since: str, head: str, pinned) -> dict:
+def run_ladder(root, since: str, head: str, pinned, protected_ids=()) -> dict:
     """The project's whole ladder over the diff since..head, judged by the PINNED copy (an engine-owned checkout
     outside the worker's tree; its harness.toml is the config): pinned-checks, ready, diff bound, red-on-base for
     the changed test files (its green run is the pytest rung), guards, contract. Stops at the first red.
-    ponytail: weakened-test and spec-acceptance rules of the frozen pipeline are not ported yet."""
-    import fnmatch
+    `protected_ids`: the behaviour ids of the item, whose spec acceptance the worker may not rewrite."""
     cfg = load(pinned)
     bad = pinned_violations(root, since, head, cfg, pinned)
+    if weak := weakened_tests(root, since, head, cfg):
+        bad.append(f"the diff deletes or weakens existing tests ({', '.join(weak[:5])})")
+    bad += [f"the diff rewrites the item's own acceptance ({h})" for h in acceptance_changed(root, since, head, cfg, protected_ids)[:8]]
     if bad:
         r = {"name": "pinned-checks", "argv": [], "exit_code": 1, "ok": False, "timed_out": False, "seconds": 0,
              "stdout_tail": "", "stderr_tail": "\n".join(bad) + "\nneeds-maintainer"}

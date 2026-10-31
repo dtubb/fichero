@@ -203,3 +203,44 @@ def test_a_big_diff_is_not_truncated_by_the_output_tail(tmp_path):
     g("add", "."), g("commit", "-q", "-m", "many")
     r = ct.diff_bound(tmp_path, base, "HEAD", ct.Config(max_files=44))
     assert not r["ok"] and "45 files" in r["stderr_tail"]
+
+
+def test_a_worker_cannot_weaken_its_own_tests(tmp_path):
+    """A test function removed, fewer asserts, or more skips in an existing test file: needs-maintainer."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "test_old.py").write_text("def test_a():\n    assert 1\n    assert 2\ndef test_b():\n    assert 3\n")
+    g("add", "."), g("commit", "-q", "-m", "tests")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+    subprocess.run(["git", "-C", str(pinned), "pull", "-q"], check=True, capture_output=True)
+    cfg = ct.load(pinned)
+    (work / "test_old.py").write_text("def test_a():\n    assert 1\ndef test_b():\n    assert 3\n")  # one assert fewer
+    g("commit", "-qam", "weaker")
+    assert ct.weakened_tests(work, base, "HEAD", cfg) == ["test_old.py"]
+    g("reset", "-q", "--hard", base)
+    (work / "test_old.py").write_text("def test_a():\n    assert 1\n    assert 2\ndef test_b():\n    assert 3\ndef test_c():\n    assert 4\n")
+    g("commit", "-qam", "stronger")
+    assert ct.weakened_tests(work, base, "HEAD", cfg) == []
+    g("reset", "-q", "--hard", base)
+    (work / "test_old.py").write_text("import pytest\n@pytest.mark.skip\ndef test_a():\n    assert 1\n    assert 2\ndef test_b():\n    assert 3\n")
+    g("commit", "-qam", "skip")
+    r = ct.run_ladder(work, base, "HEAD", pinned)
+    assert r["failed"] == "pinned-checks" and "test_old.py" in r["rungs"][0]["stderr_tail"]
+
+
+def test_a_worker_cannot_rewrite_its_own_acceptance(tmp_path):
+    """The item's own spec bullet may flip its status tag or gain (#N); any other change is needs-maintainer."""
+    work, g, base0, pinned = _project(tmp_path)
+    (work / "specs").mkdir()
+    spec = work / "specs" / "s.md"
+    spec.write_text("- `demo.item.one` [PROPOSED] — it does the thing, and ten more.\n- `demo.other` [OK] — unrelated.\n")
+    g("add", "."), g("commit", "-q", "-m", "spec")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+    cfg = ct.Config(spec_dir="specs")
+    spec.write_text("- `demo.item.one` [OK] (#12) — it does the thing, and ten more.\n- `demo.other` [OK] — unrelated.\n")
+    g("commit", "-qam", "tag flip")
+    assert ct.acceptance_changed(work, base, "HEAD", cfg, ["demo.item.one"]) == []
+    spec.write_text("- `demo.item.one` [OK] — it does less.\n- `demo.other` [OK] — unrelated.\n")
+    g("commit", "-qam", "rewrite")
+    hits = ct.acceptance_changed(work, base, "HEAD", cfg, ["demo.item.one"])
+    assert hits and "specs/s.md" in hits[0]
+    assert ct.acceptance_changed(work, base, "HEAD", cfg, ["demo.other"]) == []  # only the item's own ids are protected
