@@ -99,3 +99,9 @@ def test_probe_flags_a_gh_login(tmp_path, monkeypatch):
     home = tmp_path / "h"; home.mkdir(); home.chmod(0)  # the probe's floor wants ~ unreadable
     monkeypatch.setenv("HOME", str(home))
     assert J.Jail(user="root", sudo=_fake_sudo(tmp_path)).probe() == ["root is signed in to gh"]
+
+
+def test_default_cwd_is_root_not_the_owners(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    out = subprocess.run(J.Jail(user="root", sudo=_fake_sudo(tmp_path)).argv(["/bin/pwd"]), capture_output=True, text=True)
+    assert out.stdout.strip() == "/"

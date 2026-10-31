@@ -54,7 +54,7 @@ class Jail:
     def argv(self, argv: list[str], cwd=None, env: dict | None = None) -> list[str]:
         """`argv` as the jailed user: clean environment (only `env`), HOME the user's own, optional cwd."""
         e = [f"{k}={v}" for k, v in (env or {}).items() if k != "HOME"]
-        inner = argv if cwd is None else ["/bin/sh", "-c", _CD_EXEC, "sh", str(cwd), *argv]
+        inner = ["/bin/sh", "-c", _CD_EXEC, "sh", str(cwd) if cwd is not None else "/", *argv]  # never inherit the owner's cwd: the jail user cannot read it
         if self.is_self():
             return ["/usr/bin/env", "-i", f"HOME={os.environ.get('HOME', '')}", *e, *inner]
         # sudo -H sets the user's own HOME; env -i then drops everything else the caller had

@@ -7,6 +7,7 @@
 #   scripts/harness_setup.sh --undo      chmod ~ back to the recorded mode, remove the sudoers line; says how to delete the user
 # Safe to re-run: every step skips what is already done. The worker user is NOT admin and NOT in staff.
 set -euo pipefail
+cd /   # sudo -u keeps the cwd; after chmod 700 ~ the worker cannot read one inside it (git: "Unable to read current working directory")
 
 MODE="do"
 case "${1:-}" in --dry-run) MODE=dry ;; --undo) MODE=undo ;; --probe) MODE=probe ;; "") ;; *) echo "usage: $0 [--dry-run|--probe|--undo]"; exit 2 ;; esac
