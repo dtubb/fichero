@@ -21,7 +21,7 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 import httpx
 
@@ -81,7 +81,18 @@ def invite_link(*, api_url: str, code: str, spki: str | None, expires_at: str | 
     if library_path:
         payload["library_path"] = library_path
     encoded = base64.b64encode(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).decode()
-    return f"fichero://pair?payload={encoded}"
+    # Percent-encode as the app does: an unquoted `+` in the query reads back as a space and the link is "damaged".
+    return f"fichero://pair?payload={quote(encoded, safe='')}"
+
+
+def tailnet_link_url(tailnet_url: str, sharing_address: str | None, default_port: int = 8765) -> str:
+    """The tailnet address a LINK carries: the engine reports the origin (`https://<name>.ts.net`, no port) while the
+    forward is `--https=<sharing port>`; a link without the port names 443 and never connects (review 2026-10-31, H3)."""
+    tail = urlparse(tailnet_url.strip())
+    if tail.port:
+        return tailnet_url.strip().rstrip("/")
+    port = urlparse(sharing_address or "").port or default_port
+    return f"https://{tail.hostname}:{port}"
 
 
 def _is_public_ca(host: str) -> bool:

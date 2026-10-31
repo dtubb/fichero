@@ -496,9 +496,11 @@ the addresses* (`sharing.state-names-every-address`).
   `.local`/IP address (`spki_pin` from the mint answer) and none for `.ts.net`, the same rule as the app (`_is_public_ca`). The two
   machines are then linked with no GUI: `fichero devices invite --link-file ~/fichero-pair/link` on the host (a private directory, never a
   shared `/tmp` path: the file is created owner-only at 0600 through a fresh temp file, and a symlink, a directory or another user's file
-  is refused in words), copied to the guest, then `fichero devices pair --link-file ~/fichero-pair/link` there. The raw code is never printed on its own. *Test:* `tests/unit/security/test_cli_mints_a_link_to_spec.py` (beside
-  `test_cli_pairs_a_device_5907.py`): the link decodes to the engine's code and the chosen address; `.ts.net` → no `spki`; `.local` → the pin;
-  `--link-file` is 0600 and stdout holds no payload.
+  is refused in words), copied to the guest, then `fichero devices pair --link-file ~/fichero-pair/link` there. The raw code is never printed on its own. *Test:* `fichero-cli/tests/test_cli_mints_a_link_to_spec.py` (beside `test_cli_pairs_a_device_5907.py`): the link decodes to the
+  engine's code and the chosen address; the tailnet link carries the sharing port (the engine reports the `.ts.net` origin without one, review H3);
+  `.ts.net` → no `spki`; `.local` → the pin; the payload is percent-encoded so any library path round-trips (review L4); `--link-file` is 0600
+  and stdout holds no payload; a refusal names only addresses that exist. A link to an address nothing listens on is refused by the engine's
+  mint (409, `sharing.link-names-a-listener`) and shown as "Could not invite: …".
 
 ### 10.6 Each platform today, what is broken, what "working" means
 

@@ -19,8 +19,9 @@ from fichero_cli import __main__ as cli_main
 from fichero_cli import pairing
 
 runner = CliRunner()
-LOCAL = "https://macbook-air-m1.local:8765"
-TAILNET = "https://macbook-air-m1.tail1234.ts.net"
+LOCAL = "https://host-a.local:8765"
+TAILNET = "https://host-a.tail1234.ts.net"  # as GET /api/pair/sharing returns it: the origin, NO port (review H3)
+TAILNET_LINK = "https://host-a.tail1234.ts.net:8765"  # what the link must carry: the forward is --https=8765
 PIN = "c3BraS1waW4="
 MINT = {"code": "ABCD-1234", "expires_at": "2026-10-31T16:00:00Z", "spki_pin": PIN, "tailnet_url": TAILNET}
 
@@ -70,9 +71,9 @@ def test_the_link_for_a_local_address_carries_the_pin_and_decodes_like_the_apps(
 
 
 def test_the_link_for_a_tailnet_address_carries_no_pin():
-    text = pairing.invite_link(api_url=TAILNET, code="ABCD-1234", spki=PIN, expires_at=None, library_path=None)
+    text = pairing.invite_link(api_url=TAILNET_LINK, code="ABCD-1234", spki=PIN, expires_at=None, library_path=None)
     link = pairing.parse_link(text)
-    assert (link.api_url, link.spki) == (TAILNET, None)
+    assert (link.api_url, link.spki) == (TAILNET_LINK, None)
     payload = json.loads(pairing._payload_of(text))
     assert "spki" not in payload and "library_path" not in payload and "expires_at" not in payload
 
@@ -83,7 +84,7 @@ def test_invite_defaults_to_tailscale_when_the_host_has_a_forward_of_its_own(hos
     assert result.exit_code == 0, result.output
     assert host.calls == ["sharing", "mint"]
     link = pairing.parse_link(result.output.strip().splitlines()[-1])
-    assert link.api_url == TAILNET and link.spki is None and link.code == "ABCD-1234"
+    assert link.api_url == TAILNET_LINK and link.spki is None and link.code == "ABCD-1234", "the sharing port rides on the tailnet name"
     assert "Tailscale" in result.output and "16:00" in result.output
 
 
@@ -99,7 +100,7 @@ def test_invite_takes_the_address_the_person_asks_for(host):
     this = runner.invoke(cli_main.app, ["devices", "invite", "--address", "this-network"])
     assert pairing.parse_link(this.output.strip().splitlines()[-1]).api_url == LOCAL
     tail = runner.invoke(cli_main.app, ["devices", "invite", "--address", "tailscale"])
-    assert pairing.parse_link(tail.output.strip().splitlines()[-1]).api_url == TAILNET
+    assert pairing.parse_link(tail.output.strip().splitlines()[-1]).api_url == TAILNET_LINK
 
 
 def test_invite_refuses_an_address_the_host_does_not_have(host):
@@ -170,3 +171,29 @@ def test_write_owner_only_creates_with_excl_and_nofollow(tmp_path, monkeypatch):
     pairing.write_owner_only(tmp_path / "x", "text\n")
     flags, mode = seen[-1]
     assert flags & pairing.os.O_EXCL and flags & pairing.os.O_NOFOLLOW and mode == 0o600
+
+
+# -- review 2026-10-31: H3 the port, L4 the encoding, L5 the words ---------------------------------------------------------
+def test_the_tailnet_link_carries_the_sharing_port():
+    assert pairing.tailnet_link_url("https://host-a.tail1234.ts.net", "https://host-a.local:8765") == "https://host-a.tail1234.ts.net:8765"
+    assert pairing.tailnet_link_url("https://host-a.tail1234.ts.net:9443", "https://host-a.local:8765") == "https://host-a.tail1234.ts.net:9443"
+    assert pairing.tailnet_link_url("https://host-a.tail1234.ts.net", None) == "https://host-a.tail1234.ts.net:8765"
+
+
+def test_the_link_survives_a_library_path_that_base64_encodes_to_a_plus_sign():
+    """L4: an unquoted `+` in the query reads back as a space and the link is 'damaged'. Every payload must round-trip."""
+    for path in ("/Users/x/Proj~1>.fichero", "/a>>", "/~~~~", "/Users/d/Marshall.fichero", "/" + "~>" * 40):
+        text = pairing.invite_link(api_url=LOCAL, code="ABCD-1234", spki=PIN, expires_at=None, library_path=path)
+        assert json.loads(pairing._payload_of(text))["library_path"] == path
+        assert pairing.parse_link(text).code == "ABCD-1234"
+
+
+def test_invite_words_name_what_exists(host):
+    """L5: a tailnet address whose forward is not Fichero's own says so; no address at all says Sharing is off; a refused
+    this-network never points at a Tailscale that cannot work."""
+    host.state["tailnet_forward"] = "none"
+    result = runner.invoke(cli_main.app, ["devices", "invite", "--address", "tailscale"])
+    assert result.exit_code == 1 and "published" in result.output and "another service" not in result.output, result.output
+    host.state["public_base_url"] = None
+    result = runner.invoke(cli_main.app, ["devices", "invite", "--address", "this-network"])
+    assert result.exit_code == 1 and "tailscale" not in result.output.lower(), result.output

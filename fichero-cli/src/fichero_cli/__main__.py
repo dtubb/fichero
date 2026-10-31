@@ -842,20 +842,25 @@ def devices_invite(
             state = client.sharing_state() or {}
             local = (state.get("public_base_url") or "").strip() or None
             tailnet = (state.get("tailnet_url") or "").strip() or None
-            tailnet_ok = tailnet is not None and state.get("tailnet_forward") == "ours"
-            if local is None and tailnet is None:
+            forward = state.get("tailnet_forward") or "none"
+            tailnet_ok = tailnet is not None and forward == "ours"
+            # Sharing off: no sharing address. (A tailnet address alone is Tailscale running, not Fichero sharing.)
+            if local is None:
                 typer.echo("Sharing is off on this Mac: turn it on in Settings › Sharing, then invite again.", err=True)
                 raise typer.Exit(1)
             chosen = address or ("tailscale" if tailnet_ok else "this-network")
             if chosen == "tailscale" and not tailnet_ok:
-                why = ("Tailscale is not running on this Mac" if tailnet is None
-                       else "another service holds the tailnet port (see Settings › Sharing)")
-                typer.echo(f"No Tailscale address to invite with: {why}. Try --address this-network.", err=True)
+                why = {
+                    None: "Tailscale is not running on this Mac" if tailnet is None else "",
+                    "foreign": "another service holds this port on the tailnet (see Settings › Sharing)",
+                    "none": "Fichero has not published this Mac on the tailnet yet (turn Sharing off and on)",
+                    "unknown": "this engine cannot ask Tailscale (a sandboxed build; see Settings › Sharing)",
+                }.get(None if tailnet is None else forward, "the tailnet forward is not Fichero's own")
+                typer.echo(f"No Tailscale address to invite with: {why}. --address this-network names the local address.", err=True)
                 raise typer.Exit(1)
-            if chosen == "this-network" and local is None:
-                typer.echo("This Mac has no local sharing address; try --address tailscale.", err=True)
-                raise typer.Exit(1)
-            api_url = tailnet if chosen == "tailscale" else local
+            # This network: the engine itself refuses a link to an address nothing listens on (409,
+            # `sharing.link-names-a-listener`), and its words are shown below as "Could not invite".
+            api_url = pairing.tailnet_link_url(tailnet, local) if chosen == "tailscale" else local
             mint = client.create_pairing_code()
             text = pairing.invite_link(api_url=api_url, code=mint["code"], spki=mint.get("spki_pin"),
                                        expires_at=mint.get("expires_at"), library_path=ctx.obj.get("library") or None)
