@@ -150,6 +150,7 @@ def start(
     tmux_session: str = "",
     claude_bin: str = "claude",
     model: str = "sonnet",
+    task: str = "",
 ) -> str:
     """Start a worker of `kind` ("claude" or "fake") in `workdir`; returns its job id. `claude` needs the tmux
     session to open its window in (`tmux_session`).
@@ -165,7 +166,9 @@ def start(
         raise ValueError("a worker needs a positive timeout_s")
     job_id = f"worker-{uuid.uuid4().hex[:12]}"
     if kind == "claude":
-        return _start_pane(db, job_id, brief, cwd, timeout_s, tmux_session, claude_bin, model)
+        _start_pane(db, job_id, brief, cwd, timeout_s, tmux_session, claude_bin, model)
+        _set_address(db, task, job_id, kind, _WORKERS[job_id].pane, _WORKERS[job_id].log.parent)
+        return job_id
     argv = [sys.executable, "-c", _FAKE, json.dumps(scenario or {})]
     # As cli_agent (#5186): no stdin; own process group so a stop or timeout kills what it started.
     proc = subprocess.Popen(
@@ -174,6 +177,7 @@ def start(
     )
     w = _WORKERS[job_id] = _Worker(proc.pid, proc)
     jobs._record(db, job_id, kind=KIND, subject=job_id, parent_id=None, state="running", reason=None, name=f"Worker ({kind})")
+    _set_address(db, task, job_id, kind, "", "")
     threading.Thread(target=_watch, args=(db, job_id, w, kind, str(cwd), timeout_s), daemon=True).start()
     return job_id
 
@@ -196,6 +200,44 @@ def _start_pane(db: Any, job_id: str, brief: str, cwd: Path, timeout_s: float, s
     jobs._record(db, job_id, kind=KIND, subject=job_id, parent_id=None, state="running", reason=None, name="Worker (claude)")
     threading.Thread(target=_watch_pane, args=(db, job_id, w, "claude", str(cwd), timeout_s), daemon=True).start()
     return job_id
+
+
+class StaleWorker(Exception):
+    """A tell addressed to a worker generation that is not the task's current one (or to a task with none)."""
+
+
+_ADDR_DDL = ("CREATE TABLE IF NOT EXISTS worker_addresses (task TEXT PRIMARY KEY, generation INTEGER NOT NULL, "
+             "job_id TEXT NOT NULL, kind TEXT NOT NULL, pane TEXT NOT NULL, session_dir TEXT NOT NULL)")
+
+
+def _set_address(db: Any, task: str, job_id: str, kind: str, pane: str, session_dir: Any) -> None:
+    """(dev-workflows.run.worker-address) Rewrite the task's address to this generation; no `task` = untracked."""
+    if not task:
+        return
+    db.execute(_ADDR_DDL)
+    prev = db.execute_fetchone("SELECT generation FROM worker_addresses WHERE task = ?", [task])
+    gen = (prev[0] if prev else 0) + 1
+    db.execute("DELETE FROM worker_addresses WHERE task = ?", [task])
+    db.execute("INSERT INTO worker_addresses VALUES (?, ?, ?, ?, ?, ?)", [task, gen, job_id, kind, pane, str(session_dir)])
+
+
+def address(db: Any, task: str) -> dict[str, Any] | None:
+    db.execute(_ADDR_DDL)
+    r = db.execute_fetchone("SELECT generation, job_id, kind, pane, session_dir FROM worker_addresses WHERE task = ?", [task])
+    return dict(zip(("generation", "job_id", "kind", "pane", "session_dir"), r)) if r else None
+
+
+def tell(db: Any, task: str, generation: int, text: str) -> None:
+    """Type `text` into the task's current worker pane. Refused for any other generation."""
+    a = address(db, task)
+    if a is None or a["generation"] != generation:
+        raise StaleWorker(f"task {task!r}: generation {generation} is not the current worker "
+                          f"({a['generation'] if a else 'none'})")
+    if not a["pane"]:
+        raise StaleWorker(f"task {task!r}: its worker has no pane to tell")
+    subprocess.run(["tmux", "send-keys", "-t", a["pane"], "-l", text], check=True, capture_output=True)
+    time.sleep(0.2)  # a bare send-keys loses the Enter; send it on its own
+    subprocess.run(["tmux", "send-keys", "-t", a["pane"], "Enter"], check=True, capture_output=True)
 
 
 def wait(job_id: str, timeout: float) -> str | None:
