@@ -11,7 +11,12 @@ from fastapi.testclient import TestClient
 
 from fichero_server.security import accounts
 from tests.signed_in import signed_in_client
-from tests.unit.security.test_sharing_probe_2026_10_01 import harness  # noqa: F401  # the probe's fixture
+from tests.unit.security.test_sharing_probe_2026_10_01 import (  # noqa: F401  # the probe's fixture and helpers
+    _bearer,
+    _login,
+    _multiuser_on,
+    harness,
+)
 
 # ruff: noqa: F811  -- pytest fixtures are passed by name; the parameter shadows the imported fixture on purpose
 
@@ -72,8 +77,11 @@ def test_the_switchs_audit_row_is_undone_from_a_library_window(harness, monkeypa
 
 def test_a_paired_device_without_a_header_is_refused(harness, monkeypatch):
     """A header-less non-owner (a paired device's token) → 403: dropping the library dependency dropped no rule."""
-    _owner(harness, monkeypatch)
-    device = harness.pair(harness.host())
+    _multiuser_on(harness, monkeypatch)  # the owner mints the code signed in, not as the ambient host (the ratchet)
+    minter = harness.client()
+    minter.headers.update(_bearer(_login(harness, "owner")))
+    device = harness.pair(minter)
+    monkeypatch.delenv("FICHERO_MULTIUSER")  # the env pins the switch; the device must meet the route's own refusal
     bare = TestClient(harness.app, base_url="http://testserver", client=("testclient", 5000),
                       headers={"Authorization": f"Bearer {device['device_token']}"})
     switch = bare.put("/api/pair/multiuser", json={"enabled": True})
