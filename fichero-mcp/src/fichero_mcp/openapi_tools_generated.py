@@ -5899,6 +5899,14 @@ def fichero_notes_delete_link(
     return _rt.call("DELETE", f"/api/notes/{note_id}/links/{link_id}")
 
 
+def fichero_renditions_get_image_chain(
+    *,
+    page_id: Annotated[str, Field(description='Page Id')],
+) -> Any:
+    "Get Image Chain\n\nThe page's image chain: the photograph, each rendition in the order made with its operation and figure in words, which\none every later step reads and each one passed over with its reason.\n\nRoute: GET /api/pages/{page_id}/image-chain (toolset `renditions`; reads)."
+    return _rt.call("GET", f"/api/pages/{page_id}/image-chain")
+
+
 def fichero_pairing_pair_device(
     *,
     code: Annotated[str, Field(description='Code.')],
@@ -9875,6 +9883,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_notes_forward_links", "notes", "GET", "/api/notes/{note_id}/forward-links", fichero_notes_forward_links),
     GeneratedTool("fichero_notes_create_link", "notes", "POST", "/api/notes/{note_id}/links", fichero_notes_create_link),
     GeneratedTool("fichero_notes_delete_link", "notes", "DELETE", "/api/notes/{note_id}/links/{link_id}", fichero_notes_delete_link),
+    GeneratedTool("fichero_renditions_get_image_chain", "renditions", "GET", "/api/pages/{page_id}/image-chain", fichero_renditions_get_image_chain),
     GeneratedTool("fichero_pairing_pair_device", "pairing", "POST", "/api/pair", fichero_pairing_pair_device),
     GeneratedTool("fichero_pairing_create_code", "pairing", "POST", "/api/pair/code", fichero_pairing_create_code),
     GeneratedTool("fichero_pairing_list_devices", "pairing", "GET", "/api/pair/devices", fichero_pairing_list_devices),

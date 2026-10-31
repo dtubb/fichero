@@ -245,3 +245,22 @@ def test_a_half_size_rendition_that_keeps_the_photographs_orientation_tag_is_sca
     upright_dot = [(H - 30) / H, 40 / W]
     on_half = found.to_image.carry([upright_dot])[0]
     assert (on_half[0] * W / 2, on_half[1] * H / 2) == pytest.approx((20, 15), abs=1)
+
+
+def test_wide_chain_a_passed_over_rendition_is_a_row_with_its_reason_not_only_a_count(db, tmp_path):
+    """`wide.chain.served-by-the-engine`: what `current_page_image` counts as `passed_over` is also served as rows (the rendition
+    and why), and the chain's words say which rendition is read (`image_chain`, served at `/api/pages/{id}/image-chain`)."""
+    from fichero_server.media.current_image import passed_over_renditions
+    from fichero_server.media.image_chain import image_chain
+
+    doc = _page(db, tmp_path)
+    flat = tmp_path / "flat.png"
+    Image.new("RGB", (W, H), "white").save(flat)
+    db.save(Rendition(document_id=doc.id, role="flattened", path=str(flat),
+                      transform=NodeRegion(rect=[0, 0, 1, 1], method="flatten")))
+
+    ((row, why),) = passed_over_renditions(db, doc)
+    assert row.role == "flattened" and "flattened" in why
+    assert current_page_image(db, doc).passed_over == 1
+    chain = image_chain(db, doc)
+    assert chain["read_from"] == ORIGINAL and chain["steps"][0]["reads_this"] and chain["passed_over"][0]["why"] == why

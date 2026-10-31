@@ -23,7 +23,9 @@ def with_folder_answers(runs: list[dict[str, Any]], job_answers: dict | None, by
     run. The two-pages answer gates the split: an explicit no skips it, with its why; no answer keeps today's behaviour, so
     an older project does not change; a folder's yes runs the split on that folder even where the project says no."""
     answers = {f: a for f, a in (by_folder or {}).items() if isinstance(a, dict)}
-    project_no = (job_answers or {}).get("two_pages_per_image") is False
+    from fichero_server.recipes import prepare_operations
+
+    project_no = prepare_operations.split_is_off(job_answers)
     if not answers and not project_no:
         return runs
     out: list[dict[str, Any]] = []
@@ -31,7 +33,8 @@ def with_folder_answers(runs: list[dict[str, Any]], job_answers: dict | None, by
         if run.get("job") == "prepare-the-image":
             own = {f: list(a["the_paper"] or []) for f, a in answers.items() if isinstance(a.get("the_paper"), list)}
             out.append({**run, "exclude_folders": [*run.get("exclude_folders", []), *own]})
-            out += [{**run, "folder_id": f, "paper": paper, "exclude_folders": [], "how": prepare_how(paper)}
+            out += [{**run, "folder_id": f, "paper": paper, "exclude_folders": [], "how": prepare_how(paper),
+                     "operations": prepare_operations.to_run(job_answers, paper)}
                     for f, paper in own.items()]
         elif run.get("job") == "split-pages":
             said = {f: a["two_pages_per_image"] for f, a in answers.items() if isinstance(a.get("two_pages_per_image"), bool)}

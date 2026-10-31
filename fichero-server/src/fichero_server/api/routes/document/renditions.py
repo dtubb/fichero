@@ -14,10 +14,13 @@ live in the clients.
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 
 from fichero_server.api.main import get_library_database
 from fichero_server.db import Database
@@ -28,6 +31,8 @@ from fichero_server.security.path_security import resolve_document_source_path
 from fichero_server.api.errors import ErrorDetail as _RefusalBody
 
 router = APIRouter(prefix="/documents")
+#: The page's image chain lives under /pages (`wide.chain.served-by-the-engine`).
+pages_router = APIRouter(prefix="/pages")
 
 # Explicit suffix→type map, NEVER the mimetypes module: mimetypes' first-use
 # initializer reads system files (/etc/apache2/mime.types), which the
@@ -155,3 +160,49 @@ async def get_rendition_content(
             resolved.suffix.lower(), "application/octet-stream"
         ),
     )
+
+
+class ImageChainStep(BaseModel):
+    """The photograph, or one rendition a step wrote of the page, in the order made."""
+
+    kind: Literal["photograph", "rendition"]
+    rendition_id: Optional[str] = Field(default=None, description="null for the photograph; the id the content route serves")
+    role: str
+    operation: str = Field(description="the operation's name in the Set Up rows: Crop to the paper, Straighten, Clarity")
+    figure: str = Field(description="what it did, in words from the rendition's transform and note")
+    note: Optional[str] = None
+    reads_this: bool = Field(description="true on the one image every later step reads (`current_page_image`)")
+    passed_over: Optional[str] = Field(default=None, description="why this rendition could not be read or followed, else null")
+    derived_from: Optional[str] = Field(default=None, description="the rendition it was cut from; null: the photograph")
+    pixel_width: Optional[int] = None
+    pixel_height: Optional[int] = None
+
+
+class ImageChainPassedOver(BaseModel):
+    rendition_id: str
+    role: str
+    why: str
+
+
+class ImageChain(BaseModel):
+    """What the page's pictures are and which one is read (`wide.chain.served-by-the-engine`)."""
+
+    page_id: str
+    read_from: Literal["original", "edited", "rendition"] = Field(description="what every later step reads")
+    why: str = Field(description="why it is that image, in words")
+    steps: list[ImageChainStep] = Field(description="the photograph, then each rendition in the order made")
+    passed_over: list[ImageChainPassedOver]
+    axis: list[str] = Field(description="the renditions' ids in Preview's up/down order (`order_renditions`)")
+
+
+@pages_router.get("/{page_id}/image-chain", response_model=ImageChain,
+                  responses={404: {"model": _RefusalBody, "description": "No page with this id exists"}})
+async def get_image_chain(page_id: str, db: Database = Depends(get_library_database)) -> ImageChain:
+    """The page's image chain: the photograph, each rendition in the order made with its operation and figure in words, which
+    one every later step reads and each one passed over with its reason."""
+    from fichero_server.media.image_chain import image_chain
+
+    doc = db.get(Document, page_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail=f"Document not found: {page_id}")
+    return ImageChain(**await asyncio.to_thread(image_chain, db, doc))

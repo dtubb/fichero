@@ -2546,6 +2546,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # Renditions — alternative pixels of one node; ordered engine-side so the
     # preview and any card surface agree what "next" means (2026-08-20).
     (renditions.router, "/api", ["renditions"]),
+    (renditions.pages_router, "/api", ["renditions"]),
     (notes.router, "/api", ["notes"]),
     (projects.router, "/api", ["projects"]),
     (artifacts.router, "/api/artifacts", ["artifacts"]),

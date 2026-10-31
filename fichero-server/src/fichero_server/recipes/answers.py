@@ -144,6 +144,13 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
         if not ok:
             problems.append(f"The certainty under which a line goes to the second model is a number above 0 and up to "
                             f"1 (or the whole page), not {bar!r}.")
+    if isinstance(job_answers, dict) and job_answers.get("prepare_operations") is not None:
+        from fichero_server.recipes.prepare_operations import IDS
+
+        said = job_answers["prepare_operations"]
+        unknown = [x for x in said if x not in IDS] if isinstance(said, list) else [said]
+        if unknown:
+            problems.append(f"A Prepare Images operation is {', '.join(IDS)}; not {', '.join(map(repr, unknown))}.")
     by_folder = out.get(BY_FOLDER)
     if by_folder is not None and (not isinstance(by_folder, dict) or any(
             not isinstance(k, str) or not isinstance(v, dict) for k, v in by_folder.items())):

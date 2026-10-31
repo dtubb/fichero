@@ -447,6 +447,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/media/frame_map.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/geo.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/geometry_merge.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/iiif_fetch.py
+$(SRCROOT)/../fichero-server/src/fichero_server/media/image_chain.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/image_flatten.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/image_ops.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/layout_order.py
@@ -525,6 +526,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/placement.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/places.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/prepare.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/prepare_check.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/prepare_operations.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/prepare_run.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/prepare_suggest.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/project.py

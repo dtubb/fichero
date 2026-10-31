@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from fichero_server.recipes import prepare_operations
 from fichero_server.recipes.examples import example_credit
 
 
@@ -282,6 +283,7 @@ def listing(recipe: dict[str, Any] | None, answers: dict[str, Any] | None = None
                            "read_by_a_step": q.read_by_a_step, "open_ended": q.open_ended,
                            "suggestions": suggested_kinds(stage.id, result) if q.open_ended else []}
                           for q in stage.questions],
+            "operations": prepare_operations.listing(answered) if stage.id == "prepare-images" else [],
             "needs": [{"stage": n, "why": f"{stage.title} needs {titles[n]}"} for n in stage.needs],
             "sampleable": sampleable(stage), "tried_by": "bake-off" if stage.id in TRIED_BY_THE_BAKEOFF else "workflow",
             "not_tried": None if sampleable(stage) else NOT_TRIED,

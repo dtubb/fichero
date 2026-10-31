@@ -11707,6 +11707,59 @@
         }
       }
     },
+    "/api/pages/{page_id}/image-chain": {
+      "get": {
+        "tags": [
+          "renditions"
+        ],
+        "summary": "Get Image Chain",
+        "description": "The page's image chain: the photograph, each rendition in the order made with its operation and figure in words, which\none every later step reads and each one passed over with its reason.",
+        "operationId": "get_image_chain_api_pages__page_id__image_chain_get",
+        "parameters": [
+          {
+            "name": "page_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Page Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageChain"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No page with this id exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/notes": {
       "post": {
         "tags": [
@@ -70876,6 +70929,160 @@
         ],
         "title": "ImageBatchCropResponse"
       },
+      "ImageChain": {
+        "properties": {
+          "page_id": {
+            "type": "string",
+            "title": "Page Id"
+          },
+          "read_from": {
+            "type": "string",
+            "enum": [
+              "original",
+              "edited",
+              "rendition"
+            ],
+            "title": "Read From",
+            "description": "what every later step reads"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "description": "why it is that image, in words"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/ImageChainStep"
+            },
+            "type": "array",
+            "title": "Steps",
+            "description": "the photograph, then each rendition in the order made"
+          },
+          "passed_over": {
+            "items": {
+              "$ref": "#/components/schemas/ImageChainPassedOver"
+            },
+            "type": "array",
+            "title": "Passed Over"
+          },
+          "axis": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Axis",
+            "description": "the renditions' ids in Preview's up/down order (`order_renditions`)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "page_id",
+          "read_from",
+          "why",
+          "steps",
+          "passed_over",
+          "axis"
+        ],
+        "title": "ImageChain",
+        "description": "What the page's pictures are and which one is read (`wide.chain.served-by-the-engine`)."
+      },
+      "ImageChainPassedOver": {
+        "properties": {
+          "rendition_id": {
+            "type": "string",
+            "title": "Rendition Id"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rendition_id",
+          "role",
+          "why"
+        ],
+        "title": "ImageChainPassedOver"
+      },
+      "ImageChainStep": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "photograph",
+              "rendition"
+            ],
+            "title": "Kind"
+          },
+          "rendition_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Rendition Id",
+            "description": "null for the photograph; the id the content route serves"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "operation": {
+            "type": "string",
+            "title": "Operation",
+            "description": "the operation's name in the Set Up rows: Crop to the paper, Straighten, Clarity"
+          },
+          "figure": {
+            "type": "string",
+            "title": "Figure",
+            "description": "what it did, in words from the rendition's transform and note"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Note"
+          },
+          "reads_this": {
+            "type": "boolean",
+            "title": "Reads This",
+            "description": "true on the one image every later step reads (`current_page_image`)"
+          },
+          "passed_over": {
+            "type": "string",
+            "nullable": true,
+            "title": "Passed Over",
+            "description": "why this rendition could not be read or followed, else null"
+          },
+          "derived_from": {
+            "type": "string",
+            "nullable": true,
+            "title": "Derived From",
+            "description": "the rendition it was cut from; null: the photograph"
+          },
+          "pixel_width": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Pixel Width"
+          },
+          "pixel_height": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Pixel Height"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "role",
+          "operation",
+          "figure",
+          "reads_this"
+        ],
+        "title": "ImageChainStep",
+        "description": "The photograph, or one rendition a step wrote of the page, in the order made."
+      },
       "ImageCropResponse": {
         "properties": {
           "source_document_id": {
@@ -83178,6 +83385,61 @@
         ],
         "title": "PrepareImagesFacts"
       },
+      "PrepareOperation": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "split",
+              "straighten",
+              "crop",
+              "clarity"
+            ],
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "description": "what it does, in the engine's words"
+          },
+          "default": {
+            "type": "boolean",
+            "title": "Default",
+            "description": "on or off by the stage's questions, before the person's hand"
+          },
+          "on": {
+            "type": "boolean",
+            "title": "On",
+            "description": "whether it is on: the person's choice (`answers.job_answers.prepare_operations`), else the default"
+          },
+          "by_hand": {
+            "type": "boolean",
+            "title": "By Hand",
+            "description": "true once the person switched the operations by hand"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Note",
+            "description": "a word the row needs, e.g. Clarity with no paper answer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "sentence",
+          "default",
+          "on",
+          "by_hand"
+        ],
+        "title": "PrepareOperation",
+        "description": "One of Prepare Images' four operations, each selectable (`wide.prepare.four-operations-listed`, section C)."
+      },
       "PrepareSuggestion": {
         "properties": {
           "value": {
@@ -93785,6 +94047,14 @@
             },
             "type": "array",
             "title": "Questions"
+          },
+          "operations": {
+            "items": {
+              "$ref": "#/components/schemas/PrepareOperation"
+            },
+            "type": "array",
+            "title": "Operations",
+            "description": "Prepare Images only: its operations in order, each selectable, empty for every other stage"
           },
           "needs": {
             "items": {

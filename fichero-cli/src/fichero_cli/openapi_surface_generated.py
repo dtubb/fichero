@@ -12472,6 +12472,24 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('pages')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for pages endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='pages')
+        existing_apps['pages'] = target_app
+
+    @target_app.command("get-image-chain")
+    def pages_get_image_chain_get(
+        ctx: typer.Context,
+        page_id: str = typer.Argument(..., help='Page Id'),
+    ) -> None:
+        """Get Image Chain (GET /api/pages/{page_id}/image-chain)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/pages/{page_id}/image-chain"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('pair')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for pair endpoints.', no_args_is_help=True)

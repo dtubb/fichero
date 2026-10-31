@@ -24,14 +24,17 @@ PREP_VERSION = 3
 
 
 def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bool] | None = None, *,
-               prepare: bool = False, reuse: bool = False, signature: dict[str, Any] | None = None) -> dict[str, Any]:
+               prepare: bool = False, reuse: bool = False, signature: dict[str, Any] | None = None,
+               operations: list[str] | None = None) -> dict[str, Any]:
     """Each page image's paper found and recorded (and, with `prepare`, squared, flattened, turned and straightened: the
     Set Up step's operations, each a rendition; Find Regions asks only for the box); the account: `pages` looked at, `cropped` (a box written),
     `whole` (nothing to cut away, or not sure), `kept` (a person's box left alone), `blank` (no ink: hidden, with `prepare`), `no_image`.
     With `prepare` and `reuse`, a page this step already prepared from the same file under the same rules (`_stamp`) is
     counted as `unchanged` and not found, turned or read again: a run that starts again costs only the pages that changed.
     `signature` is the answers the preparation followed (the paper answer, the operations chosen): it is part of the stamp, so a
-    page prepared under other answers is prepared again (`wide.prepare.rerun-follows-the-answers`)."""
+    page prepared under other answers is prepared again (`wide.prepare.rerun-follows-the-answers`). `operations` are the
+    page operations to run (`crop`: find the paper, square, flatten, mark blanks; `straighten`: turn by the text, straighten),
+    all of them when None; without `crop` the page itself is the base and no paper is looked for."""
     from PIL import Image
 
     from fichero_server.actions.registry import ActionContext, registry
@@ -45,6 +48,7 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
 
     library = Path(db.path).parent
     ctx = ActionContext(actor="page-crop", run_id=run_id, library_path=str(library), is_bootstrap=True)
+    crop, straighten = (operations is None or "crop" in operations), (operations is None or "straighten" in operations)
     account = {"pages": 0, "cropped": 0, "whole": 0, "kept": 0, "no_image": 0, "blank": 0, "unchanged": 0}
     for doc_id in documents:
         if stop is not None and stop():
@@ -68,13 +72,13 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
                 account["no_image"] += 1
                 continue
             account["pages"] += 1
-            found = find_page(image)
+            found = find_page(image) if crop else None  # no crop: the page itself is the base, no outline is looked for
             # The contour finder's confidence is its paper fill; Vision's was gated by the finder (0.5), so only the contour's is tested here.
             unsure = found is not None and found.method == "contour" and found.confidence < MIN_CONFIDENCE
             if prepare:  # below its confidence the finder proposes (`prep.unsure-becomes-a-proposal`); sure again, the proposal goes
                 _propose(db, doc.id, "page_box", _page_box_proposal(found, run_id) if unsure else None, ctx)
             trusted = found is not None and not unsure and found.box[2] * found.box[3] >= MIN_SHARE
-            if prepare and meta.get("blank") is None:
+            if prepare and crop and meta.get("blank") is None:
                 # Hidden only when sure (`prep.blank-pages-marked`); unsure keeps the page and stores a proposal. The ink is a
                 # share of the paper found (not the mount around it); a text read is the last word, asked only when the ink
                 # alone would hide the page, because lines do not exist yet on a first run (Find Lines comes after).
@@ -97,7 +101,8 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
                     _clear(db, doc.id, everything=True)
                     # The page itself is the base: no crop, square or flatten (no paper was found), but turn and straighten
                     # still run, each a rendition only when it changed something (`wide.prepare.operations-run-on-every-page`).
-                    _turn_and_straighten(db, doc, image, [0.0, 0.0, 1.0, 1.0], None, run_id, library, ctx)
+                    if straighten:
+                        _turn_and_straighten(db, doc, image, [0.0, 0.0, 1.0, 1.0], None, run_id, library, ctx)
                 account["whole"] += 1
                 _write_stamp(db, doc.id, path, prepare, ctx, signature)
                 continue
@@ -115,7 +120,7 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
                              f"the page found by the {found.method} finder", box, None, method=found.method)
             account["cropped"] += 1
             if prepare:
-                _prepare(db, doc, image, found, run_id, library, crop_id, ctx)
+                _prepare(db, doc, image, found, run_id, library, crop_id, ctx, straighten=straighten)
             _write_stamp(db, doc.id, path, prepare, ctx, signature)
         except Exception as exc:  # noqa: BLE001 -- one page that fails is skipped and said; the others still go on
             logger.warning("page prep: %s skipped: %s", doc_id, exc)
@@ -226,7 +231,8 @@ def _write(db: Any, doc: Any, role: str, picture: Any, run_id: str, library: Pat
     return row.id
 
 
-def _prepare(db: Any, doc: Any, image: Any, found: Any, run_id: str, library: Path, crop_id: str, ctx: Any) -> None:
+def _prepare(db: Any, doc: Any, image: Any, found: Any, run_id: str, library: Path, crop_id: str, ctx: Any, *,
+             straighten: bool = True) -> None:
     """The operations in order, each fed by the one before and each writing a rendition only when it changed something:
     square (`prep.square.*`, the homography on its row), flatten (`prep.flatten.*`, the control points), turn by the text
     (`prep.turn-by-the-text`, the quarter turn and its reason), straighten (`prep.straighten-and-flatten`, the angle)."""
@@ -244,7 +250,8 @@ def _prepare(db: Any, doc: Any, image: Any, found: Any, run_id: str, library: Pa
         base = flat[0]
         parent = _write(db, doc, "flattened", base, run_id, library, "the page flattened toward its gutter", box, parent,
                         method="flatten", control_points=flat[1])
-    _turn_and_straighten(db, doc, base, box, parent, run_id, library, ctx)
+    if straighten:
+        _turn_and_straighten(db, doc, base, box, parent, run_id, library, ctx)
 
 
 def _turn_and_straighten(db: Any, doc: Any, base: Any, box: list[float], parent: str | None, run_id: str, library: Path,

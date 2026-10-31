@@ -173,6 +173,7 @@ def test_wide_a_plan_whose_only_step_is_a_card_has_a_run_and_no_refusal():
     assert plan["refusals"] == [], plan["refusals"]
     assert plan["workflows"] == [] and [r["card"] for r in plan["runs"]] == ["prepare"]
     assert plan["skipped"] == [], "nothing is skipped: the sentence 'every step is skipped' would be false"
+    assert plan["runs"][0]["operations"] == ["straighten", "crop", "clarity"], "the card says which operations it runs"
 
 
 def test_wide_a_stage_ticked_after_the_first_start_is_in_the_next_plan(client, db, pages, tmp_path):

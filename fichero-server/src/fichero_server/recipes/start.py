@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from fichero_server.recipes import prepare_operations
 from fichero_server.recipes.assemble import APPLE_LINES_PIN
 from fichero_server.recipes.folder_answers import prepare_how, with_folder_answers
 from fichero_server.recipes.folder_overrides import with_folder_overrides
@@ -543,6 +544,12 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             if job == "prepare-the-image":  # the optional operations the paper answer switches on
                 entry["paper"] = list(settings.get("paper") or [])
                 entry["how"] = prepare_how(entry["paper"])
+                # The operations to run (`wide.prepare.plan-runs-only-chosen-operations`): the hand's choice, else the questions'.
+                entry["operations"] = prepare_operations.to_run(job_answers, entry["paper"])
+                if not entry["operations"]:
+                    skip(sid, f"{label}: every operation is switched off, so no page is prepared",
+                         "switch an operation on in Prepare Images")
+                    continue
             if job == "tie-text-to-lines":
                 reader = _kraken_reader_for(pin)
                 if reader is None:

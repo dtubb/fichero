@@ -1721,7 +1721,8 @@ def _run_card(db: Any, card: dict[str, Any], documents: list[str], kinds: dict[s
     elif card["card"] == "catalogue":
         child, state, why = _run_catalogue(db, card, documents, job_id, scratch)
     elif card["card"] == "prepare":
-        child, state, why = _run_prepare(db, documents, job_id, scratch, paper=card.get("paper") or [])
+        child, state, why = _run_prepare(db, documents, job_id, scratch, paper=card.get("paper") or [],
+                                       operations=card.get("operations"))
     elif card["card"] == "leave-out":
         from fichero_server.recipes.leave_out import run_step
 

@@ -117,3 +117,141 @@ def test_one_failing_page_is_skipped_and_the_step_still_prepares_the_rest(db, tm
     assert state == "done"
     assert step["page_prep"]["pages"] == 3 and step["page_prep"].get("failed") == 1
     assert "prepared" in step, "the contrast step still ran"
+
+
+# --- `wide.prepare.plan-runs-only-chosen-operations` (#5382, #5580): the plan's card and the run follow the operations ---
+
+PREP = {"id": "prep", "job": "prepare-the-image", "model": {"builtin": "image-preparer"}}
+LINES = {"id": "lines", "job": "find-lines", "model": {"kraken": "blla", "kraken_version": "bundled"}, "runs_on": "this-mac"}
+SPLIT = {"id": "split", "job": "split-pages", "model": {"builtin": "page-splitter"}}
+
+
+def _recipe(*steps):
+    return {"fichero_recipe": 1, "id": "t", "version": "0.1.0", "title": "t", "steps": list(steps)}
+
+
+def _plan(recipe, **job_answers):
+    from fichero_server.recipes.start import plan_start
+
+    return plan_start(recipe, stays_local=True, job_answers=job_answers)
+
+
+def _prepare_run(plan):
+    return next((r for r in plan["runs"] if r["card"] == "prepare"), None)
+
+
+def test_wide_the_prepare_card_carries_the_operations_the_questions_default_to():
+    """No hand choice: crop and straighten, and clarity where the paper answer allows it (none: it looks at each page)."""
+    assert _prepare_run(_plan(_recipe(PREP)))["operations"] == ["straighten", "crop", "clarity"]
+    assert _prepare_run(_plan(_recipe(PREP), the_paper=["ruled"]))["operations"] == ["straighten", "crop"]
+    assert _prepare_run(_plan(_recipe(PREP), the_paper=["faded"]))["operations"] == ["straighten", "crop", "clarity"]
+
+
+def test_wide_the_card_runs_exactly_the_operations_the_hand_chose():
+    run = _prepare_run(_plan(_recipe(PREP), prepare_operations=["crop"]))
+    assert run["operations"] == ["crop"]
+    assert _prepare_run(_plan(_recipe(PREP), prepare_operations=["clarity"], the_paper=["ruled"]))["operations"] == ["clarity"]
+
+
+def test_wide_every_operation_off_is_a_plan_with_no_prepare_run_and_says_so():
+    plan = _plan(_recipe(PREP, LINES), prepare_operations=[])
+    assert _prepare_run(plan) is None
+    (said,) = [s for s in plan["skipped"] if s["step"] == "prep"]
+    assert "switched off" in said["why"], said
+    only_split = _plan(_recipe(PREP, SPLIT), prepare_operations=["split"])
+    assert _prepare_run(only_split) is None and [r["job"] for r in only_split["runs"]] == ["split-pages"]
+
+
+def test_wide_split_off_takes_the_split_job_out_of_the_plan_as_the_explicit_no_does():
+    kept = _plan(_recipe(SPLIT, PREP), prepare_operations=["split", "crop"])
+    assert [r["job"] for r in kept["runs"]] == ["split-pages", "prepare-the-image"]
+    off = _plan(_recipe(SPLIT, PREP), prepare_operations=["crop"])
+    assert [r["job"] for r in off["runs"]] == ["prepare-the-image"]
+    assert any(s["step"] == "split" and "not cut" in s["why"] for s in off["skipped"])
+    # the hand's yes wins over the question's no
+    yes = _plan(_recipe(SPLIT, PREP), prepare_operations=["split", "crop"], two_pages_per_image=False)
+    assert "split-pages" in [r["job"] for r in yes["runs"]]
+
+
+def _flat_pages(db, tmp_path, monkeypatch, upside_down=True):
+    """A flat 3-degree scan the finder cannot outline, read upside down: turn, straighten and crop each have something to do."""
+    from fichero_server.media import find_page as module
+    from fichero_server.media import turn_by_text as turn_module
+    from tests.unit.media.test_turn_straighten_blank import _flat_scan, _lines_of
+
+    monkeypatch.setattr(module, "find_page", lambda image: None)
+    monkeypatch.setattr(turn_module, "read_lines", lambda image, db_path=None: _lines_of(180 if upside_down else 0))
+    doc = _flat_scan(tmp_path)
+    db.save(doc)
+    return doc
+
+
+def _roles(db, doc):
+    from fichero_server.models import Rendition
+
+    return {r.role for r in db.query(Rendition, document_id=doc.id)}
+
+
+def test_wide_run_straighten_alone_turns_and_straightens_and_finds_no_page(db, tmp_path, monkeypatch):
+    from fichero_server.recipes.prepare_run import run_prepare
+
+    doc = _flat_pages(db, tmp_path, monkeypatch)
+    step: dict = {}
+    run_prepare(db, [doc.id], "run-1", step, operations=["straighten"])
+    assert _roles(db, doc) == {"rotated", "deskewed"} and "prepared" not in step
+    assert (db.get(Document, doc.id).metadata or {}).get("page_box") is None
+
+
+def test_wide_run_crop_alone_finds_the_page_and_leaves_the_turn_alone(db, tmp_path, monkeypatch):
+    from fichero_server.media import find_page as module
+    from fichero_server.recipes.prepare_run import run_prepare
+    from tests.unit.media.test_turn_straighten_blank import _lines_of, _ruled
+    from fichero_server.media import turn_by_text as turn_module
+    from PIL import Image
+
+    table = Image.new("RGB", (1400, 1100), (14, 12, 10))
+    table.paste(_ruled(2.0).resize((900, 700)), (250, 200))
+    path = tmp_path / "photo.png"
+    table.save(path)
+    doc = Document(name=path.name, doc_type=DocType.file, file_type=FileType.image, path=str(path), metadata={})
+    db.save(doc)
+    monkeypatch.setattr(module, "find_page_vision", lambda image: None)
+    monkeypatch.setattr(turn_module, "read_lines", lambda image, db_path=None: _lines_of(180))
+    step: dict = {}
+    run_prepare(db, [doc.id], "run-1", step, operations=["crop"])
+    roles = _roles(db, doc)
+    assert "crop" in roles and not roles & {"rotated", "deskewed"}, roles
+    assert step["page_prep"]["cropped"] == 1
+
+
+def test_wide_run_clarity_alone_runs_no_page_operation(db, tmp_path, monkeypatch):
+    from fichero_server.recipes.prepare_run import run_prepare
+
+    doc = _flat_pages(db, tmp_path, monkeypatch)
+    step: dict = {}
+    run_prepare(db, [doc.id], "run-1", step, operations=["clarity"])
+    assert "page_prep" not in step and "prepared" in step and _roles(db, doc) <= {"prepared"}
+
+
+def test_wide_run_with_no_operations_given_runs_what_the_paper_answer_did_before(db, tmp_path, monkeypatch):
+    """A `prepare` card from before the operations existed carries none: it runs as it did."""
+    from fichero_server.recipes.prepare_run import run_prepare
+
+    doc = _flat_pages(db, tmp_path, monkeypatch)
+    step: dict = {}
+    run_prepare(db, [doc.id], "run-1", step, paper=["ruled"])
+    assert "page_prep" in step and "prepared" not in step and "rotated" in _roles(db, doc)
+
+
+def test_wide_changing_the_operations_prepares_the_page_again(db, tmp_path, monkeypatch):
+    """The stamp holds the operations: the same page under other operations is not `unchanged`."""
+    from fichero_server.recipes.prepare_run import run_prepare
+
+    doc = _flat_pages(db, tmp_path, monkeypatch)
+    run_prepare(db, [doc.id], "run-1", {}, operations=["straighten"])
+    same: dict = {}
+    run_prepare(db, [doc.id], "run-2", same, operations=["straighten"])
+    assert same["page_prep"]["unchanged"] == 1
+    other: dict = {}
+    run_prepare(db, [doc.id], "run-3", other, operations=["straighten", "crop"])
+    assert other["page_prep"]["unchanged"] == 0 and other["page_prep"]["pages"] == 1

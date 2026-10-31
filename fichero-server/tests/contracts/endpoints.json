@@ -8610,6 +8610,20 @@
         "response_model": null
       }
     ],
+    "pages": [
+      {
+        "method": "GET",
+        "path": "/pages/{page_id}/image-chain",
+        "operation_id": "get_image_chain_api_pages__page_id__image_chain_get",
+        "summary": "Get Image Chain",
+        "path_params": [
+          "page_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ImageChain"
+      }
+    ],
     "pair": [
       {
         "method": "POST",

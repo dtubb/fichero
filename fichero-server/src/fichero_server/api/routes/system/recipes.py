@@ -476,6 +476,18 @@ class StageQuestion(BaseModel):
                                    "found; empty until a try returns them")
 
 
+class PrepareOperation(BaseModel):
+    """One of Prepare Images' four operations, each selectable (`wide.prepare.four-operations-listed`, section C)."""
+
+    id: Literal["split", "straighten", "crop", "clarity"]
+    title: str
+    sentence: str = Field(description="what it does, in the engine's words")
+    default: bool = Field(description="on or off by the stage's questions, before the person's hand")
+    on: bool = Field(description="whether it is on: the person's choice (`answers.job_answers.prepare_operations`), else the default")
+    by_hand: bool = Field(description="true once the person switched the operations by hand")
+    note: Optional[str] = Field(default=None, description="a word the row needs, e.g. Clarity with no paper answer")
+
+
 class StageNeed(BaseModel):
     stage: str
     why: str = Field(description="in words: 'Dates & Times needs Names'")
@@ -505,6 +517,8 @@ class SetupStage(BaseModel):
     on: bool = Field(description="whether this project's recipe has any of its jobs")
     jobs_in_recipe: list[str]
     questions: list[StageQuestion]
+    operations: list[PrepareOperation] = Field(default_factory=list, description="Prepare Images only: its operations in order, "
+                                               "each selectable, empty for every other stage")
     needs: list[StageNeed] = Field(description="the stages it needs, ticked with it")
     sampleable: bool = Field(description="it can be tried on the sample pages before Start")
     tried_by: Literal["bake-off", "workflow"]

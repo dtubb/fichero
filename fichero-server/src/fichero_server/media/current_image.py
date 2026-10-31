@@ -315,14 +315,13 @@ def _raw_size(upright: tuple[int, int], orientation: int) -> tuple[float, float]
     return (float(upright[1]), float(upright[0])) if orientation in (5, 6, 7, 8) else (float(upright[0]), float(upright[1]))
 
 
-def _newest_rendition(db: Any, doc: Any, photograph: Path, library_root: Path) -> tuple[tuple[Any, FrameMap | None] | None, list[str]]:
-    """The newest rendition that can be followed and its map, and a note for each newer one that could not (passed over: the
-    page is then read on an image nobody chose, so the caller says so)."""
+def _scan_renditions(db: Any, doc: Any, photograph: Path, library_root: Path) -> tuple[tuple[Any, FrameMap | None] | None, list[tuple[Any, str]]]:
+    """The newest rendition that can be followed and its map, and each newer one that could not be (the row and why)."""
     from fichero_server.models import Rendition
 
     rows = [r for r in db.query(Rendition, document_id=doc.id)
             if r.role not in _NOT_THE_PAGE and r.materialized and _absolute(library_root, r.path).is_file()]
-    skipped: list[str] = []
+    skipped: list[tuple[Any, str]] = []
     if not rows:
         return None, skipped
     photo_size = _upright_size_of(photograph)
@@ -331,8 +330,27 @@ def _newest_rendition(db: Any, doc: Any, photograph: Path, library_root: Path) -
             return (row, _rendition_map(db, row, photograph, photo_size, library_root)), skipped
         except Unmappable as why:
             logger.warning("page image: rendition %s (%s) of %s passed over: %s", row.id, row.role, doc.id, why)
-            skipped.append(f"{row.role}: {why}")
+            skipped.append((row, str(why)))
     return None, skipped
+
+
+def _newest_rendition(db: Any, doc: Any, photograph: Path, library_root: Path) -> tuple[tuple[Any, FrameMap | None] | None, list[str]]:
+    """The newest rendition that can be followed and its map, and a note for each newer one that could not (passed over: the
+    page is then read on an image nobody chose, so the caller says so)."""
+    found, skipped = _scan_renditions(db, doc, photograph, library_root)
+    return found, [f"{row.role}: {why}" for row, why in skipped]
+
+
+def passed_over_renditions(db: Any, doc: Any, *, library_root: Path | str | None = None) -> list[tuple[Any, str]]:
+    """The renditions newer than the one the page reads that were passed over, each with the reason: what `current_page_image`
+    logs and counts, as rows (`GET /api/pages/{id}/image-chain`). Empty when an edit is read: the renditions are not looked at."""
+    from fichero_server.db.storage import edit_chain_operations, resolve_source
+
+    root = Path(library_root) if library_root is not None else Path(db.path).parent
+    photograph = resolve_source(doc, library_root=root)
+    if photograph is None or photograph.suffix.lower() == ".pdf" or edit_chain_operations(doc, db, page=1)[0]:
+        return []
+    return _scan_renditions(db, doc, photograph, root)[1]
 
 
 def current_page_image(db: Any, doc: Any, *, library_root: Path | str | None = None) -> PageImage | None:
