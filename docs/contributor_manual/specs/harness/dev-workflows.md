@@ -122,8 +122,13 @@ activity list.
   localisation and the ladder's rungs where it needs them, and never waits on parity with the runner; a comparison is
   made only where a cheap one already exists (the same scenario's events). Its open issues are closed or retargeted
   to this spec's steps (the list is in the plan).
-- **Models by configuration, picked by results, profiles per machine.** Nothing in code names a model. Pi is a
-  worker kind, like `claude` and `fake`, not the assumption.
+- **Models by configuration, picked by results, profiles per machine.** Nothing in code names a model. Two worker
+  kinds, Claude Code and Pi (maintainer, 2026-10-31); `fake` is the test double.
+- **Fixed steps are scripts.** Testing, building, landing and closing stay the scripts that exist (`lane_ready_check.sh`,
+  `check_*.py`, `scripts/gate`, `verify_all.sh`, `build-and-validate.sh`, the `land` guard, `close_fixed_issues.py`),
+  each one Activity row with a progress count and a Stop where it runs long. Only the **release** (`release-all.sh`'s
+  steps: long, must resume at the step it died, stops for the maintainer's yes, shown step by step) earns a workflow,
+  and stays deferred as the spec's release lane (inventory: `agent-work/status/briefs/thin-harness-answer.md`).
 - **Small-context handoff is a core requirement**, not a compromise: the Researcher's normal machine is a 24 GB
   laptop with one small local model beside the engine, so every worker must do real work at a 16-32k context with
   handoffs, and the same mechanism gives the Builder its 85 % line.
@@ -245,11 +250,14 @@ back along its list and says so.
   runner), diff-bound and failing-run-pasted; argv lists only, a cwd and a timeout per command, stdout, stderr and exit
   code returned as typed results; the same command set is what the land step re-runs on the rebased head. Test:
   `fichero-server/tests/unit/workflows/test_check_tool.py::test_check_tool_runs_the_ladder`.
-- `dev-workflows.node.worker` [PARTIAL] (#6116) — the engine starts a worker of a kind: `claude` and `codex` (today's `cli_agent.py`,
-  unchanged), `pi` (headless `pi -p`, a session directory, the role's rules appended, provider and model from the role;
-  returns usage, tool errors, the reported sha), `apple` (an on-device Foundation Models call with a typed output, for
-  small jobs), and `fake` (replays a scenario); each with a role, a model from the profile, a brief and a cost/turn cap;
-  result typed `{sha|verdict|text|choice, usage}`. Test: `fichero-server/tests/unit/workflows/test_worker_node.py::test_worker_kinds`.
+- `dev-workflows.node.worker` [PARTIAL] (#6116) — the engine starts a worker of one of two kinds (maintainer, 2026-10-31):
+  `claude` (Claude Code, `claude -p` as `cli_agent.py` runs it today, unchanged) and `pi` (headless `pi -p`, a session
+  directory, the role's rules appended, provider and model from the role; returns usage, tool errors, the reported
+  sha); `fake` is the test double that replays a scenario, never a kind a person starts; `codex` stays an option of
+  `cli_agent.py` only; the decider role's Apple Intelligence call is not a worker. The Researcher's in-app loop is the
+  engine's existing chat tool loop over the audited action layer, under the same records, so a 24 GB laptop needs no
+  terminal. Each worker has a role, a model from the profile, a brief and a cost/turn cap; result typed
+  `{sha|verdict|text, usage}`. Test: `fichero-server/tests/unit/workflows/test_worker_node.py::test_worker_kinds`.
 - `dev-workflows.tool.git` [GAP] (#6116) — a `git` tool offers a closed list of operations as typed inputs (worktree
   add/remove, status, diff stat, rebase onto, merge --no-ff, range-diff, log of a range, push to the integration branch);
   refuses any push to `main` or a `v*` tag; push needs a land grant. Test:
@@ -423,7 +431,7 @@ back along its list and says so.
   standing by the end of November. Later the same day: this repo's issues are managed in Fichero and synced to GitHub
   through a guarded step (replaces Q7 pull-only); the engine's records are the truth for runs from the start and the journal
   is a log (replaces Q2), under supervision by the Lead session and the Sonnet builders.
-- Deferred as text, no behaviours yet: invited contributors; shared projects (task leases); the release as a dev workflow.
+- Deferred as text, no behaviours yet: invited contributors; shared projects (task leases); the release as a dev workflow (the one fixed sequence that earns one: long, resumable at the failed step, a yes before anything public, step by step in Activity).
 
 ## Build order
 
