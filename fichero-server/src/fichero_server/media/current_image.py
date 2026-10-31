@@ -41,6 +41,8 @@ ORIGINAL, EDITED, RENDITION = "original", "edited", "rendition"
 #: Kept on a reading's artifact (`Artifact.data`): the signature of the image the model was sent. A reading made before this was
 #: kept has none, and counts as read from the photograph.
 IMAGE_READ = "image_read"
+#: Keys a run adds to a reading's `Artifact.data` that say how it was made: never the value of a document's metadata field.
+PROVENANCE_KEYS = frozenset({IMAGE_READ, "episode_id", "thinking", "read_flag", "read_onto_pass", "compare_group", "segment_id"})
 
 
 def read_from(artifact: Any) -> str:

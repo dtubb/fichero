@@ -1,68 +1,154 @@
-"""Give back the text a reading's metadata field held before the image marker replaced it (#6296 follow-up).
+"""Give back the text a reading's metadata field lost to the artifact's provenance (#6320, `preview.edit.reading-field-keeps-its-text`).
 
-From 2026-10-30 until the fix, `save_artifact` stored `{"image_read": "<signature>"}` in a document's `description`, `caption`
-and the like, in place of the reading's text. The reading's artifact kept its content, so the field is put back from the newest
-artifact of the same type on the page (the first 1000 characters, as the field was always written). No model is called. A field
-with no such artifact is left as it is and counted. Idempotent: a repaired field no longer matches.
+A reading's artifact carries `data` that says how it was made (`image_read`, `episode_id`, `thinking`...). Until the fix, a save with
+a `metadata_field` stored that data in the document's field (`description`, `caption`...) whenever it was not empty, so the field held
+`{"episode_id": ...}` (from 2026-08-12) or `{"image_read": ..., "episode_id": ...}` (from 2026-10-30) in place of the text. This puts the
+text back from the newest artifact of the field's type on the page: no model is called.
+
+It is a background job, queued by the open and marked done in `librarysettings` when it has finished; the open itself reads one
+setting. It works a chunk at a time, steps aside for people, saves a page only when a field changed, and says in Activity how many
+fields it put back and how many it could not (a field no artifact of its type was found for is left as it is, and counted).
 """
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
-from fichero_server.media.current_image import IMAGE_READ
+from fichero_server.execution import jobs
+from fichero_server.media.current_image import PROVENANCE_KEYS
 
 logger = logging.getLogger(__name__)
 
+KIND = "repair-reading-fields"
+SUBJECT = "reading-fields"
+DONE_SETTING = "reading_fields_repaired"
+CHUNK = 50
+#: A field named for something other than its artifact type (the vision tools whose `metadata_field` differs from their `artifact_type`).
+ARTIFACT_TYPE_OF_FIELD = {"doc_type": "classification", "script_type": "script_classification"}
 
-def repair_image_marker_fields(db: Any) -> dict[str, int]:
-    """Replace every `{image_read}`-only metadata field with its artifact's text; `{repaired, left, document_ids}`."""
+
+def register_job_kinds() -> None:
+    if KIND not in jobs.KINDS or jobs.KINDS[KIND].run is None:
+        jobs.register_kind(KIND, lambda db, subject: run(db, subject), model=None, lane="database",
+                           name="Put back the text of reading fields (repair)")
+
+
+def is_done(db: Any) -> bool:
+    return db.execute_fetchone("SELECT 1 FROM librarysettings WHERE id = ?", [DONE_SETTING]) is not None
+
+
+def _mark_done(db: Any) -> None:
+    db.execute("INSERT INTO librarysettings (id, value, updated_at) VALUES (?, '1', now()) ON CONFLICT (id) DO NOTHING", [DONE_SETTING])
+
+
+def queue_if_needed(db: Any) -> str | None:
+    """At open: one setting read. Not marked done: queue the job (an earlier waiting one is reused). Returns its id."""
+    try:
+        if is_done(db):
+            return None
+        register_job_kinds()
+        return jobs.enqueue(db, KIND, SUBJECT)
+    except Exception:  # noqa: BLE001 -- a library that cannot queue it still opens; the next open tries again
+        logger.exception("Could not queue the reading-field repair")
+        return None
+
+
+def is_provenance_only(value: Any) -> bool:
+    """A field the data replaced: a non-empty dict whose every key is provenance. A person's text (a string) and a tool's own
+    structured answer (other keys) never match."""
+    return isinstance(value, dict) and bool(value) and set(value) <= PROVENANCE_KEYS
+
+
+def candidates(db: Any) -> list[str]:
+    """The live documents whose metadata mentions a provenance key: a coarse prefilter, each is checked."""
+    return [r[0] for r in db.execute_fetchall(
+        "SELECT id FROM documents WHERE deleted_at IS NULL AND (CAST(metadata AS VARCHAR) LIKE '%image_read%' "
+        "OR CAST(metadata AS VARCHAR) LIKE '%episode_id%')")]
+
+
+def repair_document(db: Any, doc_id: str) -> tuple[int, int]:
+    """`(put back, left)` for one document; saved only when a field changed."""
     from fichero_server.models import Artifact, Document
 
-    repaired = left = 0
-    touched: list[str] = []
-    ids = [r[0] for r in db.execute_fetchall(
-        "SELECT id FROM documents WHERE CAST(metadata AS VARCHAR) LIKE ? AND deleted_at IS NULL", [f"%{IMAGE_READ}%"])]
-    for doc_id in ids:
-        doc = db.get(Document, doc_id)
-        meta = doc.metadata if doc is not None and isinstance(doc.metadata, dict) else {}
-        broken = [k for k, v in meta.items() if isinstance(v, dict) and set(v) == {IMAGE_READ}]
-        if not broken:
+    doc = db.get(Document, doc_id)
+    meta = dict(doc.metadata) if doc is not None and isinstance(doc.metadata, dict) else {}
+    broken = [key for key, value in meta.items() if is_provenance_only(value)]
+    fixed = left = 0
+    for key in broken:
+        arts = [a for a in db.query(Artifact, document_id=doc_id, artifact_type=ARTIFACT_TYPE_OF_FIELD.get(key, key))
+                if (a.content or "").strip()]
+        if not arts:
+            left += 1
             continue
-        arts = sorted(db.query(Artifact, document_id=doc_id), key=lambda a: a.created_at or 0, reverse=True)
-        for key in broken:
-            art = next((a for a in arts if a.artifact_type == key and (a.content or "").strip()), None)
-            if art is None:
-                left += 1
-                continue
-            meta[key] = art.content[:1000]
-            repaired += 1
+        meta[key] = max(arts, key=lambda a: a.created_at.timestamp() if a.created_at else 0).content[:1000]
+        fixed += 1
+    if fixed:
         doc.metadata = meta
         db.save(doc)
-        touched.append(doc_id)
-    if repaired or left:
-        logger.warning("Image-marker repair: put %d metadata field(s) back from their reading's text; left %d with no reading to "
-                       "restore from", repaired, left)
-    return {"repaired": repaired, "left": left, "document_ids": touched}
+    return fixed, left
 
 
-def repair_on_open(db: Any) -> dict[str, Any]:
-    """Repair, then say so as the page-text repair does: one finished row in Activity and one audited action (ids capped)."""
-    done = repair_image_marker_fields(db)
-    if not done["repaired"]:
-        return done
-    import uuid
+def _why_step_aside() -> str | None:
+    from fichero_server.execution import throttle
 
-    from fichero_server.core.timeutil import utc_now
-    from fichero_server.execution import jobs
+    if jobs.is_paused():
+        return "Paused by you"
+    if jobs._scheduler.someone_is_waiting("database"):
+        return "Stepped aside for work someone is waiting for"
+    return throttle.why_wait(person_waiting=False)
 
-    words = f"{done['repaired']} description or caption field{'s' if done['repaired'] != 1 else ''} put back from the reading's text"
-    job_id = f"repair-image-marker-{uuid.uuid4().hex[:12]}"
-    jobs._record(db, job_id, kind="workflow", subject=job_id, parent_id=None, state="done", reason=words, name="Metadata field repair")
-    from fichero_server.db.app import get_app_db
-    from fichero_server.models import ActionAudit
 
-    get_app_db().save_action_audit(ActionAudit(
-        action_name="repair.image-marker-fields", actor="engine", target_ids=done["document_ids"][:200],
-        params={"repaired": done["repaired"], "left": done["left"]}, created_at=utc_now()))
-    return done
+def run(db: Any, subject: str) -> dict[str, Any]:
+    """Work through the candidates a chunk at a time; deferred (back to waiting, nothing lost) whenever it should step aside. A
+    restart finds it again: a repaired field no longer matches, so it carries on where the work is."""
+    job_id = getattr(jobs._current, "job_id", None)
+    fixed = left = 0
+    ids = candidates(db)
+    for start in range(0, len(ids), CHUNK):
+        why = _why_step_aside()
+        if why:
+            raise jobs.JobDeferred(why)
+        for doc_id in ids[start:start + CHUNK]:
+            got, missed = repair_document(db, doc_id)
+            fixed, left = fixed + got, left + missed
+        if job_id:
+            jobs.save_detail(db, job_id, json.dumps({"put_back": fixed, "left": left}),
+                             reason=f"Put back {fixed} reading field{'s' if fixed != 1 else ''} so far")
+    _mark_done(db)
+    return finish(db, job_id, fixed, left)
+
+
+def _say(db: Any, job_id: str, fixed: int, left: int, words: str) -> bool:
+    try:
+        jobs.save_detail(db, job_id, json.dumps({"put_back": fixed, "left": left}), reason=words)
+        return True
+    except Exception:  # noqa: BLE001 -- the fields are repaired; the row is a courtesy
+        logger.exception("reading-field repair: could not write its Activity words")
+        return False
+
+
+def _audit(fixed: int, left: int) -> bool:
+    try:
+        from fichero_server.core.timeutil import utc_now
+        from fichero_server.db.app import get_app_db
+        from fichero_server.models import ActionAudit
+
+        get_app_db().save_action_audit(ActionAudit(
+            action_name="repair.reading-fields", actor="engine", target_ids=[],
+            params={"put_back": fixed, "left": left}, created_at=utc_now()))
+        return True
+    except Exception:  # noqa: BLE001 -- the repair stands; the audit failure is logged
+        logger.exception("reading-field repair: could not write its audit")
+        return False
+
+
+def finish(db: Any, job_id: str | None, fixed: int, left: int) -> dict[str, Any]:
+    """Say it in Activity (the job's own row) and audit it; a failure to record never undoes the repair."""
+    words = (f"{fixed} reading field{'s' if fixed != 1 else ''} put back from the reading's text"
+             + (f"; {left} could not be: no reading of their type was found" if left else ""))
+    said = _say(db, job_id, fixed, left, words) if job_id else False
+    if fixed or left:
+        logger.warning("Reading-field repair: %s", words)
+        _audit(fixed, left)
+    return {"put_back": fixed, "left": left, "said": said}

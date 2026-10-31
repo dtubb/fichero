@@ -130,6 +130,16 @@ Surfaces: `ImageEditorView` (+`+Canvas`/`+Clipboard`/`+Popovers`/`+Toolbar`/`+Ty
   resume (`working_lines.unread_by`) answer only for the same image, so an edit or Undo is read again. The recipe's page-done
   card check (`recipes/done.py`) does not compare the image yet: a page it calls done is skipped by a recipe run.
   Pinned: `tests/unit/media/test_current_image_6296.py`, `tests/unit/workflows/test_every_step_sends_the_edited_image_6296.py`.
+- `preview.edit.reading-field-keeps-its-text` — **[OK]** (#6320) a reading's document field (`description`, `caption`, `doc_type`...) holds the
+  reading's TEXT. What a run adds to the artifact's `data` to say how it was made (`image_read`, `episode_id`, `thinking`, the read flag,
+  `media.current_image.PROVENANCE_KEYS`) stays on the artifact and is never the field's value; `llm_base.save_artifact` takes only the other
+  keys of `data` (a tool's own structured answer), else the first 1000 characters of the text. A field a dev build had left as that provenance
+  (`{"episode_id": ...}` since 2026-08-12, `{"image_read": ..., "episode_id": ...}` since 2026-10-30) is put back by a background job the open
+  queues once (`maintenance/image_marker_repair.py`, marked done in `librarysettings`): from the newest artifact of the field's type (`doc_type`
+  reads `classification`, `script_type` reads `script_classification`), no model, a page saved only when a field changed. Its Activity row says
+  how many fields it put back and how many it could not (no artifact of their type, or a step whose `metadata_field` was overridden); those stay
+  as they are. Tests: `tests/unit/observability/test_episode_vision_wiring.py::test_a_run_with_a_library_leaves_the_text_in_the_documents_field_not_its_provenance`,
+  `tests/unit/workflows/test_image_marker_repair.py`.
 - `preview.edit.rendition-caches-invalidate-on-every-edit` — **[OK]** a successful edit drops
   BOTH derived-pixel caches (not just the storage-service one), including on the way OUT of
   the editor, so leaving edit mode can never show stale pixels; a batch-applied edit

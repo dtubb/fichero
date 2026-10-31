@@ -107,6 +107,7 @@ _KIND_MODULES = (
     "fichero_server.finddocs.job",
     # The run history's housekeeping (#5711): a run log from before moved into lines, a chunk at a time.
     "fichero_server.workflows.run_log_tidy",
+    "fichero_server.maintenance.image_marker_repair",  # the reading-field repair (#6320)
 )
 #: Lane -> how many of its jobs run at once (`activity.throttle.lanes`). `remote`: work sent to another
 #: place (a training run on Hugging Face Jobs, #5398). It waits on the network, holds no model here and

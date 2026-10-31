@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from fichero_server.llm import LLMConfig
 
 from fichero_server.media.ocr_geometry import OCRGeometryResult
-from fichero_server.media.current_image import IMAGE_READ
+from fichero_server.media.current_image import PROVENANCE_KEYS
 from fichero_server.workflows.types import PortDef, DataType
 from fichero_server.workflows.tools._doc_lookup import find_document_by_path
 from fichero_server.workflows.tools.llm_prompting import (  # noqa: F401 (re-exported)
@@ -54,8 +54,6 @@ from fichero_server.workflows.tools.llm_prompting import (  # noqa: F401 (re-exp
 
 logger = logging.getLogger(__name__)
 
-#: Keys a run adds to a reading's `Artifact.data` that say how it was made (`vision_base`, `save_artifact`); never a document field's value.
-PROVENANCE_KEYS = frozenset({IMAGE_READ, "episode_id", "thinking", "read_flag", "read_onto_pass", "compare_group", "segment_id"})
 
 
 class ArtifactLookupError(Exception):

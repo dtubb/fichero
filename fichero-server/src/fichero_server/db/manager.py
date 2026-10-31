@@ -184,11 +184,14 @@ class DatabaseManager:
                         from fichero_server.maintenance.page_text_repair import repair_on_open
 
                         repair_on_open(db)
-                        from fichero_server.maintenance.image_marker_repair import repair_on_open as repair_image_markers
-
-                        repair_image_markers(db)  # the text a reading's field lost to the image marker
                     except Exception:
                         logger.exception("Page text repair could not run")
+
+                    # The text a reading's document field lost to the artifact's provenance: a background job, never in the open
+                    # (queue_if_needed reads one setting and never raises).
+                    from fichero_server.maintenance import image_marker_repair
+
+                    image_marker_repair.queue_if_needed(db)
 
                     # Seed default workflow presets (Transcribe, Catalogue) into
                     # the GLOBAL library only (#4102) — they're app-level presets,
