@@ -2468,8 +2468,10 @@ is the answer; the grey line says both.
   window's rows are one line and do not get it; the Mac state row stays as it is. *Tests (to write):*
   `fichero/Tests/Unit/general/Views/Activity/ComputeChoiceViewTests.swift` (the label from each state; the core squares
   from P, E and threads in use; the dimmed slot) and `fichero-server/tests/unit/recipes/test_run_status_serves_the_compute_choice_6229.py`.
-- `activity.lane.writer-batched-per-page` — **[GAP]** (#6236, #6212; proposed 2026-10-27, the owner's question on
-  DuckDB's one writer) every write of every page goes through one connection, one lock and one transaction gate per
+- `activity.lane.writer-batched-per-page` — **[PARTIAL]** (#6236, #6212; proposed 2026-10-27, the owner's question on
+  DuckDB's one writer) built (0549999af, `test_names_page_in_one_transaction_6236.py`): the names step writes a page's names in one
+  short transaction under the upsert lane, and each vector is embedded once after it commits; not built: `save_many(new=True)` for fresh
+  rows, and the page record's milliseconds held at the gate. As first written: every write of every page goes through one connection, one lock and one transaction gate per
   library (`db/manager.py`, `db/__init__.py` `transaction()`), so pages read side by side still save one at a time, and
   pages at once cannot help past the point where N × a page's write time nears one page's model time. For Kraken that
   point is far off (writes under 1% of a page, measured 2026-10-20: a few `db.save` calls a page); for the names step
