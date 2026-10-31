@@ -36,6 +36,14 @@ logger = logging.getLogger(__name__)
 _PRESET_ID_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_DNS, "default-workflows.fichero")
 
 
+def _version(value: object) -> int:
+    """A saved `preset_version` as a number (text "2" is 2); one that is not a number counts as the first version (#6298)."""
+    try:
+        return int(value)  # type: ignore[call-overload]
+    except (TypeError, ValueError):
+        return 1
+
+
 def preset_workflow_id(name: str) -> str:
     """The stable workflow id a shipped preset gets everywhere it is seeded."""
     return str(uuid.uuid5(_PRESET_ID_NAMESPACE, name))
@@ -198,8 +206,8 @@ def seed_default_workflows(db: "Database", force: bool = False) -> int:
             continue
         if not (getattr(current, "is_template", False) or getattr(current, "is_system", False)):
             continue
-        preset_v = (preset.get("config") or {}).get("preset_version", 1)
-        stored_v = (getattr(current, "config", None) or {}).get("preset_version", 1)
+        preset_v = _version((preset.get("config") or {}).get("preset_version"))
+        stored_v = _version((getattr(current, "config", None) or {}).get("preset_version"))
         if preset_v > stored_v:
             upgrade_names.add(name)
 
