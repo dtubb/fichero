@@ -93,14 +93,7 @@ class PageImage:
         carried on through its tag. None when this IS the photograph's own pixels."""
         if self.to_image is None:
             return None
-        from PIL import Image
-
-        with Image.open(self.path) as opened:
-            raw = (float(opened.width), float(opened.height))
-            orientation = int(opened.getexif().get(0x0112, 1) or 1)
-        if orientation == 1:
-            return self.to_image
-        return self.to_image.with_size(raw).then(exif_map(orientation, raw))
+        return _onto_upright(self.to_image, Path(self.path))
 
     def photograph_map(self) -> FrameMap | None:
         """This image's upright pixels (what a finder measures) back to the upright photograph's; None when they are the same."""
@@ -218,8 +211,9 @@ def _rendition_map(db: Any, rendition: Any, photograph: Path, photo_size: tuple[
         row = db.get(Rendition, parent_id)
         if row is None:
             raise Unmappable(f"{rendition.role} was made from a rendition that is not in the library")
-        found = _rendition_map(db, row, photograph, photo_size, library_root, _depth + 1)
-        return found if found is not None else identity(photo_size)
+        found = _rendition_map(db, row, photograph, photo_size, library_root, _depth + 1)  # lands in the parent's raw pixels
+        # a turn is of the parent's UPRIGHT picture
+        return _onto_upright(found, _absolute(library_root, row.path)) if found is not None else identity(photo_size)
 
     role = rendition.role
     orientation, _, up = _file_frame(path)
@@ -242,6 +236,14 @@ def _file_frame(path: Path) -> tuple[int, tuple[float, float], tuple[float, floa
                     (float(up[0]), float(up[1])))
     except (OSError, UnidentifiedImageError, ValueError) as exc:
         raise Unmappable(f"{path.name} cannot be read as a picture") from exc
+
+
+def _onto_upright(raw_map: FrameMap, path: Path) -> FrameMap:
+    """A map that lands in the file's raw pixels, carried on through the file's tag to its upright pixels."""
+    orientation, raw, _ = _file_frame(path)
+    if orientation == 1:
+        return raw_map
+    return raw_map.with_size(raw).then(exif_map(orientation, raw))
 
 
 def _in_file_pixels(found: FrameMap, path: Path) -> FrameMap:

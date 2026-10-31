@@ -7,6 +7,8 @@ sees a ruler line only when the ruler is in that image.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from PIL import Image
 
 from fichero_server.llm import kraken_runtime
@@ -305,3 +307,34 @@ def test_a_rendition_that_cannot_be_read_does_not_stop_the_batch(db, tmp_path, m
     account = find_regions(db, [bad.id, good.id], "run-1", "blla", provider="kraken")
 
     assert account["pages"] == 2 and seen == [(600, 640), (600, 640)], "both pages were read, on the photograph"
+
+
+def test_a_turn_of_a_tagged_cut_copy_follows_the_copys_upright_picture(db, tmp_path):
+    """The photograph's point (300, 100) is (100, 60) in the copy cut at rect [.2, .05, .8, .9] (800x720 upright); a quarter turn
+    counter-clockwise (x, y) -> (y, 800 - x) of that is (60, 700) in the 720x800 turned picture, whatever tag the files keep."""
+    from fichero_server.media.current_image import current_page_image
+    from fichero_server.models import NodeRegion, Rendition
+
+    for tag in range(1, 9):
+        sub = tmp_path / f"t{tag}"
+        sub.mkdir()
+        photo = _tagged(sub, tag, (W, H), "photo")
+        page = Document(name=photo.name, doc_type=DocType.file, file_type=FileType.image, path=str(photo))
+        db.save(page)
+        cut = _tagged(sub, tag, (800, 720), "cut")
+        with Image.open(cut) as opened:
+            raw = opened.size
+        parent = Rendition(document_id=page.id, role="crop", path=str(cut), pixel_width=raw[0], pixel_height=raw[1],
+                           transform=NodeRegion(rect=[0.2, 0.05, 0.8, 0.9]))
+        db.save(parent)
+        turned = sub / "turned.png"
+        Image.new("RGB", (720, 800)).save(turned)
+        db.save(Rendition(document_id=page.id, role="rotated", path=str(turned), pixel_width=720, pixel_height=800,
+                          derived_from_rendition_id=parent.id,
+                          transform=NodeRegion(rect=[0, 0, 1, 1], rendition_id=parent.id, angle=90)))
+
+        image = current_page_image(db, page, library_root=sub)
+
+        assert image.kind != "original" and Path(image.path) == turned, f"tag {tag}: {image.why}"
+        x, y = image.to_image.pixels(300, 100)
+        assert (round(x), round(y)) == (60, 700), f"tag {tag}: {(x, y)}"
