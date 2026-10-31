@@ -177,8 +177,9 @@ def test_wide_a_plan_whose_only_step_is_a_card_has_a_run_and_no_refusal():
 
 
 def test_wide_a_stage_ticked_after_the_first_start_is_in_the_next_plan(client, db, pages, tmp_path):
-    """`wide.prepare.ticked-later-still-runs` (#5706, section F cause 4): saving a setup whose recipe gained steps after the first
-    Start writes those steps into the proposal, so `only` holds them and the plan runs them; a stage taken out leaves it."""
+    """`wide.prepare.ticked-later-still-runs` (#5706, section F cause 4; review M1): with no proposal the next Start plans the whole
+    recipe, so a stage ticked later is in it and nothing is narrowed (a proposal made of the gained steps alone would drop every other
+    step); a proposal that exists is extended with the gained step, and a step taken out leaves it."""
     from pathlib import Path
 
     from fichero_server.recipes.project import read_proposed, write_proposed, write_start
@@ -186,19 +187,22 @@ def test_wide_a_stage_ticked_after_the_first_start_is_in_the_next_plan(client, d
     from tests.unit.recipes.test_recipe_execution_to_spec import _save
 
     library = Path(db.path).parent
-    before = recipe_of(tmp_path, LINES, READ)
-    _save(client, before)
+    _save(client, recipe_of(tmp_path, LINES, READ))
     write_start(library, {"started_at": "2026-10-31T09:00:00", "recipe_id": "t/run", "workflows": [], "pages": 0})
     assert read_proposed(library) is None
 
     _save(client, recipe_of(tmp_path, LINES, READ, PREP))
-    assert read_proposed(library)["steps"] == ["prep"], "the step the recipe gained is proposed"
+    assert read_proposed(library) is None, "no proposal is made of the gained step alone: that would narrow the next Start"
     plan = client.get("/api/recipes/project/start").json()
-    assert [r["steps"] for r in plan["runs"]] == [["prep"]], plan["runs"]
+    assert "prepare" in [r["card"] for r in plan["runs"]] and len(plan["runs"]) > 1, plan["runs"]
     assert plan["refusals"] == []
 
+    _save(client, recipe_of(tmp_path, LINES, READ))  # back to the recipe before; a proposal now exists, holding the read
+    write_proposed(library, {"layers": [], "steps": ["read"], "proposed_at": "2026-10-31T10:00:00"})
+    _save(client, recipe_of(tmp_path, LINES, READ, PREP))
+    assert read_proposed(library)["steps"] == ["read", "prep"], "an existing proposal gains the step"
     _save(client, recipe_of(tmp_path, LINES, READ))  # the stage is taken out again
-    assert read_proposed(library) is None
+    assert read_proposed(library)["steps"] == ["read"]
 
     write_proposed(library, None)
     unstarted_library_recipe = recipe_of(tmp_path, LINES, READ, PREP)

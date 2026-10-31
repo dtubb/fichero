@@ -2090,8 +2090,8 @@ def _action_save_setup(db: Database, params: ProjectSetup, ctx: ActionContext) -
 
 def _propose_steps_gained(library: Path, before: dict | None, after: dict | None) -> None:
     """After the first Start the plan holds only what is proposed (and what did not finish): a step Set Up added since is
-    written into the proposal so the next Start runs it, and a step taken out leaves it (`wide.prepare.ticked-later-still-runs`,
-    #5706). Before the first Start nothing is proposed: the whole recipe runs."""
+    added to a proposal that exists so the next Start runs it, and a step taken out leaves it (`wide.prepare.ticked-later-still-runs`,
+    #5706). With no proposal, and before the first Start, nothing is proposed: the whole recipe runs."""
     from fichero_server.core.timeutil import utc_now_iso
     from fichero_server.recipes.project import read_proposed, read_start, write_proposed
 
@@ -2099,7 +2099,10 @@ def _propose_steps_gained(library: Path, before: dict | None, after: dict | None
         return
     had = {s.get("id") for s in before.get("steps") or []}
     now = [s.get("id") for s in after.get("steps") or []]
-    proposal = dict(read_proposed(library) or {"layers": [], "steps": []})
+    proposal = read_proposed(library)
+    if proposal is None:  # nothing is proposed: the next Start plans the whole recipe, the gained step in it; a proposal made of it alone would narrow Start
+        return
+    proposal = dict(proposal)
     steps = [sid for sid in proposal.get("steps") or [] if sid in now]
     steps += [sid for sid in now if sid not in had and sid not in steps]
     if steps == list(proposal.get("steps") or []):
