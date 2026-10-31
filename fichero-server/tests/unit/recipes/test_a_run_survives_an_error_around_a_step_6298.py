@@ -49,3 +49,24 @@ def test_a_step_whose_pages_cannot_be_worked_out_fails_alone_and_the_run_says_so
     assert run_["state"] == "failed" and run_["reason"].startswith("Done with failures"), run_["reason"]
     assert "correct" in run_["reason"]
     _plain(run_)
+
+
+def test_an_error_in_the_recount_still_checks_the_steps_pages_and_the_run_says_so(client, db, pages, steps, with_material, monkeypatch):
+    seen: list[str] = []
+    from fichero_server.recipes import runner
+
+    real_after = runner._after_the_step
+    monkeypatch.setattr(runner, "_after_the_step", lambda *a, **k: (seen.append("after"), real_after(*a, **k))[1])
+    run_ = _run_with(client, monkeypatch, "_recount_on_the_folder")
+    assert "after" in seen, "the failure accounting still ran"
+    assert run_["state"] == "failed" and run_["reason"].startswith("Done with failures"), run_["reason"]
+    assert "not counted as done" in run_["reason"] and "correct" in run_["reason"], run_["reason"]
+    _plain(run_)
+
+
+def test_an_error_checking_a_steps_pages_does_not_leave_it_reading_done(client, db, pages, steps, with_material, monkeypatch):
+    run_ = _run_with(client, monkeypatch, "_after_the_step")
+    assert run_["state"] == "failed" and run_["reason"].startswith("Done with failures"), run_["reason"]
+    assert "not counted as done" in run_["reason"] and "correct" in run_["reason"], run_["reason"]
+    assert ["names"] in steps.ran and ["correct"] in steps.ran, "every step still ran"
+    _plain(run_)

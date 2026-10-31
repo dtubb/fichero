@@ -962,6 +962,20 @@ def _title_of(card: dict[str, Any]) -> str:
     return topic.title if topic else ", ".join(card["steps"])
 
 
+def _check_failed(step: dict[str, Any], batch: dict[str, Any], state: str, child: str | None, documents: list[str],
+                  named: str, problems: list[str], what: str) -> None:
+    """A step ended but Fichero's own bookkeeping after it raised (#6298): what it lost is not known, so its pages are not
+    read as done. A done step becomes partial and its pages are kept as lost (the Catalogue skips their folders and kept exports
+    are not trusted); the batch is noted, so the run ends "Done with failures" in these words, and a failed step stays failed."""
+    words = f"Fichero hit an error {what} after the step ended, so its pages are not counted as done (the log has the detail)"
+    if state == "done" and step["state"] == "done":
+        step.update(state="partial", why=words)
+    step["failed_ids"] = sorted({*(step.get("failed_ids") or []), *documents})
+    if state in ("done", "failed"):
+        _note_batch(step, batch, "partial" if state == "done" else "failed", child, words)
+    problems.append(f"step {named}: {words}")
+
+
 def could_not_start(card: dict[str, Any], exc: Exception) -> str:
     """One plain line for a step whose work raised before it could report an end (#5684): what the person can do,
     never the technical text, which goes to the log. A native library that would not load (a dlopen, a missing
@@ -1719,15 +1733,21 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
             # each batch's job, kept in the checkpoint: the step is timed over all of them (#6215)
             step.setdefault("batch_jobs", []).append({"folder": batch["folder"], "child_id": child})
         here[index]["state"] = states[index] = state
-        try:
-            if card["card"] not in ("publish", "catalogue"):
+        if card["card"] not in ("publish", "catalogue"):
+            try:
                 _recount_on_the_folder(db, detail, batch, index, step, documents, state, already)
+            except _RUN_CONTROL:
+                raise
+            except Exception:  # noqa: BLE001 -- the counts are lost, not the run; said (#6298)
+                logger.exception("recipe step %s: could not recount its folder after it ended", named)
+                _check_failed(step, batch, state, child, documents, named, problems, "recounting its folder")
+        try:
             _after_the_step(db, card, step, batch, documents, state, child, why, scratch, problems, named)
         except _RUN_CONTROL:
             raise
-        except Exception:  # noqa: BLE001 -- the step's own end is saved above; only its bookkeeping is lost, said, the run goes on (#6298)
-            logger.exception("recipe step %s: could not update its counts after it ended", named)
-            problems.append(f"step {named} ended, but Fichero hit an error updating its counts afterwards (the log has the detail)")
+        except Exception:  # noqa: BLE001 -- what the step lost is unknown, so its pages are not read as done (#6298)
+            logger.exception("recipe step %s: could not check its pages after it ended", named)
+            _check_failed(step, batch, state, child, documents, named, problems, "checking its pages")
         jobs.save_detail(db, job_id, json.dumps(detail))  # the step's end on this batch is a checkpoint
     return problems
 
