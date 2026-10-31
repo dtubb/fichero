@@ -45,3 +45,10 @@ struct PrepareOperationsTests {
                 == "Runs: straighten, crop.")
     }
 }
+
+@MainActor @Test("the page says how many folders answer for themselves, never their names")
+func ownAnswersLine() {
+    #expect(PrepareImagesCard.ownAnswersLine(count: 0) == nil)
+    #expect(PrepareImagesCard.ownAnswersLine(count: 1) == "1 folder answers for itself")
+    #expect(PrepareImagesCard.ownAnswersLine(count: 2) == "2 folders answer for themselves")
+}

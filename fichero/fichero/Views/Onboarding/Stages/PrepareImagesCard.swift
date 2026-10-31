@@ -18,6 +18,11 @@ struct PrepareImagesCard: View {
         facts.suggestions?.additionalProperties ?? [:]
     }
 
+    /// "2 folders answer for themselves"; nothing when no folder does.
+    static func ownAnswersLine(count: Int) -> String? {
+        count == 0 ? nil : count == 1 ? "1 folder answers for itself" : "\(count) folders answer for themselves"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if FeatureManager.shared.isWideSetUpEnabled { PrepareOperationRowsView(store: store) }
@@ -47,7 +52,13 @@ struct PrepareImagesCard: View {
                     .accessibilityIdentifier("prepareImages.estimate")
             }
             PrepareImagesCheckList(store: store, actionsService: actionsService)
-            if !folders.isEmpty {
+            if FeatureManager.shared.isWideSetUpEnabled {
+                // `wide.prepare.folder-picker-removed`: the engine keeps the folders' answers; the page only says how many.
+                if let line = Self.ownAnswersLine(count: store.foldersWithOwnAnswers.count) {
+                    Text(line).font(.caption).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("prepareImages.folders.ownAnswers")
+                }
+            } else if !folders.isEmpty {
                 PrepareImagesFolderAnswers(store: store, folders: folders)
             }
         }
