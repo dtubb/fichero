@@ -69,6 +69,9 @@ class PageImage:
     #: The edit chain has an edit whose place on the photograph is not known: this image is right for a step that reads the page
     #: whole, and no line can be carried to or from it. A step that cuts or stores lines reads `for_geometry()`.
     frame_unknown: bool = False
+    #: How many newer renditions could not be read or followed and were passed over for this image (a page read on an image
+    #: nobody chose: the run says so).
+    passed_over: int = 0
 
     def for_geometry(self) -> "PageImage":
         """The image for a step that cuts lines from the page or stores what it finds on it: this one, or the photograph when
@@ -311,20 +314,24 @@ def _raw_size(upright: tuple[int, int], orientation: int) -> tuple[float, float]
     return (float(upright[1]), float(upright[0])) if orientation in (5, 6, 7, 8) else (float(upright[0]), float(upright[1]))
 
 
-def _newest_rendition(db: Any, doc: Any, photograph: Path, library_root: Path) -> tuple[Any, FrameMap | None] | None:
+def _newest_rendition(db: Any, doc: Any, photograph: Path, library_root: Path) -> tuple[tuple[Any, FrameMap | None] | None, list[str]]:
+    """The newest rendition that can be followed and its map, and a note for each newer one that could not (passed over: the
+    page is then read on an image nobody chose, so the caller says so)."""
     from fichero_server.models import Rendition
 
     rows = [r for r in db.query(Rendition, document_id=doc.id)
             if r.role not in _NOT_THE_PAGE and r.materialized and _absolute(library_root, r.path).is_file()]
+    skipped: list[str] = []
     if not rows:
-        return None
+        return None, skipped
     photo_size = _upright_size_of(photograph)
     for row in sorted(rows, key=lambda r: (r.created_at, r.id), reverse=True):
         try:
-            return row, _rendition_map(db, row, photograph, photo_size, library_root)
+            return (row, _rendition_map(db, row, photograph, photo_size, library_root)), skipped
         except Unmappable as why:
-            logger.info("page image: rendition %s (%s) of %s passed over: %s", row.id, row.role, doc.id, why)
-    return None
+            logger.warning("page image: rendition %s (%s) of %s passed over: %s", row.id, row.role, doc.id, why)
+            skipped.append(f"{row.role}: {why}")
+    return None, skipped
 
 
 def current_page_image(db: Any, doc: Any, *, library_root: Path | str | None = None) -> PageImage | None:
@@ -351,10 +358,14 @@ def current_page_image(db: Any, doc: Any, *, library_root: Path | str | None = N
                                  frame_unknown=True)
             return PageImage(str(edited), EDITED, str(photograph), made, why=f"{len(operations)} edit(s) applied")
 
-    newest = _newest_rendition(db, doc, photograph, root)
+    newest, skipped = _newest_rendition(db, doc, photograph, root)
     if newest is not None:
         row, made = newest
-        return PageImage(str(_absolute(root, row.path)), RENDITION, str(photograph), made, why=f"the newest rendition ({row.role})")
+        return PageImage(str(_absolute(root, row.path)), RENDITION, str(photograph), made, why=f"the newest rendition ({row.role})",
+                         passed_over=len(skipped))
+    if skipped:
+        return PageImage(str(photograph), ORIGINAL, str(photograph), passed_over=len(skipped),
+                         why=f"{len(skipped)} rendition(s) could not be read or followed ({skipped[0]}): the photograph is read")
     return PageImage(str(photograph), ORIGINAL, str(photograph), why="no edit, no rendition")
 
 

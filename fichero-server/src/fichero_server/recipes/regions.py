@@ -162,6 +162,8 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
         page_image = page_image.for_geometry() if page_image is not None else None  # the boxes are carried back: needs a known frame
         if page_image is not None and not page_image.is_original:
             path = page_image.path
+        if page_image is not None and page_image.passed_over:  # a newer rendition could not be followed: this page is read on the photograph
+            account["renditions_passed_over"] = account.get("renditions_passed_over", 0) + page_image.passed_over
         rendered, page_index = None, None
         if doc is not None and getattr(doc, "parent_id", None) and not doc.path:  # a page cut from a PDF has the PDF's path, not its own
             parent = db.get(Document, doc.parent_id)

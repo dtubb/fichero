@@ -331,8 +331,9 @@ def test_a_rendition_that_cannot_be_read_does_not_stop_the_batch(db, tmp_path, m
         account = find_regions(db, [bad.id, good.id], "run-1", "blla", provider="kraken")
 
         assert account["pages"] == 2 and seen == [(600, 640), (600, 640)], f"{case}: {account} {seen}"
+        assert account["renditions_passed_over"] == 1, f"{case}: the pass-over is counted: {account}"
         for current in (_current_image(db, bad), (current_page_image(db, bad, library_root=sub)).for_geometry()):
-            assert current.is_original, f"{case}: {current.why}"
+            assert current.is_original and "could not be read or followed" in current.why, f"{case}: {current.why}"
 
 
 def test_a_turn_of_a_tagged_cut_copy_follows_the_copys_upright_picture(db, tmp_path):
@@ -405,3 +406,17 @@ def test_the_page_crop_of_a_tagged_copy_holds_the_right_pixels_for_every_tag(tmp
         with Image.open(cut[0]) as crop:
             got = [crop.getpixel(p) for p in ((4, 4), (45, 4), (4, 25), (45, 25))]
             assert crop.size == (50, 30) and got == [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)], f"tag {tag}: {got}"
+
+
+def test_a_passed_over_rendition_is_warned_about_and_a_page_with_none_is_not_counted(db, tmp_path, monkeypatch, caplog):
+    from fichero_server.recipes.regions import find_regions
+
+    monkeypatch.setattr(kraken_runtime, "segment_lines", _upright_stub([]))
+    caplog.set_level("WARNING")
+    bad = _bad_rendition_page(db, tmp_path, "no transform, not a picture")
+
+    find_regions(db, [bad.id], "run-1", "blla", provider="kraken")
+
+    assert any("passed over" in r.message and r.levelname == "WARNING" for r in caplog.records)
+    clean = _page(db, tmp_path, BOX)
+    assert "renditions_passed_over" not in find_regions(db, [clean.id], "run-2", "blla", provider="kraken")
