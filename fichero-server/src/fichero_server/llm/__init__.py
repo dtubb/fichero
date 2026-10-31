@@ -571,6 +571,25 @@ class LLMConfig:
     # measurably. (#872 Phase 3 step 15)
     reasoning_effort: str | None = None
 
+    def __post_init__(self) -> None:
+        # A ceiling or timeout saved as text (typed into a field, a string in a saved node) is the whole number it spells, or
+        # refused here naming the field, not a TypeError at a comparison later in a run (#6298).
+        for name in ("max_tokens", "timeout"):
+            value = getattr(self, name)
+            if value is None or (isinstance(value, int) and not isinstance(value, bool)):
+                number = value
+            else:
+                try:
+                    number = float(value) if not isinstance(value, bool) else float("nan")
+                    if not number.is_integer():  # 8192.7, nan, inf
+                        raise ValueError(value)
+                    number = int(number)
+                except (TypeError, ValueError, OverflowError):
+                    raise ValueError(f"{name} is {value!r}, not a whole number: set it as a number") from None
+            if number is not None and number < 0:  # 0 stays, as it always read: no ceiling set
+                raise ValueError(f"{name} is {value!r}: it cannot be below 0")
+            setattr(self, name, number)
+
     def get_model_name(self) -> str:
         """Get the provider-routed model name (provider/model).
 

@@ -4,7 +4,8 @@
 > design and its rulings), `transport/transport-http-uds.md` and `transport/multiuser-always-on.md`.
 > Manual: TBD — a "Share a library with another Mac or your iPhone" page: turn Sharing on, pick the
 > address, send the link, and what each failure sentence means.
-> **Status: DRAFT, 2026-10-30; every claim re-checked against the code 2026-10-31 (file:line cited).**
+> **Status: DRAFT, 2026-10-30; every claim re-checked against the code 2026-10-31 (file:line cited). §10 (2026-10-31, approved
+> for build) covers the owner's five live items on Mac, iPad and iPhone, with the per-platform test matrix, the live script and the slices.**
 > Written from the owner's order ("try this Mac to the Air and vice
 > versa; the M4 to the M1 is not working; we need this rock solid"), a code read at integration
 > `98990d947`, and a headless two-Mac probe on 2026-10-30 (the MacBook Pro `macbook-pro-m1`, the M1 Air
@@ -303,6 +304,320 @@ The owner reports iOS cannot connect, cause unknown. Likeliest causes, ranked (n
 | `sharing.ios-bad-library-path` | **[PARTIAL]** |
 | `sharing.ios-says-which-step` | **[GAP]** |
 | `sharing.ios-end-to-end` | **[GAP]** |
+| `sharing.share-sheet-offers-both-addresses` (§10.1) | **[GAP]** (#5318) |
+| `sharing.state-names-every-address` (§10.1) | **[GAP]** (engine) |
+| `sharing.tailnet-forward-whenever-tailscale-is-up` (§10.1) | **[GAP]** (engine) |
+| `sharing.card-keeps-its-code` (§10.2) | **[BROKEN]** (verified: `refreshKey` carries `isBackendRunning`; Air log: a mint after each health check) |
+| `sharing.qr-drawn-once-per-payload` (§10.2) | **[BROKEN]** (verified: per-process key order, QR rebuilt per render) |
+| `sharing.token-saves-on-every-build` (§10.3) | **[PARTIAL]** (S1 written, not yet built; the DMG gap proved live) |
+| `sharing.failed-save-spends-nothing` (§10.3) | **[PARTIAL]** (S1 written, not yet built) |
+| `sharing.multiuser-switch-needs-no-library` (§10.4) | **[BROKEN]** (verified: 400 in the Air's log; the route's library dependency) |
+| `sharing.multiuser-switch-says-the-refusal` (§10.4) | **[GAP]** |
+| `sharing.people-pane-off-state` (§10.4) | **[GAP]** (#5917; the hint string exists, no view uses it) |
+| `sharing.cli-mints-a-link` (§10.5) | **[GAP]** (no `devices invite` command) |
+
+## 10. Live findings 2026-10-31: the five owner items, on every platform
+
+The owner paired the M4 to the Air (host) live on 2026-10-31 and reported five things. Each is read against the code at
+`0f1ad5afe` (this branch's base) and the Air's engine log (`ssh air`, read-only; the Fichero.app there is build 20, engine
+2026.10.28; this Pro runs build 18). What was verified is said; what was not is said too. Secrets appear nowhere here.
+
+### 10.1 The link names one address (`.local`); the person must choose (owner item 1, #5318)
+
+**Today (verified in code).** The Add Device sheet and the project Share sheet build one payload from
+`validatedPublicURL` = the sharing address (`ShareSettingsView+QRCode.swift:29-44`, `ShareLibrarySheet+Sharing.swift:125-140`).
+The engine already tells the app the second address: `PairCodeResponse.tailnet_url` (`pairing.py:764`) and
+`GET /api/pair/sharing` → `tailnet_url` (`_sharing_state`, `:191-199`), which the pane fetches into `sharingState` /
+`detectedTailnetURL` (`refreshSharingState`, `+StateManagement.swift:112-117`) and then uses for nothing but the Advanced "Use"
+button. The tailnet forward is made only when the **sharing address itself** is a `.ts.net` name
+(`tailscale_serve.start_for_engine`, `:145`: `tailnet_url()` is empty otherwise), so with a `.local` sharing address the engine makes
+no forward; the Air's forward exists from an earlier `.ts.net` choice (`tailscale serve --bg` persists), which is why the tailnet
+address answered while the link named `.local`.
+
+- `sharing.share-sheet-offers-both-addresses` — **[GAP]** (#5318) the Add Device sheet and the project Share sheet show the
+  addresses as a choice above the QR: **"This network"** (`<name>.local`) and **"Tailscale"** (`<machine>.<tailnet>.ts.net`), each with
+  its one-line reach ("same Wi-Fi only, when the network allows it" / "anywhere your Tailscale is on"). The chosen row is what the QR
+  shows and what **Copy Link** copies; each row also has its own **Copy** so both links can be sent at once. The pin follows the row
+  (`RemoteClientPairing.invitePin(_:for:)` already decides by host: `.ts.net` carries no pin, the rest carry the one SPKI pin); the code
+  is the same in both links (one mint, two addresses). The default row is Tailscale when the engine reports a tailnet address and its
+  forward is Fichero's own, else This network. A row that cannot work is shown disabled with why (Tailscale not running: "Tailscale is
+  not running on this Mac"; forward held by another service: `sharing.stale-forward-says-so`). On iPhone and iPad there is no host
+  card (`ShareSettingsView` is `canImport(AppKit)`; `SharingSettingsView.availableSections` is `[.people]` on iOS,
+  `SettingsGroupContainers.swift:81-92`): the phone is a client and consumes whichever link it gets. *Test:* `AddressChoiceModelTests.swift`
+  (Swift Testing, written with the slice): rows from a `SharingStateRecord` with and without a tailnet address; default row; the payload for
+  each row carries the right pin; both links carry the same code. UI: `SharingPaneUITests/testAddDeviceSheetShowsBothAddressRows` in
+  `fichero-ui-mac` (seeded sharing state).
+- `sharing.state-names-every-address` — **[GAP]** → #5049 (engine, additive) `GET /api/pair/sharing` gains `public_base_url` (the sharing
+  address the engine was started with), `lan_ip` and `tailnet_forward: "ours" | "foreign" | "none"`, so the app, the CLI and a tester read
+  the host's addresses from one place instead of guessing (the first step of `sharing.address-choice`, §4, which stays the fuller design).
+  Additive response fields: the Swift client ignores unknown keys until the regen that consumes them. *Test:*
+  `tests/unit/api/test_sharing_state_names_every_address_to_spec.py`.
+- `sharing.tailnet-forward-whenever-tailscale-is-up` — **[GAP]** (#5318; engine) `start_for_engine` makes (or keeps) the `tailscale serve`
+  forward whenever Tailscale is running and a certificate exists, not only when the sharing address is `.ts.net`, so the Tailscale row
+  works whichever address the person chose. A foreign forward is still never replaced (`ensure_forward`, `:118-124`). *Test:*
+  `tests/unit/security/test_tailscale_serve.py` (exists) + `test_forward_made_with_a_local_sharing_address_to_spec.py`.
+
+### 10.2 The code card "keeps resetting" (owner item 2)
+
+**Verified in code and in the Air's log.**
+1. *What re-mints the code.* `.task(id: refreshKey)` (`ShareSettingsView.swift:131-134`) re-runs `refreshPairingCode()`, which sets
+   `pairingCode = nil` and mints again (`+StateManagement.swift:98-109`), whenever `refreshKey` changes; the key contains
+   `appState.isBackendRunning` (`:8-12`), which is `engine.isReady` (`AppState.swift:53`). **Every `checkBackendHealth()` call flips it**:
+   it calls `engine.markStarting()` on entry (`AppState+HealthCheck.swift:44`) and `markReady` at the end, so the key changes twice and
+   the card is cleared and re-minted. `checkBackendHealth()` is called by the Multi-user switch (`setMultiuserOnEngine`,
+   `+StateManagement.swift:59`), by `applySharing` (`:74`, `:92`), by the project Share sheet (`ShareLibrarySheet+Sharing.swift:82,91`),
+   by Engine settings and by a host switch. The Air's engine log shows the pattern: each `PUT /api/pair/multiuser` (§10.4) is followed by a
+   `POST /api/pair/code` (21 mints in the log; the uvicorn access lines carry no timestamp, so the cadence is not readable there).
+2. *What redraws the picture without changing the code.* `qrCodeImage` is a computed property that runs `CIFilter` and makes a new
+   `NSImage` on **every body evaluation** (`+QRCode.swift:51-62`); the Devices poll sets `pairedDevices` every 10 s
+   (`ShareSettingsView.swift:122-129`, `lastSeen` changes), and any other state change re-evaluates the body, so the image is rebuilt
+   and SwiftUI redraws it. The bytes are the same within one app process (below), so what the person sees is a redraw, not a new QR.
+   **Not verified:** the ~30 s cadence the owner saw; `log show` on the Air returned no app lines for the filters tried in this
+   session. To pin it: on the host, `log stream --predicate 'subsystem == "app.fichero.fichero"' --style compact` while the card is up,
+   and note which lines land at each flash.
+3. *Why two copies of the same link had different JSON key order.* Both the link (`RemoteClientPairingFlow.swift:71-72`) and the QR
+   (`+QRCode.swift:53`) use a `JSONEncoder()` without `.sortedKeys`. On this macOS (27.0) `JSONEncoder` orders keys **per process**: a
+   three-run script with the payload's six keys gave three different orders across runs and the same order within a run. So two links
+   from one app launch match byte for byte; two from different launches (or different Macs) do not. Decoding is unaffected; comparing
+   links by eye is.
+4. *Lifetime and clock.* `expires_at = utc_now() + PAIRING_CODE_TTL` at the mint (`pairing.py:729-730`, the engine's clock, UTC); the
+   card shows it in the Mac's local time (`AddDeviceSheetModel.expiresText`). **Copy Link copies the code on the card** (`inviteLinkString`
+   ← `pairingQRPayload` ← `pairingCode`, `+QRCode.swift:46-49`), nothing cached and nothing re-minted; the QR is built from the same
+   `pairingQRPayload`. A link re-sent after its ten minutes answers `401 invalid or expired pairing code` (`pair_device`, `:827`); the
+   manager's observation (a link minted 15:13:40Z, received 15:14Z, re-sent at 15:28Z) is consistent with this: the card handed out a
+   fresh code and the old link was re-sent, not a stale mint.
+
+- `sharing.card-keeps-its-code` — **[BROKEN]** (→ #5915, its second half; new issue 1 below) the card re-mints only when: the code expires
+  (`sharing.pairing-code-renews-at-expiry`, built), Sharing is turned on, the sharing address or pin changes, or the person asks for a new one.
+  **A health check, a Multi-user flip, a Devices refresh or the engine's phase passing through `starting` never clears the card.**
+  `refreshKey` drops `isBackendRunning`; instead, when the engine is not ready the card shows its blocker (`.engineNotRunning`) over the
+  *kept* code and mints once the engine is back only if the kept code has expired. *Test:* `ShareSettingsRefreshKeyTests.swift`: the key is
+  unchanged across `isBackendRunning` true→false→true; changes on address/pin/sharing. `PairingCodeRenewalTests.swift` (exists) stays.
+- `sharing.qr-drawn-once-per-payload` — **[BROKEN]** (→ #5915; new issue 1 below) the QR image is made once per payload string and kept in `@State`
+  (`.task(id: inviteLinkString)`), never in a computed property the body re-runs; both encoders use `.sortedKeys` (and `.withoutEscapingSlashes`
+  is **not** added: the iOS decoder and the CLI accept either, but a changed link shape is not needed) so Copy and QR are byte-identical and a
+  link reads the same from every launch and every Mac. *Test:* `PairingLinkEncodingTests.swift`: two encodes of one payload are equal; keys
+  are in sorted order; the QR message equals the link's payload bytes.
+
+### 10.3 The guest could not save the device token: `errSecMissingEntitlement` (-34018) (owner item 3)
+
+**Verified.** Every Keychain query for the remote device token carries `kSecUseDataProtectionKeychain: true`
+(`AuthTokenMiddleware.swift:398`, `remoteTokenKeychainQuery`, used by read, write and clear). On macOS the data-protection keychain
+needs the app to carry a `keychain-access-groups` or `com.apple.application-identifier` entitlement. The Xcode Debug and Dev Embedded
+configurations sign with `Fichero.entitlements`, which has the group (`CODE_SIGN_ENTITLEMENTS`, `project.pbxproj:1601`, `:1998`). The
+Release, Alpha Embedded and Beta Embedded configurations use `FicheroRelease.entitlements` (`:1659`, `:2060`, `:2137`), which has
+**no** keychain key, and the DMG lane re-signs the app with that raw file (`scripts/build-release-dmg.sh:114-141`; codesign *replaces*
+entitlements). Checked on the installed apps: the Air's `/Applications/Fichero.app` (build 20) and this Pro's (build 18) carry neither
+key (`codesign -d --entitlements`). So **every DMG (GitHub / Sparkle / dev DMG) build fails to save the token; every Xcode Debug and
+Dev Embedded run saves it**, which is why the failure was never seen in testing. **Proved live (2026-10-31):** a swiftc probe doing
+`SecItemCopyMatching/Add/Copy/Delete` on a throwaway service, ad-hoc signed with `FicheroRelease.entitlements`, run bare and inside a
+minimal sandboxed bundle, gave the same answer both times: with `kSecUseDataProtectionKeychain` the lookup says not-found (-25300) and the
+add and delete answer **-34018**; without it (the login keychain) add, read and delete answer 0, with or without `kSecAttrAccessible`.
+So the shipped path was: lookup not-found → `SecItemAdd` -34018 → the macOS fallback (`:314-327`) dropped `kSecAttrAccessible` and added
+again → -34018 again, because the query still named the data-protection keychain → `keychainWriteFailed(-34018)`, the owner's sentence.
+The fallback was reachable but ineffective. The session token's query has no such flag
+(`sessionTokenKeychainQuery`, `:404-410`) and works on the DMG, which shows the login keychain is the working home on a Mac. App Store /
+TestFlight builds (`FicheroAppStore.entitlements`, no group either) are signed by Xcode with a profile, which injects
+`application-identifier`: **expected to work, not verified**. iPhone and iPad have only the data-protection keychain; the flag is a
+no-op there and the profile supplies the identifier: **expected to work, not verified on a device** (no phone has paired since 2026-10-20).
+
+**The spent-code trap (verified).** `pair_device` marks the code used and pops it (`pairing.py:920-922`) *before* answering, and creates
+the device row (`:905-909`); the token exists only in the answer. When the client then fails to persist it, the host lists a device nobody
+holds a token for and the code is gone. The client's own remedy exists: `POST /api/pair/devices/revoke-self` with the token it still holds
+in memory (`:1043`, #6133).
+
+- `sharing.token-saves-on-every-build` — **[PARTIAL]** (→ #5049, umbrella; new issue 2 below; slice S1 written 2026-10-31, not yet built) on
+  macOS the device token lives in the **login keychain**, always, with no fallback: the ONE query that read, write and clear share
+  (`AuthTokenMiddleware.remoteTokenKeychainQuery`, decided by `remoteTokenLivesInDataProtectionKeychain`) omits `kSecUseDataProtectionKeychain`
+  **and** `kSecAttrAccessible` on a Mac (an explicit class routes a Mac item to the data-protection keychain too; the test asserts no class is read
+  back), and keeps both on iOS/iPadOS (`AfterFirstUnlock`, #3772). A token a Debug build wrote earlier into the data-protection keychain is not found
+  by the login-keychain query: that Mac re-pairs once; the old item stays (S-L1, a one-shot delete is a later slice). The alternative, adding
+  `com.apple.application-identifier` + `keychain-access-groups` to `FicheroRelease.entitlements`, is S1b, **not** the path taken.
+  *Test:* `KeychainTokenAccessibilityTests.swift` (exists, extended): on macOS the remote-token query has no data-protection key and no
+  protection class is read back; on iOS it has the key and reads back `AfterFirstUnlock` (`#3772`); a transient token is read once and gone.
+- `sharing.failed-save-spends-nothing` — **[PARTIAL]** (→ #5049, umbrella; new issue 2 below; slice S1 written, not yet built:
+  `RemoteClientPairing.storeTokenOrRevoke` on all three paths, the iOS flow, the Mac Connect sheet and the synced-project ask) when the token
+  cannot be saved (any `AuthTokenStorageError`), the client asks the host to revoke the device it just made (`revoke-self`, with the token held
+  once in memory under the host's account, dropped after the call) and says: **"This Mac couldn't save the connection key in its Keychain, so
+  nothing was paired. Update Fichero on this Mac and ask for a new link."** (`RemoteClientPairingError.tokenNotSaved`; the OSStatus goes to the
+  log only). Nothing is persisted, so there is no host to forget. On iPhone/iPad the subject is "This device" (the idiom is main-actor
+  state a `LocalizedError` cannot read, review S-H1). A refused revoke is logged and the host keeps the row (accepted). Not built: a "Copy
+  details" control, the one-shot delete of an old data-protection item. *Test:*
+  `PairingPersistFailureTests.swift` (written): a throwing persist → the revoke is asked while the middleware holds that token, then it is
+  gone, nothing saved, the sentence. Engine: `test_a_device_revokes_its_own_pairing_6133.py` (exists) already proves `revoke-self` right after `pair`.
+
+### 10.4 The Multi-user switch does not stick; Create Account gives a 404 (owner item 4)
+
+**Verified in the Air's log and in code.** The Air's engine answered `PUT /api/pair/multiuser` with **400 Bad Request** seven times
+in a row. The route declares `db: Database = Depends(get_library_database_for_write)` (`pairing.py:593`), which answers
+`400 "Missing X-Fichero-Library-Path header. Please open a library document first."` (`api/main.py:1646-1647`) when the request carries
+no library header. The Settings pane's `PairingService(apiRoot:)` makes its own `FicheroClient` with no library path
+(`PairingTypes.swift:127-129`), and `/api/pair` is not in `LibraryPathMiddleware.isAppWidePath` (`:81-89`), so the header is sent only
+when that client has a library, which it never has: the dependency refuses before the body runs. The action itself is app-wide
+(`owner_scope="app"`, `:626-627`) and reads the app DB; the library DB is used for nothing. The Swift side then throws
+`APIError.httpError(statusCode: 400, message: "Unexpected response")` (`MultiuserSwitch.swift:28-29`, the engine's `detail` is thrown
+away), the pane shows that, and `multiuserBinding` reads the engine's unchanged state: the switch snaps back. The existing engine tests pass
+because the harness client sends the header. After this 400 the next refusals in order are the designed ones: 403 without the owner's
+signed-in key session while Multi-user is off (`:601`), 409 until the owner chose a password (`:607`).
+
+**The 404.** `POST /api/users` answers `404 multi-user auth is disabled` while Multi-user is off (`accounts.py:198-200`); the People
+pane's `+` is enabled whatever the state (`UsersContent+Layout.swift:24-27`), the Add sheet offers **Create Account** with a password
+(`AccountsAddSheetModel.buttonTitle`), and the store shows the raw enum (`UsersStore.swift:166`). **#5917 is not built in the UI**:
+`SharingToggles.multiUserOffHint` exists with its test (`SharingTogglesTests.swift`) but no view uses it (grep 2026-10-31: the definition
+only). `library-sharing.md` marks it [PARTIAL]; it is **[GAP]** at the UI.
+
+- `sharing.multiuser-switch-needs-no-library` — **[BROKEN]** (→ #5751, the switch's own issue; new issue 3 below; engine) `PUT /api/pair/multiuser` takes no library
+  dependency: the action is invoked against the app database with an app-scoped context, so a Settings window with no project open
+  can flip it. *Test:* `tests/unit/api/test_multiuser_switch_needs_no_library_to_spec.py`: the owner's key session, **no** library header →
+  409 (password gap) then 200, never 400; `test_owner_session_sets_the_switch_5908.py` (exists) stays green.
+- `sharing.multiuser-switch-says-the-refusal` — **[GAP]** (Swift) `MultiuserSwitch.put` reads the engine's `detail` from an undocumented
+  status (as `PairingService` does for the other calls, `EngineErrorDetail.message(from:)`) and the pane shows it beside the switch; a 409
+  password gap becomes **"Choose a password for your account first"** with a **Choose Password…** button (the owner `PATCH`, `#5908`).
+  *Test:* `MultiuserSwitchWordsTests.swift`: 400/403/409 bodies → their sentences; never "Unexpected response".
+- `sharing.people-pane-off-state` — **[GAP]** (#5917 reopened to this; Mac, iPhone, iPad) with Multi-user off the People pane shows the
+  owner's row, **no `+`, no Create Account, no Invite**, and one line with a button: on a Mac **"Multi-user is off. Turn it on in Sharing."
+  [Open Sharing]** (selects the Devices section, where the switch is: `ShareSettingsView+Advanced.swift:77`); on iPhone/iPad, which have
+  no switch, **"Multi-user is off. Turn it on in Sharing on the Mac that shares this library."** (no button). The state comes from the engine
+  (`authzSnapshot.multiuserEnabled` / `identityStore.multiuserEnabled`), never a local flag. With Multi-user on, `+` returns. *Test:*
+  `PeoplePaneOffStateTests.swift`: off → no add control, the sentence per platform; on → `+`. UI: `SharingPaneUITests/testPeopleOffStateHidesAdd`
+  (`fichero-ui-mac`), `IOSSettingsPeopleUITests/testPeopleOffStateSentence` (`fichero-ui-ios`), `IPadSettingsPeopleUITests` (`fichero-ui-ipad`).
+- `sharing.multiuser-404-is-a-409-in-the-engine` — **[GAP]** (→ #5049; §5, unchanged: held, contract).
+
+### 10.5 Minting a code from the CLI (owner item 5)
+
+**Verified.** `fichero devices` has `list`, `pair`, `forget`, `revoke` (`fichero_cli/__main__.py:790-840`); there is **no mint**. The
+engine already lets the host's bootstrap owner mint over the Unix socket (`_pairing_user` → `_owner_for_pairing` with `bootstrap_auth`,
+`pairing.py:304-331`; the UDS transport is exempt from the https rule, `:535-536`), so no engine change is needed to mint, only to *name
+the addresses* (`sharing.state-names-every-address`).
+
+- `sharing.cli-mints-a-link` — **[GAP]** (→ #5751; new issue 4 below) `fichero devices invite [--address this-network|tailscale] [--link-file PATH]`
+  on the host mints one code and prints the pairing link for the chosen address (default: tailscale when the engine reports one, else
+  this-network), or writes it to `--link-file` (0600) and prints only the address and the expiry. The link carries the pin for a
+  `.local`/IP address (`spki_pin` from the mint answer) and none for `.ts.net`, the same rule as the app (`_is_public_ca`). The two
+  machines are then linked with no GUI: `fichero devices invite --link-file /tmp/l` on the host, `fichero devices pair --link-file /tmp/l` on
+  the guest. The raw code is never printed on its own. *Test:* `tests/unit/security/test_cli_mints_a_link_to_spec.py` (beside
+  `test_cli_pairs_a_device_5907.py`): the link decodes to the engine's code and the chosen address; `.ts.net` → no `spki`; `.local` → the pin;
+  `--link-file` is 0600 and stdout holds no payload.
+
+### 10.6 Each platform today, what is broken, what "working" means
+
+| Area | Mac | iPad | iPhone |
+|---|---|---|---|
+| Pairing / join | Connect sheet: paste link or pick a Nearby host (`MacRemoteClientPairingSection`); failures show `localizedDescription` (`:181`). **Broken:** one address in the link; -1001/-1003 as raw text; token save fails on DMG builds (§10.3). *Working:* link with both addresses, each tried in turn, step-named sentences, token saved, host switch. | `ConnectPairingIOS` (QR scan, paste, nearby) + `PairingIncomingLinkSheet` on a tapped link; `error.localizedDescription` (`PairingIncomingLinkSheet.swift:68`); no contract check (§1). **Untested on a device since 2026-10-20.** *Working:* same sequence as the Mac (`sharing.both-clients-run-the-same-checks`), Tailscale-first on a campus network, the sentence names the step and offers Try again. | Same as iPad, plus the Local Network prompt (§7). |
+| Device token | Data-protection keychain → **fails on every DMG build** (-34018); works in Xcode Debug/Dev Embedded. *Working:* login keychain; failed save revokes and says so. | Data-protection keychain (the only one); entitlement injected by the profile: expected OK, **not verified**. *Working:* a save failure revokes and says so, same words with "this iPad". | Same as iPad. |
+| Multi-user switch + People pane | Switch in Sharing › Devices › Advanced; **PUT answers 400** (§10.4), pane says "Unexpected response"; People `+` → Create Account → **404 raw enum**. *Working:* switch flips (or says the password gap), People hides `+` while off with the sentence and a button. | Sharing settings = People only, **no switch**; `+` → 404 the same. *Working:* People hides `+` while off, sentence names the Mac. | Same as iPad. |
+| Address choice | Host only; one address. *Working:* two rows, choice, per-row Copy. | Client: consumes either link; opens `fichero://` from Messages. | Same. |
+| Code card | Host only; **re-mints on every health check**, redraws every render. *Working:* code kept until expiry; one QR per payload. | No card. | No card. |
+
+### 10.7 Test matrix per platform
+
+| Behaviour | Engine (pytest) | Swift Testing (`fichero.xctestplan`, general) | UI test (plan) |
+|---|---|---|---|
+| `sharing.share-sheet-offers-both-addresses` | — | `AddressChoiceModelTests` | `SharingPaneUITests/testAddDeviceSheetShowsBothAddressRows` (`fichero-ui-mac`) |
+| `sharing.state-names-every-address` | `test_sharing_state_names_every_address_to_spec.py` | — | — |
+| `sharing.tailnet-forward-whenever-tailscale-is-up` | `test_forward_made_with_a_local_sharing_address_to_spec.py` | — | — |
+| `sharing.card-keeps-its-code` | — | `ShareSettingsRefreshKeyTests`, `PairingCodeRenewalTests` (exists) | `SharingPaneUITests/testCodeSurvivesAHealthCheck` (`fichero-ui-mac`) |
+| `sharing.qr-drawn-once-per-payload` | — | `PairingLinkEncodingTests` | — |
+| `sharing.token-saves-on-every-build` | — | `KeychainTokenAccessibilityTests` (Mac + iOS arms) | `IOSConnectPairingUITests/testPairStoresTokenAndOpens` (`fichero-ui-ios`), `IPadConnectPairingUITests` (`fichero-ui-ipad`), seeded host |
+| `sharing.failed-save-spends-nothing` | `test_a_device_revokes_its_own_pairing_6133.py` (exists) | `PairingPersistFailureTests` | — |
+| `sharing.multiuser-switch-needs-no-library` | `test_multiuser_switch_needs_no_library_to_spec.py`, `test_owner_session_sets_the_switch_5908.py` (exists) | — | `SharingPaneUITests/testMultiuserSwitchFlips` (`fichero-ui-mac`) |
+| `sharing.multiuser-switch-says-the-refusal` | — | `MultiuserSwitchWordsTests` | — |
+| `sharing.people-pane-off-state` | — | `PeoplePaneOffStateTests` | `SharingPaneUITests/testPeopleOffStateHidesAdd` (mac), `IOSSettingsPeopleUITests` (ios), `IPadSettingsPeopleUITests` (ipad) |
+| `sharing.cli-mints-a-link` | `test_cli_mints_a_link_to_spec.py` | — | — |
+| `sharing.failure-names-the-step` (§4) | `test_cli_pair_words_match_the_spec.py` | `PairingFailureWordsTests` | `IOSConnectPairingUITests/testDeadHostNamesTheStep` (ios/ipad) |
+
+UI tests join the existing plans by adding the suite names to `fichero/Tests/plans/fichero-ui-mac.xctestplan` (`FicheroUITests`),
+`fichero-ui-ios.xctestplan` and `fichero-ui-ipad.xctestplan` (`FicheroIOSUITests`); each plan today selects three canary/smoke suites,
+so a new suite is listed explicitly or it does not run. Every UI test runs against a seeded engine (`IOSSimSameSocketTests` shows the
+socket pattern) and never against the owner's running app (`App tests quit Daniel's running app`).
+
+### 10.8 Live script: Air host, M4 guest, iPhone or iPad over Tailscale
+
+Run after the slices; one record per numbered step (what the screen said, verbatim). Never paste a code, pin or token into the record.
+1. **Air (host):** Settings › Sharing › Sharing on. Devices › Add Device…: two rows, "This network (macbook-air-m1.local)" and
+   "Tailscale (macbook-air-m1.<tailnet>.ts.net)", Tailscale selected by default. Note the expiry time shown. Leave the sheet open 3 minutes:
+   the code must not change; the picture must not flash. Flip Multi-user off/on in Advanced (expect "Choose a password for your account
+   first" or a flip, never "Unexpected response"): the code on the card is still the same.
+2. **Air:** Copy Link with Tailscale selected, send to the M4 (Messages). Then select This network, Copy, send too.
+3. **M4 (guest, DMG build):** Settings › Sharing › Connect to Another Mac…, paste the Tailscale link. Expect: connected in < 10 s; the
+   host's library opens; no Keychain error. On the Air, Devices shows the M4 within 10 s. Quit and reopen Fichero on the M4: it reconnects
+   without asking (the token was saved). **Keychain ACL (S-M3):** install the NEXT DMG over it: it must reconnect with no keychain prompt; then
+   run a Dev Embedded build on the same Mac: note whether it prompts or reads "not paired" (a login-keychain item is tied to the signing
+   identity that wrote it). **Gate note (S-M4):** `KeychainTokenAccessibilityTests`, `DeviceTokenRenewalTests` and `WorkflowStreamConnectionTests`
+   write the real login keychain: run them in a GUI session; over SSH or with the keychain locked, -25308 is the session, not a defect.
+4. **M4:** paste the This-network link (a new code from the Air). On the campus network expect the sentence "This Mac can't find
+   macbook-air-m1.local on this network. Try the Tailscale address…" in < 10 s, never "The request timed out".
+5. **M4:** paste the first (now used) Tailscale link again. Expect "That code was used or has expired…", and no new row on the Air.
+6. **Air:** Devices › select the M4 › −. On the M4 within 10 s: "macbook-air-m1 no longer knows this Mac…" and the row greys.
+7. **Air:** Sharing › Advanced › Multi-user on (choose a password when asked). People: `+` appears. Multi-user off: `+` goes, the line
+   "Multi-user is off. Turn it on in Sharing." with its button.
+8. **iPhone (Tailscale app connected, Wi-Fi off):** tap the Tailscale link in Messages → Open in Fichero → pairs; the library list shows the
+   Air's project. Settings › Sharing › People: with Multi-user off on the Air, the line names the Mac and shows no `+`.
+9. **iPad (same Wi-Fi as the Air, Local Network allowed):** scan the QR with This network selected. On a campus network expect the
+   network sentence; with Tailscale selected the pair succeeds. Deny Local Network in Settings › Fichero and retry This network: the sentence
+   names the permission with Open Settings.
+10. **CLI (host Air, no GUI):** `fichero devices invite --link-file /tmp/l` prints the address and expiry; on the M4
+    `fichero devices pair --link-file /tmp/l` pairs; `fichero devices list` on the Air shows it; `fichero devices revoke <id>` ends it.
+
+### 10.9 Build order: slices, engine first, then shared Swift, then per platform
+
+Each slice is one commit with its test written first (red), the code, the test green, and this spec's tag updated in the same commit.
+Swift tests are written and marked "written, not yet built" until a build runs them (Pro disk and XCTest host are out, 2026-10-31).
+- **E1** `sharing.multiuser-switch-needs-no-library`: drop the library dependency from `PUT /api/pair/multiuser`; test above.
+- **E2** `sharing.state-names-every-address` + `sharing.tailnet-forward-whenever-tailscale-is-up`: `SharingStateResponse` fields; `start_for_engine`
+  condition; tests above. (Additive contract: regen when Swift consumes the fields.)
+- **E3** `sharing.cli-mints-a-link`: `fichero devices invite`; `FicheroClient.create_pairing_code`, `sharing_state`; test above.
+- **E4** (held) `sharing.multiuser-404-is-a-409-in-the-engine`: not built; owner ruling (open question 4).
+- **S1** `sharing.token-saves-on-every-build` + `sharing.failed-save-spends-nothing` + `sharing.qr-drawn-once-per-payload`'s encoders: `AuthTokenMiddleware`
+  macOS queries; `RemoteClientPairing.inviteLinkString` and the QR encoder `.sortedKeys`; `pairAndPersistHost`/the Mac sheet call `revoke-self` on a
+  persist failure; tests above (`fichero-api-client` package tests + general).
+- **S1b** (optional, not taken) the entitlement route instead of the login keychain: `com.apple.application-identifier` = `QAPB6CWYR6.app.fichero.fichero` and `keychain-access-groups` = [the same] in `FicheroRelease.entitlements` (literal team id: the DMG lane substitutes nothing), which the embedded Developer ID profile authorises; no `release-all.sh` change. Only if a shared data-protection item is ever needed on a Mac.
+- **S2** `sharing.multiuser-switch-says-the-refusal` + the People off-state model (`PeoplePaneOffState`, platform-aware words).
+- **M1** `sharing.card-keeps-its-code` + `sharing.qr-drawn-once-per-payload`'s cache: `refreshKey`, `@State qrImage` keyed on the link; Mac UI test.
+- **M2** `sharing.share-sheet-offers-both-addresses`: Add Device sheet + project Share sheet rows; Mac UI test.
+- **M3** `sharing.people-pane-off-state` on the Mac: hide `+`, the line and the Open Sharing button; Mac UI test.
+- **I1** `sharing.people-pane-off-state` on iPhone/iPad (words without a button) + `sharing.failed-save-spends-nothing` words on iOS; iOS and iPad UI tests
+  added to their plans.
+- **I2** (from §4/§7, after the above) `sharing.client-tries-every-address` + `sharing.failure-names-the-step` shared Swift, then the iOS Try again button.
+
+### 10.10 Issues: reuse and new (titles proposed; nothing filed by this spec)
+
+Reuse: **#5318** (address choice: `sharing.share-sheet-offers-both-addresses`, `sharing.state-names-every-address`,
+`sharing.tailnet-forward-whenever-tailscale-is-up`); **#5917** (People off-state, reopened to `sharing.people-pane-off-state`); **#6299**
+(raw `undocumented` errors: `sharing.multiuser-switch-says-the-refusal`, `sharing.undocumented-never-reaches-the-person`); **#5915**
+(code lifetime on the card: `sharing.card-keeps-its-code` is its second half); **#5049** umbrella for the live script; **#5908** (the
+password-gap words on the switch).
+New, needed:
+1. "Sharing card re-mints its code on every engine health check (refreshKey carries isBackendRunning) and rebuilds the QR on every render" — `sharing.card-keeps-its-code`, `sharing.qr-drawn-once-per-payload`.
+2. "Pairing: DMG builds cannot save the device token (data-protection keychain, errSecMissingEntitlement -34018); the spent code leaves a ghost device on the host" — `sharing.token-saves-on-every-build`, `sharing.failed-save-spends-nothing`.
+3. "PUT /api/pair/multiuser needs a library header the Settings window never sends: 400, the switch snaps back, the app says 'Unexpected response'" — `sharing.multiuser-switch-needs-no-library`.
+4. "CLI: `fichero devices invite` mints a pairing link on the host so two machines link without the GUI" — `sharing.cli-mints-a-link`.
+
+### 10.11 Review findings (code against spec), ranked
+
+Engine (B):
+- **HIGH** `pairing.py:593` `PUT /api/pair/multiuser` depends on `get_library_database_for_write`: 400 with no library header; the action is app-scoped (§10.4).
+- **HIGH** `pairing.py:920-922` + `:905` the code is spent and the device row made before the client has stored the token; no engine-side grace, the client must revoke (§10.3). Acceptable once `sharing.failed-save-spends-nothing` is built; until then every DMG guest leaves a ghost row.
+- **MED** `tailscale_serve.py:145` the forward is made only for a `.ts.net` sharing address, so the one address that works on a campus network is unavailable to a `.local` sharer (§10.1).
+- **MED** `pairing.py:191-199` `_sharing_state` names the tailnet address but not the sharing address or the LAN IP; the CLI cannot build a link without them (§10.5).
+- **MED** `accounts.py:198-200`, `pairing.py:278-280` 404 for a known state (§5; held).
+- **LOW** `pairing.py:113` `_PAIRING_CODES` is process-local and unbounded between prunes; `_prune_pairing_codes` runs on mint and redeem only, so an idle host keeps expired codes until the next call (memory only, no security effect).
+- **LOW** `fichero_cli/pairing.py:60` and `RemoteCertificatePinning.swift:71-76` hold the same trust rule twice (§4 `sharing.trust-rule-is-one-function`).
+- **MED** `sharing_host_file.py:30-36` the `sharing-host.json` a host writes into a synced project names ONE address, `FICHERO_PUBLIC_BASE_URL` (the `.local` name on a campus network), so a guest's "ask the host for a link" points at an address that may not resolve; it should carry the tailnet address too once `sharing.state-names-every-address` exists (`synced_host.SyncedHost` forbids extra keys: a reader change goes first). `synced_host.py`: read, no defect.
+Front end (C):
+- **HIGH** `AuthTokenMiddleware.swift:398` the data-protection flag on every macOS query; the fallback at `:314-327` is unreachable (§10.3).
+- **HIGH** `ShareSettingsView+StateManagement.swift:8-12` `refreshKey` carries `isBackendRunning` (§10.2).
+- **HIGH** `MultiuserSwitch.swift:28-29` throws away the engine's `detail` (§10.4); `UsersStore.swift:166` prints a raw enum (§5).
+- **HIGH** `UsersContent+Layout.swift:24-27` `+` is offered while Multi-user is off; `SharingToggles.multiUserOffHint` is unused (§10.4; #5917 not built).
+- **MED** `ShareSettingsView+QRCode.swift:51-62` QR rebuilt on every body evaluation; `RemoteClientPairingFlow.swift:72` and `+QRCode.swift:53` encoders without `.sortedKeys` (§10.2).
+- **MED** `ShareSettingsView+QRCode.swift:29-44`, `ShareLibrarySheet+Sharing.swift:125-140` one address per payload while `sharingState.tailnetURL` is already loaded (§10.1).
+- **MED** `MacRemoteClientPairingSection.swift:181`, `PairingIncomingLinkSheet.swift:68`, `ConnectPairingIOS.swift:246,254,317` show `localizedDescription` (§4).
+- **MED** `SettingsGroupContainers.swift:81-92` iPhone/iPad Sharing settings hold People only: no words about where the switch is (§10.4).
+- **LOW** `PairingIncomingLinkSheet.swift:40` Cancel only, no Try again (§7 `sharing.ios-says-which-step`).
+UX completeness (every state has words and a way out): **off** → the switch and its caption (built); **on without Tailscale** → the
+Tailscale row disabled with "Tailscale is not running on this Mac" (M2); **on with Tailscale** → two rows, default Tailscale (M2);
+**code expired** → renewed at expiry (built, #5915), the guest's sentence (I2); **code used** → the guest's sentence (I2), the host's card
+unchanged (M1); **error** → the engine's words beside the switch (S2), the step sentence on every sheet (I2), the Keychain sentence (S1).
 
 ## Open questions: decided, defaulted, or for the owner
 

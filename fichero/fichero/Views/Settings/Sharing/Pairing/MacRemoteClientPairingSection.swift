@@ -163,6 +163,8 @@ struct MacRemoteClientPairingSection: View {
                 person: PairingPerson(username: personName, password: personPassword)
             )
             try await RemoteClientPairing.probeRemoteHealth(at: result.apiRoot, expectedSPKIPin: pairingFields.spkiPin)
+            // A refused Keychain save revokes the device on the host and says so (`sharing.failed-save-spends-nothing`).
+            try await RemoteClientPairing.storeTokenOrRevoke(result, expectedSPKIPin: pairingFields.spkiPin)
             try RemoteClientPairing.persistPairedHost(
                 result,
                 expectedSPKIPin: pairingFields.spkiPin,

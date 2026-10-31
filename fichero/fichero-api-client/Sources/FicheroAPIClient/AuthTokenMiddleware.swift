@@ -270,8 +270,32 @@ public struct AuthTokenMiddleware: ClientMiddleware {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             return token.isEmpty ? nil : token
         case .remote:
+            if let transient = transientRemoteToken(hostString: hostString) { return transient }
             return readRemoteTokenFromKeychain(hostString: hostString)
         }
+    }
+
+    // MARK: - Transient remote token (a pairing whose token could not be saved)
+
+    /// Tokens held in memory for one call: when the Keychain refuses the device token the client still holds it in the
+    /// pairing answer and must use it ONCE, to revoke the device it just made on the host (`sharing.failed-save-spends-nothing`),
+    /// so the host keeps no ghost row for a token nobody holds. Never written anywhere; cleared by the caller.
+    nonisolated(unsafe) private static var transientRemoteTokens: [String: String] = [:]
+    private static let transientLock = NSLock()
+
+    public static func holdTransientRemoteToken(_ token: String, hostString: String) {
+        transientLock.lock(); defer { transientLock.unlock() }
+        transientRemoteTokens[remoteTokenKeychainAccount(hostString: hostString)] = token
+    }
+
+    public static func dropTransientRemoteToken(hostString: String) {
+        transientLock.lock(); defer { transientLock.unlock() }
+        transientRemoteTokens.removeValue(forKey: remoteTokenKeychainAccount(hostString: hostString))
+    }
+
+    static func transientRemoteToken(hostString: String?) -> String? {
+        transientLock.lock(); defer { transientLock.unlock() }
+        return transientRemoteTokens[remoteTokenKeychainAccount(hostString: hostString)]
     }
 
     /// The device token's protection class (#3772).
@@ -286,18 +310,36 @@ public struct AuthTokenMiddleware: ClientMiddleware {
     /// variant: those cannot sync, which would foreclose the zero-touch work later.
     static let remoteTokenAccessibility = kSecAttrAccessibleAfterFirstUnlock
 
+    /// Where the device token lives on this platform (`sharing.token-saves-on-every-build`).
+    ///
+    /// macOS: the LOGIN keychain, always. The data-protection keychain needs a keychain-access-groups or
+    /// application-identifier entitlement; the DMG lane re-signs the app with FicheroRelease.entitlements, which has
+    /// neither (checked on three installed builds, 2026-10-31), so every SecItemAdd there answered
+    /// errSecMissingEntitlement (-34018) and no Developer ID build ever saved a Mac-to-Mac pairing. A sandboxed probe
+    /// signed with that file proved the login keychain adds, reads and deletes fine. An explicit kSecAttrAccessible
+    /// routes a Mac item to data protection too, so neither key is set on a Mac; a token a Debug build wrote earlier
+    /// into the data-protection keychain is not found by this query and that Mac re-pairs once.
+    /// iPhone and iPad: the data-protection keychain is the only one; the flag and the explicit AfterFirstUnlock
+    /// class stay (#3772: readable on a launch before the person unlocks).
+    static var remoteTokenLivesInDataProtectionKeychain: Bool {
+        #if os(macOS)
+        return false
+        #else
+        return true
+        #endif
+    }
+
     public static func persistRemoteToken(_ token: String, hostString: String) throws {
         let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let data = trimmed.data(using: .utf8) else { return }
 
         let query = remoteTokenKeychainQuery(hostString: hostString)
-        // The UPDATE path must carry the accessibility too — otherwise the first
-        // re-pair after this fix would silently write the old, attribute-less item
-        // back and the bug would return.
-        let attributes: [String: Any] = [
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: remoteTokenAccessibility
-        ]
+        // The UPDATE path must carry the accessibility too (where it applies) — otherwise the first re-pair after
+        // #3772 would silently write the old, attribute-less item back and the bug would return.
+        var attributes: [String: Any] = [kSecValueData as String: data]
+        if remoteTokenLivesInDataProtectionKeychain {
+            attributes[kSecAttrAccessible as String] = remoteTokenAccessibility
+        }
         let status = SecItemCopyMatching(query as CFDictionary, nil)
 
         switch status {
@@ -308,21 +350,8 @@ public struct AuthTokenMiddleware: ClientMiddleware {
             }
         case errSecItemNotFound:
             var addQuery = query
-            addQuery[kSecValueData as String] = data
-            addQuery[kSecAttrAccessible as String] = remoteTokenAccessibility
-            var addStatus = SecItemAdd(addQuery as CFDictionary, nil)
-            #if os(macOS)
-            // On a Mac, an explicit kSecAttrAccessible routes the item to the
-            // data-protection keychain, which needs a keychain-access-groups
-            // entitlement. Debug builds have it; Developer ID release builds do
-            // not, so every Mac-to-Mac pairing failed to save its key there
-            // (2026-09-22, since #3772). The login keychain is the right home on
-            // a Mac; the explicit class matters on iPhone and iPad, which keep it.
-            if addStatus != errSecSuccess {
-                addQuery.removeValue(forKey: kSecAttrAccessible as String)
-                addStatus = SecItemAdd(addQuery as CFDictionary, nil)
-            }
-            #endif
+            for (key, value) in attributes { addQuery[key] = value }
+            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
             guard addStatus == errSecSuccess else {
                 throw AuthTokenStorageError.keychainWriteFailed(addStatus)
             }
@@ -383,20 +412,19 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         return token.isEmpty ? nil : token
     }
 
-    private static func remoteTokenKeychainQuery(hostString: String? = nil) -> [String: Any] {
-        [
+    /// The one query every read, write and clear of the device token shares, so no two of them can address different
+    /// keychains (a mismatched pair would write where it cannot read). Which keychain is a per-platform decision,
+    /// `remoteTokenLivesInDataProtectionKeychain`, made once above. Internal for the test that pins it.
+    static func remoteTokenKeychainQuery(hostString: String? = nil) -> [String: Any] {
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: remoteTokenKeychainService,
-            kSecAttrAccount as String: remoteTokenKeychainAccount(hostString: hostString),
-            // Apple recommends this unconditionally. It is on EVERY query — read,
-            // write, and clear — because a query without it addresses a DIFFERENT
-            // keychain on macOS, and a mismatched pair would write where it cannot
-            // read. (Consequence, deliberate: a macOS token written before this
-            // change lives in the legacy keychain and will not be found, so that Mac
-            // re-pairs once. iOS is unaffected — it has only the data-protection
-            // keychain.)
-            kSecUseDataProtectionKeychain as String: true
+            kSecAttrAccount as String: remoteTokenKeychainAccount(hostString: hostString)
         ]
+        if remoteTokenLivesInDataProtectionKeychain {
+            query[kSecUseDataProtectionKeychain as String] = true
+        }
+        return query
     }
 
     // MARK: - Session token (multi-user login, #2021/#2022)

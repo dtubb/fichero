@@ -39,7 +39,7 @@ from fastapi.responses import JSONResponse
 
 from fichero_server.security import accounts
 from fichero_server.api import client_presence
-from fichero_server.api.library_header import require_library_path
+from fichero_server.api.library_header import optional_library_path, require_library_path
 from fichero_server.actions import ActionContext
 from fichero_server.db.app import AppDatabaseBusy, get_app_db
 from fichero_server.security.multiuser import multiuser_enabled
@@ -636,6 +636,30 @@ def action_context(
         client=client,
         origin_window=x_fichero_origin_window,
         library_path=x_fichero_library_path,
+        is_bootstrap=bool(getattr(request.state, "bootstrap_auth", False)),
+        device=_device_attribution(request),
+    )
+
+
+def app_action_context(
+    request: Request,
+    x_fichero_origin_window: str | None = Header(default=None, alias="X-Fichero-Origin-Window"),
+    x_fichero_client: str | None = Header(default=None, alias="X-Fichero-Client"),
+) -> ActionContext:
+    """`action_context` for an APP-WIDE action (`owner_scope="app"`): the same actor, client, device and bootstrap
+    reading, but the library header is optional. The Settings window's client sends none (its PairingService has no
+    library), and an app-wide switch must not answer 400 "open a library first" for it
+    (`sharing.multiuser-switch-needs-no-library`)."""
+    client = (
+        x_fichero_client.strip()
+        if isinstance(x_fichero_client, str) and x_fichero_client.strip()
+        else None
+    )
+    return ActionContext(
+        actor=actor_from_request(request),
+        client=client,
+        origin_window=x_fichero_origin_window,
+        library_path=optional_library_path(request),
         is_bootstrap=bool(getattr(request.state, "bootstrap_auth", False)),
         device=_device_attribution(request),
     )

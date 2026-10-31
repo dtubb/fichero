@@ -415,7 +415,7 @@ class DatabaseManager:
             if checkpoint:
                 for key in keys:
                     db = self._databases[key]
-                    with db._lock:
+                    with db._lock, db._volume_guard():
                         db.conn.execute("CHECKPOINT")
                     logger.info("Checkpointed database: %s", package_str)
 
@@ -534,7 +534,8 @@ class DatabaseManager:
                             checkpointed = False
                             try:
                                 for held in managed:
-                                    held.conn.execute("CHECKPOINT")
+                                    with held._volume_guard():
+                                        held.conn.execute("CHECKPOINT")
                                 checkpointed = True
                             except Exception as exc:  # noqa: BLE001 -- only the busy case is retried
                                 if "other write transactions" not in str(exc):

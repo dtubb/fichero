@@ -950,6 +950,32 @@ def _run_publish(db: Any, card: dict[str, Any], parent: str) -> tuple[str | None
 logger = logging.getLogger(__name__)
 
 
+#: What the queue raises through a step on purpose (stop, come back later, out of reach, a pause): never swallowed as an error.
+_RUN_CONTROL = (jobs.JobCancelled, jobs.JobDeferred, jobs.JobOutOfReach, ParkedOnStepRun, WorkflowPaused, WorkflowCancelled)
+
+
+def _title_of(card: dict[str, Any]) -> str:
+    from fichero_server.recipes.jobs import get_job
+
+    known = get_job(card.get("job") or "")
+    topic = known.topic if known else None
+    return topic.title if topic else ", ".join(card["steps"])
+
+
+def _check_failed(step: dict[str, Any], batch: dict[str, Any], state: str, child: str | None, documents: list[str],
+                  named: str, problems: list[str], what: str) -> None:
+    """A step ended but Fichero's own bookkeeping after it raised (#6298): what it lost is not known, so its pages are not
+    read as done. A done step becomes partial and its pages are kept as lost (the Catalogue skips their folders and kept exports
+    are not trusted); the batch is noted, so the run ends "Done with failures" in these words, and a failed step stays failed."""
+    words = f"Fichero hit an error {what} after the step ended, so its pages are not counted as done (the log has the detail)"
+    if state == "done" and step["state"] == "done":
+        step.update(state="partial", why=words)
+    step["failed_ids"] = sorted({*(step.get("failed_ids") or []), *documents})
+    if state in ("done", "failed"):
+        _note_batch(step, batch, "partial" if state == "done" else "failed", child, words)
+    problems.append(f"step {named}: {words}")
+
+
 def could_not_start(card: dict[str, Any], exc: Exception) -> str:
     """One plain line for a step whose work raised before it could report an end (#5684): what the person can do,
     never the technical text, which goes to the log. A native library that would not load (a dlopen, a missing
@@ -1231,9 +1257,19 @@ def _holding_the_served_model(job_id: str, cards: list[dict[str, Any]]):
             module.let_go_served_models(job_id)
 
 
+class RunEnded(RuntimeError):
+    """The run's own end in words ("Done with failures: ...", "Stopped: ..."): said as it is, never wrapped (#6298)."""
+
+
 def _run(db: Any, job_id: str) -> dict[str, Any]:
     try:
         return _run_the_plan(db, job_id)
+    except (RunEnded, *_RUN_CONTROL):
+        raise
+    except Exception as exc:  # noqa: BLE001 -- a slip in the run's own plan ends it in plain words, its work kept (#6298)
+        logger.exception("run %s: stopped on an error", job_id)
+        raise RuntimeError("The run stopped on an error in Fichero. What it finished is kept, and Start carries on from there; "
+                           "the log has the detail.") from exc
     finally:  # stopped, failed, paused or done: a page saved before Search got to it is embedded after all (#6126)
         try:
             end_search_watch(db, job_id, (jobs.read_job(db, job_id) or {}).get("started_by") or "owner")
@@ -1296,7 +1332,12 @@ def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
         jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
         raise jobs.JobCancelled(words)
     over = f" over {total} {'folder' if total == 1 else 'folders'}" if total else ""
-    failures = _failures_words(db, cards, steps, total)
+    try:
+        failures = _failures_words(db, cards, steps, total)
+    except Exception:  # noqa: BLE001 -- the run's work is done; only the words about it failed (#6298)
+        logger.exception("run %s: could not word its failures", job_id)
+        failed = [", ".join(c["steps"]) for c, st in zip(cards, steps) if st.get("failed_batches")]
+        failures = ("some steps failed or lost pages: " + "; ".join(failed) + " (see each step)") if failed else ""
     if halted:
         words = f"Stopped: {halted}{folders}"
     elif failures:
@@ -1306,7 +1347,7 @@ def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
                                                          if detail["skipped"] else "")
     jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
     if halted or failures:
-        raise RuntimeError(words)
+        raise RunEnded(words)
     return {"steps": steps}
 
 
@@ -1453,7 +1494,13 @@ def _start_beside(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str,
                   index: int) -> _Beside | None:
     """Step `index` started on its own thread while the step before it runs; its end is taken when its turn comes."""
     card, step = detail["runs"][index], detail["steps"][index]
-    documents, scratch, kinds = _step_pages(db, card, step, batch, tree, detail)
+    try:
+        documents, scratch, kinds = _step_pages(db, card, step, batch, tree, detail)
+    except _RUN_CONTROL:
+        raise
+    except Exception:  # noqa: BLE001 -- start nothing beside; the step's own turn works its pages out under its guard (#6298)
+        logger.exception("recipe step %s: could not start beside the step before it", ", ".join(card["steps"]))
+        return None
     card = _text_is_the_hosted_readers(_asked_again(card, set(detail.get("redo") or [])))
     if not documents or _stop_asked(job_id):
         return None
@@ -1614,11 +1661,27 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
             continue
         if early is not None:
             documents, scratch, kinds = early.documents, early.scratch, early.kinds
+            already = scratch.get("already_done", 0)
+            if card["card"] not in ("publish", "catalogue"):
+                _count_on_the_folder(detail, batch, index, already, (already or 0) + len(documents))
         else:
-            documents, scratch, kinds = _step_pages(db, card, step, batch, tree, detail)
-        already = scratch.get("already_done", 0)
-        if card["card"] not in ("publish", "catalogue"):  # those are over the whole run, not a folder
-            _count_on_the_folder(detail, batch, index, already, (already or 0) + len(documents))
+            try:
+                documents, scratch, kinds = _step_pages(db, card, step, batch, tree, detail)
+                already = scratch.get("already_done", 0)
+                if card["card"] not in ("publish", "catalogue"):  # those are over the whole run, not a folder
+                    _count_on_the_folder(detail, batch, index, already, (already or 0) + len(documents))
+            except _RUN_CONTROL:
+                raise
+            except Exception:  # noqa: BLE001 -- the step fails alone before anything is sent or spent; the rest go on (#6298)
+                logger.exception("recipe step %s: its pages could not be worked out", named)
+                why = f"{_title_of(card)} was not run: Fichero hit an error working out its pages (the log has the detail)."
+                here[index]["state"] = states[index] = "failed"
+                _settle(step, "failed", None, why)
+                _note_batch(step, batch, "failed", None, why)  # the run's end names it (never a plain Done), and Stop-on-repeat counts it
+                step["outright_in_a_row"] = step.get("outright_in_a_row", 0) + 1
+                problems.append(why)
+                jobs.save_detail(db, job_id, json.dumps(detail))
+                continue
         if not documents:
             _add(step, scratch)
             here[index]["state"] = states[index] = "done"
@@ -1692,8 +1755,20 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
             step.setdefault("batch_jobs", []).append({"folder": batch["folder"], "child_id": child})
         here[index]["state"] = states[index] = state
         if card["card"] not in ("publish", "catalogue"):
-            _recount_on_the_folder(db, detail, batch, index, step, documents, state, already)
-        _after_the_step(db, card, step, batch, documents, state, child, why, scratch, problems, named)
+            try:
+                _recount_on_the_folder(db, detail, batch, index, step, documents, state, already)
+            except _RUN_CONTROL:
+                raise
+            except Exception:  # noqa: BLE001 -- the counts are lost, not the run; said (#6298)
+                logger.exception("recipe step %s: could not recount its folder after it ended", named)
+                _check_failed(step, batch, state, child, documents, named, problems, "recounting its folder")
+        try:
+            _after_the_step(db, card, step, batch, documents, state, child, why, scratch, problems, named)
+        except _RUN_CONTROL:
+            raise
+        except Exception:  # noqa: BLE001 -- what the step lost is unknown, so its pages are not read as done (#6298)
+            logger.exception("recipe step %s: could not check its pages after it ended", named)
+            _check_failed(step, batch, state, child, documents, named, problems, "checking its pages")
         jobs.save_detail(db, job_id, json.dumps(detail))  # the step's end on this batch is a checkpoint
     return problems
 

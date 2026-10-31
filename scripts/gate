@@ -105,8 +105,9 @@ UNIT_PLAN="fichero"
 # module: 'FicheroAPIClient' ... built without '-enable-testing'". Debug carries
 # testability, and build-for-testing under it succeeds. Verified both ways.
 UNIT_CONFIG="Debug"
-# The one surviving iOS-family scheme; it carries `fichero` and `fichero-ipad`.
-IOS_SCHEME="fichero-ios"
+# The iOS legs build the one multiplatform target through this scheme. The old `fichero-ios` scheme no longer exists
+# (xcodebuild: "does not contain a scheme named fichero-ios"), which left the iOS compile leg unrunnable (#6321).
+IOS_SCHEME="Fichero (Dev Local)"
 UI_SCHEME="Fichero (Dev Local)"
 GATE_DERIVED="${GATE_DERIVED:-build/gate-derived}"
 SWIFT_TESTS_DIR="fichero/Tests/Unit"

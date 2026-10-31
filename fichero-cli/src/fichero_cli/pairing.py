@@ -9,16 +9,19 @@ from __future__ import annotations
 
 import base64
 import binascii
+import contextlib
 import getpass
 import hashlib
 import json
 import os
 import socket
 import ssl
+import stat
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
-from urllib.parse import parse_qs, urlparse
+from pathlib import Path
+from urllib.parse import parse_qs, quote, urlparse
 
 import httpx
 
@@ -55,6 +58,41 @@ def parse_link(text: str) -> PairLink:
         raise FicheroError("The pairing link is damaged: ask the host for a new one.") from exc
     spki = data.get("spki") or None
     return PairLink(api_url=api_url.rstrip("/"), code=code, spki=str(spki) if spki else None)
+
+
+def _payload_of(text: str) -> bytes:
+    """The link's decoded JSON payload bytes (the parser's own reading)."""
+    url = urlparse("".join((text or "").split()))
+    payload = (parse_qs(url.query).get("payload") or [""])[0]
+    return base64.b64decode(payload + "=" * (-len(payload) % 4), altchars=b"-_")
+
+
+def invite_link(*, api_url: str, code: str, spki: str | None, expires_at: str | None, library_path: str | None) -> str:
+    """The pairing link the app, the phone and `devices pair` all redeem (`sharing.cli-mints-a-link`): the app's own shape
+    (`RemoteClientPairing.inviteLinkString`: `fichero://pair?payload=<base64 JSON>`), keys sorted so the same link reads
+    the same from every machine. The pin rides only with an address that serves its own certificate; a `.ts.net` name
+    is system trust and carries none (`_is_public_ca`). Absent values leave their key out, as the app's encoder does."""
+    host = urlparse(api_url).hostname or ""
+    payload: dict[str, object] = {"v": 1, "api_url": api_url.rstrip("/"), "pair_code": code}
+    if expires_at:
+        payload["expires_at"] = expires_at
+    if spki and not _is_public_ca(host):
+        payload["spki"] = spki
+    if library_path:
+        payload["library_path"] = library_path
+    encoded = base64.b64encode(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).decode()
+    # Percent-encode as the app does: an unquoted `+` in the query reads back as a space and the link is "damaged".
+    return f"fichero://pair?payload={quote(encoded, safe='')}"
+
+
+def tailnet_link_url(tailnet_url: str, sharing_address: str | None, default_port: int = 8765) -> str:
+    """The tailnet address a LINK carries: the engine reports the origin (`https://<name>.ts.net`, no port) while the
+    forward is `--https=<sharing port>`; a link without the port names 443 and never connects (review 2026-10-31, H3)."""
+    tail = urlparse(tailnet_url.strip())
+    if tail.port:
+        return tailnet_url.strip().rstrip("/")
+    port = urlparse(sharing_address or "").port or default_port
+    return f"https://{tail.hostname}:{port}"
 
 
 def _is_public_ca(host: str) -> bool:
@@ -130,6 +168,38 @@ def _write_store(store: dict) -> None:
         handle.write(json.dumps(store))
     os.chmod(tmp, 0o600)  # a stale tmp keeps its mode through O_CREAT
     os.replace(tmp, DEVICES_PATH)  # atomic: a crash leaves the old file, never half a token
+
+
+def write_owner_only(path: Path, text: str) -> None:
+    """Write `text` to `path` readable by this user only (a pairing link is a one-time secret while it lives).
+
+    The bytes never touch a file anyone else can read: a fresh temp file beside the target is created
+    O_CREAT|O_EXCL|O_NOFOLLOW at mode 0600 (never a mode fixed up after the write), then moved over the target. The
+    target may only be replaced when it does not exist or is the caller's own regular file; a symlink, a directory or
+    another user's file is refused in words (review 2026-10-31: a shared /tmp path could be pre-created by someone else)."""
+    path = Path(path)
+    try:
+        existing = os.lstat(path)
+    except FileNotFoundError:
+        existing = None
+    if existing is not None:
+        if stat.S_ISLNK(existing.st_mode):
+            raise FicheroError(f"{path} is a symlink; refusing to write the link through it. Name a new file.")
+        if not stat.S_ISREG(existing.st_mode):
+            raise FicheroError(f"{path} is not a regular file; name a new file for the link.")
+        if existing.st_uid != os.getuid():
+            raise FicheroError(f"{path} belongs to another user; name a file of your own for the link.")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
 
 
 def device_token(engine: str | None) -> str | None:

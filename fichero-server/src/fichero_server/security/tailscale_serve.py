@@ -128,6 +128,41 @@ def ensure_forward(port: int, cli: str) -> bool:
     return True
 
 
+def sharing_on(env: Mapping[str, str] | None = None) -> bool:
+    """Whether this engine is SHARING: the one predicate the tailnet forward is gated on (review 2026-10-31, H).
+
+    A certificate alone is not sharing: `start_fichero_server.sh` always makes a loopback certificate, and the app
+    always sets FICHERO_TLS_CERTFILE and FICHERO_UDS_PATH. Sharing is: the app hosting (FICHERO_TCP_TLS_ALSO=1, set
+    only while Sharing is on; or FICHERO_LAN_HOST), a non-loopback sharing address, or a tailnet address asked for."""
+    source = env if env is not None else os.environ
+    if (source.get("FICHERO_TCP_TLS_ALSO") or "").strip() == "1" or (source.get("FICHERO_LAN_HOST") or "").strip():
+        return True
+    if tailnet_url(source):
+        return True
+    host = (urlparse((source.get("FICHERO_PUBLIC_BASE_URL") or "").strip()).hostname or "").lower()
+    return bool(host) and host not in ("127.0.0.1", "localhost", "::1")
+
+
+def forward_state(port: int) -> str:
+    """What holds the tailnet ``port`` now, for `GET /api/pair/sharing` (`sharing.state-names-every-address`):
+    "ours" (this engine's loopback TLS listener), "foreign" (something Fichero did not make), "none" (free, Tailscale not
+    installed, or this engine is not sharing: then Tailscale is not even asked), "unknown" (Tailscale is installed but
+    this engine could not ask it: a sandboxed build cannot run the CLI (#5317), it timed out, or it printed no JSON; the
+    pane must not read this as "not running", review 2026-10-31 H4). Never raises."""
+    if not sharing_on():
+        return "none"
+    cli = tailscale_cli()
+    if cli is None:
+        return "none"
+    try:
+        current = forward_target(serve_status(cli), port)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return "unknown"
+    if current is None:
+        return "none"
+    return "ours" if current == wanted_target(port) else "foreign"
+
+
 def remove_forward(port: int, cli: str) -> None:
     _run([cli, "serve", f"--https={port}", "off"])
 
@@ -140,16 +175,23 @@ def start_for_engine(env: Mapping[str, str] | None = None, *, log) -> tuple[str,
     (and the remote-backend status reports the forward missing), not a failed launch.
     """
     source = env if env is not None else os.environ
-    # Any engine with a TLS listener: the app's (FICHERO_TCP_TLS_ALSO sets the certificate too)
-    # and start_fichero_server.sh's, which never set that flag and so never forwarded (#5320).
-    if not tailnet_url(source) or not (source.get("FICHERO_TLS_CERTFILE") or "").strip():
+    # Any SHARING engine with a TLS listener: the app's (FICHERO_TCP_TLS_ALSO sets the certificate too) and
+    # start_fichero_server.sh's with a sharing address (#5320). A certificate alone is not sharing: an engine nobody
+    # shared is never published on the tailnet, and Tailscale is not even asked (review 2026-10-31, H).
+    if not (source.get("FICHERO_TLS_CERTFILE") or "").strip() or not sharing_on(source):
+        return None
+    cli = tailscale_cli()
+    # A `.ts.net` sharing address (or FICHERO_TAILNET_URL) asks for the forward outright; otherwise a Mac that
+    # shares at `.local` still gets one whenever Tailscale is running, so the Tailscale address works too
+    # (`sharing.tailnet-forward-whenever-tailscale-is-up`: on a campus network it was the only one that did).
+    asked = bool(tailnet_url(source))
+    if not asked and not (cli and detected_tailnet_url(cli)):
         return None
     # A socket-only engine binds no TCP port: forwarding to it would hand every guest a 502 (#5752).
     if (source.get("FICHERO_UDS_PATH") or "").strip() and source.get("FICHERO_TCP_TLS_ALSO") != "1":
         log.warning("Sharing over Tailscale: this engine listens on a socket only, so nothing is forwarded")
         return None
     port = listen_port(source)
-    cli = tailscale_cli()
     if cli is None:
         log.warning("Sharing over Tailscale, but Tailscale is not installed: nothing forwards port %d", port)
         return None

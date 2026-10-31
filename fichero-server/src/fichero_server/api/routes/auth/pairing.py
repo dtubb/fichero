@@ -23,9 +23,8 @@ from typing import Literal
 from fichero_server.security import accounts
 from fichero_server.actions import ActionContext, ChangeSpec, action, registry
 from fichero_server.actions.registry import ActionRefused
-from fichero_server.api.auth import action_context, _has_proxy_origin_headers, _rate_limit_scope_from_request, _use_multiuser_auth, actor_from_request, ensure_owner_account
+from fichero_server.api.auth import app_action_context, _has_proxy_origin_headers, _rate_limit_scope_from_request, _use_multiuser_auth, actor_from_request, ensure_owner_account
 from fichero_server.api.routes.auth.accounts import _current_session_user
-from fichero_server.api.main import get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.db.app import AppDatabase, get_app_db
 from fichero_server.models import AccountUser, ActionAudit, Device
@@ -153,7 +152,13 @@ class TailnetOfferResponse(BaseModel):
 
 class SharingStateResponse(BaseModel):
     multiuser_enabled: bool
+    # The host's addresses, in one place (`sharing.state-names-every-address`): the sharing address the engine was
+    # started with, its LAN IP, the tailnet name, and who holds the tailnet forward: "ours" | "foreign" | "none" |
+    # "unknown" (Tailscale is installed but this engine could not ask it: a sandboxed build, #5317).
+    public_base_url: str | None = None
+    lan_ip: str | None = None
     tailnet_url: str | None = None
+    tailnet_forward: Literal["ours", "foreign", "none", "unknown"] = "none"
     # The one command to paste in Terminal when this engine cannot make the tailnet forward itself
     # (a sandboxed app cannot run the Tailscale CLI, #5317); None when nothing is missing.
     tailnet_serve_command: str | None = None
@@ -192,9 +197,18 @@ def _sharing_state(app_db: AppDatabase) -> SharingStateResponse:
     from fichero_server.security import tailscale_serve  # lazy: app-import budget (#3950)
     from fichero_server.security.multiuser import multiuser_enabled
 
+    from fichero_server.security import bind_host
+
+    try:
+        lan_ip = bind_host.primary_lan_ip() or None
+    except OSError:  # no network: no address, never a failed read of the pane
+        lan_ip = None
     return SharingStateResponse(
         multiuser_enabled=multiuser_enabled(),
+        public_base_url=(os.environ.get("FICHERO_PUBLIC_BASE_URL") or "").strip() or None,
+        lan_ip=lan_ip,
         tailnet_url=tailscale_serve.detected_tailnet_url() or None,
+        tailnet_forward=tailscale_serve.forward_state(bind_host.listen_port()),
         tailnet_serve_command=_tailnet_serve_command(),
         paired_device_count=sum(1 for d in app_db.list_devices() if not d.revoked),
     )
@@ -591,15 +605,19 @@ def set_multiuser(
     request: Request,
     body: MultiuserRequest,
     app_db: AppDatabase = Depends(get_app_database),
-    db: Database = Depends(get_library_database_for_write),
-    ctx: ActionContext = Depends(action_context),
+    ctx: ActionContext = Depends(app_action_context),
 ) -> SharingStateResponse:
     """Set the persisted Multi-user switch through the audited action layer (#5751); the Settings
     switch, the CLI and MCP share this route. While Multi-user is off only the owner's signed-in session may
-    (`multiuser.owner-session-sets-the-switch`, #5908): never the start-up credential."""
+    (`multiuser.owner-session-sets-the-switch`, #5908): never the start-up credential.
+    App-wide, so no library header is needed (`sharing.multiuser-switch-needs-no-library`): the audit row goes to the
+    global library package, as the known-library registry's actions do; the Settings window sends no library."""
     if not _use_multiuser_auth() and getattr(request.state, "session", None) is None:
         raise HTTPException(status_code=403, detail="sign in as the owner to change Multi-user")
     _owner_only(request, app_db)
+    from fichero_server.api.routes.library.registry import get_global_database  # lazy: routes import each other
+
+    db: Database = get_global_database()  # after the refusals: a refused caller opens or creates nothing
     try:
         result = registry.invoke(db, "sharing.set_multiuser", body.model_dump(), ctx)
     except ActionRefused as exc:

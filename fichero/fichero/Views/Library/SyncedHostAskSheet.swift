@@ -37,6 +37,8 @@ struct SyncedHostAskSheet: View {
                 remoteURL: fields.remoteURL, pairCode: fields.pairCode,
                 deviceName: RemoteClientPairing.defaultDeviceName(), expectedSPKIPin: fields.spkiPin)
             try await RemoteClientPairing.probeRemoteHealth(at: result.apiRoot, expectedSPKIPin: fields.spkiPin)
+            // A refused Keychain save revokes the device on the host and says so (`sharing.failed-save-spends-nothing`).
+            try await RemoteClientPairing.storeTokenOrRevoke(result, expectedSPKIPin: fields.spkiPin)
             // Token, pin and expiry only: this Mac's engine stays where it is, the copy is not switched to the host.
             try RemoteClientPairing.persistHostCredentials(result, expectedSPKIPin: fields.spkiPin)
             onConnected()

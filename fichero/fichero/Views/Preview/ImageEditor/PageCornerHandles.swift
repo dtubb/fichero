@@ -16,8 +16,8 @@ struct PageCorners: Equatable {
               let quad = region["quad"] as? [Any], quad.count == 4 else { return nil }
         let points = quad.compactMap { corner -> CGPoint? in
             guard let pair = corner as? [Any], pair.count == 2,
-                  let x = (pair[0] as? NSNumber)?.doubleValue, let y = (pair[1] as? NSNumber)?.doubleValue else { return nil }
-            return CGPoint(x: x, y: y)
+                  let across = (pair[0] as? NSNumber)?.doubleValue, let down = (pair[1] as? NSNumber)?.doubleValue else { return nil }
+            return CGPoint(x: across, y: down)
         }
         self.init(points: points)
     }
@@ -38,8 +38,8 @@ struct PageCorners: Equatable {
         return hits.filter { $0.1 <= radius }.min { $0.1 < $1.1 }?.0
     }
 
-    private static func clamped(_ p: CGPoint) -> CGPoint {
-        CGPoint(x: min(max(p.x, 0), 1), y: min(max(p.y, 0), 1))
+    private static func clamped(_ point: CGPoint) -> CGPoint {
+        CGPoint(x: min(max(point.x, 0), 1), y: min(max(point.y, 0), 1))
     }
 }
 
@@ -89,19 +89,19 @@ struct PageCornerHandlesOverlay: View {
         .accessibilityIdentifier("pageCornerHandles")
     }
 
-    private func toScreen(_ p: CGPoint) -> CGPoint {
-        CGPoint(x: fittedRect.minX + p.x * fittedRect.width, y: fittedRect.minY + p.y * fittedRect.height)
+    private func toScreen(_ point: CGPoint) -> CGPoint {
+        CGPoint(x: fittedRect.minX + point.x * fittedRect.width, y: fittedRect.minY + point.y * fittedRect.height)
     }
 
-    private func toFraction(_ p: CGPoint) -> CGPoint {
+    private func toFraction(_ point: CGPoint) -> CGPoint {
         guard fittedRect.width > 0, fittedRect.height > 0 else { return .zero }
-        return CGPoint(x: (p.x - fittedRect.minX) / fittedRect.width, y: (p.y - fittedRect.minY) / fittedRect.height)
+        return CGPoint(x: (point.x - fittedRect.minX) / fittedRect.width, y: (point.y - fittedRect.minY) / fittedRect.height)
     }
 }
 
 #Preview("Page corner handles") {
     @Previewable @State var corners = PageCorners(points: [
-        CGPoint(x: 0.1, y: 0.1), CGPoint(x: 0.9, y: 0.12), CGPoint(x: 0.88, y: 0.9), CGPoint(x: 0.12, y: 0.88),
+        CGPoint(x: 0.1, y: 0.1), CGPoint(x: 0.9, y: 0.12), CGPoint(x: 0.88, y: 0.9), CGPoint(x: 0.12, y: 0.88)
     ])!
     PageCornerHandlesOverlay(fittedRect: CGRect(x: 20, y: 20, width: 300, height: 400), corners: $corners, onSquare: {})
         .frame(width: 340, height: 440)
