@@ -248,7 +248,7 @@ def _onto_upright(raw_map: FrameMap, path: Path) -> FrameMap:
 
 def _in_file_pixels(found: FrameMap, path: Path) -> FrameMap:
     """A map onto the rendition's UPRIGHT picture, put on the file's raw pixels when the file keeps an orientation tag (a copy
-    imported with its transform: our own renditions are saved upright). `to_image` always lands in the file's raw pixels."""
+    imported with its transform, whatever the tag, incl. mirrors: our own renditions are saved upright). `to_image` always lands in the file's raw pixels."""
     orientation, raw, up = _file_frame(path)
     if orientation == 1:
         return found
