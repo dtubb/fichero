@@ -23,7 +23,7 @@ def run_prepare(db: Any, documents: list[str], parent: str,
     page_ops = [o for o in ops if o in (prepare_operations.CROP, prepare_operations.STRAIGHTEN)]
     if page_ops:  # find the page, square, flatten, mark blanks (crop); turn, straighten (straighten): the account says what each did
         step["page_prep"] = crop_pages(db, documents, parent, stop=lambda: _stop_asked(parent), prepare=True, reuse=True,
-                                       operations=page_ops, signature={"paper": sorted(paper or []), "operations": sorted(ops)})
+                                       operations=page_ops, signature={"operations": sorted(page_ops)})  # only what changes THESE operations
     if prepare_operations.CLARITY in ops:  # raises only the faded pages: it looks at each and leaves the clear ones
         step["prepared"] = prepare_pages(db, documents, parent, stop=lambda: _stop_asked(parent))
     if _stop_asked(parent):  # stopped before its next page (#5609): the account counts the pages it looked at

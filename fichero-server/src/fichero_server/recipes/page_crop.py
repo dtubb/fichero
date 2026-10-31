@@ -31,8 +31,10 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
     `whole` (nothing to cut away, or not sure), `kept` (a person's box left alone), `blank` (no ink: hidden, with `prepare`), `no_image`.
     With `prepare` and `reuse`, a page this step already prepared from the same file under the same rules (`_stamp`) is
     counted as `unchanged` and not found, turned or read again: a run that starts again costs only the pages that changed.
-    `signature` is the answers the preparation followed (the paper answer, the operations chosen): it is part of the stamp, so a
-    page prepared under other answers is prepared again (`wide.prepare.rerun-follows-the-answers`). `operations` are the
+    `signature` is what changes THESE operations' output (`operations`: the page operations chosen; never the paper answer or Clarity,
+    which change neither): it is part of the stamp, so a page prepared with other operations is prepared again
+    (`wide.prepare.rerun-follows-the-answers`), and one prepared the same way is not, so its image signature stays and Read does not
+    read it again. `operations` are the
     page operations to run (`crop`: find the paper, square, flatten, mark blanks; `straighten`: turn by the text, straighten),
     all of them when None; without `crop` the page itself is the base and no paper is looked for."""
     from PIL import Image
@@ -62,7 +64,7 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
                 account["kept"] += 1
                 continue
             path = _resolve_abs_path(doc, str(library))
-            if prepare and reuse and (meta.get("page_prep_stamp") or {}) == _stamp(path, signature):
+            if prepare and reuse and _stamp_holds(meta, path, signature):
                 account["unchanged"] += 1
                 continue
             try:
@@ -129,15 +131,29 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
     return account
 
 
+def _stamp_holds(meta: dict[str, Any], path: Any, signature: dict[str, Any] | None) -> bool:
+    """The page's stored stamp still describes this preparation. A stamp from version 2 (no operations) holds for a page it cut,
+    which this build would cut the same, when the operations asked for are the two it always ran; it does not hold for a page it
+    left whole, which this build now turns and straightens (`wide.prepare.operations-run-on-every-page`)."""
+    stored, now = meta.get("page_prep_stamp") or {}, _stamp(path, signature)
+    if not stored or not now:
+        return False
+    if stored == now:
+        return True
+    legacy = stored.get("version") == 2 and "operations" not in stored
+    return (legacy and meta.get("page_box") is not None and sorted((signature or {}).get("operations") or []) == ["crop", "straighten"]
+            and (stored.get("size"), stored.get("mtime_ns")) == (now["size"], now["mtime_ns"]))
+
+
 def _stamp(path: Any, signature: dict[str, Any] | None = None) -> dict[str, Any]:
-    """What a finished preparation of a page was made from: the file's size and modified time, the rules' version and the
-    answers it followed (`signature`). A changed file, changed rules or other answers give another stamp, so the page is
+    """What a finished preparation of a page was made from: the file's size and modified time, the rules' version and the page
+    operations it ran (`signature`). A changed file, changed rules or other operations give another stamp, so the page is
     prepared again."""
     try:
         info = Path(path).stat()
     except OSError:
         return {}
-    return {"size": info.st_size, "mtime_ns": info.st_mtime_ns, "version": PREP_VERSION, "answers": signature or {}}
+    return {"size": info.st_size, "mtime_ns": info.st_mtime_ns, "version": PREP_VERSION, **(signature or {})}
 
 
 def _write_stamp(db: Any, doc_id: str, path: Any, prepare: bool, ctx: Any, signature: dict[str, Any] | None = None) -> None:
