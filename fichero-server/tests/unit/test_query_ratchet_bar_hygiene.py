@@ -46,6 +46,8 @@ def ratchet(monkeypatch, tmp_path):
 
     monkeypatch.setattr(perf_ratchet, "BASELINE_PATH", tmp_path / "baseline.json")
     monkeypatch.delenv("FICHERO_PERF_NO_HISTORY", raising=False)
+    monkeypatch.setenv("FICHERO_PERF_TIGHTEN", "1")  # a baseline is written only on request (#6301); this test asks
+    monkeypatch.setattr(perf_ratchet, "_another_perf_run_is_active", lambda: False)
     perf_ratchet._query_session.clear()
     yield perf_ratchet
     perf_ratchet._query_session.clear()
