@@ -149,13 +149,13 @@ def test_every_route_that_returns_the_start_plan_builds_it_off_the_event_loop(mo
 
     seen = []
 
-    def plan(db, folder_id=None, clusters=()):
+    def plan(db, folder_id=None, clusters=(), memo=None):
         seen.append(threading.get_ident())
         return {"elsewhere": [], "downloads": []}
 
     monkeypatch.setattr(route, "_cluster_names", lambda http: [])
     monkeypatch.setattr(route, "_start_plan", plan)
-    monkeypatch.setattr(route, "_as_started", lambda db, p: p)
+    monkeypatch.setattr(route, "_as_started", lambda db, p, *_: p)
     monkeypatch.setattr(route, "StartPlan", lambda **kw: kw)
     monkeypatch.setattr(route.registry, "invoke", lambda *a, **k: SimpleNamespace(result={}))
     monkeypatch.setattr(route, "_library", lambda db: None)
