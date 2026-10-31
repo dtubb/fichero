@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
+import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -210,6 +212,79 @@ class TestGoingBlind:
         assert rc == module.BLIND_EXIT_CODE
 
 
+def _since_repo(tmp_path, module, monkeypatch):
+    """A small git repo with the two configs and an item branch off `main`."""
+    repo = tmp_path / "repo"
+    (repo / "fichero" / "fichero").mkdir(parents=True)
+    (repo / ".swiftlint.yml").write_text("included:\n  - fichero/fichero\n", encoding="utf-8")
+    (repo / "fichero" / ".swiftlint.yml").write_text("line_length:\n  warning: 40\n  error: 200\n", encoding="utf-8")
+    monkeypatch.setattr(module, "ROOT", repo)
+
+    def git(*args):
+        subprocess.run(
+            ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid", *args],
+            cwd=repo, check=True, capture_output=True,
+        )
+
+    (repo / "fichero" / "fichero" / "A.swift").write_text(f"let longNameOne = {'1' * 40}\n", encoding="utf-8")
+    git("init", "-b", "main")
+    git("add", ".")
+    git("commit", "-m", "base")
+    git("checkout", "-b", "item")
+    return repo, git
+
+
+class TestSince:
+    """The real binary and real git: what --since compares is exactly what monkeypatching would hide."""
+
+    @staticmethod
+    def _module_or_skip():
+        import pytest
+
+        if shutil.which("swiftlint") is None:
+            pytest.skip("swiftlint not installed")
+        return _import_script()
+
+    def test_a_warning_the_item_adds_fails_it(self, tmp_path, monkeypatch, capsys):
+        module = self._module_or_skip()
+        repo, git = _since_repo(tmp_path, module, monkeypatch)
+        (repo / "fichero" / "fichero" / "B.swift").write_text(f"let longNameTwo = {'2' * 40}\n", encoding="utf-8")
+        git("add", ".")
+        git("commit", "-m", "adds one")
+        assert module.main(["--since", "main"]) == 1
+        assert "line_length" in capsys.readouterr().out
+
+    def test_moving_a_warning_to_a_new_file_passes(self, tmp_path, monkeypatch):
+        module = self._module_or_skip()
+        repo, git = _since_repo(tmp_path, module, monkeypatch)
+        git("mv", "fichero/fichero/A.swift", "fichero/fichero/Moved.swift")
+        git("commit", "-m", "moves it")
+        assert module.main(["--since", "main"]) == 0
+
+    def test_an_item_touching_an_over_limit_file_without_adding_passes(self, tmp_path, monkeypatch):
+        module = self._module_or_skip()
+        repo, git = _since_repo(tmp_path, module, monkeypatch)
+        source = repo / "fichero" / "fichero" / "A.swift"
+        source.write_text(source.read_text(encoding="utf-8") + "let short = 1\n", encoding="utf-8")
+        git("commit", "-am", "touches it")
+        assert module.main(["--since", "main"]) == 0
+
+    def test_it_never_touches_the_baseline(self, tmp_path, monkeypatch):
+        module = self._module_or_skip()
+        _since_repo(tmp_path, module, monkeypatch)
+        baseline = tmp_path / "baseline.json"
+        _seed_baseline(baseline, count=1)
+        monkeypatch.setattr(module, "DEFAULT_BASELINE", baseline)
+        before = baseline.read_text(encoding="utf-8")
+        assert module.main(["--since", "main"]) == 0
+        assert baseline.read_text(encoding="utf-8") == before
+
+    def test_an_unknown_base_is_blind_not_a_pass(self, tmp_path, monkeypatch):
+        module = self._module_or_skip()
+        _since_repo(tmp_path, module, monkeypatch)
+        assert module.main(["--since", "no-such-branch"]) == module.BLIND_EXIT_CODE
+
+
 class TestTheRealBinaryIntegration:
     """One test that actually shells out to `swiftlint`, so a change to its
     JSON reporter's field names (the one thing the monkeypatched tests above
@@ -218,8 +293,6 @@ class TestTheRealBinaryIntegration:
     has it, but this Python test suite alone should not require it."""
 
     def test_real_swiftlint_against_the_actual_repo_returns_a_plausible_count(self):
-        import shutil
-
         if shutil.which("swiftlint") is None:
             import pytest
             pytest.skip("swiftlint not installed")
