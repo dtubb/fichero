@@ -41,46 +41,59 @@ OpenRouter by 2026-11-14 on one real cluster, local models by configuration afte
 
 ## 0. Slice 0 — a real cluster in two to three days (read this section alone)
 
-**What runs.** Today's long-running Sonnet builder in a tmux pane, on the cluster **#6100, #6085, #6107** (small engine and
-contract bugs, none from the frozen runner; checked against the code 2026-10-31: `/api/machines` still returns
-`list[MachineOut]`; `segment_readings.py` still lists a stored reading beside its provisional twin; `split_done` now has a
-memo in `recipes/done.py`, so #6107 may already be fixed and the builder's first act is its failing test, closing it as
-fixed if green on the base), in its own clone, with the enforced layer below.
-No engine route is needed: rows are JSON lines (`$FICHERO_HARNESS_LOG`, as the built policy hook already writes); they are
-imported into the engine later. No land credential: **the Lead pushes**, after `land` has printed the checked fast-forward.
+**What runs.** Today's long-running Sonnet builder in a tmux pane as the worker user, on the cluster **#6100, #6085,
+#6107** (small engine and contract bugs, none from the frozen runner; checked against the code 2026-10-31: `/api/machines`
+still returns `list[MachineOut]`; `segment_readings.py` still lists a stored reading beside its provisional twin;
+`split_done` has a memo in `recipes/done.py`, so #6107 may be fixed already: the builder writes its failing test first, and
+a test green on the base means no commit and the Lead closes the issue). No engine route: rows are JSON lines in a log both
+users can write (`$FICHERO_HARNESS_LOG` under the workroot), imported later. No land credential: **the Lead pushes**.
 
-**The enforced layer, in build order (all plain scripts and files; most exist on `feat/fichero-builds-fichero`):**
-1. **Isolation (owner ruling 2026-10-31).** Workers and the ladder run as a **second macOS user** with no GitHub credential, no
-   ssh key, no read on the owner's home: files, Keychain and the per-user tmux socket stop at the user boundary, for
-   Claude, Pi and a local kind alike. Set-up: one `sysadminctl`, one narrow sudoers line, `claude` signed in as that
-   user, a world-readable bare mirror of the repository to clone from. Not promised: a Seatbelt profile (probed: no
-   hostname rules; a client inside a profile reaches the tmux server, `launchctl` and the engine) or a disabled push URL.
-   **Refuse if missing:** a worker start that is not running as that user, or whose once-per-set-up probe finds a GitHub
-   credential reachable, refuses with a row; there is no fallback to the owner's user.
-2. **Rules file** `harness.toml` at the repository root (built: `[check]`, `[policy]`), **fail-closed**: an unknown key
-   refuses, and every rung is declared on or off; nothing is "skipped: not configured".
-3. **Hooks** (built at 98ba83507, not yet wired): the PreToolUse policy hook and the `commit-msg` trailer check from
-   `[policy]`; the handoff hook moved from the briefs directory into the repository, starting successors through the same
-   start path so a generation after the first stays in the jail.
-4. **`check`** over the built `run_ladder` (pinned overlay, weakened tests, acceptance lines), run as the jailed user, with
-   `refs/remotes/origin/integration` set in the worker's clone so the ready rung works, and `red_on_base` applied by path
-   from the rules file (a Swift-only or docs-only commit is proved by the Lead's build row, not a pytest).
-5. **Pinned set** extended to `.github/`, `.gitattributes`, `.gitmodules`, `pyproject.toml`, `pytest.ini`, `conftest.py`.
-6. **`land`** (`scripts/harness_land.py`): fetches the sha into an engine-owned repository (the worker's clone is never
-   the tree the ladder judges), runs the ladder there, requires a READY verdict for **every commit's patch-id** in the
-   range from the verdict store the worker user cannot write, runs the **public-boundary grep** (people list, home-path
-   shapes, secret shapes; under thirty lines) over the diff and messages, and prints the fast-forward for the Lead.
-7. **Brief** (`scripts/harness_brief.py`, built; fix: `gh api repos/{repo}/issues/N`, the title gated like a comment,
-   owner, member and collaborator trusted, tested against a recorded real payload).
-8. **Review checklist file** `docs/contributor_manual/review-checklist.md`, handed to a fresh Opus reviewer running
-   read-only as the owner's user; its verdict file is the store `land` reads.
-9. **B1 fix in the engine** (the one engine change): the workers route module and its actions register under the `dev`
-   tier only, `owner_only`, and `worker_process.start` refuses unless `FICHERO_DEV_WORKERS=1`, set only by the scratch
-   engine's launcher; a test proves `worker.start` is unreachable through `/api/actions/invoke` at release.
+**The wall (owner ruling 2026-10-31).** A second macOS user, here called the worker user, **not in `staff`** (its own
+primary group) and with the owner's home made `700`, so it reads nothing of the owner's: no home, no real library, no
+Keychain, no GitHub credential, no ssh key; its tmux server is its own socket. It owns one **workroot** (`/Users/Shared/<worker>`,
+mode `1777`) holding: its clone of the **public repository over anonymous https** (no mirror, no refresh; a push fails with
+no credential), its own `claude`, `uv`, `ruff` and the project's venv (the rules file names `[check] python` and the
+`PATH`; nothing is reached in the owner's home), its git identity (`Claude <noreply@anthropic.com>`, `safe.directory` on
+the workroot), the `commit-msg` hook installed in the clone by the start script, the engine-owned repository and the pinned
+copy the ladder uses, and one **shared directory** that is the only channel across the boundary: the Lead writes briefs
+and findings into it, the worker writes its requests (review, question, handoff) and its JSON rows, the Lead watches it and
+reaches the pane only by `sudo -u <worker> tmux …`. In Slice 0 the Lead runs **brief**, **review** and **land**; the worker
+runs **check**. Not promised: Seatbelt, a disabled push URL, a closed outbound network.
 
-**Done when:** the cluster's commits are on `integration` by the Lead's push, each with a verdict at its patch-id, zero
-author or trailer findings in review, no hand edit to a check, and the JSON log holds a row per refusal, check, verdict
-and land. Findings are counted by hand; the numbers start the ratchet's TSV. Behaviour: `dev-workflows.rollout.slice-zero`.
+**Start path, fail-closed.** `scripts/harness_start.py` is the only way a worker starts, for generation 1 and for every
+successor the handoff hook starts: it refuses unless it runs as the worker user, unless the **probe** has passed since the
+last set-up change, and unless the rules file loads with every rung declared; then it writes the generated settings
+(hooks, permission mode, empty strict MCP config) and opens the pane. The probe, run as the worker user, must **fail** on:
+a `git push --dry-run` by URL, a `gh api` write, a read of the owner's home and of each real library path, a read of the
+owner's Keychain; `deny_read` has a required floor and an empty list refuses. `check` run by the worker user runs
+directly; run by the owner it uses `sudo -u <worker>`; with no `[jail]` in the rules file it refuses.
+
+**Landing identity.** A verdict names each commit by `git patch-id --verbatim` (whitespace is behaviour in Python) **and**
+its message hash; `land` refuses a range with a merge, a commit without exactly one id, a commit whose id or message is not
+READY in the verdict store, any file **added** under a pinned path (`scripts/check_*` excepted), and a `conftest.py` or
+`sitecustomize` anywhere in the diff that is not READY by name. The reviewer is `claude -p --tools Read,Grep,Glob` over
+the prepared diff and the ladder's output, as the owner's user with no shell; a script computes the ids and writes the
+verdict file into the store the worker cannot write.
+
+**Build order (plain scripts and files; most exist on `feat/fichero-builds-fichero`):** 1 the owner's set-up (user, group,
+`chmod 700 ~`, workroot, sudoers line) and the worker's (tools, venv, `claude` sign-in, clone, git identity); 2 the probe,
+then the **smoke test** (below); 3 `harness.toml` fail-closed with `[jail]`, `[check] python`, `deny_read`; 4
+`harness_start.py` and the hooks wired through it; 5 `harness_check.py` over the built `run_ladder`, `red_on_base` by path,
+pinned set extended to `.github/`, `.gitattributes`, `.gitmodules`, `pyproject.toml`, `pytest.ini`, every `conftest.py`;
+6 `harness_land.py` (fetch the sha into the engine-owned repository under the workroot, ladder there, verdict per
+`--verbatim` id and message, boundary grep over diff and messages, print the fast-forward; on a non-fast-forward the Lead
+rebases the worker's branch and the ladder runs again); 7 the review wrapper and `review-checklist.md`; 8 the brief script
+(built); 9 the engine change: `worker.*` actions only on a dev-tier engine and owner-only (built), plus the
+`FICHERO_DEV_WORKERS=1` refusal in `worker_process.start` (not yet in code).
+
+**What a real run must show (the remaining doubts are settled here, not on paper):** as the worker user, `claude` completes
+one turn after sign-in (`claude setup-token` if the Keychain is locked under `sudo`); the probe fails on all five tries;
+the ladder runs green on a throwaway commit in the workroot with no "dubious ownership" refusal; a file written into the
+shared directory by one user is read by the other; a successor started by the hook is the worker user with the hooks
+loaded; a whitespace-only indentation change after READY is refused by `land`; a new `conftest.py` is refused; the three
+fixes reach `integration` by the Lead's push with a verdict per commit, zero author or trailer findings, and a JSON row
+per refusal, check, verdict and land. Findings are counted by hand and start the ratchet's TSV. Behaviour:
+`dev-workflows.rollout.slice-zero`.
 
 ## What exists today (paths under `fichero-server/src/fichero_server/`; measured 2026-10-31)
 
@@ -165,9 +178,10 @@ and land. Findings are counted by hand; the numbers start the ratchet's TSV. Beh
   The hooks post the rows; the pane log is not followed. The register (process group, pane, session directory,
   started-at) is a file, so a restart adopts or kills before any successor; stop is TERM then KILL after a grace. The
   route module and its actions load **only under the `dev` tier**, `owner_only`, and `start` refuses unless
-  `FICHERO_DEV_WORKERS=1` from the scratch engine's launcher; at release `worker.start` is unreachable through
-  `/api/actions/invoke`. Tests: `fichero-server/tests/unit/workflows/test_worker_process.py`,
-  `fichero-server/tests/unit/workflows/test_worker_route.py::test_worker_start_is_unreachable_at_release`.
+  `FICHERO_DEV_WORKERS=1` from the scratch engine's launcher (built: dev-tier and owner-only actions; not yet: the
+  variable); at release `worker.start` is unreachable through `/api/actions/invoke`. Every worker, generation 1 or a
+  successor, starts through `scripts/harness_start.py` (§ 0), never bare. Tests: `fichero-server/tests/unit/workflows/test_worker_process.py`,
+  `fichero-server/tests/unit/workflows/test_worker_route.py::test_a_release_engine_has_no_worker_actions_and_refuses_to_start`.
 - `dev-workflows.run.worker-address` [PARTIAL] (#6116) — per task, the current generation's address (pane, process group,
   session directory, kind, started-at) is registered, rewritten at each handoff, cleared when gone; `tell` appends to
   that generation's inbox file, read by the worker's hook on prompt submit and after each tool; a worker idle at its
@@ -185,9 +199,10 @@ and land. Findings are counted by hand; the numbers start the ratchet's TSV. Beh
   caps) and timeout; a guard runs by its own shebang; the test command is configured, not `python -m pytest`; typed
   results; refuses when blind (fewer guards than the floor). **Pinned checks** (built): the ladder runs from a pinned copy
   of `scripts/`, the hooks, the agent settings directory, the rules file, `.github/`, `.gitattributes`, `.gitmodules`,
-  `pyproject.toml`, `pytest.ini` and every `conftest.py`, laid over a scratch tree built by the land process from a fetched
-  sha, never the worker's clone or its git config; a diff touching a pinned path, rewriting the item's own acceptance
-  lines, or weakening or deleting a test is a question, not a pass. **By path:** `red_on_base` applies to paths the rules
+  `pyproject.toml`, `pytest.ini` and every `conftest.py` (matched by name anywhere), laid over a scratch tree built by the
+  land process from a fetched sha under the workroot, never the worker's clone or its git config; a diff touching a pinned
+  path, **adding** a file under one (`scripts/check_*` excepted), rewriting the item's own acceptance lines, or weakening
+  or deleting a test is a question, not a pass. **By path:** `red_on_base` applies to paths the rules
   file names (Python here); a Swift or contract change needs a Lead build row on the sha; docs and spec changes need
   neither. **Counters:** the same named test red twice, the diff bound tripped twice, a tool call repeated with the same
   arguments after an error, the turn or dollar cap: counted by `check` and a PostToolUse counter, and enforced (a refusal
@@ -230,24 +245,28 @@ and land. Findings are counted by hand; the numbers start the ratchet's TSV. Beh
 
 - `dev-workflows.run.review-and-land` [PROPOSED] (maintainer 2026-10-31: land per cluster) — `request-review` starts a fresh
   reviewer (Opus; read-only; as the owner's user, never the worker's) on a range with the project's **review checklist
-  file**; the verdict, bound to each commit's patch-id with findings, is written to the **verdict store** the worker user
-  cannot write (a directory owned by the reviewer's user; rows later), and `land` reads only there; `request-review`
+  file**, as `claude -p --tools Read,Grep,Glob` over the prepared diff and the ladder's output (no shell, so an injected
+  diff cannot push or write a verdict); a script computes `git patch-id --verbatim` and the message hash per commit and
+  writes the verdict file into the **verdict store** the worker user cannot write (rows later), and `land` reads only there; `request-review`
   returns at once and the worker reads verdicts with a `verdicts` tool; NOT_READY findings belong to the task's current
   generation (two rounds, then the queue). `land` is a script: fetch the sha into the engine-owned repository, ladder on
-  the rebased head there, a READY verdict for **every commit** in the range by patch-id, the public-boundary grep over
-  diff and messages, then the fast-forward of the integration branch (a merge mode for the release merge-back is added
+  the rebased head there, a READY verdict for **every commit** in the range by `--verbatim` patch-id and message hash (a
+  merge, or a commit without exactly one id, refuses the range), the public-boundary grep over diff and messages, then the fast-forward of the integration branch (a merge mode for the release merge-back is added
   before any ruleset restricts updates); `main` never. Until the GitHub App exists the script prints the fast-forward and
   the Lead pushes. `Fixes #N` closes with the sha, `Part of #N` leaves open with the residue. A research task's review is
   the person's. Only `check`'s output and a verdict move an item. Test:
   `fichero-server/tests/unit/workflows/test_review_and_land.py::test_review_per_issue_and_land_per_cluster`.
 - `dev-workflows.run.land-gate` [PROPOSED] — the wall is the **user boundary** (owner 2026-10-31): the worker user holds no GitHub
   credential, no ssh key, no Keychain item of the owner's, no read on the owner's home or the real libraries, and clones a
-  world-readable bare mirror; its clone has `refs/remotes/origin/integration` set by the land process so the ready rung
-  works, and nothing else from the owner's git config; the ladder never runs in the worker's tree. The land process runs
+  the public repository over anonymous https (no mirror; `origin/integration` is a normal remote ref the worker fetches),
+  with its own git identity and `safe.directory` on the workroot and nothing from the owner's git config; the worker user is
+  not in `staff` and the owner's home is `700`; the ladder never runs in the worker's tree, and runs in trees the worker
+  user owns under the workroot. The land process runs
   as the owner's user with no credential in its environment and prints the push for the Lead; later a **GitHub App**
   (Contents write and Metadata only, no Workflows) pushes from a separate process. Proof is a **once-per-set-up probe** run
-  as the worker user: `git push --dry-run` by URL and a `gh api` write, both refused; a start refuses until the probe has
-  passed. **Rulesets (owner 2026-10-31):** `integration` carries `protect-integration` (no deletion, no force-push, no
+  as the worker user: `git push --dry-run` by URL, a `gh api` write, a read of the owner's home, of each real library
+  and of the owner's Keychain, all refused; `deny_read` has a required floor; `scripts/harness_start.py` refuses until the
+  probe has passed. **Rulesets (owner 2026-10-31):** `integration` carries `protect-integration` (no deletion, no force-push, no
   required status) from 2026-10-31; `main` stays at zero approving reviews until a GitHub App exists; in Slice 0 the Lead
   pushes. **Not claimed:** a Seatbelt deny
   list (probed: no hostname rules, and a client inside a profile reaches the tmux server, `launchctl` and the engine);
@@ -440,7 +459,8 @@ and land. Findings are counted by hand; the numbers start the ratchet's TSV. Beh
 ## Rulings of 2026-10-31 on isolation and landing (decided, no longer open)
 
 - Workers and the ladder run as a second macOS user with no GitHub credential; a start refuses if the user or its clean
-  probe is missing (set-up: one `sysadminctl`, one narrow sudoers line, `claude` signed in as that user, a bare mirror).
+  probe is missing (set-up in § 0: the user outside `staff`, the owner's home `700`, a workroot, one sudoers line, the
+  worker's own tools and `claude` sign-in, an anonymous clone of the public repository).
 - `integration` has the ruleset `protect-integration`: no deletion, no force-push, no required status check. A later
   "restrict updates" rule waits for a GitHub App and three clusters landed by `land`.
 - `main` stays at zero approving reviews until a GitHub App exists; the Lead pushes in Slice 0; the App (Contents write
