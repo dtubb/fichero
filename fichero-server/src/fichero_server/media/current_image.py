@@ -87,9 +87,25 @@ class PageImage:
         edited copy (its file name carries the chain's version) or rendition. An Undo or a new edit gives another signature."""
         return ORIGINAL if self.is_original else Path(self.path).name
 
+    def upright_map(self) -> FrameMap | None:
+        """The upright photograph's pixels to this image's UPRIGHT pixels (its orientation tag applied): the frame a finder
+        answers in, and `page_crop` cuts in. `to_image` lands in the file's raw pixels (`_rendition_map`), so a tagged file is
+        carried on through its tag. None when this IS the photograph's own pixels."""
+        if self.to_image is None:
+            return None
+        from PIL import Image
+
+        with Image.open(self.path) as opened:
+            raw = (float(opened.width), float(opened.height))
+            orientation = int(opened.getexif().get(0x0112, 1) or 1)
+        if orientation == 1:
+            return self.to_image
+        return self.to_image.with_size(raw).then(exif_map(orientation, raw))
+
     def photograph_map(self) -> FrameMap | None:
-        """This image's pixels back to the upright photograph's; None when they are the same."""
-        return self.to_image.inverse() if self.to_image is not None else None
+        """This image's upright pixels (what a finder measures) back to the upright photograph's; None when they are the same."""
+        forward = self.upright_map()
+        return forward.inverse() if forward is not None else None
 
     def lines_map(self, lines_frame: str | None) -> FrameMap | None:
         """The map that carries lines measured on `lines_frame` (`media/upright.py`: upright, or None for the file's raw
@@ -206,6 +222,36 @@ def _rendition_map(db: Any, rendition: Any, photograph: Path, photo_size: tuple[
         return found if found is not None else identity(photo_size)
 
     role = rendition.role
+    if _quarter_turned(path):  # the recorded size may be the file's raw one: the cut picture is the upright one
+        own = _upright_size_of(path)
+    return _in_file_pixels(_cut_map(role, region, extra, own, photo_size, parent), path)
+
+
+def _quarter_turned(path: Path) -> bool:
+    from PIL import Image
+
+    with Image.open(path) as opened:
+        return int(opened.getexif().get(0x0112, 1) or 1) in (5, 6, 7, 8)
+
+
+def _in_file_pixels(found: FrameMap, path: Path) -> FrameMap:
+    """A map onto the rendition's UPRIGHT picture, put on the file's raw pixels when the file keeps a quarter-turn tag (a copy
+    imported with its transform: our own renditions are saved upright). `to_image` always lands in the file's raw pixels."""
+    from PIL import Image
+
+    from fichero_server.media.upright import upright_size
+
+    with Image.open(path) as opened:
+        orientation = int(opened.getexif().get(0x0112, 1) or 1)
+        raw = (float(opened.width), float(opened.height))
+        up = upright_size(opened)
+    if orientation == 1:
+        return found
+    return found.with_size((float(up[0]), float(up[1]))).then(exif_map(orientation, raw).inverse())
+
+
+def _cut_map(role: str, region: Any, extra: dict[str, Any], own: tuple[float, float], photo_size: tuple[float, float],
+             parent: Any) -> FrameMap:
     if role == "flattened":
         raise Unmappable("a flattened page's displacement is not a map the lines can follow")
     if role == "squared":

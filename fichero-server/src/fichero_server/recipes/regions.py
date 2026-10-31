@@ -87,18 +87,9 @@ def page_box_on(page_image: Any, box: list[float] | None) -> list[float] | None:
     box that holds the four carried corners."""
     if not box or len(box) != 4 or page_image is None or page_image.to_image is None:
         return box
-    from PIL import Image
-
     from fichero_server.media.current_image import _clamp_rect
-    from fichero_server.media.frame_map import exif_map
 
-    with Image.open(page_image.path) as opened:
-        orientation = int(opened.getexif().get(0x0112, 1) or 1)
-        raw = opened.size
-    to_image = page_image.to_image
-    if orientation != 1:  # `to_image` lands in the file's raw pixels; `page_crop` cuts the upright ones: carry on through the tag
-        to_image = to_image.with_size(raw).then(exif_map(orientation, raw))
-    return _clamp_rect(to_image.carry_rect(box))
+    return _clamp_rect(page_image.upright_map().carry_rect(box))  # the crop is cut in upright pixels
 
 
 def shift_payload(payload: dict[str, Any], left: int, top: int, width: int, height: int) -> dict[str, Any]:
