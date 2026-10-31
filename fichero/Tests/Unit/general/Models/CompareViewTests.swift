@@ -1,0 +1,70 @@
+@testable import Fichero
+import FicheroAPIClient
+import Foundation
+import Testing
+
+/// The compare view's model (`wide.compare.*`): modes, the legend, the wipe handle, rows and the one-sentence states.
+struct CompareViewTests {
+    private func answer(readers: [String] = ["a", "b"], lines: String? = nil) throws -> Components.Schemas.CompareReadersResponse {
+        let readerJSON = readers.map { #"{"id":"\#($0)","label":"Reader \#($0)","kind":"candidate"}"# }.joined(separator: ",")
+        let linesJSON = lines ?? """
+        {"order":0,"differs":true,"picked_by_person":false,"readings":[{"reader_id":"a","text":"Yten dixo"},{"reader_id":"b","text":"Item dixo"}],
+         "words":[{"text":"Yten","char_start":0,"char_end":4,"agreement":0.5,"variants":[{"text":"Item","readers":["b"]}]},
+                  {"text":"dixo","char_start":5,"char_end":9,"agreement":1,"variants":[]}]},
+        {"order":1,"differs":false,"picked_by_person":false,"readings":[{"reader_id":"a","text":"que"},{"reader_id":"b","text":"que"}],"words":[]}
+        """
+        let json = #"{"page_id":"p1","readers":[\#(readerJSON)],"lines":[\#(linesJSON)]}"#
+        return try JSONDecoder().decode(Components.Schemas.CompareReadersResponse.self, from: Data(json.utf8))
+    }
+
+    @Test("Side by side is the Mac's default and Overlay the iPhone's")
+    func defaultModes() throws {
+        #expect(CompareViewModel(answer: try answer(), platform: .mac).mode == .sideBySide)
+        #expect(CompareViewModel(answer: try answer(), platform: .iPad).mode == .sideBySide)
+        #expect(CompareViewModel(answer: try answer(), platform: .iPhone).mode == .overlay)
+    }
+
+    @Test("Overlay's legend hides and shows a reader's boxes")
+    func legend() throws {
+        var model = CompareViewModel(answer: try answer(), platform: .mac)
+        #expect(model.drawn.map(\.id) == ["a", "b"])
+        model.toggle(reader: "a")
+        #expect(model.drawn.map(\.id) == ["b"])
+        model.toggle(reader: "a")
+        #expect(model.drawn.map(\.id) == ["a", "b"])
+    }
+
+    @Test("Wipe: A left, B right, the handle kept inside the picture, the text wiping with it")
+    func wipe() throws {
+        var model = CompareViewModel(answer: try answer(), platform: .mac)
+        #expect(model.wipePair?.a.id == "a" && model.wipePair?.b.id == "b")
+        model.moveHandle(to: 1.7)
+        #expect(model.handle == 1)
+        model.moveHandle(to: -3)
+        #expect(model.handle == 0)
+        model.moveHandle(to: 0.5)
+        #expect(model.charactersOnA(of: "Yten dixo") == 4)
+    }
+
+    @Test("rows carry one text per reader, the differing words, and the filter keeps the lines that differ")
+    func rows() throws {
+        var model = CompareViewModel(answer: try answer(), platform: .mac)
+        #expect(model.rows.count == 2)
+        #expect(model.rows[0].texts == ["Yten dixo", "Item dixo"] && model.rows[0].differingWords == ["Yten"])
+        #expect(model.rows[1].differs == false && model.rows[1].differingWords.isEmpty)
+        model.onlyDiffering = true
+        #expect(model.rows.map(\.id) == [0])
+    }
+
+    @Test("one candidate, no readers or no lines each say one sentence; a candidate that did not read says why")
+    func states() throws {
+        #expect(CompareViewModel(answer: try answer(), platform: .mac).emptyState == nil)
+        #expect(CompareViewModel(answer: try answer(readers: []), platform: .mac).emptyState == "Nothing has read this page yet.")
+        #expect(CompareViewModel(answer: try answer(readers: ["a"]), platform: .mac).emptyState?.hasPrefix("Only one reader") == true)
+        #expect(CompareViewModel(answer: try answer(lines: ""), platform: .mac).emptyState?.hasPrefix("No reader has lines") == true)
+        let silent = try answer(lines: #"{"order":0,"differs":false,"picked_by_person":false,"readings":[{"reader_id":"a","text":"x"}],"words":[]}"#)
+        let model = CompareViewModel(answer: silent, platform: .mac)
+        #expect(model.notReadBecause(reader: "b") == "Reader b did not read this page.")
+        #expect(model.notReadBecause(reader: "a") == nil)
+    }
+}
