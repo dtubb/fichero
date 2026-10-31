@@ -796,6 +796,7 @@ Before committing Swift code, verify:
 - [ ] ✅ No AppKit usage (except where absolutely necessary)
 - [ ] ✅ Using @FocusedValue instead of NotificationCenter
 - [ ] ✅ View files < 400 lines
+- [ ] ✅ `check_swiftlint_warning_ratchet.py --since origin/integration` passes: the item adds no warnings
 - [ ] ✅ Using @ViewBuilder on computed view properties
 - [ ] ✅ Services injected via @EnvironmentObject (never created in views)
 

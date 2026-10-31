@@ -285,6 +285,13 @@ class TestSince:
         assert module.main(["--since", "no-such-branch"]) == module.BLIND_EXIT_CODE
 
 
+def test_the_gate_and_verify_all_run_since():
+    """Only a check somewhere that people look can fail an item: #5995 grew because the plain one could not."""
+    for script in ("verify_all.sh", "gate"):
+        text = (REPO_ROOT / "scripts" / script).read_text(encoding="utf-8")
+        assert "check_swiftlint_warning_ratchet.py --since origin/integration" in text, script
+
+
 class TestTheRealBinaryIntegration:
     """One test that actually shells out to `swiftlint`, so a change to its
     JSON reporter's field names (the one thing the monkeypatched tests above

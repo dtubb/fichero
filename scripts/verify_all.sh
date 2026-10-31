@@ -357,6 +357,10 @@ run_fast() {
     run_check "$(basename "$guardrail")" "${PYTHON_BIN}" "$guardrail"
   done
   run_check "check_emit_change_coverage.py" "${PYTHON_BIN}" scripts/check_emit_change_coverage.py
+  # What this item adds, red or green whatever the total says (#5995). A tree with no origin/integration has no item to measure.
+  if git rev-parse --verify -q origin/integration >/dev/null; then
+    run_check "swiftlint added by this item" "${PYTHON_BIN}" scripts/check_swiftlint_warning_ratchet.py --since origin/integration
+  fi
 
   run_check "version-date" scripts/check_version_date.sh
 
