@@ -75,8 +75,11 @@ READY in the verdict store, any file **added** under a pinned path (`scripts/che
 the prepared diff and the ladder's output, as the owner's user with no shell; a script computes the ids and writes the
 verdict file into the store the worker cannot write.
 
-**Build order (plain scripts and files; most exist on `feat/fichero-builds-fichero`):** 1 the owner's set-up (user, group,
-`chmod 700 ~`, workroot, sudoers line) and the worker's (tools, venv, `claude` sign-in, clone, git identity); 2 the probe,
+**Build order (plain scripts and files; most exist on `feat/fichero-builds-fichero`):** 1 the owner's set-up by
+`scripts/harness_setup.sh` (user and group, workroot, sudoers line) and the worker's (tools, venv, `claude` sign-in, clone,
+git identity); the script applies `chmod 700 ~` only after listing what else reads the owner's home (`stat`, the open
+files of other users, shared folders, any launchd job running as another user) and showing the list for a yes; it records
+the previous mode and **undoes it** with `chmod <previous> ~` on `--undo`, which also removes the sudoers line; 2 the probe,
 then the **smoke test** (below); 3 `harness.toml` fail-closed with `[jail]`, `[check] python`, `deny_read`; 4
 `harness_start.py` and the hooks wired through it; 5 `harness_check.py` over the built `run_ladder`, `red_on_base` by path,
 pinned set extended to `.github/`, `.gitattributes`, `.gitmodules`, `pyproject.toml`, `pytest.ini`, every `conftest.py`;
@@ -135,7 +138,7 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
 - **The engine's records are the truth for runs** (maintainer 2026-10-31); for a worker the truth is its rows, git and the
   handoff file; workers have no checkpointer.
 - **Thin engine; the loop lives in the agent harness**: records, start and stop, Activity, questions, the log; a hook does
-  handoff and successor; a few tools do brief, check, ask, hand off, land, git. LangGraph only for recipes and the release.
+  handoff and successor; a few tools do brief, check, ask, hand off, land (git is the worker's own shell command; the user wall, not an argv jail, guards it). LangGraph only for recipes and the release.
 - **Two worker kinds** (maintainer 2026-10-31): Claude Code and Pi; `fake` is the test double. **The Builder worker is an
   interactive session in a tmux pane** (probed: `claude -p` exits at the end of its turn and takes no pane message); Pi in
   a pane with its extension, the same shape.
@@ -207,9 +210,6 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   neither. **Counters:** the same named test red twice, the diff bound tripped twice, a tool call repeated with the same
   arguments after an error, the turn or dollar cap: counted by `check` and a PostToolUse counter, and enforced (a refusal
   row and a question), not left to the model. Test: `fichero-server/tests/unit/workflows/test_check_tool.py::test_check_tool_runs_the_ladder`.
-- `dev-workflows.tool.git` [GAP] (#6116) — a closed list of operations as typed inputs (worktree add/remove, status, diff
-  stat, rebase onto, range-diff, log of a range; no merge, no push); argv values match `^[A-Za-z0-9._/-]+$`, no leading
-  `-`, no `..`; refuses any push. Test: `fichero-server/tests/unit/workflows/test_git_tool.py::test_operations_and_argv_jail`.
 - `dev-workflows.builder.cluster` [PARTIAL] (#6116) — one spec and its build-order issues (parser ported from
   `pipeline/plan.py`), in order, one commit per issue with its test; the brief is built by `scripts/harness_brief.py` from
   `gh api repos/{repo}/issues/N`: the body and the **title** only when the author association is owner, member or
@@ -288,10 +288,6 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   persisted register is adopted or killed before any successor; a budget stop parks with a question; the pinned dev
   engine moves to a newer sha only between clusters; each action a row. Test:
   `fichero-server/tests/unit/workflows/test_watch_tick.py::test_gone_orphan_unlanded_stuck_and_restart`.
-- `dev-workflows.run.machine-watch` [PROPOSED] — a sixty-second check reads load, free memory and free disk on this Mac and,
-  past the rules file's limits, **refuses new starts and writes an alert row**; running workers are not stopped (a
-  stopped worker ages into "stuck", and a stop mid-write can hold a lock); the real control on load is the one-test-run
-  lock. Test: `fichero-server/tests/unit/workflows/test_machine_watch.py::test_overload_refuses_new_and_alerts`.
 - `dev-workflows.run.records-are-truth` [PROPOSED] (maintainer 2026-10-31) — the jobs table is the truth for runs, and for a
   worker its rows plus git plus the handoff; in Slice 0 the rows are JSON lines in `$FICHERO_HARNESS_LOG`, imported later
   by one script; the run log (one row per item attempt: model, provider, context cap, tokens, tool calls and errors,
@@ -303,7 +299,7 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   argv list with env, cwd and time budget, the pinned paths, the paths `red_on_base` applies to, turn and dollar caps,
   machine limits, landing conditions, the people list, the review checklist path, the role models, the handoff line.
   **Fail-closed:** an unknown or misspelt key refuses to load; an undeclared rung is an error, never "skipped". The hook,
-  `check`, `land`, the tick and the machine watch read it. Test:
+  `check`, `land` and the tick read it. Test:
   `fichero-server/tests/unit/workflows/test_rules_file.py::test_unknown_key_refuses_and_every_rung_is_declared`.
 - `dev-workflows.run.ratchet` [PROPOSED] (maintainer 2026-10-31: it only improves) — from the rows: READY to landed, first-pass
   READY rate, findings per issue by kind and severity, stall hours, false done, rework rounds, cost per landed issue, as a
@@ -346,13 +342,8 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   boundary**, then the journaled writer; every write, refused or made, is a row. The boundary is the same grep `land`
   runs from Slice 0 (people list, home-path shapes, secret shapes); a hash list of private page text is **deferred**: it
   would make the land path read private libraries. Conflict rule: GitHub wins on work state, Fichero on its own fields,
-  a text conflict is a question. Step 2.2 pulls only; Step 2.3 adds the push. Test:
+  a text conflict is a question. Step 2.2 pulls only; the push through the same guarded step follows in Step 2.4. Test:
   `fichero-server/tests/unit/research/test_github_sync.py::test_pull_push_boundary_and_conflict_rule`.
-- `dev-workflows.combined.spec-and-plan` [GAP] (#6116) — a spec is read from the repo file (status, behaviour ids with tags and
-  issues, cited tests; the guards stay the binding); a plan is its build order as steps with issues, proposed and filed
-  by the ported `plan`/`plan-approve` (dry run by default); approvals, each a question in the one queue: a spec's status
-  flip, a plan, a check-file or acceptance-line change; a person points the milestone to work next (no feeder). Test:
-  `fichero-server/tests/unit/research/test_spec_and_plan_layers.py::test_spec_plan_and_approvals`.
 - `dev-workflows.surface.one-action-layer` [PROPOSED] — `fichero workers …` and the MCP tools (the generated surface) list
   specs, milestones, issues and tasks, start a cluster or a research task, show workers and questions, answer, approve;
   every verb is an audited action; a chat verb is added only when these prove thin. Test:
@@ -451,7 +442,10 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
 - 2026-10-31, manager (after the reviews): the Builder worker is an interactive pane session; Slice 0 first with the Lead
   pushing; the decider, the workspace source, the feeder, bug narrowing, the Activity package, the `builder` tier and the
   promotion thresholds are cut to deferred text; pinned checks and the allow-list are kept.
-- Deferred as text: invited contributors; shared projects; a `decider` role; a repository as a workspace source; a feeder
+- Deferred as text: a typed git tool with an argv jail (the user wall guards git; the policy hook refuses push); a
+  machine watch (the one-test-run lock is the control on load; a watch returns if the lock proves insufficient); a spec
+  and plan layer with approvals in the engine (the Lead's `gh` and the spec guards do this for now; the pull sync stays);
+  invited contributors; shared projects; a `decider` role; a repository as a workspace source; a feeder
   (a person points the milestone); bug narrowing before a brief; a Builder front end, `builder` tier and bundle; the
   Activity table as a Swift package; the private-text hash list; the ratchet's backslide guard; the release as a dev
   workflow (long, resumable at the failed step, a yes before anything public, step by step in Activity).
@@ -491,9 +485,9 @@ targets: Slice 0 by 2026-11-03, Pi by 2026-11-14, the second project and local p
 - Tests: fichero-server/tests/unit/workflows/test_worker_node.py, fichero-server/tests/unit/workflows/test_dry_run.py, fichero-server/tests/unit/workflows/test_pipeline_frozen.py
 - Size: M
 
-#### Step 1.3 — the cluster, the worker steers, the git tool
-- Behaviours: `dev-workflows.builder.cluster`, `dev-workflows.worker.steers`, `dev-workflows.tool.git`
-- Tests: fichero-server/tests/unit/workflows/test_cluster_run.py, fichero-server/tests/unit/workflows/test_git_tool.py
+#### Step 1.3 — the cluster, the worker steers
+- Behaviours: `dev-workflows.builder.cluster`, `dev-workflows.worker.steers`
+- Tests: fichero-server/tests/unit/workflows/test_cluster_run.py
 - Size: M
 
 #### Step 1.4 — the question record, records as truth
@@ -506,9 +500,9 @@ targets: Slice 0 by 2026-11-03, Pi by 2026-11-14, the second project and local p
 - Tests: fichero-server/tests/unit/workflows/test_cluster_run.py, fichero-server/tests/unit/workflows/test_supervision.py, fichero-server/tests/unit/workflows/test_ratchet.py
 - Size: M
 
-#### Step 1.6 — the watch tick under launchd, the machine watch, the two capability sets, the allow-list
-- Behaviours: `dev-workflows.run.watch-tick`, `dev-workflows.run.machine-watch`, `dev-workflows.worker.two-capability-sets`, `dev-workflows.security.grants`
-- Tests: fichero-server/tests/unit/workflows/test_watch_tick.py, fichero-server/tests/unit/workflows/test_machine_watch.py, fichero-server/tests/unit/workflows/test_capability_sets.py, fichero-server/tests/unit/workflows/test_grants.py
+#### Step 1.6 — the watch tick under launchd, the two capability sets, the allow-list
+- Behaviours: `dev-workflows.run.watch-tick`, `dev-workflows.worker.two-capability-sets`, `dev-workflows.security.grants`
+- Tests: fichero-server/tests/unit/workflows/test_watch_tick.py, fichero-server/tests/unit/workflows/test_capability_sets.py, fichero-server/tests/unit/workflows/test_grants.py
 - Size: M
 
 ### Stage 2 — seen in the app; records and sync; the Researcher; the second project (weeks 2-3)
@@ -525,12 +519,7 @@ targets: Slice 0 by 2026-11-03, Pi by 2026-11-14, the second project and local p
 - Depends on: 1.6
 - Size: M
 
-#### Step 2.3 — spec and plan, approvals, the push through the guarded step
-- Behaviours: `dev-workflows.combined.spec-and-plan`
-- Tests: fichero-server/tests/unit/research/test_spec_and_plan_layers.py
-- Size: M
-
-#### Step 2.4 — the CLI verbs and app over one action layer
+#### Step 2.4 — the CLI verbs and app over one action layer; the push through the guarded sync step
 - Behaviours: `dev-workflows.surface.one-action-layer`
 - Tests: fichero-cli/tests/test_chat_dev_verbs.py
 - Size: M
@@ -580,21 +569,18 @@ Every behaviour names its test above, written in its step; each `security.*` and
 | `dev-workflows.rollout.pipeline-frozen` | 1.2 |
 | `dev-workflows.builder.cluster` | 1.3 |
 | `dev-workflows.worker.steers` | 1.3 |
-| `dev-workflows.tool.git` | 1.3 |
 | `dev-workflows.node.human-question` | 1.4 |
 | `dev-workflows.run.records-are-truth` | 1.4 |
 | `dev-workflows.worker.handoff` | 1.5 |
 | `dev-workflows.run.supervision` | 1.5 |
 | `dev-workflows.run.ratchet` | 1.5 |
 | `dev-workflows.run.watch-tick` | 1.6 |
-| `dev-workflows.run.machine-watch` | 1.6 |
 | `dev-workflows.worker.two-capability-sets` | 1.6 |
 | `dev-workflows.security.grants` | 1.6 |
 | `dev-workflows.ux.activity-table` | 2.1 |
 | `dev-workflows.ux.controls-work` | 2.1 |
 | `dev-workflows.combined.entities` | 2.2 |
 | `dev-workflows.combined.github-sync` | 2.2 |
-| `dev-workflows.combined.spec-and-plan` | 2.3 |
 | `dev-workflows.surface.one-action-layer` | 2.4 |
 | `dev-workflows.researcher.tasks` | 2.5 |
 | `dev-workflows.security.untrusted-text` | 2.5 |
