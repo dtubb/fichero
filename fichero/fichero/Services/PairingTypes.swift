@@ -184,7 +184,7 @@ final class PairingService {
             let body = try okResponse.body.json
             return SharingStateRecord(tailnetURL: body.tailnetUrl, tailnetServeCommand: body.tailnetServeCommand,
                                       auditId: body.auditId, publicBaseURL: body.publicBaseUrl, lanIP: body.lanIp,
-                                      tailnetForward: body.tailnetForward.rawValue)
+                                      tailnetForward: body.tailnetForward?.rawValue)  // optional in the schema: a default is not `required`
         case .undocumented(let statusCode, _):
             throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
         }

@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 
 /// The persisted Multi-user switch, set through the engine's audited action so ⌘Z takes it back
