@@ -137,13 +137,50 @@ def write_handoffs(path: Path | None = None, **kw) -> dict:
     return {"path": str(path), "rows": len(rs)}
 
 
+CLUSTER_LOG = ROOT / "agent-work" / "status" / "briefs" / "studio-cluster-log.tsv"
+CLUSTER_COLUMNS = ("task issues prompt_tokens cached_tokens cache_hit output_tokens cost_usd prompt_per_issue cost_per_issue "
+                   "solo_prompt_per_issue solo_cost_per_issue ratio_prompt ratio_cost").split()
+
+
+def cluster_rows(rs: list[dict], task_of) -> list[dict]:
+    """Per task (a lane = a cluster): what its issues cost together and each, against the average of the single-issue tasks
+    (the old per-item way): the owner's question is whether a cluster in one session needs fewer tokens per issue. Prompt
+    tokens and dollars are each item's own share, so the sum over a task is the task's; output counts the session's once per item."""
+    by: dict[str, list[dict]] = {}
+    for r in rs:
+        if r["role"] == "coder":
+            by.setdefault(task_of(r["item"]), []).append(r)
+    out = []
+    for task, items in by.items():
+        n, prompt = len(items), sum(int(r["prompt_tokens"] or 0) for r in items)
+        cached, usd_ = sum(int(r["cached_tokens"] or 0) for r in items), sum(float(r["cost_usd"] or 0) for r in items)
+        out.append(dict(task=task, issues=n, prompt_tokens=prompt, cached_tokens=cached, cache_hit=round(cached / prompt, 3) if prompt else 0,
+                        output_tokens=max(int(r["output_tokens"] or 0) for r in items), cost_usd=round(usd_, 4),
+                        prompt_per_issue=round(prompt / n), cost_per_issue=round(usd_ / n, 4)))
+    solo = [o for o in out if o["issues"] == 1]
+    sp = round(sum(o["prompt_per_issue"] for o in solo) / len(solo)) if solo else ""
+    sc = round(sum(o["cost_per_issue"] for o in solo) / len(solo), 4) if solo else ""
+    for o in out:
+        o.update(solo_prompt_per_issue=sp, solo_cost_per_issue=sc,
+                 ratio_prompt=round(o["prompt_per_issue"] / sp, 3) if sp else "", ratio_cost=round(o["cost_per_issue"] / sc, 3) if sc else "")
+    return out
+
+
+def write_clusters(rs: list[dict], path: Path | None = None) -> dict:
+    path = Path(path or CLUSTER_LOG)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    cs = cluster_rows(rs, lambda key: core.state()["items"][key]["task"])
+    path.write_text("\n".join(["\t".join(CLUSTER_COLUMNS), *("\t".join(str(c[k]) for k in CLUSTER_COLUMNS) for c in cs)]) + "\n")
+    return {"path": str(path), "rows": len(cs)}
+
+
 def write(path: Path | None = None) -> dict:
     """Rewrite the log from the journal; returns {path, rows}."""
     path = Path(path or LOG)
     path.parent.mkdir(parents=True, exist_ok=True)
     rs = rows()
     path.write_text("\n".join(["\t".join(COLUMNS), *("\t".join(str(r[c]).replace("\t", " ").replace("\n", " ") for c in COLUMNS) for r in rs)]) + "\n")
-    return {"path": str(path), "rows": len(rs)}
+    return {"path": str(path), "rows": len(rs), "clusters": write_clusters(rs, path.with_name(CLUSTER_LOG.name))}
 
 
 core.API["run_log"] = lambda: {**write(), "handoffs": write_handoffs()}

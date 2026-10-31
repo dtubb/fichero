@@ -31,3 +31,17 @@ def test_the_log_has_a_row_per_item_and_role_with_tokens_cost_and_verdict(scratc
     out = runlog.write(tmp_path / "log.tsv")
     lines = (tmp_path / "log.tsv").read_text().splitlines()
     assert out["rows"] == 2 and lines[0].split("\t") == runlog.COLUMNS and len(lines[1].split("\t")) == len(runlog.COLUMNS)
+
+
+def coder_row(item, prompt, cached, usd):
+    return {"role": "coder", "item": item, "prompt_tokens": prompt, "cached_tokens": cached, "output_tokens": 10, "cost_usd": usd}
+
+
+def test_cluster_rows_compare_the_per_issue_cost_of_a_lane_with_the_single_issue_tasks():
+    rows = [coder_row("1", 1000, 0, 0.10), coder_row("2", 3000, 0, 0.30),   # two single-issue tasks: 2000 tokens, US$0.20 each on average
+            coder_row("3@lane", 1000, 600, 0.05), coder_row("4@lane", 1400, 1000, 0.07), {"role": "reviewer", "item": "3@lane"}]
+    got = runlog.cluster_rows(rows, lambda key: "lane" if key.endswith("@lane") else key)
+    lane = next(r for r in got if r["task"] == "lane")
+    assert (lane["issues"], lane["prompt_per_issue"], lane["cache_hit"], lane["cost_per_issue"]) == (2, 1200, 0.667, 0.06)
+    assert (lane["solo_prompt_per_issue"], lane["ratio_prompt"], lane["ratio_cost"]) == (2000, 0.6, 0.3)
+    assert len(got) == 3

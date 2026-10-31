@@ -84,7 +84,7 @@ def scratch(tmp_path, monkeypatch):
     shutil.copy(ROOT / "scripts" / "lane_ready_check.sh", repo / "scripts" / "lane_ready_check.sh")
     (repo / "scripts" / "check_no_bad.py").write_text(GUARD)
     # lane_ready_check.sh reads the repo's own profile and refuses fewer than 20 guards (a blind run is not green):
-    # the scratch repo carries the real profile and stub guards to reach the count (#6330)
+    # the scratch repo carries the real profile and stub guards to reach the count (#6322)
     (repo / "pipeline" / "projects").mkdir(parents=True)
     shutil.copy(ROOT / "pipeline" / "projects" / "fichero.toml", repo / "pipeline" / "projects" / "fichero.toml")
     for i in range(20):
