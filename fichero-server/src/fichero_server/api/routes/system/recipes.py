@@ -2042,9 +2042,29 @@ def _action_save_setup(db: Database, params: ProjectSetup, ctx: ActionContext) -
 
         recipe = drop_readers_of_changed_models(before["recipe"], recipe)
     write_project_setup(library, params.answers if "answers" in sent else before.get("answers"), recipe)
+    _propose_steps_gained(library, before.get("recipe"), recipe)
     after = read_project_setup(library)
     return after, ChangeSpec(domains=["project"], target_ids=[], before=before, after=after,
                              emit_type="project.setup_saved")
+
+
+def _propose_steps_gained(library: Path, before: dict | None, after: dict | None) -> None:
+    """After the first Start the plan holds only what is proposed (and what did not finish): a step Set Up added since is
+    written into the proposal so the next Start runs it, and a step taken out leaves it (`wide.prepare.ticked-later-still-runs`,
+    #5706). Before the first Start nothing is proposed: the whole recipe runs."""
+    from fichero_server.core.timeutil import utc_now_iso
+    from fichero_server.recipes.project import read_proposed, read_start, write_proposed
+
+    if not read_start(library) or not before or not after:
+        return
+    had = {s.get("id") for s in before.get("steps") or []}
+    now = [s.get("id") for s in after.get("steps") or []]
+    proposal = dict(read_proposed(library) or {"layers": [], "steps": []})
+    steps = [sid for sid in proposal.get("steps") or [] if sid in now]
+    steps += [sid for sid in now if sid not in had and sid not in steps]
+    if steps == list(proposal.get("steps") or []):
+        return
+    write_proposed(library, {**proposal, "steps": steps, "proposed_at": utc_now_iso(timespec="seconds")} if steps else None)
 
 
 class AllowCloudResult(BaseModel):

@@ -6,6 +6,7 @@ until it becomes workflows the runner already knows; if a step's model could not
 and Start ran the workflow anyway, the page would be read by a model the person never chose, and
 nothing would say so. Pages must never leave the Mac in a project that keeps them local.
 """
+# ruff: noqa: F811  (the `pages` fixture is imported and taken as an argument: pytest's idiom)
 from __future__ import annotations
 
 import pytest
@@ -13,6 +14,7 @@ import pytest
 from fichero_server.recipes import start
 from fichero_server.recipes.start import _preset, estimate, plan_start
 from fichero_server.workflows.default_workflows import preset_workflow_id
+from tests.unit.recipes.test_recipe_execution_to_spec import pages  # noqa: F401,E402  (fixture: two photographs in the project)
 
 LINES = {"id": "lines", "job": "find-lines", "model": {"kraken": "blla", "kraken_version": "bundled"},
          "runs_on": "this-mac"}
@@ -159,3 +161,46 @@ def test_the_estimate_is_free_on_this_mac_and_never_guesses_an_unpriced_model():
     cloud = {**CLOUD_CORRECT, "model": {"cloud": "openai", "model": "no-such-model-xyz"}}
     unpriced = estimate(plan_start(_recipe(LINES, READ, cloud), stays_local=False)["workflows"], 120)
     assert unpriced["runs"][-1]["cost_usd"] is None and unpriced["total_cost_usd"] is None
+
+
+PREP = {"id": "prep", "job": "prepare-the-image", "model": {"builtin": "image-preparer"}}
+
+
+def test_wide_a_plan_whose_only_step_is_a_card_has_a_run_and_no_refusal():
+    """`wide.start.enabled-on-any-run` (engine half, #5806): Prepare Images alone is an `OTHER_CARDS` card, not a workflow; the
+    plan still has a run and no refusal, so Start is enabled on `runs`, never on `workflows`."""
+    plan = plan_start(_recipe(PREP), stays_local=True)
+    assert plan["refusals"] == [], plan["refusals"]
+    assert plan["workflows"] == [] and [r["card"] for r in plan["runs"]] == ["prepare"]
+    assert plan["skipped"] == [], "nothing is skipped: the sentence 'every step is skipped' would be false"
+
+
+def test_wide_a_stage_ticked_after_the_first_start_is_in_the_next_plan(client, db, pages, tmp_path):
+    """`wide.prepare.ticked-later-still-runs` (#5706, section F cause 4): saving a setup whose recipe gained steps after the first
+    Start writes those steps into the proposal, so `only` holds them and the plan runs them; a stage taken out leaves it."""
+    from pathlib import Path
+
+    from fichero_server.recipes.project import read_proposed, write_proposed, write_start
+    from tests.unit.recipes.test_recipe_execution_to_spec import _recipe as recipe_of
+    from tests.unit.recipes.test_recipe_execution_to_spec import _save
+
+    library = Path(db.path).parent
+    before = recipe_of(tmp_path, LINES, READ)
+    _save(client, before)
+    write_start(library, {"started_at": "2026-10-31T09:00:00", "recipe_id": "t/run", "workflows": [], "pages": 0})
+    assert read_proposed(library) is None
+
+    _save(client, recipe_of(tmp_path, LINES, READ, PREP))
+    assert read_proposed(library)["steps"] == ["prep"], "the step the recipe gained is proposed"
+    plan = client.get("/api/recipes/project/start").json()
+    assert [r["steps"] for r in plan["runs"]] == [["prep"]], plan["runs"]
+    assert plan["refusals"] == []
+
+    _save(client, recipe_of(tmp_path, LINES, READ))  # the stage is taken out again
+    assert read_proposed(library) is None
+
+    write_proposed(library, None)
+    unstarted_library_recipe = recipe_of(tmp_path, LINES, READ, PREP)
+    write_start(library, None)  # before the first yes the whole recipe runs and nothing is proposed
+    _save(client, unstarted_library_recipe)
+    assert read_proposed(library) is None
