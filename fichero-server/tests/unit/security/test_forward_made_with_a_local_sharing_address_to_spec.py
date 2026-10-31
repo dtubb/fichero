@@ -91,3 +91,24 @@ def test_forward_state_asks_tailscale_nothing_while_not_sharing(cli, monkeypatch
     monkeypatch.setattr(ts.os, "environ", dict(APP_NOT_HOSTING))
     assert ts.forward_state(8765) == "none"
     assert cli.calls == []
+
+
+# -- review 2026-10-31 (H4): "unknown" (the engine cannot ask Tailscale: a sandboxed build) is not "none" (free) --------------
+def test_forward_state_says_unknown_when_the_cli_cannot_be_run(monkeypatch) -> None:
+    import subprocess
+
+    monkeypatch.setattr(ts.os, "environ", dict(LOCAL_SHARER))
+    monkeypatch.setattr(ts, "tailscale_cli", lambda: "/Applications/Tailscale.app/Contents/MacOS/Tailscale")
+    for failure in (PermissionError("Operation not permitted"), subprocess.TimeoutExpired("tailscale", 20),
+                    subprocess.CalledProcessError(1, "tailscale"), ValueError("no JSON")):
+        def refuse(args, _f=failure):
+            raise _f
+        monkeypatch.setattr(ts, "_run", refuse)
+        assert ts.forward_state(8765) == "unknown", failure
+
+
+def test_forward_state_says_none_when_tailscale_is_not_installed_or_the_port_is_free(cli, monkeypatch) -> None:
+    monkeypatch.setattr(ts.os, "environ", dict(LOCAL_SHARER))
+    assert ts.forward_state(8765) == "none"  # installed, port free
+    monkeypatch.setattr(ts, "tailscale_cli", lambda: None)
+    assert ts.forward_state(8765) == "none"  # not installed: a known state, not an unknown one

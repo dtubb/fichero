@@ -153,11 +153,12 @@ class TailnetOfferResponse(BaseModel):
 class SharingStateResponse(BaseModel):
     multiuser_enabled: bool
     # The host's addresses, in one place (`sharing.state-names-every-address`): the sharing address the engine was
-    # started with, its LAN IP, the tailnet name, and who holds the tailnet forward ("ours" | "foreign" | "none").
+    # started with, its LAN IP, the tailnet name, and who holds the tailnet forward: "ours" | "foreign" | "none" |
+    # "unknown" (Tailscale is installed but this engine could not ask it: a sandboxed build, #5317).
     public_base_url: str | None = None
     lan_ip: str | None = None
     tailnet_url: str | None = None
-    tailnet_forward: Literal["ours", "foreign", "none"] = "none"
+    tailnet_forward: Literal["ours", "foreign", "none", "unknown"] = "none"
     # The one command to paste in Terminal when this engine cannot make the tailnet forward itself
     # (a sandboxed app cannot run the Tailscale CLI, #5317); None when nothing is missing.
     tailnet_serve_command: str | None = None

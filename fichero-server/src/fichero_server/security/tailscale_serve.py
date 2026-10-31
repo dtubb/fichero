@@ -145,8 +145,10 @@ def sharing_on(env: Mapping[str, str] | None = None) -> bool:
 
 def forward_state(port: int) -> str:
     """What holds the tailnet ``port`` now, for `GET /api/pair/sharing` (`sharing.state-names-every-address`):
-    "ours" (this engine's loopback TLS listener), "foreign" (something Fichero did not make), "none" (free, or
-    Tailscale missing or not answering, or this engine is not sharing: then Tailscale is not even asked). Never raises."""
+    "ours" (this engine's loopback TLS listener), "foreign" (something Fichero did not make), "none" (free, Tailscale not
+    installed, or this engine is not sharing: then Tailscale is not even asked), "unknown" (Tailscale is installed but
+    this engine could not ask it: a sandboxed build cannot run the CLI (#5317), it timed out, or it printed no JSON; the
+    pane must not read this as "not running", review 2026-10-31 H4). Never raises."""
     if not sharing_on():
         return "none"
     cli = tailscale_cli()
@@ -155,7 +157,7 @@ def forward_state(port: int) -> str:
     try:
         current = forward_target(serve_status(cli), port)
     except (OSError, ValueError, subprocess.SubprocessError):
-        return "none"
+        return "unknown"
     if current is None:
         return "none"
     return "ours" if current == wanted_target(port) else "foreign"

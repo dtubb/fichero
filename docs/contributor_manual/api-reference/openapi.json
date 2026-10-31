@@ -93955,7 +93955,8 @@
             "enum": [
               "ours",
               "foreign",
-              "none"
+              "none",
+              "unknown"
             ],
             "title": "Tailnet Forward",
             "default": "none"
