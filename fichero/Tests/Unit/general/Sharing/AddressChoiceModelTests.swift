@@ -20,13 +20,31 @@ struct AddressChoiceModelTests {
         #expect(AddressChoiceModel.root(for: .thisNetwork, rows: rows)?.absoluteString == local)
     }
 
-    @Test("no Tailscale: the Tailscale row is there, greyed with why, and This network is the default")
+    @Test("no Tailscale: the Tailscale row is there, greyed with why and WITHOUT a host, and This network is the default")
     func tailscaleOffIsSaidNotHidden() {
         let rows = AddressChoiceModel.rows(sharingAddress: local, tailnetURL: nil, tailnetForward: "none")
         #expect(rows.count == 2)
         #expect(rows[1].disabledReason == AddressChoiceModel.tailscaleOff)
+        #expect(rows[1].hostText == nil, "a placeholder names no host (review M2: 'tailscale.invalid' was shown)")
         #expect(AddressChoiceModel.defaultChoice(rows: rows) == .thisNetwork)
         #expect(AddressChoiceModel.root(for: .tailscale, rows: rows)?.absoluteString == local, "a disabled choice falls back to the default")
+        #expect(AddressChoiceModel.shownChoice(.tailscale, rows: rows) == .thisNetwork, "the picker shows the row it really uses (review L1)")
+    }
+
+    @Test("an engine that could not ask Tailscale (unknown) offers the row as unchecked, not as 'not running', and not first")
+    func unknownForwardIsUncheckedNotOff() {
+        let rows = AddressChoiceModel.rows(sharingAddress: local, tailnetURL: tail, tailnetForward: "unknown")
+        #expect(rows[1].isEnabled && rows[1].reach == AddressChoiceModel.tailscaleUnchecked)
+        #expect(AddressChoiceModel.defaultChoice(rows: rows) == .thisNetwork)
+        let noDetection = AddressChoiceModel.rows(sharingAddress: local, tailnetURL: nil, tailnetForward: "unknown")
+        #expect(noDetection[1].disabledReason == AddressChoiceModel.tailscaleUnchecked, "never 'Tailscale is not running' when it was not asked")
+    }
+
+    @Test("a .ts.net sharer whose detection fails still gets its own address as the Tailscale row")
+    func tailnetSharerWithoutDetection() {
+        let rows = AddressChoiceModel.rows(sharingAddress: "https://m.tail1234.ts.net:8765", tailnetURL: nil, tailnetForward: "unknown")
+        #expect(rows.map(\.choice) == [.tailscale] && rows[0].isEnabled)
+        #expect(rows[0].url?.absoluteString == "https://m.tail1234.ts.net:8765")
     }
 
     @Test("a foreign forward (the M4's stale raw forward) disables the Tailscale row with the holder named")
@@ -46,15 +64,15 @@ struct AddressChoiceModelTests {
     func tailnetSharer() {
         let rows = AddressChoiceModel.rows(sharingAddress: "https://m.tail1234.ts.net:8765", tailnetURL: "https://m.tail1234.ts.net", tailnetForward: "ours")
         #expect(rows.map(\.choice) == [.tailscale])
-        #expect(rows[0].url.port == 8765)
+        #expect(rows[0].url?.port == 8765)
     }
 
     @Test("the pin follows the row: none for Tailscale, the pin for This network")
     func pinFollowsTheRow() {
         let rows = AddressChoiceModel.rows(sharingAddress: local, tailnetURL: tail, tailnetForward: "ours")
         let pin = Data("spki-value".utf8).base64EncodedString()
-        #expect(RemoteClientPairing.invitePin(pin, for: rows[1].url) == .notNeeded)
-        #expect(RemoteClientPairing.invitePin(pin, for: rows[0].url) == .pin(pin))
+        #expect(RemoteClientPairing.invitePin(pin, for: rows[1].url!) == .notNeeded)
+        #expect(RemoteClientPairing.invitePin(pin, for: rows[0].url!) == .pin(pin))
     }
 
     @Test("no sharing address at all: no rows")

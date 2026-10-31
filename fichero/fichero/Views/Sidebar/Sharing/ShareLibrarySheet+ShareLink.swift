@@ -24,7 +24,7 @@ extension ShareLibrarySheet {
             let rows = addressRows
             if rows.filter(\.isEnabled).count > 1 {
                 Picker("Address", selection: Binding(
-                    get: { addressChoice ?? AddressChoiceModel.defaultChoice(rows: rows) ?? .thisNetwork },
+                    get: { AddressChoiceModel.shownChoice(addressChoice, rows: rows) ?? .thisNetwork },
                     set: { addressChoice = $0 })) {
                     ForEach(rows.filter(\.isEnabled)) { row in Text(row.title).tag(row.choice) }
                 }

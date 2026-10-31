@@ -282,7 +282,7 @@ struct ShareSettingsView: View {
         if rows.count > 1 || rows.contains(where: { !$0.isEnabled }) {
             VStack(alignment: .leading, spacing: 6) {
                 Picker("Address", selection: Binding(
-                    get: { addressChoice ?? AddressChoiceModel.defaultChoice(rows: rows) ?? .thisNetwork },
+                    get: { AddressChoiceModel.shownChoice(addressChoice, rows: rows) ?? .thisNetwork },
                     set: { addressChoice = $0 })) {
                     ForEach(rows.filter(\.isEnabled)) { row in Text(row.title).tag(row.choice) }
                 }
@@ -290,7 +290,8 @@ struct ShareSettingsView: View {
                 .accessibilityIdentifier("sharing.address.picker")
                 ForEach(rows) { row in
                     HStack(spacing: 6) {
-                        Text("\(row.title): \(row.url.host ?? "")").font(.caption).foregroundStyle(row.isEnabled ? .primary : .secondary)
+                        Text(row.hostText.map { "\(row.title): \($0)" } ?? row.title)
+                            .font(.caption).foregroundStyle(row.isEnabled ? .primary : .secondary)
                         Text(row.disabledReason ?? row.reach).font(.caption).foregroundStyle(.secondary)
                         Spacer()
                         if row.isEnabled {
