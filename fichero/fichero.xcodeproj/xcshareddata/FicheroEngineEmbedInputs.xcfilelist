@@ -745,6 +745,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/activity.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/activity_store.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/activity_types.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/attribute_sources.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/brief_tool.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/builder.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/cache.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/check_tool.py
