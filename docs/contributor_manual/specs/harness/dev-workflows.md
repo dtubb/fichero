@@ -5,7 +5,8 @@
 > Fichero builds itself through its own harness, how to run a cluster on a scratch path, and how the same harness runs
 > a research project.
 
-> **Status: PROPOSED 2026-10-31 (rewrite 3, cut to the thin design), for the maintainer's approval.** Replaces the text
+> **Status: PROPOSED 2026-10-31 (rewrite 3, cut to the thin design; § G adds project neutrality, the carried process and
+> local-model parity from `agent-work/status/briefs/how-we-work.md`), for the maintainer's approval.** Replaces the text
 > approved on 2026-10-26 (c9c24dfbf, 739ad4ba4). Evidence, trial numbers and the thin-harness argument live in
 > `agent-work/status/briefs/studio-harness-report.md` and `thin-harness-answer.md`, not here. Tags: [OK] built ·
 > [PARTIAL] exists, not wired · [GAP] not built · [BROKEN] fails today · [PROPOSED] decided here, not yet ruled.
@@ -20,7 +21,12 @@
 
 ## Intent
 
-One harness, two uses. **Fichero Builder** builds Fichero: a long-running worker takes a cluster of issues from one spec,
+One harness, two uses, any project. The harness is **project-neutral**: its code names no project; everything that differs
+between projects (the integration branch, the check commands, the guard glob, the forbidden commands, the people list, the
+review checklist, the machine limits, the handoff line) lives in one rules file per project, and Fichero is the first
+project. It carries the process that works here (§ G): rulings → spec bound to tests → issues in build order → a
+long-running builder → a fresh review bound to a sha → fix and re-review → a scripted land → gate → dev build → release.
+**Fichero Builder** builds Fichero: a long-running worker takes a cluster of issues from one spec,
 builds them in order, one commit per issue, checks, asks for review, lands the cluster, updates the issues, hands off
 at 85 % of its context and a successor carries on. **Fichero Researcher** does a person's research with the same
 harness: finds sources on the web, searches the person's own libraries, reads and notes, files tasks under milestones,
@@ -85,6 +91,14 @@ question queue, a second activity list.
   baseline on each run, and a repeated finding becomes a rule or a check (baseline table in the report).
 - **One worker kind, two capability sets**; **models by configuration, picked by results**; **small-context handoff is a
   core requirement** (the Researcher's machine is a 24 GB laptop).
+- **Project-neutral, Fichero first** (maintainer 2026-10-31): a second, unrelated repository runs a real cluster by changing
+  only its rules file and review checklist; a project name in harness code is a defect.
+- **Local models with the same guardrails** (maintainer 2026-10-31): the harness must run reliably on local models, and every
+  guardrail Claude Code gives today has a carrier that is a plain file, a script, an OS or git rule, or a harness feature
+  (§ G); rules are enforced outside the model, and skills are markdown on disk any model reads. Order of work: Sonnet on
+  Claude Code, then OpenRouter through Pi, then local on the Studio.
+- **Messages are files, not keystrokes** (evidence in `how-we-work.md`: about 9,600 re-sent Enter keys in 24 days): a
+  worker's inbox is a file its hook reads before each turn; typing into a pane is the fallback only.
 
 ### Deployment profiles (configuration over one harness)
 
@@ -110,8 +124,9 @@ review or synthesis; where it is off, the role falls back along its list.
   off. Test: `fichero-server/tests/unit/workflows/test_worker_start_stop.py::test_start_record_stop_and_successor`.
 - `dev-workflows.run.worker-address` [PROPOSED] — per task, the current generation's address (pane or process group,
   session directory, kind, started-at) is registered, rewritten at each handoff, cleared when gone; a supervisor's
-  `tell` goes only there (today `tell.sh <pane>`, under 800 characters) and a tell to a stale generation is refused
-  naming the current one, so a handoff never leaves two workers in one worktree. Test:
+  `tell` appends to that generation's **inbox file**, which the worker's hook reads before each turn and marks delivered (a
+  pane keystroke, today `tell.sh <pane>`, is the fallback and is logged as such); under 800 characters; a tell to a stale
+  generation is refused naming the current one, so a handoff never leaves two workers in one worktree. Test:
   `fichero-server/tests/unit/workflows/test_worker_address.py::test_tell_reaches_only_the_current_generation`.
 - `dev-workflows.node.worker` [PARTIAL] (#6116) — kinds `claude` (`claude -p` as `cli_agent.py` runs it, unchanged) and `pi`
   (headless `pi -p`, a session directory, the role's rules appended, provider and model from the role; returns usage,
@@ -155,7 +170,9 @@ review or synthesis; where it is off, the role falls back along its list.
 ### B. Review, landing, gates and watches
 
 - `dev-workflows.run.review-and-land` [PROPOSED] (maintainer 2026-10-31: land per cluster) — `request-review` starts a fresh
-  reviewer worker on an issue's commit, its verdict bound to the sha with findings; NOT_READY returns them to the same
+  reviewer worker on an issue's commit with the project's **review checklist file** (named in the rules file; for Fichero:
+  spec diff, range-diff after a rebase, tests of changed readers, the shell file cap; author, trailers, lint and guards are
+  `check`'s, not the reviewer's), its verdict bound to the sha with findings; NOT_READY returns them to the same
   session (two rounds, then the queue); `land` is a guard script that fast-forwards `integration` only when every
   issue is READY and the ladder is green on the rebased head (`patch-id` reuse of reviews), never `main`; each issue is
   then closed with its sha or left open with its residue (`close_fixed_issues.py`'s rule). A research task's review is
@@ -192,9 +209,12 @@ review or synthesis; where it is off, the role falls back along its list.
   written from them as rows and TSV; Activity shows the rows. Test:
   `fichero-server/tests/unit/workflows/test_records_are_truth.py::test_state_and_log_read_from_records`.
 - `dev-workflows.run.rules-file` [PROPOSED] (maintainer 2026-10-31: declarative guardrails) — one rules file per project or
-  use (`harness.toml` beside the profile) declares **what must hold**, never the worker's order of work: the worktree and
-  scratch path, allowed tools and commands, required checks and their time budgets, turn and dollar budgets, machine
-  limits, landing conditions, the people list for the public boundary, the handoff line. The policy hook, the `check`
+  use (`harness.toml` beside the profile) declares **what must hold**, never the worker's order of work: the integration
+  and protected branches, the worktree root and branch pattern, the commit author and trailers, the worktree and
+  scratch path, allowed tools and forbidden commands, required checks as argv lists with env, cwd and time budgets (lint,
+  named tests, the guard glob with a found-floor and skip list, contract regeneration and when it applies), turn and
+  dollar budgets, machine limits (one test run per agent, disk floor, load), landing conditions, the people list for the
+  public boundary, the review checklist path, the role models, the handoff line. The policy hook, the `check`
   and `land` tools, the land gate, the watch tick and the machine watch read it; no rule lives only in prose or code,
   and a rule that is not in the file is not enforced. The boundary is deliberate: driving a worker's steps from data was
   the shape that lost here (the frozen runner's `[[steps]]`), so the file constrains, the worker decides. Test:
@@ -311,6 +331,43 @@ review or synthesis; where it is off, the role falls back along its list.
   (failing command, localisation, the base's history, the failing tail pasted); a bug it cannot reproduce goes to the
   thinker role marked so. Test: `fichero-server/tests/unit/workflows/test_bug_narrowing.py::test_reproduced_or_marked`.
 
+### G. Any project, any model: the process the harness carries
+
+- `dev-workflows.run.process` [PROPOSED] (maintainer 2026-10-31) — the harness carries the outer loop as it is practised, each
+  step marked by who decides: **rulings** (a person; recorded as paraphrased ruling files cited in briefs), **spec**
+  (a model drafts after a script gathers rulings, symbols, tests and open issues; a person approves; the spec guards bind
+  shape, tags, milestone, manual and tests), **issues in build order** (script), **brief** (script: body, trusted comments,
+  spec lines, localisation, the applicable rulings), **build** (the long-running worker, one commit per issue, the spec's
+  status line in the same commit), **check** (script), **review** (a fresh reviewer, verdict at a sha, the checklist
+  file), **fix and re-review** (same worker, fresh reviewer, two rounds then the queue), **land** (script, own
+  credential), **close or leave open with residue** (script), **gate** and **dev build** (long scripts as one row each),
+  **release** (the deferred workflow, a yes before anything public). A worker's claim of done is never a state change:
+  only `check`'s output and a verdict move an item. Test:
+  `fichero-server/tests/unit/workflows/test_process_steps.py::test_each_step_has_its_decider_and_only_check_moves_an_item`.
+- `dev-workflows.project.neutral` [PROPOSED] (maintainer 2026-10-31) — harness code (hooks, tools, `check`, `land`, the tick,
+  the templates) contains no project name, path, branch, command or guard; all of it is read from the project's rules
+  file and review checklist; a guard greps the harness code for the first project's name and fails on a hit. A second
+  project is any repository with a rules file: the test points the harness at a small unrelated repository (a CLI with a
+  pytest suite and one shell guard), runs a two-issue cluster through brief, build, check, review, land and close on a
+  scratch remote, and compares the rows with a Fichero cluster's: same step names, same row shape, only the config
+  differs. Test: `fichero-server/tests/unit/workflows/test_second_project.py::test_unrelated_repo_runs_a_cluster_from_its_rules_file_alone`.
+- `dev-workflows.run.local-parity` [PROPOSED] (maintainer 2026-10-31) — the harness runs on a local model server with the same
+  guardrails as on Claude Code. Each Claude Code feature the process depends on has a named carrier, and the carrier is
+  what the harness uses on every kind, so switching kind changes nothing but the rules file's roles: skills → markdown
+  files under the harness's `skills/` loaded as rules by every kind; agent definitions → `roles/<role>.md` plus the
+  rules file's role table; teammates and messages → the inbox file (`run.worker-address`); PreToolUse, PostToolUse and
+  Stop hooks → the same scripts run by the Claude Code hook, the Pi extension, or the harness's own loop around each
+  tool call; permissions → the OS sandbox, no token in the worktree, the forbidden-command list (`run.policy-hook`);
+  compaction → the handoff file and a fresh session (`worker.handoff`); auto-memory → the rules file for rules, ruling
+  files cited in the brief for judgement, the handoff for state; MCP tools → Pi's MCP client or a `symbols` script;
+  `AskUserQuestion` → the question queue (`node.human-question`); session cron → launchd and the tick; usage from the
+  transcript → usage from the kind's own report, one adapter per kind; model picker → the role table. Known gaps,
+  stated: a bare chat-completions loop has no hook point and no tool-call repair, so a local kind is Pi or the
+  harness's own loop, never raw completions; tool-call shape differs per model family and gets a repair layer; a local
+  model reads short files, so each skill stays under sixty lines and the brief cites rulings rather than memory. Bars
+  (from `models.by-config`) decide when a role moves local. Test:
+  `fichero-server/tests/unit/workflows/test_local_parity.py::test_same_hooks_rules_and_rows_on_every_kind`.
+
 ## Rulings
 
 - 2026-10-26 (kept): pinned separate dev engine first (Q1); the repo is a separate dev library (Q3); model steps do
@@ -323,7 +380,8 @@ review or synthesis; where it is off, the role falls back along its list.
   machine is a 24 GB laptop; the deployment profiles; Activity Monitor as the model; issues managed in Fichero and
   synced with a guarded write; engine records are the truth under supervision; `pipeline/` frozen; thin engine; two
   worker kinds; fixed steps as scripts; enforce by hook, credential and guard rather than ask; standing by the end of
-  November.
+  November; project-neutral with Fichero first; local models with guardrails as strong as Claude Code's, Sonnet on Claude
+  Code first, then OpenRouter, then local on the Studio.
 - Deferred as text: invited contributors; shared projects; the release as a dev workflow (the one fixed sequence that
   earns one: long, resumable at the failed step, a yes before anything public, step by step in Activity).
 
@@ -394,12 +452,24 @@ Stage 3 is held to one step until Stage 1 has run a real cluster. `Depends on` d
 - Depends on: 1.6
 - Size: M
 
+#### Step 2.6 — the process as steps with deciders; a second, unrelated project runs a cluster
+- Behaviours: `dev-workflows.run.process`, `dev-workflows.project.neutral`
+- Tests: fichero-server/tests/unit/workflows/test_process_steps.py, fichero-server/tests/unit/workflows/test_second_project.py
+- Depends on: 1.6
+- Size: M
+
 ### Stage 3 — models by configuration (week 4; detailed after Stage 1 has run a real cluster)
 
 #### Step 3.1 — models in configuration, the decider, bug narrowing
 - Behaviours: `dev-workflows.models.by-config`, `dev-workflows.models.decider`, `dev-workflows.builder.bug-narrowing`
 - Tests: fichero-server/tests/unit/workflows/test_model_config.py, fichero-server/tests/unit/workflows/test_decider.py, fichero-server/tests/unit/workflows/test_bug_narrowing.py
 - Depends on: 2.5
+- Size: M
+
+#### Step 3.2 — local parity: the same hooks, rules and rows on a Pi kind and a local server
+- Behaviours: `dev-workflows.run.local-parity`
+- Tests: fichero-server/tests/unit/workflows/test_local_parity.py
+- Depends on: 3.1
 - Size: M
 
 ## Behaviour tests
@@ -439,9 +509,12 @@ Every behaviour names its test above, written in its step; each `security.*` and
 | `dev-workflows.workspace.source` | 2.4 |
 | `dev-workflows.researcher.tasks` | 2.5 |
 | `dev-workflows.security.untrusted-text` | 2.5 |
+| `dev-workflows.run.process` | 2.6 |
+| `dev-workflows.project.neutral` | 2.6 |
 | `dev-workflows.models.by-config` | 3.1 |
 | `dev-workflows.models.decider` | 3.1 |
 | `dev-workflows.builder.bug-narrowing` | 3.1 |
+| `dev-workflows.run.local-parity` | 3.2 |
 
 ## Test matrix
 
