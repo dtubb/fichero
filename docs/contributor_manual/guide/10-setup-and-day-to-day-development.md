@@ -11,7 +11,7 @@ Building the app needs a Mac on **macOS 26** with **Xcode 26** (deployment targe
     python3.12 -m venv .venv
     source .venv/bin/activate
     pip install -e 'fichero-server[dev]'
-    pip install pytest ruff
+    pip install 'pytest==9.1.1' 'pytest-asyncio==1.4.0' ruff  # not 9.2.0: test_perf_disk_reclaim fails there
 
 The last line is not optional: `pytest` and `ruff` are neither runtime dependencies nor part of the `[dev]` extra, but the lint and test commands assume both are on your `PATH`. `fichero-server/pyproject.toml` is the dependency manifest (runtime deps plus the `[dev]`, `[kg]`, `[image]` extras); the `fichero-server/requirements.txt` beside it is a **generated mirror** of what the app bundle ships, for matching a dev venv to it, and never a source to edit. Briefcase is a build tool, not a runtime dependency.
 

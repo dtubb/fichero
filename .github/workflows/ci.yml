@@ -61,7 +61,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e '.[dev]' || pip install -e .
-          pip install ruff pytest pytest-asyncio pytest-timeout
+          pip install ruff 'pytest==9.1.1' 'pytest-asyncio==1.4.0' pytest-timeout  # pytest 9.2.0 fails test_perf_disk_reclaim
 
       - name: Download spaCy models
         run: |
