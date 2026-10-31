@@ -29,7 +29,7 @@ topics:
     title: Leave out
     short: Marks lines that are not writing (specks, anything off the page, damage) as left out, before they are read.
     long: >-
-      A line is left out when it is too small to be a line of writing, lies off the page (the scanner bed), or looks like
+      How it works: rules, not a model, on this Mac, free. A line is left out when it is too small to be a line of writing, lies off the page (the scanner bed), or looks like
       bleed-through or damage rather than ink. Nothing is deleted: Read skips what is left out, each line says why, and you
       can bring any of them back from the Inspector.
   - id: split-pages
@@ -37,6 +37,8 @@ topics:
     title: Split pages
     short: Cuts a scan of an open book (two pages at once) into single pages, in order.
     long: >-
+      How it works: Apple Vision finds the document in each photograph and Fichero cuts an open spread at its gutter, on
+      this Mac, free; a closed notebook or a single page is kept whole, and an unclear gutter is proposed, never cut.
       Each half becomes a page of its own, so lines are found and read on one page at a time and the
       reading order runs from the left page to the right.
   - id: find-documents-in-a-folder
@@ -46,7 +48,7 @@ topics:
       Proposes which pages belong together as one document, such as a letter of three pages in an
       archive bundle, for you to confirm.
     long: >-
-      It reads the text already there: a court's caption, a heading, a place and date, a greeting
+      How it works: rules over the text already there, on this Mac, free. A court's caption, a heading, a place and date, a greeting
       open a document; a signature or "Cópiese, notifíquese" closes one; a sentence running over the
       page joins two pages. Blank backs and pages photographed twice are reported, not made
       documents. Each proposed document has its kind (Sentencia, Carta, Cable …) and how sure it is.

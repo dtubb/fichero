@@ -756,6 +756,21 @@ def _cloud_text_pick(job: str, choice: Choice, pool: list[Card] | tuple[Card, ..
     return Choice(job, best, reasons=reasons, chain=[c for c in ranked[1:] if c.runs_on == best.runs_on])
 
 
+def tie_follows_the_line_reader(steps: list[dict[str, Any]]) -> None:
+    """Tie text to lines runs a Kraken reader whose rough read the page text is aligned to, so its default is the project's own
+    line reader: the tie then matches the reading (`wide.picker.tie-text-picker-visible`, #6256). Where the line step's model is
+    not a Kraken reader (a vision model reads those lines) the rules' own Kraken choice stays. The person can change it."""
+    from fichero_server.recipes.start import _kraken_reader_for
+
+    read = next((s for s in steps if s.get("job") == "read-a-line" and s.get("model")), None)
+    tie = next((s for s in steps if s.get("job") == "tie-text-to-lines" and s.get("model")), None)
+    if read is None or tie is None or tie["model"] == read["model"] or _kraken_reader_for(read["model"]) is None:
+        return
+    tie["model"] = dict(read["model"])
+    tie["runs_on"] = read.get("runs_on") or tie.get("runs_on")
+    tie["reasons"] = ["the project's own line reader: the tie matches the reading", *[r for r in tie.get("reasons") or [] if "already on this Mac" not in r]]
+
+
 def _chosen(choice: Choice) -> dict[str, Any]:
     """A choice as recipe data: the model, where it runs, why, and its card's facts; or its gap and problem."""
     if choice.card is None:
@@ -1158,6 +1173,7 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
             steps.append(second)
     from fichero_server.recipes.jobs import get_job
 
+    tie_follows_the_line_reader(steps)
     for step in steps:
         known = get_job(step["job"])
         step.setdefault("layer", known.layer if known else step["job"])  # `source.recipe.steps-name-layers`

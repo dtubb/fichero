@@ -147,3 +147,40 @@ def test_the_steps_own_card_keeps_its_model_against_a_shipped_twin_at_another_re
         "hf:own@r2", "hf:other@1"]
     assert [c.id for c in step_candidates([shipped, own, other], "read-a-line", frozenset({"hf:own@r2"}))] == [
         "hf:own@r2", "hf:other@1"]
+
+
+# --- `wide.picker.*` (#6052): no model step shows an empty chooser on a Mac without a cloud key ---
+
+from tests.unit.recipes.test_installed_model_first_to_spec import mac  # noqa: E402,F401,F811  (fixture)
+
+TEXT_STEPS = ("split-into-entries", "find-statements", "describe-for-the-catalogue", "extract-to-a-table")
+
+
+def test_wide_each_text_step_lists_a_local_candidate_without_a_cloud_key(client, mac):  # noqa: F811
+    """`wide.picker.cards-for-the-text-steps`: with no key set, every text-model step still lists a model that runs on this Mac
+    (the catalogue's text MLX models, to download, or one installed), so the picker is never empty."""
+    for job in TEXT_STEPS:
+        r = client.get("/api/recipes/candidates", params={"job": job, "scripts": "Latn", "languages": "es"})
+        assert r.status_code == 200, r.text
+        local = [i for i in r.json()["items"] if i["refused"] is None and "mlx" in i["id"] and i["installed"] is not None]
+        assert local, f"{job}: no local candidate on a Mac without a key"
+
+
+def test_wide_nothing_installed_says_so_with_the_nearest_fix(client, mac):  # noqa: F811
+    """`wide.picker.empty-says-why`: with no model installed here and no key, the candidates answer says 'No model on this Mac
+    does this yet' and names the smallest download, or adding a key."""
+    body = client.get("/api/recipes/candidates", params={"job": "split-into-entries", "scripts": "Latn", "languages": "es"}).json()
+    assert body["why"] == "No model on this Mac does this yet"
+    assert body["fix"].startswith("download ") and "GB" in body["fix"] and body["fix"].endswith("or add a cloud key")
+    mac.installed.add("Qwen3-4B-Instruct") if hasattr(mac, "installed") else None
+
+
+def test_wide_the_nothing_here_rule_over_a_list_without_a_download_says_add_a_key():
+    from types import SimpleNamespace
+
+    from fichero_server.api.routes.system.recipes import _nothing_here_yet
+
+    cloud = SimpleNamespace(refused=None, installed=None, needs_permission=True, size_gb=None, id="c", name="c", short_name="", size="")
+    assert _nothing_here_yet([cloud]) == ("No model on this Mac does this yet", "add a cloud key")
+    ready = SimpleNamespace(refused=None, installed=True, needs_permission=False, size_gb=1.0, id="r", name="r", short_name="", size="1 GB")
+    assert _nothing_here_yet([cloud, ready]) == (None, None)

@@ -102,6 +102,9 @@ class JobInfo(BaseModel):
         "whether the job reads the material into text (a reader's job: the finder's candidates are for it, #5612)"))
     needs_a_model: bool = Field(default=False, description=(
         "whether the job runs a model a person can choose: setup offers the model finder beside its step (#6258)"))
+    how_it_works: Optional[str] = Field(default=None, description=(
+        "how a job that runs no model does its work, in the engine's words (the topic's 'How it works:' text): the row of a step "
+        "with no model reads 'Fichero does this one: <this>' (`wide.nomodel.fichero-does-this-one`); null for a job with none"))
 
 
 class JobListResponse(BaseModel):
@@ -112,11 +115,13 @@ class JobListResponse(BaseModel):
 @router.get("/jobs", response_model=JobListResponse)
 async def list_jobs() -> JobListResponse:
     """Every job a recipe can name, with the plain description setup and the manual show."""
+    from fichero_server.recipes.start import how_it_works
+
     items = [
         JobInfo(id=j.id, name=j.name, description=j.description, topic=j.topic.id, layer=j.layer,
                 takes=sorted(j.takes), gives=sorted(j.gives), compare=j.compare,
                 settings=list(j.settings), since=j.since, reads_material=j.id in READING_JOBS,
-                needs_a_model=bool(j.needs_a_model))
+                needs_a_model=bool(j.needs_a_model), how_it_works=None if j.needs_a_model else how_it_works(j.id))
         for j in all_jobs()
     ]
     return JobListResponse(items=items, count=len(items))
@@ -1489,6 +1494,11 @@ class ModelCandidateList(BaseModel):
     items: list[ModelCandidate]
     count: int
     sources: list[CandidateSource]
+    why: Optional[str] = Field(default=None, description=(
+        "set when no candidate can run on this Mac now (none installed or needing no download, no keyed cloud model): 'No model on "
+        "this Mac does this yet', so the row never shows an empty chooser (`wide.picker.empty-says-why`)"))
+    fix: Optional[str] = Field(default=None, description=(
+        "the nearest fix for `why`, in words: the smallest download the list names, with its size, or adding a cloud key"))
     search_job: Optional[SearchJob] = Field(default=None, description=(
         "with online=true: the open project's search job (`find-models`, on the network lane): the call answers "
         "at once with what is kept, and a later call, once the job is done, lists what it found (#5594)"))
@@ -1750,10 +1760,23 @@ async def model_candidates(
     ) for c in sorted(cards, key=lambda c: (c.id != pick, _offered_order(c)[0] != 0, rank.get(c.id, len(rank) + 1), _offered_order(c), c.id))]
     if worth_only:  # the finder's list (owner 2026-10-23); without it every candidate, as Compare and the tests read it
         items = worth_listing(items)
+    why, fix = _nothing_here_yet(items)
     return ModelCandidateList(
-        job=job, items=items, count=len(items), sources=[CandidateSource(**s) for s in sources],
+        job=job, items=items, count=len(items), sources=[CandidateSource(**s) for s in sources], why=why, fix=fix,
         search_job=SearchJob(id=search["id"], state=search["state"], reason=search.get("reason"))
         if search else None)
+
+
+def _nothing_here_yet(items: list[Any]) -> tuple[str | None, str | None]:
+    """(why, fix) when no candidate can run on this Mac now: each is refused, still to download, or a cloud model the project
+    may not use yet. The fix names the smallest download the list holds (with its size), else adding a cloud key."""
+    if any(i.refused is None and i.installed is not False and not i.needs_permission for i in items):
+        return None, None
+    downloads = sorted((i for i in items if i.refused is None and i.installed is False and i.size_gb),
+                       key=lambda i: (i.size_gb, i.id))
+    fix = (f"download {downloads[0].short_name or downloads[0].name} ({downloads[0].size}) or add a cloud key"
+           if downloads else "add a cloud key")
+    return "No model on this Mac does this yet", fix
 
 
 #: The refusals that mean a model is not for this project's pages, so the finder leaves it out.

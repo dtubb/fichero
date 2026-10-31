@@ -72754,6 +72754,12 @@
             "title": "Needs A Model",
             "description": "whether the job runs a model a person can choose: setup offers the model finder beside its step (#6258)",
             "default": false
+          },
+          "how_it_works": {
+            "type": "string",
+            "nullable": true,
+            "title": "How It Works",
+            "description": "how a job that runs no model does its work, in the engine's words (the topic's 'How it works:' text): the row of a step with no model reads 'Fichero does this one: <this>' (`wide.nomodel.fichero-does-this-one`); null for a job with none"
           }
         },
         "type": "object",
@@ -78594,6 +78600,18 @@
             },
             "type": "array",
             "title": "Sources"
+          },
+          "why": {
+            "type": "string",
+            "nullable": true,
+            "title": "Why",
+            "description": "set when no candidate can run on this Mac now (none installed or needing no download, no keyed cloud model): 'No model on this Mac does this yet', so the row never shows an empty chooser (`wide.picker.empty-says-why`)"
+          },
+          "fix": {
+            "type": "string",
+            "nullable": true,
+            "title": "Fix",
+            "description": "the nearest fix for `why`, in words: the smallest download the list names, with its size, or adding a cloud key"
           },
           "search_job": {
             "$ref": "#/components/schemas/SearchJob",

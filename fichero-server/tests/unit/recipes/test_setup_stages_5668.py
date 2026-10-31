@@ -133,3 +133,27 @@ def test_wide_an_operation_switched_by_hand_wins_over_its_question(client, with_
 def test_wide_an_unknown_operation_is_refused_in_words(client, with_material):
     r = client.put("/api/recipes/project", json={"answers": {"job_answers": {"prepare_operations": ["crop", "sharpen"]}}})
     assert r.status_code == 422 and "sharpen" in r.text and "split" in r.text
+
+
+#: Section J of wide-onboarding.md, job by job: does the step call a model a person can choose?
+CALLS_A_MODEL = {
+    "find-regions": True, "find-lines": True, "read-a-line": True, "read-a-page": True, "tie-text-to-lines": True, "correct": True,
+    "translate-transliterate-normalise": True, "split-into-entries": True, "find-names-tag-words": True,
+    "find-statements": True, "extract-to-a-table": True, "describe-for-the-catalogue": True, "make-a-vector": True,
+    "split-pages": False, "prepare-the-image": False, "leave-out": False, "find-where-readers-disagree": False,
+    "find-documents-in-a-folder": False, "place-in-a-gazetteer": False, "link-to-authorities": False, "work-out-dates": False,
+}
+
+
+def test_wide_every_stage_jobs_row_shape_follows_the_registry_as_section_j_says(client):
+    """`wide.picker.row-shape-from-the-registry`: the row is a chooser or 'Fichero does this one', decided by the registry's
+    `needs_a_model` alone; every job a stage offers is in the table, and the table agrees with the registry."""
+    from fichero_server.recipes.stages import offered, runs_or_by_hand
+
+    jobs = {j["id"]: j for j in client.get("/api/recipes/jobs").json()["items"]}
+    offered_jobs = {j for s in STAGES if offered(s) for j in s.jobs if runs_or_by_hand(j)}
+    assert offered_jobs <= set(CALLS_A_MODEL), f"a job a stage offers is not in section J's table: {sorted(offered_jobs - set(CALLS_A_MODEL))}"
+    for job, calls in CALLS_A_MODEL.items():
+        assert jobs[job]["needs_a_model"] is calls, job
+        by_hand = job in ("place-in-a-gazetteer", "link-to-authorities", "find-where-readers-disagree")  # the row names the by-hand tool or the plan's own readers instead
+        assert bool(jobs[job]["how_it_works"]) is (not calls and not by_hand), job
