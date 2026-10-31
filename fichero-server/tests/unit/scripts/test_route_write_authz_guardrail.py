@@ -33,6 +33,8 @@ READ_ONLY_MUTATING_VERB_ALLOWLIST: dict[str, str] = {
     "workflow/workflows.py:estimate_workflow_cost:POST": "POST body contains estimate inputs; handler only reads workflow pricing context.",
     "search/core.py:streaming_search:POST": "POST /api/search/stream is the same read-only search compute as enhanced_search, streamed as NDJSON (#4604).",
     "document/artifacts.py:resolve_document_text_regions:POST": "POST body carries char spans to resolve; handler only reads the geometry artifact and returns page rects — the heat-map batch resolver persists nothing (#4604).",
+    "ingest/export.py:export_catalogue_workbook_route:POST": "POST body selects the folder/project; without kept_export_id the handler only builds the workbook in a temp dir and returns it. The branch that queues a write (kept_export_id) calls assert_library_write_authorized itself.",
+    "ingest/image_prepare_actions.py:batch_prepare_preview:POST": "POST body carries the batch correction; handler renders first/middle/last page in memory and writes no row (the batch run itself is a registry action).",
     "kg/entity_curation.py:enrich_preview:POST": "POST body selects an entity + optional QID; handler only does db.get(KnowledgeEntity) and an outbound SPARQL read to Wikidata (gated by the external-authority setting) — no db.save/delete/registry.invoke anywhere in the body. Its sibling /enrich/import (the route that actually writes claims) already uses get_library_database_for_write + registry.invoke; this route is the read half of that pair, verified 2026-09-20.",
 }
 
