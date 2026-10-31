@@ -51,3 +51,31 @@ def test_the_switch_flips_with_no_library_header(harness, monkeypatch):
 # The start-up key is still refused while Multi-user is off: pinned by
 # tests/unit/security/test_owner_session_sets_the_switch_5908.py::test_the_start_up_key_is_refused_for_both_steps (named there
 # for the ambient-owner ratchet), so it is not repeated here.
+
+
+def test_the_switchs_audit_row_is_undone_from_a_library_window(harness, monkeypatch):
+    """Review 2026-10-31 (M): the switch's row lives in the global package; the undo routes look in the window's library.
+    Undo of an app-wide step must still work from a library window, the CLI or MCP (`sharing.set_multiuser` is undoable)."""
+    owner = _owner(harness, monkeypatch)
+    who = signed_in_client(harness, owner)
+    window = _settings_window(harness, who.headers)
+    assert window.patch(f"/api/users/{owner.id}", json={"password": "a chosen one"}).status_code == 200
+    on = window.put("/api/pair/multiuser", json={"enabled": True})
+    assert on.status_code == 200, on.text
+    assert harness.app_db.get_setting("multiuser.enabled") == "true"
+
+    library_window = harness.client()  # a project window: the library header, the owner's session
+    undone = library_window.post(f"/api/actions/audit/{on.json()['audit_id']}/undo", headers=who.headers)
+    assert undone.status_code == 200, undone.text
+    assert harness.app_db.get_setting("multiuser.enabled") == "false", "the undo took the switch back"
+
+
+def test_a_paired_device_without_a_header_is_refused(harness, monkeypatch):
+    """A header-less non-owner (a paired device's token) → 403: dropping the library dependency dropped no rule."""
+    _owner(harness, monkeypatch)
+    device = harness.pair(harness.host())
+    bare = TestClient(harness.app, base_url="http://testserver", client=("testclient", 5000),
+                      headers={"Authorization": f"Bearer {device['device_token']}"})
+    switch = bare.put("/api/pair/multiuser", json={"enabled": True})
+    assert switch.status_code == 403, switch.text
+    assert harness.app_db.get_setting("multiuser.enabled") != "true"

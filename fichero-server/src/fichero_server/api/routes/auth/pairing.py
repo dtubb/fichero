@@ -611,12 +611,12 @@ def set_multiuser(
     (`multiuser.owner-session-sets-the-switch`, #5908): never the start-up credential.
     App-wide, so no library header is needed (`sharing.multiuser-switch-needs-no-library`): the audit row goes to the
     global library package, as the known-library registry's actions do; the Settings window sends no library."""
-    from fichero_server.api.routes.library.registry import get_global_database  # lazy: routes import each other
-
-    db: Database = get_global_database()
     if not _use_multiuser_auth() and getattr(request.state, "session", None) is None:
         raise HTTPException(status_code=403, detail="sign in as the owner to change Multi-user")
     _owner_only(request, app_db)
+    from fichero_server.api.routes.library.registry import get_global_database  # lazy: routes import each other
+
+    db: Database = get_global_database()  # after the refusals: a refused caller opens or creates nothing
     try:
         result = registry.invoke(db, "sharing.set_multiuser", body.model_dump(), ctx)
     except ActionRefused as exc:
