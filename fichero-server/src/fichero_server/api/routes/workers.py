@@ -4,6 +4,7 @@ Dev tier only (`features.yaml`, devWorkers). The work is `workflows.worker_proce
 """
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,6 +16,18 @@ from fichero_server.api.main import get_library_database_for_write
 from fichero_server.db import Database
 
 router = APIRouter(prefix="/workers")
+
+# The actions exist only on a dev-tier engine (devWorkers in features.yaml): `/api/actions/invoke` has no tier of
+# its own and runs any registered name, so a release engine must not register them at all. Owner of the app only.
+DEV = os.environ.get("FICHERO_FEATURE_TIER", "release").strip().lower() == "dev"
+
+
+def _dev_action(name, model):
+    def wrap(fn):
+        if not DEV:
+            return fn
+        return action(name, model, domains=["job"], undoable=False, owner_only=True, owner_scope="app")(fn)
+    return wrap
 
 
 class WorkerStartParams(BaseModel):
@@ -38,7 +51,7 @@ class WorkerTellParams(BaseModel):
     text: str
 
 
-@action("worker.start", WorkerStartParams, domains=["job"], undoable=False)
+@_dev_action("worker.start", WorkerStartParams)
 def _action_start(db: Database, params: WorkerStartParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.workflows import worker_process as wp
 
@@ -47,7 +60,7 @@ def _action_start(db: Database, params: WorkerStartParams, ctx: ActionContext) -
                                           emit_type="job.created")
 
 
-@action("worker.stop", WorkerStopParams, domains=["job"], undoable=False)
+@_dev_action("worker.stop", WorkerStopParams)
 def _action_stop(db: Database, params: WorkerStopParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.workflows import worker_process as wp
 
@@ -56,7 +69,7 @@ def _action_stop(db: Database, params: WorkerStopParams, ctx: ActionContext) -> 
         domains=["job"], target_ids=[params.job_id], after={"job_id": params.job_id, "state": state}, emit_type="job.updated")
 
 
-@action("worker.tell", WorkerTellParams, domains=["job"], undoable=False)
+@_dev_action("worker.tell", WorkerTellParams)
 def _action_tell(db: Database, params: WorkerTellParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.workflows import worker_process as wp
 

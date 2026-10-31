@@ -155,6 +155,8 @@ def start(
     """Start a worker of `kind` ("claude" or "fake") in `workdir`; returns its job id. `claude` needs the tmux
     session to open its window in (`tmux_session`).
     ponytail: --dangerously-skip-permissions as builder_hook.py does, until the per-worker sandbox lands."""
+    if os.environ.get("FICHERO_FEATURE_TIER", "release").strip().lower() != "dev":
+        raise PermissionError("dev workers run only on a dev-tier engine")
     if kind not in ("claude", "fake"):
         raise ValueError(f"unknown worker kind {kind!r}")
     if kind == "claude" and not tmux_session:

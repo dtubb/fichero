@@ -38,3 +38,29 @@ def test_a_bad_request_is_a_422(client, tmp_path):
     r = client.post("/api/workers", json={"kind": "gpt", "brief": "x", "workdir": str(tmp_path), "timeout_s": 5})
     assert r.status_code == 422
     assert client.post("/api/workers/tell", json={"task": "none", "generation": 1, "text": "x"}).status_code == 409
+
+
+def test_a_release_engine_has_no_worker_actions_and_refuses_to_start(tmp_path):
+    """/api/actions/invoke runs any registered name, so at release worker.* must not be registered (review 2 B1)."""
+    import os
+    import subprocess
+    import sys
+
+    code = (
+        "import fichero_server.api.main\n"
+        "from fichero_server.actions.registry import registry\n"
+        "print('REG', [n for n in registry.names() if n.startswith('worker.')])\n"
+        "from fichero_server.workflows import worker_process as wp\n"
+        "try:\n    wp.start(None, kind='fake', brief='x', workdir='.', timeout_s=5)\nexcept PermissionError as e:\n    print('REFUSED', e)\n"
+    )
+    env = {**os.environ, "FICHERO_FEATURE_TIER": "release", "FICHERO_BASE_PATH": str(tmp_path), "HOME": str(tmp_path)}
+    out = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=300).stdout
+    assert "REG []" in out and "REFUSED" in out, out
+
+
+def test_at_dev_the_worker_actions_are_app_owner_only():
+    from fichero_server.actions.registry import registry
+
+    for n in ("worker.start", "worker.stop", "worker.tell"):
+        r = registry.get(n)
+        assert r.owner_only and r.owner_scope == "app"
