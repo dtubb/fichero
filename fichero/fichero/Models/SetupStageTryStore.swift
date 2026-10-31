@@ -199,6 +199,46 @@ struct SetupStageTryResult: Decodable, Equatable {
     let jobId: String?
     /// Where a try with no compared candidates is, on the result itself (`try-progress-in-place`).
     let progress: StageCandidate.Progress?
+    /// The stage's answers and models the try ran with (`wide.output.stale-says-so`): compared with the listing's current one.
+    let answersRevision: String?
+    /// Read's tie figures from the try (`wide.nomodel.tie-figures-on-his-pages`), when the stage ties text to lines.
+    let tie: Tie?
+    /// Find Lines' two counts, on the photograph and on the clarified copy (`wide.faded.line-counts-before-and-after`).
+    let lineCounts: LineCounts?
+
+    struct Tie: Decodable, Equatable {
+        struct Counts: Decodable, Equatable {
+            let tied: Int?
+            let doubtful: Int?
+            let untied: Int?
+            let drafts: Int?
+        }
+
+        struct PageFigures: Decodable, Equatable {
+            let tied: Int
+            let doubtful: Int
+            let untied: Int
+            let draft: Bool
+        }
+
+        let counts: Counts?
+        let pages: [String: PageFigures]?
+    }
+
+    struct LineCounts: Decodable, Equatable {
+        struct Both: Decodable, Equatable {
+            let photograph: Int
+            let clarified: Int
+        }
+
+        let pages: [String: Both]?
+        let notClarified: [String]?
+
+        enum CodingKeys: String, CodingKey {
+            case pages
+            case notClarified = "not_clarified"
+        }
+    }
 
     struct Comparison: Decodable, Equatable {
         let state: String?
@@ -206,7 +246,9 @@ struct SetupStageTryResult: Decodable, Equatable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case state, error, how, names, bakeoff, documents, entries, pages, candidates, comparison, progress
+        case state, error, how, names, bakeoff, documents, entries, pages, candidates, comparison, progress, tie
+        case answersRevision = "answers_revision"
+        case lineCounts = "line_counts"
         case perPage = "per_page"
         case waitingFor = "waiting_for"
         case jobId = "job_id"
