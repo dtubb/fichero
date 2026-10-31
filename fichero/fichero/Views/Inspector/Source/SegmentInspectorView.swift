@@ -299,7 +299,9 @@ struct SegmentInspectorView: View {
             )
         }
     }
+}
 
+extension SegmentInspectorView {
     private var pathHead: some View {
         HStack(spacing: 4) {
             crumb("Page", selected: inspected == nil) { level = .page }

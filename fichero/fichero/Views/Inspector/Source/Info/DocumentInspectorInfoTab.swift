@@ -307,7 +307,9 @@ struct DocumentInspectorInfoTab: View {
             // `InspectorAttribute` has no case for either.
         }
     }
+}
 
+extension DocumentInspectorInfoTab {
     /// Format-specific structural facts — page count for PDFs, pixel
     /// dimensions for images. Only renders when at least one value exists.
     @ViewBuilder

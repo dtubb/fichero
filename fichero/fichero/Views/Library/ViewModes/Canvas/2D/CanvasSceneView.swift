@@ -427,7 +427,9 @@ struct CanvasSceneView: View {
             preservingZ: existingZ
         )
     }
+}
 
+extension CanvasSceneView {
     /// Background drag. The policy this encodes (#4290), and it is the INVERSE of
     /// what shipped: a plain drag never pans. Space held → pan the ortho camera;
     /// otherwise → rubber-band marquee multi-select (⇧ or not, so the old
