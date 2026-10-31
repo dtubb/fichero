@@ -122,7 +122,7 @@ class TestMCPAuthorization:
         from fichero_mcp import server as mcp_server
         from fichero_cli import client as client_module
 
-        with patch.dict(os.environ, {}, clear=True):
+        with patch.dict(os.environ, {"FICHERO_UDS": "0"}, clear=True):
             with patch.object(client_module, "_TOKEN_PATH", tmp_path / "absent"), \
                  patch.object(client_module, "_CONTAINER_TOKEN_PATH", tmp_path / "absent-container"), \
                  patch.object(client_module, "_loopback_trust", return_value=False):
