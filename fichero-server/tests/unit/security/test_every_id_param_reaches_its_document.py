@@ -146,3 +146,52 @@ def test_revert_copys_documents_are_write_checked_by_their_ids():
 
     params = ClassificationRevertCopyParams(value_ids=["v1"], documents=[{"id": "d1", "parent_id": "f1"}, {"id": "d2"}])
     assert {"d1", "f1", "d2"} <= set(target_ids_from_params(params))
+
+
+#: A route handler whose source holds one of these asks authz about the ids it was given (or runs an audited action, whose
+#: registry check reads every id in the params).
+_CHECKS = ("registry.invoke", "registry.", "assert_library_", "assert_can_", "readable_documents", "authz.", "_read_checked")
+#: Body-model routes found by this guard (#6320) whose handler shows no check; each is a lead to read, not a clearance. The list
+#: may only shrink: a route that gains a check must leave it, and a new one may not join.
+BODY_IDS_NOT_YET_LOOKED_AT = {
+    "/api/agents/write", "/api/annotations/crop", "/api/documents/relink-originals/plan",
+    "/api/find-documents/proposals/{proposal_id}/split", "/api/hands/attributions", "/api/locations/resolve",
+    "/api/projects/{project_id}/include",
+    # served only under some test setups (the route set differs by tier), so they may be absent from a run
+    "/api/claims/assign-time-period", "/api/claims/assign-time-period-from-metadata", "/api/claims/resolve-source",
+}
+
+
+def body_routes_without_a_check() -> set[str]:
+    """Routes whose BODY names a document (`document_id`, `target_id`, `folder_id`...): the read/write dependency reads only the path
+    and query, so a body id is checked only if the handler does it."""
+    import inspect
+
+    from tests.route_inventory import served_routes
+
+    found: set[str] = set()
+    for route in served_routes(api_main.app):
+        if not isinstance(route, APIRoute) or not route.body_field:
+            continue
+        model = getattr(route.body_field.field_info, "annotation", None)
+        if not (isinstance(model, type) and issubclass(model, BaseModel)) or not (set(model.model_fields) & set(DOCUMENT_POINTERS)):
+            continue
+        try:
+            source = inspect.getsource(route.endpoint)
+        except (OSError, TypeError):
+            continue
+        if not any(mark in source for mark in _CHECKS):
+            found.add(route.path)
+    return found
+
+
+def test_a_route_that_takes_a_document_id_in_its_body_checks_it():
+    found = body_routes_without_a_check()
+    assert found - BODY_IDS_NOT_YET_LOOKED_AT == set(), (
+        "a route takes a document id in its body and its handler asks authz about no id (the dependency sees only path and query): "
+        f"{sorted(found - BODY_IDS_NOT_YET_LOOKED_AT)}")
+    from tests.route_inventory import served_routes
+
+    served = {r.path for r in served_routes(api_main.app) if isinstance(r, APIRoute)}
+    stale = {p for p in BODY_IDS_NOT_YET_LOOKED_AT if p in served and p not in found}
+    assert stale == set(), f"checked now, take off the list: {sorted(stale)}"
