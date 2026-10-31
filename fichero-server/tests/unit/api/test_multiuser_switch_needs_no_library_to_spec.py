@@ -48,10 +48,6 @@ def test_the_switch_flips_with_no_library_header(harness, monkeypatch):
     assert harness.app_db.get_setting("multiuser.enabled") == "false"
 
 
-def test_the_refusals_still_stand_without_the_header(harness, monkeypatch):
-    """Dropping the library dependency drops no rule: the start-up key is still refused while Multi-user is off."""
-    _owner(harness, monkeypatch)
-    app = TestClient(harness.app, base_url="http://testserver", client=("testclient", 5000),
-                     headers={"Authorization": f"Bearer {harness.bootstrap}"})
-    switch = app.put("/api/pair/multiuser", json={"enabled": True})
-    assert (switch.status_code, switch.json()["detail"]) == (403, "sign in as the owner to change Multi-user")
+# The start-up key is still refused while Multi-user is off: pinned by
+# tests/unit/security/test_owner_session_sets_the_switch_5908.py::test_the_start_up_key_is_refused_for_both_steps (named there
+# for the ambient-owner ratchet), so it is not repeated here.
