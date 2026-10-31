@@ -45,6 +45,7 @@ COMMANDS = {
     "retry": [("issue", {}), ("--worker", {"type": int, "help": "index into the role's fallback list (default: one past the rate-limited stops)"})],
     "approve-checks": [("issue", {}), ("--findings", {"required": True, "help": "what the coder is told when the item goes back"})],
     "next": [("--count", {"type": int, "default": 3})],
+    "clusters": [("--size", {"type": int, "default": 4}), ("--all", {"action": "store_false", "dest": "fit", "help": "every open issue, fit or not"})],
     "check": [("issue", {})],
     "repair": [("issue", {}), ("--base", {}), ("--from-file", {}), ("--since", {}), ("--why", {"default": ""})],
     "verdict": [("issue", {}), ("sha", {}), ("verdict", {}), ("--by", {"required": True}), ("--findings", {"default": ""})],

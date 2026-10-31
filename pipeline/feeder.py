@@ -103,3 +103,38 @@ def apply_writeup(issue: dict, parts: dict) -> dict:
     if "test" in parts and not TEST_PATH.search(body):
         add.append(f"Test: {parts['test']}")
     return dict(issue, body=body + ("\n\n" + "\n".join(add) if add else ""))
+
+
+FILES = re.compile(r"Files?:\s*([\w./-]+)")
+
+
+def cluster(issues: list[dict], specs: dict[str, str], size: int = 4) -> dict:
+    """The cluster feeder (owner, 2026-10-31): the fit issues grouped by SPEC first, then in the spec's build order,
+    with the milestone and the first file named refining the order inside a spec; a spec's run is cut into clusters of
+    `size`. The link is, in this order: the `(#N)` in the spec's build-order headings, a behaviour id the spec holds,
+    a spec file name in the issue. {clusters: [{spec, issues: [numbers]}], no_spec: [numbers]}. Pure: `specs` is
+    {file name: text}; no model, no gh."""
+    pos, ids, names = {}, {}, set(specs)
+    for name, text in sorted(specs.items()):
+        for i, n in enumerate(re.findall(r"\(#(\d+)\)", text)):
+            pos.setdefault(int(n), (name, i))
+        for bid in BEHAVIOUR_ID.findall(text):
+            ids.setdefault(bid, name)
+
+    def link(i):
+        body = i.get("body") or ""
+        if i["number"] in pos:
+            return pos[i["number"]]
+        spec = next((ids[b] for b in BEHAVIOUR_ID.findall(body) if b in ids), None) or next((n for n in sorted(names) if n in body), None)
+        return (spec, 10**6) if spec else None
+
+    by_spec: dict[str, list] = {}
+    for i in issues:
+        if (l := link(i)):
+            f = FILES.search(i.get("body") or "")
+            by_spec.setdefault(l[0], []).append((l[1], i.get("milestone") or "", f.group(1) if f else "", i["number"]))
+    out = {"clusters": [], "no_spec": [i["number"] for i in issues if not link(i)]}
+    for spec in sorted(by_spec):
+        nums = [n for *_, n in sorted(by_spec[spec])]
+        out["clusters"] += [{"spec": spec, "issues": nums[k:k + size]} for k in range(0, len(nums), size)]
+    return out

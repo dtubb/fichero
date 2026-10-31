@@ -74,3 +74,30 @@ def test_pointed_milestone_wins_then_build_order(scratch, monkeypatch):
     data["m1"][:] = []
     core.point("m1")
     assert core.next_issues()["ready"] == [], "a pointed milestone with nothing ready does not fall through"
+
+
+SPECS = {
+    "a.md": "## Build order\n#### Step 1.1 — one (#11)\n#### Step 1.2 — two (#12)\n#### Step 2.1 — three (#13)\n",
+    "b.md": "- `beta.thing` [GAP]\n",
+}
+
+
+def test_clusters_group_by_spec_then_build_order_then_milestone_and_files():
+    issues = [iss(13, "Files: pipeline/z.py"), iss(11, "Files: pipeline/a.py"), iss(12, "Files: pipeline/a.py"),
+              iss(30, "`beta.thing` Files: x/y.py", milestone="m2"), iss(31, "see b.md", milestone="m1"), iss(40, "no link at all")]
+    got = feeder.cluster(issues, SPECS, size=2)
+    assert [(c["spec"], c["issues"]) for c in got["clusters"]] == [("a.md", [11, 12]), ("a.md", [13]), ("b.md", [31, 30])]
+    assert got["no_spec"] == [40]
+
+
+def test_an_issue_numbered_in_the_spec_beats_a_behaviour_id_elsewhere():
+    assert feeder.cluster([iss(11, "`beta.thing`")], SPECS)["clusters"][0]["spec"] == "a.md"
+
+
+def test_clusters_reads_open_issues_once_and_keeps_only_the_fit(scratch, monkeypatch):
+    (scratch["repo"] / "specs" / "s.md").write_text("**Status: APPROVED**\n#### Step 1.1 — a (#1)\n#### Step 1.2 — b (#2)\n- `demo.one` [GAP]\n")
+    open_ = [iss(1), iss(2), iss(3, "Spec `demo.one`. No test."), iss(9, "Nothing links this.")]
+    monkeypatch.setattr(gh, "read", lambda *a: [dict(d, labels=[], author={"login": "dtubb"}, milestone=None) for d in open_])
+    got = core.clusters(size=2)
+    assert got["clusters"] == [{"spec": "s.md", "issues": [1, 2]}] and got["open"] == 4
+    assert core.clusters(size=2, fit=False)["no_spec"] == [9]

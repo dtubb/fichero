@@ -1083,6 +1083,17 @@ def next_issues(count: int = 3) -> dict:
     return {"milestone": wu_ms or s["point"], "ready": [], "write_up": wu}
 
 
+def clusters(size: int = 4, fit: bool = True) -> dict:
+    """The open issues as clusters of one spec in build order (feeder.cluster); `fit`: only those the brief lint passes.
+    Reads GitHub once, writes nothing. `open`: how many open issues there are, `no_spec` those no spec links."""
+    c, s = cfg(), state()
+    specs = {p.name: p.read_text() for p in (Path(c["repo"]["path"]) / c["repo"]["specs"]).rglob("*.md")}
+    every = [gh._slim(d) for d in gh.read("issue", "list", "--state", "open", "--limit", "5000", "--json", gh.ISSUE_FIELDS)]
+    issues = feeder.pick(every, c["labels"], c["github"]["allowed_authors"], feeder.approved_ids(specs.values()),
+                         {_n(k) for k in s["items"]})["ready"] if fit else every
+    return dict(feeder.cluster(issues, specs, size), open=len(every))
+
+
 def pause() -> dict:
     journal.append("pause")
     return {"paused": True}
@@ -1241,7 +1252,7 @@ def file_bug(title: str, text: str, milestone: str | None = None) -> dict:
 # The one table the three faces use; each tool is this function, no face has a shortcut around a check.
 API = {"status": status, "start": start, "retry": retry, "approve_checks": approve_checks, "repair": repair, "check": check, "review": review, "verdict": verdict,
        "tell": tell, "report": report, "ask": ask, "resume_asked": resume_asked, "done": done, "queue": queue, "answer": answer, "point": point, "next": next_issues, "pause": pause,
-       "resume": resume, "file_bug": file_bug, "close_landed": close_landed, "reset": reset}
+       "resume": resume, "clusters": clusters, "file_bug": file_bug, "close_landed": close_landed, "reset": reset}
 # Per-role MCP tools (pipeline.three-faces): approve/answer are never over MCP. Every worker role is SERVED the same
 # list (WORKER_TOOLS, one order, so the prompt prefix caches); a tool outside the role's own refuses at call time.
 WORKER_TOOLS = ("report", "ask", "done", "verdict")
