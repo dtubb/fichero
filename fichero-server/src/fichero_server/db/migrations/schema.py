@@ -974,9 +974,10 @@ def migrate_canvas_layout_table(
     the first time a library sees this migration. Idempotent: create-if-missing
     plus insert-only-when-absent on the deterministic ``scope_id::item_id`` key.
 
-    Once per library (`CANVAS_BACKFILLED_SETTING`): nothing writes these fields any more, and this read every row's
-    metadata on every open. JSON is parsed only for a row that names a `canvas_` key: parsing all 70k rows' line boxes
-    failed at the 256 MiB floor on the Air, the library opened without it, and the next open failed again.
+    Once per library (`CANVAS_BACKFILLED_SETTING`): this read every row's metadata on every open. `DocumentUpdate` can
+    still set these fields; a row changed after the marker is not copied, and `_load_canvas_layout` shows it through its
+    `_legacy_canvas_documents` fallback. JSON is parsed only for a row that names a `canvas_` key: parsing all 70k rows'
+    line boxes failed at the 256 MiB floor on the Air, the library opened without it, and the next open failed again.
     """
 
     def _step() -> None:

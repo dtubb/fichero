@@ -117,7 +117,8 @@ def test_canvas_layout_backfills_positioned_children_once_only():
 
 
 def test_the_canvas_backfill_runs_once_per_library():
-    """It read every row's metadata on every open (review M1). Nothing writes these fields any more, so once is enough."""
+    """It read every row's metadata on every open (review M1). A row written after the marker is left to the canvas read's
+    fallback, `_legacy_canvas_documents`."""
     conn = duckdb.connect(":memory:")
     conn.execute("CREATE TABLE librarysettings (id VARCHAR PRIMARY KEY, value VARCHAR, updated_at TIMESTAMP)")
     conn.execute(
