@@ -41,8 +41,11 @@ OpenRouter by 2026-11-14 on one real cluster, local models by configuration afte
 
 ## 0. Slice 0 — a real cluster in two to three days (read this section alone)
 
-**What runs.** Today's long-running Sonnet builder in a tmux pane, on a cluster of two or three open **engine bugs with a
-failing test** (named by the Lead in the plan; not frozen-runner bugs), in its own clone, with the enforced layer below.
+**What runs.** Today's long-running Sonnet builder in a tmux pane, on the cluster **#6100, #6085, #6107** (small engine and
+contract bugs, none from the frozen runner; checked against the code 2026-10-31: `/api/machines` still returns
+`list[MachineOut]`; `segment_readings.py` still lists a stored reading beside its provisional twin; `split_done` now has a
+memo in `recipes/done.py`, so #6107 may already be fixed and the builder's first act is its failing test, closing it as
+fixed if green on the base), in its own clone, with the enforced layer below.
 No engine route is needed: rows are JSON lines (`$FICHERO_HARNESS_LOG`, as the built policy hook already writes); they are
 imported into the engine later. No land credential: **the Lead pushes**, after `land` has printed the checked fast-forward.
 
@@ -126,7 +129,7 @@ and land. Findings are counted by hand; the numbers start the ratchet's TSV. Beh
 - **Isolation by a second macOS user** (owner 2026-10-31): workers and the ladder run as it with no GitHub credential, and a
   start refuses if that user or its clean probe is missing; not Seatbelt, not a disabled push URL.
 - **Land per cluster**, enforced outside the model; a READY verdict per commit's patch-id; the Lead pushes until a GitHub
-  App exists (owner decision 1).
+  App exists (owner 2026-10-31).
 - **Fixed steps are scripts**; only the release earns a workflow, deferred.
 - **Enforce, don't ask; declare, don't narrate**: every standing rule names its layer (user boundary, hook, guard at landing,
   prose) and lives in one fail-closed rules file.
@@ -306,8 +309,8 @@ and land. Findings are counted by hand; the numbers start the ratchet's TSV. Beh
 - `dev-workflows.rollout.pipeline-frozen` [PROPOSED] (maintainer 2026-10-31) — `pipeline/` takes no new code; the engine
   calls the `scripts/` guards directly and ports what it needs; it is removed once the engine has landed real clusters
   for two weeks. Test: `fichero-server/tests/unit/workflows/test_pipeline_frozen.py::test_engine_calls_scripts_not_pipeline`.
-- `dev-workflows.rollout.slice-zero` [PROPOSED] (manager 2026-10-31) — § 0, as written: a real cluster of two or three engine
-  bugs within two to three days on today's tmux builder, as the second user, with the rules file, hooks, `check`, `land`
+- `dev-workflows.rollout.slice-zero` [PROPOSED] (manager 2026-10-31) — § 0, as written: the cluster #6100, #6085, #6107
+  within two to three days on today's tmux builder, as the second user, with the rules file, hooks, `check`, `land`
   (the Lead pushes), the brief fix, the checklist file and the B1 fix; done when the cluster is on the integration branch
   with a verdict per patch-id. The proof is the cluster itself; its rows seed the ratchet. Test:
   `fichero-server/tests/unit/workflows/test_slice_zero.py::test_land_requires_a_verdict_per_patch_id_and_the_boundary_grep`.
@@ -443,7 +446,6 @@ and land. Findings are counted by hand; the numbers start the ratchet's TSV. Beh
 - `main` stays at zero approving reviews until a GitHub App exists; the Lead pushes in Slice 0; the App (Contents write
   and Metadata, no Workflows) pushes later from a separate process.
 - #4402 is not an owner question; `ux.controls-work` cites #5933.
-- Open for the Lead, not the owner: the two or three engine-bug issues of the Slice 0 cluster, named in the plan.
 
 ## Build order
 
