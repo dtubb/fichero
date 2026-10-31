@@ -109,8 +109,9 @@ def _stop_every_engine(*_args) -> None:
 
 
 def _install_hooks() -> None:
-    """Once: stop every live engine at interpreter exit and on the signals that end a script. A handler is set only
-    where none is (a test runner's own stays), and the default action follows so the signal still ends the process."""
+    """Once: stop every live engine at interpreter exit and on the signals that kill a script outright. A handler is set
+    only where none is (a test runner's own stays), and the default action follows so the signal still ends the process.
+    SIGINT is not here: Python turns it into KeyboardInterrupt, which ends the script through atexit."""
     global _HOOKS_INSTALLED
     if _HOOKS_INSTALLED:
         return
@@ -118,7 +119,7 @@ def _install_hooks() -> None:
     atexit.register(_stop_every_engine)
     if threading.current_thread() is not threading.main_thread():
         return
-    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+    for sig in (signal.SIGTERM, signal.SIGHUP):
         if signal.getsignal(sig) not in (signal.SIG_DFL, None):
             continue
 

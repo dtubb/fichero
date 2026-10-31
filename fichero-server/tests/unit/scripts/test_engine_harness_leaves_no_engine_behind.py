@@ -71,6 +71,16 @@ def test_the_engine_is_stopped_when_the_starter_is_terminated():
     assert _gone(child), "the engine outlived a starter that was SIGTERMed"
 
 
+def test_the_engine_is_stopped_on_ctrl_c_through_atexit():
+    """Ctrl-C is KeyboardInterrupt, not a handler of ours: the engine stops because atexit runs."""
+    starter, child = _start("signal")
+    time.sleep(0.3)
+    assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+    starter.send_signal(signal.SIGINT)
+    starter.wait(10)
+    assert _gone(child), "the engine outlived Ctrl-C"
+
+
 def test_the_engine_ends_itself_when_the_starter_is_killed():
     """SIGKILL runs no atexit and no handler: the child's own parent watch is the only guard, as on the Air."""
     starter, child = _start("kill")
