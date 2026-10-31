@@ -52,7 +52,7 @@ activity list.
   `workflows/human_review.py` `ask_human()` = `interrupt()`, resumed by `POST /threads/{thread_id}/resume`;
   `workflows/scheduler.py`, `workflows/file_watcher.py`, `workflows/validation.py`, `workflows/safe_condition.py`.
   `pause_requested()` is honoured only at the per-item boundary (`builder.py:1176`; #4402's open half).
-- Dev-shaped nodes: `workflows/tools/cli_agent.py` runs `claude -p` / `codex exec` in its own process group with a
+- Dev-shaped nodes: `workflows/tools/cli_agent.py` runs a local agent CLI (`claude -p`) in its own process group with a
   timeout (#341); `tools/agent.py` ReAct; `tools/mcp.py` (#5760); `tools/multi_agent.py`. No script, git or gh node.
 - Recipes: `recipes/runner.py` runs a plan's cards in order as child jobs of one Activity row, parks on a step run,
   pauses and cancels; a failed card stops only the cards that need its output. This is the shape of a cluster run.
@@ -253,8 +253,7 @@ back along its list and says so.
 - `dev-workflows.node.worker` [PARTIAL] (#6116) — the engine starts a worker of one of two kinds (maintainer, 2026-10-31):
   `claude` (Claude Code, `claude -p` as `cli_agent.py` runs it today, unchanged) and `pi` (headless `pi -p`, a session
   directory, the role's rules appended, provider and model from the role; returns usage, tool errors, the reported
-  sha); `fake` is the test double that replays a scenario, never a kind a person starts; `codex` stays an option of
-  `cli_agent.py` only; the decider role's Apple Intelligence call is not a worker. The Researcher's in-app loop is the
+  sha); `fake` is the test double that replays a scenario, never a kind a person starts; the decider role's Apple Intelligence call is not a worker. The Researcher's in-app loop is the
   engine's existing chat tool loop over the audited action layer, under the same records, so a 24 GB laptop needs no
   terminal. Each worker has a role, a model from the profile, a brief and a cost/turn cap; result typed
   `{sha|verdict|text, usage}`. Test: `fichero-server/tests/unit/workflows/test_worker_node.py::test_worker_kinds`.
@@ -284,7 +283,7 @@ back along its list and says so.
   `fichero-server/tests/unit/workflows/test_review_and_land.py::test_review_per_issue`.
 - `dev-workflows.run.land-per-cluster` [PROPOSED] (maintainer 2026-10-31) — the `land` tool is a guard script: it lands a
   cluster as one fast-forward to the integration branch only when every issue is READY and the ladder is green on the
-  rebased head (`patch-id` reuse of reviews); never `main`; each issue is then closed with its sha or left open with its residue. Test:
+  rebased head (`patch-id` reuse of reviews); never `main`; enforced by `dev-workflows.run.land-gate`; each issue is then closed with its sha or left open with its residue. Test:
   `fichero-server/tests/unit/workflows/test_review_and_land.py::test_land_per_cluster`.
 - `dev-workflows.run.recovery` [PROPOSED] — on restart every task whose worker is gone is restarted from its handoff; a
   stuck worker is told once, then replaced by a successor from the handoff; a budget stop parks the item with a
@@ -293,6 +292,26 @@ back along its list and says so.
   twenty to thirty minutes to re-send briefs, start successors and surface questions, so an unattended night never
   depends on a person's session being awake.
   Test: `fichero-server/tests/unit/workflows/test_recovery.py::test_restart_stuck_budget_and_machine`.
+- `dev-workflows.run.land-gate` [PROPOSED] — landing is enforced outside the model: a worker's worktree has no push
+  right (its `origin` push URL is disabled and it holds no GitHub token), so `git push` from a worker fails whatever it
+  is told; only the engine's `land` step, running with the harness's own credential, pushes `integration`, and only for
+  a head whose every issue has a READY verdict bound to that exact sha and whose ladder is green on it; a GitHub
+  ruleset on `integration` requires that verdict status, written by the land step, so a push around the engine is
+  refused by GitHub too. `main` stays PR-and-merge only (#6142), unchanged. Test:
+  `fichero-server/tests/unit/workflows/test_land_gate.py::test_worker_push_fails_and_only_the_land_step_pushes`.
+- `dev-workflows.run.watch-tick` [PROPOSED] — the scheduled tick (every twenty to thirty minutes, the harness's own wake)
+  looks at every task and acts or asks: a worker process gone with its task unfinished → a successor from the handoff,
+  or a question when there is no handoff; a handoff written with no successor after twenty minutes → the successor is
+  started; a cluster READY and unlanded after thirty minutes → `land`, or the refusal as a question; a worker with no
+  row written for `stuck_minutes` → told once, then replaced; each action is a row. The two scenarios that failed on
+  2026-10-31 (a READY item unlanded for two hours; a builder stalled with no successor) are the dry run's cases. Test:
+  `fichero-server/tests/unit/workflows/test_watch_tick.py::test_gone_worker_orphan_handoff_and_unlanded_ready`.
+- `dev-workflows.run.machine-watch` [PROPOSED] — the tick also reads load, free memory and free disk on every machine the
+  harness uses (this Mac; the test Macs over ssh) and, past the limits (load above twice the cores, disk under 20 GiB,
+  memory pressure critical: `execution/throttle.py`'s readings), refuses new starts, tells running workers to finish the
+  current step and park, and writes an alert row and a question; it resumes when the machine has been under the limits
+  for five minutes; a run already under way is paused, not only new work refused. Test:
+  `fichero-server/tests/unit/workflows/test_machine_watch.py::test_overload_pauses_running_work_and_refuses_new`.
 - `dev-workflows.run.log` [PROPOSED] — one row per item attempt: model, provider, precision, context cap, prompt/cached/
   output tokens, tool calls and errors, diff lines or sources saved, wall time, cost, ladder, verdicts, rework rounds,
   false done; shown in Activity and written as TSV. Test: `fichero-server/tests/unit/workflows/test_run_log.py::test_run_log_row`.
@@ -478,6 +497,12 @@ Thin slices through November 2026, each one a Claude Code builder can take from 
 - Depends on: 1.2
 - Size: S
 
+#### Step 1.8 — the land gate, the watch tick and the machine watch
+- Behaviours: `dev-workflows.run.land-gate`, `dev-workflows.run.watch-tick`, `dev-workflows.run.machine-watch`
+- Tests: fichero-server/tests/unit/workflows/test_land_gate.py, fichero-server/tests/unit/workflows/test_watch_tick.py, fichero-server/tests/unit/workflows/test_machine_watch.py
+- Depends on: 1.6
+- Size: M
+
 ### Stage 2 — seen in the app: the Activity table, the records, the sync, the surfaces (weeks 2-3)
 
 #### Step 2.1 — the Activity table with a hierarchy, and controls that work
@@ -569,6 +594,9 @@ failing case. The table is the pinning the guard reads.
 | `dev-workflows.run.recovery` | 1.6 |
 | `dev-workflows.run.log` | 1.6 |
 | `dev-workflows.security.tokens-and-redaction` | 1.7 |
+| `dev-workflows.run.land-gate` | 1.8 |
+| `dev-workflows.run.watch-tick` | 1.8 |
+| `dev-workflows.run.machine-watch` | 1.8 |
 | `dev-workflows.ux.activity-table` | 2.1 |
 | `dev-workflows.ux.controls-work` | 2.1 |
 | `dev-workflows.ux.workers-are-rows` | 2.2 |
