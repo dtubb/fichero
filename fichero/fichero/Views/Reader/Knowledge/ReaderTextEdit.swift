@@ -28,19 +28,6 @@ enum ReaderTextEdit {
         case split(pageId: String, segmentId: String, offset: Int)
         case join(pageId: String, segmentId: String, intoSegmentId: String)
 
-        /// One line's new reading inside a `readingEdits` batch.
-        struct LineReading: Equatable {
-            let segmentId: String
-            let text: String
-            let basedOn: String?
-        }
-
-        /// A line a `readingEdits` batch leaves out, with the version the PAGE saw when it was drawn.
-        struct LeftOutLine: Equatable {
-            let segmentId: String
-            let expectedVersion: Int
-        }
-
         var pageId: String {
             switch self {
             case .edited(let pageId, _, _, _), .editedMany(let pageId, _, _, _), .split(let pageId, _, _), .join(let pageId, _, _): pageId
@@ -273,8 +260,6 @@ struct NewReadingsParams: Encodable, Equatable {
     struct LeftOut: Encodable, Equatable {
         let segmentId: String
         let expectedVersion: Int
-
-        enum CodingKeys: String, CodingKey { case segmentId = "segment_id", expectedVersion = "expected_version" }
     }
 
     let readings: [NewReadingParams]
@@ -293,4 +278,23 @@ struct SegmentSplitRequest: Encodable, Equatable {
     enum CodingKeys: String, CodingKey {
         case segmentId = "segment_id", atOffset = "at_offset", expectedVersion = "expected_version"
     }
+}
+
+extension ReaderTextEdit.Message {
+    /// One line's new reading inside a `readingEdits` batch.
+    struct LineReading: Equatable {
+        let segmentId: String
+        let text: String
+        let basedOn: String?
+    }
+
+    /// A line a `readingEdits` batch leaves out, with the version the PAGE saw when it was drawn.
+    struct LeftOutLine: Equatable {
+        let segmentId: String
+        let expectedVersion: Int
+    }
+}
+
+extension NewReadingsParams.LeftOut {
+    enum CodingKeys: String, CodingKey { case segmentId = "segment_id", expectedVersion = "expected_version" }
 }
