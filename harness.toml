@@ -26,3 +26,16 @@ test_globs = ["test_*.py", "*_test.py"]
 [check.test_env]
 FICHERO_FEATURE_TIER = "dev"
 OMP_NUM_THREADS = "2"
+
+[policy]
+# Refused with a reason by the PreToolUse hook (fast feedback; the land step and the OS layer are the boundary).
+# Each rule: a regex over the command text and the reason shown to the worker.
+rules = [
+  { re = '\bgit\s+stash\b', reason = "git stash is shared by every worktree; commit a WIP instead" },
+  { re = '\bgit\s+push\b', reason = "workers never push; the land step pushes (main and integration are PR/land only)" },
+  { re = '\bxcodebuild\b', reason = "xcodebuild quits the maintainer's running app; the manager builds" },
+  { re = '\bpkill\b', reason = "pkill by pattern kills other agents' processes" },
+  { re = '\bkillall\b', reason = "killall by pattern kills other agents' processes" },
+  { re = '\bls\b[^|;&]*(&&|;|\|)[^|;&]*\brm\s+-\w*[rR]', reason = "an ls and an rm -r in one command wiped a directory once; list, then delete as separate steps" },
+]
+required_trailers = ["Directed-By: the maintainer", "Co-Authored-By: "]
