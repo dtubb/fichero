@@ -392,6 +392,10 @@ replaces the Kraken figure before #6212 is coded.
   `fichero-server/tests/unit/recipes/test_start_plan_does_not_grow_with_pages.py`,
   `fichero-server/tests/unit/recipes/test_catalogue_reads_no_line_boxes.py`,
   `fichero-server/tests/unit/api/test_trash.py::test_a_trash_poll_reads_the_trash_and_the_folders_above_it_not_the_library`.
+- `recipes-run.memory.no-onnx-telemetry-thread` — **[OK]** a process that starts with the engine has no onnxruntime
+  telemetry thread: `fichero_server/__init__.py` sets `ORT_DISABLE_TELEMETRY` before anything can import onnxruntime,
+  because `disable_telemetry_events()` leaves the worker running. Test:
+  `fichero-server/tests/unit/core/test_onnx_telemetry_off.py`.
 - `recipes-run.memory.out-of-memory-says-so` — **[OK]** a request DuckDB cannot fit in its share answers 503 with
   `Retry-After: 5` and a sentence, never a 500 and a stack trace; the log says it once per route. Test:
   `fichero-server/tests/unit/api/test_out_of_memory_answers_503.py`.
