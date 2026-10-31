@@ -413,10 +413,34 @@ async def get_page_disagreement(page_id: str, db: Database = Depends(get_library
 PERSON_READER = "person"
 
 
+class CompareMeasure(BaseModel):
+    """What a candidate measured on the person's pages, for the column head (`wide.compare.price-and-time-per-candidate`).
+    Each figure is null where it was not measured, and `not_measured` then says why; nothing is guessed."""
+
+    cer: Optional[float] = Field(default=None, description="character error rate on the checked lines of the sample")
+    seconds: Optional[float] = Field(default=None, description="seconds the candidate took on the sample pages")
+    cost_usd: Optional[float] = Field(default=None, description="its cost on the sample pages; 0 on this Mac")
+    cost_basis: Optional[str] = Field(default=None, description="what the cost figure is: measured, an estimate or an upper bound")
+    local: bool = Field(default=False, description="it runs on this Mac, free")
+    not_measured: Optional[str] = Field(default=None, description="why a figure is missing, in words")
+
+
 class CompareReader(BaseModel):
     id: str
     label: str
     kind: Literal["reader", "person", "candidate"]
+    measure: Optional[CompareMeasure] = Field(default=None, description="a Try candidate's figures; null for a page's own readers")
+
+
+class CompareFrame(BaseModel):
+    """The one image every candidate is drawn on: the page's current image (`media/current_image.py`), so A and B never
+    differ by a crop or a turn (`wide.compare.same-page-same-crop`)."""
+
+    read_from: Literal["original", "edited", "rendition"]
+    image_width: Optional[int] = None
+    image_height: Optional[int] = None
+    followed: bool = Field(description="the lines' place on this image is known (`frame_bbox` is set); false: they are drawn on the photograph")
+    note: str = Field(description="in words: which image this is, or why the photograph is used")
 
 
 class CompareReading(BaseModel):
@@ -438,6 +462,8 @@ class CompareLine(BaseModel):
     segment_id: Optional[str] = Field(default=None, description="null in a Try (its lines are copies)")
     order: int
     bbox: Optional[list[float]] = Field(default=None, description="[x, y, width, height] in the page image's pixels")
+    frame_bbox: Optional[list[float]] = Field(default=None, description=(
+        "the same box carried onto the page's current image (`frame`), in its pixels; null when the frame cannot be followed"))
     picture: Optional[str] = Field(default=None, description=(
         "a storage reference to the line's cut (`GET /api/segments/{id}/picture`), never a local path"))
     readings: list[CompareReading]
@@ -455,7 +481,56 @@ class CompareReadersResponse(BaseModel):
     readers: list[CompareReader]
     image_width: Optional[int] = None
     image_height: Optional[int] = None
+    frame: Optional[CompareFrame] = Field(default=None, description="the image the boxes are drawn on (null: the page has no image here)")
     lines: list[CompareLine]
+
+
+def frame_of(db: Database, document: Document, width: Optional[int], height: Optional[int]) -> tuple[Optional[CompareFrame], Any]:
+    """The page's current image as the frame every candidate is drawn on, and a function that carries a pixel box of the
+    photograph (`width` by `height`) onto it (None where the frame cannot be followed)."""
+    from pathlib import Path
+
+    from fichero_server.media.current_image import ORIGINAL, current_page_image, _size_of
+
+    try:
+        current = current_page_image(db, document)
+    except Exception:  # noqa: BLE001 -- an unreadable image: no frame, said by its absence, never guessed
+        current = None
+    if current is None:
+        return None, lambda box: None
+    if current.frame_unknown:
+        return (CompareFrame(read_from=current.kind, image_width=width, image_height=height, followed=False,
+                             note="the edits' place on the page is not known: drawn on the photograph"),
+                lambda box: None)
+    try:
+        size = _size_of(Path(current.path)) if current.kind != ORIGINAL else (float(width or 0) or None, float(height or 0) or None)
+    except Exception:  # noqa: BLE001
+        size = (None, None)
+    frame = CompareFrame(read_from=current.kind, image_width=int(size[0]) if size[0] else None,
+                         image_height=int(size[1]) if size[1] else None, followed=True, note=current.why)
+
+    def carry(box: Optional[list[float]]) -> Optional[list[float]]:
+        if box is None or not width or not height or not size[0] or not size[1]:
+            return None
+        if current.to_image is None:
+            return [round(v, 2) for v in box]
+        moved = current.to_image.carry_rect([box[0] / width, box[1] / height, box[2] / width, box[3] / height])
+        return [round(moved[0] * size[0], 2), round(moved[1] * size[1], 2), round(moved[2] * size[0], 2), round(moved[3] * size[1], 2)]
+
+    return frame, carry
+
+
+def candidate_measure(column: dict[str, Any]) -> CompareMeasure:
+    """A Try column's figures for the head of its compare column: the error rate on the checked lines, the seconds, what it cost
+    on the sample pages with its basis; a figure it does not have says why (`wide.compare.price-and-time-per-candidate`)."""
+    cost = column.get("cost_usd") or {}
+    value = cost.get("value")
+    missing = [name for name, got in (("error rate", column.get("cer")), ("time", column.get("seconds"))) if got is None]
+    why = column.get("why") or (f"not measured: {' and '.join(missing)} (no checked lines to compare with, or not run to the end)"
+                                if missing else None)
+    return CompareMeasure(cer=column.get("cer"), seconds=column.get("seconds"),
+                          cost_usd=value if isinstance(value, (int, float)) else None, cost_basis=cost.get("basis"),
+                          local=bool(column.get("local")), not_measured=why)
 
 
 def compare_lines(raw: list[dict[str, Any]]) -> list[CompareLine]:
@@ -505,7 +580,8 @@ def page_compare(db: Database, page_id: str, *, only: set[str] | None = None,
         raise LookupError(f"document {page_id} not found")
     width, height = _image_size(db, document)
     answer = working_pass(db, page_id)
-    empty = CompareReadersResponse(page_id=page_id, readers=[], image_width=width, image_height=height, lines=[])
+    frame, carry = frame_of(db, document, width, height)
+    empty = CompareReadersResponse(page_id=page_id, readers=[], image_width=width, image_height=height, frame=frame, lines=[])
     if answer.pass_id is None or is_unconverted_pass(answer.pass_id):
         return empty
     lines = ordered_lines(db, answer.pass_id)
@@ -568,7 +644,9 @@ def page_compare(db: Database, page_id: str, *, only: set[str] | None = None,
     built = compare_lines(raw)
     if only_differing:
         built = [line for line in built if line.differs]
-    return CompareReadersResponse(page_id=page_id, readers=readers, image_width=width, image_height=height, lines=built)
+    for line in built:
+        line.frame_bbox = carry(line.bbox)
+    return CompareReadersResponse(page_id=page_id, readers=readers, image_width=width, image_height=height, frame=frame, lines=built)
 
 
 def _overlap(a: list[float], b: list[float]) -> float:
@@ -596,13 +674,15 @@ def try_compare(db: Database, page_id: str, stage: str, *, only: set[str] | None
     if document is None:
         raise LookupError(f"document {page_id} not found")
     width, height = _image_size(db, document)
+    frame, carry = frame_of(db, document, width, height)
     readers: list[CompareReader] = []
     groups: list[dict[str, Any]] = []   # one per matched line: {"box": [...], "readings": {reader: text}}
     for column in result.get("candidates") or []:
         page = next((p for p in column.get("per_page") or [] if p.get("id") == page_id), None)
         if page is None:
             continue
-        reader = CompareReader(id=str(column["card"]), label=str(column.get("name") or column["card"]), kind="candidate")
+        reader = CompareReader(id=str(column["card"]), label=str(column.get("name") or column["card"]), kind="candidate",
+                               measure=candidate_measure(column))
         placed = [r for r in page.get("readings") or [] if r.get("kind") == "transcription" and r.get("bbox") and r.get("text")]
         if not placed:
             continue
@@ -623,7 +703,9 @@ def try_compare(db: Database, page_id: str, stage: str, *, only: set[str] | None
     built = compare_lines(raw)
     if only_differing:
         built = [line for line in built if line.differs]
-    return CompareReadersResponse(page_id=page_id, readers=readers, image_width=width, image_height=height, lines=built)
+    for line in built:
+        line.frame_bbox = carry(line.bbox)
+    return CompareReadersResponse(page_id=page_id, readers=readers, image_width=width, image_height=height, frame=frame, lines=built)
 
 
 @router.get("/{page_id}/compare-readers", response_model=CompareReadersResponse)

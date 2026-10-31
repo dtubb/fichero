@@ -59909,6 +59909,47 @@
         ],
         "title": "ColumnNote"
       },
+      "CompareFrame": {
+        "properties": {
+          "read_from": {
+            "type": "string",
+            "enum": [
+              "original",
+              "edited",
+              "rendition"
+            ],
+            "title": "Read From"
+          },
+          "image_width": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Image Width"
+          },
+          "image_height": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Image Height"
+          },
+          "followed": {
+            "type": "boolean",
+            "title": "Followed",
+            "description": "the lines' place on this image is known (`frame_bbox` is set); false: they are drawn on the photograph"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "description": "in words: which image this is, or why the photograph is used"
+          }
+        },
+        "type": "object",
+        "required": [
+          "read_from",
+          "followed",
+          "note"
+        ],
+        "title": "CompareFrame",
+        "description": "The one image every candidate is drawn on: the page's current image (`media/current_image.py`), so A and B never\ndiffer by a crop or a turn (`wide.compare.same-page-same-crop`)."
+      },
       "CompareLine": {
         "properties": {
           "segment_id": {
@@ -59929,6 +59970,15 @@
             "nullable": true,
             "title": "Bbox",
             "description": "[x, y, width, height] in the page image's pixels"
+          },
+          "frame_bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Frame Bbox",
+            "description": "the same box carried onto the page's current image (`frame`), in its pixels; null when the frame cannot be followed"
           },
           "picture": {
             "type": "string",
@@ -59983,6 +60033,49 @@
         ],
         "title": "CompareLine"
       },
+      "CompareMeasure": {
+        "properties": {
+          "cer": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cer",
+            "description": "character error rate on the checked lines of the sample"
+          },
+          "seconds": {
+            "type": "number",
+            "nullable": true,
+            "title": "Seconds",
+            "description": "seconds the candidate took on the sample pages"
+          },
+          "cost_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Usd",
+            "description": "its cost on the sample pages; 0 on this Mac"
+          },
+          "cost_basis": {
+            "type": "string",
+            "nullable": true,
+            "title": "Cost Basis",
+            "description": "what the cost figure is: measured, an estimate or an upper bound"
+          },
+          "local": {
+            "type": "boolean",
+            "title": "Local",
+            "description": "it runs on this Mac, free",
+            "default": false
+          },
+          "not_measured": {
+            "type": "string",
+            "nullable": true,
+            "title": "Not Measured",
+            "description": "why a figure is missing, in words"
+          }
+        },
+        "type": "object",
+        "title": "CompareMeasure",
+        "description": "What a candidate measured on the person's pages, for the column head (`wide.compare.price-and-time-per-candidate`).\nEach figure is null where it was not measured, and `not_measured` then says why; nothing is guessed."
+      },
       "CompareReader": {
         "properties": {
           "id": {
@@ -60001,6 +60094,11 @@
               "candidate"
             ],
             "title": "Kind"
+          },
+          "measure": {
+            "$ref": "#/components/schemas/CompareMeasure",
+            "nullable": true,
+            "description": "a Try candidate's figures; null for a page's own readers"
           }
         },
         "type": "object",
@@ -60033,6 +60131,11 @@
             "type": "integer",
             "nullable": true,
             "title": "Image Height"
+          },
+          "frame": {
+            "$ref": "#/components/schemas/CompareFrame",
+            "nullable": true,
+            "description": "the image the boxes are drawn on (null: the page has no image here)"
           },
           "lines": {
             "items": {

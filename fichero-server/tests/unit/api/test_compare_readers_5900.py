@@ -127,3 +127,83 @@ def test_a_stage_with_no_try_is_404(db, client, monkeypatch):
     page, _pass = _page(db)
     _try_result(monkeypatch, page.id)
     assert client.get(f"/api/documents/{page.id}/compare-readers?try_stage=names").status_code == 404
+
+
+# --- `wide.compare.same-page-same-crop` and `wide.compare.price-and-time-per-candidate` (#5900, #6296) ---------------
+
+def _real_page(db, tmp_path, with_crop=False):
+    from PIL import Image
+
+    from fichero_server.models import DocType, Document, FileType, NodeRegion, Rendition
+
+    path = tmp_path / "page.png"
+    Image.new("RGB", (200, 100), "white").save(path)
+    doc = Document(name="page.png", doc_type=DocType.file, file_type=FileType.image, path=str(path), metadata={})
+    db.save(doc)
+    if with_crop:
+        cut = tmp_path / "crop.png"
+        Image.new("RGB", (120, 80), "white").save(cut)
+        db.save(Rendition(document_id=doc.id, role="crop", path=str(cut), pixel_width=120, pixel_height=80,
+                          transform=NodeRegion(rect=[0.1, 0.1, 0.6, 0.8])))  # (20, 10) to (140, 90) of the 200 by 100 photograph
+    return doc
+
+
+def _two_candidates(monkeypatch, page_id, columns):
+    from fichero_server.recipes import samples
+
+    def reading(text, box):
+        return {"kind": "transcription", "level": None, "text": text, "bbox": box}
+
+    result = {"stage": "read", "candidates": [
+        {**columns[0], "card": "a", "name": "A", "per_page": [{"id": page_id, "readings": [reading("Yten dixo", [0.2, 0.30, 0.4, 0.2])]}]},
+        {**columns[1], "card": "b", "name": "B", "per_page": [{"id": page_id, "readings": [reading("Yten dixo", [0.2, 0.30, 0.4, 0.2])]}]}]}
+    monkeypatch.setattr(samples, "read_result", lambda db, stage, recipe: result)
+    monkeypatch.setattr("fichero_server.recipes.project.read_project_setup", lambda library: {"recipe": None})
+
+
+def test_wide_every_candidate_is_drawn_on_the_one_current_image_inside_the_page_box(db, client, tmp_path, monkeypatch):
+    doc = _real_page(db, tmp_path, with_crop=True)
+    _two_candidates(monkeypatch, doc.id, [{}, {}])
+    body = _compare(client, doc.id, "?try_stage=read")
+    assert body["frame"]["read_from"] == "rendition" and body["frame"]["followed"] is True
+    assert (body["frame"]["image_width"], body["frame"]["image_height"]) == (120, 80)
+    assert (body["image_width"], body["image_height"]) == (200, 100), "`bbox` stays in the photograph's pixels"
+    [line] = body["lines"]
+    assert line["bbox"] == [40.0, 30.0, 80.0, 20.0]
+    # the photograph box (40,30,80,20) lies at (20,20) of the 120 by 80 crop that starts at (20, 10)
+    assert [round(v) for v in line["frame_bbox"]] == [20, 20, 80, 20]
+
+
+def test_wide_a_page_with_no_edit_or_rendition_is_the_photograph_and_boxes_do_not_move(db, client, tmp_path, monkeypatch):
+    doc = _real_page(db, tmp_path)
+    _two_candidates(monkeypatch, doc.id, [{}, {}])
+    body = _compare(client, doc.id, "?try_stage=read")
+    assert body["frame"]["read_from"] == "original" and body["frame"]["followed"] is True
+    assert body["lines"][0]["frame_bbox"] == body["lines"][0]["bbox"]
+
+
+def test_wide_a_frame_that_cannot_be_followed_is_the_photograph_and_says_so(db, client, tmp_path, monkeypatch):
+    from fichero_server.models import ImageEditChain
+
+    doc = _real_page(db, tmp_path)
+    db.save(ImageEditChain(document_id=doc.id, operations=[{"op": "crop", "page": 1, "params": {"left": 0, "top": 0, "width": 10, "height": 10}}]))
+    from fichero_server.media import current_image
+
+    monkeypatch.setattr(current_image, "chain_map", lambda *a, **k: (_ for _ in ()).throw(current_image.Unmappable("an unrecorded edit")))
+    monkeypatch.setattr(current_image, "resolve_edited_source", lambda *a, **k: tmp_path / "edited.png", raising=False)
+    (tmp_path / "edited.png").write_bytes((tmp_path / "page.png").read_bytes())
+    _two_candidates(monkeypatch, doc.id, [{}, {}])
+    body = _compare(client, doc.id, "?try_stage=read")
+    assert body["frame"]["followed"] is False and "photograph" in body["frame"]["note"]
+    assert body["lines"][0]["frame_bbox"] is None
+
+
+def test_wide_a_candidates_head_carries_its_error_rate_time_price_and_why_a_figure_is_missing(db, client, tmp_path, monkeypatch):
+    doc = _real_page(db, tmp_path)
+    measured = {"cer": 0.042, "seconds": 18.0, "local": True, "cost_usd": {"value": 0.0, "basis": "runs on this Mac", "measured": True}}
+    unmeasured = {"cer": None, "seconds": None, "local": False, "cost_usd": {"value": 0.12, "basis": "estimate", "measured": False}}
+    _two_candidates(monkeypatch, doc.id, [measured, unmeasured])
+    a, b = _compare(client, doc.id, "?try_stage=read")["readers"]
+    assert a["measure"] == {"cer": 0.042, "seconds": 18.0, "cost_usd": 0.0, "cost_basis": "runs on this Mac", "local": True, "not_measured": None}
+    assert b["measure"]["cer"] is None and b["measure"]["cost_usd"] == 0.12 and b["measure"]["cost_basis"] == "estimate"
+    assert "not measured: error rate and time" in b["measure"]["not_measured"]
