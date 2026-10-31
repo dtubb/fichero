@@ -72,3 +72,52 @@ def test_pytest_with_no_files_is_red(tmp_path):
 
 def test_contract_current_is_skipped_unless_engine_source_changed(tmp_path):
     assert ct.contract_current(tmp_path, ["docs/x.md"]) == {"ok": True, "skipped": True, "results": []}
+
+
+# --- diff bound, failing run (red on base), the ladder (dev-workflows.tool.check) ---
+
+import subprocess  # noqa: E402
+
+
+def _git_repo(tmp_path):
+    def g(*a):
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=tmp_path, check=True, capture_output=True)
+    g("init", "-q", "-b", "main")
+    (tmp_path / "mod.py").write_text("VALUE = 1\n")
+    g("add", "."), g("commit", "-q", "-m", "base")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True).stdout.strip()
+    return g, base
+
+
+def test_diff_bound_trips_on_too_many_files_or_lines(tmp_path):
+    g, base = _git_repo(tmp_path)
+    (tmp_path / "a.py").write_text("x\n" * 30)
+    (tmp_path / "b.py").write_text("y\n")
+    g("add", "."), g("commit", "-q", "-m", "more")
+    assert ct.diff_bound(tmp_path, base, "HEAD", max_files=5, max_lines=100)["ok"]
+    r = ct.diff_bound(tmp_path, base, "HEAD", max_files=1, max_lines=100)
+    assert not r["ok"] and "2 files" in r["stderr_tail"]
+    assert not ct.diff_bound(tmp_path, base, "HEAD", max_files=5, max_lines=10)["ok"]
+
+
+def test_red_on_base_needs_a_test_that_fails_on_base_and_passes_on_head(tmp_path):
+    g, base = _git_repo(tmp_path)
+    (tmp_path / "mod.py").write_text("VALUE = 2\n")
+    (tmp_path / "test_mod.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 2\n")
+    (tmp_path / "test_proves_nothing.py").write_text("def test_t():\n    assert True\n")
+    g("add", "."), g("commit", "-q", "-m", "change")
+    assert ct.red_on_base(tmp_path, base, "HEAD", ["test_mod.py"], timeout_s=120)["ok"]
+    r = ct.red_on_base(tmp_path, base, "HEAD", ["test_proves_nothing.py"], timeout_s=120)
+    assert not r["ok"] and "NOT RED ON BASE" in r["stderr_tail"]
+    assert not ct.red_on_base(tmp_path, base, "HEAD", [], timeout_s=5)["ok"]
+
+
+def test_check_tool_runs_the_ladder(tmp_path):
+    """dev-workflows.tool.check: rungs in order, stops at the first red, every result typed."""
+    calls = []
+    rungs = [("one", lambda: calls.append(1) or {"ok": True, "results": []}),
+             ("two", lambda: calls.append(2) or {"ok": False, "results": []}),
+             ("three", lambda: calls.append(3) or {"ok": True, "results": []})]
+    r = ct.ladder(rungs)
+    assert calls == [1, 2] and r["ok"] is False and r["failed"] == "two" and [x["name"] for x in r["rungs"]] == ["one", "two"]
+    assert ct.ladder(rungs[:1])["ok"] is True

@@ -113,3 +113,61 @@ def contract_current(root, changed: list[str], timeout_s: float = 300) -> dict:
     root = Path(root)
     results = [run_command(g, _isolated(root / "scripts" / f"{g}.py", root), root, timeout_s, _env(root)) for g in CONTRACT_GUARDS]
     return {"ok": all(r["ok"] for r in results), "skipped": False, "results": results}
+
+
+def _git(root, *args, timeout_s: float = 60) -> dict:
+    # hooks and fsmonitor off, as the frozen pipeline ran every git
+    return run_command("git", ["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", *args], root, timeout_s)
+
+
+def diff_bound(root, since: str, head: str = "HEAD", max_files: int = 25, max_lines: int = 1500) -> dict:
+    """The diff since the item's start stays inside a size bound (files and added+removed lines).
+    ponytail: a size bound only; a per-folder scope bound if workers wander."""
+    r = _git(root, "diff", "--numstat", f"{since}...{head}")
+    if not r["ok"]:
+        return {**r, "name": "diff-bound"}
+    rows = [ln.split("\t") for ln in r["stdout_tail"].splitlines() if ln.count("\t") == 2]
+    lines = sum(int(a) + int(d) for a, d, _ in rows if a.isdigit() and d.isdigit())
+    msg = ""
+    if len(rows) > max_files:
+        msg = f"diff bound: {len(rows)} files, over {max_files}"
+    elif lines > max_lines:
+        msg = f"diff bound: {lines} lines, over {max_lines}"
+    return {**r, "name": "diff-bound", "ok": not msg, "stderr_tail": msg}
+
+
+def red_on_base(root, since: str, head: str, files: list[str], timeout_s: float = 600) -> dict:
+    """The failing run: each changed test file, copied onto a scratch tree at `since`, must FAIL there on its
+    own, and all must PASS at `head`. A test that passes on base proves nothing."""
+    root = Path(root)
+
+    def red(msg: str) -> dict:
+        return {"name": "red-on-base", "argv": [], "exit_code": 1, "ok": False, "timed_out": False, "seconds": 0,
+                "stdout_tail": "", "stderr_tail": msg}
+    if not files:
+        return red("no test file changed: a source change needs a test (red on base, green on the branch)")
+    sha = _git(root, "rev-parse", head)["stdout_tail"].strip()  # `HEAD` inside the scratch tree would be `since`
+    base = tempfile.mkdtemp(prefix="check-base-tree-")
+    try:
+        if not _git(root, "worktree", "add", "--detach", "-q", base, since)["ok"]:
+            return red(f"could not make a scratch tree at {since[:9]}")
+        _git(base, "checkout", sha, "--", *files)  # a new file is not on base; checkout still copies it
+        for f in files:
+            r = pytest_rung(base, [f], timeout_s)
+            if r["ok"]:
+                return red(f"NOT RED ON BASE: {f} passes at {since[:9]}, so it proves nothing")
+        here = pytest_rung(root, files, timeout_s)
+        return {**here, "name": "red-on-base"}
+    finally:
+        _git(root, "worktree", "remove", "--force", base)
+
+
+def ladder(rungs: list) -> dict:
+    """Run (name, callable) rungs in order and stop at the first red, so the worker gets one failure at a time."""
+    out = []
+    for name, fn in rungs:
+        r = {"name": name, **fn()}
+        out.append(r)
+        if not r["ok"]:
+            return {"ok": False, "failed": name, "rungs": out}
+    return {"ok": True, "failed": "", "rungs": out}
