@@ -542,6 +542,9 @@ Run after the slices; one record per numbered step (what the screen said, verbat
    "Tailscale (macbook-air-m1.<tailnet>.ts.net)", Tailscale selected by default. Note the expiry time shown. Leave the sheet open 3 minutes:
    the code must not change; the picture must not flash. Flip Multi-user off/on in Advanced (expect "Choose a password for your account
    first" or a flip, never "Unexpected response"): the code on the card is still the same.
+1b. **Air (host), project Share sheet** (`sharing.share-sheet-offers-both-addresses`): Settings › Sharing › Sharing OFF, wait for the engine. Open a project's Share
+   sheet, pick a person, press Share. Wait up to 6 s. The link names the `.ts.net` address (not `.local`), the sheet shows no "only works on the same
+   local network" line, and the Tailscale row is not greyed. This is the only proof the sheet re-reads the state after turning Sharing on.
 2. **Air:** Copy Link with Tailscale selected, send to the M4 (Messages). Then select This network, Copy, send too.
 3. **M4 (guest, DMG build):** Settings › Sharing › Connect to Another Mac…, paste the Tailscale link. Expect: connected in < 10 s; the
    host's library opens; no Keychain error. On the Air, Devices shows the M4 within 10 s. Quit and reopen Fichero on the M4: it reconnects
