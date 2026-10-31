@@ -92,6 +92,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/segments.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/signs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/source_settings.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/sources.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/templates.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/transfer.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/trash.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/typed_links.py
@@ -216,6 +217,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/bookmarks.py
 $(SRCROOT)/../fichero-server/src/fichero_server/books/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/books/page_offset.py
 $(SRCROOT)/../fichero-server/src/fichero_server/canvas_picture.py
+$(SRCROOT)/../fichero-server/src/fichero_server/catalogue_sheet.py
 $(SRCROOT)/../fichero-server/src/fichero_server/checking/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/checking/cards.py
 $(SRCROOT)/../fichero-server/src/fichero_server/checking/job.py
@@ -470,12 +472,14 @@ $(SRCROOT)/../fichero-server/src/fichero_server/models/letterforms.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/node_aliases.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/node_prototypes.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/prototype_schema.py
+$(SRCROOT)/../fichero-server/src/fichero_server/models/prototype_template.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/reading_orders.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/readings.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/research.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/rights.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/schedules.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/segments.py
+$(SRCROOT)/../fichero-server/src/fichero_server/models/shipped_prototypes.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/signs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/source_declarations.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/transfer.py
@@ -642,10 +646,15 @@ $(SRCROOT)/../fichero-server/src/fichero_server/resources/model_prices_local.jso
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/folder_description_v1.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/folder_description_v2.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/folder_description_v3.md
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/folder_description_v4.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/folder_v1.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/narrative_v1.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/narrative_v2.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/narrative_v3.md
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/prototypes/eap_box.json
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/prototypes/eap_digital_folder.json
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/prototypes/eap_digital_folder_en.json
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/prototypes/eap_page.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/resources/server.icns
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/resources/server.png
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/workflow_folders.json

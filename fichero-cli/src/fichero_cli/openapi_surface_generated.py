@@ -5311,6 +5311,42 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("clear-column-choice")
+    def documents_clear_column_choice_delete(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Clear Column Choice (DELETE /api/documents/{doc_id}/column-choice)."""
+        if not yes:
+            typer.confirm("Delete documents?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{doc_id}/column-choice"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("put-column-choice")
+    def documents_put_column_choice_put(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        hide: Optional[list[str]] = typer.Option(None, '--hide', help='Column keys left out of the table and the export. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        only_kind: Optional[str] = typer.Option(None, '--only-kind', help="Show this prototype's columns only."),
+    ) -> None:
+        """Put Column Choice (PUT /api/documents/{doc_id}/column-choice)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{doc_id}/column-choice"
+            params = None
+            payload = _build_json_payload({
+                "hide": hide,
+                "only_kind": only_kind,
+            }, {
+                "hide": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Hide', 'description': 'Column keys left out of the table and the export.', 'x-cli-required': False},
+                "only_kind": {'type': 'string', 'nullable': True, 'title': 'Only Kind', 'description': "Show this prototype's columns only.", 'x-cli-required': False},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("duplicate")
     def documents_duplicate_post(
         ctx: typer.Context,
@@ -5605,6 +5641,18 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/documents/{doc_id}/restore"
             params = None
             return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-scope-template")
+    def documents_get_scope_template_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+    ) -> None:
+        """Get Scope Template (GET /api/documents/{doc_id}/template)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{doc_id}/template"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-view")
@@ -6392,6 +6440,36 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='export')
         existing_apps['export'] = target_app
 
+    @target_app.command("the-catalogue-workbook-of-a-folder-or-project-in-its-archive-s-template", hidden=True)
+    @target_app.command("catalogue-workbook-route")
+    def export_catalogue_workbook_route_post(
+        ctx: typer.Context,
+        format: Optional[str] = typer.Option(None, '--format', help='xlsx: one workbook; csv: a zip of one file per sheet. One of: xlsx, csv. Default: "xlsx".'),
+        kept_export_id: Optional[str] = typer.Option(None, '--kept-export-id', help="Write into this kept export's folder (queued) instead of returning the file."),
+        proposals: Optional[str] = typer.Option(None, '--proposals', help='A machine\'s unanswered proposals are marked, or left out of a delivered sheet. One of: marked, omitted. Default: "marked".'),
+        prototype_key: Optional[str] = typer.Option(None, '--prototype-key', help="Write this prototype's columns instead of the rows' own."),
+        target_id: Optional[str] = typer.Option(None, '--target-id', help='A folder or project id; omitted writes the whole library.'),
+    ) -> None:
+        """The catalogue workbook of a folder or project, in its archive's template (POST /api/export/catalogue-workbook)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/export/catalogue-workbook"
+            params = None
+            payload = _build_json_payload({
+                "format": format,
+                "kept_export_id": kept_export_id,
+                "proposals": proposals,
+                "prototype_key": prototype_key,
+                "target_id": target_id,
+            }, {
+                "format": {'type': 'string', 'enum': ['xlsx', 'csv'], 'title': 'Format', 'description': 'xlsx: one workbook; csv: a zip of one file per sheet', 'default': 'xlsx', 'x-cli-required': False},
+                "kept_export_id": {'type': 'string', 'nullable': True, 'title': 'Kept Export Id', 'description': "Write into this kept export's folder (queued) instead of returning the file", 'x-cli-required': False},
+                "proposals": {'type': 'string', 'enum': ['marked', 'omitted'], 'title': 'Proposals', 'description': "A machine's unanswered proposals are marked, or left out of a delivered sheet", 'default': 'marked', 'x-cli-required': False},
+                "prototype_key": {'type': 'string', 'nullable': True, 'title': 'Prototype Key', 'description': "Write this prototype's columns instead of the rows' own", 'x-cli-required': False},
+                "target_id": {'type': 'string', 'nullable': True, 'title': 'Target Id', 'description': 'A folder or project id; omitted writes the whole library', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("eleventy-site-route")
     def export_eleventy_site_route_post(
         ctx: typer.Context,
@@ -6490,7 +6568,7 @@ def register_generated_openapi_commands(
     def export_keep_post(
         ctx: typer.Context,
         folder: str = typer.Option(..., '--folder', help="A full path to a folder on the engine's disk, outside the project."),
-        format: str = typer.Option(..., '--format', help='What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR. One of: word, markdown, plain-text, alto, pagexml, tei, hocr.'),
+        format: str = typer.Option(..., '--format', help='What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR. One of: word, markdown, plain-text, alto, pagexml, tei, hocr, catalogue-workbook, word-transcript.'),
         per: str = typer.Option(..., '--per', help='One file per page, or one per document (the page formats are one per page) One of: page, document.'),
     ) -> None:
         """Keep an export in a folder, written again as the work changes (POST /api/export/kept)."""
@@ -6503,7 +6581,7 @@ def register_generated_openapi_commands(
                 "per": per,
             }, {
                 "folder": {'type': 'string', 'title': 'Folder', 'description': "A full path to a folder on the engine's disk, outside the project", 'x-cli-required': True},
-                "format": {'type': 'string', 'enum': ['word', 'markdown', 'plain-text', 'alto', 'pagexml', 'tei', 'hocr'], 'title': 'Format', 'description': 'What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR', 'x-cli-required': True},
+                "format": {'type': 'string', 'enum': ['word', 'markdown', 'plain-text', 'alto', 'pagexml', 'tei', 'hocr', 'catalogue-workbook', 'word-transcript'], 'title': 'Format', 'description': 'What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR', 'x-cli-required': True},
                 "per": {'type': 'string', 'enum': ['page', 'document'], 'title': 'Per', 'description': 'One file per page, or one per document (the page formats are one per page)', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
@@ -6622,10 +6700,13 @@ def register_generated_openapi_commands(
     @target_app.command("word-route")
     def export_word_route_post(
         ctx: typer.Context,
-        include_images: Optional[bool] = typer.Option(None, '--include-images/--no-include-images', help="Embed each page's scan; false prints no image and no note, and never opens the scan files. Default: true."),
+        blank_pages_listed_once: Optional[bool] = typer.Option(None, '--blank-pages-listed-once/--no-blank-pages-listed-once', help='Print no body for a page sorted blank; end the folder with one line listing them as image ranges. Default: false.'),
+        include_images: Optional[bool] = typer.Option(None, '--include-images/--no-include-images', help="Off prints neither the image nor the 'image not included' note: a page is its heading and text. Default: true."),
         include_knowledge_graph: Optional[bool] = typer.Option(None, '--include-knowledge-graph/--no-include-knowledge-graph', help='Append relevant knowledge graph entities and claims. Default: true.'),
         output_path: str = typer.Option(..., '--output-path', help='Destination .docx path.'),
         overwrite: Optional[bool] = typer.Option(None, '--overwrite/--no-overwrite', help='Overwrite existing .docx. Default: false.'),
+        page_break_per_page: Optional[bool] = typer.Option(None, '--page-break-per-page/--no-page-break-per-page', help='Start each page on a new Word page. Default: false.'),
+        per: Optional[str] = typer.Option(None, '--per', help='\'folder\' writes a .zip of one transcript .docx per folder of the scope (page by page, no images, a page break per page, blank pages listed once): the options above are fixed for it. One of: document, folder. Default: "document".'),
         recursive: Optional[bool] = typer.Option(None, '--recursive/--no-recursive', help='Include descendants of folders. Default: true.'),
         target_id: Optional[str] = typer.Option(None, '--target-id', help='Optional document/folder id to export; omitted exports library.'),
     ) -> None:
@@ -6634,17 +6715,23 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/export/word"
             params = None
             payload = _build_json_payload({
+                "blank_pages_listed_once": blank_pages_listed_once,
                 "include_images": include_images,
                 "include_knowledge_graph": include_knowledge_graph,
                 "output_path": output_path,
                 "overwrite": overwrite,
+                "page_break_per_page": page_break_per_page,
+                "per": per,
                 "recursive": recursive,
                 "target_id": target_id,
             }, {
-                "include_images": {'type': 'boolean', 'title': 'Include Images', 'description': "Embed each page's scan; false prints no image and no note, and never opens the scan files", 'default': True, 'x-cli-required': False},
+                "blank_pages_listed_once": {'type': 'boolean', 'title': 'Blank Pages Listed Once', 'description': 'Print no body for a page sorted blank; end the folder with one line listing them as image ranges', 'default': False, 'x-cli-required': False},
+                "include_images": {'type': 'boolean', 'title': 'Include Images', 'description': "Off prints neither the image nor the 'image not included' note: a page is its heading and text", 'default': True, 'x-cli-required': False},
                 "include_knowledge_graph": {'type': 'boolean', 'title': 'Include Knowledge Graph', 'description': 'Append relevant knowledge graph entities and claims', 'default': True, 'x-cli-required': False},
                 "output_path": {'type': 'string', 'title': 'Output Path', 'description': 'Destination .docx path', 'x-cli-required': True},
                 "overwrite": {'type': 'boolean', 'title': 'Overwrite', 'description': 'Overwrite existing .docx', 'default': False, 'x-cli-required': False},
+                "page_break_per_page": {'type': 'boolean', 'title': 'Page Break Per Page', 'description': 'Start each page on a new Word page', 'default': False, 'x-cli-required': False},
+                "per": {'type': 'string', 'enum': ['document', 'folder'], 'title': 'Per', 'description': "'folder' writes a .zip of one transcript .docx per folder of the scope (page by page, no images, a page break per page, blank pages listed once): the options above are fixed for it", 'default': 'document', 'x-cli-required': False},
                 "recursive": {'type': 'boolean', 'title': 'Recursive', 'description': 'Include descendants of folders', 'default': True, 'x-cli-required': False},
                 "target_id": {'type': 'string', 'nullable': True, 'title': 'Target Id', 'description': 'Optional document/folder id to export; omitted exports library', 'x-cli-required': False},
             }, required=True)

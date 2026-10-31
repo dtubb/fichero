@@ -2436,6 +2436,24 @@ def fichero_documents_get_children(
     return _rt.call("GET", f"/api/documents/{doc_id}/children", params={"level": level, "limit": limit, "sort_by": sort_by, "sort_direction": sort_direction, "summary": summary})
 
 
+def fichero_documents_clear_column_choice(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+) -> Any:
+    'Clear Column Choice\n\nRoute: DELETE /api/documents/{doc_id}/column-choice (toolset `documents`; changes data, as the agent account when one exists).'
+    return _rt.call("DELETE", f"/api/documents/{doc_id}/column-choice")
+
+
+def fichero_documents_put_column_choice(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+    hide: Annotated[Optional[list[Any]], Field(description='Column keys left out of the table and the export.')] = None,
+    only_kind: Annotated[Optional[str], Field(description="Show this prototype's columns only.")] = None,
+) -> Any:
+    'Put Column Choice\n\nRoute: PUT /api/documents/{doc_id}/column-choice (toolset `documents`; changes data, as the agent account when one exists).'
+    return _rt.call("PUT", f"/api/documents/{doc_id}/column-choice", json=_rt.body({"hide": hide, "only_kind": only_kind}))
+
+
 def fichero_documents_duplicate(
     *,
     doc_id: Annotated[str, Field(description='Doc Id')],
@@ -2605,6 +2623,14 @@ def fichero_documents_restore(
 ) -> Any:
     "Restore Document\n\nPut Back (`safety.trash.put-back`): the item and what was deleted with it return to its\nold folder, or to the project's Sources folder when that folder is in the Trash or gone. The\nanswer says where, in words.\n\nRoute: POST /api/documents/{doc_id}/restore (toolset `documents`; changes data, as the agent account when one exists)."
     return _rt.call("POST", f"/api/documents/{doc_id}/restore")
+
+
+def fichero_documents_get_scope_template(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+) -> Any:
+    "Get Scope Template\n\nThe columns of a scope: its rows' effective prototype (the union when they differ), narrowed by the saved choice.\n\nRoute: GET /api/documents/{doc_id}/template (toolset `documents`; reads)."
+    return _rt.call("GET", f"/api/documents/{doc_id}/template")
 
 
 def fichero_documents_get_view(
@@ -3011,6 +3037,18 @@ def fichero_evaluation_model_scores(
     return _rt.call("GET", "/api/evaluation/scores", params={"model": model, "reader": reader})
 
 
+def fichero_export_catalogue_workbook_route(
+    *,
+    format: Annotated[Optional[str], Field(description='xlsx: one workbook; csv: a zip of one file per sheet. One of: xlsx, csv. Default: "xlsx".')] = None,
+    kept_export_id: Annotated[Optional[str], Field(description="Write into this kept export's folder (queued) instead of returning the file.")] = None,
+    proposals: Annotated[Optional[str], Field(description='A machine\'s unanswered proposals are marked, or left out of a delivered sheet. One of: marked, omitted. Default: "marked".')] = None,
+    prototype_key: Annotated[Optional[str], Field(description="Write this prototype's columns instead of the rows' own.")] = None,
+    target_id: Annotated[Optional[str], Field(description='A folder or project id; omitted writes the whole library.')] = None,
+) -> Any:
+    "The catalogue workbook of a folder or project, in its archive's template\n\nThe same builder the recipe's last step runs (`catalogue_sheet.workbook`): attributes, pages, the graph and the\nrecord; never a model. No local path in the request: the file comes back, or is queued into a kept export.\n\nRoute: POST /api/export/catalogue-workbook (toolset `export`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/export/catalogue-workbook", json=_rt.body({"format": format, "kept_export_id": kept_export_id, "proposals": proposals, "prototype_key": prototype_key, "target_id": target_id}))
+
+
 def fichero_export_eleventy_site_route(
     *,
     output_path: Annotated[str, Field(description='Destination folder for the site project.')],
@@ -3054,7 +3092,7 @@ def fichero_export_list_kept_exports(
 def fichero_export_keep(
     *,
     folder: Annotated[str, Field(description="A full path to a folder on the engine's disk, outside the project.")],
-    format: Annotated[str, Field(description='What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR. One of: word, markdown, plain-text, alto, pagexml, tei, hocr.')],
+    format: Annotated[str, Field(description='What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR. One of: word, markdown, plain-text, alto, pagexml, tei, hocr, catalogue-workbook, word-transcript.')],
     per: Annotated[str, Field(description='One file per page, or one per document (the page formats are one per page) One of: page, document.')],
 ) -> Any:
     'Keep an export in a folder, written again as the work changes\n\nOne-way: Fichero writes the folder and never reads it back. Each write overwrites only the\nfiles this export wrote (a hand edit to one is overwritten) and leaves every other file alone;\nnothing is deleted. Writing is background work (paused by Pause Background Work). Refused (422),\nin one sentence, for a folder that is not there, a system folder, a folder inside the project,\nor a page format asked for one file per document.\n\nRoute: POST /api/export/kept (toolset `export`; changes data, as the agent account when one exists).'
@@ -3113,15 +3151,18 @@ def fichero_export_training_route(
 
 def fichero_export_word_route(
     *,
-    include_images: Annotated[Optional[bool], Field(description="Embed each page's scan; false prints no image and no note, and never opens the scan files. Default: true.")] = None,
+    blank_pages_listed_once: Annotated[Optional[bool], Field(description='Print no body for a page sorted blank; end the folder with one line listing them as image ranges. Default: false.')] = None,
+    include_images: Annotated[Optional[bool], Field(description="Off prints neither the image nor the 'image not included' note: a page is its heading and text. Default: true.")] = None,
     include_knowledge_graph: Annotated[Optional[bool], Field(description='Append relevant knowledge graph entities and claims. Default: true.')] = None,
     output_path: Annotated[str, Field(description='Destination .docx path.')],
     overwrite: Annotated[Optional[bool], Field(description='Overwrite existing .docx. Default: false.')] = None,
+    page_break_per_page: Annotated[Optional[bool], Field(description='Start each page on a new Word page. Default: false.')] = None,
+    per: Annotated[Optional[str], Field(description='\'folder\' writes a .zip of one transcript .docx per folder of the scope (page by page, no images, a page break per page, blank pages listed once): the options above are fixed for it. One of: document, folder. Default: "document".')] = None,
     recursive: Annotated[Optional[bool], Field(description='Include descendants of folders. Default: true.')] = None,
     target_id: Annotated[Optional[str], Field(description='Optional document/folder id to export; omitted exports library.')] = None,
 ) -> Any:
-    'Export Word Route\n\nExport a library, folder, or document as a Word .docx file.\n\nRoute: POST /api/export/word (toolset `export`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/export/word", json=_rt.body({"include_images": include_images, "include_knowledge_graph": include_knowledge_graph, "output_path": output_path, "overwrite": overwrite, "recursive": recursive, "target_id": target_id}))
+    'Export Word Route\n\nExport a library, folder, or document as a Word .docx file (or, per folder, a zip of them).\n\nRoute: POST /api/export/word (toolset `export`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/export/word", json=_rt.body({"blank_pages_listed_once": blank_pages_listed_once, "include_images": include_images, "include_knowledge_graph": include_knowledge_graph, "output_path": output_path, "overwrite": overwrite, "page_break_per_page": page_break_per_page, "per": per, "recursive": recursive, "target_id": target_id}))
 
 
 def fichero_find_documents_list_proposals(
@@ -9447,6 +9488,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_documents_get_ancestors", "documents", "GET", "/api/documents/{doc_id}/ancestors", fichero_documents_get_ancestors),
     GeneratedTool("fichero_documents_export_annotations_jsonld", "documents", "GET", "/api/documents/{doc_id}/annotations.jsonld", fichero_documents_export_annotations_jsonld),
     GeneratedTool("fichero_documents_get_children", "documents", "GET", "/api/documents/{doc_id}/children", fichero_documents_get_children),
+    GeneratedTool("fichero_documents_clear_column_choice", "documents", "DELETE", "/api/documents/{doc_id}/column-choice", fichero_documents_clear_column_choice),
+    GeneratedTool("fichero_documents_put_column_choice", "documents", "PUT", "/api/documents/{doc_id}/column-choice", fichero_documents_put_column_choice),
     GeneratedTool("fichero_documents_duplicate", "documents", "POST", "/api/documents/{doc_id}/duplicate", fichero_documents_duplicate),
     GeneratedTool("fichero_documents_get_effective_attributes", "documents", "GET", "/api/documents/{doc_id}/effective-attributes", fichero_documents_get_effective_attributes),
     GeneratedTool("fichero_formats_export_document_page", "formats", "GET", "/api/documents/{doc_id}/export/{format_name}", fichero_formats_export_document_page),
@@ -9466,6 +9509,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_documents_purge", "documents", "DELETE", "/api/documents/{doc_id}/purge", fichero_documents_purge),
     GeneratedTool("fichero_documents_related", "documents", "GET", "/api/documents/{doc_id}/related", fichero_documents_related),
     GeneratedTool("fichero_documents_restore", "documents", "POST", "/api/documents/{doc_id}/restore", fichero_documents_restore),
+    GeneratedTool("fichero_documents_get_scope_template", "documents", "GET", "/api/documents/{doc_id}/template", fichero_documents_get_scope_template),
     GeneratedTool("fichero_documents_get_view", "documents", "GET", "/api/documents/{doc_id}/view", fichero_documents_get_view),
     GeneratedTool("fichero_documents_get_workflow_runs", "documents", "GET", "/api/documents/{doc_id}/workflow-runs", fichero_documents_get_workflow_runs),
     GeneratedTool("fichero_documents_patch_workspace_items", "documents", "PATCH", "/api/documents/{doc_id}/workspace", fichero_documents_patch_workspace_items),
@@ -9508,6 +9552,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_evaluation_start", "evaluation", "POST", "/api/evaluation/runs", fichero_evaluation_start),
     GeneratedTool("fichero_evaluation_status", "evaluation", "GET", "/api/evaluation/runs/{job_id}", fichero_evaluation_status),
     GeneratedTool("fichero_evaluation_model_scores", "evaluation", "GET", "/api/evaluation/scores", fichero_evaluation_model_scores),
+    GeneratedTool("fichero_export_catalogue_workbook_route", "export", "POST", "/api/export/catalogue-workbook", fichero_export_catalogue_workbook_route),
     GeneratedTool("fichero_export_eleventy_site_route", "export", "POST", "/api/export/eleventy-site", fichero_export_eleventy_site_route),
     GeneratedTool("fichero_export_excel_route", "export", "POST", "/api/export/excel", fichero_export_excel_route),
     GeneratedTool("fichero_export_jsonl_route", "export", "POST", "/api/export/jsonl", fichero_export_jsonl_route),

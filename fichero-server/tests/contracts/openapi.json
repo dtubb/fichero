@@ -22867,6 +22867,181 @@
         }
       }
     },
+    "/api/documents/{doc_id}/template": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Get Scope Template",
+        "description": "The columns of a scope: its rows' effective prototype (the union when they differ), narrowed by the saved choice.",
+        "operationId": "get_scope_template_api_documents__doc_id__template_get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScopeTemplate"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{doc_id}/column-choice": {
+      "put": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Put Column Choice",
+        "operationId": "put_column_choice_api_documents__doc_id__column_choice_put",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ColumnChoice"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ColumnChoiceAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Clear Column Choice",
+        "operationId": "clear_column_choice_api_documents__doc_id__column_choice_delete",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ColumnChoiceAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/references": {
       "get": {
         "tags": [
@@ -25017,7 +25192,7 @@
           "export"
         ],
         "summary": "Export Word Route",
-        "description": "Export a library, folder, or document as a Word .docx file.",
+        "description": "Export a library, folder, or document as a Word .docx file (or, per folder, a zip of them).",
         "operationId": "export_word_route_api_export_word_post",
         "requestBody": {
           "content": {
@@ -25079,6 +25254,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ExcelExportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/export/catalogue-workbook": {
+      "post": {
+        "tags": [
+          "export",
+          "export"
+        ],
+        "summary": "The catalogue workbook of a folder or project, in its archive's template",
+        "description": "The same builder the recipe's last step runs (`catalogue_sheet.workbook`): attributes, pages, the graph and the\nrecord; never a model. No local path in the request: the file comes back, or is queued into a kept export.",
+        "operationId": "export_catalogue_workbook_route_api_export_catalogue_workbook_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogueWorkbookRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueWorkbookResponse"
                 }
               }
             }
@@ -55793,6 +56011,94 @@
         "title": "CanvasListResponse",
         "description": "Standardized envelope for canvas spatial list endpoints."
       },
+      "CatalogueWorkbookRequest": {
+        "properties": {
+          "target_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Id",
+            "description": "A folder or project id; omitted writes the whole library"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "xlsx",
+              "csv"
+            ],
+            "title": "Format",
+            "description": "xlsx: one workbook; csv: a zip of one file per sheet",
+            "default": "xlsx"
+          },
+          "prototype_key": {
+            "type": "string",
+            "nullable": true,
+            "title": "Prototype Key",
+            "description": "Write this prototype's columns instead of the rows' own"
+          },
+          "proposals": {
+            "type": "string",
+            "enum": [
+              "marked",
+              "omitted"
+            ],
+            "title": "Proposals",
+            "description": "A machine's unanswered proposals are marked, or left out of a delivered sheet",
+            "default": "marked"
+          },
+          "kept_export_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Kept Export Id",
+            "description": "Write into this kept export's folder (queued) instead of returning the file"
+          }
+        },
+        "type": "object",
+        "title": "CatalogueWorkbookRequest",
+        "description": "What to write: the catalogue of a folder or project, in its rows' effective prototype's template."
+      },
+      "CatalogueWorkbookResponse": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename",
+            "description": "The file's name: Cat\u00e1logo.xlsx or Cat\u00e1logo.zip"
+          },
+          "media_type": {
+            "type": "string",
+            "title": "Media Type"
+          },
+          "content_base64": {
+            "type": "string",
+            "nullable": true,
+            "title": "Content Base64",
+            "description": "The file, base64; none when it was queued into a kept export"
+          },
+          "sheets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sheets"
+          },
+          "row_count": {
+            "type": "integer",
+            "title": "Row Count",
+            "default": 0
+          },
+          "job_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Job Id",
+            "description": "The queued write, when kept_export_id was given"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "media_type"
+        ],
+        "title": "CatalogueWorkbookResponse"
+      },
       "CategoryToolsResponse": {
         "properties": {
           "category": {
@@ -59242,6 +59548,66 @@
           "kind"
         ],
         "title": "ColumnAnnotation"
+      },
+      "ColumnChoice": {
+        "properties": {
+          "hide": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Hide",
+            "description": "Column keys left out of the table and the export."
+          },
+          "only_kind": {
+            "type": "string",
+            "nullable": true,
+            "title": "Only Kind",
+            "description": "Show this prototype's columns only."
+          }
+        },
+        "type": "object",
+        "title": "ColumnChoice"
+      },
+      "ColumnChoiceAnswer": {
+        "properties": {
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateColumn"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "mixed": {
+            "type": "boolean",
+            "title": "Mixed"
+          },
+          "prototypes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Prototypes"
+          },
+          "choice": {
+            "$ref": "#/components/schemas/ColumnChoice",
+            "nullable": true
+          },
+          "audit_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audit Id",
+            "description": "The audited action: undoing it puts the previous choice back."
+          }
+        },
+        "type": "object",
+        "required": [
+          "columns",
+          "mixed",
+          "prototypes"
+        ],
+        "title": "ColumnChoiceAnswer",
+        "description": "The scope's template after a choice, and the audited action that saved it (\u2318Z undoes that row)."
       },
       "ColumnEntity": {
         "properties": {
@@ -64401,6 +64767,30 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Values"
+          },
+          "effective_prototype_key": {
+            "type": "string",
+            "nullable": true,
+            "title": "Effective Prototype Key"
+          },
+          "kind_rule": {
+            "type": "string",
+            "title": "Kind Rule",
+            "default": "none"
+          },
+          "kind_from": {
+            "type": "string",
+            "nullable": true,
+            "title": "Kind From"
+          },
+          "origins": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Origins",
+            "default": {}
           }
         },
         "type": "object",
@@ -72640,7 +73030,9 @@
               "alto",
               "pagexml",
               "tei",
-              "hocr"
+              "hocr",
+              "catalogue-workbook",
+              "word-transcript"
             ],
             "title": "Format"
           },
@@ -72738,7 +73130,9 @@
               "alto",
               "pagexml",
               "tei",
-              "hocr"
+              "hocr",
+              "catalogue-workbook",
+              "word-transcript"
             ],
             "title": "Format",
             "description": "What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR"
@@ -89868,6 +90262,39 @@
         ],
         "title": "ScheduleRunResponseList"
       },
+      "ScopeTemplate": {
+        "properties": {
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateColumn"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "mixed": {
+            "type": "boolean",
+            "title": "Mixed"
+          },
+          "prototypes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Prototypes"
+          },
+          "choice": {
+            "$ref": "#/components/schemas/ColumnChoice",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "columns",
+          "mixed",
+          "prototypes"
+        ],
+        "title": "ScopeTemplate"
+      },
       "ScopedSegmentListResponse": {
         "properties": {
           "items": {
@@ -97045,6 +97472,110 @@
         ],
         "title": "TaxonomyItem"
       },
+      "TemplateColumn": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "text"
+          },
+          "source": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Labels",
+            "default": {}
+          },
+          "label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Label"
+          },
+          "help": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Help",
+            "default": {}
+          },
+          "join": {
+            "type": "string",
+            "nullable": true,
+            "title": "Join"
+          },
+          "format": {
+            "type": "string",
+            "nullable": true,
+            "title": "Format"
+          },
+          "name_order": {
+            "type": "string",
+            "nullable": true,
+            "title": "Name Order"
+          },
+          "inherits": {
+            "type": "boolean",
+            "title": "Inherits",
+            "default": false
+          },
+          "months": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Months",
+            "default": {}
+          },
+          "options": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Options",
+            "default": []
+          },
+          "option_labels": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Option Labels",
+            "default": {}
+          },
+          "group": {
+            "type": "string",
+            "nullable": true,
+            "title": "Group"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "kind"
+        ],
+        "title": "TemplateColumn"
+      },
       "TextBlock": {
         "properties": {
           "region_segment_id": {
@@ -101364,8 +101895,30 @@
           "include_images": {
             "type": "boolean",
             "title": "Include Images",
-            "description": "Embed each page's scan; false prints no image and no note, and never opens the scan files",
+            "description": "Off prints neither the image nor the 'image not included' note: a page is its heading and text",
             "default": true
+          },
+          "page_break_per_page": {
+            "type": "boolean",
+            "title": "Page Break Per Page",
+            "description": "Start each page on a new Word page",
+            "default": false
+          },
+          "blank_pages_listed_once": {
+            "type": "boolean",
+            "title": "Blank Pages Listed Once",
+            "description": "Print no body for a page sorted blank; end the folder with one line listing them as image ranges",
+            "default": false
+          },
+          "per": {
+            "type": "string",
+            "enum": [
+              "document",
+              "folder"
+            ],
+            "title": "Per",
+            "description": "'folder' writes a .zip of one transcript .docx per folder of the scope (page by page, no images, a page break per page, blank pages listed once): the options above are fixed for it",
+            "default": "document"
           }
         },
         "additionalProperties": true,
@@ -101389,6 +101942,14 @@
           "bytes_written": {
             "type": "integer",
             "title": "Bytes Written"
+          },
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Files",
+            "description": "per folder: the .docx names inside the zip"
           }
         },
         "type": "object",

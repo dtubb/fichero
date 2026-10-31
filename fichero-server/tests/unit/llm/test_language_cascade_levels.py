@@ -423,3 +423,20 @@ class TestTwoCodesForOneLanguage:
         spec = LanguageSpec.model_validate(old_payload)
         assert spec.glottocode is None
         assert spec.script == "Latn"
+
+
+def test_the_value_cascade_and_the_direction_cascade_share_one_ancestor_walk():
+    """proto.value.one-resolver-with-language: a value set on a folder resolves for its page through
+    the same walk the direction (and language) cascade uses."""
+    from fichero_server.llm.language_policy import stated_direction_source
+    from fichero_server.models import node_prototypes
+
+    folder = SimpleNamespace(id="f", parent_id=None, direction="rtl", direction_meta={"source": "user"})
+    page = SimpleNamespace(id="p", parent_id="f")
+    store = {"f": folder}
+    assert stated_direction_source(store.get, page) is folder
+    assert node_prototypes.nearest_ancestor(page, store.get, lambda a: a.id == "f") is folder
+    # a cycle ends the walk instead of looping
+    a = SimpleNamespace(id="a", parent_id="b")
+    b = SimpleNamespace(id="b", parent_id="a")
+    assert node_prototypes.nearest_ancestor(a, {"a": a, "b": b}.get, lambda x: False) is None
