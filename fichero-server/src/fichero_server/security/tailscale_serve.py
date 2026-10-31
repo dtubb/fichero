@@ -128,6 +128,22 @@ def ensure_forward(port: int, cli: str) -> bool:
     return True
 
 
+def forward_state(port: int) -> str:
+    """What holds the tailnet ``port`` now, for `GET /api/pair/sharing` (`sharing.state-names-every-address`):
+    "ours" (this engine's loopback TLS listener), "foreign" (something Fichero did not make), "none" (free, or
+    Tailscale missing or not answering). Never raises."""
+    cli = tailscale_cli()
+    if cli is None:
+        return "none"
+    try:
+        current = forward_target(serve_status(cli), port)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return "none"
+    if current is None:
+        return "none"
+    return "ours" if current == wanted_target(port) else "foreign"
+
+
 def remove_forward(port: int, cli: str) -> None:
     _run([cli, "serve", f"--https={port}", "off"])
 
@@ -142,14 +158,20 @@ def start_for_engine(env: Mapping[str, str] | None = None, *, log) -> tuple[str,
     source = env if env is not None else os.environ
     # Any engine with a TLS listener: the app's (FICHERO_TCP_TLS_ALSO sets the certificate too)
     # and start_fichero_server.sh's, which never set that flag and so never forwarded (#5320).
-    if not tailnet_url(source) or not (source.get("FICHERO_TLS_CERTFILE") or "").strip():
+    if not (source.get("FICHERO_TLS_CERTFILE") or "").strip():
+        return None
+    cli = tailscale_cli()
+    # A `.ts.net` sharing address (or FICHERO_TAILNET_URL) asks for the forward outright; otherwise a Mac that
+    # shares at `.local` still gets one whenever Tailscale is running, so the Tailscale address works too
+    # (`sharing.tailnet-forward-whenever-tailscale-is-up`: on a campus network it was the only one that did).
+    asked = bool(tailnet_url(source))
+    if not asked and not (cli and detected_tailnet_url(cli)):
         return None
     # A socket-only engine binds no TCP port: forwarding to it would hand every guest a 502 (#5752).
     if (source.get("FICHERO_UDS_PATH") or "").strip() and source.get("FICHERO_TCP_TLS_ALSO") != "1":
         log.warning("Sharing over Tailscale: this engine listens on a socket only, so nothing is forwarded")
         return None
     port = listen_port(source)
-    cli = tailscale_cli()
     if cli is None:
         log.warning("Sharing over Tailscale, but Tailscale is not installed: nothing forwards port %d", port)
         return None

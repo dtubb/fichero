@@ -2929,7 +2929,7 @@
           "pairing"
         ],
         "summary": "Set Multiuser",
-        "description": "Set the persisted Multi-user switch through the audited action layer (#5751); the Settings\nswitch, the CLI and MCP share this route. While Multi-user is off only the owner's signed-in session may\n(`multiuser.owner-session-sets-the-switch`, #5908): never the start-up credential.",
+        "description": "Set the persisted Multi-user switch through the audited action layer (#5751); the Settings\nswitch, the CLI and MCP share this route. While Multi-user is off only the owner's signed-in session may\n(`multiuser.owner-session-sets-the-switch`, #5908): never the start-up credential.\nApp-wide, so no library header is needed (`sharing.multiuser-switch-needs-no-library`): the audit row goes to the\nglobal library package, as the known-library registry's actions do; the Settings window sends no library.",
         "operationId": "set_multiuser_api_pair_multiuser_put",
         "parameters": [
           {
@@ -93935,10 +93935,30 @@
             "type": "boolean",
             "title": "Multiuser Enabled"
           },
+          "public_base_url": {
+            "type": "string",
+            "nullable": true,
+            "title": "Public Base Url"
+          },
+          "lan_ip": {
+            "type": "string",
+            "nullable": true,
+            "title": "Lan Ip"
+          },
           "tailnet_url": {
             "type": "string",
             "nullable": true,
             "title": "Tailnet Url"
+          },
+          "tailnet_forward": {
+            "type": "string",
+            "enum": [
+              "ours",
+              "foreign",
+              "none"
+            ],
+            "title": "Tailnet Forward",
+            "default": "none"
           },
           "tailnet_serve_command": {
             "type": "string",

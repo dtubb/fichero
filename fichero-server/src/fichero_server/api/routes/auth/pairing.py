@@ -152,7 +152,12 @@ class TailnetOfferResponse(BaseModel):
 
 class SharingStateResponse(BaseModel):
     multiuser_enabled: bool
+    # The host's addresses, in one place (`sharing.state-names-every-address`): the sharing address the engine was
+    # started with, its LAN IP, the tailnet name, and who holds the tailnet forward ("ours" | "foreign" | "none").
+    public_base_url: str | None = None
+    lan_ip: str | None = None
     tailnet_url: str | None = None
+    tailnet_forward: Literal["ours", "foreign", "none"] = "none"
     # The one command to paste in Terminal when this engine cannot make the tailnet forward itself
     # (a sandboxed app cannot run the Tailscale CLI, #5317); None when nothing is missing.
     tailnet_serve_command: str | None = None
@@ -191,9 +196,18 @@ def _sharing_state(app_db: AppDatabase) -> SharingStateResponse:
     from fichero_server.security import tailscale_serve  # lazy: app-import budget (#3950)
     from fichero_server.security.multiuser import multiuser_enabled
 
+    from fichero_server.security import bind_host
+
+    try:
+        lan_ip = bind_host.primary_lan_ip() or None
+    except OSError:  # no network: no address, never a failed read of the pane
+        lan_ip = None
     return SharingStateResponse(
         multiuser_enabled=multiuser_enabled(),
+        public_base_url=(os.environ.get("FICHERO_PUBLIC_BASE_URL") or "").strip() or None,
+        lan_ip=lan_ip,
         tailnet_url=tailscale_serve.detected_tailnet_url() or None,
+        tailnet_forward=tailscale_serve.forward_state(bind_host.listen_port()),
         tailnet_serve_command=_tailnet_serve_command(),
         paired_device_count=sum(1 for d in app_db.list_devices() if not d.revoked),
     )

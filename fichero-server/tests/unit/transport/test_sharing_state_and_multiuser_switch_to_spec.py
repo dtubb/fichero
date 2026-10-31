@@ -55,7 +55,6 @@ def test_the_multiuser_switch_is_an_audited_undoable_action(test_package, app_db
 
 
 def test_revoked_devices_are_not_counted(two_macs, monkeypatch):  # noqa: F811
-    from fichero_server.api.routes.auth import pairing
 
     owner = _owner(two_macs["a"])
     code = two_macs["a"].post("/api/pair/code", headers=owner).json()["code"]
@@ -111,13 +110,12 @@ def test_the_multiuser_answer_names_the_audit_row_for_undo(test_package, app_db,
 
     from fichero_server.actions import ActionContext
     from fichero_server.api.routes.auth import pairing
-    from fichero_server.db import db_manager
 
     monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)
     _an_owner_with_a_chosen_password(app_db)
     monkeypatch.setattr(pairing, "_pairing_user", lambda *_: SimpleNamespace(is_owner=True))
     ctx = ActionContext(actor="owner", library_path=str(test_package), is_bootstrap=True)
     owner_session = SimpleNamespace(state=SimpleNamespace(session=object()))  # the route wants the owner's signed-in session (#5908)
-    answer = pairing.set_multiuser(owner_session, pairing.MultiuserRequest(enabled=True), app_db,
-                                   db_manager.get_database(test_package), ctx)
+    # The route is app-wide and opens the global package itself (`sharing.multiuser-switch-needs-no-library`).
+    answer = pairing.set_multiuser(owner_session, pairing.MultiuserRequest(enabled=True), app_db, ctx)
     assert answer.audit_id
