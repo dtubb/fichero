@@ -25,6 +25,7 @@ from pathlib import Path
 class Config:
     """One project's rules; the all-default Config runs nothing project-specific."""
     python: str = ""                    # interpreter for pytest and guards; "" = the engine's own
+    path: str = ""                      # PATH for every rung ("" = the caller's); the jail user needs its own tools, not the owner's
     python_path: tuple = ()             # folders (relative to the repo) put on PYTHONPATH
     test_env: dict = field(default_factory=dict)  # env for every test and guard run
     base_path_env: str = ""             # env var given a fresh scratch dir per pytest run ("" = none)
@@ -56,7 +57,7 @@ def load(root) -> Config:
     d = Config()
     return Config(
         python=c.get("python", d.python), python_path=tuple(c.get("python_path", d.python_path)),
-        test_env=dict(c.get("test_env", {})), base_path_env=c.get("base_path_env", d.base_path_env),
+        path=c.get("path", d.path), test_env=dict(c.get("test_env", {})), base_path_env=c.get("base_path_env", d.base_path_env),
         ready=tuple(c.get("ready", d.ready)), guard_glob=c.get("guard_glob", d.guard_glob),
         guard_skip=frozenset(c.get("guard_skip", ())), guard_timeout_s=c.get("guard_timeout_s", d.guard_timeout_s),
         min_guards=c.get("min_guards", d.min_guards), contract_paths=tuple(c.get("contract_paths", d.contract_paths)),
@@ -116,6 +117,8 @@ def run_command(name: str, argv: list[str], cwd, timeout_s: float, env: dict | N
 def _env(root, cfg: Config, extra: dict | None = None) -> dict:
     # a scratch HOME: no gh token, no ~/.gitconfig credential helper, no user settings reach a check or a worker's conftest
     env = {k: v for k, v in os.environ.items() if k in ("PATH", "TERM", "LANG")}
+    if cfg.path:
+        env["PATH"] = cfg.path
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["HOME"] = tempfile.mkdtemp(prefix="check-home-")  # (jailed: dropped, the user's own HOME is used)
     if cfg.base_path_env:
@@ -285,7 +288,7 @@ def pinned_violations(root, since: str, head: str, cfg: Config, pinned) -> list[
     bad = []
     for row in _lines(root, "diff", "--name-status", "--no-renames", f"{since}...{head}") or []:
         status, f = row.split("\t", 1)
-        name, parts = Path(f).name, Path(f).parts
+        name = Path(f).name
         if f in pinned_set:
             bad.append(f"{f}: a pinned check file was {'deleted' if status == 'D' else 'changed'}")
         elif f.startswith(".claude/"):

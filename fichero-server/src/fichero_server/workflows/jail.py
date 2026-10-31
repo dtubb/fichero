@@ -15,6 +15,21 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+# /usr/bin/git is an xcrun shim: a new user's first call runs `xcodebuild -sdk macosx -find git` (minutes under load, looks hung).
+_REAL_GITS = ("/Library/Developer/CommandLineTools/usr/bin/git", "/Applications/Xcode.app/Contents/Developer/usr/bin/git",
+              "/opt/homebrew/bin/git", "/usr/local/bin/git")
+
+
+def real_git() -> str:
+    """A git that is not the xcrun shim (first existing of the usual homes); bare "git" if none."""
+    return next((g for g in _REAL_GITS if os.access(g, os.X_OK)), "git")
+
+
+def _path_with_git(path: str) -> str:
+    g = real_git()
+    return path if g == "git" else os.path.dirname(g) + (":" + path if path else ":/usr/bin:/bin")
+
+
 _CD_EXEC = 'cd "$1" && shift && exec "$@"'
 
 
@@ -53,7 +68,8 @@ class Jail:
 
     def argv(self, argv: list[str], cwd=None, env: dict | None = None) -> list[str]:
         """`argv` as the jailed user: clean environment (only `env`), HOME the user's own, optional cwd."""
-        e = [f"{k}={v}" for k, v in (env or {}).items() if k != "HOME"]
+        env = {**(env or {}), "PATH": _path_with_git((env or {}).get("PATH", ""))}  # a real git first, never the xcrun shim
+        e = [f"{k}={v}" for k, v in env.items() if k != "HOME"]
         inner = ["/bin/sh", "-c", _CD_EXEC, "sh", str(cwd) if cwd is not None else "/", *argv]  # never inherit the owner's cwd: the jail user cannot read it
         if self.is_self():
             return ["/usr/bin/env", "-i", f"HOME={os.environ.get('HOME', '')}", *e, *inner]

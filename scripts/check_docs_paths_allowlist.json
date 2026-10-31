@@ -50,7 +50,6 @@
     "fichero/build/xcode/Products/Release",
     "fichero/build/xcode/Products/Release/Fichero.app",
     "scripts/check_doc_citations.py",
-    "scripts/check_test_env_parity.py",
-    "scripts/harness_start.py"
+    "scripts/check_test_env_parity.py"
   ]
 }

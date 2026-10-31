@@ -786,6 +786,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/runtime.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/safe_condition.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/scheduler.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/selection.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/start_tool.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/state.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/subworkflow.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/task_types.py

@@ -31,6 +31,9 @@ user_exists() { id "$WUSER" >/dev/null 2>&1; }
 # A denial counts only if the thing being proved was really attempted: a missing tool (127) or a failure that is not an
 # authorisation failure is UNPROVEN, never "denied". UNPROVEN does not pass the wall silently: it is listed and the run says so.
 LEAK=0; UNPROVEN=0
+# /usr/bin/git is an xcrun shim: the new user's first call runs xcodebuild -find git (minutes under load; NOT a hang).
+GITBIN=git; for g in /Library/Developer/CommandLineTools/usr/bin/git /Applications/Xcode.app/Contents/Developer/usr/bin/git /opt/homebrew/bin/git; do [ -x "$g" ] && { GITBIN="$g"; break; }; done
+[ "$GITBIN" != git ] || echo "note: no real git found; the first git call as $WUSER goes through the xcrun shim and may take minutes (not a hang)"
 as_w() { sudo -n -u "$WUSER" -H "$@"; }
 probe_read() {   # path the worker must NOT be able to read; skipped (said) if it does not exist for the owner
   local p="$1"
@@ -58,8 +61,7 @@ run_probe() {
     return
   fi
   local p; for p in "${libs[@]}"; do probe_read "$p"; done
-  as_w sh -c 'command -v git >/dev/null' || true
-  probe_net "git push by URL" git -C "$WORKROOT/clone" push --dry-run "$REPO_URL" HEAD:refs/heads/probe
+    probe_net "git push by URL" "$GITBIN" -C "$WORKROOT/clone" push --dry-run "$REPO_URL" HEAD:refs/heads/probe
   probe_net "gh api write" gh api -X POST "repos/$REPO_SLUG/issues" -f title=probe
   [ "$LEAK" = 0 ] || { echo "THE WALL LEAKS; do not use the harness (scripts/harness_setup.sh --undo to back out)"; exit 1; }
   [ "$UNPROVEN" = 0 ] || echo "probe: no leak found, but some lines are UNPROVEN above: the wall is not yet proved"
@@ -133,14 +135,14 @@ run sudo install -m 440 -o root -g wheel "$TMP" "$SUDOERS"
 [ "$DRY" = 1 ] || sudo visudo -cf "$SUDOERS"
 
 say "5. the worker's git identity and trust of trees under the workroot"
-as_worker git config --global user.name Claude
-as_worker git config --global user.email noreply@anthropic.com
-if [ "$DRY" = 0 ] && sudo -n -u "$WUSER" -H git config --global --get-all safe.directory 2>/dev/null | grep -Fxq "$WORKROOT/*"; then echo "safe.directory already set: skipped"
-else as_worker git config --global --add safe.directory "$WORKROOT/*"; fi
+as_worker "$GITBIN" config --global user.name Claude
+as_worker "$GITBIN" config --global user.email noreply@anthropic.com
+if [ "$DRY" = 0 ] && sudo -n -u "$WUSER" -H "$GITBIN" config --global --get-all safe.directory 2>/dev/null | grep -Fxq "$WORKROOT/*"; then echo "safe.directory already set: skipped"
+else as_worker "$GITBIN" config --global --add safe.directory "$WORKROOT/*"; fi
 
 say "6. the worker's clone, anonymous over https (no credential exists for this user)"
 if [ "$DRY" = 0 ] && sudo -n -u "$WUSER" -H test -d "$WORKROOT/clone/.git"; then echo "clone exists: skipped"
-else as_worker git clone "$REPO_URL" "$WORKROOT/clone"; fi
+else as_worker "$GITBIN" clone "$REPO_URL" "$WORKROOT/clone"; fi
 
 run_probe
 

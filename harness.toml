@@ -1,6 +1,9 @@
 # Per-project rules for the dev harness (fichero-server/src/fichero_server/workflows/check_tool.py `load`).
 # Fichero is the first project; another project carries its own harness.toml with the same keys.
 [check]
+# The jail user's own tools, copied into the workroot by the owner-side set-up (nothing is read from the owner's home).
+python = "/Users/Shared/fichero-worker/venv/bin/python"
+path = "/Users/Shared/fichero-worker/bin:/Users/Shared/fichero-worker/venv/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 python_path = ["fichero-server/src", "fichero-cli/src", "fichero-mcp/src"]
 base_path_env = "FICHERO_BASE_PATH"
 ready = ["scripts/lane_ready_check.sh", "HEAD"]
