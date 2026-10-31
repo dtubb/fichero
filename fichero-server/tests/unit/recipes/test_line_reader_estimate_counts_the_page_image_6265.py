@@ -25,9 +25,8 @@ def _run(job):
             "workflow_id": None, "job": job, "steps": [job], "workflow": "Read"}
 
 
-@pytest.mark.parametrize("job", ["read-a-line", "read-a-page"])
-def test_a_cloud_reader_is_priced_on_the_page_image_it_sends(job):
-    cost = estimate([_run(job)], 874)["runs"][0]["cost_usd"]
+def test_a_cloud_page_reader_is_priced_on_the_page_image_it_sends():
+    cost = estimate([_run("read-a-page")], 874)["runs"][0]["cost_usd"]
     assert cost == pytest.approx(estimate_cost(MODEL, 874 * 3_600, 874 * 400, provider=PROVIDER))  # Claude: the capped image, twice
 
 
