@@ -33,11 +33,33 @@ final class SharingPaneUITests: FicheroUISessionTests {
                       "Open Sharing did not land on the Devices section (the Sharing switch)")
     }
 
-    /// With Sharing on, the code on the Add Device sheet survives a health check (a Multi-user flip runs one).
+    /// With Sharing on, the Add Device sheet offers both address rows: This network with the host, and Tailscale (enabled with a
+    /// host when the harness Mac has it, else greyed with why and no host; never a placeholder host, review M2).
+    func testAddDeviceSheetShowsBothAddressRows() throws {
+        try openSharing(section: "Devices")
+        let sharing = app.switches.matching(NSPredicate(format: "label CONTAINS %@", "Sharing")).firstMatch
+        XCTAssertTrue(sharing.waitForExistence(timeout: 10), "the Devices section has no Sharing switch: the pane is broken, not skipped")
+        if (sharing.value as? String) != "1" { sharing.click() }
+        let add = app.buttons["Add Device…"]
+        try XCTSkipUnless(add.waitForExistence(timeout: 60) && add.isEnabled, "Sharing did not come up in time (certificate + restart)")
+        add.click()
+        let thisNetwork = app.descendants(matching: .any).matching(identifier: "sharing.address.row.this-network").firstMatch
+        let tailscale = app.descendants(matching: .any).matching(identifier: "sharing.address.row.tailscale").firstMatch
+        XCTAssertTrue(thisNetwork.waitForExistence(timeout: 30), "no This network row")
+        XCTAssertTrue(tailscale.exists, "no Tailscale row (it must be there, greyed with why, even without Tailscale)")
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "tailscale.invalid")).firstMatch.exists,
+                       "a placeholder host is shown")
+        XCTAssertTrue(app.buttons["sharing.address.copy.this-network"].exists, "This network has no Copy of its own")
+        app.buttons["Done"].click()
+    }
+
+    /// With Sharing on, the code on the Add Device sheet survives a health check (a Multi-user flip runs one). The flip reaches only
+    /// the harness's own engine: `FicheroUISessionTests` runs the app against a disposable Application Support root under a unique temp
+    /// directory (`UITestEngineHarness`, FICHERO_UITEST_HOME), never the person's (review L3).
     func testCodeSurvivesAHealthCheck() throws {
         try openSharing(section: "Devices")
         let sharing = app.switches.matching(NSPredicate(format: "label CONTAINS %@", "Sharing")).firstMatch
-        try XCTSkipUnless(sharing.waitForExistence(timeout: 10), "no Sharing switch")
+        XCTAssertTrue(sharing.waitForExistence(timeout: 10), "the Devices section has no Sharing switch: the pane is broken, not skipped")
         if (sharing.value as? String) != "1" { sharing.click() }
         let add = app.buttons["Add Device…"]
         try XCTSkipUnless(add.waitForExistence(timeout: 60) && add.isEnabled, "Sharing did not come up in time (certificate + restart)")
@@ -48,7 +70,7 @@ final class SharingPaneUITests: FicheroUISessionTests {
         app.buttons["Done"].click()
         // A Multi-user flip calls checkBackendHealth(); the refused flip (no owner password) is still a health check.
         let multiuser = app.switches.matching(NSPredicate(format: "label CONTAINS %@", "Multi-user")).firstMatch
-        try XCTSkipUnless(multiuser.waitForExistence(timeout: 10), "no Multi-user switch in Advanced")
+        XCTAssertTrue(multiuser.waitForExistence(timeout: 10), "no Multi-user switch in Advanced: the pane is broken, not skipped")
         multiuser.click()
         sleep(3)
         add.click()
