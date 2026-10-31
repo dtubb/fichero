@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import threading
 import weakref
 from functools import lru_cache
@@ -34,6 +33,8 @@ from datetime import datetime, timezone
 from typing import Iterable
 
 from pydantic import BaseModel, Field
+
+from fichero_server.db.library_paths import canonical_library_key
 
 logger = logging.getLogger(__name__)
 
@@ -216,6 +217,8 @@ class _ChangeHub:
         self._replay_buffers: OrderedDict[str, deque[ChangeEvent]] = OrderedDict()
         self._next_event_ids: dict[str, int] = {}
         self._lock = threading.Lock()
+        # (emit key, live key) pairs already warned about, with how many emits each has dropped (#6309).
+        self._drift_counts: dict[tuple[str, tuple[str, ...]], int] = {}
 
     @staticmethod
     @lru_cache(maxsize=512)
@@ -233,7 +236,7 @@ class _ChangeHub:
         resolves the symlinked prefix without requiring the leaf to exist, and
         the ``lru_cache`` keeps the per-emit filesystem walk off the hot path.
         """
-        return os.path.realpath(library_path) if library_path else library_path
+        return canonical_library_key(library_path) if library_path else library_path
 
     def subscribe(self, library_path: str) -> asyncio.Queue:
         """Register a new subscriber queue for ``library_path`` and return it."""
@@ -312,18 +315,25 @@ class _ChangeHub:
             except Exception as exc:  # pragma: no cover - defensive
                 logger.debug("change-hub: drop event for one queue: %s", exc)
         if delivered == 0 and other_live_keys:
-            # Emitted into the void while OTHER libraries have subscribers — the
-            # emit key and a subscribe key have drifted apart. No-silent-fallback:
-            # make it a WARNING with both sides so the drift is debuggable.
-            logger.warning(
-                "change-hub: %s emit to key %r reached 0 subscribers, but "
-                "%d subscriber(s) are live under different key(s): %r — "
-                "library_path key drift? (#2518)",
-                event.type,
-                library_path,
-                len(other_live_keys),
-                other_live_keys,
-            )
+            # Emitted into the void while OTHER libraries have subscribers. One WARNING per
+            # (emit key, live keys) pair, then the count at 10, 100, 1000 ...: tens of thousands of
+            # identical lines hid the signal (#6309). Two different libraries read the same way.
+            pair = (library_path, tuple(sorted(other_live_keys)))
+            with self._lock:
+                count = self._drift_counts.get(pair, 0) + 1
+                self._drift_counts[pair] = count
+            if count in (1, 10, 100, 1000, 10000, 100000):
+                logger.warning(
+                    "change-hub: %s emit to key %r reached 0 subscribers, but "
+                    "%d subscriber(s) are live under different key(s): %r — "
+                    "no window is open on this library, or the key drifted (#2518, #6309); "
+                    "%d emit(s) dropped for this pair so far",
+                    event.type,
+                    library_path,
+                    len(other_live_keys),
+                    other_live_keys,
+                    count,
+                )
         return delivered
 
     def revoke_devices(self, device_ids: list[str]) -> int:
