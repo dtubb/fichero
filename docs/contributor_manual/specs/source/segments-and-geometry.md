@@ -908,12 +908,12 @@ Passes, orders, links
   UNreachable both ways too, or a withdrawal leaves half a link behind.
 
 Maps
-- `source.geo.control-points` — **[GAP]** (#4933, → #5122) a point on an image can be tied to a coordinate on the earth,
+- `source.geo.control-points` — **[PARTIAL]** (#4933, → #5122) a point on an image can be tied to a coordinate on the earth,
   with author and certainty. Umbrella: refined as `source.geo.gcp-is-a-segment` in
   `maps-and-georeference.md`.
-- `source.geo.segment-to-world` — **[GAP]** (#4933, → #5122) on a georeferenced image, any segment can give its place in
+- `source.geo.segment-to-world` — **[PARTIAL]** (#4933, → #5122) on a georeferenced image, any segment can give its place in
   the world. Umbrella: refined as `source.geo.world-shape` in `maps-and-georeference.md`.
-- `source.geo.names-a-place` — **[GAP]** (#4933, → #5123) a label on a map can be linked to the place entity it names.
+- `source.geo.names-a-place` — **[PARTIAL]** (#4933, → #5123) a label on a map can be linked to the place entity it names.
   Umbrella: refined as `source.geo.place-segment-names-entity` in `maps-and-georeference.md`, which
   needs `source.link.end-is-entity` below.
 
