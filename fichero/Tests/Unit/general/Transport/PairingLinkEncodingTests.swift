@@ -37,9 +37,9 @@ struct PairingLinkEncodingTests {
 
     @Test("two encodes of one payload are the same bytes; an absent library leaves its key out")
     func stableAndSparse() throws {
-        let a = try RemoteClientPairing.inviteLinkString(from: payload())
-        let b = try RemoteClientPairing.inviteLinkString(from: payload())
-        #expect(a == b)
+        let first = try RemoteClientPairing.inviteLinkString(from: payload())
+        let second = try RemoteClientPairing.inviteLinkString(from: payload())
+        #expect(first == second)
         let bare = try json(ofLink: try RemoteClientPairing.inviteLinkString(from: payload(library: nil)))
         #expect(!bare.contains("library_path"))
     }
