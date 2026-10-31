@@ -464,7 +464,7 @@ final class ProjectRunStripTests: XCTestCase {
         let b = try XCTUnwrap(store.recipeFolderSteps["B"])
         XCTAssertFalse(b.allDone, "a step that cannot tell is not done")
         XCTAssertEqual(b.words, "Find lines and Read each line: done\nexport: cannot tell")
-        XCTAssertTrue(RecipeFolderSteps(steps: [.init(name: "Read", done: 1, of: 1)]).allDone)
+        XCTAssertTrue(RecipeFolderSteps(steps: [.init(name: "Read", done: 1, total: 1)]).allDone)
     }
 
     func testStrip_aRunOverOneFolder_saysNothingMoreThanItsStage() async throws {

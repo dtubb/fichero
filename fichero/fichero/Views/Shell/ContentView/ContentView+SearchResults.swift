@@ -273,7 +273,7 @@ extension ContentView {
             guard let documentId = entity.sourceDocumentIds?.first,
                   hits[documentId] == nil else { continue }
             // A row only the ENTITY leg reached says "entity", not "graph"
-            // (Daniel, 2026-09-03). This chipped `.kg` — the word reserved
+            // (Daniel, 2026-09-03). This chipped `.knowledgeGraph` — the word reserved
             // for the opt-in `hybrid_graph` fusion leg — so every entity-name
             // hit claimed a graph traversal that never ran, in a library with
             // essentially no graph. The entity leg is a semantic search over
