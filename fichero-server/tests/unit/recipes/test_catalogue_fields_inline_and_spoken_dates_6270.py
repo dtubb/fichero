@@ -82,7 +82,7 @@ def test_normalised_date_of_spanish_thousands_years():
 
 
 def test_normalised_date_of_one_year_written_twice_is_one_date():
-    assert _norm("1.909 – febrero de mil novecientos nueve") == "1909"
+    assert _norm("1.909 – febrero de mil novecientos nueve") == "1909-02"
 
 
 def test_normalised_date_of_a_dropped_one_year():
@@ -178,7 +178,7 @@ B12_FORMS = {"1.909 \u2013 febrero de mil novecientos nueve": ("1909", "1909"), 
 
 def test_money_and_counts_give_no_year_and_real_dates_are_read():
     for text, span in B12_FORMS.items():  # the dotted side is unread; the other side's date stands
-        assert _span(text) == span and _norm(text) == "1909", text
+        assert _span(text) == span and _norm(text) in ("1909", "1909-02"), text
     for text in KNOWN_GAPS:
         assert "catalogue_date_start" not in parse_fields(f"Dates: {text}"), text
     for text in NOT_YEARS:

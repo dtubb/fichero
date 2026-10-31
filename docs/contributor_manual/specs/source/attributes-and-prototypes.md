@@ -218,7 +218,7 @@ Shipped as JSON under a new folder, fichero-server/src/fichero_server/resources/
   `catalogue-export.md`, in that order, both labels and the instruction line per column, the date
   format `d/Mes/aaaa` at the date's precision with Spanish month names in the declaration, places and
   people joined "|", people surname first, subjects a `multi_select` over the shipped Tema vocabulary
-  (about 130 terms, English and Spanish labels), the original reference and the cataloguer declared
+  (the team's subject list as the default, 99 terms, English with Spanish where the team gave one, the other 75 terms' Spanish labels still to be given; a project edits its own copy), the original reference and the cataloguer declared
   inheriting. A folder's pages: `pages: eap_page` (no fields; the page's own attributes). This is the
   preset the owner named, and it reproduces the revised sheet of the team's workbook from attributes
   alone (`catalogue-export.md`, "What the team's workbook taught").
@@ -240,12 +240,12 @@ table extraction asks the questions of the unit's effective prototype), never on
 
 ## Behaviors
 
-- `proto.kind.own-and-inherited-by-level` — **[GAP]** (#5365, #6282) a node's effective prototype is
+- `proto.kind.own-and-inherited-by-level` — **[OK]** (#5365, #6282) a node's effective prototype is
   its own `prototype_key`, else the first ancestor's effective prototype that declares a default for
   the node's level (`subfolders`, `pages`, `regions`, `lines`, `entries`), else none; a node's own
   kind restarts the chain beneath it; clearing it inherits again; the resolver returns the rule that
   fired and the ancestor. Test: fichero-server/tests/unit/models/test_prototype_cascade_kind.py.
-- `proto.kind.declared-defaults-for-beneath` — **[GAP]** (#5365) a prototype's attributes may declare
+- `proto.kind.declared-defaults-for-beneath` — **[OK]** (#5365) a prototype's attributes may declare
   `subfolders`, `pages`, `regions`, `lines` as prototype keys; an unknown key or a cycle through them
   is refused at save with words; `entries` keeps its meaning. Test:
   fichero-server/tests/unit/models/test_prototype_schema.py.
@@ -254,13 +254,13 @@ table extraction asks the questions of the unit's effective prototype), never on
   rejects it; a person's kind is never proposed over. Tests:
   `fichero-server/tests/unit/api/test_routes_documents.py::TestDocumentPrototypes`,
   `fichero-server/tests/unit/api/test_mutation_audit_lock.py`.
-- `proto.value.set-inherited-default-empty` — **[GAP]** (#5365, `catalogue.fields-cascade`) the
+- `proto.value.set-inherited-default-empty` — **[OK]** (#5365, `catalogue.fields-cascade`) the
   effective value of a key is the node's own, else the nearest ancestor's effective value when the
   declaration says `inherits`, else the declaration's default, else empty; `effective-attributes`
   returns per key `{value, origin: here|inherited|default|empty, from: <node id or prototype key>,
   source}`; a non-inheriting key never walks up; nothing inherited is stored on the node. Test:
   fichero-server/tests/unit/api/test_effective_attributes_cascade.py.
-- `proto.value.one-resolver-with-language` — **[GAP]** (#5517, `source.resolve.one-cascade`) the
+- `proto.value.one-resolver-with-language` — **[PARTIAL]** (#5517, `source.resolve.one-cascade`) the value walk and the direction cascade share ONE ancestor walk (`node_prototypes.nearest_ancestor`); `llm/language_policy.resolve_language`'s language rung still reads its own document/project rungs and is not yet a declared `inherits` key. Spec text: the
   language, script and direction cascade and the attribute value cascade are one walk in one
   resolver; a value set on a folder resolves for its pages through the same call the language does.
   Test: fichero-server/tests/unit/llm/test_language_cascade_levels.py.
@@ -268,37 +268,37 @@ table extraction asks the questions of the unit's effective prototype), never on
   a person's edit through `document.update` makes the key theirs, a machine value names its tool,
   step, run, model and what it said; a proposal is answered as one audited action. Tests:
   `fichero-server/tests/unit/workflows/test_attributes_cite.py` (and the `structured.cite.*` tests).
-- `proto.template.columns-are-the-prototype` — **[GAP]** (#6282) a template is the effective
+- `proto.template.columns-are-the-prototype` — **[OK]** (#6282) a template is the effective
   declarations of a prototype in `order`, each an attribute column (labels per language, type, join,
   date format) or a computed column with a `source` from the fixed vocabulary; the template of a
   scope is the effective prototype of its rows, the union in first-seen order when they differ (a
   column a child prototype inherits from a shared parent appears once), and "every catalogue key,
   alphabetically" when they have none. Test: fichero-server/tests/unit/models/test_prototype_template.py.
-- `proto.template.per-scope-column-choice` — **[GAP]** (#6282) a person may narrow a scope's columns
+- `proto.template.per-scope-column-choice` — **[OK]** (#6282) a person may narrow a scope's columns
   (hide columns, or show one kind's columns only); the choice is saved with the scope as a view, not
   on any prototype, the export of that scope follows it, clearing it returns to the union, and ⌘Z
   undoes it. Test: fichero-server/tests/unit/api/test_scope_column_choice.py.
-- `proto.template.labels-per-language-and-order` — **[GAP]** (#6282) a declaration carries
+- `proto.template.labels-per-language-and-order` — **[OK]** (#6282) a declaration carries
   `order`, `labels: {language: text}`, `help: {language: text}`, `join`, `name_order`, `format`,
   `inherits`, per-language labels on `options` and, for a computed column, `source`; the old single
   `label` reads as the metadata language's; a label is never shown as the key when one exists. Test:
   fichero-server/tests/unit/models/test_prototype_schema.py.
-- `proto.template.edit-copies-a-builtin` — **[GAP]** (#6282) a column change on a built-in prototype
+- `proto.template.edit-copies-a-builtin` — **[OK]** (#6282) a column change on a built-in prototype
   makes a project-owned child with `parent_key` the built-in, assigns it where the built-in was and
   lands the change on the child; the built-in is unchanged; later changes patch the child; ⌘Z
   undoes the patch and, the first time, the copy and the assignment together. Test:
   fichero-server/tests/unit/api/test_prototype_edit_copies_builtin.py.
-- `proto.shipped.eap-prototypes` — **[GAP]** (#6282) `eap_box`, `eap_digital_folder` and
+- `proto.shipped.eap-prototypes` — **[OK]** (#6282) `eap_box`, `eap_digital_folder` and
   `eap_digital_folder_en` ship as JSON, load as read-only built-ins on open, migrate forward by key,
   and `eap_digital_folder`'s declarations are the thirteen columns of `catalogue-export.md` in that
   order with both labels, the instruction lines, the "|" joins, surname-first people, the Tema
-  vocabulary, the date format and the month names. Test:
+  vocabulary (the team's default list, editable per project), the date format and the month names. Test:
   fichero-server/tests/unit/models/test_shipped_prototypes.py.
-- `proto.runs.read-the-effective-prototype` — **[GAP]** (#6087, #5636) the Catalogue stage's optional
+- `proto.runs.read-the-effective-prototype` — **[PARTIAL]** (#6087, #5636) the Catalogue stage's optional
   fields and the table extraction's questions come from the node's EFFECTIVE prototype, not its own
-  key alone, so a folder beneath an `eap_box` is asked the EAP fields with no assignment of its own.
+  key alone, so a folder beneath an `eap_box` is asked the EAP fields with no assignment of its own. Built: the stage fills a folder's EFFECTIVE prototype's declared fields (no prototype: today's fixed set) and the table step finds its units by the effective kind; the stage's prompt still names the fixed fields, so a prototype's own extra field is not yet asked.
   Test: fichero-server/tests/unit/recipes/test_catalogue_stage_reads_effective_prototype.py.
-- `proto.app.inspector-says-where-from` — **[GAP]** (#5365) the Inspector shows each field's value
+- `proto.app.inspector-says-where-from` — **[OK]** (#5365) the Inspector shows each field's value
   with its origin in words ("set here", "from Caja 12", "default of EAP digital folder", "Fichero
   (<model>)", a person's name), greys an inherited or default value, and lets a person set the node's
   own kind or clear it. Test: fichero/Tests/Unit/general/Views/Inspector/EffectiveAttributesOriginTests.swift.

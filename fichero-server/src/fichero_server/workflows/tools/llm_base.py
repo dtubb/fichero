@@ -437,8 +437,12 @@ def find_existing_artifact(
     *,
     provider: str | None = None,
     model: str | None = None,
+    image: str | None = None,
 ) -> Any | None:
     """Return the most recent artifact of the given type for a document, or None.
+
+    `image` (`media/current_image.PageImage.signature`): only a reading made from that image answers (#6296); an edit or an Undo
+    in Preview is another image and is read again. None: any image's.
 
     The cache key is (document_id, artifact_type, provider, model) when
     provider/model are supplied. Matching on provider/model matters because
@@ -482,6 +486,10 @@ def find_existing_artifact(
             artifacts = [a for a in artifacts if getattr(a, "provider", None) == provider]
         if model is not None:
             artifacts = [a for a in artifacts if getattr(a, "model", None) == model]
+        if image is not None:
+            from fichero_server.media.current_image import read_from
+
+            artifacts = [a for a in artifacts if read_from(a) == image]
         if not artifacts:
             return None
 

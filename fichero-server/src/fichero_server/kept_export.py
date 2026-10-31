@@ -5,7 +5,9 @@ Spec: `docs/contributor_manual/specs/source/models-chains-and-projects.md`, sect
 **one file per page or per document**. Writing goes through the one export path: the page formats
 (ALTO, PAGE XML, TEI, hOCR) through `page_export.export_page`, Word through
 `export_service.export_word_docx`, Markdown through `export_service.render_markdown_text`, plain
-text as the page's derived text (`document_text`, reading order, furniture left out). The page
+text as the page's derived text (`document_text`, reading order, furniture left out). Two formats are
+written for more than a page: `catalogue-workbook` (one Catálogo.xlsx for the project) and `word-transcript` (one
+.docx per folder, page by page, no images, blank pages listed once; #6287). The page
 formats are one file per page only: their files describe one image.
 
 A document is the node a page sits in (a multi-page file, a group or a folder); pages at the top
@@ -45,9 +47,15 @@ KIND = "write-kept-export"
 QUIET_SECONDS = 5.0
 #: The page interchange formats, written one file per page by the exporter.
 PAGE_FORMATS = ("alto", "pagexml", "tei", "hocr")
-FORMATS = ("word", "markdown", "plain-text", *PAGE_FORMATS)
+#: Written for the whole project, one file (the catalogue workbook, `catalogue-export.md`): per document only.
+WHOLE_FORMATS = ("catalogue-workbook",)
+#: One file per folder, page by page (#6287): per document only, a page alone is no transcript.
+FOLDER_FORMATS = ("word-transcript",)
+FORMATS = ("word", "markdown", "plain-text", *PAGE_FORMATS, *WHOLE_FORMATS, *FOLDER_FORMATS)
 PER = ("page", "document")
-_EXTENSIONS = {"word": ".docx", "markdown": ".md", "plain-text": ".txt"}
+_EXTENSIONS = {"word": ".docx", "markdown": ".md", "plain-text": ".txt", "catalogue-workbook": ".xlsx",
+               "word-transcript": ".docx"}
+WORKBOOK_NAME = "Catálogo"
 #: The unit key of the pages at the top of the project (no parent): one document, the project's.
 _TOP = "top"
 
@@ -108,6 +116,8 @@ def keep(db: Any, folder: str, fmt: str, per: str) -> str:
         raise KeptExportRefused(f"An export is one file per page or per document; not {per!r}.")
     if fmt in PAGE_FORMATS and per != "page":
         raise KeptExportRefused(f"{fmt} describes one image, so it is written one file per page.")
+    if fmt in (*WHOLE_FORMATS, *FOLDER_FORMATS) and per != "document":
+        raise KeptExportRefused(f"{fmt} is one file for the project or the folder, not one per page.")
     resolved = _refuse_folder(db, folder)
     register_job_kinds()
     export_id = uuid.uuid4().hex
@@ -173,6 +183,8 @@ def _units(db: Any, export: dict[str, Any]) -> list[_Unit]:
     from fichero_server.export_service import _collect_documents
     from fichero_server.models import DocType, Document
 
+    if export["format"] in WHOLE_FORMATS:
+        return [_Unit(_TOP, WORKBOOK_NAME, WORKBOOK_NAME, filename=f"{WORKBOOK_NAME}{_extension(export['format'])}")]
     _root, documents = _collect_documents(db, target_id=None, recursive=True)
     pages = [d for d in documents if d.doc_type in (DocType.file, DocType.page)]
     units: dict[str, _Unit] = {}
@@ -213,6 +225,17 @@ def _text(db: Any, page_id: str) -> str | None:
 def _render(db: Any, export: dict[str, Any], unit: _Unit, left_out: list[tuple[str, str]] | None = None) -> bytes | None:
     """The unit's file, or None when it has nothing to write (no page of it is read)."""
     fmt = export["format"]
+    if fmt == "catalogue-workbook":
+        from fichero_server.export_service import export_catalogue_xlsx
+
+        from fichero_server import catalogue_sheet
+
+        rows, bare = catalogue_sheet.undescribed_count(db, None)
+        with tempfile.TemporaryDirectory(prefix="fichero-kept-export-") as scratch:
+            out = Path(scratch) / "out.xlsx"
+            export_catalogue_xlsx(db, out, overwrite=True)
+            jobs.note_done(f"{WORKBOOK_NAME}.xlsx: {rows} filas, {bare} sin describir")
+            return out.read_bytes()
     if fmt in PAGE_FORMATS:
         from fichero_server.formats import FormatCannotWrite
         from fichero_server.page_export import ExportRefused, export_page
@@ -225,6 +248,8 @@ def _render(db: Any, export: dict[str, Any], unit: _Unit, left_out: list[tuple[s
     read = [page for page in unit.pages if texts[page.id]]
     if not read:
         return None
+    if fmt == "word-transcript":
+        return _transcript(db, unit, texts)
     single = export["per"] == "page"
     if fmt == "plain-text":
         return ("\n\n".join(texts[p.id] for p in read) + "\n").encode("utf-8")
@@ -241,6 +266,21 @@ def _render(db: Any, export: dict[str, Any], unit: _Unit, left_out: list[tuple[s
         export_word_docx(db, out, overwrite=True, package_path=_package(db), include_knowledge_graph=False,
                          documents=read, title=read[0].name if single else unit.name,
                          text_for=lambda doc: texts[doc.id] or "", skipped=left_out)
+        return out.read_bytes()
+
+
+def _transcript(db: Any, unit: _Unit, texts: dict[str, str | None]) -> bytes:
+    """The folder's transcript: page by page, no images, a page break per page, blank pages listed once at the end."""
+    from fichero_server import catalogue_sheet
+    from fichero_server.export_service import export_word_docx
+
+    blank = {p.id for p in catalogue_sheet.blank_pages(unit.pages)}
+    pages = [p for p in unit.pages if texts[p.id] or p.id in blank]
+    with tempfile.TemporaryDirectory(prefix="fichero-kept-export-") as scratch:
+        out = Path(scratch) / "out.docx"
+        export_word_docx(db, out, overwrite=True, include_knowledge_graph=False, documents=pages, title=unit.name,
+                         text_for=lambda doc: texts[doc.id] or "", include_images=False, page_break_per_page=True,
+                         blank_pages_listed_once=True)
         return out.read_bytes()
 
 
@@ -284,8 +324,8 @@ def write(db: Any, subject: str) -> None:
     if not folder.is_dir():
         raise KeptExportRefused(f"{folder} is not there any more; choose the export's folder again.")
     for unit in _units(db, export):
-        if key and unit.key != key:
-            continue
+        if key and unit.key != key and export["format"] not in WHOLE_FORMATS:
+            continue  # (the workbook is one file: any page's change rewrites it)
         data = _render(db, export, unit, left_out)
         if data is not None:
             _put(db, export, unit.filename, data)

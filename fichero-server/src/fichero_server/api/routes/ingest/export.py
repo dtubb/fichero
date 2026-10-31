@@ -1,24 +1,29 @@
 """Document export routes, and the project's kept exports (#5485, `/export/kept`)."""
 
+import base64
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import action_context
 from fichero_server.api.library_header import optional_library_path
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import assert_library_write_authorized, get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.export_service import (
+    export_catalogue_xlsx,
     export_eleventy_site,
     export_excel_xlsx,
     export_jsonl,
     export_parquet,
     export_markdown_folder,
     export_word_docx,
+    export_word_transcripts,
 )
 
 router = APIRouter(prefix="/export", tags=["export"])
@@ -72,7 +77,17 @@ class WordExportRequest(BaseModel):
     )
     include_images: bool = Field(
         default=True,
-        description="Embed each page's scan; false prints no image and no note, and never opens the scan files",
+        description="Off prints neither the image nor the 'image not included' note: a page is its heading and text",
+    )
+    page_break_per_page: bool = Field(default=False, description="Start each page on a new Word page")
+    blank_pages_listed_once: bool = Field(
+        default=False,
+        description="Print no body for a page sorted blank; end the folder with one line listing them as image ranges",
+    )
+    per: Literal["document", "folder"] = Field(
+        default="document",
+        description="'folder' writes a .zip of one transcript .docx per folder of the scope (page by page, no "
+        "images, a page break per page, blank pages listed once): the options above are fixed for it",
     )
 
 
@@ -80,6 +95,7 @@ class WordExportResponse(BaseModel):
     output_path: str
     document_count: int
     bytes_written: int
+    files: list[str] = Field(default_factory=list, description="per folder: the .docx names inside the zip")
 
 
 class ExcelExportRequest(BaseModel):
@@ -358,8 +374,13 @@ async def export_word_route(
     db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Depends(optional_library_path),
 ) -> WordExportResponse:
-    """Export a library, folder, or document as a Word .docx file."""
+    """Export a library, folder, or document as a Word .docx file (or, per folder, a zip of them)."""
     try:
+        if request.per == "folder":
+            return WordExportResponse(**export_word_transcripts(
+                db=db, output_path=Path(request.output_path), target_id=request.target_id,
+                overwrite=request.overwrite, package_path=x_fichero_library_path,
+            ).__dict__)
         result = export_word_docx(
             db=db,
             output_path=Path(request.output_path),
@@ -369,6 +390,8 @@ async def export_word_route(
             package_path=x_fichero_library_path,
             include_knowledge_graph=request.include_knowledge_graph,
             include_images=request.include_images,
+            page_break_per_page=request.page_break_per_page,
+            blank_pages_listed_once=request.blank_pages_listed_once,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -404,12 +427,71 @@ async def export_excel_route(
     return ExcelExportResponse(**result.__dict__)
 
 
+class CatalogueWorkbookRequest(BaseModel):
+    """What to write: the catalogue of a folder or project, in its rows' effective prototype's template."""
+
+    target_id: str | None = Field(default=None, description="A folder or project id; omitted writes the whole library")
+    format: Literal["xlsx", "csv"] = Field(default="xlsx", description="xlsx: one workbook; csv: a zip of one file per sheet")
+    prototype_key: str | None = Field(default=None, description="Write this prototype's columns instead of the rows' own")
+    proposals: Literal["marked", "omitted"] = Field(
+        default="marked", description="A machine's unanswered proposals are marked, or left out of a delivered sheet")
+    kept_export_id: str | None = Field(
+        default=None, description="Write into this kept export's folder (queued) instead of returning the file")
+
+
+class CatalogueWorkbookResponse(BaseModel):
+    filename: str = Field(description="The file's name: Catálogo.xlsx or Catálogo.zip")
+    media_type: str
+    #: ponytail: the file rides in the JSON envelope (base64); a streamed binary body when a workbook outgrows memory.
+    content_base64: str | None = Field(default=None, description="The file, base64; none when it was queued into a kept export")
+    sheets: list[str] = Field(default_factory=list)
+    row_count: int = 0
+    job_id: str | None = Field(default=None, description="The queued write, when kept_export_id was given")
+
+
+_WORKBOOK_TYPES = {"xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "csv": "application/zip"}
+
+
+@router.post("/catalogue-workbook", response_model=CatalogueWorkbookResponse,
+             summary="The catalogue workbook of a folder or project, in its archive's template")
+async def export_catalogue_workbook_route(
+    request: CatalogueWorkbookRequest,
+    http: Request,
+    library_path: str = Depends(require_library_path),
+    db: Database = Depends(get_library_database),
+) -> CatalogueWorkbookResponse:
+    """The same builder the recipe's last step runs (`catalogue_sheet.workbook`): attributes, pages, the graph and the
+    record; never a model. No local path in the request: the file comes back, or is queued into a kept export."""
+    from fichero_server import kept_export
+
+    suffix = ".xlsx" if request.format == "xlsx" else ".zip"
+    name = f"{kept_export.WORKBOOK_NAME}{suffix}"
+    if request.kept_export_id:
+        assert_library_write_authorized(http, library_path)  # a read export, except that this one queues a write
+        kept = kept_export._export(db, request.kept_export_id)
+        if kept is None or kept["format"] != "catalogue-workbook":
+            raise HTTPException(status_code=404, detail="No kept catalogue-workbook export with that id.")
+        return CatalogueWorkbookResponse(filename=name, media_type=_WORKBOOK_TYPES[request.format],
+                                         job_id=kept_export.write_now(db, request.kept_export_id))
+    try:
+        with tempfile.TemporaryDirectory(prefix="fichero-catalogue-") as scratch:
+            result = export_catalogue_xlsx(db, Path(scratch) / f"out{suffix}", request.target_id, request.prototype_key,
+                                           overwrite=True, proposals=request.proposals, file_format=request.format)
+            data = Path(result.output_path).read_bytes()
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return CatalogueWorkbookResponse(filename=name, media_type=_WORKBOOK_TYPES[request.format],
+                                     content_base64=base64.b64encode(data).decode("ascii"), sheets=result.sheets,
+                                     row_count=result.row_count)
+
+
 # ---------------------------------------------------------------------------------------------------
 # Kept exports (#5485, spec models-chains-and-projects section 7b, screen 3): an up-to-date copy of
 # the project's work in a folder outside it, written again as the work changes (`kept_export.py`).
 # ---------------------------------------------------------------------------------------------------
 
-KeptExportFormat = Literal["word", "markdown", "plain-text", "alto", "pagexml", "tei", "hocr"]
+KeptExportFormat = Literal["word", "markdown", "plain-text", "alto", "pagexml", "tei", "hocr", "catalogue-workbook",
+                         "word-transcript"]
 KeptExportPer = Literal["page", "document"]
 
 

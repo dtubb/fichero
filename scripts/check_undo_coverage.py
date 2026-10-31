@@ -78,6 +78,9 @@ NON_UNDO_MUTATIONS = {
     "POST /api/recipes/cloud/accept-unpriced": (
         "the engine does not call it undoable either: the way back is the same action with `withdraw: true`, so Undo never "
         "re-refuses a model a run is using"),
+    "POST /api/images/batch-prepare/preview": (
+        "a read: it renders three pages with the correction applied and writes no row, so there is nothing to undo; the "
+        "write is image.batch_prepare, which is audited and undone from its audit row"),
 }
 
 

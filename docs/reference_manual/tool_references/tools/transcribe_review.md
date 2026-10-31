@@ -59,6 +59,7 @@ Second-pass QA of a prior transcription against the image
 | `provider_name` | string | — | LLM provider. One of: openai, anthropic, google, ollama, lmstudio, groq, together, deepseek, mistral, openrouter, dashscope, xai, perplexity, fireworks, deepl. |
 | `quality_gate` | boolean | yes | Stop the run if output is unreadable. |
 | `reference_values` | object | — | Known values to match. (Not shown in the editor.) |
+| `review_mode` | string | in-turn | A second review's way with the first (#6257): in-turn reviews the first's result; compare reviews the reading the first started from, on its own; both is given that reading and the first's version and settles them, marking what it cannot as uncertain. One of: in-turn, compare, both. |
 | `save_to_db` | boolean | yes | Save to library. |
 | `save_to_file` | boolean | no | Export to file. |
 | `skip_if_artifact_exists` | boolean | yes | Reuse a matching prior review artifact. |

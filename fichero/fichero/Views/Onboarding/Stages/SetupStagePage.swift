@@ -46,17 +46,36 @@ struct SetupStagePage: View {
             whoRunsIt
             // This stage's steps left off until turned on: Read's Correct with no corrector here (#5677).
             RecipeLeftOffRows(store: store, onlyJobs: Set(stage.jobs))
+            if stage.id == "prepare-images" {
+                Divider()
+                PrepareImagesCard(
+                    store: store,
+                    folders: project.map { BakeoffStore.Folder.folders(in: $0.documentStore.collections) } ?? [],
+                    actionsService: project?.actionsService)
+            }
             if !stage.questions.isEmpty {
                 Divider()
-                ForEach(stage.questions, id: \.key) { question in
+                // The second review's mode is asked beside that step's model picker, once there is a second step.
+                ForEach(stage.questions.filter { $0.key != RecipeSetupStore.secondReviewModeQuestion }, id: \.key) { question in
                     SetupStageQuestionField(
                         question: question,
                         store: store,
                         answer: Binding(
                             get: { Self.answer(to: question, in: store.jobAnswers) },
-                            set: { store.jobAnswers[question: question.key] = $0 }
+                            set: { newValue in
+                                if question.key == RecipeSetupStore.leaveOutQuestion, case .yesNo(let on) = newValue {
+                                    store.setLeaveOut(on)  // the stage's tick follows the toggle
+                                } else {
+                                    store.jobAnswers[question: question.key] = newValue
+                                }
+                            }
                         )
                     )
+                    if stage.id == "prepare-images", question.readByAStep != true {
+                        // No step reads it yet (`read_by_a_step`): said, not implied (`StageKindsField` says the same).
+                        Text("Saved with your answers. No step uses this yet.").font(.caption).foregroundStyle(.secondary)
+                            .accessibilityIdentifier("setup.question.notRead.\(question.key)")
+                    }
                 }
             }
             // The review's own instructions for each pass, from the profile built for this project (#6128).
@@ -101,6 +120,10 @@ struct SetupStagePage: View {
                     // The samples' thumbnails come from this project's storage (Organise's strip).
                     .environment(project?.storageService)
             }
+        }
+        // Leave Out's toggle is the step's on/off: propose the plan again so this page's steps follow it (#6070).
+        .onChange(of: store.jobAnswers.other[RecipeSetupStore.leaveOutQuestion]) {
+            if stage.jobs.contains("leave-out") { Task { await store.assemble() } }
         }
         // A try's result changes what an open question suggests (the kinds it found): ask the engine's list again.
         .onChange(of: tryStore?.result) { Task { await store.loadStages() } }

@@ -181,7 +181,16 @@ def _check(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> d
         except ExportRefused as exc:
             missing.append({"document_id": doc.id, "why": str(exc)})
             return
-        reads = kraken_runtime.read_given_lines(photo, model_path, lines, frame=frame_of_lines(db, chosen, [segments[ln["id"]] for ln in lines]))
+        frame = frame_of_lines(db, chosen, [segments[ln["id"]] for ln in lines])
+        from fichero_server.media.current_image import current_page_image
+
+        current = current_page_image(db, doc, library_root=Path(db.path).parent)  # the page as edited (#6296)
+        current = current.for_geometry() if current is not None else None  # lines are carried onto it: needs a known frame
+        if current is None or current.is_original:
+            reads = kraken_runtime.read_given_lines(photo, model_path, lines, frame=frame)
+        else:
+            moved, opened_in = current.carry_lines(lines, frame)
+            reads = kraken_runtime.read_given_lines(current.path, model_path, moved, frame=opened_in)
         for line, scored in zip(lines, flag_lines(lines, reads)):
             segment = segments[line["id"]]
             if not line["text"] or line["text"].casefold() == "null":

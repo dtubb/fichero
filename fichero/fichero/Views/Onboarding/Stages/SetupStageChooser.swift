@@ -58,6 +58,7 @@ struct SetupStageRow: View {
         VStack(alignment: .leading, spacing: 3) {
             Toggle(stage.title, isOn: Binding(get: { isChosen }, set: { _ in toggle() }))
                 .setupCheckbox()
+                .accessibilityIdentifier("setup.stage.row.\(stage.id)")
                 .disabled(isChosen && !neededBecause.isEmpty)
             Text(stage.sentence)
                 .font(.callout)

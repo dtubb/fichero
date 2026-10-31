@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import os
 import re
 import shutil
@@ -1325,8 +1327,15 @@ def export_word_docx(
     text_for: Callable[[Document], str] | None = None,
     skipped: list[tuple[str, str]] | None = None,
     include_images: bool = True,
+    page_break_per_page: bool = False,
+    blank_pages_listed_once: bool = False,
 ) -> WordExportResult:
     """Export documents as a minimal Word .docx file. `skipped` collects (page, why) for each image left out (#5966).
+
+    The transcript's options (#6287, `catalogue.export.word-transcript-options`): `include_images=False` prints
+    neither the image nor the "[Image not included…]" note (a page is its heading and its text);
+    `page_break_per_page` breaks before each page's heading; `blank_pages_listed_once` prints no body for a page
+    sorted blank and ends the file with one line, "Páginas en blanco: IMG_017–IMG_019, IMG_025".
 
     This intentionally avoids optional dependencies. It writes a valid Office
     Open XML package with text content and, for image documents, a simple
@@ -1352,12 +1361,17 @@ def export_word_docx(
     media: list[tuple[str, Path, str]] = []
     body_parts: list[str] = [_docx_heading(title or "Library Export", 1)]
 
+    from fichero_server import catalogue_sheet
+
+    blank_ids = {d.id for d in catalogue_sheet.blank_pages(documents)} if blank_pages_listed_once else set()
     for index, doc in enumerate(documents, start=1):
+        if doc.id in blank_ids:
+            continue
         text = text_for(doc) if text_for is not None else _document_text(db, doc)
-        image_source = None
+        if page_break_per_page:
+            body_parts.append(_DOCX_PAGE_BREAK)
         try:
-            if include_images:
-                image_source = _docx_image_source(db, doc, package)
+            image_source = _docx_image_source(db, doc, package) if include_images else None
         except ExportImageUnavailable as unavailable:
             logger.warning("Word export left out the image of %s: %s", doc.name, unavailable.why)
             if skipped is not None:
@@ -1372,6 +1386,10 @@ def export_word_docx(
         else:
             body_parts.append(_docx_heading(doc.name, 2))
             body_parts.extend(_docx_paragraph(part) for part in _paragraphs(text))
+
+    if blank_ids:
+        stems = [catalogue_sheet.page_stem(d) for d in documents if d.id in blank_ids]
+        body_parts.append(_docx_paragraph(f"Páginas en blanco: {catalogue_sheet.image_ranges(stems)}"))
 
     if include_knowledge_graph:
         appendix = _docx_knowledge_graph_appendix(
@@ -1404,6 +1422,72 @@ def export_word_docx(
         document_count=len(documents),
         bytes_written=output_file.stat().st_size,
     )
+
+
+@dataclass
+class WordTranscriptsResult:
+    """Result metadata for a per-folder Word transcript export."""
+
+    output_path: str
+    files: list[str]
+    document_count: int
+    bytes_written: int
+
+
+def folder_transcript_name(folder_name: str, used: set[str]) -> str:
+    """A folder's .docx name: its name made safe, ` 2`, ` 3` when two would share it (the kept export's rule)."""
+    from fichero_server.kept_export import _stem
+
+    stem = _stem(folder_name, "folder")
+    filename, n = f"{stem}.docx", 2
+    while filename.lower() in used:
+        filename, n = f"{stem} {n}.docx", n + 1
+    used.add(filename.lower())
+    return filename
+
+
+def export_word_transcripts(
+    db: Database,
+    output_path: str | Path,
+    target_id: str | None = None,
+    overwrite: bool = False,
+    package_path: str | Path | None = None,
+    text_for: Callable[[Document], str] | None = None,
+) -> WordTranscriptsResult:
+    """One .docx per folder of the scope that has pages, page by page, no images, a page break per page and the
+    blank pages listed once (#6287, `catalogue.export.word-transcript-per-folder`); all in one zip. One folder is
+    held at a time. A folder with subfolders is one file for its own pages; each subfolder is another."""
+    output_file = Path(output_path).expanduser()
+    if output_file.suffix.lower() != ".zip":
+        output_file = output_file.with_suffix(".zip")
+    if output_file.exists() and not overwrite:
+        raise FileExistsError(f"Export file already exists: {output_file}")
+    root = db.get(Document, target_id) if target_id else None
+    if target_id and root is None:
+        raise ValueError(f"Document not found: {target_id}")
+    from fichero_server import catalogue_sheet
+
+    if root is not None and root.doc_type != DocType.folder:
+        raise ValueError(f"Not a folder: {root.name}")
+    folders = catalogue_sheet.folders_under(db, root)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    used: set[str] = set()
+    files, pages_written = [], 0
+    with zipfile.ZipFile(output_file, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+        for folder in folders:
+            pages = catalogue_sheet.pages_of(db, folder)
+            if not pages:
+                continue
+            name = folder_transcript_name(folder.name, used)
+            with tempfile.TemporaryDirectory(prefix="fichero-transcript-") as scratch:
+                out = Path(scratch) / "folder.docx"
+                export_word_docx(db, out, overwrite=True, package_path=package_path, include_knowledge_graph=False,
+                                 documents=pages, title=folder.name, text_for=text_for, include_images=False,
+                                 page_break_per_page=True, blank_pages_listed_once=True)
+                bundle.write(out, name)
+            files.append(name)
+            pages_written += len(pages)
+    return WordTranscriptsResult(str(output_file), files, pages_written, output_file.stat().st_size)
 
 
 _NOT_CATALOGUE_KINDS = frozenset({"workflow", "workflow_container", "workspace", "alias"})
@@ -1521,6 +1605,69 @@ def export_excel_xlsx(
         claim_count=len(claim_rows),
         bytes_written=output_file.stat().st_size,
     )
+
+
+@dataclass
+class CatalogueExportResult:
+    """Result metadata for a catalogue workbook."""
+
+    output_path: str
+    sheets: list[str]
+    row_count: int
+    bytes_written: int
+
+
+def _catalogue_scope(db: Database, target_id: str | None) -> Document | None:
+    scope = db.get(Document, target_id) if target_id else None
+    if target_id and scope is None:
+        raise ValueError(f"Document not found: {target_id}")
+    return scope
+
+
+def _csv_bytes(rows: list[list[str]]) -> bytes:
+    """UTF-8 with a byte-order mark (Excel on a Spanish Mac reads accents), every field quoted, CRLF. A cell Excel would read as a
+    formula (it starts with `=`, `+`, `-`, `@`) gets a leading apostrophe, so page text cannot run as one."""
+    out = io.StringIO()
+    safe = [[f"'{cell}" if cell[:1] in ("=", "+", "-", "@", "\t", "\r") else cell for cell in row] for row in rows]
+    csv.writer(out, quoting=csv.QUOTE_ALL, lineterminator="\r\n").writerows(safe)
+    return b"\xef\xbb\xbf" + out.getvalue().encode("utf-8")
+
+
+def export_catalogue_xlsx(
+    db: Database,
+    output_path: str | Path,
+    target_id: str | None = None,
+    prototype_key: str | None = None,
+    overwrite: bool = False,
+    proposals: str = "marked",
+    file_format: str = "xlsx",
+) -> CatalogueExportResult:
+    """The catalogue workbook (`catalogue_sheet.workbook`): one catalogue sheet per collection in the scope (the columns of
+    its folders' effective prototype, three frozen header rows, one row per folder), then the other sheets. `file_format`
+    xlsx writes one workbook; csv writes one file per sheet in a zip (UTF-8 with a BOM, every field quoted, CRLF)."""
+    from fichero_server import catalogue_sheet as sheet
+
+    suffix = {"xlsx": ".xlsx", "csv": ".zip"}.get(file_format)
+    if suffix is None:
+        raise ValueError(f"A catalogue is written as xlsx or csv; not {file_format!r}")
+    output_file = Path(output_path).expanduser()
+    if output_file.suffix.lower() != suffix:
+        output_file = output_file.with_suffix(suffix)
+    if output_file.exists() and not overwrite:
+        raise FileExistsError(f"Export file already exists: {output_file}")
+    scope = _catalogue_scope(db, target_id)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+
+    built = sheet.workbook(db, scope, prototype_key, proposals)
+    first = next(iter(built.values()))
+    rows_written = len(first[0]) - first[1]
+    if file_format == "csv":
+        with zipfile.ZipFile(output_file, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+            for name, (cells, _frozen) in built.items():
+                bundle.writestr(f"{name}.csv", _csv_bytes(cells))
+    else:
+        _write_xlsx(output_file, {name: XlsxGrid(cells, frozen=frozen) for name, (cells, frozen) in built.items()})
+    return CatalogueExportResult(str(output_file), list(built), rows_written, output_file.stat().st_size)
 
 
 def export_jsonl(
@@ -2100,7 +2247,15 @@ def _unique_filename(stem: str, used_names: set[str], suffix: str) -> str:
     return candidate
 
 
-def _write_xlsx(output_file: Path, sheets: dict[str, list[dict[str, Any]]]) -> None:
+@dataclass
+class XlsxGrid:
+    """A sheet of ready cells (the catalogue's): `frozen` leading rows are the header rows and stay in view."""
+
+    rows: list[list[str]]
+    frozen: int = 0
+
+
+def _write_xlsx(output_file: Path, sheets: dict[str, list[dict[str, Any]] | XlsxGrid]) -> None:
     sheet_items = list(sheets.items())
     with zipfile.ZipFile(output_file, "w", compression=zipfile.ZIP_DEFLATED) as xlsx:
         xlsx.writestr("[Content_Types].xml", _xlsx_content_types(len(sheet_items)))
@@ -2114,12 +2269,30 @@ def _write_xlsx(output_file: Path, sheets: dict[str, list[dict[str, Any]]]) -> N
             )
 
 
-def _xlsx_sheet(rows: list[dict[str, Any]]) -> str:
-    headers = _xlsx_headers(rows)
-    values = [headers] + [
-        [_xlsx_cell_value(row.get(header)) for header in headers]
-        for row in rows
-    ]
+_XLSX_BAD_CHARS = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]")
+_XLSX_CELL_LIMIT = 32767
+_XLSX_CUT_NOTE = " [\u2026 cortado: la celda de Excel admite 32.767 caracteres]"
+
+
+def _xlsx_text(value: str) -> str:
+    """A cell's text as Excel opens it: control characters XML cannot hold (a form feed in OCR text) dropped, and a text over
+    the 32,767-character cell limit cut with a note, so the workbook never reads as corrupt."""
+    value = _XLSX_BAD_CHARS.sub("", value)
+    if len(value) > _XLSX_CELL_LIMIT:
+        value = value[: _XLSX_CELL_LIMIT - len(_XLSX_CUT_NOTE)] + _XLSX_CUT_NOTE
+    return value
+
+
+def _xlsx_sheet(rows: list[dict[str, Any]] | XlsxGrid) -> str:
+    frozen = 0
+    if isinstance(rows, XlsxGrid):
+        values, frozen = rows.rows, rows.frozen
+    else:
+        headers = _xlsx_headers(rows)
+        values = [headers] + [
+            [_xlsx_cell_value(row.get(header)) for header in headers]
+            for row in rows
+        ]
     row_xml = []
     for row_index, row in enumerate(values, start=1):
         cells = []
@@ -2128,14 +2301,20 @@ def _xlsx_sheet(rows: list[dict[str, Any]]) -> str:
                 continue
             ref = f"{_xlsx_col_letter(col_index)}{row_index}"
             cells.append(
-                f'<c r="{ref}" t="inlineStr"><is><t>{escape(value)}</t></is></c>'
+                f'<c r="{ref}" t="inlineStr"><is><t>{escape(_xlsx_text(value))}</t></is></c>'
             )
         row_xml.append(f'<row r="{row_index}">{"".join(cells)}</row>')
 
+    pane = (
+        '<sheetViews><sheetView workbookViewId="0">'
+        f'<pane ySplit="{frozen}" topLeftCell="A{frozen + 1}" activePane="bottomLeft" state="frozen"/>'
+        "</sheetView></sheetViews>"
+        if frozen else ""
+    )
     return (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-        f'<sheetData>{"".join(row_xml)}</sheetData>'
+        f'{pane}<sheetData>{"".join(row_xml)}</sheetData>'
         "</worksheet>"
     )
 
@@ -2195,7 +2374,7 @@ def _xlsx_package_rels() -> str:
 """
 
 
-def _xlsx_workbook(sheet_items: list[tuple[str, list[dict[str, Any]]]]) -> str:
+def _xlsx_workbook(sheet_items: list[tuple[str, Any]]) -> str:
     sheets = "".join(
         '<sheet name="{}" sheetId="{}" r:id="rId{}"/>'.format(
             escape(name, {'"': "&quot;"}), index, index
@@ -2210,7 +2389,7 @@ def _xlsx_workbook(sheet_items: list[tuple[str, list[dict[str, Any]]]]) -> str:
 """
 
 
-def _xlsx_workbook_rels(sheet_items: list[tuple[str, list[dict[str, Any]]]]) -> str:
+def _xlsx_workbook_rels(sheet_items: list[tuple[str, Any]]) -> str:
     relationships = "".join(
         f'<Relationship Id="rId{index}" '
         'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" '
@@ -2254,6 +2433,9 @@ def _docx_heading(text: str, level: int) -> str:
   <w:pPr><w:pStyle w:val="{style}"/></w:pPr>
   <w:r><w:t>{escape(text)}</w:t></w:r>
 </w:p>"""
+
+
+_DOCX_PAGE_BREAK = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'
 
 
 def _docx_paragraph(text: str) -> str:

@@ -1,7 +1,6 @@
-// Set Up's one store: the saved recipe, the jobs, Try, the start plan and (since 5b9b4aeb3) what the cloud
-// would be sent and its estimate. Over SwiftLint's 1000 lines; the cost part moves to its own extension file when
-// Swift builds are allowed again (#5904). ponytail: a comment, not a split, so nothing needs compiling now.
-// swiftlint:disable file_length
+// Set Up's one store: the saved recipe, the jobs, Try, the start plan and what the cloud would be sent. The plan's step
+// checkboxes live in `+PlanEdits`, taking a step out in `+Stages`, #6295's own state in `+CloudCaps`: this file stays under
+// SwiftLint's 1000 lines.
 import FicheroAPIClient
 import Foundation
 import Observation
@@ -92,6 +91,8 @@ final class RecipeSetupStore {
     var spendCapUsd: Double?
     /// The cloud spend cap a month the person set; nil is the engine's US$10 (`ai.where.cloud-spend-cap`, #5943).
     var cloudSpendCapUsd: Double?
+    /// The most the project may spend on cloud calls in all; nil is no such limit (`answers.cloud_project_cap_usd`, #6295).
+    var cloudProjectCapUsd: Double?
     /// Whether working copies may stay on the cluster; nil follows pages-may-leave (`source.onboard.copies-may-stay-on-cluster`).
     var copiesMayStay: Bool?
     /// The three settings as the engine holds them (`GET /api/recipes/stages`): what the fields show when unanswered.
@@ -101,6 +102,8 @@ final class RecipeSetupStore {
     var automatic: RecipeSetupAnswers.Automatic?
     /// The questions a ticked purpose opens under it (section 7b step 3, `answers.job_answers`).
     var jobAnswers = RecipeSetupAnswers.JobAnswers()
+    /// A folder's own answers to Prepare Images' questions, by folder id then question key (`answers.job_answers_by_folder`).
+    var jobAnswersByFolder: [String: [String: StageAnswer]] = [:]
 
     // MARK: What the engine gave back
 
@@ -108,6 +111,10 @@ final class RecipeSetupStore {
     private(set) var purposeOptions: [Components.Schemas.PurposeInfo] = []
     /// The stages of Set Up, from the engine, in pipeline order (`GET /api/recipes/stages`, section 7c/7d).
     var stages: [Components.Schemas.SetupStage] = []
+    /// The Prepare Images card's suggestions, time line and sentence, from the engine (`loadPrepareFacts`).
+    var prepareFacts: Components.Schemas.PrepareImagesFacts?
+    /// Pages to check after a Prepare Images run (`GET /api/recipes/prepare-images/check`, `loadPrepareCheck`).
+    var prepareCheck: Components.Schemas.PrepareCheckList?
     /// Which stages are chosen (`source.onboard.stages.choose-first`); nil until the stages have loaded.
     var stageChoice: SetupStageChoice?
     /// When, where and in which hand the material was written (section 7d, About the material).
@@ -349,6 +356,11 @@ final class RecipeSetupStore {
     /// Material is being added: Start waits for it, so it never runs on a project that has nothing yet.
     var isAddingMaterial = false
 
+    /// "Run fewer pages" (#6295): the plan shown covers only the first N pages of the project in Finder order, as the engine
+    /// counts them; nil: every page. Never with a folder. Start sends it only when the caller names it (`start(firstPages:)`),
+    /// and it is cleared once a Start is accepted or the material changes: it is for that one Start.
+    var runFirstPages: Int?
+
     /// The folder the shown plan covers (`source.recipe.folder-scoped-start`); nil: the whole project.
     private(set) var startPlanFolderId: String?
 
@@ -357,7 +369,7 @@ final class RecipeSetupStore {
     func loadStartPlan(folderId: String? = nil) async {
         do {
             if case .ok(let success) = try await client.api.getStartPlanApiRecipesProjectStartGet(
-                query: .init(folderId: folderId)
+                query: .init(folderId: folderId, firstPages: folderId == nil ? runFirstPages : nil)
             ) {
                 startPlan = try success.body.json
                 if startPlanFolderId != folderId { startPlanFolderId = folderId }
@@ -383,11 +395,11 @@ final class RecipeSetupStore {
     /// without it, the whole project, sent as before (no body). `redo`: the steps to run again on pages that already have
     /// their output, as a new pass (`source.recipe.step-rerun-on-folder`, #6170). `documents`: a run's pages alone, as
     /// its `missed` names them (a run an import started, #6170).
-    func start(folderId: String? = nil, redo: [String] = [], documents: [String]? = nil) async -> Bool {
+    func start(folderId: String? = nil, redo: [String] = [], documents: [String]? = nil, firstPages first: Int? = nil) async -> Bool {
         do {
             let body: Operations.StartProjectApiRecipesProjectStartPost.Input.Body? =
-                folderId == nil && redo.isEmpty && documents == nil
-                ? nil : .json(.init(redo: redo.isEmpty ? nil : redo, folderId: folderId, documents: documents))
+                folderId == nil && redo.isEmpty && documents == nil && first == nil
+                ? nil : .json(.init(redo: redo.isEmpty ? nil : redo, folderId: folderId, documents: documents, firstPages: first))
             switch try await client.api.startProjectApiRecipesProjectStartPost(body: body) {
             case .ok(let success):
                 var started = try success.body.json
@@ -395,6 +407,7 @@ final class RecipeSetupStore {
                 // menus do not empty when the run starts.
                 if (started.stepChoices ?? []).isEmpty, let kept = startPlan?.stepChoices { started.stepChoices = kept }
                 startPlan = started
+                runFirstPages = nil  // "the first N pages" was for this Start alone (#6295)
                 if startPlanFolderId != folderId { startPlanFolderId = folderId }
                 // The first yes: its steps can now run again, named as the setup's `redo_steps` names them (no reload).
                 if redoSteps.isEmpty {
@@ -498,15 +511,17 @@ final class RecipeSetupStore {
         RecipeSetupAnswers(purposes: purposes, jobs: addedJobs, languages: languages, scripts: scripts,
                            directions: directions, materials: materials, pages: pages,
                            cloudAllowed: cloudAnswered ? cloudAllowed : nil, ingestMode: wayIn.savedName,
-                           layers: layers, automatic: automatic, jobAnswers: jobAnswers, removedJobs: removedJobs,
+                           layers: layers, automatic: automatic, jobAnswers: jobAnswers,
+                           jobAnswersByFolder: jobAnswersByFolder, removedJobs: removedJobs,
                            period: period, hands: hands, place: place,
                            hfSpendCapUsd: spendCapUsd, cloudSpendCapUsd: cloudSpendCapUsd,
+                           cloudProjectCapUsd: cloudProjectCapUsd,
                            copiesMayStayOnCluster: copiesMayStay)
     }
 
     /// The answers as the project last saved them, as JSON, so a save keeps every field the
     /// engine wrote that setup does not ask about (`answers.layers`, `mac_memory_gb`, …).
-    private var savedAnswers: Data?
+    var savedAnswers: Data?
 
     /// Setup's answers over the saved ones: a field setup asks about takes setup's value; any
     /// other field the engine saved stays as it was (`source.onboard.add-layer`). The old
@@ -539,11 +554,13 @@ final class RecipeSetupStore {
         }
         if let value = saved.automatic { automatic = value }
         if let value = saved.jobAnswers { jobAnswers = value }
+        jobAnswersByFolder = saved.jobAnswersByFolder ?? [:]
         if let value = saved.period { period = value }
         if let value = saved.hands { hands = value }
         if let value = saved.place { place = value }
         spendCapUsd = saved.hfSpendCapUsd
         cloudSpendCapUsd = saved.cloudSpendCapUsd
+        cloudProjectCapUsd = saved.cloudProjectCapUsd
         copiesMayStay = saved.copiesMayStayOnCluster
         if let value = saved.ingestMode {
             // The engine's ingest modes are lowercase; the app's enum is upper.
@@ -562,68 +579,6 @@ final class RecipeSetupStore {
         try JSONDecoder().decode(type, from: JSONEncoder().encode(value))
     }
 
-}
-
-// The plan's steps as checkboxes, and what each step asks (moved out of the class body for its length).
-extension RecipeSetupStore {
-    // MARK: Editing the plan on Ready (#5627, source.onboard.plan-editable)
-
-    /// Whether a step can be taken out: the engine names, in `needed_by`, the later steps that need it.
-    static func canTakeOut(_ step: Components.Schemas.RecipeStep) -> Bool { (step.neededBy ?? []).isEmpty }
-
-    /// Take a step out of the plan; the engine proposes the plan again without it, and Ready saves that, so
-    /// Start runs the plan as shown and Set Up… reopens with it.
-    func takeOut(job: String) async {
-        guard !removedJobs.contains(job) else { return }
-        removedJobs.append(job)
-        await assemble()
-    }
-
-    /// Put a step taken out back into the plan.
-    func putBack(job: String) async {
-        removedJobs.removeAll { $0 == job }
-        await assemble()
-    }
-
-    /// Tick or untick a job on its own. A job a ticked purpose brings stays ticked while that
-    /// purpose is (the engine adds jobs to a purpose's, it never takes one away).
-    func toggle(job id: String) {
-        if let index = addedJobs.firstIndex(of: id) { addedJobs.remove(at: index) } else { addedJobs.append(id) }
-    }
-
-    /// The jobs the ticked purposes bring, as the engine lists them (`PurposeInfo.jobs`).
-    var jobsFromPurposes: Set<String> {
-        Set(purposeOptions.filter { purposes.contains($0.id) }.flatMap { ($0.jobs ?? []).map(\.id) })
-    }
-
-    /// Every ticked job, each once: the purposes' and those ticked on their own, in the
-    /// registry's order (the recipe's step order) where the registry is loaded.
-    var tickedJobs: [String] {
-        let ticked = jobsFromPurposes.union(addedJobs)
-        let ordered = jobOrder.filter { ticked.contains($0) }
-        return ordered + ticked.subtracting(ordered).sorted()
-    }
-
-    /// The jobs that ask the person something the engine cannot work out (section 7b, step 3):
-    /// which kinds of names, which gazetteer, into what form. Every other job's settings have
-    /// defaults and live in the Inspector.
-    static let jobsWithQuestions: Set<String> = [
-        "find-names-tag-words", "place-in-a-gazetteer", "translate-transliterate-normalise"
-    ]
-
-    /// The jobs whose questions open in place under a ticked purpose (ruled 2026-10-06, #5492):
-    /// that purpose's jobs that ask something, in its own order, each asked once, under the first
-    /// ticked purpose (in the engine's order) that brings it. An unticked purpose asks nothing.
-    func questions(under purpose: String) -> [String] {
-        guard purposes.contains(purpose) else { return [] }
-        var asked = Set<String>()
-        for option in purposeOptions where purposes.contains(option.id) {
-            let asking = (option.jobs ?? []).map(\.id).filter { Self.jobsWithQuestions.contains($0) && !asked.contains($0) }
-            if option.id == purpose { return asking }
-            asked.formUnion(asking)
-        }
-        return []
-    }
 }
 
 // Behaviour over the stored answers above, in an extension so the class body holds the state.
@@ -1000,7 +955,7 @@ extension RecipeSetupStore {
     }
 
     /// The engine's own sentence from a response the generated client could not decode.
-    private static func engineWords(_ error: Error) async -> String? {
+    static func engineWords(_ error: Error) async -> String? {
         guard let clientError = error as? ClientError, let body = clientError.responseBody,
               let data = try? await Data(collecting: body, upTo: 1 << 16) else { return nil }
         return EngineErrorDetail.message(from: data)

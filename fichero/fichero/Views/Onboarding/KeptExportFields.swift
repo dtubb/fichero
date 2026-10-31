@@ -60,6 +60,7 @@ struct KeptExportDraftRow: View {
             .fixedSize()
             Picker("Files", selection: $draft.per) {
                 Text("Per page").tag(KeptExportStore.Per.page)
+                    .selectionDisabled(!KeptExportStore.allowsPerPage(draft.format))
                 Text("Per document").tag(KeptExportStore.Per.document)
                     .selectionDisabled(!KeptExportStore.allowsPerDocument(draft.format))
             }

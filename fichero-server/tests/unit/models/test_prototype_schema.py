@@ -104,3 +104,122 @@ class TestRouteValidation:
             ClassificationDimension.entity_type,
             {"weather": {"type": "climate"}},
         )
+
+
+class TestDeclarationsGainTemplateFields:
+    """proto.template.labels-per-language-and-order, proto.kind.declared-defaults-for-beneath
+    (attributes-and-prototypes.md Step 1.1)."""
+
+    def test_new_fields_parse(self):
+        decl = attribute_declarations({"tema": {
+            "type": "multi_select", "order": 4,
+            "labels": {"es": "Tema", "en": "Subject"},
+            "help": {"es": "Elija términos"},
+            "options": ["a", "b"],
+            "option_labels": {"es": {"a": "Uno"}, "en": {"a": "One"}},
+            "inherits": True, "join": "|", "name_order": "surname_first",
+            "format": "d/Mes/aaaa", "source": "folder.name",
+        }})["tema"]
+        assert decl.order == 4 and decl.inherits and decl.join == "|"
+        assert decl.labels["en"] == "Subject" and decl.help["es"]
+        assert decl.option_labels["en"]["a"] == "One"
+        assert decl.name_order == "surname_first" and decl.source == "folder.name"
+
+    def test_unknown_source_and_name_order_raise(self):
+        with pytest.raises(ValueError, match="source"):
+            attribute_declarations({"x": {"type": "text", "source": "nope"}})
+        with pytest.raises(ValueError, match="name_order"):
+            attribute_declarations({"x": {"type": "text", "name_order": "backwards"}})
+
+    def test_old_single_label_reads_as_metadata_language(self):
+        decl = attribute_declarations({"x": {"type": "text", "label": "Título"}})["x"]
+        assert decl.heading("x", "es") == "Título"
+        assert decl.heading("x", "en") == "Título"  # no other label: the old one, never the key
+
+    def test_heading_prefers_language_then_never_the_key(self):
+        decl = attribute_declarations({"x": {"type": "text", "labels": {"es": "Título", "en": "Title"}}})["x"]
+        assert decl.heading("x", "en") == "Title"
+        assert decl.heading("x", "fr") in {"Título", "Title"}
+        bare = attribute_declarations({"x": {"type": "text"}})["x"]
+        assert bare.heading("x", "en") == "x"  # nothing declared: only then the key
+
+    def test_ordered_keys_follow_order_then_key(self):
+        from fichero_server.models.prototype_schema import ordered_field_keys
+
+        attrs = {
+            "b": {"type": "text"}, "a": {"type": "text"},
+            "z": {"type": "text", "order": 1}, "y": {"type": "text", "order": 2},
+            "subfolders": "eap_digital_folder",
+        }
+        assert ordered_field_keys(attrs) == ["z", "y", "a", "b"]  # level defaults are not fields
+
+    def test_level_defaults_are_prototype_keys(self):
+        from fichero_server.models.prototype_schema import level_defaults
+
+        attrs = {"subfolders": "eap_digital_folder", "pages": "eap_page", "title": {"type": "text"}}
+        assert level_defaults(attrs) == {"subfolders": "eap_digital_folder", "pages": "eap_page"}
+        with pytest.raises(ValueError, match="subfolders"):
+            validate_prototype_attributes({"subfolders": 3})
+
+
+    def test_a_typed_field_named_like_a_level_is_still_a_field(self):
+        attrs = {"pages": {"type": "number"}, "lines": {"type": "text"}, "regions": {"type": "text"}}
+        validate_prototype_attributes(attrs)
+        assert set(attribute_declarations(attrs)) == {"pages", "lines", "regions"}
+        with pytest.raises(ValueError, match="pages"):
+            validate_prototype_attributes({"pages": 3})
+
+
+class TestLevelDefaultsAreChecked:
+    """proto.kind.declared-defaults-for-beneath: unknown key or cycle refused with words."""
+
+    @staticmethod
+    def _db(tmp_path):
+        from fichero_server.db import Database
+
+        return Database(tmp_path / "t.duckdb")
+
+    @staticmethod
+    def _proto(db, key, attributes, parent_key=None):
+        from fichero_server.models.knowledge import ClassificationDimension, ClassificationValue
+
+        db.save(ClassificationValue(dimension=ClassificationDimension.document_prototype, key=key,
+                                    label=key, parent_key=parent_key, attributes=attributes))
+
+    def test_unknown_prototype_key_is_refused_in_words(self, tmp_path):
+        from fichero_server.models.node_prototypes import check_level_defaults
+
+        db = self._db(tmp_path)
+        try:
+            with pytest.raises(ValueError, match="subfolders.*nope"):
+                check_level_defaults(db, "box", {"subfolders": "nope"})
+        finally:
+            db.close()
+
+    def test_cycle_through_levels_is_refused(self, tmp_path):
+        from fichero_server.models.node_prototypes import check_level_defaults
+
+        db = self._db(tmp_path)
+        try:
+            self._proto(db, "a", {"pages": "b"})
+            self._proto(db, "b", {"subfolders": "a"})
+            with pytest.raises(ValueError, match="cycle"):
+                check_level_defaults(db, "b", {"subfolders": "a"})
+            check_level_defaults(db, "c", {"pages": "a"})  # a known key, no cycle: fine
+        finally:
+            db.close()
+
+    def test_save_route_refuses_unknown_key_with_422(self, tmp_path):
+        from fastapi import HTTPException
+
+        from fichero_server.api.routes.document.classifications import _validate_prototype_schema
+        from fichero_server.models.knowledge import ClassificationDimension
+
+        db = self._db(tmp_path)
+        try:
+            with pytest.raises(HTTPException) as exc:
+                _validate_prototype_schema(ClassificationDimension.document_prototype,
+                                           {"pages": "ghost"}, db=db, key="box")
+            assert exc.value.status_code == 422
+        finally:
+            db.close()

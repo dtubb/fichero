@@ -74,10 +74,10 @@ def test_a_refused_start_still_keeps_the_yes_and_a_fixed_start_does_not_ask_agai
 
 
 def test_the_plan_does_not_refuse_an_unpriced_model():
-    from fichero_server.api.routes.system import recipes as routes
+    from fichero_server.recipes.cloud_cap import cap_refusals
 
     plan = {"refusals": [], "cloud_cap": {"unpriced_models": ["acme/mystery"], "over": False}}
-    routes._cap_refusals(plan)
+    cap_refusals(plan)
     assert plan["refusals"] == []
 
 

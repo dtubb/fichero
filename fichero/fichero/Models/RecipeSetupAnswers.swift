@@ -95,6 +95,9 @@ struct RecipeSetupAnswers: Codable, Equatable {
     var layers: [String]?
     var automatic: Automatic?
     var jobAnswers: JobAnswers?
+    /// A folder's own answers to Prepare Images' questions, over the project's: folder id, then question key
+    /// (`answers.job_answers_by_folder`, `prep.setup.three-questions-suggested-from-a-sample`).
+    var jobAnswersByFolder: [String: [String: StageAnswer]]?
     /// When it was written: a century or a range of years, kept as typed (`answers.period`, section 7c).
     var period: String?
     /// Which hand: the curated hands' ids, or what the person typed, or "not-sure" (`answers.hands`).
@@ -105,6 +108,8 @@ struct RecipeSetupAnswers: Codable, Equatable {
     var hfSpendCapUsd: Double?
     /// The most the project's cloud calls may cost a month; nil is the engine's US$10 (`answers.cloud_spend_cap_usd`, #5943).
     var cloudSpendCapUsd: Double?
+    /// The most the project may spend on cloud calls in all, across months; nil is no such limit (`answers.cloud_project_cap_usd`, #6295).
+    var cloudProjectCapUsd: Double?
     /// Whether working copies may stay on a cluster for re-runs; nil follows pages-may-leave (`answers.copies_may_stay_on_cluster`).
     var copiesMayStayOnCluster: Bool?
 
@@ -239,11 +244,14 @@ struct RecipeSetupAnswers: Codable, Equatable {
     init(purposes: [String]? = nil, jobs: [String]? = nil, languages: [String]? = nil,
          scripts: [String]? = nil, directions: [String: String]? = nil, materials: [String]? = nil,
          pages: Int? = nil, cloudAllowed: Bool? = nil, ingestMode: String? = nil, layers: [String]? = nil,
-         automatic: Automatic? = nil, jobAnswers: JobAnswers? = nil, removedJobs: [String]? = nil,
+         automatic: Automatic? = nil, jobAnswers: JobAnswers? = nil,
+         jobAnswersByFolder: [String: [String: StageAnswer]]? = nil, removedJobs: [String]? = nil,
          period: String? = nil, hands: [String]? = nil, place: String? = nil,
-         hfSpendCapUsd: Double? = nil, cloudSpendCapUsd: Double? = nil, copiesMayStayOnCluster: Bool? = nil) {
+         hfSpendCapUsd: Double? = nil, cloudSpendCapUsd: Double? = nil, cloudProjectCapUsd: Double? = nil,
+         copiesMayStayOnCluster: Bool? = nil) {
         self.hfSpendCapUsd = hfSpendCapUsd
         self.cloudSpendCapUsd = cloudSpendCapUsd
+        self.cloudProjectCapUsd = cloudProjectCapUsd
         self.copiesMayStayOnCluster = copiesMayStayOnCluster
         self.period = period
         self.hands = hands
@@ -261,6 +269,7 @@ struct RecipeSetupAnswers: Codable, Equatable {
         self.layers = layers
         self.automatic = automatic
         self.jobAnswers = jobAnswers
+        self.jobAnswersByFolder = jobAnswersByFolder
     }
 
     enum CodingKeys: String, CodingKey {
@@ -268,10 +277,12 @@ struct RecipeSetupAnswers: Codable, Equatable {
         case period, hands, place
         case hfSpendCapUsd = "hf_spend_cap_usd"
         case cloudSpendCapUsd = "cloud_spend_cap_usd"
+        case cloudProjectCapUsd = "cloud_project_cap_usd"
         case copiesMayStayOnCluster = "copies_may_stay_on_cluster"
         case cloudAllowed = "cloud_allowed"
         case ingestMode = "ingest_mode"
         case jobAnswers = "job_answers"
+        case jobAnswersByFolder = "job_answers_by_folder"
         case removedJobs = "removed_jobs"
     }
 }

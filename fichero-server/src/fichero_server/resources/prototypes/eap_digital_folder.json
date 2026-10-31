@@ -1,0 +1,419 @@
+{
+ "key": "eap_digital_folder",
+ "label": "EAP / Catalogación básica",
+ "parent_key": null,
+ "attributes": {
+  "cataloguer": {
+   "type": "text",
+   "order": 1,
+   "source": "cataloguer",
+   "labels": {
+    "es": "Tu nombre"
+   },
+   "help": {
+    "es": "Su nombre y el de quienes participaron; lo escribe el sistema."
+   }
+  },
+  "folder_name": {
+   "type": "text",
+   "order": 2,
+   "source": "folder.name",
+   "labels": {
+    "es": "Nombre de carpeta digital",
+    "en": "Digital Folder Name"
+   },
+   "help": {
+    "es": "Nombre de la carpeta; no se escribe a mano."
+   }
+  },
+  "first_file": {
+   "type": "text",
+   "order": 3,
+   "source": "folder.first_file",
+   "labels": {
+    "es": "Digital File Name (First)",
+    "en": "Digital File Name (First)"
+   },
+   "help": {
+    "es": "Primer archivo de la carpeta."
+   }
+  },
+  "last_file": {
+   "type": "text",
+   "order": 4,
+   "source": "folder.last_file",
+   "labels": {
+    "es": "Nombre de archivo digital (segundo)",
+    "en": "Digital File Name (Last)"
+   },
+   "help": {
+    "es": "Último archivo de la carpeta."
+   }
+  },
+  "page_count": {
+   "type": "number",
+   "order": 5,
+   "source": "folder.page_count",
+   "labels": {
+    "es": "Número de archivos digitales en carpeta",
+    "en": "Number of Digital Files"
+   },
+   "help": {
+    "es": "Cuenta de archivos; no se escribe a mano."
+   }
+  },
+  "catalogue_title": {
+   "type": "text",
+   "order": 6,
+   "labels": {
+    "es": "Título del documento",
+    "en": "Title (In Original Language/Script)"
+   },
+   "help": {
+    "es": "Título en el idioma y la escritura del documento."
+   }
+  },
+  "catalogue_original_reference": {
+   "type": "text",
+   "order": 7,
+   "inherits": true,
+   "labels": {
+    "es": "Referencia original de archivo físico",
+    "en": "Original Reference"
+   },
+   "help": {
+    "es": "Archivo y fondo; se escribe una vez en la colección."
+   }
+  },
+  "catalogue_date_normalised": {
+   "type": "date",
+   "order": 8,
+   "format": "d/Mes/aaaa",
+   "months": {
+    "es": [
+     "Enero",
+     "Febrero",
+     "Marzo",
+     "Abril",
+     "Mayo",
+     "Junio",
+     "Julio",
+     "Agosto",
+     "Septiembre",
+     "Octubre",
+     "Noviembre",
+     "Diciembre"
+    ],
+    "en": [
+     "January",
+     "February",
+     "March",
+     "April",
+     "May",
+     "June",
+     "July",
+     "August",
+     "September",
+     "October",
+     "November",
+     "December"
+    ]
+   },
+   "labels": {
+    "es": "Fecha de inicio del proceso legal",
+    "en": "Dates of Material (Gregorian Calendar)"
+   },
+   "help": {
+    "es": "Día/Mes/Año; si solo se sabe el año, escriba el año."
+   }
+  },
+  "catalogue_places": {
+   "type": "text",
+   "order": 9,
+   "join": "|",
+   "labels": {
+    "es": "Lugares mencionados (Pueblos, regiones, países, ríos, quebradas, cerros, minas, fincas y otros referentes geográficos)",
+    "en": "Related Towns/Cities"
+   },
+   "help": {
+    "es": "Separe los lugares con |; busque primero en la pestaña Lugares."
+   }
+  },
+  "catalogue_people": {
+   "type": "text",
+   "order": 10,
+   "join": "|",
+   "name_order": "surname_first",
+   "labels": {
+    "es": "Nombres de personas mencionadas"
+   },
+   "help": {
+    "es": "Apellido, Nombre; separe con |; busque primero en la pestaña Personas."
+   }
+  },
+  "description": {
+   "type": "text",
+   "order": 11,
+   "source": "description",
+   "labels": {
+    "es": "Descripción breve del documento: ¿Sobre qué es?"
+   },
+   "help": {
+    "es": "Dos o tres líneas sobre el contenido."
+   }
+  },
+  "problems": {
+   "type": "text",
+   "order": 12,
+   "source": "problems",
+   "labels": {
+    "es": "Problemas para resolver"
+   },
+   "help": {
+    "es": "Dudas para resolver; separe con ;."
+   }
+  },
+  "catalogue_subjects": {
+   "type": "multi_select",
+   "order": 13,
+   "join": "|",
+   "options": [
+    "Anthropology",
+    "Children",
+    "Commerce",
+    "Conflicts",
+    "Crime",
+    "Customs and traditions",
+    "Diplomacy",
+    "Ethnic groups",
+    "History",
+    "Hunting and Fishing",
+    "Indigenous populations",
+    "Industries",
+    "Labour movements",
+    "Land boundaries",
+    "Land use",
+    "Law and Legal affairs",
+    "Magic",
+    "Marriage",
+    "Migration",
+    "Music",
+    "Occupations and Employees",
+    "Politics and government",
+    "Transport",
+    "Violence",
+    "Wills and Probate",
+    "Women",
+    "Agriculture",
+    "Animals",
+    "Architecture",
+    "Art",
+    "Astrology",
+    "Astronomy",
+    "Baptisms",
+    "Biography",
+    "Birth",
+    "Burials",
+    "Business",
+    "Castes and Tribes",
+    "Charity",
+    "Church records and registers",
+    "Cinema and Television",
+    "Clothing and Dress",
+    "Colonialism",
+    "Commentaries",
+    "Construction",
+    "Dance",
+    "Death",
+    "Deeds",
+    "Demography",
+    "Diaspora",
+    "Education",
+    "Engineering",
+    "Epic poetry",
+    "Erotica",
+    "Ethics",
+    "First World War (1914-1918)",
+    "Folklore",
+    "Food and Drink",
+    "Genealogy",
+    "Geology",
+    "Government",
+    "Health and Medicine",
+    "Landscapes",
+    "Languages and Grammar",
+    "Literature",
+    "Love",
+    "Manual work",
+    "Materials and Products",
+    "Mathematics",
+    "Military",
+    "Missionary work",
+    "Monuments and Memorials",
+    "Nationalism",
+    "Nature conservation",
+    "Philosophy",
+    "Plants",
+    "Poetry",
+    "Portraits",
+    "Pottery and Ceramics",
+    "Propaganda",
+    "Psychology",
+    "Publishing",
+    "Rites and ceremonies",
+    "Royalty and rulers",
+    "Science",
+    "Sculpture",
+    "Second World War (1939-1945)",
+    "Sexual minorities",
+    "Slavery",
+    "Social Welfare",
+    "Sports and recreation",
+    "Supernatural",
+    "Theatre",
+    "Theology",
+    "Travel",
+    "Utilities",
+    "Weapons",
+    "Weather",
+    "Yoga"
+   ],
+   "option_labels": {
+    "en": {
+     "Anthropology": "Anthropology",
+     "Children": "Children",
+     "Commerce": "Commerce",
+     "Conflicts": "Conflicts",
+     "Crime": "Crime",
+     "Customs and traditions": "Customs and traditions",
+     "Diplomacy": "Diplomacy",
+     "Ethnic groups": "Ethnic groups",
+     "History": "History",
+     "Hunting and Fishing": "Hunting and Fishing",
+     "Indigenous populations": "Indigenous populations",
+     "Industries": "Industries",
+     "Labour movements": "Labour movements",
+     "Land boundaries": "Land boundaries",
+     "Land use": "Land use",
+     "Law and Legal affairs": "Law and Legal affairs",
+     "Magic": "Magic",
+     "Marriage": "Marriage",
+     "Migration": "Migration",
+     "Music": "Music",
+     "Occupations and Employees": "Occupations and Employees",
+     "Politics and government": "Politics and government",
+     "Transport": "Transport",
+     "Violence": "Violence",
+     "Wills and Probate": "Wills and Probate",
+     "Women": "Women",
+     "Agriculture": "Agriculture",
+     "Animals": "Animals",
+     "Architecture": "Architecture",
+     "Art": "Art",
+     "Astrology": "Astrology",
+     "Astronomy": "Astronomy",
+     "Baptisms": "Baptisms",
+     "Biography": "Biography",
+     "Birth": "Birth",
+     "Burials": "Burials",
+     "Business": "Business",
+     "Castes and Tribes": "Castes and Tribes",
+     "Charity": "Charity",
+     "Church records and registers": "Church records and registers",
+     "Cinema and Television": "Cinema and Television",
+     "Clothing and Dress": "Clothing and Dress",
+     "Colonialism": "Colonialism",
+     "Commentaries": "Commentaries",
+     "Construction": "Construction",
+     "Dance": "Dance",
+     "Death": "Death",
+     "Deeds": "Deeds",
+     "Demography": "Demography",
+     "Diaspora": "Diaspora",
+     "Education": "Education",
+     "Engineering": "Engineering",
+     "Epic poetry": "Epic poetry",
+     "Erotica": "Erotica",
+     "Ethics": "Ethics",
+     "First World War (1914-1918)": "First World War (1914-1918)",
+     "Folklore": "Folklore",
+     "Food and Drink": "Food and Drink",
+     "Genealogy": "Genealogy",
+     "Geology": "Geology",
+     "Government": "Government",
+     "Health and Medicine": "Health and Medicine",
+     "Landscapes": "Landscapes",
+     "Languages and Grammar": "Languages and Grammar",
+     "Literature": "Literature",
+     "Love": "Love",
+     "Manual work": "Manual work",
+     "Materials and Products": "Materials and Products",
+     "Mathematics": "Mathematics",
+     "Military": "Military",
+     "Missionary work": "Missionary work",
+     "Monuments and Memorials": "Monuments and Memorials",
+     "Nationalism": "Nationalism",
+     "Nature conservation": "Nature conservation",
+     "Philosophy": "Philosophy",
+     "Plants": "Plants",
+     "Poetry": "Poetry",
+     "Portraits": "Portraits",
+     "Pottery and Ceramics": "Pottery and Ceramics",
+     "Propaganda": "Propaganda",
+     "Psychology": "Psychology",
+     "Publishing": "Publishing",
+     "Rites and ceremonies": "Rites and ceremonies",
+     "Royalty and rulers": "Royalty and rulers",
+     "Science": "Science",
+     "Sculpture": "Sculpture",
+     "Second World War (1939-1945)": "Second World War (1939-1945)",
+     "Sexual minorities": "Sexual minorities",
+     "Slavery": "Slavery",
+     "Social Welfare": "Social Welfare",
+     "Sports and recreation": "Sports and recreation",
+     "Supernatural": "Supernatural",
+     "Theatre": "Theatre",
+     "Theology": "Theology",
+     "Travel": "Travel",
+     "Utilities": "Utilities",
+     "Weapons": "Weapons",
+     "Weather": "Weather",
+     "Yoga": "Yoga"
+    },
+    "es": {
+     "Children": "niños",
+     "Commerce": "comercio",
+     "Conflicts": "conflictos",
+     "Crime": "crimen",
+     "Customs and traditions": "costumbres/tradiciones",
+     "Diplomacy": "diplomacía",
+     "Ethnic groups": "grupos étnicos",
+     "Indigenous populations": "indigenas",
+     "Land boundaries": "terrenos",
+     "Magic": "brujeria",
+     "Construction": "construcción",
+     "Dance": "la danza",
+     "Death": "la muerte",
+     "Deeds": "tenencia de la tierra",
+     "Demography": "la demografía",
+     "Diaspora": "diaspora",
+     "Education": "educación",
+     "Engineering": "la ingeniería",
+     "Ethics": "ética",
+     "First World War (1914-1918)": "primera guerra mundial",
+     "Food and Drink": "comidas y bebidas",
+     "Geology": "geología",
+     "Government": "gobierno",
+     "Health and Medicine": "salud y medicina"
+    }
+   },
+   "labels": {
+    "en": "Related Subjects"
+   },
+   "help": {
+    "es": "Términos de la lista Tema del proyecto, separados con |."
+   }
+  },
+  "pages": "eap_page"
+ }
+}

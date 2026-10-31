@@ -122,11 +122,12 @@ def _plan(db: Any) -> dict[str, Any]:
     stays_local = not places.may_leave_to(answers, "cloud")
     # New material runs only what What runs by itself ticks; with Nothing runs automatically, nothing (#5478).
     return plan_start(setup["recipe"], stays_local=stays_local, automatic=answers.get("automatic"),
-                      job_answers=answers.get("job_answers"), db=db)
+                      job_answers=answers.get("job_answers"),
+                      job_answers_by_folder=answers.get("job_answers_by_folder"), db=db)
 
 
 def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, started_by: str,
-            redo: list[str] | None = None, folder_id: str | None = None) -> str:
+            redo: list[str] | None = None, folder_id: str | None = None, first_pages: int | None = None) -> str:
     """Queue one run of the plan; `documents` None is all the project's material, or with `folder_id` that
     folder's (`source.recipe.folder-scoped-start`); `redo` names the steps to run again on pages that already have
     their output (`source.recipe.done-is-not-redone`). The downloads the plan found under way are kept on the run,
@@ -137,7 +138,8 @@ def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, start
               "folder_id": folder_id, "awaited": awaited,
               # Its name and page count in Activity (#5615), as they were when it was queued.
               "title": _recipe_title(db), "pages": _pages_counted(db, documents)}
-    words = "Waiting to run the recipe" + (f" on {len(documents)} new pages" if documents is not None else
+    words = "Waiting to run the recipe" + (f" on the first {len(documents)} pages" if first_pages else
+                                           f" on {len(documents)} new pages" if documents is not None else
                                            " on one folder" if folder_id else "")
     return jobs.enqueue_remote(db, KIND, f"recipe:{uuid.uuid4()}", target="this-mac", detail=json.dumps(detail),
                                reason=words, started_by=started_by)
@@ -509,6 +511,9 @@ def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
         if awaited_state == "paused":
             # A person paused the step's run itself: Resume on the recipe resumes that run (the recipe adopts it when it is taken up).
             clear_pause(awaited)
+            from fichero_server.llm.spend import forget_cap_stop
+
+            forget_cap_stop(awaited)
             _resume_step_run(db, awaited, job_id)
             document_tree.release_waiting_job(db, job_id, clear_reason=True)
             jobs.wake_lane(db)
@@ -518,6 +523,9 @@ def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
     child = jobs.running_child(db, job_id)
     if child is not None:
         clear_pause(child)  # still winding down to its pause: let it go on
+        from fichero_server.llm.spend import forget_cap_stop
+
+        forget_cap_stop(child)
         if jobs._job_row(db, child)[1] == "paused":
             _resume_step_run(db, child, job_id)
     document_tree.clear_job_reason_if(db, job_id, (jobs.PAUSING, "Paused with its run"))
@@ -750,16 +758,7 @@ def _run_catalogue(db: Any, card: dict[str, Any], documents: list[str], parent: 
     return None, "done", None
 
 
-def _run_prepare(db: Any, documents: list[str], parent: str,
-                 step: dict[str, Any]) -> tuple[str | None, str, str | None]:
-    """Each faded page gets a prepared rendition (`source.onboard.auto.prepare-damaged-images`, #5580); the step's
-    account (`prepared`) says how many it prepared, how many were clear and how many had no image to look at."""
-    from fichero_server.recipes.prepare import prepare_pages
-
-    step["prepared"] = prepare_pages(db, documents, parent, stop=lambda: _stop_asked(parent))
-    if _stop_asked(parent):  # stopped before its next page (#5609): the account counts the pages it looked at
-        return None, "cancelled", "Stopped by you"
-    return None, "done", None
+from fichero_server.recipes.prepare_run import run_prepare as _run_prepare  # noqa: E402  (the step lives in its own module)
 
 
 def _run_regions(db: Any, card: dict[str, Any], documents: list[str], parent: str,
@@ -892,9 +891,39 @@ def _run_embed(db: Any, documents: list[str], parent: str, started_by: str) -> t
         time.sleep(_CHECK_POLL_SECONDS)
 
 
-def _run_export(db: Any, card: dict[str, Any], documents: list[str]) -> tuple[str | None, str, str | None]:
-    from fichero_server import sync_folder
+def _keep_catalogue_formats(db: Any, card: dict[str, Any]) -> None:
+    """The workbook and the per-folder transcripts are kept exports in the card's folder (`catalogue.export.recipe-last-step`):
+    kept once, then written again (the whole export) on the run's last batch, after Catalogue; the quiet-period hook keeps
+    them current when the work changes. Never a model."""
+    from fichero_server import kept_export
 
+    kept = [f for f in card.get("formats") or [] if f in (*kept_export.WHOLE_FORMATS, *kept_export.FOLDER_FORMATS)]
+    for fmt in kept:
+        resolved = kept_export._refuse_folder(db, card["folder"])
+        have = next((e for e in kept_export._exports(db) if e["format"] == fmt and e["folder"] == resolved), None)
+        if have is None:
+            kept_export.keep(db, card["folder"], fmt, "document")
+        else:
+            kept_export.write_now(db, have["id"])
+
+
+def _run_export(db: Any, card: dict[str, Any], documents: list[str]) -> tuple[str | None, str, str | None]:
+    from fichero_server import kept_export, sync_folder
+
+    formats = card.get("formats") or []
+    ours = [f for f in formats if f in (*kept_export.WHOLE_FORMATS, *kept_export.FOLDER_FORMATS)]
+    if ours:
+        if not card.get("folder"):
+            return None, "failed", "the step keeps the catalogue as a file, and names no folder to keep it in"
+        if card.get("final"):  # written once the Catalogue step has described the folders, over the whole run
+            try:
+                _keep_catalogue_formats(db, card)
+            except kept_export.KeptExportRefused as exc:
+                return None, "failed", str(exc)
+        formats = [f for f in formats if f not in ours]
+        if not formats:
+            return None, "done", None
+        card = {**card, "formats": formats}
     tied = {f["path"]: f["id"] for f in sync_folder._folders(db)}
     folder = card.get("folder")
     if folder and str(Path(folder)) not in tied:
@@ -1628,6 +1657,8 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
             ahead[after] = _start_beside(db, job_id, detail, batch, tree, started_by, after)
             if ahead[after] is not None:
                 card = _text_is_the_hosted_readers(card)
+        if card["card"] == "export":
+            card = {**card, "final": final}  # the workbook and the transcripts are written once, on the last batch
         try:
             if early is not None:  # it has been running beside the step before: its end is what this step ended with
                 child, state, why = early.future.result()
@@ -1690,7 +1721,7 @@ def _run_card(db: Any, card: dict[str, Any], documents: list[str], kinds: dict[s
     elif card["card"] == "catalogue":
         child, state, why = _run_catalogue(db, card, documents, job_id, scratch)
     elif card["card"] == "prepare":
-        child, state, why = _run_prepare(db, documents, job_id, scratch)
+        child, state, why = _run_prepare(db, documents, job_id, scratch, paper=card.get("paper") or [])
     elif card["card"] == "leave-out":
         from fichero_server.recipes.leave_out import run_step
 
@@ -1910,7 +1941,14 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
             elif step["state"] == "running":
                 step.update(state="not run", why=f"stopped when the run ended, before this step finished: {ended}")
     reason = row["reason"]
-    if row["state"] == "waiting":
+    run_ids = [(detail.get("awaiting") or {}).get("child"), *(s.get("child_id") for s in steps)]
+    from fichero_server.llm.spend import stopped_at_cap
+
+    capped = stopped_at_cap(run_ids)  # a step's run paused at a cap: the row says so, and the app offers the change
+    capped = capped if row["state"] not in ("done", "cancelled") else None
+    if capped:
+        reason = capped["words"]
+    elif row["state"] == "waiting":
         ahead = [r["id"] for r in jobs.find_jobs(db, kinds=[KIND], states=["running"]) if r["id"] != job_id]
         if ahead:
             reason = f"Waiting for the recipe run {ahead[0]} to finish: recipe runs go one at a time"
@@ -1919,7 +1957,9 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
             "started_by": row["started_by"], "folder_id": detail.get("folder_id"),
             # `activity.run.progress-per-folder`: written by the run as it goes; absent before it starts.
             "folders_done": detail.get("folders_done"), "folders_total": detail.get("folders_total"),
-            "folder_steps": folder_steps(detail)}
+            "folder_steps": folder_steps(detail), "stopped_at_cap": bool(capped),
+            "stopped_needs_cap_usd": (capped or {}).get("needed_cap_usd"),
+            "stopped_needs_project_cap_usd": (capped or {}).get("needed_project_cap_usd")}
 
 
 def started_plan(db: Any, job_id: str) -> dict[str, Any]:

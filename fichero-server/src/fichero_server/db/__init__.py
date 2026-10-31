@@ -2927,6 +2927,32 @@ class Database(DatabaseEmbeddingMixin):
                 value.updated_at = utc_now()
                 self.save(value)
         self.save_many(missing, new=True)  # the new ones in one statement, not two a row (#6221)
+        self._seed_shipped_document_prototypes(existing)
+
+    def _seed_shipped_document_prototypes(self, existing: dict[str, Any]) -> None:
+        """Load `resources/prototypes/*.json` as read-only built-ins; a changed shipped file migrates forward by key.
+
+        A project's own (non-built-in) prototype that happens to share a key is never overwritten.
+        """
+        from fichero_server.models.knowledge import ClassificationDimension, ClassificationValue
+        from fichero_server.models.shipped_prototypes import shipped_prototypes
+
+        new, changed = [], []
+        for proto in shipped_prototypes():
+            value = existing.get(proto["key"])
+            if value is None:
+                new.append(ClassificationValue(
+                    dimension=ClassificationDimension.document_prototype, key=proto["key"], label=proto["label"],
+                    parent_key=proto.get("parent_key"), attributes=dict(proto["attributes"]), is_builtin=True))
+            elif value.is_builtin and (value.label, value.parent_key, value.attributes) != (
+                    proto["label"], proto.get("parent_key"), proto["attributes"]):
+                value.label, value.parent_key = proto["label"], proto.get("parent_key")
+                value.attributes = dict(proto["attributes"])
+                value.updated_at = utc_now()
+                changed.append(value)
+        for value in changed:
+            self.save(value)
+        self.save_many(new, new=True)
 
     def _seed_builtin_node_classes(self) -> None:
         """Ensure the built-in node_class values exist in fresh DB fixtures."""
@@ -5581,7 +5607,12 @@ class Database(DatabaseEmbeddingMixin):
     #: node, or a diary entry split from a page (#5581) is not a page to read, and a page's entries do not make it
     #: a file with pages.
     _UNIT_OF_WORK_WHERE = (
-        "d.deleted_at IS NULL AND COALESCE(d.node_kind, '') NOT IN ('workflow', 'entry') "
+        # A page hidden as blank (`media.blank_page.mark_blank`: excluded AND `metadata.blank.blank` true) is never a unit of
+        # work. A page excluded for any other reason stays one, as it was before blank marking existed: no migration, and
+        # pages a person excluded in earlier libraries are still counted, sampled and run.
+        "d.deleted_at IS NULL AND NOT (COALESCE(d.exclude_from_processing, FALSE) "
+        "AND COALESCE(json_extract_string(d.metadata, '$.blank.blank'), '') = 'true') "
+        "AND COALESCE(d.node_kind, '') NOT IN ('workflow', 'entry') "
         "AND (d.doc_type = 'page' OR (d.doc_type = 'file' AND NOT EXISTS (SELECT 1 FROM documents c "
         "WHERE c.parent_id = d.id AND c.deleted_at IS NULL AND COALESCE(c.node_kind, '') <> 'entry')))")
 

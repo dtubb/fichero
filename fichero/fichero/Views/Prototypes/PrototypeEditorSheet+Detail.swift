@@ -180,14 +180,16 @@ extension PrototypeEditorSheet {
                 )
                 await reload(selecting: created.key)
             } else if let proto = selectedPrototype, let id = proto.id {
-                try await entityService.updateDocumentPrototype(
+                let saved = try await entityService.updateDocumentPrototype(
                     valueId: id,
                     label: draftLabel,
                     parentKey: parent,
                     color: color,
                     attributes: draftAttributes
                 )
-                await reload(selecting: proto.key)
+                await reload(selecting: saved.key)
+                // A built-in is copied, never edited in place: say so, and show the copy.
+                errorText = EntityService.copiedNotice(edited: proto.key, saved: saved.key, label: proto.label)
             }
         } catch {
             errorText = error.localizedDescription

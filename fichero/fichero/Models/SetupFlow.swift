@@ -171,7 +171,12 @@ struct SetupStageChoice: Equatable {
     }
 
     /// The chosen stages, in the engine's order.
-    var chosenInOrder: [String] { stages.map(\.id).filter(chosen.contains) }
+    var chosenInOrder: [String] { inOrder(keeping: nil) }
+
+    /// The chosen stages in order, with `current` kept even when unticked: the page the person is on stays a step.
+    func inOrder(keeping current: String?) -> [String] {
+        stages.map(\.id).filter { chosen.contains($0) || $0 == current }
+    }
 
     /// Why a chosen stage cannot be unticked: the words of each chosen stage that needs it; empty when it can be.
     func neededBecause(_ stageId: String) -> [String] {

@@ -152,6 +152,7 @@
   "POST /api/documents/pdfs/backfill-pages": "no Swift call for the /api/documents/* family (13 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "POST /api/documents/{doc_id}/duplicate": "SwiftUI drives it via POST /api/actions/invoke (#4102); CLI hits the raw path",
   "POST /api/entities/bulk": "2026-08-18 bulk entity upsert - importer path; store wiring queued with #4118",
+  "POST /api/export/catalogue-workbook": "engine, CLI and MCP first (#6282): the app door (File > Export > Catalogue workbook, the folder context menu, a save panel writing the base64 body) is catalogue.export.app-doors in catalogue-export.md and is not built yet",
   "POST /api/export/excel": "binary .xlsx download via a direct authenticated URL, not the typed generated client (reason carried from check_ui_wiring's swiftui allowlist, #5105)",
   "POST /api/export/jsonl": "CLI/backend-only: request destination is an engine-local filesystem path, so no SwiftUI store may issue it",
   "POST /api/export/markdown-folder": "no Swift call for the /api/export/* family (5 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",

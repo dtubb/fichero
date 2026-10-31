@@ -80,10 +80,11 @@ struct FirstRunWindow: View {
     /// The store of the project being set up; nil until Your project has made one.
     var store: RecipeSetupStore? { project?.recipeSetupStore }
 
-    /// The pages, with one per stage chosen so far.
+    /// The pages, with one per stage chosen so far, and the stage page the person is on even if they just unticked it.
     private var steps: [SetupStep] {
         var current = flow
-        current.chosenStages = store?.chosenStageIds ?? []
+        let onStage: String? = if case .stage(let id) = step { id } else { nil }
+        current.chosenStages = store?.stageIds(keeping: onStage) ?? []
         return current.steps
     }
 

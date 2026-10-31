@@ -119,7 +119,9 @@ struct FocusedStartRecipeButton: View {
     }
 
     private func start(_ store: RecipeSetupStore, projectId: UUID) async {
-        if store.startPlan == nil || store.startPlanFolderId != nil { await store.loadStartPlan() }
+        let wasLimited = store.runFirstPages != nil
+        store.runFirstPages = nil  // the menu's Start is the whole project, not a first-pages run left on Ready (#6295)
+        if store.startPlan == nil || store.startPlanFolderId != nil || wasLimited { await store.loadStartPlan() }
         guard store.canStart else {
             setUpProjectAction?.run()
             return

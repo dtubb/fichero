@@ -56,14 +56,17 @@ def _read(tmp_path, image, doc, *, save_to_db=True):
         tool_config=VisionToolConfig(artifact_type="transcription"), save_to_db=save_to_db))
 
 
-def test_the_capture_run_writes_nothing_and_the_replay_lands_the_answer(tmp_path, monkeypatch):
+def test_the_capture_run_writes_nothing_and_the_replay_lands_the_answer(tmp_path, monkeypatch, request):
     monkeypatch.setattr(llm, "_enforce_local_only_provider", lambda config, kind: None)
     monkeypatch.setattr(llm, "get_langchain_model", lambda config: (_ for _ in ()).throw(AssertionError("a plain call")))
     from fichero_server.observability import episodes
 
     recorded = []
     monkeypatch.setattr(episodes, "_append", lambda library, row: recorded.append(row))
-    episodes.set_library(str(tmp_path))  # as a run's builder does, so an episode would be written
+    # as a run's builder does, so an episode would be written; reset after, or every later test in the
+    # process records episodes (the description of a mocked save came back as {episode_id: ...})
+    token = episodes.set_library(str(tmp_path))
+    request.addfinalizer(lambda: episodes._episode_library_path.reset(token))
     db, doc, image = _library(tmp_path)
     before = _state(db, doc.id)
 

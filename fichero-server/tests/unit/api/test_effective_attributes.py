@@ -98,3 +98,25 @@ class TestResolvedPrototypeEndpoint:
         mock_db.query.side_effect = lambda cls, **f: []
         response = client.get("/api/classifications/resolved/nope")
         assert response.status_code == 422
+
+
+class TestEffectiveAttributesWalk:
+    """proto.kind / proto.value: the route says the kind's rule and every value's origin."""
+
+    def test_route_reports_origins_and_effective_kind(self, client, mock_db):
+        proto = ClassificationValue(
+            dimension=ClassificationDimension.document_prototype, key="folderish", label="F",
+            attributes={"ref": {"type": "text", "inherits": True}, "title": {"type": "text"}})
+        box = Document(id="box", name="box", doc_type=DocType.folder, attributes={"ref": "EAP1"})
+        doc = Document(id="f", name="f", doc_type=DocType.folder, parent_id="box", attributes={"title": "T"},
+                       prototype_key="folderish")
+        docs = {"box": box, "f": doc}
+        mock_db.get_committed.side_effect = lambda _c, i: docs.get(i)
+        mock_db.query.side_effect = lambda cls, **f: [proto] if cls is ClassificationValue and f.get("key") == "folderish" else []
+
+        data = client.get("/api/documents/f/effective-attributes").json()
+        assert data["prototype_key"] == "folderish" and data["effective_prototype_key"] == "folderish"
+        assert data["kind_rule"] == "own"
+        assert data["origins"]["ref"]["origin"] == "inherited" and data["origins"]["ref"]["from"] == "box"
+        assert data["values"]["ref"] == "EAP1"
+        assert data["origins"]["title"]["origin"] == "here"

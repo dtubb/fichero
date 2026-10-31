@@ -188,3 +188,4 @@ def test_a_correct_step_with_a_bar_reaches_the_review_node(monkeypatch):
     [run] = [r for r in start.plan_start(_recipe(LINES, READ, step), stays_local=False)["runs"]
              if "correct" in r["steps"]]
     assert run["tool_config"] == {"transcribe_review": {"only_below_confidence": 0.6}}
+
