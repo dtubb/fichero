@@ -128,10 +128,27 @@ def ensure_forward(port: int, cli: str) -> bool:
     return True
 
 
+def sharing_on(env: Mapping[str, str] | None = None) -> bool:
+    """Whether this engine is SHARING: the one predicate the tailnet forward is gated on (review 2026-10-31, H).
+
+    A certificate alone is not sharing: `start_fichero_server.sh` always makes a loopback certificate, and the app
+    always sets FICHERO_TLS_CERTFILE and FICHERO_UDS_PATH. Sharing is: the app hosting (FICHERO_TCP_TLS_ALSO=1, set
+    only while Sharing is on; or FICHERO_LAN_HOST), a non-loopback sharing address, or a tailnet address asked for."""
+    source = env if env is not None else os.environ
+    if (source.get("FICHERO_TCP_TLS_ALSO") or "").strip() == "1" or (source.get("FICHERO_LAN_HOST") or "").strip():
+        return True
+    if tailnet_url(source):
+        return True
+    host = (urlparse((source.get("FICHERO_PUBLIC_BASE_URL") or "").strip()).hostname or "").lower()
+    return bool(host) and host not in ("127.0.0.1", "localhost", "::1")
+
+
 def forward_state(port: int) -> str:
     """What holds the tailnet ``port`` now, for `GET /api/pair/sharing` (`sharing.state-names-every-address`):
     "ours" (this engine's loopback TLS listener), "foreign" (something Fichero did not make), "none" (free, or
-    Tailscale missing or not answering). Never raises."""
+    Tailscale missing or not answering, or this engine is not sharing: then Tailscale is not even asked). Never raises."""
+    if not sharing_on():
+        return "none"
     cli = tailscale_cli()
     if cli is None:
         return "none"
@@ -156,9 +173,10 @@ def start_for_engine(env: Mapping[str, str] | None = None, *, log) -> tuple[str,
     (and the remote-backend status reports the forward missing), not a failed launch.
     """
     source = env if env is not None else os.environ
-    # Any engine with a TLS listener: the app's (FICHERO_TCP_TLS_ALSO sets the certificate too)
-    # and start_fichero_server.sh's, which never set that flag and so never forwarded (#5320).
-    if not (source.get("FICHERO_TLS_CERTFILE") or "").strip():
+    # Any SHARING engine with a TLS listener: the app's (FICHERO_TCP_TLS_ALSO sets the certificate too) and
+    # start_fichero_server.sh's with a sharing address (#5320). A certificate alone is not sharing: an engine nobody
+    # shared is never published on the tailnet, and Tailscale is not even asked (review 2026-10-31, H).
+    if not (source.get("FICHERO_TLS_CERTFILE") or "").strip() or not sharing_on(source):
         return None
     cli = tailscale_cli()
     # A `.ts.net` sharing address (or FICHERO_TAILNET_URL) asks for the forward outright; otherwise a Mac that
