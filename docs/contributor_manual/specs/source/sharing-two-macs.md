@@ -342,7 +342,7 @@ address answered while the link named `.local`.
   is the same in both links (one mint, two addresses). The default row is Tailscale when the engine reports a tailnet address and its
   forward is Fichero's own, else This network. A row that cannot work is shown disabled with why (Tailscale not running: "Tailscale is
   not running on this Mac"; forward held by another service: `sharing.stale-forward-says-so`; the engine could not ask Tailscale (`tailnet_forward`
-  `unknown`, a sandboxed build): the row is offered as "Works if this Mac is published on your tailnet; this build cannot check", not first, and
+  `unknown`, a sandboxed build): the row is offered as "This build cannot ask Tailscale; see Settings › Sharing", not first, and
   never "not running"; a greyed row names no host; a `.ts.net` sharer's row is its own address whatever detection says). On iPhone and iPad there is no host
   card (`ShareSettingsView` is `canImport(AppKit)`; `SharingSettingsView.availableSections` is `[.people]` on iOS,
   `SettingsGroupContainers.swift:81-92`): the phone is a client and consumes whichever link it gets. *Test:* `AddressChoiceModelTests.swift`

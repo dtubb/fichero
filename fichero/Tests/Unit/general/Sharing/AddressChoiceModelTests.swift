@@ -33,6 +33,7 @@ struct AddressChoiceModelTests {
 
     @Test("an engine that could not ask Tailscale (unknown) offers the row as unchecked, not as 'not running', and not first")
     func unknownForwardIsUncheckedNotOff() {
+        #expect(AddressChoiceModel.tailscaleUnchecked == "This build cannot ask Tailscale; see Settings › Sharing", "the spec's words (§10.1)")
         let rows = AddressChoiceModel.rows(sharingAddress: local, tailnetURL: tail, tailnetForward: "unknown")
         #expect(rows[1].isEnabled && rows[1].reach == AddressChoiceModel.tailscaleUnchecked)
         #expect(AddressChoiceModel.defaultChoice(rows: rows) == .thisNetwork)

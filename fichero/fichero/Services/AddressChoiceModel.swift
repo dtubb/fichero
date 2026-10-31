@@ -32,7 +32,7 @@ enum AddressChoiceModel {
     static let tailscaleHeld = "Another service holds this port on your tailnet; see Settings › Sharing"
     static let tailscaleNotPublished = "Fichero hasn't published this Mac on your tailnet yet: turn Sharing off and on"
     /// `tailnet_forward == "unknown"`: a sandboxed engine could not ask Tailscale (#5317). The row is offered, not first.
-    static let tailscaleUnchecked = "Works if this Mac is published on your tailnet; this build cannot check"
+    static let tailscaleUnchecked = "This build cannot ask Tailscale; see Settings › Sharing"
 
     /// The rows from the engine's sharing state. `sharingAddress` is the address the engine was started with (the one the
     /// link named before); `tailnetURL` the detected `.ts.net` origin (no port); `tailnetForward` "ours" | "foreign" | "none"
