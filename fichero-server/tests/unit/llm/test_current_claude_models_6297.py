@@ -69,7 +69,7 @@ class TestCurrentClaudeModels6297:
     def test_default_large_model_is_claude_sonnet_5_5(self):
         """The default large model alias resolves to claude-sonnet-5-5."""
         # Check that the Anthropic provider's default_model is claude-sonnet-5-5
-        from fichero_server.llm.providers import ProviderInfo, ProviderType
+        from fichero_server.llm.providers import ProviderType
         from fichero_server.llm.providers import get_provider_info
         
         anthropic_info = get_provider_info(ProviderType.anthropic)
