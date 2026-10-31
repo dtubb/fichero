@@ -19,7 +19,9 @@ struct PairingLinkEncodingTests {
 
     private func json(ofLink link: String) throws -> String {
         let query = URLComponents(string: link)?.queryItems?.first { $0.name == "payload" }?.value
-        let data = try #require(Data(base64Encoded: try #require(query?.removingPercentEncoding)))
+        // One #require per statement: nesting them is a "recursive expansion of macro 'require'" compile error.
+        let encoded = try #require(query?.removingPercentEncoding)
+        let data = try #require(Data(base64Encoded: encoded))
         return try #require(String(data: data, encoding: .utf8))
     }
 
