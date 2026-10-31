@@ -37,3 +37,5 @@ anything explicitly requested.
 
 Code first. Then at most three short lines: what was skipped, when to add it. Pattern:
 `[code] → skipped: [X], add when [Y].`
+- Never reformat, rename or tidy code you were not asked to change; the diff has a line bound and the checks refuse more.
+- Paste the failing run (the last lines of pytest, before your fix) in a ``` block in the commit message body.

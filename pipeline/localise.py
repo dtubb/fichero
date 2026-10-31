@@ -58,9 +58,21 @@ def localise(repo: str, text: str) -> dict:
     return {"files": sorted(touched), "tests": tests, "symbols": symbols, "size": size}
 
 
+BOUND = re.compile(r"Diff bound:\s*(\d+)", re.I)
+
+
+def bound(text: str, default: int | None) -> int | None:
+    """The line bound of the issue's diff: `Diff bound: N` in the issue text, else the profile's default."""
+    m = BOUND.search(text)
+    return int(m.group(1)) if m else default
+
+
 def section(loc: dict) -> list[str]:
-    """The brief's "Where" and "The test to write first" sections."""
+    """The brief's "Where", "The test to write first" and "Diff bound" sections."""
     out = []
+    if loc.get("bound"):
+        out += [f"## Diff bound: {loc['bound']} lines", f"Your whole diff, tests included, may change at most {loc['bound']} lines "
+                "(added + deleted); the checks refuse more. Do not reformat, rename or tidy anything else.", ""]
     if loc["files"] or loc["symbols"]:
         out += ["## Where (found by the runner; edit these, do not search further)", *[f"- {f}" for f in loc["files"]]]
         out += [f"- `{name}`: {hit}" for name, hits in loc["symbols"].items() for hit in hits]

@@ -233,11 +233,41 @@ def red_on_base(wt, tree, since, files, rung, cfg, head="HEAD") -> tuple[bool, s
         drop_tree(wt, base)
 
 
+def diff_bound(wt, since, head, max_lines, max_files) -> tuple[bool, str]:
+    """The item's whole diff (tests included) stays inside the bound its brief stated: added + deleted lines and files."""
+    lines = files = 0
+    for row in git(wt, "diff", "--numstat", since, head).splitlines():
+        a, d, _ = row.split("\t", 2)
+        files += 1
+        lines += (int(a) if a.isdigit() else 0) + (int(d) if d.isdigit() else 0)  # a binary file counts as a file, not lines
+    if lines > max_lines or files > max_files:
+        return False, (f"DIFF TOO WIDE: {lines} changed lines in {files} files, over the bound of {max_lines} lines in {max_files} "
+                       "files. Make the shortest change that fixes the issue; do not reformat or tidy. Or call `pipeline_ask` if the bound is wrong.")
+    return True, f"{lines} changed lines in {files} files (bound {max_lines} / {max_files})"
+
+
+FENCE = re.compile(r"```[^\n]*\n(.*?)```", re.S)
+FAILURE_LINE = re.compile(r"\b(FAILED|ERROR|Error|failed|AssertionError)\b|^E\s", re.M)
+
+
+def failing_run_pasted(wt, since, head) -> tuple[bool, str]:
+    """Some commit message of the item holds a fenced block with a failing test run: proof the test was seen red."""
+    for body in git(wt, "log", "--format=%B%x00", f"{since}..{head}").split("\0"):
+        if any(FAILURE_LINE.search(b) for b in FENCE.findall(body)):
+            return True, "a failing run is pasted in a commit message"
+    return False, ("NO FAILING RUN PASTED: put the output of your test failing BEFORE the fix (the last lines of pytest) in a "
+                   "``` block in the body of your commit message, then commit again.")
+
+
 def run_rung(rung, wt, tree, cfg, files, since, head="HEAD") -> tuple[bool, str]:
     if rung.get("enabled") is False:
         return True, "skipped (disabled in the profile)"
     if rung.get("paths") and not touches(files, rung["paths"]):
         return True, "skipped (diff does not touch its paths)"
+    if rung.get("kind") == "diff-bound":
+        return diff_bound(wt, since, head, rung["max_lines"], rung["max_files"])
+    if rung.get("kind") == "failing-run-pasted":
+        return failing_run_pasted(wt, since, head)
     if rung.get("kind") == "red-on-base":
         tests = [f for f in changed_files(wt, since, "AM", head) if f.endswith(".py") and any(fnmatch.fnmatch(f, g) for g in rung["test_glob"])]
         source = [f for f in files if f.endswith(".py") and not touches([f], cfg["repo"]["check_paths"])]  # a guard is not source
@@ -320,11 +350,12 @@ def weakened_tests(wt, since, head="HEAD") -> list[str]:
     return bad
 
 
-def run_all(wt, cfg, since=None, pinned=None, protected_ids=(), approved=None, head="HEAD") -> list[dict]:
+def run_all(wt, cfg, since=None, pinned=None, protected_ids=(), approved=None, head="HEAD", bound=None) -> list[dict]:
     """Every rung, in order, timed; stops at the first red so the coder gets one failure at a time. First the
     pinned-checks rules, which end in needs-maintainer: a changed pinned check, a file that would bypass the checks,
     or a rewrite of the item's own acceptance in the spec. `head`: the commit to judge (a done sha, so a
-    worker that moved on to the next issue does not change what this one is judged on; the live HEAD by default)."""
+    worker that moved on to the next issue does not change what this one is judged on; the live HEAD by default).
+    `bound`: the line bound the item's brief stated; it replaces the diff-bound rung's default."""
     since = since or cfg["repo"]["base"]
     files = changed_files(wt, since, head=head)
     # a coder may add a guard, and keep editing a guard of its own that the pinned runner does not have yet (a
@@ -355,6 +386,8 @@ def run_all(wt, cfg, since=None, pinned=None, protected_ids=(), approved=None, h
         for rung in cfg["ladder"]:
             t = time.time()
             try:
+                if bound and rung.get("kind") == "diff-bound":
+                    rung = dict(rung, max_lines=bound)
                 ok, text = run_rung(rung, wt, tree, cfg, files, since, head)
             except Exception as e:  # noqa: BLE001 - a broken rung is a red rung, with its text
                 ok, text = False, f"{type(e).__name__}: {e}"

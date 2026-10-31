@@ -311,3 +311,28 @@ def test_a_new_test_that_mentions_skip_passes_but_a_skipping_conftest_needs_main
     wt = lane(scratch, "conftest", {"tests/conftest.py": "import pytest\n\n@pytest.fixture(autouse=True)\ndef f():\n    pytest.skip('x')\n"})
     r = checks.run_all(wt, profile_cfg(scratch))[0]
     assert not r["ok"] and "needs-maintainer" in r["text"]
+
+
+def only(scratch, *rungs):
+    return dict(scratch["cfg"], ladder=list(rungs))
+
+
+def test_diff_bound_is_red_past_the_bound_and_the_briefs_bound_wins(scratch):
+    wt = lane(scratch, "wide", {"src/a.py": "x = 1\n" * 10, "src/b.py": "y = 1\n"})
+    rung = {"name": "diff-bound", "kind": "diff-bound", "max_lines": 20, "max_files": 5}
+    assert checks.run_all(wt, only(scratch, rung))[-1]["ok"], "11 lines in 2 files is inside 20 and 5"
+    r = checks.run_all(wt, only(scratch, rung), bound=5)[-1]
+    assert not r["ok"] and "11 changed lines" in r["text"] and "bound of 5" in r["text"], "the issue's own bound replaces the profile's"
+    r = checks.run_all(wt, only(scratch, dict(rung, max_files=1)))[-1]
+    assert not r["ok"] and "2 files" in r["text"]
+
+
+def test_failing_run_pasted_wants_a_fenced_failure_in_a_commit_message(scratch):
+    rung = {"name": "failing-run-pasted", "kind": "failing-run-pasted"}
+    plain = lane(scratch, "plain", REAL_FIX)
+    r = checks.run_all(plain, only(scratch, rung))[-1]
+    assert not r["ok"] and "```" in r["text"], "the way out is named"
+    shown = lane(scratch, "shown", REAL_FIX, msg="fix (Fixes #1001)\n\n```\nFAILED tests/test_1.py::test_f1 - assert 0 == 1\n```")
+    assert checks.run_all(shown, only(scratch, rung))[-1]["ok"]
+    green = lane(scratch, "green", REAL_FIX, msg="fix (Fixes #1001)\n\n```\n3 passed in 0.1s\n```")
+    assert not checks.run_all(green, only(scratch, rung))[-1]["ok"], "a passing run is not the failing one"
