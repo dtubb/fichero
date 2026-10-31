@@ -137,6 +137,12 @@ final class SetupStageTryStore {
         try JSONDecoder().decode(SetupStageTryResult.self, from: try JSONEncoder().encode(body))
     }
 
+    /// The output column's state (`wide.output.four-states`): `currentRevision` is the stage listing's `answers_revision` now.
+    func outputState(currentRevision: String?, estimate: String?) -> StepOutputState {
+        StepOutputState.of(result: result, refusal: refusal, costQuestion: costQuestion, isTrying: isTrying,
+                           currentRevision: currentRevision, pages: samples.count, estimate: estimate)
+    }
+
     /// A sample page's name, by id.
     func name(of pageId: String) -> String { samples.first { $0.id == pageId }?.name ?? pageId }
 }
@@ -259,6 +265,9 @@ struct SetupStageTryResult: Decodable, Equatable {
         let sure = document.confidence.map { $0.formatted(.percent.precision(.fractionLength(0))) + " sure" }
         return [document.kind, sure].compactMap { $0 }.joined(separator: " · ")
     }
+
+    /// The tie's figures in words (`wide.nomodel.tie-figures-on-his-pages`), nil when the try tied nothing.
+    var tieWords: String? { StepRowWords.tieFigures(tie?.counts) }
 
     var isUnderWay: Bool { Self.underWay.contains(comparison?.state ?? state) }
 
