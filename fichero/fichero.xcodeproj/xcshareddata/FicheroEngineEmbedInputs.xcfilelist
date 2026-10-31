@@ -270,6 +270,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/db/run_reviews.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/storage.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/storage_snapshots.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/vector_swap.py
+$(SRCROOT)/../fichero-server/src/fichero_server/db/volume_dropped.py
 $(SRCROOT)/../fichero-server/src/fichero_server/editorial/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/editorial/leiden.py
 $(SRCROOT)/../fichero-server/src/fichero_server/errors.py
