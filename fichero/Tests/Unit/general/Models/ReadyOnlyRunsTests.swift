@@ -19,7 +19,7 @@ struct ReadyOnlyRunsTests {
 
     @Test("the sections hold the runs in order with their progress, the skipped step with its fix, and the estimate")
     func sections() throws {
-        let sections = ReadySections(plan: try plan(), startReason: nil)
+        let sections = ReadyWillRun(plan: try plan(), startReason: nil)
         #expect(sections.running.map(\.job) == ["prepare-the-image", "read-a-line"])
         #expect(sections.running[0].progress == nil && sections.running[1].progress == "done on 4 of 92")
         #expect(sections.stepIds == ["prep", "lines", "read"])
@@ -29,7 +29,7 @@ struct ReadyOnlyRunsTests {
 
     @Test("an offered job and a left-off step are not Ready's: the model has nowhere to hold them")
     func noOfferedNoLeftOff() throws {
-        let sections = ReadySections(plan: try plan(), startReason: "Start waits: no model")
+        let sections = ReadyWillRun(plan: try plan(), startReason: "Start waits: no model")
         let mirror = Mirror(reflecting: sections).children.compactMap(\.label)
         #expect(!mirror.contains(where: { $0.lowercased().contains("offered") || $0.lowercased().contains("leftoff") }))
         #expect(sections.startReason == "Start waits: no model")

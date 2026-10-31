@@ -1,44 +1,34 @@
-import FicheroAPIClient
 import Foundation
 
-/// What Ready shows (`wide.ready.only-what-will-run`, #5840, #6295): the steps that will run, in run order, each with its pages;
-/// the estimate; the skipped steps, each with why and its fix; and Start with its reason. Nothing else: the offered jobs, the
-/// left-off rows and the taken-out rows are on their stage pages, so this model does not hold them at all (a step is added on its
-/// stage's page, `wide.ready.adding-a-step-is-on-its-stage-page`). Pure.
-struct ReadySections: Equatable {
-    struct Line: Equatable, Identifiable {
-        let id: String
-        let job: String
-        let steps: [String]
-        let runsOn: String
-        /// "done on 4 of 92" when the last run did some of it, else nil.
-        let progress: String?
-    }
+/// Ready's boxes, in order (`source.onboard.ready.grouped-sections`, #5840): each plan step is its own numbered box in run
+/// order, then what runs by itself, then the two optional parts, then the last box with the total and why Start waits.
+/// Pure, so the order can be checked without drawing it.
+enum ReadySection: Equatable {
+    case step(number: Int, stepId: String, title: String)
+    case runsByItself
+    case checkOnYourPages
+    case keepAnExport
+    /// Offered only once there is enough corrected work (#5804).
+    case trainOffer
+    case start
 
-    struct Skipped: Equatable, Identifiable {
-        let id: String
-        let why: String
-        let fix: String?
-    }
-
-    let running: [Line]
-    let skipped: [Skipped]
-    let pages: Int
-    let totalCostUsd: Double?
-    /// Why Start waits, in words; nil when it can be pressed.
-    let startReason: String?
-
-    init(plan: Components.Schemas.StartPlan, startReason: String?) {
-        running = plan.runs.enumerated().map { index, run in
-            Line(id: "\(index):\(run.steps.joined(separator: ","))", job: run.job, steps: run.steps, runsOn: run.runsOn,
-                 progress: run.done.flatMap { done in run.of.map { "done on \(done) of \($0)" } })
+    /// The heading of the box; a step's is numbered.
+    var title: String {
+        switch self {
+        case .step(let number, _, let title): "\(number). \(title)"
+        case .runsByItself: "What runs by itself"
+        case .checkOnYourPages: "Check on your pages"
+        case .keepAnExport: "Keep an export"
+        case .trainOffer: "Train a model of your own"
+        case .start: "Start"
         }
-        skipped = plan.skipped.map { Skipped(id: $0.step, why: $0.why, fix: $0.fix) }
-        pages = plan.estimate.pages
-        totalCostUsd = plan.estimate.totalCostUsd
-        self.startReason = startReason
     }
 
-    /// The step ids that will run, in order: what Ready's boxes are made of.
-    var stepIds: [String] { running.flatMap(\.steps) }
+    /// Shown small and grey beside the heading: the parts that can be left and done later from the Inspector.
+    var isOptional: Bool { self == .checkOnYourPages || self == .keepAnExport }
+
+    static func order(steps: [(id: String, title: String)], offersTraining: Bool = false) -> [ReadySection] {
+        steps.enumerated().map { .step(number: $0.offset + 1, stepId: $0.element.id, title: $0.element.title) }
+            + [.runsByItself, .checkOnYourPages, .keepAnExport] + (offersTraining ? [.trainOffer] : []) + [.start]
+    }
 }
