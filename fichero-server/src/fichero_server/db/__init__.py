@@ -3596,19 +3596,41 @@ class Database(DatabaseEmbeddingMixin):
             if (hydrated := self._hydrate_row(model, columns, row)) is not None
         ]
 
-    def query_fields(self, model: Type[BaseModel], fields: Sequence[str], **filters) -> list[SimpleNamespace]:
-        """Only `fields` of the rows `query(model, **filters)` returns, JSON read but not hydrated: for a scan that
-        compares a few fields of every row. A names page read and validated every stored entity whole, its
-        mentions and all, to compare their names (#6236). Read-only records: `get` the one row to change."""
-        for name in (*fields, *filters):
+    def query_fields(self, model: Type[BaseModel], fields: Sequence[str], *, not_null: Sequence[str] = (), **filters) -> list[SimpleNamespace]:
+        """Only `fields` of the rows `query(model, **filters)` returns (and, of those, the rows with every `not_null`
+        column set), JSON read but not hydrated: for a scan that compares a few fields of every row. A names page read
+        and validated every stored entity whole, its mentions and all, to compare their names (#6236). Read-only
+        records: `get` the one row to change."""
+        for name in (*fields, *filters, *not_null):
             if not _VALID_IDENTIFIER.match(name):
                 raise ValueError(f"Invalid column name: {name}")
         self._ensure_table(model)
-        where = " AND ".join(f"{k} IS NULL" if v is None else f"{k} = ${k}" for k, v in filters.items()) or "TRUE"
+        where = " AND ".join([*(f"{k} IS NULL" if v is None else f"{k} = ${k}" for k, v in filters.items()),
+                              *(f"{k} IS NOT NULL" for k in not_null)]) or "TRUE"
         rows, columns = self._execute_fetch_with_columns(
             f"SELECT {', '.join(fields)} FROM {self._sql_table_name(model)} WHERE {where}",
             {k: getattr(v, "value", v) for k, v in filters.items() if v is not None},
         )
+        return self._field_records(model, fields, rows, columns)
+
+    def query_fields_in(self, model: Type[BaseModel], fields: Sequence[str], column: str, values) -> list[SimpleNamespace]:
+        """`query_fields` for the rows whose `column` is one of `values`, chunked as `query_in` is."""
+        for name in (*fields, column):
+            if not _VALID_IDENTIFIER.match(name):
+                raise ValueError(f"Invalid column name: {name}")
+        self._ensure_table(model)
+        values, out = list(dict.fromkeys(values)), []
+        for start in range(0, len(values), 500):
+            chunk = values[start : start + 500]
+            rows, columns = self._execute_fetch_with_columns(
+                f"SELECT {', '.join(fields)} FROM {self._sql_table_name(model)} "
+                f"WHERE {column} IN ({','.join(f'$v{i}' for i in range(len(chunk)))})",
+                {f"v{i}": value for i, value in enumerate(chunk)},
+            )
+            out.extend(self._field_records(model, fields, rows, columns))
+        return out
+
+    def _field_records(self, model: Type[BaseModel], fields: Sequence[str], rows, columns) -> list[SimpleNamespace]:
         out = []
         for row in rows:
             parsed = self._parse_json_fields(model, dict(zip(columns, row)))

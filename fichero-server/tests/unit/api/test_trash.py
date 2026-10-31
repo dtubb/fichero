@@ -296,3 +296,16 @@ class TestKnowledgeGoesWithItsSource:
         _delete(db, page)
         registry.invoke(db, "document.empty_trash", {}, _ctx())
         assert db.all(KnowledgeClaim) == []
+
+
+def test_a_trash_poll_reads_the_trash_and_the_folders_above_it_not_the_library(db):
+    """The Air's 69k-row scan on every poll (review L4): a live page next to a trashed one is never read."""
+    from fichero_server.api.routes.document.trash import _trash_and_its_folders
+
+    box = _doc(db, "box", kind=DocType.folder)
+    folder = _doc(db, "folder", box, kind=DocType.folder)
+    trashed, live = _doc(db, "trashed", folder), _doc(db, "live", folder)
+    _doc(db, "elsewhere")
+    _delete(db, trashed)
+    assert set(_trash_and_its_folders(db)) == {trashed.id, folder.id, box.id}, live.id
+
