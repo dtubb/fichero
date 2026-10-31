@@ -167,7 +167,7 @@ struct FirstRunWindow: View {
     }
 
     /// Advance within the steps; the LAST one finishes (#2807).
-    private func advance() {
+    func advance() {
         // Your project makes the project; the steps after it save into it.
         if step == .project {
             Task {
