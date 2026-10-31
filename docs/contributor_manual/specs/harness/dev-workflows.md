@@ -47,13 +47,13 @@ No engine route is needed: rows are JSON lines (`$FICHERO_HARNESS_LOG`, as the b
 imported into the engine later. No land credential: **the Lead pushes**, after `land` has printed the checked fast-forward.
 
 **The enforced layer, in build order (all plain scripts and files; most exist on `feat/fichero-builds-fichero`):**
-1. **Isolation (owner decision A).** Workers and the ladder run as a **second macOS user** with no GitHub credential, no
+1. **Isolation (owner ruling 2026-10-31).** Workers and the ladder run as a **second macOS user** with no GitHub credential, no
    ssh key, no read on the owner's home: files, Keychain and the per-user tmux socket stop at the user boundary, for
    Claude, Pi and a local kind alike. Set-up: one `sysadminctl`, one narrow sudoers line, `claude` signed in as that
    user, a world-readable bare mirror of the repository to clone from. Not promised: a Seatbelt profile (probed: no
    hostname rules; a client inside a profile reaches the tmux server, `launchctl` and the engine) or a disabled push URL.
-   **If the owner says no:** the policy hook, pinned checks and the Lead's push still hold; the worker then holds the
-   owner's token and nothing stops it pushing or reading the real libraries, so unattended runs stay off.
+   **Refuse if missing:** a worker start that is not running as that user, or whose once-per-set-up probe finds a GitHub
+   credential reachable, refuses with a row; there is no fallback to the owner's user.
 2. **Rules file** `harness.toml` at the repository root (built: `[check]`, `[policy]`), **fail-closed**: an unknown key
    refuses, and every rung is declared on or off; nothing is "skipped: not configured".
 3. **Hooks** (built at 98ba83507, not yet wired): the PreToolUse policy hook and the `commit-msg` trailer check from
@@ -123,7 +123,8 @@ and land. Findings are counted by hand; the numbers start the ratchet's TSV. Beh
 - **Two worker kinds** (maintainer 2026-10-31): Claude Code and Pi; `fake` is the test double. **The Builder worker is an
   interactive session in a tmux pane** (probed: `claude -p` exits at the end of its turn and takes no pane message); Pi in
   a pane with its extension, the same shape.
-- **Isolation by a second macOS user** (proposed, owner decision A), not by Seatbelt and not by a disabled push URL.
+- **Isolation by a second macOS user** (owner 2026-10-31): workers and the ladder run as it with no GitHub credential, and a
+  start refuses if that user or its clean probe is missing; not Seatbelt, not a disabled push URL.
 - **Land per cluster**, enforced outside the model; a READY verdict per commit's patch-id; the Lead pushes until a GitHub
   App exists (owner decision 1).
 - **Fixed steps are scripts**; only the release earns a workflow, deferred.
@@ -236,13 +237,16 @@ and land. Findings are counted by hand; the numbers start the ratchet's TSV. Beh
   the Lead pushes. `Fixes #N` closes with the sha, `Part of #N` leaves open with the residue. A research task's review is
   the person's. Only `check`'s output and a verdict move an item. Test:
   `fichero-server/tests/unit/workflows/test_review_and_land.py::test_review_per_issue_and_land_per_cluster`.
-- `dev-workflows.run.land-gate` [PROPOSED] — the wall is the **user boundary** (decision A): the worker user holds no GitHub
+- `dev-workflows.run.land-gate` [PROPOSED] — the wall is the **user boundary** (owner 2026-10-31): the worker user holds no GitHub
   credential, no ssh key, no Keychain item of the owner's, no read on the owner's home or the real libraries, and clones a
   world-readable bare mirror; its clone has `refs/remotes/origin/integration` set by the land process so the ready rung
   works, and nothing else from the owner's git config; the ladder never runs in the worker's tree. The land process runs
   as the owner's user with no credential in its environment and prints the push for the Lead; later a **GitHub App**
   (Contents write and Metadata only, no Workflows) pushes from a separate process. Proof is a **once-per-set-up probe** run
-  as the worker user: `git push --dry-run` by URL and a `gh api` write, both refused. **Not claimed:** a Seatbelt deny
+  as the worker user: `git push --dry-run` by URL and a `gh api` write, both refused; a start refuses until the probe has
+  passed. **Rulesets (owner 2026-10-31):** `integration` carries `protect-integration` (no deletion, no force-push, no
+  required status) from 2026-10-31; `main` stays at zero approving reviews until a GitHub App exists; in Slice 0 the Lead
+  pushes. **Not claimed:** a Seatbelt deny
   list (probed: no hostname rules, and a client inside a profile reaches the tmux server, `launchctl` and the engine);
   outbound network stays open, so a worker can send what it can read, which is now the public repository and its brief.
   Test: `fichero-server/tests/unit/workflows/test_land_gate.py::test_worker_user_cannot_push_and_the_ladder_never_runs_in_its_tree`.
@@ -419,6 +423,9 @@ and land. Findings are counted by hand; the numbers start the ratchet's TSV. Beh
   user boundary, hook and guard rather than ask; project-neutral with Fichero first; local models with the enforced
   guardrails and the losses said; Sonnet on Claude Code first, then OpenRouter, then local; shared core, two front
   ends, the Researcher in Fichero; no app work before Slice 0.
+- 2026-10-31, owner (isolation and landing): second macOS user for workers and the ladder, refuse if missing;
+  `protect-integration` on the integration branch; `main` at zero approvals until an App exists; the Lead pushes in
+  Slice 0; the Activity package is a line of deferred text under the shared-core ruling.
 - 2026-10-31, manager (after the reviews): the Builder worker is an interactive pane session; Slice 0 first with the Lead
   pushing; the decider, the workspace source, the feeder, bug narrowing, the Activity package, the `builder` tier and the
   promotion thresholds are cut to deferred text; pinned checks and the allow-list are kept.
@@ -427,14 +434,16 @@ and land. Findings are counted by hand; the numbers start the ratchet's TSV. Beh
   Activity table as a Swift package; the private-text hash list; the ratchet's backslide guard; the release as a dev
   workflow (long, resumable at the failed step, a yes before anything public, step by step in Activity).
 
-## Open questions for the maintainer
+## Rulings of 2026-10-31 on isolation and landing (decided, no longer open)
 
-| | Question | Recommendation | Cost of no |
-|---|---|---|---|
-| A | Workers and the ladder as a second macOS user | **Yes**: one `sysadminctl`, one sudoers line, `claude` signed in as that user, a bare mirror | the worker keeps the owner's token and the real libraries in reach; unattended runs stay off |
-| 1 | Land credential | **None for Slice 0: the Lead pushes.** Before the Lead leaves the loop, a GitHub App (Contents write and Metadata, no Workflows; `pyjwt` is a dependency), not a fine-grained token (it would act as the owner) | the Lead stays the lander for every cluster |
-| 2a | Ruleset on the integration branch | **Not a required status** (CI is off; a status needs a pushed sha). Now, free: block deletion and non-fast-forward. Later: restrict updates with the App as the only bypass, **only when** the App exists, three clusters have landed by `land` with no hand push, `land` has a merge mode for the release merge-back, and the Lead has a written way to pause it | one force push in the last 100 updates was the history rewrite; the branch stays open to a hand push |
-| 2b | `main` requires one approving review | **Not now**: a PR's author cannot approve it, the Lead authors release PRs as the owner, so unattended releases would stop. Revisit with the release workflow (the App authors, the owner approves) | a holder of the owner's token can merge to `main`; after A, workers are not holders |
+- Workers and the ladder run as a second macOS user with no GitHub credential; a start refuses if the user or its clean
+  probe is missing (set-up: one `sysadminctl`, one narrow sudoers line, `claude` signed in as that user, a bare mirror).
+- `integration` has the ruleset `protect-integration`: no deletion, no force-push, no required status check. A later
+  "restrict updates" rule waits for a GitHub App and three clusters landed by `land`.
+- `main` stays at zero approving reviews until a GitHub App exists; the Lead pushes in Slice 0; the App (Contents write
+  and Metadata, no Workflows) pushes later from a separate process.
+- #4402 is not an owner question; `ux.controls-work` cites #5933.
+- Open for the Lead, not the owner: the two or three engine-bug issues of the Slice 0 cluster, named in the plan.
 
 ## Build order
 
