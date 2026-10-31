@@ -81,6 +81,7 @@ extension ShareSettingsView {
             if hostingEnabled {
                 await refreshDevices()
             }
+            await refreshSharingState()  // the forward follows Sharing: re-read it (review N1)
             return
         }
 
@@ -103,6 +104,8 @@ extension ShareSettingsView {
         } catch {
             shareError = error.localizedDescription
         }
+        // The engine answers `none` until Sharing is on and makes the forward after readiness: re-read, or the row stays stale (review N1).
+        await refreshSharingState()
     }
 
     /// The engine process now running, by health's pid; nil when unknown (an external engine, or none yet).

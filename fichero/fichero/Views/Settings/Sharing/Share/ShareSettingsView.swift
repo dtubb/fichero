@@ -139,7 +139,11 @@ struct ShareSettingsView: View {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(10))
                 if Task.isCancelled { return }
-                if didBootstrap, appState.isBackendRunning { await refreshDevices() }
+                if didBootstrap, appState.isBackendRunning {
+                    await refreshDevices()
+                    // The forward is made just after the engine is ready: while it reads `none`, ask again (review N1).
+                    if sharingState?.tailnetForward == "none" { await refreshSharingState() }
+                }
             }
         }
         .task(id: refreshKey) {
