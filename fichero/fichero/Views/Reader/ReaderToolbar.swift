@@ -217,7 +217,8 @@ struct ReaderToolbar: View {
     /// both windows. Four display switches, nothing else: the ⓘ entry went
     /// because the inspector has its own affordances.
     /// Whether the What to show menu has anything to switch: false on the placeholder bar of a page still loading (or whose
-    /// original failed to load), which holds the bar's geometry with the glyph in place, greyed (`source.preview.what-to-show-always-there`, #6010).
+    /// original failed to load), which holds the bar's geometry with the glyph in place, greyed
+    /// (`source.preview.what-to-show-always-there`, #6010).
     nonisolated static func whatToShowHasSwitches(hasTextBoxes: Bool, hasAnnotations: Bool, hasImage: Bool) -> Bool {
         hasTextBoxes || hasAnnotations || hasImage
     }

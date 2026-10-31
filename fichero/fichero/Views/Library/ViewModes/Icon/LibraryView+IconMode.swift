@@ -82,7 +82,10 @@ extension LibraryView {
         filmstrip: Bool, itemMin: CGFloat, itemMax: CGFloat, @ViewBuilder content: () -> Content
     ) -> some View {
         if filmstrip {
-            LazyHGrid(rows: [GridItem(.fixed(Self.iconRowHeight(scale: effectiveIconScale)))], alignment: .top, spacing: 20, content: content)
+            LazyHGrid(
+                rows: [GridItem(.fixed(Self.iconRowHeight(scale: effectiveIconScale)))],
+                alignment: .top, spacing: 20, content: content
+            )
         } else {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: itemMin, maximum: itemMax))], alignment: .center, spacing: 20, content: content)
         }

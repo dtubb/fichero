@@ -129,7 +129,8 @@ extension ImageEditorView {
             editsClipboardMenu
 
             if compareMode == .single, let found = PageCorners(pageRegion: activeDocument.metadata["page_region"]?.value) {
-                toolButton("viewfinder", help: pageCorners == nil ? "Show the page corners — drag one, press Return to square" : "Hide the page corners") {
+                let help = pageCorners == nil ? "Show the page corners — drag one, press Return to square" : "Hide the page corners"
+                toolButton("viewfinder", help: help) {
                     pageCorners = pageCorners == nil ? found : nil
                 }
                 .accessibilityIdentifier("imageEditPageCorners")

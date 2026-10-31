@@ -49,7 +49,9 @@ enum ReaderTextEdit {
 
         var segmentId: String {
             switch self {
-            case .edited(_, let segmentId, _, _), .editedMany(_, let segmentId, _, _), .split(_, let segmentId, _), .join(_, let segmentId, _): segmentId
+            case .edited(_, let segmentId, _, _), .editedMany(_, let segmentId, _, _),
+                 .split(_, let segmentId, _), .join(_, let segmentId, _):
+                segmentId
             }
         }
     }
