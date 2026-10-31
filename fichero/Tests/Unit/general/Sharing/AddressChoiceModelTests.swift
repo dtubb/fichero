@@ -13,7 +13,7 @@ struct AddressChoiceModelTests {
     func twoRowsTailscaleFirst() throws {
         let rows = AddressChoiceModel.rows(sharingAddress: local, tailnetURL: tail, tailnetForward: "ours")
         #expect(rows.map(\.choice) == [.thisNetwork, .tailscale])
-        #expect(rows.allSatisfy(\.isEnabled))
+        #expect(rows.allSatisfy { $0.isEnabled })
         #expect(AddressChoiceModel.defaultChoice(rows: rows) == .tailscale)
         let root = try #require(AddressChoiceModel.root(for: nil, rows: rows))
         #expect(root.absoluteString == "https://macbook-air-m1.tail1234.ts.net:8765")
