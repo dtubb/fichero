@@ -69,6 +69,9 @@ class PageImage:
     #: The edit chain has an edit whose place on the photograph is not known: this image is right for a step that reads the page
     #: whole, and no line can be carried to or from it. A step that cuts or stores lines reads `for_geometry()`.
     frame_unknown: bool = False
+    #: How many newer renditions could not be read or followed and were passed over for this image (a page read on an image
+    #: nobody chose; a WARNING is logged and Find Regions' account counts it).
+    passed_over: int = 0
 
     def for_geometry(self) -> "PageImage":
         """The image for a step that cuts lines from the page or stores what it finds on it: this one, or the photograph when
@@ -87,9 +90,18 @@ class PageImage:
         edited copy (its file name carries the chain's version) or rendition. An Undo or a new edit gives another signature."""
         return ORIGINAL if self.is_original else Path(self.path).name
 
+    def upright_map(self) -> FrameMap | None:
+        """The upright photograph's pixels to this image's UPRIGHT pixels (its orientation tag applied): the frame a finder
+        answers in, and `page_crop` cuts in. `to_image` lands in the file's raw pixels (`_rendition_map`), so a tagged file is
+        carried on through its tag. None when this IS the photograph's own pixels."""
+        if self.to_image is None:
+            return None
+        return _onto_upright(self.to_image, Path(self.path))
+
     def photograph_map(self) -> FrameMap | None:
-        """This image's pixels back to the upright photograph's; None when they are the same."""
-        return self.to_image.inverse() if self.to_image is not None else None
+        """This image's upright pixels (what a finder measures) back to the upright photograph's; None when they are the same."""
+        forward = self.upright_map()
+        return forward.inverse() if forward is not None else None
 
     def lines_map(self, lines_frame: str | None) -> FrameMap | None:
         """The map that carries lines measured on `lines_frame` (`media/upright.py`: upright, or None for the file's raw
@@ -157,10 +169,7 @@ def _box_to_photograph(box: Any, back: FrameMap) -> Any:
 
 
 def _size_of(path: Path) -> tuple[float, float]:
-    from PIL import Image
-
-    with Image.open(path) as image:
-        return float(image.width), float(image.height)
+    return _file_frame(path)[1]  # guarded: `Unmappable` for a file that is missing or not a picture
 
 
 def _upright_size_of(path: Path) -> tuple[float, float]:
@@ -202,10 +211,52 @@ def _rendition_map(db: Any, rendition: Any, photograph: Path, photo_size: tuple[
         row = db.get(Rendition, parent_id)
         if row is None:
             raise Unmappable(f"{rendition.role} was made from a rendition that is not in the library")
-        found = _rendition_map(db, row, photograph, photo_size, library_root, _depth + 1)
-        return found if found is not None else identity(photo_size)
+        found = _rendition_map(db, row, photograph, photo_size, library_root, _depth + 1)  # lands in the parent's raw pixels
+        # a turn is of the parent's UPRIGHT picture
+        return _onto_upright(found, _absolute(library_root, row.path)) if found is not None else identity(photo_size)
 
     role = rendition.role
+    orientation, _, up = _file_frame(path)
+    if orientation in (5, 6, 7, 8):  # the recorded size may be the file's raw one: the cut picture is the upright one
+        own = up
+    return _in_file_pixels(_cut_map(role, region, extra, own, photo_size, parent), path)
+
+
+def _file_frame(path: Path) -> tuple[int, tuple[float, float], tuple[float, float]]:
+    """A rendition file's orientation tag, raw size and upright size; `Unmappable` for a file that is missing or not a picture
+    (a rendition's parent is not checked by `_newest_rendition`: one bad row must not stop a batch)."""
+    from PIL import Image, UnidentifiedImageError
+
+    from fichero_server.media.upright import upright_size
+
+    try:
+        with Image.open(path) as opened:
+            up = upright_size(opened)
+            return (int(opened.getexif().get(0x0112, 1) or 1), (float(opened.width), float(opened.height)),
+                    (float(up[0]), float(up[1])))
+    except (OSError, UnidentifiedImageError, ValueError) as exc:
+        raise Unmappable(f"{path.name} cannot be read as a picture") from exc
+
+
+def _onto_upright(raw_map: FrameMap, path: Path) -> FrameMap:
+    """A map that lands in the file's raw pixels, carried on through the file's tag to its upright pixels."""
+    orientation, raw, _ = _file_frame(path)
+    if orientation == 1:
+        return raw_map
+    return raw_map.with_size(raw).then(exif_map(orientation, raw))
+
+
+def _in_file_pixels(found: FrameMap, path: Path) -> FrameMap:
+    """A map onto the rendition's UPRIGHT picture, put on the file's raw pixels when the file keeps an orientation tag (a copy
+    imported with its transform, whatever the tag, incl. mirrors: our own renditions are saved upright). `to_image` always lands in the file's raw pixels."""
+    orientation, raw, up = _file_frame(path)
+    if orientation == 1:
+        return found
+    return found.with_size(up).then(exif_map(orientation, raw).inverse())
+
+
+def _cut_map(role: str, region: Any, extra: dict[str, Any], own: tuple[float, float], photo_size: tuple[float, float],
+             parent: Any) -> FrameMap:
     if role == "flattened":
         raise Unmappable("a flattened page's displacement is not a map the lines can follow")
     if role == "squared":
@@ -215,7 +266,8 @@ def _rendition_map(db: Any, rendition: Any, photograph: Path, photo_size: tuple[
             angle = float(extra["angle"])
         except (KeyError, TypeError, ValueError) as exc:
             raise Unmappable(f"{role} records no angle") from exc
-        return parent().then(turn_map(parent().dst, angle, True)).with_size(own)
+        before = parent()
+        return before.then(turn_map(before.dst, angle, True)).with_size(own)
     if str(getattr(region.space, "value", region.space)) != "normalized":
         raise Unmappable(f"{role}'s place on the page is recorded in pixels of a size not known here")
     if region.rendition_id:
@@ -236,13 +288,10 @@ def _same_frame_map(rendition: Any, path: Path, photograph: Path, photo_size: tu
     from PIL import Image
 
     from fichero_server.media.frame_map import identity
-    from fichero_server.media.upright import upright_size
 
     if rendition.frame_status == "unknown":
         raise Unmappable("the rendition's frame is marked unknown")
-    with Image.open(path) as opened:
-        own = upright_size(opened)
-        own_tag = int(opened.getexif().get(0x0112, 1) or 1)
+    own_tag, _, own = _file_frame(path)
     with Image.open(photograph) as photo:
         photo_tag = int(photo.getexif().get(0x0112, 1) or 1)
     shape = photo_size[0] / photo_size[1]
@@ -266,20 +315,24 @@ def _raw_size(upright: tuple[int, int], orientation: int) -> tuple[float, float]
     return (float(upright[1]), float(upright[0])) if orientation in (5, 6, 7, 8) else (float(upright[0]), float(upright[1]))
 
 
-def _newest_rendition(db: Any, doc: Any, photograph: Path, library_root: Path) -> tuple[Any, FrameMap | None] | None:
+def _newest_rendition(db: Any, doc: Any, photograph: Path, library_root: Path) -> tuple[tuple[Any, FrameMap | None] | None, list[str]]:
+    """The newest rendition that can be followed and its map, and a note for each newer one that could not (passed over: the
+    page is then read on an image nobody chose, so the caller says so)."""
     from fichero_server.models import Rendition
 
     rows = [r for r in db.query(Rendition, document_id=doc.id)
             if r.role not in _NOT_THE_PAGE and r.materialized and _absolute(library_root, r.path).is_file()]
+    skipped: list[str] = []
     if not rows:
-        return None
+        return None, skipped
     photo_size = _upright_size_of(photograph)
     for row in sorted(rows, key=lambda r: (r.created_at, r.id), reverse=True):
         try:
-            return row, _rendition_map(db, row, photograph, photo_size, library_root)
+            return (row, _rendition_map(db, row, photograph, photo_size, library_root)), skipped
         except Unmappable as why:
-            logger.info("page image: rendition %s (%s) of %s passed over: %s", row.id, row.role, doc.id, why)
-    return None
+            logger.warning("page image: rendition %s (%s) of %s passed over: %s", row.id, row.role, doc.id, why)
+            skipped.append(f"{row.role}: {why}")
+    return None, skipped
 
 
 def current_page_image(db: Any, doc: Any, *, library_root: Path | str | None = None) -> PageImage | None:
@@ -306,10 +359,14 @@ def current_page_image(db: Any, doc: Any, *, library_root: Path | str | None = N
                                  frame_unknown=True)
             return PageImage(str(edited), EDITED, str(photograph), made, why=f"{len(operations)} edit(s) applied")
 
-    newest = _newest_rendition(db, doc, photograph, root)
+    newest, skipped = _newest_rendition(db, doc, photograph, root)
     if newest is not None:
         row, made = newest
-        return PageImage(str(_absolute(root, row.path)), RENDITION, str(photograph), made, why=f"the newest rendition ({row.role})")
+        return PageImage(str(_absolute(root, row.path)), RENDITION, str(photograph), made, why=f"the newest rendition ({row.role})",
+                         passed_over=len(skipped))
+    if skipped:
+        return PageImage(str(photograph), ORIGINAL, str(photograph), passed_over=len(skipped),
+                         why=f"{len(skipped)} rendition(s) could not be read or followed ({skipped[0]}): the photograph is read")
     return PageImage(str(photograph), ORIGINAL, str(photograph), why="no edit, no rendition")
 
 
