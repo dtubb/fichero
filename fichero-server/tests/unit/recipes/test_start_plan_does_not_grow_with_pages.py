@@ -10,6 +10,79 @@ from tests.unit.recipes.test_bakeoff_readers import _set_up, folder  # noqa: F40
 from tests.unit.recipes.test_unread_lines_not_read_5758 import _page
 
 CARDS = [{"job": "find-lines"}, {"job": "read-a-line", "model_override": None}, {"job": "leave-out"}]
+#: Every other step `done.KNOWS_DONE` knows: the ones a plan reaches only when the recipe has them (review H3).
+OPTION_CARDS = [{"job": "find-regions", "model": "m"}, {"job": "find-regions", "model": "m", "provider": "kraken"},
+                {"job": "read-a-page", "model_override": "m"}, {"job": "correct", "model_override": "m", "steps": ["correct"]},
+                {"job": "correct", "steps": ["correct-2"]}, {"job": "prepare-the-image"}, {"job": "split-pages"},
+                {"job": "split-into-entries"}, {"job": "find-names-tag-words", "model_override": "m"},
+                {"job": "translate-transliterate-normalise", "model_override": "m",
+                 "tool_config": {"analyze": {"reading_kind": "translation"}}}]
+
+
+def _shapes(db, n):
+    """Pages with the shapes each step's "done" looks at: done and not done of everything."""
+    from fichero_server.models import Artifact, DocType, Document
+
+    pages = [_page(db, *shape) for shape in ([(3, 3), (10, 3), (4, 0), (0, 0)] * n)[:n]]
+    for i, page in enumerate(pages):
+        if i % 2:
+            for kind in ("regions", "transcription", done.REVIEWED, "translation"):
+                db.save(Artifact(document_id=page, artifact_type=kind, model="m" if i % 4 == 1 else "other"))
+            db.save(Document(name="c", doc_type=DocType.chunk, parent_id=page, node_kind="entry" if i % 4 == 1 else None))
+    return pages
+
+
+@pytest.mark.parametrize("card", OPTION_CARDS, ids=lambda c: f"{c['job']}-{c.get('provider') or (c.get('steps') or [''])[0]}")
+def test_a_step_a_plan_reaches_only_by_option_reads_once_and_agrees_with_asking_each_page(db, monkeypatch, card):
+    pages = _shapes(db, 40)
+    expected = [p for p in pages if not done.is_done(db, card, p)]
+    seen = _statements(monkeypatch)
+    done._split_done(db, card, pages[:4])
+    few = len(seen)
+    seen.clear()
+    todo, finished = done._split_done(db, card, pages)
+    assert len(seen) == few, f"{len(seen)} statements for 40 pages, {few} for 4"
+    assert todo == expected and finished == len(pages) - len(expected)
+
+
+def test_a_page_judged_on_its_only_pass_needs_no_ranking(db, monkeypatch):
+    from fichero_server.models.segments import SegmentPass
+
+    pages = _shapes(db, 8)
+    with_lines = pages[:3]
+    keys = {done.judged_key(db, p) for p in with_lines}
+    monkeypatch.setattr(done, "pages_a_run_did", lambda *a, **k: keys)
+    expected = [p for p in pages if not done.is_done(db, {"job": "leave-out"}, p)]
+    monkeypatch.setattr(done, "judged_key", lambda *a: pytest.fail("a page's lines read for one key"))
+    todo, _ = done._split_done(db, {"job": "leave-out"}, pages)
+    assert todo == expected and SegmentPass
+
+
+def test_a_certainty_bar_prices_from_named_columns_and_agrees_with_the_rule(db, monkeypatch):
+    """Review H3: every line read whole, one reading rule at a time: over a million lines, unfinished at 32 minutes."""
+    from fichero_server.api.routes.document.segment_readings import counting_readings
+    from fichero_server.models import ContentRepresentation, Segment
+    from fichero_server.models.anchors import SourceAnchor
+
+    pages = _shapes(db, 8)
+    lines = [s for s in db.query(Segment) if s.kind == "line"]
+    for i, r in enumerate(db.query(ContentRepresentation)):
+        r.machine_confidence = i / 100
+        db.save(r)
+    anchor = SourceAnchor(document_id=pages[1], rect=[0.1, 0.1, 0.2, 0.2])
+    read = [s for s in lines if counting_readings(db, [s])]
+    db.save(ContentRepresentation(document_id=read[0].document_id, segment_id=read[0].id, kind="transcription", content="b",
+                                  source_anchor=anchor, machine_confidence=0.5))  # two readings: the rule decides
+    counted = counting_readings(db, lines)
+    known = done.kraken_lines_known(db, pages)
+    assert (known["lines"], known["segmented"]) == (len(lines), len({s.document_id for s in lines}))
+    expected = [counted[s.id].machine_confidence if s.id in counted else None for s in lines]
+    assert sorted(known["sures"], key=str) == sorted(expected, key=str)
+    calls = []
+    real = db.query
+    monkeypatch.setattr(db, "query", lambda m, **k: calls.append(m.__name__) or real(m, **k))
+    done.kraken_lines_known(db, pages[2:3])
+    assert "Segment" not in calls
 
 
 def _statements(monkeypatch) -> list[str]:

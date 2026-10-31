@@ -47,6 +47,8 @@ VIEW_SECONDS = 15
 #: share included. Before the slim reads `counted` raised it by 2.2 GiB, a whole box's Catalogue plan by 1.5-2.1 GiB,
 #: `material` by 2.9 GiB.
 READER_PEAK_MIB = 800
+ALL_KNOWS_DONE = ("split-pages", "find-regions", "find-lines", "read-a-line", "read-a-page", "prepare-the-image", "correct",
+                  "find-names-tag-words", "split-into-entries", "leave-out", "translate-transliterate-normalise")
 #: A 63-page folder's pages, in a library of 20k cut pages (the old read: +849 MiB here, +1.2 GiB at 70k). `unit_of_work_ids`
 #: still costs the library: this bounds the metadata, which is the rest.
 CUT_FOLDER_PEAK_MIB = 250
@@ -286,6 +288,19 @@ assert len(done.pages_for(db, {}, None, within)) == 63
 assert done.material(db, within)["pages"] == 63
 """
     assert probed(code, library=cut_library) <= CUT_FOLDER_PEAK_MIB
+
+
+def test_a_certainty_bar_stays_lean(probed):
+    """Review H3: with `only_below_confidence` the plan read every line whole; over the library, unfinished at 32 minutes."""
+    assert probed("known = done.kraken_lines_known(db, box_pages); assert known['lines'] > 400000") <= READER_PEAK_MIB
+
+
+def test_every_step_a_recipe_can_turn_on_stays_lean(probed):
+    """The steps a plan reaches only when the recipe has them: each `done.KNOWS_DONE` job, over a whole box."""
+    cards = [{"job": job, "card": "workflow", "steps": [job], "model_override": "m", "model": "m",
+              "tool_config": {"analyze": {"reading_kind": "translation"}}} for job in sorted(ALL_KNOWS_DONE)]
+    code = f"for card in {cards!r}: done._split_done(db, card, box_pages)"
+    assert probed(code) <= READER_PEAK_MIB
 
 
 def test_the_canvas_backfill_fits_the_floor(built_library, tmp_path, monkeypatch):

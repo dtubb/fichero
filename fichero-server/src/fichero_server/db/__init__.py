@@ -5621,6 +5621,16 @@ class Database(DatabaseEmbeddingMixin):
         "AND (d.doc_type = 'page' OR (d.doc_type = 'file' AND NOT EXISTS (SELECT 1 FROM documents c "
         "WHERE c.parent_id = d.id AND c.deleted_at IS NULL AND COALESCE(c.node_kind, '') <> 'entry')))")
 
+    def cut_pages_of(self, ids: list[str]) -> list[tuple[str, str | None]]:
+        """(id, parent_id) of these `chunk` rows that are pages cut from a photograph and not hidden as blank: JSON read
+        here, a batch at a time, so a cut page's line boxes never reach Python (`recipes.done.split_pages`)."""
+        return [tuple(row) for row in self.execute_fetchall(
+            f"""SELECT id, parent_id FROM documents WHERE id IN ({",".join("?" * len(ids))})
+                AND COALESCE(json_extract_string(metadata, '$.split_source_id'), '') NOT IN ('', 'false', '0')
+                AND NOT (CASE WHEN COALESCE(exclude_from_processing, FALSE)
+                         THEN COALESCE(json_extract_string(metadata, '$.blank.blank'), '') = 'true' ELSE FALSE END)""",
+            ids, committed=True)]
+
     def unit_of_work_count(self) -> int:
         """Every page, and every file that has no pages: what a recipe's estimate counts (`_UNIT_OF_WORK_WHERE`)."""
         return int(self.execute_fetchall(

@@ -70,6 +70,8 @@ def _documents(db: Any, within: set[str] | None) -> list[Any]:
     return db.query_fields(Document, _DOCUMENT_FIELDS) if within is None else db.query_fields_in(Document, _DOCUMENT_FIELDS, "id", within)
 
 
+
+
 def split_pages(db: Any, within: set[str] | None) -> list[Any]:
     """The pages a split cut from a photograph (`_is_split_page`), live, as records of `id` and `parent_id`. A folder's plan
     reads the folder (#6268). The library's are asked in SQL a batch at a time: a cut page's metadata holds its line boxes,
@@ -80,16 +82,8 @@ def split_pages(db: Any, within: set[str] | None) -> list[Any]:
         rows = db.query_fields_in(Document, ("id", "parent_id", "doc_type", "metadata", "exclude_from_processing", "deleted_at"), "id", within)
         return [SimpleNamespace(id=d.id, parent_id=d.parent_id) for d in rows if not d.deleted_at and _is_split_page(d)]
     ids = [d.id for d in db.query_fields(Document, ("id",), doc_type="chunk", deleted_at=None)]
-    out = []
-    for start in range(0, len(ids), 500):
-        chunk = ids[start : start + 500]
-        out += [SimpleNamespace(id=row[0], parent_id=row[1]) for row in db.execute_fetchall(
-            f"""SELECT id, parent_id FROM documents WHERE id IN ({",".join("?" * len(chunk))})
-                AND COALESCE(json_extract_string(metadata, '$.split_source_id'), '') NOT IN ('', 'false', '0')
-                AND NOT (CASE WHEN COALESCE(exclude_from_processing, FALSE)
-                         THEN COALESCE(json_extract_string(metadata, '$.blank.blank'), '') = 'true' ELSE FALSE END)""",
-            chunk, committed=True)]
-    return out
+    return [SimpleNamespace(id=page, parent_id=parent) for start in range(0, len(ids), _LINES_AT_ONCE)
+            for page, parent in db.cut_pages_of(ids[start : start + _LINES_AT_ONCE])]
 
 
 def pages_for(db: Any, card: dict[str, Any], documents: list[str] | None, within: set[str] | None = None) -> list[str]:
@@ -198,13 +192,38 @@ def kraken_lines_known(db: Any, page_ids: list[str]) -> dict[str, Any]:
     (`source.recipe.kraken-then-cloud-unsure-lines`): the pages with lines found, those lines, and every line's stated
     certainty in `sures` (None where it states none), so each run counts the lines under ITS OWN bar. Two queries for
     all the pages, not two a page; the caller runs this off the event loop."""
-    from fichero_server.api.routes.document.segment_readings import counting_readings
     from fichero_server.models.segments import Segment
 
-    rows = [x for x in db.query_in(Segment, "document_id", page_ids) if x.kind == "line" and x.deleted_at is None]
-    read = counting_readings(db, rows)
-    return {"pages": len(page_ids), "segmented": len({x.document_id for x in rows}), "lines": len(rows),
-            "sures": [read[x.id].machine_confidence if x.id in read else None for x in rows]}
+    segmented, lines, sures = set(), 0, []
+    for start in range(0, len(page_ids), _LINES_AT_ONCE):  # the figures stay, the lines' rows do not: a read library has a million
+        rows = [x for x in db.query_fields_in(Segment, ("id", "document_id", "pass_id", "kind", "deleted_at"), "document_id",
+                                              page_ids[start : start + _LINES_AT_ONCE])
+                if x.kind == "line" and x.deleted_at is None]
+        segmented.update(x.document_id for x in rows)
+        lines += len(rows)
+        sures += _stated_certainties(db, rows)
+    return {"pages": len(page_ids), "segmented": len(segmented), "lines": lines, "sures": sures}
+
+
+def _stated_certainties(db: Any, rows: list[Any]) -> list[float | None]:
+    """Each line's counting reading's stated certainty, None where it states none (`counting_readings`, whose answer for a
+    line with one transcription, live, that nobody chose among, is that transcription whatever the project's rule). Only the
+    other lines pay for the whole rule: on a million lines it did not finish in 32 minutes."""
+    from fichero_server.api.routes.document.segment_readings import counting_readings
+    from fichero_server.models import ContentRepresentation
+    from fichero_server.models.readings import ReadingChoice
+
+    pages = list({x.document_id for x in rows})
+    readings: dict[str, list[Any]] = {}
+    for r in db.query_fields_in(ContentRepresentation, ("segment_id", "kind", "retracted_at", "machine_confidence"), "document_id", pages):
+        if r.segment_id and r.kind == "transcription":
+            readings.setdefault(r.segment_id, []).append(r)
+    chosen = {c.segment_id for c in db.query_fields_in(ReadingChoice, ("segment_id",), "document_id", pages)}
+    hard = [x for x in rows if x.id in chosen or len(readings.get(x.id, ())) > 1 or any(r.retracted_at for r in readings.get(x.id, ()))]
+    counted = counting_readings(db, hard) if hard else {}
+    hard_ids = {x.id for x in hard}
+    return [(counted[x.id].machine_confidence if x.id in counted else None) if x.id in hard_ids
+            else (readings[x.id][0].machine_confidence if x.id in readings else None) for x in rows]
 
 
 def _has_lines(db: Any, doc_id: str, model: str | None) -> bool:
@@ -627,9 +646,10 @@ def pages_with_names(db: Any, model: str | None = None) -> set[str]:
     from fichero_server.models import KnowledgeEntity
 
     if model is None:
-        return {doc_id for e in db.query(KnowledgeEntity) for doc_id in (e.source_document_ids or [])}
+        return {doc_id for e in db.query_fields(KnowledgeEntity, ("source_document_ids",)) for doc_id in (e.source_document_ids or [])}
     forms, out, covered = _forms(model), set(), {}
-    for e in db.query(KnowledgeEntity):
+    for e in db.query_fields(KnowledgeEntity, ("source_document_ids", "attribution_chain")):  # never the mentions (#6236)
+        e.attribution_chain = [SimpleNamespace(**a) if isinstance(a, dict) else a for a in e.attribution_chain or []]
         steps = [(getattr(a.role, "value", a.role), a.label, a.document_id, getattr(a, "document_ids", None) or [])
                  for a in e.attribution_chain]
         extractors = [(label, doc, more) for role, label, doc, more in steps if role == "extractor"]
@@ -715,7 +735,8 @@ def _split_done(db: Any, card: dict[str, Any], pages: list[str],
     if card.get("job") == "leave-out":  # judged on the pass it has now: a page whose lines were found again is judged again
         ran = pages_a_run_did(db, "leave-out") | own
         judged = {k.partition("@")[0] for k in ran}  # a page no run noted is not done: its pass is not looked up
-        todo = [p for p in pages if p not in judged or judged_key(db, p) not in ran]
+        settled = _judged_on_their_only_pass(db, [p for p in pages if p in judged], ran)
+        todo = [p for p in pages if p not in judged or (p not in settled and judged_key(db, p) not in ran)]
         return todo, len(pages) - len(todo)
     if card.get("job") == "find-lines":  # one read for all the pages, not a few queries a page
         have = pages_with_lines(db, pages)
@@ -729,13 +750,79 @@ def _split_done(db: Any, card: dict[str, Any], pages: list[str],
         todo = [p for p in pages if p not in settled or (states[p][2] != states[p][0] and p not in asked)]
         return todo, len(pages) - len(todo)
     if card.get("job") == "prepare-the-image":  # the runs read once, not once per page
-        ran = pages_a_run_did(db, "prepare-the-image")
-        from fichero_server.recipes.prepare import prepared
+        from fichero_server.models import Rendition
+        from fichero_server.recipes.prepare import ROLE
 
-        todo = [p for p in pages if p not in ran and prepared(db, p) is None]
+        ran = pages_a_run_did(db, "prepare-the-image")
+        made = {r.document_id for r in db.query_fields_in(Rendition, ("document_id", "role"), "document_id", [p for p in pages if p not in ran])
+                if r.role == ROLE}
+        todo = [p for p in pages if p not in ran and p not in made]
         return todo, len(pages) - len(todo)
-    todo = [p for p in pages if not is_done(db, card, p)]
+    have = _done_in_one_read(db, card, pages)
+    todo = [p for p in pages if p not in have]
     return todo, len(pages) - len(todo)
+
+
+def _artifacts_of_type(db: Any, kind: str, pages: list[str]) -> list[Any]:
+    """The artifacts of `kind` on these pages, the columns a step's "done" asks of: by type over a library, by page in a folder."""
+    from fichero_server.models import Artifact
+
+    fields = ("document_id", "artifact_type", "model", "workflow_id")
+    if len(pages) > _LINES_AT_ONCE:
+        wanted = set(pages)
+        return [a for a in db.query_fields(Artifact, fields, artifact_type=kind) if a.document_id in wanted]
+    return [a for a in db.query_fields_in(Artifact, fields, "document_id", pages) if a.artifact_type == kind]
+
+
+def _done_in_one_read(db: Any, card: dict[str, Any], pages: list[str]) -> set[str]:
+    """`is_done` for all these pages at once, the steps a plan reaches only when the recipe has them: a read a page was
+    minutes over a library, whole rows each."""
+    from fichero_server.models import Document
+
+    job = card.get("job")
+    if job == "find-regions":
+        model = card.get("model")
+        found = {a.document_id for a in _artifacts_of_type(db, "regions", pages) if model is None or a.model == model}
+        return found & pages_with_lines(db, list(found)) if card.get("provider") == "kraken" else found
+    if job == "read-a-page":
+        model = card.get("model_override")
+        return {a.document_id for a in _artifacts_of_type(db, "transcription", pages) if model is None or a.model == model}
+    if job == "correct":
+        model, workflow_id = effective_model(db, card), card.get("workflow_id")
+        if model is None and workflow_id is None and (card.get("steps") or [None])[0] != "correct":
+            return set()  # as `_has_review`: nothing says whose review it is
+        return {a.document_id for a in _artifacts_of_type(db, REVIEWED, pages) if _by_the_step(a, model, workflow_id)}
+    if job == "translate-transliterate-normalise":
+        from fichero_server.workflows.tools.analyze import tool_config_for
+
+        config = (card.get("tool_config") or {}).get("analyze") or {}
+        kind = tool_config_for(config.get("reading_kind"), config.get("reading_level")).artifact_type
+        model, workflow_id = effective_model(db, card), card.get("workflow_id")
+        return {a.document_id for a in _artifacts_of_type(db, kind, pages) if _by_the_step(a, model, workflow_id)}
+    if job in ("split-pages", "split-into-entries"):
+        kids = db.query_fields_in(Document, ("parent_id", "node_kind", "deleted_at"), "parent_id", pages)
+        return {c.parent_id for c in kids if not c.deleted_at and (job == "split-pages" or c.node_kind == "entry")}
+    return {p for p in pages if is_done(db, card, p)}  # ponytail: a job with no bulk read yet; add one when KNOWS_DONE grows
+
+
+def _judged_on_their_only_pass(db: Any, pages: list[str], ran: set[str]) -> set[str]:
+    """The pages whose one live pass with lines is the pass Leave Out judged: no ranking can name another as `judged_key`
+    does, so these need none of its reads (a whole page's lines each). A page with several passes still asks `judged_key`."""
+    from fichero_server.models import Segment
+    from fichero_server.models.segments import SegmentPass
+
+    settled: set[str] = set()
+    for start in range(0, len(pages), _LINES_AT_ONCE):
+        batch = pages[start : start + _LINES_AT_ONCE]
+        live = {p.id: p.document_id for p in db.query_fields_in(SegmentPass, ("id", "document_id", "deleted_at"), "document_id", batch)
+                if not p.deleted_at}
+        with_lines = {s.pass_id for s in db.query_fields_in(Segment, ("pass_id", "kind", "deleted_at"), "pass_id", list(live))
+                      if s.kind == "line" and not s.deleted_at}
+        passes: dict[str, list[str]] = {}
+        for pass_id in with_lines:
+            passes.setdefault(live[pass_id], []).append(pass_id)
+        settled |= {page for page, ids in passes.items() if len(ids) == 1 and f"{page}@{ids[0]}" in ran}
+    return settled
 
 
 def _note(done: int | None, of: int, unit: str) -> str:

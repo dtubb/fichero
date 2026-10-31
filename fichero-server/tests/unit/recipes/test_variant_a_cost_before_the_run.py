@@ -92,8 +92,8 @@ def test_the_scan_is_one_read_for_all_the_pages(db, monkeypatch):
 
     pages = [_page_with(db, (0.5, 0.7)) for _ in range(3)]
     asked = []
-    real = type(db).query_in
-    monkeypatch.setattr(type(db), "query_in", lambda self, model, col, vals: (asked.append(model), real(self, model, col, vals))[1])
+    real = type(db).query_fields_in
+    monkeypatch.setattr(type(db), "query_fields_in", lambda self, model, fields, col, vals: (asked.append(model), real(self, model, fields, col, vals))[1])
     kraken_lines_known(db, pages)
     assert asked.count(Segment) == 1, "one grouped read of the lines, not one a page"
 
