@@ -11,6 +11,9 @@ struct SetupStageSamples: View {
     /// Keeps the choices on screen on the project before a try: the engine tries what the saved setup has chosen, so a
     /// step just ticked is "not chosen" until this runs (`source.onboard.stages.try-reads-the-screen`, #6015). False: do not try.
     var saveFirst: (() async -> Bool)?
+    /// The stage listing's `answers_revision` now, and what Run this step starts (the wide Set Up's output state).
+    var currentRevision: String?
+    var runThisStep: (() -> Void)?
     @State private var comparing: ComparedPage?
 
     private func compare(costOK: Bool = false) {
@@ -23,6 +26,10 @@ struct SetupStageSamples: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("On your pages").font(.headline)
+            if FeatureManager.shared.isWideSetUpEnabled {
+                let state = store.outputState(currentRevision: currentRevision, estimate: nil)
+                StepOutputStateView(state: state, runThisStep: runThisStep, stop: { Task { await store.stop() } })
+            }
             // A sample's name is the engine's for that page ("f. 1r"), never a Document's raw name.
             ForEach(store.samples, id: \.id) { sample in
                 HStack(alignment: .center) {
@@ -71,7 +78,9 @@ struct SetupStageSamples: View {
                 Text("Add some pages to the project first: there are none to compare on yet.")
                     .font(.callout).foregroundStyle(.secondary)
             }
-            if let result = store.result { resultView(result) }
+            if let result = store.result {
+                resultView(result).opacity(StepOutputStateView.opacity(of: store.outputState(currentRevision: currentRevision, estimate: nil)))
+            }
         }
         .task { await store.load(); await store.follow() }
         .sheet(item: $comparing) { page in

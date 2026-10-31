@@ -395,13 +395,15 @@ final class RecipeSetupStore {
     /// already on screen (the plan loads with the step), so a refusal only says so.
     /// With `folderId`, the run covers that folder's live pages alone (`source.recipe.folder-scoped-start`);
     /// without it, the whole project, sent as before (no body). `redo`: the steps to run again on pages that already have
-    /// their output, as a new pass (`source.recipe.step-rerun-on-folder`, #6170). `documents`: a run's pages alone, as
+    /// their output, as a new pass (`source.recipe.step-rerun-on-folder`, #6170). `steps`: run only these steps (Run this step,
+    /// `wide.output.run-this-step`). `documents`: a run's pages alone, as
     /// its `missed` names them (a run an import started, #6170).
-    func start(folderId: String? = nil, redo: [String] = [], documents: [String]? = nil, firstPages first: Int? = nil) async -> Bool {
+    func start(folderId: String? = nil, redo: [String] = [], documents: [String]? = nil, firstPages first: Int? = nil,
+               steps: [String]? = nil) async -> Bool {
         do {
             let body: Operations.StartProjectApiRecipesProjectStartPost.Input.Body? =
-                folderId == nil && redo.isEmpty && documents == nil && first == nil
-                ? nil : .json(.init(redo: redo.isEmpty ? nil : redo, folderId: folderId, documents: documents, firstPages: first))
+                folderId == nil && redo.isEmpty && documents == nil && first == nil && steps == nil
+                ? nil : .json(.init(redo: redo.isEmpty ? nil : redo, folderId: folderId, documents: documents, firstPages: first, steps: steps))
             switch try await client.api.startProjectApiRecipesProjectStartPost(body: body) {
             case .ok(let success):
                 var started = try success.body.json

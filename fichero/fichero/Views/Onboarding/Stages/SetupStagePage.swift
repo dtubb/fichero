@@ -115,7 +115,13 @@ struct SetupStagePage: View {
                         useSmaller: useSmaller
                     )
                 }
-                SetupStageSamples(store: tryStore, useThis: useThis, saveFirst: { await store.save() })
+                SetupStageSamples(
+                    store: tryStore, useThis: useThis, saveFirst: { await store.save() },
+                    currentRevision: stage.answersRevision,
+                    runThisStep: {
+                        let ids = (store.recipe?.steps ?? []).filter { stage.jobs.contains($0.job) }.map(\.id)
+                        if !ids.isEmpty { Task { _ = await store.start(steps: ids) } }
+                    })
                     .id(stage.id)
                     // The samples' thumbnails come from this project's storage (Organise's strip).
                     .environment(project?.storageService)
