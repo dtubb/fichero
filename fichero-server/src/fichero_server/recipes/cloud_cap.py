@@ -132,14 +132,14 @@ def first_pages_that_fit(db: Any, plan: dict[str, Any], line: dict[str, Any], pa
     return low or None
 
 
-def lines_known(db: Any, workflows: list[dict[str, Any]], page_ids: list[str]) -> dict[str, Any] | None:
+def lines_known(db: Any, workflows: list[dict[str, Any]], page_ids: list[str], memo: dict | None = None) -> dict[str, Any] | None:
     """What the project already holds of Kraken's lines, for pricing a run that sends only the unsure ones (variant A);
     None when no run has a bar, so no plan pays for the scan."""
     from fichero_server.recipes.done import kraken_lines_known
     from fichero_server.recipes.start import certainty_bar
 
     has_bar = any(certainty_bar(w) is not None for w in workflows if w.get("job") == "correct")
-    return kraken_lines_known(db, page_ids) if has_bar else None
+    return kraken_lines_known(db, page_ids, memo) if has_bar else None
 
 
 def catalogue_runs(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -160,6 +160,6 @@ def estimate_on(db: Any, plan: dict[str, Any], pages: dict[str, Any], within: se
     from fichero_server.recipes.done import todo_counts
     from fichero_server.recipes.start import estimate
 
-    return estimate(plan["workflows"], pages["pages"], lines_known(db, plan["workflows"], pages["ids"]),
+    return estimate(plan["workflows"], pages["pages"], lines_known(db, plan["workflows"], pages["ids"], memo),
                     catalogue=catalogue_runs(plan["runs"]), folders=folders_covering(db, pages["ids"], memo),
                     todo=todo_counts(db, plan, within, memo=memo))

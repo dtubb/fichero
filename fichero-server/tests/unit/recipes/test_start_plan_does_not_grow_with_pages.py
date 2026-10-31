@@ -281,3 +281,37 @@ def test_a_second_plan_on_the_same_reads_asks_nothing_of_the_pages(client, db, f
     heavy = [s for s in seen if any(t in s for t in ('"segments"', '"contentrepresentations"', "page_content", "ocr_geometry"))]
     assert not heavy, heavy
 
+
+
+def test_a_certainty_bar_is_read_once_per_press_and_outside_the_transaction(client, db, folder, with_material, monkeypatch):  # noqa: F811
+    """Review M1: with a bar each plan read every line again, under the writer gate too: about 27 s of writers waiting on 1M lines."""
+    from fichero_server.recipes import start
+
+    _set_up(client)
+    real_plan = start.plan_start
+    bar = {"workflow": "w", "workflow_id": "w", "job": "correct", "steps": ["correct"], "runs_on": "this-mac", "tool_config": {"transcribe_review": {"only_below_confidence": 0.6}}}
+
+    def with_a_bar(*args, **kwargs):
+        plan = real_plan(*args, **kwargs)
+        return {**plan, "workflows": [*plan["workflows"], bar]}
+
+    monkeypatch.setattr(start, "plan_start", with_a_bar)
+    held: list[bool] = []
+    real = done._stated_certainties
+    monkeypatch.setattr(done, "_stated_certainties", lambda db_, rows: held.append(db_.in_transaction) or real(db_, rows))
+    answer = client.post("/api/recipes/project/start", json={})
+    assert answer.status_code == 200, answer.text
+    assert held and True not in held, held
+
+
+def test_lines_known_on_the_same_reads_answers_any_pages_without_asking_again(db, monkeypatch):
+    """"Run fewer pages" prices many first-page counts: the lines are read once, and each answer matches a fresh read."""
+    pages = [_page(db, *shape) for shape in ((3, 3), (0, 0), (4, 2))]
+    expected = {tuple(ids): done.kraken_lines_known(db, list(ids)) for ids in (pages, pages[:1])}
+    memo: dict = {}
+    first = done.kraken_lines_known(db, pages, memo)
+    monkeypatch.setattr(done, "_stated_certainties", lambda *a: pytest.fail("read the lines again"))
+    for ids, want in expected.items():
+        got = done.kraken_lines_known(db, list(ids), memo)
+        assert {**got, "sures": sorted(got["sures"], key=str)} == {**want, "sures": sorted(want["sures"], key=str)}
+    assert first["lines"] == expected[tuple(pages)]["lines"]

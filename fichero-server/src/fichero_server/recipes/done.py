@@ -201,22 +201,26 @@ def material(db: Any, within: set[str] | None = None, memo: dict | None = None) 
             "sentence": sentence}
 
 
-def kraken_lines_known(db: Any, page_ids: list[str]) -> dict[str, Any]:
+def kraken_lines_known(db: Any, page_ids: list[str], memo: dict | None = None) -> dict[str, Any]:
     """What the project already holds of Kraken's lines on these pages, for the price of variant A before it runs
     (`source.recipe.kraken-then-cloud-unsure-lines`): the pages with lines found, those lines, and every line's stated
     certainty in `sures` (None where it states none), so each run counts the lines under ITS OWN bar. Two queries for
-    all the pages, not two a page; the caller runs this off the event loop."""
+    all the pages, not two a page; the caller runs this off the event loop. `memo`: one plan's reads, so a press of Start and
+    "run fewer pages" read each page's lines once, by page, and any set of pages adds up from that."""
     from fichero_server.models.segments import Segment
 
-    segmented, lines, sures = set(), 0, []
-    for start in range(0, len(page_ids), _LINES_AT_ONCE):  # the figures stay, the lines' rows do not: a read library has a million
-        rows = [x for x in db.query_fields_in(Segment, ("id", "document_id", "pass_id", "kind", "deleted_at"), "document_id",
-                                              page_ids[start : start + _LINES_AT_ONCE])
+    by_page: dict[str, list[float | None]] = {} if memo is None else memo.setdefault("lines_known", {})
+    missing = [p for p in page_ids if p not in by_page]
+    for start in range(0, len(missing), _LINES_AT_ONCE):  # the figures stay, the lines' rows do not: a read library has a million
+        batch = missing[start : start + _LINES_AT_ONCE]
+        rows = [x for x in db.query_fields_in(Segment, ("id", "document_id", "pass_id", "kind", "deleted_at"), "document_id", batch)
                 if x.kind == "line" and x.deleted_at is None]
-        segmented.update(x.document_id for x in rows)
-        lines += len(rows)
-        sures += _stated_certainties(db, rows)
-    return {"pages": len(page_ids), "segmented": len(segmented), "lines": lines, "sures": sures}
+        by_page.update((p, []) for p in batch)
+        for row, sure in zip(rows, _stated_certainties(db, rows), strict=True):
+            by_page[row.document_id].append(sure)
+    held = [by_page[p] for p in page_ids]
+    return {"pages": len(page_ids), "segmented": sum(1 for sures in held if sures), "lines": sum(map(len, held)),
+            "sures": [sure for sures in held for sure in sures]}
 
 
 def _stated_certainties(db: Any, rows: list[Any]) -> list[float | None]:
