@@ -43,13 +43,13 @@ final class SharingPaneUITests: FicheroUISessionTests {
         let add = app.buttons["Add Device…"]
         try XCTSkipUnless(add.waitForExistence(timeout: 60) && add.isEnabled, "Sharing did not come up in time (certificate + restart)")
         add.click()
-        let thisNetwork = app.descendants(matching: .any).matching(identifier: "sharing.address.row.this-network").firstMatch
+        let thisNetwork = app.descendants(matching: .any).matching(identifier: "sharing.address.row.thisNetwork").firstMatch
         let tailscale = app.descendants(matching: .any).matching(identifier: "sharing.address.row.tailscale").firstMatch
         XCTAssertTrue(thisNetwork.waitForExistence(timeout: 30), "no This network row")
         XCTAssertTrue(tailscale.exists, "no Tailscale row (it must be there, greyed with why, even without Tailscale)")
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "tailscale.invalid")).firstMatch.exists,
                        "a placeholder host is shown")
-        XCTAssertTrue(app.buttons["sharing.address.copy.this-network"].exists, "This network has no Copy of its own")
+        XCTAssertTrue(app.buttons["sharing.address.copy.thisNetwork"].exists, "This network has no Copy of its own")
         app.buttons["Done"].click()
     }
 
