@@ -266,7 +266,8 @@ def _cut_map(role: str, region: Any, extra: dict[str, Any], own: tuple[float, fl
             angle = float(extra["angle"])
         except (KeyError, TypeError, ValueError) as exc:
             raise Unmappable(f"{role} records no angle") from exc
-        return parent().then(turn_map(parent().dst, angle, True)).with_size(own)
+        before = parent()
+        return before.then(turn_map(before.dst, angle, True)).with_size(own)
     if str(getattr(region.space, "value", region.space)) != "normalized":
         raise Unmappable(f"{role}'s place on the page is recorded in pixels of a size not known here")
     if region.rendition_id:

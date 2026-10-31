@@ -433,3 +433,27 @@ def test_a_good_turned_rendition_with_a_missing_parent_file_is_not_guessed_and_i
     current = current_page_image(db, page, library_root=tmp_path)
 
     assert current.is_original and current.signature == ORIGINAL != "ok.png" and current.passed_over == 1
+
+
+def test_a_chain_of_turns_opens_each_file_a_bounded_number_of_times(db, tmp_path, monkeypatch):
+    """`parent()` was called twice per turn, so the opens grew 5, 11, 23, 47 along a chain of turns. Three turns open 9 (21 before the fix)."""
+    from fichero_server.media.current_image import current_page_image
+    from fichero_server.models import NodeRegion, Rendition
+
+    page = _page(db, tmp_path, None)
+    before, size = None, (800, 640)
+    for n in range(3):
+        path = tmp_path / f"turn{n}.png"
+        Image.new("RGB", size).save(path)
+        row = Rendition(document_id=page.id, role="rotated", path=str(path), pixel_width=size[0], pixel_height=size[1],
+                        derived_from_rendition_id=before.id if before else None,
+                        transform=NodeRegion(rect=[0, 0, 1, 1], rendition_id=before.id if before else None, angle=90))
+        db.save(row)
+        before, size = row, (size[1], size[0])
+    opened = []
+    real = Image.open
+    monkeypatch.setattr(Image, "open", lambda *a, **k: (opened.append(a[0]), real(*a, **k))[1])
+
+    image = current_page_image(db, page, library_root=tmp_path)
+
+    assert image.kind == "rendition" and len(opened) <= 12, f"{len(opened)} opens"
