@@ -2,6 +2,17 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.10.30
+What changed since 2026.10.28.
+
+- Reading at scale: a step of 100 pages or more can go to the provider's batch service (Anthropic, OpenAI, Gemini) at the batch price; the next batch is sent ahead while this Mac works; a cluster read is one Slurm array per stage; a restart or a failed row no longer cancels or re-sends a read that is still out.
+- Catalogue: each folder read in full gets its catalogue even when another batch failed, and the skipped folders are named; a folder's run catalogues only that folder (it used to take the whole project); the catalogue is a folder's own record; dates are normalised as intervals and many Spanish forms are read.
+- Names and statements: months, dates and bare roles are no longer names; a chosen Sonnet names step is no longer skipped because of a free spaCy draft, and a failed or stopped run marks nothing done.
+- Blank pages: a redo reads the pages sorting called blank; a page with lines is never blank; the Start plan says how many pages it leaves out as blank.
+- Start plan and cost: a batched page read is priced on the page image; a folder-scoped Start is faster; the plan says which reader reads which kind of page, and Apple Vision no longer reads handwriting beside a page reader; a refused Start keeps your yes to an unpriced model; an older saved model no longer hides its family's current one.
+- Word export: `include_images: false` leaves the scans out of a transcript.
+- Reliability: a closed library stays closed; the onnx crash in a forked child is fixed; the gate now runs the recipes tests.
+
 ## 2026.10.28
 What changed since 2026.10.27.
 
