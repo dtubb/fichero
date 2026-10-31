@@ -111,4 +111,37 @@ def test_a_load_defect_fails_the_embed_job_rather_than_deferring_it(monkeypatch)
             raise AssertionError("no row should be touched")
 
     with pytest.raises(RuntimeError, match="could not be loaded"):
-        derivatives.wait_for_the_search_model(_NoDb(), embed_process.load_failure_words("ValueError: nope", cached=True))
+        derivatives.wait_for_the_search_model(_NoDb(), embed_process.load_failure_words("ValueError: Model X is not supported in TextEmbedding.", cached=True))
+
+
+# --- review M2: only a model this build cannot load is a defect, and even that hold ends ----------------------------
+
+
+@pytest.mark.parametrize("payload", [
+    "MemoryError: ",
+    "RuntimeException: [ONNXRuntimeError] : 6 : RUNTIME_EXCEPTION : Failed to allocate memory for requested buffer",
+    "OSError: [Errno 35] Resource temporarily unavailable: '/models/embeddings/model.onnx.lock'",
+])
+def test_a_load_that_failed_for_want_of_memory_or_a_lock_backs_off_and_defers(monkeypatch, payload):
+    """The Air under memory pressure: one allocation failure must not turn search off for the session. It backs off
+    (120 s) like a missing download, and the embed job comes back rather than failing."""
+    words = embed_process.load_failure_words(payload, cached=True)
+    assert not embed_process.is_a_load_defect(words), words
+    monkeypatch.setattr(embeddings, "_LOAD_FAILURES", {"m": (0.0, words)})
+    monkeypatch.setattr(embeddings, "LOAD_FAILURE_BACKOFF_SECONDS", 0.0)
+    assert embeddings.load_failure_in_force("m") is None
+
+
+def test_a_model_this_build_does_not_know_is_a_defect():
+    words = embed_process.load_failure_words("ValueError: Model BAAI/bge-m3 is not supported in TextEmbedding.", cached=True)
+    assert embed_process.is_a_load_defect(words)
+
+
+def test_a_defect_is_held_for_a_long_back_off_not_forever(monkeypatch):
+    """No caller asks again (only a finished download clears it), so an indefinite hold needed an engine restart."""
+    words = embed_process.load_failure_words("ValueError: Model X is not supported in TextEmbedding.", cached=True)
+    monkeypatch.setattr(embeddings, "_LOAD_FAILURES", {"m": (0.0, words)})
+    monkeypatch.setattr(embeddings.time, "monotonic", lambda: embeddings.DEFECT_BACKOFF_SECONDS - 1)
+    assert embeddings.load_failure_in_force("m") == words
+    monkeypatch.setattr(embeddings.time, "monotonic", lambda: embeddings.DEFECT_BACKOFF_SECONDS + 1)
+    assert embeddings.load_failure_in_force("m") is None

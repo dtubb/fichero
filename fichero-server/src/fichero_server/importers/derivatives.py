@@ -917,7 +917,7 @@ def wait_for_the_search_model(db, why: str, cause: BaseException | None = None) 
     from fichero_server.execution import jobs
 
     if is_a_load_defect(why):
-        # The files are here and the model will not load: no download mends it, so the job FAILS with the sentence
+        # This build cannot load the model: no download mends it, so the job FAILS with the sentence
         # (Activity shows it once) rather than coming back every two minutes for every page (the Air, 2026-10-30).
         raise RuntimeError(why) from cause
     job_id = getattr(jobs._current, "job_id", None)

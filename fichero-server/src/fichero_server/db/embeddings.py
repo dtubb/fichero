@@ -285,16 +285,18 @@ def _release_when_idle() -> None:
 
 #: A model that failed to load is not tried again for this long: every page of a queue would otherwise start a child
 #: and a network fetch with its own timeout (eight identical errors in one real run, P2). model -> (when, the words).
-#: A model whose files are here and still will not load (`embed_process.is_a_load_defect`) is not tried again at all
-#: until `forget_load_failures`: no download will mend it, and the Air retried one per page, 31k times (2026-10-30).
+#: A model this build cannot load (`embed_process.is_a_load_defect`) is held far longer, until `forget_load_failures`
+#: (a download finished) or `DEFECT_BACKOFF_SECONDS`: no retry mends it, and the Air retried one per page, 31k times
+#: (2026-10-30); but a hold with no end needed an engine restart if the words were wrong.
 _LOAD_FAILURES: dict[str, tuple[float, str]] = {}
 LOAD_FAILURE_BACKOFF_SECONDS = 120.0
+DEFECT_BACKOFF_SECONDS = 3600.0
 #: Models whose load failure was already said in the log, so a queue of pages says it once, not once a page.
 _LOAD_FAILURE_SAID: set[str] = set()
 
 
 def forget_load_failures() -> None:
-    """The model arrived (a download finished) or a person asked again: try loading it afresh."""
+    """The model arrived (a download finished): try loading it afresh."""
     _LOAD_FAILURES.clear()
     _LOAD_FAILURE_SAID.clear()
 
@@ -307,9 +309,8 @@ def load_failure_in_force(model_name: str) -> str | None:
     if failed is None:
         return None
     when, words = failed
-    if embed_process.is_a_load_defect(words) or time.monotonic() - when < LOAD_FAILURE_BACKOFF_SECONDS:
-        return words
-    return None
+    hold = DEFECT_BACKOFF_SECONDS if embed_process.is_a_load_defect(words) else LOAD_FAILURE_BACKOFF_SECONDS
+    return words if time.monotonic() - when < hold else None
 
 
 def _get_shared_embedder(model_name: str, cache_dir: str) -> Any:
@@ -347,7 +348,9 @@ def _get_shared_embedder(model_name: str, cache_dir: str) -> Any:
                         embedder = embed_process.RemoteEmbedder(model_name, cache_dir, threads)
                     except embed_process.EmbedderUnavailable as exc:
                         _LOAD_FAILURES[model_name] = (time.monotonic(), str(exc))
-                        if model_name not in _LOAD_FAILURE_SAID:  # once per model, at error: not a warning per page
+                        if not embed_process.is_a_load_defect(str(exc)):  # this moment's: at most once a back-off
+                            logger.warning("search model %s: %s", model_name, exc)
+                        elif model_name not in _LOAD_FAILURE_SAID:  # a defect: once per model, not a line per page
                             _LOAD_FAILURE_SAID.add(model_name)
                             logger.error("search model %s: %s", model_name, exc)
                         raise

@@ -52,17 +52,22 @@ def load_failure_words(payload: str, cached: bool) -> str:
     if missing and not cached:
         return ("Search can't index yet: its model isn't downloaded, and fetching it failed. Check the internet "
                 "connection; it tries again later and nothing already indexed is lost.")
-    return f"{WILL_NOT_LOAD} {text}"
+    if any(mark in text.lower() for mark in _WILL_NEVER_LOAD):
+        return f"{WILL_NOT_LOAD} {text}"
+    return f"The search model could not be loaded this time; it tries again in a few minutes: {text}"
 
 
-#: How a load failure that is NOT a missing download begins: the files are here and the model still will not load (a
-#: build without the model, a broken file). Waiting for a download will not mend it, so the embed lane says so once
-#: and parks instead of trying every page (`is_a_load_defect`).
+#: How a load failure that this build will never get past begins: the model is not one this build's fastembed can load
+#: (the Air's bge-m3, 2026-10-30), or a file it needs is missing from a cache that is otherwise here. Waiting for memory
+#: will not mend it, so the embed lane says so once and holds (`embeddings.DEFECT_BACKOFF_SECONDS`) instead of trying
+#: every page. Anything else -- out of memory, an allocation onnxruntime refused, a lock -- is this moment's, and backs off.
 WILL_NOT_LOAD = "Search indexing is off: the search model could not be loaded."
+_WILL_NEVER_LOAD = ("is not supported", "no such file", "file not found", "filenotfounderror", "does not exist",
+                    "invalid protobuf", "protobuf parsing failed")
 
 
 def is_a_load_defect(words: str) -> bool:
-    """Whether `words` (an `EmbedderUnavailable`'s) say the model is here and will not load, as against not yet here."""
+    """Whether `words` (an `EmbedderUnavailable`'s) say this build cannot load the model, as against not yet, or not now."""
     return words.startswith(WILL_NOT_LOAD)
 
 
