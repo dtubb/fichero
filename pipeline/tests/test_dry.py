@@ -285,3 +285,17 @@ def test_pi_1_4_with_the_adapter_7_gives_the_worker_its_pipeline_tools_directly(
     second = tool_names(dry.requests[n])
     assert want <= set(second), ("second session", sorted(second), cache.exists(), json.loads(cache.read_text()))
     assert want <= set(first), ("first session", sorted(first))
+
+
+def test_the_feeder_cuts_clusters_and_the_next_cluster_starts_after_the_first(dry, scratch):
+    from pipeline import feeder
+    spec = {"s.md": "#### Step 1.1 — a (#1001)\n#### Step 1.2 — b (#1002)\n#### Step 1.3 — c (#1003)\n"}
+    cut = feeder.cluster([issue(n) for n in (1003, 1001, 1002)], spec, size=2)
+    assert cut == {"clusters": [{"spec": "s.md", "issues": [1001, 1002]}, {"spec": "s.md", "issues": [1003]}], "no_spec": []}
+    dry.script(*lane(1001), *lane(1002), *lane(1003))
+    for i, c in enumerate(cut["clusters"], 1):
+        out = core.start(c["issues"], task=f"cluster-{i}", from_file=str(dry.folder), provider="openrouter", model=MODEL)
+        assert set(out["items"].values()) == {"checked"}, out
+    briefs = sorted((core.STATE / "briefs").rglob("issue-*-attempt-1.md"))
+    assert len(briefs) == 3 and all("Diff bound: 20 lines" in b.read_text() and "src/mod.py" in b.read_text() for b in briefs)
+    assert {t for t in core.state()["tasks"]} == {"cluster-1", "cluster-2"}
