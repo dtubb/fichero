@@ -112,6 +112,8 @@ def _step(key: str, c: dict, did: list[str]) -> bool:
 def _start_new(c: dict) -> list[str]:
     s = core.state()
     sc = c.get("run", {})
+    if not sc.get("feed", True):  # the studio trial: items are started by name, never picked from GitHub
+        return []
     live = sum(1 for w in s["workers"].values() if w.get("role") == "coder" and not w.get("parked"))
     if live >= c["workers"]["caps"]["coders"]:
         return []

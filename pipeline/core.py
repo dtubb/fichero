@@ -361,7 +361,8 @@ def localised(issue: dict, task: str, key: str) -> dict:
     nothing, ONE small-tier call names the paths, which are then checked like any other. Journaled `localised`."""
     c = cfg()
     text = (issue.get("body") or "") + "\n" + "\n".join(spec_lines(set(issue_ids(issue))))
-    loc = localise.localise(c["repo"]["path"], text)
+    ids = set(issue_ids(issue))
+    loc = localise.localise(c["repo"]["path"], text, skip=ids)
     default = next((r["max_lines"] for r in c["ladder"] if r.get("kind") == "diff-bound"), None)
     loc["bound"] = localise.bound(text, default)
     if loc["size"] == "unknown":

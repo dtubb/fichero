@@ -36,7 +36,7 @@ commit_trailer = "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 name = "diff-bound"             # cheapest first: the whole diff stays inside the bound the brief stated ("Diff bound: N" in the issue, else this)
 kind = "diff-bound"
 max_lines = 150
-max_files = 6
+max_files = 12                  # 12 so a contract regeneration (openapi copies, generated CLI and MCP) fits
 [[ladder]]
 name = "failing-run-pasted"     # a source change shows its test seen red, in a commit message
 kind = "failing-run-pasted"
@@ -141,6 +141,7 @@ machine = "m4"
 # `python -m pipeline run` (pipeline.schedule): seconds between passes while an answer is awaited; issues per start
 [run]
 poll_s = 60
+feed = false       # studio trial: the three items are started by name; `run` never picks from GitHub
 auto_land = false  # studio trial: nothing lands by itself (the live profile has true, #6179)
 batch = 3
 

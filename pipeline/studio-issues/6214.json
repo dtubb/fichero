@@ -1,0 +1,11 @@
+{
+ "number": 6214,
+ "title": "runner: a coder started just before a runner restart never gets its brief and sits idle",
+ "author": "dtubb",
+ "labels": [
+  "type:bug"
+ ],
+ "milestone": "studio-trial",
+ "part_of": false,
+ "body": "A coder window started just before a runner restart never gets its brief: no tell event, no session log, the Pi window idle while the item shows coding.\nSpec `pipeline.messages` (deterministic-conductor.md).\nAcceptance: on start-up (and each tick) the runner finds every coding item whose worker has no delivered tell of its brief and sends it, journaling the tell.\nFiles: pipeline/runner.py (_step, the coding branch), pipeline/core.py (state replays the tell event with delivered; tell).\nTest: pipeline/tests/test_runner.py::test_a_coder_without_its_brief_gets_it_after_a_restart (new; use the fake_coder fixture: start an item, drop its tell from the journal, run `runner.tick()`, expect the brief told once).\nFailing command: PYTHONPATH=. OMP_NUM_THREADS=2 python -m pytest -q -p no:cacheprovider pipeline/tests/test_runner.py::test_a_coder_without_its_brief_gets_it_after_a_restart\nDiff bound: 90"
+}

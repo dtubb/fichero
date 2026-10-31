@@ -39,6 +39,18 @@ def test_run_starts_checks_reviews_and_queues_ready_to_land_then_stops(scratch, 
     assert calls == ["1001"]
 
 
+def test_run_feeds_nothing_when_the_profile_turns_the_feeder_off(scratch, issues, fake_coder, monkeypatch):
+    """The studio trial runs three named items by `start`; `run` only checks, reviews and queues them."""
+    fake_coder()
+    scratch["cfg"]["run"] = {"feed": False}
+
+    def feeder(count=3):
+        raise AssertionError("the feeder was asked")
+    monkeypatch.setattr(core, "next_issues", feeder)
+    assert runner.run()["stopped"] == "nothing is ready"
+    assert core.state()["items"] == {}
+
+
 def test_an_answered_question_resumes_the_same_item_and_an_unanswered_one_waits(scratch, issues, fake_coder, monkeypatch):
     fake_coder("asks")
     monkeypatch.setattr(core, "next_issues", ready())

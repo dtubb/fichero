@@ -31,7 +31,7 @@ def symbolish(word: str) -> bool:
     return len(word) > 3 and ("_" in word or word[0].isupper() and any(c.islower() for c in word[1:]))
 
 
-def localise(repo: str, text: str) -> dict:
+def localise(repo: str, text: str, skip: set[str] = frozenset()) -> dict:
     """{files, tests: [{path, name, exists}], symbols: {name: [path:line: def ...]}, size: small|big|unknown}."""
     files, tests = [], []
     for path, name in dict.fromkeys(PATH.findall(text)):
@@ -42,7 +42,9 @@ def localise(repo: str, text: str) -> dict:
         elif exists and path not in files:
             files.append(path)
     # inside files the issue names, any backticked identifier is cheap and precise to look up; repo-wide only code-shaped ones
-    names = [w for w in dict.fromkeys(SYMBOL.findall(text)) if len(w) > 3 and (files or symbolish(w))]
+    # `skip`: the issue's behaviour ids (`pipeline.messages` looks like Type.name but names no symbol)
+    names = [m.group(1) for m in SYMBOL.finditer(text) if m.group(0).strip("`").removesuffix("()") not in skip]
+    names = [w for w in dict.fromkeys(names) if len(w) > 3 and (files or symbolish(w))]
     symbols = {}
     for w in names[:12]:
         hits = (files and _grep(repo, w, files)) or _grep(repo, w, [])

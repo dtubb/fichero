@@ -1,0 +1,11 @@
+{
+ "number": 6100,
+ "title": "/api/machines returns a bare JSON array; list endpoints must return {items, count}",
+ "author": "dtubb",
+ "labels": [
+  "type:bug"
+ ],
+ "milestone": "studio-trial",
+ "part_of": false,
+ "body": "`GET /api/machines` returns a bare JSON array; list endpoints return `{items, count}` (guard: fichero-server/tests/integration/test_contract_endpoint_walk.py::test_no_new_bare_array_get_endpoint).\nAcceptance: list_machines returns a MachineListResponse with items (the MachineOut list) and count, modelled like HpcClusterListResponse in fichero-server/src/fichero_server/api/routes/ai/hpc.py.\nFiles: fichero-server/src/fichero_server/api/routes/document/transfer.py (list_machines, line ~346, `response_model=list[MachineOut]`).\nContract: after the route change run, in order, `./fichero-server/scripts/sync_openapi_schema.sh`, `python fichero-server/scripts/generate_openapi_cli.py`, `python fichero-server/scripts/generate_openapi_mcp.py` and commit what they change; then `python scripts/check_openapi_route_set_current.py`, `python scripts/check_contract_identity_current.py` and `python scripts/check_mcp_generated_current.py` must pass.\nTest: fichero-server/tests/unit/transfer/test_machines_envelope.py::test_list_machines_returns_items_and_count (new; follow the client pattern in fichero-server/tests/unit/transfer/test_forget_machine.py).\nFailing command: PYTHONPATH=fichero-server/src OMP_NUM_THREADS=2 python -m pytest -q -p no:cacheprovider fichero-server/tests/unit/transfer/test_machines_envelope.py\nDiff bound: 400"
+}

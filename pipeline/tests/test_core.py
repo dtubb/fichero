@@ -586,6 +586,13 @@ def test_brief_carries_spec_lines_files_and_the_test_to_write(scratch, issues):
     assert any(e["event"] == "localised" and e["files"] == ["src/mod.py"] for e in journal.read())
 
 
+def test_a_behaviour_id_is_not_looked_up_as_a_symbol(scratch, issues):
+    """`demo.base` has the shape of Type.name, and src/mod.py defines base: the id must not make the brief name it."""
+    body = "Spec `demo.base`. Acceptance: x. Test: tests/test_new.py::test_new. File src/mod.py."
+    assert core.localised(dict(issues[1001], body=body), "t", "1001")["symbols"] == {}
+    assert "base" in core.localised(dict(issues[1001], body=body + " Change `base`."), "t", "1001")["symbols"]
+
+
 def test_the_brief_states_the_diff_bound_the_issue_or_the_profile_sets(scratch, issues):
     scratch["cfg"]["ladder"].append({"name": "diff-bound", "kind": "diff-bound", "max_lines": 150, "max_files": 6})
     body = "Change `base` in src/mod.py. Test: tests/test_new.py::test_new"
