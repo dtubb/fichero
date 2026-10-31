@@ -272,6 +272,9 @@ back along its list and says so.
 - `dev-workflows.run.recovery` [PROPOSED] — on restart every coding item whose worker has no delivered brief gets it again;
   a stuck worker is told once, then replaced by a successor from the handoff; a budget stop parks the item with a
   question; the machine budget refuses to start a worker when memory, disk or load is short; every recovery is a row.
+  Keeping the harness awake is the harness's own duty: a scheduled tick (`workflows/scheduler.py`) wakes it every
+  twenty to thirty minutes to re-send briefs, start successors and surface questions, so an unattended night never
+  depends on a person's session being awake.
   Test: `fichero-server/tests/unit/workflows/test_recovery.py::test_restart_stuck_budget_and_machine`.
 - `dev-workflows.run.log` [PROPOSED] — one row per item attempt: model, provider, precision, context cap, prompt/cached/
   output tokens, tool calls and errors, diff lines or sources saved, wall time, cost, ladder, verdicts, rework rounds,
