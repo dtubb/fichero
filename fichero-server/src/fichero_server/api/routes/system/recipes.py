@@ -1773,6 +1773,8 @@ async def model_candidates(
 def _nothing_here_yet(items: list[Any]) -> tuple[str | None, str | None]:
     """(why, fix) when no candidate can run on this Mac now: each is refused, still to download, or a cloud model the project
     may not use yet. The fix names the smallest download the list holds (with its size), else adding a cloud key."""
+    if not items:  # no card of any kind does this job (find-a-tables-cells): a cloud key would not help, and the page must not say it would
+        return "No model does this step yet: Fichero has no card for it", None
     if any(i.refused is None and i.installed is not False and not i.needs_permission for i in items):
         return None, None
     downloads = sorted((i for i in items if i.refused is None and i.installed is False and i.size_gb),

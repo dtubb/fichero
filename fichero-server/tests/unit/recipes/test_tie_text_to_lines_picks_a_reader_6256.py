@@ -25,10 +25,14 @@ def test_wide_the_assembled_tie_step_defaults_to_the_projects_line_reader():
 
     catmus = {"zenodo": "10.5281/zenodo.12743230"}
     mccatmus = {"zenodo": "10.5281/zenodo.13788177"}
-    steps = [{"job": "read-a-line", "model": catmus, "runs_on": "this-mac"},
-             {"job": "tie-text-to-lines", "model": mccatmus, "runs_on": "this-mac", "reasons": ["its card names this job"]}]
+    line_card = {"id": "kraken:zenodo/catmus@1", "note": "CATMuS Medieval"}
+    steps = [{"job": "read-a-line", "model": catmus, "runs_on": "this-mac", "card": line_card, "chain": [{"id": "next"}]},
+             {"job": "tie-text-to-lines", "model": mccatmus, "runs_on": "this-mac", "reasons": ["its card names this job"],
+              "card": {"id": "kraken:zenodo/mccatmus@1", "note": "McCATMuS"}, "chain": []}]
     tie_follows_the_line_reader(steps)
     assert steps[1]["model"] == catmus and "line reader" in steps[1]["reasons"][0]
+    # review M2: the card follows the model, so the row names the line reader and the picker marks it chosen
+    assert steps[1]["card"] == line_card and steps[1]["chain"] == [{"id": "next"}]
 
     vision = {"hf": "wjbmattingly/comma-qwen-3.5-0.8b-full-33k", "revision": "x"}
     kept = [{"job": "read-a-line", "model": vision}, {"job": "tie-text-to-lines", "model": mccatmus, "reasons": []}]

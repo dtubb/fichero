@@ -9,6 +9,8 @@ in a card earlier, for a person to confirm.
 """
 from __future__ import annotations
 
+import copy
+
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -775,6 +777,9 @@ def tie_follows_the_line_reader(steps: list[dict[str, Any]]) -> None:
     if read is None or tie is None or tie["model"] == read["model"] or _kraken_reader_for(read["model"]) is None:
         return
     tie["model"] = dict(read["model"])
+    for key in ("card", "chain"):  # the card goes with the model: the row names it and the picker marks it chosen (`_name_the_model`, `_step_reader`)
+        if key in read:
+            tie[key] = copy.deepcopy(read[key])
     tie["runs_on"] = read.get("runs_on") or tie.get("runs_on")
     tie["reasons"] = ["the project's own line reader: the tie matches the reading", *[r for r in tie.get("reasons") or [] if "already on this Mac" not in r]]
 

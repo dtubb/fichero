@@ -184,3 +184,11 @@ def test_wide_the_nothing_here_rule_over_a_list_without_a_download_says_add_a_ke
     assert _nothing_here_yet([cloud]) == ("No model on this Mac does this yet", "add a cloud key")
     ready = SimpleNamespace(refused=None, installed=True, needs_permission=False, size_gb=1.0, id="r", name="r", short_name="", size="1 GB")
     assert _nothing_here_yet([cloud, ready]) == (None, None)
+
+
+def test_wide_a_job_no_card_does_is_not_told_to_add_a_cloud_key():
+    """Review Low: `find-a-tables-cells` has no card of any kind, so the empty list says so and offers no fix (a key would not help)."""
+    from fichero_server.api.routes.system.recipes import _nothing_here_yet
+
+    why, fix = _nothing_here_yet([])
+    assert "no card for it" in why and fix is None
