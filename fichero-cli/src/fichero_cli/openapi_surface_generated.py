@@ -13879,6 +13879,29 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("change-cloud-cap")
+    def recipes_change_cloud_cap_put(
+        ctx: typer.Context,
+        cap_usd: Optional[float] = typer.Option(None, '--cap-usd', help="the most the project's cloud calls may cost a month, in US$ (0 is a cap); left out: unchanged."),
+        clear_project_cap: Optional[bool] = typer.Option(None, '--clear-project-cap/--no-clear-project-cap', help="remove the project's total cap (no such limit) Default: false."),
+        project_cap_usd: Optional[float] = typer.Option(None, '--project-cap-usd', help='the most the project may spend on cloud calls in all, across months (`answers.cloud_project_cap_usd`); left out: unchanged.'),
+    ) -> None:
+        """Change Cloud Cap (PUT /api/recipes/project/cloud-cap)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project/cloud-cap"
+            params = None
+            payload = _build_json_payload({
+                "cap_usd": cap_usd,
+                "clear_project_cap": clear_project_cap,
+                "project_cap_usd": project_cap_usd,
+            }, {
+                "cap_usd": {'type': 'number', 'minimum': 0.0, 'nullable': True, 'title': 'Cap Usd', 'description': "the most the project's cloud calls may cost a month, in US$ (0 is a cap); left out: unchanged", 'x-cli-required': False},
+                "clear_project_cap": {'type': 'boolean', 'title': 'Clear Project Cap', 'description': "remove the project's total cap (no such limit)", 'default': False, 'x-cli-required': False},
+                "project_cap_usd": {'type': 'number', 'minimum': 0.0, 'nullable': True, 'title': 'Project Cap Usd', 'description': 'the most the project may spend on cloud calls in all, across months (`answers.cloud_project_cap_usd`); left out: unchanged', 'x-cli-required': False},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("change-project-layers")
     def recipes_change_project_layers_post(
         ctx: typer.Context,
@@ -13951,6 +13974,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-start-plan")
     def recipes_get_start_plan_get(
         ctx: typer.Context,
+        first_pages: Optional[int] = typer.Option(None, '--first-pages', help='plan Start on the first N pages of the project in Finder order ("run fewer pages", #6295); never with `folder_id`.'),
         folder_id: Optional[str] = typer.Option(None, '--folder-id', help='plan Start on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); omit for the whole project.'),
         summary: Optional[bool] = typer.Option(None, '--summary/--no-summary', help="a lean answer for an agent: each step's candidates are its picked and recommended ones (else its first), not the whole menu, which grows with the models this Mac has; the whole plan is this GET without it (openapi.mcp.answers-fit-an-agent)"),
     ) -> None:
@@ -13958,6 +13982,7 @@ def register_generated_openapi_commands(
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/recipes/project/start"
             params = {
+                "first_pages": first_pages,
                 "folder_id": folder_id,
                 "summary": summary,
             }
@@ -13969,6 +13994,7 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         accept_unpriced: Optional[list[str]] = typer.Option(None, '--accept-unpriced', help="cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`) A list: repeat the flag, or give the values comma-separated, or as JSON."),
         documents: Optional[list[str]] = typer.Option(None, '--documents', help="run the recipe on these pages alone, as a finished run's `missed.documents` names them (source.recipe.run-again-on-what-was-missed, #6170); never with `folder_id`. A list: repeat the flag, or give the values comma-separated, or as JSON."),
+        first_pages: Optional[int] = typer.Option(None, '--first-pages', help='run the recipe on the first N pages of the project in Finder order alone ("run fewer pages", #6295); never with `folder_id` or `documents`.'),
         folder_id: Optional[str] = typer.Option(None, '--folder-id', help='run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project.'),
         redo: Optional[list[str]] = typer.Option(None, '--redo', help='step ids to run again on pages that already have their output; the others run only on pages that do not. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
@@ -13979,11 +14005,13 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "accept_unpriced": accept_unpriced,
                 "documents": documents,
+                "first_pages": first_pages,
                 "folder_id": folder_id,
                 "redo": redo,
             }, {
                 "accept_unpriced": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Accept Unpriced', 'description': "cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`)", 'x-cli-required': False},
                 "documents": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Documents', 'description': "run the recipe on these pages alone, as a finished run's `missed.documents` names them (source.recipe.run-again-on-what-was-missed, #6170); never with `folder_id`", 'x-cli-required': False},
+                "first_pages": {'type': 'integer', 'minimum': 1.0, 'nullable': True, 'title': 'First Pages', 'description': 'run the recipe on the first N pages of the project in Finder order alone ("run fewer pages", #6295); never with `folder_id` or `documents`', 'x-cli-required': False},
                 "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'description': 'run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project', 'x-cli-required': False},
                 "redo": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Redo', 'description': 'step ids to run again on pages that already have their output; the others run only on pages that do not', 'x-cli-required': False},
             }, required=False)

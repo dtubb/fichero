@@ -79,7 +79,9 @@ def pages_for(db: Any, card: dict[str, Any], documents: list[str] | None, within
         return [i for i in material if within is None or i in within] + [d for d in split if d not in known]
     out: list[str] = []
     for doc_id in documents:  # an imported photograph cut since: its pages are the material
-        out.extend([c.id for c in _children(db, doc_id)] or [doc_id])
+        # A diary entry split from a page is not a page to read (`unit_of_work_ids`): it never stands in for its page, so
+        # a run on named pages (the first N, #6295) reads the pages the plan counted.
+        out.extend([c.id for c in _children(db, doc_id) if getattr(c, "node_kind", None) != "entry"] or [doc_id])
     return out
 
 

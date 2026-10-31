@@ -2407,6 +2407,7 @@ from fichero_server.api.routes.system import (  # noqa: E402
     locations,
     migrations,
     projects,
+    recipe_cloud_cap,
     recipes,
     registries,
     settings,
@@ -2516,6 +2517,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (chat.router, "/api/chat", ["chat"]),
     # Recipes (#4951): the job registry, checking a recipe, and assembling one from setup's answers.
     (recipes.router, "/api", ["recipes"]),
+    (recipe_cloud_cap.router, "/api", ["recipes"]),  # #6295: its own module, recipes.py is over a thousand lines
     # Topics (#5471): each topic's and each recipe job's explanation, written once.
     (topics.router, "/api", ["topics"]),
     (citations.router, "/api", ["citations"]),

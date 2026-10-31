@@ -126,7 +126,7 @@ def _plan(db: Any) -> dict[str, Any]:
 
 
 def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, started_by: str,
-            redo: list[str] | None = None, folder_id: str | None = None) -> str:
+            redo: list[str] | None = None, folder_id: str | None = None, first_pages: int | None = None) -> str:
     """Queue one run of the plan; `documents` None is all the project's material, or with `folder_id` that
     folder's (`source.recipe.folder-scoped-start`); `redo` names the steps to run again on pages that already have
     their output (`source.recipe.done-is-not-redone`). The downloads the plan found under way are kept on the run,
@@ -137,7 +137,8 @@ def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, start
               "folder_id": folder_id, "awaited": awaited,
               # Its name and page count in Activity (#5615), as they were when it was queued.
               "title": _recipe_title(db), "pages": _pages_counted(db, documents)}
-    words = "Waiting to run the recipe" + (f" on {len(documents)} new pages" if documents is not None else
+    words = "Waiting to run the recipe" + (f" on the first {len(documents)} pages" if first_pages else
+                                           f" on {len(documents)} new pages" if documents is not None else
                                            " on one folder" if folder_id else "")
     return jobs.enqueue_remote(db, KIND, f"recipe:{uuid.uuid4()}", target="this-mac", detail=json.dumps(detail),
                                reason=words, started_by=started_by)
@@ -509,6 +510,9 @@ def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
         if awaited_state == "paused":
             # A person paused the step's run itself: Resume on the recipe resumes that run (the recipe adopts it when it is taken up).
             clear_pause(awaited)
+            from fichero_server.llm.spend import forget_cap_stop
+
+            forget_cap_stop(awaited)
             _resume_step_run(db, awaited, job_id)
             document_tree.release_waiting_job(db, job_id, clear_reason=True)
             jobs.wake_lane(db)
@@ -518,6 +522,9 @@ def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
     child = jobs.running_child(db, job_id)
     if child is not None:
         clear_pause(child)  # still winding down to its pause: let it go on
+        from fichero_server.llm.spend import forget_cap_stop
+
+        forget_cap_stop(child)
         if jobs._job_row(db, child)[1] == "paused":
             _resume_step_run(db, child, job_id)
     document_tree.clear_job_reason_if(db, job_id, (jobs.PAUSING, "Paused with its run"))
@@ -1910,7 +1917,14 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
             elif step["state"] == "running":
                 step.update(state="not run", why=f"stopped when the run ended, before this step finished: {ended}")
     reason = row["reason"]
-    if row["state"] == "waiting":
+    run_ids = [(detail.get("awaiting") or {}).get("child"), *(s.get("child_id") for s in steps)]
+    from fichero_server.llm.spend import stopped_at_cap
+
+    capped = stopped_at_cap(run_ids)  # a step's run paused at a cap: the row says so, and the app offers the change
+    capped = capped if row["state"] not in ("done", "cancelled") else None
+    if capped:
+        reason = capped["words"]
+    elif row["state"] == "waiting":
         ahead = [r["id"] for r in jobs.find_jobs(db, kinds=[KIND], states=["running"]) if r["id"] != job_id]
         if ahead:
             reason = f"Waiting for the recipe run {ahead[0]} to finish: recipe runs go one at a time"
@@ -1919,7 +1933,9 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
             "started_by": row["started_by"], "folder_id": detail.get("folder_id"),
             # `activity.run.progress-per-folder`: written by the run as it goes; absent before it starts.
             "folders_done": detail.get("folders_done"), "folders_total": detail.get("folders_total"),
-            "folder_steps": folder_steps(detail)}
+            "folder_steps": folder_steps(detail), "stopped_at_cap": bool(capped),
+            "stopped_needs_cap_usd": (capped or {}).get("needed_cap_usd"),
+            "stopped_needs_project_cap_usd": (capped or {}).get("needed_project_cap_usd")}
 
 
 def started_plan(db: Any, job_id: str) -> dict[str, Any]:

@@ -9,6 +9,7 @@
 - Start plan and cost: batched reads priced on the page image; faster folder Start; reader notes; a refused Start keeps the yes to an unpriced model; an older saved model no longer hides the current one (#6268, #6269, #6291, #6266).
 - Export: Word transcripts can leave the scans out (#6287).
 - Reliability and tooling: a closed library stays closed (#6238); onnx fork crash (#6286); gate part for tests/unit/recipes (#6292).
+- Set Up and Start: the cloud spending caps are on Ready beside the estimate and its basis, both the monthly cap and a new total cap for the project, each changed in place (audited, undoable); a Start refused for a cap says which one and offers "Raise the monthly cap to N", "Raise the project cap to N" or "Run the first N pages" (#6295).
 
 ## 2026-10-28
 

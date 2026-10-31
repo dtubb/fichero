@@ -118,6 +118,7 @@ extension RecipeSetupStore {
     /// Read the count again (after material was added) and keep it as the pages answer, so the estimate is the
     /// material's, not a guess typed earlier.
     func countPages() async {
+        runFirstPages = nil  // new material: the first N pages are no longer the question
         await loadStartPlan()
         if let counted = countedPages, counted > 0 { pages = counted }
     }

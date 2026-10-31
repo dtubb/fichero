@@ -16418,6 +16418,19 @@
             "description": "plan Start on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); omit for the whole project"
           },
           {
+            "name": "first_pages",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "nullable": true,
+              "description": "plan Start on the first N pages of the project in Finder order (\"run fewer pages\", #6295); never with `folder_id`",
+              "title": "First Pages"
+            },
+            "description": "plan Start on the first N pages of the project in Finder order (\"run fewer pages\", #6295); never with `folder_id`"
+          },
+          {
             "name": "summary",
             "in": "query",
             "required": false,
@@ -17318,6 +17331,70 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/project/cloud-cap": {
+      "put": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Change Cloud Cap",
+        "description": "Set the project's monthly cloud cap (`answers.cloud_spend_cap_usd`) and/or its total cap\n(`answers.cloud_project_cap_usd`), and nothing else in its setup: Set Up's \"Raise the cap to N\" (#6295). One\n`project.save_setup`, so audited and undoable as one step; the answer names the audit row.",
+        "operationId": "change_cloud_cap_api_recipes_project_cloud_cap_put",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudCapChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudCapChanged"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "the cap is refused, in one sentence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
                 }
               }
             }
@@ -58910,6 +58987,59 @@
         ],
         "title": "ClientPresenceEntry"
       },
+      "CloudCapChange": {
+        "properties": {
+          "cap_usd": {
+            "type": "number",
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Cap Usd",
+            "description": "the most the project's cloud calls may cost a month, in US$ (0 is a cap); left out: unchanged"
+          },
+          "project_cap_usd": {
+            "type": "number",
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Project Cap Usd",
+            "description": "the most the project may spend on cloud calls in all, across months (`answers.cloud_project_cap_usd`); left out: unchanged"
+          },
+          "clear_project_cap": {
+            "type": "boolean",
+            "title": "Clear Project Cap",
+            "description": "remove the project's total cap (no such limit)",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "CloudCapChange"
+      },
+      "CloudCapChanged": {
+        "properties": {
+          "cap_usd": {
+            "type": "number",
+            "title": "Cap Usd",
+            "description": "the project's monthly cloud cap now"
+          },
+          "project_cap_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Project Cap Usd",
+            "description": "the project's total cloud cap now; null: none"
+          },
+          "audit_id": {
+            "type": "string",
+            "title": "Audit Id",
+            "description": "the audit row of the change; Undo reverses it"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cap_usd",
+          "audit_id"
+        ],
+        "title": "CloudCapChanged"
+      },
       "CloudCapLine": {
         "properties": {
           "cap_usd": {
@@ -58937,6 +59067,66 @@
             "type": "boolean",
             "title": "Over",
             "description": "the estimate is more than the cap leaves: Start asks first"
+          },
+          "over_month": {
+            "type": "boolean",
+            "title": "Over Month",
+            "description": "the estimate is more than the monthly cap leaves",
+            "default": false
+          },
+          "over_project": {
+            "type": "boolean",
+            "title": "Over Project",
+            "description": "the estimate is more than the project's total cap leaves",
+            "default": false
+          },
+          "needed_cap_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Needed Cap Usd",
+            "description": "when `over_month`: the monthly cap under which this run's estimate fits (what is booked this month plus the estimate, to the cent, no margin); Set Up offers it as \"Raise the cap to N\" (#6295); null otherwise"
+          },
+          "project_cap_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Project Cap Usd",
+            "description": "the most the project may spend on cloud calls in all (`answers.cloud_project_cap_usd`); null: no such limit"
+          },
+          "project_spent_usd": {
+            "type": "number",
+            "title": "Project Spent Usd",
+            "description": "what its cloud calls have cost in all, across months",
+            "default": 0.0
+          },
+          "project_remaining_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Project Remaining Usd",
+            "description": "what the project's total cap leaves, `project_cap_usd` less `project_spent_usd`, not below 0; null: no total cap"
+          },
+          "refusal": {
+            "type": "string",
+            "nullable": true,
+            "title": "Refusal",
+            "description": "when `over`: the sentence this cap adds to the plan's `refusals`, exactly, so a client can tell which refusal is the cap's without reading its words; null otherwise"
+          },
+          "needed_project_cap_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Needed Project Cap Usd",
+            "description": "when `over_project`: the project cap under which this run's estimate fits (spent in all plus the estimate, to the cent)"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages",
+            "description": "the pages the estimate is for",
+            "default": 0
+          },
+          "fewer_pages": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Fewer Pages",
+            "description": "when `over`: how many of the project's first pages, in Finder order, fit what the caps leave at this run's per-page estimate; null when none fit or the run is not over"
           },
           "unpriced_models": {
             "items": {
@@ -85194,6 +85384,24 @@
             "title": "Seconds",
             "description": "the run's time so far, from its row: ended (or now) less started; null before it started (#6215)"
           },
+          "stopped_at_cap": {
+            "type": "boolean",
+            "title": "Stopped At Cap",
+            "description": "a step's run was paused at a cloud spend cap and has not gone on (#6295): the app offers the caps' change; `reason` then carries the cap's words. Resume goes on after the cap is raised",
+            "default": false
+          },
+          "stopped_needs_cap_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Stopped Needs Cap Usd",
+            "description": "when `stopped_at_cap` at the monthly cap: the monthly cap under which the refused call would have been sent (booked this month plus the call's worst case, to the cent, no margin); the plan cannot say it, its estimate may fit (#6295)"
+          },
+          "stopped_needs_project_cap_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Stopped Needs Project Cap Usd",
+            "description": "when `stopped_at_cap` at the project's total cap: the total cap under which the refused call would have been sent"
+          },
           "pages_at_once": {
             "type": "integer",
             "nullable": true,
@@ -95313,6 +95521,13 @@
             "nullable": true,
             "title": "Documents",
             "description": "run the recipe on these pages alone, as a finished run's `missed.documents` names them (source.recipe.run-again-on-what-was-missed, #6170); never with `folder_id`"
+          },
+          "first_pages": {
+            "type": "integer",
+            "minimum": 1.0,
+            "nullable": true,
+            "title": "First Pages",
+            "description": "run the recipe on the first N pages of the project in Finder order alone (\"run fewer pages\", #6295); never with `folder_id` or `documents`"
           },
           "accept_unpriced": {
             "items": {
