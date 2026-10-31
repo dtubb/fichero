@@ -6,8 +6,11 @@
 > person's own pages, how Prepare Images is four steps that can each be left out, and that nothing runs
 > on the whole project before Start.
 >
-> Design-led (Testing Constitution). **Status: DRAFT — written 2026-10-31 from the owner's direction by
-> screen share the same day; awaiting the owner's rulings on the questions at the end.** Tags: [OK] built
+> Design-led (Testing Constitution). **Status: DRAFT in the guards' sense (the APPROVED tag waits on the manual
+> section and the first pinning test, as `check_spec_manual_refs` and `check_specs_have_tests` require);
+> APPROVED TO LAND by the owner, 2026-10-31**: written the same day from the owner's direction by screen share,
+> the owner's answers of that evening are in Rulings, and one long-running builder works the build order at the
+> end ("Build order for one builder") after `fix/air-engine-oom` and the pairing branch land. Tags: [OK] built
 > and pinned · [PARTIAL] exists, partly wired or unpinned · [GAP] not built · [BROKEN] built, wrong.
 >
 > **Where this sits.** `models-chains-and-projects.md` owns Set Up's questions, the stages list and the
@@ -96,8 +99,11 @@ folder" picker leaves the card: the owner calls its list of folder names noise.
   marked doubtful (a `reject` verdict); a page with over half its lines untied stays a draft; the counts
   (`tied`, `doubtful`, `untied`, `drafts`, `no_lines`, `no_page_reading`) are on the job. It runs by
   itself after every page reading (`after_page_reading`) and as the recipe step `tie-text-to-lines`,
-  whose "model" is the **line reader's** (`recipe.add_page_step`): no model ties; the rough read is the
-  anchor.
+  whose model is a **Kraken line reader** (the project's own by `recipe.add_page_step`, else chosen by
+  `assemble._choose` from the three reader cards that name the job): the reader's rough read is the anchor
+  the page text is aligned to, so the step runs a model and it is the person's to choose (#6256, closed
+  2026-10-28 with the registry flag `needs_a_model=True` and the candidates route; nothing on the Swift
+  side was changed or pinned).
 - **Find Lines' cards**: Kraken's `blla` (the plan's only `find-lines` card; `start.py` skips any other
   pin), Apple Vision's lines for print and typescript (`APPLE_LINES_PIN`, workflow
   `detect_regions_apple_lines`), and, on the Detect Regions node only, a vision model's boxes (`provider:
@@ -132,8 +138,8 @@ page's scroll position and its answers; a page the engine refuses to leave (Add 
 material, About the Material with no language: `SetupFooter.waitsFor`) **bounces back** with the reason
 beside Next, so a swipe can never skip a page Continue could not.
 
-**Layout, macOS.** The window grows from 820 by 600 to **1040 by 680** (the owner asked for wide; the
-step list stays 260). A step page is two columns: **the questions on the left** (420 points: what the
+**Layout, macOS.** Set Up **fills the library window** (owner 2026-10-31; no fixed 1040 by 680): the
+sheet takes the window's size, at least 820 by 600, and the step list stays 260. A step page is two columns: **the questions on the left** (420 points: what the
 page asks, "Which model does it", the stage's own questions, left-off rows) and **the output on the
 right** (the rest, at least 320): the picture at the top, then the sample strip and the step's result on
 the current sample. The picture moves from above the questions into the output column, so the person
@@ -297,35 +303,51 @@ there). A stage page gets its own **Run this step** on the output column (the St
 that stage's step ids, over the whole project, and the same plan words first), so "just that one step"
 is a button, not a trick of unticking the rest.
 
-### G. A step with no model to choose: Tie text to lines
+### G. Tie text to lines: a model step with a picker, and its figures
 
-Some steps give the person no model to choose; the Read stage's **Tie text to lines** is the one that
-matters, because the owner's experience is that a model reading the whole page gives excellent text and
-nothing then ties that text back to the lines. What the code does today, honestly: the page text is
-aligned to **Kraken's rough read of each line** by edit distance over the whole page, so each line gets
-the stretch of page text that best matches its rough read; the match is scored by accent-blind
-agreement; under 0.30 the stretch is still written but marked doubtful; a page with over half its lines
-untied stays a draft and is not written at all; the thresholds are **stated, not measured** on real
-pages (the module says so). Its quality is bounded by the rough read: a faded page Kraken reads badly
-ties badly, and a page with no lines gets lines found first. No model is chosen because no model does
-the tying — the line reader named on the step is the anchor, which is why "Which model does it" shows a
-model that does something else.
+**Correction (owner 2026-10-31).** An earlier draft of this section said no model ties the page text to
+the lines; that was wrong. The owner meant there is **no UX to choose a model** for the step. What the
+code does: a model that read the whole page gives text with no lines; the step runs a **Kraken line
+reader** over the lines (the rough read) and aligns the page text to those rough reads by edit distance
+over the whole page (`checking/tie_text.py`), so each line gets the stretch of page text that best
+matches; the match is scored by accent-blind agreement; under 0.30 the stretch is still written but
+marked doubtful; a page with over half its lines untied stays a draft; the thresholds are **stated,
+not measured** on real pages (the module says so). Its quality is bounded by the rough read — a faded
+page the reader reads badly ties badly — which is exactly why the reader is the person's to choose: a
+reader trained on this hand ties better. The step is a model step like Read, with the same picker (the
+Kraken readers, installed or to download, from `step_candidates`), its default **the project's own line
+reader** so the tie matches the reading, and one line saying what the step does and that only the
+matching is done by the reader (#6256's three expectations).
 
-What the person sees for any step with no model to choose (Tie text to lines, Leave Out, Find the
-Documents, Prepare Images): not an empty chooser and not a radio row, but one line, **"Fichero does this
-one: <how, in the engine's words>"** (`how_it_works` from the topic), then, once the step has run on the
-samples, **its figures on those pages**: "Tied 41 of 48 lines; 5 doubtful; 2 could not be tied; 1 page
-left as a draft", from the job's counts; and a link **"Show the lines it could not tie"** that opens the
-sample page in the Reader's disagreement view with the untied and doubtful lines listed (the `reject`
-verdicts already written). Where no method exists for a job, the line says so and names the by-hand
-tool, as the plan's `by_hand` does.
+**Why the owner cannot see the picker (the defect, `wide.picker.tie-text-picker-visible`).** #6256 was
+closed on 2026-10-28 by `ad84655ee`, which changed one line of the registry (`needs_a_model=True`) and
+added one engine test (the flag, and the candidates route listing the three Kraken cards). It changed
+nothing in the app and pinned nothing on the screen. Read from the code, the row the app draws for the
+step on the Read page (`RecipeStepsView`) gets its "Choose a Model…" button only from
+`RecipeSetupStore.offersFinder` (the registry flag, loaded once per project) when the stage page is
+given a project (`finder`) and Ready's fix handler, and it is a small button under the row; the stage
+page's own candidate chooser, Compare on These Pages and the compare window serve only the stage's
+**main step** (`mainStep(forJobs:)`, the first recipe step among the stage's jobs: `read-a-line`), so
+the tie step, fourth in the Read stage, never gets the chooser the person sees for Read; and the step's
+model is the line reader's own pin (`add_page_step`), so its row reads exactly like Read's row and says
+nothing about tying. No test pins the row; the issue was closed on the engine half. The fix: the tie
+step's row is a chooser like Read's (the three cards, the line reader marked as the default, Change…),
+its sentence from the topic, and a Swift test that fails today on the row's shape.
 
-**Recommended method, marked for the owner.** Keep the alignment as it is, anchored on the line reader's
-output (it is the right anchor: it is the only text with a known line), and add two things: (1) the
-unmatched remainder of the page text — stretches the alignment gave no line — kept on the page as
-"text not tied to a line", shown in the same view, so nothing the page reader wrote is lost; (2) a
-measured threshold: the bake-off measures tied-line agreement against the checked lines of the sample
-and the stage shows that figure beside the step. A learned aligner is not proposed.
+What the person sees under the row, once the step has run on the samples: **its figures on those
+pages**, "Tied 41 of 48 lines; 5 doubtful; 2 could not be tied; 1 page left as a draft", from the job's
+counts, with the reader named; and a link **"Show the lines it could not tie"** that opens the sample
+page in the Reader's disagreement view with the untied and doubtful lines listed (the `reject` verdicts
+already written). A step that calls no model (Leave Out, Find the Documents, Prepare Images, Dates)
+shows instead one line, **"Fichero does this one: <how, in the engine's words>"** (`how_it_works`);
+where no method exists for a job, the line says so and names the by-hand tool, as `by_hand` does.
+
+**The untied remainder, kept (DEFAULT taken 2026-10-31; the owner may change it).** Keep the alignment
+anchored on the chosen line reader's rough read and add two things: (1) the unmatched remainder of the
+page text — stretches the alignment gave no line — kept on the page as "text not tied to a line" and
+shown in the same view, so nothing the page reader wrote is lost; (2) a measured threshold: the bake-off
+measures tied-line agreement against the checked lines of the sample and the step shows that figure
+beside its reader. A learned aligner is not proposed.
 
 ### H. Faded pages: clarity before Find Lines, and the segmenter choices
 
@@ -381,7 +403,7 @@ registry entry says `needs_a_model`, `RecipeSetupStore.offersFinder`; the Search
 | Leave Out | `leave-out` | no (rules) | none; `builtin` "leave-out-rules" | should say Fichero does it |
 | Read | `read-a-line` | yes | Find a Reader… (6 cards) | fine |
 | Read | `read-a-page` | yes | Find a Reader… (4 cards) | fine |
-| Read | `tie-text-to-lines` | **no** (the alignment; the line reader's rough read is the anchor) | a picker, because the registry says `needs_a_model=True`; it shows the line reader | the one the owner met: a model row for a step no model does (section G) |
+| Read | `tie-text-to-lines` | **yes**: a Kraken line reader whose rough read anchors the alignment | engine built (#6256: `needs_a_model=True`, 3 cards); on screen only the small Choose a Model… under a row that reads like Read's own; no chooser, no Compare, nothing pinned | the one the owner met: the picker is not visible as a picker (section G) |
 | Read | `correct` | yes | Choose a Model… (2 cards, plus keyed cloud text models) | fine |
 | Read | `find-where-readers-disagree` | yes, the plan's own readers | none (built in, `needs_a_model=False`); its row names the readers | fine, said in words |
 | Normalise, Translate | `translate-transliterate-normalise` | yes | Choose a Model… (2 cards, plus keyed cloud text models) | fine |
@@ -396,14 +418,31 @@ registry entry says `needs_a_model`, `RecipeSetupStore.offersFinder`; the Search
 | Catalogue | `describe-for-the-catalogue` | yes (a text model) | Choose a Model…, **no card in the catalogue** | an empty picker without a key |
 
 So the gap is not a missing button: it is (a) five no-model steps drawn as a model row with a `builtin`
-pin, (b) one no-model step (`tie-text-to-lines`) registered as needing a model, and (c) five model steps
-with no local card, whose picker is empty on a Mac without a cloud key. The design: a step's row is one
+pin, (b) one model step (`tie-text-to-lines`) whose picker is built in the engine and not visible as one
+on the screen (section G), and (c) five model steps with no local card, whose picker is empty on a Mac
+without a cloud key. The design: a step's row is one
 of two shapes, decided by the engine's registry and nothing else — **a chooser** (the step's candidates
 from `step_candidates`, the chosen one marked, Choose a Model… or Find a Reader…; a step with no
 candidate on this Mac says "No model on this Mac does this yet: add a cloud key, or <download>" with the
-nearest fix) or **"Fichero does this one: <how>"** (section G). `tie-text-to-lines` becomes
-`needs_a_model=False` with its topic sentence naming the anchor; the five text-model jobs get their
-local candidates in the catalogue as they are built, and until then the empty picker says why.
+nearest fix) or **"Fichero does this one: <how>"** (section G). `tie-text-to-lines` keeps
+`needs_a_model=True` and gets the chooser Read has; the five text-model jobs get their cards now
+(below), so no picker is empty on a Mac without a key.
+
+**Cards for the five text-model steps** (`wide.picker.cards-for-the-text-steps`; the catalogue is
+`recipes/seed/cards.yaml`, the rule that picks is the existing one: a good-enough installed local model
+wins, else the cheapest priced keyed cloud model, `assemble._cloud_text_pick`):
+
+| Job | Local cards (fine without a cloud key) | Cloud cards (a key set) | Default | Words on the row |
+| --- | --- | --- | --- | --- |
+| `split-into-entries` | the two MLX instruct cards already in the catalogue gain the job: Qwen2.5-VL 7B 4-bit (5.6 GB, slow: seconds a page) and 3B 4-bit (2.3 GB, its research-only licence sheet first) | the keyed frontier providers' text models from the price list (`frontier-cloud-providers.txt`), each priced a page | the installed local card, else the cheapest priced cloud card, else "No model on this Mac does this yet: download Qwen 7B (5.6 GB) or add a key" | "free, on this Mac, about N s a page" or "about $0.0x a page, pages leave this Mac" |
+| `find-statements` | the same two MLX cards | the same | the same | the same |
+| `describe-for-the-catalogue` | the same two MLX cards | the same | the same | the same |
+| `extract-to-a-table` | the same two MLX cards | the same | the same | the same |
+| `find-a-tables-cells` | the YOLO DocLayNet layout card (its `table` class finds the table; the cells by the ruling lines, OpenCV, no model) — free, fast | a keyed vision model for cells a ruling cannot find | DocLayNet plus the rules | "free, on this Mac, under a second a page" |
+
+Each card carries `jobs`, `runs_on`, `size_gb`, `memory_gb`, `licence` and, for a cloud card, its listed
+price, so the rows' words come from the card and the price list and never from the app. A Mac without
+a key has a local answer for all five.
 
 **The guardrail.** `check_setup_model_pickers.py` (named here, not yet written; its test
 `test_check_setup_model_pickers.py`): for every stage in `STAGES`
@@ -414,8 +453,9 @@ guard's allowlist; (2) a job with `needs_a_model=False` must be in `FICHERO_DOES
 or `BY_HAND_FIX`, and have a topic with `how_it_works` (so "Fichero does this one" has words), or be in
 the allowlist; (3) the contract (`openapi.json`) must carry `needs_a_model` on `JobInfo`, which is what
 the app's row shape reads. The allowlist is a dict at the top of the script, one line per job, each with
-an issue and a reason: `NO_PICKER_YET = {"split-into-entries": "#6052: local text model card pending"}`
-— a job in the allowlist that later gains a card fails the guard as stale, so the list only shrinks. The
+an issue and a reason, and **starts empty** (`NO_PICKER_YET: dict[str, str] = {}`) once the five cards
+above land; it may only ever name a job that truly runs no model, and a job in it that gains a card
+fails the guard as stale, so the list only shrinks. The
 guard runs in `verify_all --fast` with the other `check_*.py`.
 
 ### K. Suggestions from the material: one design with the recipe designer
@@ -551,12 +591,65 @@ kind (the 2026-08-25 compare design and `source.compare.*` hold).
   ("<reader> reads fluently and may invent: a second model reviews, about $0.03 a page"); the person can
   turn it off.
 
+### N. Ready shows only what will run
+
+Today's Ready page (`fichero/fichero/Views/Onboarding/RecipeReadyFields.swift`, grouped sections per
+`source.onboard.ready.grouped-sections`) carries, under the plan, the comparison, Keep an export, the
+training offers and then `OfferedJobsList` (`RecipeSetupPlanFields.swift`): **every job the registry
+knows and the recipe does not have, each with Add**, plus `RecipeLeftOffRows` and `RecipeTakenOutRows`
+(`RecipePlanEditing.swift`). That long run of steps a person could add is a stage chooser in the wrong
+place. The owner's rule (2026-10-31): those belong on their **own stage pages** (Choose the Stages ticks
+a stage; a stage page's left-off rows and its Put Back are where a step of that stage is added); Ready
+shows **only what will run**, in run order, each step with its model, place, pages and cost
+(`RecipeStepRunLine`), then the **estimate** (pages, time, the per-step basis:
+`designer.budget.basis-per-step`) and the **Budget** block from the merged design
+(`designer.budget.beside-the-estimate`: this run's cap, the project's monthly cap, the fixes in place),
+then Start with its reason when it waits. What is skipped and why stays (it is what will not run, said
+once per step in its own box); the offered-jobs list, the left-off rows and the taken-out rows leave
+Ready for the stage pages; Keep an export and the training offers stay as the two optional sections.
+
+### O. Release: Monday only if solid, and a hold that costs the rest nothing
+
+The owner's rule (2026-10-31): the wide Set Up goes into Monday's release **only if it is solid**; each
+step is proven on real test pages with tests to the spec; if the Start gate or the Air try is not green
+on Sunday night, the wide Set Up **stays out of the release rather than holding it**.
+
+**Solid, per step, means all of:** (1) the step's behaviours in this spec are tagged [OK] with their
+tests named and green: the engine tests under `PYTHONPATH` on the tree's `fichero-server/src`, run by
+the builder after each slice and by the manager on the combined tree; the Swift tests run on a Mac
+whose XCTest host works (the Pro's `testmanagerd` is stuck: the Air, or the Pro after a restart), by
+the manager, never while the owner's app is open; (2) a **real run** on a scratch copy of a real test
+set under the dev test folder — the photographed notebooks for Prepare Images (split, straighten, crop,
+clarity each seen in the chain strip on a real page), a box of handwritten pages for Read, Tie text to
+lines and the compare — driven by `scripts/realrun_check.py` against the dev engine and read by eye in
+the app by the manager, with the figures (pages prepared, lines tied, candidates compared) written in
+the handoff; (3) the owner has pressed through the pager once on the dev build from Xcode (swipe, keys,
+Back and Next, one Compare, one Run this step) and said nothing is wrong.
+
+**The two Sunday-night checks.** The **Start gate**: `scripts/gate part recipes` on the combined tree
+(lint, build, the recipes Swift tests, the recipes engine tests, the perf ratchet) plus
+`verify_all --standard` and every `scripts/check_*.py`, zero failed. The **Air try**: the release
+candidate's dev DMG installed on the Air, the scratch project set up through the wide pager end to end
+and started, the run finishing with every step's account non-empty and the Prepare Images chain and the
+compare seen on real pages, by the manager over SSH with the owner's GUI session for the screen. Either
+one red means the wide Set Up ships off.
+
+**The hold.** The wide pager, the operation rows, the output column, the compare view and the Ready cut
+sit behind one feature flag, `wideSetUp` (`FeatureManager`, a persisted flag like the others, under
+Settings › Features; off by default in the release tier of `FeatureTiers.generated.swift`, on in the
+dev tier). Off, the window is today's: the step list, the tall form, the Prepare Images card as it is,
+Ready as it is; the engine changes of Stages 1, 2, 7 and 9.1 (the defects fixed, the operations in the
+listing, the cards, the image-chain route, the compare answer's frame) ship either way, because they are
+additive and pinned. So the release decision on Sunday is one line in the tiers file, touching nothing
+else; and the builder lands slices on `integration` as they go green, behind the flag, never on a
+branch held back.
+
 ## Behaviors
 
 ### The pager
 
 - `wide.pager.swipe-arrows-back-next` — **[GAP]** (#5668) the Set Up window's content is a pager over `SetupFlow.steps`: a horizontal trackpad swipe, ← and → (and ⌘[ ⌘]) with focus outside a text field, and the footer's Back and Next all move one page; the step list on the left still jumps to any page; a forward move saves the draft the page's Continue saves; a page Continue cannot leave bounces back with its reason beside Next (`SetupFooter.waitsFor`). *Test:* `SetupPagerTests.swift` (not yet written: the move rules over a fake step list, keyboard and swipe reduced to one `advance`/`retreat` on the same model; the bounce), `fichero/Tests/Unit/general/Views/Onboarding/SetupFooterTests.swift`. Manual: TBD.
-- `wide.pager.window-is-wide` — **[GAP]** (#5668) on the Mac the window is 1040 by 680 with the 260-point step list; a stage page is two columns, questions 420 wide on the left and the output on the right (at least 320), Ready one column; on iPad and iPhone the list collapses to "3 of 9" with page dots and the columns stack in one `TabView` page. *Test:* `SetupPagerTests.swift` (not yet written: the widths and column rule as pure values per platform), `fichero/Tests/Unit/general/Views/Onboarding/SetupSheetFitsTests.swift`. Manual: TBD.
+- `wide.pager.window-is-wide` — **[GAP]** (#5668; owner 2026-10-31) on the Mac Set Up fills the library window (at least 820 by 600) with the 260-point step list; a stage page is two columns, questions 420 wide on the left and the output on the right (at least 320), Ready one column; on iPad and iPhone the list collapses to "3 of 9" with page dots and the columns stack in one `TabView` page. *Test:* `SetupPagerTests.swift` (not yet written: the widths and column rule as pure values per platform), `fichero/Tests/Unit/general/Views/Onboarding/SetupSheetFitsTests.swift`. Manual: TBD.
 - `wide.pager.accessible` — **[GAP]** (#5668) the pager is one accessibility element containing its page, labelled "Step N of M, <title>"; a page change posts the new label; every control is reachable by Tab and nothing is swipe-only; Reduce Motion cross-fades instead of sliding and the pictures hold their last frame. *Test:* `SetupPagerTests.swift` (not yet written: the label for each step; the Reduce Motion transition flag), `fichero/Tests/Unit/general/Models/StageShowcaseTests.swift` (the last frame, built). Manual: TBD.
 - `wide.pager.position-restored` — **[GAP]** (#5668) Set Up… reopens on the page the person left and the sample page they were looking at, per project on this Mac; a page no longer in the flow falls back to Choose the Stages; try results and answers come from the engine, never from the app's memory. *Test:* `SetupPagerTests.swift` (not yet written: restore to a kept step, fallback for a dropped stage). Manual: TBD.
 
@@ -591,9 +684,9 @@ kind (the 2026-08-25 compare design and `source.compare.*` hold).
 
 ### A step with no model to choose
 
-- `wide.nomodel.fichero-does-this-one` — **[GAP]** (#5721, #5668) a step whose job has no model to choose (Tie text to lines, Leave Out, Find the Documents, Prepare Images) shows no chooser and no radio row but one line, "Fichero does this one: <how>", from the topic's `how_it_works`; a job nothing does yet says so with its by-hand tool. *Test:* `fichero-server/tests/unit/recipes/test_tie_text_to_lines_picks_a_reader_6256.py` (built; add: the step's `how` names the anchor, not a model to choose), `TieTextStepTests.swift` (not yet written: the row's words for a no-model step). Manual: TBD.
-- `wide.nomodel.tie-figures-on-his-pages` — **[GAP]** (#5721, #5720) after Read has run on the samples the Tie text to lines row shows its figures from the job's counts — tied, doubtful, could not be tied, pages left as a draft — and "Show the lines it could not tie" opens the sample page in the Reader's disagreement view with the untied and doubtful lines listed from their `reject` verdicts. *Test:* `test_tie_text_counts_on_the_stage_try.py` (not yet written: the try result carries the counts per page), `TieTextStepTests.swift`. Manual: TBD.
-- `wide.nomodel.untied-remainder-kept` — **[GAP]** (#5721; recommended, for the owner) the stretches of the page text the alignment gives no line are kept on the page as text not tied to a line and shown in the same view, so nothing the page reader wrote is lost; the tie threshold is measured by the bake-off against the checked lines of the sample and the figure is shown beside the step. *Test:* `fichero-server/tests/unit/media/test_transcript_alignment.py` (built; add the remainder), `test_tie_text_remainder.py` (not yet written). Manual: TBD.
+- `wide.nomodel.fichero-does-this-one` — **[GAP]** (#5721, #5668) a step whose job has no model to choose (Leave Out, Find the Documents, Prepare Images, Dates & Times) shows no chooser and no radio row but one line, "Fichero does this one: <how>", from the topic's `how_it_works`; a job nothing does yet says so with its by-hand tool. *Test:* `fichero-server/tests/unit/recipes/test_tie_text_to_lines_picks_a_reader_6256.py` (built; add: the step's `how` names the anchor, not a model to choose), `TieTextStepTests.swift` (not yet written: the row's words for a no-model step). Manual: TBD.
+- `wide.nomodel.tie-figures-on-his-pages` — **[GAP]** (#5721, #5720) after Read has run on the samples the Tie text to lines row shows, under its chooser, its figures from the job's counts — tied, doubtful, could not be tied, pages left as a draft — and "Show the lines it could not tie" opens the sample page in the Reader's disagreement view with the untied and doubtful lines listed from their `reject` verdicts. *Test:* `test_tie_text_counts_on_the_stage_try.py` (not yet written: the try result carries the counts per page), `TieTextStepTests.swift`. Manual: TBD.
+- `wide.nomodel.untied-remainder-kept` — **[GAP]** (#5721; DEFAULT taken 2026-10-31, the owner may change it) the stretches of the page text the alignment gives no line are kept on the page as text not tied to a line and shown in the same view, so nothing the page reader wrote is lost; the tie threshold is measured by the bake-off against the checked lines of the sample and the figure is shown beside the step. *Test:* `fichero-server/tests/unit/media/test_transcript_alignment.py` (built; add the remainder), `test_tie_text_remainder.py` (not yet written). Manual: TBD.
 
 ### Faded pages and Find Lines
 
@@ -603,8 +696,10 @@ kind (the 2026-08-25 compare design and `source.compare.*` hold).
 
 ### Every model step has a picker; every other step says Fichero does it
 
-- `wide.picker.row-shape-from-the-registry` — **[BROKEN]** (#5721, #6052; section J) a step's row is one of two shapes decided by the registry's `needs_a_model` and nothing in the app: a chooser (the step's candidates from `step_candidates`, the chosen one marked, Choose a Model… or Find a Reader…) or "Fichero does this one: <how>"; today five no-model steps (`split-pages`, `prepare-the-image`, `leave-out`, `find-documents-in-a-folder`, `work-out-dates`) are drawn as a model row with a `builtin` pin, and `tie-text-to-lines` is registered as needing a model it does not have. Fixed: `tie-text-to-lines` is `needs_a_model=False` with a topic naming its anchor; a `builtin` pin is never drawn as a model. *Test:* `fichero-server/tests/unit/recipes/test_setup_stages_5668.py` (built; add: every stage job's `needs_a_model` matches the table in section J), `TieTextStepTests.swift` (not yet written: the row shape per job from a stage listing). Manual: TBD.
-- `wide.picker.empty-says-why` — **[GAP]** (#6052; section J) a model step with no candidate on this Mac (`split-into-entries`, `find-statements`, `find-a-tables-cells`, `extract-to-a-table`, `describe-for-the-catalogue` with no cloud key) does not show an empty chooser: it says "No model on this Mac does this yet" with the nearest fix (add a cloud key, or the download the catalogue names once a local card exists). *Test:* `fichero-server/tests/unit/recipes/test_one_candidate_source_5808.py` (built; add: an empty candidate list carries `why` and `fix`), `TieTextStepTests.swift`. Manual: TBD.
+- `wide.picker.row-shape-from-the-registry` — **[BROKEN]** (#5721, #6052; section J) a step's row is one of two shapes decided by the registry's `needs_a_model` and nothing in the app: a chooser (the step's candidates from `step_candidates`, the chosen one marked, Choose a Model… or Find a Reader…) or "Fichero does this one: <how>"; today five no-model steps (`split-pages`, `prepare-the-image`, `leave-out`, `find-documents-in-a-folder`, `work-out-dates`) are drawn as a model row with a `builtin` pin. Fixed: a `builtin` pin is never drawn as a model; the row shape follows `needs_a_model` alone. *Test:* `fichero-server/tests/unit/recipes/test_setup_stages_5668.py` (built; add: every stage job's `needs_a_model` matches the table in section J), `TieTextStepTests.swift` (not yet written: the row shape per job from a stage listing). Manual: TBD.
+- `wide.picker.tie-text-picker-visible` — **[BROKEN]** (#6256, closed on the engine half 2026-10-28 and to be reopened; section G) the Read page's Tie text to lines row is a chooser like Read's: the three Kraken reader cards from `step_candidates`, the project's own line reader marked as the default, Change…, and one sentence from the topic saying the step matches the page text to the found lines and only the matching is done by the reader; today the engine lists the candidates (`ad84655ee`) but the row shows the line reader's pin as Read's row does, the stage page's chooser and Compare serve only the stage's main step, and nothing pins the row. *Test (fails today):* `TieTextStepTests.swift` (not yet written: from a stage listing and a recipe with a tie step, the row model is a chooser with three candidates and the line reader as default); `fichero-server/tests/unit/recipes/test_tie_text_to_lines_picks_a_reader_6256.py` (built; add: the assembled tie step's default is the project's line reader). Manual: TBD.
+- `wide.picker.cards-for-the-text-steps` — **[GAP]** (#6052; section J) the catalogue carries cards for `split-into-entries`, `find-statements`, `describe-for-the-catalogue` and `extract-to-a-table` (the two MLX instruct cards gain the jobs; the keyed cloud text models through `_cloud_text_pick`) and for `find-a-tables-cells` (the DocLayNet layout card plus the ruling rules); each step's default is the installed local card, else the cheapest priced cloud card, else the sentence naming the download or the key; a Mac without a key has a local answer for all five. *Test:* `fichero-server/tests/unit/recipes/test_one_candidate_source_5808.py` (built; add: each of the five jobs lists at least one local card; the default without a key is local). Manual: TBD.
+- `wide.picker.empty-says-why` — **[GAP]** (#6052; section J) a model step with no candidate on this Mac (a card not yet downloaded and no cloud key) does not show an empty chooser: it says "No model on this Mac does this yet" with the nearest fix (add a cloud key, or the download the catalogue names once a local card exists). *Test:* `fichero-server/tests/unit/recipes/test_one_candidate_source_5808.py` (built; add: an empty candidate list carries `why` and `fix`), `TieTextStepTests.swift`. Manual: TBD.
 - `wide.picker.guard` — **[GAP]** (#6052; section J) `check_setup_model_pickers.py` fails the fast gate when a stage job with `needs_a_model=True` has no card in the catalogue and is not a text-model job `_cloud_text_pick` serves and is not allowlisted, when a job with `needs_a_model=False` has no `FICHERO_DOES_IT`, `PREPARE` or `BY_HAND_FIX` entry with a `how_it_works` topic, when `JobInfo.needs_a_model` is missing from the contract, or when an allowlist entry is stale; the allowlist is one line per job with its issue and reason. *Test:* `test_check_setup_model_pickers.py` (not yet written: a scratch registry with one unlisted model job fails, one allowlisted passes, a stale entry fails). Manual: TBD.
 
 ### Suggestions from the material
@@ -627,6 +722,13 @@ kind (the 2026-08-25 compare design and `source.compare.*` hold).
 - `wide.compare.compact-layout` — **[GAP]** (#5900; section L) on iPad and iPhone the columns are a horizontal pager of candidates with the line list under, Overlay the default, the handle the drag, the sample strip a row of dots. *Test:* `CompareViewTests.swift` (the layout rule per width class). Manual: TBD.
 - `wide.compare.replaces-the-captions-and-the-animation` — **[GAP]** (#6052; section L) the caption lines of counts under the stage pictures go; `StageComparisonView`'s pictures become Side by side over the real result; the bake-off's table stays as the summary; `StageCompareWindow` hosts Find Lines' compare until the Segments pane's Compare mode exists. *Test:* `fichero/Tests/Unit/general/Views/Onboarding/StageShowcasePicturesTests.swift` (built; adjust: no caption counts), `CompareViewTests.swift`. Manual: TBD.
 
+### Ready and the release
+
+- `wide.ready.only-what-will-run` — **[GAP]** (#5840, #6295; section N) Ready lists only the steps that will run, in run order, each with its model, place, pages and cost, then the estimate with its per-step basis, then the Budget block, then Start with its reason; the skipped steps stay, each in its own box with why; the offered-jobs list (`OfferedJobsList`), the left-off rows and the taken-out rows are not on Ready. *Test:* `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift` (built; add: Ready's section model holds no offered job), `ReadyOnlyRunsTests.swift` (not yet written: the sections from a plan with skipped, left-off and offered steps). Manual: TBD.
+- `wide.ready.adding-a-step-is-on-its-stage-page` — **[GAP]** (#5840; section N) a step the recipe does not have is added on its stage's page (the left-off rows with Add, Put Back for a step taken out) or by ticking the stage on Choose the Stages; a stage not chosen is not offered anywhere else. *Test:* `fichero/Tests/Unit/general/Models/RecipeLeftOffTests.swift` (built; add: the rows are the stage page's and filtered to its jobs), `ReadyOnlyRunsTests.swift`. Manual: TBD.
+- `wide.release.behind-one-flag` — **[GAP]** (#5668; section O) the pager, the operation rows, the output column, the compare view and the Ready cut are behind the `wideSetUp` feature flag, off in the release tier and on in the dev tier; off, Set Up is today's window unchanged; the engine changes ship either way. *Test:* `fichero/Tests/Unit/general/Models/FeatureManagerTests.swift` (built; add the flag and its tier), `SetupPagerTests.swift` (the flow with the flag off is today's). Manual: TBD.
+- `wide.release.solid-per-step` — **[GAP]** (#5668; section O) a step is in the release only when its behaviours are [OK] with green tests, a real run on a scratch copy of real pages has been read by eye with its figures in the handoff, and the owner has pressed through it once; the Sunday-night Start gate and Air try decide the flag's release value. *Test:* the gate itself (`scripts/gate part recipes`, `verify_all --standard`) and `scripts/realrun_check.py` on the scratch project; no unit test. Manual: TBD.
+
 ### Tries, Leave Out and Review (owner 2026-10-31)
 
 - `wide.try.start-reuses-a-matching-try` — **[GAP]** (#6127; section M) Start counts a page done for a step when a try ran that step with the same card and settings on the same image signature, runs it on the other pages only, and the account says how many came from the try. *Test:* `fichero-server/tests/unit/recipes/test_start_plan_counts_what_ran_5616.py` (built; add the try's pages). Manual: TBD.
@@ -648,6 +750,8 @@ kind (the 2026-08-25 compare design and `source.compare.*` hold).
 | Pickers (engine + guard) | y | every stage job's row shape; the empty picker's why; the guard's three rules and its allowlist | `fichero-server/tests/unit/recipes/test_setup_stages_5668.py`, `test_check_setup_model_pickers.py` |
 | Suggestions (engine + Swift) | y | the suggestions list per answer; the row's parts and Change… | `test_suggestions_route.py`, `SuggestionRowTests.swift` |
 | Compare (engine + Swift) | y | the frame on the compare answer; the modes, the diff rows, the key map, the states, the compact layout | `fichero-server/tests/unit/api/test_compare_readers_5900.py`, `CompareViewTests.swift` |
+| Ready (Swift) | y | Ready's sections hold only what runs, the estimate and the Budget; adding is on the stage page | `ReadyOnlyRunsTests.swift`, `fichero/Tests/Unit/general/Models/RecipeLeftOffTests.swift` |
+| Release (flag + gates) | y | the flag off gives today's window; the Start gate and the Air try | `fichero/Tests/Unit/general/Models/FeatureManagerTests.swift`, `scripts/gate part recipes`, `scripts/realrun_check.py` |
 | Tries, Leave Out, Review (engine) | y | a try's pages counted at Start; the try label outside Set Up; Accept all as one action; Leave Out from the sample | `fichero-server/tests/unit/recipes/test_start_plan_counts_what_ran_5616.py`, `test_try_results_labelled_outside_setup.py`, `test_review_accept_all.py` |
 
 ## Build order
@@ -769,8 +873,8 @@ first and its tests run when a host is available. Engine before app throughout.
 
 ### Stage 7 — Pickers and the guard (engine first)
 
-#### Step 7.1 — The row shape from the registry; the empty picker's why (#6052)
-- Behaviours: `wide.picker.row-shape-from-the-registry`, `wide.picker.empty-says-why`
+#### Step 7.1 — The tie picker, the row shape from the registry, the five cards, the empty picker's why (#6256, #6052)
+- Behaviours: `wide.picker.tie-text-picker-visible`, `wide.picker.row-shape-from-the-registry`, `wide.picker.cards-for-the-text-steps`, `wide.picker.empty-says-why`
 - Tests: fichero-server/tests/unit/recipes/test_setup_stages_5668.py, fichero-server/tests/unit/recipes/test_one_candidate_source_5808.py, TieTextStepTests.swift
 - Depends on: 6.1
 - Size: S
@@ -849,6 +953,77 @@ first and its tests run when a host is available. Engine before app throughout.
 - Size: S
 - Engine: one action, one undo. The button is the Review surface's (`readings-and-apparatus.md`), not this spec's.
 
+### Stage 11 — Ready and the flag
+
+#### Step 11.1 — The flag, first (#5668)
+- Behaviours: `wide.release.behind-one-flag`
+- Tests: fichero/Tests/Unit/general/Models/FeatureManagerTests.swift, SetupPagerTests.swift
+- Size: S
+- Swift only; lands before any pager slice so every later Swift slice is behind it.
+
+#### Step 11.2 — Ready shows only what will run (#5840, #6295)
+- Behaviours: `wide.ready.only-what-will-run`, `wide.ready.adding-a-step-is-on-its-stage-page`
+- Tests: ReadyOnlyRunsTests.swift, fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift, fichero/Tests/Unit/general/Models/RecipeLeftOffTests.swift
+- Depends on: 11.1
+- Size: M
+- Swift; the Budget block is the recipe designer's Step 18.3; needs the host.
+
+#### Step 11.3 — Solid per step: the real runs and the Sunday checks (#5668)
+- Behaviours: `wide.release.solid-per-step`
+- Tests: scripts/realrun_check.py
+- Depends on: 11.2
+- Size: S
+- The manager's, not the builder's: the real runs, the gate and the Air try, the flag's tier value.
+
+## Build order for one builder (owner 2026-10-31: one long-running builder, after `fix/air-engine-oom` and the pairing branch land)
+
+One Sonnet builder, one worktree off `integration` once those two branches are in, working the stages
+above in this order, each slice engine first, committed on its own with its tests red then green, the
+Swift tests written beside the code and run when the XCTest host is back (the Pro's `testmanagerd` is
+stuck; a slice is not blocked on it). The builder hands off at 120k context with a note naming the next
+slice. The order:
+
+0. Step 11.1 — the `wideSetUp` flag, so every Swift slice after it is behind it. Test:
+   `fichero/Tests/Unit/general/Models/FeatureManagerTests.swift`.
+1. Step 1.1 then 1.2 — the two defects (`wide.prepare.operations-run-on-every-page`,
+   `wide.prepare.rerun-follows-the-answers`, `wide.prepare.ticked-later-still-runs`,
+   `wide.start.enabled-on-any-run`). Tests: `fichero-server/tests/unit/media/test_turn_straighten_blank.py`,
+   `fichero-server/tests/unit/recipes/test_prepare_images_step.py`, `fichero-server/tests/unit/recipes/test_start_plan.py`,
+   `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`.
+2. Step 7.1 and the tie picker (`wide.picker.tie-text-picker-visible`, `wide.picker.row-shape-from-the-registry`,
+   `wide.picker.cards-for-the-text-steps`, `wide.picker.empty-says-why`), then Step 7.2 the guard
+   (`wide.picker.guard`). Tests: `fichero-server/tests/unit/recipes/test_tie_text_to_lines_picks_a_reader_6256.py`,
+   `fichero-server/tests/unit/recipes/test_setup_stages_5668.py`, `fichero-server/tests/unit/recipes/test_one_candidate_source_5808.py`,
+   `TieTextStepTests.swift`, `test_check_setup_model_pickers.py`.
+3. Steps 2.1, 2.2, 2.3 — Prepare Images as steps and the image chain, engine. Tests:
+   `fichero-server/tests/unit/recipes/test_setup_stages_5668.py`, `fichero-server/tests/unit/recipes/test_prepare_step_setup.py`,
+   `fichero-server/tests/unit/media/test_current_image_6296.py`, `test_image_chain_route.py`.
+4. Steps 3.1, 3.2, 3.3 — the operation rows (picker gone), the four pictures, the chain strip, Swift.
+   Tests: `PrepareOperationsTests.swift`, `fichero/Tests/Unit/general/Views/Onboarding/StageShowcasePicturesTests.swift`,
+   `RenditionChainStripTests.swift`.
+5. Steps 4.1, 4.2 — the try's revision, Run this step, the four output states. Tests:
+   `fichero-server/tests/unit/recipes/test_stage_try_result_follows_its_job_5806.py`, `StepOutputStateTests.swift`.
+6. Steps 5.1, 5.2 — the pager filling the window, keys, swipe, accessibility, position restored. Tests:
+   `SetupPagerTests.swift`, `fichero/Tests/Unit/general/Views/Onboarding/SetupFooterTests.swift`.
+7. Steps 6.1, 6.2, 6.3 — the no-model rows and the tie's figures, the untied remainder, faded pages and
+   the two line counts. Tests: `test_tie_text_counts_on_the_stage_try.py`, `test_tie_text_remainder.py`,
+   `test_find_lines_try_counts_on_both_images.py`, `fichero-server/tests/unit/recipes/test_model_chooser_per_step_5668.py`.
+8. Steps 9.1 to 9.4 — the compare view, engine then Swift. Tests:
+   `fichero-server/tests/unit/api/test_compare_readers_5900.py`, `CompareViewTests.swift`,
+   `fichero-server/tests/unit/api/test_compare_pick_5900.py`.
+9. Steps 8.1, 8.2, 8.3 — the suggestions list and rows, Leave Out from the sample (after the recipe
+   designer's Step 18.6, the defaults table; the builder does that step too if it has not landed).
+   Tests: `test_suggestions_route.py`, `SuggestionRowTests.swift`, `fichero-server/tests/unit/recipes/test_prepare_step_setup.py`.
+10. Steps 10.1, 10.2 — a try reused at Start and labelled outside Set Up, the price on the button,
+    Review's Accept all. Tests: `fichero-server/tests/unit/recipes/test_start_plan_counts_what_ran_5616.py`,
+    `test_try_results_labelled_outside_setup.py`, `TryLabelTests.swift`, `test_review_accept_all.py`.
+11. Step 11.2 — Ready shows only what will run. Tests: `ReadyOnlyRunsTests.swift`,
+    `fichero/Tests/Unit/general/Models/RecipeLeftOffTests.swift`. Then the manager's Step 11.3.
+
+After each slice: `ruff`, the slice's pytest with `PYTHONPATH` on the worktree's `fichero-server/src`,
+`swiftlint` on the Swift diff, the regenerated client committed when the contract changed, and every
+`scripts/check_*.py` on a Swift or contract slice.
+
 ## Accessibility identifiers
 
 | Identifier | What it is on |
@@ -875,38 +1050,17 @@ first and its tests run when a host is available. Engine before app throughout.
 
 ## Open questions for the owner
 
-1. **Where a folder's own answers live once the picker goes.** Recommended default: the folder's context
-   menu in the library, outside Set Up ("This folder's pages: two in one picture"), with Set Up saying
-   only "2 folders answer for themselves". The engine's per-folder run stays as built.
-2. **The window size.** 1040 by 680 is proposed; the owner may want the sheet to fill the library window
-   instead. The columns are written for either.
-3. **The tie's remainder and its measured threshold** (section G, `wide.nomodel.untied-remainder-kept`):
-   keep the alignment on the line reader's rough read as the anchor and add the untied remainder, or ask
-   for a different method. Recommended: keep the anchor, add the remainder, measure the threshold.
-4. **Apple Vision's lines as a Find Lines candidate on handwriting**, adopted only on the compare's
-   evidence (`wide.faded.segmenter-choices-named`). Recommended: yes, as a candidate, never the default.
-5. **Clarity's default** when the paper answer is empty: on (every page) or Fichero's per-page look
-   (today). Recommended: today's rule, said in words on the row.
-
+3. **The tie's method** (section G): the alignment stays anchored on the chosen line reader's rough
+   read, with the untied remainder kept and the threshold measured — taken as a DEFAULT (owner
+   2026-10-31, "keep the untied-remainder list"); still open only whether the owner wants another
+   method tried beside it. Everything else of the earlier question 3 is ruled.
 6. **What the material's condition and script change.** Damaged handwriting may do well with several
    review passes where a single reader does not, and an unusual script (for example Cherokee) may need a
-   different reader or segmenter, or training, where the defaults fail. Proposed: the About the Material
-   page asks the condition and the script, and each answer changes which steps are offered, which
-   model each step suggests, and says why in words. Which condition and script answers should steer which
-   steps is for the owner to list.
-7. **Which condition and script answers steer which steps and suggestions** (section K). Proposed
-   mapping for the defaults table: faded ink → Clarity on; tight binding → Crop's flatten on; ruled
-   lines → the ruling answer kept; show-through → its answer; torn, stains, water damage → Leave Out on
-   and a compare suggested; damaged handwriting → a compare of reader against reader-with-review on the
-   samples; a script with no installed reader → the readers found for it and the training offer; a
-   script with no word spaces → the reader must say so on its card. The owner lists what is missing.
-8. **Whether a suggestion ever acts without a tap.** Recommended: never beyond being the default it
-   already is — a suggestion row is the default already applied and marked as the engine's, Change… is
-   the person's; nothing runs, downloads or spends from a suggestion alone.
-9. **Review's Accept all against the compare view's per-line pick.** The ruling gives Review a page-wide
-   Accept all; `source.compare.pick` (#5900) forbids a pick-all on the compare view. Recommended: both
-   stand, as written in section M — Review accepts its own proposals, the compare view picks a line.
-10. **The compare view's default mode** on the Mac: Side by side (recommended) or Overlay.
+   different reader or segmenter, or training, where the defaults fail. The mapping under ruling 7 is the
+   DEFAULT; which condition and script answers steer which steps beyond it is for the owner to list.
+
+Questions 1, 2, 4, 5, 7, 8, 9 and 10 of the earlier draft are answered under Rulings (2026-10-31, the
+owner's answers), each DEFAULT marked as one the owner may change.
 
 ## Rulings
 
@@ -930,3 +1084,24 @@ first and its tests run when a host is available. Engine before app throughout.
   price on the button; Leave Out has no fixed default and Set Up decides from page quality, saying why;
   damaged handwriting: try the samples and the person chooses; Review on, price shown, for a large cloud
   vision reader; a real compare view for A/B and bake-off results, folded into the pager (section L).
+- 2026-10-31 (owner, Ready and the release, paraphrased): Ready shows only what will run, its estimate
+  and its budget; the steps one could add belong on their own stage pages (section N). The wide Set Up
+  goes into Monday's release only if solid, each step proven on real test pages with tests to spec; a red
+  Start gate or Air try on Sunday night leaves it out rather than holding the release (section O).
+- 2026-10-31 (owner, correction, paraphrased): the note that no model ties text to lines was wrong; the
+  owner meant there is no UX to choose a model for that step. Tie text to lines shows a working model
+  picker like every other model step; the alignment may stay anchored on the reader's rough read; the
+  untied-remainder list stays (section G, `wide.picker.tie-text-picker-visible`).
+- 2026-10-31 (owner, answers to the open questions, paraphrased): **Q1** a folder's own answers live in
+  the folder's context menu in the library (section C). **Q2** Set Up fills the library window, not a
+  fixed 1040 by 680 (section A). **Q10** the compare view opens Side by side (section L). The
+  recommended answers are taken as DEFAULTS the owner may change: **Q4** Apple Vision's lines are a Find
+  Lines candidate on handwriting, never the default, adopted on the compare's evidence; **Q5** Clarity
+  with no paper answer keeps today's per-page look, said in words on the row; **Q7** the defaults
+  mapping (faded ink → Clarity; tight binding → flatten; ruled lines and show-through → their answers;
+  torn, stains, water damage → Leave Out on and a compare suggested; damaged handwriting → a compare of
+  reader against reader-with-review; a script with no installed reader → the readers found and the
+  training offer; a script with no word spaces → the reader's card must say so); **Q8** a suggestion
+  never acts without a tap beyond being the default already applied and marked; **Q9** Review's Accept
+  all and the compare view's per-line pick both stand, each on its own surface. The spec is approved to
+  land; one long-running builder works the build order below.
