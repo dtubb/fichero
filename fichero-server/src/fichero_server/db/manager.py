@@ -184,9 +184,9 @@ class DatabaseManager:
                         from fichero_server.maintenance.page_text_repair import repair_on_open
 
                         repair_on_open(db)
-                        from fichero_server.maintenance.image_marker_repair import repair_image_marker_fields
+                        from fichero_server.maintenance.image_marker_repair import repair_on_open as repair_image_markers
 
-                        repair_image_marker_fields(db)  # the text a reading's field lost to the image marker
+                        repair_image_markers(db)  # the text a reading's field lost to the image marker
                     except Exception:
                         logger.exception("Page text repair could not run")
 
