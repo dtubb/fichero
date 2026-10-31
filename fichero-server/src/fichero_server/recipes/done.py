@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Any
 
 #: Jobs whose output a page can be seen to have.
@@ -70,11 +71,25 @@ def _documents(db: Any, within: set[str] | None) -> list[Any]:
 
 
 def split_pages(db: Any, within: set[str] | None) -> list[Any]:
-    """The pages a split cut from a photograph (`_is_split_page`), live: only `chunk` rows carry the metadata it asks of."""
+    """The pages a split cut from a photograph (`_is_split_page`), live, as records of `id` and `parent_id`. A folder's plan
+    reads the folder (#6268). The library's are asked in SQL a batch at a time: a cut page's metadata holds its line boxes,
+    and 70k of them held in Python cost 1.2 GiB and a minute."""
     from fichero_server.models import Document
 
-    rows = db.query_fields(Document, ("id", "parent_id", "doc_type", "metadata", "exclude_from_processing"), doc_type="chunk", deleted_at=None)
-    return [d for d in rows if _is_split_page(d) and (within is None or d.id in within)]
+    if within is not None:
+        rows = db.query_fields_in(Document, ("id", "parent_id", "doc_type", "metadata", "exclude_from_processing", "deleted_at"), "id", within)
+        return [SimpleNamespace(id=d.id, parent_id=d.parent_id) for d in rows if not d.deleted_at and _is_split_page(d)]
+    ids = [d.id for d in db.query_fields(Document, ("id",), doc_type="chunk", deleted_at=None)]
+    out = []
+    for start in range(0, len(ids), 500):
+        chunk = ids[start : start + 500]
+        out += [SimpleNamespace(id=row[0], parent_id=row[1]) for row in db.execute_fetchall(
+            f"""SELECT id, parent_id FROM documents WHERE id IN ({",".join("?" * len(chunk))})
+                AND COALESCE(json_extract_string(metadata, '$.split_source_id'), '') NOT IN ('', 'false', '0')
+                AND NOT (CASE WHEN COALESCE(exclude_from_processing, FALSE)
+                         THEN COALESCE(json_extract_string(metadata, '$.blank.blank'), '') = 'true' ELSE FALSE END)""",
+            chunk, committed=True)]
+    return out
 
 
 def pages_for(db: Any, card: dict[str, Any], documents: list[str] | None, within: set[str] | None = None) -> list[str]:

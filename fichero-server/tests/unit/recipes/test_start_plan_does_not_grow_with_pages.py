@@ -96,3 +96,41 @@ def test_a_plan_s_notes_do_not_ask_page_by_page_who_called_it_blank(db, monkeypa
     plan = {"runs": [{"job": "find-lines", "card": "workflow", "steps": ["find-lines"]}]}
     assert done.annotate(db, plan)["runs"][0]["of"] == len(pages)
 
+
+def _cut_page(db, parent, **extra):
+    from fichero_server.models import DocType, Document
+
+    doc = Document(name="c", doc_type=DocType.chunk, parent_id=parent, metadata={"split_source_id": parent, "lines": [1], **extra})
+    db.save(doc)
+    return doc
+
+
+def test_a_folder_s_cut_pages_are_read_from_the_folder_not_the_library(db, monkeypatch):
+    """Review H1: rows read, not time."""
+    mine, others = [_cut_page(db, "here") for _ in range(2)], [_cut_page(db, "there") for _ in range(30)]
+    rows: list[int] = []
+    real = Database._execute_fetch_with_columns
+    monkeypatch.setattr(Database, "_execute_fetch_with_columns",
+                        lambda self, sql, *a, **k: (out := real(self, sql, *a, **k), rows.append(len(out[0] or [])))[0])
+    assert {d.id for d in done.split_pages(db, {d.id for d in mine})} == {d.id for d in mine}
+    assert sum(rows) == len(mine), others[0].id
+
+
+def test_the_library_s_cut_pages_agree_with_asking_each_page(db):
+    from fichero_server.models import DocType, Document
+
+    kept = _cut_page(db, "a")
+    hidden = _cut_page(db, "a", blank={"blank": True})
+    hidden.exclude_from_processing = True
+    db.save(hidden)
+    excluded_only = _cut_page(db, "a")
+    excluded_only.exclude_from_processing = True
+    db.save(excluded_only)
+    gone = _cut_page(db, "a")
+    gone.deleted_at = gone.created_at
+    db.save(gone)
+    db.save(Document(name="no-source", doc_type=DocType.chunk, metadata={}))
+    expected = {kept.id, excluded_only.id}
+    assert {d.id for d in done.split_pages(db, None)} == expected
+    assert {d.id for d in done.split_pages(db, None)} == {d.id for d in db.query(Document, doc_type=DocType.chunk) if not d.deleted_at and done._is_split_page(d)}
+

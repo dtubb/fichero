@@ -47,9 +47,12 @@ VIEW_SECONDS = 15
 #: share included. Before the slim reads `counted` raised it by 2.2 GiB, a whole box's Catalogue plan by 1.5-2.1 GiB,
 #: `material` by 2.9 GiB.
 READER_PEAK_MIB = 800
+#: A 63-page folder's pages, in a library of 20k cut pages (the old read: +849 MiB here, +1.2 GiB at 70k). `unit_of_work_ids`
+#: still costs the library: this bounds the metadata, which is the rest.
+CUT_FOLDER_PEAK_MIB = 250
 
 
-def _build(path: Path) -> None:
+def _build(path: Path, docs: int = DOCS, cut: bool = False) -> None:
     """The library, written in SQL (a minute, not ten): rows the model reads back, ids `box<b>`, `f<n>`, `p<n>_<p>`."""
     from fichero_server.db import Database
     from fichero_server.models import Artifact, ContentRepresentation, DocType, Document, FileType
@@ -64,7 +67,7 @@ def _build(path: Path) -> None:
     db.save(Segment(id="tmpl", document_id="tmpl", pass_id="tmpl", kind="line", anchor=anchor, bbox_x=0.1, bbox_y=0.1, bbox_w=0.6,
                     bbox_h=0.05, tile="t", doc_kind="tmpl:line", provenance_kind=ProvenanceKind.workflow))
     db.save(ContentRepresentation(id="tmpl", document_id="tmpl", segment_id="tmpl", kind="transcription", content="texto", source_anchor=anchor))
-    c, folders = db.conn, DOCS // PAGES_PER_FOLDER
+    c, folders = db.conn, docs // PAGES_PER_FOLDER
     c.execute("""INSERT INTO documents SELECT documents.* REPLACE ('box'||b AS id, NULL AS parent_id, 'folder' AS doc_type,
                  NULL AS file_type, 'B'||b AS name) FROM documents, range(2) t(b) WHERE id = 'tmpl'""")
     c.execute(f"""INSERT INTO documents SELECT documents.* REPLACE ('f'||f AS id, 'box'||(f % 2) AS parent_id,
@@ -85,6 +88,9 @@ def _build(path: Path) -> None:
                  ELSE to_json({{'thumbnail': 'storage/x.jpg', 'width': 3000, 'height': 4000}}) END AS metadata)
             FROM documents, range({start}, {min(folders, start + 100)}) t(f), range({PAGES_PER_FOLDER}) u(p)
             WHERE id = 'tmpl'""")
+    if cut:  # pages cut from photographs: a `chunk` whose metadata names its photograph, beside its line boxes
+        c.execute("""UPDATE documents SET doc_type = 'chunk', file_type = NULL,
+                     metadata = json_merge_patch(metadata, '{"split_source_id": "a-photograph"}') WHERE id LIKE 'p%'""")
     # Each read page: its reader's transcription artifact (the text and the line boxes again) and its pass.
     c.execute("""INSERT INTO artifacts SELECT artifacts.* REPLACE ('a'||d.id AS id, d.id AS document_id,
                   d.page_content AS content, d.metadata AS data)
@@ -224,7 +230,14 @@ def test_the_air_s_reads_and_writes_fit_its_share(the_air):
 
 
 _PROBE = """
-import resource, sys
+import os, resource, sys, threading, time
+def _guard():  # HARD: a probe never takes the machine with it
+    while True:
+        time.sleep(1)
+        if resource.getrusage(resource.RUSAGE_SELF).ru_maxrss > 3 * 1024**3:
+            print("OVER 3 GiB", flush=True)
+            os._exit(3)
+threading.Thread(target=_guard, daemon=True).start()
 from fichero_server.core import duckdb_session as ds
 ds.physical_memory_bytes = lambda: 8 * 1024**3
 from fichero_server.db import Database
@@ -246,8 +259,8 @@ def probed(built_library, tmp_path_factory):
     env = {**os.environ, "HOME": str(home), "FICHERO_BASE_PATH": str(home), "FICHERO_DUCKDB_MEMORY_LIMIT": "448MiB",
            "PYTHONPATH": str(Path(__file__).parents[3] / "src")}
 
-    def run(code: str) -> int:
-        finished = subprocess.run([sys.executable, "-c", _PROBE, str(built_library), code], env=env, capture_output=True, text=True, timeout=600)
+    def run(code: str, library: Path = built_library) -> int:
+        finished = subprocess.run([sys.executable, "-c", _PROBE, str(library), code], env=env, capture_output=True, text=True, timeout=900)
         assert finished.returncode == 0, finished.stderr[-800:]
         peak = int(finished.stdout.split("PEAK")[-1])
         print(f"{code[:70]}: +{peak} MiB")
@@ -255,6 +268,24 @@ def probed(built_library, tmp_path_factory):
 
     run("pass")  # the first open rebuilds the indexes (#5644): its spike would hide what the reader adds
     return run
+
+
+@pytest.fixture(scope="module")
+def cut_library(tmp_path_factory) -> Path:
+    path = tmp_path_factory.mktemp("air-cut") / "fichero.duckdb"
+    _build(path, docs=20_000, cut=True)
+    return path
+
+
+def test_a_small_folder_of_cut_pages_reads_the_folder_not_the_library(cut_library, probed):
+    """Review H1 (a regression of the sweep): `split_pages` read every cut page's metadata, then filtered: 60 s and +1.2 GiB
+    for 63 pages in a library of 70k cut pages. The folder's plan reads the folder (#6268)."""
+    code = """
+within = {d.id for d in db.query_fields(Document, ["id"], parent_id="f0")}
+assert len(done.pages_for(db, {}, None, within)) == 63
+assert done.material(db, within)["pages"] == 63
+"""
+    assert probed(code, library=cut_library) <= CUT_FOLDER_PEAK_MIB
 
 
 def test_the_canvas_backfill_fits_the_floor(built_library, tmp_path, monkeypatch):
