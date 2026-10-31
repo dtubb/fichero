@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from _scan_files import scan_rglob
+
 SRC = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
 GONE = ("frame_true_rendition_path", "READ_FROM_ROLES", "_frame_true_background_removed_path")
 
 
 def test_nothing_in_src_names_the_deleted_rendition_choice():
-    named = [f"{path.relative_to(SRC)}: {word}" for path in SRC.rglob("*.py") for word in GONE if word in path.read_text(encoding="utf-8")]
+    named = [f"{path.relative_to(SRC)}: {word}" for path in scan_rglob(SRC, "*.py") for word in GONE if word in path.read_text(encoding="utf-8")]
     assert named == []
 
 
@@ -23,7 +25,7 @@ def test_every_public_page_image_method_has_a_caller_in_src():
     from fichero_server.media.current_image import PageImage
 
     own = SRC / "media" / "current_image.py"
-    others = "\n".join(p.read_text(encoding="utf-8") for p in SRC.rglob("*.py") if p != own)
+    others = "\n".join(p.read_text(encoding="utf-8") for p in scan_rglob(SRC, "*.py") if p != own)
     inside = own.read_text(encoding="utf-8")
     unused = [name for name, member in vars(PageImage).items()
               if not name.startswith("_") and (callable(member) or isinstance(member, property))
