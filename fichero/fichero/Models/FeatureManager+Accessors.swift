@@ -113,6 +113,9 @@ extension FeatureManager {
     var isAutomationEnabled: Bool { isEnabled(.automation, automationEnabledInternal) }
     var isMCPEnabled: Bool { isEnabled(.mcpUi, mcpEnabledInternal) }
     var isIntegrationsEnabled: Bool { isEnabled(.integrations, integrationsEnabledInternal) }
+    /// The wide Set Up (`wide.release.behind-one-flag`): visible only where the build tier is dev; no stored switch, so a release or beta
+    /// build cannot turn it on by a preference or by `allFeaturesEnabled`.
+    var isWideSetUpEnabled: Bool { isVisible(.wideSetUp) }
     var isActivityEnabled: Bool { isEnabled(.activity, activityEnabledInternal) }
     var isLibraryAdvancedViewsEnabled: Bool {
         isEnabled(.libraryAdvancedViews, libraryAdvancedViewsEnabledInternal)

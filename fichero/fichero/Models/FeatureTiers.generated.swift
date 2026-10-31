@@ -68,6 +68,7 @@ enum FeatureKey: String, CaseIterable {
     case agents
     case integrations
     case iiif
+    case wideSetUp
 }
 
 struct FeatureDescriptor {
@@ -458,6 +459,13 @@ enum FeatureTiers {
             swiftFlag: nil,
             uxGroup: "Core",
             notes: "IIIF image and annotation server interoperability."
+        ),
+        .wideSetUp: .init(
+            name: "Wide Set Up",
+            tier: .dev,
+            swiftFlag: nil,
+            uxGroup: "Core",
+            notes: "The wide Set Up (a pager of stage pages, Prepare Images operations, Compare in the output column); off in release and beta until the owner ratifies it (wide-onboarding.md, section O)."
         )
     ]
 }

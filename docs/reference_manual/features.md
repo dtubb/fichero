@@ -57,6 +57,7 @@ Build-tier visibility uses a maturity floor:
 | Spatial mode | `dev` | `fichero.features.spatial_mode` | - | Clients | Spatial library presentation mode. |
 | Workspace mode | `dev` | `fichero.features.workspace_mode` | - | Clients | Alternate workspace-oriented shell mode. |
 | IIIF | `dev` | - | `/api/iiif` | Core | IIIF image and annotation server interoperability. |
+| Wide Set Up | `dev` | - | - | Core | The wide Set Up (a pager of stage pages, Prepare Images operations, Compare in the output column); off in release and beta until the owner ratifies it (wide-onboarding.md, section O). |
 | Agents | `dev` | `fichero.features.agents` | - | Knowledge | In-app agent surface still in the rawest stage. |
 | Chat | `dev` | `fichero.features.chat` | `/api/chat` | Knowledge | RAG conversation over the active library. |
 | Research | `dev` | `fichero.features.research` | `/api/research` | Knowledge | KG-backed research workflows and answer surface. |

@@ -58,6 +58,21 @@ final class FeatureManagerTests: XCTestCase {
         }
     }
 
+    /// `wide.release.behind-one-flag`: the wide Set Up shows only in a dev tier build, whatever the stored switches say.
+    func testWideSetUpIsOffInReleaseBetaAndAlphaAndOnInDev() {
+        let featureManager = FeatureManager.shared
+        for tier in ["release", "beta", "alpha"] {
+            withFeatureTier(tier) {
+                featureManager.resetToV001()
+                XCTAssertFalse(featureManager.isWideSetUpEnabled, "wide Set Up is hidden in \(tier)")
+            }
+        }
+        withFeatureTier("dev") {
+            featureManager.resetToV001()
+            XCTAssertTrue(featureManager.isWideSetUpEnabled)
+        }
+    }
+
     func testAlphaBuildDefaultsExposeInternalReviewSettingsAndIntegrationSurfaces() {
         let featureManager = FeatureManager.shared
 
