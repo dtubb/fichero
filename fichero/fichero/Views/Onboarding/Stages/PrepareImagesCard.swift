@@ -169,7 +169,7 @@ struct PrepareOperationRowsView: View {
         if !rows.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(rows) { row in
-                    Toggle(isOn: Binding(get: { row.isOn }, set: { store.setPrepareOperation(row.id, on: $0) })) {
+                    Toggle(isOn: Binding(get: { row.isOn }, set: { store.setPrepareOperation(row.id, isOn: $0) })) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(row.title).font(.body)
                             Text(row.sentence).font(.caption).foregroundStyle(.secondary)

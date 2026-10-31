@@ -11,8 +11,8 @@ struct StepOutputStateTests {
 
     private func state(_ result: SetupStageTryResult?, refusal: String? = nil, cost: String? = nil, trying: Bool = false,
                        revision: String? = "r1") -> StepOutputState {
-        StepOutputState.of(result: result, refusal: refusal, costQuestion: cost, isTrying: trying, currentRevision: revision,
-                           pages: 5, estimate: "about 2 minutes, free on this Mac")
+        StepOutputState.of(StepOutputInputs(result: result, refusal: refusal, costQuestion: cost, isTrying: trying,
+                                            currentRevision: revision, pages: 5, estimate: "about 2 minutes, free on this Mac"))
     }
 
     @Test("no result is the not-tried state with the engine's time and cost, and one page is said in the singular")

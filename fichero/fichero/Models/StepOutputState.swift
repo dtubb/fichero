@@ -13,17 +13,17 @@ enum StepOutputState: Equatable {
     /// Refused or failed: the engine's sentence.
     case failed(words: String)
 
-    /// The state from what the try store holds. `currentRevision` is the stage listing's `answers_revision` now.
-    static func of(result: SetupStageTryResult?, refusal: String?, costQuestion: String?, isTrying: Bool,
-                   currentRevision: String?, pages: Int, estimate: String?) -> StepOutputState {
-        if let refusal, !refusal.isEmpty { return .failed(words: refusal) }
-        if let costQuestion, !costQuestion.isEmpty { return .notTried(line: costQuestion) }
-        guard let result else {
-            return isTrying ? .running(words: "Starting the try.") : .notTried(line: notTriedLine(pages: pages, estimate: estimate))
+    /// The state from what the try store holds.
+    static func of(_ input: StepOutputInputs) -> StepOutputState {
+        if let refusal = input.refusal, !refusal.isEmpty { return .failed(words: refusal) }
+        if let costQuestion = input.costQuestion, !costQuestion.isEmpty { return .notTried(line: costQuestion) }
+        guard let result = input.result else {
+            return input.isTrying ? .running(words: "Starting the try.")
+                : .notTried(line: notTriedLine(pages: input.pages, estimate: input.estimate))
         }
         if result.isUnderWay { return .running(words: result.underWayWords ?? "Working on it.") }
         if let failure = result.failure { return .failed(words: failure) }
-        return .done(stale: isStale(result, currentRevision: currentRevision))
+        return .done(stale: isStale(result, currentRevision: input.currentRevision))
     }
 
     /// "Try on these 5 pages, about 2 minutes, free on this Mac": the button's label and the engine's time and cost line.
@@ -41,4 +41,15 @@ enum StepOutputState: Equatable {
 
     /// The words over a stale result.
     static let staleWords = "Tried with the earlier answers; try again"
+}
+
+/// What the output column's state is worked out from. `currentRevision` is the stage listing's `answers_revision` now.
+struct StepOutputInputs {
+    let result: SetupStageTryResult?
+    let refusal: String?
+    let costQuestion: String?
+    let isTrying: Bool
+    let currentRevision: String?
+    let pages: Int
+    let estimate: String?
 }

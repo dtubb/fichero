@@ -139,8 +139,8 @@ final class SetupStageTryStore {
 
     /// The output column's state (`wide.output.four-states`): `currentRevision` is the stage listing's `answers_revision` now.
     func outputState(currentRevision: String?, estimate: String?) -> StepOutputState {
-        StepOutputState.of(result: result, refusal: refusal, costQuestion: costQuestion, isTrying: isTrying,
-                           currentRevision: currentRevision, pages: samples.count, estimate: estimate)
+        StepOutputState.of(StepOutputInputs(result: result, refusal: refusal, costQuestion: costQuestion, isTrying: isTrying,
+                                            currentRevision: currentRevision, pages: samples.count, estimate: estimate))
     }
 
     /// A sample page's name, by id.
@@ -212,39 +212,8 @@ struct SetupStageTryResult: Decodable, Equatable {
     /// Find Lines' two counts, on the photograph and on the clarified copy (`wide.faded.line-counts-before-and-after`).
     let lineCounts: LineCounts?
 
-    struct Tie: Decodable, Equatable {
-        struct Counts: Decodable, Equatable {
-            let tied: Int?
-            let doubtful: Int?
-            let untied: Int?
-            let drafts: Int?
-        }
-
-        struct PageFigures: Decodable, Equatable {
-            let tied: Int
-            let doubtful: Int
-            let untied: Int
-            let draft: Bool
-        }
-
-        let counts: Counts?
-        let pages: [String: PageFigures]?
-    }
-
-    struct LineCounts: Decodable, Equatable {
-        struct Both: Decodable, Equatable {
-            let photograph: Int
-            let clarified: Int
-        }
-
-        let pages: [String: Both]?
-        let notClarified: [String]?
-
-        enum CodingKeys: String, CodingKey {
-            case pages
-            case notClarified = "not_clarified"
-        }
-    }
+    typealias Tie = SetupStageTie
+    typealias LineCounts = SetupStageLineCounts
 
     struct Comparison: Decodable, Equatable {
         let state: String?

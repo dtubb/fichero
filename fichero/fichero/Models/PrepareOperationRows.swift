@@ -20,23 +20,23 @@ enum PrepareOperationRows {
     /// one, the engine's own `on` stands.
     static func rows(of operations: [Components.Schemas.PrepareOperation], answer: StageAnswer?) -> [PrepareOperationRow] {
         let chosen: Set<String>? = if case .many(let ids)? = answer { Set(ids) } else { nil }
-        return operations.map { op in
-            PrepareOperationRow(id: op.id.rawValue, title: op.title, sentence: op.sentence, note: op.note,
-                                isOn: chosen.map { $0.contains(op.id.rawValue) } ?? op.on)
+        return operations.map { operation in
+            PrepareOperationRow(id: operation.id.rawValue, title: operation.title, sentence: operation.sentence, note: operation.note,
+                                isOn: chosen.map { $0.contains(operation.id.rawValue) } ?? operation.on)
         }
     }
 
     /// The answer after the person switches `id`: every row's state as shown, with that one changed, in the engine's order, so
     /// a first switch also keeps the others as they were (the answer is the whole list, never one change).
-    static func answer(after switching: String, to on: Bool, rows: [PrepareOperationRow]) -> StageAnswer {
-        .many(rows.filter { $0.id == switching ? on : $0.isOn }.map(\.id))
+    static func answer(after switching: String, to enabled: Bool, rows: [PrepareOperationRow]) -> StageAnswer {
+        .many(rows.filter { $0.id == switching ? enabled : $0.isOn }.map(\.id))
     }
 
     /// The one line the page says when operations are off: nothing to prepare when every one is off.
     static func summary(of rows: [PrepareOperationRow]) -> String {
-        let on = rows.filter(\.isOn)
-        if on.isEmpty { return "Every operation is off: Prepare Images runs nothing." }
-        return "Runs: " + on.map { $0.title.lowercased() }.joined(separator: ", ") + "."
+        let running = rows.filter(\.isOn)
+        if running.isEmpty { return "Every operation is off: Prepare Images runs nothing." }
+        return "Runs: " + running.map { $0.title.lowercased() }.joined(separator: ", ") + "."
     }
 }
 
@@ -48,9 +48,9 @@ extension RecipeSetupStore {
     }
 
     /// Switch one operation: the whole list is saved as the answer, so the engine's plan follows it.
-    func setPrepareOperation(_ id: String, on: Bool) {
+    func setPrepareOperation(_ id: String, isOn: Bool) {
         let rows = prepareOperationRows
         guard rows.contains(where: { $0.id == id }) else { return }
-        jobAnswers[question: PrepareOperationRows.question] = PrepareOperationRows.answer(after: id, to: on, rows: rows)
+        jobAnswers[question: PrepareOperationRows.question] = PrepareOperationRows.answer(after: id, to: isOn, rows: rows)
     }
 }

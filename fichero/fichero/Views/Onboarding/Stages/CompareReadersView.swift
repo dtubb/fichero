@@ -138,10 +138,10 @@ struct CompareReadersView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 4) {
                     ForEach(model.rows) { row in
-                        let a = row.texts.first.flatMap { $0 } ?? ""
-                        let b = row.texts.dropFirst().first.flatMap { $0 } ?? ""
-                        let cut = model.charactersOnA(of: a)
-                        Text(String(a.prefix(cut)) + String(b.dropFirst(min(b.count, cut)))).font(.callout)
+                        let first = row.texts.first.flatMap { $0 } ?? ""
+                        let second = row.texts.dropFirst().first.flatMap { $0 } ?? ""
+                        let cut = model.charactersOnA(of: first)
+                        Text(String(first.prefix(cut)) + String(second.dropFirst(min(second.count, cut)))).font(.callout)
                     }
                 }
             }
