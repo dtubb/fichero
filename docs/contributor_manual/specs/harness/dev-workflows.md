@@ -89,11 +89,16 @@ activity list.
 
 ## Decisions
 
-- **GitHub is the public record of work state** (open/closed, labels, milestone, assignee, PRs, releases): contributors
-  and users look there, it survives any Fichero bug, and the runner already writes to it through one journaled path.
-  **Fichero holds the mirror plus what GitHub has no field for** (spec, behaviour ids, plan step, run, question,
-  approval, cost), keyed by issue URL, pull-only. Specs stay Markdown in the repo, bound by the guards; Fichero reads
-  them from the repo as a workspace source. A Researcher project with no repo has the same records with no mirror.
+- **This repo's issues are managed in Fichero, and Fichero syncs them to GitHub** (maintainer, 2026-10-31). GitHub stays
+  the public record of work state (open/closed, labels, milestone, assignee, PRs, releases): contributors and users
+  look there and it survives any Fichero bug; `gh` by hand is the exception. Fichero holds the records plus what GitHub
+  has no field for (spec, behaviour ids, plan step, run, question, approval, cost), keyed by issue URL, and writes to
+  GitHub only through one guarded sync step with a public-repo check at the boundary and a visible log of every write.
+  Specs stay Markdown in the repo, bound by the guards. A Researcher project with no repo has the same records and no
+  sync.
+- **The engine's own records are the truth for runs from the start** (maintainer, 2026-10-31): the checkpointer and the
+  jobs table; the pipeline journal becomes a log. This runs **supervised**: the Lead session and the Sonnet builders
+  stay in charge, and a plain supervision rule says what they can stop, inspect and repair.
 - **The worker steers, scripts guard.** A long-running worker owns one task (a Builder cluster, a Researcher task) and
   calls the deterministic steps as tools; scripts choose between tasks, wake, re-send, budget, bind verdicts to shas,
   land and close. A model never moves an item.
@@ -148,13 +153,32 @@ back along its list and says so.
 - `dev-workflows.combined.github-names` [GAP] (#6116) — Project, Milestone, Issue, Pull Request, Label, Comment, Release,
   Assignee are the words in the app, API and CLI; the storage names stay behind aliases. Test:
   `fichero-server/tests/unit/research/test_github_names_and_aliases.py::test_github_names`.
-- `dev-workflows.combined.github-mirror` [GAP] (#6116) — for a project with a repo the mirror is pull-only: every five
-  minutes and on open, issues, milestones, labels and PR state are read with `gh` and stored by URL; the first stage is
-  read-only against this repo on a scratch base path. Test:
-  `fichero-server/tests/unit/research/test_github_read_only_mirror.py::test_pull_only_mirror`.
-- `dev-workflows.run.state-stays-in-github` [GAP] (#6116) — work state is GitHub's; the pipeline journal is the truth for
-  runs (ruling Q2); workflow and Activity rows are views of both; Fichero never wins a disagreement about state. Test:
-  `fichero-server/tests/unit/research/test_github_read_only_mirror.py::test_state_stays_in_github`.
+- `dev-workflows.combined.github-sync` [GAP] (#6116) — for a project with a repo, issues, milestones, labels, comments and
+  PR state are pulled with `gh` every five minutes and on open and stored by URL; Fichero's edits (create, title, body,
+  comment, label, milestone, close, reopen) go out through **one guarded sync step**: a typed operation with a grant
+  (`dev-workflows.security.capability-grants`), the public-repo check of `dev-workflows.combined.public-boundary`, then
+  `pipeline/gh.py`'s journaled writer; the first stage pulls only, against this repo on a scratch base path.
+  **Conflict rule:** on work state (open/closed, labels, milestone, assignee) GitHub wins when both sides changed since
+  the last sync; on Fichero's own fields (spec, plan step, behaviour ids, run, cost) Fichero wins; on text (title,
+  body, a comment) a conflict is a question in the queue showing both versions, never resolved by itself. Test:
+  `fichero-server/tests/unit/research/test_github_sync.py::test_pull_push_and_conflict_rule`.
+- `dev-workflows.combined.public-boundary` [PROPOSED] — every text that leaves for GitHub (title, body, comment, label,
+  commit message) passes a boundary check first: no personal names from the project's people list, no local paths, no
+  manuscript or source text from a private library, no secret shapes; a hit refuses the write naming the field and
+  parks it as a question; every write, refused or made, is one row in Activity and one line in the log with the
+  operation, the target URL and who or what asked. Test:
+  `fichero-server/tests/unit/security/test_public_boundary.py::test_private_text_is_refused_and_every_write_is_logged`.
+- `dev-workflows.run.engine-records-are-truth` [PROPOSED] (maintainer 2026-10-31) — a run's truth is the engine's own
+  records, the checkpointer and the jobs table, from the first slice; the pipeline journal is a log that mirrors them
+  while `pipeline/` is the bridge; work state is GitHub's after the sync; Activity rows are views of the records. Test:
+  `fichero-server/tests/unit/workflows/test_engine_records_are_truth.py::test_run_state_reads_from_records_not_the_journal`.
+- `dev-workflows.run.supervision` [PROPOSED] (maintainer 2026-10-31) — the harness runs supervised: a supervisor (the Lead
+  session, a Sonnet builder, or the maintainer) can **stop** any run, worker or the whole harness (a hold, during which
+  nothing lands or closes), **inspect** a run's checkpoints, job rows, log rows, handoff files and worktree from the
+  Activity row or the CLI chat, and **repair**: resume from the last checkpoint, re-brief a worker from its handoff,
+  rebuild job rows from the log when the engine has lost history, or set an item aside as needs-maintainer; every
+  repair is a row with who did it and why. Test:
+  `fichero-server/tests/unit/workflows/test_supervision.py::test_stop_inspect_repair_and_hold_blocks_landing`.
 - `dev-workflows.combined.spec-layer` [GAP] (#6116) — a spec is read from the repo file (status, behaviour ids with tags
   and issues, cited tests); the guards stay the binding; the app and CLI list specs with tag counts. Test:
   `fichero-server/tests/unit/research/test_spec_and_plan_layers.py::test_spec_layer`.
@@ -363,21 +387,22 @@ back along its list and says so.
 - `dev-workflows.rollout.stdlib-runner-stays` [GAP] (#6116) — `pipeline/` is the bridge and oracle; a part of it retires only
   when the engine runs the same scenario to the same events, in this order: `coder.py` (worker node), `runner.land`
   (git/gh nodes), `runner.tick` and `steps.py` (the task workflows), `site.py`/`web.py` (Activity), `feeder.py`/`plan.py`
-  (the mirror and plan layer); `core.py` and the journal stay until ruling Q2 is revisited. Test:
+  (the sync and plan layer); `core.py` last, when the engine's records carry every event the journal did (the journal stays as a log). Test:
   `fichero-server/tests/unit/workflows/test_dev_item_matches_runner.py::test_runner_stays_until_matched`.
 
 ## Rulings
 
 - 2026-10-26 (kept): pinned separate dev engine first (Q1); the repo is a separate dev library (Q3); model nodes do
-  bookkeeping only (Q4); GitHub names (Q6); pull-only sync (Q7); `plan-approve` first (Q8); the journal is the truth for
-  runs (Q2); contributor tier off by default (Q5); chains retire into recipes (Q9); invites for contributors (Q10).
+  bookkeeping only (Q4); GitHub names (Q6); `plan-approve` first (Q8); contributor tier off by default (Q5); chains retire into recipes (Q9); invites for contributors (Q10).
 - 2026-10-27 (Activity, kept): one window and one job model; lanes sized from the machine; cloud by default per recipe
   step with cost shown; the embedder's own lane.
 - 2026-10-31 (paraphrased): one harness, two uses, Fichero Builder and Fichero Researcher; built in Fichero as part of the
   agent area; a long-running builder, Claude Code agents first, judged by use, no shape comparison first; land per
   cluster; models by configuration and results; Pi is a worker kind; the Researcher's machine is a 24 GB laptop; the
   deployment profiles above; the Activity window follows Activity Monitor with a hierarchy; Builder and Researcher
-  standing by the end of November.
+  standing by the end of November. Later the same day: this repo's issues are managed in Fichero and synced to GitHub
+  through a guarded step (replaces Q7 pull-only); the engine's records are the truth for runs from the start and the journal
+  is a log (replaces Q2), under supervision by the Lead session and the Sonnet builders.
 - Deferred as text, no behaviours yet: invited contributors; shared projects (task leases); the release as a dev workflow.
 
 ## Build order
@@ -414,9 +439,9 @@ Thin slices through November 2026, each one a Claude Code builder can take from 
 - Depends on: 1.3
 - Size: M
 
-#### Step 1.6 — handoff, successor, recovery, the log
-- Behaviours: `dev-workflows.worker.handoff`, `dev-workflows.run.recovery`, `dev-workflows.run.log`
-- Tests: fichero-server/tests/unit/workflows/test_cluster_run.py, fichero-server/tests/unit/workflows/test_recovery.py, fichero-server/tests/unit/workflows/test_run_log.py
+#### Step 1.6 — handoff, successor, recovery, the log; the engine's records are the truth, supervised
+- Behaviours: `dev-workflows.worker.handoff`, `dev-workflows.run.recovery`, `dev-workflows.run.log`, `dev-workflows.run.engine-records-are-truth`, `dev-workflows.run.supervision`
+- Tests: fichero-server/tests/unit/workflows/test_cluster_run.py, fichero-server/tests/unit/workflows/test_recovery.py, fichero-server/tests/unit/workflows/test_run_log.py, fichero-server/tests/unit/workflows/test_engine_records_are_truth.py, fichero-server/tests/unit/workflows/test_supervision.py
 - Size: M
 
 #### Step 1.7 — secrets never persist
@@ -425,7 +450,7 @@ Thin slices through November 2026, each one a Claude Code builder can take from 
 - Depends on: 1.2
 - Size: S
 
-### Stage 2 — seen in the app: the Activity table, the records, the surfaces (weeks 2-3)
+### Stage 2 — seen in the app: the Activity table, the records, the sync, the surfaces (weeks 2-3)
 
 #### Step 2.1 — the Activity table with a hierarchy, and controls that work
 - Behaviours: `dev-workflows.ux.activity-table`, `dev-workflows.ux.controls-work`
@@ -444,9 +469,9 @@ Thin slices through November 2026, each one a Claude Code builder can take from 
 - Depends on: 1.7
 - Size: M
 
-#### Step 2.4 — the pull-only mirror
-- Behaviours: `dev-workflows.combined.github-mirror`, `dev-workflows.run.state-stays-in-github`
-- Tests: fichero-server/tests/unit/research/test_github_read_only_mirror.py
+#### Step 2.4 — the guarded GitHub sync and the public boundary
+- Behaviours: `dev-workflows.combined.github-sync`, `dev-workflows.combined.public-boundary`
+- Tests: fichero-server/tests/unit/research/test_github_sync.py, fichero-server/tests/unit/security/test_public_boundary.py
 - Size: M
 
 #### Step 2.5 — spec and plan layers, approvals
@@ -523,8 +548,10 @@ failing case. The table is the pinning the guard reads.
 | `dev-workflows.combined.entities` | 2.3 |
 | `dev-workflows.combined.github-names` | 2.3 |
 | `dev-workflows.research.one-task-model` | 2.3 |
-| `dev-workflows.combined.github-mirror` | 2.4 |
-| `dev-workflows.run.state-stays-in-github` | 2.4 |
+| `dev-workflows.combined.github-sync` | 2.4 |
+| `dev-workflows.run.engine-records-are-truth` | 1.6 |
+| `dev-workflows.run.supervision` | 1.6 |
+| `dev-workflows.combined.public-boundary` | 2.4 |
 | `dev-workflows.combined.spec-layer` | 2.5 |
 | `dev-workflows.combined.plan-layer` | 2.5 |
 | `dev-workflows.combined.approvals` | 2.5 |
@@ -551,7 +578,7 @@ failing case. The table is the pinning the guard reads.
 
 | Leg | This surface? | Pins | File |
 |-----|---------------|------|------|
-| Backend (pytest) | y | nodes, task workflows, review and land, recovery, mirror, layers, grants, secrets, researcher tasks, the decider | `fichero-server/tests/unit/workflows/`, `tests/unit/research/`, `tests/unit/security/`, `tests/unit/sources/`, `tests/unit/api/` |
+| Backend (pytest) | y | nodes, task workflows, review and land, recovery, sync, layers, grants, secrets, researcher tasks, the decider | `fichero-server/tests/unit/workflows/`, `tests/unit/research/`, `tests/unit/security/`, `tests/unit/sources/`, `tests/unit/api/` |
 | CLI (pytest) | y | chat verbs are audited actions | `fichero-cli/tests/test_chat_dev_verbs.py` |
 | Runner (pytest) | y | the oracle: the same scenario, the same events | `pipeline/tests/` |
 | Swift unit | y | the table's rows, columns, in-place update, lazy children | `fichero/Tests/Unit/general/Models/ActivityTableTests.swift` |
@@ -568,9 +595,5 @@ failing case. The table is the pinning the guard reads.
 
 ## Open questions for the maintainer
 
-1. Once the mirror exists (Step 2.4), is the app or CLI chat the normal way to manage this repo's issues, with `gh` the
-   exception, or the reverse?
-2. The journal as the truth for runs (ruling Q2) once Activity rows carry the same events: keep both, or let the
-   checkpointer and jobs table become the truth and the journal a log?
-3. Which external catalogue connector comes first for `researcher.search-libraries` (a national library's OPAC, an
+1. Which external catalogue connector comes first for `researcher.search-libraries` (a national library's OPAC, an
    archive aggregator, a citation index), or none until the person asks?
