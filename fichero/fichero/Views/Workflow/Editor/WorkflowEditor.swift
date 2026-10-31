@@ -131,7 +131,9 @@ struct WorkflowEditor: View {
         ))
         return crumbs
     }
+}
 
+extension WorkflowEditor {
     var body: some View {
         VStack(spacing: 0) {
             // The same pane-head grammar as Library/Preview/Reader (Daniel,

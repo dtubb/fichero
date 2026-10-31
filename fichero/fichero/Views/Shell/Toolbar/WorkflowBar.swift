@@ -452,7 +452,9 @@ struct WorkflowBar: View {
             .frame(minWidth: 280, minHeight: 200, maxHeight: 420)
         }
     }
+}
 
+extension WorkflowBar {
     /// The Tools entry — the node editor's palette, reachable without opening
     /// the node editor, which was the whole complaint that started this bar.
     @ViewBuilder

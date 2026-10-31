@@ -522,7 +522,9 @@ struct ReadingPaneView: View {
                 }
             }
     }
+}
 
+extension ReadingPaneView {
     /// Publish the reader's window-scoped focus keys — but ONLY from the PRIMARY reader pane. A
     /// window-scoped `focusedSceneValue` admits one publisher per key; a workspace's second reader
     /// (Compare) mounts its own `SplittablePane`, so without this gate both publish the same keys

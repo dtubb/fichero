@@ -373,7 +373,9 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
             crumbSegmentCore(crumb, isLeaf: isLeaf)
         }
     }
+}
 
+extension PaneHead {
     @ViewBuilder
     private func crumbSegmentCore(_ crumb: PaneCrumb, isLeaf: Bool) -> some View {
         // Icon carries the row's sidebar colour; only the TEXT dims on

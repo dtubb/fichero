@@ -399,7 +399,9 @@ enum ReaderArtifactDiff {
             .replacingOccurrences(of: ">", with: "&gt;")
             .replacingOccurrences(of: "\"", with: "&quot;")
     }
+}
 
+extension ReaderArtifactDiff {
     /// The document shell. System fonts and system colors only, and both
     /// appearances declared, so the comparison matches every other reader
     /// surface rather than announcing itself as a web page.

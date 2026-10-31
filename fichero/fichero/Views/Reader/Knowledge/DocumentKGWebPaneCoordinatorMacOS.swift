@@ -321,7 +321,9 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     ) {
         loadFailurePageIfEngineLoad(webView, error: error)
     }
+}
 
+extension DocumentKGWebPaneCoordinatorMacOS {
     private func loadFailurePageIfEngineLoad(_ webView: WKWebView, error: any Error) {
         if error.isCancellationError { return }
         // Scheme-handler failures lack a failing URL, while transport failures include one.
