@@ -578,6 +578,13 @@ first and its tests run when a host is available. Engine before app throughout.
 5. **Clarity's default** when the paper answer is empty: on (every page) or Fichero's per-page look
    (today). Recommended: today's rule, said in words on the row.
 
+6. **What the material's condition and script change.** Damaged handwriting may do well with several
+   review passes where a single reader does not, and an unusual script (for example Cherokee) may need a
+   different reader or segmenter, or training, where the defaults fail. Proposed: the About the Material
+   page asks the condition and the script, and each answer changes which steps are offered, which
+   model each step suggests, and says why in words. Which condition and script answers should steer which
+   steps is for the owner to list.
+
 ## Rulings
 
 - 2026-10-31 (owner, by screen share, paraphrased): Set Up becomes wide, each step's output shown as the
@@ -588,3 +595,6 @@ first and its tests run when a host is available. Engine before app throughout.
   it and how well, with its figures on the person's pages and the unmatched lines reachable; faded pages
   need Clarity before Find Lines, said and counted on the person's sample, with the segmenter choices
   named.
+- 2026-10-31 (owner, third note, paraphrased): damaged handwriting may be handled well by several steps of
+  review where a single reader is not, and an unusual script may need a different approach again, so the
+  material's condition and script steer the steps and the model suggested for each (open question 6).
