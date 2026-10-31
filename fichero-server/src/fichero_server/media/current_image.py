@@ -222,32 +222,35 @@ def _rendition_map(db: Any, rendition: Any, photograph: Path, photo_size: tuple[
         return found if found is not None else identity(photo_size)
 
     role = rendition.role
-    if _quarter_turned(path):  # the recorded size may be the file's raw one: the cut picture is the upright one
-        own = _upright_size_of(path)
+    orientation, _, up = _file_frame(path)
+    if orientation in (5, 6, 7, 8):  # the recorded size may be the file's raw one: the cut picture is the upright one
+        own = up
     return _in_file_pixels(_cut_map(role, region, extra, own, photo_size, parent), path)
 
 
-def _quarter_turned(path: Path) -> bool:
-    from PIL import Image
-
-    with Image.open(path) as opened:
-        return int(opened.getexif().get(0x0112, 1) or 1) in (5, 6, 7, 8)
-
-
-def _in_file_pixels(found: FrameMap, path: Path) -> FrameMap:
-    """A map onto the rendition's UPRIGHT picture, put on the file's raw pixels when the file keeps a quarter-turn tag (a copy
-    imported with its transform: our own renditions are saved upright). `to_image` always lands in the file's raw pixels."""
-    from PIL import Image
+def _file_frame(path: Path) -> tuple[int, tuple[float, float], tuple[float, float]]:
+    """A rendition file's orientation tag, raw size and upright size; `Unmappable` for a file that is missing or not a picture
+    (a rendition's parent is not checked by `_newest_rendition`: one bad row must not stop a batch)."""
+    from PIL import Image, UnidentifiedImageError
 
     from fichero_server.media.upright import upright_size
 
-    with Image.open(path) as opened:
-        orientation = int(opened.getexif().get(0x0112, 1) or 1)
-        raw = (float(opened.width), float(opened.height))
-        up = upright_size(opened)
+    try:
+        with Image.open(path) as opened:
+            up = upright_size(opened)
+            return (int(opened.getexif().get(0x0112, 1) or 1), (float(opened.width), float(opened.height)),
+                    (float(up[0]), float(up[1])))
+    except (OSError, UnidentifiedImageError, ValueError) as exc:
+        raise Unmappable(f"{path.name} cannot be read as a picture") from exc
+
+
+def _in_file_pixels(found: FrameMap, path: Path) -> FrameMap:
+    """A map onto the rendition's UPRIGHT picture, put on the file's raw pixels when the file keeps an orientation tag (a copy
+    imported with its transform: our own renditions are saved upright). `to_image` always lands in the file's raw pixels."""
+    orientation, raw, up = _file_frame(path)
     if orientation == 1:
         return found
-    return found.with_size((float(up[0]), float(up[1]))).then(exif_map(orientation, raw).inverse())
+    return found.with_size(up).then(exif_map(orientation, raw).inverse())
 
 
 def _cut_map(role: str, region: Any, extra: dict[str, Any], own: tuple[float, float], photo_size: tuple[float, float],

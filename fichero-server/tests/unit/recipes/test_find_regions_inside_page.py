@@ -279,3 +279,29 @@ def test_a_tagged_copy_cut_from_the_photograph_carries_an_off_centre_box_and_its
         assert seen == [(600, 640)], f"tag {tag}: Kraken saw {seen}"
         _near(line, [0.32, 0.125, 0.56, 0.05], tag)
         assert (account["lines_inside"], account["lines_outside"]) == (1, 0), f"tag {tag}"
+
+
+def test_a_rendition_that_cannot_be_read_does_not_stop_the_batch(db, tmp_path, monkeypatch):
+    """A cut rendition whose parent file is gone, and one whose file is not a picture, are passed over (the photograph is
+    read); the other page in the batch is still found."""
+    from fichero_server.models import NodeRegion, Rendition
+    from fichero_server.recipes.regions import find_regions
+
+    seen: list = []
+    monkeypatch.setattr(kraken_runtime, "segment_lines", _upright_stub(seen))
+    bad, good = _page(db, tmp_path, BOX), _page(db, tmp_path, BOX)
+    parent = Rendition(document_id=bad.id, role="crop", path=str(tmp_path / "gone.png"), pixel_width=100, pixel_height=100,
+                       transform=NodeRegion(rect=[0.1, 0.1, 0.8, 0.8]))
+    db.save(parent)
+    child = tmp_path / "child.png"
+    Image.new("RGB", (80, 80)).save(child)
+    db.save(Rendition(document_id=bad.id, role="crop", path=str(child), pixel_width=80, pixel_height=80,
+                      derived_from_rendition_id=parent.id, transform=NodeRegion(rect=[0.1, 0.1, 0.8, 0.8], rendition_id=parent.id)))
+    notpic = tmp_path / "notpic.png"
+    notpic.write_text("not a picture")
+    db.save(Rendition(document_id=good.id, role="crop", path=str(notpic), pixel_width=100, pixel_height=100,
+                      transform=NodeRegion(rect=[0.1, 0.1, 0.8, 0.8])))
+
+    account = find_regions(db, [bad.id, good.id], "run-1", "blla", provider="kraken")
+
+    assert account["pages"] == 2 and seen == [(600, 640), (600, 640)], "both pages were read, on the photograph"
