@@ -155,12 +155,19 @@ profile, never coding, review or synthesis. A separate decider role is deferred 
   the session log with a count). The engine persists the worker's process group, pane, session directory and started-at
   to a file so a restart adopts or kills it before any successor; stop is TERM, then KILL after a grace, on the process
   group (never a message); a successor starts when the hook hands off. The route and the Builder kind are registered in
-  the `dev` feature tier only, from the first step, and are absent from release builds. Test:
-  `fichero-server/tests/unit/workflows/test_worker_start_stop.py::test_start_record_stop_and_successor`.
+  the `dev` feature tier only, from the first step, and are absent from release builds. Built so far (branch
+  `feat/fichero-builds-fichero`): `workflows/worker_process.py` opens the `claude` kind in a tmux window with
+  `--strict-mcp-config` over an empty MCP config, follows the pane's piped log for the row's words and its process group
+  for the end, and still passes `--dangerously-skip-permissions` until the sandbox of `run.land-gate` lands; `POST
+  /api/workers`, `/tell` and `/{job}/stop` are dev-tier audited actions. `workflows/tools/cli_agent.py` is a different
+  thing: the per-item `claude -p` for one-shot calls. Tests:
+  `fichero-server/tests/unit/workflows/test_worker_process.py::test_claude_kind_is_an_interactive_session_with_no_inherited_mcp`,
+  `fichero-server/tests/unit/workflows/test_worker_route.py`.
 - `dev-workflows.run.worker-address` [PROPOSED] — per task, the current generation's address (pane or process group,
   session directory, kind, started-at) is registered, rewritten at each handoff, cleared when gone; a supervisor's
   `tell` appends to that generation's **inbox file**, which the worker's hook reads before each turn and marks delivered (a
-  pane keystroke, today `tell.sh <pane>`, is the fallback and is logged as such); under 800 characters; a tell to a stale
+  pane keystroke is the fallback and is logged as such; the built `tell` still types into the pane, the inbox file is
+  Step 0.1's); under 800 characters; a tell to a stale
   generation is refused naming the current one, so a handoff never leaves two workers in one worktree. Test:
   `fichero-server/tests/unit/workflows/test_worker_address.py::test_tell_reaches_only_the_current_generation`.
 - `dev-workflows.node.worker` [PARTIAL] (#6116) — kinds `claude` and `pi`, both the pane shape of `run.worker-start-stop`
@@ -174,10 +181,13 @@ profile, never coding, review or synthesis. A separate decider role is deferred 
   `scripts/check_*.py` with the skip list and time budgets carried over from `pipeline/projects/fichero.toml`, diff bound,
   failing run pasted; argv lists, a cwd, an explicit environment (scratch base path, `PYTHONPATH` relative to the tree
   under test, thread caps) and a timeout per command; typed results; refuses when blind (fewer guards than the floor).
-  **Pinned checks** (restored from the frozen runner): at review request and at land the ladder runs from a pinned copy of
-  the base's `scripts/`, hooks and rules file over a scratch tree, never the worker's copies; a diff that touches
-  `scripts/check_*`, the hooks, the agent settings directory, the rules file, an acceptance line, or weakens or deletes a test is a question
-  for a person, not a pass. **Build rung:** a cluster touching Swift or the contract is not READY to land without a Lead
+  **Pinned checks** (restored from the frozen runner; built in `check_tool.py` as `pinned_violations`, `weakened_tests`,
+  `acceptance_changed`, `_scratch_tree` and `run_ladder`, with `check_paths`, `spec_dir` and `test_globs` read from the
+  repository's `harness.toml`): at review request and at land the ladder runs from a pinned copy of the base's
+  `scripts/` and rules file (the hooks and the agent settings directory join the pinned set in Step 0.1) laid over a
+  scratch tree with a scratch HOME and base path on every rung, never the worker's copies; a diff that touches a pinned
+  path, rewrites the item's own acceptance lines, or weakens or deletes an existing test is a question for a person, not
+  a pass. **Build rung:** a cluster touching Swift or the contract is not READY to land without a Lead
   build row (Mac and iOS as the project's rules file says) on that sha; the nightly gate is one script with one row. Test:
   `fichero-server/tests/unit/workflows/test_check_tool.py::test_check_tool_runs_the_ladder`.
 - `dev-workflows.tool.git` [GAP] (#6116) — a closed list of operations as typed inputs (worktree add/remove, status, diff
@@ -186,7 +196,8 @@ profile, never coding, review or synthesis. A separate decider role is deferred 
   `^[A-Za-z0-9._/-]+$`, no leading `-`, no `..`, names from numeric ids; refuses any push to `main` or a `v*` tag. Test:
   `fichero-server/tests/unit/workflows/test_git_tool.py::test_operations_and_argv_jail`.
 - `dev-workflows.builder.cluster` [PROPOSED] — the Builder's unit of work: one spec and its build-order issues (parser ported
-  from `pipeline/plan.py`), in order, one commit per issue with its test; the brief is built by a script from the issue's
+  from `pipeline/plan.py`), in order, one commit per issue with its test; the brief is built by a script
+  (`scripts/harness_brief.py`, built) from the issue's
   body and its **trusted comments only** (author association owner, member or collaborator; spec-link, residue, ruling;
   newest first); comments from anyone else are counted as "N outside comments, ask" and never reach a worker with a
   shell, because the repository is public; the spec lines and localisation are ported from `pipeline/localise.py`; the
@@ -279,7 +290,9 @@ profile, never coding, review or synthesis. A separate decider role is deferred 
   written from them as rows and TSV; Activity shows the rows. Test:
   `fichero-server/tests/unit/workflows/test_records_are_truth.py::test_state_and_log_read_from_records`.
 - `dev-workflows.run.rules-file` [PROPOSED] (maintainer 2026-10-31: declarative guardrails) — one rules file per project or
-  use (`harness.toml` beside the profile) declares **what must hold**, never the worker's order of work: the integration
+  use (`harness.toml` at the repository root; built with its `[check]` table: python paths, base-path variable, ready
+  command, guard glob, floor, skip list, contract paths and guards, pinned check paths, spec dir, test globs, test
+  environment) declares **what must hold**, never the worker's order of work: the integration
   and protected branches, the worktree root and branch pattern, the commit author and trailers, the worktree and
   scratch path, allowed tools and forbidden commands, required checks as argv lists with env, cwd and time budgets (lint,
   named tests, the guard glob with a found-floor and skip list, contract regeneration and when it applies), turn and
@@ -526,7 +539,7 @@ Stage 3 is held to two steps until Stage 1 has run a real cluster. `Depends on` 
 
 #### Step 1.1 — the engine starts and stops a worker; the check tool; the worker's address
 - Behaviours: `dev-workflows.run.worker-start-stop`, `dev-workflows.tool.check`, `dev-workflows.run.worker-address`
-- Tests: fichero-server/tests/unit/workflows/test_worker_start_stop.py, fichero-server/tests/unit/workflows/test_check_tool.py, fichero-server/tests/unit/workflows/test_worker_address.py
+- Tests: fichero-server/tests/unit/workflows/test_worker_process.py, fichero-server/tests/unit/workflows/test_worker_route.py, fichero-server/tests/unit/workflows/test_check_tool.py, fichero-server/tests/unit/workflows/test_worker_address.py
 - Size: M
 
 #### Step 1.2 — worker kinds: claude today, fake for the dry run; pipeline frozen
