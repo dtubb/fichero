@@ -61,9 +61,12 @@ def test_a_line_whose_reask_fails_is_not_marked_as_looked_at(monkeypatch, tmp_pa
     assert "s1" not in out.metadata[NO_WRITING_KEY], "an unanswered re-ask is a failed read, not a line with no writing"
 
 
-def test_the_order_checks_single_answers_are_reused_in_the_full_reask(monkeypatch, tmp_path):
+def test_the_order_checks_single_answers_are_reused_in_the_full_reask(monkeypatch, tmp_path, caplog):
+    caplog.set_level(logging.WARNING)
     scrambled = _quoted([f'"{t}"' for t in TEXTS[2:] + TEXTS[:2]])
     read, asked = _run(monkeypatch, tmp_path, scrambled, page_context=True)
+    assert "answered out of order" in caplog.text and "4 lines" in caplog.text, "the out-of-order rejection is a WARNING"
+    assert TEXTS[0] not in caplog.text
     assert [read[f"s{i}"] for i in range(4)] == TEXTS
     assert asked == [5, 1, 1, 1, 1], "the batch with the page, the first and last line alone as the check, then only the two others"
 
