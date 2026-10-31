@@ -22,11 +22,14 @@ against the SAME --cache-path, so the second run is a cache hit and cheap.
 --since <base> asks a second, narrower question, for one item (#5995): did this
 item add any? It lints the Swift files the item changed, as committed at HEAD and
 at its merge-base with <base>, and fails if any rule's count across those files
-rose. It stays useful while the total is over its best, when the plain check is
-red on every item and cannot tell one that adds ten from one that adds none. Per
-rule across the changed files, not per file, so moving code into a new file
-passes. It never reads or writes the baseline: the total's best is the plain
-check's alone.
+rose, or if inline `swiftlint:disable` comments there rose. Both trees are linted
+under the merge-base's configs, so loosening a config in the same item hides
+nothing. It stays useful while the total is over its best, when the plain check
+is red on every item and cannot tell one that adds ten from one that adds none.
+Per rule across the changed files, not per file, so moving code into a new file
+passes; the limit of that is netting, since an item that removes two warnings of
+a rule and adds one elsewhere passes. It never reads or writes the baseline: the
+total's best is the plain check's alone.
 
 Exit codes:
     0  the warning count is at or below its best-ever value
@@ -53,6 +56,8 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_BASELINE = ROOT / "scripts" / "swiftlint_warning_baseline.json"
 SWIFT_DIR = "fichero/fichero"
 SWIFT_SRC = ROOT / SWIFT_DIR
+CONFIGS = (".swiftlint.yml", "fichero/.swiftlint.yml")
+DISABLE = "swiftlint:disable"
 MEASUREMENT = "swift.lint_warnings"
 CACHE_PATH = ROOT / ".swiftlint-cache"
 
@@ -209,27 +214,42 @@ def _changed_swift(merge_base: str) -> tuple[list[str], list[str]]:
     return before, after
 
 
-def _count_by_rule(rev: str, files: list[str]) -> Counter:
-    """Warnings and errors by rule in `files` as committed at `rev`. Errors count too, so a warning
-    that grows into an error does not read as one fewer."""
+def _extract(rev: str, paths: list[str], tree: str) -> None:
+    archive = subprocess.run(
+        ["git", "archive", rev, *paths], cwd=str(ROOT), capture_output=True, timeout=120,
+    )
+    if archive.returncode != 0:
+        raise Blind(f"git archive {rev} failed: {archive.stderr.decode(errors='replace')[:300]}")
+    subprocess.run(["tar", "-x", "-C", tree], input=archive.stdout, check=True, timeout=120)
+
+
+def _count_by_rule(rev: str, files: list[str], configs_rev: str) -> Counter:
+    """Warnings, errors and inline disables, by rule, in `files` as committed at `rev`, under the configs
+    of `configs_rev`. Errors count too, so a warning that grows into an error does not read as one fewer.
+    Configs from the one revision, so an item that loosens a threshold is still judged by the old one."""
     if not files:
         return Counter()
     swiftlint = shutil.which("swiftlint")
     if swiftlint is None:
         raise Blind("swiftlint is not on PATH")
     with tempfile.TemporaryDirectory() as tree:
-        # Both configs: the nested one sets line_length, and the root one's excludes keep their paths.
-        archive = subprocess.run(
-            ["git", "archive", rev, ".swiftlint.yml", "fichero/.swiftlint.yml", *files],
-            cwd=str(ROOT), capture_output=True, timeout=120,
+        try:
+            _extract(configs_rev, list(CONFIGS), tree)
+            _extract(rev, files, tree)
+            # Linted with no cache and both configs: the nested one sets line_length, and the root one's
+            # excludes keep their paths.
+            result = subprocess.run(
+                [swiftlint, "lint", "--quiet", "--no-cache", "--reporter", "json", SWIFT_DIR],
+                cwd=tree, capture_output=True, text=True, timeout=300,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise Blind(f"could not lint {rev}: {exc}") from None
+        disables = sum(
+            (Path(tree) / name).read_text(encoding="utf-8", errors="replace").count(DISABLE) for name in files
         )
-        if archive.returncode != 0:
-            raise Blind(f"git archive {rev} failed: {archive.stderr.decode(errors='replace')[:300]}")
-        subprocess.run(["tar", "-x", "-C", tree], input=archive.stdout, check=True, timeout=120)
-        result = subprocess.run(
-            [swiftlint, "lint", "--quiet", "--no-cache", "--reporter", "json", SWIFT_DIR],
-            cwd=tree, capture_output=True, text=True, timeout=300,
-        )
+    counts = Counter({DISABLE: disables})
+    if "No lintable files" in result.stderr:  # every changed file is excluded: nothing to count
+        return counts
     try:
         violations = json.loads(result.stdout)
     except json.JSONDecodeError:
@@ -237,14 +257,15 @@ def _count_by_rule(rev: str, files: list[str]) -> Counter:
             f"swiftlint produced unparseable output (exit {result.returncode}): "
             f"{(result.stderr or result.stdout)[:500]}"
         ) from None
-    return Counter(v.get("rule_id", "?") for v in violations)
+    counts.update(v.get("rule_id", "?") for v in violations)
+    return counts
 
 
 def run_since(base: str) -> int:
     merge_base = _git("merge-base", base, "HEAD").strip()
     before_files, after_files = _changed_swift(merge_base)
-    before = _count_by_rule(merge_base, before_files)
-    after = _count_by_rule("HEAD", after_files)
+    before = _count_by_rule(merge_base, before_files, merge_base)
+    after = _count_by_rule("HEAD", after_files, merge_base)
     added = after - before
     if added:
         print(f"swiftlint --since {base}: this item adds warnings, in the {len(after_files)} Swift files it changes:")

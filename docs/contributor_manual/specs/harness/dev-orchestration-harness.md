@@ -105,6 +105,7 @@ it token-efficiently with fabel/opus?
   paths are unaccounted (9 already allowlisted). This class has been repeatedly flagged this
   session as pre-existing, unrelated baseline noise, never independently root-caused before now
   — filed so it has a real owner. *Test:* the guardrail itself.
+- `orch.swiftlint-item-adds-no-warnings` — **[OK]** (#5995) `check_swiftlint_warning_ratchet.py --since <base>` fails an item whose changed Swift files gain warnings of any rule or inline `swiftlint:disable` comments, judged under the merge-base's configs, while the total is over its best; `gate part` and `verify_all.sh --fast` run it against `origin/integration`. Counted per rule across the changed files, so a move passes and removals can net off an addition. It reads a timeout or a tool failure as BLIND, never as fired. *Test:* `test_check_swiftlint_warning_ratchet.py`.
 
 ## Rulings
 
@@ -149,7 +150,7 @@ it token-efficiently with fabel/opus?
 - `orch.verify-python-does-not-deadlock` — **[BROKEN]** (#5071) `verify_python` completes: two derivative threads no longer contend on the db manager lock while one migrates inside it. The gates' pytest timeout method is `thread` (#6007, superseding #5071's "signal, NOT thread"): #5071 chose signal so a lock deadlock became one failing test and the run went on, but signal is a one-shot SIGALRM that cannot run while another thread holds the GIL, and the api part hung twice at ~41% with `--timeout=300` never firing; thread fires and prints every thread's stack, and ends the run, which for a gate is a failure anyway. A person's own run keeps signal (`fichero-server/pyproject.toml`). *Test:* `fichero-server/tests/unit/scripts/test_gate_pytest_uses_the_thread_timeout_6007.py` (scripts/gate, verify_python.sh, verify_all.sh, build-and-validate.sh).
 - `orch.guardrail-suite-green-and-pinned` — **[GAP]** (#5106) every `check_*.py` guard is green or baselined with a reason, and each is pinned by a test (21 red, 26 unpinned on 2026-09-27).
 - `orch.swiftlint-ratchet-only-tightens` — **[BROKEN]** (#5111) the SwiftLint warning baseline only goes down; it was loosened six times (68 to 123) while actual is 185.
-- `orch.swiftlint-warnings-drained` — **[GAP]** (#5113) the 186 SwiftLint warnings (84 file_length first) are drained a file at a time and the ratchet baseline only tightens; 11 gone so far.
+- `orch.swiftlint-warnings-drained` — **[GAP]** (#5113, #5995) the SwiftLint warnings (230 on 2026-10-31, 88 of them file_length) are drained to the best of 123 and the ratchet baseline only tightens.
 
 ## Future (ideas, not scheduled)
 - (#2561) Separate bot GitHub identity for agent issues/comments; commits already carry Claude authorship by convention; process decision.

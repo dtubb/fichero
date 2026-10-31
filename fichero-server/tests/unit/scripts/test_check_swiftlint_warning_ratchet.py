@@ -216,7 +216,9 @@ def _since_repo(tmp_path, module, monkeypatch):
     """A small git repo with the two configs and an item branch off `main`."""
     repo = tmp_path / "repo"
     (repo / "fichero" / "fichero").mkdir(parents=True)
-    (repo / ".swiftlint.yml").write_text("included:\n  - fichero/fichero\n", encoding="utf-8")
+    (repo / ".swiftlint.yml").write_text(
+        "included:\n  - fichero/fichero\nexcluded:\n  - fichero/fichero/Excluded\n", encoding="utf-8"
+    )
     (repo / "fichero" / ".swiftlint.yml").write_text("line_length:\n  warning: 40\n  error: 200\n", encoding="utf-8")
     monkeypatch.setattr(module, "ROOT", repo)
 
@@ -278,6 +280,78 @@ class TestSince:
         before = baseline.read_text(encoding="utf-8")
         assert module.main(["--since", "main"]) == 0
         assert baseline.read_text(encoding="utf-8") == before
+
+    def test_loosening_a_threshold_in_the_same_item_does_not_hide_a_warning(self, tmp_path, monkeypatch):
+        module = self._module_or_skip()
+        repo, git = _since_repo(tmp_path, module, monkeypatch)
+        (repo / "fichero" / ".swiftlint.yml").write_text("line_length:\n  warning: 180\n  error: 200\n", encoding="utf-8")
+        (repo / "fichero" / "fichero" / "B.swift").write_text(f"let longNameTwo = {'2' * 40}\n", encoding="utf-8")
+        git("add", ".")
+        git("commit", "-m", "adds one and raises the limit")
+        assert module.main(["--since", "main"]) == 1
+
+    def test_disabling_a_rule_in_the_same_item_does_not_hide_a_warning(self, tmp_path, monkeypatch):
+        module = self._module_or_skip()
+        repo, git = _since_repo(tmp_path, module, monkeypatch)
+        root = repo / ".swiftlint.yml"
+        root.write_text(root.read_text(encoding="utf-8") + "disabled_rules:\n  - line_length\n", encoding="utf-8")
+        (repo / "fichero" / "fichero" / "B.swift").write_text(f"let longNameTwo = {'2' * 40}\n", encoding="utf-8")
+        git("add", ".")
+        git("commit", "-m", "adds one and disables the rule")
+        assert module.main(["--since", "main"]) == 1
+
+    def test_an_added_inline_disable_fails_the_item(self, tmp_path, monkeypatch, capsys):
+        module = self._module_or_skip()
+        repo, git = _since_repo(tmp_path, module, monkeypatch)
+        (repo / "fichero" / "fichero" / "B.swift").write_text(
+            f"// swiftlint:disable:next line_length\nlet longNameTwo = {'2' * 40}\n", encoding="utf-8"
+        )
+        git("add", ".")
+        git("commit", "-m", "adds one under a disable")
+        assert module.main(["--since", "main"]) == 1
+        assert "swiftlint:disable" in capsys.readouterr().out
+
+    def test_an_item_only_touching_excluded_files_passes(self, tmp_path, monkeypatch):
+        module = self._module_or_skip()
+        repo, git = _since_repo(tmp_path, module, monkeypatch)
+        excluded = repo / "fichero" / "fichero" / "Excluded"
+        excluded.mkdir()
+        (excluded / "X.swift").write_text("let short = 1\n", encoding="utf-8")
+        git("add", ".")
+        git("commit", "-m", "excluded only")
+        assert module.main(["--since", "main"]) == 0
+
+    def test_a_timeout_is_blind_not_a_fired_ratchet(self, tmp_path, monkeypatch):
+        module = self._module_or_skip()
+        repo, git = _since_repo(tmp_path, module, monkeypatch)
+        (repo / "fichero" / "fichero" / "B.swift").write_text("let short = 1\n", encoding="utf-8")
+        git("add", ".")
+        git("commit", "-m", "adds a file")
+        real_run = subprocess.run
+
+        def times_out_on_swiftlint(args, **kwargs):
+            if "lint" in args:
+                raise subprocess.TimeoutExpired(args, 1)
+            return real_run(args, **kwargs)
+
+        monkeypatch.setattr(module.subprocess, "run", times_out_on_swiftlint)
+        assert module.main(["--since", "main"]) == module.BLIND_EXIT_CODE
+
+    def test_a_tar_failure_is_blind_not_a_fired_ratchet(self, tmp_path, monkeypatch):
+        module = self._module_or_skip()
+        repo, git = _since_repo(tmp_path, module, monkeypatch)
+        (repo / "fichero" / "fichero" / "B.swift").write_text("let short = 1\n", encoding="utf-8")
+        git("add", ".")
+        git("commit", "-m", "adds a file")
+        real_run = subprocess.run
+
+        def tar_fails(args, **kwargs):
+            if args[0] == "tar":
+                raise subprocess.CalledProcessError(1, args)
+            return real_run(args, **kwargs)
+
+        monkeypatch.setattr(module.subprocess, "run", tar_fails)
+        assert module.main(["--since", "main"]) == module.BLIND_EXIT_CODE
 
     def test_an_unknown_base_is_blind_not_a_pass(self, tmp_path, monkeypatch):
         module = self._module_or_skip()
