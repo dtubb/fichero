@@ -404,7 +404,9 @@ final class ImageEditorModel {
         if selectedStepIndex == chain.operations.count - 1 { selectedStepIndex = nil }
         await removeOperation(at: chain.operations.count - 1)
     }
+}
 
+@MainActor extension ImageEditorModel {
     /// Apply the same op across many documents (#1265 batch-apply).
     ///
     /// There is no backend batch endpoint, so this fans out client-side over

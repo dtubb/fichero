@@ -468,7 +468,9 @@ struct ZoomableImagePreview: View {
                 verticalStep(step)
             }
     }
+}
 
+extension ZoomableImagePreview {
     /// Layer 3: keyboard grammar (zoom keys, region verbs, arrow navigation).
     private var keyboardLayer: some View {
         observationLayer

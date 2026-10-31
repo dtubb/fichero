@@ -374,7 +374,9 @@ struct RegionInteractionLayer: View {
             at: location, boxes: boxes.map { $0.box.bbox }, in: size, visible: visible
         ) != nil
     }
+}
 
+extension RegionInteractionLayer {
     /// Click = select; ⇧-click = add/toggle; click-away = deselect (regions
     /// AND marquees — the honest reading of "click-away clears").
     private func handleTap(at location: CGPoint, in size: CGSize) {

@@ -384,7 +384,9 @@ struct PDFPageView: UIViewRepresentable {
     static func dismantleUIView(_ view: PDFView, coordinator: Coordinator) {
         NotificationCenter.default.removeObserver(coordinator)
     }
+}
 
+extension PDFPageView {
     @MainActor
     final class Coordinator: NSObject, PDFViewDelegate, UIGestureRecognizerDelegate {
         var owner: PDFPageView
