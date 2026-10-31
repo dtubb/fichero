@@ -20,16 +20,18 @@ MIN_SHARE = 0.15
 PRODUCER = "page-crop"
 #: Bumped when the finders, the blank rule or the operations change what a page comes out as, so a stamp from the older rules
 #: no longer lets a re-run skip the page (`_stamp`).
-PREP_VERSION = 2
+PREP_VERSION = 3
 
 
 def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bool] | None = None, *,
-               prepare: bool = False, reuse: bool = False) -> dict[str, Any]:
+               prepare: bool = False, reuse: bool = False, signature: dict[str, Any] | None = None) -> dict[str, Any]:
     """Each page image's paper found and recorded (and, with `prepare`, squared, flattened, turned and straightened: the
     Set Up step's operations, each a rendition; Find Regions asks only for the box); the account: `pages` looked at, `cropped` (a box written),
     `whole` (nothing to cut away, or not sure), `kept` (a person's box left alone), `blank` (no ink: hidden, with `prepare`), `no_image`.
     With `prepare` and `reuse`, a page this step already prepared from the same file under the same rules (`_stamp`) is
-    counted as `unchanged` and not found, turned or read again: a run that starts again costs only the pages that changed."""
+    counted as `unchanged` and not found, turned or read again: a run that starts again costs only the pages that changed.
+    `signature` is the answers the preparation followed (the paper answer, the operations chosen): it is part of the stamp, so a
+    page prepared under other answers is prepared again (`wide.prepare.rerun-follows-the-answers`)."""
     from PIL import Image
 
     from fichero_server.actions.registry import ActionContext, registry
@@ -56,7 +58,7 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
                 account["kept"] += 1
                 continue
             path = _resolve_abs_path(doc, str(library))
-            if prepare and reuse and (meta.get("page_prep_stamp") or {}) == _stamp(path):
+            if prepare and reuse and (meta.get("page_prep_stamp") or {}) == _stamp(path, signature):
                 account["unchanged"] += 1
                 continue
             try:
@@ -93,9 +95,11 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
             if not trusted:
                 if prepare:
                     _clear(db, doc.id, everything=True)
-                    _propose(db, doc.id, "turn", None, ctx)
+                    # The page itself is the base: no crop, square or flatten (no paper was found), but turn and straighten
+                    # still run, each a rendition only when it changed something (`wide.prepare.operations-run-on-every-page`).
+                    _turn_and_straighten(db, doc, image, [0.0, 0.0, 1.0, 1.0], None, run_id, library, ctx)
                 account["whole"] += 1
-                _write_stamp(db, doc.id, path, prepare, ctx)
+                _write_stamp(db, doc.id, path, prepare, ctx, signature)
                 continue
             box = [round(v, 5) for v in found.box]
             _merge_metadata(db, doc.id, lambda now: {
@@ -112,7 +116,7 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
             account["cropped"] += 1
             if prepare:
                 _prepare(db, doc, image, found, run_id, library, crop_id, ctx)
-            _write_stamp(db, doc.id, path, prepare, ctx)
+            _write_stamp(db, doc.id, path, prepare, ctx, signature)
         except Exception as exc:  # noqa: BLE001 -- one page that fails is skipped and said; the others still go on
             logger.warning("page prep: %s skipped: %s", doc_id, exc)
             account["failed"] = account.get("failed", 0) + 1
@@ -120,19 +124,20 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
     return account
 
 
-def _stamp(path: Any) -> dict[str, Any]:
-    """What a finished preparation of a page was made from: the file's size and modified time and the rules' version. A
-    changed file, or changed rules, gives another stamp, so the page is prepared again."""
+def _stamp(path: Any, signature: dict[str, Any] | None = None) -> dict[str, Any]:
+    """What a finished preparation of a page was made from: the file's size and modified time, the rules' version and the
+    answers it followed (`signature`). A changed file, changed rules or other answers give another stamp, so the page is
+    prepared again."""
     try:
         info = Path(path).stat()
     except OSError:
         return {}
-    return {"size": info.st_size, "mtime_ns": info.st_mtime_ns, "version": PREP_VERSION}
+    return {"size": info.st_size, "mtime_ns": info.st_mtime_ns, "version": PREP_VERSION, "answers": signature or {}}
 
 
-def _write_stamp(db: Any, doc_id: str, path: Any, prepare: bool, ctx: Any) -> None:
+def _write_stamp(db: Any, doc_id: str, path: Any, prepare: bool, ctx: Any, signature: dict[str, Any] | None = None) -> None:
     """Remember a page prepared to its end (a blank hide stops early and is never stamped: unhiding must prepare it)."""
-    stamp = _stamp(path)
+    stamp = _stamp(path, signature)
     if prepare and stamp:
         _merge_metadata(db, doc_id, lambda now: {"page_prep_stamp": stamp}, ctx)
 
@@ -226,9 +231,7 @@ def _prepare(db: Any, doc: Any, image: Any, found: Any, run_id: str, library: Pa
     square (`prep.square.*`, the homography on its row), flatten (`prep.flatten.*`, the control points), turn by the text
     (`prep.turn-by-the-text`, the quarter turn and its reason), straighten (`prep.straighten-and-flatten`, the angle)."""
     from fichero_server.media.flatten_curve import flatten_curve
-    from fichero_server.media.image_ops import apply_operation, auto_straighten_angle
     from fichero_server.media.square_page import quad_is_rectangular, square_page
-    from fichero_server.media.turn_by_text import turn_by_text
     box = [round(v, 5) for v in found.box]
     base = image.crop(found.pixels(*image.size))
     parent: str | None = crop_id  # the rendition `base` is: each operation's row names the one before it
@@ -241,6 +244,15 @@ def _prepare(db: Any, doc: Any, image: Any, found: Any, run_id: str, library: Pa
         base = flat[0]
         parent = _write(db, doc, "flattened", base, run_id, library, "the page flattened toward its gutter", box, parent,
                         method="flatten", control_points=flat[1])
+    _turn_and_straighten(db, doc, base, box, parent, run_id, library, ctx)
+
+
+def _turn_and_straighten(db: Any, doc: Any, base: Any, box: list[float], parent: str | None, run_id: str, library: Path,
+                         ctx: Any) -> None:
+    """Turn by the text, then straighten, on `base` (the page cut out, or the whole picture when no paper was found: `parent`
+    None, the photograph's own frame). Each writes a rendition only when it changed something."""
+    from fichero_server.media.image_ops import apply_operation, auto_straighten_angle
+    from fichero_server.media.turn_by_text import turn_by_text
     turn = turn_by_text(base, db_path=str(db.path))
     disagree = turn["reason"].startswith("the lines do not agree")  # no turn is written, the page is listed to be looked at
     _propose(db, doc.id, "turn", {"reason": turn["reason"], "lines": turn["lines"], "by": f"run {run_id}",

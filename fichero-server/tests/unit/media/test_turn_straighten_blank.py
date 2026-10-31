@@ -270,3 +270,51 @@ def test_a_faded_written_page_is_not_hidden_by_the_run(db, tmp_path, monkeypatch
 
     assert account["blank"] == 0
     assert not db.get(Document, doc.id).exclude_from_processing
+
+
+def _flat_scan(tmp_path, name="flat.png", angle=3.0):
+    """A flat scan that fills the frame: no table around it, so the page finder has no outline to trust."""
+    from fichero_server.models import DocType, Document, FileType
+
+    path = tmp_path / name
+    _ruled(angle).save(path)
+    return Document(name=path.name, doc_type=DocType.file, file_type=FileType.image, path=str(path), metadata={})
+
+
+def test_wide_prepare_a_page_the_finder_is_unsure_of_is_still_turned_and_straightened(db, tmp_path, monkeypatch):
+    """`wide.prepare.operations-run-on-every-page` (#5706, section F cause 1): when the finder finds no paper the page itself is
+    the base (no crop, no square, no flatten) and turn and straighten still run, each a rendition only when it changed something."""
+    from fichero_server.media import find_page as module
+    from fichero_server.media import turn_by_text as turn_module
+    from fichero_server.models import Rendition
+    from fichero_server.recipes.page_crop import crop_pages
+
+    monkeypatch.setattr(module, "find_page", lambda image: None)
+    monkeypatch.setattr(turn_module, "read_lines", lambda image, db_path=None: _lines_of(180))
+    doc = _flat_scan(tmp_path)
+    db.save(doc)
+
+    account = crop_pages(db, [doc.id], "run-1", prepare=True)
+
+    rows = {r.role: r for r in db.query(Rendition, document_id=doc.id)}
+    assert account["whole"] == 1 and account["cropped"] == 0
+    assert set(rows) == {"rotated", "deskewed"}, "no crop, no square, no flatten on an unfound page; turn and straighten run"
+    assert rows["rotated"].transform.angle == 180 and rows["rotated"].derived_from_rendition_id is None
+    assert rows["deskewed"].derived_from_rendition_id == rows["rotated"].id and abs(abs(rows["deskewed"].transform.angle) - 3.0) < 0.5
+
+
+def test_wide_prepare_an_upright_level_page_the_finder_is_unsure_of_writes_nothing(db, tmp_path, monkeypatch):
+    """A rendition only when it changed something: an upright, level page that the finder cannot outline writes none."""
+    from fichero_server.media import find_page as module
+    from fichero_server.media import turn_by_text as turn_module
+    from fichero_server.models import Rendition
+    from fichero_server.recipes.page_crop import crop_pages
+
+    monkeypatch.setattr(module, "find_page", lambda image: None)
+    monkeypatch.setattr(turn_module, "read_lines", lambda image, db_path=None: _lines_of(0))
+    doc = _flat_scan(tmp_path, angle=0.0)
+    db.save(doc)
+
+    account = crop_pages(db, [doc.id], "run-1", prepare=True)
+
+    assert account["whole"] == 1 and db.query(Rendition, document_id=doc.id) == []

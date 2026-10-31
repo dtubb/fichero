@@ -149,3 +149,47 @@ def test_start_prepares_the_faded_page_and_lines_read_the_prepared_copy(client, 
     # (#5706: the plan said "already done on 4 of 92" after a run that found 88 clear).
     assert again["steps"][0].get("prepared") is None and again["steps"][0]["state"] == "done", again["steps"][0]
     assert len([r for r in db.query(Rendition, document_id=faded.id) if r.role == "prepared"]) == 1
+
+
+def _unfound_page(db, tmp_path, monkeypatch, name="scan.png"):
+    from fichero_server.media import find_page as module
+    from fichero_server.media import turn_by_text as turn_module
+    from fichero_server.models import DocType, Document, FileType
+
+    monkeypatch.setattr(module, "find_page", lambda image: None)
+    monkeypatch.setattr(turn_module, "read_lines", lambda image, db_path=None: [(0.04, 0.07 + 0.13 * i, 0.45, 0.07) for i in range(6)])
+    path = _page(tmp_path / name, paper=240, ink=30)
+    doc = Document(name=path.name, doc_type=DocType.file, file_type=FileType.image, path=str(path), metadata={})
+    db.save(doc)
+    return doc
+
+
+def test_wide_the_stamp_follows_the_answers_ticking_faded_prepares_the_page_again(db, tmp_path, monkeypatch):
+    """`wide.prepare.rerun-follows-the-answers` (#5706, section F cause 2): a page prepared under other answers is prepared again;
+    only a page prepared under the same file, rules and answers is `unchanged`."""
+    from fichero_server.recipes.prepare_run import run_prepare
+
+    doc = _unfound_page(db, tmp_path, monkeypatch)
+    first: dict = {}
+    run_prepare(db, [doc.id], "run-1", first, paper=[])
+    assert first["page_prep"]["pages"] == 1 and first["page_prep"]["unchanged"] == 0
+    same: dict = {}
+    run_prepare(db, [doc.id], "run-2", same, paper=[])
+    assert same["page_prep"]["unchanged"] == 1 and same["page_prep"]["pages"] == 0
+    ticked: dict = {}
+    run_prepare(db, [doc.id], "run-3", ticked, paper=["faded"])
+    assert ticked["page_prep"]["pages"] == 1 and ticked["page_prep"]["unchanged"] == 0, "faded ticked after a run: prepared again"
+    again: dict = {}
+    run_prepare(db, [doc.id], "run-4", again, paper=["faded"])
+    assert again["page_prep"]["unchanged"] == 1
+
+
+def test_wide_the_stamp_keeps_a_changed_file_and_the_rules_version_apart(db, tmp_path, monkeypatch):
+    """The stamp still names the file and the rules: another file is prepared again whatever the answers."""
+    from fichero_server.recipes.page_crop import crop_pages
+
+    doc = _unfound_page(db, tmp_path, monkeypatch)
+    crop_pages(db, [doc.id], "run-1", prepare=True, reuse=True, signature={"paper": []})
+    assert crop_pages(db, [doc.id], "run-2", prepare=True, reuse=True, signature={"paper": []})["unchanged"] == 1
+    _page(Path(doc.path), paper=200, ink=60)  # the file changes
+    assert crop_pages(db, [doc.id], "run-3", prepare=True, reuse=True, signature={"paper": []})["pages"] == 1
