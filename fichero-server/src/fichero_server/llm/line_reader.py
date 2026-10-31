@@ -109,7 +109,7 @@ def judge_batch_answer(raw: str, n: int) -> tuple[list[str | None] | None, str, 
 #: Added when a batch is asked again because its reply ended in null (#6305). A different prompt is a different call: the same one
 #: would be answered from `llm`'s content cache (or a provider batch's stored answer) and never reach the model.
 REASK_NOTE = (" Your previous reply to these images ended in an empty answer, which can mean a line was skipped. Check that answer number "
-              "k is for image number k, count again, and reply with exactly {n} entries.")
+              "k is for image number k, count again, and reply with exactly {n} entries. A line with no writing is still null; do not invent text for it.")
 
 
 def prompt_for(n: int, language: str | None = None, page_context: bool = False, reask: bool = False) -> str:

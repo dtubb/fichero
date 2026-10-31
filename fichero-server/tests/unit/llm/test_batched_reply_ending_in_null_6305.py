@@ -110,3 +110,7 @@ def test_the_reask_goes_through_the_real_vision_cache_to_the_model(monkeypatch, 
 
 def test_the_reask_prompt_differs_from_the_first():
     assert line_reader.prompt_for(4, reask=True) != line_reader.prompt_for(4)
+
+
+def test_the_reask_prompt_still_says_null_is_right_for_a_line_with_no_writing():
+    assert "still null" in line_reader.prompt_for(4, reask=True) and "invent" in line_reader.prompt_for(4, reask=True)
