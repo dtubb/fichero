@@ -2465,7 +2465,6 @@ from fichero_server.api.routes.system import (  # noqa: E402
     migrations,
     prepare_images,
     projects,
-    recipe_bakeoffs,
     recipe_cloud_cap,
     recipes,
     registries,
@@ -2577,7 +2576,6 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # Recipes (#4951): the job registry, checking a recipe, and assembling one from setup's answers.
     (recipes.router, "/api", ["recipes"]),
     (prepare_images.router, "/api", ["recipes"]),
-    (recipe_bakeoffs.router, "/api", ["recipes"]),  # #6295: the bake-off routes, out of recipes.py (over its line cap)
     (recipe_cloud_cap.router, "/api", ["recipes"]),  # #6295: its own module, recipes.py is over a thousand lines
     # Topics (#5471): each topic's and each recipe job's explanation, written once.
     (topics.router, "/api", ["topics"]),
