@@ -5,10 +5,10 @@ import SwiftUI
 extension ShareSettingsView {
     // MARK: - State management
 
+    /// What a NEW code is minted for; the engine's phase is not in it (`sharing.card-keeps-its-code`, `PairingCardRefresh`).
     var refreshKey: String {
-        [hostingEnabled.description, publicBaseURL, spkiPin, engineHost,
-         appState.isBackendRunning.description, didBootstrap.description]
-            .joined(separator: "|")
+        PairingCardRefresh.key(hostingEnabled: hostingEnabled, publicBaseURL: publicBaseURL, spkiPin: spkiPin,
+                               engineHost: engineHost, didBootstrap: didBootstrap)
     }
 
     /// ONE ACTION. Flipping this on derives the address, advertises the Mac, restarts
@@ -106,6 +106,8 @@ extension ShareSettingsView {
     }
 
     func refreshPairingCode() async {
+        // A health check in flight is not a reason to blank the card: the code it holds is still good until it expires.
+        if PairingCardRefresh.keepsCode(whenBlockedBy: pairingBlocker == .engineNotRunning, hasCode: pairingCode != nil) { return }
         pairingCode = nil
         shareError = nil
         guard pairingBlocker == nil else { return }

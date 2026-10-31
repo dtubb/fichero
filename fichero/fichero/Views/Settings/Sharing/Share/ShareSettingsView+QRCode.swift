@@ -46,7 +46,8 @@ extension ShareSettingsView {
         return try? RemoteClientPairing.inviteLinkString(from: pairingQRPayload)
     }
 
-    var qrCodeImage: PlatformImage? {
+    /// Draws the QR for the current payload; called once per link by the view's task, never from the body.
+    func makeQRCodeImage() -> PlatformImage? {
         guard let pairingQRPayload else { return nil }
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

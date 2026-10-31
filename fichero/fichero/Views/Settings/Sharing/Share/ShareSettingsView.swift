@@ -53,6 +53,9 @@ struct ShareSettingsView: View {
         var id: Self { self }
     }
     @State var activeSheet: ActiveSheet?
+    /// The QR, drawn once per link and kept (`sharing.qr-drawn-once-per-payload`): a computed image was rebuilt on every
+    /// body evaluation (the Devices poll every 10 s), which the person saw as the picture flashing.
+    @State var qrImage: PlatformImage?
     var showAddDevice: Bool {
         get { activeSheet == .addDevice }
         nonmutating set { activeSheet = newValue ? .addDevice : (activeSheet == .addDevice ? nil : activeSheet) }
@@ -139,6 +142,14 @@ struct ShareSettingsView: View {
             guard didBootstrap else { return }
             await refreshPairingCode()
         }
+        // The engine coming back mints only when the card has nothing to show; its going away never clears the card.
+        .onChange(of: appState.isBackendRunning) { _, running in
+            guard didBootstrap,
+                  PairingCardRefresh.mintsWhenEngineChanges(isRunning: running, hasCode: pairingCode != nil,
+                                                            blocked: pairingBlocker != nil) else { return }
+            Task { await refreshPairingCode() }
+        }
+        .task(id: inviteLinkString) { qrImage = makeQRCodeImage() }
         // A code is replaced when it expires, not left on screen past the time it names (#5915). The task is keyed on
         // the code, so a new code (or none) cancels the wait; a failed mint leaves no code and so no retry loop.
         .task(id: pairingCode?.code) {
@@ -214,7 +225,7 @@ struct ShareSettingsView: View {
             case .finishing:
                 ProgressView("Finishing setup…")
             case .ready, .notReady:
-                if let image = qrCodeImage {
+                if let image = qrImage {
                     Image(platformImage: image)
                         .interpolation(.none)
                         .resizable()
