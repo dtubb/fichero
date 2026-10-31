@@ -3848,8 +3848,13 @@ Setup
   against $0.00075 before; `start.PAGE_READ_TOKENS_IN/OUT`). Anthropic, direct or via OpenRouter: its documented image rule, an image
   resized to a 1568 px long edge costs at most about 1,600 tokens, so two calls of the cap plus a prompt, 3,600 in (about
   `ANTHROPIC_PAGE_READ_TOKENS_IN`); a single figure would have quoted a Sonnet run about 30 times too dear and blocked it at the cap.
-  *Left:* per provider, not per model; the page's own size under the cap (w*h/750), or the project's past `LLM usage` for the model.
-  *Test:* `fichero-server/tests/unit/recipes/test_line_reader_estimate_counts_the_page_image_6265.py`.
+  A Claude LINE read (`read-a-line`, #6294) sends a crop a line, not the page: `ASSUMED_LINES_PER_PAGE` (33) crops of about 280 tokens
+  (`LINE_CROP_TOKENS_IN`; the cut is at most 1,600 px wide, about 130 px tall) and a 150-token prompt in one call, and about 28 tokens of
+  answer a line, 9,390 in and 924 out a page: a 16-page Sonnet folder is priced $0.67, not $0.27 (the page-image figure came to 2.5x
+  less than the run booked). The estimate is the best guess with no margin added.
+  *Left:* per provider, not per model; the crop's real size under the cap (w*h/750) and the line count Kraken has found, instead of the
+  assumed 33; learning from the project's past `LLM usage` for the model (nothing in the estimate reads it yet: the figures are constants).
+  *Test:* `fichero-server/tests/unit/recipes/test_line_reader_estimate_counts_the_page_image_6265.py`, `test_line_read_estimate_counts_the_line_crops_6294.py`.
 - `source.onboard.estimate-before-start` — **[PARTIAL]** (#4951) **Built 2026-10-03 (engine):** the Start plan carries the page count and the cost per run (free on this Mac, unpriced cloud models null); the count is the pages a run runs over, and `estimate.counted` says what it counts ("4 photographs + 1 PDF page = 5 pages"), what the project holds that is not a page, and photographs that share a file name (copies taken in twice), #5498, pinned by `fichero-server/tests/unit/recipes/test_recipe_runs_to_spec.py`; time, carbon and the main alternative's estimate are not built; pinned by `fichero-server/tests/unit/recipes/test_start_plan.py`, `fichero-server/tests/unit/api/test_start_is_the_first_yes.py`. screens 4 and 6 show the whole
   volume's estimate (time where it runs, cost, carbon labelled as an estimate) for the proposed
   recipe and for its main alternative, before anything runs.
