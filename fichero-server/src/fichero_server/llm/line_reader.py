@@ -267,8 +267,17 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
                 refs[k] = single[0] if single else None
         return answers_follow_order(answer, refs)
 
+    trailing: list[int] = []  # the size of each batch whose reply ended in null or an empty string and was asked once more (#6305)
+
     async def batch(indices: list[int]) -> list[str | None]:
         answer = await ask(indices)
+        if answer is not None and len(indices) > 1 and answer[-1] is None:
+            # A dropped line padded at the end shifts every answer one line early at the right length, and a plain null is also
+            # a real answer (#6305): ask the batch once more; a reply that still ends so is believed, a rejected one goes line by line.
+            logger.warning("line reader %s: a batch of %d lines on %s ended in null or empty; asked once more",
+                           config.model, len(indices), image_path)
+            trailing.append(len(indices))
+            answer = await ask(indices)
         if answer is not None and page_uri and len(indices) > 1 and not await in_order(indices, answer):
             logger.warning("line reader %s: a batch of %d lines answered out of order on %s (answers do not follow the lines asked); "
                            "nothing kept, asked line by line", config.model, len(indices), image_path)
@@ -345,6 +354,7 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
     page_metadata = {**lines.metadata, "lines_unanswered": unanswered, "lines_found_by": "kraken", "lines_found": len(found),
                      "lines_without_writing": len(found) - read, "lines_flagged": len(flagged),
                      "batches_reasked_by_order": len(reasked), "lines_reasked_by_order": sum(reasked),
+                     "batches_reasked_by_trailing_null": len(trailing),
                      NO_WRITING_KEY: no_writing}
     if flagged:
         # The page's reading is as trusted as its worst line: it lands marked, not as the page's text.

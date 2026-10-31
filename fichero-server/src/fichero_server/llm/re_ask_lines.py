@@ -63,6 +63,8 @@ async def re_ask(image_path: str, lines: list[dict[str, Any]], page_answer: str,
 
     async def one_batch(group: list[dict[str, Any]]) -> list[str | None]:
         answer = await ask(group)
+        if answer is not None and len(group) > 1 and answer[-1] is None:
+            answer = await ask(group)  # a null at the end may be a dropped line padded out (#6305): once more, then believed
         if answer is None and len(group) > 1:
             singles = await asyncio.gather(*(ask([g]) for g in group))
             answer = [s[0] if s else None for s in singles]
