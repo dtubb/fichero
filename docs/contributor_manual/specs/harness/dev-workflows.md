@@ -6,7 +6,7 @@
 > a research project.
 
 > **Status: APPROVED by the owner 2026-10-31 at bef07fa21 (rewrite 5: the second review verdict applied and the scope cut to what three weeks can
-> hold; § 0 is Slice 0 on its own), for the maintainer's approval.** Replaces the text approved on 2026-10-26
+> hold; § 0 is Slice 0 on its own).** Replaces the text approved on 2026-10-26
 > (c9c24dfbf, 739ad4ba4). Tags: [OK] built · [PARTIAL] exists, not wired · [GAP] not built · [BROKEN] fails today ·
 > [PROPOSED] decided here, not yet ruled. Issues: #6116 (the pipeline), #2067 (Research), #5933 (Pause and Stop).
 >
