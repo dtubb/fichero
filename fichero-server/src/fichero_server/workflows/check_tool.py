@@ -168,15 +168,32 @@ def contract_current(root, changed: list[str], cfg: Config, timeout_s: float = 3
     return {"ok": all(r["ok"] for r in results), "skipped": False, "results": results}
 
 
+def _git_argv(root, args) -> list[str]:
+    """git with hooks, fsmonitor, every filter driver and external diff the repo's own config names switched off
+    (review 2 B2: a worker's .git/config must run no code at checkout or diff)."""
+    r = subprocess.run(["git", "config", "--local", "--name-only", "--get-regexp", r"^filter\."], cwd=str(root),
+                       capture_output=True, text=True, env=_git_env())
+    names = {k.split(".")[1] for k in r.stdout.split() if k.count(".") >= 2}
+    off = ["-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "diff.external=",
+           "-c", "core.attributesFile=/dev/null"]
+    for n in sorted(names):
+        off += ["-c", f"filter.{n}.smudge=", "-c", f"filter.{n}.clean=", "-c", f"filter.{n}.process=",
+                "-c", f"filter.{n}.required=false"]
+    return ["git", *off, *args]
+
+
+def _git_env() -> dict:
+    return {"PATH": os.environ.get("PATH", ""), "HOME": tempfile.gettempdir(), "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_CONFIG_SYSTEM": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1", "GIT_ATTR_NOSYSTEM": "1"}
+
+
 def _git(root, *args, timeout_s: float = 60) -> dict:
-    # hooks and fsmonitor off, as the frozen pipeline ran every git
-    return run_command("git", ["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", *args], root, timeout_s)
+    return run_command("git", _git_argv(root, args), root, timeout_s, _git_env())
 
 
 def _lines(root, *args) -> list[str] | None:
     """git stdout, whole (the typed result's tail is capped); None on failure."""
-    r = subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", *args],
-                       cwd=str(root), capture_output=True, text=True)
+    r = subprocess.run(_git_argv(root, args), cwd=str(root), capture_output=True, text=True, env=_git_env())
     return r.stdout.splitlines() if r.returncode == 0 else None
 
 
@@ -351,6 +368,8 @@ def run_ladder(root, since: str, head: str, pinned, protected_ids=()) -> dict:
     names = [ln.split("\t", 1)[1] for ln in _lines(root, "diff", "--name-status", "--no-renames", "--diff-filter=AM",
                                                     f"{since}...{head}") or []]
     tests = [f for f in names if any(fnmatch.fnmatch(Path(f).name, g) for g in cfg.test_globs)]
+    if not _git(root, "rev-parse", "--verify", "-q", "refs/remotes/origin/integration")["ok"]:
+        _git(root, "update-ref", "refs/remotes/origin/integration", since)  # a remote-less clone: ready checks diff against it
     tree = _scratch_tree(root, head, pinned, cfg)
     try:
         ok_pin = {"name": "pinned-checks", "argv": [], "exit_code": 0, "ok": True, "timed_out": False, "seconds": 0,

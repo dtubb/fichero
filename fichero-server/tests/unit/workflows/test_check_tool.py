@@ -244,3 +244,19 @@ def test_a_worker_cannot_rewrite_its_own_acceptance(tmp_path):
     hits = ct.acceptance_changed(work, base, "HEAD", cfg, ["demo.item.one"])
     assert hits and "specs/s.md" in hits[0]
     assert ct.acceptance_changed(work, base, "HEAD", cfg, ["demo.other"]) == []  # only the item's own ids are protected
+
+
+def test_a_workers_git_config_filter_never_runs_at_checkout(tmp_path):
+    """review 2 B2: smudge filters in the worker's .git/config must not run when the ladder makes its trees."""
+    g, base = _git_repo(tmp_path)
+    (tmp_path / ".gitattributes").write_text("*.txt filter=evil\n")
+    (tmp_path / "a.txt").write_text("x\n")
+    g("add", "."), g("commit", "-q", "-m", "attrs")
+    marker = tmp_path.parent / (tmp_path.name + "-ran")
+    g("config", "filter.evil.smudge", f"touch {marker}; cat")
+    g("config", "filter.evil.clean", "cat")
+    g("config", "diff.external", f"touch {marker}")
+    tree = ct._scratch_tree(tmp_path, "HEAD", tmp_path, ct.Config())
+    ct.diff_bound(tmp_path, base, "HEAD", ct.Config())
+    ct._git(tmp_path, "worktree", "remove", "--force", tree)
+    assert not marker.exists()
