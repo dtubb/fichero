@@ -82,6 +82,7 @@ from fichero_server.db.embeddings import (
 )
 from fichero_server.db.manager import DatabaseManager, db_manager  # noqa: F401
 from fichero_server.db.busy_evidence import watch_statement
+from fichero_server.db import volume_dropped
 from fichero_server.errors import ErrorCategory, handle_error
 from fichero_server.security.path_security import resolve_under_allowed_roots
 from fichero_server.core.duckdb_session import fetch_one
@@ -1926,11 +1927,17 @@ class Database(DatabaseEmbeddingMixin):
                                 else self.conn.execute(sql, params)
                             )
                             if fetch == "all":
-                                return cur.fetchall()
-                            if fetch == "one":
-                                return fetch_one(cur)
-                        return cur
+                                result = cur.fetchall()
+                            elif fetch == "one":
+                                result = fetch_one(cur)
+                            else:
+                                result = cur
+                        if volume_dropped.is_down(self.path):
+                            volume_dropped.recovered(self.path)
+                        return result
                     except duckdb.Error as exc:
+                        if volume_dropped.is_volume_error(exc):
+                            raise volume_dropped.outage(self.path, exc) from exc
                         if self._is_invalidated_error(exc):
                             # The cause, always (#5644): "invalidated" also means "closed", and a
                             # FATAL behind it went unseen for weeks without its own words here.
@@ -3397,9 +3404,13 @@ class Database(DatabaseEmbeddingMixin):
                         cur = self._read_conn.execute(sql, params or {})
                         rows = cur.fetchall()
                     columns = [d[0] for d in cur.description]
+                    if volume_dropped.is_down(self.path):
+                        volume_dropped.recovered(self.path)
                     return rows, columns
                 except duckdb.Error as exc:
                     self._read_conn = None
+                    if volume_dropped.is_volume_error(exc):
+                        raise volume_dropped.outage(self.path, exc) from exc
                     if self._is_invalidated_error(exc):
                         self._reconnect_after_invalidated()
                     if attempt == 1:
