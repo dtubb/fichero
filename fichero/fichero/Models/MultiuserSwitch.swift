@@ -26,8 +26,10 @@ enum MultiuserSwitch {
                                       auditId: body.auditId)
         case .unprocessableContent:
             throw APIError.httpError(statusCode: 422, message: "Unexpected response")
-        case .undocumented(let statusCode, _):
-            throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
+        case .undocumented(let statusCode, let payload):
+            // The engine refuses in words (`sharing.multiuser-switch-says-the-refusal`): say them, not "Unexpected response".
+            let detail = await EngineErrorDetail.message(from: payload)
+            throw APIError.httpError(statusCode: statusCode, message: MultiuserSwitchWords.sentence(status: statusCode, detail: detail))
         }
     }
 }
