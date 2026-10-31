@@ -101,17 +101,20 @@ def test_a_missing_download_still_backs_off_and_retries(monkeypatch):
     assert embeddings.load_failure_in_force("m")
 
 
-def test_a_load_defect_fails_the_embed_job_rather_than_deferring_it(monkeypatch):
-    """`wait_for_the_search_model` defers a job while a download runs; for a model that will not load it fails the job
-    with the sentence, so Activity shows it once and the lane is not asked every two minutes per page."""
+def test_a_load_defect_waits_out_the_hold_rather_than_failing_the_job(monkeypatch):
+    """Review L1: a failed embed job had nothing to requeue it when the hour ended, so its page stayed out of search. It
+    comes back after the hold, with the sentence as its reason, and no download is queued: none would mend it."""
+    from fichero_server.execution import jobs
     from fichero_server.importers import derivatives
 
-    class _NoDb:
-        def execute(self, *a, **k):
-            raise AssertionError("no row should be touched")
-
-    with pytest.raises(RuntimeError, match="could not be loaded"):
-        derivatives.wait_for_the_search_model(_NoDb(), embed_process.load_failure_words("ValueError: Model X is not supported in TextEmbedding.", cached=True))
+    back: list[tuple[str, float]] = []
+    monkeypatch.setattr(jobs, "come_back_after", lambda _db, job, seconds: back.append((job, seconds)))
+    monkeypatch.setattr(jobs._current, "job_id", "the-job", raising=False)
+    monkeypatch.setattr(derivatives, "_fetch_the_search_model", lambda _db: pytest.fail("no download mends a defect"))
+    words = embed_process.load_failure_words("ValueError: Model X is not supported in TextEmbedding.", cached=True)
+    with pytest.raises(jobs.JobDeferred, match="could not be loaded"):
+        derivatives.wait_for_the_search_model(object(), words)
+    assert back == [("the-job", embeddings.DEFECT_BACKOFF_SECONDS)]
 
 
 # --- review M2: only a model this build cannot load is a defect, and even that hold ends ----------------------------
@@ -121,6 +124,8 @@ def test_a_load_defect_fails_the_embed_job_rather_than_deferring_it(monkeypatch)
     "MemoryError: ",
     "RuntimeException: [ONNXRuntimeError] : 6 : RUNTIME_EXCEPTION : Failed to allocate memory for requested buffer",
     "OSError: [Errno 35] Resource temporarily unavailable: '/models/embeddings/model.onnx.lock'",
+    "FileNotFoundError: [Errno 2] No such file or directory: '/tmp/onnx-scratch'",
+    "RuntimeError: the temporary folder does not exist",
 ])
 def test_a_load_that_failed_for_want_of_memory_or_a_lock_backs_off_and_defers(monkeypatch, payload):
     """The Air under memory pressure: one allocation failure must not turn search off for the session. It backs off
@@ -135,6 +140,14 @@ def test_a_load_that_failed_for_want_of_memory_or_a_lock_backs_off_and_defers(mo
 def test_a_model_this_build_does_not_know_is_a_defect():
     words = embed_process.load_failure_words("ValueError: Model BAAI/bge-m3 is not supported in TextEmbedding.", cached=True)
     assert embed_process.is_a_load_defect(words)
+
+
+@pytest.mark.parametrize("payload", [
+    "NoSuchFile: [ONNXRuntimeError] : 3 : NO_SUCHFILE : Load model from /m/model.onnx failed. File doesn't exist",
+    "InvalidProtobuf: [ONNXRuntimeError] : 7 : INVALID_PROTOBUF : Load model from /m/model.onnx failed:Protobuf parsing failed.",
+])
+def test_a_missing_or_broken_model_file_is_a_defect(payload):
+    assert embed_process.is_a_load_defect(embed_process.load_failure_words(payload, cached=True))
 
 
 def test_a_defect_is_held_for_a_long_back_off_not_forever(monkeypatch):

@@ -290,9 +290,10 @@ replaces the Kraken figure before #6212 is coded.
   M4 run sampling `/api/health` within 1 s. Test: fichero-server/tests/unit/core/test_loop_lag_activity_polls.py.
 - `recipes-run.engine.embedder-child-knows-its-model` — **[OK]** the search model's child registers a custom model
   (bge-m3) itself before loading it, since the seed it forks from never saw the engine's registration. A model this
-  build cannot load (not supported, a file missing) is said once at error, fails the embed job with the sentence, and
-  is not tried again for an hour or until a download finishes. Any other load failure (out of memory, a lock, a child
-  that died) backs off 120 s and the embed job comes back. Was: the Air logged 31,385 "not supported" lines in 3 h.
+  build cannot load (fastembed does not know it, onnxruntime says its file is missing or broken) is said once at error;
+  the embed job waits with that sentence as its reason and comes back after an hour, and the load is not tried again
+  sooner unless a download finishes. Any other load failure (out of memory, a lock, a child that died) backs off 120 s
+  and the embed job comes back. Was: the Air logged 31,385 "not supported" lines in 3 h.
   Test: `fichero-server/tests/unit/db/test_embedder_child_knows_bge_m3.py`.
 - `recipes-run.engine.poll-shared-within-one-loop` — **[OK]** the UDS and sharing servers run on separate event loops,
   so a poll shares an in-flight answer only with polls on its own loop. Was: 8 run-status polls answered 500 ("attached

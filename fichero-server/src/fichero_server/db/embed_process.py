@@ -57,13 +57,12 @@ def load_failure_words(payload: str, cached: bool) -> str:
     return f"The search model could not be loaded this time; it tries again in a few minutes: {text}"
 
 
-#: How a load failure that this build will never get past begins: the model is not one this build's fastembed can load
-#: (the Air's bge-m3, 2026-10-30), or a file it needs is missing from a cache that is otherwise here. Waiting for memory
-#: will not mend it, so the embed lane says so once and holds (`embeddings.DEFECT_BACKOFF_SECONDS`) instead of trying
-#: every page. Anything else -- out of memory, an allocation onnxruntime refused, a lock -- is this moment's, and backs off.
+#: How a load failure that this build will never get past begins: fastembed does not know the model (the Air's bge-m3,
+#: 2026-10-30), or onnxruntime says the model file is missing or broken. Waiting for memory will not mend it, so the embed
+#: lane says so once and holds (`embeddings.DEFECT_BACKOFF_SECONDS`) instead of trying every page. Only these exact
+#: words: anything else -- out of memory, a lock, some other file not there for a moment -- is this moment's, and backs off.
 WILL_NOT_LOAD = "Search indexing is off: the search model could not be loaded."
-_WILL_NEVER_LOAD = ("is not supported", "no such file", "file not found", "filenotfounderror", "does not exist",
-                    "invalid protobuf", "protobuf parsing failed")
+_WILL_NEVER_LOAD = ("is not supported in textembedding", "no_suchfile", "invalid_protobuf", "protobuf parsing failed")
 
 
 def is_a_load_defect(words: str) -> bool:
