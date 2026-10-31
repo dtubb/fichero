@@ -98,3 +98,17 @@ def test_an_allowed_nested_document_still_writes(db, denied_setup):
     registry.invoke(db, "annotation.create", {
         "kind": "highlight", "document_id": allowed.id, "anchor": _anchor(allowed.id)}, ctx)
     assert len(db.all(Annotation)) == before + 1
+
+
+def test_a_classification_revert_naming_a_denied_document_is_refused_and_deletes_no_value(db, denied_setup):
+    """`classification.revert_copy` carries its documents as rows: a denied one refuses the whole action before a value is deleted
+    (`value_ids` is library configuration, so the documents are what decide) (#6320)."""
+    from fichero_server.models.knowledge import ClassificationDimension, ClassificationValue
+
+    ctx, _allowed, denied = denied_setup
+    value = ClassificationValue(dimension=ClassificationDimension.document_prototype, key="copy-x", label="Copy")
+    db.save(value)
+    with pytest.raises(authz.AuthorizationError):
+        registry.invoke(db, "classification.revert_copy", {
+            "value_ids": [value.id], "documents": [denied.model_dump(mode="json")]}, ctx)
+    assert db.get(ClassificationValue, value.id) is not None
