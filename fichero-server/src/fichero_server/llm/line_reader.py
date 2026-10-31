@@ -106,10 +106,17 @@ def judge_batch_answer(raw: str, n: int) -> tuple[list[str | None] | None, str, 
     return parse_answer(raw, n), "", n
 
 
-def prompt_for(n: int, language: str | None = None, page_context: bool = False) -> str:
+#: Added when a batch is asked again because its reply ended in null (#6305). A different prompt is a different call: the same one
+#: would be answered from `llm`'s content cache (or a provider batch's stored answer) and never reach the model.
+REASK_NOTE = (" Your previous reply to these images ended in an empty answer, which can mean a line was skipped. Check that answer number "
+              "k is for image number k, count again, and reply with exactly {n} entries. A line with no writing is still null; do not invent text for it.")
+
+
+def prompt_for(n: int, language: str | None = None, page_context: bool = False, reask: bool = False) -> str:
     """The instruction for n line pictures, with the language when it is known, and the page's place when it rides."""
     hint = f" (in {language})" if language and language not in ("und", "unknown") else ""
-    return (PAGE_CONTEXT.format(n=n) if page_context else "") + PROMPT.format(n=n, language=hint)
+    return ((PAGE_CONTEXT.format(n=n) if page_context else "") + PROMPT.format(n=n, language=hint)
+            + (REASK_NOTE.format(n=n) if reask else ""))
 
 
 def _page_context_uri(page: Image.Image) -> str:
@@ -215,11 +222,11 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
     page_uri = _page_context_uri(page) if context and crops else None
     gate = asyncio.Semaphore(CONCURRENT_CALLS)
 
-    async def ask(indices: list[int], with_page: bool = True) -> list[str | None] | None:
+    async def ask(indices: list[int], with_page: bool = True, reask: bool = False) -> list[str | None] | None:
         rides = bool(page_uri) and with_page  # a retry of one line is a single picture: the page is not sent again
         async with gate:
             raw = await vision(images=([page_uri] if rides else []) + [crops[i] for i in indices],
-                               prompt=prompt_for(len(indices), language, page_context=rides),
+                               prompt=prompt_for(len(indices), language, page_context=rides, reask=reask),
                                config=line_call_config(config, len(indices)),
                                **({"language": language, "recognition_only_ok": True} if apple else {}))
         if apple:
@@ -267,8 +274,17 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
                 refs[k] = single[0] if single else None
         return answers_follow_order(answer, refs)
 
+    trailing: list[int] = []  # the size of each batch whose reply ended in null or an empty string and was asked once more (#6305)
+
     async def batch(indices: list[int]) -> list[str | None]:
         answer = await ask(indices)
+        if answer is not None and len(indices) > 1 and answer[-1] is None:
+            # A dropped line padded at the end shifts every answer one line early at the right length, and a plain null is also
+            # a real answer (#6305): ask the batch once more; a reply that still ends so is believed, a rejected one goes line by line.
+            logger.warning("line reader %s: a batch of %d lines on %s ended in null or empty; asked once more",
+                           config.model, len(indices), image_path)
+            trailing.append(len(indices))
+            answer = await ask(indices, reask=True)
         if answer is not None and page_uri and len(indices) > 1 and not await in_order(indices, answer):
             logger.warning("line reader %s: a batch of %d lines answered out of order on %s (answers do not follow the lines asked); "
                            "nothing kept, asked line by line", config.model, len(indices), image_path)
@@ -345,6 +361,7 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
     page_metadata = {**lines.metadata, "lines_unanswered": unanswered, "lines_found_by": "kraken", "lines_found": len(found),
                      "lines_without_writing": len(found) - read, "lines_flagged": len(flagged),
                      "batches_reasked_by_order": len(reasked), "lines_reasked_by_order": sum(reasked),
+                     "batches_reasked_by_trailing_null": len(trailing),
                      NO_WRITING_KEY: no_writing}
     if flagged:
         # The page's reading is as trusted as its worst line: it lands marked, not as the page's text.

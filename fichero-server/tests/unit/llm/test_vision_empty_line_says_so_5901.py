@@ -81,7 +81,7 @@ def test_a_few_empty_lines_on_a_page_that_reads_are_final_not_the_rate_rule(monk
     assert out.metadata["lines_unanswered"] == {"a": TWICE} and out.metadata[NO_WRITING_KEY] == ["a"]
 
 
-def test_a_generative_models_null_is_still_no_writing_and_is_not_asked_again(monkeypatch, tmp_path):
+def test_a_generative_models_null_is_still_no_writing_and_the_batch_is_asked_once_more_only(monkeypatch, tmp_path):
     from fichero_server.llm import LLMConfig
 
     seen = []
@@ -93,7 +93,7 @@ def test_a_generative_models_null_is_still_no_writing_and_is_not_asked_again(mon
     monkeypatch.setattr(llm, "vision", fake_vision)
     path, geometry = _geometry(tmp_path, ["a", "b"])
     out = asyncio.run(line_reader.read_lines(path, geometry, LLMConfig(provider="openrouter", model="x"), page_context=False))
-    assert out.metadata[NO_WRITING_KEY] == ["b"] and out.metadata["lines_unanswered"] == {} and len(seen) == 1
+    assert out.metadata[NO_WRITING_KEY] == ["b"] and out.metadata["lines_unanswered"] == {} and len(seen) == 2  # #6305: a trailing null: once more, then believed
 
 
 def test_a_final_line_is_done_not_unread_carries_the_reason_and_is_counted_on_its_own(db):
