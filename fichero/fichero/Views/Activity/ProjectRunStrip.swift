@@ -186,7 +186,8 @@ struct RecipeFolderSteps: Equatable {
     var words: String {
         steps.map { step in
             guard let done = step.done else { return "\(step.name): cannot tell" }
-            return done >= step.total ? "\(step.name): done" : "\(step.name): \(done) of \(step.total) \(step.total == 1 ? "page" : "pages")"
+            if done >= step.total { return "\(step.name): done" }
+            return "\(step.name): \(done) of \(step.total) \(step.total == 1 ? "page" : "pages")"
         }.joined(separator: "\n")
     }
 }

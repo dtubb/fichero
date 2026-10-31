@@ -90,52 +90,6 @@ struct WorkflowEditor: View {
         self.selectedDocumentIds = selectedDocumentIds
     }
 
-    /// Library › Workflows › folder › name, in the shared lozenge grammar.
-    /// Non-navigable rows: the editor is a full-column surface, so a crumb
-    /// click has nowhere narrower to go — the chain is orientation, exactly
-    /// what the other panes' heads are.
-    private var editorHeadCrumbs: [PaneCrumb] {
-        var crumbs: [PaneCrumb] = []
-        // #4860: this pane names ITS OWN window's library.
-        if let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) {
-            crumbs.append(PaneCrumb(
-                id: "library-root",
-                title: library.displayName,
-                icon: "books.vertical.fill",
-                isNavigable: false,
-                tint: .accentColor
-            ))
-        }
-        crumbs.append(PaneCrumb(
-            id: "workflows-section",
-            title: "Workflows",
-            icon: "arrow.triangle.branch",
-            isNavigable: false,
-            tint: .purple
-        ))
-        let folder = editingWorkflow.folderPath
-            .split(separator: "/").last.map(String.init) ?? ""
-        if !folder.isEmpty {
-            crumbs.append(PaneCrumb(
-                id: "workflow-folder",
-                title: folder,
-                icon: "folder",
-                isNavigable: false
-            ))
-        }
-        crumbs.append(PaneCrumb(
-            id: editingWorkflow.id,
-            title: editingWorkflow.name,
-            icon: "arrow.triangle.branch",
-            isNavigable: false
-        ))
-        return crumbs
-    }
-}
-
-// MARK: - Body and layout
-
-extension WorkflowEditor {
     var body: some View {
         VStack(spacing: 0) {
             // The same pane-head grammar as Library/Preview/Reader (Daniel,
@@ -347,6 +301,52 @@ extension WorkflowEditor {
                 await saveWorkflow()
             }
         }
+    }
+}
+
+// MARK: - Head crumbs and tidying
+
+extension WorkflowEditor {
+    /// Library › Workflows › folder › name, in the shared lozenge grammar.
+    /// Non-navigable rows: the editor is a full-column surface, so a crumb
+    /// click has nowhere narrower to go — the chain is orientation, exactly
+    /// what the other panes' heads are.
+    private var editorHeadCrumbs: [PaneCrumb] {
+        var crumbs: [PaneCrumb] = []
+        // #4860: this pane names ITS OWN window's library.
+        if let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) {
+            crumbs.append(PaneCrumb(
+                id: "library-root",
+                title: library.displayName,
+                icon: "books.vertical.fill",
+                isNavigable: false,
+                tint: .accentColor
+            ))
+        }
+        crumbs.append(PaneCrumb(
+            id: "workflows-section",
+            title: "Workflows",
+            icon: "arrow.triangle.branch",
+            isNavigable: false,
+            tint: .purple
+        ))
+        let folder = editingWorkflow.folderPath
+            .split(separator: "/").last.map(String.init) ?? ""
+        if !folder.isEmpty {
+            crumbs.append(PaneCrumb(
+                id: "workflow-folder",
+                title: folder,
+                icon: "folder",
+                isNavigable: false
+            ))
+        }
+        crumbs.append(PaneCrumb(
+            id: editingWorkflow.id,
+            title: editingWorkflow.name,
+            icon: "arrow.triangle.branch",
+            isNavigable: false
+        ))
+        return crumbs
     }
 
     /// Re-lay the graph left-to-right by execution order (#4323).
