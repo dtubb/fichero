@@ -18,7 +18,8 @@
 > `research.future.agent-operates-projects`, `research.per-model-tool-grants`) are owned here.
 > `ui/activity-and-automatic-work.md` (approved 2026-10-27) keeps the one job model, lanes, throttling and durability;
 > § UX below overrides its window columns and adds workers, handoffs and reviews as rows, and says so where it does.
-> `ui/workflows.md` keeps the canvas and run log.
+> `ui/workflows.md` keeps the canvas and run log. Thin engine (2026-10-31): the worker's loop is the agent harness's; no
+> LangGraph graph drives it (`agent-work/status/briefs/thin-harness-answer.md`).
 
 ## Intent
 
@@ -104,9 +105,14 @@ activity list.
 - **The engine's own records are the truth for runs from the start** (maintainer, 2026-10-31): the checkpointer and the
   jobs table; the pipeline journal becomes a log. This runs **supervised**: the Lead session and the Sonnet builders
   stay in charge, and a plain supervision rule says what they can stop, inspect and repair.
-- **The worker steers, scripts guard.** A long-running worker owns one task (a Builder cluster, a Researcher task) and
-  calls the deterministic steps as tools; scripts choose between tasks, wake, re-send, budget, bind verdicts to shas,
-  land and close. A model never moves an item.
+- **Thin engine; the loop lives in the agent harness** (maintainer's question, answered 2026-10-31 in
+  `agent-work/status/briefs/thin-harness-answer.md`). A long-running worker owns one task (a Builder cluster, a
+  Researcher task); its loop is the harness's own (Claude Code now, Pi as a kind, the engine's existing tool-call loop
+  for the Researcher), its handoff and successor are a harness hook, and it calls a few tools (brief, check, ask, hand
+  off, land, and the research tools). The engine holds the records, starts and stops workers, shows them in
+  Activity, carries questions and grants, and keeps the run log; LangGraph graphs stay where a fixed sequence earns
+  them (recipes). Scripts choose between tasks, wake, re-send, budget, bind verdicts to shas, land and close. A model
+  never moves an item.
 - **Land per cluster** (maintainer, 2026-10-31).
 - **One worker kind, two capability sets** (Builder: worktree, shell, git, step tools, scratch base path, contributor
   tier; Researcher: read-only library actions, web search and fetch, note/source/task writes through the audited layer
@@ -207,13 +213,14 @@ back along its list and says so.
 
 ### B. The harness: workers
 
-- `dev-workflows.worker.steers` [PROPOSED] — a worker session owns one task's judgement and calls the steps as tools
-  (`brief`, `check`, `request-review`, `land`, `close`, `update-issue`, `file-bug`, `ask`, and for research `search`,
-  `fetch`, `save-source`, `note`), each an engine step with its check; scripts act between tasks and as guards
-  (wake, ack re-send within ten minutes, budgets, verdict bound to a sha, the ladder before any land). Test:
+- `dev-workflows.worker.steers` [PROPOSED] — a worker session owns one task's judgement; its loop is the harness's own,
+  and it calls the steps as tools (`brief`, `check`, `request-review`, `land`, `close`, `update-issue`, `file-bug`,
+  `ask`, `hand-off`, and for research `search`, `fetch`, `save-source`, `note`), each an audited engine action with its
+  check; scripts and hooks act between tasks and as guards (wake, ack re-send within ten minutes, budgets, verdict
+  bound to a sha, the ladder before any land). Test:
   `fichero-server/tests/unit/workflows/test_cluster_run.py::test_worker_steers_through_step_tools`.
-- `dev-workflows.worker.handoff` [PROPOSED] — at 85 % of the context window, or at a task boundary, the runner writes
-  the handoff from the journal and git or the task's notes — the spec or question and its sections; the ordered items
+- `dev-workflows.worker.handoff` [PROPOSED] — at 85 % of the context window, or at a task boundary, a harness hook (the
+  successor hook that runs today, one per harness kind) writes the handoff from the engine's rows and git or the task's notes — the spec or question and its sections; the ordered items
   with state; one line per commit or saved source; commands run and results; the current failing command or open
   lead and its last output; decisions taken and alternatives rejected; files or sources touched; the do-not list;
   budget used; under two thousand tokens, one paragraph the worker may add — and starts the successor at once; a
@@ -231,46 +238,48 @@ back along its list and says so.
   both; a research session never holds a GitHub token. Test:
   `fichero-server/tests/unit/workflows/test_capability_sets.py::test_dev_and_research_sets_never_mix`.
 
-### C. The harness: nodes
+### C. The harness: worker start and stop, and the tools
 
-- `dev-workflows.node.script` [GAP] (#6116) — argv list (no shell string), cwd, `timeout_s`; stdout, stderr and exit code
-  as typed outputs; routes on the exit code with no model call; a node with no timeout is refused at validation.
-  Test: `fichero-server/tests/unit/workflows/test_script_node.py::test_script_node`.
-- `dev-workflows.node.worker` [PARTIAL] (#6116) — one worker node with kinds `claude` and `codex` (today's `cli_agent.py`,
+- `dev-workflows.tool.check` [PROPOSED] — a `check` tool runs the ladder for the worker: `scripts/lane_ready_check.sh`, the
+  named pytest, `scripts/check_*.py` (with the skip list and per-guard time budgets carried over from the frozen
+  runner), diff-bound and failing-run-pasted; argv lists only, a cwd and a timeout per command, stdout, stderr and exit
+  code returned as typed results; the same command set is what the land step re-runs on the rebased head. Test:
+  `fichero-server/tests/unit/workflows/test_check_tool.py::test_check_tool_runs_the_ladder`.
+- `dev-workflows.node.worker` [PARTIAL] (#6116) — the engine starts a worker of a kind: `claude` and `codex` (today's `cli_agent.py`,
   unchanged), `pi` (headless `pi -p`, a session directory, the role's rules appended, provider and model from the role;
   returns usage, tool errors, the reported sha), `apple` (an on-device Foundation Models call with a typed output, for
   small jobs), and `fake` (replays a scenario); each with a role, a model from the profile, a brief and a cost/turn cap;
   result typed `{sha|verdict|text|choice, usage}`. Test: `fichero-server/tests/unit/workflows/test_worker_node.py::test_worker_kinds`.
-- `dev-workflows.node.git` [GAP] (#6116) — a closed list of operations as typed inputs (worktree add/remove, status, diff
-  stat, rebase onto, merge --no-ff, range-diff, log of a range, push to the integration branch); refuses any push to
-  `main` or a `v*` tag; push is its own node. Test: `fichero-server/tests/unit/workflows/test_git_gh_nodes.py::test_git_node`.
-- `dev-workflows.node.gh` [GAP] (#6116) — reads and writes as typed operations through one journaled writer in the engine
-  (ported from `pipeline/gh.py`: dry run by default, every write logged), with an allow-list per workflow. Test: `fichero-server/tests/unit/workflows/test_git_gh_nodes.py::test_gh_node`.
-- `dev-workflows.node.human-question` [PARTIAL] (#6116) — `ask_human()` + resume exist; the node parks the run with a
+- `dev-workflows.tool.git` [GAP] (#6116) — a `git` tool offers a closed list of operations as typed inputs (worktree
+  add/remove, status, diff stat, rebase onto, merge --no-ff, range-diff, log of a range, push to the integration branch);
+  refuses any push to `main` or a `v*` tag; push needs a land grant. Test:
+  `fichero-server/tests/unit/workflows/test_git_gh_tools.py::test_git_tool`.
+- `dev-workflows.tool.gh` [GAP] (#6116) — a `gh` tool: reads and writes as typed operations through the engine's one
+  journaled writer (ported from `pipeline/gh.py`: dry run by default, every write logged), with an allow-list per role.
+  Test: `fichero-server/tests/unit/workflows/test_git_gh_tools.py::test_gh_tool`.
+- `dev-workflows.node.human-question` [PARTIAL] (#6116) — `ask_human()` + resume exist; the `ask` tool parks the task with a
   typed question (text, options, the artifact) and resumes durably across an engine restart from Activity, the
   Research workspace, the CLI chat or a page. Test:
   `fichero-server/tests/unit/workflows/test_pause_resume_survives_restart.py::test_human_question_survives_restart`.
-- `dev-workflows.node.validate-before-run` [GAP] (#6116) — an unreachable step, an input no step writes, a loop without a
-  cap, a script without a timeout, a gh write outside the allow-list refuse the run naming the node
-  (`workflows/validation.py` extended). Test: `fichero-server/tests/unit/workflows/test_script_node.py::test_validate_before_run`.
 
 ### D. The harness: runs, review, landing, recovery, models
 
-- `dev-workflows.run.task-workflow` [PROPOSED] — a Builder cluster runs as the workflow `dev-cluster` (brief → worker →
-  check → review question → next issue … → land → close) and a Researcher task as `research-task` (brief → worker →
-  save sources and notes → question or next lead → summary), each one Activity row with a child per step, headless
-  on a scratch base path with a pinned dev engine for the Builder (ruling Q1), on the person's engine for the
-  Researcher. Test: `fichero-server/tests/unit/workflows/test_headless_scratch_run.py::test_task_workflows_run`.
-- `dev-workflows.run.review-per-issue` [PROPOSED] — each issue's commit gets a fresh review (a reviewer-role worker) bound
-  to its sha, with findings; NOT_READY returns the findings to the same session (two rounds, then the queue). A
+- `dev-workflows.run.worker-start-stop` [PROPOSED] — the engine starts a worker for a task (a Builder cluster, headless on a
+  scratch base path with a pinned dev engine, ruling Q1; a Researcher task, in-app on the person's engine, no terminal),
+  with its brief, kind, model and grants, records it as one Activity row with a child row per tool call and report,
+  stops it on Stop, a budget hit or a hold, and starts its successor when the hook hands off; no LangGraph graph drives
+  the loop. Test: `fichero-server/tests/unit/workflows/test_worker_start_stop.py::test_start_record_stop_and_successor`.
+- `dev-workflows.run.review-per-issue` [PROPOSED] — the `request-review` tool starts a fresh reviewer-role worker on the
+  issue's commit, its verdict bound to the sha, with findings; NOT_READY returns the findings to the same session (two
+  rounds, then the queue). A
   research task's review is the person's: sources and notes are proposals until accepted. Test:
   `fichero-server/tests/unit/workflows/test_review_and_land.py::test_review_per_issue`.
-- `dev-workflows.run.land-per-cluster` [PROPOSED] (maintainer 2026-10-31) — a cluster lands as one fast-forward to the
-  integration branch after every issue is READY and the ladder is green on the rebased head (`patch-id` reuse of
-  reviews); never `main`; each issue is then closed with its sha or left open with its residue. Test:
+- `dev-workflows.run.land-per-cluster` [PROPOSED] (maintainer 2026-10-31) — the `land` tool is a guard script: it lands a
+  cluster as one fast-forward to the integration branch only when every issue is READY and the ladder is green on the
+  rebased head (`patch-id` reuse of reviews); never `main`; each issue is then closed with its sha or left open with its residue. Test:
   `fichero-server/tests/unit/workflows/test_review_and_land.py::test_land_per_cluster`.
-- `dev-workflows.run.recovery` [PROPOSED] — on restart every coding item whose worker has no delivered brief gets it again;
-  a stuck worker is told once, then replaced by a successor from the handoff; a budget stop parks the item with a
+- `dev-workflows.run.recovery` [PROPOSED] — on restart every task whose worker is gone is restarted from its handoff; a
+  stuck worker is told once, then replaced by a successor from the handoff; a budget stop parks the item with a
   question; the machine budget refuses to start a worker when memory, disk or load is short; every recovery is a row.
   Keeping the harness awake is the harness's own duty: a scheduled tick (`workflows/scheduler.py`) wakes it every
   twenty to thirty minutes to re-send briefs, start successors and surface questions, so an unattended night never
@@ -376,21 +385,21 @@ back along its list and says so.
   script step with a fixed argv and a grant. Test: `fichero-server/tests/unit/security/test_untrusted_text.py::test_injected_text_makes_no_write`.
 - `dev-workflows.security.argv-injection` [GAP] (#6116) — script, git and gh nodes take typed inputs; free text goes in a
   file or stdin; each argv value matches `^[A-Za-z0-9._/-]+$`, no leading `-`, no `..`; names come from numeric ids.
-  Test: `fichero-server/tests/unit/workflows/test_git_gh_nodes.py::test_argv_injection_refused`.
+  Test: `fichero-server/tests/unit/workflows/test_git_gh_tools.py::test_argv_injection_refused`.
 - `dev-workflows.security.capability-grants` [GAP] (#6116) — a per-step grant (operation set + target) held by the engine;
   gh and git nodes refuse a write without one; model-reachable steps get bookkeeping grants only. Test:
   `fichero-server/tests/unit/workflows/test_capability_grants.py::test_model_output_cannot_close`.
-- `dev-workflows.security.dev-nodes-gated` [GAP] (#6116) — script, git, gh and the Builder worker exist only in the
-  contributor tier, off by default; a workflow using one is refused on import or share. Test:
-  `fichero-server/tests/unit/workflows/test_script_node.py::test_dev_nodes_gated`.
+- `dev-workflows.security.builder-kind-gated` [GAP] (#6116) — the Builder worker kind and the `git`, `gh` and `check`
+  tools exist only in the contributor tier, off by default; a Researcher worker can never be started with them. Test:
+  `fichero-server/tests/unit/workflows/test_capability_sets.py::test_builder_kind_gated`.
 - `dev-workflows.security.tokens-and-redaction` [GAP] (#6116) — a GitHub token lives in one `gh` subprocess's environment
   per call; no token, key or credential reaches workflow state, the checkpointer, the journal, the run log or captured
   output. Test: `fichero-server/tests/unit/security/test_no_secret_persists_after_a_run.py::test_tokens_and_redaction`.
 
 ### I. Dry runs and rollout
 
-- `dev-workflows.rollout.dry-run` [PROPOSED] — the `fake` worker kind replays a scenario (scripted turns plus the journal
-  events and Activity rows expected) through the engine with no model and no money, covering every tool-call shape
+- `dev-workflows.rollout.dry-run` [PROPOSED] — the `fake` worker kind replays a scenario (scripted tool calls and reports plus
+  the Activity rows and log expected) through the engine's start/stop and tools with no model and no money, covering every tool-call shape
   including a malformed one, one commit per issue over a three-issue cluster, the handoff and the successor, ask-park-
   answer-resume across a restart, NOT_READY and a rework round, the ladder rungs tripping, a dead worker and an
   unbriefed one, a 429, a 5xx and a context overflow, a false done, the budget stop, land and close against a fake
@@ -421,14 +430,14 @@ back along its list and says so.
 Thin slices through November 2026, each one a Claude Code builder can take from its heading; dogfooding starts at 1.1.
 `Depends on` defaults to the step before within the stage.
 
-### Stage 1 — the harness runs one Builder cluster and one Researcher task (weeks 1-2)
+### Stage 1 — a Claude Code builder runs one cluster with the hook and tools, the engine recording it; one Researcher task (weeks 1-2)
 
-#### Step 1.1 — the script node and the task workflows on a scratch base path
-- Behaviours: `dev-workflows.node.script`, `dev-workflows.run.task-workflow`, `dev-workflows.node.validate-before-run`
-- Tests: fichero-server/tests/unit/workflows/test_script_node.py, fichero-server/tests/unit/workflows/test_headless_scratch_run.py
+#### Step 1.1 — the engine starts and stops a worker; the check tool
+- Behaviours: `dev-workflows.tool.check`, `dev-workflows.run.worker-start-stop`
+- Tests: fichero-server/tests/unit/workflows/test_worker_start_stop.py, fichero-server/tests/unit/workflows/test_check_tool.py
 - Size: M
 
-#### Step 1.2 — the worker node: claude today, fake for the dry run
+#### Step 1.2 — worker kinds: claude today, fake for the dry run
 - Behaviours: `dev-workflows.node.worker`, `dev-workflows.rollout.dry-run`, `dev-workflows.rollout.pipeline-frozen`
 - Tests: fichero-server/tests/unit/workflows/test_worker_node.py, fichero-server/tests/unit/workflows/test_dev_item_matches_runner.py, fichero-server/tests/unit/workflows/test_pipeline_frozen.py
 - Size: M
@@ -444,13 +453,13 @@ Thin slices through November 2026, each one a Claude Code builder can take from 
 - Depends on: 1.2
 - Size: M
 
-#### Step 1.5 — review per issue, land per cluster, the question survives a restart
-- Behaviours: `dev-workflows.run.review-per-issue`, `dev-workflows.run.land-per-cluster`, `dev-workflows.node.human-question`
-- Tests: fichero-server/tests/unit/workflows/test_review_and_land.py, fichero-server/tests/unit/workflows/test_pause_resume_survives_restart.py
+#### Step 1.5 — the review, land and git tools; the question survives a restart
+- Behaviours: `dev-workflows.run.review-per-issue`, `dev-workflows.run.land-per-cluster`, `dev-workflows.node.human-question`, `dev-workflows.tool.git`
+- Tests: fichero-server/tests/unit/workflows/test_review_and_land.py, fichero-server/tests/unit/workflows/test_pause_resume_survives_restart.py, fichero-server/tests/unit/workflows/test_git_gh_tools.py
 - Depends on: 1.3
 - Size: M
 
-#### Step 1.6 — handoff, successor, recovery, the log; the engine's records are the truth, supervised
+#### Step 1.6 — the handoff hook and successor, recovery, the log; the engine's records are the truth, supervised
 - Behaviours: `dev-workflows.worker.handoff`, `dev-workflows.run.recovery`, `dev-workflows.run.log`, `dev-workflows.run.engine-records-are-truth`, `dev-workflows.run.supervision`
 - Tests: fichero-server/tests/unit/workflows/test_cluster_run.py, fichero-server/tests/unit/workflows/test_recovery.py, fichero-server/tests/unit/workflows/test_run_log.py, fichero-server/tests/unit/workflows/test_engine_records_are_truth.py, fichero-server/tests/unit/workflows/test_supervision.py
 - Size: M
@@ -503,9 +512,9 @@ Thin slices through November 2026, each one a Claude Code builder can take from 
 
 ### Stage 3 — models by configuration, the Researcher's next tasks, the gates (weeks 3-4)
 
-#### Step 3.1 — git and gh nodes, argv jail, grants
-- Behaviours: `dev-workflows.node.git`, `dev-workflows.node.gh`, `dev-workflows.security.argv-injection`, `dev-workflows.security.capability-grants`
-- Tests: fichero-server/tests/unit/workflows/test_git_gh_nodes.py, fichero-server/tests/unit/workflows/test_capability_grants.py
+#### Step 3.1 — the gh tool, argv jail, grants
+- Behaviours: `dev-workflows.tool.gh`, `dev-workflows.security.argv-injection`, `dev-workflows.security.capability-grants`
+- Tests: fichero-server/tests/unit/workflows/test_git_gh_tools.py, fichero-server/tests/unit/workflows/test_capability_grants.py
 - Depends on: 2.7
 - Size: M
 
@@ -521,9 +530,9 @@ Thin slices through November 2026, each one a Claude Code builder can take from 
 - Depends on: 1.4
 - Size: M
 
-#### Step 3.4 — bug narrowing, dev nodes gated, the app surface
-- Behaviours: `dev-workflows.builder.bug-narrowing`, `dev-workflows.security.dev-nodes-gated`, `dev-workflows.surface.app`
-- Tests: fichero-server/tests/unit/workflows/test_bug_narrowing.py, fichero-server/tests/unit/workflows/test_script_node.py, fichero-server/tests/unit/api/test_dev_project_view.py
+#### Step 3.4 — bug narrowing, the Builder kind gated, the app surface
+- Behaviours: `dev-workflows.builder.bug-narrowing`, `dev-workflows.security.builder-kind-gated`, `dev-workflows.surface.app`
+- Tests: fichero-server/tests/unit/workflows/test_bug_narrowing.py, fichero-server/tests/unit/workflows/test_capability_sets.py, fichero-server/tests/unit/api/test_dev_project_view.py
 - Depends on: 3.1
 - Size: M
 
@@ -534,9 +543,8 @@ failing case. The table is the pinning the guard reads.
 
 | Behaviour | Step |
 |-----------|------|
-| `dev-workflows.node.script` | 1.1 |
-| `dev-workflows.run.task-workflow` | 1.1 |
-| `dev-workflows.node.validate-before-run` | 1.1 |
+| `dev-workflows.tool.check` | 1.1 |
+| `dev-workflows.run.worker-start-stop` | 1.1 |
 | `dev-workflows.node.worker` | 1.2 |
 | `dev-workflows.rollout.dry-run` | 1.2 |
 | `dev-workflows.rollout.pipeline-frozen` | 1.2 |
@@ -571,8 +579,8 @@ failing case. The table is the pinning the guard reads.
 | `dev-workflows.research.one-question-queue` | 2.6 |
 | `dev-workflows.workspace.source-kind` | 2.7 |
 | `dev-workflows.workspace.worktrees-map-to-issues` | 2.7 |
-| `dev-workflows.node.git` | 3.1 |
-| `dev-workflows.node.gh` | 3.1 |
+| `dev-workflows.tool.git` | 1.5 |
+| `dev-workflows.tool.gh` | 3.1 |
 | `dev-workflows.security.argv-injection` | 3.1 |
 | `dev-workflows.security.capability-grants` | 3.1 |
 | `dev-workflows.models.role-config` | 3.2 |
@@ -582,14 +590,14 @@ failing case. The table is the pinning the guard reads.
 | `dev-workflows.researcher.search-libraries` | 3.3 |
 | `dev-workflows.security.untrusted-text` | 3.3 |
 | `dev-workflows.builder.bug-narrowing` | 3.4 |
-| `dev-workflows.security.dev-nodes-gated` | 3.4 |
+| `dev-workflows.security.builder-kind-gated` | 3.4 |
 | `dev-workflows.surface.app` | 3.4 |
 
 ## Test matrix
 
 | Leg | This surface? | Pins | File |
 |-----|---------------|------|------|
-| Backend (pytest) | y | nodes, task workflows, review and land, recovery, sync, layers, grants, secrets, researcher tasks, the decider | `fichero-server/tests/unit/workflows/`, `tests/unit/research/`, `tests/unit/security/`, `tests/unit/sources/`, `tests/unit/api/` |
+| Backend (pytest) | y | worker start/stop, tools, review and land, recovery, sync, layers, grants, secrets, researcher tasks, the decider | `fichero-server/tests/unit/workflows/`, `tests/unit/research/`, `tests/unit/security/`, `tests/unit/sources/`, `tests/unit/api/` |
 | CLI (pytest) | y | chat verbs are audited actions | `fichero-cli/tests/test_chat_dev_verbs.py` |
 | Swift unit | y | the table's rows, columns, in-place update, lazy children | `fichero/Tests/Unit/general/Models/ActivityTableTests.swift` |
 | UI (XCUITest) | later | the table on a 100k-page library | Stage 2 follow-up |
