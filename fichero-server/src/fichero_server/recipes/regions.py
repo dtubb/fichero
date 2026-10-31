@@ -90,12 +90,15 @@ def page_box_on(page_image: Any, box: list[float] | None) -> list[float] | None:
     from PIL import Image
 
     from fichero_server.media.current_image import _clamp_rect
+    from fichero_server.media.frame_map import exif_map
 
     with Image.open(page_image.path) as opened:
-        if int(opened.getexif().get(0x0112, 1) or 1) != 1:
-            # ponytail: a copy that keeps an orientation tag has `to_image` in its raw pixels, the crop is upright: not cut.
-            return None
-    return _clamp_rect(page_image.to_image.carry_rect(box))
+        orientation = int(opened.getexif().get(0x0112, 1) or 1)
+        raw = opened.size
+    to_image = page_image.to_image
+    if orientation != 1:  # `to_image` lands in the file's raw pixels; `page_crop` cuts the upright ones: carry on through the tag
+        to_image = to_image.with_size(raw).then(exif_map(orientation, raw))
+    return _clamp_rect(to_image.carry_rect(box))
 
 
 def shift_payload(payload: dict[str, Any], left: int, top: int, width: int, height: int) -> dict[str, Any]:

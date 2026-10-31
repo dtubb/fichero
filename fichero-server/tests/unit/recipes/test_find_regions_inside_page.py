@@ -188,3 +188,47 @@ def test_a_box_off_the_edited_image_leaves_the_edit_whole(db, tmp_path, monkeypa
     account = find_regions(db, [page.id], "run-1", "blla", provider="kraken")
 
     assert seen == [(500, 400)] and "cropped" not in account, "a person's edit is the last word"
+
+
+def _tagged_copy(tmp_path, tag):
+    """An upright 100x60 scene (blue left half, red 20x10 marker in its top-left corner) saved as the raw pixels that EXIF
+    `tag` turns upright (none: as it is). Returns (path, the upright scene's marker box as fractions)."""
+    from PIL import ImageOps
+
+    scene = Image.new("RGB", (100, 60), (0, 0, 255))
+    scene.paste((255, 0, 0), (0, 0, 20, 10))
+    inverse = {3: Image.Transpose.ROTATE_180, 6: Image.Transpose.ROTATE_90, 8: Image.Transpose.ROTATE_270}
+    raw = scene.transpose(inverse[tag]) if tag else scene
+    exif = Image.Exif()
+    if tag:
+        exif[0x0112] = tag
+    path = tmp_path / f"copy{tag}.jpg"
+    raw.save(path, exif=exif, quality=100, subsampling=0)
+    with Image.open(path) as saved:
+        assert ImageOps.exif_transpose(saved).size == (100, 60)
+    return str(path)
+
+
+def test_the_page_box_cuts_the_same_paper_through_every_exif_orientation(tmp_path):
+    """#6302: a copy that keeps an orientation tag had its page box dropped (the whole copy was read). Whatever the tag, the
+    box around the red marker (top-left 20x10 of the upright 100x60 scene) must cut exactly 20x10 of red."""
+    from fichero_server.media.current_image import PageImage
+    from fichero_server.media.frame_map import exif_map, identity
+    from fichero_server.recipes.regions import page_box_on, page_crop
+
+    box = [0.0, 0.0, 0.2, 10 / 60]
+    for tag in (0, 3, 6, 8):
+        path = _tagged_copy(tmp_path, tag)
+        with Image.open(path) as raw:
+            to_image = exif_map(tag, raw.size).inverse() if tag else identity(raw.size)  # upright photograph -> file pixels
+        page = PageImage(path, "rendition", path, to_image=to_image)
+
+        carried = page_box_on(page, box)
+        cut = page_crop(path, carried, str(tmp_path))
+
+        assert cut is not None, f"tag {tag}: the box was dropped, the whole copy would be read"
+        crop_path, (left, top), whole = cut
+        with Image.open(crop_path) as crop:
+            assert (crop.size, (left, top), whole) == ((20, 10), (0, 0), (100, 60)), f"tag {tag}"
+            assert crop.getpixel((1, 1))[0] > 240 and crop.getpixel((18, 8))[0] > 240, f"tag {tag}: not the red marker"
+            assert crop.getpixel((10, 5))[2] < 15, f"tag {tag}: blue leaked in"
