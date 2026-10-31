@@ -586,8 +586,8 @@ class LLMConfig:
                     number = int(number)
                 except (TypeError, ValueError, OverflowError):
                     raise ValueError(f"{name} is {value!r}, not a whole number: set it as a number") from None
-                if number <= 0:  # (a real int 0 stays: the callers read it as "no ceiling")
-                    raise ValueError(f"{name} is {value!r}: it must be more than 0")
+            if number is not None and number < 0:  # 0 stays, as it always read: no ceiling set
+                raise ValueError(f"{name} is {value!r}: it cannot be below 0")
             setattr(self, name, number)
 
     def get_model_name(self) -> str:
