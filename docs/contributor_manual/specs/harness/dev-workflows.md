@@ -274,7 +274,7 @@ back along its list and says so.
 - `dev-workflows.run.worker-start-stop` [PROPOSED] — the engine starts a worker for a task (a Builder cluster, headless on a
   scratch base path with a pinned dev engine, ruling Q1; a Researcher task, in-app on the person's engine, no terminal),
   with its brief, kind, model and grants, records it as one Activity row with a child row per tool call and report,
-  stops it on Stop, a budget hit or a hold, and starts its successor when the hook hands off; no LangGraph graph drives
+  installs its policy hook and commit-msg hook (`dev-workflows.run.policy-hook`), stops it on Stop, a budget hit or a hold (the process group is killed, never asked), and starts its successor when the hook hands off; no LangGraph graph drives
   the loop. Test: `fichero-server/tests/unit/workflows/test_worker_start_stop.py::test_start_record_stop_and_successor`.
 - `dev-workflows.run.review-per-issue` [PROPOSED] — the `request-review` tool starts a fresh reviewer-role worker on the
   issue's commit, its verdict bound to the sha, with findings; NOT_READY returns the findings to the same session (two
@@ -299,6 +299,31 @@ back along its list and says so.
   ruleset on `integration` requires that verdict status, written by the land step, so a push around the engine is
   refused by GitHub too. `main` stays PR-and-merge only (#6142), unchanged. Test:
   `fichero-server/tests/unit/workflows/test_land_gate.py::test_worker_push_fails_and_only_the_land_step_pushes`.
+- `dev-workflows.run.policy-hook` [PROPOSED] (maintainer 2026-10-31: enforce, don't ask) — every registered worker runs
+  with a **PreToolUse policy hook** (Claude Code hook; the Pi extension does the same), plain scripts the engine installs
+  with the worker, that refuse with a reason before the tool runs: a write or `cd` outside the worker's worktree (and its
+  scratch base path); `git stash`; `git push` to `main` or `integration`; `xcodebuild`; `pkill`/`killall` by pattern;
+  an `rm -r` joined in one command with a listing (`ls`, `find`); a second `pytest` while one runs (a lock file);
+  `git commit` with the wrong author or without the required trailers (a `commit-msg` hook installed in the worktree);
+  a paid call without the step's grant. Each refusal is a row and the reason is returned to the model. **Limits, said
+  plainly:** matching shell text is not a security boundary (a command can be rewritten, aliased or run from a
+  script), so the hook is the first line and the fast feedback, not the wall. Test:
+  `fichero-server/tests/unit/workflows/test_policy_hook.py::test_each_forbidden_command_is_refused_with_a_reason`.
+- `dev-workflows.run.rules-by-layer` [PROPOSED] — every standing rule names the layer that holds it, and the spec lists
+  them; a rule only in prose is a known soft spot. **Credential or OS** (hard): no push to `main` or `integration` (the
+  worker has no token, its push URL is disabled, the ruleset requires the verdict status); no paid call outside a grant
+  (the worker has no provider key; the engine makes the call); writes confined to the worktree and scratch path
+  (Claude Code's sandbox settings / `sandbox-exec` with the worktree and base path allowed; the real app DB path denied);
+  no reaching the test Macs (no ssh key in the worker). **Hook** (fast, soft): `git stash`, `xcodebuild`, `pkill` by
+  pattern, list-and-delete in one command, two pytests, wrong author or trailers, `cd` out of the worktree. **Guard at
+  landing** (catches what a hook cannot): author and trailers on every commit in the range (`lane_ready_check.sh`),
+  diff bound, failing run pasted, pinned checks untouched, acceptance lines unchanged, tests not weakened, the spec
+  cited, `Fixes` only where the issue is closed; a red here refuses the land, not the commit. **Prose only** (and why):
+  "ask before a design change" and "one instruction per message" cannot be checked by a script; they stay in the
+  rules file, and their failures become hook or guard rules once seen twice. Evidence for the layers: a same-command
+  list-and-delete wiped a directory (hook); merges landed with the wrong author (guard at landing); a builder ignored
+  stop messages (credential: the engine kills the process group, it does not ask). Test:
+  `fichero-server/tests/unit/workflows/test_rules_by_layer.py::test_every_standing_rule_names_its_layer`.
 - `dev-workflows.run.watch-tick` [PROPOSED] — the scheduled tick (every twenty to thirty minutes, the harness's own wake)
   looks at every task and acts or asks: a worker process gone with its task unfinished → a successor from the handoff,
   or a question when there is no handoff; a handoff written with no successor after twenty minutes → the successor is
@@ -497,9 +522,9 @@ Thin slices through November 2026, each one a Claude Code builder can take from 
 - Depends on: 1.2
 - Size: S
 
-#### Step 1.8 — the land gate, the watch tick and the machine watch
-- Behaviours: `dev-workflows.run.land-gate`, `dev-workflows.run.watch-tick`, `dev-workflows.run.machine-watch`
-- Tests: fichero-server/tests/unit/workflows/test_land_gate.py, fichero-server/tests/unit/workflows/test_watch_tick.py, fichero-server/tests/unit/workflows/test_machine_watch.py
+#### Step 1.8 — the land gate, the policy hook, the rules by layer, the watch tick and the machine watch
+- Behaviours: `dev-workflows.run.land-gate`, `dev-workflows.run.policy-hook`, `dev-workflows.run.rules-by-layer`, `dev-workflows.run.watch-tick`, `dev-workflows.run.machine-watch`
+- Tests: fichero-server/tests/unit/workflows/test_land_gate.py, fichero-server/tests/unit/workflows/test_policy_hook.py, fichero-server/tests/unit/workflows/test_rules_by_layer.py, fichero-server/tests/unit/workflows/test_watch_tick.py, fichero-server/tests/unit/workflows/test_machine_watch.py
 - Depends on: 1.6
 - Size: M
 
@@ -595,6 +620,8 @@ failing case. The table is the pinning the guard reads.
 | `dev-workflows.run.log` | 1.6 |
 | `dev-workflows.security.tokens-and-redaction` | 1.7 |
 | `dev-workflows.run.land-gate` | 1.8 |
+| `dev-workflows.run.policy-hook` | 1.8 |
+| `dev-workflows.run.rules-by-layer` | 1.8 |
 | `dev-workflows.run.watch-tick` | 1.8 |
 | `dev-workflows.run.machine-watch` | 1.8 |
 | `dev-workflows.ux.activity-table` | 2.1 |
