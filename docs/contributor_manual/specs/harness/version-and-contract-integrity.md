@@ -191,4 +191,3 @@ document is deliberate. `SourceAnchor.document_id` stays required.
 - `contract.identity-guard-sees-code-drift` — **[GAP]** (#5080) the contract-identity guard fails when the committed contract no longer describes the code, not only when it differs from its own hash.
 
 ## Future (ideas, not scheduled)
-- (#4680) SearchMatchSource.kg identifier_name rename would defeat the graph-attribution wire guardrail; keep as lint exemption, not current work.
