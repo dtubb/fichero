@@ -28,7 +28,7 @@ final class KeychainTokenAccessibilityTests: XCTestCase {
 
     /// THE ONE THAT MATTERS. A launch before first unlock must still be able to read
     /// the token; a token it cannot read looks exactly like "not paired".
-    func testTokenIsStoredWithAfterFirstUnlockAccessibility() throws {
+    func testTheProtectionClassIsThePlatformsOwn() throws {
         try AuthTokenMiddleware.persistRemoteToken("device-token-abc", hostString: host)
         #if os(macOS)
         // `sharing.token-saves-on-every-build` (2026-10-31): a Mac token lives in the LOGIN keychain and carries no

@@ -1,8 +1,5 @@
 import FicheroAPIClient
 import Foundation
-#if canImport(UIKit)
-import UIKit
-#endif
 
 struct RemoteClientPairingFields: Equatable {
     let remoteURL: String
@@ -50,20 +47,25 @@ enum RemoteClientPairingError: LocalizedError, Equatable {
     /// paired (`sharing.failed-save-spends-nothing`); the OSStatus goes to the log, never to the person.
     case tokenNotSaved
 
-    /// "This Mac" / "This iPhone" / "This iPad": the device the sentence is about.
-    static var thisDevice: String {
+    /// The noun for the device the sentence is about: "Mac" on a Mac, "device" on iPhone and iPad. Not the idiom
+    /// (`UIDevice.current` is main-actor isolated and `LocalizedError` is read from any context, review S-H1): the
+    /// Connect sheets, which know the idiom, may say more.
+    static var deviceNoun: String {
         #if os(macOS)
-        return "This Mac"
+        return "Mac"
         #else
-        return UIDevice.current.userInterfaceIdiom == .pad ? "This iPad" : "This iPhone"
+        return "device"
         #endif
     }
+
+    /// "This Mac" / "This device": the sentence's subject, capitalised.
+    static var thisDevice: String { "This \(deviceNoun)" }
 
     var errorDescription: String? {
         switch self {
         case .tokenNotSaved:
             return "\(Self.thisDevice) couldn't save the connection key in its Keychain, so nothing was paired. "
-                + "Update Fichero on \(Self.thisDevice.lowercased()) and ask for a new link."
+                + "Update Fichero on this \(Self.deviceNoun) and ask for a new link."
         case .missingPairCode:
             #if os(macOS)
             return "Paste the invite link from the host Mac."

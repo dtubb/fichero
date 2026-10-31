@@ -59,9 +59,11 @@ struct PairingPersistFailureTests {
         let words = RemoteClientPairingError.tokenNotSaved.localizedDescription
         #expect(words.hasPrefix(RemoteClientPairingError.thisDevice))
         #expect(words.contains("Keychain") && words.contains("nothing was paired") && words.contains("new link"))
-        for banned in ["34018", "OSStatus", "undocumented", "errSec"] { #expect(!words.contains(banned)) }
+        for banned in ["34018", "OSStatus", "undocumented", "errSec", "this mac", "this device"] { #expect(!words.contains(banned)) }
         #if os(macOS)
-        #expect(RemoteClientPairingError.thisDevice == "This Mac")
+        #expect(RemoteClientPairingError.thisDevice == "This Mac" && words.contains("on this Mac"))
+        #else
+        #expect(RemoteClientPairingError.thisDevice == "This device" && words.contains("on this device"))
         #endif
     }
 }

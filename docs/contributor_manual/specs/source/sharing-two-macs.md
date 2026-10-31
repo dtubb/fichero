@@ -409,9 +409,13 @@ Release, Alpha Embedded and Beta Embedded configurations use `FicheroRelease.ent
 **no** keychain key, and the DMG lane re-signs the app with that raw file (`scripts/build-release-dmg.sh:114-141`; codesign *replaces*
 entitlements). Checked on the installed apps: the Air's `/Applications/Fichero.app` (build 20) and this Pro's (build 18) carry neither
 key (`codesign -d --entitlements`). So **every DMG (GitHub / Sparkle / dev DMG) build fails to save the token; every Xcode Debug and
-Dev Embedded run saves it**, which is why the failure was never seen in testing. The macOS fallback that drops `kSecAttrAccessible`
-(`:314-327`) never runs: the `SecItemCopyMatching` *before* it (`:302`) already fails with -34018 because the query itself names the
-data-protection keychain, and the function throws `keychainReadFailed`. The session token's query has no such flag
+Dev Embedded run saves it**, which is why the failure was never seen in testing. **Proved live (2026-10-31):** a swiftc probe doing
+`SecItemCopyMatching/Add/Copy/Delete` on a throwaway service, ad-hoc signed with `FicheroRelease.entitlements`, run bare and inside a
+minimal sandboxed bundle, gave the same answer both times: with `kSecUseDataProtectionKeychain` the lookup says not-found (-25300) and the
+add and delete answer **-34018**; without it (the login keychain) add, read and delete answer 0, with or without `kSecAttrAccessible`.
+So the shipped path was: lookup not-found → `SecItemAdd` -34018 → the macOS fallback (`:314-327`) dropped `kSecAttrAccessible` and added
+again → -34018 again, because the query still named the data-protection keychain → `keychainWriteFailed(-34018)`, the owner's sentence.
+The fallback was reachable but ineffective. The session token's query has no such flag
 (`sessionTokenKeychainQuery`, `:404-410`) and works on the DMG, which shows the login keychain is the working home on a Mac. App Store /
 TestFlight builds (`FicheroAppStore.entitlements`, no group either) are signed by Xcode with a profile, which injects
 `application-identifier`: **expected to work, not verified**. iPhone and iPad have only the data-protection keychain; the flag is a
@@ -422,17 +426,23 @@ the device row (`:905-909`); the token exists only in the answer. When the clien
 holds a token for and the code is gone. The client's own remedy exists: `POST /api/pair/devices/revoke-self` with the token it still holds
 in memory (`:1043`, #6133).
 
-- `sharing.token-saves-on-every-build` — **[BROKEN]** (→ #5049, umbrella; new issue 2 below) on macOS the device token lives in the **login keychain**: the
-  three queries (read, write, clear) omit `kSecUseDataProtectionKeychain` under `#if os(macOS)` and keep it on iOS/iPadOS; the
-  `kSecAttrAccessible` attribute is kept on every platform. A token a Debug build wrote earlier into the data-protection keychain is not found
-  by the login-keychain query: that Mac re-pairs once, and the restore diagnostic says so (`PairingRestoreDiagnostics`). The alternative,
-  adding `keychain-access-groups` to `FicheroRelease.entitlements`, needs a Developer ID provisioning profile and is **not** the path taken.
+- `sharing.token-saves-on-every-build` — **[PARTIAL]** (→ #5049, umbrella; new issue 2 below; slice S1 written 2026-10-31, not yet built) on
+  macOS the device token lives in the **login keychain**, always, with no fallback: the ONE query that read, write and clear share
+  (`AuthTokenMiddleware.remoteTokenKeychainQuery`, decided by `remoteTokenLivesInDataProtectionKeychain`) omits `kSecUseDataProtectionKeychain`
+  **and** `kSecAttrAccessible` on a Mac (an explicit class routes a Mac item to the data-protection keychain too; the test asserts no class is read
+  back), and keeps both on iOS/iPadOS (`AfterFirstUnlock`, #3772). A token a Debug build wrote earlier into the data-protection keychain is not found
+  by the login-keychain query: that Mac re-pairs once; the old item stays (S-L1, a one-shot delete is a later slice). The alternative, adding
+  `com.apple.application-identifier` + `keychain-access-groups` to `FicheroRelease.entitlements`, is S1b, **not** the path taken.
   *Test:* `KeychainTokenAccessibilityTests.swift` (exists, extended): on macOS the remote-token query has no data-protection key and no
   protection class is read back; on iOS it has the key and reads back `AfterFirstUnlock` (`#3772`); a transient token is read once and gone.
-- `sharing.failed-save-spends-nothing` — **[GAP]** (→ #5049, umbrella; new issue 2 below) when the token cannot be saved (any `AuthTokenStorageError`), the client
-  calls `revoke-self` with the token it holds, forgets the host, and says: **"This Mac couldn't save the connection key in its Keychain, so
-  nothing was paired. Update Fichero on this Mac and ask for a new link."** (never the OSStatus number, which goes to the log and Copy
-  details). The host's Devices list then shows nothing for it. Same on iPhone/iPad with "this iPhone"/"this iPad". *Test:*
+- `sharing.failed-save-spends-nothing` — **[PARTIAL]** (→ #5049, umbrella; new issue 2 below; slice S1 written, not yet built:
+  `RemoteClientPairing.storeTokenOrRevoke` on all three paths, the iOS flow, the Mac Connect sheet and the synced-project ask) when the token
+  cannot be saved (any `AuthTokenStorageError`), the client asks the host to revoke the device it just made (`revoke-self`, with the token held
+  once in memory under the host's account, dropped after the call) and says: **"This Mac couldn't save the connection key in its Keychain, so
+  nothing was paired. Update Fichero on this Mac and ask for a new link."** (`RemoteClientPairingError.tokenNotSaved`; the OSStatus goes to the
+  log only). Nothing is persisted, so there is no host to forget. On iPhone/iPad the subject is "This device" (the idiom is main-actor
+  state a `LocalizedError` cannot read, review S-H1). A refused revoke is logged and the host keeps the row (accepted). Not built: a "Copy
+  details" control, the one-shot delete of an old data-protection item. *Test:*
   `PairingPersistFailureTests.swift` (written): a throwing persist → the revoke is asked while the middleware holds that token, then it is
   gone, nothing saved, the sentence. Engine: `test_a_device_revokes_its_own_pairing_6133.py` (exists) already proves `revoke-self` right after `pair`.
 
@@ -531,7 +541,10 @@ Run after the slices; one record per numbered step (what the screen said, verbat
 2. **Air:** Copy Link with Tailscale selected, send to the M4 (Messages). Then select This network, Copy, send too.
 3. **M4 (guest, DMG build):** Settings › Sharing › Connect to Another Mac…, paste the Tailscale link. Expect: connected in < 10 s; the
    host's library opens; no Keychain error. On the Air, Devices shows the M4 within 10 s. Quit and reopen Fichero on the M4: it reconnects
-   without asking (the token was saved).
+   without asking (the token was saved). **Keychain ACL (S-M3):** install the NEXT DMG over it: it must reconnect with no keychain prompt; then
+   run a Dev Embedded build on the same Mac: note whether it prompts or reads "not paired" (a login-keychain item is tied to the signing
+   identity that wrote it). **Gate note (S-M4):** `KeychainTokenAccessibilityTests`, `DeviceTokenRenewalTests` and `WorkflowStreamConnectionTests`
+   write the real login keychain: run them in a GUI session; over SSH or with the keychain locked, -25308 is the session, not a defect.
 4. **M4:** paste the This-network link (a new code from the Air). On the campus network expect the sentence "This Mac can't find
    macbook-air-m1.local on this network. Try the Tailscale address…" in < 10 s, never "The request timed out".
 5. **M4:** paste the first (now used) Tailscale link again. Expect "That code was used or has expired…", and no new row on the Air.
