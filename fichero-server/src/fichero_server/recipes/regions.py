@@ -109,7 +109,8 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
                  say: Callable[[str], None] | None = None, person: bool | None = None,
                  created: list[str] | None = None, progress: bool = True) -> dict[str, int]:
     """Each page image's regions found and saved, by Kraken's segmenter (`provider="kraken"`) or a YOLO model; the
-    account: `pages` read, `regions` found, `no_image` (a PDF's page or a text file: nothing to look at). `stop` is
+    account: `pages` read, `regions` found, `no_image` (a PDF's page or a text file: nothing to look at), and `renditions_passed_over` (only when above 0: newer renditions that could
+    not be read or followed, so the page was read on an older image or the photograph). `stop` is
     asked before each page. Before each page, while the throttle holds background work, it waits, and `say` is told
     why; between pages `say` is told the pages done and the time left (#5685, #5689, `activity.throttle.power-heat-memory`).
     A page cut from a PDF is rendered through the shared page-render seam and found on that image (#4892); the ids of the
@@ -162,7 +163,7 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
         page_image = page_image.for_geometry() if page_image is not None else None  # the boxes are carried back: needs a known frame
         if page_image is not None and not page_image.is_original:
             path = page_image.path
-        if page_image is not None and page_image.passed_over:  # a newer rendition could not be followed: this page is read on the photograph
+        if page_image is not None and page_image.passed_over:  # a newer rendition could not be followed: this page is read on an older rendition or the photograph
             account["renditions_passed_over"] = account.get("renditions_passed_over", 0) + page_image.passed_over
         rendered, page_index = None, None
         if doc is not None and getattr(doc, "parent_id", None) and not doc.path:  # a page cut from a PDF has the PDF's path, not its own

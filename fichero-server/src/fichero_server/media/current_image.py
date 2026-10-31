@@ -70,7 +70,7 @@ class PageImage:
     #: whole, and no line can be carried to or from it. A step that cuts or stores lines reads `for_geometry()`.
     frame_unknown: bool = False
     #: How many newer renditions could not be read or followed and were passed over for this image (a page read on an image
-    #: nobody chose: the run says so).
+    #: nobody chose; a WARNING is logged and Find Regions' account counts it).
     passed_over: int = 0
 
     def for_geometry(self) -> "PageImage":
