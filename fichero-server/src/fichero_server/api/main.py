@@ -49,6 +49,7 @@ from fichero_server.api.routes.ai.local_inference import shutdown_managed_local_
 from fichero_server.db import Database, db_manager
 from fichero_server.db.app import device_token_migration_error
 from fichero_server.db.manager import LibraryNotFoundError
+from fichero_server.db.volume_dropped import LibraryVolumeNotReachable
 from fichero_server.actions.undo import UndoRefused
 from fichero_server.api.routes.document.segment_conversion import ConversionRefusal
 from fichero_server.security import authz
@@ -1288,6 +1289,12 @@ async def _handle_missing_module(_request: Request, exc: ModuleNotFoundError):
                    "Reinstall the engine's dependencies."},
         status_code=503,
     )
+
+
+@app.exception_handler(LibraryVolumeNotReachable)
+async def _handle_library_volume_not_reachable(_request: Request, exc: LibraryVolumeNotReachable):
+    """The disk holding the library is gone (#6311): one typed 503 in words, not a 500 and a stack trace per request."""
+    return JSONResponse({"detail": str(exc), "reason": exc.reason, "library": exc.library}, status_code=503)
 
 
 @app.exception_handler(UndoRefused)
