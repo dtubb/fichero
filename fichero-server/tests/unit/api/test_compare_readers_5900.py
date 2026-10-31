@@ -154,7 +154,7 @@ def _two_candidates(monkeypatch, page_id, columns):
     def reading(text, box):
         return {"kind": "transcription", "level": None, "text": text, "bbox": box}
 
-    result = {"stage": "read", "pages": [page_id, "p2", "p3"], "candidates": [
+    result = {"stage": "read", "project_pages": 300, "pages": [page_id, "p2", "p3"], "candidates": [
         {**columns[0], "card": "a", "name": "A", "per_page": [{"id": page_id, "readings": [reading("Yten dixo", [0.2, 0.30, 0.4, 0.2])]}]},
         {**columns[1], "card": "b", "name": "B", "per_page": [{"id": page_id, "readings": [reading("Yten dixo", [0.2, 0.30, 0.4, 0.2])]}]}]}
     monkeypatch.setattr(samples, "read_result", lambda db, stage, recipe: result)
@@ -217,7 +217,6 @@ def test_wide_a_candidates_head_scales_its_sample_figures_to_the_whole_project(d
     measured = {"cer": 0.04, "seconds": 18.0, "local": False, "cost_usd": {"value": 0.30, "basis": "measured", "measured": True}}
     unmeasured = {"cer": None, "seconds": None, "local": False, "cost_usd": {"value": None, "basis": "unknown", "measured": False}}
     _two_candidates(monkeypatch, doc.id, [measured, unmeasured])
-    monkeypatch.setattr("fichero_server.recipes.start.count_pages", lambda db_: 300)
     a, b = _compare(client, doc.id, "?try_stage=read")["readers"]
     a, b = _compare(client, doc.id, "?try_stage=read")["readers"]
     assert a["measure"]["seconds_per_page"] == 6.0 and a["measure"]["pages_per_hour"] == 600.0

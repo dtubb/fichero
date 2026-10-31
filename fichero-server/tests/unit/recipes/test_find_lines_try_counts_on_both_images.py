@@ -45,3 +45,21 @@ def test_wide_the_find_lines_try_result_carries_the_two_counts(client, db, tmp_p
 
     result = client.get("/api/recipes/stages/find-lines/try").json()
     assert result["line_counts"]["pages"] == {page.id: {"photograph": 5, "clarified": 12}}, result
+
+
+def test_wide_the_clarified_count_comes_from_the_tries_own_blla_lines_and_an_image_is_never_segmented_twice(db, tmp_path, monkeypatch):
+    from fichero_server.media import current_image
+
+    faded, = _pages(db, tmp_path, 1)
+    monkeypatch.setattr(current_image, "current_page_image",
+                        lambda db_, doc, **k: _image("/lib/prepared.png", "the newest rendition (prepared)"))
+    counted = []
+    monkeypatch.setattr(samples, "_count_lines", lambda db_, doc, path, run: counted.append(path) or 5)
+
+    got = samples.line_counts_on_both(db, [faded.id], "job-1", known={faded.id: 12})
+
+    assert got["pages"] == {faded.id: {"photograph": 5, "clarified": 12}}
+    assert counted == ["/lib/photo.jpg"], "the clarified image was not segmented again"
+    column = {"card": "kraken:builtin/blla@bundled", "state": "done", "per_page": [{"id": faded.id, "segments": {"line": 12}}]}
+    assert samples._lines_the_try_found([column]) == {faded.id: 12}
+

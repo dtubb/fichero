@@ -828,24 +828,26 @@ def _run_try_watched(db: Any, subject: str) -> dict[str, Any]:
     result["candidates"] = columns
     if stage_id == "find-lines" and own["state"] == "done":
         try:
-            result["line_counts"] = line_counts_on_both(db, result["pages"], job_id)
+            result["line_counts"] = line_counts_on_both(db, result["pages"], job_id, _lines_the_try_found(columns))
         except Exception as exc:  # noqa: BLE001 -- the counts are a courtesy; the try's own answer stands, and says they are missing
             logger.warning("the try's line counts on both images could not be made: %s", exc, exc_info=True)
             result["line_counts"] = {"pages": {}, "not_clarified": [], "error": f"the two counts could not be made: {exc}"}
-    result["recommendation"] = _recommend(db, library, columns, total)
+    from fichero_server.recipes.start import count_pages
+
+    # The whole project's page count is kept with the result, so a read of it never walks the project (the compare view).
+    result["project_pages"] = count_pages(db) or total
+    result["recommendation"] = _recommend(library, columns, total, result["project_pages"])
     result["progress"] = finished_progress(own["state"], own["made"]["per_page"], total, stage_id)
     _write(library, stage_id, result)
     return result
 
 
-def _recommend(db: Any, library: Path, columns: list[dict[str, Any]], pages: int) -> dict[str, Any] | None:
+def _recommend(library: Path, columns: list[dict[str, Any]], pages: int, volume: int) -> dict[str, Any] | None:
     """What Set Up recommends from the finished columns, ranked by what each really cost (`bakeoff.recommend`, #5922
     slice 4): only columns that read to the end with a measured error are weighed; None when none."""
     from fichero_server.recipes import bakeoff
     from fichero_server.recipes.project import read_noise_band
-    from fichero_server.recipes.start import count_pages
 
-    volume = count_pages(db) or pages
     return bakeoff.recommend(recommendation_rows(columns, pages=pages, volume=volume), volume=volume,
                              noise_band=read_noise_band(library)["value"])
 
@@ -1033,8 +1035,16 @@ def _spent(copy: Any, threads: list[str]) -> dict[str, Any] | None:
     return {"model_calls": calls, "total_tokens": tokens, "cost_usd": cost} if calls else None
 
 
+#: Lines found by the segmenter, by (the image's bytes, the page's direction): the same input and the same model is never asked
+#: twice (owner rule, #6127), so a second try does not segment the photograph again.
+_LINE_COUNTS: dict[tuple[str, str | None], int] = {}
+
+
 def _count_lines(db: Any, doc: Any, path: str, run_id: str) -> int:
-    """How many lines Kraken's segmenter finds on one image file, through the model lane like every Kraken page."""
+    """How many lines Kraken's segmenter finds on one image file, through the model lane like every Kraken page. An image already
+    counted (same bytes, same direction) answers from `_LINE_COUNTS`."""
+    import hashlib
+
     from fichero_server.execution import jobs
     from fichero_server.llm.kraken_runtime import geometry_from_segmentation, segment_lines
     from fichero_server.media.ocr_geometry import OCRGeometryLevel
@@ -1042,17 +1052,33 @@ def _count_lines(db: Any, doc: Any, path: str, run_id: str) -> int:
 
     library = str(Path(db.path).parent)
     direction = page_direction(library, doc.id)
+    digest = hashlib.sha256(Path(path).read_bytes()).hexdigest() if Path(path).is_file() else None
+    key = (digest, direction.get("direction")) if digest else None
+    if key is not None and key in _LINE_COUNTS:
+        return _LINE_COUNTS[key]
     segmented = jobs.run_on_lane_blocking(library, "find-regions", doc.id, model="kraken:blla", parent_id=run_id, run_id=run_id,
                                           fn=lambda: segment_lines(path, **direction))
     found = geometry_from_segmentation(segmented, source_name=doc.name, direction=direction.get("direction"))
-    return sum(1 for b in found.boxes if b.level is OCRGeometryLevel.LINE)
+    count = sum(1 for b in found.boxes if b.level is OCRGeometryLevel.LINE)
+    if key is not None:
+        _LINE_COUNTS[key] = count
+    return count
 
 
-def line_counts_on_both(db: Any, pages: list[str], run_id: str) -> dict[str, Any]:
+def _lines_the_try_found(columns: list[dict[str, Any]]) -> dict[str, int]:
+    """The lines per page that the try's own Kraken (blla) candidate found on each page's current image, so the clarified count
+    is taken from it and not asked of the segmenter again."""
+    for column in columns:
+        if "blla" in str(column.get("card", "")) and column.get("state") == "done":
+            return {p["id"]: p["segments"]["line"] for p in column.get("per_page") or [] if (p.get("segments") or {}).get("line")}
+    return {}
+
+
+def line_counts_on_both(db: Any, pages: list[str], run_id: str, known: dict[str, int] | None = None) -> dict[str, Any]:
     """Find Lines' two counts for the pages whose current image is a clarified copy (Prepare Images' `prepared` rendition): the
     lines the segmenter finds on the photograph and on the copy (`wide.faded.line-counts-before-and-after`, #6271). `not_clarified`
     names the pages that have no such copy, so the app can say Clarity is off for them. Read from the project's own pages: nothing is
-    copied or written."""
+    copied or written. `known` is the lines per page the try's own blla candidate found on the current image."""
     from fichero_server.media.current_image import RENDITION, current_page_image
     from fichero_server.models import Document
 
@@ -1065,7 +1091,7 @@ def line_counts_on_both(db: Any, pages: list[str], run_id: str) -> dict[str, Any
             without.append(page)
             continue
         counted[page] = {"photograph": _count_lines(db, doc, current.photograph, run_id),
-                         "clarified": _count_lines(db, doc, current.path, run_id)}
+                         "clarified": known[page] if page in (known or {}) else _count_lines(db, doc, current.path, run_id)}
     return {"pages": counted, "not_clarified": without}
 
 

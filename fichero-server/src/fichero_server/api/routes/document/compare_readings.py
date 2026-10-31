@@ -692,9 +692,8 @@ def try_compare(db: Database, page_id: str, stage: str, *, only: set[str] | None
     frame, carry = frame_of(db, document, width, height)
     readers: list[CompareReader] = []
     groups: list[dict[str, Any]] = []   # one per matched line: {"box": [...], "readings": {reader: text}}
-    from fichero_server.recipes.start import count_pages
-
-    sample_pages, project_pages = len(result.get("pages") or []), count_pages(db)
+    # The count was kept when the try ended: counting the project here would walk it on every read.
+    sample_pages, project_pages = len(result.get("pages") or []), result.get("project_pages")
     for column in result.get("candidates") or []:
         page = next((p for p in column.get("per_page") or [] if p.get("id") == page_id), None)
         if page is None:
