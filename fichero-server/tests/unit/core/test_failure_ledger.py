@@ -77,6 +77,47 @@ def test_a_collapsed_summary_adds_its_count():
     assert ledger.counts()[f"fichero_server.db|{template}"] == 6001
 
 
+def test_a_line_that_noted_is_counted_once_by_the_handler():
+    """The site logged its line AND called `note`: the handler must see the `ledgered` flag and stay out."""
+    log = logging.getLogger("fichero_server.db")
+    handler = ledger.LedgerHandler()
+    log.addHandler(handler)
+    log.setLevel(logging.WARNING)
+    try:
+        for n in range(3):
+            log.warning("Failed to create embedding for %s: %s", f"doc{n}", "boom", extra={"ledgered": True})
+            ledger.note("search", "embed", "RuntimeError", now=float(n))
+    finally:
+        log.removeHandler(handler)
+    assert ledger.counts() == {"search|embed|RuntimeError": 3}, ledger.counts()
+
+
+def test_a_collapsed_ledgered_line_is_counted_once():
+    """#6314: `log_collapsed` must pass `extra` through, or the handler counts the collapsed summary that a site already `note`d.
+
+    Skips until `feat/logs-stale-servers-support` merges: the site writes its line directly today, so there is no
+    summary record to lose the flag. At merge this is the tripwire — without the passthrough it fails with two entries.
+    """
+    throttle = pytest.importorskip(
+        "fichero_server.core.log_throttle", reason="#6314: log_collapsed arrives with the repeat-collapse branch")
+    log_collapsed, RepeatCollapser = throttle.log_collapsed, throttle.RepeatCollapser
+
+    log = logging.getLogger("fichero_server.db")
+    handler = ledger.LedgerHandler()
+    log.addHandler(handler)
+    log.setLevel(logging.WARNING)
+    collapser = RepeatCollapser(limit=1, window_s=60.0)
+    template = "Failed to create embedding for %s: %s"
+    try:
+        for n, now in enumerate((0.0, 1.0, 2.0, 3.0, 61.0)):  # the last one writes the held-back summary and its line
+            log_collapsed(log, logging.WARNING, template, f"doc{n}", "boom", collapser=collapser, now=now,
+                          cause=RuntimeError(), extra={"ledgered": True})
+            ledger.note("search", "embed", "RuntimeError", now=now)
+    finally:
+        log.removeHandler(handler)
+    assert ledger.counts() == {"search|embed|RuntimeError": 5}, ledger.counts()
+
+
 def test_info_is_not_counted():
     handler = ledger.LedgerHandler()
     log = logging.getLogger("x")
