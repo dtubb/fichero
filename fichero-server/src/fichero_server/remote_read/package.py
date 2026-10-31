@@ -32,6 +32,9 @@ FORMAT = "fichero-read-package-v1"
 SHARD_SIZE = 50
 #: Pixels on the longer side a reader is given; an archive's image is scaled on its server to this.
 FETCH_LONGEST = 2000
+#: The runs of steps a package may carry (`compute.recipe.fuse-same-place-steps`). ponytail: lines ride along only with a
+#: read; a lines step alone stays on this Mac (answer 1 of the spec).
+STAGES = (("read",), ("lines", "read"))
 RUNNER = Path(__file__).with_name("runner.py")
 #: Copied into the package's `_fichero/` folder; the runner imports the line cut from beside itself.
 SHIPPED_HELPERS = (RUNNER, Path(__file__).parent.parent / "media" / "iiif_fetch.py",
@@ -158,11 +161,14 @@ def pages_to_read(db: Any, scope_ids: list[str]) -> list[Any]:
 
 def build_read_package(db: Any, *, job_id: str, scope_ids: list[str], step: ReadStep, out_dir: str | Path,
                        shard_size: int = SHARD_SIZE, longest: int = FETCH_LONGEST,
-                       library_root: Path | None = None) -> ReadPackage:
-    """Write the package under `out_dir` (job.json, manifest.json, images/, models/, _fichero/)."""
+                       library_root: Path | None = None, stage: tuple[str, ...] = ("read",)) -> ReadPackage:
+    """Write the package under `out_dir` (job.json, manifest.json, images/, models/, _fichero/). `stage`: the steps each
+    page goes through where the job runs, in order: the read alone, or the lines then the read (`compute.recipe.fuse-same-place-steps`)."""
     from fichero_server.db.storage import resolve_source
     from fichero_server.workflows.library_sync import SyncManifest, SyncObject
 
+    if tuple(stage) not in STAGES:
+        raise NotSendable(f"no stage {list(stage)!r}: {' or '.join(str(list(x)) for x in STAGES)}")
     if step.reader not in ("kraken", "vlm"):
         raise NotSendable(f"no reader {step.reader!r}: kraken or vlm")
     if step.reader == "kraken" and not (step.model_file and Path(step.model_file).is_file()):
@@ -207,7 +213,7 @@ def build_read_package(db: Any, *, job_id: str, scope_ids: list[str], step: Read
     for helper in SHIPPED_HELPERS:
         shutil.copy2(helper, out / "_fichero" / helper.name)
     shards = [list(range(i, min(i + shard_size, len(sources)))) for i in range(0, len(sources), shard_size)]
-    job = {"format": FORMAT, "job_id": job_id, "step": step.describe(), "fetch": {"longest": longest},
+    job = {"format": FORMAT, "job_id": job_id, "step": step.describe(), "stage": list(stage), "fetch": {"longest": longest},
            "shards": shards, "sources": sources}
     (out / "job.json").write_text(json.dumps(job, indent=1, sort_keys=True), encoding="utf-8")
     manifest = SyncManifest(library_id=job_id, generation=0,

@@ -138,6 +138,7 @@ auth      | Auth,Account,Pairing             | fichero-server/tests/unit/securit
 actions   | Action                           | fichero-server/tests/unit/actions/
 cli       |                                  | fichero-cli/tests/
 mcp       |                                  | fichero-mcp/tests/ fichero-server/tests/unit/mcp/
+recipes   |                                  | fichero-server/tests/unit/recipes/
 EOF
 }
 
@@ -794,8 +795,9 @@ cmd_engine() {
     GATE_LAST_VERDICT="${first_verdict:-$GATE_LAST_VERDICT}"
     return "$first_rc"
   fi
+  # Thread caps (2) keep one area run under the machine-load rule; raise with GATE_THREADS.
   run_gated "engine-pytest" "${GATE_TIMEOUT_ENGINE:-2700}" \
-    env PYTHONPATH=fichero-server/src "$py" -m pytest -rf --timeout-method=thread "${args[@]}"
+    env PYTHONPATH=fichero-server/src OMP_NUM_THREADS="${GATE_THREADS:-2}" OPENBLAS_NUM_THREADS="${GATE_THREADS:-2}" VECLIB_MAXIMUM_THREADS="${GATE_THREADS:-2}" "$py" -m pytest -rf --timeout-method=thread "${args[@]}"
 }
 
 cmd_perf() {

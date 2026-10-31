@@ -22,6 +22,7 @@ job's dependencies; the line picture and the instruction are the line reader's o
 from __future__ import annotations
 
 import argparse
+import functools
 import io
 import json
 import os
@@ -79,21 +80,53 @@ def _raw_lines(segmentation: Any) -> list[dict[str, Any]]:
     return out
 
 
-def kraken_reader(package: Path, step: dict[str, Any], device: str) -> Callable[[Any], list[dict[str, Any]]]:
+@functools.cache
+def _segmenter() -> Any:
+    """Kraken's line finder, loaded once a task whichever step asks for it (`activity.run.stage-by-stage-no-model-juggling`)."""
     from importlib import resources
 
+    from kraken.lib import vgsl
+
+    return vgsl.TorchVGSLModel.load_model(resources.files("kraken").joinpath("blla.mlmodel"))
+
+
+def find_lines(image: Any) -> list[dict[str, Any]]:
+    """The lines step: Kraken's line finder on the page, its lines in reading order, no text."""
+    from kraken import blla
+
+    return [line for line in _raw_lines(blla.segment(image, model=_segmenter())) if line["polygon"]]
+
+
+def lines_in(found: Path) -> list[dict[str, Any]]:
+    """The lines a lines step found, kept beside its PAGE XML as JSON (`<id>.lines.json`), read back so a task run again
+    does not find them again; no XML is parsed here (the engine's own parser is not shipped with this file)."""
+    return json.loads(found.read_text(encoding="utf-8"))
+
+
+def _segmentation(lines: list[dict[str, Any]]) -> Any:
+    """Kraken's own record of lines already found, for its recogniser to read."""
+    from kraken.containers import BaselineLine, Segmentation
+
+    return Segmentation(type="baselines", imagename="", text_direction="horizontal-lr", script_detection=False,
+                        lines=[BaselineLine(id=f"l{i}", baseline=[tuple(p) for p in line["baseline"]],
+                                            boundary=[tuple(p) for p in line["polygon"]])
+                               for i, line in enumerate(lines)], regions={}, line_orders=[])
+
+
+def kraken_reader(package: Path, step: dict[str, Any], device: str) -> Callable[..., list[dict[str, Any]]]:
     from kraken import blla
     from kraken.configs import RecognitionInferenceConfig
-    from kraken.lib import vgsl
     from kraken.tasks import RecognitionTaskModel
 
-    segmenter = vgsl.TorchVGSLModel.load_model(resources.files("kraken").joinpath("blla.mlmodel"))
     net = RecognitionTaskModel.load_model(str(package / step["model_file"]))
     config = RecognitionInferenceConfig(accelerator="gpu" if device.startswith("cuda") else "cpu", device=1)
 
-    def read(image: Any) -> list[dict[str, Any]]:
-        segmentation = blla.segment(image, model=segmenter)
-        lines = _raw_lines(segmentation)
+    def read(image: Any, found: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+        if found is None:
+            segmentation = blla.segment(image, model=_segmenter())
+            lines = _raw_lines(segmentation)
+        else:  # the lines step's lines, read as they were found
+            segmentation, lines = _segmentation(found), [dict(line) for line in found]
         for line, record in zip(lines, net.predict(image, segmentation, config)):
             line["text"] = str(getattr(record, "prediction", record) or "")
         return lines
@@ -101,15 +134,10 @@ def kraken_reader(package: Path, step: dict[str, Any], device: str) -> Callable[
     return read
 
 
-def vlm_reader(package: Path, step: dict[str, Any], device: str) -> Callable[[Any], list[dict[str, Any]]]:
-    from importlib import resources
-
+def vlm_reader(package: Path, step: dict[str, Any], device: str) -> Callable[..., list[dict[str, Any]]]:
     import torch
-    from kraken import blla
-    from kraken.lib import vgsl
     from transformers import AutoModelForImageTextToText, AutoProcessor
 
-    segmenter = vgsl.TorchVGSLModel.load_model(resources.files("kraken").joinpath("blla.mlmodel"))
     processor = AutoProcessor.from_pretrained(step["model"], revision=step.get("model_revision"))
     model = AutoModelForImageTextToText.from_pretrained(step["model"], revision=step.get("model_revision"),
                                                         torch_dtype=torch.bfloat16, device_map=device,
@@ -133,8 +161,8 @@ def vlm_reader(package: Path, step: dict[str, Any], device: str) -> Callable[[An
         parsed = parse_answer(answer, 1)
         return parsed[0] if parsed else None
 
-    def read(image: Any) -> list[dict[str, Any]]:
-        lines = [line for line in _raw_lines(blla.segment(image, model=segmenter)) if line["polygon"]]
+    def read(image: Any, found: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+        lines = find_lines(image) if found is None else found
         kept = []
         for line in lines:
             text = ask(crop_line(image, line["polygon"]))
@@ -166,17 +194,11 @@ def vllm_batch_asker(step: dict[str, Any]) -> Callable[[list[Any]], list[str | N
     return ask
 
 
-def vllm_reader(package: Path, step: dict[str, Any], device: str) -> Callable[[Any], list[dict[str, Any]]]:
-    from importlib import resources
-
-    from kraken import blla
-    from kraken.lib import vgsl
-
-    segmenter = vgsl.TorchVGSLModel.load_model(resources.files("kraken").joinpath("blla.mlmodel"))
+def vllm_reader(package: Path, step: dict[str, Any], device: str) -> Callable[..., list[dict[str, Any]]]:
     ask = vllm_batch_asker(step)
 
-    def read(image: Any) -> list[dict[str, Any]]:
-        lines = [line for line in _raw_lines(blla.segment(image, model=segmenter)) if line["polygon"]]
+    def read(image: Any, found: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+        lines = find_lines(image) if found is None else found
         texts = ask([crop_line(image, line["polygon"]) for line in lines]) if lines else []
         return [{**line, "text": text} for line, text in zip(lines, texts) if text is not None]
 
@@ -192,9 +214,12 @@ def reader_for(step: dict[str, Any]) -> Callable[..., Callable[[Any], list[dict[
 
 # --- the shard ---------------------------------------------------------------------------------------
 
-def run_shard(package: Path, shard: int, out: Path, *, reader: Callable[[Any], list[dict[str, Any]]] | None = None,
-              get: Callable | None = None, device: str = "cuda:0",
-              sleep: Callable[[float], None] = time.sleep) -> dict[str, Any]:
+def run_shard(package: Path, shard: int, out: Path, *, reader: Callable[..., list[dict[str, Any]]] | None = None,
+              get: Callable | None = None, device: str = "cuda:0", sleep: Callable[[float], None] = time.sleep,
+              lines_finder: Callable[[Any], list[dict[str, Any]]] | None = None) -> dict[str, Any]:
+    """Read one shard: each source through the package's `stage`, its steps in order (`compute.recipe.fuse-same-place-steps`).
+    `["read"]` is a read that finds its own lines; `["lines", "read"]` finds the lines (`<id>.lines.xml`) and reads
+    those. Each source's outcome records each step's end and seconds; `ok` is the last step's."""
     from PIL import Image
 
     sys.path.insert(0, str(package / "_fichero"))
@@ -206,13 +231,15 @@ def run_shard(package: Path, shard: int, out: Path, *, reader: Callable[[Any], l
 
     job = json.loads((package / "job.json").read_text(encoding="utf-8"))
     indices = job["shards"][shard]
-    step, longest = job["step"], job["fetch"]["longest"]
+    # A Job sent now runs this runner beside a package made before stages (no `stage`): that package is the read alone.
+    step, longest, stage = job["step"], job["fetch"]["longest"], job.get("stage", ["read"])
     folder = out / f"shard-{shard:05d}"
     folder.mkdir(parents=True, exist_ok=True)
     outcome_path = folder / "_outcome.json"
     outcome = json.loads(outcome_path.read_text(encoding="utf-8")) if outcome_path.exists() else {"sources": {}}
     fetcher = PoliteFetcher(get=get or urllib_get, sleep=sleep)
     read = reader or reader_for(step)(package, step, device)
+    find = lines_finder or find_lines
     started = time.time()
     images = package
     if (package / f"shards/shard-{shard:05d}.tar").exists():  # staged as a tar: unpack to the node's own disk
@@ -224,9 +251,12 @@ def run_shard(package: Path, shard: int, out: Path, *, reader: Callable[[Any], l
             tar.extractall(images, filter="data")
     for index in indices:
         source = job["sources"][index]
-        target = folder / f"{source['id']}.xml"
-        if target.exists() and outcome["sources"].get(source["id"], {}).get("ok"):
+        target, lines_file = folder / f"{source['id']}.xml", folder / f"{source['id']}.lines.xml"
+        found_file = lines_file.with_suffix(".json")  # `<id>.lines.json`: the same lines, for a rerun to read back
+        before = outcome["sources"].get(source["id"], {})
+        if target.exists() and before.get("ok"):
             continue  # done before this task was cut short
+        record: dict[str, Any] = {}
         try:
             fetched = package / prefetched(source)
             seen = image_url(source["iiif_service"], longest=longest) if source.get("iiif_service") else source["image"]
@@ -239,12 +269,26 @@ def run_shard(package: Path, shard: int, out: Path, *, reader: Callable[[Any], l
                 image = Image.open(images / source["image"])
             image.load()
             image = image.convert("RGB")
-            lines = read(image)
+            found = None
+            if "lines" in stage:
+                clock = time.time()
+                if found_file.exists() and (before.get("steps") or {}).get("lines", {}).get("ok"):
+                    found = lines_in(found_file)  # found before this task was cut short
+                else:
+                    found = find(image)
+                    found_file.write_text(json.dumps(found), encoding="utf-8")
+                    lines_file.write_text(page_xml(source["id"], image.size, found, creator="Fichero remote line finder",
+                                                   image_name=seen), encoding="utf-8")
+                record["lines"] = {"ok": True, "lines": len(found), "seconds": round(time.time() - clock, 3)}
+            clock = time.time()
+            lines = read(image) if found is None else read(image, found)
+            record["read"] = {"ok": True, "seconds": round(time.time() - clock, 3)}
             target.write_text(page_xml(source["id"], image.size, lines, creator=f"Fichero remote reader ({step['card']})",
                                        image_name=seen), encoding="utf-8")
-            outcome["sources"][source["id"]] = {"ok": True, "size": list(image.size), "lines": len(lines), "seen": seen}
+            outcome["sources"][source["id"]] = {"ok": True, "size": list(image.size), "lines": len(lines), "seen": seen,
+                                                "steps": record}
         except Exception as exc:  # noqa: BLE001 -- one source's failure is recorded; the shard goes on
-            outcome["sources"][source["id"]] = {"ok": False, "why": f"{type(exc).__name__}: {exc}"[:500]}
+            outcome["sources"][source["id"]] = {"ok": False, "why": f"{type(exc).__name__}: {exc}"[:500], "steps": record}
         tmp = outcome_path.with_suffix(".part")
         tmp.write_text(json.dumps(outcome, indent=1), encoding="utf-8")
         os.replace(tmp, outcome_path)

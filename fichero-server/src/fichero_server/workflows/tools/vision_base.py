@@ -4063,7 +4063,10 @@ async def process_vision(
         Dict with text, value, texts, values, results, artifacts, error
     """
     from fichero_server.llm import vision, LLMConfig
+    from fichero_server.llm.provider_batch import is_capturing
 
+    if is_capturing():  # a provider batch's capture run: its answers are stand-ins, nothing is kept (#5940)
+        save_to_db = save_to_file_flag = False
     language = normalize_vision_language(language)
     _language_source.set(language_source)
 
@@ -4442,6 +4445,8 @@ async def process_vision(
             _info = get_provider_info(_provider)
             if _info is not None and _info.is_builtin:
                 return await call()  # Apple Vision and the like: the OS's own, no model of ours
+            if is_capturing():
+                return await call()  # a batch's capture run: nothing is called, so no lane is held and no page job kept
             # Every page a model reads is a job, a child of its step (#5353): a model served on
             # this Mac (MLX, Ollama, LM Studio at a loopback address) holds the local-model lane,
             # so Kraken or the embedder never load beside it (#5358); a model off this Mac (a

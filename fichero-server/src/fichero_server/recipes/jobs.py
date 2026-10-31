@@ -186,6 +186,7 @@ DISTIL: dict[str, Distil] = {
     "describe-for-the-catalogue": Distil(why=_NOT_YET),
     "make-a-vector": Distil(why="nothing to distil: the embedding model is chosen, not trained here"),
     "extract-to-a-table": Distil(why=_NOT_YET),
+    "tie-text-to-lines": Distil(why="nothing to distil: it aligns the page's reading to the line reader's own rough reads (#5444)"),
     "check": Distil(why="nothing to distil: a check is the teacher's own judgement of other steps"),
 }
 

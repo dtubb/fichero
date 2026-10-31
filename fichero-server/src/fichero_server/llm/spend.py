@@ -280,3 +280,60 @@ def plan_line(library: str, *, estimate_usd: float | None, cloud_models: list[tu
     return {"note": note, "cap_usd": cap, "spent_usd": done, "remaining_usd": remaining, "estimate_usd": estimate_usd,
             "over": estimate_usd is not None and estimate_usd > remaining + 1e-9, "unpriced": estimate_usd is None,
             "unpriced_models": to_accept, "assumed_calls": calls, "assumed_usd": usd}
+
+
+# --- a provider batch (`compute.recipe.cloud-batch-consent-and-cost`, #5940) ----------------------------------------
+#: The providers bill a batch at half the listed price; used when the price list names no batch price for the model.
+BATCH_SHARE = 0.5
+
+
+def batch_cost_usd(provider: str, model: str, input_tokens: int, output_tokens: int) -> float | None:
+    """What a batch line costs: the price list's batch rates, else half the listed rates; None for a model with no price."""
+    from fichero_server.llm.usage import _registry_entry, price_call
+
+    entry = _registry_entry(model, provider) or {}
+    rate_in, rate_out = entry.get("input_cost_per_token_batches"), entry.get("output_cost_per_token_batches")
+    if rate_in is not None and rate_out is not None:
+        return input_tokens * float(rate_in) + output_tokens * float(rate_out)
+    priced = price_call({"provider": provider, "model": model, "input_tokens": input_tokens,
+                         "output_tokens": output_tokens})
+    return priced.cost_usd * BATCH_SHARE if priced.priced else None
+
+
+def batch_worst_usd(provider: str, model: str, *, max_tokens: int, input_tokens: int | None = None) -> float:
+    """The most one batch request can cost: the plain call's worst case at the batch share (an unpriced model at the
+    assumed price, as a plain call is)."""
+    from types import SimpleNamespace
+
+    worst = worst_case_usd(SimpleNamespace(provider=provider, model=model, max_tokens=max_tokens), input_tokens)
+    return worst * BATCH_SHARE if has_listed_price(provider, model) else worst
+
+
+def reserve_batch(library: str, provider: str, model: str, *, requests: int, max_tokens: int) -> float:
+    """Hold a batch's worst case against the cap from submission until it ends (it may answer a day later); refused in
+    words, before anything is sent, when the booked spend, what is held and this batch do not fit. The amount held."""
+    cap = cap_usd(library)
+    worst = batch_worst_usd(provider, model, max_tokens=max_tokens) * max(1, requests)
+    with _LOCK:
+        booked, reserved = booked_usd(library), _RESERVED.get(library, 0.0)
+        if cap is not None and booked + reserved + worst > cap + 1e-9:
+            raise CloudSpendRefusedError(
+                f"This project's cloud spend is capped at ${cap:.2f} a month; ${booked:.2f} is spent and ${reserved:.2f} is "
+                f"held for calls out, and this batch of {requests} could cost up to ${worst:.2f}, so it was not sent. "
+                "Raise the cap in the project's Set Up, or send fewer pages.")
+        _RESERVED[library] = reserved + worst
+    return worst
+
+
+def hold_again(library: str, usd: float) -> None:
+    """A batch adopted after a restart: its hold, kept on its row, is held again (the hold lives in this process)."""
+    with _LOCK:
+        _RESERVED[library] = _RESERVED.get(library, 0.0) + usd
+
+
+def settle_batch(library: str, held: float, spent_usd: float) -> None:
+    """A batch ended: let go of its hold and book what its lines were billed."""
+    with _LOCK:
+        _RESERVED[library] = max(0.0, _RESERVED.get(library, 0.0) - held)
+        if spent_usd:
+            _book(library, spent_usd)

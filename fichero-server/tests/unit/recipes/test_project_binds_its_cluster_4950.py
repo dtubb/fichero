@@ -96,7 +96,7 @@ def test_a_read_placed_on_the_cluster_is_sent_there_under_its_step(db, monkeypat
     _pages_may_leave(monkeypatch, True)
 
     sent, waited = [], []
-    monkeypatch.setattr(read_job, "start", lambda db, request, *, started_by: sent.append((request, started_by))
+    monkeypatch.setattr(read_job, "start", lambda db, request, *, started_by, stage: sent.append((request, started_by))
                         or {"job_id": "read-1"})
     monkeypatch.setattr(runner, "_wait", lambda db, child, parent: waited.append((child, parent)) or (child, "done", None))
     card = {**KRAKEN_RUN, "place": "cluster", "target": "rq-1"}
@@ -114,7 +114,7 @@ def test_a_cluster_that_refuses_fails_the_step_by_name(db, monkeypatch, with_mat
     from fichero_server.remote_read import job as read_job
     from fichero_server.remote_read.slurm_target import NoKey
 
-    def refuse(db, request, *, started_by):
+    def refuse(db, request, *, started_by, stage):
         raise NoKey("cluster rq-1: the app's key and sign-in step are not built yet (#5238)")
 
     monkeypatch.setattr(read_job, "start", refuse)
@@ -131,9 +131,9 @@ def test_pages_may_not_leave_said_after_start_refuses_the_cluster_step_by_name(d
     from fichero_server.remote_read import job as read_job
 
     sent = []
-    monkeypatch.setattr(read_job, "start", lambda db, request, *, started_by: sent.append(request) or {"job_id": "x"})
+    monkeypatch.setattr(read_job, "start", lambda db, request, *, started_by, stage: sent.append(request) or {"job_id": "x"})
     _pages_may_leave(monkeypatch, False)
     child, state, why = runner._run_card(db, {**KRAKEN_RUN, "place": "cluster", "target": "rq-1"}, ["p1"], {},
                                          "recipe-job", {}, "daniel")
     assert (child, state, sent) == (None, "failed", [])
-    assert why == "pages may not leave this Mac; this step was placed on rq-1"
+    assert why == "pages may not leave this Mac; this step was placed on the cluster rq-1"

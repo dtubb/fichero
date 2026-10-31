@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from collections import defaultdict
 from typing import Any
 
@@ -27,6 +28,8 @@ from fichero_server.knowledge.svo_cleanup import (
 )
 from fichero_server.knowledge.svo_quality import (
     claim_rejection,
+    fold,
+    join_page,
     trim_predicate,
     ungrounded_span,
 )
@@ -143,6 +146,29 @@ def _spacy_page_claims(text: str, model: str) -> list[dict[str, Any]]:
              "epistemic_status": "", "claim_type": "", "date": "", "place": ""} for t in kept]
 
 
+def _attach_date_subjects(
+    date_items: list[dict], entity_by_norm: dict[str, tuple[str, _EntityOnly]],
+) -> tuple[list[dict], list[dict]]:
+    """A date row that states something (a verb or object) has no subject: a date is when, not who. Its statement
+    goes to the one person or organisation named in its words, as a page claim carrying the date; with none, or
+    more than one, it stays a dated row for the timeline, never guessed onto someone. -> (rows kept, claims)"""
+    kept: list[dict] = []
+    claims: list[dict] = []
+    for item in date_items:
+        if not (item.get("verb") or item.get("object")):
+            kept.append(item)
+            continue
+        said = fold(item.get("source_text") or "")
+        names = {e.name for sec, e in entity_by_norm.values()
+                 if sec in ("people", "organizations") and re.search(rf"(?<!\w){re.escape(fold(e.name))}(?!\w)", said)}
+        if len(names) == 1:
+            claims.append({**{k: item.get(k, "") for k in ("verb", "object", "source_text", "epistemic_status", "claim_type")},
+                           "subject": names.pop(), "date": item.get("date_normalized") or "", "place": ""})
+        else:
+            kept.append(item)  # no one actor to give it to: it stays a dated row, the timeline's (#1470)
+    return kept, claims
+
+
 @register_tool(
     name="extract_svo_only",
     display_name="Extract SVO Claims",
@@ -234,6 +260,9 @@ async def extract_svo_only(
 
     documents = _coerce_documents(raw_documents, db, library_path)
     records = _records_for_documents(documents, db)
+    for record in records:  # statements are read across line breaks, a hyphenated break rejoined
+        record["joined"] = join_page(record["text"])
+        record["text"] = record["joined"].text
     if not records:
         return {
             "summary": {
@@ -427,7 +456,9 @@ async def extract_svo_only(
             message=f"Extracting step-3 SVO claims for {doc_name}",
         )
 
-        date_items = pre["date_items"]
+        date_items, date_claims = _attach_date_subjects(pre["date_items"], entity_by_norm)
+        if date_claims:
+            pre["page_claims"] = [*(pre["page_claims"] or []), *date_claims]
         dates_section = _SECTION_BY_KEY.get("dates")
         if date_items:
             # Date claims skip the per-entity loop (entity_type None), so
@@ -457,6 +488,7 @@ async def extract_svo_only(
                 provider=getattr(llm_config, "provider", None),
                 model=getattr(llm_config, "model", None),
                 grounding_text=record["text"],
+                joined=record["joined"],
                 run_id=state.get("task_id"),
             )
 
@@ -529,6 +561,7 @@ async def extract_svo_only(
                     provider=getattr(llm_config, "provider", None),
                     model=getattr(llm_config, "model", None),
                     grounding_text=record["text"],
+                    joined=record["joined"],
                     run_id=state.get("task_id"),
                 )
 

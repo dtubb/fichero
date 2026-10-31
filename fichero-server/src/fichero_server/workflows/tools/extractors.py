@@ -1632,6 +1632,7 @@ def _synthesize_svo_fallback(
     verb: str,
     obj: str,
     legacy_context: str,
+    copula: str = "is",
 ) -> tuple[str, str]:
     """Last-resort SVO synthesis for items where the LLM didn't return
     a verb / object split. (#1113)
@@ -1645,6 +1646,9 @@ def _synthesize_svo_fallback(
           object=Y (drop the leading subject).
         - Otherwise → verb="is", object=legacy_context.
     - If everything is empty → ("", "") — caller decides whether to skip.
+
+    ``copula`` is "is" on an English page and "" on any other: an English verb put on a Spanish
+    page is not what the page says.
 
     The synthesized verb is "is" because every fallback case observed in
     the wild (#1113 mining-doc test) is a descriptive noun phrase
@@ -1660,9 +1664,9 @@ def _synthesize_svo_fallback(
     if v and not o:
         # Verb without object — promote verb text to object so we don't
         # emit naked "X verbs ." sentences.
-        return "is", v
+        return copula, v
     if o and not v:
-        return "is", o
+        return copula, o
     ctx = (legacy_context or "").strip()
     if not ctx:
         return "", ""
@@ -1675,9 +1679,9 @@ def _synthesize_svo_fallback(
             if head_norm and (head_norm == canon_norm or head_norm in canon_norm or canon_norm in head_norm):
                 tail = tail.strip()
                 if tail:
-                    return "is", tail
+                    return copula, tail
             break  # only try the first separator we hit
-    return "is", ctx
+    return copula, ctx
 
 
 # #1119 — reverse alias scan
@@ -2491,6 +2495,7 @@ def _write_kg_rows(
     model: str | None = None,
     grounding_text: str | None = None,
     run_id: str | None = None,
+    joined: Any = None,
 ) -> tuple[list[str], list[str]]:
     """Persist extractor items as KnowledgeEntity + KnowledgeClaim rows.
 
@@ -2544,7 +2549,13 @@ def _write_kg_rows(
         if tied_lines is None:
             from fichero_server.checking.tie_text import line_spans
 
-            tied_lines = line_spans(db, container_id, page_text)
+            # `joined` (svo_quality.LineJoin): the grounding text is the page's lines joined for reading, so the
+            # lines are tied on the page text it came from and their spans moved onto the joined one.
+            on_page = joined.original if joined is not None and joined.text == grounding_text else None
+            tied_lines = line_spans(db, container_id, page_text if on_page is None else on_page)
+            if on_page is not None:
+                moved = joined.spans_in_joined([(s.start, s.end) for s in tied_lines])
+                tied_lines = [s._replace(start=a, end=b) for s, (a, b) in zip(tied_lines, moved)]
         return tied_lines
 
     named_on_page: set[str] = set()
@@ -2772,6 +2783,8 @@ def _write_kg_rows(
         except Exception:
             detected_language = None
 
+    source_is_english = (detected_language or "").lower() in {"", "en"}
+
     # Provider/model attribution (#1113): combine the LLM provider/model
     # with the static "+heuristic-svo" suffix when our local SVO synthesis
     # filled in verb/object that the LLM didn't return. Honest about the
@@ -2936,6 +2949,7 @@ def _write_kg_rows(
             verb,
             obj,
             legacy_context,
+            copula="is" if source_is_english else "",
         )
         # Section-typed default when nothing whatsoever was extractable:
         # keywords-style sections (bare strings — no description, no
@@ -2945,7 +2959,7 @@ def _write_kg_rows(
         # as a real (if minimal) sentence: "X is a concept." / "X is a
         # location." Honest about being a typed default rather than an
         # extraction.
-        if not verb and not obj and entity_type is not None:
+        if not verb and not obj and entity_type is not None and source_is_english:
             verb = "is"
             type_label = entity_type.value if hasattr(entity_type, "value") else str(entity_type)
             obj = f"a {type_label}"
@@ -3361,7 +3375,7 @@ def _write_kg_rows(
             # container_id here is the per-page target_doc_id (#1562) —
             # scope the entity to the page it was extracted from.
             source_document_id=container_id,
-            asserted_by=run_attribution(provider, model, run_id) if (provider or model) else None,
+            asserted_by=run_attribution(provider, model, run_id, container_id) if (provider or model) else None,
         )
         if entity_id is None:
             continue
@@ -3396,7 +3410,6 @@ def _write_kg_rows(
         # and let the surface fall back to the verbatim triple.
         verb_en = (item.get("verb_en") or "").strip()
         obj_en = (item.get("object_en") or "").strip()
-        source_is_english = (detected_language or "").lower() in {"", "en"}
         if verb_en or obj_en:
             predicate_verb_en = verb_en or None
             object_phrase_en = obj_en or None

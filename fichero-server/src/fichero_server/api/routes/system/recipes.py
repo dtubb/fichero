@@ -2035,8 +2035,12 @@ def _action_save_setup(db: Database, params: ProjectSetup, ctx: ActionContext) -
     before = read_project_setup(library)
     # A part left out is kept; a part sent as null is removed (#5584).
     sent = params.model_fields_set
-    write_project_setup(library, params.answers if "answers" in sent else before.get("answers"),
-                        params.recipe if "recipe" in sent else before.get("recipe"))
+    recipe = params.recipe if "recipe" in sent else before.get("recipe")
+    if recipe and before.get("recipe"):
+        from fichero_server.recipes.bakeoff import drop_readers_of_changed_models
+
+        recipe = drop_readers_of_changed_models(before["recipe"], recipe)
+    write_project_setup(library, params.answers if "answers" in sent else before.get("answers"), recipe)
     after = read_project_setup(library)
     return after, ChangeSpec(domains=["project"], target_ids=[], before=before, after=after,
                              emit_type="project.setup_saved")
@@ -2109,7 +2113,8 @@ class StartEstimateRun(BaseModel):
     pages: int
     cost_usd: Optional[float] = Field(description="0 on this Mac; null when the model has no price")
     basis: str = Field(default="unpriced", description=(
-        "how cost_usd is known: `free on this Mac`, `the model's listed rate`, or `unpriced` (a cluster or other "
+        "how cost_usd is known: `free on this Mac`, `the model's listed rate`, `the batch price, answered within a "
+        "day` (a step sent as one provider batch, #5940), or `unpriced` (a cluster or other "
         "place, or a model with no price): never a $0 for what is not known (#5590)"))
     memory: Optional[str] = Field(default=None, description=(
         "a run on this Mac's model server: the model's memory need, how many pages at once it reads on this Mac, "
@@ -2584,6 +2589,17 @@ def _folders_covering(db: Database, page_ids: list[str]) -> int:
     return len(folders_to_describe(db, page_ids)[0]) if page_ids else 0
 
 
+def _reader_notes(runs: list[dict[str, Any]]) -> list[str]:
+    """Where a step's per-kind readers differ from the step's own model, said in words: no refusal, no silent switch (#6269)."""
+    out = []
+    for run in runs:
+        for kind, reader in (run.get("readers") or {}).items():
+            if reader.get("model_override") != run.get("model_override"):
+                out.append(f"{kind} pages are read by {reader.get('note') or reader.get('model_override')}, not the step's "
+                           f"{run.get('model_override') or 'default model'} ({', '.join(run.get('steps') or [])})")
+    return out
+
+
 def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list[str] | tuple[str, ...] = ()
                 ) -> dict[str, Any]:
     """The Start plan, over the whole project or one folder's live pages (`source.recipe.folder-scoped-start`).
@@ -2633,7 +2649,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     plan["addable"] = addable_now(setup["answers"] or {})
     plan["left_off"] = [o["sentence"] for o in (setup["recipe"] or {}).get("left_off") or [] if o.get("sentence")]
     plan["folder_id"] = folder_id
-    plan["notes"] = notes
+    plan["notes"] = [*notes, *_reader_notes(plan["workflows"])]
     from fichero_server.recipes.train_offers import training_setting, training_stays_local
 
     from fichero_server.recipes.answers import spend_cap
@@ -2812,17 +2828,16 @@ NO_MATERIAL = "This project has no material yet: add your pages in Set Up › Yo
 
 def _accept_asked(db: Database, accepted: list[str], folder_id: Optional[str], clusters: list[str], ctx: ActionContext) -> None:
     """Start's yes to the cloud models with no listed price it names: the ones sent (`StartRequest.accept_unpriced`), else
-    every one the plan lists, since pressing Start is the yes (#6259); none while the plan refuses Start. Each by `cloud.accept_unpriced`, the one accept action.
+    every one the plan lists, since pressing Start is the yes (#6259), taken before Start's own action so it outlives a refused Start
+    (`ai.where.accept-unpriced-cloud-model`). Each by `cloud.accept_unpriced`, the one accept action.
     Only a model the plan names can be accepted here."""
     try:
         plan = _start_plan(db, folder_id, clusters=clusters)
     except LookupError as exc:  # a folder not in the project
         raise ValueError(str(exc)) from exc
-    if plan.get("refusals"):  # a refused Start accepts nothing: project.start says why
-        return
     asked = set(plan["cloud_cap"]["unpriced_models"]) if plan.get("cloud_cap") else set()
     unknown = [m for m in accepted if m not in asked]
-    if unknown:
+    if unknown:  # a request naming a model the plan never asked about is wrong whether or not Start is refused
         raise ValueError(f"Start did not ask about {', '.join(unknown)}: only the cloud models it names can be accepted.")
     for key in accepted or sorted(asked):
         provider, _, model = key.partition("/")
@@ -2852,6 +2867,9 @@ async def start_project(
         # The yes to a cloud model with no price is its own audited action, taken BEFORE Start's: inside Start's
         # transaction a refused Start would roll the audit row back and leave the acceptance kept without it.
         clusters = _cluster_names(http)
+
+        if request and request.documents is not None and folder_id:  # said first: the accept's plan would call the folder unknown
+            raise ValueError("Start takes a folder or some pages, not both")
 
         def accept_then_start() -> None:  # the accept builds the Start plan: off the loop with the start (#6178)
             _accept_asked(db, request.accept_unpriced if request else [], folder_id, clusters, ctx)

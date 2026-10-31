@@ -131,7 +131,7 @@ def test_a_shard_run_again_skips_what_it_already_read():
         from fichero_server.media import iiif_fetch
         (pkg / "_fichero" / "iiif_fetch.py").write_text(Path(iiif_fetch.__file__).read_text())
         Image.new("RGB", (100, 100)).save(pkg / "images" / "a.jpg")
-        (pkg / "job.json").write_text(json.dumps({"step": {"reader": "kraken", "card": "k"}, "fetch": {"longest": 2000},
+        (pkg / "job.json").write_text(json.dumps({"step": {"reader": "kraken", "card": "k"}, "stage": ["read"], "fetch": {"longest": 2000},
                                                   "shards": [[0]], "sources": [{"id": "d1", "image": "images/a.jpg"}]}))
         calls = []
 

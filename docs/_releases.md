@@ -1,3 +1,36 @@
+### 2026.10.28
+
+What changed since 2026.10.27.
+
+<details markdown>
+<summary>Show more releases</summary>
+
+- Set Up: the search model is chosen on the Search step, never on the first screen. Every step that runs a model offers Choose a Model…. A second Review the reading model can run after the first, and the reading steps say what they do (Read each line, Read the whole page, Review the reading).
+- Start shows what it will cost before it runs: the estimate is per provider (Claude's capped page image, the measured figure for Gemini and the rest), a model with no listed price never blocks Start (the plan lists it apart and Start is your yes), and the cloud spend cap is set beside the estimate. The price list is dated and offers the current Claude and Gemini models.
+- Transcribe is lines alone by default; a page reader and reviewers are add-ons you tick. Use This and a folder's page reader add the page step, and un-ticking it drops only its reader.
+- Review instructions show one pass at a time from a picker.
+- Add Material says what a project already holds, and adding more is optional. The hands are one column. Find lines has a menu on the plan and offers Kraken.
+- Excel export: the Documents sheet carries the catalogue's attributes as columns, folder rows included.
+- Runs: each folder says which steps are done on it; a page with lines but no live readings is not read again; a page a Stop dropped ends cancelled, not done; Stop does not wait for a Kraken page already running.
+- The engine restarts itself: a gone engine restarts at once, up to five times with growing waits, waits 30 s for a clean stop, and the health check answers within 2 s. Activity says busy, and a paused run no longer spins.
+- Safety: the sandboxed engine reaches only the folders you pick, and an import judges a link by where it points, so a shortcut in Documents cannot reach outside it.
+- Under the hood: workers are forked before any thread starts, the engine's thread counts are set once per plan, and health counts documents without waiting on a writer.
+
+### 2026.10.27
+
+What changed since 2026.10.26.
+
+- Recipe runs read several pages at once, and the run says how many pages and how many threads each. While you use the Mac an automatic page reads on half the performance cores; when the Mac is busy paging it reads one page at a time and says why.
+- A finished run offers Run again on what was missed, in Activity, on the project's run strip and beside Start on the setup page. It reads only the pages that were missed.
+- Importing the same unchanged file again no longer makes a second page or reads it again.
+- Each step of a run shows its cost beside its seconds, and the summary names the dearest step.
+- Activity, the list of runs and a run's status answer while the library is busy writing, with what was already saved.
+- Long runs no longer slow down page by page: the names step, the page grid and the status checks stay flat over an 86-page run.
+- A step that stalls is skipped with a plain reason and the run goes on; a Kraken page that is slow is no longer taken for stuck, and a page moved to the Trash while waiting is skipped.
+- A run stopped by Fichero says "Stopped", not "Stopped by you".
+- The sidebar's Delete removes a mixed or multi-library selection as one undoable step per library and leaves a row inside a folder that is also going.
+- Under the hood: the engine logs slow database statements, models loaded again mid-run, and memory use, so a slowdown can be traced.
+
 ### 2026.10.26
 
 What changed since 2026.10.24.
@@ -13,9 +46,6 @@ What changed since 2026.10.24.
 - A stage page no longer asks you to tick a model when there is only one to choose.
 - A reader you choose for one folder is used for that folder when you press Start; folders with a reader of their own are left out of the project-wide run of that step.
 - The Catalogue's description of a folder is saved as the folder's content, and its fields become the folder's attributes.
-
-<details markdown>
-<summary>Show more releases</summary>
 
 **Activity.**
 - A run's rows name each reader of a stage that reads with several. (check owed)

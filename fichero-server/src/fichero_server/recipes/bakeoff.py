@@ -650,6 +650,21 @@ def keep_saved_overrides(stored: dict[str, Any] | None, sent: dict[str, Any]) ->
     return sent
 
 
+def drop_readers_of_changed_models(stored: dict[str, Any] | None, sent: dict[str, Any]) -> dict[str, Any]:
+    """The recipe a save sends, with no per-kind `readers` on a reading step whose model the save changed and whose
+    readers are still the stored ones: a reader the person saves replaces the whole reader set, as a Use This does
+    (#6121), or the rules' Apple Vision still reads the handwriting beside the model chosen (#6269). Readers that differ
+    from the stored ones are a fresh rules proposal (Set Up assembling again sends a new model with new readers), so they
+    stay. A step the saved recipe lacks keeps its readers. Changes `sent` in place."""
+    before = {s.get("id"): s for s in (stored or {}).get("steps") or []}
+    for step in sent.get("steps") or []:
+        old = before.get(step.get("id"))
+        if step.get("job") in ("read-a-line", "read-a-page") and old is not None \
+                and old.get("model") != step.get("model") and old.get("readers") == step.get("readers"):
+            step.pop("readers", None)
+    return sent
+
+
 def apply_project_overrides(recipe: dict[str, Any], cards: list[Card]) -> dict[str, Any]:
     """Set each step a project-scope override names to that override's reader, as the step's own choice, so
     the recipe Start reads and the one setup proposes again both read with the reader the person chose

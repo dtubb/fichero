@@ -733,11 +733,20 @@ def _run_catalogue(db: Any, card: dict[str, Any], documents: list[str], parent: 
 
     step["catalogue"] = account = describe_folders(
         db, documents, LLMConfig(provider=card["provider"], model=card["model"]), run_id=parent,
-        stop=lambda: _stop_asked(parent))
+        stop=lambda: _stop_asked(parent), whole_folders_only=bool(step.pop("readers_unfinished", False)),
+        failed_ids=step.pop("failed_ids", ()))
     if _stop_asked(parent):
         return None, "cancelled", "Stopped by you"
     if account["failed"]:
         return None, "failed", "; ".join(account["failed"])
+    skipped = account["skipped"]
+    if skipped:  # a reading step failed: only the folders read in full were described, and the rest are named
+        shown = "; ".join(skipped[:10]) + (f"; and {len(skipped) - 10} more" if len(skipped) > 10 else "")
+        said = (f"skipped {len(skipped)} folder{'' if len(skipped) == 1 else 's'} with pages not read "
+                f"(a reading step failed): {shown}")
+        if not account["described"] and not account["unchanged"]:
+            return None, "not run", f"no folder was read in full; {said}"
+        return None, "partial", said
     return None, "done", None
 
 
@@ -797,9 +806,19 @@ def _run_table(db: Any, card: dict[str, Any], documents: list[str], parent: str,
 def _run_at_scale(db: Any, card: dict[str, Any], documents: list[str], parent: str,
                   started_by: str) -> tuple[str | None, str, str | None]:
     """A read the plan placed on the project's cluster or on Hugging Face Jobs (`source.recipe.placement-by-scale`,
-    `source.recipe.step-runs-on-huggingface`): sent there as one read-at-scale run under this step, and waited on as any
-    child; a place that refuses fails the step by name. The person's yes is read now, not when the plan was made: pages
-    may leave only while the project says so, the app allows the place, and (Hugging Face) the monthly cap is above $0."""
+    `source.recipe.step-runs-on-huggingface`): sent there as one read-at-scale run under this step (or the one already
+    out for these pages adopted), and waited on as any child; a place that refuses fails the step by name."""
+    child, why = _send_at_scale(db, card, documents, parent, started_by)
+    return _wait(db, child, parent) if child is not None else (None, "failed", why)
+
+
+def _send_at_scale(db: Any, card: dict[str, Any], documents: list[str], parent: str,
+                   started_by: str) -> tuple[str | None, str | None]:
+    """The send half of `_run_at_scale`, also what a batch sent ahead goes by (`remote_read.pipeline`): (the read's id,
+    None), or (None, why it was refused). The person's yes is read now, not when the plan was made: pages may leave only
+    while the project says so and the app allows the place. A read already out for these pages (a resume, or the batch
+    sent ahead) is adopted by them, never sent again, before the cap is asked: it is already counted in it. A new one on
+    Hugging Face needs the monthly cap above $0 and not yet reached."""
     from fichero_server.models.compute_requests import ReadAtScaleRequest
     from fichero_server.recipes.answers import spend_cap
     from fichero_server.recipes.project import read_project_setup
@@ -811,24 +830,27 @@ def _run_at_scale(db: Any, card: dict[str, Any], documents: list[str], parent: s
     answers = read_project_setup(_library(db))["answers"]
     where = "Hugging Face" if on_hf else f"the cluster {card['target']}"
     if not places.may_leave_to(answers, "huggingface" if on_hf else "acenet"):
-        return None, "failed", f"pages may not leave this Mac; this step was placed on {where}"
+        return None, f"pages may not leave this Mac; this step was placed on {where}"
+    if (out := read_job.out_under(db, parent, documents)) is not None:  # resumed or sent ahead: waited on, never sent again
+        return out, None
     if on_hf:
         from fichero_server.recipes.train_offers import spend_this_month
 
         cap = spend_cap(answers)
         if cap <= 0:
-            return None, "failed", "this step was placed on Hugging Face, but the monthly spend cap is $0: set a cap in setup first"
+            return None, "this step was placed on Hugging Face, but the monthly spend cap is $0: set a cap in setup first"
         spent = spend_this_month(db, cap=cap)["spent_at_most_usd"]
         if spent >= cap:  # the cap is a ceiling on what is already sent, not only a switch (#6173)
-            return None, "failed", (f"this step was placed on Hugging Face, but this month's spend (at most ${spent:.2f}) "
-                                    f"has reached the ${cap:.2f} cap")
+            return None, (f"this step was placed on Hugging Face, but this month's spend (at most ${spent:.2f}) "
+                          f"has reached the ${cap:.2f} cap")
     try:
         child = read_job.start(db, ReadAtScaleRequest(scope_ids=documents, reader="kraken", card=card["model_override"],
                                                       target=card["target"], pages_may_leave=True,
-                                                      parent_job_id=parent), started_by=started_by)["job_id"]
+                                                      parent_job_id=parent), started_by=started_by,
+                               stage=tuple(card.get("stage") or ("read",)))["job_id"]  # a card queued before stages: the read alone
     except Exception as exc:  # noqa: BLE001 -- no key, no sign-in, a reader that cannot leave: said, never read here
-        return None, "failed", f"could not send the read to {where}: {exc}"
-    return _wait(db, child, parent)
+        return None, f"could not send the read to {where}: {exc}"
+    return child, None
 
 
 def _wait(db: Any, child: str, parent: str) -> tuple[str, str, str | None]:
@@ -1223,6 +1245,8 @@ def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
     for number, batch in enumerate(batches):
         if number < detail["batches_done"]:  # finished before an interruption (`source.recipe.batch-checkpoint`)
             continue
+        from fichero_server.remote_read import pipeline  # the next batch's remote first step goes ahead (#5642)
+        pipeline.send_ahead(db, job_id, detail, batches[number + 1] if number + 1 < len(batches) else None, tree, started_by)
         with _holding_the_served_model(job_id, cards):  # one MLX load per batch, kept through spaCy's steps
             problems = _run_batch(db, job_id, detail, batch, tree, started_by, final=number == len(batches) - 1)
         if _stop_asked(job_id):  # a person's Stop ends the run after this batch; a failure does not (#5540)
@@ -1426,6 +1450,15 @@ def _in_the_cards_folders(db: Any, card: dict[str, Any], documents: list[str], t
             and not any(d in scope and (inside is None or scope < inside) for scope in others.values())]
 
 
+def _readers_unfinished(cards: list[dict[str, Any]], steps: list[dict[str, Any]], card: dict[str, Any]) -> bool:
+    """Whether a step that gives what this card takes did not end done. A card queued before cards declared their inputs
+    takes from every card before it (as `_blocked` reads it): any of them not done is unfinished."""
+    if "takes" not in card:
+        return any(s["state"] != "done" for s in steps)
+    kinds = {kind for take in card["takes"] for kind in take.split("|")}
+    return any(s["state"] != "done" for c, s in zip(cards, steps) if kinds.intersection(c.get("gives") or ()))
+
+
 def _step_pages(db: Any, card: dict[str, Any], step: dict[str, Any], batch: dict[str, Any], tree: _Tree,
                 detail: dict[str, Any]) -> tuple[list[str], dict[str, Any], dict[str, str]]:
     """The pages a step works on in this batch, as it is about to run: (pages, its scratch notes, the pages' kinds)."""
@@ -1440,7 +1473,15 @@ def _step_pages(db: Any, card: dict[str, Any], step: dict[str, Any], batch: dict
     if card["card"] == "catalogue":  # last, over every page the run covered; a folder already described is left
         from fichero_server.recipes.done import pages_for
 
-        documents = pages_for(db, card, detail.get("documents"))
+        # A folder's run covers that folder's pages alone (#6275), not the whole project's.
+        try:
+            within = folder_scope(db, detail["folder_id"], tree) if detail.get("folder_id") else None
+        except LookupError:  # the folder was trashed after Start planned: it holds no pages (as `_in_the_cards_folders`)
+            within = set()
+        documents = pages_for(db, card, detail.get("documents"), within)
+        index = detail["steps"].index(step)
+        scratch["readers_unfinished"] = _readers_unfinished(detail["runs"][:index], detail["steps"][:index], card)
+        scratch["failed_ids"] = sorted({i for s in detail["steps"][:index] for i in s.get("failed_ids") or []})
     elif not redo.intersection(card["steps"]):
         documents, scratch["already_done"] = split_done(db, card, documents, own=set(step.get("ran_on") or []))
     if documents and _reads_page_images(card.get("job")):
@@ -1458,6 +1499,20 @@ def _step_pages(db: Any, card: dict[str, Any], step: dict[str, Any], batch: dict
 
         kinds = sorting.kinds(db, documents, list(card.get("readers") or {}))
         blank = [d for d in documents if kinds.get(d) == sorting.BLANK]
+        asked = bool(redo.intersection(card["steps"]))
+        taken_in = set(detail.get("blank_bypassed") or [])  # read by an earlier redo step of this run (#6271)
+        if blank and (asked or taken_in.intersection(blank)):
+            # A redo reads what sorting called blank: a skip is never silent and a person can always have a page
+            # read; the later page steps of the same run read those pages too. A page a person called blank stays out.
+            from fichero_server.models import Document as _Doc
+
+            read = [d for d in blank if (asked or d in taken_in) and
+                    ((getattr(db.get(_Doc, d), "attributes", None) or {}).get(sorting.SET_BY) != sorting.BY_PERSON)]
+            if asked:
+                detail["blank_bypassed"] = sorted(taken_in.union(read))
+            for d in read:
+                kinds.pop(d, None)
+            blank = [d for d in blank if d not in read]
         if blank:
             documents = [d for d in documents if kinds.get(d) != sorting.BLANK]
             scratch["blank_versos"] = len(blank)
@@ -1518,7 +1573,8 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
             here[index]["state"] = "not run"
             _settle(step, "not run", None, STOPPED_BEFORE)
             continue
-        blocked = _blocked(cards, here, index) or _await_downloads(db, job_id, detail, card)
+        # The catalogue judges each folder itself (`_run_catalogue`): one failed batch must not hide a folder read in full.
+        blocked = (None if card["card"] == "catalogue" else _blocked(cards, here, index)) or _await_downloads(db, job_id, detail, card)
         if blocked:
             here[index]["state"] = "not run"
             _settle(step, "not run", None, blocked)
@@ -1538,7 +1594,13 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
             _add(step, scratch)
             here[index]["state"] = states[index] = "done"
             if step["state"] == "waiting":
-                step.update(state="done", child_id=None, why="already done on every page")
+                left = len(step.get("left_out") or [])  # the run's total for the step, not this batch's; left out is not done (#6271)
+                total_done = step.get("already_done") or 0  # likewise the run's total, not this batch's
+                cause = "as blank" if card.get("job") in _NOT_ON_BLANK_VERSOS else "as too uncertain for names"
+                step.update(state="done", child_id=None, why=(
+                    f"nothing to run: {left} page{'' if left == 1 else 's'} left out, the rest already done" if left and total_done
+                    else f"nothing to run: all {left} page{'' if left == 1 else 's'} left out {cause}" if left
+                    else "already done on every page"))
             jobs.save_detail(db, job_id, json.dumps(detail))
             continue
         if early is None:  # a step already running beside the one before it is not held back: it is running
@@ -1610,6 +1672,11 @@ def _run_card(db: Any, card: dict[str, Any], documents: list[str], kinds: dict[s
     """One step's work on a batch's pages, by its card: (its job, its end, why)."""
     if card.get("place") in ("cluster", "huggingface"):
         child, state, why = _run_at_scale(db, card, documents, job_id, started_by)
+    elif card.get("place") == "batch":  # one provider batch, then the step's own run from its answers (#5940)
+        from fichero_server.remote_read import cloud_batch
+
+        child, state, why = cloud_batch.run_step(db, card, documents, job_id, started_by, wait=_wait,
+                                                 replay=lambda: _run_workflow(db, card, documents, job_id, adopt))
     elif card["card"] == "workflow" and card.get("readers"):
         child, state, why = _run_by_reader(db, card, documents, kinds, job_id, scratch)
     elif card["card"] == "workflow":
@@ -1662,6 +1729,9 @@ def _after_the_step(db: Any, card: dict[str, Any], step: dict[str, Any], batch: 
         # The run carries on past a failed batch (#5540, provisional): the step's failed pages are kept on it,
         # and a step that did none of a batch's pages counts towards stopping the run (`_halted`).
         none_done, pages_failed, lost = _did_no_page(db, card, child, scratch)
+        # The ids of the pages this step lost, kept (not in the run's status) for the Catalogue, which skips their folders (#6275).
+        lost_ids = [f.document_id for f in lost if getattr(f, "document_id", None)] or (documents if state == "failed" else [])
+        step["failed_ids"] = sorted({*(step.get("failed_ids") or []), *lost_ids})
         if state == "done" and card.get("job") == "read-a-line":
             # A page whose reader gave no text for every line, or most (`source.read.line-with-no-writing-is-read`),
             # is a lost page though its node succeeded: the step is partial and names it with the reason.

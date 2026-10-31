@@ -48,13 +48,29 @@ def test_start_goes_on_and_records_the_yes_for_every_unpriced_model_it_names(cli
     assert any(a.action_name == "cloud.accept_unpriced" for a in db.all(ActionAudit))
 
 
-def test_a_refused_start_records_no_yes(client, db, monkeypatch):
+def test_a_refused_start_still_keeps_the_yes_and_a_fixed_start_does_not_ask_again(client, db, monkeypatch):
+    """`ai.where.accept-unpriced-cloud-model`: the yes is taken before Start's own action, so it outlives a refused Start."""
     from fichero_server.models import ActionAudit
 
-    _unpriced_plan(client, monkeypatch, ["over the cap"])
+    routes = _unpriced_plan(client, monkeypatch, ["over the cap"])
+    plan = {"refusals": ["over the cap"], "estimate": {"pages": 1}, "workflows": []}
+
+    def _plan(*a, **k):  # the plan lists only the models not yet accepted, as spend.plan_line does
+        asked = [m for m in ["acme/mystery"] if m not in spend.accepted_models(_library(db))]
+        return {**plan, "cloud_cap": {"unpriced_models": asked}}
+
+    monkeypatch.setattr(routes, "_start_plan", _plan)
     assert client.post("/api/recipes/project/start", json={}).status_code == 422
-    assert spend.accepted_models(_library(db)) == []
-    assert not any(a.action_name == "cloud.accept_unpriced" for a in db.all(ActionAudit))
+    assert spend.accepted_models(_library(db)) == ["acme/mystery"]
+    accepted = [a for a in db.all(ActionAudit) if a.action_name == "cloud.accept_unpriced"]
+    assert len(accepted) == 1
+    plan["refusals"] = []  # the person fixes the cap and presses Start again
+    invoke = routes.registry.invoke
+    monkeypatch.setattr(routes.registry, "invoke", lambda db, name, *a, **k: None if name == "project.start" else invoke(db, name, *a, **k))
+    monkeypatch.setattr(routes, "_as_started", lambda db, plan: (_ for _ in ()).throw(LookupError("started")))
+    with pytest.raises(LookupError, match="started"):
+        client.post("/api/recipes/project/start", json={})
+    assert len([a for a in db.all(ActionAudit) if a.action_name == "cloud.accept_unpriced"]) == 1, "it was not asked again"
 
 
 def test_the_plan_does_not_refuse_an_unpriced_model():

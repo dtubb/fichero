@@ -449,7 +449,8 @@ def _record_usage(
     that downstream consumers can parse uniformly."""
     from fichero_server.llm import spend
 
-    spend.note_actual(_priced_usd(provider, model, input_tokens, output_tokens, cache_read_tokens, place))
+    if method != "batch":  # a batch's answer was booked by its row, at the batch price (#5940)
+        spend.note_actual(_priced_usd(provider, model, input_tokens, output_tokens, cache_read_tokens, place))
     bucket = _usage_collector.get()
     if bucket is not None:
         entry: dict[str, Any] = {
@@ -1657,6 +1658,26 @@ async def _lane_call_slot(config: LLMConfig, *, library: str | None = None,
 
 #: The name the LLM layer's own call sites use.
 _remote_llm_call_slot = model_call_slot
+
+
+def provider_batch_sdk(provider: str, name: str) -> Any:
+    """The provider's own SDK client for its batch API (#5940), built here beside every other provider client: the
+    egress gate first, then the key from the Keychain (never stored, never logged)."""
+    _enforce_local_only_provider(LLMConfig(provider=provider, model="batch"), kind="batch")
+    key = get_api_key(provider)
+    if not key:
+        raise ValueError(f"no {name} key in Settings › AI, so no batch can be sent to {name}")
+    if provider == "anthropic":
+        import anthropic
+
+        return anthropic.Anthropic(api_key=key)
+    if provider == "openai":
+        import openai
+
+        return openai.OpenAI(api_key=key)
+    from google import genai
+
+    return genai.Client(api_key=key)
 
 
 def record_call_usage(config: LLMConfig, response: Any, kind: str = "chat") -> None:
@@ -2888,6 +2909,24 @@ async def vision(
     with _LLM_RESULT_CACHE_LOCK:
         if _cache_key in _LLM_RESULT_CACHE:
             return _LLM_RESULT_CACHE[_cache_key]
+    # A step sent as a provider batch: its calls captured, then answered from the batch's lines (#5940).
+    from fichero_server.llm.provider_batch import through_the_seam
+
+    if (seamed := through_the_seam(_cache_key, prompt, images)) is not None:
+        if isinstance(seamed, str):  # a capture's stand-in
+            return seamed
+        from fichero_server.llm.read_guard import ModelText
+
+        tokens = seamed.usage or {}
+        if tokens:  # on the run's usage; the batch row already booked it against the cap, at its batch price
+            _record_usage(config.provider, config.model, "vision", place=_place_of(config), method="batch",
+                          input_tokens=tokens.get("input_tokens", 0), output_tokens=tokens.get("output_tokens", 0),
+                          total_tokens=tokens.get("input_tokens", 0) + tokens.get("output_tokens", 0))
+        result = ModelText(_strip_outer_code_fences(seamed.text or ""), seamed.finish or None)
+        if result.strip():
+            with _LLM_RESULT_CACHE_LOCK:
+                _LLM_RESULT_CACHE[_cache_key] = result
+        return result
 
     # Get LangChain model
     await _ensure_managed_local_provider_ready(config, capability="vision")

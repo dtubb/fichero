@@ -773,3 +773,82 @@ class TestExcelExportAttributes:
         columns = list(rows[0])
         attrs = [c for c in columns if c.startswith("attr:")]
         assert attrs == sorted(attrs) and columns[-len(attrs):] == attrs
+
+
+    def test_a_promoted_folders_description_prints_once(self, client, db, tmp_path):
+        """`catalogue.excel-export-prints-description-once` (#6267): the catalogue artifact is not appended to a folder
+        whose content already is that description."""
+        box = Document(id="once-box", name="Box", doc_type=DocType.folder, page_content="The wheat description.",
+                       metadata={"catalogue_content_from": "art-1"})
+        other = Document(id="once-other", name="Other", doc_type=DocType.folder)
+        for node in (box, other):
+            db.save(node)
+        for node in (box, other):
+            db.save(Artifact(document_id=node.id, artifact_type="catalogue.narrative", content="The wheat description."))
+        output_path = tmp_path / "once.xlsx"
+        r = client.post("/api/export/excel", json={"output_path": str(output_path)})
+        assert r.status_code == 200, r.text
+        rows = {row["id"]: row for row in read_xlsx_records(output_path, sheet_index=0)}
+        assert rows[box.id]["transcription"].count("The wheat description.") == 1
+        assert rows[other.id]["transcription"].count("The wheat description.") == 1  # no content: the artifact is its text
+
+
+    def test_claims_have_a_page_label_and_entities_reach_their_documents(self, client, db, tmp_path):
+        """`catalogue.excel-claims-and-entities-reach-their-pages` (#6267): a claim without a page label gets its page's
+        name; an entity row lists the documents its claims come from."""
+        page = Document(id="reach-page", name="Page 7", doc_type=DocType.file, file_type=FileType.text, page_content="x")
+        entity = KnowledgeEntity(id="reach-entity", canonical_name="Maria", entity_type=EntityType.person)
+        claim = KnowledgeClaim(id="reach-claim", text="Maria signed.", source_document_id=page.id,
+                               entity_ids=[entity.id], claim_type=ClaimType.fact)
+        for node in (page, entity, claim):
+            db.save(node)
+        output_path = tmp_path / "reach.xlsx"
+        r = client.post("/api/export/excel", json={"output_path": str(output_path)})
+        assert r.status_code == 200, r.text
+        claims = {row["id"]: row for row in read_xlsx_records(output_path, sheet_index=2)}
+        assert claims[claim.id]["source_page_label"] == "Page 7"
+        entities = {row["id"]: row for row in read_xlsx_records(output_path, sheet_index=1)}
+        assert page.id in str(entities[entity.id]["source_document_ids"])
+        listed = client.get(f"/api/entities/{entity.id}/documents").json()
+        assert [item["document_id"] for item in listed["items"]] == [page.id]
+
+
+class TestCatalogueTextOnlyDroppedInExcel:
+    """`catalogue.excel-export-prints-description-once`: the Word export and the site search keep a promoted folder's
+    artifacts in its text; only the Excel export drops them."""
+
+    def _box(self, db):
+        box = Document(id="word-box", name="Box", doc_type=DocType.folder, page_content="The wheat description.",
+                       metadata={"catalogue_content_from": "art-1"})
+        db.save(box)
+        db.save(Artifact(document_id=box.id, artifact_type="catalogue.narrative", content="The wheat description."))
+        return box
+
+    def test_word_and_site_text_are_unchanged(self, db):
+        from fichero_server.export_service import _document_text
+
+        box = self._box(db)
+        assert _document_text(db, box).count("The wheat description.") == 2
+        assert _document_text(db, box, once=True).count("The wheat description.") == 1
+
+    def test_word_export_still_prints_both(self, db, tmp_path):
+        import zipfile
+
+        from fichero_server.export_service import export_word_docx
+
+        box = self._box(db)
+        out = tmp_path / "w.docx"
+        export_word_docx(db, out, documents=[box], include_knowledge_graph=False)
+        assert zipfile.ZipFile(out).read("word/document.xml").decode().count("The wheat description.") == 2
+
+    def test_excel_has_the_normalised_date_column(self, client, db, tmp_path):
+        from fichero_server.recipes import catalogue_step
+
+        db.save(Document(id="nd-box", name="Box", doc_type=DocType.folder))
+        catalogue_step.put_in_attributes(db, "nd-box", "Title: Box.\nDates: 1913 - 19 de febrero de 1918.", "art-1",
+                                         run_id="r1", provider="p", model="m")
+        out = tmp_path / "nd.xlsx"
+        assert client.post("/api/export/excel", json={"output_path": str(out)}).status_code == 200
+        rows = {r["id"]: r for r in read_xlsx_records(out, sheet_index=0)}
+        assert rows["nd-box"]["attr:catalogue_date_normalised"] == "1913/1918-02-19"
+        assert rows["nd-box"]["attr:catalogue_date_start"] == "1913"

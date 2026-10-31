@@ -39,7 +39,6 @@ def test_a_thousand_pages_at_fifty_are_one_array_of_twenty_under_apptainer():
     assert "#SBATCH --array=0-19" in script and "#SBATCH --account=def-lab" in script
     assert "#SBATCH --gres=gpu:1" in script
     assert "apptainer exec --nv --bind .:/package /project/def-lab/historian/fichero/images/fichero-server.sif" in script
-    assert run.prefetch is None  # every image travels in the package
 
 
 def test_only_the_failed_shards_are_sent_again():
@@ -61,18 +60,19 @@ def test_each_array_task_receives_its_own_index(tmp_path):
     assert done.stdout == "--shard 7 it's\n"
 
 
-def test_iiif_pages_are_fetched_on_the_login_node_and_the_shard_reads_them_offline(tmp_path):
-    """WHY (compute nodes have no internet): a package of IIIF pages is prefetched into itself on the
-    login node; a shard then reads without a single request."""
+def test_iiif_pages_prefetched_into_the_package_are_read_offline_and_nothing_runs_on_the_login_node(tmp_path):
+    """WHY (compute nodes have no internet; `compute.hpc.nothing-heavy-on-a-login-node`): a package of IIIF pages is
+    prefetched into itself before it is sent (on this Mac, `SlurmReadTarget.send`); a shard then reads without a single
+    request, and the run's description has no login-node step."""
     run = describe_slurm_read(ACENET, _package(3, iiif=True))
-    assert run.prefetch[:5] == ["ssh", "-p", "22", "--", "historian@siku"] and "--prefetch" in run.prefetch[-1]
+    assert not hasattr(run, "prefetch") and "--prefetch" not in run.spec.sbatch_script
 
     package = tmp_path / "pkg"
     (package / "_fichero").mkdir(parents=True)
     (package / "_fichero" / "iiif_fetch.py").write_bytes(
         (runner.Path(runner.__file__).parent.parent / "media" / "iiif_fetch.py").read_bytes())
     made = _package(3, shard_size=3, iiif=True)
-    (package / "job.json").write_text(json.dumps({"step": {"reader": "vlm", "card": "c"}, "fetch": {"longest": 800},
+    (package / "job.json").write_text(json.dumps({"step": {"reader": "vlm", "card": "c"}, "stage": ["read"], "fetch": {"longest": 800},
                                                   "shards": made.shards, "sources": made.sources}))
 
     def server(url, timeout):

@@ -175,7 +175,9 @@ def test_source_onboard_auto_reader_per_material(client, db, tmp_path, engine, m
     assert r.status_code == 200, r.text
     again = _finished(client, r.json()["started"]["job_id"])
     assert again["state"] == "done", again
-    assert read_by == {"typed.png": type_model, "hand.png": type_model, "corrected.png": type_model}
+    # A redo reads what sorting called blank, by the card's own reader (`source.recipe.left-out-is-not-done`, #6271).
+    assert read_by == {"typed.png": type_model, "hand.png": type_model, "corrected.png": type_model,
+                       "typed-back.png": hand_model}
     assert attrs("hand") == {"material": "typescript", "material_set_by": "person"}
 
 

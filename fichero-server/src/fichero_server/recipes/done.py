@@ -16,7 +16,9 @@ redo the step:
   clear (#5706);
 * correcting: a page with a reviewed transcription (the paleographer's review) saved by the step's own model;
 * finding names: a page some entity names as a page it was found on (#5584), or one a finished run's names
-  step ran on (#5706): a page whose text names no one is done once looked at.
+  step ran on (#5706): a page whose text names no one is done once looked at. When the step chose a real model, only
+  names that model made on the page, or a person's, count, and only that model's runs (#6127): the free spaCy draft
+  made at import is not done for it.
 
 Every other card cannot tell, and runs on every page.
 """
@@ -48,14 +50,22 @@ def _is_split_page(doc: Any) -> bool:
     return getattr(doc.doc_type, "value", doc.doc_type) == "chunk" and bool(meta.get("split_source_id"))
 
 
-def pages_for(db: Any, card: dict[str, Any], documents: list[str] | None) -> list[str]:
-    """The pages (or, for a split, the photographs) this card runs on now."""
+def _documents(db: Any, within: set[str] | None) -> list[Any]:
+    """Every document, or only those `within` (one folder's): the plan for a folder reads the folder, not the library (#6268)."""
     from fichero_server.db import query_read
     from fichero_server.models import Document
 
+    # Not query_in_committed (#6178): pages_for also runs inside a run's own transaction (runner.py), whose uncommitted
+    # pages a committed read would not see.
+    return query_read(db, Document) if within is None else db.query_in(Document, "id", within)
+
+
+def pages_for(db: Any, card: dict[str, Any], documents: list[str] | None, within: set[str] | None = None) -> list[str]:
+    """The pages (or, for a split, the photographs) this card runs on now; with `within`, only a folder's."""
+
     if card.get("job") == "split-pages":
         if documents is None:
-            docs = [d for d in query_read(db, Document) if not d.deleted_at
+            docs = [d for d in _documents(db, within) if not d.deleted_at
                     and getattr(d.doc_type, "value", d.doc_type) == "file"
                     and getattr(d.file_type, "value", d.file_type) == "image"]
             return sorted(d.id for d in docs)
@@ -65,8 +75,8 @@ def pages_for(db: Any, card: dict[str, Any], documents: list[str] | None) -> lis
         # the material count does not see as pages).
         material = db.unit_of_work_ids()
         known = set(material)
-        split = sorted(d.id for d in query_read(db, Document) if not d.deleted_at and _is_split_page(d))
-        return material + [d for d in split if d not in known]
+        split = sorted(d.id for d in _documents(db, within) if not d.deleted_at and _is_split_page(d))
+        return [i for i in material if within is None or i in within] + [d for d in split if d not in known]
     out: list[str] = []
     for doc_id in documents:  # an imported photograph cut since: its pages are the material
         out.extend([c.id for c in _children(db, doc_id)] or [doc_id])
@@ -109,12 +119,10 @@ def material(db: Any, within: set[str] | None = None) -> dict[str, Any]:
     folder's, `runner.folder_scope`; `source.recipe.folder-scoped-start`)."""
     from collections import Counter
 
-    from fichero_server.models import Document
 
-    ids = [i for i in pages_for(db, {}, None) if within is None or i in within]
-    docs = {d.id: d for d in db.query(Document)
-            if not d.deleted_at and getattr(d, "node_kind", None) not in ("workflow", "entry")
-            and (within is None or d.id in within)}
+    ids = [i for i in pages_for(db, {}, None, within) if within is None or i in within]
+    docs = {d.id: d for d in _documents(db, within)
+            if not d.deleted_at and getattr(d, "node_kind", None) not in ("workflow", "entry")}
     counted: Counter[str] = Counter()
     for doc_id in ids:
         doc = docs.get(doc_id)
@@ -375,13 +383,23 @@ def failed_reads(db: Any, pages: list[str], mark_blank: bool = False) -> list[tu
     return [(page, why) for page, why in out if not _called_blank(db, page)]
 
 
-def _called_blank(db: Any, page: str) -> bool:
+def _blank_by(db: Any, page: str) -> str | None:
+    """Who called the page blank: "sorting" or "person"; None when nobody has."""
     from fichero_server.models import Document
     from fichero_server.recipes import sorting
 
     doc = db.get(Document, page)
     attrs = doc.attributes if doc is not None and isinstance(doc.attributes, dict) else {}
-    return attrs.get(sorting.KIND) == sorting.BLANK
+    if attrs.get(sorting.KIND) != sorting.BLANK:
+        return None
+    return "person" if attrs.get(sorting.SET_BY) == sorting.BY_PERSON else "sorting"
+
+
+_PAGE_IMAGE_JOBS = ("find-lines", "read-a-line", "read-a-page")
+
+
+def _called_blank(db: Any, page: str) -> bool:
+    return _blank_by(db, page) is not None
 
 
 def unread_reasons(db: Any, doc_id: str) -> dict[str, str]:
@@ -460,8 +478,14 @@ def effective_model(db: Any, card: dict[str, Any]) -> str | None:
     return (workflow.model or None) if workflow is not None else None
 
 
-def pages_a_run_did(db: Any, job: str) -> set[str]:
-    """The pages a finished recipe run's step of this job ran on and ended well (`runner.RAN_ON_JOBS`, #5706)."""
+def _forms(model: str) -> set[str]:
+    """A model as a card names it ("provider/model" or bare) and as a run records it (bare)."""
+    return {model, model.rpartition("/")[2]}
+
+
+def pages_a_run_did(db: Any, job: str, model: str | None = None) -> set[str]:
+    """The pages a finished recipe run's step of this job ran on and ended well (`runner.RAN_ON_JOBS`, #5706); with `model`,
+    only runs whose step chose that model (#6127: a free step's run is no run of a real model's)."""
     import json
 
     from fichero_server.execution import jobs
@@ -472,7 +496,7 @@ def pages_a_run_did(db: Any, job: str) -> set[str]:
         found = jobs.read_job(db, row["id"]) or {}
         detail = json.loads(found.get("detail") or "{}")
         for card, step in zip(detail.get("runs") or [], detail.get("steps") or []):
-            if card.get("job") == job:
+            if card.get("job") == job and (model is None or str(effective_model(db, card) or "") in _forms(model)):
                 out.update(step.get("ran_on") or [])
     return out
 
@@ -501,12 +525,72 @@ def judged_key(db: Any, doc_id: str) -> str:
     return f"{doc_id}@{found.pass_row.id if found is not None else 'none'}"
 
 
-def pages_with_names(db: Any) -> set[str]:
-    """Every page some entity was found on (`KnowledgeEntity.source_document_ids`): the pages the names
-    step has been over."""
+def names_model(db: Any, card: dict[str, Any]) -> str | None:
+    """The real model a names step chose; None for the free NLP layer (spaCy) or when the step names none (#6127)."""
+    from fichero_server.workflows.tools.extract_entities_only import _LOCAL_NER_PROVIDERS
+
+    model = effective_model(db, card)
+    provider = card.get("provider_override")
+    if not provider and card.get("workflow_id"):  # no choice of its own: the workflow's provider is the one it runs with
+        from fichero_server.models import Workflow
+
+        workflow = db.get(Workflow, card["workflow_id"])
+        provider = workflow.provider if workflow is not None else None
+    return None if not model or str(provider or "").strip().lower() in _LOCAL_NER_PROVIDERS else model
+
+
+def pages_a_workflow_run_covered(db: Any, run_id: str | None) -> set[str] | None:
+    """The pages the server resolved a workflow run to (its record's `resolved_scope`, whoever started it: a recipe step or not),
+    for a COMPLETED run only: a failed or stopped run read an unknown part of its scope, so none of it counts (its unreached pages
+    are read again; the pages it named stay done by their own entries). None when that cannot be told: no run id, no record, a
+    run from before the scope was kept, or a scope cut short."""
+    if not run_id:
+        return None
+    from fichero_server.db import activity_records as records
+
+    row = records.get_run_scope(db, str(run_id))
+    scope = row[0] if row is not None else None
+    if isinstance(scope, str):
+        scope = json.loads(scope) if scope else None
+    if not isinstance(scope, dict) or scope.get("resolution_error") or scope.get("resolved_ids_truncated"):
+        return None
+    if row[1] != "completed":
+        return set()
+    ids = scope.get("resolved_ids")
+    return {str(i) for i in ids} if isinstance(ids, list) and ids else None
+
+
+def pages_with_names(db: Any, model: str | None = None) -> set[str]:
+    """Every page some entity was found on (`KnowledgeEntity.source_document_ids`): the pages the names step has been over.
+    With `model` (a real model, #6127: same input + same model = reuse, a free spaCy draft is not that model's pass): only
+    the pages that model named (the attribution says which page), or that a person named. An entity with no extractor counts
+    for all its pages (written before #4869: a false done is cheaper than paying twice). An older entry of `model` naming no
+    page counts for the pages ITS RUN covered (#6285); only a run that cannot be found counts for all the entity's pages."""
     from fichero_server.models import KnowledgeEntity
 
-    return {doc_id for e in db.query(KnowledgeEntity) for doc_id in (e.source_document_ids or [])}
+    if model is None:
+        return {doc_id for e in db.query(KnowledgeEntity) for doc_id in (e.source_document_ids or [])}
+    forms, out, covered = _forms(model), set(), {}
+    for e in db.query(KnowledgeEntity):
+        steps = [(getattr(a.role, "value", a.role), a.label, a.document_id, getattr(a, "document_ids", None) or [])
+                 for a in e.attribution_chain]
+        extractors = [(label, doc, more) for role, label, doc, more in steps if role == "extractor"]
+        # A person's names and an entity no extractor is recorded on (older than #4869, or written with no attribution) count
+        # for all the entity's pages: only a free draft is not this model's.
+        if any(role == "editor" for role, *_ in steps) or not extractors:
+            out.update(e.source_document_ids or [])
+        # An older entry of this model naming no page counts for the pages its run covered; for all the entity's pages only
+        # when the run cannot be found (the folder it ran on is not every page the name was found on, #6285).
+        for run_id in {getattr(a, "run_id", None) for a in e.attribution_chain
+                       if a.label in forms and not a.document_id and getattr(a.role, "value", a.role) == "extractor"}:
+            if run_id not in covered:
+                covered[run_id] = pages_a_workflow_run_covered(db, run_id)
+            ran = covered[run_id]
+            out.update((e.source_document_ids or []) if ran is None else set(e.source_document_ids or []) & ran)
+        for label, doc, more in extractors:
+            if label in forms:
+                out.update(d for d in (doc, *more) if d)
+    return out
 
 
 def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
@@ -532,7 +616,8 @@ def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
     if job == "correct":
         return _has_review(db, doc_id, effective_model(db, card), card.get("workflow_id"), (card.get("steps") or [None])[0])
     if job == "find-names-tag-words":
-        return doc_id in pages_with_names(db) or doc_id in pages_a_run_did(db, job)
+        model = names_model(db, card)
+        return doc_id in pages_with_names(db, model) or doc_id in pages_a_run_did(db, job, model)
     if job == "leave-out":
         return judged_key(db, doc_id) in pages_a_run_did(db, job)
     if job == "translate-transliterate-normalise":  # the page holds the reading this run writes (its level, or its translation)
@@ -565,7 +650,8 @@ def _split_done(db: Any, card: dict[str, Any], pages: list[str],
     if card.get("job") not in KNOWS_DONE:
         return pages, None
     if card.get("job") == "find-names-tag-words":  # one read of the entities, not one per page
-        named = pages_with_names(db) | pages_a_run_did(db, "find-names-tag-words")
+        model = names_model(db, card)
+        named = pages_with_names(db, model) | pages_a_run_did(db, "find-names-tag-words", model)
         todo = [p for p in pages if p not in named and p not in own]
         return todo, len(pages) - len(todo)
     if card.get("job") == "leave-out":  # judged on the pass it has now: a page whose lines were found again is judged again
@@ -610,12 +696,18 @@ def todo_counts(db: Any, plan: dict[str, Any], within: set[str] | None = None, r
     """Per job, the pages a run would still do (`split_done`, as `annotate` counts them), for the estimate to price: a done
     page is not paid for twice. A card that cannot tell, or was asked to redo, is every page and is left out."""
     out: dict[str, int] = {}
+    taken = False  # an earlier page-image step is redone: it reads the pages sorting called blank, and so do the later ones
     for card in plan.get("runs", []):
-        if card.get("card") != "workflow" or (redo and redo.intersection(card["steps"])):
+        redone = bool(redo and redo.intersection(card["steps"]))
+        in_run = taken and card.get("job") in _PAGE_IMAGE_JOBS
+        taken = taken or (redone and card.get("job") in _PAGE_IMAGE_JOBS)
+        if card.get("card") != "workflow" or redone:
             continue
-        pages = [p for p in pages_for(db, card, None) if within is None or p in within]
+        pages = [p for p in pages_for(db, card, None, within) if within is None or p in within]
         todo, done = split_done(db, card, pages, memo=memo)
         if done is not None:
+            if card.get("job") in _PAGE_IMAGE_JOBS:  # a normal run leaves blank ones out (#6271)
+                todo = [p for p in todo if _blank_by(db, p) is None or (in_run and _blank_by(db, p) == "sorting")]
             out[card["steps"][0]] = len(todo)  # by step: two Review steps (correct, correct-2) each have their own
     return out
 
@@ -625,12 +717,25 @@ def annotate(db: Any, plan: dict[str, Any], unfinished: dict[str, dict[str, str]
     """Each run in the Start plan with `done`, `of` and a `note`, as things stand now; a run whose steps the last
     run did not finish (`unfinished`, `runner.unfinished_steps`) says so with `last_run` and `last_why`, and
     that Start runs it again (#5498). `within`: only these documents (a folder's)."""
+    taken = False  # as in `todo_counts`
     for card in plan.get("runs", []):
-        pages = [p for p in pages_for(db, card, None) if within is None or p in within]
-        _todo, done = split_done(db, card, pages, memo=memo)
+        redone = bool(redo and redo.intersection(card["steps"]) and card.get("job") in _PAGE_IMAGE_JOBS)
+        in_run = (taken or redone) and card.get("job") in _PAGE_IMAGE_JOBS  # the redone step reads them too
+        taken = taken or redone
+        pages = [p for p in pages_for(db, card, None, within) if within is None or p in within]
+        todo, done = split_done(db, card, pages, memo=memo)
         card["done"], card["of"] = done, len(pages)
         unit = "photographs" if card.get("job") == "split-pages" else "pages"
         card["note"] = _note(done, len(pages), unit)
+        if done is not None and card.get("job") in _PAGE_IMAGE_JOBS:
+            by = [_blank_by(db, p) for p in todo]  # pages called blank before; not looked at again here (#6271)
+            sorted_out, marked = (0 if in_run else by.count("sorting")), by.count("person")  # the redo's pages stay in
+            if sorted_out or marked:  # the run leaves these out (`runner._step_pages`): "runs on all N" would be false
+                said = [f"{sorted_out} left out as blank by sorting (redo them to read anyway)" if sorted_out else "",
+                        f"{marked} you marked blank" if marked else ""]
+                card["note"] = ((f"already done on {done}; " if done else "")
+                                + f"runs on {len(todo) - sorted_out - marked} of {len(pages)} pages; "
+                                + "; ".join(x for x in said if x))
         if card.get("job") == "describe-for-the-catalogue":  # counted in folders: the new folder and its parents, not every page
             from fichero_server.recipes.catalogue_step import folders_to_describe
 

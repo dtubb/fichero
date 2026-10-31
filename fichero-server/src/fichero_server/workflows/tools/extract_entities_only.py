@@ -23,6 +23,7 @@ from typing import Any, Iterator
 
 from fichero_server.db import db_manager
 from fichero_server.execution.cancellation import WorkflowCancelled, cancellation_requested
+from fichero_server.knowledge.svo_quality import usable_entity_name
 from fichero_server.models.knowledge import KnowledgeEntity
 from fichero_server.llm import LLMConfig, chat_structured_with_fallback
 from fichero_server.loaders.rtf_text import to_plain_text
@@ -581,6 +582,10 @@ async def extract_entities_only(
                 if time.monotonic() > writing_until:
                     stalled_writing = True
                     break
+                # A month, a date, a bare role or a title-and-name is no entity of its type.
+                canonical_name = usable_entity_name(canonical_name, entity_type)
+                if canonical_name is None:
+                    continue
                 mentions_processed += 1
                 entity_id = upsert_entity(
                     db,
@@ -588,7 +593,7 @@ async def extract_entities_only(
                     entity_type=entity_type,
                     aliases=aliases,
                     source_document_id=record["doc_id"],
-                    asserted_by=asserted_by,
+                    asserted_by={**asserted_by, "document_id": record["doc_id"]},
                 )
                 if entity_id is None:
                     suppressed += 1

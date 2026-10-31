@@ -31,6 +31,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from difflib import SequenceMatcher
+from typing import Any
 
 # Pronouns and bare determiners that are never a legitimate KG subject, across
 # the languages this corpus actually holds. Matched case- and accent-folded, so
@@ -105,6 +106,178 @@ def _has_letter(text: str) -> bool:
     cheapest way to say so, and it treats accented letters as letters.
     """
     return any(ch.isalpha() for ch in text or "")
+
+
+# ---------------------------------------------------------------------------
+# Names that are not entities, and dates that are not subjects
+# ---------------------------------------------------------------------------
+#
+# A month, a bare "De Diciembre" or a role word ("Agente") is not somebody or
+# somewhere, whatever type a model gave it; a date fused onto a name ("Juzgado
+# de X julio veinticinco") is a name plus a date. All checkable without a model.
+
+_MONTHS = frozenset(
+    "enero febrero marzo abril mayo junio julio agosto septiembre setiembre octubre noviembre diciembre "
+    "january february march april may june july august september october november december "
+    "janeiro fevereiro marco maio junho julho setembro outubro novembro dezembro".split()
+)
+_UNITS = frozenset(
+    "uno una un dos tres cuatro cinco seis siete ocho nueve diez once doce trece catorce quince diecis"
+    "eis diecisiete dieciocho diecinueve veinte treinta y primero primer mil novecientos".split()
+)
+_DATE_FILLER = frozenset("de del el la los dia dias ano anos a".split())
+#: Titles of people: alone they name nobody.
+_ROLE_WORDS = frozenset(
+    "agente perito avaluador avaluadores juez alcalde secretario escribano notario testigo apoderado albacea "
+    "curador tutor comisionado visitador recaudador administrador alguacil fiscal procurador sindico regidor "
+    "corregidor".split()
+)
+#: Kinds of body: alone they name no particular one.
+_GENERIC_BODY_WORDS = frozenset("agencia juzgado notaria oficina alcaldia tribunal despacho".split())
+_ISO_DATE = re.compile(r"^\d{1,4}([-/.]\d{1,2}){0,2}$")
+
+
+def _is_number(word: str) -> bool:
+    return bool(_ISO_DATE.match(word)) or word in _UNITS or word.startswith("veinti") or word[:1].isdigit()
+
+
+def is_date_only(text: str | None) -> bool:
+    """Whether ``text`` is only a date: months, numbers, number words and "de" ("De Diciembre", "1918-06-06").
+
+    A lone month ("Mayo", "Abril") or a lone number word ("Cinco") is a name as often as a date, so it counts
+    only next to a digit ("7 de agosto", "1918") or as a "de <month>" fragment. "Primero de Mayo" stays a name."""
+    words = fold(text or "").replace(".º", "").replace("º", "").split()
+    if not words or not any(w in _MONTHS or _is_number(w) for w in words):
+        return False
+    if not all(w in _MONTHS or w in _DATE_FILLER or _is_number(w) for w in words):
+        return False
+    if any(w[:1].isdigit() for w in words):
+        return True
+    return len(words) > 1 and words[0] in ("de", "del") and any(w in _MONTHS for w in words)
+
+
+def usable_entity_name(name: str, entity_type: Any) -> str | None:
+    """The name to save as an entity of ``entity_type``, or ``None`` when it names nothing.
+
+    Refuses a date (a lone month only for a non-person: "Mayo" is a surname) and a bare role or kind-of-body
+    word. Whatever else the name says survives, "Juez Municipal de Valdoro" and "Perito Avaluador Crisanto
+    Echeverri" alike: a refused name is a lost one. A name is never trimmed:
+    "Colegio 20 de Julio" and "Calle 7 de Agosto" stay whole, a stray date beats a cut name. A person is
+    never refused for a month in the name ("Julio Cesar", "Juan Mayo")."""
+    kind = getattr(entity_type, "value", entity_type)
+    text = (name or "").strip()
+    folded = fold(text).split()
+    if not folded or is_date_only(text):
+        return None
+    if kind != "person" and len(folded) == 1 and folded[0] in _MONTHS:
+        return None
+    if all(w in _ROLE_WORDS or w in _GENERIC_BODY_WORDS or w in _DATE_FILLER or w in ("y", "e") for w in folded):
+        return None
+    return text or None
+
+
+_FUNCTION_WORDS = frozenset(
+    "a al con de del e el en la las lo los me mi no o por que se si su u un una y ya".split()
+)
+
+
+class LineJoin:
+    """A page's lines joined for reading (``text``) and the page text they came from (``original``).
+    ``spans_in_joined`` moves spans measured on ``original`` (a tied line's) onto ``text``."""
+
+    def __init__(self, text: str, original: str, start: list[int], end: list[int]) -> None:
+        self.text, self.original, self._start, self._end = text, original, start, end
+
+    def spans_in_joined(self, spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
+        return [(self._start[a], self._end[b]) for a, b in spans]
+
+
+def _is_mid_word_break(before: str, after: str) -> bool:
+    """A hyphen at a line end is a word cut in two when both sides are lowercase letters and the pieces are not
+    function words: "Ene-"+"ro" and "Mi-"+"guel" are one word, "señor-"+"que" is two (the hyphen is dropped, a
+    space kept). Only a whole separate word after the break is tested, never the piece before it."""
+    head = re.search(r"([^\W\d_]+)-$", before)
+    tail = re.match(r"[^\W\d_]+", after)
+    if not head or not tail or not before[-2].islower() or not after[0].islower():
+        return False
+    piece, rest = head.group(1), tail.group(0)
+    whole_word = not after[tail.end():tail.end() + 1].isalpha()
+    if whole_word and rest.casefold() in _FUNCTION_WORDS:
+        return False  # "señor-" / "que": a separate word, not the rest of this one
+    return len(piece) + len(rest) <= 25
+
+
+def _clusters(line: str) -> list[tuple[int, int]]:
+    """``line`` cut into a character and the combining marks after it, so NFC can map back to the original."""
+    out: list[tuple[int, int]] = []
+    for i, ch in enumerate(line):
+        if out and unicodedata.combining(ch):
+            out[-1] = (out[-1][0], i + 1)
+        else:
+            out.append((i, i + 1))
+    return out
+
+
+def join_page(text: str) -> LineJoin:
+    """A page's lines as running text, so a statement is read across a line break and not cut at it. A hyphen
+    break mid-word is rejoined ("Ene-\nro" → "Enero"), a blank line stays a paragraph break ("\n\n"), the
+    rest joins with a space. Characters inside a line are copied as they are, so a span within one line keeps
+    its offsets; ``LineJoin`` maps the line ends back to ``text``."""
+    text = text or ""
+    out: list[str] = []
+    start = [0] * (len(text) + 1)  # where the text at i begins in the joined text
+    end = [0] * (len(text) + 1)  # where the text before i ends in it
+    pending = ""
+    hyphen_at = -1
+    pos = 0
+    previous = ""
+    for raw in text.split("\n"):
+        stripped = raw.strip()
+        lead = len(raw) - len(raw.lstrip())
+        clusters = _clusters(stripped)
+        line = "".join(unicodedata.normalize("NFC", stripped[a:b]) for a, b in clusters)  # NFC: "Go\u0301-" is "Gó-"
+        if not line:
+            if out:
+                pending = "\n\n"
+            for j in range(pos, pos + len(raw) + 1):
+                start[min(j, len(text))] = end[min(j, len(text))] = len(out)
+            pos += len(raw) + 1
+            continue
+        if out:
+            if pending:
+                out.extend(pending)
+            elif previous.endswith("-") and _is_mid_word_break(previous, line):
+                out.pop()  # the hyphen
+                end[hyphen_at + 1] = len(out)
+            elif previous.endswith("-") and previous[-2:-1].islower() and line[0].islower():
+                out.pop()  # a hyphen before a separate word ("señor- que"): two words, never one
+                end[hyphen_at + 1] = len(out)
+                out.append(" ")
+            elif previous.endswith("-") and (line[0].isupper() or (previous[-2:-1].isdigit() and line[0].isdigit())):
+                pass  # "Pérez-" / "Gómez" or "1906-" / "1910": a compound name or a range keeps its hyphen
+            else:
+                out.append(" ")
+        pending = ""
+        for j in range(pos, pos + lead + 1):
+            start[j] = end[j] = len(out)
+        for a, b in clusters:
+            composed = unicodedata.normalize("NFC", stripped[a:b])
+            for j in range(pos + lead + a, pos + lead + b):
+                start[j] = len(out)
+                end[j] = len(out) + len(composed) if j > pos + lead + a else end[j]
+            out.extend(composed)
+            end[pos + lead + b] = len(out)
+        hyphen_at = pos + lead + len(stripped) - 1
+        for j in range(hyphen_at + 1, min(pos + len(raw) + 1, len(text) + 1)):
+            start[j] = end[j] = len(out)
+        previous = line
+        pos += len(raw) + 1
+    return LineJoin("".join(out), text, start, end)
+
+
+def join_lines(text: str) -> str:
+    """``join_page``'s running text alone."""
+    return join_page(text).text
 
 
 # ---------------------------------------------------------------------------
@@ -281,6 +454,8 @@ def claim_rejection(
     """
     if is_pronoun_subject(subject):
         return f"pronoun subject {subject!r} — names no entity"
+    if is_date_only(subject):
+        return f"subject {subject!r} is a date — a date is when, not who"
     verb_text = (verb or "").strip()
     obj_text = (obj or "").strip()
     if not verb_text and not obj_text:

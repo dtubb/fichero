@@ -25,6 +25,11 @@ from typing import Any, NamedTuple, NoReturn
 
 logger = logging.getLogger(__name__)
 
+# onnxruntime's telemetry starts a Network.framework path monitor when it is imported, and that crashes (SIGSEGV in
+# nw_path_monitor_start) in a forked child (#6286). Set before anything imports onnxruntime: the seed, every worker forked
+# from it and the kreuzberg fork worker inherit it. Assigned, not defaulted: an inherited value cannot turn it back on.
+os.environ["ORT_DISABLE_TELEMETRY"] = "1"
+
 #: How long the child may take to load the model before it is killed and the embed job fails.
 INIT_TIMEOUT_SECONDS = 300.0
 #: How long one batch of texts may take.

@@ -331,18 +331,19 @@ def _require_interactive_model(provider: str, model: str) -> None:
     this node's resolved model actually serve this run?"), same pre-run
     timing. A batch-only model answers a normal call with a 404 pointing at
     the provider's batches endpoint — which arrived mid-run, after the run
-    had already been paid for (Daniel, 2026-09-01). Fichero has no batch
-    client, so the honest answer is to refuse before spending anything.
+    had already been paid for (Daniel, 2026-09-01). Outside a step sent as a
+    provider batch (#5940) the honest answer is to refuse before spending anything.
     """
     from fichero_server.llm import is_batch_only_model
+    from fichero_server.llm.provider_batch import in_a_batch
 
-    if not is_batch_only_model(model):
+    if not is_batch_only_model(model) or in_a_batch():
         return
     where = provider or "the configured provider"
     raise ValueError(
         f"Model '{model}' on '{where}' is only "
-        "available through that provider's Batch API, which Fichero does not "
-        "use — a normal run would be refused by the provider. Pick a different "
+        "available through that provider's Batch API, which only a recipe step "
+        "sent as a batch uses — a normal run would be refused by the provider. Pick a different "
         "model for this node, or change the default in Settings."
     )
 

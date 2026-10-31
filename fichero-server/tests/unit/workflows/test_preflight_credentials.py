@@ -375,6 +375,22 @@ def test_batch_only_model_is_refused_before_the_run(monkeypatch):
     assert "gpt-5-batch" in errors[0]
 
 
+def test_a_batch_only_model_passes_for_a_step_sent_as_a_batch(monkeypatch):
+    """WHY (spec: recipe-steps-at-scale, #5940): Fichero now has a batch client. A step sent as a provider batch is
+    validated under the seam (its capture, then its replay from the batch's answers), so a batch-only model serves it;
+    outside a batch the refusal stands."""
+    from fichero_server.llm import provider_batch as pb
+
+    _common_env(monkeypatch, api_key="sk-test")
+    node = NodeDef(id="summarize", tool="summarize_file", provider_name="openai", model_name="gpt-5-batch")
+    workflow, config = _workflow_for(node), LLMConfig(provider="openai", model="gpt-5")
+    with pb.capturing(lambda prompt, images: "x"):
+        assert validate_workflow_llm_preflight(workflow, config) == []
+    with pb.answering({}):
+        assert validate_workflow_llm_preflight(workflow, config) == []
+    assert validate_workflow_llm_preflight(workflow, config), "outside a batch it is still refused"
+
+
 def test_an_interactive_model_still_passes(monkeypatch):
     _common_env(monkeypatch, api_key="sk-test")
     node = NodeDef(

@@ -15,7 +15,7 @@ import os
 import shlex
 import subprocess
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from fichero_server.training.hf_jobs import CANCELLED, DONE, FAILED, RUNNING, WAITING, FarStatus
 from fichero_server.workflows.remote_jobs import HpcClusterConfig, build_ssh_command, normalize_slurm_state
@@ -227,8 +227,9 @@ class SlurmReadTarget(SlurmTarget):
 
     ponytail: `flavor` means nothing on a cluster (one GPU a task); the site's own gres is the cluster's setting."""
 
-    def __init__(self, cluster: HpcClusterConfig, shell: Shell) -> None:
+    def __init__(self, cluster: HpcClusterConfig, shell: Shell, *, get: Any = None) -> None:
         super().__init__(cluster, shell)
+        self._get = get  # how pages are fetched before a package leaves: the polite web fetch, or a test's stand-in
         self._package = None
         self._sent: dict[str, list[str]] = {}  # job_key → the Slurm job ids submitted
 
@@ -239,6 +240,12 @@ class SlurmReadTarget(SlurmTarget):
 
         job = json.loads((Path(local_dir) / "job.json").read_text(encoding="utf-8"))
         self._package = ReadPackage(job_id=job_key, sources=job["sources"], shards=job["shards"])
+        if any(source.get("iiif_service") for source in job["sources"]):
+            # Compute nodes have no internet and a login node runs nothing heavy: the pages are fetched here,
+            # politely, into the package, and travel in it (`compute.hpc.nothing-heavy-on-a-login-node`).
+            from fichero_server.remote_read import runner
+
+            runner.prefetch(Path(local_dir), get=self._get)
         return super().send(local_dir, job_key)
 
     def submit(self, job_key: str, *, script: str = "", flavor: str = "", timeout: str = "2h",
@@ -257,6 +264,29 @@ class SlurmReadTarget(SlurmTarget):
             raise SlurmError(f"sbatch gave no job id: {job_id[:100]!r}")
         self._sent.setdefault(job_key, []).append(job_id)
         return f"{job_id}_{shard}"
+
+    def submit_all(self, job_key: str, shards: list[int], *, throttle: int, timeout: str = "2h") -> dict[int, str]:
+        """`compute.hpc.submit-array`: every shard still to send as ONE array (`--array=0-3%N`, the site throttling it),
+        a re-send of failed shards an array of only those (`--array=1,3`); each task tars its own results for one
+        transfer home. The far id of each shard: `<array>_<task>`, Slurm's own."""
+        from fichero_server.remote_read.slurm import describe_slurm_read
+
+        spec = describe_slurm_read(self.cluster, self._package, shards=shards, time_limit=_walltime(timeout),
+                                   throttle=throttle).spec
+        part = 'shard-$(printf %05d "$SLURM_ARRAY_TASK_ID")'
+        text = spec.sbatch_script.rstrip("\n") + f'\ntar -C "out/{part}" -cf "out/{part}.tar" .\n'
+        name = f"{self._dir(job_key)}/_fichero/read-array-{len(self._sent.get(job_key, []))}.sbatch"
+        self.shell.put_text(text, name)
+        array = self._run(["sbatch", "--parsable", name]).strip().split(";")[0]
+        if not array.isdigit():
+            raise SlurmError(f"sbatch gave no job id: {array[:100]!r}")
+        self._sent.setdefault(job_key, []).append(array)
+        return {shard: f"{array}_{shard}" for shard in shards}
+
+    def cancel_all(self, far_ids: list[str]) -> None:
+        """Stop: each array cancelled as one job, every task with it (one `scancel` an array, not one a task)."""
+        for array in dict.fromkeys(far_id.split("_")[0] for far_id in far_ids):
+            self._run(["scancel", array])
 
     def statuses(self, job_key: str) -> dict[str, FarStatus]:
         ids = ",".join(dict.fromkeys(self._sent.get(job_key, [])))

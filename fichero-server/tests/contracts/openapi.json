@@ -3,7 +3,7 @@
   "info": {
     "title": "Fichero API",
     "description": "Document processing and search API",
-    "version": "2026.10.28"
+    "version": "2026.10.30"
   },
   "paths": {
     "/api/clients": {
@@ -94855,7 +94855,7 @@
           "basis": {
             "type": "string",
             "title": "Basis",
-            "description": "how cost_usd is known: `free on this Mac`, `the model's listed rate`, or `unpriced` (a cluster or other place, or a model with no price): never a $0 for what is not known (#5590)",
+            "description": "how cost_usd is known: `free on this Mac`, `the model's listed rate`, `the batch price, answered within a day` (a step sent as one provider batch, #5940), or `unpriced` (a cluster or other place, or a model with no price): never a $0 for what is not known (#5590)",
             "default": "unpriced"
           },
           "memory": {
@@ -101144,6 +101144,12 @@
             "type": "boolean",
             "title": "Include Knowledge Graph",
             "description": "Append relevant knowledge graph entities and claims",
+            "default": true
+          },
+          "include_images": {
+            "type": "boolean",
+            "title": "Include Images",
+            "description": "Embed each page's scan; false prints no image and no note, and never opens the scan files",
             "default": true
           }
         },

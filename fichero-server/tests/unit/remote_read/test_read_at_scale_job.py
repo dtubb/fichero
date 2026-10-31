@@ -195,7 +195,7 @@ def test_only_the_failed_shards_are_resent_and_landing_twice_changes_nothing(db,
     # The same shard's results landed again: counted, not landed.
     folder = read_job._work_dir(job_id) / "out" / "shard-00000"
     again = read_job.land_shard(db, job_id, folder, pass_name="again", actor="owner")
-    assert again == {"landed": 0, "already": 2, "unread": 0, "set_aside": 0}
+    assert again == {"landed": 0, "already": 2, "unread": 0, "set_aside": 0, "lines_only": 0}
     assert _passes(db, archive) == after
 
 
@@ -269,19 +269,36 @@ class FakeClusterShell:
     """A login node: files `put` land under a temp folder, `sbatch` numbers jobs, `sacct` says they are
     done, and `get` of a shard's tar runs the real runner (with a fake reader) on the package that was sent."""
 
-    def __init__(self, root):
-        self.root, self.sbatched = root, []
+    def __init__(self, root, *, fail_once=(), hold=False):
+        self.root, self.sbatched, self.arrays, self.scancelled = root, [], [], []
+        self.fail_once, self.hold = set(fail_once), hold
 
     def _at(self, remote):
         return self.root / remote.lstrip("/")
 
+    def _array(self, script):
+        """The task indices of the script's `#SBATCH --array=` line (`0-3%2`, `1,3`)."""
+        body = next(line for line in script.splitlines() if line.startswith("#SBATCH --array="))
+        out = []
+        for part in body.split("=", 1)[1].split("%")[0].split(","):
+            low, _, high = part.partition("-")
+            out += range(int(low), int(high or low) + 1)
+        return out
+
     def run(self, argv):
         if argv[0] == "sbatch":
             self.sbatched.append(argv[-1])
+            self.arrays.append(self._array(self._at(argv[-1]).read_text()))
             return 0, f"{100 + len(self.sbatched)};c\n", ""
         if argv[0] == "sacct":
-            rows = [f"{100 + n}_{p.split('read-')[1].split('.')[0]}|COMPLETED" for n, p in enumerate(self.sbatched, 1)]
+            rows = []
+            for n, tasks in enumerate(self.arrays, 1):
+                for task in tasks:
+                    failed = n == 1 and task in self.fail_once
+                    rows.append(f"{100 + n}_{task}|{'RUNNING' if self.hold else 'FAILED' if failed else 'COMPLETED'}")
             return 0, "\n".join(rows) + "\n", ""
+        if argv[0] == "scancel":
+            self.scancelled.append(argv[1:])
         if argv[0] == "mkdir":
             for d in argv[2:]:
                 self._at(d).mkdir(parents=True, exist_ok=True)
@@ -317,7 +334,7 @@ def test_the_same_loop_reads_on_a_cluster(db, archive, tmp_path):
     cluster = HpcClusterConfig(cluster_id="r", name="Rorqual", host_alias="rorqual", username="u",
                                remote_base_dir="/project/def-lab/u", account="def-lab")
     shell = FakeClusterShell(tmp_path / "login")
-    target = SlurmReadTarget(cluster, shell)
+    target = SlurmReadTarget(cluster, shell, get=fake_iiif)  # the archive's IIIF page is fetched by the fake
     request = ReadAtScaleRequest(scope_ids=[archive.id], reader="vlm", card="fichero-trained/sergio", shard_size=2,
                                  pages_may_leave=True, target="r")
     started = read_job.start(db, request, started_by="owner", target_factory=lambda: target)
@@ -326,7 +343,9 @@ def test_the_same_loop_reads_on_a_cluster(db, archive, tmp_path):
     assert started["price_per_hour_usd"] is None  # an allocation is not bought by the hour
     counts = read_job.run(db, subject, target=target, sleep=lambda s: None)
     assert counts == {"pending": 0, "submitted": 0, "landed": 4, "failed": 0}
-    assert len(shell.sbatched) == 4
+    assert len(shell.sbatched) == 1 and shell.arrays == [[0, 1, 2, 3]], "one array for the stage, not a job a shard"
+    script = (shell.root / shell.sbatched[0].lstrip("/")).read_text()
+    assert f"#SBATCH --array=0-3%{request.max_in_flight}" in script, "the site throttles the array (%N)"
     assert read_job.status(db, started["job_id"])["landing"]["landed"] == 7
 
 
@@ -366,7 +385,7 @@ def test_removing_copies_refuses_anything_but_one_runs_own_folder(tmp_path):
     cluster = HpcClusterConfig(cluster_id="r", name="Rorqual", host_alias="rorqual", username="u",
                                remote_base_dir="/project/def-lab/u", account="def-lab")
     shell = FakeClusterShell(tmp_path / "login")
-    target = SlurmReadTarget(cluster, shell)
+    target = SlurmReadTarget(cluster, shell, get=fake_iiif)  # the archive's IIIF page is fetched by the fake
     for key in ("", "a/b", "..", "."):
         with pytest.raises(ValueError):
             target.remove(key)
@@ -375,13 +394,38 @@ def test_removing_copies_refuses_anything_but_one_runs_own_folder(tmp_path):
 
 # --- remote runs in Activity (`activity.remote-under-its-step`, #5740) -------------------------------------
 
-def _cluster_run(db, archive, tmp_path, **kw):
+def test_a_cluster_resends_only_the_failed_tasks_as_one_sparse_array(db, archive, tmp_path):
+    """WHY (`compute.hpc.submit-array`, `compute.job.sparse-resubmit`): a task of the array that failed is sent again
+    alone, as an array of only the failed indices, never the whole stage again."""
+    job_id, subject, target = _cluster_run(db, archive, tmp_path, shell=FakeClusterShell(tmp_path / "login",
+                                                                                         fail_once={1, 3}))
+    first = read_job.run(db, subject, target=target, sleep=lambda s: None)
+    assert first["failed"] == 2 and first["landed"] == 2
+    db.execute("UPDATE jobs SET state = 'failed' WHERE id = ?", [job_id])  # as the scheduler ends it
+    assert read_job.resend_failed(db, job_id) == 2
+    again = read_job.run(db, subject, target=target, sleep=lambda s: None)
+    assert again["landed"] == 4 and target.shell.arrays == [[0, 1, 2, 3], [1, 3]]
+
+
+def test_stop_scancels_the_whole_array_in_one_call(db, archive, tmp_path):
+    """WHY (`compute.recipe.cloud-batch-stop-cancels` for a cluster): Stop on the row cancels the stage's array as one
+    job, every task with it, and its shards read Stopped."""
+    job_id, subject, target = _cluster_run(db, archive, tmp_path, shell=FakeClusterShell(tmp_path / "login", hold=True))
+    db.execute("UPDATE jobs SET state = 'running' WHERE id = ?", [job_id])  # as the remote lane runs it
+    with pytest.raises(jobs.JobCancelled):
+        read_job.run(db, subject, target=target, sleep=lambda s: read_job.request_cancel(db, job_id))
+    assert target.shell.scancelled == [["101"]]
+    shards = json.loads(jobs.read_job(db, job_id)["detail"])["shards"]
+    assert {s["state"] for s in shards.values()} == {"failed"} and all("Stopped" in s["why"] for s in shards.values())
+
+
+def _cluster_run(db, archive, tmp_path, *, shell=None, **kw):
     from fichero_server.remote_read.slurm_target import SlurmReadTarget
     from fichero_server.workflows.remote_jobs import HpcClusterConfig
 
     cluster = HpcClusterConfig(cluster_id="r", name="Rorqual", host_alias="rorqual", username="u",
                                remote_base_dir="/project/def-lab/u", account="def-lab")
-    target = SlurmReadTarget(cluster, FakeClusterShell(tmp_path / "login"))
+    target = SlurmReadTarget(cluster, shell or FakeClusterShell(tmp_path / "login"), get=fake_iiif)
     request = ReadAtScaleRequest(scope_ids=[archive.id], reader="vlm", card="fichero-trained/sergio", shard_size=2,
                                  pages_may_leave=True, target="r", **kw)
     started = read_job.start(db, request, started_by="owner", target_factory=lambda: target)

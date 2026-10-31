@@ -625,10 +625,11 @@ class DatabaseManager:
         _stop_conversion(None)
         _stop_jobs(None)
         with self._lock:
-            for cache_key, db in list(self._databases.items()):
+            while self._databases:
+                # Out of the table first, as close_database does: a lookup mid-close must open a new one, not get this
+                cache_key, db = self._databases.popitem()
                 db.close()
                 logger.info(f"Closed database: {cache_key}")
-            self._databases.clear()
             logger.info("All database connections closed")
 
 

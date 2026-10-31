@@ -1324,6 +1324,7 @@ def export_word_docx(
     title: str | None = None,
     text_for: Callable[[Document], str] | None = None,
     skipped: list[tuple[str, str]] | None = None,
+    include_images: bool = True,
 ) -> WordExportResult:
     """Export documents as a minimal Word .docx file. `skipped` collects (page, why) for each image left out (#5966).
 
@@ -1353,8 +1354,10 @@ def export_word_docx(
 
     for index, doc in enumerate(documents, start=1):
         text = text_for(doc) if text_for is not None else _document_text(db, doc)
+        image_source = None
         try:
-            image_source = _docx_image_source(db, doc, package)
+            if include_images:
+                image_source = _docx_image_source(db, doc, package)
         except ExportImageUnavailable as unavailable:
             logger.warning("Word export left out the image of %s: %s", doc.name, unavailable.why)
             if skipped is not None:
@@ -1447,7 +1450,7 @@ def export_excel_xlsx(
             "file_type": doc.file_type.value if doc.file_type else "",
             "path": doc.path,
             "sequence": doc.sequence,
-            "transcription": _document_text(db, doc),
+            "transcription": _document_text(db, doc, once=True),
             "metadata": doc.metadata,
             "created_at": doc.created_at,
             "updated_at": doc.updated_at,
@@ -1456,6 +1459,14 @@ def export_excel_xlsx(
         }
         for doc in [*folders, *documents]
     ]
+    # An entity's documents are those it is sourced from and those whose claims name it; a claim's page label falls back
+    # to its page's name (#6267).
+    claim_docs: dict[str, set[str]] = {}
+    for claim in claims:
+        for entity_id in claim.entity_ids or []:
+            if claim.source_document_id:
+                claim_docs.setdefault(entity_id, set()).add(claim.source_document_id)
+    source_names = {d.id: d.name for d in db.query_in(Document, "id", {c.source_document_id for c in claims if c.source_document_id})}
     entity_rows = [
         {
             "id": entity.id,
@@ -1463,7 +1474,8 @@ def export_excel_xlsx(
             "entity_type": entity.entity_type.value,
             "aliases": entity.aliases,
             "description": entity.description,
-            "source_document_ids": entity.source_document_ids,
+            "source_document_ids": [*entity.source_document_ids,
+                                    *sorted(claim_docs.get(entity.id, set()) - set(entity.source_document_ids))],
             "metadata": entity.metadata,
             "created_at": entity.created_at,
             "updated_at": entity.updated_at,
@@ -1475,7 +1487,7 @@ def export_excel_xlsx(
             "id": claim.id,
             "text": claim.text,
             "source_document_id": claim.source_document_id,
-            "source_page_label": claim.source_page_label,
+            "source_page_label": claim.source_page_label or source_names.get(claim.source_document_id, ""),
             "source_excerpt": claim.source_excerpt,
             "claim_type": claim.claim_type.value if claim.claim_type else "",
             "epistemic_status": (
@@ -1838,13 +1850,22 @@ def render_markdown_text(title: str, sections: list[tuple[str | None, str]]) -> 
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _document_text(db: Database, doc: Document) -> str:
+def _document_text(db: Database, doc: Document, *, once: bool = False) -> str:
+    """`once` (the Excel export only): a promoted folder's `catalogue.*` artifacts are not printed beside its content."""
     parts = []
     if doc.page_content and doc.page_content.strip():
         parts.append(doc.page_content.strip())
     elif page_text := _page_child_text(db, doc):
         parts.append(page_text)
-    for artifact in _text_artifacts(db, doc.id):
+    promoted = once and "catalogue_content_from" in (doc.metadata or {})  # the description is already the content (#6267)
+    artifacts = _text_artifacts(db, doc.id)
+    latest = max((a for a in artifacts if a.artifact_type == "catalogue.narrative"),
+                 key=lambda a: (a.version, a.created_at), default=None)
+    for artifact in artifacts:
+        if artifact.artifact_type == "catalogue.narrative" and artifact is not latest:
+            continue  # a rerun's older description is not printed beside the latest
+        if promoted and artifact.artifact_type.startswith("catalogue."):
+            continue
         parts.append(f"{artifact.artifact_type}: {artifact.content.strip()}")
     return "\n\n".join(parts).strip() or "No text content available."
 
