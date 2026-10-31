@@ -198,6 +198,12 @@ enabled = false
 kind = "pi"
 provider = "anthropic"
 tier = "big"
+# stage 1 through OpenRouter: `review --worker 1` (the Anthropic key may be out of credit); the model is named, not a tier
+[[roles.reviewer]]
+kind = "pi"
+provider = "openrouter"
+tier = "big"
+model = "anthropic/claude-sonnet-5.5"
 [[roles.manager]]
 kind = "pi"
 provider = "anthropic"

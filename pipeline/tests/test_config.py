@@ -60,3 +60,15 @@ def test_studio_trial_shares_nothing_with_the_live_runner():
     assert cfg["workers"]["agent_dir"] == "pipeline/pi-agent", "a copy inside this worktree"
     for k in ("pi_bin", "pi_adapter"):
         assert not Path(cfg["workers"][k]).is_absolute() and (ROOT / cfg["workers"][k]).exists(), f"{k} is Pi installed inside the worktree"
+
+
+def test_stage_one_can_run_through_openrouter_pinned_to_the_anthropic_endpoint():
+    import json
+    cat = json.load(open(config.ROOT / "pipeline/pi-agent/models.json"))["providers"]["openrouter"]["models"]
+    by = {m["id"]: m for m in cat}
+    for mid in ("anthropic/claude-haiku-5.5", "anthropic/claude-sonnet-5.5", "qwen/qwen3-coder-next", "qwen/qwen3.8-27b"):
+        r = by[mid]["compat"]["openRouterRouting"]
+        assert r["allow_fallbacks"] is False and (r.get("only") or r.get("order")), f"{mid} is pinned to named endpoints"
+    cfg = config.load()
+    rv = cfg["roles"]["reviewer"][1]
+    assert config.pi_model_id(rv) == "openrouter/anthropic/claude-sonnet-5.5" and rv["model"] in by

@@ -1,5 +1,5 @@
 {
-  "_comment": "Pi 0.75.5's own catalogue stops at claude-sonnet-4-5, so the current Anthropic models are declared here (Pi otherwise passes an unknown id through with no context size or price, and the cost cap would read $0). reasoning is off on all three: Pi 0.75.5 sends thinking.type=enabled, which these models refuse with a 400 (they want thinking.type=adaptive + output_config.effort); Pi 1.4.0 may support it \u2014 then flip reasoning back on. ponytail: the prices are the 4.x generation's per million tokens until the 5.5 sheet is checked. The omlx provider is the end state (pipeline.worker-roles): not run now; the self-test loads nothing. Stage 2 (OpenRouter): prices are per million tokens from the endpoints API on 2026-10-31 for the ONE endpoint each model is pinned to by compat.openRouterRouting (sent as the request's `provider` field; allow_fallbacks false, so a down endpoint fails loudly instead of routing to another precision). contextWindow is the 64k cap the runner works to, not the model's 262k.",
+  "_comment": "Pi 0.75.5's own catalogue stops at claude-sonnet-4-5, so the current Anthropic models are declared here (Pi otherwise passes an unknown id through with no context size or price, and the cost cap would read $0). reasoning is off on all three: Pi 0.75.5 sends thinking.type=enabled, which these models refuse with a 400 (they want thinking.type=adaptive + output_config.effort); Pi 1.4.0 may support it \u2014 then flip reasoning back on. ponytail: the prices are the 4.x generation's per million tokens until the 5.5 sheet is checked. The omlx provider is the end state (pipeline.worker-roles): not run now; the self-test loads nothing. Stage 2 (OpenRouter): prices are per million tokens from the endpoints API on 2026-10-31 for the ONE endpoint each model is pinned to by compat.openRouterRouting (sent as the request's `provider` field; allow_fallbacks false, so a down endpoint fails loudly instead of routing to another precision). contextWindow is the 64k cap the runner works to, not the model's 262k. Anthropic prices corrected 2026-10-31 to the 5.5 sheet as OpenRouter lists it for the Anthropic endpoint (Sonnet 2/10, Haiku 0.10/0.50; the 4.x rates in here before overstated Sonnet by 1.5x and Haiku by 10x, so the cost cap read high). Opus left as it was.",
   "providers": {
     "anthropic": {
       "models": [
@@ -14,10 +14,10 @@
             "image"
           ],
           "cost": {
-            "input": 3.0,
-            "output": 15.0,
-            "cacheRead": 0.3,
-            "cacheWrite": 3.75
+            "input": 2.0,
+            "output": 10.0,
+            "cacheRead": 0.1,
+            "cacheWrite": 2.5
           }
         },
         {
@@ -31,10 +31,10 @@
             "image"
           ],
           "cost": {
-            "input": 1.0,
-            "output": 5.0,
-            "cacheRead": 0.1,
-            "cacheWrite": 1.25
+            "input": 0.1,
+            "output": 0.5,
+            "cacheRead": 0.01,
+            "cacheWrite": 0.125
           }
         },
         {
@@ -130,6 +130,58 @@
               "only": [
                 "chutes/fp8",
                 "near-ai/fp8"
+              ],
+              "allow_fallbacks": false,
+              "require_parameters": true
+            }
+          }
+        },
+        {
+          "id": "anthropic/claude-haiku-5.5",
+          "name": "Claude Haiku 5.5 (OpenRouter, Anthropic endpoint)",
+          "contextWindow": 200000,
+          "maxTokens": 64000,
+          "reasoning": false,
+          "input": [
+            "text",
+            "image"
+          ],
+          "cost": {
+            "input": 0.1,
+            "output": 0.5,
+            "cacheRead": 0.01,
+            "cacheWrite": 0.125
+          },
+          "compat": {
+            "openRouterRouting": {
+              "only": [
+                "anthropic"
+              ],
+              "allow_fallbacks": false,
+              "require_parameters": true
+            }
+          }
+        },
+        {
+          "id": "anthropic/claude-sonnet-5.5",
+          "name": "Claude Sonnet 5.5 (OpenRouter, Anthropic endpoint)",
+          "contextWindow": 200000,
+          "maxTokens": 64000,
+          "reasoning": false,
+          "input": [
+            "text",
+            "image"
+          ],
+          "cost": {
+            "input": 2.0,
+            "output": 10.0,
+            "cacheRead": 0.1,
+            "cacheWrite": 2.5
+          },
+          "compat": {
+            "openRouterRouting": {
+              "only": [
+                "anthropic"
               ],
               "allow_fallbacks": false,
               "require_parameters": true
