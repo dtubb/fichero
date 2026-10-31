@@ -173,6 +173,10 @@ class FakeCoder:
         return True
 
     def _tell(self, window, text):
+        if "handoff note" in text:  # the outgoing builder writes its own note, as asked
+            Path(text.split("write it to ")[1].split(" ")[0]).write_text("BUILDER NOTE: f1001 done, mod.py keeps f-functions; do not redo it.")
+            self.turns += 1
+            return
         n = int(text.split("issue #")[1].split(".")[0]) if "issue #" in text else None
         if n is None:
             self.turns += "write-up" in text  # a write-up turn answers in text and commits nothing

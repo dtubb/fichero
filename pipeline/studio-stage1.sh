@@ -18,11 +18,11 @@ case "$via" in
               coder=claude-sonnet-5-5; [ "${CODER:-}" = haiku ] && coder=claude-haiku-5-5; reviewer=0; provider=anthropic ;;
   *) echo "openrouter or anthropic"; exit 1 ;;
 esac
+# ONE builder works the whole lane in one window; near 85 % of the (trial-small) context it writes its own note and a
+# successor takes the rest in the same worktree. The checks run per issue as each is done.
+"$PY" -m pipeline start "$@" --task studio-lane --from-file pipeline/studio-issues --provider "$provider" --model "$coder"
 for n in "$@"; do
-  "$PY" -m pipeline start "$n" --task "studio-$n" --from-file "pipeline/studio-issues/$n.json" --provider "$provider" --model "$coder"
-done
-for n in "$@"; do
-  "$PY" -m pipeline review "$n@studio-$n" --worker "$reviewer" || echo "$n: not reviewed (checks not green, or the reviewer stopped)"
+  "$PY" -m pipeline review "$n@studio-lane" --worker "$reviewer" || echo "$n: not reviewed (checks not green, or the reviewer stopped)"
 done
 "$PY" -m pipeline status | head -40
-"$PY" -m pipeline run-log      # agent-work/status/briefs/studio-run-log.tsv
+"$PY" -m pipeline run-log      # studio-run-log.tsv and studio-handoff-log.tsv in agent-work/status/briefs

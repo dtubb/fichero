@@ -567,7 +567,8 @@ def _start(issues, milestone, task, worker_index, from_file, base, writeup=False
         opn = _live_open_coders(s, task)
         if len(opn) >= c["workers"]["caps"].get("open_coders", 3):
             raise RuntimeError(f"open-model cap {c['workers']['caps'].get('open_coders', 3)}: {', '.join(opn)} running")
-    read_issue = ISSUE if not from_file else (lambda n: json.loads(Path(from_file).read_text()))
+    folder = bool(from_file) and Path(from_file).is_dir()  # a folder holds <number>.json per issue: a lane of exact issues
+    read_issue = ISSUE if not from_file else (lambda n: json.loads((Path(from_file) / f"{n}.json" if folder else Path(from_file)).read_text()))
     briefs = {}
     for n in issues:  # every issue is read and allow-listed before anything starts
         k = item_key(n, task, from_file)
@@ -651,16 +652,36 @@ def _parked(s: dict, milestone: str, c: dict) -> dict | None:
     return found
 
 
-def _handoff(task: str, wt: Path, since: str, n: int) -> Path:
-    """The short note a fresh window starts from: issues done with their commits, files touched, failures. From the
-    journal and git, never a transcript replay (pipeline.batch-session)."""
+def _builder_note(task: str, window: str, session_dir: Path, worker: dict, n: int) -> str:
+    """The outgoing builder's own note (one turn in its warm session, as our best builders write theirs): what is done,
+    what it learned, what the next builder must not redo. "" when it wrote nothing; the runner's facts go on regardless."""
+    path = STATE / "briefs" / task / f"handoff-{n}-builder.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.unlink(missing_ok=True)
+    before = coder.status(session_dir)
+    tell(window, f"Your context is nearly full and a new builder takes over this lane. Write your handoff note (max 40 lines: what is "
+                 f"done, what you learned about the code, what is half-done, what the next builder must not redo) and write it to {path} "
+                 "then stop; do not start another issue.", task=task)
+    st = coder.wait_idle(session_dir, cap_for(session_dir), after_turns=before["turns"], token_cap=worker.get("token_cap"))
+    done = [e for e in journal.read() if e["event"] == "issue_done" and e.get("task") == task]
+    if done:  # its cost belongs to the last issue it finished
+        spent = sum(e["usd"] for e in journal.read() if e["event"] == "cost" and e.get("session") == str(session_dir))
+        journal.append("cost", issue=done[-1]["issue"], key=done[-1]["key"], task=task, session=str(session_dir),
+                       usd=round(st["cost_usd"] - spent, 4), tokens=st["tokens"], model=st["model"], tools=dict(st["tool_calls"]))
+    return path.read_text().strip() if path.exists() else ""
+
+
+def _handoff(task: str, wt: Path, since: str, n: int, builder: str = "") -> Path:
+    """The note a fresh window starts from: the outgoing builder's words (if it wrote any), then the facts from the
+    journal and git: issues done with their commits, files touched, failures. Never a transcript replay (pipeline.batch-session)."""
     its = [(e["issue"], e["sha"][:9]) for e in journal.read() if e["event"] == "issue_done" and e.get("task") == task]
     state_ = state()["items"]
     lines = [f"# Handoff for task {task}", "", "Done (issue, commit, state):"]
     lines += [f"- #{i} {sha} {state_[k]['state']}" for i, sha in its for k in [item_key(i, task)] if k in state_]
     lines += ["", "Files touched so far:", *(f"- {f}" for f in checks.git(wt, "diff", "--name-only", f"{since}..HEAD").split()[:40])]
     failed = [f"- {k}: {it['retry_text'][-300:]}" for k, it in state_.items() if it["task"] == task and it["retry_text"]]
-    return coder.brief_file(task, f"handoff-{n}", "\n".join(lines + (["", "Failures seen:", *failed] if failed else [])))
+    facts = "\n".join(lines + (["", "Failures seen:", *failed] if failed else []))
+    return coder.brief_file(task, f"handoff-{n}", (f"# From the builder you replace\n\n{builder}\n\n---\n" if builder else "") + facts)
 
 
 def _since(key: str, task: str) -> str | None:
@@ -778,9 +799,13 @@ def _run_batch(task, briefs, wt, window, session_dir, worker, worker_index, docs
                     out[k] = "queued"
                     break
                 pending = None
-                note = _handoff(task, wt, first_since, len([e for e in journal.read() if e["event"] == "handoff" and e.get("task") == task]) + 1)
+                n_h = len([e for e in journal.read() if e["event"] == "handoff" and e.get("task") == task]) + 1
+                ctx = coder.status(sess[0])["context"]
+                mine = _builder_note(task, window, sess[0], worker, n_h)
+                note = _handoff(task, wt, first_since, n_h, mine)
                 coder.stop_window(c, window)
-                journal.append("handoff", task=task, window=window, note=str(note), session=str(sess[0]))
+                journal.append("handoff", task=task, window=window, note=str(note), session=str(sess[0]), context=ctx,
+                               cap=coder.context_cap(c, worker["provider"]), builder_note=bool(mine), note_bytes=note.stat().st_size)
                 sess[0] = _start_worker(task, wt, worker, window, docs=docs)
                 for rest in list(briefs)[list(briefs).index(k):]:
                     briefs[rest]["handoff"] = str(note)

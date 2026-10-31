@@ -605,6 +605,32 @@ def test_the_brief_states_the_diff_bound_the_issue_or_the_profile_sets(scratch, 
     assert [e["bound"] for e in journal.read() if e["event"] == "localised"] == [150, 40]
 
 
+def test_a_handoff_note_is_the_builders_own_words_plus_the_journals_facts_and_is_logged(scratch, issues, fake_coder, tmp_path):
+    """One builder works a lane; near its context limit it writes its own note, the runner appends the facts from the
+    journal and git, a successor starts in the same worktree from it, and the handoff is logged."""
+    scratch["cfg"]["ladder"] = [r for r in scratch["cfg"]["ladder"] if r["name"] != "ready"]  # that rung reads the real profile
+    fc = fake_coder()
+    fc.context = 900
+    core.start([1001, 1002], task="lane")
+    h = [e for e in journal.read() if e["event"] == "handoff"]
+    assert len(h) == 1 and h[0]["builder_note"] is True and h[0]["context"] == 900 and h[0]["note_bytes"] > 100
+    note = Path(h[0]["note"]).read_text()
+    assert "BUILDER NOTE: f1001 done" in note and "Done (issue, commit, state):" in note and "src/mod.py" in note
+    assert len({w[0] for w in fc.windows}) == 1 and len(fc.windows) == 2, "a second window in the same lane and worktree"
+    from pipeline import runlog
+    out = runlog.write_handoffs(tmp_path / "h.tsv")
+    row = (tmp_path / "h.tsv").read_text().splitlines()[1].split("\t")
+    assert out["rows"] == 1 and row[0] == "lane" and row[-2:] == ["", ""], "nothing redone, nothing lost"
+
+
+def test_from_file_may_be_a_folder_with_one_issue_file_each(scratch, fake_coder, tmp_path):
+    fake_coder()
+    for n in (6001, 6002):
+        (tmp_path / f"{n}.json").write_text(json.dumps({"number": n, "author": "dtubb", "title": f"t{n}", "body": f"Acceptance: x. Test: tests/test_{n}.py", "labels": [], "milestone": "m"}))
+    out = core.start([6001, 6002], task="two", from_file=str(tmp_path))
+    assert sorted(out["items"]) == ["6001@two", "6002@two"]
+
+
 def test_each_provider_has_its_own_context_cap(scratch, issues, fake_coder):
     """The window a batch may fill is the provider's: open models take 64k where the hosted API takes 200k."""
     scratch["cfg"]["workers"]["context_tokens_by"] = {"openrouter": 5000}   # the first coder is openrouter

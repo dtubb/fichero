@@ -161,9 +161,9 @@ context_tokens_max = 120000     # ponytail: a guess at a useful context; measure
 # pipeline.batch-session: a batch is sized by a token budget, not a count; a session ends at about 80 % of its context
 # or at its cap and hands over with a note; an idle worker parks and is woken for the same kind within park_ttl
 context_tokens = 200000         # the coder model's context window (Pi reports usage against it)
-context_tokens_by = { anthropic = 200000, openrouter = 65536, omlx = 65536 }   # per provider: open models are run at 64k
+context_tokens_by = { anthropic = 40000, openrouter = 65536, omlx = 65536 }   # per provider. anthropic is 40000 for the stage 1 trial ONLY, so the lane hands off after its first issue (34k = 85 %); the model has 200k
 batch_budget_pct = 40           # the share of context a batch's brief + issues may take at the start
-batch_end_pct = 80              # end the session (handoff note) once the session has used this share of context
+batch_end_pct = 85              # end the session (handoff note) once the session has used this share of context
 batch_max_issues = 10           # ponytail: a ceiling, not the sizing rule; the budget sizes the batch
 park_ttl_minutes = 30           # a parked worker is woken within this; after it, a fresh one starts from a handoff
 message_batches = false         # non-interactive model work through Anthropic's Message Batches API (half price); off

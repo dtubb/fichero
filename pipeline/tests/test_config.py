@@ -55,6 +55,7 @@ def test_studio_trial_shares_nothing_with_the_live_runner():
     from pipeline import STATE
     cfg = config.load()
     assert cfg["workers"]["tmux_session"] == "studio" and cfg["repo"]["branch_prefix"] == "studio"
+    assert cfg["workers"]["batch_end_pct"] == 85 and cfg["workers"]["context_tokens_by"]["anthropic"] <= 40000, "a trial lane hands off at 85 % of a small context"
     assert cfg["run"]["auto_land"] is False and cfg["run"]["feed"] is False, "nothing lands, nothing is picked from GitHub"
     assert STATE.name == ROOT.name != "integration", "the journal lives under this checkout's own name"
     assert cfg["workers"]["agent_dir"] == "pipeline/pi-agent", "a copy inside this worktree"

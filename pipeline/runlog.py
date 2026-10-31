@@ -1,6 +1,7 @@
 """The running log of the open-model trial (studio-harness-report § Running log): one TSV row per item and role, rebuilt
 from the journal and Pi's session files, never typed by hand. `python -m pipeline run-log` rewrites the file; same
-journal in, same file out. A batch task of several items shows the task's session totals on each of its items."""
+journal in, same file out. A lane of several items shares one session: tokens and dollars are each item's own share (the difference between its
+done lines); output tokens, tool calls and tool errors are the session's, shown on each."""
 from __future__ import annotations
 
 import json
@@ -70,6 +71,9 @@ def rows(cfg: dict | None = None, diff=diff_lines) -> list[dict]:
             n = totals(sessions(events, task, role))
             if not n:
                 continue
+            if role == "coder" and it.get("usage") and len(st["tasks"][task]["issues"]) > 1:  # the item's own share of a shared lane session (output and tool counts stay the session's)
+                u = it["usage"]
+                n.update(fresh=u["fresh"], cache_read=u["cache_read"], cache_write=u["cache_write"], cost_usd=u["usd"])
             p = price(cfg, n["provider"], n["model"])
             row = dict(base, role=role, model=n["model"], provider=n["provider"], precision=cfg.get("precision", {}).get(n["model"], ""),
                        ctx_cap=coder.context_cap(cfg, n["provider"]), prompt_tokens=n["fresh"] + n["cache_read"] + n["cache_write"],
@@ -90,6 +94,49 @@ def _t(ts: str) -> float:
     return time.mktime(time.strptime(ts, "%Y-%m-%dT%H:%M:%S"))
 
 
+HANDOFF_LOG = ROOT / "agent-work" / "status" / "briefs" / "studio-handoff-log.tsv"
+HANDOFF_COLUMNS = "task n tokens_at_handoff ctx_cap pct note_bytes builder_note issues_before issues_after redid lost".split()
+
+
+def handoffs(events: list[dict] | None = None, wt_of=None) -> list[dict]:
+    """One row per handoff. redid: an issue the note's predecessor had finished that the successor finished again;
+    lost: a finished issue whose commit is no longer in the lane's worktree history."""
+    events = events if events is not None else journal.read()
+    st = core.state() if wt_of is None else None
+    out, seen = [], {}
+    for i, e in enumerate(events):
+        if e["event"] != "handoff":
+            continue
+        task = e["task"]
+        n = seen[task] = seen.get(task, 0) + 1
+        before = [x for x in events[:i] if x["event"] == "issue_done" and x.get("task") == task]
+        after = [x for x in events[i + 1:] if x["event"] == "issue_done" and x.get("task") == task]
+        gone = {x["key"] for x in before}
+        wt = (wt_of or (lambda t: st["tasks"][t]["worktree"]))(task)
+        lost = [x["key"] for x in before if _lost(wt, x["sha"])]
+        out.append(dict(task=task, n=n, tokens_at_handoff=e.get("context", ""), ctx_cap=e.get("cap", ""),
+                        pct=round(100 * e.get("context", 0) / e["cap"]) if e.get("cap") else "", note_bytes=e.get("note_bytes", ""),
+                        builder_note=int(bool(e.get("builder_note"))), issues_before=len(before), issues_after=len(after),
+                        redid=",".join(x["key"] for x in after if x["key"] in gone), lost=",".join(lost)))
+    return out
+
+
+def _lost(wt: str, sha: str) -> bool:
+    try:
+        checks.git(wt, "merge-base", "--is-ancestor", sha, "HEAD")
+        return False
+    except RuntimeError:
+        return True
+
+
+def write_handoffs(path: Path | None = None, **kw) -> dict:
+    path = Path(path or HANDOFF_LOG)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    rs = handoffs(**kw)
+    path.write_text("\n".join(["\t".join(HANDOFF_COLUMNS), *("\t".join(str(r[c]) for c in HANDOFF_COLUMNS) for r in rs)]) + "\n")
+    return {"path": str(path), "rows": len(rs)}
+
+
 def write(path: Path | None = None) -> dict:
     """Rewrite the log from the journal; returns {path, rows}."""
     path = Path(path or LOG)
@@ -99,4 +146,4 @@ def write(path: Path | None = None) -> dict:
     return {"path": str(path), "rows": len(rs)}
 
 
-core.API["run_log"] = write
+core.API["run_log"] = lambda: {**write(), "handoffs": write_handoffs()}
