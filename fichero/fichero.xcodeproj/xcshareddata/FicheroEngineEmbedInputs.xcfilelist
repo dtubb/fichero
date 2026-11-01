@@ -433,6 +433,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/loaders/xlsx_reader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/xmp_loader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/maintenance/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/maintenance/conversion_on_open.py
+$(SRCROOT)/../fichero-server/src/fichero_server/maintenance/image_marker_repair.py
 $(SRCROOT)/../fichero-server/src/fichero_server/maintenance/page_text_repair.py
 $(SRCROOT)/../fichero-server/src/fichero_server/maintenance/project_conversion.py
 $(SRCROOT)/../fichero-server/src/fichero_server/maintenance/reanchor.py
