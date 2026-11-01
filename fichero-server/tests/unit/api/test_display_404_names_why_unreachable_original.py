@@ -85,5 +85,116 @@ def test_a_readable_file_that_is_not_an_image_is_not_blamed_on_the_original(clie
     path.write_bytes(b"not an image")
     doc = _doc(db, str(path))
     r = client.get(f"/api/storage/{route}/{doc.id}")
-    if r.status_code == 404:
-        assert "reason" not in r.json()
+    assert r.status_code == 404
+    assert "reason" not in r.json()
+
+
+@pytest.mark.parametrize("route", ROUTES)
+def test_a_readable_file_the_engine_refuses_is_access_not_granted(client, db, tmp_path, route):
+    """The path is a file this process can read, but it names `..`, so `resolve_source` refuses it (confinement)."""
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "a.jpg").write_bytes(b"x")
+    doc = _doc(db, str(tmp_path / "sub" / ".." / "a.jpg"))
+    r = client.get(f"/api/storage/{route}/{doc.id}")
+    assert r.status_code == 404
+    assert r.json()["reason"] == "access_not_granted"
+
+
+@pytest.mark.parametrize("route", ROUTES)
+def test_a_pdf_page_on_a_drive_that_is_gone_says_the_drive_is_not_connected(client, db, route):
+    parent = Document(name="Letter", doc_type=DocType.file, file_type=FileType.pdf,
+                      path="/Volumes/NoSuchDriveForTest6308/Originals/letter.pdf")
+    db.save(parent)
+    page = Document(name="Letter p1", doc_type=DocType.page, file_type=None, parent_id=parent.id, sequence=1,
+                    metadata={"pdf_path": parent.path})  # as ingest saves a PDF page: no path of its own
+    db.save(page)
+    r = client.get(f"/api/storage/{route}/{page.id}")
+    assert r.status_code == 404
+    assert r.json()["reason"] == "volume_not_mounted"
+
+
+@pytest.mark.parametrize("route", ROUTES)
+def test_a_page_whose_path_is_in_its_metadata_is_classified_by_that_path(client, db, route):
+    doc = Document(name="Folio 1", doc_type=DocType.page, file_type=FileType.image,
+                   metadata={"source_path": "/Volumes/NoSuchDriveForTest6308/Originals/a.jpg"})
+    db.save(doc)
+    r = client.get(f"/api/storage/{route}/{doc.id}")
+    assert r.status_code == 404
+    assert r.json()["reason"] == "volume_not_mounted"
+
+
+@pytest.mark.parametrize("route", ROUTES)
+def test_a_path_that_loops_is_unreadable(client, db, tmp_path, route):
+    loop = tmp_path / "loop.jpg"
+    loop.symlink_to(loop)
+    doc = _doc(db, str(loop))
+    r = client.get(f"/api/storage/{route}/{doc.id}")
+    assert r.status_code == 404
+    assert r.json()["reason"] == "unreadable"
+
+
+@pytest.mark.parametrize("route", ROUTES)
+def test_the_classifier_runs_off_the_event_loop(client, db, tmp_path, monkeypatch, route):
+    import asyncio
+
+    from fichero_server.media import image_reason
+
+    seen: list[bool] = []
+    real = image_reason.classify_image_unavailable
+
+    def spy(*args, **kwargs):
+        try:
+            asyncio.get_running_loop()
+            seen.append(True)
+        except RuntimeError:
+            seen.append(False)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(image_reason, "classify_image_unavailable", spy)
+    doc = _doc(db, str(tmp_path / "gone.jpg"))
+    assert client.get(f"/api/storage/{route}/{doc.id}").status_code == 404
+    assert seen == [False]
+
+
+def test_a_path_that_cannot_be_statted_is_unreadable_not_an_error():
+    from fichero_server.media.image_reason import UNREADABLE, classify_image_unavailable
+
+    for path in ("/tmp/a\0b.jpg", "~nosuchuser6308/a.jpg"):
+        doc = Document(id="a", name="A", file_type=FileType.image, path=path)
+        code, words = classify_image_unavailable(doc)
+        assert code == UNREADABLE and "nosuchuser" not in words and "\0" not in words
+
+
+def _locked(tmp_path):
+    folder = tmp_path / "locked"
+    folder.mkdir()
+    (folder / "a.jpg").write_bytes(b"x")
+    folder.chmod(0)
+    return folder
+
+
+@pytest.mark.parametrize("route", ROUTES)
+@pytest.mark.parametrize("case", ["locked", "gone", "volume", "loop"])
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads a folder with no permissions")
+def test_no_local_path_reaches_the_response_body(client, db, tmp_path, route, case):
+    folder = None
+    if case == "locked":
+        folder = _locked(tmp_path)
+        recorded = str(folder / "a.jpg")
+    elif case == "gone":
+        recorded = str(tmp_path / "secret-folder-6308" / "gone.jpg")
+    elif case == "volume":
+        recorded = "/Volumes/NoSuchDriveForTest6308/secret-folder-6308/a.jpg"
+    else:
+        loop = tmp_path / "secret-loop-6308.jpg"
+        loop.symlink_to(loop)
+        recorded = str(loop)
+    try:
+        doc = _doc(db, recorded)
+        r = client.get(f"/api/storage/{route}/{doc.id}")
+    finally:
+        if folder is not None:
+            folder.chmod(stat.S_IRWXU)
+    assert r.status_code == 404 and "reason" in r.json()
+    for fragment in (str(tmp_path), "secret-", "locked", "a.jpg", "gone.jpg"):
+        assert fragment not in r.text
