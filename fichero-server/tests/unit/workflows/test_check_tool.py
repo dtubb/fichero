@@ -516,3 +516,24 @@ def test_a_whole_tests_dir_runs_as_its_own_pytest_beside_an_engine_shaped_tests_
     assert len(row["runs"]) == 2 and all(x["ok"] for x in row["runs"])
     assert "test_new.py" in " ".join(row["runs"][0]["argv"]) and "pkg/tests" in " ".join(row["runs"][1]["argv"])
     assert "test_new.py" not in " ".join(row["runs"][1]["argv"]), "the engine-shaped run keeps only the changed files"
+
+
+def test_a_deletion_under_a_whole_tests_prefix_runs_the_dir_whole_even_with_no_test_changed(tmp_path):
+    """review 5 must-fix 3: a delete-only commit skipped red-on-base, so the old test importing the deleted file never ran."""
+    work, g, base, pinned = _whole_project(tmp_path)
+    (work / "pkg" / "gone.py").unlink()
+    (work / "pkg" / "lib.py").unlink()
+    g("add", "-A"), g("commit", "-q", "-m", "delete")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert not r["ok"] and r["failed"] == "red-on-base", r
+    assert "test_old" in r["rungs"][-1]["stdout_tail"] + r["rungs"][-1]["stderr_tail"]
+
+
+def test_a_change_outside_the_whole_tests_prefix_runs_only_the_changed_test_files(tmp_path):
+    work, g, base, pinned = _whole_project(tmp_path)
+    (work / "other.py").write_text("Y = 1\n")
+    (work / "tests" / "test_new.py").write_text("import sys; sys.path.insert(0, \".\")\nimport other\ndef test_v():\n    assert other.Y == 1\n")
+    g("add", "."), g("commit", "-q", "-m", "elsewhere")
+    cfg = ct.load(pinned)
+    assert ct._whole_tests(["other.py", "tests/test_new.py"], cfg) == ()
+    assert ct._whole_tests(["pkg/lib.py"], cfg) == ("pkg/tests",)

@@ -626,7 +626,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
              "stdout_tail": "", "stderr_tail": "\n".join(bad) + "\nneeds-maintainer"}
         return {"ok": False, "failed": "pinned-checks", "rungs": [r]}
     names = [f for _s, _m, f in _changes(root, since, head, "--diff-filter=AM")]
-    whole = _whole_tests(names, cfg)
+    whole = _whole_tests([f for _s, _m, f in _changes(root, since, head)], cfg)  # a deletion under the prefix counts too
     tests = [f for f in names if any(fnmatch.fnmatch(Path(f).name, g) for g in cfg.test_globs)]
     if cfg.base_ref and not _git(root, "rev-parse", "--verify", "-q", f"refs/remotes/{cfg.base_ref}")["ok"]:
         _git(root, "update-ref", f"refs/remotes/{cfg.base_ref}", since)  # a remote-less clone: ready checks diff against it
