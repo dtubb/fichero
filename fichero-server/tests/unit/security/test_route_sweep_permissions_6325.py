@@ -345,8 +345,8 @@ def sweep(project, scratch):
 
 # ---- what counts as a failure -----------------------------------------------------------------------------------------------------
 
-#: Writes under these prefixes change the owner's Mac (the MLX runtime, local models, machines, registered libraries, chain presets).
-MACHINE = re.compile(r"^(POST|PUT|PATCH|DELETE) /api/(local-inference|local-models|machines|registry|chains/presets)\b")
+#: Writes under these prefixes change the owner's Mac (the MLX runtime, local models, machines, registered libraries, chain presets, a path an export writes to).
+MACHINE = re.compile(r"^(POST|PUT|PATCH|DELETE) /api/(local-inference|local-models|machines|registry|chains/presets|export/(jsonl|training|parquet|eleventy-site|markdown-folder|word|excel))\b")
 #: Reads a plain editor or viewer is refused on by design.
 OWNER_ONLY_GETS = {"/api/auth/invites", "/api/auth/local-clients/requests", "/api/auth/local-clients/switches", "/api/authz/members", "/api/hpc/clusters",
                    "/api/hpc/prompts", "/api/machines", "/api/pair/invites", "/api/users"}
@@ -417,3 +417,16 @@ def test_the_seed_is_visible_to_the_owner_and_the_controls_are_not_over_refused(
 
 def test_report_the_time(sweep):
     print(f"route sweep: {len(sweep)} requests, reads {_TIMES['get']:.0f}s, +actions {_TIMES['action'] - _TIMES['get']:.0f}s, +writes {_TIMES['total'] - _TIMES['action']:.0f}s")
+
+
+def test_the_owner_keeps_the_machines_own_routes(project, scratch):
+    """The control for H6/H9: refused to everyone else, the owner still deletes the runtime (in scratch), reaches the preset and exports."""
+    from fichero_server.llm.mlx_runtime import mlx_runtime_dir
+
+    _refuse_unless_isolated(scratch)
+    owner = _as(project.harness, "owner")
+    assert mlx_runtime_dir().exists()
+    assert owner.delete("/api/local-inference/runtime").status_code == 200
+    assert not mlx_runtime_dir().exists()
+    assert owner.post("/api/chains/presets/paleography").status_code != 403  # 400 here: this scratch library has no paleography recipes
+    assert owner.post("/api/export/jsonl", json={"output_path": str(scratch / "out"), "target_id": project.ids["A"]}).status_code == 200
