@@ -468,6 +468,15 @@ def _resolve_thumbnail_cache_candidate(
 # =============================================================================
 
 
+def _exists(path: Path) -> bool:
+    """`Path.exists()`, but a path this process may not stat (a folder it holds no grant for) is not there: it raises
+    PermissionError on Python 3.12, and a caller that wants a source answers "not available", not a 500."""
+    try:
+        return path.exists()
+    except OSError:
+        return False
+
+
 def resolve_source(
     doc: "Document", library_root: "Path | str | None" = None
 ) -> Path | None:
@@ -494,7 +503,7 @@ def resolve_source(
 
     def confined_existing(candidate: Path) -> Path | None:
         """Confine a candidate to the library/storage/derived roots."""
-        if not candidate.exists():
+        if not _exists(candidate):
             return None
         return resolve_under_allowed_roots(candidate, allowed_roots)
 
@@ -513,14 +522,14 @@ def resolve_source(
         because "inside the package" is what relative means — widening it
         would let ``../outside.txt`` and an escaping symlink out.
         """
-        if not candidate.exists():
+        if not _exists(candidate):
             return None
         return resolve_document_source_path(
             candidate, library_root, storage_base=settings.base_path
         )
 
     def library_confined_existing(candidate: Path) -> Path | None:
-        if library_root is None or not candidate.exists():
+        if library_root is None or not _exists(candidate):
             return None
         library_roots = allowed_source_roots(
             library_root,

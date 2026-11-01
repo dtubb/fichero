@@ -13,7 +13,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from fichero_server.db import Database
@@ -57,6 +57,25 @@ class DocumentDebugResponse(BaseModel):
 
 class NotFoundResponse(BaseModel):
     detail: str
+    reason: str | None = None  # the image routes: why the original cannot be read (`media.image_reason`)
+
+
+def _original_unavailable(doc: Document, bare: str, library_root: Path) -> JSONResponse:
+    """The 404 for a picture that could not be served. When the recorded original is not a readable file, `detail` adds
+    the words and `reason` the code (`media.image_reason`); when it is, the cause is not the original and the 404 is bare."""
+    from fichero_server.media.image_reason import classify_image_unavailable
+
+    recorded = Path(doc.path).expanduser() if doc.path else None
+    if recorded is not None:
+        recorded = recorded if recorded.is_absolute() else library_root / recorded
+        try:
+            readable = recorded.is_file() and os.access(recorded, os.R_OK)
+        except OSError:  # a folder this process may not stat: the classifier names it
+            readable = False
+        if readable:
+            return JSONResponse(status_code=404, content={"detail": bare})
+    code, words = classify_image_unavailable(doc, library_root)
+    return JSONResponse(status_code=404, content={"detail": f"{bare}: {words}", "reason": code})
 
 
 def _record_snapshot_audit(
@@ -222,7 +241,7 @@ async def get_thumbnail(
                 )
 
         if not thumb_path or not thumb_path.exists():
-            raise HTTPException(status_code=404, detail="Thumbnail not available")
+            return _original_unavailable(doc, "Thumbnail not available", db.path.parent)
 
         perf["thumbnail_path"] = thumb_path.name
         return FileResponse(
@@ -283,7 +302,7 @@ async def get_display_image(
             )
 
     if not display_path or not display_path.exists():
-        raise HTTPException(status_code=404, detail="Display image not available")
+        return _original_unavailable(doc, "Display image not available", db.path.parent)
 
     return FileResponse(
         display_path,
@@ -338,11 +357,11 @@ async def get_source_file(
         logger.warning(
             f"resolve_source returned None for doc {doc_id}: path={doc.path}, has_bookmark={bool(doc.metadata.get('bookmark'))}"
         )
-        raise HTTPException(status_code=404, detail="Source file not available")
+        return _original_unavailable(doc, "Source file not available", db.path.parent)
 
     if not source_path.exists():
         logger.warning(f"Source path resolved but doesn't exist: {source_path}")
-        raise HTTPException(status_code=404, detail="Source file not available")
+        return _original_unavailable(doc, "Source file not available", db.path.parent)
 
     # Determine media type from file extension
     suffix = source_path.suffix.lower()
