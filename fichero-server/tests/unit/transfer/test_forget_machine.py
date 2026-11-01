@@ -14,7 +14,7 @@ def test_forgetting_a_machine_removes_it_and_a_send_is_then_refused(client, db, 
 
     forgotten = client.delete(f"/api/machines/{machine_id}")
     assert forgotten.status_code == 200, forgotten.text
-    assert client.get("/api/machines").json() == []
+    assert client.get("/api/machines").json() == {"items": [], "count": 0}
     sent = _send(client, open_source(tmp_path), db, machine_id)
     assert sent.status_code == 404, sent.text
     assert far.puts == 0

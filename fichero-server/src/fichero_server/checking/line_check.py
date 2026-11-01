@@ -126,7 +126,7 @@ def start(db: Any, request: CheckRunRequest, *, started_by: str) -> dict[str, st
 def _person_checked(db: Any, segment_id: str, verdicts: dict[str, Any]) -> bool:
     from fichero_server.api.routes.document.segment_readings import readings_of_segment
 
-    return any(verdicts[r.id].trust == "person" for r in readings_of_segment(db, segment_id) if r.id in verdicts)
+    return any(verdicts[r.id].trust == "person" for r in readings_of_segment(db, segment_id, with_provisional_twins=True) if r.id in verdicts)
 
 
 def _newest_by_reading(db: Any) -> dict[str, Any]:

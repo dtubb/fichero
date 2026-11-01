@@ -343,13 +343,19 @@ class MachineOut(BaseModel):
     paired_at: str
 
 
-@machines_router.get("/machines", response_model=list[MachineOut], summary="The other Fichero engines this one is paired with")
-async def list_machines(request: Request) -> list[MachineOut]:
+class MachineListResponse(BaseModel):
+    items: list[MachineOut]
+    count: int
+
+
+@machines_router.get("/machines", response_model=MachineListResponse, summary="The other Fichero engines this one is paired with")
+async def list_machines(request: Request) -> MachineListResponse:
     _engine_owner(request)
     from fichero_server.transfer import (  # lazy: app-import budget (#3950)
         machines,
     )
-    return [MachineOut(**m.public()) for m in await asyncio.to_thread(machines.machines)]
+    items = [MachineOut(**m.public()) for m in await asyncio.to_thread(machines.machines)]
+    return MachineListResponse(items=items, count=len(items))
 
 
 @machines_router.delete("/machines/{machine_id}", summary="Forget a paired machine: remove its saved token on this Mac")

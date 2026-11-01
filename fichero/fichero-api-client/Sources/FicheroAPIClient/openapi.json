@@ -20058,11 +20058,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/MachineOut"
-                  },
-                  "type": "array",
-                  "title": "Response List Machines Api Machines Get"
+                  "$ref": "#/components/schemas/MachineListResponse"
                 }
               }
             }
@@ -77786,6 +77782,27 @@
           "from"
         ],
         "title": "MacFacts"
+      },
+      "MachineListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MachineOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "MachineListResponse"
       },
       "MachineOut": {
         "properties": {

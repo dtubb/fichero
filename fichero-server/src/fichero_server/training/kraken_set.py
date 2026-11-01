@@ -271,7 +271,7 @@ def lines_of_pass(db: Any, pass_id: str, verdicts: dict[str, Any]) -> tuple[dict
     if not verdicts:
         return segments, rejected, 0
     for page_id, segment_id in segments.items():
-        on_line = [verdicts[r.id] for r in readings_of_segment(db, segment_id) if r.id in verdicts]
+        on_line = [verdicts[r.id] for r in readings_of_segment(db, segment_id, with_provisional_twins=True) if r.id in verdicts]
         if not on_line:
             continue
         with_verdict += 1

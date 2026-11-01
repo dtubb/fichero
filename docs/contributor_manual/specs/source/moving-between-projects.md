@@ -712,7 +712,7 @@ Nothing in the project changes.
   is stamped by the far engine with the paired person; versions must match. Built: `POST /api/machines/pair`
   (a `.ts.net` address and the code the other Mac's Fichero shows) runs the existing device pairing with this
   engine as the device and keeps the machine and its token in the Keychain (`transfer/machines.py`); `GET
-  /api/machines` lists them; the far engine's routes take its device token, and its landing is its own audited
+  /api/machines` lists them as the `{items, count}` envelope, not a bare array (#6100; `fichero-server/tests/unit/transfer/test_transfer_between_machines.py`, `test_forget_machine.py`); the far engine's routes take its device token, and its landing is its own audited
   action `document.transfer_in` with its caller as the actor; a different contract sha256 is refused; `fichero-server/tests/unit/transfer/test_transfer_between_machines.py`.
   *Not built: the app's pairing sheet; forgetting a machine.*
 - `transfer.machine.egress-gated` — **[PARTIAL]** (#5657, #5239) a copy off this machine passes the one

@@ -226,6 +226,25 @@ def _artifact_and_box(
     return artifact(pass_row.source_artifact_id), box_index
 
 
+def without_provisional_twins(items: list[ReadingRead]) -> list[ReadingRead]:
+    """One listing per reading (`source.recipe.one-reading-a-line`, #6085): a provisional reading whose
+    stored twin (same artifact, kind and content, not taken back) is also listed says the line twice, so
+    it is dropped here and every client gets one row. The twin has the stored reading's words but not its
+    date (the artifact's, not the row's), so what counts CAN change: where the twin was the newest machine
+    reading, the counted words are now the next reading's, because the stored reading is the one ranked
+    (#5558; `test_6085_one_listing.py`). A counting twin is no longer kept. A choice only ever names a
+    stored reading.
+    """
+    stored = {
+        (i.derived_from_artifact_id, i.kind, i.content)
+        for i in items
+        if not i.provisional and not i.retracted and i.derived_from_artifact_id is not None
+    }
+    if not stored:
+        return items
+    return [i for i in items if not (i.provisional and (i.derived_from_artifact_id, i.kind, i.content) in stored)]
+
+
 def provisional_readings(
     db: Database,
     segment_id: str,
@@ -336,9 +355,16 @@ def _reading_read_from_row(row: ContentRepresentation) -> ReadingRead:
 
 
 def readings_of_segment(
-    db: Database, segment_id: str, *, artifact_memo: dict[str, Artifact | None] | None = None
+    db: Database, segment_id: str, *, artifact_memo: dict[str, Artifact | None] | None = None,
+    with_provisional_twins: bool = False,
 ) -> list[ReadingRead]:
     """Every reading of one segment, from BOTH stores.
+
+    One listing per reading (#6085): a provisional reading whose stored twin is also listed is dropped
+    (`without_provisional_twins`). `with_provisional_twins=True` keeps it, for a caller that looks a
+    reading up by id: a verdict recorded on the line's reading before conversion is keyed by the
+    provisional id, which conversion does not carry over, and a new editorial span may still name that
+    id (it is accepted and kept, though not drawn).
 
     A real segment is resolved first (`resolve_segment`), so a reading written
     against an id that has since been merged away is still found under the
@@ -361,7 +387,7 @@ def readings_of_segment(
         seen.add(row.id)
         items.append(_reading_read_from_row(row))
     items.extend(provisional_readings(db, live_id, artifact_memo=artifact_memo))
-    return items
+    return items if with_provisional_twins else without_provisional_twins(items)
 
 
 def _document_readings(db: Database, document_id: str) -> list[ContentRepresentation]:
@@ -493,6 +519,7 @@ def _readings_for_live_rows(
                 located=(artifact(pass_row.source_artifact_id), box_index),
             )
         )
+        by_segment[row.id] = without_provisional_twins(by_segment[row.id])
     return by_segment
 
 
@@ -1593,7 +1620,9 @@ def _why_omitted(
 #:     with no markup gains only the stamp, and is not re-embedded).
 #: 16: a pass of words never takes the page from a pass of read lines (#5648); that changed which text a page
 #:     comes out as and shipped without a bump, so pages cached before it re-derive once (#5778).
-DERIVATION_VERSION = 16
+#: 17: a provisional reading whose stored twin is also listed is no longer listed (#6085), so where the twin
+#:     was the newest machine reading the counted words are the next reading's; the bump re-derives every page once.
+DERIVATION_VERSION = 17
 #: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
 #: change to the code without a bump fails `test_derivation_version.py`.
 #: Re-pinned without a bump for #5467: the working pass is read through `working_pass`; a page
@@ -1601,7 +1630,7 @@ DERIVATION_VERSION = 16
 #: unconverted result derives nothing the cache stores (`page_text_cache._derives_text`).
 #: Re-pinned without a bump for #5522: a pass whose result the read checker flagged waits to be
 #: chosen. No result carried a flag before #5522, so no cached page's text changes.
-DERIVATION_SOURCE_SHA256 = "f369f5f01ead3bda96ed177ddc05557f13d55ed31a2a72b88dbd5695f80f21cb"
+DERIVATION_SOURCE_SHA256 = "642f7411a9a80925fa20a20a82135a3a4c9c737baab723dee0b6ca0297b791be"
 
 
 def derivation_source_digest() -> str:
