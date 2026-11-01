@@ -1,3 +1,4 @@
+# ruff: noqa: F811  (the imported `page` fixture is the test parameter)
 """Review 8 migration cases: what an existing library pays after Prepare (`wide.prepare.operations-run-on-every-page`).
 
 WHY: a read page's reading counts only for the image it was read from (`unread_by`, the skip-if-done lookup). Prepare writing a
@@ -19,8 +20,8 @@ from fichero_server.models import Document, Rendition
 from fichero_server.recipes import page_crop
 from fichero_server.recipes.prepare_run import run_prepare
 from tests.unit.media.test_find_page import scan
-from tests.unit.workflows.test_every_step_sends_the_edited_image_6296 import (  # noqa: F401  (fixtures)
-    _poly, _tool, _whole_page_saved, page)
+from tests.unit.workflows.test_every_step_sends_the_edited_image_6296 import _poly, _tool, _whole_page_saved
+from tests.unit.workflows.test_every_step_sends_the_edited_image_6296 import page  # noqa: F401,F811  (fixture)
 
 
 @pytest.fixture(autouse=True)
