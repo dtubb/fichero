@@ -129,3 +129,33 @@ def test_finishing_hands_the_words_to_the_scheduler_which_writes_the_rows_reason
     finally:
         jobs._current.done_note = None
     assert "4 reading fields put back" in note and "1 could not be" in note
+
+
+def test_the_audit_names_the_pages_and_the_library_and_the_row_names_the_pages_left(db, monkeypatch):
+    audits = []
+
+    class _App:
+        def save_action_audit(self, row):
+            audits.append(row)
+
+    monkeypatch.setattr("fichero_server.db.app.get_app_db", lambda: _App())
+    job_id = "repair-names"
+    jobs._record(db, job_id, kind="workflow", subject=job_id, parent_id=None, state="running", reason="", name="Repair")
+    repair.finish(db, job_id, 1, 1, ["page-a"], ["page-b"])
+    assert audits[0].target_ids == ["page-a"] and audits[0].params["left_ids"] == ["page-b"] and audits[0].params["library"]
+    assert '"left_ids": ["page-b"]' in jobs.read_job(db, job_id)["detail"]
+
+
+def test_a_resumed_job_keeps_its_counts_and_does_not_look_at_the_pages_it_has_done(db, monkeypatch):
+    pages = [_page(db, {"description": dict(REAL)}, ("description", f"text {n}")) for n in range(4)]
+    ids = sorted(p.id for p in pages)
+    job_id = "repair-resume"
+    jobs._record(db, job_id, kind="workflow", subject=job_id, parent_id=None, state="running", reason="", name="Repair")
+    jobs.save_detail(db, job_id, repair._detail(9, 2, ["x"], ["y"], ids[1]))  # an earlier pass: 9 put back, cursor after the second
+    monkeypatch.setattr(jobs._current, "job_id", job_id, raising=False)
+    monkeypatch.setattr(repair, "_why_step_aside", lambda: None)
+    seen = []
+    real = repair.repair_document
+    monkeypatch.setattr(repair, "repair_document", lambda d, i: (seen.append(i), real(d, i))[1])
+    done = repair.run(db, repair.SUBJECT)
+    assert seen == ids[2:] and done["put_back"] == 11 and done["left"] == 2
