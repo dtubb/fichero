@@ -35,11 +35,16 @@ def do_export(a, branch: str) -> int:
     return len(r.stdout.split()) if r.returncode == 0 else 0
 
 
-def do_fetch(a, repo: str) -> str:
-    """Fetch the worktree's branch into the engine-owned repo by ref; its head sha ('' = failed)."""
-    b = _git(a.worktree, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+def do_fetch(a, repo: str, branch: str) -> str:
+    """Bring the worktree's commits into the engine-owned repo as refs/heads/work-<name>; its head sha ('' = failed).
+    The worker's branch NAME is never passed to git on the owner's side (a name like `--upload-pack=...` ran a command):
+    the worktree makes a bundle of origin/<branch>..HEAD and the owner fetches HEAD from that file."""
+    bundle = Path(journal.STATE) / f"work-{a.name}.bundle"
+    bundle.unlink(missing_ok=True)
+    if _git(a.worktree, "bundle", "create", str(bundle), f"origin/{branch}..HEAD").returncode:
+        return ""
     ref = f"refs/heads/work-{a.name}"
-    if not b or b == "HEAD" or _git(repo, "fetch", "-q", "--no-tags", str(a.worktree), f"{b}:{ref}").returncode:
+    if _git(repo, "fetch", "-q", "--no-tags", "--", str(bundle), f"HEAD:{ref}").returncode:
         return ""
     return _git(repo, "rev-parse", "--verify", f"{ref}^{{commit}}").stdout.strip()
 
@@ -100,7 +105,7 @@ def main(a) -> int:
     n = do_export(a, branch)
     if not step("patches", n > 0, f"{n} patch(es) in {state / ('patches-' + a.name)}"):
         return question(f"the worktree has no commits over origin/{branch}")
-    head = do_fetch(a, repo)
+    head = do_fetch(a, repo, branch)
     if not step("fetch", bool(head), head or f"could not fetch the worktree branch into {repo}"):
         return question(f"could not fetch the worktree's branch into {repo}")
     r = do_check(a, repo, branch, head, ladder)

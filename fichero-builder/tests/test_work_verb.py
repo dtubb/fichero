@@ -2,6 +2,9 @@
 every step, stops with `QUESTION: <why>` (exit 2) and never pushes. The steps are faked; the order, stops and rows are real."""
 from __future__ import annotations
 
+import subprocess
+import types
+
 import pytest
 
 from fichero_builder import __main__ as cli
@@ -21,7 +24,7 @@ def chain(tmp_path, monkeypatch):
     fakes = {
         "do_run": lambda a, model: (calls.append(("run", model)), "done")[1],
         "do_export": lambda a, branch: (calls.append(("export", branch)), 2)[1],
-        "do_fetch": lambda a, repo: (calls.append(("fetch", repo)), HEAD)[1],
+        "do_fetch": lambda a, repo, branch: (calls.append(("fetch", repo)), HEAD)[1],
         "do_check": lambda a, repo, since, head, ladder: (calls.append(("check", since, head)), {"ok": True, "failed": ""})[1],
         "do_review": lambda a, repo, head, ladder, verdicts, model: (calls.append(("review", model, ladder.endswith(".json"))), (True, "READY"))[1],
         "do_land": lambda a, repo, head, verdicts, log: (calls.append(("land", head)), (True, PUSH))[1],
@@ -93,3 +96,45 @@ def test_a_role_with_no_model_is_a_question_before_anything_starts(chain, capsys
     (chain.tmp / "harness.toml").write_text(RULES.replace('reviewer = { provider = "claude-code", model = "opus" }', ""))
     assert chain() == 2
     assert chain.calls == [] and "reviewer" in capsys.readouterr().out
+
+
+def _g(repo, *args):
+    r = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, check=True)
+    return r.stdout.strip()
+
+
+@pytest.fixture
+def scratch(tmp_path, monkeypatch):
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    (tmp_path / "s").mkdir()
+    e, w = tmp_path / "engine", tmp_path / "wt"
+    e.mkdir()
+    env = {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null", "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@e",
+           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@e"}
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    _g(e, "init", "-q", "-b", "integration")
+    (e / "f").write_text("0")
+    _g(e, "add", "f"), _g(e, "commit", "-qm", "base")
+    subprocess.run(["git", "clone", "-q", str(e), str(w)], check=True)
+    return types.SimpleNamespace(engine=e, wt=w, a=types.SimpleNamespace(worktree=str(w), name="n1"))
+
+
+def _commit(w, name):
+    (w / name).write_text(name)
+    _g(w, "add", name), _g(w, "commit", "-qm", name)
+
+
+def test_fetch_never_passes_the_workers_branch_name_to_git(scratch, tmp_path):
+    w = scratch.wt
+    _commit(w, "one"), _commit(w, "two")
+    hook = tmp_path / "hook.sh"
+    hook.write_text(f"#!/bin/sh\ntouch {tmp_path}/PWNED\n")
+    hook.chmod(0o755)
+    evil = f"refs/heads/--upload-pack={hook}"
+    _g(w, "update-ref", evil, "HEAD")
+    _g(w, "symbolic-ref", "HEAD", evil)
+    head = work.do_fetch(scratch.a, str(scratch.engine), "integration")
+    assert head == _g(w, "rev-parse", "HEAD") and head
+    assert _g(scratch.engine, "rev-parse", "refs/heads/work-n1") == head
+    assert not (tmp_path / "PWNED").exists()
