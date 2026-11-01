@@ -149,6 +149,7 @@ def finish(db: Any, job_id: str | None, fixed: int, left: int) -> dict[str, Any]
     """Say it in Activity (the job's own row) and audit it; a failure to record never undoes the repair."""
     words = (f"{fixed} reading field{'s' if fixed != 1 else ''} put back from the reading's text"
              + (f"; {left} could not be: no reading of their type was found" if left else ""))
+    jobs.note_done(words)  # the scheduler writes the row's reason from this when the job ends `done`; save_detail's words are overwritten (H3)
     said = _say(db, job_id, fixed, left, words) if job_id else False
     if fixed or left:
         logger.warning("Reading-field repair: %s", words)

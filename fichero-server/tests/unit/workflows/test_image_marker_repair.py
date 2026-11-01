@@ -56,6 +56,12 @@ def test_the_open_only_queues_the_job_and_the_job_repairs_once_and_says_what_it_
         assert repair.is_done(db)
         assert db.get(Document, fixed.id).metadata["description"] == "A harbour."
         assert db.get(Document, left.id).metadata["caption"] == REAL
+        for _ in range(100):  # the scheduler writes the row's reason after the run returns
+            row = db.execute_fetchone("SELECT reason FROM jobs WHERE kind = ? AND state = 'done'", [repair.KIND])
+            if row:
+                assert "1 reading field put back" in row[0] and "1 could not be" in row[0]  # the words survive the scheduler (H3)
+                break
+            time.sleep(0.1)
     finally:
         db_manager.close_database(package)
 
@@ -113,3 +119,13 @@ def test_a_dict_that_is_only_a_segment_id_is_a_persons_own_and_is_not_repaired(d
     page = _page(db, {"caption": dict(REAL), "description": {"segment_id": "seg-7"}}, ("caption", "Dusk"), ("description", "Words"))
     assert repair.repair_document(db, page.id) == (1, 0)
     assert db.get(Document, page.id).metadata["description"] == {"segment_id": "seg-7"}
+
+
+def test_finishing_hands_the_words_to_the_scheduler_which_writes_the_rows_reason(db):
+    jobs._current.done_note = None
+    repair.finish(db, None, 4, 1)
+    try:
+        note = jobs._current.done_note
+    finally:
+        jobs._current.done_note = None
+    assert "4 reading fields put back" in note and "1 could not be" in note
