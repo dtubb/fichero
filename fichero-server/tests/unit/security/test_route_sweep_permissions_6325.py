@@ -482,7 +482,7 @@ def test_the_seed_is_visible_to_the_owner_and_the_controls_are_not_over_refused(
         if surface not in ("get", "action") or d[("owner", False)]["status"] != 200:
             continue
         for who in ("erin", "fred"):
-            if d[(who, False)]["status"] == 403 and not (surface == "action" and who == "fred") and ident.split(" ", 1)[1] not in OWNER_ONLY_GETS:
+            if d[(who, False)]["status"] == 403 and not (surface == "action" and who == "fred") and ident.split(" ", 1)[1] not in OWNER_ONLY_GETS and not (surface == "action" and _owner_only_action(ident)):
                 refused.append(f"{who}: {ident}")
     assert not refused, refused
     for who in ("erin", "fred"):  # a plain editor and viewer read what the owner reads

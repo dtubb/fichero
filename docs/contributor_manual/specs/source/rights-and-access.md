@@ -214,6 +214,7 @@ Rulings.
   so is no declared id (H5). They keep the page, its children, the Table on their folder, the Inspector and the knowledge graph tab.
   A person shared one folder opens the Table on it: `POST /api/documents/dataset/query` with that folder as `parent_id` answers,
   and a query for another folder, or none (the whole project), is refused (`source.rights.every-id-in-a-request-is-checked`).
+- **2026-11-01 (#6325): a claim or entity action that names a record is refused to a caller whose reads differ page by page.** `claim.delete`, `entity.delete`, merges and the other claim/entity actions that take an id follow their routes (which sit behind the whole-library reader check): the library owner and a caller who reads every page may run them, a denied editor or a person shared one folder may not. Actions that create (no id) are unchanged (`source.rights.claims-with-only-denied-evidence-are-hidden`).
 
 ## Triaged from the backlog (2026-10-04)
 - `source.rights.engine-wide-stores-follow-the-library` — **[GAP]** (#5181) engine-wide stores that mention a library's content (agent write audit, PyKEEN jobs and predictions, etc.) are filtered by that library's permissions, and truly global settings are owner-only.

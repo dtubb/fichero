@@ -317,6 +317,12 @@ class ActionRegistry:
         target_ids = authz.target_ids_from_params(params)
         app_wide = reg.owner_only and reg.owner_scope == "app"  # checked above: it names no library to write
         if not ctx.is_bootstrap and not app_wide:
+            # A claim or entity rests on pages this caller may not read: its routes sit behind `whole_library_reader_only`, so the
+            # action twin is refused to the same callers (#6325: a denied editor deleted a seeded claim through /api/actions/invoke).
+            if target_ids and {"claim", "entity"} & set(reg.domains) and not (
+                authz.reads_every_gated_page(ctx.actor, ctx.library_path) or authz.is_library_owner(ctx.actor, ctx.library_path)
+            ):
+                raise authz.AuthorizationError("read access denied", required="read")
             if not target_ids:
                 authz.assert_can_write(ctx.actor, ctx.library_path)
             for target_id in target_ids:
