@@ -68,6 +68,41 @@ def load(root) -> Config:
         max_lines=c.get("max_lines", d.max_lines))
 
 
+def rules_problems(root) -> list[str]:
+    """Every reason the rules file is not good enough to start, check or land on; empty = fine (review 4 B5).
+    One function for start, the ladder and land: a file the start refuses never lands."""
+    from . import jail as _j
+    f = Path(root) / "harness.toml"
+    if not f.is_file():
+        return [f"{f} is missing"]
+    try:
+        c = load(root)
+        tomllib.loads(f.read_text())
+        j = _j.load(root)
+    except (ValueError, tomllib.TOMLDecodeError) as e:
+        return [f"harness.toml: {e}"]
+    out: list[str] = []
+    if j is None:
+        out.append("harness.toml has no [jail]: nothing runs unjailed")
+    elif not j.user:
+        out.append("[jail].user is not set")
+    elif not j.deny_read:
+        out.append("[jail].deny_read is empty: the probe needs paths to prove unreadable")
+    for name, val in (("python", c.python), ("ready", c.ready), ("guard_glob", c.guard_glob), ("min_guards", c.min_guards),
+                      ("contract_guards", c.contract_guards)):
+        if not val:
+            out.append(f"harness.toml [check].{name} is not declared")
+    if c.python and not Path(c.python).is_absolute():
+        out.append(f"[check].python {c.python!r} must be an absolute path (no PATH lookup, no shim)")
+    land = tomllib.loads(f.read_text()).get("land", {})
+    if unknown := sorted(set(land) - {"branch", "boundary"}):
+        out.append(f"harness.toml [land]: unknown keys {unknown}")
+    for k in ("branch", "boundary"):
+        if not land.get(k):
+            out.append(f"harness.toml [land].{k} is not declared")
+    return out
+
+
 def tail(text: str, lines: int = 40, chars: int = 4000, line_chars: int = 300) -> str:
     kept = [ln[:line_chars] for ln in (text or "").strip().splitlines()[-lines:]]
     return "\n".join(kept)[-chars:]
@@ -386,6 +421,8 @@ def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_requi
     `protected_ids`: the behaviour ids of the item, whose spec acceptance the worker may not rewrite."""
     global _JAIL
     from . import jail as _jailmod
+    if jail_required and (problems := rules_problems(pinned)):  # review 4 B5: the start's own checks, here too
+        raise _jailmod.JailMissing("rules file refused: " + "; ".join(problems))
     j = _jailmod.load(pinned)
     if j is None and jail_required:  # review 3 B5: no [jail] means refuse, never run as the owner
         raise _jailmod.JailMissing("no [jail] in the rules file: the ladder will not run as the owner")

@@ -22,23 +22,14 @@ _HOOK = Path(__file__).resolve().parents[4] / "scripts" / "harness_policy_hook.p
 
 def refusals(root, jail: Jail | None) -> list[str]:
     """Every reason NOT to start; empty = go. Runs the probe live (it is cheap and proves the wall now, not at set-up)."""
+    out: list[str] = check_tool.rules_problems(root)
     if jail is None:
-        return ["harness.toml has no [jail]: a worker never starts unjailed"]
-    out: list[str] = []
+        return out or ["harness.toml has no [jail]: a worker never starts unjailed"]
     if not jail.is_self():
         out.append(f"must run as the worker user {jail.user!r} (start it through sudo -u from the owner's side)")
-    if not jail.deny_read:
-        out.append("[jail].deny_read is empty: the probe needs paths to prove unreadable")
-    try:
-        c = check_tool.load(root)
-    except ValueError as e:
-        return [*out, str(e)]
-    for name, val in (("python", c.python), ("ready", c.ready), ("guard_glob", c.guard_glob), ("min_guards", c.min_guards),
-                      ("contract_guards", c.contract_guards)):
-        if not val:
-            out.append(f"harness.toml [check].{name} is not declared")
-    if c.python and not (Path(c.python).is_absolute() and os.access(c.python, os.X_OK)):
-        out.append(f"[check].python {c.python!r} must be an absolute path the worker user can run (no PATH lookup, no shim)")
+    c = check_tool.load(root) if not out else None
+    if c and c.python and not os.access(c.python, os.X_OK):
+        out.append(f"[check].python {c.python!r} must be a program the worker user can run")
     if out:
         return out
     return jail.probe()

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import subprocess
 
 from fichero_server.workflows import land_tool as L
@@ -19,9 +18,8 @@ def _repo(tmp_path):
 
 
 def _verdict(tmp_path, root_g, base, head):
-    keys = L.commit_keys(tmp_path, base, head)
     s = tmp_path.parent / (tmp_path.name + "-verdicts.json")
-    s.write_text(json.dumps({k["patch_id"]: {"verdict": "READY", "message_hash": k["message_hash"]} for k in keys}))
+    L.write_verdict(s, tmp_path, base, head)
     return s
 
 
@@ -63,3 +61,99 @@ def test_the_boundary_grep_flags_private_text_in_added_lines_and_messages(tmp_pa
     (tmp_path / "m.py").write_text("if x:\n    g()\n    h()\n    k()\n")
     g("commit", "-qam", "clean")
     assert L.boundary(tmp_path, base, "HEAD", [r"/Users/\w+"]) == []  # only ADDED lines count, not the old ones
+
+
+def test_a_verdict_covers_the_whole_range_not_a_subset_or_a_replay(tmp_path):  # review 4 B3
+    g, base = _repo(tmp_path)
+    (tmp_path / "e.py").write_text("import os; os.system('curl evil')\n")
+    g("add", "."), g("commit", "-qm", "A")
+    a = g("rev-parse", "HEAD")
+    g("rm", "-q", "e.py"), g("commit", "-qm", "B")
+    both = _verdict(tmp_path, g, base, "HEAD")  # the reviewer saw A+B (net diff: nothing)
+    assert L.unreviewed(tmp_path, base, "HEAD", both) == []
+    assert L.unreviewed(tmp_path, base, a, both)  # A alone was never reviewed
+
+
+def test_land_takes_no_worker_named_base_it_must_be_an_ancestor_of_head(tmp_path):  # review 4 B3
+    g, base = _repo(tmp_path)
+    (tmp_path / "x.py").write_text("x = 1\n")
+    g("add", "."), g("commit", "-qm", "X")
+    x = g("rev-parse", "HEAD")
+    g("checkout", "-q", "-b", "other", base)
+    (tmp_path / "y.py").write_text("y = 1\n")
+    g("add", "."), g("commit", "-qm", "Y")
+    store = _verdict(tmp_path, g, base, "HEAD")
+    assert "ancestor" in L.unreviewed(tmp_path, x, "HEAD", store)[0]
+
+
+def test_a_store_or_log_the_worker_could_write_is_refused(tmp_path):  # review 4 B1/B3
+    d = tmp_path / "ok"
+    d.mkdir(mode=0o700)
+    f = d / "s.json"
+    L.safe_write(f, "{}")
+    assert L.safe_read(f) == "{}"
+    f.chmod(0o666)
+    try:
+        L.safe_read(f)
+        raise AssertionError("world-writable file accepted")
+    except PermissionError:
+        pass
+    f.chmod(0o600)
+    (d / "link").symlink_to(f)
+    for fn in (lambda: L.safe_read(d / "link"), lambda: L.safe_append(d / "link", "x\n"), lambda: L.safe_write(d / "link", "x")):
+        try:
+            fn()
+            raise AssertionError("symlink followed")
+        except (PermissionError, OSError):
+            pass
+    d.chmod(0o777)
+    try:
+        L.safe_append(f, "x\n")
+        raise AssertionError("world-writable parent accepted")
+    except PermissionError:
+        pass
+    d.chmod(0o700)
+
+
+def test_crlf_is_part_of_the_patch_id(tmp_path):  # review 4 H5
+    g, base = _repo(tmp_path)
+    (tmp_path / "s.sh").write_bytes(b"x=1\n")
+    g("add", "."), g("commit", "-qm", "lf")
+    store = _verdict(tmp_path, g, base, "HEAD")
+    g("reset", "-q", "--hard", base)
+    (tmp_path / "s.sh").write_bytes(b"x=1\r\n")
+    g("add", "."), g("commit", "-qm", "lf")
+    assert L.unreviewed(tmp_path, base, "HEAD", store)
+
+
+def test_the_boundary_sees_an_added_line_that_looks_like_a_header(tmp_path):  # review 4 H6
+    g, base = _repo(tmp_path)
+    (tmp_path / "m.py").write_text("if x:\n    g()\n    h()\n++ /Users/someone/secret\n")
+    g("commit", "-qam", "c")
+    assert L.boundary(tmp_path, base, "HEAD", [r"/Users/\w+"])
+
+
+def test_the_review_diff_is_never_truncated_and_binary_is_refused(tmp_path):  # review 4 B4
+    g, base = _repo(tmp_path)
+    (tmp_path / "evil.py").write_text("import os\n")
+    (tmp_path / "zz.txt").write_text("z" * 70000 + "\n")
+    g("add", "."), g("commit", "-qm", "c")
+    try:
+        L.review_diff(tmp_path, base, "HEAD", cap=60000)
+        raise AssertionError("over-cap diff accepted")
+    except ValueError as e:
+        assert "cap" in str(e)
+    assert "evil.py" in L.review_diff(tmp_path, base, "HEAD", cap=200000)
+    g("reset", "-q", "--hard", base)
+    (tmp_path / "b.bin").write_bytes(b"\x00\x01/Users/x/\x00")
+    g("add", "."), g("commit", "-qm", "bin")
+    try:
+        L.review_diff(tmp_path, base, "HEAD")
+        raise AssertionError("binary diff accepted")
+    except ValueError as e:
+        assert "binary" in str(e)
+    (tmp_path / ".gitattributes").write_text("*.py -diff\n")  # attributes never hide the text
+    g("reset", "-q", "--hard", base)
+    (tmp_path / "x.py").write_text("print(1)\n")
+    g("add", "."), g("commit", "-qm", "attr")
+    assert "print(1)" in L.review_diff(tmp_path, base, "HEAD")

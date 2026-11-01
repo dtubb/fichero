@@ -21,6 +21,9 @@ required_trailers = ["Co-Authored-By: "]
 user = "%s"
 workroot = "%s"
 deny_read = ["/nonexistent-secret"]
+[land]
+branch = "main"
+boundary = ["zzz"]
 """
 
 

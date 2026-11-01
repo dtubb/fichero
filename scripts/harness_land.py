@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""land gate, no push (#6116 Step 0.1): refuse unless every commit of base..head has a READY verdict for its exact
-patch-id and message, then run the ladder from the pinned copy. The Lead pushes; this prints the fast-forward.
+"""land gate, no push (#6116 Step 0.1): refuse unless the range <land branch>..<head> has a READY verdict for its exact
+commits (ordered patch-ids + messages), then run the ladder from the pinned copy. The Lead pushes; this prints the push.
 
-Usage: scripts/harness_land.py <repo> <base> <head> --pinned DIR --verdicts FILE [--fetch SRC]
-  repo = the engine-owned repository; --fetch SRC first fetches <head> (a sha) from the worker's clone SRC into it.
-Order: fetch, verdict per commit (patch-id + message), boundary grep ([land].boundary), the ladder from the pinned copy."""
+Usage: scripts/harness_land.py <repo> <head> --pinned DIR --verdicts FILE --log FILE
+  repo = the engine-owned repository; the base is [land].branch of the pinned harness.toml, resolved in repo (never named
+  by the caller) and must be an ancestor of head. --verdicts and --log are owner-owned files outside the workroot, opened
+  without following symlinks. Fetching worker commits into repo is done beforehand from the worker's bundle (review 4 H2)."""
 import argparse
 import json
-import os
-import subprocess
 import sys
 import time
 import tomllib
@@ -18,35 +17,29 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "fichero-server"
 from fichero_server.workflows import check_tool, land_tool  # noqa: E402
 
 ap = argparse.ArgumentParser()
-ap.add_argument("repo"), ap.add_argument("base"), ap.add_argument("head")
-ap.add_argument("--pinned", required=True), ap.add_argument("--verdicts", required=True)
-ap.add_argument("--fetch")
+ap.add_argument("repo"), ap.add_argument("head")
+ap.add_argument("--pinned", required=True), ap.add_argument("--verdicts", required=True), ap.add_argument("--log", required=True)
 a = ap.parse_args()
 
 
 def row(**kw):
-    if os.environ.get("FICHERO_HARNESS_LOG"):
-        with open(os.environ["FICHERO_HARNESS_LOG"], "a") as f:
-            f.write(json.dumps({"at": time.time(), "land": a.head, **kw}) + "\n")
+    land_tool.safe_append(a.log, json.dumps({"at": time.time(), "land": a.head, **kw}) + "\n")
 
 
-if a.fetch:  # a plain fetch of one sha: no hooks, no filters, into a repo the worker cannot write
-    f = subprocess.run([land_tool.GIT, "-C", a.repo, "-c", "core.hooksPath=/dev/null", "fetch", "--no-tags", a.fetch, a.head],
-                       capture_output=True, text=True)
-    if f.returncode:
-        row(refused="fetch")
-        sys.exit("REFUSED: fetch failed: " + f.stderr.strip()[:300])
-if stop := land_tool.unreviewed(a.repo, a.base, a.head, a.verdicts):
+if problems := check_tool.rules_problems(a.pinned):
+    row(refused="rules", detail=problems)
+    sys.exit("REFUSED (rules file):\n  " + "\n  ".join(problems))
+land_cfg = tomllib.loads((Path(a.pinned) / "harness.toml").read_text())["land"]
+branch = land_cfg["branch"]
+if stop := land_tool.unreviewed(a.repo, branch, a.head, a.verdicts):
     row(refused="verdict", detail=stop)
     sys.exit("REFUSED:\n  " + "\n  ".join(stop))
-land_cfg = tomllib.loads((Path(a.pinned) / "harness.toml").read_text()).get("land", {})
-patterns = land_cfg.get("boundary", [])
-if hits := land_tool.boundary(a.repo, a.base, a.head, patterns):
+if hits := land_tool.boundary(a.repo, branch, a.head, land_cfg["boundary"]):
     row(refused="boundary", detail=hits)
     sys.exit("REFUSED (boundary):\n  " + "\n  ".join(hits))
-r = check_tool.run_ladder(a.repo, a.base, a.head, a.pinned)
+r = check_tool.run_ladder(a.repo, branch, a.head, a.pinned)
 print(json.dumps({k: r[k] for k in ("ok", "failed") if k in r}))
 row(ladder_ok=r.get("ok"), failed=r.get("failed", ""))
 if not r["ok"]:
     sys.exit(1)
-print(f"READY TO LAND: git push origin {a.head}:refs/heads/{land_cfg.get('branch', '<branch>')}   (the Lead runs this)")
+print(f"READY TO LAND: git push origin {a.head}:refs/heads/{branch}   (the Lead runs this)")
