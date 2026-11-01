@@ -442,19 +442,27 @@ def _by(rows):
     return out
 
 
+def test_found_reads_every_row_not_the_last_one_per_caller():
+    leak = {"surface": "get", "ident": "GET /x", "who": "alice", "decoy": False, "status": 200, "hits": ["SECRETTEXT"]}
+    refused = dict(leak, status=403, hits=[])
+    assert found([leak, refused]) == {("text", "GET /x"): ["alice"]}
+    assert found([refused, leak]) == {("text", "GET /x"): ["alice"]}
+
+
 def found(rows) -> dict:
     """{(kind, ident): sorted callers} for everything that must not happen."""
     out = defaultdict(set)
+    for r in rows:  # every row, not the last one kept per caller: a leak on one variant followed by a refusal still counts
+        key, who, decoy = (r["surface"], r["ident"]), r["who"], r["decoy"]
+        if who in DENIED and r["hits"]:
+            out[("text", key[1])].add(who + ("+decoy" if decoy else ""))
+        if who != "owner" and r["status"] not in (401, 403) and (MACHINE.match(key[1]) or _owner_only_action(key[1])):
+            out[("machine", key[1])].add(who)
+        if who in ("dana", "fred") and r["status"] not in (401, 403) and SPEND.match(key[1]):
+            out[("spend", key[1])].add(who)
+        if key[0] == "state" and r["status"] != 200:
+            out[("acted", key[1])].add("a caller who must be refused")
     for key, by in _by(rows).items():
-        for (who, decoy), r in by.items():
-            if who in DENIED and r["hits"]:
-                out[("text", key[1])].add(who + ("+decoy" if decoy else ""))
-            if who != "owner" and r["status"] not in (401, 403) and (MACHINE.match(key[1]) or _owner_only_action(key[1])):
-                out[("machine", key[1])].add(who)
-            if who in ("dana", "fred") and r["status"] not in (401, 403) and SPEND.match(key[1]):
-                out[("spend", key[1])].add(who)
-            if key[0] == "state" and r["status"] != 200:
-                out[("acted", key[1])].add("a caller who must be refused")
         for who in SCOPED:
             plain, decoy = by.get((who, False)), by.get((who, True))
             if plain and decoy and plain["status"] == 403 and decoy["status"] != 403:
