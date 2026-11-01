@@ -2,6 +2,7 @@
 """Owner ruling 2026-11-01 (review 10): after Prepare changes a page's image, a tool that answers about the picture as a whole
 (describe, caption, tags, faces ...) reuses its saved result; the page IS straightened. A result made from a person's edit
 answers only that edit; a whole-page transcription still reads again. Stubbed model, counted sends, real tool configs.
+Spec: wide.prepare.operations-run-on-every-page.
 """
 from __future__ import annotations
 
@@ -117,3 +118,12 @@ def test_a_result_is_reused_after_a_cut(page, monkeypatch):
     assert "crop" in _prepare(page)
     assert _run(page, monkeypatch, "describe") == []
 
+
+def test_a_result_made_from_a_rendition_is_reused_when_the_page_goes_back_to_the_photograph(page, monkeypatch):
+    ruled(4.0).save(page["path"])
+    run_prepare(page["db"], [page["doc"].id], "run-1", {}, paper=[], operations=["straighten"])
+    assert _kind(page) == "rendition"
+    assert len(_run(page, monkeypatch, "describe")) == 1  # read from the straightened image, so saved as a rendition's result
+    run_prepare(page["db"], [page["doc"].id], "run-2", {}, paper=[], operations=["crop"])
+    assert _kind(page) != "rendition"  # the image changed
+    assert _run(page, monkeypatch, "describe") == []

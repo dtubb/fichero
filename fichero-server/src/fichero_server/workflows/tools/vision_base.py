@@ -4789,7 +4789,7 @@ async def process_vision(
                         provider=cache_provider,
                         model=cache_model,
                         image=_page_image.signature if _page_image is not None else None,
-                        # Whole-picture answers (not a transcription, and no geometry kept) survive Prepare changing the image.
+                        # Whole-picture answers (anything but a transcription) survive Prepare changing the image; position words stay as saved.
                         reuse_across_prepare=(
                             _page_image.kind if _page_image is not None and vision_mode == "llm"
                             and tool_config.artifact_type != "transcription" else None),
