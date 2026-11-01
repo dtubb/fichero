@@ -773,3 +773,40 @@ def test_item3_a_sub_workflow_step_is_checked_with_its_childs_steps(project, fou
         parent = _recipe(owner, [{"id": "p", "tool": "sub_workflow", "label": "P", "inputs": {}, "config": {"workflow_ref": child}}])
         assert alice.post("/api/workflow-execution/execute", json={"workflow_id": parent, "inputs": {}}).status_code == 403, label
     assert not (tmp_path / "copied").exists()
+
+
+def test_item2_compare_tool_workflow_and_node_check_the_recipe_they_run(project, four, tmp_path, monkeypatch):
+    """Review 8 item 2: `compare-tool` with a folder input, and `compare-workflow` / `compare-node` over a search or an export step,
+    read denied text or wrote a path for a caller with a deny; and a caller's `library_path` in the tool's inputs chose the library."""
+    from types import SimpleNamespace
+
+    from fichero_server.api.routes.ai import model_comparison
+
+    base = "/api/model-comparison/"
+    out = str(tmp_path / "copied")
+    search = {"id": "s", "tool": "search", "label": "S", "inputs": {"query": "SECRET", "search_type": "fulltext"}, "config": {}}
+    export = {"id": "e", "tool": "export_documents", "label": "E", "inputs": {"formats": ["markdown"], "destination": out}, "config": {}}
+    a1 = project.ids["a1"]
+    assert _all_refused(four, "POST", base + "compare-tool", {"tool_name": "folder", "models": [],
+                                                              "inputs": {"folder_id": project.ids["B"], "include_subfolders": True, "library_path": project.library}},
+                        who=("alice",))
+    assert _all_refused(four, "POST", base + "compare-tool", {"tool_name": "export_documents", "models": [], "inputs": {"destination": out}}, who=("alice",))
+    for label, node in (("search", search), ("export", export)):
+        wf = {"workflow": {"name": "w", "nodes": [node], "edges": []}}
+        assert _all_refused(four, "POST", base + "compare-workflow", {**wf, "doc_id": a1, "models": []}, who=("alice",)), label
+        assert _all_refused(four, "POST", base + "compare-node", {**wf, "node_id": "s" if node is search else "e", "models": []}, who=("alice",)), label
+    assert not (tmp_path / "copied").exists()
+    # a plain editor reads every page: the folder tool is not refused to her, and the library the tool reads is the one the request named
+    seen = {}
+
+    class Engine:
+        async def compare_tool(self, **kw):
+            seen.update(kw)
+            return SimpleNamespace(to_dict=lambda: {"prompt": "", "models_compared": [], "results": [], "fastest_model": None, "cheapest_model": None, "total_latency_ms": 0.0, "comparison_id": "c", "timestamp": "2026-11-01T00:00:00"}, results=[])
+
+    monkeypatch.setattr(model_comparison, "get_comparison_engine", lambda: Engine())
+    monkeypatch.setattr(model_comparison, "_model_specs", lambda *a, **k: [])
+    erin = _plain(project, "erin", authz.ROLE_EDITOR)
+    got = erin.post(base + "compare-tool", json={"tool_name": "folder", "models": [], "inputs": {"folder_id": project.ids["B"], "library_path": "/elsewhere/other.fichero"}})
+    assert got.status_code != 403, got.text[:200]
+    assert seen["inputs"]["library_path"] != "/elsewhere/other.fichero"

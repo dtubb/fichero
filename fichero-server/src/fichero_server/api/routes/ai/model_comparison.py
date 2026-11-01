@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from fichero_server.db.app import AppDatabase, get_app_db
 from fichero_server.api.library_header import require_library_path
-from fichero_server.api.main import editor_or_owner_only, get_library_database_for_write, input_document_ids, read_check
+from fichero_server.api.main import editor_or_owner_only, get_library_database_for_write, input_document_ids, read_check, recipe_check
 from fichero_server.db import Database
 from fichero_server.llm.language_coverage import (
     LanguageFitModelSpec,
@@ -837,14 +837,23 @@ async def compare_tool_across_models(
 
     Available tools can be found via the /api/workflows/tools endpoint.
     """
-    if named := input_document_ids(request.inputs):  # the tool reads them with every model (#6320)
-        await read_check(http, library_path, db, named, deep=False)
+    from types import SimpleNamespace
+
+    from fichero_server.security import authz
+
+    # Every id the inputs name (a folder too) is read with every model (#6320); the tool is a one-step recipe (#6325, review 8 item 2).
+    if named := [*input_document_ids(request.inputs), *authz.target_ids_from_params(request.inputs)]:
+        await read_check(http, library_path, db, list(dict.fromkeys(named)), deep=False)
+    await recipe_check(http, library_path, db, SimpleNamespace(nodes=[{"tool": request.tool_name, "inputs": request.inputs, "config": request.tool_config or {}}]))
     model_specs = _model_specs(request.models, app_db)
+    inputs = dict(request.inputs)
+    if "library_path" in inputs:  # the tool reads the library this request is for, not one the caller names
+        inputs["library_path"] = str(db.path.parent) if hasattr(db, "path") else ""
 
     engine = get_comparison_engine()
     result = await engine.compare_tool(
         tool_name=request.tool_name,
-        inputs=request.inputs,
+        inputs=inputs,
         models=model_specs,
         tool_config=request.tool_config,
         timeout_seconds=request.timeout_seconds,
@@ -865,6 +874,7 @@ async def compare_workflow_across_models(
     # The body's document, and any the inputs name, are read by every model (#6320).
     await read_check(http, library_path, db, [request.doc_id, *input_document_ids(request.inputs)], deep=False)
     workflow = _workflow_from_compare_request(request, db)
+    await recipe_check(http, library_path, db, workflow)  # its steps are a run's (#6325, review 8 item 2)
     model_specs = _model_specs(
         [model.model_dump() for model in request.models],
         app_db,
@@ -897,6 +907,7 @@ async def compare_workflow_node(
     if named := [*input_document_ids(request.inputs), *input_document_ids(request.pinned_inputs)]:
         await read_check(http, library_path, db, named, deep=False)
     workflow = _workflow_from_request(request, db)
+    await recipe_check(http, library_path, db, workflow)
     node = next((n for n in workflow.nodes if n.id == request.node_id), None)
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
