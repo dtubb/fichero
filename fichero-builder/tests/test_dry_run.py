@@ -47,7 +47,7 @@ def test_a_missing_price_refuses_before_anything_starts(root):
 
 
 def test_a_healthy_worker_that_ends_leaves_one_worker_row_and_one_cost_row(root):
-    fake = Fake([HEALTHY, {**HEALTHY, "turns": 2, "tokens": 2000}])
+    fake = Fake([HEALTHY, {**HEALTHY, "turns": 2, "tokens": 2000, "fresh": 2000}])
     assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None) == "gone"
     assert fake.started == (str(root / "wt"), str(root / "b.txt"), "w", "sonnet") and fake.stopped == []
     events = [e["event"] for e in journal.read()]
@@ -89,3 +89,15 @@ def test_a_handoff_decision_is_recorded_not_acted_on(root):
 
 def test_session_dir_is_the_claude_code_slug(tmp_path):
     assert run.session_dir("/Users/w", "/Users/Shared/x/wt-a").as_posix() == "/Users/w/.claude/projects/-Users-Shared-x-wt-a"
+
+
+def test_an_idle_worker_whose_last_words_carry_the_done_line_is_ended(root):
+    fake = Fake([HEALTHY, {**HEALTHY, "idle": True, "last_text": "All three landed.\nDONE 4f4e38a9a"}, HEALTHY])
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None) == "done"
+    assert fake.stopped == ["%9"] and journal.read()[-1]["end"] == "done"
+
+
+def test_an_idle_worker_without_the_done_line_is_left_alone(root):
+    fake = Fake([{**HEALTHY, "idle": True, "last_text": "hello"}, {**HEALTHY, "idle": True, "last_text": "hello"}])
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None) == "gone"
+    assert fake.stopped == []

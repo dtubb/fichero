@@ -4,6 +4,7 @@ and the start path refuses anyone else. Process control is a small `Procs` so a 
 (dev-workflows.rollout.dry-run); nothing here types into a pane."""
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 import time
@@ -66,9 +67,13 @@ def real_procs(home, worktree) -> Procs:
     return Procs(start=_start, alive=_alive, stop=_stop, read=read)
 
 
+DONE = re.compile(r"\bDONE\b")
+
+
 def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = "claude", tmux_session: str = "harness",
-        tick_s: float = 30.0, procs: Procs, out=print) -> str:
-    """Start, then watch until the worker is parked (a cap or a provider refusal) or gone. Returns the end as a word.
+        tick_s: float = 30.0, procs: Procs, out=print, done=DONE) -> str:
+    """Start, then watch until the worker is done (idle with the DONE word in its last text: the brief's own end line),
+    parked (a cap or a provider refusal) or gone. Returns the end as a word.
     Handoff at the context share is the in-session hook's job today; the loop records the decision."""
     spend = watcher.load(root)
     bad = watcher.refusals(spend, kind, model)
@@ -106,6 +111,10 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
         if any(d.startswith("park") for d in decisions):
             procs.stop(pane)
             end = "parked"
+            break
+        if state.get("idle") and done.search(state.get("last_text", "")):
+            procs.stop(pane)
+            end = "done"
             break
     journal.append("cost", task=name, model=model, usd=round(watcher.cost_of(state, spend, model), 4),
                    tokens=state.get("tokens", 0), turns=state.get("turns", 0), seconds=int(procs.now() - started), end=end)

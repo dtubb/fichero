@@ -56,12 +56,17 @@ def refusals(spend: Spend, kind: str, model: str) -> list[str]:
 
 
 def cost_of(state: dict, spend: Spend, model: str) -> float:
-    """What the session has cost: the file's own figure when it has one, else tokens at the model's input price.
-    ponytail: every token at the input price is a ceiling, not a bill; split in/out when the file reports both."""
+    """What the session has cost: the file's own figure when it has one, else from its token counts at the model's
+    price: fresh and cache-written input at the input price, cache reads at a tenth of it, and the rest (output) at the
+    output price. ponytail: the tenth is Anthropic's cache-read rate; a provider table per price comes with the Pi kind."""
     if state.get("cost_usd"):
         return float(state["cost_usd"])
     p = price_for(model, spend)
-    return state.get("tokens", 0) * p[0] / 1e6 if p else 0.0
+    if not p:
+        return 0.0
+    fresh, cache_w, cache_r = state.get("fresh", 0), state.get("cache_write", 0), state.get("cache_read", 0)
+    output = max(0, state.get("tokens", 0) - fresh - cache_w - cache_r)
+    return ((fresh + cache_w) * p[0] + cache_r * p[0] / 10 + output * p[1]) / 1e6
 
 
 def spent_today(rows: list[dict], today: str) -> float:

@@ -42,10 +42,15 @@ def test_an_unknown_price_refuses_a_claude_worker_but_not_a_pi_worker():
     assert watcher.refusals(SPEND, "claude", "sonnet") == []
 
 
-def test_cost_is_the_files_figure_or_tokens_at_the_input_price():
+def test_cost_is_the_files_figure_or_the_token_counts_at_the_models_price():
     assert watcher.cost_of({**STATE, "cost_usd": 0.42, "tokens": 10**6}, SPEND, "sonnet") == 0.42
-    assert watcher.cost_of({**STATE, "tokens": 10**6}, SPEND, "sonnet") == 3.0
     assert watcher.cost_of({**STATE, "tokens": 10**6}, SPEND, "unknown") == 0.0
+    # 1M fresh input at 3, 1M cache reads at 0.3, 1M output at 15 (the remainder once input and cache are taken off)
+    s = {**STATE, "tokens": 3 * 10**6, "fresh": 10**6, "cache_read": 10**6, "cache_write": 0}
+    assert round(watcher.cost_of(s, SPEND, "sonnet"), 3) == 18.3
+    # a one-word reply over a 35k cached prompt costs cents, not a tenth of a dollar (the first live run read 0.11)
+    s = {**STATE, "tokens": 35066, "fresh": 4, "cache_read": 31000, "cache_write": 4058}
+    assert round(watcher.cost_of(s, SPEND, "sonnet"), 3) == 0.022
 
 
 def test_spent_today_sums_only_todays_cost_rows():
