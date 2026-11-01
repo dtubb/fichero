@@ -209,7 +209,9 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   `routes/workers.py` and their actions are deleted in Step 1.1. Built: the start path, the jail probe, the rules check.
   Built 2026-11-01: `python -m fichero_builder run --worktree W --brief F` (`fichero_builder/run.py`), run as the worker
   user, starts through the start path and watches the newest session file under that user's `~/.claude/projects/<slug>`
-  every tick; a cap or a provider refusal parks it (the pane is killed) and the end is a `cost` row. Not yet: the successor on
+  every tick; a cap or a provider refusal parks it (the pane is killed), a worker idle with the brief's DONE word in its last
+  text is ended, and the end is a `cost` row. First live run 2026-11-01: a one-word brief, started as the worker user, read,
+  priced and parked at a 5-cent trial cap in 30 s. Not yet: the successor on
   handoff from the loop (the in-session hook does it), stop by TERM then KILL, the register file. Tests:
   `fichero-builder/tests/test_dry_run.py`, `fichero-server/tests/unit/workflows/test_start_tool.py`.
 - `dev-workflows.run.worker-address` [PARTIAL] (#6116) — per task, the current generation's address (pane or RPC pipe,
@@ -368,7 +370,8 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
 - `dev-workflows.rollout.dry-run` [PARTIAL] (#6116) — the loop runs with no model and no money: `builder run` takes its
   process control (start, alive, stop, read the session file) as a small object, and the dry run swaps in fakes with a
   scripted sequence of session states. Built 2026-11-01: a missing price refuses before anything starts; a healthy worker
-  that ends leaves one `worker` row and one `cost` row; the session cap and the day cap park and stop the pane; a silent
+  that ends leaves one `worker` row and one `cost` row; an idle worker is ended on its DONE line and left alone without it;
+  the session cap and the day cap park and stop the pane; a silent
   worker alerts once and is not stopped; a handoff decision is recorded. Not yet: recorded hook events replayed through the
   real policy (a refused command, a weakened test, a pinned-path edit, an acceptance-line change), a question and its
   answer, a false done, a NOT_READY round, land and close against a fake `gh`. Test: `fichero-builder/tests/test_dry_run.py`.
