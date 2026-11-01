@@ -91,12 +91,13 @@ RULES (earlier clusters were sent back for these):
 """
 
 [spend]
-# Caps the watcher enforces (dev-workflows.run.watch-tick). PLACEHOLDERS until the owner rules on the daily amount
-# (owner ruling pending (d), 2026-11-01); a worker whose model has no price here does not start.
+# Caps the watcher enforces (dev-workflows.run.watch-tick): 5 USD per worker session, 20 USD per day (owner ruling
+# 2026-11-01; a 10-item security cluster took about one 10 USD generation, so a big cluster now hands off mid-way).
+# A worker whose model has no price here does not start.
 window = 200000
 handoff_at = 0.85
-session_usd = 10
-day_usd = 40
+session_usd = 5
+day_usd = 20
 silent_s = 1800
 prices = { sonnet = [3, 15], opus = [15, 75], haiku = [1, 5] }
 

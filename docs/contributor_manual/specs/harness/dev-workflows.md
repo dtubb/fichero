@@ -5,7 +5,7 @@
 > Fichero builds itself through its own harness, how to run a cluster on a scratch path, and how the same harness runs
 > a research project.
 
-> **Status: APPROVED by the owner 2026-10-31 at bef07fa21 (rewrite 5: the second review verdict applied and the scope cut to what three weeks can
+> **Status: APPROVED by the owner 2026-11-01 at a597b5320 (rewrite 6 with the Decisions bullet on deterministic verbs and Step 2.3; earlier: rewrite 5: the second review verdict applied and the scope cut to what three weeks can
 > hold; § 0 is Slice 0 on its own). Rewrite 6, 2026-11-01: the Decisions and the Build order below follow the owner's direction of 2026-11-01 and the harness audit of the same day (kept untracked with the manager's briefs as `audit-2026-11-01-harness.md`); they await the owner's approval, and the two rulings they name are marked.** Replaces the text approved on 2026-10-26
 > (c9c24dfbf, 739ad4ba4). Tags: [OK] built · [PARTIAL] exists, not wired · [GAP] not built · [BROKEN] fails today ·
 > [PROPOSED] decided here, not yet ruled. Issues: #6116 (the pipeline), #2067 (Research), #5933 (Pause and Stop).
@@ -326,8 +326,9 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   generation (two rounds, then the queue). `land` is a script: fetch the sha into the engine-owned repository, ladder on
   the rebased head there, a READY verdict for **every commit** in the range by `--verbatim` patch-id and message hash (a
   merge, or a commit without exactly one id, refuses the range), the public-boundary grep over diff and messages (a hit names the commit, the file or message and the pattern's index, never the matching text, since it goes to logs), then the fast-forward of the integration branch (a merge mode for the release merge-back is added
-  before any ruleset restricts updates); `main` never. Until the GitHub App exists the script prints the fast-forward and
-  the Lead pushes. `Fixes #N` closes with the sha, `Part of #N` leaves open with the residue. A research task's review is
+  before any ruleset restricts updates); `main` never. The push is never automatic (owner 2026-11-01): the script prints
+  the fast-forward and a person (the owner or the manager) runs it, or invokes a `land --push` step by hand; nothing
+  pushes on its own. `Fixes #N` closes with the sha, `Part of #N` leaves open with the residue. A research task's review is
   the person's. Only `check`'s output and a verdict move an item. Test:
   `fichero-server/tests/unit/workflows/test_review_and_land.py::test_review_per_issue_and_land_per_cluster`.
 - `dev-workflows.run.land-gate` [PROPOSED] — the wall is the **user boundary** (owner 2026-10-31): the worker user holds no GitHub
