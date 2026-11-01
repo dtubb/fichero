@@ -93,7 +93,8 @@ def rules_problems(root) -> list[str]:
     elif not j.deny_read:
         out.append("[jail].deny_read is empty: the probe needs paths to prove unreadable")
     for name, val in (("python", c.python), ("ready", c.ready), ("guard_glob", c.guard_glob), ("min_guards", c.min_guards),
-                      ("contract_guards", c.contract_guards)):
+                      ("contract_guards", c.contract_guards), ("check_paths", c.check_paths), ("contract_paths", c.contract_paths),
+                      ("pytest_config", c.pytest_config)):  # review-2 H10: an unlisted key must not fail open
         if not val:
             out.append(f"harness.toml [check].{name} is not declared")
     if c.python and not Path(c.python).is_absolute():
@@ -237,14 +238,12 @@ def guards(root, cfg: Config) -> dict:
     root = Path(root)
     if not cfg.guard_glob:
         return {"ok": True, "reason": "skipped: not configured", "results": []}
-    found = sorted(root.glob(cfg.guard_glob))
+    found = [s for s in sorted(root.glob(cfg.guard_glob)) if s.stem not in cfg.guard_skip]  # review-2 H10: skipped ones do not count
     if len(found) < cfg.min_guards:
-        return {"ok": False, "reason": f"fewer than {cfg.min_guards} guards found ({len(found)}): blind is not green",
+        return {"ok": False, "reason": f"fewer than {cfg.min_guards} guards to run ({len(found)}): blind is not green",
                 "results": []}
     results = []
     for s in found:
-        if s.stem in cfg.guard_skip:
-            continue
         r = _run(s.stem, _isolated(s, root, cfg), root, cfg.guard_timeout_s, cfg)
         r["argv"] = [str(s)]
         results.append(r)

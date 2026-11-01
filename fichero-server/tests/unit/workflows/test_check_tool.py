@@ -61,6 +61,12 @@ def test_guards_run_each_one_skip_the_listed_and_name_the_red_one(tmp_path):
     assert r["ok"] is False and [x["name"] for x in r["results"] if not x["ok"]] == ["check_g1"]
 
 
+def test_skipped_guards_do_not_count_toward_the_minimum(tmp_path):  # review-2 H10
+    root = _repo(tmp_path, 20)
+    r = ct.guards(root, ct.Config(guard_glob="scripts/check_*.py", min_guards=20, guard_skip=frozenset({"check_g2"})))
+    assert not r["ok"] and "blind" in r["reason"]
+
+
 def test_fichero_is_the_first_project_in_its_own_harness_toml():
     cfg = ct.load(REPO)
     assert {"check_coverage_ratchet", "check_docs_paths", "check_hang_ratchet"} <= cfg.guard_skip and len(cfg.guard_skip) == 15
@@ -140,8 +146,9 @@ def _project(tmp_path, extra="", check_extra=""):
     (work / "ci").mkdir()
     (work / "ci" / "lint_ok.py").write_text("pass\n")
     (work / "ci" / "lint_bad.py").write_text("raise SystemExit(7)\n")
+    (work / "pyproject.toml").write_text("[tool.pytest.ini_options]\n")  # the pinned pytest config a rules file must name
     (work / "harness.toml").write_text(
-        '[check]\n' + check_extra + 'ready = ["python3", "-c", "print(1)"]\nguard_glob = "ci/lint_*.py"\nmin_guards = 2\n'
+        '[check]\n' + check_extra + 'ready = ["python3", "-c", "print(1)"]\nguard_glob = "ci/lint_*.py"\nmin_guards = 1\n'
         'guard_skip = ["lint_bad"]\ncheck_paths = ["ci/", "harness.toml"]\nmax_files = 10\n[check.test_env]\nTINY_PROJECT = "yes"\n' + extra)
     g("add", "."), g("commit", "-q", "-m", "project")
     base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
@@ -287,7 +294,7 @@ def test_the_ladder_runs_its_commands_as_the_jail_user(tmp_path, monkeypatch):
     sudo = tmp_path / "sudo"
     sudo.write_text('#!/bin/sh\necho "$3" >> "%s/asked"\nshift 4\nexec "$@"\n' % tmp_path)
     sudo.chmod(0o755)
-    work, g, base, pinned = _project(tmp_path, check_extra=f'python = "{sys.executable}"\ncontract_guards = ["ci/lint_ok.py"]\n', extra=f'[land]\nbranch = "main"\nboundary = "ci/"\n'
+    work, g, base, pinned = _project(tmp_path, check_extra=f'python = "{sys.executable}"\ncontract_guards = ["ci/lint_ok.py"]\ncontract_paths = ["src/"]\npytest_config = "pyproject.toml"\n', extra=f'[land]\nbranch = "main"\nboundary = "ci/"\n'
                                 f'[jail]\nuser = "root"\nsudo = "{sudo}"\nworkroot = "{tmp_path}"\ndeny_read = ["{tmp_path}/secret"]\n')
     _change(work, g)
     r = ct.run_ladder(work, base, "HEAD", pinned)

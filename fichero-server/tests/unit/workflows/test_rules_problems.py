@@ -14,6 +14,9 @@ ready = ["x.sh"]
 guard_glob = "scripts/check_*.py"
 min_guards = 1
 contract_guards = ["scripts/check_a.py"]
+check_paths = ["scripts/"]
+contract_paths = ["src/"]
+pytest_config = "pyproject.toml"
 [jail]
 user = "u"
 deny_read = ["~/.ssh"]
@@ -38,6 +41,9 @@ def test_a_complete_rules_file_has_no_problems(tmp_path):
     (GOOD.replace("boundary =", "boundry ="), "boundry"),
     (GOOD.replace('branch = "integration"\n', ""), "branch"),
     (GOOD.replace("[jail]", "[jailx]"), "jail"),
+    (GOOD.replace('check_paths = ["scripts/"]\n', ""), "check_paths"),  # review-2 H10: pinning off = fail open
+    (GOOD.replace('contract_paths = ["src/"]\n', ""), "contract_paths"),
+    (GOOD.replace('pytest_config = "pyproject.toml"\n', ""), "pytest_config"),
     ("not toml [", "harness.toml"),
 ])
 def test_each_gap_is_a_named_problem(tmp_path, bad, expect):

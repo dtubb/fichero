@@ -15,6 +15,9 @@ ready = ["true"]
 guard_glob = "scripts/check_*.py"
 min_guards = 3
 contract_guards = ["scripts/check_a.py"]
+check_paths = ["scripts/"]
+contract_paths = ["src/"]
+pytest_config = "pyproject.toml"
 [policy]
 required_trailers = ["Co-Authored-By: "]
 [jail]
