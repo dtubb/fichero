@@ -33,11 +33,23 @@ elif argv[:2] == ["issue", "list"]:
         rows = [i for i in rows if opt("--label") in i["labels"]]
     if opt("--state") == "open":
         rows = [i for i in rows if i["state"] == "open"]
-    print(json.dumps([{{"number": i["number"], "title": i["title"], "state": i["state"], "labels": [{{"name": l}} for l in i["labels"]]}} for i in rows]))
+    print(json.dumps([{{"number": i["number"], "title": i["title"], "state": i["state"].upper(), "labels": [{{"name": l}} for l in i["labels"]],
+                        "milestone": {{"title": i["milestone"]}} if i.get("milestone") else None}} for i in rows]))
 elif argv[:2] == ["issue", "edit"]:
     for i in db["issues"]:
-        if str(i["number"]) == argv[2] and opt("--add-label"):
-            i["labels"] = sorted(set(i["labels"]) | set(opt("--add-label").split(",")))
+        if str(i["number"]) == argv[2]:
+            if opt("--add-label"): i["labels"] = sorted(set(i["labels"]) | set(opt("--add-label").split(",")))
+            if opt("--milestone"): i["milestone"] = opt("--milestone")
+elif argv[:2] == ["issue", "create"]:
+    n = 100 + len(db["issues"])
+    db["issues"].append({{"number": n, "title": opt("--title"), "state": "open", "labels": (opt("--label") or "").split(","), "milestone": opt("--milestone")}})
+    print("https://github.com/o/r/issues/%d" % n)
+elif argv[0] == "api" and "milestones?" in argv[1]:
+    print(json.dumps([{{"number": k, "title": t, "open_issues": sum(1 for i in db["issues"] if i["state"] == "open" and i.get("milestone") == t)}} for k, t in enumerate(db["milestones"], 1)]))
+elif argv[0] == "api" and opt("-X") == "POST":
+    db["milestones"].append(opt("-f").split("=", 1)[1])
+elif argv[0] == "api" and opt("-X") == "PATCH":
+    db["closed"].append(db["milestones"][int(argv[argv.index("-X") + 2].rsplit("/", 1)[1]) - 1])
 else:
     sys.exit("unexpected: " + " ".join(argv))
 state.write_text(json.dumps(db))
@@ -67,7 +79,12 @@ def world(tmp_path, monkeypatch):
                                  "issues": [{"number": 7, "title": "a", "state": "open", "labels": ["sharing", "phase:R1"]},
                                             {"number": 8, "title": "b", "state": "open", "labels": ["performance"]},
                                             {"number": 9, "title": "c", "state": "closed", "labels": ["spec:gone-spec"]},
-                                            {"number": 10, "title": "d", "state": "open", "labels": []}], "calls": []}))
+                                            {"number": 10, "title": "d", "state": "open", "labels": [], "milestone": "orphan-ms"},
+                                            {"number": 11, "title": "e", "state": "open", "labels": ["type:bug"]},
+                                            {"number": 12, "title": "f", "state": "open", "labels": ["spec:cataloguing"], "milestone": "Bugs - old"}],
+                                 "milestones": ["sharing", "Bugs - old", "Empty one", "orphan-ms"], "closed": [], "calls": []}))
+    (specs / "no-line.md").write_text("# No line\n\n- `n.o` [GAP] (#12) — z\n")
+    (specs / "prose-line.md").write_text("# Prose\n> Milestone: sharing. Companion to `x.md` (the other half)\n")
     gh = tmp_path / "gh"
     gh.write_text(FAKE_GH.format(py=sys.executable, state=str(state)))
     gh.chmod(0o755)
@@ -75,13 +92,14 @@ def world(tmp_path, monkeypatch):
     def run(*extra):
         return cli.main(["triage", *extra, "--root", str(root), "--gh", str(gh), "--state", str(tmp_path / "s")])
     run.db = lambda: json.loads(state.read_text())
+    run.root = root
     return run
 
 
 def test_labels_are_consolidated_by_the_rules_table_and_the_mapping_is_printed(world, capsys):
     assert world("--labels") == 0
     d = world.db()
-    assert set(d["labels"]) == {"spec:sharing-two-macs", "spec:cataloguing", "type:bug", "needs-spec"}, "spec labels follow the files; the rest is gone"
+    assert set(d["labels"]) == {"spec:sharing-two-macs", "spec:cataloguing", "spec:no-line", "spec:prose-line", "type:bug", "needs-spec"}, "spec labels follow the files; the rest is gone"
     by = {i["number"]: i["labels"] for i in d["issues"]}
     assert by[7] == ["spec:sharing-two-macs"] and by[8] == ["type:bug"] and by[9] == [] and by[10] == []
     out = capsys.readouterr().out
@@ -112,3 +130,24 @@ def test_the_spec_label_comes_from_the_spec_that_cites_the_issue_else_needs_spec
     by = {i["number"]: i["labels"] for i in world.db()["issues"]}
     assert "spec:sharing-two-macs" in by[7] and "spec:cataloguing" in by[8] and "needs-spec" in by[10]
     assert by[9] == ["spec:gone-spec"], "a closed issue is left alone"
+
+
+def test_milestones_follow_the_spec_and_empty_ones_close_and_a_spec_less_one_gets_a_write_the_spec_issue(world, capsys):
+    """Rules 3 and 4."""
+    assert world("--labels", "--specs", "--milestones") == 0
+    d = world.db()
+    by = {i["number"]: i for i in d["issues"]}
+    assert by[7]["milestone"] == "sharing", "the spec's milestone"
+    assert by[12]["milestone"] == "cat" and "cat" in d["milestones"], "moved to the spec's milestone, created on the repo first"
+    assert by[11]["milestone"] == "Next release", "a bug with no spec goes to Next release"
+    assert by[10]["milestone"] == "orphan-ms", "no spec, not a bug: stays where it is, keeps needs-spec for the owner"
+    assert set(d["closed"]) == {"Empty one", "Bugs - old"}, "empty after the moves; sharing and orphan-ms have open issues"
+    filed = [i for i in d["issues"] if i["title"] == "spec: write orphan-ms spec"]
+    assert len(filed) == 1 and filed[0]["labels"] == ["needs-spec"] and filed[0]["milestone"] == "orphan-ms"
+    assert world("--labels", "--specs", "--milestones") == 0
+    assert sum(1 for i in world.db()["issues"] if i["title"] == "spec: write orphan-ms spec") == 1, "idempotent"
+    assert set(world.db()["milestones"]) == {"sharing", "Bugs - old", "Empty one", "orphan-ms", "cat", "Next release"}, \
+        "the prose after the title on prose-line.md made no milestone"
+    assert "> Milestone: Bugs - old" in (world.root / "docs" / "contributor_manual" / "specs" / "x" / "no-line.md").read_text(), \
+        "a spec with no line gets the milestone most of its cited issues carry (#12 was in Bugs - old)"
+    assert [r for r in journal.read() if r["event"] == "triage" and r["what"] == "spec-milestone-line"]

@@ -355,9 +355,16 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   removed from its issues and deleted after the issues get the kept label the table `harness.toml [triage.labels]` names
   for it (absent = nothing), and the mapping applied is printed. **Spec label from the citing spec** (built 2026-11-01): an
   open issue with no `spec:` label gets the label of every spec whose text cites `#N`; none found gives `needs-spec`.
-  Not yet: milestones from the spec's `> Milestone:` line, milestone consolidation, the build-order file, assignees.
+  **Milestones** (built 2026-11-01, `--milestones`): an open issue moves to the milestone its spec's `> Milestone:` line
+  names (created on the repo first when missing); a spec with no such line gets one, the milestone most of its cited
+  issues carry (a `spec-milestone-line` row; a spec whose cited issues carry none is left alone and said); an issue with
+  no spec and no milestone goes to `Next release` only if it is `type:bug`, else stays and keeps `needs-spec`; after the
+  moves a milestone with no open issue is closed (the dated grab-bags empty out this way), and a milestone with open
+  issues that no spec names gets one `spec: write <milestone> spec` issue labelled `needs-spec`, filed once.
+  Not yet: the build-order file and the top-milestone default, assignees.
   Tests: `fichero-builder/tests/test_triage_verb.py::test_labels_are_consolidated_by_the_rules_table_and_the_mapping_is_printed`,
-  `::test_dry_changes_nothing_and_prints_the_counts`, `::test_the_spec_label_comes_from_the_spec_that_cites_the_issue_else_needs_spec`.
+  `::test_dry_changes_nothing_and_prints_the_counts`, `::test_the_spec_label_comes_from_the_spec_that_cites_the_issue_else_needs_spec`,
+  `::test_milestones_follow_the_spec_and_empty_ones_close_and_a_spec_less_one_gets_a_write_the_spec_issue`.
 - `dev-workflows.builder.cluster` [PARTIAL] (#6116) — one spec and its build-order issues (parser ported from
   `pipeline/plan.py`), in order, one commit per issue with its test; the brief is built by `scripts/harness_brief.py` from
   `gh api repos/{repo}/issues/N`: the body and the **title** only when the author association is owner, member or

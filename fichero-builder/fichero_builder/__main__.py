@@ -102,6 +102,7 @@ def main(argv=None) -> int:
     tr = sub.add_parser("triage", help="clean up the repo's GitHub metadata directly by the rules in harness.toml [triage]; --dry reads only")
     tr.add_argument("--labels", action="store_true", help="kept label families only; spec:<stem> follows the spec files; the rest moved by [triage.labels] then deleted")
     tr.add_argument("--specs", action="store_true", help="an open issue with no spec: label gets the label of the spec that cites it, else needs-spec")
+    tr.add_argument("--milestones", action="store_true", help="issues follow their spec's `> Milestone:`; a spec-less bug to Next release; empty milestones close; a spec-less milestone gets a write-the-spec issue")
     tr.add_argument("--dry", action="store_true"), tr.add_argument("--gh", default="gh")
     tr.add_argument("--root", default=str(Path.cwd()), help="the checkout holding harness.toml and docs/contributor_manual/specs")
     tr.add_argument("--state", help="where the journal lives (default: the owner's journal dir)")
