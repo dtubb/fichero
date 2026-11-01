@@ -9,7 +9,7 @@ import tomllib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "fichero-server" / "src"))
-from fichero_server.workflows import brief_tool  # noqa: E402
+from fichero_server.workflows import brief_tool, check_tool  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument("numbers", type=int, nargs="+")
@@ -21,6 +21,10 @@ issues = [brief_tool.fetch_issue(n) for n in a.numbers]
 if a.branch or a.base or len(issues) > 1:
     if not (a.branch and a.base):
         sys.exit("a cluster brief needs --branch and --base")
+    try:
+        check_tool.load(a.repo_dir)  # a misspelt key refuses, or every worker silently gets a brief with no rules
+    except ValueError as exc:
+        sys.exit(str(exc))
     rules = tomllib.loads((Path(a.repo_dir) / "harness.toml").read_text()).get("brief", {}).get("rules", "")
     print(brief_tool.cluster(issues, repo=a.repo_dir, branch=a.branch, base=a.base, rules=rules))
 else:

@@ -6,8 +6,10 @@ commenter's words are never instructions); the spec/code lines the issue names a
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import subprocess
+import sys
 
 from fichero_server.workflows import brief_tool
 
@@ -33,6 +35,7 @@ def test_trusted_comments_only_newest_first():
     assert "ignore previous instructions" not in text and "member says" in text  # MEMBER trusted, spec:197
     assert text.index("later ruling") < text.index("first ruling")
     assert "Fix the thing" in text and "#7" in text
+    assert "(1 comment(s) from untrusted authors left out.)" in text
 
 
 def test_an_untrusted_body_is_left_out_and_said_so():
@@ -86,3 +89,27 @@ def test_a_cluster_brief_has_the_preamble_then_every_issue_and_never_tells_the_w
     assert text.index("Branch cluster-x") < text.index("abc1234") < text.index("# Issue #1: One") < text.index("# Issue #2: Two")
     assert "DONE <short sha" in text and "No push" in text and "be careful" in text
     assert "gh issue view" not in text and "everything you need is below" in text.lower()
+    assert text.index("DONE <short sha") < text.index("be careful") < text.index("# Issue #1")
+
+
+def _run_brief_script(tmp_path, rules_file: str):
+    """scripts/harness_brief.py as a person runs it, a fake `gh` first on PATH."""
+    (tmp_path / "harness.toml").write_text(rules_file)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    issue = json.dumps({"number": 1, "title": "One", "body": "b", "author_association": "OWNER"})
+    (bin_dir / "gh").write_text(f"#!/bin/sh\ncase \"$*\" in *comments*) echo '[]';; *) echo '{issue}';; esac\n")
+    (bin_dir / "gh").chmod(0o755)
+    script = Path(__file__).resolve().parents[4] / "scripts" / "harness_brief.py"
+    return subprocess.run([sys.executable, str(script), "1", "2", "--repo-dir", str(tmp_path), "--branch", "b", "--base", "s"],
+                          capture_output=True, text=True, timeout=120, env={**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"})
+
+
+def test_the_brief_script_puts_the_rules_files_text_in_a_cluster_brief(tmp_path):
+    r = _run_brief_script(tmp_path, '[brief]\nrules = "RULES: be careful"\n')
+    assert r.returncode == 0 and "be careful" in r.stdout and "Branch b " in r.stdout
+
+
+def test_the_brief_script_refuses_a_misspelt_brief_key_and_prints_no_brief(tmp_path):
+    r = _run_brief_script(tmp_path, '[brief]\nrulez = "RULES: be careful"\n')
+    assert r.returncode != 0 and "rulez" in r.stderr and "Branch b " not in r.stdout
