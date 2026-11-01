@@ -425,3 +425,16 @@ def test_a_new_knowledge_route_must_filter_its_rows_or_refuse_a_caller_with_a_de
             if (method, route.path) not in filters and "whole_library_reader_only" not in set(deps(route.dependant)):
                 bare.append((method, route.path))
     assert not bare, f"these routes neither filter their rows nor refuse a caller with a deny (`whole_library_reader_only`): {sorted(bare)}"
+
+
+def test_o1_one_restricted_page_does_not_turn_off_the_knowledge_views_for_someone_named_on_it(project):
+    from fichero_server.models.rights import RightsRecord
+
+    alice, bob = _as(project.harness, "alice"), _as(project.harness, "bob")
+    views = ("/api/entities/top", "/api/entities/claim-counts", "/api/kg/graph/centrality", "/api/claims/queues/unreviewed")
+    for client in (alice, bob):
+        assert all(client.get(v).status_code == 200 for v in views)  # nothing restricted yet
+    db = db_manager.get_database(project.harness.library)
+    db.save(RightsRecord(target_kind="document", target_id=project.ids["b1"], restricted=True, readers=[project.users["alice"].id]))
+    assert [alice.get(v).status_code for v in views] == [200] * 4  # a named reader keeps them
+    assert [bob.get(v).status_code for v in views] == [403] * 4  # someone not named cannot be shown a count that includes it

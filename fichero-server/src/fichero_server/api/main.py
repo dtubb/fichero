@@ -1926,7 +1926,8 @@ def document_reader(request: Request | None, library_path: str | None) -> Callab
     from fichero_server.security import authz
 
     state = getattr(request, "state", None)
-    if request is None or getattr(state, "bootstrap_auth", False) or not authz.page_walk_needed(getattr(state, "user", None), library_path):
+    user = getattr(state, "user", None)
+    if request is None or getattr(state, "bootstrap_auth", False) or not authz.page_walk_needed(user, library_path) or authz.reads_every_gated_page(user, library_path):
         return None
     return lambda doc_id: bool(readable_documents(request, library_path, [doc_id]))
 

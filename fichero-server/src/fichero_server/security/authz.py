@@ -229,6 +229,29 @@ def page_walk_needed(user: Any, library: str | Path | None, *, write: bool = Fal
         return True
 
 
+def reads_every_gated_page(user: Any, library: str | Path | None) -> bool:
+    """Whether this caller's read answer is the same for every page: a project role with no override of their own, and every
+    restricting rights record either names them or sits on a page they may read. The owner and a named reader pass (O1, #6320);
+    a person with a deny, a folder-scoped role or an unnamed restricted page does not. Anything unclear: False."""
+    if not multiuser_enabled():
+        return True
+    resolved = resolve_user(user)
+    library_path = normalize_library_path(library)
+    if resolved is None or library_path is None:
+        return False
+    app_db = get_app_db()
+    role = app_db.get_library_role(resolved.id, library_path)
+    if role is None or role.role not in (ROLE_OWNER, ROLE_EDITOR, ROLE_VIEWER) or app_db.list_library_acl_overrides(resolved.id, library_path):
+        return False
+    try:
+        from fichero_server.db.manager import db_manager
+
+        restricting = [r for r in db_manager.get_database(library_path).query(RightsRecord, restricted=True) if r.withdrawn_at is None]
+    except Exception:  # fail closed
+        return False
+    return all(resolved.id in (r.readers or []) or (r.target_kind != "library" and can_read(user, library, r.target_id)) for r in restricting)
+
+
 def can_read(user: Any, library: str | Path | None, target_id: str | None = None) -> bool:
     """Return whether ``user`` may read a library or target subtree."""
     return _allowed(user, library, target_id, write=False)

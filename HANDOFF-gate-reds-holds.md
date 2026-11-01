@@ -19,3 +19,6 @@ Open / known:
 - test_check_spec_milestones::test_real_specs_pass_offline fails from fichero-server/, passes from the repo root.
 - pytest-asyncio is missing in the Air/M4 venvs (P1); not touched.
 Run: OMP_NUM_THREADS=2 PYTHONPATH=src, integration .venv python, one pytest at a time.
+
+Fourth pass (review 5, NOT READY at 1cb2be776): O1 DONE (authz.reads_every_gated_page; document_reader returns None for a caller who reads every gated page; test_o1_...). 
+NEXT, per the Manager's plan (message 2026-11-01): (2) turn briefs/sweep_permissions_probe.py (reviewer writing it) into a real test: seed a secret, fire every served route and action as alice, bob, carla, dana; known holes = named xfails citing #6325; controls owner/plain editor/plain viewer must keep working. (3) work review-gate-reds-5-verdict.md "What Monday needs" in order: H5 (a query param is a target id only if the route declares it), H7, H9, H1/H8/N6, H2, H3/H4, H6; unscoped conversations per author; fix at the choke point. (4) update #6325 text (what stays open) with a comment; no names/page text. Commit after each item. Final message to team-lead: head, sweep result, suites, what stays open.

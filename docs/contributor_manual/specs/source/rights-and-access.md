@@ -176,6 +176,8 @@ Rulings.
   claim links, the entity inspector, the review queues, rebuild, merge, dedupe, and the claim and entity create, change and
   delete routes): a caller whose reads differ page by page is refused them, and a new route under those prefixes fails the guard
   (`test_a_new_knowledge_route_must_filter_its_rows_or_refuse_a_caller_with_a_deny`) until it filters its rows or does the same.
+  A caller is refused these only when their reads could differ from the owner's: a person with a deny, a folder-scoped role, or a
+  restricted page they are not named on. The owner and a named reader keep them (O1).
   **The limit of `search.query`'s answer: with no exact total it still gives `has_more`, taken from the raw result count, so a
   caller can tell that more rows exist beyond the page, though not how many or whether they are theirs.**
   **The rule for a conversation is its scope: one scoped to, or answered from, a denied page (`scope_document_id`,
