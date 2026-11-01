@@ -17,7 +17,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from fichero_server.api.library_header import require_library_path
 from fichero_server.api.auth import action_context, request_actor
 from fichero_server.api.change_stream import emit_change
-from fichero_server.api.main import get_library_database, get_library_database_for_write, read_check, write_check
+from fichero_server.api.library_header import optional_library_path
+from fichero_server.api.main import document_reader, get_library_database, get_library_database_for_write, read_check, write_check
 from fichero_server.actions.registry import registry
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
@@ -1074,12 +1075,16 @@ async def resolve_claim_source(
 @router.get("/{claim_id}", response_model=KnowledgeClaim)
 async def get_claim(
     claim_id: str,
+    request: Request,
     db: Database = Depends(get_library_database),
 ) -> KnowledgeClaim:
     """Get a knowledge claim by ID."""
     claim = db.get(KnowledgeClaim, claim_id)
     if claim is None:
         raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
+    may_read = document_reader(request, optional_library_path(request))
+    if may_read is not None and claim.source_document_id and not may_read(claim.source_document_id):
+        raise HTTPException(status_code=403, detail="You may not read the page this claim rests on")
     return _resolved_claim_copy(claim)
 
 
@@ -1278,6 +1283,7 @@ def list_claims_impl(
 
 @router.get("", response_model=ClaimListResponse)
 async def list_claims(
+    request: Request,
     q: Annotated[str | None, Query()] = None,
     entity_id: Annotated[str | None, Query()] = None,
     curated_only: Annotated[bool, Query()] = False,
@@ -1316,6 +1322,9 @@ async def list_claims(
         limit=limit,
         offset=offset,
     )
+    may_read = document_reader(request, optional_library_path(request))
+    if may_read is not None:  # a claim resting on a page this caller may not read is left out (#6320)
+        items = [c for c in items if not c.source_document_id or may_read(c.source_document_id)]
     return ClaimListResponse(items=items, count=len(items))
 
 

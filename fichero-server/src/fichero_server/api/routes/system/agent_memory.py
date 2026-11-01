@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from fichero_server.core.timeutil import utc_now
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, ValidationError
 
 from fichero_server.security import authz
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import action_context
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.library_header import optional_library_path
+from fichero_server.api.main import document_reader, get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.models import (
     AgentNote,
@@ -170,8 +171,17 @@ async def create_agent_note(
     return AgentNote.model_validate(result.result)
 
 
+def _readable_notes(request: Request, rows: list) -> list:
+    """Drop a note anchored to a page this caller may not read (#6320)."""
+    may_read = document_reader(request, optional_library_path(request))
+    if may_read is None:
+        return rows
+    return [r for r in rows if all(may_read(d) for d in _anchor_document_ids(r.source_anchor))]
+
+
 @router.get("", response_model=AgentNoteListResponse)
 async def list_agent_notes(
+    request: Request,
     actor_id: str | None = Query(default=None),
     kind: str | None = Query(default=None),
     source_document_id: str | None = Query(default=None),
@@ -179,7 +189,7 @@ async def list_agent_notes(
     expediente: str | None = Query(default=None),
     db: Database = Depends(get_library_database),
 ) -> AgentNoteListResponse:
-    rows = db.query(AgentNote)
+    rows = _readable_notes(request, db.query(AgentNote))
     if actor_id is not None:
         rows = [row for row in rows if row.actor.actor_id == actor_id]
     if kind is not None:
@@ -197,11 +207,14 @@ async def list_agent_notes(
 @router.get("/{note_id}", response_model=AgentNote)
 async def get_agent_note(
     note_id: str,
+    request: Request,
     db: Database = Depends(get_library_database),
 ) -> AgentNote:
     note = db.get(AgentNote, note_id)
     if note is None:
         raise HTTPException(404, f"Agent note not found: {note_id}")
+    if not _readable_notes(request, [note]):
+        raise HTTPException(403, "You may not read the page this note is anchored to")
     return note
 
 

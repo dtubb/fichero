@@ -270,3 +270,29 @@ def test_n3_a_chain_whose_step_names_a_denied_page_is_not_run_and_a_viewer_does_
     assert _all_refused(four, "POST", f"/api/chains/{cid}/execute-steps", {"inputs": {}})  # the step's static_inputs, not the request, name b1
     assert _all_refused(four, "POST", f"/api/chains/{cid}/execute", {"inputs": {}})
     assert _all_refused(four, "POST", f"/api/chains/{cid}/execute", {"inputs": {"selected_doc_ids": [project.ids["b1"]]}}, who=("bob", "dana"))
+
+
+def _seed_secret_records(project):
+    from fichero_server.models import AgentNote, AgentNoteActor, AgentNoteSourceAnchor, KnowledgeClaim
+
+    db = db_manager.get_database(project.harness.library)
+    claim = KnowledgeClaim(text="SECRET claim", source_document_id=project.ids["b1"], subject_canonical="Ann", predicate_verb="owned", object_phrase="x")
+    ok_claim = KnowledgeClaim(text="PLAIN claim", source_document_id=project.ids["a1"], subject_canonical="Ann", predicate_verb="owned", object_phrase="y")
+    note = AgentNote(body="SECRET note", source_anchor=AgentNoteSourceAnchor(document_id=project.ids["b1"]), actor=AgentNoteActor(actor_id="agent"))
+    conv = Conversation(title="SECRET chat", messages=[], scope_document_id=project.ids["b1"], document_ids=[])
+    for row in (claim, ok_claim, note, conv):
+        db.save(row)
+    return claim, ok_claim, note, conv
+
+
+def test_n4_plain_reads_of_claims_agent_memory_and_conversations_leave_out_what_rests_on_a_denied_page(project, four):
+    claim, ok_claim, note, conv = _seed_secret_records(project)
+    for name, client, decoy in four:
+        for path in ("/api/claims", "/api/agent-memory", "/api/chat/conversations"):
+            got = client.get(path + decoy)
+            assert got.status_code in (200, 403), (name, path, got.status_code)
+            assert "SECRET" not in got.text, (name, path, got.text[:200])
+        for path in (f"/api/claims/{claim.id}", f"/api/agent-memory/{note.id}", f"/api/chat/conversations/{conv.id}"):
+            assert client.get(path + decoy).status_code == 403, (name, path)
+    alice = {n: c for n, c, _ in four}["alice"]
+    assert ok_claim.id in alice.get("/api/claims").text  # what she may read is still there

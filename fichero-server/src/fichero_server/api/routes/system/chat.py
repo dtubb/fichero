@@ -23,6 +23,7 @@ from fichero_server.api.change_stream import emit_change
 from fichero_server.api.routes.claim.claims import _descendant_doc_ids
 from fichero_server.db import Database
 from fichero_server.api.library_header import require_library_path
+from fichero_server.api.library_header import optional_library_path
 from fichero_server.api.main import document_reader, get_library_database, get_library_database_for_write, read_check
 from fichero_server.db.app import get_app_db, AppDatabase
 from fichero_server.models import (
@@ -1002,14 +1003,21 @@ async def _chat(request: ChatRequest, db: Database, ctx: ActionContext, may_read
     )
 
 
+def _conversation_readable(http: Request, conv: Conversation) -> bool:
+    """A conversation scoped to, or answered from, a page this caller may not read is withheld (#6320)."""
+    may_read = document_reader(http, optional_library_path(http))
+    return may_read is None or all(may_read(d) for d in [conv.scope_document_id, *conv.document_ids] if d)
+
+
 @router.get("/conversations", response_model=ChatConversationListResponse)
 async def list_conversations(
+    http: Request,
     folder_path: str = "/",
     db: Database = Depends(get_library_database),
 ) -> ChatConversationListResponse:
     """List all conversations, optionally filtered by folder."""
     # Query conversations from database
-    convs = db.query(Conversation, folder_path=folder_path)
+    convs = [c for c in db.query(Conversation, folder_path=folder_path) if _conversation_readable(http, c)]
 
     result = []
     for conv in convs:
@@ -1199,12 +1207,15 @@ async def delete_agent_workspace(
 @router.get("/conversations/{conversation_id}")
 async def get_conversation(
     conversation_id: str,
+    http: Request,
     db: Database = Depends(get_library_database),
 ) -> ConversationHistory:
     """Get a specific conversation with full history."""
     conv = db.get(Conversation, conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    if not _conversation_readable(http, conv):
+        raise HTTPException(status_code=403, detail="You may not read a page this conversation rests on")
 
     return ConversationHistory(
         id=conv.id,

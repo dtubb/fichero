@@ -160,6 +160,9 @@ Rulings.
   from it.** Entity, claim and project reads filter out items drawn only from denied pages and
   count them as withheld; an entity or claim with no source page stays visible
   (`source.rights.claims-with-only-denied-evidence-are-hidden`).
+- **2026-11-01 (#6320): the plain list and read routes hide them too.** `GET /api/claims`, `/api/claims/{id}`,
+  `/api/agent-memory`, `/api/agent-memory/{id}` and the chat conversation list and read leave out (list) or refuse
+  (read, 403) a claim, note or conversation resting on a page the caller may not read (`source.rights.claims-with-only-denied-evidence-are-hidden`).
 
 ## Triaged from the backlog (2026-10-04)
 - `source.rights.engine-wide-stores-follow-the-library` — **[GAP]** (#5181) engine-wide stores that mention a library's content (agent write audit, PyKEEN jobs and predictions, etc.) are filtered by that library's permissions, and truly global settings are owner-only.
