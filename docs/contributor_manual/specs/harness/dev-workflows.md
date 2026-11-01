@@ -6,7 +6,7 @@
 > a research project.
 
 > **Status: APPROVED by the owner 2026-10-31 at bef07fa21 (rewrite 5: the second review verdict applied and the scope cut to what three weeks can
-> hold; § 0 is Slice 0 on its own). Rewrite 6, 2026-11-01: the Decisions and the Build order below follow the owner's direction of 2026-11-01 and the harness audit of the same day (`agent-work/status/briefs/audit-2026-11-01-harness.md`); they await the owner's approval, and the two rulings they name are marked.** Replaces the text approved on 2026-10-26
+> hold; § 0 is Slice 0 on its own). Rewrite 6, 2026-11-01: the Decisions and the Build order below follow the owner's direction of 2026-11-01 and the harness audit of the same day (kept untracked with the manager's briefs as `audit-2026-11-01-harness.md`); they await the owner's approval, and the two rulings they name are marked.** Replaces the text approved on 2026-10-26
 > (c9c24dfbf, 739ad4ba4). Tags: [OK] built · [PARTIAL] exists, not wired · [GAP] not built · [BROKEN] fails today ·
 > [PROPOSED] decided here, not yet ruled. Issues: #6116 (the pipeline), #2067 (Research), #5933 (Pause and Stop).
 >
@@ -219,8 +219,8 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   session file, tool errors, the reported sha, the tool names the policy sees) and a policy that meets an unknown tool name
   **refuses**, never passes; `fake` replays recorded events through the real policy and is never started by a person.
   `claude` is an interactive session in a pane (probed: `claude -p` exits at the end of its turn). `pi` is driven over its
-  RPC mode (`prompt`, `steer`, `abort` on a pipe; Pi 0.75.5 `docs/rpc.md`) and carries `[policy]` in a `tool_call`
-  extension that can block (`docs/extensions.md`); the extension's crash must block, not allow, and that is tested before
+  RPC mode (`prompt`, `steer`, `abort` on a pipe; Pi 0.75.5, its own `rpc.md`) and carries `[policy]` in a `tool_call`
+  extension that can block (Pi's `extensions.md`); the extension's crash must block, not allow, and that is tested before
   the kind is used (audit 2026-11-01: the old claim that Pi has no policy hook was false). The context read must know both
   usage shapes (Claude `input_tokens`; Pi `input` and `cacheRead`), else it reads 0 and stays silent. Order: Claude under
   Max on real issues first, then Pi on a metered provider with Sonnet so only the agent changes, then local. The per-item
