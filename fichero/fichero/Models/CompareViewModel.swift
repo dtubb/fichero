@@ -98,14 +98,14 @@ struct CompareViewModel: Equatable {
     /// any (`frame.read_from == "edited"`), else the photograph. On an edited page the boxes are `frame_bbox` in the edited
     /// image's size, and when the lines' place on it is not known (`followed` false) no box is drawn; otherwise the line's `bbox`
     /// in the photograph's pixels.
-    static func drawnBox(bbox: [Double]?, frameBbox: [Double]?, readFrom: String?, followed: Bool,
+    static func drawnBox(boxes: (bbox: [Double]?, frame: [Double]?), readFrom: String?, followed: Bool,
                          frameSize: (width: Int, height: Int)?, photograph: (width: Int, height: Int)?)
         -> (box: [Double], image: (width: Int, height: Int))? {
         if readFrom == "edited" {
-            guard followed, let box = frameBbox, let frameSize else { return nil }
+            guard followed, let box = boxes.frame, let frameSize else { return nil }
             return (box, frameSize)
         }
-        guard let bbox, let photograph else { return nil }
+        guard let bbox = boxes.bbox, let photograph else { return nil }
         return (bbox, photograph)
     }
 
@@ -114,7 +114,7 @@ struct CompareViewModel: Equatable {
                          photograph: (width: Int, height: Int)?) -> (box: [Double], image: (width: Int, height: Int))? {
         var size: (width: Int, height: Int)?
         if let width = frame?.imageWidth, let height = frame?.imageHeight { size = (width, height) }
-        return drawnBox(bbox: line.bbox, frameBbox: line.frameBbox, readFrom: frame?.readFrom.rawValue,
+        return drawnBox(boxes: (line.bbox, line.frameBbox), readFrom: frame?.readFrom.rawValue,
                         followed: frame?.followed ?? false, frameSize: size, photograph: photograph)
     }
 
