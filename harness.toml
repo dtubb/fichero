@@ -35,6 +35,15 @@ test_globs = ["test_*.py", "*_test.py"]
 pytest_config = "fichero-server/pyproject.toml"
 pytest_plugins = ["anyio.pytest_plugin", "_hypothesis_pytestplugin", "langsmith.pytest_plugin", "pytest_timeout", "pytest_asyncio.plugin"]
 
+# A diff under build_paths compiles the app (build only, never a test run: a test run quits the owner's app) in the
+# scratch tree, one build at a time on this machine (owner 2026-11-01). Derived data under the shared area so a
+# second build reuses it; a stale incremental build is a known failure shape: delete the folder and run again.
+build_paths = ["fichero/"]
+build = ["xcodebuild", "-project", "fichero/fichero.xcodeproj", "-scheme", "Fichero (Dev Embedded)", "-configuration", "Debug",
+         "-destination", "platform=macOS", "-derivedDataPath", "/Users/Shared/fichero-worker/derived", "-jobs", "4",
+         "-skipPackagePluginValidation", "build"]
+build_timeout_s = 3600
+build_lock = "/Users/Shared/fichero-worker/build.lock"
 [check.test_env]
 FICHERO_FEATURE_TIER = "dev"
 OMP_NUM_THREADS = "2"

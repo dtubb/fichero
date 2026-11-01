@@ -15,6 +15,34 @@ from fichero_builder import check_tool, journal
 from fichero_builder import run as run_mod
 
 
+def state_dir(rules_root, explicit) -> Path:
+    """--state, else $FICHERO_BUILDER_STATE, else `<[jail].workroot>/state` from the rules file (the shared area both
+    users can read, so the owner reads the worker's journal without sudo), else the XDG default."""
+    if explicit:
+        return Path(explicit)
+    if os.environ.get("FICHERO_BUILDER_STATE"):
+        return Path(os.environ["FICHERO_BUILDER_STATE"])
+    f = Path(rules_root) / "harness.toml"
+    if f.is_file():
+        import tomllib
+
+        workroot = tomllib.loads(f.read_text()).get("jail", {}).get("workroot")
+        if workroot:
+            return Path(workroot) / "state"
+    return journal.STATE
+
+
+def resolve(repo, rev: str) -> str:
+    import subprocess
+
+    return subprocess.run(["git", "-C", str(repo), "rev-parse", rev], capture_output=True, text=True).stdout.strip()
+
+
+def checked(head: str) -> bool:
+    """A green `check` row for this exact head in the journal (dev-workflows.run.review-and-land: check before review and land)."""
+    return any(r.get("event") == "check" and r.get("head") == head and r.get("ok") is True for r in journal.read())
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="builder")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -36,12 +64,20 @@ def main(argv=None) -> int:
     c.add_argument("repo"), c.add_argument("since"), c.add_argument("head")
     c.add_argument("--pinned", required=True)
     c.add_argument("--id", action="append", default=[])
+    c.add_argument("--state", help="where the journal lives (default: see run --state)")
     land = sub.add_parser("land", help="the land gate: a READY verdict for the exact range, the boundary, the ladder; prints the push, never pushes")
     land.add_argument("repo"), land.add_argument("head")
     land.add_argument("--pinned", required=True), land.add_argument("--verdicts", required=True), land.add_argument("--log", required=True)
+    land.add_argument("--state", help="where the journal lives (default: see run --state)")
     a = ap.parse_args(argv)
+    journal.STATE = state_dir(a.pinned if a.cmd in ("check", "land") else a.root, a.state)
     if a.cmd == "land":  # ponytail: the gate is scripts/harness_land.py whole; this verb runs it, it does not copy it
         import runpy
+
+        head = resolve(a.repo, a.head)
+        if not checked(head):
+            print(f"REFUSED: no green `builder check` row for {head[:9] or a.head} in {journal.path()}; run builder check first", file=sys.stderr)
+            return 1
 
         script = Path(__file__).resolve().parents[2] / "scripts" / "harness_land.py"
         sys.argv = [str(script), a.repo, a.head, "--pinned", a.pinned, "--verdicts", a.verdicts, "--log", a.log]
@@ -56,9 +92,8 @@ def main(argv=None) -> int:
     if a.cmd == "check":
         r = check_tool.run_ladder(a.repo, a.since, a.head, a.pinned, a.id)
         print(json.dumps(r, indent=1))
+        journal.append("check", repo=str(a.repo), since=a.since, head=resolve(a.repo, a.head), ok=bool(r.get("ok")), failed=r.get("failed", ""))
         return 0 if r.get("ok") else 1
-    if a.state:
-        journal.STATE = Path(a.state)
     if a.kind == "pi":
         from fichero_builder import pi_rpc
 

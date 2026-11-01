@@ -8,6 +8,7 @@ result, never a raise.
 
 from __future__ import annotations
 
+import fcntl
 import fnmatch
 import os
 import re
@@ -46,6 +47,10 @@ class Config:
     pytest_plugins: tuple = ()          # plugins loaded by -p; autoload is OFF, so a dist-info entry point in the tree loads nothing
     max_files: int = 25
     max_lines: int = 1500
+    build_paths: tuple = ()             # a diff touching these (prefixes) runs the build rung; () = no build rung
+    build: tuple = ()                   # argv of a build-only compile (never a test run), run in the scratch tree
+    build_timeout_s: float = 1800
+    build_lock: str = ""                # a lock file: one build at a time on the machine ("" = no lock)
 
 
 def load(root) -> Config:
@@ -57,7 +62,7 @@ def load(root) -> Config:
     c = doc.get("check", {})
     if unknown := sorted(set(c) - {x.name for x in fields(Config)} - {"test_env"}):  # fail closed (review 3, spec item 2)
         raise ValueError(f"harness.toml [check]: unknown keys {unknown}")
-    if unknown := sorted(set(doc) - {"check", "jail", "policy", "land", "brief", "spend"}):
+    if unknown := sorted(set(doc) - {"check", "jail", "policy", "land", "brief", "spend", "models"}):
         raise ValueError(f"harness.toml: unknown tables {unknown}")
     brief = doc.get("brief", {})
     if unknown := sorted(set(brief) - {"rules"}):
@@ -74,7 +79,9 @@ def load(root) -> Config:
         contract_guards=tuple(c.get("contract_guards", d.contract_guards)),
         spec_dir=c.get("spec_dir", d.spec_dir), check_paths=tuple(c.get("check_paths", d.check_paths)), red_paths=tuple(c.get("red_paths", d.red_paths)), test_globs=tuple(c.get("test_globs", d.test_globs)),
         pytest_config=c.get("pytest_config", d.pytest_config), pytest_plugins=tuple(c.get("pytest_plugins", d.pytest_plugins)), max_files=c.get("max_files", d.max_files),
-        max_lines=c.get("max_lines", d.max_lines))
+        max_lines=c.get("max_lines", d.max_lines), build_paths=tuple(c.get("build_paths", d.build_paths)),
+        build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
+        build_lock=c.get("build_lock", d.build_lock))
 
 
 def rules_problems(root) -> list[str]:
@@ -263,6 +270,22 @@ def contract_current(root, changed: list[str], cfg: Config, timeout_s: float = 3
     results = [_run(Path(g).stem, _isolated(root / g, root, cfg), root, timeout_s, cfg)
                for g in cfg.contract_guards]
     return {"ok": all(r["ok"] for r in results), "skipped": False, "results": results}
+
+
+def build(root, changed: list[str], cfg: Config) -> dict:
+    """The project's build-only compile, only when the diff touches its build paths; one at a time under the lock
+    (owner 2026-11-01: a Swift change nobody compiled reached the land gate; builds stay serial on this machine)."""
+    if not cfg.build or not any(f.startswith(cfg.build_paths) for f in changed):
+        return {"ok": True, "skipped": True, "results": []}
+    lock = open(cfg.build_lock, "a") if cfg.build_lock else None
+    try:
+        if lock is not None:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+        r = _run("build", list(cfg.build), root, cfg.build_timeout_s, cfg)
+    finally:
+        if lock is not None:
+            lock.close()
+    return {"ok": r["ok"], "skipped": False, "results": [r]}
 
 
 def _git_argv(root, args) -> list[str]:
@@ -530,6 +553,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=()) -> dict:
              else {**_skipped("red-on-base"), "stdout_tail": "not required: no changed path is under [check].red_paths"}),
             ("guards", lambda: guards(tree, cfg)),
             ("contract-current", lambda: contract_current(tree, names, cfg)),
+            ("build", lambda: build(tree, names, cfg)),
         ])
     finally:
         _git(root, "worktree", "remove", "--force", tree)

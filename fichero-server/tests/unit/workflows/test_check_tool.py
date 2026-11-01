@@ -165,7 +165,7 @@ def test_the_tool_runs_in_a_throwaway_project_with_its_own_config(tmp_path):
     g("add", "."), g("commit", "-q", "-m", "change")
     r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
     assert r["ok"], r
-    assert [x["name"] for x in r["rungs"]] == ["pinned-checks", "ready", "diff-bound", "red-on-base", "guards", "contract-current"]
+    assert [x["name"] for x in r["rungs"]] == ["pinned-checks", "ready", "diff-bound", "red-on-base", "guards", "contract-current", "build"]
 
 
 def test_a_worker_cannot_change_the_checks_it_is_judged_by(tmp_path):
@@ -344,3 +344,13 @@ def test_red_on_base_applies_only_to_the_paths_the_rules_file_names(tmp_path):
     g("add", "."), g("commit", "-q", "-m", "source with no test")
     r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
     assert r["failed"] == "red-on-base" and "needs a test" in r["rungs"][-1]["stderr_tail"]
+
+
+def test_the_build_rung_runs_only_for_build_paths_and_reports_red(tmp_path):  # owner 2026-11-01: a build-only Swift rung
+    cfg = ct.Config(build_paths=("fichero/",), build=("sh", "-c", "echo built > built.txt; exit 1"), build_lock=str(tmp_path / "b.lock"))
+    assert ct.build(tmp_path, ["fichero-server/src/x.py"], cfg)["skipped"], "no Swift touched: no build"
+    assert ct.build(tmp_path, ["fichero/App.swift"], ct.Config())["skipped"], "no build configured: no build"
+    r = ct.build(tmp_path, ["fichero/App.swift"], cfg)
+    assert not r["ok"] and not r["skipped"] and r["results"][0]["exit_code"] == 1
+    assert (tmp_path / "built.txt").exists(), "the build ran in the tree it was given"
+    assert ct.build(tmp_path, ["fichero/App.swift"], ct.Config(build_paths=("fichero/",), build=("true",)))["ok"]

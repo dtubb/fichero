@@ -253,7 +253,7 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   file names (Python here); a Swift or contract change needs a Lead build row on the sha; docs and spec changes need
   neither. **Counters:** the same named test red twice, the diff bound tripped twice, a tool call repeated with the same
   arguments after an error, the turn or dollar cap: counted by `check` and a PostToolUse counter, and enforced (a refusal
-  row and a question), not left to the model. Test: `fichero-server/tests/unit/workflows/test_check_tool.py::test_check_tool_runs_the_ladder`.
+  row and a question), not left to the model. Test: `fichero-server/tests/unit/workflows/test_check_tool.py::test_check_tool_runs_the_ladder`. **Build** (owner 2026-11-01, built): a diff under `[check].build_paths` runs `[check].build` (a build-only compile, never a test run) in the scratch tree, one build at a time under `[check].build_lock`, after the contract rung; red refuses. Test: `fichero-server/tests/unit/workflows/test_check_tool.py::test_the_build_rung_runs_only_for_build_paths_and_reports_red`.
 - `dev-workflows.builder.cluster` [PARTIAL] (#6116) — one spec and its build-order issues (parser ported from
   `pipeline/plan.py`), in order, one commit per issue with its test; the brief is built by `scripts/harness_brief.py` from
   `gh api repos/{repo}/issues/N`: the body and the **title** only when the author association is owner, member or
