@@ -87,7 +87,7 @@ class Jail:
         Returns the failures (empty = the wall holds)."""
         bad = []
         # floor (review 3 B1): the owner's home and the real libraries are always probed, whatever the rules file lists
-        floor = self.floor if self.floor is not None else (str(Path.home()), str(Path.home() / "Fichero Projects"))
+        floor = self.floor if self.floor is not None else (str(Path.home()),)
         for p in dict.fromkeys((*floor, *self.deny_read)):
             r = subprocess.run(self.argv(["/bin/sh", "-c", f"test -r {shlex.quote(str(Path(p).expanduser()))}"], env={}),
                                capture_output=True)

@@ -39,7 +39,8 @@ if a.fetch:  # a plain fetch of one sha: no hooks, no filters, into a repo the w
 if stop := land_tool.unreviewed(a.repo, a.base, a.head, a.verdicts):
     row(refused="verdict", detail=stop)
     sys.exit("REFUSED:\n  " + "\n  ".join(stop))
-patterns = tomllib.loads((Path(a.pinned) / "harness.toml").read_text()).get("land", {}).get("boundary", [])
+land_cfg = tomllib.loads((Path(a.pinned) / "harness.toml").read_text()).get("land", {})
+patterns = land_cfg.get("boundary", [])
 if hits := land_tool.boundary(a.repo, a.base, a.head, patterns):
     row(refused="boundary", detail=hits)
     sys.exit("REFUSED (boundary):\n  " + "\n  ".join(hits))
@@ -48,4 +49,4 @@ print(json.dumps({k: r[k] for k in ("ok", "failed") if k in r}))
 row(ladder_ok=r.get("ok"), failed=r.get("failed", ""))
 if not r["ok"]:
     sys.exit(1)
-print(f"READY TO LAND: git push origin {a.head}:refs/heads/integration   (the Lead runs this)")
+print(f"READY TO LAND: git push origin {a.head}:refs/heads/{land_cfg.get('branch', '<branch>')}   (the Lead runs this)")

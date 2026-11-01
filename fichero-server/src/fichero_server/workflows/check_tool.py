@@ -30,6 +30,7 @@ class Config:
     test_env: dict = field(default_factory=dict)  # env for every test and guard run
     base_path_env: str = ""             # env var given a fresh scratch dir per pytest run ("" = none)
     ready: tuple = ()                   # argv of the project's readiness check ("" = none)
+    base_ref: str = ""                  # e.g. "origin/main": the ref the ready check diffs against; set in a remote-less clone ("" = leave alone)
     guard_glob: str = ""                # e.g. "scripts/check_*.py"; "" = no guards rung
     guard_skip: frozenset = frozenset()  # guard names the nightly gate runs instead
     guard_timeout_s: float = 60
@@ -59,7 +60,7 @@ def load(root) -> Config:
     return Config(
         python=c.get("python", d.python), python_path=tuple(c.get("python_path", d.python_path)),
         path=c.get("path", d.path), test_env=dict(c.get("test_env", {})), base_path_env=c.get("base_path_env", d.base_path_env),
-        ready=tuple(c.get("ready", d.ready)), guard_glob=c.get("guard_glob", d.guard_glob),
+        ready=tuple(c.get("ready", d.ready)), base_ref=c.get("base_ref", d.base_ref), guard_glob=c.get("guard_glob", d.guard_glob),
         guard_skip=frozenset(c.get("guard_skip", ())), guard_timeout_s=c.get("guard_timeout_s", d.guard_timeout_s),
         min_guards=c.get("min_guards", d.min_guards), contract_paths=tuple(c.get("contract_paths", d.contract_paths)),
         contract_guards=tuple(c.get("contract_guards", d.contract_guards)),
@@ -417,8 +418,8 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=()) -> dict:
     names = [ln.split("\t", 1)[1] for ln in _lines(root, "diff", "--name-status", "--no-renames", "--diff-filter=AM",
                                                     f"{since}...{head}") or []]
     tests = [f for f in names if any(fnmatch.fnmatch(Path(f).name, g) for g in cfg.test_globs)]
-    if not _git(root, "rev-parse", "--verify", "-q", "refs/remotes/origin/integration")["ok"]:
-        _git(root, "update-ref", "refs/remotes/origin/integration", since)  # a remote-less clone: ready checks diff against it
+    if cfg.base_ref and not _git(root, "rev-parse", "--verify", "-q", f"refs/remotes/{cfg.base_ref}")["ok"]:
+        _git(root, "update-ref", f"refs/remotes/{cfg.base_ref}", since)  # a remote-less clone: ready checks diff against it
     tree = _scratch_tree(root, head, pinned, cfg)
     try:
         ok_pin = {"name": "pinned-checks", "argv": [], "exit_code": 0, "ok": True, "timed_out": False, "seconds": 0,

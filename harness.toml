@@ -7,6 +7,7 @@ path = "/Users/Shared/fichero-worker/bin:/Users/Shared/fichero-worker/venv/bin:/
 python_path = ["fichero-server/src", "fichero-cli/src", "fichero-mcp/src"]
 base_path_env = "FICHERO_BASE_PATH"
 ready = ["scripts/lane_ready_check.sh", "HEAD"]
+base_ref = "origin/integration"
 guard_glob = "scripts/check_*.py"
 guard_timeout_s = 60
 min_guards = 20
@@ -55,8 +56,9 @@ required_trailers = ["Directed-By: the maintainer", "Co-Authored-By: "]
 [jail]
 user = "fichero-worker"
 workroot = "/Users/Shared/fichero-worker"
-deny_read = ["~/.config/gh", "~/.ssh", "~/.claude"]
+deny_read = ["~/.config/gh", "~/.ssh", "~/.claude", "~/Fichero Projects"]
 
 [land]
+branch = "integration"   # the branch the Lead pushes a green head to
 # Regexes over every ADDED line and commit message; any hit refuses the land (the public/private boundary).
 boundary = ['/Users/[A-Za-z0-9._-]+/', 'sk-ant-[A-Za-z0-9_-]{8,}', 'gh[ps]_[A-Za-z0-9]{20,}', 'BEGIN [A-Z ]*PRIVATE KEY']
