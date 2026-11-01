@@ -175,7 +175,6 @@ def _env(root, cfg: Config, extra: dict | None = None) -> dict:
         env["PATH"] = cfg.path
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"  # review 4 B6: only [check].pytest_plugins load, never a tree's entry points
-    env["PYTHONSAFEPATH"] = "1"                  # the cwd is not on sys.path: a worker's pytest.py shadows nothing
     env["HOME"] = tempfile.mkdtemp(prefix="check-home-")  # (jailed: dropped, the user's own HOME is used)
     if cfg.base_path_env:
         env[cfg.base_path_env] = _mkdtemp("check-base-")
@@ -195,9 +194,9 @@ def _skipped(name: str) -> dict:
             "stdout_tail": "skipped: not configured", "stderr_tail": ""}
 
 
-def _run(name, argv, root, timeout_s, cfg: Config) -> dict:
+def _run(name, argv, root, timeout_s, cfg: Config, extra: dict | None = None) -> dict:
     """run_command with a fresh scratch env, its HOME and base dirs removed afterwards (no litter per rung)."""
-    env = _env(root, cfg)
+    env = _env(root, cfg, extra)
     try:
         return run_command(name, argv, root, timeout_s, env)
     finally:
@@ -233,7 +232,9 @@ def pytest_rung(root, files: list[str], cfg: Config = Config(), timeout_s: float
     """Named test files only (the env gives a fresh base path, so a run never opens real data)."""
     if not files:
         return run_command("pytest", [sys.executable, "-c", "import sys; sys.exit('no test files named')"], root, 5)
-    return _run("pytest", pytest_argv(root, files, cfg), root, timeout_s, cfg)
+    # safe-path for the test run only: the cwd is not on sys.path, so a worker's pytest.py shadows nothing. The ready and
+    # guard rungs run the project's own pinned scripts, which import helpers beside them (first real check, 2026-11-01).
+    return _run("pytest", pytest_argv(root, files, cfg), root, timeout_s, cfg, {"PYTHONSAFEPATH": "1"})
 
 
 def _isolated(script: Path, root: Path, cfg: Config) -> list[str]:

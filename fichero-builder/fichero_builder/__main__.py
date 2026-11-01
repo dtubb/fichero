@@ -127,7 +127,7 @@ def main(argv=None) -> int:
         procs = run_mod.real_procs(Path.home(), a.worktree)
     end = run_mod.run(a.root, a.worktree, a.brief, name=a.name, model=a.model, kind=a.kind, tmux_session=a.session,
                       tick_s=a.tick, procs=procs, handoff=a.handoff)
-    return 0 if end in ("gone", "parked") else 1
+    return 0 if end in ("done", "gone", "parked") else 1  # a clean end is 0; "refused" is the 1
 
 
 if __name__ == "__main__":

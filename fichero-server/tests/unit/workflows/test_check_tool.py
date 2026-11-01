@@ -75,7 +75,7 @@ def test_fichero_is_the_first_project_in_its_own_harness_toml():
 
 
 def test_pytest_runs_named_files_with_the_fixed_env(tmp_path):
-    (tmp_path / "test_a.py").write_text("import os\ndef test_a():\n    assert os.environ['FICHERO_FEATURE_TIER'] == 'dev'\n    assert os.environ['OMP_NUM_THREADS'] == '2'\n")
+    (tmp_path / "test_a.py").write_text("import os\ndef test_a():\n    assert os.environ['FICHERO_FEATURE_TIER'] == 'dev'\n    assert os.environ['OMP_NUM_THREADS'] == '2'\n    assert os.environ['PYTHONSAFEPATH'] == '1'\n")
     cfg = ct.Config(test_env={"FICHERO_FEATURE_TIER": "dev", "OMP_NUM_THREADS": "2"})
     r = ct.pytest_rung(tmp_path, ["test_a.py"], cfg, timeout_s=120)
     assert r["ok"], r
@@ -371,3 +371,18 @@ def test_the_build_rung_counts_a_deleted_swift_file_as_a_change(tmp_path):  # re
     (tmp_path / "fichero" / "A.swift").unlink()
     subprocess.run(["git", "-C", str(tmp_path), "commit", "-qam", "delete"], check=True, env=env)
     assert ct.build_names(tmp_path, base, "HEAD") == ["fichero/A.swift"]
+
+
+def test_the_ready_rung_lets_the_projects_scripts_import_their_siblings(tmp_path):  # first real check, 2026-11-01
+    """The ladder's PYTHONSAFEPATH is for pytest; a readiness script runs guard scripts by plain python, and those import
+    helpers beside them, which safe-path forbids."""
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "_helper.py").write_text("OK = True\n")
+    (tmp_path / "scripts" / "guard.py").write_text("from _helper import OK\nassert OK\n")
+    (tmp_path / "scripts" / "ready.sh").write_text(f"#!/bin/sh\nexec {sys.executable} scripts/guard.py\n")
+    (tmp_path / "scripts" / "ready.sh").chmod(0o755)
+    r = ct.ready(tmp_path, ct.Config(ready=("scripts/ready.sh",)))
+    assert r["ok"], r["stderr_tail"]
+    (tmp_path / "scripts" / "check_spawn.py").write_text(f"import subprocess, sys; sys.exit(subprocess.run([sys.executable, 'scripts/guard.py']).returncode)\n")
+    g = ct.guards(tmp_path, ct.Config(guard_glob="scripts/check_*.py"))
+    assert g["ok"], g["results"]  # a guard that runs a sibling script by plain python: the same rule
