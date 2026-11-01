@@ -460,3 +460,22 @@ def test_a_change_under_a_whole_tests_prefix_runs_that_tests_dir_whole_in_the_gr
     r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
     assert not r["ok"] and r["failed"] == "red-on-base", r
     assert "test_old" in r["rungs"][-1]["stdout_tail"] + r["rungs"][-1]["stderr_tail"]
+
+
+@pytest.mark.parametrize("name,write", [
+    ("symlink", lambda w: (w / "link").symlink_to("mod.py")),
+    ("sitecustomize", lambda w: (w / "sitecustomize.py").write_text("pass\n")),
+    ("claude-dir", lambda w: ((w / ".claude").mkdir(), (w / ".claude" / "settings.json").write_text("{}\n"))),
+    ("new-pinned-file", lambda w: (w / "ci" / "helper.py").write_text("pass\n")),
+])
+def test_a_maintainer_batch_clears_only_a_changed_pinned_file_not_the_other_pinned_refusals(tmp_path, name, write):
+    work, g, base, pinned = _project(tmp_path)
+    (work / "ci" / "lint_ok.py").write_text("raise SystemExit(0)  # edited by the maintainer\n")  # the one thing --maintainer clears
+    write(work)
+    (work / "mod.py").write_text("VALUE = 2\n")
+    (work / "test_mod.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 2\n")
+    g("add", "-A"), g("commit", "-q", "-m", name)
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False, maintainer=True)
+    assert not r["ok"] and r["failed"] == "pinned-checks", r
+    said = r["rungs"][0]["stderr_tail"]
+    assert "needs-maintainer" in said and "a pinned check file was changed" not in said

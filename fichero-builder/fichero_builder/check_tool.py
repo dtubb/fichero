@@ -574,8 +574,10 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
     cfg = load(pinned)
     bad = pinned_violations(root, since, head, cfg, pinned)
     noted = ""
-    if maintainer and bad:  # ponytail: the whole pinned list is noted, not only the "changed" kind; the reviewer reads it
-        noted, bad = "maintainer batch: " + "; ".join(bad), []
+    if maintainer:  # only "a pinned check file was changed/deleted" is noted; a symlink, sitecustomize/.pth, .claude/, a new pinned-path file still refuse
+        changed = [b for b in bad if ": a pinned check file was " in b]
+        if changed:
+            noted, bad = "maintainer batch: " + "; ".join(changed), [b for b in bad if b not in changed]
     if weak := weakened_tests(root, since, head, cfg):
         bad.append(f"the diff deletes or weakens existing tests ({', '.join(weak[:5])})")
     bad += [f"the diff rewrites the item's own acceptance ({h})" for h in acceptance_changed(root, since, head, cfg, protected_ids)[:8]]
