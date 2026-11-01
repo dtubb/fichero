@@ -386,6 +386,12 @@ def _require_owner_or_bootstrap(request: Request) -> None:
     raise HTTPException(status_code=403, detail="owner access required")
 
 
+def _require_owner_for_writes(request: Request) -> None:
+    """A router-level dependency: a read is anyone's, every other method is the owner's (the Mac's own machinery, #6325 H9)."""
+    if request.method not in ("GET", "HEAD", "OPTIONS"):
+        _require_owner_or_bootstrap(request)
+
+
 def _audit(
     request: Request,
     app_db: AppDatabase,

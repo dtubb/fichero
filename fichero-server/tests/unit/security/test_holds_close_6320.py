@@ -3,6 +3,8 @@
 alice (project editor, a deny on folder B), bob (project viewer, a deny on B), carla (editor of folder A, a decoy `?x_id=A` in the
 query) and dana (viewer of A, the same decoy). Each test fails on the code before its fix."""
 
+import re
+
 import pytest
 
 from fichero_server.db.manager import db_manager
@@ -461,3 +463,31 @@ def test_h7_the_write_check_reads_ids_and_items(project, four):
     b1 = project.ids["b1"]
     assert _all_refused(four, "POST", "/api/actions/invoke", {"name": "document.copy_into_project", "params": {"ids": [b1], "project_id": project.ids["A"]}})
     assert _all_refused(four, "POST", "/api/actions/invoke", {"name": "document.transfer", "params": {"items": [b1], "source": project.library}})
+
+
+def test_h9_the_machines_own_routes_are_the_owners(project, four):
+    """#6325 H9: the MLX runtime, local models, paired machines, the registry of libraries and the chain preset change the owner's Mac.
+    Every such write depends on the owner check (looked at, not fired: the runtime delete really deletes; the route sweep fires them in scratch);
+    the harmless ones are also fired."""
+    from fastapi.routing import APIRoute
+    from fichero_server.api.routes.auth.accounts import _require_owner_for_writes
+    from tests.route_inventory import served_routes
+
+    machine = re.compile(r"^/api/(local-inference|local-models|machines|registry|chains/presets)\b")
+    writes = [r for r in served_routes(project.harness.app) if isinstance(r, APIRoute) and machine.match(r.path) and set(r.methods) - {"GET", "HEAD", "OPTIONS"}]
+    assert len(writes) >= 15
+    open_routes = [f"{sorted(r.methods)} {r.path}" for r in writes if _require_owner_for_writes not in {d.call for d in _all_dependencies(r.dependant)}]
+    assert not open_routes, open_routes
+    erin = _person(project.harness, "erin")
+    project.harness.app_db.set_library_role(user_id=erin.id, library_path=authz.normalize_library_path(project.library), role=authz.ROLE_EDITOR)
+    for who, client in [(n, c) for n, c, _ in four] + [("erin", _as(project.harness, "erin"))]:
+        for method, path in (("DELETE", "/api/machines/x"), ("POST", "/api/registry/add"), ("POST", "/api/registry/update-access"), ("POST", "/api/chains/presets/paleography")):
+            got = client.request(method, path, json={})
+            assert got.status_code == 403, (who, method, path, got.status_code, got.text[:120])
+    assert _as(project.harness, "erin").get("/api/local-models").status_code == 200  # a read stays anyone's
+
+
+def _all_dependencies(dependant):
+    for dep in dependant.dependencies:
+        yield dep
+        yield from _all_dependencies(dep)

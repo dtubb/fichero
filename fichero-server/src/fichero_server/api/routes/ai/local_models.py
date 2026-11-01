@@ -5,7 +5,7 @@ Endpoints for managing locally-downloaded AI models (Whisper, embeddings, spaCy)
 Models are stored in ~/Library/Application Support/Fichero/models/
 """
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from fichero_server.actions.registry import ChangeSpec, action, started_by_for
 from pydantic import BaseModel
@@ -18,7 +18,9 @@ from fichero_server.models import (
     LocalModelListResponse,
 )
 
-router = APIRouter(prefix="/local-models")
+from fichero_server.api.routes.auth.accounts import _require_owner_for_writes
+
+router = APIRouter(prefix="/local-models", dependencies=[Depends(_require_owner_for_writes)])  # the Mac's models are the owner's
 
 
 # =============================================================================

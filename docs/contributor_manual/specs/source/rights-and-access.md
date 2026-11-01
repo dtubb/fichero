@@ -189,6 +189,9 @@ Rulings.
   I may read>` on a route that reads no `x_id` changes nothing, so it cannot turn a library-level read or write into a folder-level one (#6325, H5).
   A write's target pages are read from every `*_id`, `*_ids`, `ids` and `items` in its params, at any depth (H7), so `document.copy_into_project`
   and `document.transfer` are checked on the pages they name.
+  The Mac's own machinery is the owner's: every write under `/api/local-inference`, `/api/local-models`, `/api/machines`, `/api/registry` and
+  `POST /api/chains/presets/paleography` is refused to anyone but the owner (reads stay open); the MLX runtime, a model, a paired machine or
+  the list of libraries is not changed by an editor or viewer (H9, `source.rights.owner-only-asserted-in-the-action`).
   A person shared one folder opens the Table on it: `POST /api/documents/dataset/query` with that folder as `parent_id` answers,
   and a query for another folder, or none (the whole project), is refused (`source.rights.every-id-in-a-request-is-checked`).
 

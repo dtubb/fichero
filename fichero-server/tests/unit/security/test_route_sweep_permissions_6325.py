@@ -347,7 +347,6 @@ HOLES: dict[str, list] = {
     "H2 read routes outside the walked families": [("text", r"GET (/api/documents/collections|/api/kg/search|/api/recipes/samples|/api/search/explain/\{query\}|/view/kg/global)"),
                                                    ("text", r"POST /api/search/explain")],
     "H4 a conversation on a denied page is deleted": [("text", r"ACTION conversation\.delete")],
-    "H9 the machine's own routes": [("machine", r".*")],
 }
 
 

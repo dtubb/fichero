@@ -29,6 +29,7 @@ from fichero_server.actions.registry import (
 )
 from fichero_server.api.auth import action_context
 from fichero_server.api.main import get_library_database_for_write
+from fichero_server.api.routes.auth.accounts import _require_owner_for_writes
 from fichero_server.db import Database
 from fichero_server.models import DocType, Document
 from fichero_server.models.transfer import (
@@ -46,7 +47,7 @@ from fichero_server.transfer import copy as transfer_copy
 from fichero_server.transfer.plan import build_plan
 
 router = APIRouter()
-machines_router = APIRouter()
+machines_router = APIRouter(dependencies=[Depends(_require_owner_for_writes)])  # paired machines are the owner's
 
 ALIASES_STAY = "Aliases stay within a project."
 

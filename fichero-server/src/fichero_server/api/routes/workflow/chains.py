@@ -31,6 +31,7 @@ from fichero_server.workflows.types import WorkflowDef
 from fichero_server.workflows.workflow_store import WorkflowStore
 from fichero_server.db import db_manager
 from fichero_server.api.library_header import require_library_path
+from fichero_server.api.routes.auth.accounts import _require_owner_for_writes
 from fichero_server.api.main import (
     assert_library_read_authorized, get_library_database_for_write, input_document_ids, write_check,
 )
@@ -657,7 +658,7 @@ async def paleography_preset_preview(
     )
 
 
-@router.post("/presets/paleography", response_model=PaleographyPresetResponse)
+@router.post("/presets/paleography", response_model=PaleographyPresetResponse, dependencies=[Depends(_require_owner_for_writes)])
 async def paleography_preset_create(
     request: Request,
     x_fichero_library_path: str = Depends(require_library_path),

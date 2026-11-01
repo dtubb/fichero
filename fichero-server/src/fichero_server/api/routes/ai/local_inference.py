@@ -9,7 +9,7 @@ import shlex
 import threading
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path
 from pydantic import BaseModel, Field
 
 from fichero_server.llm.local_inference import (
@@ -29,7 +29,9 @@ from fichero_server.llm.local_model_facts import get_local_inference_capabilitie
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/local-inference")
+from fichero_server.api.routes.auth.accounts import _require_owner_for_writes
+
+router = APIRouter(prefix="/local-inference", dependencies=[Depends(_require_owner_for_writes)])  # the Mac's runtime is the owner's
 
 DEFAULT_OMLX_PROFILE_ID = "app-omlx"
 DEFAULT_OMLX_BASE_URL = "http://localhost:8000/v1"
