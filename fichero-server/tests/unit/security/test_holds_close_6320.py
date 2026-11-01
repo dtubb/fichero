@@ -690,3 +690,34 @@ def test_single_user_a_paired_device_acts_as_the_owner_so_the_owner_only_actions
             raise AssertionError(f"{name} refused the one person: {refused}") from refused
         except Exception:  # noqa: BLE001 -- a missing provider or folder is past the owner check
             pass
+
+
+def _plain(project, name, role):
+    u = _person(project.harness, name)
+    project.harness.app_db.set_library_role(user_id=u.id, library_path=authz.normalize_library_path(project.library), role=role)
+    return _as(project.harness, name)
+
+
+def test_o2_a_person_shared_one_folder_writes_notes_and_annotations_on_that_folder_only(project, four):
+    a1, b1 = project.ids["a1"], project.ids["b1"]
+    carla, dana = ({n: c for n, c, _ in four})["carla"], ({n: c for n, c, _ in four})["dana"]
+    def note(doc):
+        return carla.put(f"/api/documents/{doc}/notes", json={"content": "n"}).status_code
+
+    def mark(who, body):
+        return who.post("/api/annotations", json=body).status_code
+
+    assert (note(a1), note(b1)) == (200, 403)
+    assert mark(carla, {"kind": "highlight", "document_id": a1}) == 200
+    assert mark(carla, {"kind": "highlight", "document_id": b1}) == 403
+    assert mark(carla, {"kind": "highlight"}) == 403  # names nothing: the library itself
+    assert mark(dana, {"kind": "highlight", "document_id": a1}) == 403  # shared to read only
+    assert carla.post("/api/research/notes", json={"project_id": "p", "content": "c"}).status_code == 403  # a research project's note is the project's, not a folder's
+
+
+def test_viewers_cannot_spend_keys_or_use_the_network(project):
+    fred, erin = _plain(project, "fred", authz.ROLE_VIEWER), _plain(project, "erin", authz.ROLE_EDITOR)
+    for path, body in (("/api/model-comparison/compare", {}), ("/api/model-comparison/compare-node", {}),
+                       ("/api/research/tools/web-search", {}), ("/api/research/tools/browser-navigate", {})):
+        assert fred.post(path, json=body).status_code == 403, path
+        assert erin.post(path, json=body).status_code != 403, path  # past the gate (the empty body is then a 422)

@@ -37,7 +37,7 @@ import fichero_server.api.routes.kg.pykeen  # noqa: F401,E402
 
 
 def _ctx(actor: str = "alice") -> ActionContext:
-    return ActionContext(actor=actor, library_path="/lib/test.fichero")
+    return ActionContext(actor=actor, library_path="/lib/test.fichero", is_bootstrap=True)
 
 
 class TestClaimEmbedAction:

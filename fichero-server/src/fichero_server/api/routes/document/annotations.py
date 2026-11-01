@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field, field_validator
 from fichero_server.api.auth import action_context
 from fichero_server.api.change_stream import emit_change
 from fichero_server.api.library_header import require_library_path
-from fichero_server.api.main import get_library_database, get_library_database_for_write, read_check
+from fichero_server.api.main import get_library_database, get_library_database_for_named_write, get_library_database_for_write, read_check
 from fichero_server.actions.registry import audit_with_digests, registry
 from fichero_server.api.routes.document.segment_conversion import (
     AnchorBasis,
@@ -262,7 +262,7 @@ def create_annotation_impl(
 @router.post("", response_model=Annotation, summary="Create an annotation")
 async def create_annotation(
     request: AnnotationCreateRequest,
-    db: Database = Depends(get_library_database_for_write),
+    db: Database = Depends(get_library_database_for_named_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> Annotation:
     result = registry.invoke(

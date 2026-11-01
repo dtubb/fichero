@@ -46,7 +46,7 @@ if TYPE_CHECKING:
     import httpx
 
 from fichero_server.api.library_header import require_library_path
-from fichero_server.api.main import get_library_database_for_write, write_check
+from fichero_server.api.main import editor_or_owner_only, get_library_database_for_write, write_check
 from fichero_server.db import Database
 from fichero_server.models import DocType, Document
 from fichero_server.models.research import (
@@ -240,7 +240,7 @@ async def _safe_http_get(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-@router.post("/tools/web-search", response_model=WebSearchResponse)
+@router.post("/tools/web-search", response_model=WebSearchResponse, dependencies=[Depends(editor_or_owner_only)])
 async def execute_web_search(
     request: WebSearchRequest,
 ) -> WebSearchResponse:
@@ -328,7 +328,7 @@ async def execute_web_search(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-@router.post("/tools/browser-navigate", response_model=BrowserNavigateResponse)
+@router.post("/tools/browser-navigate", response_model=BrowserNavigateResponse, dependencies=[Depends(editor_or_owner_only)])
 async def execute_browser_navigate(
     request: BrowserNavigateRequest,
 ) -> BrowserNavigateResponse:

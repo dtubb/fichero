@@ -1655,11 +1655,21 @@ def get_library_database_for_write(
     )
 
 
+def get_library_database_for_named_write(
+    request: Request,
+    x_fichero_library_path: str = Depends(require_library_path),
+) -> Database:
+    """For a write whose body names what it touches and whose handler runs a registry action: the action checks each named id (and
+    the library itself when it names none), so a person shared one folder can write on that folder and nowhere else (#6325 O2)."""
+    return _get_library_database_for_access(request, x_fichero_library_path, write=True, named=[])
+
+
 def _get_library_database_for_access(
     request: Request,
     x_fichero_library_path: str,
     *,
     write: bool,
+    named: list[str | None] | None = None,
 ) -> Database:
     if not x_fichero_library_path:
         raise HTTPException(
@@ -1673,7 +1683,7 @@ def _get_library_database_for_access(
     _bootstrap_legacy_library_owner_if_needed(request, x_fichero_library_path)
 
     if write:
-        assert_library_write_authorized(request, x_fichero_library_path)
+        assert_library_write_authorized(request, x_fichero_library_path, named=named)
     else:
         assert_library_read_authorized(request, x_fichero_library_path)
 
@@ -2003,6 +2013,19 @@ def whole_library_reader_only(request: Request, library_path: str | None = Depen
     if document_reader(request, library_path) is not None and not authz.is_library_owner(getattr(request.state, "user", None), library_path):
         raise LibraryAccessDeniedError(library_access_denial_payload(
             request, library_path, required="read", detail="read access denied"))
+
+
+def editor_or_owner_only(request: Request, library_path: str | None = Depends(optional_library_path)) -> None:
+    """A dependency for a route that spends the owner's keys or uses the network (model comparison, web search, browser): a
+    viewer is refused; an editor, the owner and the single-user app pass (#6325 owner ruling)."""
+    from fichero_server.api.auth import library_access_denial_payload
+    from fichero_server.security import authz
+
+    state = getattr(request, "state", None)
+    if getattr(state, "bootstrap_auth", False) or authz.can_write(getattr(state, "user", None), library_path):
+        return
+    raise LibraryAccessDeniedError(library_access_denial_payload(
+        request, library_path, required="write", detail="write access required"))
 
 
 def readable_documents(request: Request | None, library_path: str | None, scope: list[str]) -> list[str]:

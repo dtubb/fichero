@@ -315,11 +315,8 @@ NO_CALLER_CLEARED: dict[str, tuple[str, str]] = {
     "POST /api/integrations/tinderbox/notes": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
     "POST /api/integrations/{app_name}/open/{external_id}": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
     "POST /api/integrations/{app_name}/refresh": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
-    "POST /api/model-comparison/compare": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
     "POST /api/model-comparison/estimate-cost": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
     "POST /api/model-comparison/recommend-models": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
-    "POST /api/research/tools/browser-navigate": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
-    "POST /api/research/tools/web-search": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
     "POST /api/workflows/tools/{tool_name}/prompt": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
     "PUT /api/integrations/tinderbox/notes/{external_id}/attributes": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
     "DELETE /api/libraries/{lib:path}/entity-types/{entity_type_key}": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
@@ -346,7 +343,7 @@ NO_CALLER_CLEARED: dict[str, tuple[str, str]] = {
     "POST /api/sandbox/security-scoped-access": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
     "PUT /api/auth/local-clients/switches": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
 }
-_CALLER_DEPS = {"require_library_path", "get_library_database", "get_library_database_for_write", "optional_library_path", "get_action_store",
+_CALLER_DEPS = {"require_library_path", "get_library_database", "get_library_database_for_write", "get_library_database_for_named_write", "editor_or_owner_only", "optional_library_path", "get_action_store",
                 "get_action_store_for_write", "_require_owner_or_bootstrap", "_require_owner_for_writes", "action_context", "request_actor", "_owner_only", "get_scheduler",
                 "get_scheduler_for_write", "get_file_watcher", "get_file_watcher_for_write", "readable_rows"}
 _CALLER_CODE = re.compile(r"\b(?:registry\.invoke|assert_library_\w+|read_check|write_check|owner_check|require_owner|_require_\w*owner\w*|"

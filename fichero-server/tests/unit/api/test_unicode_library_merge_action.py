@@ -160,7 +160,7 @@ def _register(global_db: Database, path: Path) -> None:
 
 
 def _ctx(library_path: str | None = None) -> ActionContext:
-    return ActionContext(actor="ui", library_path=library_path)
+    return ActionContext(actor="ui", library_path=library_path, is_bootstrap=True)
 
 
 def _seed_sidecar_merge_pair(tmp_path: Path, global_db: Database) -> tuple[Path, Path]:

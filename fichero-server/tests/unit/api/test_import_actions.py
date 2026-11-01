@@ -46,7 +46,7 @@ from fichero_server.models import ActionAudit, Document
 def _ctx(db) -> ActionContext:
     # library_path must be the real package dir so the registry emits and the
     # impls resolve package_path; for the test package db.path lives inside it.
-    return ActionContext(actor="ui", library_path=str(Path(db.path).parent))
+    return ActionContext(actor="ui", library_path=str(Path(db.path).parent), is_bootstrap=True)
 
 
 @pytest.fixture

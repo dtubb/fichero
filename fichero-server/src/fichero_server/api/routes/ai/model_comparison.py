@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from fichero_server.db.app import AppDatabase, get_app_db
 from fichero_server.api.library_header import require_library_path
-from fichero_server.api.main import get_library_database_for_write, input_document_ids, read_check
+from fichero_server.api.main import editor_or_owner_only, get_library_database_for_write, input_document_ids, read_check
 from fichero_server.db import Database
 from fichero_server.llm.language_coverage import (
     LanguageFitModelSpec,
@@ -561,7 +561,7 @@ def _node_inputs(
 # =============================================================================
 
 
-@router.post("/compare")
+@router.post("/compare", dependencies=[Depends(editor_or_owner_only)])
 async def compare_models(
     request: CompareRequest,
     app_db: AppDatabase = Depends(_get_app_database),
@@ -885,7 +885,7 @@ async def compare_workflow_across_models(
     return ComparisonResultResponse(**result.to_dict())
 
 
-@router.post("/compare-node")
+@router.post("/compare-node", dependencies=[Depends(editor_or_owner_only)])
 async def compare_workflow_node(
     request: NodeCompareRequest,
     app_db: AppDatabase = Depends(_get_app_database),
