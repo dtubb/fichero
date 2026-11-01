@@ -109,6 +109,12 @@ struct CompareViewModel: Equatable {
         return (bbox, photograph)
     }
 
+    /// Said under the picture when the page has saved edits whose lines' place is not known: no box is drawn, and why.
+    static func noBoxesNote(readFrom: String?, followed: Bool) -> String? {
+        readFrom == "edited" && !followed
+            ? "The lines' place on this edited page is not known, so no boxes are drawn." : nil
+    }
+
     /// `drawnBox` over one of the engine's lines and its answer's frame.
     static func drawnBox(of line: Components.Schemas.CompareLine, frame: Components.Schemas.CompareFrame?,
                          photograph: (width: Int, height: Int)?) -> (box: [Double], image: (width: Int, height: Int))? {

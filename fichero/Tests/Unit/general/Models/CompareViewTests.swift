@@ -120,4 +120,12 @@ struct CompareViewTests {
         #expect(CompareViewModel.drawnBox(boxes: (bbox, nil), readFrom: "edited", followed: false,
                                           frameSize: edited, photograph: photo) == nil)
     }
+
+    @Test("a page with saved edits and unknown lines says why it has no boxes; other pages say nothing")
+    func noBoxesSaysWhy() {
+        #expect(CompareViewModel.noBoxesNote(readFrom: "edited", followed: false) != nil)
+        #expect(CompareViewModel.noBoxesNote(readFrom: "edited", followed: true) == nil)
+        #expect(CompareViewModel.noBoxesNote(readFrom: "original", followed: false) == nil)
+        #expect(CompareViewModel.noBoxesNote(readFrom: nil, followed: false) == nil)
+    }
 }

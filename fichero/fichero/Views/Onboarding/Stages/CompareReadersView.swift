@@ -44,6 +44,17 @@ struct CompareReadersView: View {
     }
 
     private func picture(_ model: CompareViewModel) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            boxedPicture(model)
+            if let note = CompareViewModel.noBoxesNote(readFrom: store.frame?.readFrom.rawValue,
+                                                       followed: store.frame?.followed ?? false) {
+                Text(note).font(.caption).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("compare.noBoxes")
+            }
+        }
+    }
+
+    private func boxedPicture(_ model: CompareViewModel) -> some View {
         LibraryImageView(documentId: store.pageId, imageType: .display)
             .aspectRatio(contentMode: .fit)
             .overlay {
