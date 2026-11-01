@@ -156,6 +156,7 @@ SCOPED_LIBRARY_READ_ROUTES: frozenset[str] = frozenset({
     "fichero_server.api.routes.find_documents:list_find_documents_scores",
     "fichero_server.api.routes.training:preview_training_set",
     "fichero_server.api.routes.citation.rendering:export_bibtex",
+    "fichero_server.api.routes.document.dataset:dataset_query",  # no id in the path: its body names the folder, `read_check` walks it (#6320)
     "fichero_server.api.routes.document.documents:list_documents",
     "fichero_server.api.routes.document.documents:list_roots",
     "fichero_server.api.routes.document.documents:list_workspaces",

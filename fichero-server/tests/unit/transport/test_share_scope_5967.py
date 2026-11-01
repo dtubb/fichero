@@ -215,7 +215,8 @@ def test_every_listed_route_exists_and_filters_its_rows():
     assert not missing, f"listed but not a route (renamed?): {missing}"
     for name in authz.SCOPED_LIBRARY_READ_ROUTES:
         route = by_id[name]
-        filters = ("readable_documents" in inspect.getsource(route.endpoint)
+        source = inspect.getsource(route.endpoint)
+        filters = ("readable_documents" in source or "read_check(" in source  # a body that names its folder is walked, whole or refused
                    or any(getattr(d.call, "__name__", "") == "readable_rows" for d in _walk(route.dependant)))
         assert filters, f"{name} is on the scoped list but does not filter per row"
 

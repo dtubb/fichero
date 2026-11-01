@@ -167,6 +167,8 @@ Rulings.
   `entity.neighborhood` (no edge from a hidden claim) and `search.query` (its `total_results` drops what was left out) answer as the plain routes do.
   `POST /api/workflow-execution/threads/{id}/resume` is refused, and returns no run state, to a caller who cannot write
   every page the checkpoint, the run's start or the call names (`source.rights.every-id-in-a-request-is-checked`).
+  A person shared one folder opens the Table on it: `POST /api/documents/dataset/query` with that folder as `parent_id` answers,
+  and a query for another folder, or none (the whole project), is refused (`source.rights.every-id-in-a-request-is-checked`).
 
 ## Triaged from the backlog (2026-10-04)
 - `source.rights.engine-wide-stores-follow-the-library` — **[GAP]** (#5181) engine-wide stores that mention a library's content (agent write audit, PyKEEN jobs and predictions, etc.) are filtered by that library's permissions, and truly global settings are owner-only.

@@ -343,3 +343,12 @@ def test_n6_a_run_is_resumed_only_by_someone_who_can_write_the_pages_it_works_on
     # a continuation naming a denied page of its own is refused too
     ck.checkpoint["channel_values"].pop("selected_doc_ids")
     assert _all_refused(four, "POST", "/api/workflow-execution/threads/thread-x/resume", {"inputs": {"doc_id": project.ids["b1"]}})
+
+
+def test_n7_a_person_shared_one_folder_opens_the_table_on_it_and_nowhere_else(project, four):
+    by = {name: client for name, client, _ in four}
+    for name in ("carla", "dana"):
+        got = by[name].post("/api/documents/dataset/query", json={"parent_id": project.ids["A"]})
+        assert got.status_code == 200, (name, got.status_code, got.text[:200])
+        for refused in ({"parent_id": project.ids["B"]}, {}, {"parent_id": None}):
+            assert by[name].post("/api/documents/dataset/query", json=refused).status_code == 403, (name, refused)
