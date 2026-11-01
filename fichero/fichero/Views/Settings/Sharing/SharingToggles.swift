@@ -3,10 +3,10 @@ import Foundation
 /// The two switches on Settings › Sharing, and nothing else is asked
 /// (sharing.two-toggles-wording, #3284). Both rows render from this.
 enum SharingToggles {
-    enum ID { case sharing, multiUser }
+    enum Kind { case sharing, multiUser }
 
     struct Row {
-        let id: ID
+        let id: Kind
         let label: String
         let caption: String
     }
@@ -22,7 +22,7 @@ enum SharingToggles {
     static let location = "Settings → Sharing → Advanced"
 
     /// The switch's name, found by its id (not by its place in the list).
-    static func label(_ id: ID) -> String { all.first { $0.id == id }?.label ?? "" }
+    static func label(_ id: Kind) -> String { all.first { $0.id == id }?.label ?? "" }
 
     /// What the People tab's "Invite a Person" section says while Multi-user is off: it names the switch where it is,
     /// not a place it is not. It promises nothing about restarting: Multi-user stays off until the owner has a
@@ -32,5 +32,5 @@ enum SharingToggles {
             + "Turn on \(label(.multiUser)) in \(location)."
     }
 
-    static func caption(_ id: ID) -> String { all.first { $0.id == id }?.caption ?? "" }
+    static func caption(_ id: Kind) -> String { all.first { $0.id == id }?.caption ?? "" }
 }
