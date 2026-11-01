@@ -98,7 +98,7 @@ fails any run whose coverage drops — baselines move only by deliberate
 `--update-baseline` commits.
 
 **Design-led surfaces carry ONE name across FOUR places** (guardrails enforce, all in the gate
-AND in CI): a spec `docs/contributor_manual/specs/<name>.md`, a GitHub milestone named `<name>`
+on the Macs; there is no GitHub CI): a spec `docs/contributor_manual/specs/<name>.md`, a GitHub milestone named `<name>`
 (its description points back at the spec), a **user-manual section** that tells a USER about the
 surface, and a test tag of the same area name **front and back** — Swift `@Tag` in
 `fichero/Tests/Unit/general/TestTags.swift`, pytest marker in `fichero-server/pyproject.toml`.

@@ -156,15 +156,14 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   tests. Tests: `pipeline/tests/test_gh.py::test_every_write_goes_through_one_function_and_dry_run_writes_nothing`,
   `pipeline/tests/test_core.py::test_claimed_label_follows_the_state`,
   `pipeline/tests/test_feeder.py::test_claimed_issues_are_skipped`.
-- `pipeline.github-actions` [PARTIAL] (#6116) — GitHub keeps a small, natural role, one workflow each: `ci.yml` runs ruff,
-  the guard scripts that need no Mac tool, the unit tests that need no models, on pushes to integration as well as
-  main and on PRs, plus `lane_ready_check.sh` on PRs (Swift unit tests stay on the Macs until an unsigned
-  `xcodebuild test` without the embedded engine is shown to work on a free runner); `close-fixed-issues.yml` runs
+- `pipeline.github-actions` [PARTIAL] (#6116) — the Macs are the only gate: no GitHub workflow runs ruff, guards or
+  tests (owner ruling 2026-11-01; `ci.yml` was deleted after it had been disabled by hand and had never run on
+  integration). GitHub keeps only what needs nothing but GitHub, one workflow each: `close-fixed-issues.yml` runs
   `close_fixed_issues.py --apply` after a push to integration (a `Part of #N` never closes); `issue-milestone.yml`
   labels a new issue with no milestone `no-milestone` and one by an outside author `from-user`. Anything more on
   GitHub needs a reason. Tests: a `test_workflows` pytest under `fichero-server/tests/unit/scripts/`, written with
-  Step 1.1 (the YAML is parsed and each
-  workflow's trigger, condition and command are asserted); run on a test PR.
+  Step 1.1 (the YAML is parsed and each workflow's trigger, condition and command are asserted; it also asserts
+  no workflow runs pytest, ruff or a guard script).
 
 ### Running the work (the runner + the feeder)
 - `pipeline.one-state-machine` [OK] — an item moves only by the runner's transitions, each in the

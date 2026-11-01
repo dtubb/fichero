@@ -14,14 +14,12 @@ import XCTest
 @MainActor
 final class CrossLanguageGateTests: XCTestCase {
     func test_python_gate_passes() throws {
-        // Skip on Xcode Cloud — the Python gate runs in GitHub Actions Linux
-        // (.github/workflows/ci.yml: ruff + pytest + OpenAPI drift) where pip
-        // deps and openapi.json regen are cheap. Running them inside the Swift
-        // suite on a fresh Mac runner would need a 5-10 min pre-action to set
-        // up the venv, and we already have the Python side covered elsewhere.
+        // Skip on Xcode Cloud — the Python gate (ruff + pytest + OpenAPI drift)
+        // runs only on the Macs through scripts/verify_all.sh; there is no
+        // GitHub CI. A fresh Xcode Cloud runner has no venv.
         let env = ProcessInfo.processInfo.environment
         if env["CI_XCODE_CLOUD"] != nil || env["XCODE_CLOUD_DEPLOYMENT_VARIANT"] != nil {
-            throw XCTSkip("Python gate runs in GitHub Actions Linux CI; skipped on Xcode Cloud.")
+            throw XCTSkip("Python gate runs on the Macs only; skipped on Xcode Cloud.")
         }
         // Opt-in only: verify_python.sh is a 30-45 MINUTE sweep — nesting it
         // inside one XCTest blows the per-test watchdog and truncates the
