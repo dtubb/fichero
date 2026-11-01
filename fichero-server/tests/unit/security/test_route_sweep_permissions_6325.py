@@ -299,7 +299,9 @@ def _run_sweep(project, scratch_dir):
                         call(name, "get", f"GET {route.path}", "GET", url, decoy)
     _TIMES["get"] = time.monotonic() - started
 
-    for aname, spec in sorted(registry._actions.items(), key=lambda kv: (not kv[1].read_only, kv[0])):  # read-only actions first
+    # read-only actions first; an action another test registered (and left behind) is not the app's
+    shipped = ((n, sp) for n, sp in registry._actions.items() if getattr(sp.execute, "__module__", "").startswith("fichero_server"))
+    for aname, spec in sorted(shipped, key=lambda kv: (not kv[1].read_only, kv[0])):
         model = getattr(spec, "params_model", None) or getattr(spec, "params", None)
         bodies = []
         for variant in variants:
