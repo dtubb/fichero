@@ -105,11 +105,15 @@ final class SendLogsToMaintainerTests: XCTestCase {
             "~/Library/Logs/Fichero"
         )
         XCTAssertEqual(SupportLogs.anonymisedPath("/Users/" + "jane" + "/Library/Logs/Fichero", home: "/elsewhere"), "~/Library/Logs/Fichero")
-        let logs = scratch.appendingPathComponent("Logs/Fichero", isDirectory: true)
+        // A logs folder UNDER THE HOME (missing is fine: collect says so), so a raw path would carry the username; the
+        // temporary directory never does, which is why the earlier form of this test could not fail.
+        let logs = URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent("Library/Logs/Fichero-test-\(UUID().uuidString)", isDirectory: true)
         let out = scratch.appendingPathComponent("out", isDirectory: true)
         try SupportLogs.collect(logsDirectory: logs, into: out, about: "Fichero x (y)\n")
         let about = try String(contentsOf: out.appendingPathComponent("about.txt"), encoding: .utf8)
-        XCTAssertFalse(about.contains(NSUserName() + "/"), "about.txt names the user: \(about)")
+        XCTAssertTrue(about.contains("~/Library/Logs/Fichero-test-"), "the logs folder is written from the home as ~: \(about)")
+        XCTAssertFalse(about.contains(NSUserName()), "about.txt names the user: \(about)")
     }
 
     func testExclusionRules() {

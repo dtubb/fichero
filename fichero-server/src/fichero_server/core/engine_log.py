@@ -166,7 +166,15 @@ def start(
     interval: float = 5.0,
 ) -> None:
     """Rotate now and while running, and prune old logs once. Only acts when this process's stdout IS `log`
-    (the app's capture); a dev engine writing to a terminal is never touched."""
+    (the app's capture); a dev engine writing to a terminal is never touched.
+    `rotate_and_prune` then `start_watch` is the same in two steps, so the engine can fork its seed between them
+    (activity.lane.embedder-forks-before-threads: the seed inherits the fresh descriptors, and no thread exists yet)."""
+    rotate_and_prune(log, max_bytes, keep)
+    start_watch(log, max_bytes, keep, interval)
+
+
+def rotate_and_prune(log: Path, max_bytes: int = DEFAULT_MAX_BYTES, keep: int = DEFAULT_KEEP) -> None:
+    """The start-up half: retrying writers, one rotation, one prune. Starts no thread."""
     _retry_through_the_swap(sys.stdout)
     _retry_through_the_swap(sys.stderr)
     try:
@@ -177,6 +185,9 @@ def start(
     except OSError:
         logger.warning("could not rotate or prune %s", log, exc_info=True)
 
+
+def start_watch(log: Path, max_bytes: int = DEFAULT_MAX_BYTES, keep: int = DEFAULT_KEEP, interval: float = 5.0) -> None:
+    """The running half: the rotation thread. Call it after the seed is forked."""
     def watch() -> None:
         while True:
             time.sleep(interval)

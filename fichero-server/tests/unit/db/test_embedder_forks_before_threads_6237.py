@@ -69,6 +69,35 @@ def test_the_engine_makes_the_seed_before_it_starts_any_thread(monkeypatch):
     assert order == ["seed"], f"the engine started a thread before the seed: {order}"
 
 
+def test_with_a_log_path_the_rotation_thread_starts_after_the_seed(monkeypatch, tmp_path):
+    """The app sets FICHERO_ENGINE_LOG_PATH; the rotation thread must still come after the seed (review 9 of the log branch)."""
+    from fichero_server import __main__ as engine
+
+    from fichero_server.core import engine_log
+
+    monkeypatch.setenv("FICHERO_ENGINE_LOG_PATH", str(tmp_path / "engine.log"))
+    order: list[str] = []
+    real = threading.Thread
+
+    def seed_here() -> None:
+        order.append("seed")
+
+    def a_thread(*args, **kwargs):
+        order.append(f"thread {kwargs.get('name')}")
+        return real(*args, **kwargs)
+
+    def stop() -> None:
+        raise SystemExit(0)  # the line after the watcher: main() never reaches a server, and a missing watcher cannot hang here
+
+    monkeypatch.setattr(engine_log, "rotate_and_prune", lambda *a, **k: order.append("rotate"))
+    monkeypatch.setattr(engine, "_ignore_sigpipe", stop)
+    monkeypatch.setattr(embed_process, "start_seed", seed_here)
+    monkeypatch.setattr(threading, "Thread", a_thread)
+    with pytest.raises(SystemExit):
+        engine._main([])
+    assert order == ["rotate", "seed", "thread engine-log-rotation"], f"wrong start order: {order}"
+
+
 def test_apple_visions_worker_is_the_seeds_child_too(seed, monkeypatch):
     """Apple Vision's worker (#5392) is forked the same way: from the seed, never from the running engine."""
     monkeypatch.delenv("FICHERO_APPLE_VISION_IN_PROCESS", raising=False)
