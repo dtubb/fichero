@@ -147,6 +147,7 @@ def test_the_audit_names_the_pages_and_the_library_and_the_row_names_the_pages_l
 
 
 def test_a_resumed_job_keeps_its_counts_and_does_not_look_at_the_pages_it_has_done(db, monkeypatch):
+    db.execute("DELETE FROM jobs WHERE kind = ? AND state = 'waiting'", [repair.KIND])  # the open's own queued job must not race this one
     pages = [_page(db, {"description": dict(REAL)}, ("description", f"text {n}")) for n in range(4)]
     ids = sorted(p.id for p in pages)
     job_id = "repair-resume"
