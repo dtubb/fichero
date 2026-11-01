@@ -11,7 +11,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from fichero_server.api.main import get_library_database
+from fichero_server.api.main import whole_library_reader_only, get_library_database
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
     ClaimRelationType,
@@ -52,7 +52,7 @@ def _source_docs(db: Database, claim: KnowledgeClaim) -> list[dict[str, Any]]:
     return out
 
 
-@router.get("/{claim_id}/contradictions", response_model=ContradictionListResponse)
+@router.get("/{claim_id}/contradictions", response_model=ContradictionListResponse, dependencies=[Depends(whole_library_reader_only)])
 @off_loop
 def contradictions(
     claim_id: str,
@@ -105,7 +105,7 @@ def contradictions(
     return ContradictionListResponse(items=out, count=len(out))
 
 
-@router.get("/{claim_id}/evidence-chain", response_model=EvidenceChain)
+@router.get("/{claim_id}/evidence-chain", response_model=EvidenceChain, dependencies=[Depends(whole_library_reader_only)])
 @off_loop
 def evidence_chain(
     claim_id: str,

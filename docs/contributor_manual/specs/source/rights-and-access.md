@@ -164,7 +164,16 @@ Rulings.
   `/api/agent-memory`, `/api/agent-memory/{id}` and the chat conversation list and read leave out (list) or refuse
   (read, 403) a claim, note or conversation resting on a page the caller may not read (`source.rights.claims-with-only-denied-evidence-are-hidden`).
   `POST /api/actions/invoke` and the chat tools share that reader: `claim.list`, `claim.get`, `entity.list`, `entity.get`,
-  `entity.neighborhood` (no edge from a hidden claim) and `search.query` (its `total_results` drops what was left out) answer as the plain routes do.
+  `entity.neighborhood` (no edge from a hidden claim) and `search.query` (it gives no exact `total_results` to a caller who reads only some pages, because a count would include the pages left out) answer as the plain routes do.
+  The entity routes (`GET /api/entities`, `/{id}`), `GET /api/kg/graph/neighborhood/{id}` and `GET /api/kg/search` leave out
+  (lists, edges, hits) or refuse (a single read, 403) what rests only on pages the caller may not read. The routes that count or
+  walk the whole library's claims and entities (entity top, claim counts, digest, documents, co-occurrence, drill-down,
+  biography, export, place, linked places, alias map, resolve; the KG graph metrics, paths, centrality, communities, similar,
+  components, triangles and clustering; claim similar, contradictions, evidence chain and semantic search; semantic entity
+  search) are refused to such a caller, since a count or a path cannot be filtered afterwards.
+  **The rule for a conversation is its scope: one scoped to, or answered from, a denied page (`scope_document_id`,
+  `document_ids`) is withheld. The limit: an unscoped conversation's messages are not scanned for text from a page denied
+  later.**
   `POST /api/workflow-execution/threads/{id}/resume` is refused, and returns no run state, to a caller who cannot write
   every page the checkpoint, the run's start or the call names (`source.rights.every-id-in-a-request-is-checked`).
   A person shared one folder opens the Table on it: `POST /api/documents/dataset/query` with that folder as `parent_id` answers,

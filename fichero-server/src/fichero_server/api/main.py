@@ -1931,6 +1931,29 @@ def document_reader(request: Request | None, library_path: str | None) -> Callab
     return lambda doc_id: bool(readable_documents(request, library_path, [doc_id]))
 
 
+def entity_visible(may_read: Callable[[str], bool] | None, entity: Any) -> bool:
+    """An entity drawn only from pages the caller may not read is hidden; one with no source page stays visible
+    (`source.rights.claims-with-only-denied-evidence-are-hidden`, #6320). `may_read` is `document_reader`'s answer."""
+    docs = entity.source_document_ids
+    return may_read is None or not docs or any(may_read(d) for d in docs)
+
+
+def claim_visible(may_read: Callable[[str], bool] | None, claim: Any) -> bool:
+    """A claim resting on a page the caller may not read is hidden; one with no source page stays visible (#6320)."""
+    return may_read is None or not claim.source_document_id or may_read(claim.source_document_id)
+
+
+def whole_library_reader_only(request: Request, library_path: str | None = Depends(optional_library_path)) -> None:
+    """A dependency for a route that sums or walks the whole library's claims or entities (counts, centrality, paths,
+    co-occurrence): refused to a caller whose reads differ page by page, because a count or a path cannot be filtered
+    after the fact. Fails closed (#6320)."""
+    from fichero_server.api.auth import library_access_denial_payload
+
+    if document_reader(request, library_path) is not None:
+        raise LibraryAccessDeniedError(library_access_denial_payload(
+            request, library_path, required="read", detail="read access denied"))
+
+
 def readable_documents(request: Request | None, library_path: str | None, scope: list[str]) -> list[str]:
     """The documents in `scope` this caller may read, in order (#5135; shared by every list route, #5180).
 

@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import request_actor
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.main import whole_library_reader_only, get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.db.embeddings import KG_CLAIM_EMBEDDINGS_TABLE
 from fichero_server.models import KGClaimSearchResponse, KGGraphListResponse
@@ -160,7 +160,7 @@ async def embed_claims(
     return EmbedClaimsResponse(**result.result)
 
 
-@router.get("", response_model=KGClaimSearchResponse)
+@router.get("", response_model=KGClaimSearchResponse, dependencies=[Depends(whole_library_reader_only)])
 async def search_claims_semantic(
     q: str = Query(..., description="Natural language query"),
     claim_type: ClaimType | None = Query(default=None),
@@ -180,7 +180,7 @@ async def search_claims_semantic(
     )
 
 
-@router.get("/{claim_id}/similar", response_model=KGGraphListResponse)
+@router.get("/{claim_id}/similar", response_model=KGGraphListResponse, dependencies=[Depends(whole_library_reader_only)])
 async def find_similar_claims(
     claim_id: str,
     limit: int = Query(default=10, ge=1, le=50),

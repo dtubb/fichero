@@ -322,7 +322,9 @@ def test_n5_the_action_route_reads_through_the_callers_reader_and_search_counts_
     monkeypatch.setattr(core, "_run_content_search_sync", lambda db_, req, q: (rows, 2, None))
     monkeypatch.setattr(core, "asdict", lambda r: {"document_id": r.document_id})
     got = dispatch_tool_call(db, "search.query", {"query": "x"}, library_path=project.library, is_bootstrap=True, may_read=lambda d: d != project.ids["b1"])
-    assert got.result["total_results"] == 1
+    assert got.result["total_results"] is None and got.result["has_more"] is False  # no exact total for a caller who reads only some pages
+    owner = dispatch_tool_call(db, "search.query", {"query": "x"}, library_path=project.library, is_bootstrap=True)
+    assert owner.result["total_results"] == 2
 
 
 def test_n6_a_run_is_resumed_only_by_someone_who_can_write_the_pages_it_works_on(project, four, monkeypatch):
@@ -352,3 +354,26 @@ def test_n7_a_person_shared_one_folder_opens_the_table_on_it_and_nowhere_else(pr
         assert got.status_code == 200, (name, got.status_code, got.text[:200])
         for refused in ({"parent_id": project.ids["B"]}, {}, {"parent_id": None}):
             assert by[name].post("/api/documents/dataset/query", json=refused).status_code == 403, (name, refused)
+
+
+def test_n5_the_entity_and_kg_routes_hide_what_rests_on_a_denied_page_and_aggregates_are_refused(project, four):
+    from fichero_server.models.knowledge import EntityType, KnowledgeEntity
+
+    db = db_manager.get_database(project.harness.library)
+    secret = KnowledgeEntity(canonical_name="SECRET entity", entity_type=EntityType.person, source_document_ids=[project.ids["b1"]])
+    plain = KnowledgeEntity(canonical_name="PLAIN entity", entity_type=EntityType.person, source_document_ids=[project.ids["a1"]])
+    db.save(secret), db.save(plain)
+    _seed_secret_records(project)
+    by = {name: (client, decoy) for name, client, decoy in four}
+    for name in ("alice", "bob", "carla", "dana"):
+        client, decoy = by[name]
+        for path in ("/api/entities", f"/api/entities/{secret.id}", f"/api/kg/graph/neighborhood/{secret.id}", "/api/kg/search?q=entity"):
+            sep = "&" if "?" in path else "?"
+            got = client.get(path + (decoy.replace("?", sep, 1) if decoy else ""))
+            assert got.status_code in (200, 403), (name, path, got.status_code)
+            assert "SECRET" not in got.text, (name, path, got.text[:200])
+        for path in ("/api/entities/top", "/api/entities/claim-counts", "/api/kg/graph/centrality", "/api/kg/graph/pagerank", f"/api/entities/{plain.id}/co-occurrence"):
+            got = client.get(path + decoy)
+            assert got.status_code == 403, (name, path, got.status_code)
+    alice, _ = by["alice"]
+    assert "PLAIN entity" in alice.get("/api/kg/search?q=entity").text and "PLAIN entity" in alice.get("/api/entities").text  # what she may read is still there

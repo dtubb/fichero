@@ -2791,15 +2791,15 @@ def _action_search_query(
     results, total_count, _stats = _run_content_search_sync(
         db, request, params.query
     )
-    if ctx.may_read is not None:  # the chat agent's caller reads only some pages (#6320)
-        kept = [r for r in results if ctx.may_read(r.document_id)]
-        total_count = max(0, total_count - (len(results) - len(kept)))  # ponytail: only this page's drops are known
-        results = kept
+    more = params.offset + len(results) < total_count
+    exact = ctx.may_read is None
+    if not exact:  # the caller reads only some pages: the exact total would count the ones left out, so none is given (#6320)
+        results = [r for r in results if ctx.may_read(r.document_id)]
     # db.SearchResult is a dataclass, not a pydantic model.
     result = {
         "results": [asdict(r) for r in results],
-        "total_results": total_count,
-        "has_more": params.offset + len(results) < total_count,
+        "total_results": total_count if exact else None,
+        "has_more": params.offset + len(results) < total_count if exact else more,
     }
     # Read-only: nothing changed, nothing to emit — the audit row invoke()
     # writes is the point (what was searched, by whom).

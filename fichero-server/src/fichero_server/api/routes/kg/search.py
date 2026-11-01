@@ -10,10 +10,11 @@ from __future__ import annotations
 import logging
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 
-from fichero_server.api.main import get_library_database
+from fichero_server.api.library_header import optional_library_path
+from fichero_server.api.main import claim_visible, document_reader, entity_visible, get_library_database
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
     Annotation,
@@ -54,6 +55,7 @@ class KGSearchResponse(BaseModel):
 )
 @off_loop
 def search_kg(
+    request: Request,
     q: str = Query(..., min_length=1),
     limit: int = Query(default=50, ge=1, le=200),
     types: list[HitType] | None = Query(
@@ -65,6 +67,7 @@ def search_kg(
     ),
     db: Database = Depends(get_library_database),
 ) -> KGSearchResponse:
+    may_read = document_reader(request, optional_library_path(request))
     needle = q.lower()
     requested = set(types) if types else {"entity", "claim", "note", "annotation"}
     hits: list[KGSearchHit] = []
@@ -80,6 +83,8 @@ def search_kg(
     trashed = trashed_document_ids(db)
     if "entity" in requested:
         for e in visible_entities(db, db.query(KnowledgeEntity), trashed):
+            if not entity_visible(may_read, e):
+                continue
             name = (e.canonical_name or "").lower()
             aliases = " ".join(e.aliases or []).lower()
             description = (e.description or "").lower()
@@ -96,6 +101,8 @@ def search_kg(
 
     if "claim" in requested:
         for c in visible_claims(db, db.query(KnowledgeClaim), trashed):
+            if not claim_visible(may_read, c):
+                continue
             text = (c.text or "").lower()
             excerpt = (c.source_excerpt or "").lower()
             if needle in text or needle in excerpt:
@@ -111,6 +118,8 @@ def search_kg(
 
     if "note" in requested:
         for n in db.query(Note):
+            if may_read is not None and not all(may_read(d) for d in n.linked_document_ids):
+                continue
             title = (n.title or "").lower()
             body = (n.body or "").lower()
             tags = " ".join(n.tags or []).lower()
@@ -126,6 +135,8 @@ def search_kg(
 
     if "annotation" in requested:
         for a in db.query(Annotation):
+            if may_read is not None and a.document_id and not may_read(a.document_id):
+                continue
             text = (a.text or "").lower()
             tags = " ".join(a.tags or []).lower()
             if needle in text or needle in tags:

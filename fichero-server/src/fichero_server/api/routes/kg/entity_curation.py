@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from fichero_server.api.library_header import require_library_path
 from fichero_server.api.auth import action_context, request_actor
 from fichero_server.api.routes.auth.accounts import _require_owner_or_bootstrap
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.main import whole_library_reader_only, get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.db.manager import db_manager
 from fichero_server.db.embeddings import KG_ENTITY_EMBEDDINGS_TABLE
@@ -880,7 +880,7 @@ async def embed_entities(
     return EmbedEntitiesResponse(**result.result)
 
 
-@router.get("/semantic", response_model=KGGraphListResponse)
+@router.get("/semantic", response_model=KGGraphListResponse, dependencies=[Depends(whole_library_reader_only)])
 async def search_entities_semantic(
     q: str = Query(..., description="Natural language query"),
     entity_type: EntityType | None = Query(default=None),
