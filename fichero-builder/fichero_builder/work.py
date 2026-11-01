@@ -6,6 +6,7 @@ prints the push line; nothing here pushes. Each step is a module function so a t
 from __future__ import annotations
 
 import json
+import re
 import shlex
 import subprocess
 import sys
@@ -131,6 +132,34 @@ def do_land(a, repo: str, head: str, verdicts: str, log: str) -> tuple[bool, str
     return _script("harness_land.py", repo, head, "--pinned", a.pinned, "--verdicts", verdicts, "--log", log)
 
 
+def base_of(brief: str, given: str) -> str:
+    """--base, else `(base <sha>)` on the brief's first line (brief_tool.cluster writes it)."""
+    if given:
+        return given
+    m = re.search(r"\(base ([0-9a-f]{7,40})\)", Path(brief).read_text().split("\n", 1)[0])
+    if not m:
+        raise ValueError(f"no --base and no `(base <sha>)` on the first line of {brief}")
+    return m.group(1)
+
+
+def ensure_pinned(root: str, brief: str, base: str) -> str:
+    """[land].pinned_dir/pinned-<base7> of root's harness.toml, a worktree of [check].engine_repo on branch pinned-<base7>
+    (the shape `builder landed` makes and later removes); made when missing, found otherwise."""
+    rules = tomllib.loads((Path(root) / "harness.toml").read_text())
+    repo, pinned_dir = rules["check"]["engine_repo"], Path(rules["land"]["pinned_dir"])
+    if not pinned_dir.is_absolute():
+        raise ValueError(f"[land].pinned_dir {str(pinned_dir)!r} must be an absolute path")
+    name = f"pinned-{base_of(brief, base)[:7]}"
+    dest = pinned_dir / name
+    if not dest.is_dir():
+        pinned_dir.mkdir(parents=True, exist_ok=True)
+        for args in (("branch", "-f", name, name[7:]), ("worktree", "add", "-q", str(dest), name)):
+            r = _git(repo, *args)
+            if r.returncode:
+                raise RuntimeError(f"git {' '.join(args)}: {r.stderr.strip()}")
+    return str(dest)
+
+
 def main(a) -> int:
     issues = list(a.issues)
 
@@ -143,13 +172,16 @@ def main(a) -> int:
         return 2
 
     try:
+        if not a.pinned:
+            a.pinned = ensure_pinned(a.root, a.brief, getattr(a, "base", ""))
+            step("pinned", True, a.pinned)
         cfg = check_tool.load(a.pinned)
         rules = tomllib.loads((Path(a.pinned) / "harness.toml").read_text())
         mdl = models.load(a.pinned)
         builder = a.model or models.for_role(mdl, "builder").model
         reviewer = models.for_role(mdl, "reviewer").model
         branch = rules["land"]["branch"]
-    except (models.Question, ValueError, OSError, KeyError) as e:
+    except (models.Question, ValueError, OSError, KeyError, RuntimeError) as e:
         step("rules", False, str(e))
         return question(f"the rules file cannot run the chain: {e}")
     repo = a.repo or cfg.engine_repo

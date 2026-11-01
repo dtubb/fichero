@@ -288,3 +288,42 @@ def test_a_misspelt_jail_key_is_a_question_row_not_a_traceback(real_chain, capsy
     assert real_chain([], toml='usr = "x"\n') == 2
     assert capsys.readouterr().out.startswith("QUESTION: ")
     assert rows()[-1]["ok"] is False
+
+
+def test_work_without_pinned_makes_the_pinned_worktree_for_the_briefs_base_and_reads_the_rules_from_it(scratch, monkeypatch):
+    """Item 4: no --pinned: [land].pinned_dir/pinned-<base7> is made from the engine repo (base from the brief's first line)
+    and the rules are read from THAT copy; a second run finds it and makes nothing."""
+    e, root = scratch.engine, scratch.tmp / "root"
+    (e / "harness.toml").write_text(RULES.replace('"/engine"', f'"{e}"') + f'[jail]\nuser = "wuser"\nworkroot = "{scratch.tmp}/wr"\n')
+    _g(e, "add", "harness.toml"), _g(e, "commit", "-qm", "rules")
+    base = _g(e, "rev-parse", "HEAD")
+    root.mkdir()
+    (root / "harness.toml").write_text(f'[land]\nbranch = "integration"\npinned_dir = "{scratch.tmp}/pins"\n[check]\nengine_repo = "{e}"\n')
+    (scratch.tmp / "b.txt").write_text(f"You are a worker in the dev harness. Branch step-1.1 in this worktree (base {base}). No push.\nmore\n")
+    seen = []
+    for k in ("do_run", "do_export", "do_fetch", "do_check", "do_review", "do_land"):
+        monkeypatch.setattr(work, k, lambda a, *r, _k=k: (seen.append((_k, a.pinned)), {"do_run": "done", "do_export": 1, "do_fetch": HEAD,
+                            "do_check": {"ok": True, "failed": ""}, "do_review": (True, "READY"), "do_land": (True, PUSH)}[_k])[1])
+    argv = ["work", "--brief", str(scratch.tmp / "b.txt"), "--worktree", str(scratch.wt), "--name", "n1", "--issues", "7",
+            "--root", str(root), "--state", str(scratch.tmp / "s")]
+    assert cli.main(argv) == 0
+    dest = scratch.tmp / "pins" / f"pinned-{base[:7]}"
+    assert (dest / "harness.toml").is_file()
+    assert {p for _, p in seen} == {str(dest)}
+    assert "pinned-" + base[:7] in _g(e, "branch", "--list", "pinned-*")
+    rows = [json.loads(x) for x in (scratch.tmp / "s" / "journal.jsonl").read_text().splitlines()]
+    assert [r["detail"] for r in rows if r.get("step") == "pinned"] == [str(dest)]
+    mtime = dest.stat().st_mtime
+    assert cli.main(argv) == 0  # found, not remade
+    assert dest.stat().st_mtime == mtime
+
+
+def test_work_without_pinned_and_no_base_in_the_brief_is_a_question(scratch, capsys):
+    root = scratch.tmp / "root"
+    root.mkdir()
+    (root / "harness.toml").write_text(f'[land]\nbranch = "integration"\npinned_dir = "{scratch.tmp}/pins"\n[check]\nengine_repo = "{scratch.engine}"\n')
+    (scratch.tmp / "b.txt").write_text("a brief with no base line\n")
+    assert cli.main(["work", "--brief", str(scratch.tmp / "b.txt"), "--worktree", str(scratch.wt), "--name", "n1", "--issues", "7",
+                     "--root", str(root), "--state", str(scratch.tmp / "s")]) == 2
+    assert "base" in capsys.readouterr().out
+
