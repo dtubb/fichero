@@ -140,3 +140,15 @@ def test_the_generation_cap_parks_instead_of_starting_another(root):
     fake = Fake([ready, ready, ready])
     assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None, max_generations=2) == "parked"
     assert [e["what"] for e in journal.read() if e["event"] == "watch"][-1] == "park: 2 generations, the cap"
+
+
+def test_the_cli_refuses_without_a_cap_and_points_the_journal_at_the_state_dir(tmp_path, monkeypatch, capsys):
+    """`python -m fichero_builder run --state DIR` writes nothing to the default state dir; a missing cap refuses before any start."""
+    from fichero_builder import __main__ as cli
+
+    (tmp_path / "harness.toml").write_text("[check]\n")
+    monkeypatch.setattr(run, "real_procs", lambda home, wt: run.Procs(start=lambda *a: "%1", alive=lambda p: True, stop=lambda p: None, read=lambda: None))
+    rc = cli.main(["run", "--worktree", str(tmp_path / "wt"), "--brief", str(tmp_path / "b.txt"), "--root", str(tmp_path),
+                   "--state", str(tmp_path / "state")])
+    assert rc == 1 and "no cap, no start" in capsys.readouterr().out
+    assert journal.STATE == tmp_path / "state"

@@ -6,6 +6,7 @@ import sys
 import time
 from pathlib import Path
 
+from fichero_builder import journal
 from fichero_builder import run as run_mod
 
 
@@ -22,7 +23,10 @@ def main(argv=None) -> int:
     r.add_argument("--session", default="harness")
     r.add_argument("--tick", type=float, default=30.0)
     r.add_argument("--handoff", help="the handoff file a successor reads (default <worktree>/HANDOFF.md)")
+    r.add_argument("--state", help="where the journal lives (default $FICHERO_BUILDER_STATE or the XDG state home); a shared dir lets the owner read it without sudo")
     a = ap.parse_args(argv)
+    if a.state:
+        journal.STATE = Path(a.state)
     procs = run_mod.real_procs(Path.home(), a.worktree)
     end = run_mod.run(a.root, a.worktree, a.brief, name=a.name, model=a.model, kind=a.kind, tmux_session=a.session,
                       tick_s=a.tick, procs=procs, handoff=a.handoff)
