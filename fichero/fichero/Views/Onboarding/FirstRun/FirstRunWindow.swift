@@ -334,7 +334,10 @@ extension FirstRunWindow {
             }
             if isSaving || newProject.isCreating { ProgressView().controlSize(.small) }
             if model.showsBack {
-                Button("Back") { step = step.previous(in: steps) }
+                Button("Back") {
+                    // Wide Set Up: Back is the pager's own move, as the arrows and the swipe are (`wide.pager.*`).
+                    if FeatureManager.shared.isWideSetUpEnabled { movePage(forward: false) } else { step = step.previous(in: steps) }
+                }
             }
             if !model.primaryLivesInPage {
                 Button(model.primary.title) { perform(model.primary.action) }

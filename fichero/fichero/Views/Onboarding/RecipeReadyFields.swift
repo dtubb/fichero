@@ -94,6 +94,7 @@ struct RecipeReadyFields: View {
             RecipeStartFields(store: store, onFix: onFix, project: project)
             if !FeatureManager.shared.isWideSetUpEnabled { OfferedJobsList(store: store) }
             StepChoiceMenusView(store: store)
+            if FeatureManager.shared.isWideSetUpEnabled { ReadyWillRunView(store: store) }
             startRow
         case .checkOnYourPages:
             if let bakeoff {
