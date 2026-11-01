@@ -782,6 +782,8 @@ def _merge_library_knowledge_sidecars(
     UnicodeLibraryMergeParams,
     domains=["library"],
     atomic=False,
+    owner_only=True,
+    owner_scope="app",
 )
 def _action_unicode_merge_library(
     db: Database,
@@ -1069,7 +1071,7 @@ class ReleaseRefused(Exception):
     """A project cannot be released now; the message says why, in words (#5563)."""
 
 
-@action("library.release", ReleaseLibraryParams, domains=["library"], atomic=False)
+@action("library.release", ReleaseLibraryParams, domains=["library"], atomic=False, owner_only=True, owner_scope="app")
 def _action_release_library(
     db: Database,
     params: ReleaseLibraryParams,

@@ -194,6 +194,10 @@ Rulings.
   The Mac's own machinery is the owner's: every write under `/api/local-inference`, `/api/local-models`, `/api/machines`, `/api/registry` and
   `POST /api/chains/presets/paleography` is refused to anyone but the owner (reads stay open); the MLX runtime, a model, a paired machine or
   the list of libraries is not changed by an editor or viewer (H9, `source.rights.owner-only-asserted-in-the-action`).
+  The gate holds at the action too, not only at the route: `provider.*`, `document.relink_originals` and its undo, `library.release`,
+  `library.unicode_merge`, `model.download`, `import.file`, `import.folder`, `import.xlsx` and `kg.set_external_authority_enabled` are `owner_only`
+  (the app's owner), so `POST /api/actions/invoke`, MCP and chat cannot reach them with library write alone; a guard
+  (`test_an_owner_only_route_has_no_open_action_twin_6325`) fails when an owner-only route's action is open.
   The routes that rank or draw the whole library (`POST` and `GET /api/search/explain`, `GET /view/kg/global`, `POST /api/multilingual/entities/search`)
   are refused to a caller whose reads differ page by page; the roots list (`/api/documents/collections`) and the sample pages leave out a page the caller
   may not read, and `GET /api/kg/search` leaves out a note resting on a page or folder they may not read (H2).

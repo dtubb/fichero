@@ -1053,7 +1053,7 @@ def _invert_relink(before: dict | None, after: dict | None, ctx: "ActionContext"
     return ("document.unrelink_originals", {"moved": moved}) if moved else None
 
 
-@action("document.relink_originals", RelinkParams, domains=["document"], undoable=True, invert=_invert_relink)
+@action("document.relink_originals", RelinkParams, domains=["document"], undoable=True, invert=_invert_relink, owner_only=True, owner_scope="app")
 def _action_relink_originals(db: Database, params: RelinkParams, ctx: "ActionContext"):
     """Point the project's missing originals at where they are now (#5672): planned again here, never trusted from
     the caller, and only the matched pages and their folders are changed."""
@@ -1067,7 +1067,7 @@ def _action_relink_originals(db: Database, params: RelinkParams, ctx: "ActionCon
     return result, spec
 
 
-@action("document.unrelink_originals", UnrelinkParams, domains=["document"])
+@action("document.unrelink_originals", UnrelinkParams, domains=["document"], owner_only=True, owner_scope="app")
 def _action_unrelink_originals(db: Database, params: UnrelinkParams, ctx: "ActionContext"):
     """Undo Locate Originals: each page and folder points where it pointed before."""
     from fichero_server.importers import relink

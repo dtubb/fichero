@@ -644,3 +644,20 @@ def test_recipes_that_name_no_page_or_write_a_path_are_refused_at_every_start(pr
     # the owner's own recipe is not touched
     wid = _recipe(owner, recipes["by name"])
     assert owner.post("/api/workflow-execution/execute", json={"workflow_id": wid, "inputs": {}}).status_code == 202
+
+
+def test_item4_an_owner_only_route_is_not_open_through_its_action(project, four):
+    """Review 6 item 4: `POST /api/actions/invoke` reached the actions behind the owner-only routes with library write alone."""
+    erin = _person(project.harness, "erin")
+    project.harness.app_db.set_library_role(user_id=erin.id, library_path=authz.normalize_library_path(project.library), role=authz.ROLE_EDITOR)
+    cases = (("provider.update", {"provider_id": "x", "name": "n"}), ("document.relink_originals", {"new_root": "/nowhere"}),
+             ("document.unrelink_originals", {"moved": {}}), ("library.release", {"path": project.library}),
+             ("model.download", {"runtime": "x", "model": "y"}), ("import.folder", {"path": "/nowhere"}))
+    for who, client in [(n, c) for n, c, _ in four] + [("erin", _as(project.harness, "erin"))]:
+        for name, params in cases:
+            got = client.post("/api/actions/invoke", json={"name": name, "params": params})
+            assert got.status_code in (403, 422), (who, name, got.status_code, got.text[:100])
+            if got.status_code == 422:  # a body the action's model refuses is no proof: say which
+                raise AssertionError(f"fix the body for {name}: {got.text[:200]}")
+    owner = _as(project.harness, "owner")
+    assert owner.post("/api/actions/invoke", json={"name": "document.relink_originals", "params": {"new_root": "/nowhere"}}).status_code != 403

@@ -295,7 +295,7 @@ class ModelDownloadParams(BaseModel):
     model: str
 
 
-@action("model.download", ModelDownloadParams, domains=["models"], undoable=False)
+@action("model.download", ModelDownloadParams, domains=["models"], undoable=False, owner_only=True, owner_scope="app")
 def _action_model_download(db, params: ModelDownloadParams, ctx):
     """Queue a `download-model` job on the network lane (`runtime.spacy.pipelines-download-as-data`) for every
     runtime, an MLX model included: Activity lists it, its reason says how far it has got and a failure says why

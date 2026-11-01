@@ -1995,6 +1995,8 @@ def _invert_set_external_authority_enabled(
     domains=["kg"],
     undoable=True,
     invert=_invert_set_external_authority_enabled,
+    owner_only=True,
+    owner_scope="app",
 )
 def _action_set_external_authority_enabled(
     db: Database, params: SetExternalAuthorityEnabledParams, ctx: ActionContext
