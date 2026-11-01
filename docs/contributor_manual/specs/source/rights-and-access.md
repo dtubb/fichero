@@ -180,9 +180,11 @@ Rulings.
   restricted page they are not named on. The owner and a named reader keep them (O1).
   **The limit of `search.query`'s answer: with no exact total it still gives `has_more`, taken from the raw result count, so a
   caller can tell that more rows exist beyond the page, though not how many or whether they are theirs.**
-  **The rule for a conversation is its scope: one scoped to, or answered from, a denied page (`scope_document_id`,
-  `document_ids`) is withheld. The limit: an unscoped conversation's messages are not scanned for text from a page denied
-  later.**
+  **The rule for a conversation: one scoped to, or answered from, a denied page (`scope_document_id`, `document_ids`) is
+  withheld. One with no scope has no page to test, and a deny cannot be told from message text, so for a caller whose reads
+  differ page by page it is its author's alone (`metadata.author`, the person who started it or copied it); one with no author
+  on record is withheld from them. The owner and a plain editor or viewer see all. The same rule covers read, list, change,
+  copy, delete, save-as-workspace, reorder and continuing it in chat, through the routes and the `conversation.*` actions (H3, H4).**
   `POST /api/workflow-execution/threads/{id}/resume` is refused, and returns no run state, to a caller who cannot write
   every page the checkpoint, the run's start or the call names (`source.rights.every-id-in-a-request-is-checked`).
   A query parameter names a target only if the route declares it (`source.rights.every-id-in-a-request-is-checked`): `?x_id=<a folder

@@ -513,3 +513,38 @@ def test_h2_read_routes_outside_the_walked_families_leave_out_a_denied_page(proj
             assert project.ids["b1"] not in client.get("/api/recipes/samples").text, name
     assert "Folder B" in _as(project.harness, "owner").get("/api/documents/collections").text
     assert "zzsecretnote" in _as(project.harness, "owner").get("/api/kg/search?q=zzsec").text
+
+
+def test_h3_h4_a_conversation_without_a_scope_is_its_authors_and_every_route_and_action_agrees(project, four):
+    """#6325 H3/H4: a caller whose reads differ page by page sees the unscoped conversations they started, none other (a deny cannot be
+    told from message text). Read, list, change, copy and delete go through the one rule; the owner and a plain editor see all."""
+    db = db_manager.get_database(project.harness.library)
+    mine = {}
+    theirs = Conversation(title="SECRETUNSCOPED", messages=[{"role": "user", "content": "SECRETMSG"}], metadata={"author": "owner"})
+    onb = Conversation(title="SECRETONB", messages=[{"role": "assistant", "content": "SECRETANSWER"}], scope_document_id=project.ids["b1"], metadata={"author": "owner"})
+    db.save(theirs)
+    db.save(onb)
+    for name, client, decoy in four:
+        if name not in ("alice", "bob"):
+            continue
+        listed = client.get("/api/chat/conversations").text
+        assert "SECRETUNSCOPED" not in listed and "SECRETONB" not in listed, name
+        for cid in (theirs.id, onb.id):
+            assert client.get(f"/api/chat/conversations/{cid}").status_code == 403, (name, cid)
+            if name == "alice":  # bob is a viewer: refused for another reason
+                assert client.put(f"/api/chat/conversations/{cid}", json={"title": "x"}).status_code == 403
+                assert client.post(f"/api/chat/conversations/{cid}/duplicate").status_code == 403
+                assert client.delete(f"/api/chat/conversations/{cid}").status_code == 403
+                for act, params in (("conversation.delete", {"conversation_id": cid}), ("conversation.duplicate", {"conversation_id": cid}),
+                                    ("conversation.update", {"conversation_id": cid, "title": "x"})):
+                    got = client.post("/api/actions/invoke", json={"name": act, "params": params})
+                    assert got.status_code == 403 and "SECRET" not in got.text, (act, got.status_code, got.text[:120])
+    alice = next(c for n, c, _ in four if n == "alice")
+    made = alice.post("/api/chat/conversations", json={"title": "mine"}).json()["id"]  # her own, no scope: hers alone
+    assert alice.get(f"/api/chat/conversations/{made}").status_code == 200
+    assert made in alice.get("/api/chat/conversations").text
+    assert alice.put(f"/api/chat/conversations/{made}", json={"title": "still mine"}).status_code == 200
+    assert alice.delete(f"/api/chat/conversations/{made}").status_code == 200
+    owner = _as(project.harness, "owner")  # the owner reads every page, so every conversation
+    assert theirs.id in owner.get("/api/chat/conversations").text and onb.id in owner.get("/api/chat/conversations").text
+    assert db.get(Conversation, theirs.id) is not None and db.get(Conversation, onb.id) is not None

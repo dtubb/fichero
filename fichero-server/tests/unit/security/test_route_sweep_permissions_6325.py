@@ -137,7 +137,8 @@ def seed(project):
     c = KnowledgeClaim(text="SECRETCLAIM", source_document_id=ids["b1"], subject_canonical="Ann", predicate_verb="owned", object_phrase="x", source_excerpt="SECRETEXCERPT"); db.save(c); out["claim_id"] = c.id
     e = KnowledgeEntity(canonical_name="SECRETENTITY", entity_type=EntityType.person, source_document_ids=[ids["b1"]]); db.save(e); out["entity_id"] = e.id
     n = AgentNote(body="SECRETAGENTNOTE", source_anchor=AgentNoteSourceAnchor(document_id=ids["b1"]), actor=AgentNoteActor(actor_id="agent")); db.save(n); out["agent_note_id"] = n.id
-    cv = Conversation(title="SECRETCONV", messages=[], scope_document_id=ids["b1"], document_ids=[]); db.save(cv); out["conversation_id"] = cv.id
+    cv = Conversation(title="SECRETCONV", messages=[{"role": "assistant", "content": "SECRETANSWER"}], scope_document_id=ids["b1"], document_ids=[], metadata={"author": "owner"}); db.save(cv); out["conversation_id"] = cv.id
+    free = Conversation(title="SECRETUNSCOPED", messages=[{"role": "user", "content": "SECRETMSG"}], metadata={"author": "owner"}); db.save(free); out["free_conversation_id"] = free.id
     an = Annotation(kind="highlight", document_id=ids["b1"], body="SECRETANNOT") if "body" in Annotation.model_fields else Annotation(kind="highlight", document_id=ids["b1"]); db.save(an); out["annotation_id"] = an.id
     page = Document(name="SECRETPAGE", doc_type=DocType.page, parent_id=ids["b1"]); db.save(page); out["page_id"] = page.id
     nt = Note(page_id=page.id, body="SECRETNOTE"); db.save(nt); out["note_id"] = nt.id
@@ -254,6 +255,8 @@ def _run_sweep(project, scratch_dir):
     seeded = seed(project)
     who = _people(project)
     ids, library = project.ids, project.library
+    #: A route or action that names a conversation is fired on the scoped one and on the unscoped one.
+    variants = (seeded, {**seeded, "conversation_id": seeded["free_conversation_id"]})
     rows = []
 
     def call(name, surface, ident, method, path, decoy, **kw):
@@ -268,18 +271,24 @@ def _run_sweep(project, scratch_dir):
         if "GET" in route.methods:
             for name in who:
                 for decoy in ((False, True) if name in SCOPED else (False,)):
-                    call(name, "get", f"GET {route.path}", "GET", route_url(route, ids, seeded, library, decoy), decoy)
+                    for url in dict.fromkeys(route_url(route, ids, s, library, decoy) for s in variants):
+                        call(name, "get", f"GET {route.path}", "GET", url, decoy)
     _TIMES["get"] = time.monotonic() - started
 
     for aname, spec in sorted(registry._actions.items(), key=lambda kv: (not kv[1].read_only, kv[0])):  # read-only actions first
         model = getattr(spec, "params_model", None) or getattr(spec, "params", None)
-        try:
-            body = model_body(model, ids, seeded) if isinstance(model, type) and issubclass(model, BaseModel) else {}
-        except Exception:
-            body = {}
+        bodies = []
+        for variant in variants:
+            try:
+                body = model_body(model, ids, variant) if isinstance(model, type) and issubclass(model, BaseModel) else {}
+            except Exception:
+                body = {}
+            if body not in bodies:
+                bodies.append(body)
         for name in who:
             for decoy in ((False, True) if name in SCOPED else (False,)):
-                call(name, "action", f"ACTION {aname}", "POST", "/api/actions/invoke" + (f"?x_id={ids['A']}" if decoy else ""), decoy, json={"name": aname, "params": body})
+                for body in bodies:
+                    call(name, "action", f"ACTION {aname}", "POST", "/api/actions/invoke" + (f"?x_id={ids['A']}" if decoy else ""), decoy, json={"name": aname, "params": body})
     _TIMES["action"] = time.monotonic() - started
 
     writes = sorted((r for r in api if set(r.methods) & WRITES), key=lambda r: "DELETE" in r.methods)
@@ -296,7 +305,8 @@ def _run_sweep(project, scratch_dir):
         for name in ("bob", "dana", "carla", "alice", "fred", "erin"):  # the controls last: the owner is not fired on writes
             for decoy in ((False, True) if name in SCOPED else (False,)):
                 kw = {"json": body} if route.body_field else {}
-                call(name, "write", f"{method} {route.path}", method, route_url(route, ids, seeded, library, decoy), decoy, **kw)
+                for url in dict.fromkeys(route_url(route, ids, s, library, decoy) for s in variants):
+                    call(name, "write", f"{method} {route.path}", method, url, decoy, **kw)
     _TIMES["total"] = time.monotonic() - started
     return rows
 
@@ -344,7 +354,6 @@ def found(rows) -> dict:
 #: Known holes: name -> [(kind, regex of the ident)]. Each is a strict xfail citing #6325: when a fix lands the xfail passes, strict makes
 #: that a failure, and the entry is deleted. Anything the sweep finds that no entry covers fails `test_no_unlisted_leak`.
 HOLES: dict[str, list] = {
-    "H4 a conversation on a denied page is deleted": [("text", r"ACTION conversation\.delete")],
 }
 
 

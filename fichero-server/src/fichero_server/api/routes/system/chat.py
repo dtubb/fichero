@@ -10,6 +10,7 @@ import logging
 import os
 from fichero_server.core.timeutil import utc_now
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any, Optional
 from uuid import uuid4
 
@@ -18,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions import mcp_chat  # noqa: F401  (registers mcp.call_tool)
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
-from fichero_server.api.auth import action_context
+from fichero_server.api.auth import action_context, actor_from_request
 from fichero_server.api.change_stream import emit_change
 from fichero_server.api.routes.claim.claims import _descendant_doc_ids
 from fichero_server.db import Database
@@ -856,6 +857,7 @@ async def _chat(request: ChatRequest, db: Database, ctx: ActionContext, may_read
         conv = db.get(Conversation, request.conversation_id)
         if not conv:
             raise HTTPException(status_code=404, detail="Conversation not found")
+        _refuse_unseen(conv, _ctx_visible(ctx))  # its history goes into the prompt (#6325 H3)
     else:
         # Create new conversation
         conv = Conversation(
@@ -868,6 +870,7 @@ async def _chat(request: ChatRequest, db: Database, ctx: ActionContext, may_read
             document_ids=request.document_ids or [],
             folder_path="/",
             sort_order=0,
+            metadata={"author": ctx.actor},
         )
 
     effective_document_ids, scope_document_id = _effective_scope(db, request, conv)
@@ -1003,10 +1006,37 @@ async def _chat(request: ChatRequest, db: Database, ctx: ActionContext, may_read
     )
 
 
-def _conversation_readable(http: Request, conv: Conversation) -> bool:
-    """A conversation scoped to, or answered from, a page this caller may not read is withheld (#6320)."""
+def conversation_visible(conv: Conversation, may_read: Callable[[str], bool] | None, actor: str | None) -> bool:
+    """Whether a caller whose per-page reads are `may_read` (None: they read every page) may see `conv` (#6320, #6325 H3/H4).
+
+    One scoped to, or answered from, a page they may not read is withheld. One with no scope has no page to test and its text
+    cannot be told from a denied page's, so it is its author's alone: a caller whose reads differ page by page sees only the
+    unscoped conversations they started (`metadata["author"]`); one with no author on record is withheld from them."""
+    if may_read is None:
+        return True
+    if pages := [d for d in [conv.scope_document_id, *conv.document_ids] if d]:
+        return all(may_read(d) for d in pages)
+    return (conv.metadata or {}).get("author") == actor
+
+
+def _visible_to(http: Request) -> Callable[[Conversation], bool]:
+    """`conversation_visible` for the caller of this request, the reader worked out once."""
     may_read = document_reader(http, optional_library_path(http))
-    return may_read is None or all(may_read(d) for d in [conv.scope_document_id, *conv.document_ids] if d)
+    actor = actor_from_request(http)
+    return lambda conv: conversation_visible(conv, may_read, actor)
+
+
+def _conversation_readable(http: Request, conv: Conversation) -> bool:
+    return _visible_to(http)(conv)
+
+
+def _ctx_visible(ctx: ActionContext) -> Callable[[Conversation], bool]:
+    return lambda conv: conversation_visible(conv, ctx.may_read, ctx.actor)
+
+
+def _refuse_unseen(conv: Conversation, visible: Callable[[Conversation], bool] | None) -> None:
+    if visible is not None and not visible(conv):
+        raise HTTPException(status_code=403, detail="You may not read a page this conversation rests on")
 
 
 @router.get("/conversations", response_model=ChatConversationListResponse)
@@ -1017,7 +1047,8 @@ async def list_conversations(
 ) -> ChatConversationListResponse:
     """List all conversations, optionally filtered by folder."""
     # Query conversations from database
-    convs = [c for c in db.query(Conversation, folder_path=folder_path) if _conversation_readable(http, c)]
+    visible = _visible_to(http)
+    convs = [c for c in db.query(Conversation, folder_path=folder_path) if visible(c)]
 
     result = []
     for conv in convs:
@@ -1093,6 +1124,7 @@ async def create_conversation(
 async def save_conversation_as_workspace(
     conversation_id: str,
     request: AgentWorkspaceSaveRequest,
+    http: Request,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> AgentWorkspace:
@@ -1100,6 +1132,7 @@ async def save_conversation_as_workspace(
     conversation = db.get(Conversation, conversation_id)
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    _refuse_unseen(conversation, _visible_to(http))
     if not conversation.messages:
         raise HTTPException(status_code=422, detail="Cannot save an empty conversation")
 
@@ -1214,8 +1247,7 @@ async def get_conversation(
     conv = db.get(Conversation, conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    if not _conversation_readable(http, conv):
-        raise HTTPException(status_code=403, detail="You may not read a page this conversation rests on")
+    _refuse_unseen(conv, _visible_to(http))
 
     return ConversationHistory(
         id=conv.id,
@@ -1238,7 +1270,7 @@ class ConversationUpdate(BaseModel):
 
 
 def update_conversation_impl(
-    db: Database, conversation_id: str, request: ConversationUpdate
+    db: Database, conversation_id: str, request: ConversationUpdate, visible: Callable[[Conversation], bool] | None = None
 ) -> Conversation:
     """Apply title/folder_path edits to a conversation and persist it.
 
@@ -1250,6 +1282,7 @@ def update_conversation_impl(
     conv = db.get(Conversation, conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    _refuse_unseen(conv, visible)
 
     # Update fields
     if request.title is not None:
@@ -1266,10 +1299,11 @@ def update_conversation_impl(
 async def update_conversation(
     conversation_id: str,
     request: ConversationUpdate,
+    http: Request,
     db: Database = Depends(get_library_database_for_write),
 ) -> ConversationHistory:
     """Update conversation title and/or folder_path."""
-    conv = update_conversation_impl(db, conversation_id, request)
+    conv = update_conversation_impl(db, conversation_id, request, _visible_to(http))
 
     return ConversationHistory(
         id=conv.id,
@@ -1282,7 +1316,9 @@ async def update_conversation(
     )
 
 
-def duplicate_conversation_impl(db: Database, conversation_id: str) -> Conversation:
+def duplicate_conversation_impl(
+    db: Database, conversation_id: str, visible: Callable[[Conversation], bool] | None = None, actor: str | None = None
+) -> Conversation:
     """Create and persist a copy of a conversation under a new id.
 
     Extracted from the ``POST /conversations/{id}/duplicate`` route so BOTH the
@@ -1293,6 +1329,7 @@ def duplicate_conversation_impl(db: Database, conversation_id: str) -> Conversat
     original = db.get(Conversation, conversation_id)
     if not original:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    _refuse_unseen(original, visible)
 
     # Create new conversation with copied properties
     new_conv = Conversation(
@@ -1304,6 +1341,7 @@ def duplicate_conversation_impl(db: Database, conversation_id: str) -> Conversat
         scope_document_id=original.scope_document_id,
         folder_path=original.folder_path,
         sort_order=original.sort_order,
+        metadata={"author": actor} if actor else {},  # the copy is the copier's
     )
 
     db.save(new_conv)
@@ -1313,10 +1351,11 @@ def duplicate_conversation_impl(db: Database, conversation_id: str) -> Conversat
 @router.post("/conversations/{conversation_id}/duplicate")
 async def duplicate_conversation(
     conversation_id: str,
+    http: Request,
     db: Database = Depends(get_library_database_for_write),
 ) -> ConversationSummary:
     """Duplicate a conversation with a new ID."""
-    new_conv = duplicate_conversation_impl(db, conversation_id)
+    new_conv = duplicate_conversation_impl(db, conversation_id, _visible_to(http), actor_from_request(http))
 
     return ConversationSummary(
         id=new_conv.id,
@@ -1329,7 +1368,9 @@ async def duplicate_conversation(
     )
 
 
-def delete_conversation_impl(db: Database, conversation_id: str) -> Conversation:
+def delete_conversation_impl(
+    db: Database, conversation_id: str, visible: Callable[[Conversation], bool] | None = None
+) -> Conversation:
     """Delete a conversation, returning the row that was removed.
 
     Extracted from the ``DELETE /conversations/{id}`` route so BOTH the route
@@ -1340,6 +1381,7 @@ def delete_conversation_impl(db: Database, conversation_id: str) -> Conversation
     conv = db.get(Conversation, conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    _refuse_unseen(conv, visible)
 
     db.delete(conv)
     return conv
@@ -1348,16 +1390,18 @@ def delete_conversation_impl(db: Database, conversation_id: str) -> Conversation
 @router.delete("/conversations/{conversation_id}")
 async def delete_conversation(
     conversation_id: str,
+    http: Request,
     db: Database = Depends(get_library_database_for_write),
 ) -> ConversationDeletedResponse:
     """Delete a conversation."""
-    delete_conversation_impl(db, conversation_id)
+    delete_conversation_impl(db, conversation_id, _visible_to(http))
     return ConversationDeletedResponse(status="deleted")
 
 
 @router.post("/conversations/reorder")
 async def reorder_conversations(
     conversation_ids: list[str],
+    http: Request,
     folder_path: str = "/",
     db: Database = Depends(get_library_database_for_write),
 ) -> ConversationReorderResponse:
@@ -1368,6 +1412,7 @@ async def reorder_conversations(
             raise HTTPException(
                 status_code=404, detail=f"Conversation not found: {conversation_id}"
             )
+        _refuse_unseen(conv, _visible_to(http))
 
         conv.sort_order = index
         conv.updated_at = utc_now()
@@ -1764,6 +1809,7 @@ def _action_create_conversation(
         document_ids=[],
         folder_path=params.folder_path,
         sort_order=0,
+        metadata={"author": ctx.actor},
     )
     db.save(conv)
     after = _snap_conversation(conv)
@@ -1792,11 +1838,12 @@ def _action_update_conversation(
         raise HTTPException(
             status_code=404, detail="Conversation not found"
         )
+    _refuse_unseen(existing, _ctx_visible(ctx))
     before = _snap_conversation(existing)
     request = ConversationUpdate(
         title=params.title, folder_path=params.folder_path
     )
-    conv = update_conversation_impl(db, params.conversation_id, request)
+    conv = update_conversation_impl(db, params.conversation_id, request, _ctx_visible(ctx))
     after = _snap_conversation(conv)
     spec = ChangeSpec(
         domains=["conversation"],
@@ -1818,7 +1865,7 @@ def _action_update_conversation(
 def _action_duplicate_conversation(
     db: Database, params: ConversationIdParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    new_conv = duplicate_conversation_impl(db, params.conversation_id)
+    new_conv = duplicate_conversation_impl(db, params.conversation_id, _ctx_visible(ctx), ctx.actor)
     after = _snap_conversation(new_conv)
     spec = ChangeSpec(
         domains=["conversation"],
@@ -1840,7 +1887,7 @@ def _action_duplicate_conversation(
 def _action_delete_conversation(
     db: Database, params: ConversationIdParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    deleted = delete_conversation_impl(db, params.conversation_id)
+    deleted = delete_conversation_impl(db, params.conversation_id, _ctx_visible(ctx))
     before = _snap_conversation(deleted)
     spec = ChangeSpec(
         domains=["conversation"],
@@ -1867,6 +1914,8 @@ def _action_restore_conversation(
     (edit)."""
     cid = params.snapshot.get("id")
     existing = db.get(Conversation, cid) if cid else None
+    if existing is not None:
+        _refuse_unseen(existing, _ctx_visible(ctx))
     before = _snap_conversation(existing) if existing else None
     conv = Conversation(**params.snapshot)
     db.save(conv)
