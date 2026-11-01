@@ -14,13 +14,13 @@ async def deskew_images(inputs: dict[str, Any], state: State, llm_config: LLMCon
         """The row carries the angle that was found (not "auto"); a page under 0.3 degrees gets no row."""
         from PIL import Image
 
-        from fichero_server.media.image_ops import auto_straighten_angle
+        from fichero_server.media.enhance import deskew
         from fichero_server.media.upright import upright
         from fichero_server.workflows.tools.sources import _resolve_abs_path
 
         try:
             with Image.open(_resolve_abs_path(doc, str(library))) as opened:
-                angle = auto_straighten_angle(upright(opened))
+                angle = deskew.measure(upright(opened), deskew.Params())  # the editor and the node measure with the one deskew
         except (OSError, AttributeError, TypeError):
             return None
         return {"op": "auto_deskew", "page": int(inputs.get("page", 1)), "params": {"angle": angle}, "method": "hough"} if angle else None

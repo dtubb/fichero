@@ -4,23 +4,18 @@ and the small helpers that read and answer a page's proposals. A leaf module (it
 """
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
 
 from fichero_server.actions.registry import ActionContext
 from fichero_server.db import Database
+from fichero_server.media.enhance import contrast
 
 
-class ContrastOperationRequest(BaseModel):
+class ContrastOperationRequest(contrast.Params):
     """`factor` is the old PIL contrast; any of the rest makes it the CLAHE step (`image.enhance.contrast-clahe`)."""
 
-    factor: float = Field(1.0, ge=0.0, le=10.0)
-    clip: float | None = Field(None, ge=1.0, le=4.0)
-    tile: int | None = Field(None, ge=4, le=16)
-    gain: float | None = Field(None, ge=0.8, le=1.4)
-    lift: float | None = Field(None, ge=-20.0, le=20.0)
-    profile: Literal["handwritten", "typescript"] | None = None
     page: int = Field(1, ge=1)
 
 

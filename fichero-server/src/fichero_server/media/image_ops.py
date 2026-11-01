@@ -254,8 +254,6 @@ def apply_fuzzy_clean(
 
 #: The two contrast profiles of the legacy `enhance.DocumentEnhancer` (clip, tile, gain, lift): handwriting and typescript.
 CLAHE_PROFILES = {"handwritten": (2.2, 8, 1.1, -5.0), "typescript": (1.6, 16, 1.0, 0.0)}
-#: Params that make `contrast` the CLAHE step; a chain row with only `factor` keeps the old PIL contrast.
-_CLAHE_PARAMS = {"clip", "tile", "gain", "lift", "profile"}
 
 
 def apply_clahe_contrast(image: Image.Image, *, profile: str = "handwritten", clip: float | None = None,
@@ -295,26 +293,10 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
     if not isinstance(params, dict):
         raise HTTPException(400, f"Invalid params for operation: {name}")
     if name in {"rotate", "straighten", "auto_deskew"}:
-        angle = auto_straighten_angle(image) if name == "auto_deskew" and "angle" not in params else float(params.get("angle", 0))
-        # Exact quarter turns are LOSSLESS transposes (Daniel, 2026-08-30:
-        # "edits seemed to make the quality worse" — every rotate-left click
-        # was bicubic-resampling the whole page). Only a fractional angle
-        # needs interpolation.
-        quarter = angle % 360
-        if quarter in (0.0, 90.0, 180.0, 270.0):
-            transposes = {
-                90.0: Image.Transpose.ROTATE_90,
-                180.0: Image.Transpose.ROTATE_180,
-                270.0: Image.Transpose.ROTATE_270,
-            }
-            method = transposes.get(quarter)
-            return image.transpose(method) if method is not None else image
-        return image.rotate(
-            angle,
-            expand=bool(params.get("expand", True)),
-            resample=Image.Resampling.BICUBIC,
-            fillcolor="white",
-        )
+        from fichero_server.media.enhance import deskew, rotate
+
+        angle = deskew.measure(image, deskew.Params()) if name == "auto_deskew" and "angle" not in params else float(params.get("angle", 0))
+        return rotate.run(image, rotate.Params(angle=angle, expand=bool(params.get("expand", True))))[0]
     if name == "mark_blank":  # a page's blank mark changes no pixel (`media.blank_page`)
         return image
     if name == "square":  # the page warped to a rectangle from its four corners (`media.square_page`)
@@ -341,10 +323,10 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
         return ImageOps.flip(image)
     if name == "brightness":
         return ImageEnhance.Brightness(image).enhance(float(params.get("factor", 1.0)))
-    if name == "contrast" and _CLAHE_PARAMS & params.keys():
-        return apply_clahe_contrast(image, **{k: params[k] for k in _CLAHE_PARAMS if k in params})
     if name == "contrast":
-        return ImageEnhance.Contrast(image).enhance(float(params.get("factor", 1.0)))
+        from fichero_server.media.enhance import contrast
+
+        return contrast.run(image, contrast.Params(**{k: v for k, v in params.items() if k in contrast.Params.model_fields}))[0]
     if name == "sharpen":
         return ImageEnhance.Sharpness(image).enhance(float(params.get("factor", 1.0)))
     if name == "auto_levels":

@@ -27,6 +27,7 @@ from fichero_server.api.main import get_library_database, get_library_database_f
 from fichero_server.api.routes.workflow.batch import BatchResponse, get_batch_manager
 from fichero_server.api.routes.document.documents import _descendant_document_ids
 from fichero_server.db import Database
+from fichero_server.media.enhance import deskew as deskew_step, rotate as rotate_step
 from fichero_server.models import DocType, Document, FileType, ImageEditChain
 from fichero_server.models.anchors import NodeRegion, RegionConfidence
 from fichero_server.split_carry import carry_readings_over
@@ -61,13 +62,11 @@ class CropOperationRequest(BaseModel):
     page: int = Field(1, ge=1)
 
 
-class RotateOperationRequest(BaseModel):
-    angle: float = Field(ge=-360.0, le=360.0)
-    expand: bool = True
+class RotateOperationRequest(rotate_step.Params):
     page: int = Field(1, ge=1)
 
 
-class StraightenOperationRequest(BaseModel):
+class StraightenOperationRequest(deskew_step.Params):
     page: int = Field(1, ge=1)
 
 
@@ -353,14 +352,6 @@ def _remove_background(image: Image.Image, params: dict[str, Any]) -> Image.Imag
         return rgba
 
     raise HTTPException(status_code=400, detail=f"Unsupported background method: {method}")
-
-
-def _estimate_straighten_angle(image: Image.Image) -> float:
-    """The one deskew estimate (media.image_ops.detect_deskew_angle); a second copy here broke
-    separately when OpenCV 5 changed HoughLinesP's result shape (#5385)."""
-    from fichero_server.media.image_ops import detect_deskew_angle
-
-    return detect_deskew_angle(image)
 
 
 def _foreground_segments(
@@ -965,13 +956,12 @@ def straighten_image_impl(
     doc = _get_or_404_document(db, document_id)
     source_path, page = _resolve_source_and_page(db, doc, request.page)
     base = _load_source_image(source_path, page=page)
-    angle = _estimate_straighten_angle(base)
+    derived, account = deskew_step.run(base, deskew_step.Params())  # the one deskew: the angle it found and the page turned by it
     op = {
         "op": "straighten",
         "page": page,
-        "params": {"angle": angle, "expand": True},
+        "params": {"angle": account["angle"], "expand": True},
     }
-    derived = _apply_operation(base, op)
     op["derived_path"] = _write_derived_image(document_id, page, derived)
     op["created_at"] = utc_now().isoformat()
     return _append_operation(db, document_id, op)

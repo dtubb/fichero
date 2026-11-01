@@ -3,7 +3,7 @@
 Writes two things and changes no pixel of the original: the document's `page_box` and `page_region` metadata (the outline, its method and confidence) (`[x, y, w, h]`, fractions of
 the UPRIGHT image: the box Leave Out and Find Regions read) and a `crop` rendition of the paper with its `transform`, so
 the person can see it, switch to it, and move the box. A box a person drew or moved (`page_box_by: "person"`) is never
-replaced by a finder's. The finder is `media.find_page` (no model); a page it is not sure of keeps the whole frame.
+replaced by a finder's. The finder is `media.find_page` (no model), reached only through `media.enhance.page_crop.run`; a page it is not sure of keeps the whole frame.
 """
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
     import fichero_server.api.routes.document.documents  # noqa: F401  (registers document.update)
     import fichero_server.api.routes.ingest.image_editing  # noqa: F401  (registers image.mark_blank)
     from fichero_server.media.blank_page import blank_verdict
-    from fichero_server.media.find_page import find_page
+    from fichero_server.media.enhance import page_crop as page_crop_step
     from fichero_server.media.upright import upright
     from fichero_server.models import Document
     from fichero_server.workflows.tools.sources import _resolve_abs_path
@@ -74,12 +74,14 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
                 account["no_image"] += 1
                 continue
             account["pages"] += 1
-            found = find_page(image) if crop else None  # no crop: the page itself is the base, no outline is looked for
-            # The contour finder's confidence is its paper fill; Vision's was gated by the finder (0.5), so only the contour's is tested here.
-            unsure = found is not None and found.method == "contour" and found.confidence < MIN_CONFIDENCE
+            # The one page-crop function (`media.enhance.page_crop`) finds the paper and says if it is sure; no crop: the page
+            # itself is the base, no outline is looked for.
+            decided = page_crop_step.run(image, page_crop_step.Params(min_confidence=MIN_CONFIDENCE, min_share=MIN_SHARE))[1] if crop else None
+            found = decided["found"] if decided else None
+            unsure = bool(decided and decided["unsure"])
             if prepare:  # below its confidence the finder proposes (`prep.unsure-becomes-a-proposal`); sure again, the proposal goes
                 _propose(db, doc.id, "page_box", _page_box_proposal(found, run_id) if unsure else None, ctx)
-            trusted = found is not None and not unsure and found.box[2] * found.box[3] >= MIN_SHARE
+            trusted = bool(decided and decided["trusted"])
             if prepare and crop and meta.get("blank") is None:
                 # Hidden only when sure (`prep.blank-pages-marked`); unsure keeps the page and stores a proposal. The ink is a
                 # share of the paper found (not the mount around it); a text read is the last word, asked only when the ink

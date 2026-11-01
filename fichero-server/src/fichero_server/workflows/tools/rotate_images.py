@@ -121,7 +121,9 @@ def rotate_image_file(
             oriented_size = list(prepared.size)
             if rotation:
                 # PIL rotates counter-clockwise for positive angles; negate for clockwise UI semantics.
-                prepared = prepared.rotate(-rotation, expand=True)
+                from fichero_server.media.enhance import rotate
+
+                prepared, _ = rotate.run(prepared, rotate.Params(angle=float(-rotation % 360), expand=True))
 
             output_path = output_root / f"{source.stem}.{ext}"
             _save_image(
