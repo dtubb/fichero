@@ -1,3 +1,4 @@
+# ruff: noqa: F811
 """sharing.owner-only-asserted-in-the-action (#6325, review 6 item 4): a route the owner alone may call runs an action, and
 `POST /api/actions/invoke` (and MCP and chat) reach the same action with library write alone. The gate has to hold at the action,
 so every action an owner-only route invokes is declared `owner_only`."""

@@ -209,6 +209,9 @@ Rulings.
   An export that writes to a path the caller names on the Mac (`/api/export/jsonl`, `training`, `parquet`, `eleventy-site`, `markdown-folder`, `word`,
   `excel`: every one with an `output_path`) is the owner's, whatever pages it reads (H6, `source.rights.owner-only-asserted-in-the-action`).
   Approving or rejecting an agent's write (`POST /api/agents/write/approve`) is the owner's (`source.rights.owner-only-asserted-in-the-action`).
+  What a person shared one folder loses by this (fail closed, none of it has an app caller but chat and search): `POST /api/search` (403 with or without a
+  scope), chat of any kind (even scoped to their own folder), the catalogue workbook export and the image-batch preview, whose folder is in the body and
+  so is no declared id (H5). They keep the page, its children, the Table on their folder, the Inspector and the knowledge graph tab.
   A person shared one folder opens the Table on it: `POST /api/documents/dataset/query` with that folder as `parent_id` answers,
   and a query for another folder, or none (the whole project), is refused (`source.rights.every-id-in-a-request-is-checked`).
 

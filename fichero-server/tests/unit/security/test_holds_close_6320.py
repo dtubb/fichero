@@ -524,7 +524,6 @@ def test_h3_h4_a_conversation_without_a_scope_is_its_authors_and_every_route_and
     """#6325 H3/H4: a caller whose reads differ page by page sees the unscoped conversations they started, none other (a deny cannot be
     told from message text). Read, list, change, copy and delete go through the one rule; the owner and a plain editor see all."""
     db = db_manager.get_database(project.harness.library)
-    mine = {}
     theirs = Conversation(title="SECRETUNSCOPED", messages=[{"role": "user", "content": "SECRETMSG"}], metadata={"author": "owner"})
     onb = Conversation(title="SECRETONB", messages=[{"role": "assistant", "content": "SECRETANSWER"}], scope_document_id=project.ids["b1"], metadata={"author": "owner"})
     db.save(theirs)

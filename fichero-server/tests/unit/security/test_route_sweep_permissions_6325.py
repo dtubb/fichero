@@ -1,3 +1,4 @@
+# ruff: noqa: F811  (fixtures imported from other test modules and taken by name)
 """sharing.every-route-keeps-a-denied-page-private (#6325): fire EVERY served route and action as a person who must not read a seeded secret,
 and fail if the secret, or the Mac's own machinery, comes back.
 
@@ -44,6 +45,8 @@ SKIP = re.compile(r"stream|/events|/sse|shutdown|/restart|/quit|/ws\b|/mcp\b|/au
 WRITES = {"POST", "PUT", "PATCH", "DELETE"}
 DENIED = ("alice", "bob", "carla", "dana")
 SCOPED = ("carla", "dana")
+#: Who is fired on a change before the controls: the four who must be refused, and the plain viewer.
+UNTRUSTED = (*DENIED, "fred")
 
 
 class Blocked(Exception):
@@ -75,6 +78,7 @@ def scratch(monkeypatch, tmp_path):
     home = tmp_path / "scratch-home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
+    monkeypatch.chdir(tmp_path)  # a route given a relative path writes beside the test, not into the checkout (review 6 item 9)
     from fichero_server.llm.mlx_runtime import _RUNTIME_DIRNAME
 
     (home / _RUNTIME_DIRNAME).mkdir()
@@ -133,24 +137,51 @@ def seed(project, scratch_dir):
     """SECRET on the denied folder, its page and every record resting on that page. Returns the records' ids."""
     db = db_manager.get_database(project.harness.library)
     ids = project.ids
-    b = db.get(Document, ids["B"]); b.name = "SECRETFOLDER"; db.save(b)
+    b = db.get(Document, ids["B"])
+    b.name = "SECRETFOLDER"
+    db.save(b)
     page_file = scratch_dir / "b1.txt"
     page_file.write_text("SECRETTEXT")
-    d = db.get(Document, ids["b1"]); d.name = "SECRETNAME"; d.page_content = "SECRETTEXT"; d.attributes = {"secretattr": "SECRETATTR"}
+    d = db.get(Document, ids["b1"])
+    d.name = "SECRETNAME"
+    d.page_content = "SECRETTEXT"
+    d.attributes = {"secretattr": "SECRETATTR"}
     d.path, d.file_type, d.doc_type, d.status = str(page_file), FileType.text, DocType.file, Status.completed
     db.save(d)
-    a = db.get(Document, ids["a1"]); a.page_content = "PLAINTEXT"; db.save(a)
+    a = db.get(Document, ids["a1"])
+    a.page_content = "PLAINTEXT"
+    db.save(a)
     out = {}
-    c = KnowledgeClaim(text="SECRETCLAIM", source_document_id=ids["b1"], subject_canonical="Ann", predicate_verb="owned", object_phrase="x", source_excerpt="SECRETEXCERPT"); db.save(c); out["claim_id"] = c.id
-    e = KnowledgeEntity(canonical_name="SECRETENTITY", entity_type=EntityType.person, source_document_ids=[ids["b1"]]); db.save(e); out["entity_id"] = e.id
-    n = AgentNote(body="SECRETAGENTNOTE", source_anchor=AgentNoteSourceAnchor(document_id=ids["b1"]), actor=AgentNoteActor(actor_id="agent")); db.save(n); out["agent_note_id"] = n.id
-    cv = Conversation(title="SECRETCONV", messages=[{"role": "assistant", "content": "SECRETANSWER"}], scope_document_id=ids["b1"], document_ids=[], metadata={"author": "owner"}); db.save(cv); out["conversation_id"] = cv.id
-    free = Conversation(title="SECRETUNSCOPED", messages=[{"role": "user", "content": "SECRETMSG"}], metadata={"author": "owner"}); db.save(free); out["free_conversation_id"] = free.id
-    an = Annotation(kind="highlight", document_id=ids["b1"], body="SECRETANNOT") if "body" in Annotation.model_fields else Annotation(kind="highlight", document_id=ids["b1"]); db.save(an); out["annotation_id"] = an.id
-    page = Document(name="SECRETPAGE", doc_type=DocType.page, parent_id=ids["b1"]); db.save(page); out["page_id"] = page.id
-    nt = Note(page_id=page.id, body="SECRETNOTE"); db.save(nt); out["note_id"] = nt.id
-    s = _segment(db, d); out["segment_id"] = s.id; out["pass_id"] = s.pass_id
-    r = ContentRepresentation(document_id=ids["b1"], kind="transcription", content="SECRETREADING", source_anchor=SourceAnchor(document_id=ids["b1"])); db.save(r); out["representation_id"] = r.id
+    c = KnowledgeClaim(text="SECRETCLAIM", source_document_id=ids["b1"], subject_canonical="Ann", predicate_verb="owned", object_phrase="x", source_excerpt="SECRETEXCERPT")
+    db.save(c)
+    out["claim_id"] = c.id
+    e = KnowledgeEntity(canonical_name="SECRETENTITY", entity_type=EntityType.person, source_document_ids=[ids["b1"]])
+    db.save(e)
+    out["entity_id"] = e.id
+    n = AgentNote(body="SECRETAGENTNOTE", source_anchor=AgentNoteSourceAnchor(document_id=ids["b1"]), actor=AgentNoteActor(actor_id="agent"))
+    db.save(n)
+    out["agent_note_id"] = n.id
+    cv = Conversation(title="SECRETCONV", messages=[{"role": "assistant", "content": "SECRETANSWER"}], scope_document_id=ids["b1"], document_ids=[], metadata={"author": "owner"})
+    db.save(cv)
+    out["conversation_id"] = cv.id
+    free = Conversation(title="SECRETUNSCOPED", messages=[{"role": "user", "content": "SECRETMSG"}], metadata={"author": "owner"})
+    db.save(free)
+    out["free_conversation_id"] = free.id
+    an = Annotation(kind="highlight", document_id=ids["b1"], body="SECRETANNOT") if "body" in Annotation.model_fields else Annotation(kind="highlight", document_id=ids["b1"])
+    db.save(an)
+    out["annotation_id"] = an.id
+    page = Document(name="SECRETPAGE", doc_type=DocType.page, parent_id=ids["b1"])
+    db.save(page)
+    out["page_id"] = page.id
+    nt = Note(page_id=page.id, body="SECRETNOTE")
+    db.save(nt)
+    out["note_id"] = nt.id
+    s = _segment(db, d)
+    out["segment_id"] = s.id
+    out["pass_id"] = s.pass_id
+    r = ContentRepresentation(document_id=ids["b1"], kind="transcription", content="SECRETREADING", source_anchor=SourceAnchor(document_id=ids["b1"]))
+    db.save(r)
+    out["representation_id"] = r.id
     out.update(_seed_a_run(project))
     return out
 
@@ -271,6 +302,20 @@ def _people(project):
     return {n: _as(project.harness, n) for n in (*DENIED, "owner", "erin", "fred")}
 
 
+def _alive(project, seeded):
+    """What was seeded, and whether it is still there (not deleted, not trashed)."""
+    from fichero_server.llm.mlx_runtime import mlx_runtime_dir
+
+    db = db_manager.get_database(project.harness.library)
+    page = db.get(Document, project.ids["b1"])
+    kept = {"claim": db.get(KnowledgeClaim, seeded["claim_id"]), "entity": db.get(KnowledgeEntity, seeded["entity_id"]),
+            "scoped conversation": db.get(Conversation, seeded["conversation_id"]), "unscoped conversation": db.get(Conversation, seeded["free_conversation_id"]),
+            "annotation": db.get(Annotation, seeded["annotation_id"]), "note": db.get(Note, seeded["note_id"]), "agent note": db.get(AgentNote, seeded["agent_note_id"])}
+    out = [(label, row is not None) for label, row in kept.items()]
+    out += [("page b1", page is not None and page.deleted_at is None), ("MLX runtime", mlx_runtime_dir().exists())]
+    return out
+
+
 def _run_sweep(project, scratch_dir):
     from fichero_server.actions.registry import registry
 
@@ -299,6 +344,7 @@ def _run_sweep(project, scratch_dir):
                         call(name, "get", f"GET {route.path}", "GET", url, decoy)
     _TIMES["get"] = time.monotonic() - started
 
+    changing = []
     # read-only actions first; an action another test registered (and left behind) is not the app's
     shipped = ((n, sp) for n, sp in registry._actions.items() if getattr(sp.execute, "__module__", "").startswith("fichero_server"))
     for aname, spec in sorted(shipped, key=lambda kv: (not kv[1].read_only, kv[0])):
@@ -311,12 +357,17 @@ def _run_sweep(project, scratch_dir):
                 body = {}
             if body not in bodies:
                 bodies.append(body)
-        for name in who:
+        # An action that changes things is fired by the callers who must be refused first; the controls who may do it go last, in `controls`,
+        # because they delete the seed (the owner's `claim.delete` removed the claim a third of the way in, review 6).
+        for name in who if spec.read_only else UNTRUSTED:
             for decoy in ((False, True) if name in SCOPED else (False,)):
                 for body in bodies:
                     call(name, "action", f"ACTION {aname}", "POST", "/api/actions/invoke" + (f"?x_id={ids['A']}" if decoy else ""), decoy, json={"name": aname, "params": body})
+        if not spec.read_only:
+            changing.append((aname, bodies))
     _TIMES["action"] = time.monotonic() - started
 
+    controlled = []
     writes = sorted((r for r in api if set(r.methods) & WRITES), key=lambda r: "DELETE" in r.methods)
     for route in writes:  # deletes last
         method = sorted(set(route.methods) & WRITES)[0]
@@ -328,11 +379,26 @@ def _run_sweep(project, scratch_dir):
                 body = model_body(mod[0], ids, seeded) if mod else {}
             except Exception:
                 body = {}
-        for name in ("bob", "dana", "carla", "alice", "fred", "erin"):  # the controls last: the owner is not fired on writes
+        for name in UNTRUSTED:
             for decoy in ((False, True) if name in SCOPED else (False,)):
                 kw = {"json": body} if route.body_field else {}
                 for url in dict.fromkeys(route_url(route, ids, s, library, decoy) for s in variants):
                     call(name, "write", f"{method} {route.path}", method, url, decoy, **kw)
+        controlled.append((route, method, body))
+
+    # Acting on a record counts: nothing the callers who must be refused did may have removed what was seeded.
+    for label, alive in _alive(project, seeded):
+        rows.append({"surface": "state", "ident": label, "who": "refused callers", "decoy": False, "status": 200 if alive else 404, "hits": [], "text": ""})
+
+    # The controls last (they may delete the seed): the plain editor, then the owner, on every change.
+    for aname, bodies in changing:
+        for name in ("erin", "owner"):
+            for body in bodies:
+                call(name, "action", f"ACTION {aname}", "POST", "/api/actions/invoke", False, json={"name": aname, "params": body})
+    for route, method, body in controlled:
+        kw = {"json": body} if route.body_field else {}
+        for url in dict.fromkeys(route_url(route, ids, s, library, False) for s in variants):
+            call("erin", "write", f"{method} {route.path}", method, url, False, **kw)
     _TIMES["total"] = time.monotonic() - started
     return rows
 
@@ -354,6 +420,12 @@ OWNER_ONLY_GETS = {"/api/auth/invites", "/api/auth/local-clients/requests", "/ap
                    "/api/hpc/prompts", "/api/machines", "/api/pair/invites", "/api/users"}
 
 
+def _owner_only_action(ident: str) -> bool:
+    from fichero_server.actions.registry import registry
+
+    return ident.startswith("ACTION ") and ident[7:] in registry._actions and registry.get(ident[7:]).owner_only
+
+
 def _by(rows):
     out = defaultdict(dict)
     for r in rows:
@@ -368,8 +440,10 @@ def found(rows) -> dict:
         for (who, decoy), r in by.items():
             if who in DENIED and r["hits"]:
                 out[("text", key[1])].add(who + ("+decoy" if decoy else ""))
-            if who != "owner" and MACHINE.match(key[1]) and r["status"] not in (401, 403):
+            if who != "owner" and r["status"] not in (401, 403) and (MACHINE.match(key[1]) or _owner_only_action(key[1])):
                 out[("machine", key[1])].add(who)
+            if key[0] == "state" and r["status"] != 200:
+                out[("acted", key[1])].add("a caller who must be refused")
         for who in SCOPED:
             plain, decoy = by.get((who, False)), by.get((who, True))
             if plain and decoy and plain["status"] == 403 and decoy["status"] != 403:
@@ -401,11 +475,11 @@ def test_known_hole(sweep, hole):
 
 def test_the_seed_is_visible_to_the_owner_and_the_controls_are_not_over_refused(sweep):
     by = _by(sweep)
-    seen = {w for key, d in by.items() if key[0] != "write" for w in d[("owner", False)]["hits"]}
+    seen = {w for key, d in by.items() if key[0] in ("get", "action") for w in d[("owner", False)]["hits"]}
     assert {"SECRETTEXT", "SECRETCLAIM", "SECRETENTITY", "SECRETNAME", "SECRETNOTE", "SECRETAGENTNOTE", "SECRETREADING"} <= set(seen), seen
     refused = []
     for (surface, ident), d in sorted(by.items()):
-        if surface == "write" or d[("owner", False)]["status"] != 200:
+        if surface not in ("get", "action") or d[("owner", False)]["status"] != 200:
             continue
         for who in ("erin", "fred"):
             if d[(who, False)]["status"] == 403 and not (surface == "action" and who == "fred") and ident.split(" ", 1)[1] not in OWNER_ONLY_GETS:
