@@ -24,7 +24,7 @@ SPEC = """# A spec
 - Tests: t/test_one.py
 - Size: S
 
-#### Step 1.2 — on top
+#### Step 1.2 — on top (#8, #10)
 - Behaviours: `a.b.two`
 - Tests: t/test_two.py
 - Depends on: 1.1
@@ -204,3 +204,10 @@ def test_a_server_that_fails_or_finds_nothing_falls_back_to_grep(tmp_path):
     assert codemap.search(str(bad), str(repo), ["enhancement"]) is None
     assert codemap.search(str(tmp_path / "nowhere"), str(repo), ["enhancement"]) is None
     assert "pkg/readers/runner.py: run_enhancement (1), Other (4)" in milestone.where_map(repo / "docs" / "spec.md", "enhancement", str(repo), str(bad))
+
+
+def test_a_step_heading_that_names_an_issue_places_it(tmp_path):
+    (tmp_path / "spec.md").write_text(SPEC)
+    steps = milestone.build_order(tmp_path / "spec.md")
+    p = milestone.plan([{"number": 10, "title": "no step in the title", "body": "none in the body either"}], steps, "m1")
+    assert [c["step"] for c in p["clusters"]] == ["1.2"] and not p["questions"]
