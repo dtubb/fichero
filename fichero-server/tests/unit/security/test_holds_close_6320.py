@@ -296,3 +296,30 @@ def test_n4_plain_reads_of_claims_agent_memory_and_conversations_leave_out_what_
             assert client.get(path + decoy).status_code == 403, (name, path)
     alice = {n: c for n, c, _ in four}["alice"]
     assert ok_claim.id in alice.get("/api/claims").text  # what she may read is still there
+
+
+def test_n5_the_action_route_reads_through_the_callers_reader_and_search_counts_what_it_returns(project, four, monkeypatch):
+    from types import SimpleNamespace
+
+    from fichero_server.actions.chat_tools import dispatch_tool_call
+    from fichero_server.api.routes.search import core
+    from fichero_server.models.knowledge import EntityType, KnowledgeEntity
+
+    claim, ok_claim, _note, _conv = _seed_secret_records(project)
+    db = db_manager.get_database(project.harness.library)
+    db.save(KnowledgeEntity(canonical_name="SECRET entity", entity_type=EntityType.person, source_document_ids=[project.ids["b1"]]))
+    alice = {n: c for n, c, _ in four}["alice"]
+
+    def invoke(name, params):
+        return alice.post("/api/actions/invoke", json={"name": name, "params": params})
+
+    listed = invoke("claim.list", {})
+    assert listed.status_code == 200 and "SECRET" not in listed.text and ok_claim.id in listed.text
+    assert invoke("claim.get", {"claim_id": claim.id}).status_code == 403
+    entities = invoke("entity.list", {})
+    assert entities.status_code == 200 and "SECRET" not in entities.text
+    rows = [SimpleNamespace(document_id=project.ids["b1"]), SimpleNamespace(document_id=project.ids["a1"])]
+    monkeypatch.setattr(core, "_run_content_search_sync", lambda db_, req, q: (rows, 2, None))
+    monkeypatch.setattr(core, "asdict", lambda r: {"document_id": r.document_id})
+    got = dispatch_tool_call(db, "search.query", {"query": "x"}, library_path=project.library, is_bootstrap=True, may_read=lambda d: d != project.ids["b1"])
+    assert got.result["total_results"] == 1

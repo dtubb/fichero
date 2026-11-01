@@ -2792,7 +2792,9 @@ def _action_search_query(
         db, request, params.query
     )
     if ctx.may_read is not None:  # the chat agent's caller reads only some pages (#6320)
-        results = [r for r in results if ctx.may_read(r.document_id)]
+        kept = [r for r in results if ctx.may_read(r.document_id)]
+        total_count = max(0, total_count - (len(results) - len(kept)))  # ponytail: only this page's drops are known
+        results = kept
     # db.SearchResult is a dataclass, not a pydantic model.
     result = {
         "results": [asdict(r) for r in results],

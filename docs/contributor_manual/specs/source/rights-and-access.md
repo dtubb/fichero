@@ -163,6 +163,8 @@ Rulings.
 - **2026-11-01 (#6320): the plain list and read routes hide them too.** `GET /api/claims`, `/api/claims/{id}`,
   `/api/agent-memory`, `/api/agent-memory/{id}` and the chat conversation list and read leave out (list) or refuse
   (read, 403) a claim, note or conversation resting on a page the caller may not read (`source.rights.claims-with-only-denied-evidence-are-hidden`).
+  `POST /api/actions/invoke` and the chat tools share that reader: `claim.list`, `claim.get`, `entity.list`, `entity.get`,
+  `entity.neighborhood` (no edge from a hidden claim) and `search.query` (its `total_results` drops what was left out) answer as the plain routes do.
 
 ## Triaged from the backlog (2026-10-04)
 - `source.rights.engine-wide-stores-follow-the-library` — **[GAP]** (#5181) engine-wide stores that mention a library's content (agent write audit, PyKEEN jobs and predictions, etc.) are filtered by that library's permissions, and truly global settings are owner-only.

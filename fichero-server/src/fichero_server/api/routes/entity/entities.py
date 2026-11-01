@@ -2222,6 +2222,13 @@ class EntityListActionParams(BaseModel):
     offset: int = Field(default=0, ge=0)
 
 
+def _entity_readable(ctx: ActionContext, entity: KnowledgeEntity) -> bool:
+    """An entity drawn only from pages the caller may not read is hidden; one with no source page stays visible
+    (`source.rights.claims-with-only-denied-evidence-are-hidden`, #6320)."""
+    docs = entity.source_document_ids
+    return ctx.may_read is None or not docs or any(ctx.may_read(d) for d in docs)
+
+
 @action(
     "entity.list",
     EntityListActionParams,
@@ -2241,6 +2248,7 @@ def _action_list_entities(
         limit=params.limit,
         offset=params.offset,
     )
+    items = [e for e in items if _entity_readable(ctx, e)]
     result = {
         "items": [entity.model_dump(mode="json") for entity in items],
         "count": len(items),
@@ -2271,6 +2279,8 @@ def _action_get_entity(
         raise HTTPException(
             status_code=404, detail=f"Entity not found: {params.entity_id}"
         )
+    if not _entity_readable(ctx, entity):
+        raise HTTPException(status_code=403, detail="You may not read the pages this entity rests on")
     return entity.model_dump(mode="json"), ChangeSpec(domains=["entity"])
 
 
@@ -2297,8 +2307,11 @@ def _action_entity_neighborhood(
     # module scope would couple the entity + kg routers' import order.
     from fichero_server.api.routes.kg.graph import neighborhood_impl
 
+    focus = db.get(KnowledgeEntity, params.entity_id)
+    if focus is not None and not _entity_readable(ctx, focus):
+        raise HTTPException(status_code=403, detail="You may not read the pages this entity rests on")
     response = neighborhood_impl(
-        db, params.entity_id, hops=params.hops, limit=params.limit, rank=params.rank
+        db, params.entity_id, hops=params.hops, limit=params.limit, rank=params.rank, may_read=ctx.may_read
     )
     return response.model_dump(mode="json"), ChangeSpec(domains=["entity", "claim"])
 

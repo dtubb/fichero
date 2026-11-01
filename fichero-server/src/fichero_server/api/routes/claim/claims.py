@@ -1645,6 +1645,8 @@ def _action_list_claims(
         limit=params.limit,
         offset=params.offset,
     )
+    if ctx.may_read is not None:  # a claim resting on a page this caller may not read is left out (#6320)
+        items = [c for c in items if not c.source_document_id or ctx.may_read(c.source_document_id)]
     result = {
         "items": [claim.model_dump(mode="json") for claim in items],
         "count": len(items),
@@ -1673,4 +1675,6 @@ def _action_get_claim(
         raise HTTPException(
             status_code=404, detail=f"Claim not found: {params.claim_id}"
         )
+    if ctx.may_read is not None and claim.source_document_id and not ctx.may_read(claim.source_document_id):
+        raise HTTPException(status_code=403, detail="You may not read the page this claim rests on")
     return _resolved_claim_dict(claim), ChangeSpec(domains=["claim"])

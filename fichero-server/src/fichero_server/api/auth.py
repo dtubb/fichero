@@ -638,7 +638,16 @@ def action_context(
         library_path=x_fichero_library_path,
         is_bootstrap=bool(getattr(request.state, "bootstrap_auth", False)),
         device=_device_attribution(request),
+        may_read=_action_reader(request, x_fichero_library_path),
     )
+
+
+def _action_reader(request: Request, library_path: str):
+    """The caller's per-document read test for an action (None when every page is readable to them): the one reader
+    chat also uses, so `/api/actions/invoke` and the chat tools filter alike (#6320)."""
+    from fichero_server.api.main import document_reader
+
+    return document_reader(request, library_path)
 
 
 def app_action_context(

@@ -406,6 +406,7 @@ def neighborhood_impl(
     hops: int = 1,
     limit: int = 50,
     rank: str = "edge_weight",
+    may_read=None,
 ) -> NeighborhoodResponse:
     """Core focus-neighborhood computation shared by the route and the
     ``entity.neighborhood`` action.
@@ -444,6 +445,8 @@ def neighborhood_impl(
 
     # Statements resting only on trashed pages draw no edges (`safety.trash.dependants-go-with-their-source`).
     claims_all = visible_claims(db, db.query(KnowledgeClaim))
+    if may_read is not None:  # a claim on a page the caller may not read draws no edge (#6320)
+        claims_all = [c for c in claims_all if not c.source_document_id or may_read(c.source_document_id)]
     candidate_edges: list[NeighborhoodEdge] = []
     candidate_neighbor_ids: dict[str, int] = {}  # entity_id → hop
     frontier: set[str] = {entity_id}
