@@ -39,8 +39,9 @@ pytest_plugins = ["anyio.pytest_plugin", "_hypothesis_pytestplugin", "langsmith.
 # scratch tree, one build at a time on this machine (owner 2026-11-01). Derived data under the shared area so a
 # second build reuses it; a stale incremental build is a known failure shape: delete the folder and run again.
 build_paths = ["fichero/"]
-# The scheme's own configuration (Dev Embedded); no signing: the worker user has no identity (review 1 M6, N7).
-build = ["xcodebuild", "-project", "fichero/fichero.xcodeproj", "-scheme", "Fichero (Dev Embedded)",
+# The Dev Local scheme: a compile of the app alone (Dev Embedded's "Embed Fichero Server" phase wants a briefcase-staged
+# engine, which is the release lane's job, not a check). No signing: the worker user has no identity (review 1 M6, N7).
+build = ["xcodebuild", "-project", "fichero/fichero.xcodeproj", "-scheme", "Fichero (Dev Local)",
          "-destination", "platform=macOS", "-derivedDataPath", "/Users/Shared/fichero-worker/derived", "-jobs", "4",
          "-skipPackagePluginValidation", "CODE_SIGNING_ALLOWED=NO", "build"]
 build_timeout_s = 3600
