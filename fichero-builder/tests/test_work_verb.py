@@ -152,6 +152,17 @@ def test_fetch_never_passes_the_workers_branch_name_to_git(scratch, tmp_path):
     assert not (tmp_path / "PWNED").exists()
 
 
+def test_a_rerun_after_the_worker_rewrote_its_branch_replaces_the_owners_ref(scratch):
+    w = scratch.wt
+    _commit(w, "one")
+    first = work.do_fetch(scratch.a, str(scratch.engine), "integration")
+    _g(w, "reset", "-q", "--hard", "HEAD~1")
+    _commit(w, "other")  # a history the owner's work-n1 ref does not contain
+    second = work.do_fetch(scratch.a, str(scratch.engine), "integration")
+    assert first and second and second != first
+    assert _g(scratch.engine, "rev-parse", "refs/heads/work-n1") == second
+
+
 def test_export_counts_the_real_commits_over_the_base(scratch):
     _commit(scratch.wt, "one"), _commit(scratch.wt, "two")
     assert work.do_export(scratch.a, "integration") == 2
@@ -219,7 +230,8 @@ def test_work_check_refuses_an_empty_range_like_builder_check(scratch, monkeypat
 
 def test_work_check_passes_a_resolved_sha_as_since_and_the_items_ids_as_protected(scratch, monkeypatch):
     seen = []
-    monkeypatch.setattr(work.check_tool, "run_ladder", lambda *a, **k: (seen.append(a), {"ok": True})[1])
+    monkeypatch.setattr(work.check_tool, "run_ladder", lambda *a, **k: (seen.append(a), kw.append(k), {"ok": True})[2])
+    kw = []
     base = _g(scratch.engine, "rev-parse", "HEAD")
     _g(scratch.engine, "checkout", "-qb", "side")
     (scratch.engine / "g").write_text("1")
@@ -229,11 +241,8 @@ def test_work_check_passes_a_resolved_sha_as_since_and_the_items_ids_as_protecte
     work.do_check(a, str(scratch.engine), "integration", head, str(scratch.tmp / "ladder.json"))
     root, since, h, pinned, protected = seen[0]
     assert since == base and h == head and list(protected) == ["dev-workflows.tool.work"]
+    assert kw[0].get("maintainer") is not True, "builder work can never set the maintainer flag"
 
-
-def test_builder_check_and_work_check_share_the_empty_range_refusal():
-    from fichero_builder import check_tool
-    assert issubclass(check_tool.EmptyRange, RuntimeError) and callable(check_tool.ladder_over)
 
 
 @pytest.fixture

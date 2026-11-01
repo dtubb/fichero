@@ -101,7 +101,7 @@ def do_fetch(a, repo: str, branch: str) -> str:
     r = as_worker(a, f"mkdir -p {q(str(state))} && rm -f {q(str(bundle))} && {q(jail_git())} -C {q(str(a.worktree))} bundle create "
                      f"{q(str(bundle))} origin/{q(branch)}..HEAD && chmod a+r {q(str(bundle))}")
     ref = f"refs/heads/work-{a.name}"
-    if r.returncode or _git(repo, "fetch", "-q", "--no-tags", "--", str(bundle), f"HEAD:{ref}").returncode:
+    if r.returncode or _git(repo, "fetch", "-q", "--no-tags", "--", str(bundle), f"+HEAD:{ref}").returncode:
         return ""
     return _git(repo, "rev-parse", "--verify", f"{ref}^{{commit}}").stdout.strip()
 
