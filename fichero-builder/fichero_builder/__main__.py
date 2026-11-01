@@ -99,6 +99,9 @@ def main(argv=None) -> int:
     ld.add_argument("--push", action="store_true", help="push sha to origin/<branch> first; nothing else ever sets this")
     ld.add_argument("--no-issues", action="store_true", help="leave the cited issues alone")
     ld.add_argument("--state", help="where the owner's journal lives (default: the owner's journal dir)")
+    wa = sub.add_parser("watch", help="a live progress page from the journal on 127.0.0.1 (runs, checks, lands)")
+    wa.add_argument("--port", type=int, default=8765)
+    wa.add_argument("--state", help="where the journal lives (default: the owner's journal dir)")
     w = sub.add_parser("work", help="run, patches, fetch, check, review, land as one process; stops with QUESTION: (exit 2), never pushes")
     w.add_argument("--brief", required=True), w.add_argument("--worktree", required=True), w.add_argument("--name", required=True)
     w.add_argument("--kind", default="claude", choices=["claude"])
@@ -141,6 +144,10 @@ def main(argv=None) -> int:
     journal.STATE = state_dir(a.root, a.state) if a.cmd == "run" else (Path(a.state) if a.state else journal.STATE)
     if a.cmd == "work":
         return work.main(a)
+    if a.cmd == "watch":
+        from fichero_builder import watch
+
+        return watch.main(a)
     if a.cmd == "landed":
         from fichero_builder import landed
 

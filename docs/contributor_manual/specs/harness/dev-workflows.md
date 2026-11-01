@@ -329,6 +329,13 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   `::test_refuses_a_sha_that_is_not_a_fast_forward_of_origin`, `::test_the_cited_issues_are_closed_or_commented_through_gh`,
   `::test_a_range_over_the_boundary_is_not_pushed`, `::test_a_journal_landed_does_not_own_or_others_can_write_refuses_before_anything`,
   `::test_a_green_row_counts_only_for_the_range_being_landed`. Not yet: a run with the real jail user and the real `gh`; both are faked in every test.
+- `dev-workflows.tool.watch` [OK] (#6116; owner 2026-11-01) — `builder watch [--port 8765] [--state DIR]` is a live progress
+  page: a stdlib `http.server` bound to 127.0.0.1 serving one HTML page (no JavaScript; a 5 s meta refresh) read from the
+  journal, newest first: one table per kind and nothing else: each run (name, worktree, model, started, turns, cost USD,
+  status done/parked/handoff or running), each check (range, green/red, the failed rung), each landing (tip, last step,
+  branch, pushed). A naive page by design: the SwiftUI Builder app replaces it later and reads the same journal.
+  Tests: `fichero-builder/tests/test_watch.py::test_the_page_shows_every_run_check_and_land_newest_first_with_status_and_cost`,
+  `::test_watch_serves_the_journal_page_on_the_loopback_only`.
 - `dev-workflows.builder.cluster` [PARTIAL] (#6116) — one spec and its build-order issues (parser ported from
   `pipeline/plan.py`), in order, one commit per issue with its test; the brief is built by `scripts/harness_brief.py` from
   `gh api repos/{repo}/issues/N`: the body and the **title** only when the author association is owner, member or
@@ -670,8 +677,8 @@ Steps a long-running builder can take from the heading. `Depends on` defaults to
 - Size: M
 
 #### Step 2.4 — one command after a verdict, no hand edits, two lanes in turn (owner 2026-11-01)
-- Behaviours: `dev-workflows.tool.landed` (the pinned copy, the rebase step, the no-second-ladder land and the rules in the brief are Built sentences under `tool.work`, `tool.milestone` and `tool.check`, whose steps they stay in)
-- Tests: fichero-builder/tests/test_landed_verb.py, fichero-builder/tests/test_work_verb.py, fichero-builder/tests/test_main.py, fichero-server/tests/unit/workflows/test_brief_tool.py
+- Behaviours: `dev-workflows.tool.landed`, `dev-workflows.tool.watch` (the pinned copy, the rebase step, the no-second-ladder land and the rules in the brief are Built sentences under `tool.work`, `tool.milestone` and `tool.check`, whose steps they stay in)
+- Tests: fichero-builder/tests/test_landed_verb.py, fichero-builder/tests/test_watch.py, fichero-builder/tests/test_work_verb.py, fichero-builder/tests/test_main.py, fichero-server/tests/unit/workflows/test_brief_tool.py
 - Depends on: 2.3
 - Size: M
 
@@ -738,6 +745,7 @@ Every behaviour names its test above, written in its step; each `security.*` and
 | `dev-workflows.tool.spec` | 2.3 |
 | `dev-workflows.tool.steps` | 2.3 |
 | `dev-workflows.tool.landed` | 2.4 |
+| `dev-workflows.tool.watch` | 2.4 |
 | `dev-workflows.run.worker-address` | 1.1 |
 | `dev-workflows.node.worker` | 1.2 |
 | `dev-workflows.rollout.dry-run` | 1.2 |
