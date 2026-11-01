@@ -1946,22 +1946,12 @@ async def recipe_check(request: Request | None, library_path: str | None, db: An
     if workflow is None:
         return  # not found: the route says so
     from fichero_server.api.auth import library_access_denial_payload
-    from fichero_server.workflows.run_scope import node_document_ids, path_writing_tool, recipe_hazard, with_sub_workflows
+    from fichero_server.workflows.run_scope import node_document_ids, recipe_hazard, with_sub_workflows
     from fichero_server.workflows.subworkflow import sub_workflow_resolver_for_db
 
     nodes = with_sub_workflows(workflow.nodes, sub_workflow_resolver_for_db(db))  # a `sub_workflow` step runs its child's steps
     if pages := node_document_ids(nodes):
         await write_check(request, library_path, db, pages)
-    if tool := path_writing_tool(nodes):  # the Mac's own machinery is the owner's whatever pages it reads, as /api/export/jsonl is (H6)
-        from fastapi import HTTPException
-
-        from fichero_server.api.routes.auth.accounts import _require_owner_or_bootstrap
-
-        try:
-            _require_owner_or_bootstrap(request)
-        except HTTPException as exc:
-            raise LibraryAccessDeniedError(library_access_denial_payload(
-                request, library_path, required="owner", detail=f"A recipe with a {tool} step writes to a path or runs a program on the Mac: the owner's to run.")) from exc
     if document_reader(request, library_path) is not None and (why := recipe_hazard(nodes)):
         raise LibraryAccessDeniedError(library_access_denial_payload(request, library_path, required="read", detail=why))
 

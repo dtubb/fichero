@@ -600,9 +600,10 @@ def test_h1_h8_n6_a_run_over_a_folder_source_is_shown_and_acted_on_only_to_a_cal
     assert owner.get(base + "/run").status_code == 200
 
 
-def test_h6_an_export_that_names_a_path_on_the_mac_is_the_owners(project, four):
-    """#6325 H6: `output_path` is a path on the owner's Mac. Every export route that takes one depends on the owner check (looked at, then fired
-    with a path that would be refused whoever sent it)."""
+def test_h6_an_export_that_names_a_path_on_the_mac_is_an_editors_right(project, four, tmp_path):
+    """#6325 H6, reversed by the owner's ruling of 2026-11-01: writing a path on the Mac is part of an editor's work. No export route with an
+    `output_path` depends on the owner check; a plain editor exports page A; a caller whose reads differ page by page is still refused by the
+    body-id read check (`test_read_exports_check_the_body_ids_6320.py`)."""
     from fastapi.routing import APIRoute
     from fichero_server.api.routes.auth.accounts import _require_owner_for_writes
     from tests.route_inventory import served_routes
@@ -610,11 +611,10 @@ def test_h6_an_export_that_names_a_path_on_the_mac_is_the_owners(project, four):
     named = [r for r in served_routes(project.harness.app) if isinstance(r, APIRoute) and r.path.startswith("/api/export/") and r.body_field is not None
              and "output_path" in getattr(r.body_field.field_info.annotation, "model_fields", {})]
     assert len(named) >= 7
-    assert not [r.path for r in named if _require_owner_for_writes not in {d.call for d in _all_dependencies(r.dependant)}]
-    for name, client, decoy in four:
-        for route in named:
-            got = client.post(route.path, json={"output_path": "x-path-no-write"})
-            assert got.status_code == 403 and "owner access required" in got.text, (name, route.path, got.status_code, got.text[:100])
+    assert not [r.path for r in named if _require_owner_for_writes in {d.call for d in _all_dependencies(r.dependant)}]
+    erin = _plain(project, "erin", authz.ROLE_EDITOR)
+    got = erin.post("/api/export/jsonl", json={"output_path": str(tmp_path / "out"), "target_id": project.ids["A"]})
+    assert got.status_code == 200, got.text[:200]
 
 
 def _recipe(client, nodes):
@@ -842,22 +842,26 @@ def test_item4_a_caller_with_a_deny_cannot_save_a_recipe_the_run_check_would_ref
         assert client.post("/api/workflows", json={"name": "r", "edges": [], "nodes": [export]}).status_code == 200
 
 
-def test_item5_a_recipe_step_that_writes_a_path_or_runs_a_program_is_the_owners_even_for_a_plain_editor(project, four, tmp_path):
-    """Review 8 item 5: `/api/export/jsonl` is the owner's, but a plain editor wrote the same path with a one-node `export_documents` recipe."""
-    owner = _as(project.harness, "owner")
+def test_item5_a_recipe_step_that_writes_a_path_or_runs_a_program_is_an_editors_right(project, four, tmp_path):
+    """Review 8 item 5, reversed by the owner's ruling of 2026-11-01: a recipe step that writes a path or runs a program is an editor's right
+    to save, run and schedule. A caller whose reads differ page by page is still refused such a recipe at the save (item 4) and at every
+    start (`recipe_hazard`): the two doors agree the other way round. The editor's `cli_agent` run is saved, not fired (it starts a program)."""
+    alice = next(c for n, c, _ in four if n == "alice")
     erin = _plain(project, "erin", authz.ROLE_EDITOR)
     out = tmp_path / "copied"
     export = {"id": "e", "tool": "export_documents", "label": "E", "inputs": {"formats": ["markdown"], "destination": str(out)}, "config": {}}
     cli = {"id": "c", "tool": "cli_agent", "label": "C", "inputs": {"task": "x"}, "config": {}}
-    folder_a = {"id": "f", "tool": "folder", "label": "F", "inputs": {"folder_id": project.ids["A"]}, "config": {}}
-    for label, node in (("export", export), ("cli_agent", cli)):
-        wid = _recipe(erin, [node])
-        assert erin.post("/api/workflow-execution/execute", json={"workflow_id": wid, "inputs": {}}).status_code == 403, label
-        if node is export:  # (the owner's cli_agent run is not fired: it would start a program)
-            assert owner.post("/api/workflow-execution/execute", json={"workflow_id": wid, "inputs": {}}).status_code == 202, label
-    assert erin.post("/api/workflow-execution/execute", json={"workflow_id": _recipe(erin, [folder_a]), "inputs": {}}).status_code == 202
-    schedule = {"name": "n", "workflow_id": _recipe(erin, [export]), "config": {"schedule_type": "cron", "cron_expression": "0 3 * * *"}, "inputs": {}}
-    assert erin.post("/api/schedules", json=schedule).status_code == 403
+    wid = _recipe(erin, [export])
+    assert erin.post("/api/workflow-execution/execute", json={"workflow_id": wid, "inputs": {}}).status_code == 202
+    assert alice.post("/api/workflow-execution/execute", json={"workflow_id": wid, "inputs": {}}).status_code == 403
+    assert alice.put(f"/api/workflows/{wid}", json={"name": "r", "edges": [], "nodes": [export]}).status_code == 403
+    _recipe(erin, [cli])
+    harmless = {"id": "f", "tool": "folder", "label": "F", "inputs": {"folder_id": project.ids["A"]}, "config": {}}
+    edited = _recipe(erin, [harmless])  # one schedule per test: the harness's scheduler loop closes after the first request that adds a job
+    schedule = {"name": "n", "workflow_id": edited, "config": {"schedule_type": "cron", "cron_expression": "0 3 * * *"}, "inputs": {}}
+    assert erin.post("/api/schedules", json=schedule).status_code == 200
+    # an editor edits the scheduled recipe into an export (review 9 must-fix 1): allowed, the same right as running one
+    assert erin.put(f"/api/workflows/{edited}", json={"name": "r", "edges": [], "nodes": [export]}).status_code == 200
 
 
 def test_item6_a_viewer_does_not_make_a_library_of_his_own_and_so_an_owner_role_to_spend_keys(project, tmp_path):

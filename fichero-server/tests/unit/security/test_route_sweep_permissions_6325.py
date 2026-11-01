@@ -423,8 +423,9 @@ def sweep(project, scratch):
 
 # ---- what counts as a failure -----------------------------------------------------------------------------------------------------
 
-#: Writes under these prefixes change the owner's Mac (the MLX runtime, local models, machines, registered libraries, chain presets, a path an export writes to).
-MACHINE = re.compile(r"^(POST|PUT|PATCH|DELETE) /api/(library(?=$)|local-inference|local-models|machines|registry|chains/presets|export/(jsonl|training|parquet|eleventy-site|markdown-folder|word|excel))\b")
+#: Writes under these prefixes change the owner's Mac (the MLX runtime, local models, machines, registered libraries, chain presets). An export
+#: that writes a path is an editor's right (owner ruling 2026-11-01, H6 reversed), so the export routes are ordinary writes here.
+MACHINE = re.compile(r"^(POST|PUT|PATCH|DELETE) /api/(library(?=$)|local-inference|local-models|machines|registry|chains/presets)\b")
 #: Routes that spend the owner's keys or use the network: a caller who can only read (a viewer, a person shared a folder to read) is refused.
 SPEND = re.compile(r"^POST /api/(model-comparison/(compare|compare-node)|research/tools/(web-search|browser-navigate))$")
 #: Reads a plain editor or viewer is refused on by design.
@@ -524,7 +525,7 @@ def test_report_the_time(sweep):
 
 
 def test_the_owner_keeps_the_machines_own_routes(project, scratch):
-    """The control for H6/H9: refused to everyone else, the owner still deletes the runtime (in scratch), reaches the preset and exports."""
+    """The control for H9: refused to everyone else, the owner still deletes the runtime (in scratch), reaches the preset and exports."""
     from fichero_server.llm.mlx_runtime import mlx_runtime_dir
 
     _refuse_unless_isolated(scratch)

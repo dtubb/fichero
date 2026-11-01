@@ -12,7 +12,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import action_context
-from fichero_server.api.routes.auth.accounts import _require_owner_for_writes
 from fichero_server.api.library_header import optional_library_path
 from fichero_server.api.library_header import require_library_path
 from fichero_server.api.main import (
@@ -216,7 +215,7 @@ class EleventySiteExportResponse(BaseModel):
     assets: list[ExportedFileResponse]
 
 
-@router.post("/jsonl", response_model=JsonlExportResponse, dependencies=[Depends(_require_owner_for_writes)])
+@router.post("/jsonl", response_model=JsonlExportResponse)
 async def export_jsonl_route(
     request: JsonlExportRequest,
     http: Request,
@@ -243,7 +242,7 @@ async def export_jsonl_route(
     return JsonlExportResponse(**result.__dict__)
 
 
-@router.post("/training", response_model=TrainingExportResponse, dependencies=[Depends(_require_owner_for_writes)])
+@router.post("/training", response_model=TrainingExportResponse)
 async def export_training_route(
     request: TrainingExportRequest,
     db: Database = Depends(get_library_database_for_write),
@@ -286,7 +285,7 @@ async def export_training_route(
     )
 
 
-@router.post("/parquet", response_model=ParquetExportResponse, dependencies=[Depends(_require_owner_for_writes)])
+@router.post("/parquet", response_model=ParquetExportResponse)
 async def export_parquet_route(
     request: ParquetExportRequest,
     http: Request,
@@ -313,7 +312,7 @@ async def export_parquet_route(
     return ParquetExportResponse(**result.__dict__)
 
 
-@router.post("/eleventy-site", response_model=EleventySiteExportResponse, dependencies=[Depends(_require_owner_for_writes)])
+@router.post("/eleventy-site", response_model=EleventySiteExportResponse)
 async def export_eleventy_site_route(
     request: EleventySiteExportRequest,
     http: Request,
@@ -349,7 +348,7 @@ async def export_eleventy_site_route(
     )
 
 
-@router.post("/markdown-folder", response_model=MarkdownFolderExportResponse, dependencies=[Depends(_require_owner_for_writes)])
+@router.post("/markdown-folder", response_model=MarkdownFolderExportResponse)
 async def export_markdown_folder_route(
     request: MarkdownFolderExportRequest,
     http: Request,
@@ -384,7 +383,7 @@ async def export_markdown_folder_route(
     )
 
 
-@router.post("/word", response_model=WordExportResponse, dependencies=[Depends(_require_owner_for_writes)])
+@router.post("/word", response_model=WordExportResponse)
 async def export_word_route(
     request: WordExportRequest,
     http: Request,
@@ -422,7 +421,7 @@ async def export_word_route(
     return WordExportResponse(**result.__dict__)
 
 
-@router.post("/excel", response_model=ExcelExportResponse, dependencies=[Depends(_require_owner_for_writes)])
+@router.post("/excel", response_model=ExcelExportResponse)
 async def export_excel_route(
     request: ExcelExportRequest,
     http: Request,
