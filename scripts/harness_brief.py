@@ -21,6 +21,8 @@ issues = [brief_tool.fetch_issue(n) for n in a.numbers]
 if a.branch or a.base or len(issues) > 1:
     if not (a.branch and a.base):
         sys.exit("a cluster brief needs --branch and --base")
+    if not (Path(a.repo_dir) / "harness.toml").is_file():
+        sys.exit(f"harness.toml is missing in {a.repo_dir}: a cluster brief needs its [brief].rules")
     try:
         check_tool.load(a.repo_dir)  # a misspelt key refuses, or every worker silently gets a brief with no rules
     except ValueError as exc:

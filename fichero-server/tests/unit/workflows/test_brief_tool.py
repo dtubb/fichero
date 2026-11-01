@@ -110,6 +110,22 @@ def test_the_brief_script_puts_the_rules_files_text_in_a_cluster_brief(tmp_path)
     assert r.returncode == 0 and "be careful" in r.stdout and "Branch b " in r.stdout
 
 
+def test_the_brief_script_refuses_a_missing_harness_toml_in_one_line_and_prints_no_brief(tmp_path):
+    (tmp_path / "harness.toml").write_text("")
+    (tmp_path / "harness.toml").unlink()
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    issue = json.dumps({"number": 1, "title": "One", "body": "b", "author_association": "OWNER"})
+    (bin_dir / "gh").write_text(f"#!/bin/sh\ncase \"$*\" in *comments*) echo '[]';; *) echo '{issue}';; esac\n")
+    (bin_dir / "gh").chmod(0o755)
+    script = Path(__file__).resolve().parents[4] / "scripts" / "harness_brief.py"
+    r = subprocess.run([sys.executable, str(script), "1", "2", "--repo-dir", str(tmp_path), "--branch", "b", "--base", "s"],
+                       capture_output=True, text=True, timeout=120, env={**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"})
+    assert r.returncode == 1 and r.stdout == ""
+    assert "harness.toml" in r.stderr and "missing" in r.stderr
+    assert "Traceback" not in r.stderr and len(r.stderr.strip().splitlines()) == 1
+
+
 def test_the_brief_script_refuses_a_misspelt_brief_key_and_prints_no_brief(tmp_path):
     r = _run_brief_script(tmp_path, '[brief]\nrulez = "RULES: be careful"\n')
     assert r.returncode != 0 and "rulez" in r.stderr and "Branch b " not in r.stdout
