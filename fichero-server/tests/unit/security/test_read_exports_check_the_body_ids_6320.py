@@ -35,11 +35,13 @@ def test_a_decoy_id_in_the_query_does_not_stand_in_for_the_body(scoped):
 
 
 def test_a_person_still_reads_their_own_folder(scoped):
-    """A person shared one folder names it in the query too (the read dependency refuses an id-less request to a scoped person)."""
+    """A person shared one folder names it in a query the route declares (the read dependency refuses an id-less request to a scoped person).
+    The workbook and the preview declare none (the id is in the body), so they stay refused to her, fail closed: an undeclared query name is
+    no target (#6325, H5)."""
     project, client, workbook, preview = scoped
     a = project.ids["A"]
-    assert client.post(workbook + f"?target_id={a}", json={"target_id": a}).status_code != 403
-    assert client.post(preview + f"?folder_id={a}", json={"folder_id": a, "operation": TURN}).status_code == 200
+    assert client.post(workbook + f"?target_id={a}", json={"target_id": a}).status_code == 403
+    assert client.post(preview + f"?folder_id={a}", json={"folder_id": a, "operation": TURN}).status_code == 403
 
 
 def test_a_project_viewer_denied_a_folder_cannot_read_it_through_either_route(project):

@@ -76,7 +76,8 @@ def test_h2_chat_scope_document_id_and_a_conversations_own_scope_are_checked(pro
 def test_h2_an_unscoped_chat_retrieves_only_what_the_caller_may_read(project, four, monkeypatch):
     seen = _spy_chat(monkeypatch, project)
     by = {name: (client, decoy) for name, client, decoy in four}
-    for name in ("alice", "carla"):
+    assert by["carla"][0].post("/api/chat", json={"message": "hi"}).status_code == 403  # an unscoped chat reads the whole library: not a folder person's (#6325 H5)
+    for name in ("alice",):
         client, decoy = by[name]
         seen.clear()
         got = client.post("/api/chat" + decoy, json={"message": "hi"})
@@ -438,3 +439,17 @@ def test_o1_one_restricted_page_does_not_turn_off_the_knowledge_views_for_someon
     db.save(RightsRecord(target_kind="document", target_id=project.ids["b1"], restricted=True, readers=[project.users["alice"].id]))
     assert [alice.get(v).status_code for v in views] == [200] * 4  # a named reader keeps them
     assert [bob.get(v).status_code for v in views] == [403] * 4  # someone not named cannot be shown a count that includes it
+
+
+def test_h5_a_query_name_no_route_declares_is_not_a_target(project, four):
+    """#6325 H5: `?x_id=<A>` opened the library level to a person shared folder A. It names no id the route reads, so it changes nothing."""
+    for method, path in (("POST", "/api/workflows"), ("POST", "/api/projects"), ("POST", "/api/search/reindex"), ("POST", "/api/storage/regenerate-missing"),
+                         ("GET", "/api/actions"), ("GET", "/api/claims")):
+        for name, client, decoy in four:
+            if name in ("carla", "dana"):
+                plain = client.request(method, path, json={} if method == "POST" else None)
+                with_decoy = client.request(method, path + decoy, json={} if method == "POST" else None)
+                assert with_decoy.status_code == plain.status_code, (name, method, path, plain.status_code, with_decoy.status_code)
+    # a name the route DOES declare still counts: carla reads her own folder by `parent_id`
+    own = next(c for n, c, _ in four if n == "carla").get(f"/api/documents?parent_id={project.ids['A']}")
+    assert own.status_code == 200, own.text[:200]

@@ -185,6 +185,8 @@ Rulings.
   later.**
   `POST /api/workflow-execution/threads/{id}/resume` is refused, and returns no run state, to a caller who cannot write
   every page the checkpoint, the run's start or the call names (`source.rights.every-id-in-a-request-is-checked`).
+  A query parameter names a target only if the route declares it (`source.rights.every-id-in-a-request-is-checked`): `?x_id=<a folder
+  I may read>` on a route that reads no `x_id` changes nothing, so it cannot turn a library-level read or write into a folder-level one (#6325, H5).
   A person shared one folder opens the Table on it: `POST /api/documents/dataset/query` with that folder as `parent_id` answers,
   and a query for another folder, or none (the whole project), is refused (`source.rights.every-id-in-a-request-is-checked`).
 

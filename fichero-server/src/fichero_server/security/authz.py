@@ -481,11 +481,27 @@ def target_ids_from_request(request: Any) -> list[str]:
     query_params = getattr(request, "query_params", None)
     pairs = list(path_params.items())
     if query_params is not None:
-        pairs += list(query_params.multi_items()) if hasattr(query_params, "multi_items") else list(query_params.items())
+        declared = _declared_query_names(request)  # a query name the route does not declare is no target: it is a decoy (#6325, H5)
+        pairs += [(k, v) for k, v in (query_params.multi_items() if hasattr(query_params, "multi_items") else query_params.items())
+                  if declared is None or k in declared]
     for key, value in pairs:
         if key == "id" or key.endswith("_id"):
             _append_target_id(target_ids, value)
     return target_ids
+
+
+def _declared_query_names(request: Any) -> set[str] | None:
+    """The query parameters the matched route (and its dependencies) declare; None when no route is matched yet (every name counts)."""
+    dependant = getattr(getattr(request, "scope", {}).get("route"), "dependant", None)
+    if dependant is None:
+        return None
+    names: set[str] = set()
+    stack = [dependant]
+    while stack:
+        node = stack.pop()
+        names.update(q.alias for q in node.query_params)
+        stack.extend(node.dependencies)
+    return names
 
 
 def _append_target_id(target_ids: list[str], value: Any) -> None:
