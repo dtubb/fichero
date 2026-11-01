@@ -56,7 +56,8 @@ def test_the_boundary_grep_flags_private_text_in_added_lines_and_messages(tmp_pa
     (tmp_path / "m.py").write_text("if x:\n    g()\n    h()\nP = '/Users/someone/secret'\n")
     g("commit", "-qam", "add; token sk-ant-abc123")
     hits = L.boundary(tmp_path, base, "HEAD", [r"/Users/\w+", r"sk-ant-\w+"])
-    assert any("m.py" in h and "/Users/" in h for h in hits) and any("message" in h and "sk-ant-" in h for h in hits)
+    assert any("m.py" in h and "pattern 0" in h for h in hits) and any("message" in h and "pattern 1" in h for h in hits)
+    assert not any("secret" in h or "abc123" in h for h in hits)  # review-2 H9: a hit names the place, never the line
     assert L.boundary(tmp_path, base, "HEAD", []) == []
     g("reset", "-q", "--hard", base)
     (tmp_path / "m.py").write_text("if x:\n    g()\n    h()\n    k()\n")

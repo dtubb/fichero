@@ -189,7 +189,8 @@ def review_diff(root, base: str, head: str, cap: int = 60000) -> str:
 
 def boundary(root, base: str, head: str, patterns: list[str], cap: int = 30) -> list[str]:
     """The public/private boundary: every ADDED line of the diff and every commit message matching a pattern from
-    harness.toml [land].boundary. Empty = clear; at most `cap` hits are returned (more is itself a refusal reason)."""
+    harness.toml [land].boundary. Empty = clear; at most `cap` hits are returned (more is itself a refusal reason).
+    A hit names commit, file (or message) and the pattern's index, never the matching text: it goes to logs."""
     if not patterns:
         return []
     rx = [re.compile(p) for p in patterns]
@@ -206,9 +207,9 @@ def boundary(root, base: str, head: str, patterns: list[str], cap: int = 30) -> 
             in_hunk = True
         elif not in_hunk and ln.startswith("+++ "):
             f = ln[6:] if ln.startswith("+++ b/") else ln[4:]
-        elif in_hunk and ln.startswith("+") and any(r.search(ln) for r in rx):
-            hits.append(f"{cur} {f}: {ln[:120]}")
+        elif in_hunk and ln.startswith("+"):
+            hits += [f"{cur} {f}: pattern {i}" for i, r in enumerate(rx) if r.search(ln)]
     for sha in _git(root, "rev-list", f"{base}..{head}").split():
         msg = _git(root, "log", "-n1", "--format=%B", sha)
-        hits += [f"{sha[:10]} message: {ln[:120]}" for ln in msg.splitlines() if any(r.search(ln) for r in rx)]
+        hits += [f"{sha[:10]} message: pattern {i}" for ln in msg.splitlines() for i, r in enumerate(rx) if r.search(ln)]
     return hits[:cap] + ([f"... and {len(hits) - cap} more"] if len(hits) > cap else [])
