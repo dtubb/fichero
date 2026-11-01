@@ -70,15 +70,18 @@ def body_of(step: dict, spec: str, numbers: dict[str, int]) -> str:
 
 
 def _gh(gh: str, *args) -> str:
-    r = subprocess.run([gh, *args], capture_output=True, text=True, timeout=120)
+    try:
+        r = subprocess.run([gh, *args], capture_output=True, text=True, timeout=120)
+    except subprocess.TimeoutExpired:
+        raise Refused(f"gh {' '.join(args[:2])} timed out after 120 s") from None
     if r.returncode:
         raise Refused(f"gh {' '.join(args[:2])} failed: {r.stderr.strip()[-300:]}")
     return r.stdout
 
 
 def find(gh: str, slug: str, title: str) -> int | None:
-    rows = json.loads(_gh(gh, "issue", "list", "--milestone", slug, "--state", "all", "--search", f'"{title}" in:title',
-                          "--json", "number,title", "--limit", "200") or "[]")
+    rows = json.loads(_gh(gh, "issue", "list", "--milestone", slug, "--state", "all",
+                          "--json", "number,title", "--limit", "1000") or "[]")
     return next((r["number"] for r in rows if r["title"] == title), None)
 
 

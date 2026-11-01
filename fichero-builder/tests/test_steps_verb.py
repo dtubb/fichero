@@ -131,3 +131,18 @@ def test_dry_run_prints_the_plan_and_writes_nothing(env, capsys):
 def test_a_spec_with_no_milestone_line_is_refused(env, capsys):
     env.spec.write_text(SPEC.format(status="APPROVED").replace("> Milestone: thing\n", ""))
     assert env() == 1 and "Milestone" in capsys.readouterr().err
+
+
+def test_find_lists_the_milestone_and_compares_exact_titles_and_a_hung_gh_is_refused(tmp_path, monkeypatch):
+    from fichero_builder import steps
+
+    seen = []
+    monkeypatch.setattr(steps, "_gh", lambda gh, *args: (seen.append(args), json.dumps([{"number": 5, "title": "m Step 1.1: a b"}]))[1])
+    assert steps.find("gh", "m", "m Step 1.1: a b") == 5 and steps.find("gh", "m", "m Step 1.1: a") is None
+    assert "--search" not in seen[0] and seen[0][seen[0].index("--limit") + 1] == "1000"
+
+    import subprocess
+    monkeypatch.undo()
+    monkeypatch.setattr(steps.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(subprocess.TimeoutExpired("gh", 120)))
+    with pytest.raises(steps.Refused, match="timed out"):
+        steps._gh("gh", "issue", "list")
