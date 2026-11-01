@@ -36,7 +36,7 @@ from pydantic import BaseModel, Field
 
 from fichero_server.api.auth import action_context
 from fichero_server.api.change_stream import CHANGE_ID_LISTS, ChangeEvent, _change_hub
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.main import get_library_database, get_library_database_for_write, run_check
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.db import Database, committed
 from fichero_server.workflows.activity import (
@@ -1409,6 +1409,7 @@ async def cancel_job(
 @router.post("/jobs/{job_id}/retry", response_model=RetryResponse, response_model_exclude_none=True)
 async def retry_job(
     job_id: str,
+    http: Request,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> RetryResponse:
@@ -1426,6 +1427,8 @@ async def retry_job(
     if kind == "workflow":
         from fichero_server.api.routes.workflow_execution.core import read_again
 
+        await run_check(http, str(Path(db.path).parent), db, [job_id], write=True)  # as `read-again` on the run routes (#6325)
+
         new_thread, _workflow, _pages = await read_again(db, job_id)
         return RetryResponse(id=new_thread, state="running", replaces=job_id)
     if kind is not None and job_queue._is_attached(kind) and job_queue.run_of_page(db, job_id):
@@ -1433,6 +1436,7 @@ async def retry_job(
         # ended reopens for it, a run still going takes it into its queue. Never a new run, never a 409 for a live one.
         from fichero_server.api.routes.workflow_execution.core import retry_page_in_run
 
+        await run_check(http, str(Path(db.path).parent), db, [job_queue.run_of_page(db, job_id)], write=True)  # the page's run
         _run_id, how = await retry_page_in_run(db, job_id)
         return RetryResponse(id=job_id, state="running" if how == "reopened" else "waiting")
     return RetryResponse(**_control_job(db, ctx, "job.retry", {"job_id": job_id}).model_dump())

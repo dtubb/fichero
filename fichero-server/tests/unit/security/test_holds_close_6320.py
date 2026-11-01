@@ -865,3 +865,21 @@ def test_item6_a_viewer_does_not_make_a_library_of_his_own_and_so_an_owner_role_
         assert not target.exists()
     owner = _as(project.harness, "owner")
     assert owner.post("/api/library", json={"path": str(tmp_path / "owners.fichero")}).status_code == 200
+
+
+def test_item7_activitys_retry_of_a_run_is_checked_like_read_again(project, four):
+    """Review 8 item 7: `POST /api/activity/jobs/{run}/retry` went into `read_again` without `run_check`; `read-again` on the run routes is 403 for a caller with a deny."""
+    import time
+
+    owner = _as(project.harness, "owner")
+    wid = _recipe(owner, [{"id": "s", "tool": "search", "label": "S", "inputs": {"query": "SECRETTEXT", "search_type": "fulltext"}, "config": {}}])
+    thread = owner.post("/api/workflow-execution/execute", json={"workflow_id": wid, "inputs": {}}).json()["thread_id"]
+    for _ in range(300):
+        if owner.get(f"/api/workflow-execution/threads/{thread}/status").json().get("status") in ("completed", "failed"):
+            break
+        time.sleep(0.2)
+    for name, client, decoy in four:
+        if name in ("carla", "dana"):
+            continue
+        got = client.post(f"/api/activity/jobs/{thread}/retry{decoy}")
+        assert got.status_code == 403, (name, got.status_code, got.text)
