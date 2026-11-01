@@ -21,118 +21,8 @@ struct SetupStagePage: View {
     @State private var candidateFinder: ModelFinderStore?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // What the stage does, played on the person's own sample page when it was tried, else on the example
-            // (`source.onboard.stages.shows-what-it-does`); the candidates side by side when compared.
-            StageShowcaseSection(stageId: stage.id, result: tryStore?.result, useThis: useThis)
-                .environment(project?.storageService)
-            if let sample = stage.exampleFromSamples, !sample.isEmpty {
-                // An example from the person's own sample pages, once a try found one (Passages, #5805).
-                Text("From your sample pages: \(sample)")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else if !stage.example.isEmpty {
-                Text(stage.example)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if let note = Self.howItAnswers(stage.id) {
-                Text(note)
-                    .font(.callout)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            whoRunsIt
-            // This stage's steps left off until turned on: Read's Correct with no corrector here (#5677).
-            RecipeLeftOffRows(store: store, onlyJobs: Set(stage.jobs))
-            if FeatureManager.shared.isWideSetUpEnabled {
-                // Adding a step and putting one back are on its stage's page, not Ready (`wide.ready.adding-a-step-is-on-its-stage-page`).
-                RecipeTakenOutRows(store: store, removed: (store.recipe?.removed ?? []).filter { stage.jobs.contains($0.job) })
-                OfferedJobsList(store: store, onlyJobs: Set(stage.jobs))
-            }
-            if stage.id == "prepare-images" {
-                Divider()
-                PrepareImagesCard(
-                    store: store,
-                    folders: project.map { BakeoffStore.Folder.folders(in: $0.documentStore.collections) } ?? [],
-                    actionsService: project?.actionsService)
-            }
-            if !stage.questions.isEmpty {
-                Divider()
-                // The second review's mode is asked beside that step's model picker, once there is a second step.
-                ForEach(stage.questions.filter { $0.key != RecipeSetupStore.secondReviewModeQuestion }, id: \.key) { question in
-                    SetupStageQuestionField(
-                        question: question,
-                        store: store,
-                        answer: Binding(
-                            get: { Self.answer(to: question, in: store.jobAnswers) },
-                            set: { newValue in
-                                if question.key == RecipeSetupStore.leaveOutQuestion, case .yesNo(let on) = newValue {
-                                    store.setLeaveOut(on)  // the stage's tick follows the toggle
-                                } else {
-                                    store.jobAnswers[question: question.key] = newValue
-                                }
-                            }
-                        )
-                    )
-                    if stage.id == "prepare-images", question.readByAStep != true {
-                        // No step reads it yet (`read_by_a_step`): said, not implied (`StageKindsField` says the same).
-                        Text("Saved with your answers. No step uses this yet.").font(.caption).foregroundStyle(.secondary)
-                            .accessibilityIdentifier("setup.question.notRead.\(question.key)")
-                    }
-                }
-            }
-            // The review's own instructions for each pass, from the profile built for this project (#6128).
-            // The project's one search model is chosen on the Search step, never on the first screen (#6249).
-            if stage.jobs.contains("make-a-vector") {
-                Divider()
-                SetupSearchModelField(client: store.client)
-            }
-            if stage.jobs.contains("correct") {
-                Divider()
-                ReviewInstructionsSection(store: store)
-            }
-            // Early, in one calm sentence: how many corrected lines training a model of your own will need.
-            ForEach(store.trainAhead(forJobs: stage.jobs), id: \.self) { sentence in
-                Text(sentence).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-            // A stage that cannot be tried on the pages yet says so, in words (`source.try.every-job`).
-            if !stage.sampleable, let words = stage.notTried {
-                Text(words).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-            if stage.sampleable, let tryStore {
-                Divider()
-                if let who = StageCandidateChooser.whoDoes(stageId: stage.id) {
-                    Text(who).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                }
-                // A plan with no step for this stage cannot list its models: say so, never draw nothing
-                // (`source.onboard.stages.not-in-plan-says-so`, Set Up review item 2).
-                if store.recipe != nil, store.mainStep(forJobs: stage.jobs) == nil {
-                    Text(Self.notInPlanWords(stage: stage.title)).font(.callout).foregroundStyle(.secondary)
-                        .accessibilityIdentifier("setup.stage.notInPlan")
-                }
-                // Which of the step's candidates Compare on These Pages runs (up to three; none: the engine's own).
-                if let finder = candidateFinder, !finder.candidates.isEmpty {
-                    StageCandidateChooser(
-                        candidates: finder.candidates,
-                        chosen: Binding(get: { tryStore.chosenCandidates }, set: { tryStore.chosenCandidates = $0 }),
-                        useSmaller: useSmaller
-                    )
-                }
-                SetupStageSamples(
-                    store: tryStore, useThis: useThis, saveFirst: { await store.save() },
-                    currentRevision: stage.answersRevision,
-                    runThisStep: {
-                        let ids = (store.recipe?.steps ?? []).filter { stage.jobs.contains($0.job) }.map(\.id)
-                        if !ids.isEmpty { Task { _ = await store.start(steps: ids) } }
-                    })
-                    .id(stage.id)
-                    // The samples' thumbnails come from this project's storage (Organise's strip).
-                    .environment(project?.storageService)
-            }
-        }
-        // Leave Out's toggle is the step's on/off: propose the plan again so this page's steps follow it (#6070).
+        layout
+            // Leave Out's toggle is the step's on/off: propose the plan again so this page's steps follow it (#6070).
         .onChange(of: store.jobAnswers.other[RecipeSetupStore.leaveOutQuestion]) {
             if stage.jobs.contains("leave-out") { Task { await store.assemble() } }
         }
@@ -150,6 +40,148 @@ struct SetupStagePage: View {
         }
         // Use This / Use <smaller> instead: the stage's compared and listed candidates read again, so the chosen one is marked at once.
         .onChange(of: store.choiceRevision) { Task { await loadCandidates() } }
+    }
+
+    /// Wide on the Mac: the questions in the left column, the picture and the tries in the right (`wide.pager.window-is-wide`);
+    /// otherwise one column, as before.
+    @ViewBuilder
+    private var layout: some View {
+        #if os(macOS)
+        let columns = SetupPager.Layout.of(.mac)
+        if FeatureManager.shared.isWideSetUpEnabled {
+            HStack(alignment: .top, spacing: 24) {
+                VStack(alignment: .leading, spacing: 16) { settings }
+                    .frame(width: CGFloat(columns.questionsWidth ?? 420), alignment: .topLeading)
+                VStack(alignment: .leading, spacing: 16) { showcase; samples }
+                    .frame(minWidth: CGFloat(columns.minOutputWidth ?? 320), maxWidth: .infinity, alignment: .topLeading)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 16) { showcase; settings; samples }
+        }
+        #else
+        VStack(alignment: .leading, spacing: 16) { showcase; settings; samples }
+        #endif
+    }
+
+    @ViewBuilder
+    private var showcase: some View {
+        // What the stage does, played on the person's own sample page when it was tried, else on the example
+        // (`source.onboard.stages.shows-what-it-does`); the candidates side by side when compared.
+        StageShowcaseSection(stageId: stage.id, result: tryStore?.result, useThis: useThis)
+            .environment(project?.storageService)
+        if let sample = stage.exampleFromSamples, !sample.isEmpty {
+            // An example from the person's own sample pages, once a try found one (Passages, #5805).
+            Text("From your sample pages: \(sample)")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        } else if !stage.example.isEmpty {
+            Text(stage.example)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        if let note = Self.howItAnswers(stage.id) {
+            Text(note)
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
+    private var settings: some View {
+        whoRunsIt
+        // This stage's steps left off until turned on: Read's Correct with no corrector here (#5677).
+        RecipeLeftOffRows(store: store, onlyJobs: Set(stage.jobs))
+        if FeatureManager.shared.isWideSetUpEnabled {
+            // Adding a step and putting one back are on its stage's page, not Ready (`wide.ready.adding-a-step-is-on-its-stage-page`).
+            RecipeTakenOutRows(store: store, removed: (store.recipe?.removed ?? []).filter { stage.jobs.contains($0.job) })
+            OfferedJobsList(store: store, onlyJobs: Set(stage.jobs))
+        }
+        if stage.id == "prepare-images" {
+            Divider()
+            PrepareImagesCard(
+                store: store,
+                folders: project.map { BakeoffStore.Folder.folders(in: $0.documentStore.collections) } ?? [],
+                actionsService: project?.actionsService)
+        }
+        if !stage.questions.isEmpty {
+            Divider()
+            // The second review's mode is asked beside that step's model picker, once there is a second step.
+            ForEach(stage.questions.filter { $0.key != RecipeSetupStore.secondReviewModeQuestion }, id: \.key) { question in
+                SetupStageQuestionField(
+                    question: question,
+                    store: store,
+                    answer: Binding(
+                        get: { Self.answer(to: question, in: store.jobAnswers) },
+                        set: { newValue in
+                            if question.key == RecipeSetupStore.leaveOutQuestion, case .yesNo(let isOn) = newValue {
+                                store.setLeaveOut(isOn)  // the stage's tick follows the toggle
+                            } else {
+                                store.jobAnswers[question: question.key] = newValue
+                            }
+                        }
+                    )
+                )
+                if stage.id == "prepare-images", question.readByAStep != true {
+                    // No step reads it yet (`read_by_a_step`): said, not implied (`StageKindsField` says the same).
+                    Text("Saved with your answers. No step uses this yet.").font(.caption).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("setup.question.notRead.\(question.key)")
+                }
+            }
+        }
+        // The review's own instructions for each pass, from the profile built for this project (#6128).
+        // The project's one search model is chosen on the Search step, never on the first screen (#6249).
+        if stage.jobs.contains("make-a-vector") {
+            Divider()
+            SetupSearchModelField(client: store.client)
+        }
+        if stage.jobs.contains("correct") {
+            Divider()
+            ReviewInstructionsSection(store: store)
+        }
+        // Early, in one calm sentence: how many corrected lines training a model of your own will need.
+        ForEach(store.trainAhead(forJobs: stage.jobs), id: \.self) { sentence in
+            Text(sentence).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+        // A stage that cannot be tried on the pages yet says so, in words (`source.try.every-job`).
+        if !stage.sampleable, let words = stage.notTried {
+            Text(words).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
+    private var samples: some View {
+        if stage.sampleable, let tryStore {
+            Divider()
+            if let who = StageCandidateChooser.whoDoes(stageId: stage.id) {
+                Text(who).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            // A plan with no step for this stage cannot list its models: say so, never draw nothing
+            // (`source.onboard.stages.not-in-plan-says-so`, Set Up review item 2).
+            if store.recipe != nil, store.mainStep(forJobs: stage.jobs) == nil {
+                Text(Self.notInPlanWords(stage: stage.title)).font(.callout).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("setup.stage.notInPlan")
+            }
+            // Which of the step's candidates Compare on These Pages runs (up to three; none: the engine's own).
+            if let finder = candidateFinder, !finder.candidates.isEmpty {
+                StageCandidateChooser(
+                    candidates: finder.candidates,
+                    chosen: Binding(get: { tryStore.chosenCandidates }, set: { tryStore.chosenCandidates = $0 }),
+                    useSmaller: useSmaller
+                )
+            }
+            SetupStageSamples(
+                store: tryStore, useThis: useThis, saveFirst: { await store.save() },
+                currentRevision: stage.answersRevision,
+                runThisStep: {
+                    let ids = (store.recipe?.steps ?? []).filter { stage.jobs.contains($0.job) }.map(\.id)
+                    if !ids.isEmpty { Task { _ = await store.start(steps: ids) } }
+                })
+                .id(stage.id)
+                // The samples' thumbnails come from this project's storage (Organise's strip).
+                .environment(project?.storageService)
+        }
     }
 
     nonisolated static func notInPlanWords(stage title: String) -> String { "\(title) is not in this plan yet." }
@@ -322,47 +354,6 @@ struct SetupStageQuestionField: View {
                     StageLanguageField(store: store, answer: $answer)
                 }
             }
-        }
-    }
-}
-
-/// A language question's field: type to find any language (by its name in English or its own, with or without
-/// accents); the pick is kept as its tag (`source.onboard.stages.normalise-and-translate`).
-struct StageLanguageField: View {
-    let store: RecipeSetupStore
-    @Binding var answer: StageAnswer?
-    @State private var query = ""
-    @State private var matches: [RecipeSetupStore.CodeChoice] = []
-
-    private var chosen: String? { if case .text(let tag) = answer, !tag.isEmpty { tag } else { nil } }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if let chosen {
-                HStack {
-                    Text(store.name(of: chosen))
-                    Button("Change") { answer = nil }.controlSize(.small)
-                }
-            } else {
-                TextField("Language", text: $query, prompt: Text("Type to find, e.g. English"))
-                    .textFieldStyle(.roundedBorder)
-                ForEach(matches.prefix(8), id: \.self) { match in
-                    Button(match.name) {
-                        store.remember(match)
-                        answer = .text(match.code)
-                        query = ""
-                        matches = []
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .task(id: query) {
-            let needle = query.trimmingCharacters(in: .whitespaces)
-            guard !needle.isEmpty else { matches = []; return }
-            try? await Task.sleep(for: .milliseconds(200))
-            guard !Task.isCancelled else { return }
-            matches = await store.searchLanguages(needle)
         }
     }
 }
