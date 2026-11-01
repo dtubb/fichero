@@ -431,6 +431,7 @@ async def submit_agent_write(
     response_model=ApprovalResponse,
     summary="Approve or reject a pending write request",
     tags=["orchestration"],
+    dependencies=[Depends(_require_owner_or_bootstrap)],  # the owner decides what an agent may write (#6325)
 )
 async def approve_agent_write(
     record_id: str,

@@ -441,6 +441,11 @@ def test_o1_one_restricted_page_does_not_turn_off_the_knowledge_views_for_someon
     db.save(RightsRecord(target_kind="document", target_id=project.ids["b1"], restricted=True, readers=[project.users["alice"].id]))
     assert [alice.get(v).status_code for v in views] == [200] * 4  # a named reader keeps them
     assert [bob.get(v).status_code for v in views] == [403] * 4  # someone not named cannot be shown a count that includes it
+    # The signed-in owner, not named, keeps every view (review 6 item 6): losing the page itself is the 2026-09-20 ruling, losing the views is not.
+    owner = _as(project.harness, "owner")
+    assert [owner.get(v).status_code for v in views] == [200] * 4
+    table = owner.post("/api/documents/dataset/query", json={"limit": 10})
+    assert table.status_code == 200, (table.status_code, table.text[:200])
 
 
 def test_h5_a_query_name_no_route_declares_is_not_a_target(project, four):
@@ -661,3 +666,10 @@ def test_item4_an_owner_only_route_is_not_open_through_its_action(project, four)
                 raise AssertionError(f"fix the body for {name}: {got.text[:200]}")
     owner = _as(project.harness, "owner")
     assert owner.post("/api/actions/invoke", json={"name": "document.relink_originals", "params": {"new_root": "/nowhere"}}).status_code != 403
+
+
+def test_item5_only_the_owner_approves_an_agent_write(project, four):
+    for who, client, decoy in four:
+        got = client.post("/api/agents/write/approve?record_id=x", json={"approved_by": "owner", "approved": True})
+        assert got.status_code == 403 and "owner access required" in got.text, who
+    assert _as(project.harness, "owner").post("/api/agents/write/approve?record_id=x", json={"approved_by": "owner", "approved": True}).status_code == 404

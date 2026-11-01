@@ -1807,6 +1807,8 @@ def assert_library_reads_every(request: Request, library_path: str, named: list[
         return
     if not authz.page_walk_needed(getattr(getattr(request, "state", None), "user", None), library_path):
         return
+    if authz.is_library_owner(getattr(getattr(request, "state", None), "user", None), library_path):
+        return  # the owner's lists do not turn off because one page is restricted (#6325 item 6); the page itself stays theirs only if named
     try:
         authz.assert_can_read_every(getattr(getattr(request, "state", None), "user", None), library_path, scope(), bootstrap=False)
     except authz.AuthorizationError as exc:
@@ -1996,8 +1998,9 @@ def whole_library_reader_only(request: Request, library_path: str | None = Depen
     co-occurrence): refused to a caller whose reads differ page by page, because a count or a path cannot be filtered
     after the fact. Fails closed (#6320)."""
     from fichero_server.api.auth import library_access_denial_payload
+    from fichero_server.security import authz
 
-    if document_reader(request, library_path) is not None:
+    if document_reader(request, library_path) is not None and not authz.is_library_owner(getattr(request.state, "user", None), library_path):
         raise LibraryAccessDeniedError(library_access_denial_payload(
             request, library_path, required="read", detail="read access denied"))
 

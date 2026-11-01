@@ -325,7 +325,6 @@ NO_CALLER_CLEARED: dict[str, tuple[str, str]] = {
     "DELETE /api/libraries/{lib:path}/entity-types/{entity_type_key}": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
     "DELETE /api/pair/invites/{invite_id}": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
     "POST /api/agents/write": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
-    "POST /api/agents/write/approve": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
     "POST /api/auth/challenge": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
     "POST /api/auth/first-run": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
     "POST /api/auth/invites/redeem": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),

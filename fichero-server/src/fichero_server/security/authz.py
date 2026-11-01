@@ -229,6 +229,18 @@ def page_walk_needed(user: Any, library: str | Path | None, *, write: bool = Fal
         return True
 
 
+def is_library_owner(user: Any, library: str | Path | None) -> bool:
+    """The owner of the library with no override of their own: the counts and graph views never turn off for them because someone
+    restricted a page (the page itself stays theirs only if a rights record names them; #6325 review 6 item 6)."""
+    resolved = resolve_user(user)
+    library_path = normalize_library_path(library)
+    if not multiuser_enabled() or resolved is None or library_path is None:
+        return False
+    app_db = get_app_db()
+    role = app_db.get_library_role(resolved.id, library_path)
+    return role is not None and role.role == ROLE_OWNER and not app_db.list_library_acl_overrides(resolved.id, library_path)
+
+
 def reads_every_gated_page(user: Any, library: str | Path | None) -> bool:
     """Whether this caller's read answer is the same for every page: a project role with no override of their own, and every
     restricting rights record either names them or sits on a page they may read. The owner and a named reader pass (O1, #6320);

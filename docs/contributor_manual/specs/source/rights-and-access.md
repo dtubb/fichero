@@ -177,7 +177,7 @@ Rulings.
   delete routes): a caller whose reads differ page by page is refused them, and a new route under those prefixes fails the guard
   (`test_a_new_knowledge_route_must_filter_its_rows_or_refuse_a_caller_with_a_deny`) until it filters its rows or does the same.
   A caller is refused these only when their reads could differ from the owner's: a person with a deny, a folder-scoped role, or a
-  restricted page they are not named on. The owner and a named reader keep them (O1).
+  restricted page they are not named on. The library's owner (with no override of their own) and a named reader keep them (O1): another editor's restriction on one page never turns the owner's views or whole-project Table off. The limit: those lists and counts include a restricted page's row and claims for the owner, though the page itself stays unreadable to the owner unless a rights record names them.
   **The limit of `search.query`'s answer: with no exact total it still gives `has_more`, taken from the raw result count, so a
   caller can tell that more rows exist beyond the page, though not how many or whether they are theirs.**
   **The rule for a conversation: one scoped to, or answered from, a denied page (`scope_document_id`, `document_ids`) is
@@ -208,6 +208,7 @@ Rulings.
   whose reads differ page by page. A run that names no page on its record has none to test (H1, H8, N6).
   An export that writes to a path the caller names on the Mac (`/api/export/jsonl`, `training`, `parquet`, `eleventy-site`, `markdown-folder`, `word`,
   `excel`: every one with an `output_path`) is the owner's, whatever pages it reads (H6, `source.rights.owner-only-asserted-in-the-action`).
+  Approving or rejecting an agent's write (`POST /api/agents/write/approve`) is the owner's (`source.rights.owner-only-asserted-in-the-action`).
   A person shared one folder opens the Table on it: `POST /api/documents/dataset/query` with that folder as `parent_id` answers,
   and a query for another folder, or none (the whole project), is refused (`source.rights.every-id-in-a-request-is-checked`).
 
