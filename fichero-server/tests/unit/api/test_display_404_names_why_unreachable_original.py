@@ -198,3 +198,22 @@ def test_no_local_path_reaches_the_response_body(client, db, tmp_path, route, ca
     assert r.status_code == 404 and "reason" in r.json()
     for fragment in (str(tmp_path), "secret-", "locked", "a.jpg", "gone.jpg"):
         assert fragment not in r.text
+
+
+@pytest.fixture
+def quiet(client):
+    """The same app and library, but a server error comes back as a 500 instead of raising in the test."""
+    from fastapi.testclient import TestClient
+
+    from fichero_server.api.main import app
+
+    return TestClient(app, headers=dict(client.headers), raise_server_exceptions=False)
+
+
+@pytest.mark.parametrize("route", ROUTES)
+def test_a_home_folder_of_a_user_that_does_not_exist_is_unreadable_not_a_500(quiet, db, route):
+    doc = _doc(db, "~nosuchuser6308/a.jpg")
+    r = quiet.get(f"/api/storage/{route}/{doc.id}")
+    assert r.status_code == 404
+    assert r.json()["reason"] == "unreadable"
+    assert "nosuchuser" not in r.text
