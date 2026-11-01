@@ -1,0 +1,68 @@
+# Per-project rules for the dev harness (fichero-server/src/fichero_server/workflows/check_tool.py `load`).
+# Fichero is the first project; another project carries its own harness.toml with the same keys.
+[check]
+# The jail user's own tools, copied into the workroot by the owner-side set-up (nothing is read from the owner's home).
+python = "/Users/Shared/fichero-worker/venv/bin/python"
+path = "/Users/Shared/fichero-worker/bin:/Users/Shared/fichero-worker/venv/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+python_path = ["fichero-server/src", "fichero-cli/src", "fichero-mcp/src"]
+base_path_env = "FICHERO_BASE_PATH"
+ready = ["scripts/lane_ready_check.sh", "HEAD"]
+base_ref = "origin/integration"
+guard_glob = "scripts/check_*.py"
+guard_timeout_s = 60
+min_guards = 20
+# Guards the nightly gate runs instead (reasons: pipeline/projects/fichero.toml [ladder.skip]).
+guard_skip = [
+  "check_closed_issues_landed", "check_unmerged_work", "check_merged_worktrees", "check_no_orphan_stashes",
+  "check_coverage_ratchet", "check_embedded_engine_signing", "check_hang_ratchet", "check_mac_app_store_target",
+  "check_release_staples_app", "check_sparkle_update_ready", "check_swiftlint_warning_ratchet",
+  "check_test_plans_runnable", "check_engine_imports_bundled", "check_release_size_ratchet", "check_docs_paths",
+]
+contract_paths = ["fichero-server/src/"]
+contract_guards = [
+  "scripts/check_openapi_route_set_current.py", "scripts/check_contract_identity_current.py",
+  "scripts/check_mcp_generated_current.py",
+]
+check_paths = [
+  "scripts/", "harness.toml", ".github/", ".gitattributes", ".gitmodules", "pyproject.toml", "pytest.ini",
+  "fichero-server/pyproject.toml", "fichero-server/pytest.ini", "fichero-cli/pyproject.toml", "fichero-mcp/pyproject.toml",
+]
+# red-on-base is owed only by engine/CLI/MCP Python; Swift or contract changes need a Lead build row, docs and specs neither.
+red_paths = ["fichero-server/src/", "fichero-cli/src/", "fichero-mcp/src/"]
+spec_dir = "docs/contributor_manual/specs"
+test_globs = ["test_*.py", "*_test.py"]
+# pytest runs with plugin autoload OFF, the pinned config, and only these plugins (module names in the worker venv).
+pytest_config = "fichero-server/pyproject.toml"
+pytest_plugins = ["anyio.pytest_plugin", "_hypothesis_pytestplugin", "langsmith.pytest_plugin", "pytest_timeout", "pytest_asyncio.plugin"]
+
+[check.test_env]
+FICHERO_FEATURE_TIER = "dev"
+OMP_NUM_THREADS = "2"
+
+[policy]
+# Refused with a reason by the PreToolUse hook (fast feedback; the land step and the OS layer are the boundary).
+# Each rule: a regex over the command text and the reason shown to the worker.
+rules = [
+  { re = '\bgit\s+stash\b', reason = "git stash is shared by every worktree; commit a WIP instead" },
+  { re = '\bgit\s+push\b', reason = "workers never push; the land step pushes (main and integration are PR/land only)" },
+  { re = '\bxcodebuild\b', reason = "xcodebuild quits the maintainer's running app; the manager builds" },
+  { re = '\bpkill\b', reason = "pkill by pattern kills other agents' processes" },
+  { re = '\bkillall\b', reason = "killall by pattern kills other agents' processes" },
+  { re = '\bls\b[^|;&]*(&&|;|\|)[^|;&]*\brm\s+-\w*[rR]', reason = "an ls and an rm -r in one command wiped a directory once; list, then delete as separate steps" },
+]
+required_trailers = ["Directed-By: the maintainer", "Co-Authored-By: "]
+
+# Workers and the ladder run as this second macOS user; a missing user REFUSES (no fallback to the owner's user).
+# Owner set-up, once: sysadminctl -addUser fichero-worker (no admin); sudoers line `<owner> ALL=(fichero-worker) NOPASSWD: ALL`;
+# mkdir /Users/Shared/fichero-worker (writable by both, files public data only); `claude` signed in as that user;
+# a venv readable by it for [check].python (the owner's .venv under ~ is not); a world-readable bare mirror to clone from.
+[jail]
+user = "fichero-worker"
+workroot = "/Users/Shared/fichero-worker"
+owner_home = "/Users/danieltubb"   # what ~ means below when the probe runs as the worker
+deny_read = ["~/.config/gh", "~/.ssh", "~/.claude", "~/Fichero Projects"]
+
+[land]
+branch = "integration"   # the branch the Lead pushes a green head to
+# Regexes over every ADDED line and commit message; any hit refuses the land (the public/private boundary).
+boundary = ['/Users/[A-Za-z0-9._-]+/', 'sk-ant-[A-Za-z0-9_-]{8,}', 'gh[ps]_[A-Za-z0-9]{20,}', 'BEGIN [A-Z ]*PRIVATE KEY']

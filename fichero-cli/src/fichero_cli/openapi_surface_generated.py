@@ -18776,6 +18776,88 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('workers')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for workers endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='workers')
+        existing_apps['workers'] = target_app
+
+    @target_app.command("start-a-dev-process-recorded-as-a-job-row", hidden=True)
+    @target_app.command("start")
+    def workers_start_post(
+        ctx: typer.Context,
+        brief: str = typer.Option(..., '--brief', help='Brief.'),
+        kind: str = typer.Option(..., '--kind', help='Kind.'),
+        model: Optional[str] = typer.Option(None, '--model', help='Model. Default: "sonnet".'),
+        scenario: Optional[str] = typer.Option(None, '--scenario', help='Scenario. JSON.'),
+        task: Optional[str] = typer.Option(None, '--task', help='Task. Default: "".'),
+        timeout_s: float = typer.Option(..., '--timeout-s', help='Timeout S.'),
+        tmux_session: Optional[str] = typer.Option(None, '--tmux-session', help='Tmux Session. Default: "".'),
+        workdir: str = typer.Option(..., '--workdir', help='Workdir.'),
+    ) -> None:
+        """Start a dev worker process, recorded as a job row (POST /api/workers)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/workers"
+            params = None
+            payload = _build_json_payload({
+                "brief": brief,
+                "kind": kind,
+                "model": model,
+                "scenario": scenario,
+                "task": task,
+                "timeout_s": timeout_s,
+                "tmux_session": tmux_session,
+                "workdir": workdir,
+            }, {
+                "brief": {'type': 'string', 'title': 'Brief', 'x-cli-required': True},
+                "kind": {'type': 'string', 'title': 'Kind', 'x-cli-required': True},
+                "model": {'type': 'string', 'title': 'Model', 'default': 'sonnet', 'x-cli-required': False},
+                "scenario": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Scenario', 'x-cli-required': False},
+                "task": {'type': 'string', 'title': 'Task', 'default': '', 'x-cli-required': False},
+                "timeout_s": {'type': 'number', 'title': 'Timeout S', 'x-cli-required': True},
+                "tmux_session": {'type': 'string', 'title': 'Tmux Session', 'default': '', 'x-cli-required': False},
+                "workdir": {'type': 'string', 'title': 'Workdir', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("type-a-message-into-a-task-s-current-refused-for-a-stale-generation", hidden=True)
+    @target_app.command("tell")
+    def workers_tell_post(
+        ctx: typer.Context,
+        generation: int = typer.Option(..., '--generation', help='Generation.'),
+        task: str = typer.Option(..., '--task', help='Task.'),
+        text: str = typer.Option(..., '--text', help='Text.'),
+    ) -> None:
+        """Type a message into a task's current worker; refused for a stale generation (POST /api/workers/tell)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/workers/tell"
+            params = None
+            payload = _build_json_payload({
+                "generation": generation,
+                "task": task,
+                "text": text,
+            }, {
+                "generation": {'type': 'integer', 'title': 'Generation', 'x-cli-required': True},
+                "task": {'type': 'string', 'title': 'Task', 'x-cli-required': True},
+                "text": {'type': 'string', 'title': 'Text', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("stop-a-its-whole-process-group", hidden=True)
+    @target_app.command("stop")
+    def workers_stop_post(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help='Job Id'),
+    ) -> None:
+        """Stop a worker: its whole process group (POST /api/workers/{job_id}/stop)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/workers/{job_id}/stop"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('workflow-execution')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for workflow-execution endpoints.', no_args_is_help=True)

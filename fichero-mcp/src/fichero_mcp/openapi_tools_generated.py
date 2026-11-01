@@ -8864,6 +8864,39 @@ def fichero_users_update(
     return _rt.call("PATCH", f"/api/users/{user_id}", json=_rt.body({"active": active, "display_name": display_name, "is_owner": is_owner, "password": password}))
 
 
+def fichero_workers_start(
+    *,
+    brief: Annotated[str, Field(description='Brief.')],
+    kind: Annotated[str, Field(description='Kind.')],
+    model: Annotated[Optional[str], Field(description='Model. Default: "sonnet".')] = None,
+    scenario: Annotated[Optional[dict[str, Any]], Field(description='Scenario.')] = None,
+    task: Annotated[Optional[str], Field(description='Task. Default: "".')] = None,
+    timeout_s: Annotated[float, Field(description='Timeout S.')],
+    tmux_session: Annotated[Optional[str], Field(description='Tmux Session. Default: "".')] = None,
+    workdir: Annotated[str, Field(description='Workdir.')],
+) -> Any:
+    'Start a dev worker process, recorded as a job row\n\nStart a worker of `kind` (`claude` in a tmux window, or `fake`) in `workdir`. Through `worker.start`.\n\nRoute: POST /api/workers (toolset `workers`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/workers", json=_rt.body({"brief": brief, "kind": kind, "model": model, "scenario": scenario, "task": task, "timeout_s": timeout_s, "tmux_session": tmux_session, "workdir": workdir}))
+
+
+def fichero_workers_tell(
+    *,
+    generation: Annotated[int, Field(description='Generation.')],
+    task: Annotated[str, Field(description='Task.')],
+    text: Annotated[str, Field(description='Text.')],
+) -> Any:
+    "Type a message into a task's current worker; refused for a stale generation\n\nThrough `worker.tell`: 409 when `generation` is not the task's current worker.\n\nRoute: POST /api/workers/tell (toolset `workers`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/workers/tell", json=_rt.body({"generation": generation, "task": task, "text": text}))
+
+
+def fichero_workers_stop(
+    *,
+    job_id: Annotated[str, Field(description='Job Id')],
+) -> Any:
+    'Stop a worker: its whole process group\n\nThrough `worker.stop`.\n\nRoute: POST /api/workers/{job_id}/stop (toolset `workers`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/workers/{job_id}/stop")
+
+
 def fichero_workflow_execution_clear_all_cache(
 ) -> Any:
     'Clear All Cache\n\nClear all cached node results.\n\nThis will cause all nodes in all workflows to be re-executed on next run.\n\nReturns:\n    Number of entries deleted\n\nRoute: DELETE /api/workflow-execution/cache (toolset `workflow-execution`; changes data, as the agent account when one exists).'
@@ -10183,6 +10216,9 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_users_create", "users", "POST", "/api/users", fichero_users_create),
     GeneratedTool("fichero_users_delete", "users", "DELETE", "/api/users/{user_id}", fichero_users_delete),
     GeneratedTool("fichero_users_update", "users", "PATCH", "/api/users/{user_id}", fichero_users_update),
+    GeneratedTool("fichero_workers_start", "workers", "POST", "/api/workers", fichero_workers_start),
+    GeneratedTool("fichero_workers_tell", "workers", "POST", "/api/workers/tell", fichero_workers_tell),
+    GeneratedTool("fichero_workers_stop", "workers", "POST", "/api/workers/{job_id}/stop", fichero_workers_stop),
     GeneratedTool("fichero_workflow_execution_clear_all_cache", "workflow-execution", "DELETE", "/api/workflow-execution/cache", fichero_workflow_execution_clear_all_cache),
     GeneratedTool("fichero_workflow_execution_get_all_cache_stats", "workflow-execution", "GET", "/api/workflow-execution/cache/stats", fichero_workflow_execution_get_all_cache_stats),
     GeneratedTool("fichero_workflow_execution_compare_runs", "workflow-execution", "GET", "/api/workflow-execution/comparisons", fichero_workflow_execution_compare_runs),
@@ -10226,4 +10262,4 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_views_document", "views", "GET", "/view/document/{doc_id}", fichero_views_document),
     GeneratedTool("fichero_views_global_kg", "views", "GET", "/view/kg/global", fichero_views_global_kg),
 )
-TAGS: tuple[str, ...] = ("actions", "activity", "agent-memory", "annotations", "artifacts", "auth", "authz", "batches", "bibliography", "bookmarks", "campaigns", "canvas", "chains", "chat", "check", "citation-rendering", "citation-usages", "citations", "claim-curation", "claim-links", "claims", "classifications", "content-representations", "conversion", "documents", "editorial", "engine", "entities", "evaluation", "export", "find-documents", "folders", "fonts", "formats", "georeference", "hands", "hpc", "iiif", "images", "ingest", "integrations", "knowledge-graph", "letterforms", "library", "library-items", "library-links", "library-sync", "links", "local-inference", "local-models", "locations", "machines", "mcp", "mcp-servers", "migrations", "model-comparison", "models", "multilingual", "notes", "orchestration", "pairing", "projects", "providers", "reading-at-scale", "reading-orders", "recipes", "references", "registries", "renditions", "research", "rights", "sandbox", "schedules", "search", "search-explanation", "segments", "settings", "signs", "source-settings", "sources", "storage", "sync-folders", "tasks", "topics", "training", "triggers", "users", "views", "workflow-execution", "workflows",)
+TAGS: tuple[str, ...] = ("actions", "activity", "agent-memory", "annotations", "artifacts", "auth", "authz", "batches", "bibliography", "bookmarks", "campaigns", "canvas", "chains", "chat", "check", "citation-rendering", "citation-usages", "citations", "claim-curation", "claim-links", "claims", "classifications", "content-representations", "conversion", "documents", "editorial", "engine", "entities", "evaluation", "export", "find-documents", "folders", "fonts", "formats", "georeference", "hands", "hpc", "iiif", "images", "ingest", "integrations", "knowledge-graph", "letterforms", "library", "library-items", "library-links", "library-sync", "links", "local-inference", "local-models", "locations", "machines", "mcp", "mcp-servers", "migrations", "model-comparison", "models", "multilingual", "notes", "orchestration", "pairing", "projects", "providers", "reading-at-scale", "reading-orders", "recipes", "references", "registries", "renditions", "research", "rights", "sandbox", "schedules", "search", "search-explanation", "segments", "settings", "signs", "source-settings", "sources", "storage", "sync-folders", "tasks", "topics", "training", "triggers", "users", "views", "workers", "workflow-execution", "workflows",)
