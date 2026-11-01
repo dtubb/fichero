@@ -54,10 +54,13 @@ edge, a grey colour card at the top, a wide dark border).
   darkest column of the middle band, a confidence from the gutter's depth, a proposal below 0.15. Pinned on
   11 Sergio photos by `fichero-server/tests/unit/media/test_page_split.py`. The four-corner quad is returned
   and dropped; no attribute, no `page_box`, no perspective correction.
-- **Deskew** by Hough median (`media/image_ops.detect_deskew_angle`, ±15°), the editor's Straighten and the
-  node `deskew_images`. The angle is not recorded on the row.
-- **Content box** (`media/image_ops.detect_content_bbox`): a per-pixel loop that returns the whole frame
-  on a grey table.
+- **Deskew** (`media/image_ops.detect_deskew_angle`, ±15°, 0.1° steps): the shear that sharpens the row profile of
+  the ink inside the eroded bright page, so the ruler and table edges are not read; the editor's Straighten and the
+  node `deskew_images` use it. Tested on a synthetic photograph (`tests/unit/media/test_photo_page_prep_5382.py`);
+  not yet measured on the Sergio photographs.
+- **Content box** (`media/image_ops.detect_content_bbox`): pixels above the midpoint of the dark and bright
+  Otsu classes (20 where they are under 60 apart), so a grey table is left out; a bright ruler on the table is
+  still counted.
 - **Remove background** (`media/image_ops.remove_black_background_opencv`, `remove_scan_background`): a
   dark-mount mask, labelled "AI background removal" in the editor.
 - **The edit chain and renditions**: `preview.edit.*` in `../ui/preview-image-editing.md`; renditions from
@@ -215,7 +218,7 @@ same way (`prep.yolo.fine-tune-from-corrected-regions`).
 | flatten the curve | baseline-field dewarp | itself | OpenCV, Apache-2.0 |
 | split pages | the built-in splitter | itself | — |
 | turn by the text | Vision text at four turns | itself | the OS |
-| straighten | Hough median | itself | OpenCV, Apache-2.0 |
+| straighten | row-profile shear of the ink | itself | OpenCV, Apache-2.0 |
 | find regions | Kraken `blla` · YOLO layout card | `blla` (`prep.regions.open-default`) | Apache-2.0 · AGPL-3.0 |
 
 **Why Vision and OpenCV first.** Both are on every Mac the app runs on, load in well under a second, need
