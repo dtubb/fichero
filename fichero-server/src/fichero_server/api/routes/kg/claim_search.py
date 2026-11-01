@@ -26,7 +26,7 @@ from fichero_server.models.knowledge import (
     KnowledgeClaim,
 )
 
-router = APIRouter(prefix="/kg/claim-search")
+router = APIRouter(dependencies=[Depends(whole_library_reader_only)], prefix="/kg/claim-search")
 
 class EmbedClaimsResponse(BaseModel):
     embedded: int

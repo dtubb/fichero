@@ -41,8 +41,8 @@ from fichero_server.core.off_loop import off_loop
 if TYPE_CHECKING:
     from fichero_server.knowledge.dedupe import EntityMergeGroup
 
-router = APIRouter(prefix="/kg/entity-curation")
-kg_entities_router = APIRouter(prefix="/kg/entities", tags=["knowledge-graph"])
+router = APIRouter(dependencies=[Depends(whole_library_reader_only)], prefix="/kg/entity-curation")
+kg_entities_router = APIRouter(dependencies=[Depends(whole_library_reader_only)], prefix="/kg/entities", tags=["knowledge-graph"])
 
 
 

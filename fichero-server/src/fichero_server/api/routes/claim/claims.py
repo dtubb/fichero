@@ -18,7 +18,7 @@ from fichero_server.api.library_header import require_library_path
 from fichero_server.api.auth import action_context, request_actor
 from fichero_server.api.change_stream import emit_change
 from fichero_server.api.library_header import optional_library_path
-from fichero_server.api.main import document_reader, get_library_database, get_library_database_for_write, read_check, write_check
+from fichero_server.api.main import whole_library_reader_only, document_reader, get_library_database, get_library_database_for_write, read_check, write_check
 from fichero_server.actions.registry import registry
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
@@ -931,7 +931,7 @@ def assign_time_period_from_metadata_impl(
 # =============================================================================
 
 
-@router.post("", response_model=KnowledgeClaim)
+@router.post("", dependencies=[Depends(whole_library_reader_only)], response_model=KnowledgeClaim)
 async def create_claim(
     request: ClaimCreateRequest,
     db: Database = Depends(get_library_database_for_write),
@@ -958,7 +958,7 @@ async def create_claim(
     return KnowledgeClaim.model_validate(result.result)
 
 
-@router.patch("/{claim_id}", response_model=KnowledgeClaim)
+@router.patch("/{claim_id}", dependencies=[Depends(whole_library_reader_only)], response_model=KnowledgeClaim)
 async def patch_claim(
     claim_id: str,
     request: ClaimPatchRequest,
@@ -989,7 +989,7 @@ async def patch_claim(
     return KnowledgeClaim.model_validate(result.result)
 
 
-@router.post("/resolve-source", response_model=ClaimSourceResolveResponse)
+@router.post("/resolve-source", dependencies=[Depends(whole_library_reader_only)], response_model=ClaimSourceResolveResponse)
 async def resolve_claim_source(
     request: ClaimSourceResolveRequest,
     db: Database = Depends(get_library_database_for_write),
@@ -1088,7 +1088,7 @@ async def get_claim(
     return _resolved_claim_copy(claim)
 
 
-@router.delete("/{claim_id}", status_code=204)
+@router.delete("/{claim_id}", dependencies=[Depends(whole_library_reader_only)], status_code=204)
 async def delete_claim(
     claim_id: str,
     db: Database = Depends(get_library_database_for_write),
@@ -1160,7 +1160,7 @@ def _descendant_doc_ids(db: Database, root_id: str) -> set[str]:
     return db._collect_folder_descendants(root_id)
 
 
-@router.post("/assign-time-period", response_model=ClaimAssignTimePeriodResponse)
+@router.post("/assign-time-period", dependencies=[Depends(whole_library_reader_only)], response_model=ClaimAssignTimePeriodResponse)
 async def assign_time_period(
     request: ClaimAssignTimePeriodRequest,
     db: Database = Depends(get_library_database_for_write),
@@ -1194,7 +1194,7 @@ async def assign_time_period(
 
 
 @router.post(
-    "/assign-time-period-from-metadata",
+    "/assign-time-period-from-metadata", dependencies=[Depends(whole_library_reader_only)],
     response_model=ClaimAssignTimePeriodFromMetadataResponse,
 )
 async def assign_time_period_from_metadata(

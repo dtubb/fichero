@@ -29,12 +29,12 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 
-from fichero_server.api.main import get_library_database
+from fichero_server.api.main import whole_library_reader_only, get_library_database
 from fichero_server.db import Database
 from fichero_server.knowledge.jsonld_context import JSONLD_CONTEXTS
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/kg")
+router = APIRouter(dependencies=[Depends(whole_library_reader_only)], prefix="/kg")
 
 
 # Verbs that mutate the graph. Reject these — the endpoint is read-only.

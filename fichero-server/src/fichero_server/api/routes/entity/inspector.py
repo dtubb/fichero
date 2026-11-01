@@ -13,7 +13,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from fichero_server.api.main import get_library_database
+from fichero_server.api.main import whole_library_reader_only, get_library_database
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
     Annotation,
@@ -28,7 +28,7 @@ from fichero_server.models import Document
 from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/entities")
+router = APIRouter(dependencies=[Depends(whole_library_reader_only)], prefix="/entities")
 
 # Singular type labels for the entity header line. The KG grouping uses
 # plurals ("People", "Places"); the entity-detail header wants the

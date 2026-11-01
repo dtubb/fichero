@@ -9,9 +9,12 @@ N1 snapshots, N2 registry delete, N8 tasks + policies, N3 chains (earlier). This
 
 Also closed (second pass): search.query gives no exact total_results to a caller with a reader (None; has_more from the raw count); entity routes list/get and kg/graph/neighborhood and kg/search filter via `entity_visible`/`claim_visible` (api/main.py); whole-library routes (entity top, claim-counts, digest, documents, co-occurrence, drill-down, biography, export, place, linked-places, alias-map, resolve; kg graph metrics/paths/centrality/etc.; claim similar/contradictions/evidence-chain/semantic search; entity semantic search) take `whole_library_reader_only` and are 403 for such a caller. Conversations: withheld by scope_document_id/document_ids (rule stated in the spec); unscoped messages are not scanned.
 
+Third pass: every route under /api/kg, /api/claims, /api/claim-links, /api/entities either filters its rows (GET entities, entities/{id}, claims, claims/{id}, kg/search, kg/graph/neighborhood, claim-links/{id}) or depends on `whole_library_reader_only` (router-level in the kg/claim/entity modules, per route for the claim and entity writes). Guard: test_a_new_knowledge_route_must_filter_its_rows_or_refuse_a_caller_with_a_deny. pykeen model delete / stored verify left NO_CALLER_CLEARED (they depend on the caller now).
+
 Open / known:
-- Entity/claim routes not walked: writes, entity "digest"-like routes beyond those listed, kg predictions/pykeen/review/mutations/inclusion/render/curation_rules/audit reads (not looked at).
-- has_more on search.query still reveals that more raw rows exist.
+- Nothing known unwalked in the entity, claim and KG families. Other families (not these prefixes) are as in #6325.
+- has_more on search.query reveals that more raw rows exist (stated in the spec).
+- A caller with a deny loses the whole-library views (by design).
 - check_engine_imports_bundled (rc 2, needs an app_packages path) and check_swiftlint_warning_ratchet (rc 1) are red and not caused here.
 - test_check_spec_milestones::test_real_specs_pass_offline fails from fichero-server/, passes from the repo root.
 - pytest-asyncio is missing in the Air/M4 venvs (P1); not touched.

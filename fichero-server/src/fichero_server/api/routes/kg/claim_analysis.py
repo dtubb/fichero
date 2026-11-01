@@ -21,7 +21,7 @@ from fichero_server.models.knowledge import (
 from fichero_server.models import ContradictionEvidence, ContradictionListResponse, Document
 from fichero_server.core.off_loop import off_loop
 
-router = APIRouter(prefix="/kg/claim-analysis")
+router = APIRouter(dependencies=[Depends(whole_library_reader_only)], prefix="/kg/claim-analysis")
 
 
 class EvidenceChainItem(BaseModel):

@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from fichero_server.api.library_header import require_library_path
-from fichero_server.api.main import get_library_database, get_library_database_for_write, read_check
+from fichero_server.api.main import whole_library_reader_only, get_library_database, get_library_database_for_write, read_check
 from fichero_server.api.auth import action_context
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.db import Database
@@ -46,10 +46,10 @@ def chat(*args, **kwargs):
     return _impl(*args, **kwargs)
 
 
-router = APIRouter(prefix="/kg/render", tags=["knowledge-graph"])
+router = APIRouter(dependencies=[Depends(whole_library_reader_only)], prefix="/kg/render", tags=["knowledge-graph"])
 
 # Second router: LLM-driven entity operations under /kg/entities
-bio_router = APIRouter(prefix="/kg/entities", tags=["knowledge-graph"])
+bio_router = APIRouter(dependencies=[Depends(whole_library_reader_only)], prefix="/kg/entities", tags=["knowledge-graph"])
 
 
 @router.post(

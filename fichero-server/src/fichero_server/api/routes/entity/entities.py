@@ -835,7 +835,7 @@ class EntityBulkUpsertResponse(BaseModel):
     id_by_name: dict[str, str]
 
 
-@router.post("/bulk", response_model=EntityBulkUpsertResponse)
+@router.post("/bulk", dependencies=[Depends(whole_library_reader_only)], response_model=EntityBulkUpsertResponse)
 async def bulk_upsert_entities(
     request: EntityBulkUpsertRequest,
     db: Database = Depends(get_library_database_for_write),
@@ -1169,7 +1169,7 @@ def _action_restore_entity(
     return entity.model_dump(mode="json"), spec
 
 
-@router.post("", response_model=KnowledgeEntity)
+@router.post("", dependencies=[Depends(whole_library_reader_only)], response_model=KnowledgeEntity)
 async def upsert_entity(
     request: EntityUpsertRequest,
     db: Database = Depends(get_library_database_for_write),
@@ -1619,7 +1619,7 @@ class EntityPatchRequest(BaseModel):
     metadata: dict | None = None
 
 
-@router.patch("/{entity_id}", response_model=KnowledgeEntity)
+@router.patch("/{entity_id}", dependencies=[Depends(whole_library_reader_only)], response_model=KnowledgeEntity)
 async def patch_entity(
     entity_id: str,
     request: EntityPatchRequest,
@@ -1677,7 +1677,7 @@ async def patch_entity(
     return KnowledgeEntity.model_validate(result.result)
 
 
-@router.delete("/{entity_id}", status_code=204)
+@router.delete("/{entity_id}", dependencies=[Depends(whole_library_reader_only)], status_code=204)
 async def delete_entity(
     entity_id: str,
     cascade_claims: bool = Query(
@@ -1924,7 +1924,7 @@ async def entity_drill_down(
     )
 
 
-@router.post("/{entity_id}/aliases", response_model=KnowledgeEntity)
+@router.post("/{entity_id}/aliases", dependencies=[Depends(whole_library_reader_only)], response_model=KnowledgeEntity)
 async def add_entity_aliases(
     entity_id: str,
     request: EntityAliasRequest,
@@ -2931,7 +2931,7 @@ def _mention_correction_answer(result: Any) -> MentionCorrectionResponse:
     return MentionCorrectionResponse.model_validate({**result.result, "audit_id": result.audit_id})
 
 
-@router.post("/{entity_id}/mentions/repoint", response_model=MentionCorrectionResponse)
+@router.post("/{entity_id}/mentions/repoint", dependencies=[Depends(whole_library_reader_only)], response_model=MentionCorrectionResponse)
 async def repoint_mention(
     entity_id: str,
     request: MentionRepointRequest,
@@ -2953,7 +2953,7 @@ async def repoint_mention(
     return _mention_correction_answer(result)
 
 
-@router.post("/{entity_id}/mentions/respan", response_model=MentionCorrectionResponse)
+@router.post("/{entity_id}/mentions/respan", dependencies=[Depends(whole_library_reader_only)], response_model=MentionCorrectionResponse)
 async def respan_mention(
     entity_id: str,
     request: MentionRespanRequest,

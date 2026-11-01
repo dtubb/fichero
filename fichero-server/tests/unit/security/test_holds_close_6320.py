@@ -377,3 +377,51 @@ def test_n5_the_entity_and_kg_routes_hide_what_rests_on_a_denied_page_and_aggreg
             assert got.status_code == 403, (name, path, got.status_code)
     alice, _ = by["alice"]
     assert "PLAIN entity" in alice.get("/api/kg/search?q=entity").text and "PLAIN entity" in alice.get("/api/entities").text  # what she may read is still there
+
+
+#: One route of each family: a caller whose reads differ page by page (alice, bob: a deny on B) is refused a route that sums,
+#: walks or rewrites the whole library's knowledge rows, because it cannot be filtered after the fact.
+_WHOLE_LIBRARY_FAMILIES = [
+    ("GET", "/api/kg/predictions", None), ("GET", "/api/kg/pykeen/stored", None), ("GET", "/api/kg/review/summary", None),
+    ("GET", "/api/kg/mutations", None), ("GET", "/api/kg/inclusion", None), ("GET", "/api/kg/entities/x/readable", None),
+    ("GET", "/api/kg/curation-rules/claim-rules", None), ("GET", "/api/kg/entity-curation/audit", None),
+    ("GET", "/api/kg/export/rdf", None), ("GET", "/api/kg/triangulation", None), ("GET", "/api/claims/x/links", None),
+    ("GET", "/api/entities/x/inspector", None), ("GET", "/api/claims/queues/unreviewed", None),
+    ("POST", "/api/claims", {"text": "t"}), ("PATCH", "/api/entities/x", {"canonical_name": "n"}),
+    ("POST", "/api/kg/claims/merge", {}), ("POST", "/api/kg/rebuild", {}), ("POST", "/api/kg/review/pairs", {}),
+]
+
+
+def test_n5_every_whole_library_knowledge_family_is_refused_to_a_caller_with_a_deny(project, four):
+    for method, path, body in _WHOLE_LIBRARY_FAMILIES:
+        for name, client, decoy in four:
+            if name in ("alice", "bob"):
+                got = client.request(method, path, json=body)
+                assert got.status_code == 403, (name, method, path, got.status_code, got.text[:120])
+
+
+def test_a_new_knowledge_route_must_filter_its_rows_or_refuse_a_caller_with_a_deny():
+    """The sweep's list: every route under the entity, claim and KG prefixes depends on `whole_library_reader_only`, or is one of
+    the few that filter their own rows (named here). A new route of this kind fails until it does one or the other."""
+    import os
+
+    os.environ.setdefault("FICHERO_FEATURE_TIER", "dev")
+    from fichero_server.api import main
+    from tests.route_inventory import served_routes
+
+    filters = {("GET", "/api/entities"), ("GET", "/api/entities/{entity_id}"), ("GET", "/api/claims"), ("GET", "/api/claims/{claim_id}"),
+               ("GET", "/api/kg/search"), ("GET", "/api/kg/graph/neighborhood/{entity_id}"), ("GET", "/api/claim-links/{link_id}")}
+
+    def deps(d):
+        for x in d.dependencies:
+            yield getattr(x.call, "__name__", "")
+            yield from deps(x)
+
+    bare = []
+    for route in served_routes(main.app):
+        if not route.path.startswith(("/api/kg", "/api/claims", "/api/claim-links", "/api/entities")):
+            continue
+        for method in route.methods - {"HEAD"}:
+            if (method, route.path) not in filters and "whole_library_reader_only" not in set(deps(route.dependant)):
+                bare.append((method, route.path))
+    assert not bare, f"these routes neither filter their rows nor refuse a caller with a deny (`whole_library_reader_only`): {sorted(bare)}"

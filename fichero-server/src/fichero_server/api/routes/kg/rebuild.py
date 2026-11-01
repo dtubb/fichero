@@ -13,11 +13,11 @@ import logging
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from fichero_server.api.main import get_library_database_for_write
+from fichero_server.api.main import whole_library_reader_only, get_library_database_for_write
 from fichero_server.db import Database
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/kg")
+router = APIRouter(dependencies=[Depends(whole_library_reader_only)], prefix="/kg")
 
 # #4982: `POST /kg/reset` (a bulk, unaudited, unfiltered, unconfirmed delete
 # of every KnowledgeEntity/KnowledgeClaim/KnowledgeClaimLink row, curated or

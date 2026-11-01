@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
 
 from fichero_server.api.auth import action_context
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.main import whole_library_reader_only, get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.knowledge._common import is_trivial_claim
 from fichero_server.models.knowledge import (
@@ -35,8 +35,8 @@ from fichero_server.models.knowledge import (
 from fichero_server.models import DocType, Document
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/claims", tags=["review-queue"])
-kg_claims_router = APIRouter(
+router = APIRouter(dependencies=[Depends(whole_library_reader_only)], prefix="/claims", tags=["review-queue"])
+kg_claims_router = APIRouter(dependencies=[Depends(whole_library_reader_only)],
     prefix="/kg/claims", tags=["knowledge-graph", "claim-curation"]
 )
 

@@ -312,8 +312,6 @@ def test_a_cleared_entry_has_a_kind_and_an_open_one_names_its_issue():
 #: shrink: a route that gains a dependency fails until it is taken off (the sweep that found /api/storage/snapshots and /api/registry).
 NO_CALLER_CLEARED: dict[str, tuple[str, str]] = {
     "DELETE /api/chains/executions/{execution_id}": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
-    "DELETE /api/kg/pykeen/models/{model_id}": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
-    "PATCH /api/kg/pykeen/stored/{prediction_id}/verify": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
     "POST /api/integrations/tinderbox/notes": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
     "POST /api/integrations/{app_name}/open/{external_id}": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
     "POST /api/integrations/{app_name}/refresh": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),

@@ -171,6 +171,13 @@ Rulings.
   biography, export, place, linked places, alias map, resolve; the KG graph metrics, paths, centrality, communities, similar,
   components, triangles and clustering; claim similar, contradictions, evidence chain and semantic search; semantic entity
   search) are refused to such a caller, since a count or a path cannot be filtered afterwards.
+  The same refusal covers every other read and write of the entity, claim and knowledge-graph families (predictions, pykeen,
+  review, mutations, inclusion, render, curation rules, entity curation and audit, triangulation, SPARQL and RDF export,
+  claim links, the entity inspector, the review queues, rebuild, merge, dedupe, and the claim and entity create, change and
+  delete routes): a caller whose reads differ page by page is refused them, and a new route under those prefixes fails the guard
+  (`test_a_new_knowledge_route_must_filter_its_rows_or_refuse_a_caller_with_a_deny`) until it filters its rows or does the same.
+  **The limit of `search.query`'s answer: with no exact total it still gives `has_more`, taken from the raw result count, so a
+  caller can tell that more rows exist beyond the page, though not how many or whether they are theirs.**
   **The rule for a conversation is its scope: one scoped to, or answered from, a denied page (`scope_document_id`,
   `document_ids`) is withheld. The limit: an unscoped conversation's messages are not scanned for text from a page denied
   later.**

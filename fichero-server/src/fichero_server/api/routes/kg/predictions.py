@@ -18,7 +18,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.main import whole_library_reader_only, get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
     ClaimRelationType,
@@ -29,7 +29,7 @@ from fichero_server.models.knowledge import (
 from fichero_server.models import KGPredictionListResponse
 from fichero_server.core.off_loop import off_loop
 
-router = APIRouter(prefix="/kg/predictions")
+router = APIRouter(dependencies=[Depends(whole_library_reader_only)], prefix="/kg/predictions")
 logger = logging.getLogger(__name__)
 
 KG_CLAIM_EMBEDDINGS_TABLE = "kg_claim_embeddings"
