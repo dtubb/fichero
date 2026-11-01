@@ -3,9 +3,10 @@ import Foundation
 /// A line the teacher-line check flagged (#5446, `source.lines.reading-checked-against-the-page`): the
 /// engine's `line-against-page` check run stores a `reject` verdict on each flagged line's reading and
 /// lists the line, its flag and its scores in the run (`GET /api/check/runs/{id}`). A line is flagged
-/// while the newest verdict on that reading is a reject -- the training set's own rule
-/// (`kraken_set.lines_of_pass`) -- so a person's confirm clears it. Pure: the rules live where a test
-/// can reach them; `FlaggedLineStore` is the one place that reads the routes.
+/// while the newest verdict on that reading is a reject, so a person's confirm clears it. (The training set
+/// ranks a person's verdict above a model's whatever the order, `checking.verdicts.standing`; this store takes the
+/// newest of any trust, `flagged(verdicts:runs:documentId:)`.) Pure: the rules live where a test can reach them;
+/// `FlaggedLineStore` is the one place that reads the routes.
 enum FlaggedLines {
     /// One verdict as `GET /api/check/verdicts` lists it (`CheckVerdict.model_dump(mode="json")`).
     struct Verdict: Decodable, Equatable {
