@@ -41,8 +41,11 @@ ORIGINAL, EDITED, RENDITION = "original", "edited", "rendition"
 #: Kept on a reading's artifact (`Artifact.data`): the signature of the image the model was sent. A reading made before this was
 #: kept has none, and counts as read from the photograph.
 IMAGE_READ = "image_read"
+#: Beside it: whether that image was the photograph, a run's rendition or a person's edit (`ORIGINAL`/`RENDITION`/`EDITED`). A reading
+#: made before this was kept says the photograph only when `IMAGE_READ` does; any other signature is taken as an edit (exact match).
+IMAGE_KIND = "image_kind"
 #: Keys a run adds to a reading's `Artifact.data` that say how it was made: never the value of a document's metadata field.
-PROVENANCE_KEYS = frozenset({IMAGE_READ, "episode_id", "thinking", "read_flag", "read_onto_pass", "compare_group", "segment_id"})
+PROVENANCE_KEYS = frozenset({IMAGE_READ, IMAGE_KIND, "episode_id", "thinking", "read_flag", "read_onto_pass", "compare_group", "segment_id"})
 #: Data keys that mark an artifact as not the page's reading: a flagged (looping) read, and one arm of a compare run. Such a save leaves
 #: the document's field as it was, and the repair never takes its text.
 NOT_THE_FIELD_KEYS = frozenset({"read_flag", "compare_group"})

@@ -431,6 +431,16 @@ def _node_reading_corrected(db: Any, document_id: str, tool_config: LLMToolConfi
     return max(rows, key=lambda r: (r.created_at, r.id)).id if rows else None
 
 
+def _prepare_image_reused(artifact: Any, current_kind: str | None) -> bool:
+    """Whether `artifact` was made from the photograph or a rendition and the current image is one of those too (not an edit)."""
+    from fichero_server.media.current_image import EDITED, IMAGE_KIND, ORIGINAL, RENDITION, read_from
+
+    if current_kind not in (ORIGINAL, RENDITION):
+        return False
+    kind = (getattr(artifact, "data", None) or {}).get(IMAGE_KIND)
+    return (kind or (ORIGINAL if read_from(artifact) == ORIGINAL else EDITED)) in (ORIGINAL, RENDITION)
+
+
 def find_existing_artifact(
     document_id: str | None,
     file_path: str | None,
@@ -440,8 +450,14 @@ def find_existing_artifact(
     provider: str | None = None,
     model: str | None = None,
     image: str | None = None,
+    reuse_across_prepare: str | None = None,
 ) -> Any | None:
     """Return the most recent artifact of the given type for a document, or None.
+
+    `reuse_across_prepare` (the current image's kind, `media/current_image`): for a tool that answers about the picture as a whole
+    (describe, caption, tags...), a result made from the photograph or a run's rendition answers for any of those images, so Prepare
+    changing the image does not make it pay again (owner ruling 2026-11-01: same input, same model). A result made from a person's
+    edit answers only that same edit, and when the current image is a person's edit only a result from that edit answers.
 
     `image` (`media/current_image.PageImage.signature`): only a reading made from that image answers (#6296); an edit or an Undo
     in Preview is another image and is read again. None: any image's.
@@ -491,7 +507,7 @@ def find_existing_artifact(
         if image is not None:
             from fichero_server.media.current_image import read_from
 
-            artifacts = [a for a in artifacts if read_from(a) == image]
+            artifacts = [a for a in artifacts if read_from(a) == image or _prepare_image_reused(a, reuse_across_prepare)]
         if not artifacts:
             return None
 

@@ -100,11 +100,11 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
                     account["blank_proposed"] = account.get("blank_proposed", 0) + 1
             if not trusted:
                 if prepare:
-                    # A page already read or described, with no rendition of this step to read from, keeps the photograph: turning it now
+                    # A page already read, with no rendition of this step to read from, is not turned or straightened (a later whole-page read would pay again; Clarity can still change the image): turning it now
                     # would change the image its readings were made from and the next read would pay again (same input, same model).
                     from fichero_server.models import Rendition
-                    from fichero_server.recipes.done import pages_with_any_image_reading
-                    kept_as_read = doc.id in pages_with_any_image_reading(db, [doc.id]) and not any(
+                    from fichero_server.recipes.done import pages_with_readings
+                    kept_as_read = doc.id in pages_with_readings(db, [doc.id]) and not any(
                         r.producer_tool == PRODUCER for r in db.query(Rendition, document_id=doc.id))
                     _clear(db, doc.id, everything=True)
                     # The page itself is the base: no crop, square or flatten (no paper was found), but turn and straighten

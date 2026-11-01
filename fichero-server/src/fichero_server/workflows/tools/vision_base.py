@@ -14,7 +14,7 @@ Provides:
 
 from __future__ import annotations
 from fichero_server.media import quartz_warm  # (#5745: warm() resolves Quartz names under a lock at first use)
-from fichero_server.media.current_image import IMAGE_READ, ORIGINAL
+from fichero_server.media.current_image import IMAGE_KIND, IMAGE_READ, ORIGINAL
 
 import asyncio
 import collections
@@ -4789,6 +4789,10 @@ async def process_vision(
                         provider=cache_provider,
                         model=cache_model,
                         image=_page_image.signature if _page_image is not None else None,
+                        # Whole-picture answers (not a transcription, and no geometry kept) survive Prepare changing the image.
+                        reuse_across_prepare=(
+                            _page_image.kind if _page_image is not None and vision_mode == "llm"
+                            and tool_config.artifact_type != "transcription" else None),
                     )
                 except ArtifactLookupError as exc:
                     # Skip-if-done cache read FAILED — we cannot prove a cached
@@ -5786,7 +5790,7 @@ async def process_vision(
                 # above (the parameter lives in the enclosing scope).
                 effective_artifact_data = artifact_data
                 if _page_image is not None:  # what the model was sent: the skip-if-done cache and the line resume compare it (#6296)
-                    effective_artifact_data = {**(artifact_data or {}), IMAGE_READ: _page_image.signature}
+                    effective_artifact_data = {**(artifact_data or {}), IMAGE_READ: _page_image.signature, IMAGE_KIND: _page_image.kind}
                 if page_thinking_single:
                     effective_artifact_data = {
                         **(effective_artifact_data or {}),
