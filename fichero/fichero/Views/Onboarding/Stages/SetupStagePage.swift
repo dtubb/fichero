@@ -63,8 +63,8 @@ struct SetupStagePage: View {
                         answer: Binding(
                             get: { Self.answer(to: question, in: store.jobAnswers) },
                             set: { newValue in
-                                if question.key == RecipeSetupStore.leaveOutQuestion, case .yesNo(let on) = newValue {
-                                    store.setLeaveOut(on)  // the stage's tick follows the toggle
+                                if question.key == RecipeSetupStore.leaveOutQuestion, case .yesNo(let isOn) = newValue {
+                                    store.setLeaveOut(isOn)  // the stage's tick follows the toggle
                                 } else {
                                     store.jobAnswers[question: question.key] = newValue
                                 }

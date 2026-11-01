@@ -69,11 +69,11 @@ struct EngineSettingsView: View {
 
     /// Return commits: the same stop, write, repoint, start, check and roll-back as Connect to Another Mac (#5916).
     private func applyServerURL() async {
-        await advanced.commit(stored: engineHost) { from, to, notResponding in
+        await advanced.commit(stored: engineHost) { from, target, notResponding in
             try await EngineHostSwitch.standard(
                 appState: appState, backendService: backendService, libraryManager: libraryManager,
                 setHost: { engineHost = $0 }
-            ).run(from: from, to: to, notResponding: notResponding)
+            ).run(from: from, to: target, notResponding: notResponding)
         }
         advanced.sync(stored: engineHost)
     }
