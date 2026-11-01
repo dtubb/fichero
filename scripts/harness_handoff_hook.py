@@ -5,7 +5,8 @@
 Hook for PostToolUse and Stop. Does nothing unless the session's worker is registered:
   $FICHERO_HARNESS_REG (default ~/.claude/builders)/<name>.json =
     {"worktree": ..., "handoff": ..., "model": "sonnet", "window": 200000, "session": "<tmux session>",
-     "notify": ["argv", "prefix"]}      # notify + message is run to tell the manager; omit = silent
+     "notify": ["argv", "prefix"],      # notify + message is run to tell the manager; omit = silent
+     "successor": "watcher"}            # `builder run` wrote it: the hook tells and nudges, the watcher ends and starts
 The name comes from $FICHERO_BUILDER (set by harness_start.py).
 PostToolUse at 85%: tells the worker once to finish, commit, write the handoff and end with HANDOFF READY.
 Stop: without that line the worker is told to continue (capped) unless its message has a `WAITING: ` line;
@@ -103,6 +104,8 @@ def on_stop(event, name, reg, state, run=subprocess.run):
         return {"decision": "block", "reason": words}, dict(state, nudges={**state.get("nudges", {}), sid: n + 1})
     if sid and sid in state.get("handed_off_sessions", []):  # a late message can wake a session before its TERM
         return None, state
+    if reg.get("successor") == "watcher":  # `builder run` watches this session: it ends the worker and starts the successor
+        return None, state
     handoff = Path(reg["handoff"])
     if not handoff.is_absolute():
         handoff = Path(reg["worktree"]) / handoff
@@ -170,6 +173,9 @@ def test():
     n = len(calls)
     assert on_stop({"last_assistant_message": DONE, "session_id": "s1"}, "b", reg, st, run)[1] == st and len(calls) == n, "once per session"
     assert on_stop({"last_assistant_message": DONE, "session_id": "s2"}, "b", reg, st, run)[1]["gen"] == 3
+    n = len(calls)
+    assert on_stop({"last_assistant_message": DONE, "session_id": "w"}, "b", {**reg, "successor": "watcher"}, {}, run) == (None, {}), "the watcher's worker: no successor from the hook"
+    assert len(calls) == n
 
     def bad(c, **k):
         return subprocess.CompletedProcess(c, 1, "", "no probe")

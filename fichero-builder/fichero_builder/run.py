@@ -4,6 +4,8 @@ and the start path refuses anyone else. Process control is a small `Procs` so a 
 (dev-workflows.rollout.dry-run); nothing here types into a pane."""
 from __future__ import annotations
 
+import json
+import os
 import re
 import subprocess
 import sys
@@ -84,6 +86,17 @@ DONE = re.compile(r"^DONE ([0-9a-f]{7,40})\b", re.M)  # the brief's end line: DO
 HANDOFF_READY = "HANDOFF READY"
 
 
+def register(name: str, worktree, handoff, model: str, window: int, tmux_session: str, reg_dir=None) -> Path:
+    """The registry entry the in-session handoff hook reads (scripts/harness_handoff_hook.py): with it the hook tells the
+    worker at 85 % and nudges an idle one on; `successor: watcher` leaves ending and the successor to this loop."""
+    d = Path(reg_dir or os.environ.get("FICHERO_HARNESS_REG") or Path.home() / ".claude" / "builders")
+    d.mkdir(parents=True, exist_ok=True)
+    p = d / f"{name}.json"
+    p.write_text(json.dumps({"worktree": str(worktree), "handoff": str(handoff), "model": model, "window": window,
+                             "session": tmux_session, "successor": "watcher"}, indent=1))
+    return p
+
+
 def successor_brief(name: str, gen: int, worktree, handoff) -> str:
     """The successor's whole brief: read the handoff, carry on, same rules, same end line (dev-workflows.worker.handoff)."""
     return (f"You succeed long-running worker {name} (generation {gen}). Work in {worktree}. Read {handoff} first, then continue "
@@ -106,6 +119,7 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             out("builder run refuses: " + b)
         return "refused"
     handoff = Path(handoff) if handoff else Path(worktree) / "HANDOFF.md"
+    register(name, worktree, handoff, model, spend.window, tmux_session)
     gen = 1
     base = procs.head()
     pane = procs.start(root, worktree, brief, name, model, tmux_session)

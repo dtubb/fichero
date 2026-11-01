@@ -40,7 +40,18 @@ class Fake:
 def root(tmp_path, monkeypatch):
     (tmp_path / "harness.toml").write_text(TOML)
     monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    monkeypatch.setenv("FICHERO_HARNESS_REG", str(tmp_path / "reg"))
     return tmp_path
+
+
+def test_run_registers_the_worker_for_the_in_session_hook_with_the_successor_left_to_the_watcher(root):
+    import json
+
+    fake = Fake([HEALTHY])
+    run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None)
+    reg = json.loads((root / "reg" / "w.json").read_text())
+    assert reg == {"worktree": str(root / "wt"), "handoff": str(root / "wt" / "HANDOFF.md"), "model": "sonnet", "window": 1000,
+                   "session": "harness", "successor": "watcher"}
 
 
 def test_a_missing_price_refuses_before_anything_starts(root):
