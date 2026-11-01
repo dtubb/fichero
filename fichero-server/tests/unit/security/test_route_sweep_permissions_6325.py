@@ -187,19 +187,25 @@ def seed(project, scratch_dir):
 
 
 def _seed_a_run(project):
-    """A real run, by the owner, over a recipe whose folder source is B: its state, history and record hold the page's text."""
+    """Two real runs, by the owner: one over a recipe whose folder source is B, one over a `search` source that names no page. Both
+    hold the page's text in their state, history and record."""
     owner = _as(project.harness, "owner")
-    made = owner.post("/api/workflows", json={"name": "recipe over B", "edges": [], "nodes": [
-        {"id": "src", "tool": "folder", "label": "F", "inputs": {"folder_id": project.ids["B"], "include_subfolders": True}, "config": {}}]})
-    assert made.status_code == 200, made.text
-    started = owner.post("/api/workflow-execution/execute", json={"workflow_id": made.json()["id"], "inputs": {}})
-    assert started.status_code == 202, started.text
-    thread_id = started.json()["thread_id"]
-    for _ in range(300):
-        if owner.get(f"/api/workflow-execution/threads/{thread_id}/status").json().get("status") in ("completed", "failed"):
-            break
-        time.sleep(0.2)
-    return {"workflow_id": made.json()["id"], "thread_id": thread_id}
+
+    def run(label, node):
+        made = owner.post("/api/workflows", json={"name": label, "edges": [], "nodes": [node]})
+        assert made.status_code == 200, made.text
+        started = owner.post("/api/workflow-execution/execute", json={"workflow_id": made.json()["id"], "inputs": {}})
+        assert started.status_code == 202, started.text
+        thread_id = started.json()["thread_id"]
+        for _ in range(300):
+            if owner.get(f"/api/workflow-execution/threads/{thread_id}/status").json().get("status") in ("completed", "failed"):
+                break
+            time.sleep(0.2)
+        return made.json()["id"], thread_id
+
+    workflow_id, thread_id = run("recipe over B", {"id": "src", "tool": "folder", "label": "F", "inputs": {"folder_id": project.ids["B"], "include_subfolders": True}, "config": {}})
+    _, search_thread_id = run("recipe by search", {"id": "src", "tool": "search", "label": "S", "inputs": {"query": "SECRETTEXT", "search_type": "fulltext"}, "config": {}})
+    return {"workflow_id": workflow_id, "thread_id": thread_id, "search_thread_id": search_thread_id}
 
 
 def fill(name, ids, seeded):
@@ -325,7 +331,8 @@ def _run_sweep(project, scratch_dir):
     who = _people(project)
     ids, library = project.ids, project.library
     #: A route or action that names a conversation is fired on the scoped one and on the unscoped one.
-    variants = (seeded, {**seeded, "conversation_id": seeded["free_conversation_id"]})
+    #: A route that names a run is fired on the run over a folder and on the run over a search, which names no page.
+    variants = (seeded, {**seeded, "conversation_id": seeded["free_conversation_id"]}, {**seeded, "thread_id": seeded["search_thread_id"]})
     rows = []
 
     def call(name, surface, ident, method, path, decoy, **kw):

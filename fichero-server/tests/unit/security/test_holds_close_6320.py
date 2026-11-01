@@ -721,3 +721,38 @@ def test_viewers_cannot_spend_keys_or_use_the_network(project):
                        ("/api/research/tools/web-search", {}), ("/api/research/tools/browser-navigate", {})):
         assert fred.post(path, json=body).status_code == 403, path
         assert erin.post(path, json=body).status_code != 403, path  # past the gate (the empty body is then a 422)
+
+
+def test_item1_a_run_that_names_no_page_is_not_shown_to_a_caller_with_a_deny(project, four, tmp_path, monkeypatch):
+    """Review 8 item 1: a run of a `search` source, or a `folder` source by path, records no page; its state, history and text were shown."""
+    import time
+
+    from fichero_server.importers import derivatives
+    from fichero_server.models import DocType, FileType, Status
+
+    monkeypatch.setattr(derivatives, "_embed_stage", lambda doc_id, library: None)
+    db = db_manager.get_database(project.harness.library)
+    row = db.get(Document, project.ids["b1"])
+    row.file_type, row.doc_type, row.status, row.page_content = FileType.text, DocType.file, Status.completed, "SECRETTEXT"
+    db.save(row)
+    owner = _as(project.harness, "owner")
+    erin = _plain(project, "erin", authz.ROLE_EDITOR)
+    recipes = {
+        "search": [{"id": "s", "tool": "search", "label": "S", "inputs": {"query": "SECRETTEXT", "search_type": "fulltext"}, "config": {}}],
+        "folder by path": [{"id": "s", "tool": "folder", "label": "F", "inputs": {"folder_path": "SECRETFOLDER"}, "config": {}}],
+    }
+    for label, nodes in recipes.items():
+        wid = _recipe(owner, nodes)
+        thread = owner.post("/api/workflow-execution/execute", json={"workflow_id": wid, "inputs": {}}).json()["thread_id"]
+        for _ in range(300):
+            if owner.get(f"/api/workflow-execution/threads/{thread}/status").json().get("status") in ("completed", "failed"):
+                break
+            time.sleep(0.2)
+        base = f"/api/workflow-execution/threads/{thread}"
+        assert erin.get(base + "/status").status_code == 200, label  # a plain editor reads every page: nothing to hide
+        for name, client, decoy in four:
+            if name in ("carla", "dana"):
+                continue
+            for path in ("/status", "/history", "/run"):
+                got = client.get(base + path + decoy)
+                assert got.status_code == 403 and "SECRET" not in got.text, (label, name, path, got.status_code)

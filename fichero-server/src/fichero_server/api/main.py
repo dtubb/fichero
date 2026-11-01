@@ -1957,17 +1957,27 @@ async def recipe_check(request: Request | None, library_path: str | None, db: An
 
 async def run_check(request: Request, library_path: str | None, db: Any, thread_ids: Sequence[str | None], *, write: bool) -> None:
     """A caller whose reads differ page by page may see a run's state, or act on it, only if they read (write) every page its record
-    names (`run_document_ids`). A run with no page on record names none to test (#6325, H1/H8/N6)."""
+    names (`run_document_ids`). A run whose record names no page, or whose recipe has a source that reads by a word or a name or a
+    step that writes a path (`run_scope.recipe_hazard`), is refused to such a caller: the run holds text no page test can cover
+    (#6325, H1/H8/N6, review 8 item 1). The record does not say who started a run, so the starter is not let through."""
     if request is None or not library_path or document_reader(request, library_path) is None:
         return  # nothing can differ for this caller: no lookup, no walk
     from fichero_server.workflows.activity import get_activity_tracker
-    from fichero_server.workflows.run_scope import run_document_ids
+    from fichero_server.api.auth import library_access_denial_payload
+    from fichero_server.workflows.run_scope import recipe_hazard, run_document_ids
 
     store = get_activity_tracker(str(db.path)).store
     pages: list[str] = []
     for thread_id in dict.fromkeys(t for t in thread_ids if t):
-        if (run := await store.get_workflow_run(thread_id)) is not None:
-            pages += run_document_ids(run)
+        if (run := await store.get_workflow_run(thread_id)) is None:
+            continue
+        run_pages = run_document_ids(run)
+        nodes = (getattr(run, "workflow_snapshot", None) or {}).get("nodes")
+        if not run_pages or (why := recipe_hazard(nodes)):
+            raise LibraryAccessDeniedError(library_access_denial_payload(
+                request, library_path, required="write" if write else "read",
+                detail=why if run_pages else "This run names no page on its record, so no page you may read can be tested against it."))
+        pages += run_pages
     if pages:
         await (write_check if write else read_check)(request, library_path, db, list(dict.fromkeys(pages)))
 
