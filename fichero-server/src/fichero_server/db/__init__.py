@@ -5678,6 +5678,13 @@ class Database(DatabaseEmbeddingMixin):
         return int(self.execute_fetchall(
             f"SELECT COUNT(*) FROM documents d WHERE {self._UNIT_OF_WORK_WHERE}")[0][0])
 
+    def prepare_check_rows(self) -> list[tuple[str, str, str | None, str | None]]:
+        """`(id, name, prep_proposals json, page_region.method)` of every unit of work: Prepare Images' worklist."""
+        return self.execute_fetchall(
+            "SELECT d.id, d.name, json_extract_string(d.metadata, '$.prep_proposals'), "
+            "json_extract_string(d.metadata, '$.page_region.method') "
+            f"FROM documents d WHERE {self._UNIT_OF_WORK_WHERE}", committed=True)
+
     def unit_of_work_ids(self) -> list[str]:
         """The ids `unit_of_work_count` counts, in Finder order (#5849): by the full path from the project's root (at
         each level the order a person set, else the name read naturally), then a page's own place: the order a person

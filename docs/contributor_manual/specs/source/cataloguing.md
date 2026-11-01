@@ -119,7 +119,7 @@ row per item, one column per field), and into IIIF manifests' `metadata`.
   through `put_in_content` and `put_in_attributes`, with no model call: folders described before a field existed gain it without a rerun.
   A folder already promoted from the same artifact changes nothing on a second call; one audited step, undone to what each folder held.
   *Tests:* `.../test_catalogue_promote_scope_arrangement_6267.py::test_promote_gives_an_earlier_folder_the_new_keys_and_is_idempotent`,
-  `::test_promote_is_undone_to_what_the_folder_held`.
+  `::test_promote_is_undone_to_what_the_folder_held`. If the re-index after an undo cannot be queued, the text is still put back and the failure goes to the failure ledger (`search|reembed`), which `/api/health` reads when it repeats (`test_an_undo_whose_reembed_cannot_be_queued_still_restores_and_tells_the_health_ledger`).
 - `catalogue.excel-export-prints-description-once` — **[OK]** (#6267) in the Excel export a folder whose content is its catalogue
   description (`catalogue_content_from` set) does not also append its `catalogue.*` artifacts to its text, so the description prints once. The
   Markdown, Word and site exports still print a promoted folder's `catalogue.*` artifacts beside its content (every export prints only the latest `catalogue.narrative`, a rerun's older ones are left out). *Tests:* `fichero-server/tests/unit/api/test_routes_export.py::TestCatalogueTextOnlyDroppedInExcel::test_word_and_site_text_are_unchanged`, `::test_word_export_still_prints_both`, `fichero-server/tests/unit/api/test_routes_export.py::TestExcelExportAttributes::test_a_promoted_folders_description_prints_once`.

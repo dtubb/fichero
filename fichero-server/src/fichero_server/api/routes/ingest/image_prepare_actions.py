@@ -8,11 +8,12 @@ import asyncio
 import io
 from typing import Annotated, Any, Literal
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action
-from fichero_server.api.main import get_library_database
+from fichero_server.api.main import assert_library_reads_every, get_library_database
+from fichero_server.api.library_header import require_library_path
 from fichero_server.api.routes.ingest.image_editing import (
     IMAGE_EDIT_EMIT_TYPE,
     RotateImageActionParams,
@@ -307,9 +308,14 @@ def _batch_targets(db: Database, request: BatchPrepareRequest) -> tuple[list[tup
 
 @router.post("/batch-prepare/preview", response_model=BatchPreparePreview)
 async def batch_prepare_preview(
-    request: BatchPrepareRequest, db: Database = Depends(get_library_database)
+    request: BatchPrepareRequest, http: Request, library_path: str = Depends(require_library_path),
+    db: Database = Depends(get_library_database),
 ) -> BatchPreparePreview:
     """The folder's first, middle and last page with the correction applied, before anything runs. Writes no row."""
+    # The ids are in the body, which the read dependency never sees; the pages shown are pixels, so each is read-checked (#6320).
+    named = [request.folder_id, *([request.source_document_id] if request.source_document_id else [])]
+    await asyncio.to_thread(assert_library_reads_every, http, library_path, named,
+                            lambda: [d.id for d, _page in _batch_targets(db, request)[0]])
     return await asyncio.to_thread(_batch_prepare_preview, db, request)
 
 

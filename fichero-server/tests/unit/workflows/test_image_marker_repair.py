@@ -1,0 +1,198 @@
+"""A reading field the artifact's provenance replaced gets its reading's text back, in the background, once (#6320)."""
+import json
+import time
+
+import pytest
+
+from fichero_server.db import db_manager
+from fichero_server.execution import jobs
+from fichero_server.maintenance import image_marker_repair as repair
+from fichero_server.models import Artifact, DocType, Document, FileType
+
+REAL = {"image_read": "original", "episode_id": "ep_1"}
+
+
+def _page(db, metadata, *artifacts):
+    page = Document(name="p", path="/p.jpg", doc_type=DocType.page, file_type=FileType.image, metadata=metadata)
+    db.save(page)
+    for kind, text in artifacts:
+        db.save(Artifact(document_id=page.id, artifact_type=kind, content=text, provider="x", model="y"))
+    return page
+
+
+def test_every_shape_a_run_wrote_is_put_back_and_nothing_else_is_touched(db):
+    page = _page(db, {"description": dict(REAL), "caption": {"episode_id": "ep_2"}, "doc_type": {"image_read": "original"},
+                      "keywords": {"a": 1}, "note": "typed by a person", "colors": dict(REAL)},
+                 ("description", "A harbour."), ("caption", "Harbour at dusk"), ("classification", "letter"))
+    assert repair.repair_document(db, page.id) == (3, 1)  # colors has no reading: left
+    meta = db.get(Document, page.id).metadata
+    assert meta["description"] == "A harbour." and meta["caption"] == "Harbour at dusk" and meta["doc_type"] == "letter"
+    assert meta["colors"] == REAL and meta["keywords"] == {"a": 1} and meta["note"] == "typed by a person"
+    assert repair.repair_document(db, page.id) == (0, 1)  # idempotent
+
+
+def test_a_page_with_nothing_to_put_back_is_not_saved(db, monkeypatch):
+    page = _page(db, {"colors": dict(REAL)})
+    saved = []
+    monkeypatch.setattr(db, "save", lambda row: saved.append(row))
+    assert repair.repair_document(db, page.id) == (0, 1) and saved == []
+
+
+def test_the_open_only_queues_the_job_and_the_job_repairs_once_and_says_what_it_left(tmp_path):
+    package = tmp_path / "Dev Project.fichero"
+    db = db_manager.get_database(package, create=True)
+    fixed = _page(db, {"description": dict(REAL)}, ("description", "A harbour."))
+    left = _page(db, {"caption": dict(REAL)})
+    # the creating open already ran the job over an empty library: make this the library as it was before the fix
+    db.execute("DELETE FROM librarysettings WHERE id = ?", [repair.DONE_SETTING])
+    db.execute("DELETE FROM jobs WHERE kind = ?", [repair.KIND])
+    db_manager.close_database(package)
+
+    db = db_manager.get_database(package)
+    try:
+        for _ in range(300):  # the engine's own scheduler runs it; the open did not
+            if repair.is_done(db):
+                break
+            time.sleep(0.1)
+        else:
+            repair.run(db, repair.SUBJECT)  # a scheduler held back by the suite: run it by hand
+        assert repair.is_done(db)
+        assert db.get(Document, fixed.id).metadata["description"] == "A harbour."
+        assert db.get(Document, left.id).metadata["caption"] == REAL
+        for _ in range(100):  # the scheduler writes the row's reason after the run returns
+            row = db.execute_fetchone("SELECT reason FROM jobs WHERE kind = ? AND state = 'done'", [repair.KIND])
+            if row:
+                assert "1 reading field put back" in row[0] and "1 could not be" in row[0]  # the words survive the scheduler (H3)
+                break
+            time.sleep(0.1)
+    finally:
+        db_manager.close_database(package)
+
+    db = db_manager.get_database(package)
+    try:
+        assert repair.is_done(db) and repair.queue_if_needed(db) is None
+    finally:
+        db_manager.close_database(package)
+
+
+def test_the_finished_job_row_says_how_many_were_put_back_and_how_many_could_not_be(db):
+    job_id = "repair-reading-fields-test"
+    jobs._record(db, job_id, kind="workflow", subject=job_id, parent_id=None, state="done", reason="", name="Repair")
+    assert repair.finish(db, job_id, 1, 1)["said"]
+    reason = jobs.read_job(db, job_id)["reason"]
+    assert "1 reading field put back" in reason and "1 could not be" in reason
+
+
+def _save_reading(db, doc, text, data):
+    import asyncio
+    from unittest.mock import patch
+
+    from fichero_server.llm import LLMConfig
+    from fichero_server.workflows.tools.llm_base import save_artifact
+    from fichero_server.workflows.tools.vision_base import VisionToolConfig
+
+    config = VisionToolConfig(artifact_type="description", update_page_content=False, trigger_embedding=False,
+                              supports_apple_vision=False, skip_if_artifact_exists=False, metadata_field="description")
+    with patch("fichero_server.db.db_manager.get_database", return_value=db):
+        asyncio.run(save_artifact(document_id=doc.id, file_path=None, content=text, data=data, library_path="/tmp/t.fichero",
+                                  llm_config=LLMConfig(provider="mock", model="m"), task_id=None, tool_config=config))
+
+
+def test_a_flagged_read_or_a_compare_arm_leaves_the_pages_field_as_it_was(db):
+    page = _page(db, {})
+    _save_reading(db, page, "A good description.", dict(REAL))
+    _save_reading(db, page, "the same words go round the same words go round", {**REAL, "read_flag": {"kind": "loop"}})
+    _save_reading(db, page, "A compare arm, other model.", {**REAL, "compare_group": "g1"})
+    assert db.get(Document, page.id).metadata["description"] == "A good description."
+    assert len(db.query(Artifact, document_id=page.id, artifact_type="description")) == 3  # all three are kept as readings
+
+
+def test_the_repair_never_puts_back_a_flagged_read_or_a_compare_arm(db):
+    page = _page(db, {"description": dict(REAL), "caption": dict(REAL)}, ("description", "A good description."))
+    for text, extra in (("the same words go round the same words", {"read_flag": {"kind": "loop"}}), ("An arm.", {"compare_group": "g"})):
+        db.save(Artifact(document_id=page.id, artifact_type="description", content=text, provider="x", model="y", data={**REAL, **extra}))
+    db.save(Artifact(document_id=page.id, artifact_type="caption", content="only a loop", provider="x", model="y",
+                     data={**REAL, "read_flag": {"kind": "loop"}}))
+    assert repair.repair_document(db, page.id) == (1, 1)  # caption has only a flagged read: left
+    meta = db.get(Document, page.id).metadata
+    assert meta["description"] == "A good description." and meta["caption"] == REAL
+
+
+def test_a_dict_that_is_only_a_segment_id_is_a_persons_own_and_is_not_repaired(db):
+    page = _page(db, {"caption": dict(REAL), "description": {"segment_id": "seg-7"}}, ("caption", "Dusk"), ("description", "Words"))
+    assert repair.repair_document(db, page.id) == (1, 0)
+    assert db.get(Document, page.id).metadata["description"] == {"segment_id": "seg-7"}
+
+
+def test_finishing_hands_the_words_to_the_scheduler_which_writes_the_rows_reason(db):
+    jobs._current.done_note = None
+    repair.finish(db, None, 4, 1)
+    try:
+        note = jobs._current.done_note
+    finally:
+        jobs._current.done_note = None
+    assert "4 reading fields put back" in note and "1 could not be" in note
+
+
+def test_the_audit_names_the_pages_and_the_library_and_the_row_names_the_pages_left(db, monkeypatch):
+    audits = []
+
+    class _App:
+        def save_action_audit(self, row):
+            audits.append(row)
+
+    monkeypatch.setattr("fichero_server.db.app.get_app_db", lambda: _App())
+    job_id = "repair-names"
+    jobs._record(db, job_id, kind="workflow", subject=job_id, parent_id=None, state="running", reason="", name="Repair")
+    repair.finish(db, job_id, 1, 1, ["page-a"], ["page-b"])
+    assert audits[0].target_ids == ["page-a"] and audits[0].params["left_ids"] == ["page-b"] and audits[0].params["library"]
+    assert '"left_ids": ["page-b"]' in jobs.read_job(db, job_id)["detail"]
+
+
+def test_a_resumed_job_keeps_its_counts_and_does_not_look_at_the_pages_it_has_done(db, monkeypatch):
+    pages = [_page(db, {"description": dict(REAL)}, ("description", f"text {n}")) for n in range(4)]
+    ids = sorted(p.id for p in pages)
+    job_id = "repair-resume"
+    jobs._record(db, job_id, kind="workflow", subject=job_id, parent_id=None, state="running", reason="", name="Repair")
+    jobs.save_detail(db, job_id, repair._detail(9, 2, ["x"], ["y"], ids[1]))  # an earlier pass: 9 put back, cursor after the second
+    monkeypatch.setattr(jobs._current, "job_id", job_id, raising=False)
+    monkeypatch.setattr(repair, "_why_step_aside", lambda: None)
+    seen = []
+    real = repair.repair_document
+    monkeypatch.setattr(repair, "repair_document", lambda d, i: (seen.append(i), real(d, i))[1])
+    done = repair.run(db, repair.SUBJECT)
+    assert seen == ids[2:] and done["put_back"] == 11 and done["left"] == 2
+
+
+def test_a_new_library_is_marked_done_and_queues_no_job(db):
+    assert repair.is_done(db) and db.execute_fetchone("SELECT 1 FROM jobs WHERE kind = ?", [repair.KIND]) is None
+
+
+def test_a_trashed_page_is_repaired_and_stays_trashed(db):
+    page = _page(db, {"description": dict(REAL)}, ("description", "A harbour."))
+    db.execute("UPDATE documents SET deleted_at = now() WHERE id = ?", [page.id])
+    assert repair.run(db, repair.SUBJECT)["put_back"] == 1
+    assert db.get(Document, page.id).metadata["description"] == "A harbour."
+    assert db.execute_fetchone("SELECT deleted_at FROM documents WHERE id = ?", [page.id])[0] is not None
+
+
+def test_a_deferred_run_resumes_from_its_cursor_with_its_counts_and_names(db, monkeypatch):
+    n = repair.CHUNK + 10
+    pages = [_page(db, {"description": dict(REAL)}, ("description", f"t{i}")) for i in range(n - 1)]
+    pages.append(_page(db, {"caption": dict(REAL)}))  # no reading: left
+    job_id = "repair-defer"
+    jobs._record(db, job_id, kind="workflow", subject=job_id, parent_id=None, state="running", reason="", name="Repair")
+    monkeypatch.setattr(jobs._current, "job_id", job_id, raising=False)
+    asks = iter([None, "busy"])
+    monkeypatch.setattr(repair, "_why_step_aside", lambda: next(asks, None))
+    seen = []
+    real = repair.repair_document
+    monkeypatch.setattr(repair, "repair_document", lambda d, i: (seen.append(i), real(d, i))[1])
+    with pytest.raises(jobs.JobDeferred):
+        repair.run(db, repair.SUBJECT)
+    assert len(seen) == repair.CHUNK
+    done = repair.run(db, repair.SUBJECT)
+    assert len(seen) == n and len(set(seen)) == n and seen == sorted(seen)  # none twice, in id order
+    assert done["put_back"] == n - 1 and done["left"] == 1
+    detail = json.loads(jobs.read_job(db, job_id)["detail"])
+    assert len(detail["put_ids"]) == n - 1 and detail["left_ids"] == [pages[-1].id]

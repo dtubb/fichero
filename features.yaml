@@ -381,6 +381,14 @@
   routes: []
   ux_group: Knowledge
   notes: In-app agent surface still in the rawest stage.
+- key: devWorkers
+  name: Dev workers
+  tier: dev
+  swift_flag: null
+  routes:
+    - /api/workers
+  ux_group: Knowledge
+  notes: Engine-run dev worker processes (the dev harness, #6116).
 - key: integrations
   name: Integrations
   tier: alpha

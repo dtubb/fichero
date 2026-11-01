@@ -1,5 +1,6 @@
 """Document export routes, and the project's kept exports (#5485, `/export/kept`)."""
 
+import asyncio
 import base64
 import tempfile
 from datetime import datetime
@@ -13,7 +14,9 @@ from fichero_server.actions.registry import ActionContext, ChangeSpec, action, r
 from fichero_server.api.auth import action_context
 from fichero_server.api.library_header import optional_library_path
 from fichero_server.api.library_header import require_library_path
-from fichero_server.api.main import assert_library_write_authorized, get_library_database, get_library_database_for_write
+from fichero_server.api.main import (
+    assert_library_reads_every, assert_library_write_authorized, get_library_database,
+    get_library_database_for_write)
 from fichero_server.db import Database
 from fichero_server.export_service import (
     export_catalogue_xlsx,
@@ -215,9 +218,12 @@ class EleventySiteExportResponse(BaseModel):
 @router.post("/jsonl", response_model=JsonlExportResponse)
 async def export_jsonl_route(
     request: JsonlExportRequest,
+    http: Request,
+    library_path: str = Depends(require_library_path),
     db: Database = Depends(get_library_database_for_write),
 ) -> JsonlExportResponse:
     """Export canonical records as a JSON Lines file."""
+    await _read_checked(http, library_path, db, request.target_id)
     try:
         result = export_jsonl(
             db=db,
@@ -282,9 +288,12 @@ async def export_training_route(
 @router.post("/parquet", response_model=ParquetExportResponse)
 async def export_parquet_route(
     request: ParquetExportRequest,
+    http: Request,
+    library_path: str = Depends(require_library_path),
     db: Database = Depends(get_library_database_for_write),
 ) -> ParquetExportResponse:
     """Export canonical records as a typed Parquet bundle."""
+    await _read_checked(http, library_path, db, request.target_id)
     try:
         result = export_parquet(
             db=db,
@@ -306,10 +315,13 @@ async def export_parquet_route(
 @router.post("/eleventy-site", response_model=EleventySiteExportResponse)
 async def export_eleventy_site_route(
     request: EleventySiteExportRequest,
+    http: Request,
+    library_path: str = Depends(require_library_path),
     db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Depends(optional_library_path),
 ) -> EleventySiteExportResponse:
     """Publish a library, folder, or subfolder as an 11ty/Netlify static site."""
+    await _read_checked(http, library_path, db, request.target_id)
     try:
         result = export_eleventy_site(
             db=db,
@@ -339,10 +351,13 @@ async def export_eleventy_site_route(
 @router.post("/markdown-folder", response_model=MarkdownFolderExportResponse)
 async def export_markdown_folder_route(
     request: MarkdownFolderExportRequest,
+    http: Request,
+    library_path: str = Depends(require_library_path),
     db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Depends(optional_library_path),
 ) -> MarkdownFolderExportResponse:
     """Export a library, folder, or document as a Markdown folder."""
+    await _read_checked(http, library_path, db, request.target_id)
     try:
         result = export_markdown_folder(
             db=db,
@@ -371,10 +386,13 @@ async def export_markdown_folder_route(
 @router.post("/word", response_model=WordExportResponse)
 async def export_word_route(
     request: WordExportRequest,
+    http: Request,
+    library_path: str = Depends(require_library_path),
     db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Depends(optional_library_path),
 ) -> WordExportResponse:
     """Export a library, folder, or document as a Word .docx file (or, per folder, a zip of them)."""
+    await _read_checked(http, library_path, db, request.target_id)
     try:
         if request.per == "folder":
             return WordExportResponse(**export_word_transcripts(
@@ -406,9 +424,12 @@ async def export_word_route(
 @router.post("/excel", response_model=ExcelExportResponse)
 async def export_excel_route(
     request: ExcelExportRequest,
+    http: Request,
+    library_path: str = Depends(require_library_path),
     db: Database = Depends(get_library_database_for_write),
 ) -> ExcelExportResponse:
     """Export a library, folder, or document as an Excel .xlsx workbook."""
+    await _read_checked(http, library_path, db, request.target_id)
     try:
         result = export_excel_xlsx(
             db=db,
@@ -449,6 +470,27 @@ class CatalogueWorkbookResponse(BaseModel):
     job_id: str | None = Field(default=None, description="The queued write, when kept_export_id was given")
 
 
+def _documents_under(db: Database, target_id: str | None) -> list[str]:
+    """The live documents a workbook of `target_id` (None or empty: the library, as the exporters read it) reads."""
+    from fichero_server.db.document_tree import live_document_rows
+    from fichero_server.recipes.runner import folder_scope
+
+    if not target_id:
+        return list(live_document_rows(db))
+    try:
+        return sorted(folder_scope(db, target_id))
+    except LookupError:  # not a live document: the export says so itself
+        return []
+
+
+async def _read_checked(http: Request, library_path: str, db: Database, target_id: str | None) -> None:
+    """The id is in the body, which the write dependency never sees (a decoy id in the query stood in): read-check it and every page
+    under it before a file is written (#6320)."""
+    target_id = target_id or None  # an empty id is the whole project to the exporters: it must be checked as the whole project
+    # off the event loop: for a scoped caller this is the folder walk plus one authz lookup per page
+    await asyncio.to_thread(assert_library_reads_every, http, library_path, [target_id], lambda: _documents_under(db, target_id))
+
+
 _WORKBOOK_TYPES = {"xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "csv": "application/zip"}
 
 
@@ -466,8 +508,10 @@ async def export_catalogue_workbook_route(
 
     suffix = ".xlsx" if request.format == "xlsx" else ".zip"
     name = f"{kept_export.WORKBOOK_NAME}{suffix}"
+    # The id is in the body, which the read dependency never sees: check it here, with every page under it (#6320).
+    await _read_checked(http, library_path, db, request.target_id)
     if request.kept_export_id:
-        assert_library_write_authorized(http, library_path)  # a read export, except that this one queues a write
+        assert_library_write_authorized(http, library_path, request.target_id)  # a read export, except that this one queues a write
         kept = kept_export._export(db, request.kept_export_id)
         if kept is None or kept["format"] != "catalogue-workbook":
             raise HTTPException(status_code=404, detail="No kept catalogue-workbook export with that id.")

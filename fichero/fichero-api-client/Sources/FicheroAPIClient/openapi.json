@@ -7925,6 +7925,207 @@
         }
       }
     },
+    "/api/workers": {
+      "post": {
+        "tags": [
+          "workers"
+        ],
+        "summary": "Start a dev worker process, recorded as a job row",
+        "description": "Start a worker of `kind` (`claude` in a tmux window, or `fake`) in `workdir`. Through `worker.start`.",
+        "operationId": "start_worker_api_workers_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkerStartParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Start Worker Api Workers Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workers/tell": {
+      "post": {
+        "tags": [
+          "workers"
+        ],
+        "summary": "Type a message into a task's current worker; refused for a stale generation",
+        "description": "Through `worker.tell`: 409 when `generation` is not the task's current worker.",
+        "operationId": "tell_worker_api_workers_tell_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkerTellParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Tell Worker Api Workers Tell Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workers/{job_id}/stop": {
+      "post": {
+        "tags": [
+          "workers"
+        ],
+        "summary": "Stop a worker: its whole process group",
+        "description": "Through `worker.stop`.",
+        "operationId": "stop_worker_api_workers__job_id__stop_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Stop Worker Api Workers  Job Id  Stop Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/find-documents/runs": {
       "post": {
         "tags": [
@@ -17112,6 +17313,178 @@
         }
       }
     },
+    "/api/recipes/cloud/accept-unpriced": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Accept Unpriced Cloud Model",
+        "description": "Accept that this project runs one cloud model with no listed price (or take the yes back): its calls are counted at an\nassumed price and listed apart (`ai.where.accept-unpriced-cloud-model`). The one audited action every refused path names, and the\none Start's yes uses; kept in the project, keyed by provider and model, not in Set Up's answers.",
+        "operationId": "accept_unpriced_cloud_model_api_recipes_cloud_accept_unpriced_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptUnpricedRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedUnpriced"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/prepare-images/check": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Prepare Images Check",
+        "description": "Pages to check (`prep.check.worklist-of-proposals-and-a-sample`): every page with an open proposal, then one\nconfident page in twenty.",
+        "operationId": "prepare_images_check_api_recipes_prepare_images_check_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrepareCheckList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/prepare-images/facts": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Prepare Images Facts",
+        "description": "What the Prepare Images card shows besides its questions (`prep.setup.three-questions-suggested-from-a-sample`,\n`prep.estimate.time-on-this-mac-before-start`): answers suggested from five sample pages, and the time line.",
+        "operationId": "prepare_images_facts_api_recipes_prepare_images_facts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrepareImagesFacts"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/project/cloud-cap": {
+      "put": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Change Cloud Cap",
+        "description": "Set the project's monthly cloud cap (`answers.cloud_spend_cap_usd`) and/or its total cap\n(`answers.cloud_project_cap_usd`), and nothing else in its setup: Set Up's \"Raise the cap to N\" (#6295). One\n`project.save_setup`, so audited and undoable as one step; the answer names the audit row.",
+        "operationId": "change_cloud_cap_api_recipes_project_cloud_cap_put",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudCapChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudCapChanged"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "the cap is refused, in one sentence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/project/bakeoffs": {
       "post": {
         "tags": [
@@ -17332,178 +17705,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/recipes/cloud/accept-unpriced": {
-      "post": {
-        "tags": [
-          "recipes"
-        ],
-        "summary": "Accept Unpriced Cloud Model",
-        "description": "Accept that this project runs one cloud model with no listed price (or take the yes back): its calls are counted at an\nassumed price and listed apart (`ai.where.accept-unpriced-cloud-model`). The one audited action every refused path names, and the\none Start's yes uses; kept in the project, keyed by provider and model, not in Set Up's answers.",
-        "operationId": "accept_unpriced_cloud_model_api_recipes_cloud_accept_unpriced_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Origin-Window",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Origin-Window"
-            }
-          },
-          {
-            "name": "X-Fichero-Client",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Client"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AcceptUnpricedRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AcceptedUnpriced"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/recipes/prepare-images/check": {
-      "get": {
-        "tags": [
-          "recipes"
-        ],
-        "summary": "Prepare Images Check",
-        "description": "Pages to check (`prep.check.worklist-of-proposals-and-a-sample`): every page with an open proposal, then one\nconfident page in twenty.",
-        "operationId": "prepare_images_check_api_recipes_prepare_images_check_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PrepareCheckList"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/recipes/prepare-images/facts": {
-      "get": {
-        "tags": [
-          "recipes"
-        ],
-        "summary": "Prepare Images Facts",
-        "description": "What the Prepare Images card shows besides its questions (`prep.setup.three-questions-suggested-from-a-sample`,\n`prep.estimate.time-on-this-mac-before-start`): answers suggested from five sample pages, and the time line.",
-        "operationId": "prepare_images_facts_api_recipes_prepare_images_facts_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PrepareImagesFacts"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/recipes/project/cloud-cap": {
-      "put": {
-        "tags": [
-          "recipes"
-        ],
-        "summary": "Change Cloud Cap",
-        "description": "Set the project's monthly cloud cap (`answers.cloud_spend_cap_usd`) and/or its total cap\n(`answers.cloud_project_cap_usd`), and nothing else in its setup: Set Up's \"Raise the cap to N\" (#6295). One\n`project.save_setup`, so audited and undoable as one step; the answer names the audit row.",
-        "operationId": "change_cloud_cap_api_recipes_project_cloud_cap_put",
-        "parameters": [
-          {
-            "name": "X-Fichero-Origin-Window",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Origin-Window"
-            }
-          },
-          {
-            "name": "X-Fichero-Client",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Client"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CloudCapChange"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CloudCapChanged"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "the cap is refused, in one sentence",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
                 }
               }
             }
@@ -102881,6 +103082,78 @@
         ],
         "title": "WorkedOutTransform",
         "description": "A georeferencing pass's transform as worked out now. Never stored as the truth: a caller\nthat caches it keys the cache on `gcp_set_version`, which changes when any GCP does."
+      },
+      "WorkerStartParams": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "brief": {
+            "type": "string",
+            "title": "Brief"
+          },
+          "workdir": {
+            "type": "string",
+            "title": "Workdir"
+          },
+          "timeout_s": {
+            "type": "number",
+            "title": "Timeout S"
+          },
+          "scenario": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Scenario"
+          },
+          "tmux_session": {
+            "type": "string",
+            "title": "Tmux Session",
+            "default": ""
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "default": "sonnet"
+          },
+          "task": {
+            "type": "string",
+            "title": "Task",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "brief",
+          "workdir",
+          "timeout_s"
+        ],
+        "title": "WorkerStartParams"
+      },
+      "WorkerTellParams": {
+        "properties": {
+          "task": {
+            "type": "string",
+            "title": "Task"
+          },
+          "generation": {
+            "type": "integer",
+            "title": "Generation"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task",
+          "generation",
+          "text"
+        ],
+        "title": "WorkerTellParams"
       },
       "WorkflowCodeExportResponse": {
         "properties": {

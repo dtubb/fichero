@@ -12726,6 +12726,40 @@
         "response_model": null
       }
     ],
+    "workers": [
+      {
+        "method": "POST",
+        "path": "/workers",
+        "operation_id": "start_worker_api_workers_post",
+        "summary": "Start a dev worker process, recorded as a job row",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "WorkerStartParams",
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/workers/tell",
+        "operation_id": "tell_worker_api_workers_tell_post",
+        "summary": "Type a message into a task's current worker; refused for a stale generation",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "WorkerTellParams",
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/workers/{job_id}/stop",
+        "operation_id": "stop_worker_api_workers__job_id__stop_post",
+        "summary": "Stop a worker: its whole process group",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
     "workflow-execution": [
       {
         "method": "DELETE",

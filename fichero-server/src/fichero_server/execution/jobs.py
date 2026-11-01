@@ -88,6 +88,7 @@ _KIND_MODULES = (
     "fichero_server.training.job",
     "fichero_server.workflows.task_workers",
     "fichero_server.remote_read.job",
+    "fichero_server.remote_read.cloud_batch",  # a cloud batch left waiting by a restart needs its runner (#6320)
     "fichero_server.training.reasons_job",
     "fichero_server.training.local",
     "fichero_server.training.yolo_local",
@@ -107,6 +108,7 @@ _KIND_MODULES = (
     "fichero_server.finddocs.job",
     # The run history's housekeeping (#5711): a run log from before moved into lines, a chunk at a time.
     "fichero_server.workflows.run_log_tidy",
+    "fichero_server.maintenance.image_marker_repair",  # the reading-field repair (#6320)
 )
 #: Lane -> how many of its jobs run at once (`activity.throttle.lanes`). `remote`: work sent to another
 #: place (a training run on Hugging Face Jobs, #5398). It waits on the network, holds no model here and
@@ -2647,6 +2649,15 @@ def running_child(db: "Database", parent_id: str) -> str | None:
         committed=True,
     )
     return row[0] if row else None
+
+
+def children_of(db: "Database", parent_id: str, kind: str, states: tuple[str, ...]) -> list[tuple[str, str, str | None]]:
+    """`(id, state, detail)` of every job of `kind` under `parent_id` in one of `states`, newest first."""
+    _ensure(db)
+    marks = ", ".join("?" for _ in states)
+    return db.execute_fetchall(
+        f"SELECT id, state, detail FROM jobs WHERE parent_id = ? AND kind = ? AND state IN ({marks}) "
+        "ORDER BY created_at DESC, rowid DESC", [parent_id, kind, *states])
 
 
 def _job_row(db: "Database", job_id: str) -> tuple[str, str]:

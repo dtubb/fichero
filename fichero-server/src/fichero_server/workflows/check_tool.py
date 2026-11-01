@@ -1,0 +1,532 @@
+"""The check tool: plain argv commands, each with a cwd and a timeout, typed results.
+
+(dev-workflows.tool.check, #6116.) No shell, no route yet. Nothing here names a project: what to run comes from the
+project's `harness.toml` `[check]` table (`load`), Fichero being the first project. Rungs: `ready`, `pytest_rung`,
+`guards`, `contract_current`, `diff_bound`, `red_on_base`, composed by `run_ladder`. A red or missing program is a
+result, never a raise.
+"""
+
+from __future__ import annotations
+
+import fnmatch
+import os
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import tomllib
+from dataclasses import dataclass, field, fields
+from pathlib import Path
+
+
+@dataclass(frozen=True)
+class Config:
+    """One project's rules; the all-default Config runs nothing project-specific."""
+    python: str = ""                    # interpreter for pytest and guards; "" = the engine's own
+    path: str = ""                      # PATH for every rung ("" = the caller's); the jail user needs its own tools, not the owner's
+    python_path: tuple = ()             # folders (relative to the repo) put on PYTHONPATH
+    test_env: dict = field(default_factory=dict)  # env for every test and guard run
+    base_path_env: str = ""             # env var given a fresh scratch dir per pytest run ("" = none)
+    ready: tuple = ()                   # argv of the project's readiness check ("" = none)
+    base_ref: str = ""                  # e.g. "origin/main": the ref the ready check diffs against; set in a remote-less clone ("" = leave alone)
+    guard_glob: str = ""                # e.g. "scripts/check_*.py"; "" = no guards rung
+    guard_skip: frozenset = frozenset()  # guard names the nightly gate runs instead
+    guard_timeout_s: float = 60
+    min_guards: int = 0                 # fewer guards found than this = blind = not green
+    contract_paths: tuple = ()          # a diff touching these runs the contract guards
+    contract_guards: tuple = ()         # guard script paths (relative)
+    spec_dir: str = ""                  # folder of the specs whose item acceptance a worker may not rewrite ("" = none)
+    check_paths: tuple = ()             # files/folders that judge a diff: run from the pinned copy, never the worker's
+    red_paths: tuple = ()               # a diff touching these (prefixes) needs a failing-on-base test; () = any file
+    test_globs: tuple = ("test_*.py", "*_test.py")
+    pytest_config: str = ""             # the pinned pytest config file (relative to the tree), passed as `-c`; "" = pytest's own search
+    pytest_plugins: tuple = ()          # plugins loaded by -p; autoload is OFF, so a dist-info entry point in the tree loads nothing
+    max_files: int = 25
+    max_lines: int = 1500
+
+
+def load(root) -> Config:
+    """`<root>/harness.toml` [check]; no file = the default Config."""
+    f = Path(root) / "harness.toml"
+    if not f.is_file():
+        return Config()
+    doc = tomllib.loads(f.read_text())
+    c = doc.get("check", {})
+    if unknown := sorted(set(c) - {x.name for x in fields(Config)} - {"test_env"}):  # fail closed (review 3, spec item 2)
+        raise ValueError(f"harness.toml [check]: unknown keys {unknown}")
+    if unknown := sorted(set(doc) - {"check", "jail", "policy", "land"}):
+        raise ValueError(f"harness.toml: unknown tables {unknown}")
+    d = Config()
+    return Config(
+        python=c.get("python", d.python), python_path=tuple(c.get("python_path", d.python_path)),
+        path=c.get("path", d.path), test_env=dict(c.get("test_env", {})), base_path_env=c.get("base_path_env", d.base_path_env),
+        ready=tuple(c.get("ready", d.ready)), base_ref=c.get("base_ref", d.base_ref), guard_glob=c.get("guard_glob", d.guard_glob),
+        guard_skip=frozenset(c.get("guard_skip", ())), guard_timeout_s=c.get("guard_timeout_s", d.guard_timeout_s),
+        min_guards=c.get("min_guards", d.min_guards), contract_paths=tuple(c.get("contract_paths", d.contract_paths)),
+        contract_guards=tuple(c.get("contract_guards", d.contract_guards)),
+        spec_dir=c.get("spec_dir", d.spec_dir), check_paths=tuple(c.get("check_paths", d.check_paths)), red_paths=tuple(c.get("red_paths", d.red_paths)), test_globs=tuple(c.get("test_globs", d.test_globs)),
+        pytest_config=c.get("pytest_config", d.pytest_config), pytest_plugins=tuple(c.get("pytest_plugins", d.pytest_plugins)), max_files=c.get("max_files", d.max_files),
+        max_lines=c.get("max_lines", d.max_lines))
+
+
+def rules_problems(root) -> list[str]:
+    """Every reason the rules file is not good enough to start, check or land on; empty = fine (review 4 B5).
+    One function for start, the ladder and land: a file the start refuses never lands."""
+    from . import jail as _j
+    f = Path(root) / "harness.toml"
+    if not f.is_file():
+        return [f"{f} is missing"]
+    try:
+        c = load(root)
+        tomllib.loads(f.read_text())
+        j = _j.load(root)
+    except (ValueError, tomllib.TOMLDecodeError) as e:
+        return [f"harness.toml: {e}"]
+    out: list[str] = []
+    if j is None:
+        out.append("harness.toml has no [jail]: nothing runs unjailed")
+    elif not j.user:
+        out.append("[jail].user is not set")
+    elif not j.deny_read:
+        out.append("[jail].deny_read is empty: the probe needs paths to prove unreadable")
+    for name, val in (("python", c.python), ("ready", c.ready), ("guard_glob", c.guard_glob), ("min_guards", c.min_guards),
+                      ("contract_guards", c.contract_guards)):
+        if not val:
+            out.append(f"harness.toml [check].{name} is not declared")
+    if c.python and not Path(c.python).is_absolute():
+        out.append(f"[check].python {c.python!r} must be an absolute path (no PATH lookup, no shim)")
+    land = tomllib.loads(f.read_text()).get("land", {})
+    if unknown := sorted(set(land) - {"branch", "boundary"}):
+        out.append(f"harness.toml [land]: unknown keys {unknown}")
+    for k in ("branch", "boundary"):
+        if not land.get(k):
+            out.append(f"harness.toml [land].{k} is not declared")
+    return out
+
+
+def tail(text: str, lines: int = 40, chars: int = 4000, line_chars: int = 300) -> str:
+    kept = [ln[:line_chars] for ln in (text or "").strip().splitlines()[-lines:]]
+    return "\n".join(kept)[-chars:]
+
+
+_JAIL = None  # ponytail: module state set by run_ladder for the length of one ladder; per-call plumbing if two ladders overlap
+
+
+def _mkdtemp(prefix: str, readable: bool = False) -> str:
+    if _JAIL is not None:
+        d = _JAIL.mkdtemp(prefix)  # under the shared workroot, writable by the jailed user
+    else:
+        d = tempfile.mkdtemp(prefix=prefix)
+    if readable:
+        os.chmod(d, 0o755)  # a tree the jailed user reads (public repo content only)
+    return d
+
+
+def run_command(name: str, argv: list[str], cwd, timeout_s: float, env: dict | None = None, as_jail: bool = True) -> dict:
+    """Run argv (own process group, killed whole on timeout) and return the typed result. While a ladder runs under a
+    jail, everything but the engine's own git steps runs as the jailed user."""
+    if _JAIL is not None and as_jail:
+        argv, env, cwd = _JAIL.argv(argv, cwd=cwd, env=env), {"PATH": os.environ.get("PATH", "")}, "/"
+    t = time.time()
+    out = err = ""
+    code: int | None = None
+    timed_out = False
+    try:
+        p = subprocess.Popen(argv, cwd=str(cwd), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             text=True, start_new_session=True)
+    except OSError as e:
+        err = str(e)
+    else:
+        try:
+            out, err = p.communicate(timeout=timeout_s)
+            code = p.returncode
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            out, err = p.communicate()
+    return {"name": name, "argv": list(argv), "exit_code": code, "ok": code == 0 and not timed_out,
+            "timed_out": timed_out, "seconds": round(time.time() - t, 1),
+            "stdout_tail": tail(out), "stderr_tail": tail(err)}
+
+
+def _env(root, cfg: Config, extra: dict | None = None) -> dict:
+    # a scratch HOME: no gh token, no ~/.gitconfig credential helper, no user settings reach a check or a worker's conftest
+    env = {k: v for k, v in os.environ.items() if k in ("PATH", "TERM", "LANG")}
+    if cfg.path:
+        env["PATH"] = cfg.path
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"  # review 4 B6: only [check].pytest_plugins load, never a tree's entry points
+    env["PYTHONSAFEPATH"] = "1"                  # the cwd is not on sys.path: a worker's pytest.py shadows nothing
+    env["HOME"] = tempfile.mkdtemp(prefix="check-home-")  # (jailed: dropped, the user's own HOME is used)
+    if cfg.base_path_env:
+        env[cfg.base_path_env] = _mkdtemp("check-base-")
+    if cfg.python_path:
+        env["PYTHONPATH"] = ":".join(str(Path(root) / p) for p in cfg.python_path)
+    env.update(cfg.test_env)
+    env.update(extra or {})
+    return env
+
+
+def _py(cfg: Config) -> str:
+    return cfg.python or sys.executable
+
+
+def _skipped(name: str) -> dict:
+    return {"name": name, "argv": [], "exit_code": 0, "ok": True, "timed_out": False, "seconds": 0,
+            "stdout_tail": "skipped: not configured", "stderr_tail": ""}
+
+
+def _run(name, argv, root, timeout_s, cfg: Config) -> dict:
+    """run_command with a fresh scratch env, its HOME and base dirs removed afterwards (no litter per rung)."""
+    env = _env(root, cfg)
+    try:
+        return run_command(name, argv, root, timeout_s, env)
+    finally:
+        for d in (env["HOME"], env.get(cfg.base_path_env or "")):
+            if d:
+                shutil.rmtree(d, ignore_errors=True)  # ponytail: a jailed user's files stay if we cannot remove them
+
+
+def ready(root, cfg: Config, timeout_s: float = 600) -> dict:
+    if not cfg.ready:
+        return _skipped("ready")
+    argv = [str(Path(root) / cfg.ready[0]) if "/" in cfg.ready[0] and not cfg.ready[0].startswith("/") else cfg.ready[0],
+            *cfg.ready[1:]]
+    return _run("ready", argv, root, timeout_s, cfg)
+
+
+def pytest_argv(root, files: list[str], cfg: Config) -> list[str]:
+    cfgfile = ["-c", str(Path(root) / cfg.pytest_config)] if cfg.pytest_config else []
+    plugins = [x for p in cfg.pytest_plugins for x in ("-p", p)]
+    args = ["-q", "-p", "no:cacheprovider", "-x", *cfgfile, *plugins, *files]
+    # review 5 N5 + review 6 R1: `python -I` (no PYTHONPATH, no cwd); the tree's folders go in RIGHT AFTER the site-packages
+    # directory: after it, so a planted src/pluggy.py shadows no installed package, and before what its .pth files add,
+    # so an editable install never replaces the commit under test. (`_isolated` for guards inserts before site-packages.)
+    # THE LIMIT: tests run the worker's own code, so a green is never proof against a hostile worker (a test file can
+    # always exit 0). The reviewer is the wall; land_tool.risky_paths makes it name the files that forge a green cheaply.
+    code = ("import sys; i = next((n for n, p in enumerate(sys.path) if p.endswith('site-packages')), len(sys.path) - 1) + 1; "
+            f"sys.path[i:i] = {[str(Path(root) / p) for p in cfg.python_path]!r}\n"
+            f"import pytest; sys.exit(pytest.main({args!r}))")
+    return [_py(cfg), "-I", "-c", code]
+
+
+def pytest_rung(root, files: list[str], cfg: Config = Config(), timeout_s: float = 1800) -> dict:  # noqa: B008
+    """Named test files only (the env gives a fresh base path, so a run never opens real data)."""
+    if not files:
+        return run_command("pytest", [sys.executable, "-c", "import sys; sys.exit('no test files named')"], root, 5)
+    return _run("pytest", pytest_argv(root, files, cfg), root, timeout_s, cfg)
+
+
+def _isolated(script: Path, root: Path, cfg: Config) -> list[str]:
+    """`python -I` so a planted sitecustomize/.pth is never imported; the tree's paths go in after site."""
+    paths = [str(script.parent), *[str(root / p) for p in cfg.python_path]]
+    code = ("import sys, runpy; i = next((n for n, p in enumerate(sys.path) if 'site-packages' in p), len(sys.path)); "
+            f"sys.path[i:i] = {paths!r}; runpy.run_path({str(script)!r}, run_name='__main__')")
+    return [_py(cfg), "-I", "-c", code]
+
+
+def guards(root, cfg: Config) -> dict:
+    """Every guard script matching the project's glob and not in its skip list. Fewer than `min_guards` found =
+    blind = not green."""
+    root = Path(root)
+    if not cfg.guard_glob:
+        return {"ok": True, "reason": "skipped: not configured", "results": []}
+    found = sorted(root.glob(cfg.guard_glob))
+    if len(found) < cfg.min_guards:
+        return {"ok": False, "reason": f"fewer than {cfg.min_guards} guards found ({len(found)}): blind is not green",
+                "results": []}
+    results = []
+    for s in found:
+        if s.stem in cfg.guard_skip:
+            continue
+        r = _run(s.stem, _isolated(s, root, cfg), root, cfg.guard_timeout_s, cfg)
+        r["argv"] = [str(s)]
+        results.append(r)
+    return {"ok": all(r["ok"] for r in results), "reason": "", "results": results}
+
+
+def contract_current(root, changed: list[str], cfg: Config, timeout_s: float = 300) -> dict:
+    """The project's contract guards, only when the diff touches its contract paths."""
+    if not cfg.contract_guards or not any(f.startswith(cfg.contract_paths) for f in changed):
+        return {"ok": True, "skipped": True, "results": []}
+    root = Path(root)
+    results = [_run(Path(g).stem, _isolated(root / g, root, cfg), root, timeout_s, cfg)
+               for g in cfg.contract_guards]
+    return {"ok": all(r["ok"] for r in results), "skipped": False, "results": results}
+
+
+def _git_argv(root, args) -> list[str]:
+    """git with hooks, fsmonitor, every filter driver and external diff the repo's own config names switched off
+    (review 2 B2: a worker's .git/config must run no code at checkout or diff)."""
+    r = subprocess.run(["git", "config", "--local", "--name-only", "--get-regexp", r"^filter\."], cwd=str(root),
+                       capture_output=True, text=True, env=_git_env())
+    names = {k.split(".")[1] for k in r.stdout.split() if k.count(".") >= 2}
+    off = ["-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "diff.external=",
+           "-c", "core.attributesFile=/dev/null"]
+    for n in sorted(names):
+        off += ["-c", f"filter.{n}.smudge=", "-c", f"filter.{n}.clean=", "-c", f"filter.{n}.process=",
+                "-c", f"filter.{n}.required=false"]
+    return ["git", *off, *args]
+
+
+def _git_env() -> dict:
+    return {"PATH": os.environ.get("PATH", ""), "HOME": tempfile.gettempdir(), "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_CONFIG_SYSTEM": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1", "GIT_ATTR_NOSYSTEM": "1"}
+
+
+def _git(root, *args, timeout_s: float = 60) -> dict:
+    return run_command("git", _git_argv(root, args), root, timeout_s, _git_env(), as_jail=False)  # the engine's own repo
+
+
+def _lines(root, *args) -> list[str] | None:
+    """git stdout, whole (the typed result's tail is capped); None on failure."""
+    r = subprocess.run(_git_argv(root, args), cwd=str(root), capture_output=True, text=True, env=_git_env())
+    return r.stdout.splitlines() if r.returncode == 0 else None
+
+
+def _changes(root, since: str, head: str, *extra: str) -> list[tuple[str, str, str]]:
+    """[(status, new mode, path)] of since...head, NUL-separated so no path is ever quoted or split (review 4 B6)."""
+    r = subprocess.run(_git_argv(root, ["diff", "--raw", "-z", "--no-renames", "--no-abbrev", *extra, f"{since}...{head}"]),
+                       cwd=str(root), capture_output=True, env=_git_env())
+    if r.returncode:
+        return []
+    tok = r.stdout.decode("utf-8", "surrogateescape").split("\0")
+    out = []
+    for i in range(0, len(tok) - 1, 2):
+        meta = tok[i].lstrip(":").split()
+        if len(meta) >= 5:
+            out.append((meta[4][0], meta[1], tok[i + 1]))
+    return out
+
+
+def diff_bound(root, since: str, head: str, cfg: Config) -> dict:
+    """The diff since the item's start stays inside a size bound (files and added+removed lines).
+    ponytail: a size bound only; a per-folder scope bound if workers wander."""
+    out = _lines(root, "diff", "--numstat", f"{since}...{head}")
+    if out is None:
+        return {**_git(root, "diff", "--numstat", f"{since}...{head}"), "name": "diff-bound"}
+    r = _git(root, "rev-parse", "--short", head)  # a typed shell of the result
+    rows = [ln.split("\t") for ln in out if ln.count("\t") == 2]
+    lines = sum(int(a) + int(d) for a, d, _ in rows if a.isdigit() and d.isdigit())
+    msg = ""
+    if len(rows) > cfg.max_files:
+        msg = f"diff bound: {len(rows)} files, over {cfg.max_files}"
+    elif lines > cfg.max_lines:
+        msg = f"diff bound: {lines} lines, over {cfg.max_lines}"
+    return {**r, "name": "diff-bound", "ok": not msg, "stderr_tail": msg}
+
+
+def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Config(), timeout_s: float = 600,  # noqa: B008
+                head_tree=None) -> dict:
+    """The failing run: each changed test file, copied onto a scratch tree at `since`, must FAIL there on its
+    own, and all must PASS at `head`. A test that passes on base proves nothing."""
+    root = Path(root)
+
+    def red(msg: str) -> dict:
+        return {"name": "red-on-base", "argv": [], "exit_code": 1, "ok": False, "timed_out": False, "seconds": 0,
+                "stdout_tail": "", "stderr_tail": msg}
+    if not files:
+        return red("no test file changed: a source change needs a test (red on base, green on the branch)")
+    sha = _git(root, "rev-parse", head)["stdout_tail"].strip()  # `HEAD` inside the scratch tree would be `since`
+    base = _mkdtemp("check-base-tree-", readable=True)
+    try:
+        if not _git(root, "worktree", "add", "--detach", "-q", base, since)["ok"]:
+            return red(f"could not make a scratch tree at {since[:9]}")
+        _git(base, "checkout", sha, "--", *files)  # a new file is not on base; checkout still copies it
+        for f in files:
+            r = pytest_rung(base, [f], cfg, timeout_s)
+            if r["ok"]:
+                return red(f"NOT RED ON BASE: {f} passes at {since[:9]}, so it proves nothing")
+        here = pytest_rung(head_tree or root, files, cfg, timeout_s)  # the green run: in the pinned-overlay tree when given
+        return {**here, "name": "red-on-base"}
+    finally:
+        _git(root, "worktree", "remove", "--force", base)
+
+
+def ladder(rungs: list) -> dict:
+    """Run (name, callable) rungs in order and stop at the first red, so the worker gets one failure at a time."""
+    out = []
+    for name, fn in rungs:
+        r = {"name": name, **fn()}
+        out.append(r)
+        if not r["ok"]:
+            return {"ok": False, "failed": name, "rungs": out}
+    return {"ok": True, "failed": "", "rungs": out}
+
+
+BYPASS_NAMES = ("sitecustomize.py", "usercustomize.py")
+# pinned by NAME anywhere, any status: pytest reads these from whatever directory it finds them in (review 4 B6)
+PINNED_NAMES = ("conftest.py", "pytest.ini", "tox.ini", "setup.cfg", ".gitattributes", "ruff.toml", ".ruff.toml")
+
+
+def pinned_violations(root, since: str, head: str, cfg: Config, pinned) -> list[str]:
+    """What the diff may not do: change or delete a pinned check file, add or touch a file pytest or Python would
+    obey before or instead of the checks (sitecustomize, .pth, a pinned NAME anywhere, a pytest.py / _pytest shadow, a
+    dist-info plugin), add any symlink, or touch .claude/. Adding a new guard is allowed. Paths come from `git diff -z`."""
+    pinned_set = {f for f in (_lines(pinned, "ls-files") or []) if f.startswith(cfg.check_paths)}
+    bad = []
+    for status, mode, f in _changes(root, since, head):
+        parts = Path(f).parts
+        name = parts[-1]
+        if f in pinned_set:
+            bad.append(f"{f}: a pinned check file was {'deleted' if status == 'D' else 'changed'}")
+        elif f.startswith(".claude/"):
+            bad.append(f"{f}: .claude/ changed")
+        elif status == "D":
+            if name in PINNED_NAMES:
+                bad.append(f"{f}: a pinned-name file was deleted")
+        elif mode == "120000":
+            bad.append(f"{f}: a symlink (the checks read through it)")
+        elif name in PINNED_NAMES:
+            bad.append(f"{f}: {name} is pinned by name anywhere (it changes what pytest does)")
+        elif name in BYPASS_NAMES or name.endswith(".pth") or name == "pytest.py" or "_pytest" in parts or any(
+                x.endswith((".dist-info", ".egg-info")) for x in parts):
+            bad.append(f"{f}: would run before, instead of, or inside the checks")
+        elif status == "A" and f.startswith(cfg.check_paths) and not (cfg.guard_glob and fnmatch.fnmatch(f, cfg.guard_glob)):
+            bad.append(f"{f}: a new file under a pinned path (only a new guard may be added there)")
+    return bad
+
+
+SKIP_LINE = r"(?m)^\s*(?:@pytest\.mark\.(?:skip|skipif|xfail)\b|pytestmark\b.*\bpytest\.mark\.(?:skip|skipif|xfail)\b|pytest\.(?:skip|xfail)\()"
+
+
+def weakened_tests(root, since: str, head: str, cfg: Config) -> list[str]:
+    """Existing test files the diff weakens: a test function removed, fewer `assert`s, or more skip/xfail markers
+    (conftest.py counts: it can skip everything). New test files are free. Ported from the frozen pipeline.
+    ponytail: counts per file by regex; a renamed file is not compared; an AST diff if a worker games the counts."""
+    base = (_lines(root, "merge-base", since, head) or [since])[0]
+
+    def counts(rev, f):
+        t = "\n".join(_lines(root, "show", f"{rev}:{f}") or [])
+        return (set(re.findall(r"(?m)^\s*(?:async )?def (test_\w+)", t)), len(re.findall(r"\bassert\b", t)),
+                len(re.findall(SKIP_LINE, t)))
+    bad = []
+    for _s, _m, f in _changes(root, since, head, "--diff-filter=MD"):
+        if not (f.endswith(".py") and (f.endswith("conftest.py") or any(fnmatch.fnmatch(Path(f).name, g) for g in cfg.test_globs))):
+            continue
+        (t0, a0, s0), (t1, a1, s1) = counts(base, f), counts(head, f)
+        if t0 - t1 or a1 < a0 or s1 > s0:
+            bad.append(f)
+    return bad
+
+
+TAG_RE = re.compile(r"\[(?:OK|PARTIAL|MISSING|GAP|BROKEN|PROPOSED)[^\]]*\]|\(#\d+\)")
+
+
+def _acceptance_lines(text: str, ids) -> list[str]:
+    """The behaviour bullets (`- \\`area.id\\``, continuation lines included) that name one of `ids`, with status
+    tags and `(#N)` removed, so flipping [PROPOSED] to [OK] or adding the issue number is not a change."""
+    out, lines = [], text.splitlines()
+    for i, line in enumerate(lines):
+        if re.match(r"\s*- `[a-z][a-z0-9-]*\.[a-z0-9.-]+`", line) and any(f"`{x}`" in line for x in ids):
+            block = [line]
+            for nxt in lines[i + 1:]:
+                if not (nxt.startswith("  ") and not nxt.lstrip().startswith("- ")):
+                    break
+                block.append(nxt)
+            out.append(" ".join(b.strip() for b in block))
+    return [re.sub(r"\s+", " ", TAG_RE.sub("", s)).strip() for s in out]
+
+
+def acceptance_changed(root, since: str, head: str, cfg: Config, ids) -> list[str]:
+    """Lines of the item's own acceptance that differ between `since` and `head` in a changed spec file: a worker
+    may not rewrite what it is judged on (it asks instead). A tag flip or an added (#N) is not a change.
+    ponytail: stricter than the frozen pipeline (no [OK]-flip-with-prose rule); a flip that also edits prose asks."""
+    if not cfg.spec_dir or not ids:
+        return []
+    hits = []
+    for _s, _m, f in _changes(root, since, head, "--diff-filter=MD"):
+        if not (f.startswith(cfg.spec_dir.rstrip("/") + "/") and f.endswith(".md")):
+            continue
+        before = _acceptance_lines("\n".join(_lines(root, "show", f"{since}:{f}") or []), ids)
+        after = _acceptance_lines("\n".join(_lines(root, "show", f"{head}:{f}") or []), ids)
+        if before != after:
+            hits += [f"{f}: - {x[:160]}" for x in before if x not in after] + [f"{f}: + {x[:160]}" for x in after if x not in before]
+    return hits
+
+
+def _scratch_tree(root, head: str, pinned, cfg: Config) -> str:
+    """A detached worktree of `head` with the pinned copy's check files laid over it: the checks judge the worker's
+    committed code, never its uncommitted edits and never its own copies of the checks."""
+    sha = (_lines(root, "rev-parse", head) or [""])[0]
+    tree = _mkdtemp("check-tree-", readable=True)
+    r = _git(root, "worktree", "add", "--detach", "-q", tree, sha)
+    if not r["ok"]:
+        raise RuntimeError(f"scratch tree failed: {r['stderr_tail']}")
+    for f in _lines(pinned, "ls-files") or []:
+        if f.startswith(cfg.check_paths):
+            src, dest = Path(pinned) / f, Path(tree) / f
+            if src.is_symlink():
+                raise RuntimeError(f"pinned file {f} is a symlink: refused")
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            if not dest.parent.resolve().is_relative_to(Path(tree).resolve()):
+                raise RuntimeError(f"{f} resolves outside the scratch tree: refused")
+            dest.unlink(missing_ok=True)  # never write through a worker-committed symlink (review 4 H1)
+            dest.write_bytes(src.read_bytes())
+            dest.chmod(src.stat().st_mode)
+    return tree
+
+
+def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_required: bool = True) -> dict:
+    """The project's whole ladder over the diff since..head, judged by the PINNED copy (an engine-owned checkout
+    outside the worker's tree; its harness.toml is the config): pinned-checks, ready, diff bound, red-on-base for
+    the changed test files (its green run is the pytest rung), guards, contract. Stops at the first red.
+    `protected_ids`: the behaviour ids of the item, whose spec acceptance the worker may not rewrite."""
+    global _JAIL
+    from . import jail as _jailmod
+    if jail_required and (problems := rules_problems(pinned)):  # review 4 B5: the start's own checks, here too
+        raise _jailmod.JailMissing("rules file refused: " + "; ".join(problems))
+    j = _jailmod.load(pinned)
+    if j is None and jail_required:  # review 3 B5: no [jail] means refuse, never run as the owner
+        raise _jailmod.JailMissing("no [jail] in the rules file: the ladder will not run as the owner")
+    if j is not None:  # [jail] in the rules file = the ladder runs as that user, and refuses if it is not there
+        j.require()
+        if wall := j.probe():
+            raise _jailmod.JailMissing("the jail leaks: " + "; ".join(wall))
+    _JAIL = j
+    try:
+        return _run_ladder(root, since, head, pinned, protected_ids)
+    finally:
+        _JAIL = None
+
+
+def _needs_red(names: list[str], tests: list[str], cfg: Config) -> bool:
+    """By path (spec): with red_paths set, only a diff touching them (or changing a test) owes a red-on-base run."""
+    return not cfg.red_paths or bool(tests) or any(n.startswith(cfg.red_paths) for n in names)
+
+
+def _run_ladder(root, since: str, head: str, pinned, protected_ids=()) -> dict:
+    cfg = load(pinned)
+    bad = pinned_violations(root, since, head, cfg, pinned)
+    if weak := weakened_tests(root, since, head, cfg):
+        bad.append(f"the diff deletes or weakens existing tests ({', '.join(weak[:5])})")
+    bad += [f"the diff rewrites the item's own acceptance ({h})" for h in acceptance_changed(root, since, head, cfg, protected_ids)[:8]]
+    if bad:
+        r = {"name": "pinned-checks", "argv": [], "exit_code": 1, "ok": False, "timed_out": False, "seconds": 0,
+             "stdout_tail": "", "stderr_tail": "\n".join(bad) + "\nneeds-maintainer"}
+        return {"ok": False, "failed": "pinned-checks", "rungs": [r]}
+    names = [f for _s, _m, f in _changes(root, since, head, "--diff-filter=AM")]
+    tests = [f for f in names if any(fnmatch.fnmatch(Path(f).name, g) for g in cfg.test_globs)]
+    if cfg.base_ref and not _git(root, "rev-parse", "--verify", "-q", f"refs/remotes/{cfg.base_ref}")["ok"]:
+        _git(root, "update-ref", f"refs/remotes/{cfg.base_ref}", since)  # a remote-less clone: ready checks diff against it
+    tree = _scratch_tree(root, head, pinned, cfg)
+    try:
+        ok_pin = {"name": "pinned-checks", "argv": [], "exit_code": 0, "ok": True, "timed_out": False, "seconds": 0,
+                  "stdout_tail": f"checks from the pinned copy over {head}", "stderr_tail": ""}
+        out = ladder([
+            ("ready", lambda: ready(tree, cfg)),
+            ("diff-bound", lambda: diff_bound(root, since, head, cfg)),
+            ("red-on-base", lambda: red_on_base(root, since, head, tests, cfg, head_tree=tree) if _needs_red(names, tests, cfg)
+             else {**_skipped("red-on-base"), "stdout_tail": "not required: no changed path is under [check].red_paths"}),
+            ("guards", lambda: guards(tree, cfg)),
+            ("contract-current", lambda: contract_current(tree, names, cfg)),
+        ])
+    finally:
+        _git(root, "worktree", "remove", "--force", tree)
+    return {**out, "rungs": [ok_pin, *out["rungs"]]}

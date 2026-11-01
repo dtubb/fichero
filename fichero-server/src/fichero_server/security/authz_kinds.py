@@ -121,6 +121,7 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
     "proposal_id": (LIBRARY, "a Find the Documents proposal over a folder's pages: a read checks every page it "
                     "names, and a proposal naming a page the caller may not read answers 404"),
     "server_id": (LIBRARY, _CONFIG),
+    "value_ids": (LIBRARY, "classification values (prototypes, kinds) of the project: library configuration, not content of any document"),
     # #5485: a kept export is the project's own setting (a folder, a format, per page or document);
     # it writes the whole project's work, and a page it reads is read through the exporter.
     "export_id": (LIBRARY, _CONFIG),

@@ -58,6 +58,7 @@ from fastapi.testclient import TestClient  # noqa: E402 -- after the test enviro
 
 # Keep existing route-heavy tests running against the broader dev API surface.
 os.environ.setdefault("FICHERO_FEATURE_TIER", "dev")
+os.environ.setdefault("FICHERO_DEV_WORKERS", "1")  # worker_process.start refuses without it
 # Tests assume a clean library by default — disable automatic preset seeding
 # so assertions like "GET /workflows returns []" keep working.
 os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")

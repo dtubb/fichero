@@ -191,6 +191,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/storage.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/topics.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/views.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/training.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/workers.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/workflow/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/workflow/batch.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/workflow/chains.py
@@ -433,6 +434,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/loaders/xlsx_reader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/xmp_loader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/maintenance/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/maintenance/conversion_on_open.py
+$(SRCROOT)/../fichero-server/src/fichero_server/maintenance/image_marker_repair.py
 $(SRCROOT)/../fichero-server/src/fichero_server/maintenance/page_text_repair.py
 $(SRCROOT)/../fichero-server/src/fichero_server/maintenance/project_conversion.py
 $(SRCROOT)/../fichero-server/src/fichero_server/maintenance/reanchor.py
@@ -746,8 +748,10 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/activity.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/activity_store.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/activity_types.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/attribute_sources.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/brief_tool.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/builder.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/cache.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/check_tool.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/checkpointer.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/circuit_breaker.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/completion.py
@@ -756,6 +760,8 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/default_workflows.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/executor.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/file_watcher.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/human_review.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/jail.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/land_tool.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/library_sync.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/library_sync_db.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/library_sync_io.py
@@ -764,6 +770,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/ner/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/ner/providers.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/node_context.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/page_retry.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/policy_hook.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/preset_manifest.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/provider_preview.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/registry.py
@@ -782,6 +789,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/runtime.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/safe_condition.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/scheduler.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/selection.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/start_tool.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/state.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/subworkflow.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/task_types.py
@@ -905,4 +913,5 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/zoom.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/transcription_accuracy.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/types.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/validation.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/worker_process.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/workflow_store.py

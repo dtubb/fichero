@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from _scan_files import scan_rglob
+
 import pytest
 
 from fichero_server.core.failure_text import MissingInWords
@@ -49,7 +51,7 @@ def test_the_engines_worded_refusals_keep_their_words_and_are_still_key_errors(w
 def test_the_engine_raises_no_worded_key_error():
     """#6240: a refusal in words is a `MissingInWords`, never a `KeyError("...")` that could pass for a missing key."""
     src = Path(jobs.__file__).parents[1]
-    worded = [f"{p.relative_to(src)}:{n}" for p in src.rglob("*.py")
+    worded = [f"{p.relative_to(src)}:{n}" for p in scan_rglob(src, "*.py")
               for n, line in enumerate(p.read_text().splitlines(), 1)
               if re.search(r"raise KeyError\(f?[\"']", line)]
     assert worded == []

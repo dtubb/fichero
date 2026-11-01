@@ -447,7 +447,7 @@ def _copy_builtin_for_edit(db: Database, builtin: ClassificationValue, patch: Cl
     Returns (the child, the created ids, the snapshots of every document it touched)."""
     from fichero_server.api.routes.document.documents import PrototypeAssignRequest, assign_document_prototype_impl
     from fichero_server.models import Document
-    from fichero_server.models.node_prototypes import resolve_prototype_attributes
+    from fichero_server.models.node_prototypes import PrototypeResolutionError, resolve_prototype_attributes
     from fichero_server.models.prototype_schema import level_defaults
 
     keys = {v.key for v in db.query(ClassificationValue, dimension=ClassificationDimension.document_prototype)}
@@ -478,7 +478,7 @@ def _copy_builtin_for_edit(db: Database, builtin: ClassificationValue, patch: Cl
         else:
             try:
                 names = level_defaults(resolve_prototype_attributes(db, doc.prototype_key))
-            except Exception:  # noqa: BLE001 -- an unresolvable prototype carries nothing for us
+            except PrototypeResolutionError:  # an unresolvable prototype carries nothing for us
                 continue
             levels = [level for level, key in names.items() if key == builtin.key]
             holder = _get_proto(db, doc.prototype_key)

@@ -403,20 +403,32 @@ def _sentence(text: str | None) -> str | None:
     return re.sub(r"^(?:[A-Za-z_][\w.]*(?:Error|Exception|Unavailable|Missing)): ", "", text.strip())
 
 
-def _await_downloads(db: Any, plan: dict[str, Any], *, every: float = 2.0) -> str | None:
-    """Wait for the models this candidate's plan needs to land; why not, in words, when one cannot."""
+#: ponytail: how long a try waits for one model download to MOVE (its progress words change); a job nothing is running never ends
+#: (#6320). A slow download that keeps reporting progress is waited for as long as it takes.
+DOWNLOAD_WAIT_SECONDS = 30 * 60.0
+
+
+def _await_downloads(db: Any, plan: dict[str, Any], *, every: float = 2.0, limit: float | None = None) -> str | None:
+    """Wait for the models this candidate's plan needs to land; why not, in words, when one cannot or has not in `limit`."""
     from fichero_server.execution import jobs
 
+    limit = DOWNLOAD_WAIT_SECONDS if limit is None else limit  # read at the call, so a test can shorten it
     try_id, last = jobs.current_job_id(), None
 
     for download in plan.get("downloads") or []:
         name = download.get("name") or download.get("model")
         if not download.get("job_id"):
             return f"it needs {name} downloaded first, and its download did not start"
+        deadline, moved = time.monotonic() + limit, object()
         while True:
             row = jobs.read_job(db, download["job_id"]) or {}
             if row.get("state") == "done":
                 break
+            if row.get("reason") != moved:  # it said something new: it is moving
+                moved, deadline = row.get("reason"), time.monotonic() + limit
+            if time.monotonic() > deadline:
+                return (f"{name} has not moved for {max(int(limit // 60), 1)} minutes while downloading, so it may be stuck. "
+                        "Stop it in Activity if it is still listed, then try again here")
             if row.get("state") in ("failed", "cancelled", None):
                 return f"{name} could not be downloaded: {_sentence(row.get('reason')) or 'the download stopped'}"
             if try_id and row.get("reason") != last:  # say what it waits for, with the download's own progress

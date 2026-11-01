@@ -66,6 +66,7 @@ enum FeatureKey: String, CaseIterable {
     case automation
     case mcpUi
     case agents
+    case devWorkers
     case integrations
     case iiif
     case wideSetUp
@@ -445,6 +446,13 @@ enum FeatureTiers {
             swiftFlag: "fichero.features.agents",
             uxGroup: "Knowledge",
             notes: "In-app agent surface still in the rawest stage."
+        ),
+        .devWorkers: .init(
+            name: "Dev workers",
+            tier: .dev,
+            swiftFlag: nil,
+            uxGroup: "Knowledge",
+            notes: "Engine-run dev worker processes (the dev harness,"
         ),
         .integrations: .init(
             name: "Integrations",
