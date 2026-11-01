@@ -96,3 +96,20 @@ def test_a_flagged_read_or_a_compare_arm_leaves_the_pages_field_as_it_was(db):
     _save_reading(db, page, "A compare arm, other model.", {**REAL, "compare_group": "g1"})
     assert db.get(Document, page.id).metadata["description"] == "A good description."
     assert len(db.query(Artifact, document_id=page.id, artifact_type="description")) == 3  # all three are kept as readings
+
+
+def test_the_repair_never_puts_back_a_flagged_read_or_a_compare_arm(db):
+    page = _page(db, {"description": dict(REAL), "caption": dict(REAL)}, ("description", "A good description."))
+    for text, extra in (("the same words go round the same words", {"read_flag": {"kind": "loop"}}), ("An arm.", {"compare_group": "g"})):
+        db.save(Artifact(document_id=page.id, artifact_type="description", content=text, provider="x", model="y", data={**REAL, **extra}))
+    db.save(Artifact(document_id=page.id, artifact_type="caption", content="only a loop", provider="x", model="y",
+                     data={**REAL, "read_flag": {"kind": "loop"}}))
+    assert repair.repair_document(db, page.id) == (1, 1)  # caption has only a flagged read: left
+    meta = db.get(Document, page.id).metadata
+    assert meta["description"] == "A good description." and meta["caption"] == REAL
+
+
+def test_a_dict_that_is_only_a_segment_id_is_a_persons_own_and_is_not_repaired(db):
+    page = _page(db, {"caption": dict(REAL), "description": {"segment_id": "seg-7"}}, ("caption", "Dusk"), ("description", "Words"))
+    assert repair.repair_document(db, page.id) == (1, 0)
+    assert db.get(Document, page.id).metadata["description"] == {"segment_id": "seg-7"}

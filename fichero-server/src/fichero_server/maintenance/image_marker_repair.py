@@ -16,7 +16,7 @@ import logging
 from typing import Any
 
 from fichero_server.execution import jobs
-from fichero_server.media.current_image import PROVENANCE_KEYS
+from fichero_server.media.current_image import NOT_THE_FIELD_KEYS, PROVENANCE_KEYS
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +55,10 @@ def queue_if_needed(db: Any) -> str | None:
 
 
 def is_provenance_only(value: Any) -> bool:
-    """A field the data replaced: a non-empty dict whose every key is provenance. A person's text (a string) and a tool's own
-    structured answer (other keys) never match."""
-    return isinstance(value, dict) and bool(value) and set(value) <= PROVENANCE_KEYS
+    """A field the data replaced: a dict whose every key is provenance and that has a key a run's field write left (`image_read` or
+    `episode_id`). A person's text (a string), a tool's own structured answer (other keys) and a dict of only `segment_id` (a segment
+    read never wrote a field) never match."""
+    return isinstance(value, dict) and bool(value) and set(value) <= PROVENANCE_KEYS and bool({"image_read", "episode_id"} & set(value))
 
 
 def candidates(db: Any) -> list[str]:
@@ -76,8 +77,9 @@ def repair_document(db: Any, doc_id: str) -> tuple[int, int]:
     broken = [key for key, value in meta.items() if is_provenance_only(value)]
     fixed = left = 0
     for key in broken:
+        # a flagged read or a compare arm was never the page's reading (H2)
         arts = [a for a in db.query(Artifact, document_id=doc_id, artifact_type=ARTIFACT_TYPE_OF_FIELD.get(key, key))
-                if (a.content or "").strip()]
+                if (a.content or "").strip() and not NOT_THE_FIELD_KEYS & set(a.data or {})]
         if not arts:
             left += 1
             continue
