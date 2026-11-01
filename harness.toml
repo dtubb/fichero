@@ -22,7 +22,12 @@ contract_guards = [
   "scripts/check_openapi_route_set_current.py", "scripts/check_contract_identity_current.py",
   "scripts/check_mcp_generated_current.py",
 ]
-check_paths = ["scripts/", "harness.toml"]
+check_paths = [
+  "scripts/", "harness.toml", ".github/", ".gitattributes", ".gitmodules", "pyproject.toml", "pytest.ini",
+  "fichero-server/pyproject.toml", "fichero-server/pytest.ini", "fichero-cli/pyproject.toml", "fichero-mcp/pyproject.toml",
+]
+# red-on-base is owed only by engine/CLI/MCP Python; Swift or contract changes need a Lead build row, docs and specs neither.
+red_paths = ["fichero-server/src/", "fichero-cli/src/", "fichero-mcp/src/"]
 spec_dir = "docs/contributor_manual/specs"
 test_globs = ["test_*.py", "*_test.py"]
 

@@ -38,6 +38,7 @@ class Config:
     contract_guards: tuple = ()         # guard script paths (relative)
     spec_dir: str = ""                  # folder of the specs whose item acceptance a worker may not rewrite ("" = none)
     check_paths: tuple = ()             # files/folders that judge a diff: run from the pinned copy, never the worker's
+    red_paths: tuple = ()               # a diff touching these (prefixes) needs a failing-on-base test; () = any file
     test_globs: tuple = ("test_*.py", "*_test.py")
     max_files: int = 25
     max_lines: int = 1500
@@ -62,7 +63,7 @@ def load(root) -> Config:
         guard_skip=frozenset(c.get("guard_skip", ())), guard_timeout_s=c.get("guard_timeout_s", d.guard_timeout_s),
         min_guards=c.get("min_guards", d.min_guards), contract_paths=tuple(c.get("contract_paths", d.contract_paths)),
         contract_guards=tuple(c.get("contract_guards", d.contract_guards)),
-        spec_dir=c.get("spec_dir", d.spec_dir), check_paths=tuple(c.get("check_paths", d.check_paths)), test_globs=tuple(c.get("test_globs", d.test_globs)), max_files=c.get("max_files", d.max_files),
+        spec_dir=c.get("spec_dir", d.spec_dir), check_paths=tuple(c.get("check_paths", d.check_paths)), red_paths=tuple(c.get("red_paths", d.red_paths)), test_globs=tuple(c.get("test_globs", d.test_globs)), max_files=c.get("max_files", d.max_files),
         max_lines=c.get("max_lines", d.max_lines))
 
 
@@ -398,6 +399,11 @@ def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_requi
         _JAIL = None
 
 
+def _needs_red(names: list[str], tests: list[str], cfg: Config) -> bool:
+    """By path (spec): with red_paths set, only a diff touching them (or changing a test) owes a red-on-base run."""
+    return not cfg.red_paths or bool(tests) or any(n.startswith(cfg.red_paths) for n in names)
+
+
 def _run_ladder(root, since: str, head: str, pinned, protected_ids=()) -> dict:
     cfg = load(pinned)
     bad = pinned_violations(root, since, head, cfg, pinned)
@@ -420,7 +426,8 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=()) -> dict:
         out = ladder([
             ("ready", lambda: ready(tree, cfg)),
             ("diff-bound", lambda: diff_bound(root, since, head, cfg)),
-            ("red-on-base", lambda: red_on_base(root, since, head, tests, cfg, head_tree=tree)),
+            ("red-on-base", lambda: red_on_base(root, since, head, tests, cfg, head_tree=tree) if _needs_red(names, tests, cfg)
+             else {**_skipped("red-on-base"), "stdout_tail": "not required: no changed path is under [check].red_paths"}),
             ("guards", lambda: guards(tree, cfg)),
             ("contract-current", lambda: contract_current(tree, names, cfg)),
         ])

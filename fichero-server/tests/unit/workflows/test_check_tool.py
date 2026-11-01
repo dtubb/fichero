@@ -319,3 +319,20 @@ def test_a_new_file_under_a_pinned_path_or_any_conftest_is_a_question(tmp_path):
     r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
     err = r["rungs"][0]["stderr_tail"]
     assert r["failed"] == "pinned-checks" and "ci/helper.py" in err and "tests/conftest.py" in err
+
+
+def test_red_on_base_applies_only_to_the_paths_the_rules_file_names(tmp_path):
+    """Spec 'by path': a docs change is not red-on-base-able; a change under red_paths still needs its failing test."""
+    work, g, base, pinned = _project(tmp_path, "")
+    cfg_extra = '\nred_paths = ["src/"]\n'
+    (pinned / "harness.toml").write_text((pinned / "harness.toml").read_text().replace("[check]\n", "[check]" + cfg_extra, 1))
+    (work / "docs").mkdir()
+    (work / "docs" / "a.md").write_text("hi\n")
+    g("add", "."), g("commit", "-q", "-m", "docs")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert r["ok"] and "not required" in [x for x in r["rungs"] if x["name"] == "red-on-base"][0]["stdout_tail"]
+    (work / "src").mkdir()
+    (work / "src" / "m.py").write_text("X = 1\n")
+    g("add", "."), g("commit", "-q", "-m", "source with no test")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert r["failed"] == "red-on-base" and "needs a test" in r["rungs"][-1]["stderr_tail"]
