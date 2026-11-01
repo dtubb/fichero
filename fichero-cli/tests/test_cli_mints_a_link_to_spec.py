@@ -182,7 +182,7 @@ def test_the_tailnet_link_carries_the_sharing_port():
 
 def test_the_link_survives_a_library_path_that_base64_encodes_to_a_plus_sign():
     """L4: an unquoted `+` in the query reads back as a space and the link is 'damaged'. Every payload must round-trip."""
-    for path in ("/Users/x/Proj~1>.fichero", "/a>>", "/~~~~", "/Users/d/Marshall.fichero", "/" + "~>" * 40):
+    for path in ("/tmp/p/Proj~1>.fichero", "/a>>", "/~~~~", "/tmp/p/Project.fichero", "/" + "~>" * 40):
         text = pairing.invite_link(api_url=LOCAL, code="ABCD-1234", spki=PIN, expires_at=None, library_path=path)
         assert json.loads(pairing._payload_of(text))["library_path"] == path
         assert pairing.parse_link(text).code == "ABCD-1234"

@@ -502,7 +502,7 @@ only). `library-sharing.md` marks it [PARTIAL]; it is **[GAP]** at the UI.
   no switch, **"Multi-user is off. Turn it on in Sharing on the Mac that shares this library."** (no button). The state comes from the engine
   (`authzSnapshot.multiuserEnabled` / `identityStore.multiuserEnabled`), never a local flag. With Multi-user on, `+` returns. *Test:*
   `PeoplePaneOffStateTests.swift`: off → no add control, the sentence per platform; on → `+`. UI: `SharingPaneUITests/testPeopleOffStateHidesAdd`
-  (`fichero-ui-mac`), `IOSSettingsPeopleUITests/testPeopleOffStateSentence` (`fichero-ui-ios`), `IPadSettingsPeopleUITests` (`fichero-ui-ipad`).
+  (`fichero-ui-mac`), `IOSSettingsPeopleUITests/testPeopleOffStateSentence` (`fichero-ui-ios`, not written, #5049), `IPadSettingsPeopleUITests` (`fichero-ui-ipad`, not written, #5049).
 - `sharing.multiuser-404-is-a-409-in-the-engine` — **[GAP]** (→ #5049; §5, unchanged: held, contract).
 - `sharing.ios-settings-surface` — **[GAP]** (→ #5049, umbrella; new issue 5 below) iPhone and iPad have no Settings at all: `SettingsView` compiles for iOS but only the Mac `Settings` scene presents it, and the connection menu (`IOSConnectionMenu.swift`) offers host, reconnect, change server, forget and logs. So the per-platform rows of §10.6 that say "People only" on iPad/iPhone describe code that is never reached. Needed first: a Settings sheet from the connection menu (General, Sharing › People) so `sharing.people-pane-off-state`'s phone words can show and `IOSSettingsPeopleUITests` can exist. Until then the phone's only sharing surface is the Connect flow (§7).
 
@@ -544,18 +544,18 @@ the addresses* (`sharing.state-names-every-address`).
 | `sharing.tailnet-forward-whenever-tailscale-is-up` | `test_forward_made_with_a_local_sharing_address_to_spec.py` | — | — |
 | `sharing.card-keeps-its-code` | — | `ShareSettingsRefreshKeyTests`, `PairingCodeRenewalTests` (exists) | `SharingPaneUITests/testCodeSurvivesAHealthCheck` (`fichero-ui-mac`) |
 | `sharing.qr-drawn-once-per-payload` | — | `PairingLinkEncodingTests` | — |
-| `sharing.token-saves-on-every-build` | — | `KeychainTokenAccessibilityTests` (Mac + iOS arms) | `IOSConnectPairingUITests/testPairStoresTokenAndOpens` (`fichero-ui-ios`), `IPadConnectPairingUITests` (`fichero-ui-ipad`), seeded host |
+| `sharing.token-saves-on-every-build` | — | `KeychainTokenAccessibilityTests` (Mac + iOS arms) | `IOSConnectPairingUITests/testPairStoresTokenAndOpens` (`fichero-ui-ios`, not written, #5049), `IPadConnectPairingUITests` (`fichero-ui-ipad`, not written, #5049), seeded host |
 | `sharing.failed-save-spends-nothing` | `test_a_device_revokes_its_own_pairing_6133.py` (exists) | `PairingPersistFailureTests` | — |
-| `sharing.multiuser-switch-needs-no-library` | `test_multiuser_switch_needs_no_library_to_spec.py`, `test_owner_session_sets_the_switch_5908.py` (exists) | — | `SharingPaneUITests/testMultiuserSwitchFlips` (`fichero-ui-mac`) |
+| `sharing.multiuser-switch-needs-no-library` | `test_multiuser_switch_needs_no_library_to_spec.py`, `test_owner_session_sets_the_switch_5908.py` (exists) | — | — (the switch is covered by the engine tests; no UI test written) |
 | `sharing.multiuser-switch-says-the-refusal` | — | `MultiuserSwitchWordsTests` | — |
-| `sharing.people-pane-off-state` | — | `PeoplePaneOffStateTests` | `SharingPaneUITests/testPeopleOffStateHidesAdd` (mac), `IOSSettingsPeopleUITests` (ios), `IPadSettingsPeopleUITests` (ipad) |
+| `sharing.people-pane-off-state` | — | `PeoplePaneOffStateTests` | `SharingPaneUITests/testPeopleOffStateHidesAdd` (mac), `IOSSettingsPeopleUITests` (ios, not written, #5049), `IPadSettingsPeopleUITests` (ipad, not written, #5049) |
 | `sharing.cli-mints-a-link` | `test_cli_mints_a_link_to_spec.py` | — | — |
-| `sharing.failure-names-the-step` (§4) | `test_cli_pair_words_match_the_spec.py` | `PairingFailureWordsTests` | `IOSConnectPairingUITests/testDeadHostNamesTheStep` (ios/ipad) |
+| `sharing.failure-names-the-step` (§4) | `test_cli_pair_words_match_the_spec.py` (not written, #5049) | `PairingFailureWordsTests` (not written, #5049) | `IOSConnectPairingUITests/testDeadHostNamesTheStep` (ios/ipad, not written, #5049) |
 
 UI tests join the existing plans by adding the suite names to `fichero/Tests/plans/fichero-ui-mac.xctestplan` (`FicheroUITests`),
 `fichero-ui-ios.xctestplan` and `fichero-ui-ipad.xctestplan` (`FicheroIOSUITests`); each plan today selects three canary/smoke suites,
 so a new suite is listed explicitly or it does not run. Every UI test runs against a seeded engine (`IOSSimSameSocketTests` shows the
-socket pattern) and never against the owner's running app (`App tests quit Daniel's running app`).
+socket pattern) and never against the owner's running app (the owner's running app).
 
 ### 10.8 Live script: Air host, M4 guest, iPhone or iPad over Tailscale
 

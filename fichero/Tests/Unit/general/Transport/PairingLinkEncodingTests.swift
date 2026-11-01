@@ -9,7 +9,7 @@ import Testing
 /// and the QR's bytes are the link's. Written 2026-10-31, not yet built (no Xcode run on this Mac).
 @MainActor
 struct PairingLinkEncodingTests {
-    private func payload(library: String? = "/Users/d/Marshall.fichero") -> PairingQRCodePayload {
+    private func payload(library: String? = "/tmp/p/Project.fichero") -> PairingQRCodePayload {
         PairingService.buildQRCodePayload(
             apiRoot: URL(string: "https://macbook-air-m1.local:8765")!,
             from: PairingCodeRecord(code: "TEST-CODE", expiresAt: Date(timeIntervalSince1970: 1_800_000_000)),
