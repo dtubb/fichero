@@ -22,7 +22,7 @@ SPEC = """# A spec
 - Tests: t/test_one.py
 - Size: S
 
-#### Step 1.2 — on top
+#### Step 1.2 — on top (#8, #10)
 - Behaviours: `a.b.two`
 - Tests: t/test_two.py
 - Depends on: 1.1
@@ -84,3 +84,10 @@ def test_the_verb_writes_one_brief_per_cluster_and_prints_the_questions(tmp_path
     assert "Branch step-1.1" in brief and "base abc1234" in brief and "Rule one." in brief and "do the base" in brief
     assert not (tmp_path / "out" / "brief-step-1.2.txt").exists()
     assert os.listdir(tmp_path / "out") == ["brief-step-1.1.txt"]
+
+
+def test_a_step_heading_that_names_an_issue_places_it(tmp_path):
+    (tmp_path / "spec.md").write_text(SPEC)
+    steps = milestone.build_order(tmp_path / "spec.md")
+    p = milestone.plan([{"number": 10, "title": "no step in the title", "body": "none in the body either"}], steps, "m1")
+    assert [c["step"] for c in p["clusters"]] == ["1.2"] and not p["questions"]

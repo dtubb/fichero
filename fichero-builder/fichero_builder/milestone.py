@@ -62,8 +62,12 @@ def plan(issues: list[dict], steps: list[dict], slug: str) -> dict:
     by_step: dict[str, list[dict]] = {}
     questions = []
     known = {s["number"] for s in steps}
+    named = {}  # a step heading that names issues `(#N, #M)` places them too (specs written before `builder steps`)
+    for s in steps:
+        for n in re.findall(r"#(\d+)", s.get("title") or "") + ([s["issue"]] if s.get("issue") else []):
+            named.setdefault(int(n), s["number"])
     for i in sorted(issues, key=lambda x: x["number"]):
-        st = step_of(i, slug)
+        st = step_of(i, slug) or named.get(i["number"])
         if st is None:
             questions.append(f"#{i['number']} names no build-order step: which step is it, or does it leave the milestone?")
         elif st not in known:
