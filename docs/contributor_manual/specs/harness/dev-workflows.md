@@ -459,13 +459,15 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   library: `check_tool`, `jail`, `land_tool`, `start_tool`, `brief_tool` and `policy_hook` live there (moved 2026-11-01),
   the `scripts/harness_*.py` entry points import them from there, and the old `fichero_server.workflows.<name>` paths are
   shims returning the same module object for the engine's dev-tier route and the older tests until Step 1.1 deletes that
-  route. Not yet in the package: `journal`, `parse_session` and `budget` from `pipeline/`, and the watcher. The Researcher
+  route. `journal` (the state directory is `FICHERO_BUILDER_STATE`, else the XDG state home), `budget` and `session`
+  (`parse_session`, both kinds' usage shapes) are ported from `pipeline/` (2026-11-01); not yet: the watcher. The Researcher
   stays on the engine's core (records, jobs, Activity, the question record, the sync). A `builder` tier, a Builder bundle
   and the Activity table as a Swift package are deferred text until a second app is scheduled: tiers filter registration,
   not import (a route's closure is about 373 modules), a bundle without the model stack still carries `lancedb`,
   `langgraph`, spaCy and OpenCV, and the Activity views reach about seventy-five app types from 42 files. Test:
   `fichero-builder/tests/test_no_engine_import.py` (every module's imports are standard library; each imports alone with
-  no `fichero_server` in `sys.modules`); `fichero-server/tests/unit/workflows/test_harness_neutral.py`.
+  no `fichero_server` in `sys.modules`), `fichero-builder/tests/test_journal.py`, `fichero-builder/tests/test_budget.py`,
+  `fichero-builder/tests/test_session.py`; `fichero-server/tests/unit/workflows/test_harness_neutral.py`.
 
 ## Rulings
 
