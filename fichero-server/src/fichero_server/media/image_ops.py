@@ -8,21 +8,51 @@ from fastapi import HTTPException
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps, ImageStat
 
 
+#: The skew search: degrees either side of level, and the step between tries.
+_DESKEW_RANGE, _DESKEW_STEP = 15.0, 0.1
+#: The working width of the skew search.
+_DESKEW_WIDTH = 1200
+
+
 def detect_deskew_angle(image: Image.Image) -> float:
-    """Return the local Hough-estimated text-line skew angle, or zero."""
+    """The skew of the writing, in degrees (the slope of a line in pixels with y down), or zero.
+
+    Ink is what is darker than its neighbourhood inside the bright page, away from the page's own edge
+    (so the ruler, the table and the page edge are not read). The angle is the shear at which the ink's
+    row profile is sharpest; zero where there is no ink or no angle beats level by 5 %.
+    """
     try:
         import cv2  # type: ignore[import-not-found]
         import numpy as np
     except ImportError:
         return 0.0
     gray = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2GRAY)
-    lines = cv2.HoughLinesP(cv2.Canny(cv2.GaussianBlur(gray, (5, 5), 0), 50, 150), 1, np.pi / 180, threshold=100, minLineLength=max(80, gray.shape[1] // 5), maxLineGap=12)
-    if lines is None:
+    scale = min(1.0, _DESKEW_WIDTH / gray.shape[1])
+    if scale < 1.0:
+        gray = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+    page = gray > _page_threshold(gray)
+    margin = max(3, gray.shape[1] // 50)
+    # close the holes the ink itself makes in the bright page, then step in from its edge
+    page = cv2.morphologyEx(page.astype("uint8"), cv2.MORPH_CLOSE, np.ones((15, 15), "uint8"))
+    page = cv2.erode(page, np.ones((margin, margin), "uint8")).astype(bool)
+    local = cv2.blur(gray, (31, 31)).astype("int16")
+    ink = page & (gray.astype("int16") < local - 15)
+    ys, xs = np.nonzero(ink)
+    if len(xs) < 50:
         return 0.0
-    # OpenCV 4 returns (N, 1, 4), OpenCV 5 returns (N, 4); one shape for both (#5385).
-    segments = np.asarray(lines).reshape(-1, 4)
-    angles = [float(np.degrees(np.arctan2(y2-y1, x2-x1))) for x1, y1, x2, y2 in segments if -15 <= np.degrees(np.arctan2(y2-y1, x2-x1)) <= 15]
-    return float(np.median(angles)) if angles else 0.0
+    xs, ys = xs.astype("float64"), ys.astype("float64")
+    steps = int(round(_DESKEW_RANGE / _DESKEW_STEP))
+    angles = np.arange(-steps, steps + 1) * _DESKEW_STEP
+    height = gray.shape[0] + int(gray.shape[1] * np.tan(np.radians(_DESKEW_RANGE))) + 2
+    scores = []
+    for angle in angles:
+        rows = np.round(ys - xs * np.tan(np.radians(angle))).astype("int64") + height // 2
+        scores.append(float(np.var(np.bincount(rows, minlength=2 * height))))
+    level = scores[steps]
+    best = int(np.argmax(scores))
+    if scores[best] <= level * 1.05:
+        return 0.0
+    return round(float(angles[best]), 1)
 
 
 #: The automatic straighten does nothing under this many degrees (`prep.straighten-and-flatten`).
@@ -30,16 +60,45 @@ STRAIGHTEN_MIN_DEGREES = 0.3
 
 
 def auto_straighten_angle(image: Image.Image) -> float:
-    """The Hough skew angle, or 0.0 where it is under `STRAIGHTEN_MIN_DEGREES` (a page already square writes no row)."""
+    """The skew angle of the writing, or 0.0 where it is under `STRAIGHTEN_MIN_DEGREES` (a page already square writes no row)."""
     angle = detect_deskew_angle(image)
     return angle if abs(angle) >= STRAIGHTEN_MIN_DEGREES else 0.0
 
 
-def detect_content_bbox(image: Image.Image) -> tuple[int, int, int, int]:
-    """Find the non-border content rectangle using a local threshold."""
+def _page_threshold(gray: "Any") -> float:
+    """The grey level between a dark ground and the bright page: the midpoint of the two Otsu class means.
+
+    20 (the old fixed level) where the two classes are under 60 levels apart or the bright class is under
+    5 % of the frame, so a frame without a dark ground is judged as before.
+    """
     import numpy as np
 
-    mask = np.asarray(image.convert("L")) > 20
+    hist = np.bincount(gray.ravel(), minlength=256).astype("float64")
+    levels = np.arange(256, dtype="float64")
+    w0 = np.cumsum(hist)
+    w1 = w0[-1] - w0
+    m0 = np.cumsum(hist * levels)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        mean0 = m0 / w0
+        mean1 = (m0[-1] - m0) / w1
+        between = w0 * w1 * (mean0 - mean1) ** 2
+    between = np.nan_to_num(between)
+    t = int(np.argmax(between))
+    if w1[t] < 0.05 * w0[-1] or mean1[t] - mean0[t] < 60:
+        return 20.0
+    return max(20.0, (mean0[t] + mean1[t]) / 2)
+
+
+def detect_content_bbox(image: Image.Image) -> tuple[int, int, int, int]:
+    """The rectangle of the bright page: pixels above the level between the dark ground and the page.
+
+    The level is `_page_threshold`; a grey table (about 40) is no longer content. A bright thing on the
+    table (a ruler) is still counted.
+    """
+    import numpy as np
+
+    gray = np.asarray(image.convert("L"))
+    mask = gray > _page_threshold(gray)
     if not mask.any():
         return 0, 0, image.width, image.height
     cols, rows = np.flatnonzero(mask.any(axis=0)), np.flatnonzero(mask.any(axis=1))
