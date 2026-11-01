@@ -6,7 +6,7 @@
 > a research project.
 
 > **Status: APPROVED by the owner 2026-10-31 at bef07fa21 (rewrite 5: the second review verdict applied and the scope cut to what three weeks can
-> hold; § 0 is Slice 0 on its own).** Replaces the text approved on 2026-10-26
+> hold; § 0 is Slice 0 on its own). Rewrite 6, 2026-11-01: the Decisions and the Build order below follow the owner's direction of 2026-11-01 and the harness audit of the same day (`agent-work/status/briefs/audit-2026-11-01-harness.md`); they await the owner's approval, and the two rulings they name are marked.** Replaces the text approved on 2026-10-26
 > (c9c24dfbf, 739ad4ba4). Tags: [OK] built · [PARTIAL] exists, not wired · [GAP] not built · [BROKEN] fails today ·
 > [PROPOSED] decided here, not yet ruled. Issues: #6116 (the pipeline), #2067 (Research), #5933 (Pause and Stop).
 >
@@ -135,30 +135,55 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
 
 - **Issues are managed in Fichero and synced to GitHub** (maintainer 2026-10-31); GitHub stays the public record; every
   write goes through one guarded step. Specs stay Markdown in the repo, bound by the guards.
-- **The engine's records are the truth for runs** (maintainer 2026-10-31); for a worker the truth is its rows, git and the
-  handoff file; workers have no checkpointer.
-- **Thin engine; the loop lives in the agent harness**: records, start and stop, Activity, questions, the log; a hook does
-  handoff and successor; a few tools do brief, check, ask, hand off, land (git is the worker's own shell command; the user wall, not an argv jail, guards it). LangGraph only for recipes and the release.
-- **Two worker kinds** (maintainer 2026-10-31): Claude Code and Pi; `fake` is the test double. **The Builder worker is an
-  interactive session in a tmux pane** (probed: `claude -p` exits at the end of its turn and takes no pane message); Pi in
-  a pane with its extension, the same shape.
-- **Isolation by a second macOS user** (owner 2026-10-31): workers and the ladder run as it with no GitHub credential, and a
-  start refuses if that user or its clean probe is missing; not Seatbelt, not a disabled push URL.
-- **Land per cluster**, enforced outside the model; a READY verdict per commit's patch-id; the Lead pushes until a GitHub
-  App exists (owner 2026-10-31).
-- **Fixed steps are scripts**; only the release earns a workflow, deferred.
-- **Enforce, don't ask; declare, don't narrate**: every standing rule names its layer (user boundary, hook, guard at landing,
-  prose) and lives in one fail-closed rules file.
+- **The Builder is separate from the engine** (owner 2026-11-01, products: Fichero client, Fichero iOS, Fichero Server,
+  Fichero Builder). The Builder is a top-level `fichero-builder/` package of plain Python on the standard library, with no
+  import of `fichero_server` (`check_harness_neutral.py` points at it); the engine never starts, stops or records a worker,
+  and `worker_process.py`, `routes/workers.py` and their routes go. For a worker the truth is its journal rows, git and the
+  handoff file; workers have no checkpointer. An app (Fichero Agents, later) reads the same journal; no app need shapes the CLI.
+- **CLI first, in real use before any app** (owner 2026-11-01): `builder run`, `builder check`, `builder review`,
+  `builder land`, `builder ask`, `builder clean`, in that enforced order for one cluster. Fixed steps are plain code; a model
+  step gets a fixed input, a context budget and a schema-checked output; plain code owns worktrees and assembles briefs
+  (jcodemunch, the issue text, the spec lines, the rules file). Graphs (LangGraph) only where a model step needs branching;
+  the review graph first, and only if the TSV shows it saves tokens.
+- **The watcher is the harness** (audit 2026-11-01): one process starts a worker and reads its session file for context,
+  cost, idle, stuck and red, for Claude and Pi alike; an unknown price refuses to start; per-session and daily caps; a silent
+  worker raises an alert; on restart it reconciles with the journal. The Stop hook, the pane regex and keystroke tells go.
+- **Two worker kinds** (maintainer 2026-10-31): Claude Code and Pi; `fake` is the test double. **Pi is driven by RPC**
+  (`prompt`, `steer`, `abort` on a pipe), not by typing into a pane; a Pi `tool_call` extension carries `[policy]` and
+  fails closed (its crash blocks; tested first). Claude Code stays an interactive session in a pane until the Pi kind is
+  proven, then the pane shape is retired. Providers and Pi, not Max (owner 2026-11-01): a metered key with a low credit limit.
+- **Isolation**: the second macOS user is the bootstrap (owner 2026-11-01: a Builder user cannot be expected to make one)
+  and holds today: workers and the ladder run as it with no GitHub credential, and a start refuses if that user or its clean
+  probe is missing. The shipped sandbox is chosen by test, not by reading: a signed launcher with App Sandbox entitlements and
+  inherited sandbox, raw Seatbelt with a maintained profile, and Apple `container` are each tried with Pi, git and one pytest
+  inside; Linux containers cannot run MLX or Xcode, so they serve untrusted or Linux work only. One wrapper, so graphs and
+  scripts do not change when the mechanism does. Build, merge and push stay outside the sandbox as plain steps; the model is
+  reached over a local port.
+- **Review has a shell** (audit 2026-11-01: reading alone missed the HIGHs): a fresh reviewer gets a throwaway checkout as
+  the worker user, runs the named tests one at a time, the guards and ruff, reverts each fix to see its test go red, and
+  writes a verdict keyed on the exact range; the size rule ignores generated files; a second round is range-diff plus probes.
+- **Land per cluster**, enforced outside the model; a READY verdict per commit; the Lead pushes until a GitHub App exists
+  (owner 2026-10-31). **Owner ruling pending (c):** whether the tool ever pushes or a person always does.
+- **Spend**: caps in the watcher per session and per day, prices from the rules file, unknown price refuses. **Owner ruling
+  pending (d):** how much a provider key may spend per day.
+- **The Macs are the only gate** (owner 2026-11-01): no GitHub CI; GitHub keeps only the issue and milestone workflows.
+- **Dev builds per milestone** (owner 2026-11-01): a build is triggered when a milestone's issues are closed and its specs
+  are [OK], not by the clock; the owner tests that build and findings go to triage.
+- **Enforce, don't ask; declare, don't narrate**: every standing rule names its layer (user boundary, sandbox, hook, guard
+  at landing, prose) and lives in one fail-closed rules file per project, which `harness_start` reads only after checking its
+  owner and mode.
 - **Project-neutral, Fichero first; Python-tested repositories first** (maintainer 2026-10-31): a second repository runs a
   cluster from its rules file alone.
-- **Local models with the same enforced guardrails, and the losses said** (maintainer 2026-10-31): the user boundary and
-  the scripts carry over whole; the binding review stays on a cloud model until the log shows agreement; counters replace
-  model-obeyed stops. Order: Sonnet on Claude Code, then OpenRouter through Pi, then local.
-- **Shared core, two front ends** (owner 2026-10-31): one core, the Researcher in Fichero; a Builder front end and an
-  Activity package are deferred text until a second app is scheduled; a one-line guard keeps the three harness tools
-  free of engine imports.
-- **Messages are files** read by a hook on prompt submit and after each tool; an idle worker at its prompt is reached by
-  the tick's keystroke tell, logged as such.
+- **Local models with the same enforced guardrails, and the losses said** (maintainer 2026-10-31): the user boundary, the
+  sandbox and the scripts carry over whole; the binding review stays on a cloud model until the TSV shows agreement; counters
+  replace model-obeyed stops. Order: Claude Code under Max on real issues for about a week; then Pi on a metered provider
+  (Sonnet first, so only the agent changes); then local on the Studio, coder only, one issue per session.
+- **The ratchet is the yardstick**: rounds, findings by class and cost per cluster in one TSV, from cluster-c on; every
+  later step is compared with it.
+- **Shared core, two front ends** (owner 2026-10-31): the Researcher stays in Fichero and keeps the engine's records; the
+  Builder shares only the rules-file shape and the sandbox wrapper. Activity rows for workers are deferred to the app.
+- **Messages are files**: a question or an answer is a row in the journal and a file the worker reads at its next turn;
+  `builder ask` writes it; no pane typing.
 
 ### Deployment profiles
 
@@ -469,91 +494,98 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
 
 ## Build order
 
-Steps a Claude Code builder can take from the heading. `Depends on` defaults to the step before. Dates are the owner's
-targets: Slice 0 by 2026-11-03, Pi by 2026-11-14, the second project and local parity by 2026-11-21.
+Steps a long-running builder can take from the heading. `Depends on` defaults to the step before. No dates (owner
+2026-11-01: no deadline, do it right); each step ends on a real issue where it can, and the TSV of step 1.1 measures it.
 
-### Stage 0 — Slice 0 (days 1-3): § 0
+### Stage 0 — Slice 0: done by hand (§ 0)
 
 #### Step 0.1 — the rules file, the hooks, check and land as scripts, the verdict store, the second user, the B1 fix
 - Behaviours: `dev-workflows.rollout.slice-zero`, `dev-workflows.run.rules-file`, `dev-workflows.run.policy-hook`, `dev-workflows.run.land-gate`, `dev-workflows.run.review-and-land`
-- Tests: fichero-server/tests/unit/workflows/test_slice_zero.py, fichero-server/tests/unit/workflows/test_rules_file.py, fichero-server/tests/unit/workflows/test_policy_hook.py, fichero-server/tests/unit/workflows/test_land_gate.py, fichero-server/tests/unit/workflows/test_review_and_land.py
+- Tests: fichero-server/tests/unit/workflows/test_rules_problems.py, fichero-server/tests/unit/workflows/test_policy_hook.py, fichero-server/tests/unit/workflows/test_land_tool.py, fichero-server/tests/unit/workflows/test_check_tool.py, fichero-server/tests/unit/workflows/test_start_tool.py
 - Size: M
 
-### Stage 1 — the engine records and guards the cluster (weeks 1-2)
+#### Step 0.2 — the cluster brief; pipeline frozen
+- Behaviours: `dev-workflows.builder.cluster`, `dev-workflows.rollout.pipeline-frozen`
+- Tests: fichero-server/tests/unit/workflows/test_brief_tool.py, fichero-server/tests/unit/workflows/test_pipeline_frozen.py
+- Size: S
 
-#### Step 1.1 — the engine starts and stops a worker; the check tool; the worker's address
-- Behaviours: `dev-workflows.run.worker-start-stop`, `dev-workflows.tool.check`, `dev-workflows.run.worker-address`
-- Tests: fichero-server/tests/unit/workflows/test_worker_process.py, fichero-server/tests/unit/workflows/test_worker_route.py, fichero-server/tests/unit/workflows/test_check_tool.py, fichero-server/tests/unit/workflows/test_worker_address.py
+### Stage 1 — the Builder package and the watcher
+
+#### Step 1.1 — `fichero-builder/` on the standard library: check, land, jail, policy, start, brief, journal, budget; the ratchet's TSV
+- Behaviours: `dev-workflows.core.shared`, `dev-workflows.project.neutral`, `dev-workflows.run.ratchet`
+- Tests: fichero-builder/tests/test_no_engine_import.py, fichero-builder/tests/test_second_project.py, fichero-builder/tests/test_ratchet.py
 - Size: M
 
-#### Step 1.2 — worker kinds: claude, pi through OpenRouter by 2026-11-14, fake for the dry run; pipeline frozen
-- Behaviours: `dev-workflows.node.worker`, `dev-workflows.rollout.dry-run`, `dev-workflows.rollout.pipeline-frozen`
-- Tests: fichero-server/tests/unit/workflows/test_worker_node.py, fichero-server/tests/unit/workflows/test_dry_run.py, fichero-server/tests/unit/workflows/test_pipeline_frozen.py
+#### Step 1.2 — `builder run`: one process starts a worker and watches its session file; caps; the fake kind
+- Behaviours: `dev-workflows.run.worker-start-stop`, `dev-workflows.run.watch-tick`, `dev-workflows.rollout.dry-run`, `dev-workflows.run.records-are-truth`
+- Tests: fichero-builder/tests/test_watcher.py, fichero-builder/tests/test_spend_caps.py, fichero-builder/tests/test_dry_run.py, fichero-builder/tests/test_journal_is_truth.py
 - Size: M
 
-#### Step 1.3 — the cluster, the worker steers
-- Behaviours: `dev-workflows.builder.cluster`, `dev-workflows.worker.steers`
-- Tests: fichero-server/tests/unit/workflows/test_cluster_run.py
+#### Step 1.3 — handoff and successor from the session file; supervision; the worker steers within its brief
+- Behaviours: `dev-workflows.worker.handoff`, `dev-workflows.run.supervision`, `dev-workflows.worker.steers`
+- Tests: fichero-builder/tests/test_handoff.py, fichero-builder/tests/test_supervision.py, fichero-builder/tests/test_cluster_run.py
 - Size: M
 
-#### Step 1.4 — the question record, records as truth
-- Behaviours: `dev-workflows.node.human-question`, `dev-workflows.run.records-are-truth`
-- Tests: fichero-server/tests/unit/workflows/test_pause_resume_survives_restart.py, fichero-server/tests/unit/workflows/test_records_are_truth.py
+#### Step 1.4 — `builder ask`: the question record as a file and a journal row
+- Behaviours: `dev-workflows.node.human-question`
+- Tests: fichero-builder/tests/test_ask.py
+- Size: S
+
+### Stage 2 — check, review, land, in that order
+
+#### Step 2.1 — `builder check` then `builder review` with a shell and a throwaway checkout, then `builder land`; the size rule ignores generated files
+- Behaviours: `dev-workflows.tool.check`, `dev-workflows.security.grants`, `dev-workflows.worker.two-capability-sets`
+- Tests: fichero-builder/tests/test_check.py, fichero-builder/tests/test_review_with_a_shell.py, fichero-builder/tests/test_land_order.py
 - Size: M
 
-#### Step 1.5 — the handoff hook in the repository, supervision, the ratchet's TSV
-- Behaviours: `dev-workflows.worker.handoff`, `dev-workflows.run.supervision`, `dev-workflows.run.ratchet`
-- Tests: fichero-server/tests/unit/workflows/test_cluster_run.py, fichero-server/tests/unit/workflows/test_supervision.py, fichero-server/tests/unit/workflows/test_ratchet.py
+#### Step 2.2 — a week on real issues under Claude Code; the TSV compared with Slice 0
+- Behaviours: `dev-workflows.run.worker-address`
+- Tests: fichero-builder/tests/test_real_cluster_record.py
+- Size: S
+
+### Stage 3 — the Pi kind by RPC, the sandbox, local parity
+
+#### Step 3.1 — `--kind pi` over RPC with a fail-closed `tool_call` extension; a metered provider; one model per role in the rules file
+- Behaviours: `dev-workflows.node.worker`, `dev-workflows.models.by-config`
+- Tests: fichero-builder/tests/test_pi_rpc.py, fichero-builder/tests/test_pi_policy_extension.py, fichero-builder/tests/test_model_config.py
 - Size: M
 
-#### Step 1.6 — the watch tick under launchd, the two capability sets, the allow-list
-- Behaviours: `dev-workflows.run.watch-tick`, `dev-workflows.worker.two-capability-sets`, `dev-workflows.security.grants`
-- Tests: fichero-server/tests/unit/workflows/test_watch_tick.py, fichero-server/tests/unit/workflows/test_capability_sets.py, fichero-server/tests/unit/workflows/test_grants.py
+#### Step 3.2 — the sandbox chosen by test (launcher with entitlements, Seatbelt profile, Apple container) behind one wrapper
+- Behaviours: `dev-workflows.security.untrusted-text`
+- Tests: fichero-builder/tests/test_sandbox_wrapper.py
+- Depends on: 3.1
 - Size: M
 
-### Stage 2 — seen in the app; records and sync; the Researcher; the second project (weeks 2-3)
-
-#### Step 2.1 — the Activity table with a hierarchy, and controls that work
-- Behaviours: `dev-workflows.ux.activity-table`, `dev-workflows.ux.controls-work`
-- Tests: fichero/Tests/Unit/general/Models/ActivityTableTests.swift, fichero-server/tests/unit/workflows/test_controls_reach_the_call.py
-- Depends on: 1.1
+#### Step 3.3 — local on the Studio: coder only, one issue per session, review on a cloud model until the TSV agrees
+- Behaviours: `dev-workflows.run.local-parity`
+- Tests: fichero-builder/tests/test_local_parity.py
+- Depends on: 3.1
 - Size: M
 
-#### Step 2.2 — the records and the guarded GitHub sync (pull)
+### Stage 4 — feeder, cleanup, the records, the Researcher, the app
+
+#### Step 4.1 — the feeder with a lint matched to how issues are written; `builder clean`; `pipeline/` deleted; AGENTS.md rewritten
+- Behaviours: `dev-workflows.surface.one-action-layer`
+- Tests: fichero-builder/tests/test_feeder.py, fichero-builder/tests/test_clean.py
+- Depends on: 2.2
+- Size: M
+
+#### Step 4.2 — the records and the guarded GitHub sync (pull)
 - Behaviours: `dev-workflows.combined.entities`, `dev-workflows.combined.github-sync`
 - Tests: fichero-server/tests/unit/research/test_combined_model_records.py, fichero-server/tests/unit/research/test_github_sync.py
-- Depends on: 1.6
+- Depends on: 2.2
 - Size: M
 
-#### Step 2.4 — the CLI verbs and app over one action layer; the push through the guarded sync step
-- Behaviours: `dev-workflows.surface.one-action-layer`
-- Tests: fichero-cli/tests/test_chat_dev_verbs.py
+#### Step 4.3 — the Researcher's first tasks
+- Behaviours: `dev-workflows.researcher.tasks`
+- Tests: fichero-server/tests/unit/research/test_researcher_tasks.py
+- Depends on: 4.2
 - Size: M
 
-#### Step 2.5 — the Researcher's first tasks and untrusted text
-- Behaviours: `dev-workflows.researcher.tasks`, `dev-workflows.security.untrusted-text`
-- Tests: fichero-server/tests/unit/research/test_researcher_tasks.py, fichero-server/tests/unit/security/test_untrusted_text.py
-- Depends on: 1.6
-- Size: M
-
-#### Step 2.6 — a second, unrelated Python-tested repository runs a cluster from its rules file; the three tools stay engine-free
-- Behaviours: `dev-workflows.project.neutral`, `dev-workflows.core.shared`
-- Tests: fichero-server/tests/unit/workflows/test_second_project.py, fichero-server/tests/unit/workflows/test_core_shared.py
-- Depends on: 1.6
-- Size: M
-
-### Stage 3 — models by configuration and local parity (week 3-4)
-
-#### Step 3.1 — one model per role in the rules file; a missing provider asks
-- Behaviours: `dev-workflows.models.by-config`
-- Tests: fichero-server/tests/unit/workflows/test_model_config.py
-- Depends on: 2.5
-- Size: M
-
-#### Step 3.2 — local parity: the same hooks, rules and rows on the Pi kind and a local server
-- Behaviours: `dev-workflows.run.local-parity`
-- Tests: fichero-server/tests/unit/workflows/test_local_parity.py
-- Depends on: 3.1
+#### Step 4.4 — the app reads the journal: the Activity table with a hierarchy, and controls that work
+- Behaviours: `dev-workflows.ux.activity-table`, `dev-workflows.ux.controls-work`
+- Tests: fichero/Tests/Unit/general/Models/ActivityTableTests.swift, fichero-server/tests/unit/workflows/test_controls_reach_the_call.py
+- Depends on: 4.1
 - Size: M
 
 ## Behaviour tests
