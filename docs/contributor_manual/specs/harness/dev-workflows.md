@@ -324,8 +324,9 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   row → told once by file, then replaced; a silent worker raises an alert; an unknown price refuses to start; a per-session
   or daily spend cap parks with a question (owner ruling pending: the daily amount); on restart the journal is reconciled
   before any successor; the pinned dev engine moves to a newer sha only between clusters; each action a journal row. A
-  `launchd` job only keeps the watcher itself alive. Tests (unwritten, Step 1.2): the watcher test and the spend-caps test
-  under the Builder's tests folder.
+  `launchd` job only keeps the watcher itself alive. Built 2026-11-01: the judgement (`fichero_builder/watcher.py`: caps from
+  `[spend]`, a missing cap or an unknown price refuses, decisions park, handoff, alert from a session state). Not yet: the
+  process that starts, reads and acts. Test: `fichero-builder/tests/test_watcher.py`.
 - `dev-workflows.run.records-are-truth` [PROPOSED] (maintainer 2026-10-31; owner 2026-11-01: no engine) — for a worker the
   truth is its **journal** (JSON lines, one file per cluster under the Builder's state directory; `$FICHERO_HARNESS_LOG` in
   Slice 0), plus git plus the handoff file; the run log (one row per item attempt: model, provider, context cap, tokens,
@@ -337,12 +338,14 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   and trailers, scratch path, allowed tools and forbidden commands, each rung of the ladder **declared on or off** as an
   argv list with env, cwd and time budget, the pinned paths, the paths `red_on_base` applies to, turn and dollar caps,
   machine limits, landing conditions, the people list, the review checklist path, the role models, the handoff line, the
-  project rules put in every cluster brief (`[brief].rules`, text).
+  project rules put in every cluster brief (`[brief].rules`, text), the watcher's caps (`[spend]`: window, handoff share,
+  session and day USD, silent seconds, a price per model for a kind whose session file carries none).
   **Fail-closed:** an unknown or misspelt key refuses to load; an undeclared rung is an error, never "skipped". The hook,
   `check`, `land` and the tick read it. Test:
   `fichero-server/tests/unit/workflows/test_rules_file.py::test_unknown_key_refuses_and_every_rung_is_declared`,
   `fichero-server/tests/unit/workflows/test_rules_problems.py::test_each_gap_is_a_named_problem`,
-  `fichero-server/tests/unit/workflows/test_brief_tool.py::test_the_brief_script_refuses_a_misspelt_brief_key_and_prints_no_brief`.
+  `fichero-server/tests/unit/workflows/test_brief_tool.py::test_the_brief_script_refuses_a_misspelt_brief_key_and_prints_no_brief`,
+  `fichero-builder/tests/test_watcher.py::test_the_table_is_read_and_an_unknown_key_or_bad_price_refuses`.
 - `dev-workflows.run.ratchet` [PROPOSED] (maintainer 2026-10-31: it only improves) — from the rows: READY to landed, first-pass
   READY rate, findings per issue by kind and severity, stall hours, false done, rework rounds, cost per landed issue, as a
   TSV per run and per week; a finding of the same kind on two issues becomes a rule in the rules file or a `check` rung
@@ -534,7 +537,7 @@ Steps a long-running builder can take from the heading. `Depends on` defaults to
 
 #### Step 1.2 — `builder run`: one process starts a worker and watches its session file; caps; the fake kind
 - Behaviours: `dev-workflows.run.worker-start-stop`, `dev-workflows.run.watch-tick`, `dev-workflows.rollout.dry-run`, `dev-workflows.run.records-are-truth`
-- Tests: fichero-builder/tests/test_watcher.py, fichero-builder/tests/test_spend_caps.py, fichero-builder/tests/test_dry_run.py, fichero-builder/tests/test_journal_is_truth.py
+- Tests: fichero-builder/tests/test_watcher.py, fichero-builder/tests/test_journal.py, fichero-builder/tests/test_session.py, fichero-builder/tests/test_dry_run.py
 - Size: M
 
 #### Step 1.3 — handoff and successor from the session file; supervision; the worker steers within its brief
