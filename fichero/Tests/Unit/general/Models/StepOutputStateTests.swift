@@ -28,6 +28,12 @@ struct StepOutputStateTests {
         #expect(state(nil, trying: true) == .running(words: "Starting the try."))
     }
 
+    @Test("pressing Try again over a finished result is running, never done, until the new try is under way")
+    func pressedAgain() throws {
+        let done = try result(#"{"state":"done","answers_revision":"r1"}"#)
+        #expect(state(done, trying: true) == .running(words: "Starting the try."))
+    }
+
     @Test("a failed try or a refusal says the engine's sentence, never blank")
     func failed() throws {
         let failed = try result(#"{"state":"failed","error":"No page image"}"#)

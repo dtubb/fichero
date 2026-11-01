@@ -21,6 +21,8 @@ enum StepOutputState: Equatable {
             return input.isTrying ? .running(words: "Starting the try.")
                 : .notTried(line: notTriedLine(pages: input.pages, estimate: input.estimate))
         }
+        // Pressed again: the earlier result is not this try's, so it never reads as done while the new one starts.
+        if input.isTrying, !result.isUnderWay { return .running(words: "Starting the try.") }
         if result.isUnderWay { return .running(words: result.underWayWords ?? "Working on it.") }
         if let failure = result.failure { return .failed(words: failure) }
         return .done(stale: isStale(result, currentRevision: input.currentRevision))
