@@ -99,6 +99,20 @@ struct SetupStageSamples: View {
                                ? CompareReadersStore(client: store.client, pageId: page.id, tryStage: store.stageId) : nil)
     }
 
+    private func pageReading(_ page: SetupStageTryResult.Page) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(store.name(of: page.id)).font(.callout.weight(.medium))
+            let summary = SetupStageTryResult.summary(of: page)
+            if !summary.isEmpty { Text(summary).font(.caption).foregroundStyle(.secondary) }
+            if let reading = page.readings?.first {
+                Text(reading.text).font(.callout).lineLimit(4)
+            }
+            ForEach(page.statements?.prefix(3).map { $0 } ?? [], id: \.self) { statement in
+                Text(statement).font(.caption)
+            }
+        }
+    }
+
     @ViewBuilder
     private func resultView(_ result: SetupStageTryResult) -> some View {
         if let error = result.failure {
@@ -130,19 +144,7 @@ struct SetupStageSamples: View {
                 }
             }
         }
-        ForEach(result.perPage ?? [], id: \.id) { page in
-            VStack(alignment: .leading, spacing: 2) {
-                Text(store.name(of: page.id)).font(.callout.weight(.medium))
-                let summary = SetupStageTryResult.summary(of: page)
-                if !summary.isEmpty { Text(summary).font(.caption).foregroundStyle(.secondary) }
-                if let reading = page.readings?.first {
-                    Text(reading.text).font(.callout).lineLimit(4)
-                }
-                ForEach(page.statements?.prefix(3).map { $0 } ?? [], id: \.self) { statement in
-                    Text(statement).font(.caption)
-                }
-            }
-        }
+        ForEach(result.perPage ?? [], id: \.id) { page in pageReading(page) }
         // Organise on its run of pages (`finddocs.review.setup-page`): the strip, its proposed documents as dashed
         // groups over it, its entries under their pages.
         if result.documents != nil || result.entries != nil {
