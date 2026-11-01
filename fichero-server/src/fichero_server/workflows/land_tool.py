@@ -1,5 +1,5 @@
 """land gate (dev-workflows Step 0.1 item 6; review 3 B6, review 4 B1/B3/B4/H5/H6): a READY verdict is keyed on the
-ORDERED list of (`git patch-id --verbatim`, message hash) of the whole range, so a subset or a replay is not the
+ORDERED list of (sha256 of the diff bytes, message hash) plus the base sha of the whole range, so a subset or a replay is not the
 reviewed range. The range base is the project's land branch (never a caller-named sha) and must be an ancestor of
 head. The verdict store and the owner's log are owner-owned files outside the workroot, opened without following
 symlinks. A merge commit or a commit without exactly one id is refused. Stdlib only.
@@ -72,31 +72,38 @@ def _gitb(root, *args) -> bytes:
 
 
 def commit_keys(root, base: str, head: str) -> list[dict]:
-    """[{sha, patch_id, message_hash}] oldest first. Raises ValueError on a merge or a commit with no single id."""
+    """[{sha, diff_hash, message_hash}] oldest first. Raises ValueError on a merge or a commit with no single id."""
     shas = _git(root, "rev-list", "--reverse", f"{base}..{head}").split()
     out = []
     for sha in shas:
         if len(_git(root, "rev-list", "--parents", "-n1", sha).split()) != 2:
             raise ValueError(f"{sha[:10]} is a merge or a root commit: land takes linear history only")
-        diff = _gitb(root, "show", "--format=", "--no-ext-diff", "--no-textconv", "--text", sha)
-        ids = subprocess.run([GIT, "patch-id", "--verbatim"], input=diff, capture_output=True).stdout.decode().split("\n")
-        ids = [x.split()[0] for x in ids if x.strip()]
-        if len(ids) != 1:
-            raise ValueError(f"{sha[:10]} has {len(ids)} patch ids (an empty commit?): refused")
+        # review 5 N2: the bytes of the diff (hunk line numbers and full blob ids included), not patch-id, which ignores
+        # WHERE a hunk applies: the same lines at another site would carry the reviewed commit's id.
+        diff = _gitb(root, "show", "--format=", "--full-index", "--no-ext-diff", "--no-textconv", "--text", sha)
+        if not diff.strip():
+            raise ValueError(f"{sha[:10]} has an empty diff (an empty commit?): refused")
         msg = _gitb(root, "log", "-n1", "--format=%B", sha)
-        out.append({"sha": sha, "patch_id": ids[0], "message_hash": hashlib.sha256(msg).hexdigest()})
+        out.append({"sha": sha, "diff_hash": hashlib.sha256(diff).hexdigest(), "message_hash": hashlib.sha256(msg).hexdigest()})
     return out
 
 
-def range_key(keys: list[dict]) -> str:
-    """sha256 of the ordered (patch-id, message hash) list: what a verdict is keyed on."""
-    return hashlib.sha256(json.dumps([[k["patch_id"], k["message_hash"]] for k in keys]).encode()).hexdigest()
+def range_key(keys: list[dict], base: str) -> str:
+    """sha256 of the base sha and the ordered (diff hash, message hash) list: what a verdict is keyed on. The base is
+    in it (review 5 N3): a revert on the branch or a rebase means a new review, never a replayed verdict."""
+    return hashlib.sha256(json.dumps([base, [[k["diff_hash"], k["message_hash"]] for k in keys]]).encode()).hexdigest()
+
+
+def resolve_branch(root, branch: str) -> str:
+    """The sha of refs/heads/<branch>: never a bare name, which git resolves to a TAG of that name first (review 5 N1)."""
+    return _git(root, "rev-parse", "--verify", "--end-of-options", f"refs/heads/{branch}^{{commit}}").strip()
 
 
 def write_verdict(store, root, base: str, head: str) -> str:
     """Record READY for the exact range base..head in `store` (an owner-owned file); returns the range key."""
+    base = _git(root, "rev-parse", "--verify", f"{base}^{{commit}}").strip()
     keys = commit_keys(root, base, head)
-    key = range_key(keys)
+    key = range_key(keys, base)
     try:
         v = json.loads(safe_read(store))
     except FileNotFoundError:
@@ -110,7 +117,7 @@ def unreviewed(root, branch: str, head: str, store) -> list[str]:
     """What stops a land: the range branch..head has no READY verdict for its exact commits, or `branch` is not an
     ancestor of head. Empty = clear."""
     try:
-        base = _git(root, "rev-parse", "--verify", f"{branch}^{{commit}}").strip()
+        base = resolve_branch(root, branch)
         if subprocess.run([GIT, "-C", str(root), "merge-base", "--is-ancestor", base, head], capture_output=True).returncode:
             return [f"{branch} is not an ancestor of {head[:10]}: land takes a fast-forward of the land branch only"]
         keys = commit_keys(root, base, head)
@@ -119,14 +126,16 @@ def unreviewed(root, branch: str, head: str, store) -> list[str]:
         return [str(e)]
     if not keys:
         return ["nothing to land: branch..head is empty"]
-    if verdicts.get(range_key(keys), {}).get("verdict") != "READY":
+    if verdicts.get(range_key(keys, base), {}).get("verdict") != "READY":
         return [f"no READY verdict for this exact range of {len(keys)} commit(s) (diffs and messages, in order)"]
     return []
 
 
 def review_diff(root, base: str, head: str, cap: int = 60000) -> str:
-    """The diff the reviewer reads: all of it as text (no attributes, no textconv), or a refusal. Never truncated."""
-    d = _gitb(root, "diff", "--no-ext-diff", "--no-textconv", "--text", f"{base}..{head}")
+    """What the reviewer reads: EVERY commit of the range, oldest first, as text (no attributes, no textconv), or a
+    refusal. Never truncated. Not the net diff: a line added in one commit and removed in the next is still history
+    (review 5 N4)."""
+    d = _gitb(root, "log", "-p", "--reverse", "--full-index", "--no-ext-diff", "--no-textconv", "--text", f"{base}..{head}")
     if b"\x00" in d:
         raise ValueError("binary content in the diff (a NUL byte): the reviewer cannot read it, refused")
     if len(d) > cap:

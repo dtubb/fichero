@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """land gate, no push (#6116 Step 0.1): refuse unless the range <land branch>..<head> has a READY verdict for its exact
-commits (ordered patch-ids + messages), then run the ladder from the pinned copy. The Lead pushes; this prints the push.
+commits (ordered diff bytes + messages, with the base sha), then run the ladder from the pinned copy. The Lead pushes; this prints the push.
 
 Usage: scripts/harness_land.py <repo> <head> --pinned DIR --verdicts FILE --log FILE
   repo = the engine-owned repository; the base is [land].branch of the pinned harness.toml, resolved in repo (never named
   by the caller) and must be an ancestor of head. --verdicts and --log are owner-owned files outside the workroot, opened
-  without following symlinks. Fetching worker commits into repo is done beforehand from the worker's bundle (review 4 H2)."""
+  without following symlinks. Fetching worker commits into repo is done beforehand from the worker's bundle with `git fetch --no-tags` (a tag named like the branch would ride along: review 5 N1)."""
 import argparse
 import json
 import sys
@@ -31,13 +31,18 @@ if problems := check_tool.rules_problems(a.pinned):
     sys.exit("REFUSED (rules file):\n  " + "\n  ".join(problems))
 land_cfg = tomllib.loads((Path(a.pinned) / "harness.toml").read_text())["land"]
 branch = land_cfg["branch"]
+try:  # review 5 N1 + push line: both ends become shas once, here; a moved ref or a same-named tag changes nothing after
+    base = land_tool.resolve_branch(a.repo, branch)
+    a.head = land_tool._git(a.repo, "rev-parse", "--verify", f"{a.head}^{{commit}}").strip()
+except RuntimeError as e:
+    sys.exit(f"REFUSED: {e}")
 if stop := land_tool.unreviewed(a.repo, branch, a.head, a.verdicts):
     row(refused="verdict", detail=stop)
     sys.exit("REFUSED:\n  " + "\n  ".join(stop))
-if hits := land_tool.boundary(a.repo, branch, a.head, land_cfg["boundary"]):
+if hits := land_tool.boundary(a.repo, base, a.head, land_cfg["boundary"]):
     row(refused="boundary", detail=hits)
     sys.exit("REFUSED (boundary):\n  " + "\n  ".join(hits))
-r = check_tool.run_ladder(a.repo, branch, a.head, a.pinned)
+r = check_tool.run_ladder(a.repo, base, a.head, a.pinned)
 print(json.dumps({k: r[k] for k in ("ok", "failed") if k in r}))
 row(ladder_ok=r.get("ok"), failed=r.get("failed", ""))
 if not r["ok"]:

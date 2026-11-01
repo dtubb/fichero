@@ -32,7 +32,8 @@ a = ap.parse_args()
 branch = tomllib.loads((Path(a.pinned) / "harness.toml").read_text()).get("land", {}).get("branch")
 if not branch:
     sys.exit("REFUSED: [land].branch is not declared in the pinned harness.toml")
-base = land_tool._git(a.repo, "rev-parse", "--verify", f"{branch}^{{commit}}").strip()
+base = land_tool.resolve_branch(a.repo, branch)
+a.head = land_tool._git(a.repo, "rev-parse", "--verify", f"{a.head}^{{commit}}").strip()  # one sha for the whole run
 if subprocess.run([land_tool.GIT, "-C", a.repo, "merge-base", "--is-ancestor", base, a.head], capture_output=True).returncode:
     sys.exit(f"REFUSED: {branch} is not an ancestor of {a.head}")
 try:

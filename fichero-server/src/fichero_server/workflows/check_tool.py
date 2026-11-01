@@ -204,7 +204,12 @@ def ready(root, cfg: Config, timeout_s: float = 600) -> dict:
 def pytest_argv(root, files: list[str], cfg: Config) -> list[str]:
     cfgfile = ["-c", str(Path(root) / cfg.pytest_config)] if cfg.pytest_config else []
     plugins = [x for p in cfg.pytest_plugins for x in ("-p", p)]
-    return [_py(cfg), "-m", "pytest", "-q", "-p", "no:cacheprovider", "-x", *cfgfile, *plugins, *files]
+    args = ["-q", "-p", "no:cacheprovider", "-x", *cfgfile, *plugins, *files]
+    # review 5 N5: `python -I` (no PYTHONPATH, no cwd) and the tree's folders put on sys.path AFTER site-packages, so a
+    # planted src/gettext.py or src/pluggy.py shadows nothing; the same rule as `_isolated` for guards.
+    code = (f"import sys; sys.path.extend({[str(Path(root) / p) for p in cfg.python_path]!r})\n"  # AFTER site-packages
+            f"import pytest; sys.exit(pytest.main({args!r}))")
+    return [_py(cfg), "-I", "-c", code]
 
 
 def pytest_rung(root, files: list[str], cfg: Config = Config(), timeout_s: float = 1800) -> dict:  # noqa: B008

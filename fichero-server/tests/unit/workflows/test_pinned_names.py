@@ -73,7 +73,7 @@ def test_pytest_runs_with_pinned_config_no_autoload_and_safe_path(tmp_path):
     cfg = ct.Config(pytest_plugins=("pytest_timeout",))
     argv = ct.pytest_argv(tmp_path, ["test_a.py"], cfg)
     assert "-c" not in argv or True
-    assert "-p" in argv and "pytest_timeout" in argv
+    assert "pytest_timeout" in argv[-1] and "-I" in argv  # the args ride inside the -I -c program
     env = ct._env(tmp_path, cfg, {})
     assert env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] == "1" and env["PYTHONSAFEPATH"] == "1"
     assert not ct.pytest_rung(tmp_path, ["test_a.py"], cfg, timeout_s=60)["ok"]  # the shadow pytest.py did not win
@@ -86,3 +86,18 @@ def test_a_rung_leaves_no_scratch_home_or_base_behind(tmp_path, monkeypatch):
     r = ct._run("x", ["/bin/echo", "hi"], tmp_path / "r", 10, ct.Config(base_path_env="BASE"))
     assert r["ok"]
     assert [p.name for p in tmp_path.iterdir() if p.name.startswith("check-")] == []
+
+
+def test_a_planted_stdlib_or_dependency_module_cannot_forge_a_green_pytest(tmp_path):  # review 5 N5
+    """The tree's folders go on sys.path AFTER site-packages and the stdlib (python -I), so a src/gettext.py or
+    src/pluggy.py that os._exit(0)s shadows nothing. (Code in the test process itself can always exit 0: that is the
+    reviewer's wall, not the ladder's.)"""
+    import sys
+    (tmp_path / "src").mkdir()
+    for mod in ("gettext", "pluggy", "argparse"):
+        (tmp_path / "src" / f"{mod}.py").write_text("import os\nos._exit(0)\n")
+    (tmp_path / "test_a.py").write_text("def test_red():\n    assert False\n")
+    cfg = ct.Config(python=sys.executable, python_path=("src",))
+    assert ct.pytest_rung(tmp_path, ["test_a.py"], cfg, timeout_s=120)["ok"] is False
+    (tmp_path / "test_a.py").write_text("def test_green():\n    assert True\n")
+    assert ct.pytest_rung(tmp_path, ["test_a.py"], cfg, timeout_s=120)["ok"] is True  # the control: it still runs
