@@ -234,3 +234,48 @@ def test_work_check_passes_a_resolved_sha_as_since_and_the_items_ids_as_protecte
 def test_builder_check_and_work_check_share_the_empty_range_refusal():
     from fichero_builder import check_tool
     assert issubclass(check_tool.EmptyRange, RuntimeError) and callable(check_tool.ladder_over)
+
+
+@pytest.fixture
+def real_chain(scratch, monkeypatch):
+    """The real `work` main over a pinned rules file; only the sudo boundary is faked (what the worker leaves in the shared journal)."""
+    monkeypatch.setattr(work.jail.Jail, "require", lambda self: None)
+    pin = scratch.tmp / "pin"
+    (pin / "harness.toml").write_text(RULES.replace('"/engine"', f'"{scratch.engine}"').replace("[check]\n", '[check]\npython = "/py/python"\n')
+                                      + f'[jail]\nuser = "wuser"\nworkroot = "{scratch.tmp}/wr"\n')
+
+    def go(worker_lines, toml=None):
+        if toml:
+            (pin / "harness.toml").write_text((pin / "harness.toml").read_text() + toml)
+
+        def fake(a, script):
+            if "fichero_builder run" not in script:
+                return subprocess.CompletedProcess(script, 1, "", "")
+            with (scratch.tmp / "wr" / "state" / "journal.jsonl").open("a") as f:
+                f.write(json.dumps({"event": "worker", "task": "n1", "worktree": str(scratch.wt)}) + "\n")
+                f.write("".join(x + "\n" for x in worker_lines))
+            return subprocess.CompletedProcess(script, 0, "", "")
+        monkeypatch.setattr(work, "as_worker", fake)
+        return cli.main(["work", "--brief", "b.txt", "--worktree", str(scratch.wt), "--name", "n1", "--issues", "7",
+                         "--pinned", str(pin), "--state", str(scratch.tmp / "s")])
+    return go
+
+
+@pytest.mark.parametrize("line", ["{not json", "1", '["a"]', '{"task": "n1"}'])
+def test_a_worker_written_journal_row_that_is_not_a_row_never_tracebacks(real_chain, capsys, line):
+    done = json.dumps({"event": "cost", "task": "n1", "end": "done"})
+    assert real_chain([line, done]) == 2  # skipped; the chain goes on and stops at patches (the fake worker made none)
+    assert capsys.readouterr().out.startswith("QUESTION: ")
+    assert rows()[-1]["step"] == "patches" and rows()[0]["step"] == "run" and rows()[0]["ok"] is True
+
+
+def test_a_cost_row_with_no_end_is_not_an_end(real_chain, capsys):
+    assert real_chain([json.dumps({"event": "cost", "task": "n1"})]) == 2
+    assert capsys.readouterr().out.startswith("QUESTION: ") and "no end row" in rows()[-1]["detail"]
+    assert rows()[-1]["step"] == "run" and rows()[-1]["ok"] is False
+
+
+def test_a_misspelt_jail_key_is_a_question_row_not_a_traceback(real_chain, capsys):
+    assert real_chain([], toml='usr = "x"\n') == 2
+    assert capsys.readouterr().out.startswith("QUESTION: ")
+    assert rows()[-1]["ok"] is False

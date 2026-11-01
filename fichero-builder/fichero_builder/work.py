@@ -43,7 +43,15 @@ def as_worker(a, script: str) -> subprocess.CompletedProcess:
 
 def _shared_rows(a) -> list[dict]:
     p = shared_state(a) / "journal.jsonl"
-    return [json.loads(x) for x in p.read_text().splitlines() if x.strip()] if p.exists() else []
+    rows = []
+    for x in p.read_text().splitlines() if p.exists() else []:  # the worker writes this file: skip what is not a row
+        try:
+            r = json.loads(x)
+        except ValueError:
+            continue
+        if isinstance(r, dict):
+            rows.append(r)
+    return rows
 
 
 def do_run(a, model: str) -> str:
@@ -62,9 +70,9 @@ def do_run(a, model: str) -> str:
         print(r.stdout.strip())
     new = _shared_rows(a)[before:]
     mine = [x for x in new if x.get("task") == a.name]
-    if not any(x["event"] == "worker" and x.get("worktree") == str(a.worktree) for x in mine):
+    if not any(x.get("event") == "worker" and x.get("worktree") == str(a.worktree) for x in mine):
         raise RuntimeError(f"the worker never started (exit {r.returncode}): {(r.stderr or r.stdout).strip()[-300:] or 'no output'}")
-    ends = [x["end"] for x in mine if x["event"] == "cost" and x.get("end") != "handoff"]
+    ends = [x["end"] for x in mine if x.get("event") == "cost" and x.get("end") and x["end"] != "handoff"]
     if not ends:
         raise RuntimeError(f"the worker left no end row in the shared journal (exit {r.returncode})")
     return ends[-1]
@@ -154,7 +162,7 @@ def main(a) -> int:
 
     try:
         end = do_run(a, builder)
-    except (RuntimeError, OSError) as e:  # JailMissing is a RuntimeError: a start that raised is a question, not a traceback
+    except (RuntimeError, OSError, ValueError) as e:  # JailMissing is a RuntimeError: a start that raised is a question, not a traceback
         step("run", False, str(e))
         return question(f"the worker could not run: {e}")
     if not step("run", end == "done", end):
@@ -167,7 +175,7 @@ def main(a) -> int:
         return question(f"could not fetch the worktree's branch into {repo}")
     try:
         r = do_check(a, repo, branch, head, ladder)
-    except (RuntimeError, OSError) as e:
+    except (RuntimeError, OSError, ValueError) as e:
         step("check", False, str(e))
         return question(f"the check could not run: {e}")
     if not step("check", bool(r.get("ok")), f"failed: {r.get('failed') or '-'}"):
