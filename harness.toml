@@ -92,8 +92,8 @@ boundary = ['/Users/(?!Shared/)[A-Za-z0-9._-]+/', 'sk-ant-[A-Za-z0-9_-]{8,}', 'g
 [brief]
 # Project rules put at the top of every cluster brief (scripts/harness_brief.py); project names belong here, not in code.
 rules = """
-Python is [check].python in harness.toml, run from fichero-server with PYTHONPATH=src. Messages end "Part of #N" + trailer "Directed-By: the maintainer" and Co-Authored-By. A spec-line commit is separate if a behaviour is in the spec.
-LOAD: the machine is loaded. One pytest at a time, named files only (the ones you touch and the readers of what you change), OMP_NUM_THREADS=2; never a directory or the full suite.
+Python is [check].python in harness.toml, run from fichero-server with PYTHONPATH=src for engine tests, from fichero-builder with PYTHONPATH=. for Builder tests. Every commit: author Claude, message ends "Part of #N" + trailers "Directed-By: the maintainer" and Co-Authored-By. A spec-line commit is separate if a behaviour is in the spec. No local paths or names in commits.
+LOAD: the machine is loaded. One pytest at a time, each with its own --basetemp under [jail].workroot/bt-<name> and GIT_CONFIG_GLOBAL set to a scratch file, named files only (the ones you touch and the readers of what you change), OMP_NUM_THREADS=2; never a directory or the full suite; never xcodebuild.
 RULES (earlier clusters were sent back for these):
 - No reassuring prose (docstring, comment, commit message, spec line) without a test that proves it. State only what the code does.
 - No "decided" / "ruled" / a date of a decision unless a ruling file or issue comment exists.

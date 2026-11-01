@@ -105,17 +105,19 @@ def build(issue: dict, *, repo: str) -> str:
 
 
 def cluster(issues: list[dict], *, repo: str, branch: str, base: str, rules: str = "") -> str:
-    """One brief for a cluster: the generic preamble, the project's [brief].rules from harness.toml, then every
-    issue's build(). The worker needs no issue tool: everything it may read is in the brief."""
+    """One brief for a cluster: two preamble lines, the project's [brief].rules from harness.toml as the THIRD line with
+    `#N` filled from the cluster's issues (so no brief needs a hand edit), the rest of the preamble, then every issue's
+    build(). The worker needs no issue tool: everything it may read is in the brief."""
+    numbers = ", ".join(f"#{i['number']}" for i in issues)
     head = [f"You are a worker in the dev harness. Branch {branch} in this worktree (base {base}). No push.",
             "Everything you need is below: the issues' text, trusted comments and where the code is. There is no issue "
-            "tool to call; do not try to read the issues again.",
-            "One commit per issue. Test first, see it fail, then fix. Before changing a shared function, grep every "
-            "reader and run their tests. If the behaviour is already in place, do not commit a test alone: commit the "
-            "proving test with the line `Already built: #N <test path>::<test name>` in the message (that test passes on "
-            "the base by design, so the check owes it no red; the landing comments the issue with the test).",
-            "When all are committed print on its own line: DONE <short sha of branch head>, then the list of commits and "
-            "which tests you ran.", ""]
+            "tool to call; do not try to read the issues again."]
     if rules.strip():
-        head += [rules.strip(), ""]
+        head.append(" ".join(rules.strip().replace("#N", numbers).split("\n")))
+    head += ["One commit per issue. Test first, see it fail, then fix. Before changing a shared function, grep every "
+             "reader and run their tests. If the behaviour is already in place, do not commit a test alone: commit the "
+             "proving test with the line `Already built: #N <test path>::<test name>` in the message (that test passes on "
+             "the base by design, so the check owes it no red; the landing comments the issue with the test).",
+             "When all are committed print on its own line: DONE <short sha of branch head>, then the list of commits and "
+             "which tests you ran.", ""]
     return "\n".join(head + [build(i, repo=repo) for i in issues])

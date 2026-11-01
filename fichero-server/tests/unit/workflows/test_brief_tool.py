@@ -89,7 +89,7 @@ def test_a_cluster_brief_has_the_preamble_then_every_issue_and_never_tells_the_w
     assert text.index("Branch cluster-x") < text.index("abc1234") < text.index("# Issue #1: One") < text.index("# Issue #2: Two")
     assert "DONE <short sha" in text and "No push" in text and "be careful" in text
     assert "gh issue view" not in text and "everything you need is below" in text.lower()
-    assert text.index("DONE <short sha") < text.index("be careful") < text.index("# Issue #1")
+    assert text.index("be careful") < text.index("DONE <short sha") < text.index("# Issue #1")
 
 
 def _run_brief_script(tmp_path, rules_file: str):
@@ -134,3 +134,21 @@ def test_the_brief_script_refuses_a_misspelt_brief_key_and_prints_no_brief(tmp_p
 def test_a_cluster_brief_tells_the_worker_to_write_already_built_instead_of_a_test_only_commit():
     text = brief_tool.cluster([_issue(number=1, title="One")], repo=".", branch="b", base="s")
     assert "Already built: #N" in text and "test" in text.split("Already built: #N")[1][:120]
+
+
+def test_the_rules_are_the_briefs_third_line_with_part_of_filled_from_the_clusters_issues():
+    issues = [_issue(number=7, title="One"), _issue(number=8, title="Two")]
+    text = brief_tool.cluster(issues, repo=".", branch="b", base="s", rules='Messages end "Part of #N". One pytest at a time.')
+    lines = text.splitlines()
+    assert lines[2] == 'Messages end "Part of #7, #8". One pytest at a time.'
+    assert "#N" not in lines[2]
+    assert "`Already built: #N <test path>::<test name>`" in text  # the worker's own template line, filled per issue by the worker
+
+
+def test_the_projects_standing_worker_rules_are_in_harness_toml_so_no_brief_needs_a_hand_edit():
+    """Item 3 (2026-11-01): the rules a manager kept typing into every brief by hand live in [brief].rules."""
+    import tomllib
+
+    rules = tomllib.loads((Path(__file__).resolve().parents[4] / "harness.toml").read_text())["brief"]["rules"]
+    for must in ("--basetemp", "PYTHONPATH=src", "never xcodebuild", "Directed-By: the maintainer", "author Claude", "This step owes"):
+        assert must in rules, must
