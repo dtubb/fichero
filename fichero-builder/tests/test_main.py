@@ -128,3 +128,43 @@ def test_the_hand_run_ladder_script_refuses_a_directory_log_before_its_ladder(tm
     r = subprocess.run([sys.executable, str(script), "repo", "HEAD", "--pinned", str(tmp_path), "--verdicts", "v", "--log", str(tmp_path)],
                        capture_output=True, text=True, cwd=tmp_path)
     assert r.returncode != 0 and "REFUSED (log)" in r.stderr and "Traceback" not in r.stderr
+
+
+def _repo(tmp_path, monkeypatch):
+    import subprocess
+
+    for k, v in {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null", "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@e",
+                 "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@e"}.items():
+        monkeypatch.setenv(k, v)
+    e = tmp_path / "engine"
+    e.mkdir()
+    g = lambda *a: subprocess.run(["git", "-C", str(e), *a], capture_output=True, text=True, check=True).stdout.strip()  # noqa: E731
+    g("init", "-q", "-b", "integration"), (e / "f").write_text("0"), g("add", "f"), g("commit", "-qm", "base")
+    g("checkout", "-qb", "lane"), (e / "g").write_text("1"), g("add", "g"), g("commit", "-qm", "mine")
+    return e, g("rev-parse", "HEAD")
+
+
+def test_land_with_a_green_check_row_runs_the_verdict_and_boundary_only_never_the_ladder_again(tmp_path, monkeypatch, capsys):
+    """Item 9 (2026-11-01): the row is the ladder's result for this exact head; a second ladder doubled the pytest load."""
+    from fichero_builder import check_tool, land_tool
+
+    e, head = _repo(tmp_path, monkeypatch)
+    import re
+
+    real = (cli.Path(__file__).resolve().parents[2] / "harness.toml").read_text()  # a rules file the gate accepts, its boundary kept
+    (tmp_path / "harness.toml").write_text(re.sub(r'^branch = .*$', 'branch = "integration"', real, flags=re.M))
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    journal.append("check", head=head, ok=True)
+    monkeypatch.setattr(check_tool, "run_ladder", lambda *a, **k: pytest.fail("the ladder ran again"))
+    args = ["land", "--repo", str(e), head, "--pinned", str(tmp_path), "--verdicts", str(tmp_path / "v"), "--log", str(tmp_path / "l"), "--state", str(tmp_path / "s")]
+    assert cli.main(args) == 1 and "verdict" in (tmp_path / "l").read_text()  # no READY verdict yet
+    land_tool.write_verdict(tmp_path / "v", e, "integration", head)
+    assert cli.main(args) == 0
+    assert f"READY TO LAND: git push origin {head}:refs/heads/integration" in capsys.readouterr().out
+    (e / "h").write_text("sk-" + "ant-abcdef12345"), monkeypatch.chdir(e)  # built here: the boundary scans this file's own added lines too
+    import subprocess
+    subprocess.run(["git", "-C", str(e), "add", "h"], check=True), subprocess.run(["git", "-C", str(e), "commit", "-qm", "leak"], check=True)
+    head2 = subprocess.run(["git", "-C", str(e), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    journal.append("check", head=head2, ok=True), land_tool.write_verdict(tmp_path / "v", e, "integration", head2)
+    args[3] = head2
+    assert cli.main(args) == 1 and "boundary" in (tmp_path / "l").read_text().splitlines()[-1]

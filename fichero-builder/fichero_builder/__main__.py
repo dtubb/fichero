@@ -172,14 +172,9 @@ def main(argv=None) -> int:
         if not a.repo:
             print("REFUSED: no --repo and no [check].engine_repo in the pinned rules", file=sys.stderr)
             return 1
-    if a.cmd == "land":  # ponytail: the gate is scripts/harness_land.py whole; this verb runs it, it does not copy it
-        import runpy
+    if a.cmd == "land":  # the green check row is the ladder's result for this head; the verb adds the verdict and the boundary only
+        from fichero_builder import land_tool
 
-        if problems := check_tool.rules_problems(a.pinned):  # the rules file first, as the gate script does: cheap and fail-closed
-            print("REFUSED (rules file):\n  " + "\n  ".join(problems), file=sys.stderr)
-            with open(a.log, "a") as f:
-                f.write(json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "refused": "rules", "detail": problems}) + "\n")
-            return 1
         head = resolve(a.repo, a.head)
         jp = journal.path()
         if jp.exists() and jp.stat().st_uid != os.getuid():  # land trusts this file: it must be the caller's own (review 1 N2)
@@ -188,17 +183,9 @@ def main(argv=None) -> int:
         if not head or not checked(head):
             print(f"REFUSED: no green `builder check` row for {head[:9] or a.head} in {journal.path()}; run builder check first", file=sys.stderr)
             return 1
-
-        script = Path(__file__).resolve().parents[2] / "scripts" / "harness_land.py"
-        sys.argv = [str(script), a.repo, a.head, "--pinned", a.pinned, "--verdicts", a.verdicts, "--log", a.log]
-        try:
-            runpy.run_path(str(script), run_name="__main__")
-        except SystemExit as e:
-            if isinstance(e.code, str):
-                print(e.code, file=sys.stderr)
-                return 1
-            return int(e.code or 0)
-        return 0
+        ok, out = land_tool.gate(a.repo, head, a.pinned, a.verdicts, a.log)
+        print(out, file=sys.stdout if ok else sys.stderr)
+        return 0 if ok else 1
     if a.cmd == "check":
         head = resolve(a.repo, a.head)  # before the ladder: a commit made meanwhile never gets the row (review 1 M5)
         if not head:

@@ -230,3 +230,36 @@ def boundary(root, base: str, head: str, patterns: list[str], cap: int = 30) -> 
         msg = _git(root, "log", "-n1", "--format=%B", sha)
         hits += [f"{sha[:10]} message: pattern {i}" for ln in msg.splitlines() for i, r in enumerate(rx) if r.search(ln)]
     return hits[:cap] + ([f"... and {len(hits) - cap} more"] if len(hits) > cap else [])
+
+
+def gate(repo, head: str, pinned, verdicts, log) -> tuple[bool, str]:
+    """`builder land` after a green check row for `head`: the rules file, the READY verdict and the boundary, no second ladder
+    (the row IS the ladder's result for this exact head; a second run doubled the pytest load). Every refusal is a row in
+    `log`; the result is the push line, which the caller prints and nobody here runs. scripts/harness_land.py keeps the ladder."""
+    import time
+    import tomllib
+    from pathlib import Path
+
+    from fichero_builder import check_tool
+
+    def row(**kw):
+        safe_append(log, json.dumps({"at": time.time(), "land": head, **kw}) + "\n")
+
+    if problems := check_tool.rules_problems(pinned):
+        row(refused="rules", detail=problems)
+        return False, "REFUSED (rules file):\n  " + "\n  ".join(problems)
+    land_cfg = tomllib.loads((Path(pinned) / "harness.toml").read_text())["land"]
+    branch = land_cfg["branch"]
+    try:
+        base = resolve_branch(repo, branch)
+        head = _git(repo, "rev-parse", "--verify", f"{head}^{{commit}}").strip()
+    except RuntimeError as e:
+        return False, f"REFUSED: {e}"
+    if stop := unreviewed(repo, branch, head, verdicts):
+        row(refused="verdict", detail=stop)
+        return False, "REFUSED:\n  " + "\n  ".join(stop)
+    if hits := boundary(repo, base, head, land_cfg.get("boundary", [])):
+        row(refused="boundary", detail=hits)
+        return False, "REFUSED (boundary):\n  " + "\n  ".join(hits)
+    row(check_row=True)
+    return True, f"READY TO LAND: git push origin {head}:refs/heads/{branch}   (the Lead runs this)"

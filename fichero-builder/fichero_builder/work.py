@@ -140,7 +140,8 @@ def do_review(a, repo: str, head: str, ladder: str, verdicts: str, model: str) -
 
 
 def do_land(a, repo: str, head: str, verdicts: str, log: str) -> tuple[bool, str]:
-    return _script("harness_land.py", repo, head, "--pinned", a.pinned, "--verdicts", verdicts, "--log", log)
+    """The check step just wrote the green row for this head: the verdict and the boundary, no second ladder (land_tool.gate)."""
+    return land_tool.gate(repo, head, a.pinned, verdicts, log)
 
 
 def base_of(brief: str, given: str) -> str:
