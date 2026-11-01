@@ -44,6 +44,8 @@ def test_a_complete_rules_file_has_no_problems(tmp_path):
     (GOOD.replace('check_paths = ["scripts/"]\n', ""), "check_paths"),  # review-2 H10: pinning off = fail open
     (GOOD.replace('contract_paths = ["src/"]\n', ""), "contract_paths"),
     (GOOD.replace('pytest_config = "pyproject.toml"\n', ""), "pytest_config"),
+    (GOOD + '[brief]\nrulez = "x"\n', "rulez"),  # run.rules-file: a misspelt key refuses, or every brief silently loses its rules
+    (GOOD + "[brief]\nrules = 3\n", "brief"),
     ("not toml [", "harness.toml"),
 ])
 def test_each_gap_is_a_named_problem(tmp_path, bad, expect):

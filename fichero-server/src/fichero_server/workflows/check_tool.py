@@ -59,6 +59,11 @@ def load(root) -> Config:
         raise ValueError(f"harness.toml [check]: unknown keys {unknown}")
     if unknown := sorted(set(doc) - {"check", "jail", "policy", "land", "brief"}):
         raise ValueError(f"harness.toml: unknown tables {unknown}")
+    brief = doc.get("brief", {})
+    if unknown := sorted(set(brief) - {"rules"}):
+        raise ValueError(f"harness.toml [brief]: unknown keys {unknown}")
+    if not isinstance(brief.get("rules", ""), str):
+        raise ValueError("harness.toml [brief]: rules must be text")
     d = Config()
     return Config(
         python=c.get("python", d.python), python_path=tuple(c.get("python_path", d.python_path)),

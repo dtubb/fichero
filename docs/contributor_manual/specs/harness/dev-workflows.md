@@ -213,9 +213,11 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
 - `dev-workflows.builder.cluster` [PARTIAL] (#6116) — one spec and its build-order issues (parser ported from
   `pipeline/plan.py`), in order, one commit per issue with its test; the brief is built by `scripts/harness_brief.py` from
   `gh api repos/{repo}/issues/N`: the body and the **title** only when the author association is owner, member or
-  collaborator, the comments by the same rule newest first, the rest counted as "N outside texts, ask"; the spec lines and
+  collaborator, the comments by the same rule newest first, the rest counted as "(N comment(s) from untrusted authors left out.)"; the spec lines and
   localisation from `pipeline/localise.py`; tested against a recorded real payload. The cluster record is the handoff
-  file and the rows until the plan layer exists. Test:
+  file and the rows until the plan layer exists. Several issues with `--branch` and `--base` make one cluster brief: a
+  preamble ending in the DONE line, the text of `harness.toml` `[brief].rules`, then every issue, so a worker needs no issue
+  tool. Tests: `fichero-server/tests/unit/workflows/test_brief_tool.py::test_a_cluster_brief_has_the_preamble_then_every_issue_and_never_tells_the_worker_to_use_gh`,
   `fichero-server/tests/unit/workflows/test_cluster_run.py::test_cluster_in_build_order_one_commit_each`.
 - `dev-workflows.worker.steers` [PROPOSED] — the worker owns the task's judgement and calls the steps as tools (`brief`,
   `check`, `request-review`, `verdicts`, `land`, `ask`, `hand-off`; `close`, `update-issue` and `file-bug` only once the
@@ -251,7 +253,7 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   returns at once and the worker reads verdicts with a `verdicts` tool; NOT_READY findings belong to the task's current
   generation (two rounds, then the queue). `land` is a script: fetch the sha into the engine-owned repository, ladder on
   the rebased head there, a READY verdict for **every commit** in the range by `--verbatim` patch-id and message hash (a
-  merge, or a commit without exactly one id, refuses the range), the public-boundary grep over diff and messages, then the fast-forward of the integration branch (a merge mode for the release merge-back is added
+  merge, or a commit without exactly one id, refuses the range), the public-boundary grep over diff and messages (a hit names the commit, the file or message and the pattern's index, never the matching text, since it goes to logs), then the fast-forward of the integration branch (a merge mode for the release merge-back is added
   before any ruleset restricts updates); `main` never. Until the GitHub App exists the script prints the fast-forward and
   the Lead pushes. `Fixes #N` closes with the sha, `Part of #N` leaves open with the residue. A research task's review is
   the person's. Only `check`'s output and a verdict move an item. Test:
@@ -297,7 +299,8 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   never the worker's order of work: integration and protected branches, worktree root and branch pattern, commit author
   and trailers, scratch path, allowed tools and forbidden commands, each rung of the ladder **declared on or off** as an
   argv list with env, cwd and time budget, the pinned paths, the paths `red_on_base` applies to, turn and dollar caps,
-  machine limits, landing conditions, the people list, the review checklist path, the role models, the handoff line.
+  machine limits, landing conditions, the people list, the review checklist path, the role models, the handoff line, the
+  project rules put in every cluster brief (`[brief].rules`, text).
   **Fail-closed:** an unknown or misspelt key refuses to load; an undeclared rung is an error, never "skipped". The hook,
   `check`, `land` and the tick read it. Test:
   `fichero-server/tests/unit/workflows/test_rules_file.py::test_unknown_key_refuses_and_every_rung_is_declared`.
