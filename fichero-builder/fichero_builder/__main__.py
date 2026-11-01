@@ -193,7 +193,7 @@ def main(argv=None) -> int:
             print(f"REFUSED: {a.since}..{a.head} is empty: nothing to check", file=sys.stderr)
             return 1
         print(json.dumps(r, indent=1))
-        journal.append("check", repo=str(a.repo), since=since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""))
+        journal.append("check", repo=str(a.repo), since=since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""), maintainer=a.maintainer)
         return 0 if r.get("ok") else 1
     if a.kind == "pi":
         from fichero_builder import pi_rpc

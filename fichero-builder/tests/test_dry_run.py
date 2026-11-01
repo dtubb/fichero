@@ -187,3 +187,15 @@ def test_the_land_verb_runs_the_gate_and_a_bad_rules_file_refuses_before_anythin
     err = capsys.readouterr().err
     assert rc == 1 and "REFUSED (rules file)" in err and "breif" in err
     assert "rules" in (tmp_path / "log").read_text()
+
+
+def test_the_check_row_records_whether_it_was_a_maintainer_batch_and_checked_is_unchanged(monkeypatch, tmp_path):
+    from fichero_builder import __main__ as cli, check_tool, journal
+
+    monkeypatch.setattr(cli, "resolve", lambda repo, rev: rev)
+    monkeypatch.setattr(check_tool, "run_ladder", lambda *a, **k: {"ok": True})
+    argv = ["check", "--repo", "/r", "abc", "def", "--pinned", "/p", "--state", str(tmp_path / "state")]
+    assert cli.main(argv) == 0 and cli.main([*argv, "--maintainer"]) == 0
+    rows = [r for r in journal.read() if r["event"] == "check"]
+    assert [r["maintainer"] for r in rows] == [False, True]
+    assert cli.checked("def")
