@@ -460,8 +460,10 @@ def _resume_argument(request: "ResumeWorkflowRequest | None") -> Any:
 @router.post("/threads/{thread_id}/resume")
 async def resume_workflow(
     thread_id: str,
+    http_request: Request,
     request: ResumeWorkflowRequest | None = None,
     db: Database = Depends(get_library_database_for_write),
+    library_path: str = Depends(require_library_path),
 ) -> ExecutionStatusResponse:
     """
     Resume a paused workflow from checkpoint (non-blocking, #4317).
@@ -536,6 +538,15 @@ async def resume_workflow(
             )
 
         activity_tracker = get_activity_tracker(str(db.path))
+        # The run continues on the documents it started with and the ones this call adds; the caller must be able to write
+        # them all, and is shown none of the run's state otherwise (#6320).
+        began = await activity_tracker.store.get_workflow_run(thread_id)
+        began_with = (began.workflow_snapshot or {}).get("request") if began and isinstance(began.workflow_snapshot, dict) else None
+        named = (input_document_ids(resume_state if isinstance(resume_state, dict) else None)
+                 + input_document_ids(began_with.get("inputs") if isinstance(began_with, dict) else None)
+                 + input_document_ids(request.inputs if request else None))
+        if named:
+            await write_check(http_request, library_path, db, list(dict.fromkeys(named)))
         await activity_tracker.store.update_workflow_run(
             thread_id=thread_id,
             status="running",

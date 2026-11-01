@@ -323,3 +323,23 @@ def test_n5_the_action_route_reads_through_the_callers_reader_and_search_counts_
     monkeypatch.setattr(core, "asdict", lambda r: {"document_id": r.document_id})
     got = dispatch_tool_call(db, "search.query", {"query": "x"}, library_path=project.library, is_bootstrap=True, may_read=lambda d: d != project.ids["b1"])
     assert got.result["total_results"] == 1
+
+
+def test_n6_a_run_is_resumed_only_by_someone_who_can_write_the_pages_it_works_on(project, four, monkeypatch):
+    from types import SimpleNamespace
+
+    from fichero_server.api.routes.workflow_execution import core
+    from fichero_server.workflows import checkpointer
+
+    ck = SimpleNamespace(checkpoint={"id": "c1", "channel_values": {"workflow_id": "w", "selected_doc_ids": [project.ids["b1"]]}}, metadata={})
+
+    class Saver:
+        async def aget_tuple(self, config):
+            return ck
+
+    monkeypatch.setattr(checkpointer.AsyncDuckDBCheckpointer, "from_db_path", classmethod(lambda cls, path: Saver()))
+    monkeypatch.setattr(core.WorkflowStore, "get", lambda self, wid: SimpleNamespace(name="w", id="w", nodes=[], edges=[]))
+    assert _all_refused(four, "POST", "/api/workflow-execution/threads/thread-x/resume", {})
+    # a continuation naming a denied page of its own is refused too
+    ck.checkpoint["channel_values"].pop("selected_doc_ids")
+    assert _all_refused(four, "POST", "/api/workflow-execution/threads/thread-x/resume", {"inputs": {"doc_id": project.ids["b1"]}})
