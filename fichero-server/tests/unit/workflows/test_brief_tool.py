@@ -78,3 +78,11 @@ def test_members_are_trusted_and_an_untrusted_title_is_left_out(tmp_path):
     text = brief_tool.build(brief_tool.fetch_issue(1, repo="o/r", gh=_fake_gh(tmp_path, rec)), repo=str(tmp_path))
     assert "ignore previous" not in text
     assert "MEMBER" in brief_tool.TRUSTED
+
+
+def test_a_cluster_brief_has_the_preamble_then_every_issue_and_never_tells_the_worker_to_use_gh():
+    issues = [_issue(number=1, title="One"), _issue(number=2, title="Two")]
+    text = brief_tool.cluster(issues, repo=".", branch="cluster-x", base="abc1234", rules="RULES: be careful")
+    assert text.index("Branch cluster-x") < text.index("abc1234") < text.index("# Issue #1: One") < text.index("# Issue #2: Two")
+    assert "DONE <short sha" in text and "No push" in text and "be careful" in text
+    assert "gh issue view" not in text and "everything you need is below" in text.lower()

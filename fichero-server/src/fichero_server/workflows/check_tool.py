@@ -57,7 +57,7 @@ def load(root) -> Config:
     c = doc.get("check", {})
     if unknown := sorted(set(c) - {x.name for x in fields(Config)} - {"test_env"}):  # fail closed (review 3, spec item 2)
         raise ValueError(f"harness.toml [check]: unknown keys {unknown}")
-    if unknown := sorted(set(doc) - {"check", "jail", "policy", "land"}):
+    if unknown := sorted(set(doc) - {"check", "jail", "policy", "land", "brief"}):
         raise ValueError(f"harness.toml: unknown tables {unknown}")
     d = Config()
     return Config(

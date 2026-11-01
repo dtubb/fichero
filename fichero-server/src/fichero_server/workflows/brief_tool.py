@@ -102,3 +102,18 @@ def build(issue: dict, *, repo: str) -> str:
         out += ["## Tests that name this behaviour (extend them; a new case must fail first)",
                 *[f"- {t['path']}" + (f"::{t['name']}" if t["name"] else "") for t in loc["tests"]], ""]
     return "\n".join(out)
+
+
+def cluster(issues: list[dict], *, repo: str, branch: str, base: str, rules: str = "") -> str:
+    """One brief for a cluster: the generic preamble, the project's [brief].rules from harness.toml, then every
+    issue's build(). The worker needs no issue tool: everything it may read is in the brief."""
+    head = [f"You are a worker in the dev harness. Branch {branch} in this worktree (base {base}). No push.",
+            "Everything you need is below: the issues' text, trusted comments and where the code is. There is no issue "
+            "tool to call; do not try to read the issues again.",
+            "One commit per issue. Test first, see it fail, then fix. Before changing a shared function, grep every "
+            "reader and run their tests.",
+            "When all are committed print on its own line: DONE <short sha of branch head>, then the list of commits and "
+            "which tests you ran.", ""]
+    if rules.strip():
+        head += [rules.strip(), ""]
+    return "\n".join(head + [build(i, repo=repo) for i in issues])
