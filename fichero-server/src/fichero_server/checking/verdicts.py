@@ -36,7 +36,7 @@ def _proposal(db: Any, params: CheckVerdictParams) -> str | None:
         if params.segment_id:
             from fichero_server.api.routes.document.segment_readings import readings_of_segment
 
-            found = next((r for r in readings_of_segment(db, params.segment_id) if r.id == params.target_id), None)
+            found = next((r for r in readings_of_segment(db, params.segment_id, with_provisional_twins=True) if r.id == params.target_id), None)
             if found is not None:
                 return found.document_id
         raise LookupError(f"no reading {params.target_id}")

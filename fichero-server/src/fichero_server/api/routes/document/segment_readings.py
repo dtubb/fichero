@@ -229,8 +229,12 @@ def _artifact_and_box(
 def without_provisional_twins(items: list[ReadingRead]) -> list[ReadingRead]:
     """One listing per reading (`source.recipe.one-reading-a-line`, #6085): a provisional reading whose
     stored twin (same artifact, kind and content, not taken back) is also listed says the line twice, so
-    it is dropped here and every client gets one row. The twin has the stored reading's words, so what
-    counts reads the same; a choice only ever names a stored reading."""
+    it is dropped here and every client gets one row. The twin has the stored reading's words but not its
+    date (the artifact's, not the row's), so what counts CAN change: where the twin was the newest machine
+    reading, the counted words are now the next reading's, because the stored reading is the one ranked
+    (#5558; `test_6085_one_listing.py`). A counting twin is no longer kept. A choice only ever names a
+    stored reading.
+    """
     stored = {
         (i.derived_from_artifact_id, i.kind, i.content)
         for i in items
@@ -351,9 +355,16 @@ def _reading_read_from_row(row: ContentRepresentation) -> ReadingRead:
 
 
 def readings_of_segment(
-    db: Database, segment_id: str, *, artifact_memo: dict[str, Artifact | None] | None = None
+    db: Database, segment_id: str, *, artifact_memo: dict[str, Artifact | None] | None = None,
+    with_provisional_twins: bool = False,
 ) -> list[ReadingRead]:
     """Every reading of one segment, from BOTH stores.
+
+    One listing per reading (#6085): a provisional reading whose stored twin is also listed is dropped
+    (`without_provisional_twins`). `with_provisional_twins=True` keeps it, for a caller that looks a
+    reading up by id: a verdict recorded on the line's reading before conversion is keyed by the
+    provisional id, which conversion does not carry over, and a new editorial span may still name that
+    id (it is accepted and kept, though not drawn).
 
     A real segment is resolved first (`resolve_segment`), so a reading written
     against an id that has since been merged away is still found under the
@@ -376,7 +387,7 @@ def readings_of_segment(
         seen.add(row.id)
         items.append(_reading_read_from_row(row))
     items.extend(provisional_readings(db, live_id, artifact_memo=artifact_memo))
-    return without_provisional_twins(items)
+    return items if with_provisional_twins else without_provisional_twins(items)
 
 
 def _document_readings(db: Database, document_id: str) -> list[ContentRepresentation]:
