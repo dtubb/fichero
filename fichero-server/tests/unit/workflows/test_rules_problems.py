@@ -60,3 +60,11 @@ def test_the_ladder_refuses_a_rules_file_with_problems(tmp_path):
     (tmp_path / "harness.toml").write_text(GOOD.replace("deny_read = [\"~/.ssh\"]", "deny_read = []"))
     with pytest.raises(J.JailMissing, match="deny_read"):
         C.run_ladder(tmp_path, "a", "b", tmp_path)
+
+
+def test_an_engine_repo_that_is_not_a_git_repository_is_a_problem(tmp_path):
+    from fichero_server.workflows import check_tool as ct
+
+    (tmp_path / "harness.toml").write_text('[check]\nengine_repo = "/nonexistent/engine"\n')
+    assert any("is not a git repository" in p for p in ct.rules_problems(tmp_path))
+    assert not any("is not a git repository" in p for p in ct.rules_problems(tmp_path / "nowhere"))  # unset = not a problem

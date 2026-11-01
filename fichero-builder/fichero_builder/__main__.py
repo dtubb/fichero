@@ -62,18 +62,25 @@ def main(argv=None) -> int:
     r.add_argument("--handoff", help="the handoff file a successor reads (default <worktree>/HANDOFF.md)")
     r.add_argument("--state", help="where the journal lives (default $FICHERO_BUILDER_STATE, else <[jail].workroot>/state, else the XDG state home)")
     c = sub.add_parser("check", help="run the ladder over SINCE..HEAD from the pinned copy; exit 1 if red")
-    c.add_argument("repo"), c.add_argument("since"), c.add_argument("head")
+    c.add_argument("--repo", help="the engine-owned repo to judge from (default [check].engine_repo of the pinned rules)")
+    c.add_argument("since"), c.add_argument("head")
     c.add_argument("--pinned", required=True)
     c.add_argument("--id", action="append", default=[])
     c.add_argument("--state", help="where the journal lives (default: see run --state)")
     land = sub.add_parser("land", help="the land gate: a READY verdict for the exact range, the boundary, the ladder; prints the push, never pushes")
-    land.add_argument("repo"), land.add_argument("head")
+    land.add_argument("--repo", help="the engine-owned repo (default [check].engine_repo of the pinned rules)")
+    land.add_argument("head")
     land.add_argument("--pinned", required=True), land.add_argument("--verdicts", required=True), land.add_argument("--log", required=True)
     land.add_argument("--state", help="where the journal lives (default: see run --state)")
     a = ap.parse_args(argv)
     # run (as the worker) journals under the shared workroot; check and land (as the owner) keep the owner's own journal,
     # because land trusts the check row: a journal the worker can write would let a worker forge one.
     journal.STATE = state_dir(a.root, a.state) if a.cmd == "run" else (Path(a.state) if a.state else journal.STATE)
+    if a.cmd in ("check", "land") and not a.repo:
+        a.repo = check_tool.load(a.pinned).engine_repo
+        if not a.repo:
+            print("REFUSED: no --repo and no [check].engine_repo in the pinned rules", file=sys.stderr)
+            return 1
     if a.cmd == "land":  # ponytail: the gate is scripts/harness_land.py whole; this verb runs it, it does not copy it
         import runpy
 

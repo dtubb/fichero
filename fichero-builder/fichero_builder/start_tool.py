@@ -58,6 +58,10 @@ def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_b
         "PreToolUse": [{"matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit", "hooks": [hook]}],
         "PostToolUse": [handoff], "Stop": [handoff]}}
     (scratch / "settings.json").write_text(json.dumps(settings, indent=1))
+    # the worker's git must open owner-made trees (the engine repo, the ladder's scratch worktrees) or every call there dies
+    # with "dubious ownership" (first real check, 2026-11-01); the worker user is the jail, so the wide allow is its own risk only
+    if "*" not in subprocess.run(["git", "config", "--global", "--get-all", "safe.directory"], capture_output=True, text=True).stdout.split():
+        subprocess.run(["git", "config", "--global", "--add", "safe.directory", "*"], check=True)
     (scratch / "mcp.json").write_text(json.dumps({"mcpServers": {}}))
     # a linked worktree's .git is a file: ask git where hooks live (the clone's shared hooks dir)
     hooks = subprocess.run(["git", "-C", str(worktree), "rev-parse", "--path-format=absolute", "--git-path", "hooks"],

@@ -383,6 +383,21 @@ def test_the_ready_rung_lets_the_projects_scripts_import_their_siblings(tmp_path
     (tmp_path / "scripts" / "ready.sh").chmod(0o755)
     r = ct.ready(tmp_path, ct.Config(ready=("scripts/ready.sh",)))
     assert r["ok"], r["stderr_tail"]
-    (tmp_path / "scripts" / "check_spawn.py").write_text(f"import subprocess, sys; sys.exit(subprocess.run([sys.executable, 'scripts/guard.py']).returncode)\n")
+    (tmp_path / "scripts" / "check_spawn.py").write_text("import subprocess, sys; sys.exit(subprocess.run([sys.executable, 'scripts/guard.py']).returncode)\n")
     g = ct.guards(tmp_path, ct.Config(guard_glob="scripts/check_*.py"))
     assert g["ok"], g["results"]  # a guard that runs a sibling script by plain python: the same rule
+
+
+def test_scratch_dirs_are_removed_through_the_jail_when_one_is_set(tmp_path, monkeypatch):  # 2026-11-01: nine check-base dirs left behind
+    calls = []
+
+    class FakeJail:
+        def argv(self, argv, cwd=None, env=None):
+            calls.append(list(argv))
+            return argv
+    monkeypatch.setattr(ct, "_JAIL", FakeJail())
+    d = tmp_path / "scratch"
+    d.mkdir()
+    (d / "f").write_text("x")
+    ct._remove_scratch(str(d))
+    assert not d.exists() and calls and calls[0][:2] == ["rm", "-rf"]

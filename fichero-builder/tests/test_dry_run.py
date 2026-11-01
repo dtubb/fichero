@@ -171,10 +171,10 @@ def test_the_check_verb_runs_the_ladder_and_exits_on_its_verdict(monkeypatch, ca
     calls = []
     monkeypatch.setattr(cli, "resolve", lambda repo, rev: rev)  # no git here: the head is taken as given
     monkeypatch.setattr(check_tool, "run_ladder", lambda *a: calls.append(a) or {"ok": False, "rungs": []})
-    assert cli.main(["check", "/r", "abc", "def", "--pinned", "/p", "--id", "x.y", "--state", "/tmp/fb-test-state"]) == 1
+    assert cli.main(["check", "--repo", "/r", "abc", "def", "--pinned", "/p", "--id", "x.y", "--state", "/tmp/fb-test-state"]) == 1
     assert calls == [("/r", "abc", "def", "/p", ["x.y"])] and '"ok": false' in capsys.readouterr().out
     monkeypatch.setattr(check_tool, "run_ladder", lambda *a: {"ok": True})
-    assert cli.main(["check", "/r", "abc", "def", "--pinned", "/p", "--state", "/tmp/fb-test-state"]) == 0
+    assert cli.main(["check", "--repo", "/r", "abc", "def", "--pinned", "/p", "--state", "/tmp/fb-test-state"]) == 0
 
 
 def test_the_land_verb_runs_the_gate_and_a_bad_rules_file_refuses_before_anything(tmp_path, capsys):
@@ -183,7 +183,7 @@ def test_the_land_verb_runs_the_gate_and_a_bad_rules_file_refuses_before_anythin
     pinned = tmp_path / "pinned"
     pinned.mkdir()
     (pinned / "harness.toml").write_text("[breif]\nrules = 1\n")  # a misspelt table: rules_problems refuses
-    rc = cli.main(["land", str(tmp_path), "HEAD", "--pinned", str(pinned), "--verdicts", str(tmp_path / "v"), "--log", str(tmp_path / "log")])
+    rc = cli.main(["land", "--repo", str(tmp_path), "HEAD", "--pinned", str(pinned), "--verdicts", str(tmp_path / "v"), "--log", str(tmp_path / "log")])
     err = capsys.readouterr().err
     assert rc == 1 and "REFUSED (rules file)" in err and "breif" in err
     assert "rules" in (tmp_path / "log").read_text()

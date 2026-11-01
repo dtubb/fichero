@@ -47,6 +47,10 @@ build = ["xcodebuild", "-project", "fichero/fichero.xcodeproj", "-scheme", "Fich
 build_timeout_s = 3600
 # Only the owner's process takes this lock, so it lives in the owner's own state dir (~ expands), not the shared area.
 build_lock = "~/.local/state/fichero-builder/build.lock"
+# The engine-owned repository check and land judge from: outside every home dir, owner-owned, world-readable (the jailed
+# user reads its objects and the scratch worktrees made from it). Set up once: git clone --no-checkout <owner repo> here;
+# chmod -R a+rX; a local `integration` branch; fetch landing branches into it by ref.
+engine_repo = "/Users/Shared/fichero-engine"
 [check.test_env]
 FICHERO_FEATURE_TIER = "dev"
 OMP_NUM_THREADS = "2"

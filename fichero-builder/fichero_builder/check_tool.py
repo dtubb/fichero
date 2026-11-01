@@ -51,6 +51,7 @@ class Config:
     build: tuple = ()                   # argv of a build-only compile (never a test run), run in the scratch tree
     build_timeout_s: float = 1800
     build_lock: str = ""                # a lock file: one build at a time on the machine ("" = no lock)
+    engine_repo: str = ""               # the engine-owned repository check and land judge from: outside every home dir, readable by the jailed user ("" = the caller names one)
 
 
 def load(root) -> Config:
@@ -81,7 +82,7 @@ def load(root) -> Config:
         pytest_config=c.get("pytest_config", d.pytest_config), pytest_plugins=tuple(c.get("pytest_plugins", d.pytest_plugins)), max_files=c.get("max_files", d.max_files),
         max_lines=c.get("max_lines", d.max_lines), build_paths=tuple(c.get("build_paths", d.build_paths)),
         build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
-        build_lock=c.get("build_lock", d.build_lock))
+        build_lock=c.get("build_lock", d.build_lock), engine_repo=c.get("engine_repo", d.engine_repo))
 
 
 def rules_problems(root) -> list[str]:
@@ -111,6 +112,8 @@ def rules_problems(root) -> list[str]:
             out.append(f"harness.toml [check].{name} is not declared")
     if c.python and not Path(c.python).is_absolute():
         out.append(f"[check].python {c.python!r} must be an absolute path (no PATH lookup, no shim)")
+    if c.engine_repo and not (Path(c.engine_repo) / ".git").exists():  # first real check 2026-11-01: a tree under ~ is unreadable to the jailed user
+        out.append(f"[check].engine_repo {c.engine_repo!r} is not a git repository (clone the owner's repo there, readable by the jailed user)")
     land = tomllib.loads(f.read_text()).get("land", {})
     if unknown := sorted(set(land) - {"branch", "boundary"}):
         out.append(f"harness.toml [land]: unknown keys {unknown}")
@@ -203,7 +206,15 @@ def _run(name, argv, root, timeout_s, cfg: Config, extra: dict | None = None) ->
     finally:
         for d in (env["HOME"], env.get(cfg.base_path_env or "")):
             if d:
-                shutil.rmtree(d, ignore_errors=True)  # ponytail: a jailed user's files stay if we cannot remove them
+                _remove_scratch(d)
+
+
+def _remove_scratch(d: str) -> None:
+    """A scratch dir the jailed user wrote into is removed AS that user (the owner cannot delete its files: nine
+    check-base dirs were left behind on 2026-11-01); unjailed, a plain rmtree."""
+    if _JAIL is not None:
+        run_command("cleanup", ["rm", "-rf", d], "/", 60)
+    shutil.rmtree(d, ignore_errors=True)
 
 
 def ready(root, cfg: Config, timeout_s: float = 600) -> dict:

@@ -96,3 +96,18 @@ def test_trust_folder_marks_only_that_worktree(tmp_path):
     S.trust_folder("/wt", home=tmp_path)
     cfg = json.loads((tmp_path / ".claude.json").read_text())
     assert cfg["x"] == 1 and cfg["projects"]["/a"] == {"k": 2} and cfg["projects"]["/wt"] == {"hasTrustDialogAccepted": True}
+
+
+def test_prepare_allows_the_workers_git_to_open_owner_made_trees(tmp_path, monkeypatch):  # 2026-11-01: "dubious ownership"
+    import subprocess
+
+    from fichero_server.workflows import start_tool
+
+    monkeypatch.setenv("HOME", str(tmp_path))  # a scratch global git config
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    wt = tmp_path / "wt"
+    subprocess.run(["git", "init", "-q", str(wt)], check=True)
+    (tmp_path / "brief.txt").write_text("go")
+    start_tool.prepare(tmp_path, wt, "go", tmp_path / "scratch")
+    got = subprocess.run(["git", "config", "--global", "--get-all", "safe.directory"], capture_output=True, text=True).stdout.split()
+    assert "*" in got
