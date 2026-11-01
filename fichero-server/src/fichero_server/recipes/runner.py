@@ -2004,7 +2004,8 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
             step["child_id"] = jobs.running_child(db, job_id)
         child = jobs.read_job(db, step["child_id"]) if step.get("child_id") else None
         if child is not None:
-            step["state"] = child["state"]
+            if not (step["state"] == "partial" and child["state"] == "done"):
+                step["state"] = child["state"]  # a stored partial is kept when its job reads done: the list records what the run did (#6319)
             if child["state"] in ("failed", "cancelled") and not step.get("why"):
                 step["why"] = child["reason"]
     if row["state"] in ("done", "failed", "cancelled"):

@@ -878,7 +878,7 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
         documents_proposed=proposed, documents_accepted=accepted, groups_proposed=groups, entries=entries,
         failed=failed, pages_failed=sum(f.pages_failed for f in failed),
         skipped=[SkippedStep(**s) for s in status.get("skipped", [])],
-        not_run=[RecipeRunStep(**s) for s in status["steps"] if s["state"] in _UNFINISHED],
+        not_run=[RecipeRunStep(**s) for s in status["steps"] if s["state"] in _UNFINISHED and s["state"] != "partial"],  # a partial step ran
     )
     seen: set[str] = set()
     for step in status["steps"]:  # each page once, though both a lining and a reading stage left it out
