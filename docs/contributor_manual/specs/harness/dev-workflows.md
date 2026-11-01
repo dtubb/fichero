@@ -346,6 +346,18 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   Tests: `fichero-builder/tests/test_watch.py::test_the_page_shows_every_run_check_and_land_newest_first_with_status_and_cost`,
   `::test_watch_serves_the_journal_page_on_the_loopback_only`, `::test_the_page_reads_the_owners_journal_and_the_workers_shared_one`,
   `::test_a_run_that_handed_off_shows_running_once_its_next_generation_starts`.
+- `dev-workflows.tool.triage` [PARTIAL] (#6116; owner 2026-11-01) — `builder triage [--labels] [--specs] [--dry]` cleans
+  the repo's GitHub metadata deterministically and changes it directly (owner ruling: no proposals file, no manual approval);
+  every change is one journal row (event `triage`) and one `gh` call that can be read back; `--dry` reads, prints and journals
+  rows marked dry, writes nothing. **Labels** (built 2026-11-01): the kept families are `spec:<spec file stem>` (one per file
+  under `docs/contributor_manual/specs/<area>/`; a missing one is created, a `spec:` label with no file is deleted), `step:N.M`,
+  `type:bug|feature|task`, `needs-your-decision`, `needs-your-test`, `needs-spec`, `status:blocked`; every other label is
+  removed from its issues and deleted after the issues get the kept label the table `harness.toml [triage.labels]` names
+  for it (absent = nothing), and the mapping applied is printed. **Spec label from the citing spec** (built 2026-11-01): an
+  open issue with no `spec:` label gets the label of every spec whose text cites `#N`; none found gives `needs-spec`.
+  Not yet: milestones from the spec's `> Milestone:` line, milestone consolidation, the build-order file, assignees.
+  Tests: `fichero-builder/tests/test_triage_verb.py::test_labels_are_consolidated_by_the_rules_table_and_the_mapping_is_printed`,
+  `::test_dry_changes_nothing_and_prints_the_counts`, `::test_the_spec_label_comes_from_the_spec_that_cites_the_issue_else_needs_spec`.
 - `dev-workflows.builder.cluster` [PARTIAL] (#6116) — one spec and its build-order issues (parser ported from
   `pipeline/plan.py`), in order, one commit per issue with its test; the brief is built by `scripts/harness_brief.py` from
   `gh api repos/{repo}/issues/N`: the body and the **title** only when the author association is owner, member or
@@ -692,6 +704,12 @@ Steps a long-running builder can take from the heading. `Depends on` defaults to
 - Depends on: 2.3
 - Size: M
 
+#### Step 2.5 — `builder triage`: labels, spec labels, milestones, the build-order file, assignees (owner 2026-11-01)
+- Behaviours: `dev-workflows.tool.triage`
+- Tests: fichero-builder/tests/test_triage_verb.py
+- Depends on: 2.4
+- Size: M
+
 ### Stage 3 — the Pi kind by RPC, the sandbox, local parity
 
 #### Step 3.1 — `--kind pi` over RPC with a fail-closed `tool_call` extension; a metered provider; one model per role in the rules file
@@ -756,6 +774,7 @@ Every behaviour names its test above, written in its step; each `security.*` and
 | `dev-workflows.tool.steps` | 2.3 |
 | `dev-workflows.tool.landed` | 2.4 |
 | `dev-workflows.tool.watch` | 2.4 |
+| `dev-workflows.tool.triage` | 2.5 |
 | `dev-workflows.run.worker-address` | 1.1 |
 | `dev-workflows.node.worker` | 1.2 |
 | `dev-workflows.rollout.dry-run` | 1.2 |

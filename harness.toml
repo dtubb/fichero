@@ -124,3 +124,12 @@ reviewer = { provider = "claude-code", model = "opus" }
 spec-writer = { provider = "claude-code", model = "opus" }
 helper = { provider = "claude-code", model = "haiku" }
 researcher = { provider = "claude-code", model = "sonnet" }
+
+[triage.labels]
+# `builder triage --labels` (dev-workflows.tool.triage): every label outside the kept families (spec:*, step:*, type:*,
+# needs-your-decision, needs-your-test, needs-spec, status:blocked) is removed from its issues and deleted; this table says
+# which kept label its issues get first. A label absent here maps to nothing. Edit here, not in code.
+sharing = "spec:sharing-two-macs"
+performance = "type:bug"
+security = "type:bug"
+needs-design = "needs-spec"

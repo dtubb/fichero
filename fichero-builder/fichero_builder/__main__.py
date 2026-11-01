@@ -99,6 +99,12 @@ def main(argv=None) -> int:
     ld.add_argument("--push", action="store_true", help="push sha to origin/<branch> first; nothing else ever sets this")
     ld.add_argument("--no-issues", action="store_true", help="leave the cited issues alone")
     ld.add_argument("--state", help="where the owner's journal lives (default: the owner's journal dir)")
+    tr = sub.add_parser("triage", help="clean up the repo's GitHub metadata directly by the rules in harness.toml [triage]; --dry reads only")
+    tr.add_argument("--labels", action="store_true", help="kept label families only; spec:<stem> follows the spec files; the rest moved by [triage.labels] then deleted")
+    tr.add_argument("--specs", action="store_true", help="an open issue with no spec: label gets the label of the spec that cites it, else needs-spec")
+    tr.add_argument("--dry", action="store_true"), tr.add_argument("--gh", default="gh")
+    tr.add_argument("--root", default=str(Path.cwd()), help="the checkout holding harness.toml and docs/contributor_manual/specs")
+    tr.add_argument("--state", help="where the journal lives (default: the owner's journal dir)")
     wa = sub.add_parser("watch", help="a live progress page from the journal on 127.0.0.1 (runs, checks, lands)")
     wa.add_argument("--port", type=int, default=8765)
     wa.add_argument("--state", help="where the owner's journal lives (default: the owner's journal dir)")
@@ -145,6 +151,10 @@ def main(argv=None) -> int:
     journal.STATE = state_dir(a.root, a.state) if a.cmd == "run" else (Path(a.state) if a.state else journal.STATE)
     if a.cmd == "work":
         return work.main(a)
+    if a.cmd == "triage":
+        from fichero_builder import triage
+
+        return triage.main(a)
     if a.cmd == "watch":
         from fichero_builder import watch
 
