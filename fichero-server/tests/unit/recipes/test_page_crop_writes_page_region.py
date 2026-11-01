@@ -4,6 +4,8 @@ WHY: Preview draws the corners and Squaring warps from them; Leave Out and Find 
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from fichero_server.models import DocType, Document, FileType
 from tests.unit.media.test_find_page import PAGE, H, W, scan
 
@@ -112,3 +114,27 @@ def test_curated_exclusion_and_a_cut_page_survive_crop_pages_not_only_mark_blank
     assert db.get(Document, cut.id).metadata["split_source_id"] == source.id
 
 
+
+
+def test_a_page_prepared_again_keeps_its_image_signature_so_read_does_not_read_it_again(db, tmp_path, monkeypatch):
+    """Trace of PREP_VERSION 3: a stamp that no longer holds prepares the page again. The renditions it writes were named by a
+    fresh uuid, so the image signature (the file name) changed and `unread_by` counted every reading as made from another
+    image. Named by its bytes, the same pixels give the same name (same input + same model: reuse, never rerun)."""
+    from fichero_server.media import find_page as module
+    from fichero_server.models import Rendition
+    from fichero_server.recipes import page_crop
+
+    monkeypatch.setattr(module, "find_page_vision", lambda image: None)
+    path = tmp_path / "scan.png"
+    scan().save(path)
+    doc = Document(name=path.name, doc_type=DocType.file, file_type=FileType.image, path=str(path), metadata={})
+    db.save(doc)
+
+    def names():
+        return sorted(Path(r.path).name for r in db.query(Rendition, document_id=doc.id))
+
+    assert page_crop.crop_pages(db, [doc.id], "run-1", prepare=True)["cropped"] == 1
+    first = names()
+    assert first
+    assert page_crop.crop_pages(db, [doc.id], "run-2", prepare=True)["cropped"] == 1
+    assert names() == first

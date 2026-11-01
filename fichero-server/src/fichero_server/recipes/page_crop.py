@@ -229,16 +229,21 @@ def _write(db: Any, doc: Any, role: str, picture: Any, run_id: str, library: Pat
            parent_id: str | None, **transform: Any) -> str:
     """One more rendition of the page: the id of the rendition. `parent_id` is the rendition it was made from (None: the
     photograph), on the row and on its transform, so every shape traces back to the photograph through the chain."""
-    import tempfile
+    import hashlib
+    import io
 
-    from fichero_server.importers.ingest import _copy_to_library
     from fichero_server.models import NodeRegion, Rendition
     from fichero_server.models.anchors import RegionConfidence
 
-    with tempfile.TemporaryDirectory() as scratch:
-        made = Path(scratch) / f"{doc.id}_{role}.png"
-        picture.save(made)
-        stored = _copy_to_library(made, library)
+    # Named by its bytes: the same pixels re-prepared give the same file name, so the image signature (the file name,
+    # `media/current_image.PageImage.signature`) holds and Read does not read the page again (same input, same model: reuse).
+    buffer = io.BytesIO()
+    picture.save(buffer, format="PNG")
+    data = buffer.getvalue()
+    stored = library / "files" / doc.id[:2].lower() / f"{doc.id}_{role}_{hashlib.sha256(data).hexdigest()[:16]}.png"
+    stored.parent.mkdir(parents=True, exist_ok=True)
+    if not stored.exists():
+        stored.write_bytes(data)
     row = Rendition(document_id=doc.id, role=role, path=str(stored), is_primary=False, pixel_width=picture.width,
                     pixel_height=picture.height, producer_tool=PRODUCER, producer_run_id=run_id, note=note,
                     derived_from_rendition_id=parent_id,
