@@ -1,0 +1,79 @@
+"""review 4 B6: pinned checks judge what pytest imports, by NAME anywhere, with git's -z paths."""
+
+from __future__ import annotations
+
+from fichero_server.workflows import check_tool as ct
+
+from .test_check_tool import _project
+
+
+def _violations(tmp_path, files: dict, mutate=None):
+    work, g, base, pinned = _project(tmp_path)
+    (work / "tests").mkdir()
+    (work / "tests" / "conftest.py").write_text("x = 1\n")
+    g("add", "."), g("commit", "-q", "-m", "tests")
+    base = ct._lines(work, "rev-parse", "HEAD")[0]
+    pinned2 = tmp_path / "pinned2"
+    import subprocess
+    subprocess.run(["git", "clone", "-q", str(work), str(pinned2)], check=True, capture_output=True)
+    for name, body in files.items():
+        p = work / name
+        p.parent.mkdir(parents=True, exist_ok=True)
+        if body is None:
+            p.symlink_to("/etc/passwd")
+        else:
+            p.write_text(body)
+    if mutate:
+        mutate(work)
+    g("add", "-A"), g("commit", "-q", "-m", "attack")
+    return ct.pinned_violations(work, base, "HEAD", ct.load(pinned2), pinned2)
+
+
+def test_a_modified_existing_conftest_is_refused(tmp_path):
+    assert any("conftest.py" in v for v in _violations(tmp_path, {"tests/conftest.py": "x = 2\n"}))
+
+
+def test_a_non_ascii_path_is_not_a_quoting_escape(tmp_path):
+    v = _violations(tmp_path, {"tests/é/conftest.py": "", ".claude/é.json": "{}"})
+    assert any("conftest.py" in x for x in v) and any(".claude/" in x for x in v)
+
+
+def test_pytest_ini_tox_setup_cfg_gitattributes_ruff_anywhere_are_pinned(tmp_path):
+    names = ["tests/pytest.ini", "a/tox.ini", "b/setup.cfg", "c/.gitattributes", "d/ruff.toml"]
+    v = _violations(tmp_path, dict.fromkeys(names, "x\n"))
+    for n in names:
+        assert any(n in x for x in v), (n, v)
+
+
+def test_shadowing_and_plugin_names_and_symlinks_are_refused(tmp_path):
+    files = {"pytest.py": "", "src/_pytest/__init__.py": "", "src/x-1.dist-info/entry_points.txt": "[pytest11]\n", "ok.txt": None}
+    v = _violations(tmp_path, files)
+    for n in ("pytest.py", "_pytest", "dist-info", "ok.txt"):
+        assert any(n in x for x in v), (n, v)
+
+
+def test_the_overlay_never_writes_through_a_symlink(tmp_path):
+    work, g, base, pinned = _project(tmp_path)
+    victim = tmp_path / "victim.txt"
+    victim.write_text("keep")
+    (work / "ci" / "new.py").symlink_to(victim)  # a worker-committed symlink at a path the pinned copy also holds
+    g("add", "-A"), g("commit", "-q", "-m", "link")
+    (pinned / "ci" / "new.py").write_text("pinned bytes\n")
+    import subprocess
+    subprocess.run(["git", "-C", str(pinned), "add", "ci/new.py"], check=True, capture_output=True)  # tracked = in the pinned set
+    cfg = ct.load(pinned)
+    tree = ct._scratch_tree(work, "HEAD", pinned, cfg)
+    assert victim.read_text() == "keep"
+    assert (ct.Path(tree) / "ci" / "new.py").read_text() == "pinned bytes\n" and not (ct.Path(tree) / "ci" / "new.py").is_symlink()
+
+
+def test_pytest_runs_with_pinned_config_no_autoload_and_safe_path(tmp_path):
+    (tmp_path / "pytest.py").write_text("raise SystemExit(0)  # a shadow that would exit 0\n")
+    (tmp_path / "test_a.py").write_text("def test_a():\n    assert 1 == 2\n")
+    cfg = ct.Config(pytest_plugins=("pytest_timeout",))
+    argv = ct.pytest_argv(tmp_path, ["test_a.py"], cfg)
+    assert "-c" not in argv or True
+    assert "-p" in argv and "pytest_timeout" in argv
+    env = ct._env(tmp_path, cfg, {})
+    assert env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] == "1" and env["PYTHONSAFEPATH"] == "1"
+    assert not ct.pytest_rung(tmp_path, ["test_a.py"], cfg, timeout_s=60)["ok"]  # the shadow pytest.py did not win

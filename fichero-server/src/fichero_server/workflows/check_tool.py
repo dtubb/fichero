@@ -41,6 +41,8 @@ class Config:
     check_paths: tuple = ()             # files/folders that judge a diff: run from the pinned copy, never the worker's
     red_paths: tuple = ()               # a diff touching these (prefixes) needs a failing-on-base test; () = any file
     test_globs: tuple = ("test_*.py", "*_test.py")
+    pytest_config: str = ""             # the pinned pytest config file (relative to the tree), passed as `-c`; "" = pytest's own search
+    pytest_plugins: tuple = ()          # plugins loaded by -p; autoload is OFF, so a dist-info entry point in the tree loads nothing
     max_files: int = 25
     max_lines: int = 1500
 
@@ -64,7 +66,8 @@ def load(root) -> Config:
         guard_skip=frozenset(c.get("guard_skip", ())), guard_timeout_s=c.get("guard_timeout_s", d.guard_timeout_s),
         min_guards=c.get("min_guards", d.min_guards), contract_paths=tuple(c.get("contract_paths", d.contract_paths)),
         contract_guards=tuple(c.get("contract_guards", d.contract_guards)),
-        spec_dir=c.get("spec_dir", d.spec_dir), check_paths=tuple(c.get("check_paths", d.check_paths)), red_paths=tuple(c.get("red_paths", d.red_paths)), test_globs=tuple(c.get("test_globs", d.test_globs)), max_files=c.get("max_files", d.max_files),
+        spec_dir=c.get("spec_dir", d.spec_dir), check_paths=tuple(c.get("check_paths", d.check_paths)), red_paths=tuple(c.get("red_paths", d.red_paths)), test_globs=tuple(c.get("test_globs", d.test_globs)),
+        pytest_config=c.get("pytest_config", d.pytest_config), pytest_plugins=tuple(c.get("pytest_plugins", d.pytest_plugins)), max_files=c.get("max_files", d.max_files),
         max_lines=c.get("max_lines", d.max_lines))
 
 
@@ -157,6 +160,8 @@ def _env(root, cfg: Config, extra: dict | None = None) -> dict:
     if cfg.path:
         env["PATH"] = cfg.path
     env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"  # review 4 B6: only [check].pytest_plugins load, never a tree's entry points
+    env["PYTHONSAFEPATH"] = "1"                  # the cwd is not on sys.path: a worker's pytest.py shadows nothing
     env["HOME"] = tempfile.mkdtemp(prefix="check-home-")  # (jailed: dropped, the user's own HOME is used)
     if cfg.base_path_env:
         env[cfg.base_path_env] = _mkdtemp("check-base-")
@@ -184,12 +189,17 @@ def ready(root, cfg: Config, timeout_s: float = 600) -> dict:
     return run_command("ready", argv, root, timeout_s, _env(root, cfg))
 
 
+def pytest_argv(root, files: list[str], cfg: Config) -> list[str]:
+    cfgfile = ["-c", str(Path(root) / cfg.pytest_config)] if cfg.pytest_config else []
+    plugins = [x for p in cfg.pytest_plugins for x in ("-p", p)]
+    return [_py(cfg), "-m", "pytest", "-q", "-p", "no:cacheprovider", "-x", *cfgfile, *plugins, *files]
+
+
 def pytest_rung(root, files: list[str], cfg: Config = Config(), timeout_s: float = 1800) -> dict:  # noqa: B008
     """Named test files only (the env gives a fresh base path, so a run never opens real data)."""
     if not files:
         return run_command("pytest", [sys.executable, "-c", "import sys; sys.exit('no test files named')"], root, 5)
-    return run_command("pytest", [_py(cfg), "-m", "pytest", "-q", "-p", "no:cacheprovider", "-x", *files],
-                       root, timeout_s, _env(root, cfg))
+    return run_command("pytest", pytest_argv(root, files, cfg), root, timeout_s, _env(root, cfg))
 
 
 def _isolated(script: Path, root: Path, cfg: Config) -> list[str]:
@@ -259,6 +269,21 @@ def _lines(root, *args) -> list[str] | None:
     return r.stdout.splitlines() if r.returncode == 0 else None
 
 
+def _changes(root, since: str, head: str, *extra: str) -> list[tuple[str, str, str]]:
+    """[(status, new mode, path)] of since...head, NUL-separated so no path is ever quoted or split (review 4 B6)."""
+    r = subprocess.run(_git_argv(root, ["diff", "--raw", "-z", "--no-renames", "--no-abbrev", *extra, f"{since}...{head}"]),
+                       cwd=str(root), capture_output=True, env=_git_env())
+    if r.returncode:
+        return []
+    tok = r.stdout.decode("utf-8", "surrogateescape").split("\0")
+    out = []
+    for i in range(0, len(tok) - 1, 2):
+        meta = tok[i].lstrip(":").split()
+        if len(meta) >= 5:
+            out.append((meta[4][0], meta[1], tok[i + 1]))
+    return out
+
+
 def diff_bound(root, since: str, head: str, cfg: Config) -> dict:
     """The diff since the item's start stays inside a size bound (files and added+removed lines).
     ponytail: a size bound only; a per-folder scope bound if workers wander."""
@@ -315,23 +340,33 @@ def ladder(rungs: list) -> dict:
 
 
 BYPASS_NAMES = ("sitecustomize.py", "usercustomize.py")
+# pinned by NAME anywhere, any status: pytest reads these from whatever directory it finds them in (review 4 B6)
+PINNED_NAMES = ("conftest.py", "pytest.ini", "tox.ini", "setup.cfg", ".gitattributes", "ruff.toml", ".ruff.toml")
 
 
 def pinned_violations(root, since: str, head: str, cfg: Config, pinned) -> list[str]:
-    """What the diff may not do: change or delete a pinned check file, add a file that would run before or instead of
-    the checks (sitecustomize, .pth, any conftest.py), or touch .claude/ (a hook there runs outside
-    any check). Adding a new guard is allowed. Ported from the frozen pipeline's pinned-checks."""
+    """What the diff may not do: change or delete a pinned check file, add or touch a file pytest or Python would
+    obey before or instead of the checks (sitecustomize, .pth, a pinned NAME anywhere, a pytest.py / _pytest shadow, a
+    dist-info plugin), add any symlink, or touch .claude/. Adding a new guard is allowed. Paths come from `git diff -z`."""
     pinned_set = {f for f in (_lines(pinned, "ls-files") or []) if f.startswith(cfg.check_paths)}
     bad = []
-    for row in _lines(root, "diff", "--name-status", "--no-renames", f"{since}...{head}") or []:
-        status, f = row.split("\t", 1)
-        name = Path(f).name
+    for status, mode, f in _changes(root, since, head):
+        parts = Path(f).parts
+        name = parts[-1]
         if f in pinned_set:
             bad.append(f"{f}: a pinned check file was {'deleted' if status == 'D' else 'changed'}")
         elif f.startswith(".claude/"):
             bad.append(f"{f}: .claude/ changed")
-        elif status == "A" and (name in BYPASS_NAMES or name.endswith(".pth") or name == "conftest.py"):
-            bad.append(f"{f}: would run before or instead of the checks")  # conftest by name anywhere (review 3 H2)
+        elif status == "D":
+            if name in PINNED_NAMES:
+                bad.append(f"{f}: a pinned-name file was deleted")
+        elif mode == "120000":
+            bad.append(f"{f}: a symlink (the checks read through it)")
+        elif name in PINNED_NAMES:
+            bad.append(f"{f}: {name} is pinned by name anywhere (it changes what pytest does)")
+        elif name in BYPASS_NAMES or name.endswith(".pth") or name == "pytest.py" or "_pytest" in parts or any(
+                x.endswith((".dist-info", ".egg-info")) for x in parts):
+            bad.append(f"{f}: would run before, instead of, or inside the checks")
         elif status == "A" and f.startswith(cfg.check_paths) and not (cfg.guard_glob and fnmatch.fnmatch(f, cfg.guard_glob)):
             bad.append(f"{f}: a new file under a pinned path (only a new guard may be added there)")
     return bad
@@ -351,8 +386,7 @@ def weakened_tests(root, since: str, head: str, cfg: Config) -> list[str]:
         return (set(re.findall(r"(?m)^\s*(?:async )?def (test_\w+)", t)), len(re.findall(r"\bassert\b", t)),
                 len(re.findall(SKIP_LINE, t)))
     bad = []
-    for row in _lines(root, "diff", "--name-status", "--no-renames", "--diff-filter=MD", f"{since}...{head}") or []:
-        f = row.split("\t", 1)[1]
+    for _s, _m, f in _changes(root, since, head, "--diff-filter=MD"):
         if not (f.endswith(".py") and (f.endswith("conftest.py") or any(fnmatch.fnmatch(Path(f).name, g) for g in cfg.test_globs))):
             continue
         (t0, a0, s0), (t1, a1, s1) = counts(base, f), counts(head, f)
@@ -386,8 +420,7 @@ def acceptance_changed(root, since: str, head: str, cfg: Config, ids) -> list[st
     if not cfg.spec_dir or not ids:
         return []
     hits = []
-    for row in _lines(root, "diff", "--name-status", "--no-renames", "--diff-filter=MD", f"{since}...{head}") or []:
-        f = row.split("\t", 1)[1]
+    for _s, _m, f in _changes(root, since, head, "--diff-filter=MD"):
         if not (f.startswith(cfg.spec_dir.rstrip("/") + "/") and f.endswith(".md")):
             continue
         before = _acceptance_lines("\n".join(_lines(root, "show", f"{since}:{f}") or []), ids)
@@ -407,10 +440,15 @@ def _scratch_tree(root, head: str, pinned, cfg: Config) -> str:
         raise RuntimeError(f"scratch tree failed: {r['stderr_tail']}")
     for f in _lines(pinned, "ls-files") or []:
         if f.startswith(cfg.check_paths):
-            dest = Path(tree) / f
+            src, dest = Path(pinned) / f, Path(tree) / f
+            if src.is_symlink():
+                raise RuntimeError(f"pinned file {f} is a symlink: refused")
             dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes((Path(pinned) / f).read_bytes())
-            dest.chmod((Path(pinned) / f).stat().st_mode)
+            if not dest.parent.resolve().is_relative_to(Path(tree).resolve()):
+                raise RuntimeError(f"{f} resolves outside the scratch tree: refused")
+            dest.unlink(missing_ok=True)  # never write through a worker-committed symlink (review 4 H1)
+            dest.write_bytes(src.read_bytes())
+            dest.chmod(src.stat().st_mode)
     return tree
 
 
@@ -452,8 +490,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=()) -> dict:
         r = {"name": "pinned-checks", "argv": [], "exit_code": 1, "ok": False, "timed_out": False, "seconds": 0,
              "stdout_tail": "", "stderr_tail": "\n".join(bad) + "\nneeds-maintainer"}
         return {"ok": False, "failed": "pinned-checks", "rungs": [r]}
-    names = [ln.split("\t", 1)[1] for ln in _lines(root, "diff", "--name-status", "--no-renames", "--diff-filter=AM",
-                                                    f"{since}...{head}") or []]
+    names = [f for _s, _m, f in _changes(root, since, head, "--diff-filter=AM")]
     tests = [f for f in names if any(fnmatch.fnmatch(Path(f).name, g) for g in cfg.test_globs)]
     if cfg.base_ref and not _git(root, "rev-parse", "--verify", "-q", f"refs/remotes/{cfg.base_ref}")["ok"]:
         _git(root, "update-ref", f"refs/remotes/{cfg.base_ref}", since)  # a remote-less clone: ready checks diff against it
