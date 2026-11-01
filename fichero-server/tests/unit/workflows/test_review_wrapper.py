@@ -23,7 +23,9 @@ def _run(tmp_path, reply):
     g("commit", "-qam", "change")
     bin_ = tmp_path / "bin"
     bin_.mkdir()
-    (bin_ / "claude").write_text(f"#!/bin/sh\ncat >/dev/null\necho \"$PWD $*\" > {tmp_path}/seen\necho 'looks fine'\necho '{reply}'\n")
+    (bin_ / "claude").write_text(f"#!/bin/sh\ncat > {tmp_path}/prompt\necho \"$PWD $*\" > {tmp_path}/seen\n"
+                                 f"t=$(grep '^TREE: ' {tmp_path}/prompt | cut -d' ' -f2); cat \"$t/a.py\" > {tmp_path}/tree-a 2>/dev/null\n"
+                                 f"echo 'looks fine'\necho '{reply}'\n")
     (bin_ / "claude").chmod(0o755)
     g("branch", "landbr", base)
     pinned = tmp_path / "pinned"
@@ -72,3 +74,15 @@ def test_a_diff_over_the_cap_is_refused_not_truncated(tmp_path):  # review 4 B4
     r = subprocess.run([sys.executable, str(SCRIPT), str(tmp_path / "r"), "HEAD", "--pinned", str(tmp_path / "p"),
                         "--verdicts", str(tmp_path / "v.json"), "--print"], capture_output=True, text=True)
     assert r.returncode and "cap" in r.stderr
+
+
+def test_the_reviewer_gets_a_read_only_checkout_of_the_head_outside_its_cwd(tmp_path):  # first real review, 2026-11-01
+    """A reviewer in an empty directory cannot verify that a cited test or spec bullet exists; it reads a detached
+    checkout of the head by absolute path (cwd stays the empty dir, so a planted CLAUDE.md is never obeyed), gone after."""
+    _run(tmp_path, "READY")
+    prompt = (tmp_path / "prompt").read_text()
+    line = next(x for x in prompt.splitlines() if x.startswith("TREE: "))
+    tree = line.split(" ")[1]
+    assert (tmp_path / "tree-a").read_text() == "x = 2\n", "the head's file was readable there during the run"
+    assert not Path(tree).exists(), "removed after"
+    assert tree != (tmp_path / "seen").read_text().split(" ")[0], "not the cwd"

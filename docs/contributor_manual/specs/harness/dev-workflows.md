@@ -322,7 +322,7 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   file**, as `claude -p --tools Read,Grep,Glob` over the prepared diff and the ladder's output (no shell, so an injected
   diff cannot push or write a verdict); a script computes `git patch-id --verbatim` and the message hash per commit and
   writes the verdict file into the **verdict store** the worker user cannot write (rows later), and `land` reads only there; `request-review`
-  returns at once and the worker reads verdicts with a `verdicts` tool; NOT_READY findings belong to the task's current
+  returns at once and the worker reads verdicts with a `verdicts` tool (built 2026-11-01 in `scripts/harness_review.py`: the reviewer's cwd is an empty owner-only dir and it reads a detached checkout of the head by absolute path, so it verifies cited tests and spec lines while a planted CLAUDE.md is never obeyed; the ladder reaches it as one line per rung, never a truncated tail; first real run said NOT READY on a rewritten acceptance line); NOT_READY findings belong to the task's current
   generation (two rounds, then the queue). `land` is a script: fetch the sha into the engine-owned repository, ladder on
   the rebased head there, a READY verdict for **every commit** in the range by `--verbatim` patch-id and message hash (a
   merge, or a commit without exactly one id, refuses the range), the public-boundary grep over diff and messages (a hit names the commit, the file or message and the pattern's index, never the matching text, since it goes to logs), then the fast-forward of the integration branch (a merge mode for the release merge-back is added
