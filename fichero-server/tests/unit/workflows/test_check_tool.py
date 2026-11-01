@@ -482,3 +482,37 @@ def test_a_maintainer_batch_clears_only_a_changed_pinned_file_not_the_other_pinn
     assert not r["ok"] and r["failed"] == "pinned-checks", r
     said = r["rungs"][0]["stderr_tail"]
     assert "needs-maintainer" in said and "a pinned check file was changed" not in said
+
+
+def _whole_project(tmp_path):
+    """An engine-shaped `tests` package (with __init__.py) beside pkg/tests, a whole_tests dir with no __init__.py whose
+    old test does `from tests import _helper`: one pytest over both collects the wrong `tests` and errors."""
+    work, g, _b, pinned = _project(tmp_path, extra='[check.whole_tests]\n"pkg/lib.py" = "pkg/tests"\n',
+                                   check_extra=f'python = "{sys.executable}"\npython_path = ["pkg"]\nred_paths = ["pkg/"]\n')
+    (work / "pkg" / "tests").mkdir(parents=True)
+    (work / "tests").mkdir()
+    (work / "tests" / "__init__.py").write_text("")
+    (work / "pkg" / "lib.py").write_text("VALUE = 1\n")
+    (work / "pkg" / "gone.py").write_text("X = 1\n")
+    (work / "pkg" / "tests" / "_helper.py").write_text("ANSWER = 1\n")
+    (work / "pkg" / "tests" / "test_old.py").write_text(
+        "import gone, lib\nfrom tests import _helper\ndef test_old():\n    assert lib.VALUE >= 1 and _helper.ANSWER == 1 and gone.X == 1\n")
+    g("add", "."), g("commit", "-q", "-m", "old suite")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+    subprocess.run(["git", "fetch", "-q", str(work)], cwd=pinned, check=True)
+    return work, g, base, pinned
+
+
+def test_a_whole_tests_dir_runs_as_its_own_pytest_beside_an_engine_shaped_tests_package(tmp_path):
+    """review 5 must-fix 1: fichero-builder/tests has no __init__.py, the engine's tests/ has one; in one process the
+    second `from tests import x` failed. Each whole dir is its own pytest from its package dir; both runs are recorded."""
+    work, g, base, _pinned = _whole_project(tmp_path)
+    (work / "pkg" / "lib.py").write_text("VALUE = 2\n")
+    (work / "tests" / "test_new.py").write_text("import lib\ndef test_v():\n    assert lib.VALUE == 2\n")
+    g("add", "."), g("commit", "-q", "-m", "change")
+    r = ct.run_ladder(work, base, "HEAD", _pinned, jail_required=False)
+    assert r["ok"], r["rungs"][-1]["stdout_tail"] + r["rungs"][-1]["stderr_tail"]
+    row = next(x for x in r["rungs"] if x["name"] == "red-on-base")
+    assert len(row["runs"]) == 2 and all(x["ok"] for x in row["runs"])
+    assert "test_new.py" in " ".join(row["runs"][0]["argv"]) and "pkg/tests" in " ".join(row["runs"][1]["argv"])
+    assert "test_new.py" not in " ".join(row["runs"][1]["argv"]), "the engine-shaped run keeps only the changed files"

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import fcntl
 import fnmatch
+import importlib.util
 import os
 import re
 import shutil
@@ -62,7 +63,7 @@ def load(root) -> Config:
         return Config()
     doc = tomllib.loads(f.read_text())
     c = doc.get("check", {})
-    if unknown := sorted(set(c) - {x.name for x in fields(Config)} - {"test_env", "whole_tests"}):  # fail closed (review 3, spec item 2)
+    if unknown := sorted(set(c) - {x.name for x in fields(Config)} - {"test_env"}):  # fail closed (review 3, spec item 2)
         raise ValueError(f"harness.toml [check]: unknown keys {unknown}")
     if unknown := sorted(set(doc) - {"check", "jail", "policy", "land", "brief", "spend", "models"}):
         raise ValueError(f"harness.toml: unknown tables {unknown}")
@@ -199,11 +200,11 @@ def _skipped(name: str) -> dict:
             "stdout_tail": "skipped: not configured", "stderr_tail": ""}
 
 
-def _run(name, argv, root, timeout_s, cfg: Config, extra: dict | None = None) -> dict:
+def _run(name, argv, root, timeout_s, cfg: Config, extra: dict | None = None, cwd=None) -> dict:
     """run_command with a fresh scratch env, its HOME and base dirs removed afterwards (no litter per rung)."""
     env = _env(root, cfg, extra)
     try:
-        return run_command(name, argv, root, timeout_s, env)
+        return run_command(name, argv, cwd or root, timeout_s, env)
     finally:
         for d in (env["HOME"], env.get(cfg.base_path_env or "")):
             if d:
@@ -226,9 +227,18 @@ def ready(root, cfg: Config, timeout_s: float = 600) -> dict:
     return _run("ready", argv, root, timeout_s, cfg)
 
 
-def pytest_argv(root, files: list[str], cfg: Config) -> list[str]:
-    cfgfile = ["-c", str(Path(root) / cfg.pytest_config)] if cfg.pytest_config else []
+def pytest_argv(root, files: list[str], cfg: Config, package: str = "") -> list[str]:
+    """The engine-shaped command (cwd = the tree root, the pinned `-c`), or with `package` a whole-tests run: its own
+    pytest from that package dir, `-c <package>/pyproject.toml` only when it exists, the package dir FIRST on the path
+    (so `from tests import x` finds its own `tests`), and only the plugins installed for it."""
+    pkg = Path(root) / package if package else None
+    conf = (pkg / "pyproject.toml" if pkg.joinpath("pyproject.toml").is_file() else None) if pkg else (Path(root) / cfg.pytest_config if cfg.pytest_config else None)
+    cfgfile = ["-c", str(conf)] if conf else []
     plugins = [x for p in cfg.pytest_plugins for x in ("-p", p)]
+    paths = [str(Path(root) / p) for p in cfg.python_path]
+    if pkg:
+        paths.insert(0, str(pkg))
+        plugins = [x for p in cfg.pytest_plugins if importlib.util.find_spec(p) for x in ("-p", p)]
     args = ["-q", "-p", "no:cacheprovider", "-x", *cfgfile, *plugins, *files]
     # review 5 N5 + review 6 R1: `python -I` (no PYTHONPATH, no cwd); the tree's folders go in RIGHT AFTER the site-packages
     # directory: after it, so a planted src/pluggy.py shadows no installed package, and before what its .pth files add,
@@ -236,7 +246,7 @@ def pytest_argv(root, files: list[str], cfg: Config) -> list[str]:
     # THE LIMIT: tests run the worker's own code, so a green is never proof against a hostile worker (a test file can
     # always exit 0). The reviewer is the wall; land_tool.risky_paths makes it name the files that forge a green cheaply.
     code = ("import sys; i = next((n for n, p in enumerate(sys.path) if p.endswith('site-packages')), len(sys.path) - 1) + 1; "
-            f"sys.path[i:i] = {[str(Path(root) / p) for p in cfg.python_path]!r}\n"
+            f"sys.path[i:i] = {paths!r}\n"
             f"import pytest; sys.exit(pytest.main({args!r}))")
     return [_py(cfg), "-I", "-c", code]
 
@@ -248,6 +258,29 @@ def pytest_rung(root, files: list[str], cfg: Config = Config(), timeout_s: float
     # safe-path for the test run only: the cwd is not on sys.path, so a worker's pytest.py shadows nothing. The ready and
     # guard rungs run the project's own pinned scripts, which import helpers beside them (first real check, 2026-11-01).
     return _run("pytest", pytest_argv(root, files, cfg), root, timeout_s, cfg, {"PYTHONSAFEPATH": "1"})
+
+
+def whole_tests_rung(root, tests_dir: str, cfg: Config = Config(), timeout_s: float = 1800) -> dict:  # noqa: B008
+    """One [check.whole_tests] dir run whole as ITS OWN pytest, the way its suite runs everywhere else: cwd = its package
+    dir (the tests dir's parent), so a sibling `tests` package in another project never shadows its `from tests import x`."""
+    package = str(Path(tests_dir).parent)
+    cwd = Path(root) / package
+    argv = pytest_argv(root, [str(Path(root) / tests_dir)], cfg, package=package)
+    return _run("pytest", argv, root, timeout_s, cfg, {"PYTHONSAFEPATH": "1"}, cwd=cwd)
+
+
+def green_runs(tree, files: list[str], whole: tuple, cfg: Config, timeout_s: float) -> dict:
+    """The green run: the engine-shaped pytest over the changed test files, then each whole-tests dir as its own pytest.
+    One row: the first red (or the last green) as the row's own fields, `runs` = every command and its tail."""
+    runs = []
+    if files:
+        runs.append(pytest_rung(tree, files, cfg, timeout_s))
+    for d in whole:
+        if runs and not runs[-1]["ok"]:
+            break
+        runs.append(whole_tests_rung(tree, d, cfg, timeout_s))
+    row = next((r for r in runs if not r["ok"]), runs[-1])
+    return {**row, "runs": [{k: r[k] for k in ("argv", "exit_code", "ok", "seconds", "stdout_tail", "stderr_tail")} for r in runs]}
 
 
 def _isolated(script: Path, root: Path, cfg: Config) -> list[str]:
@@ -394,7 +427,7 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
             r = pytest_rung(base, [f], cfg, timeout_s)
             if r["ok"]:
                 return red(f"NOT RED ON BASE: {f} passes at {since[:9]}, so it proves nothing")
-        here = pytest_rung(head_tree or root, [*files, *also_green], cfg, timeout_s)  # the green run: in the pinned-overlay tree when given
+        here = green_runs(head_tree or root, files, also_green, cfg, timeout_s)  # the green run: in the pinned-overlay tree when given
         return {**here, "name": "red-on-base"}
     finally:
         _git(root, "worktree", "remove", "--force", base)
@@ -570,6 +603,13 @@ def _whole_tests(names: list[str], cfg: Config) -> tuple:
     return tuple(sorted({d for p, d in cfg.whole_tests.items() if any(n.startswith(p) for n in names)}))
 
 
+def _no_red_row(tree, whole: tuple, cfg: Config) -> dict:
+    """No red-on-base owed; a change under a whole_tests prefix (a deletion too) still runs those dirs whole."""
+    if whole:
+        return green_runs(tree, [], whole, cfg, 1800)
+    return {**_skipped("red-on-base"), "stdout_tail": "not required: no changed path is under [check].red_paths"}
+
+
 def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintainer: bool = False) -> dict:
     cfg = load(pinned)
     bad = pinned_violations(root, since, head, cfg, pinned)
@@ -586,6 +626,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
              "stdout_tail": "", "stderr_tail": "\n".join(bad) + "\nneeds-maintainer"}
         return {"ok": False, "failed": "pinned-checks", "rungs": [r]}
     names = [f for _s, _m, f in _changes(root, since, head, "--diff-filter=AM")]
+    whole = _whole_tests(names, cfg)
     tests = [f for f in names if any(fnmatch.fnmatch(Path(f).name, g) for g in cfg.test_globs)]
     if cfg.base_ref and not _git(root, "rev-parse", "--verify", "-q", f"refs/remotes/{cfg.base_ref}")["ok"]:
         _git(root, "update-ref", f"refs/remotes/{cfg.base_ref}", since)  # a remote-less clone: ready checks diff against it
@@ -596,8 +637,8 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
         out = ladder([
             ("ready", lambda: ready(tree, cfg)),
             ("diff-bound", lambda: diff_bound(root, since, head, cfg)),
-            ("red-on-base", lambda: red_on_base(root, since, head, tests, cfg, head_tree=tree, also_green=_whole_tests(names, cfg)) if _needs_red(names, tests, cfg)
-             else {**_skipped("red-on-base"), "stdout_tail": "not required: no changed path is under [check].red_paths"}),
+            ("red-on-base", lambda: red_on_base(root, since, head, tests, cfg, head_tree=tree, also_green=whole) if _needs_red(names, tests, cfg)
+             else _no_red_row(tree, whole, cfg)),
             ("guards", lambda: guards(tree, cfg)),
             ("contract-current", lambda: contract_current(tree, names, cfg)),
             ("build", lambda: build(tree, build_names(root, since, head), cfg)),
