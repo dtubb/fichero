@@ -11,7 +11,7 @@ from pathlib import Path
 
 import json
 
-from fichero_builder import check_tool, journal, steps, work
+from fichero_builder import check_tool, journal, models, spec_tool, steps, work
 from fichero_builder import run as run_mod
 
 
@@ -90,6 +90,10 @@ def main(argv=None) -> int:
     st = sub.add_parser("steps", help="file one issue per build-order step of an APPROVED spec under its milestone; a second run updates")
     st.add_argument("--spec", required=True), st.add_argument("--gh", default="gh"), st.add_argument("--dry-run", action="store_true")
     st.add_argument("--state", help="where the journal lives (default: the owner's journal dir)")
+    sp = sub.add_parser("spec", help="write the spec-writer's brief for an issue to FILE; starts no worker")
+    sp.add_argument("--issue", type=int, required=True), sp.add_argument("--out", required=True), sp.add_argument("--gh", default="gh")
+    sp.add_argument("--root", default=str(Path.cwd()), help="the checkout holding harness.toml and the spec template")
+    sp.add_argument("--state", help="where the journal lives (default: the owner's journal dir)")
     a = ap.parse_args(argv)
     if a.cmd == "milestone":
         import tomllib
@@ -113,6 +117,19 @@ def main(argv=None) -> int:
     journal.STATE = state_dir(a.root, a.state) if a.cmd == "run" else (Path(a.state) if a.state else journal.STATE)
     if a.cmd == "work":
         return work.main(a)
+    if a.cmd == "spec":
+        try:
+            model = models.for_role(models.load(a.root), "spec-writer")
+            spec_tool.run(a.issue, a.out, a.root, gh=a.gh)
+        except models.Question as e:
+            print(f"QUESTION: {e}")
+            return 2
+        except (RuntimeError, OSError) as e:
+            print(f"REFUSED: {e}", file=sys.stderr)
+            return 1
+        journal.append("spec", issue=a.issue, out=a.out, model=model.model)
+        print(f"wrote {a.out} for the spec-writer ({model.provider}/{model.model}); start it with `builder run --brief {a.out}`")
+        return 0
     if a.cmd == "steps":
         try:
             steps.run(a.spec, gh=a.gh, dry_run=a.dry_run)

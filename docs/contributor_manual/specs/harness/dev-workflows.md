@@ -277,11 +277,10 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   `QUESTION: <why>` and exit 2; every step is a journal row (event `work`: step, ok, detail). **Built** (2026-11-01): the
   verb, with the steps replaced by fakes in its test; the first real run is Step 2.2's. Test:
   `fichero-builder/tests/test_work_verb.py::test_the_chain_runs_in_order_with_the_roles_models_prints_the_push_and_never_pushes`.
-- `dev-workflows.tool.spec` [PROPOSED] (owner 2026-11-01) — `builder spec <issue>` starts the **spec-writer** role from
+- `dev-workflows.tool.spec` [PARTIAL] (#6116) (owner 2026-11-01) — `builder spec <issue>` starts the **spec-writer** role from
   `[models]` as a worker whose brief is the spec template, the issue and the spec guards' rules; the result is one spec
   file under `spec_dir` on a branch with `> **Status: PROPOSED**`; the guards run on it; the owner approves by editing
-  the status line, and nothing in the spec is built before that. Test (unwritten, Step 2.3): the brief text names the
-  template, the issue and the guards; a PROPOSED spec is refused by the steps verb.
+  the status line, and nothing in the spec is built before that. **Built** (2026-11-01): `builder spec --issue N --out FILE [--gh gh]` writes the brief (the spec template, the issue through the brief tool, the guards' rules in words, the instruction to write ONE spec with `> **Status: PROPOSED**`) and prints the `[models].spec-writer` model; it does not start the worker, `builder run` does (the spec's first wording said the verb starts it; the verb stays a brief writer so one start path exists). A missing role model is a `QUESTION:` (exit 2). The steps verb refuses a PROPOSED spec. Test: `fichero-builder/tests/test_spec_verb.py::test_the_brief_names_the_template_the_issue_the_guards_and_the_proposed_status`.
 - `dev-workflows.tool.steps` [PARTIAL] (#6116) (owner 2026-11-01) — `builder steps <spec>` reads an APPROVED spec's build order
   and files one issue per step under the spec's milestone (`gh`): the step's title, behaviours, tests, size and
   `Depends on` as issue links in the body; a second run updates the step's issue rather than filing another (the body
