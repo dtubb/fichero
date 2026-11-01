@@ -135,7 +135,7 @@ def main(a) -> int:
     issues = list(a.issues)
 
     def step(name: str, ok: bool, detail: str) -> bool:
-        journal.append("work", name=a.name, issues=issues, step=name, ok=ok, detail=detail)
+        journal.append("work", name=a.name, issues=issues, step=name, ok=ok, detail=detail, worktree=str(a.worktree))
         return ok
 
     def question(why: str) -> int:

@@ -78,6 +78,15 @@ def main(argv=None) -> int:
     land.add_argument("head")
     land.add_argument("--pinned", required=True), land.add_argument("--verdicts", required=True), land.add_argument("--log", required=True)
     land.add_argument("--state", help="where the journal lives (default: see run --state)")
+    ld = sub.add_parser("landed", help="after a READY verdict and a green check: push (--push only), refresh, pin, fast-forward the jail root, update the issues")
+    ld.add_argument("sha")
+    ld.add_argument("--root", default=str(Path.cwd()), help="the checkout holding harness.toml ([land].branch, [land].pinned_dir, [check].engine_repo, [jail])")
+    ld.add_argument("--repo", help="the engine-owned repo (default [check].engine_repo)")
+    ld.add_argument("--verdicts", required=True, help="the owner-owned verdict store")
+    ld.add_argument("--gh", default="gh")
+    ld.add_argument("--push", action="store_true", help="push sha to origin/<branch> first; nothing else ever sets this")
+    ld.add_argument("--no-issues", action="store_true", help="leave the cited issues alone")
+    ld.add_argument("--state", help="where the owner's journal lives (default: the owner's journal dir)")
     w = sub.add_parser("work", help="run, patches, fetch, check, review, land as one process; stops with QUESTION: (exit 2), never pushes")
     w.add_argument("--brief", required=True), w.add_argument("--worktree", required=True), w.add_argument("--name", required=True)
     w.add_argument("--kind", default="claude", choices=["claude"])
@@ -119,6 +128,10 @@ def main(argv=None) -> int:
     journal.STATE = state_dir(a.root, a.state) if a.cmd == "run" else (Path(a.state) if a.state else journal.STATE)
     if a.cmd == "work":
         return work.main(a)
+    if a.cmd == "landed":
+        from fichero_builder import landed
+
+        return landed.main(a)
     if a.cmd == "spec":
         try:
             model = models.for_role(models.load(a.root), "spec-writer")

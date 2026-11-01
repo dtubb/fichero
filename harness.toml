@@ -82,6 +82,8 @@ deny_read = ["~/.config/gh", "~/.ssh", "~/.claude", "~/Fichero Projects"]
 
 [land]
 branch = "integration"   # the branch the Lead pushes a green head to
+# `builder landed` keeps the pinned copy for the next check here, as pinned-<sha7> (absolute: a relative path lands inside the repo).
+pinned_dir = "/Users/Shared/fichero-pinned"
 # Regexes over every ADDED line and commit message; any hit refuses the land (the public/private boundary).
 boundary = ['/Users/(?!Shared/)[A-Za-z0-9._-]+/', 'sk-ant-[A-Za-z0-9_-]{8,}', 'gh[ps]_[A-Za-z0-9]{20,}', 'BEGIN [A-Z ]*PRIVATE KEY']
 
