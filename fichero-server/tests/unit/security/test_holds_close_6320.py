@@ -453,3 +453,11 @@ def test_h5_a_query_name_no_route_declares_is_not_a_target(project, four):
     # a name the route DOES declare still counts: carla reads her own folder by `parent_id`
     own = next(c for n, c, _ in four if n == "carla").get(f"/api/documents?parent_id={project.ids['A']}")
     assert own.status_code == 200, own.text[:200]
+
+
+def test_h7_the_write_check_reads_ids_and_items(project, four):
+    """#6325 H7: `document.copy_into_project` carries its pages in `ids`, `document.transfer` in `items`; neither was a target."""
+    assert authz.target_ids_from_params({"ids": ["a"], "items": ["b", {"document_id": "c"}], "name": "d"}) == ["a", "b", "c"]
+    b1 = project.ids["b1"]
+    assert _all_refused(four, "POST", "/api/actions/invoke", {"name": "document.copy_into_project", "params": {"ids": [b1], "project_id": project.ids["A"]}})
+    assert _all_refused(four, "POST", "/api/actions/invoke", {"name": "document.transfer", "params": {"items": [b1], "source": project.library}})

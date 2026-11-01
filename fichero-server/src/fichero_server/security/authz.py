@@ -426,6 +426,9 @@ def target_ids_from_params(params: Any) -> list[str]:
 #: levels under `update.anchor` on `annotation.update`); past this a structure is not a target.
 _MAX_TARGET_DEPTH = 8
 
+#: Lists of ids whose key does not end in `_ids`: `document.copy_into_project`'s `ids`, `document.transfer`'s `items` (#6325, H7).
+_ID_LIST_KEYS = frozenset({"ids", "items"})
+
 
 def _collect_target_ids(data: dict, target_ids: list[str], *, depth: int) -> None:
     """Every `*_id` / `*_ids` in `data`, at ANY depth: nested objects and lists of objects alike.
@@ -446,8 +449,12 @@ def _collect_target_ids(data: dict, target_ids: list[str], *, depth: int) -> Non
     for key, value in data.items():
         if key == "id" or key.endswith("_id"):
             _append_target_id(target_ids, value)
-        elif key.endswith("_ids"):
-            _append_target_ids(target_ids, value)
+        elif key.endswith("_ids") or key in _ID_LIST_KEYS:
+            _append_target_ids(target_ids, value)  # a list of strings; a list of objects (`items`) is walked below
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict):
+                        _collect_target_ids(item, target_ids, depth=depth + 1)
         elif isinstance(value, dict):
             _collect_target_ids(value, target_ids, depth=depth + 1)
         elif isinstance(value, list):
