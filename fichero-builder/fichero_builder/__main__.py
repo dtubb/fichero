@@ -82,6 +82,7 @@ def main(argv=None) -> int:
     w.add_argument("--kind", default="claude", choices=["claude"])
     w.add_argument("--issues", type=int, nargs="+", required=True)
     w.add_argument("--pinned", required=True)
+    w.add_argument("--ids", nargs="+", default=[], help="the item's behaviour ids: protected from a rewrite of their spec acceptance")
     w.add_argument("--repo", help="the engine-owned repo (default [check].engine_repo of the pinned rules)")
     w.add_argument("--model", help="the builder's model (default [models].builder)")
     w.add_argument("--root", default=str(Path.cwd())), w.add_argument("--session", default="harness")
@@ -181,12 +182,17 @@ def main(argv=None) -> int:
         if not head:
             print(f"builder check: {a.head!r} is not a commit in {a.repo}", file=sys.stderr)
             return 1
-        if resolve(a.repo, a.since) == head:  # a landing branch that never got its commit judged green on nothing (2026-11-02)
+        since = resolve(a.repo, a.since)
+        if not since:
+            print(f"builder check: {a.since!r} is not a commit in {a.repo}", file=sys.stderr)
+            return 1
+        try:
+            r = check_tool.ladder_over(a.repo, since, head, a.pinned, a.id)
+        except check_tool.EmptyRange:  # the shared refusal, also `builder work`'s
             print(f"REFUSED: {a.since}..{a.head} is empty: nothing to check", file=sys.stderr)
             return 1
-        r = check_tool.run_ladder(a.repo, a.since, head, a.pinned, a.id)
         print(json.dumps(r, indent=1))
-        journal.append("check", repo=str(a.repo), since=a.since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""))
+        journal.append("check", repo=str(a.repo), since=since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""))
         return 0 if r.get("ok") else 1
     if a.kind == "pi":
         from fichero_builder import pi_rpc

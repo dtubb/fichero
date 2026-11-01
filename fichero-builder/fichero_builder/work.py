@@ -12,7 +12,7 @@ import sys
 import tomllib
 from pathlib import Path
 
-from fichero_builder import check_tool, jail, journal, models
+from fichero_builder import check_tool, jail, journal, land_tool, models
 
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 
@@ -98,8 +98,12 @@ def do_fetch(a, repo: str, branch: str) -> str:
     return _git(repo, "rev-parse", "--verify", f"{ref}^{{commit}}").stdout.strip()
 
 
-def do_check(a, repo: str, since: str, head: str, ladder: str) -> dict:
-    r = check_tool.run_ladder(repo, since, head, a.pinned, [])
+def do_check(a, repo: str, branch: str, head: str, ladder: str) -> dict:
+    """The ladder over <branch>..head; the range is the same refusal `builder check` has, `since` is a sha, not a name."""
+    since = land_tool.resolve_branch(repo, branch)
+    if not since:
+        raise RuntimeError(f"{branch!r} is not a branch in {repo}")
+    r = check_tool.ladder_over(repo, since, head, a.pinned, getattr(a, "ids", []))
     Path(ladder).write_text(json.dumps(r, indent=1))
     journal.append("check", repo=str(repo), since=since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""))
     return r

@@ -207,3 +207,30 @@ def test_a_raised_step_is_a_question_row_and_exit_2_never_a_traceback(chain, mon
     out = capsys.readouterr().out
     assert out.startswith("QUESTION: ") and str(exc) in out
     assert rows()[-1]["step"] == which[3:] and rows()[-1]["ok"] is False and str(exc) in rows()[-1]["detail"]
+
+
+def test_work_check_refuses_an_empty_range_like_builder_check(scratch, monkeypatch):
+    monkeypatch.setattr(work.check_tool, "run_ladder", lambda *a, **k: pytest.fail("the ladder ran on an empty range"))
+    head = _g(scratch.engine, "rev-parse", "HEAD")
+    _g(scratch.engine, "branch", "work-n1", head)
+    with pytest.raises(RuntimeError, match="empty"):
+        work.do_check(scratch.a, str(scratch.engine), "integration", head, str(scratch.tmp / "ladder.json"))
+
+
+def test_work_check_passes_a_resolved_sha_as_since_and_the_items_ids_as_protected(scratch, monkeypatch):
+    seen = []
+    monkeypatch.setattr(work.check_tool, "run_ladder", lambda *a, **k: (seen.append(a), {"ok": True})[1])
+    base = _g(scratch.engine, "rev-parse", "HEAD")
+    _g(scratch.engine, "checkout", "-qb", "side")
+    (scratch.engine / "g").write_text("1")
+    _g(scratch.engine, "add", "g"), _g(scratch.engine, "commit", "-qm", "two")
+    head = _g(scratch.engine, "rev-parse", "HEAD")
+    a = types.SimpleNamespace(**vars(scratch.a), ids=["dev-workflows.tool.work"])
+    work.do_check(a, str(scratch.engine), "integration", head, str(scratch.tmp / "ladder.json"))
+    root, since, h, pinned, protected = seen[0]
+    assert since == base and h == head and list(protected) == ["dev-workflows.tool.work"]
+
+
+def test_builder_check_and_work_check_share_the_empty_range_refusal():
+    from fichero_builder import check_tool
+    assert issubclass(check_tool.EmptyRange, RuntimeError) and callable(check_tool.ladder_over)

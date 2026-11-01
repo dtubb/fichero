@@ -523,6 +523,17 @@ def _scratch_tree(root, head: str, pinned, cfg: Config) -> str:
     return tree
 
 
+class EmptyRange(RuntimeError):
+    """since equals head: a landing branch that never got its commit judged green on nothing (2026-11-02)."""
+
+
+def ladder_over(root, since_sha: str, head: str, pinned, protected_ids=()) -> dict:
+    """The one way `builder check` and `builder work` run the ladder: an empty range is refused, never judged."""
+    if since_sha == head:
+        raise EmptyRange(f"{since_sha[:9]}..{head[:9]} is empty: nothing to check")
+    return run_ladder(root, since_sha, head, pinned, list(protected_ids))
+
+
 def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_required: bool = True) -> dict:
     """The project's whole ladder over the diff since..head, judged by the PINNED copy (an engine-owned checkout
     outside the worker's tree; its harness.toml is the config): pinned-checks, ready, diff bound, red-on-base for
