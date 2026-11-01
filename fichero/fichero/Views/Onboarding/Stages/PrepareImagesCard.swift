@@ -170,12 +170,19 @@ struct PrepareOperationRowsView: View {
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(rows) { row in
                     Toggle(isOn: Binding(get: { row.isOn }, set: { store.setPrepareOperation(row.id, isOn: $0) })) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(row.title).font(.body)
-                            Text(row.sentence).font(.caption).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                            if let note = row.note {
-                                Text(note).font(.caption).foregroundStyle(.secondary)
+                        HStack(alignment: .top, spacing: 8) {
+                            if OperationFrame.operations.contains(row.id), let showcase = StageShowcaseSource.showcase(for: nil) {
+                                // The operation's own picture beside its switch, at its end state (`wide.picture.one-per-operation`).
+                                PrepareOperationPicture(operation: row.id, showcase: showcase, progress: 1)
+                                    .frame(width: 48, height: 60).clipped().opacity(row.isOn ? 1 : 0.4)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(row.title).font(.body)
+                                Text(row.sentence).font(.caption).foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                if let note = row.note {
+                                    Text(note).font(.caption).foregroundStyle(.secondary)
+                                }
                             }
                         }
                     }
