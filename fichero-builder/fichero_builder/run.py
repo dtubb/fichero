@@ -42,6 +42,7 @@ class Procs:
     stop: Callable[[str], None]               # pane id -> gone
     read: Callable[[], dict | None]           # the newest session file parsed, or None before the first turn
     head: Callable[[], str] = lambda: ""      # the worktree's HEAD sha; a DONE line must name it and it must have moved
+    tell: Callable[[str, str], None] = lambda pane, words: None  # a word to the worker (Pi: steer; Claude: the hook tells)
     sleep: Callable[[float], None] = time.sleep
     now: Callable[[], float] = time.time
 
@@ -149,6 +150,9 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
                 journal.append("watch", task=name, what=d)
                 out(f"{name}: {d}")
                 told.add(kind_of)
+                if kind_of == "handoff":  # the watcher delivers the 85 % word itself where it can (Pi); Claude's hook does it
+                    procs.tell(pane, f"Your context is at 85%. Finish this step, commit, update {handoff.name} so a successor "
+                                     f"can continue without asking, and end your turn with the exact line {HANDOFF_READY}.")
         if any(d.startswith("park") for d in decisions):
             procs.stop(pane)
             end = "parked"

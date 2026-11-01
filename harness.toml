@@ -90,3 +90,14 @@ session_usd = 10
 day_usd = 40
 silent_s = 1800
 prices = { sonnet = [3, 15], opus = [15, 75], haiku = [1, 5] }
+
+[models]
+# One model per role (dev-workflows.models.by-config); a role whose provider is not in `providers` is a question for a
+# person, never a fallback. `claude-code` = an interactive Claude Code session in a pane (the model is its /model name);
+# `anthropic` and `omlx` are Pi providers (their models and prices live in Pi's models.json). Change by editing here.
+providers = ["claude-code", "anthropic", "omlx"]
+builder = { provider = "claude-code", model = "sonnet" }
+reviewer = { provider = "claude-code", model = "opus" }
+spec-writer = { provider = "claude-code", model = "opus" }
+helper = { provider = "claude-code", model = "haiku" }
+researcher = { provider = "claude-code", model = "sonnet" }

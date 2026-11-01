@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 from pathlib import Path
@@ -23,7 +24,10 @@ def main(argv=None) -> int:
     r.add_argument("--root", default=str(Path.cwd()))
     r.add_argument("--name", default=f"worker-{int(time.time())}")
     r.add_argument("--model", default="sonnet")
-    r.add_argument("--kind", default="claude", choices=["claude"])
+    r.add_argument("--kind", default="claude", choices=["claude", "pi"])
+    r.add_argument("--provider", default="anthropic", help="pi: the provider in Pi's models.json")
+    r.add_argument("--agent-dir", help="pi: Pi's agent dir holding models.json (default ~/.pi/agent of the running user)")
+    r.add_argument("--scratch", help="pi: the scratch path the policy allows writes under (default $TMPDIR)")
     r.add_argument("--session", default="harness")
     r.add_argument("--tick", type=float, default=30.0)
     r.add_argument("--handoff", help="the handoff file a successor reads (default <worktree>/HANDOFF.md)")
@@ -55,7 +59,18 @@ def main(argv=None) -> int:
         return 0 if r.get("ok") else 1
     if a.state:
         journal.STATE = Path(a.state)
-    procs = run_mod.real_procs(Path.home(), a.worktree)
+    if a.kind == "pi":
+        from fichero_builder import pi_rpc
+
+        agent_dir = Path(a.agent_dir) if a.agent_dir else Path.home() / ".pi" / "agent"
+        if not pi_rpc.priced(agent_dir, a.provider, a.model):
+            print(f"builder run refuses: {agent_dir / 'models.json'} has no cost for {a.provider}/{a.model}: unknown price, no start", file=sys.stderr)
+            return 1
+        scratch = Path(a.scratch or os.environ.get("TMPDIR", "/tmp"))
+        procs = pi_rpc.pi_procs(root=a.root, scratch=scratch, provider=a.provider, session_dir=scratch / "pi-sessions" / a.name,
+                                agent_dir=agent_dir)
+    else:
+        procs = run_mod.real_procs(Path.home(), a.worktree)
     end = run_mod.run(a.root, a.worktree, a.brief, name=a.name, model=a.model, kind=a.kind, tmux_session=a.session,
                       tick_s=a.tick, procs=procs, handoff=a.handoff)
     return 0 if end in ("gone", "parked") else 1

@@ -230,8 +230,17 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   the kind is used (audit 2026-11-01: the old claim that Pi has no policy hook was false). The context read must know both
   usage shapes (Claude `input_tokens`; Pi `input` and `cacheRead`), else it reads 0 and stays silent. Order: Claude under
   Max on real issues first, then Pi on a metered provider with Sonnet so only the agent changes, then local. The per-item
-  `claude -p` of `cli_agent.py` stays for one-shot clerks. Tests (unwritten, Step 3.1): the Pi RPC test and the policy
-  extension test under the Builder's tests folder.
+  `claude -p` of `cli_agent.py` stays for one-shot clerks. Built 2026-11-01 (Step 3.1): `fichero_builder/pi_rpc.py` starts
+  `pi --mode rpc --no-extensions -e fichero-builder/pi/policy.ts` in the worktree on a bytes pipe (LF is the only record
+  end), correlates responses by id, queues events, and feeds the brief as the first `prompt`; the extension sends every
+  `tool_call` to `python -m fichero_builder.pi_rpc policy` and runs the tool only on an exact `ALLOW` (no argv, a non-zero
+  exit, other output, a timeout or its own throw all block; Pi turns a throw into the tool's error). Pi's `bash`, `write`,
+  `edit`, `read`, `grep`, `find`, `ls` map onto the policy's names; any other tool name is refused. Proven live against a
+  fake OpenAI-completions provider (no key): an allowed command ran and its output reached the model, a refused one was
+  blocked with the reason, a crashing extension blocked the tool. `builder run --kind pi` reads the Pi session file
+  under the scratch path with the same parser, delivers the 85 % word itself by `steer`, and refuses a model with no
+  `cost` in Pi's models.json. Not yet: a Pi worker on a real issue. Tests: `fichero-builder/tests/test_pi_rpc.py`,
+  `fichero-builder/tests/test_pi_policy_extension.py` (the live ones skip without `pi`).
 - `dev-workflows.tool.check` [PARTIAL] (#6116) — the `check` tool runs the ladder from the rules file: every rung an **argv
   list** with cwd, explicit environment (scratch base path and HOME, `PYTHONPATH` relative to the tree under test, thread
   caps) and timeout; a guard runs by its own shebang; the test command is configured, not `python -m pytest`; typed
@@ -409,12 +418,15 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
 
 ### D. Models
 
-- `dev-workflows.models.by-config` [PROPOSED] — the rules file names **one model per role** (builder, reviewer, spec-writer,
+- `dev-workflows.models.by-config` [PARTIAL] (#6116) — the rules file names **one model per role** (builder, reviewer, spec-writer,
   helper, researcher): provider (`anthropic`, `openrouter`, `omlx`, `mlx_lm`, `claude-code`), model, precision, context cap;
   today builder Sonnet, reviewer Opus, spec-writer Fable for a rewrite and Opus for a small spec, approved by the owner; a
   missing provider is a **question**, never a silent fallback; a role changes model only by a person editing the file
   after reading the run log (READY rate, false done, writes outside the worktree, reviewer agreement per model). Test:
-  `fichero-server/tests/unit/workflows/test_model_config.py::test_one_model_per_role_and_a_missing_provider_asks`.
+  Built 2026-11-01: `harness.toml` [models] (`providers` and one `{provider, model, context?}` row per role) read by
+  `fichero_builder/models.py`; a missing role or a provider not in `providers` raises a Question. Not yet: `builder run`
+  and the reviewer start read their model from it (they still take `--model`). Test:
+  `fichero-builder/tests/test_model_config.py::test_one_model_per_role_and_a_missing_provider_asks`.
 
 ### E. UX
 
