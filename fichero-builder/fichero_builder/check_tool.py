@@ -438,7 +438,8 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
         if not _git(root, "worktree", "add", "--detach", "-q", base, since)["ok"]:
             return red(f"could not make a scratch tree at {since[:9]}")
         _git(base, "checkout", sha, "--", *files)  # a new file is not on base; checkout still copies it
-        for f in files:
+        have = already_built_files(root, since, head)  # a proving test of a behaviour already there passes on base by design
+        for f in [f for f in files if f not in have]:
             r = pytest_rung(base, [f], cfg, timeout_s)
             if r["ok"]:
                 return red(f"NOT RED ON BASE: {f} passes at {since[:9]}, so it proves nothing")
@@ -446,6 +447,20 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
         return {**here, "name": "red-on-base"}
     finally:
         _git(root, "worktree", "remove", "--force", base)
+
+
+ALREADY_BUILT = re.compile(r"^Already built:?\s*#\d+", re.M | re.I)
+
+
+def already_built_files(root, since: str, head: str) -> set[str]:
+    """Files touched ONLY by commits of since..head whose message has an `Already built: #N` line (the worker found the
+    behaviour in place and committed the test that proves it); a file another commit also touches owes its red."""
+    have, other = set(), set()
+    for sha in _lines(root, "rev-list", f"{since}..{head}") or []:
+        msg = "\n".join(_lines(root, "log", "-n1", "--format=%B", sha) or [])
+        touched = set(_lines(root, "diff-tree", "--no-commit-id", "--name-only", "-r", sha) or [])
+        (have if ALREADY_BUILT.search(msg) else other).update(touched)
+    return have - other
 
 
 def ladder(rungs: list) -> dict:

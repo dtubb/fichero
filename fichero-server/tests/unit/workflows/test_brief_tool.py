@@ -129,3 +129,8 @@ def test_the_brief_script_refuses_a_missing_harness_toml_in_one_line_and_prints_
 def test_the_brief_script_refuses_a_misspelt_brief_key_and_prints_no_brief(tmp_path):
     r = _run_brief_script(tmp_path, '[brief]\nrulez = "RULES: be careful"\n')
     assert r.returncode != 0 and "rulez" in r.stderr and "Branch b " not in r.stdout
+
+
+def test_a_cluster_brief_tells_the_worker_to_write_already_built_instead_of_a_test_only_commit():
+    text = brief_tool.cluster([_issue(number=1, title="One")], repo=".", branch="b", base="s")
+    assert "Already built: #N" in text and "test" in text.split("Already built: #N")[1][:120]

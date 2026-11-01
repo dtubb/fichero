@@ -111,7 +111,9 @@ def cluster(issues: list[dict], *, repo: str, branch: str, base: str, rules: str
             "Everything you need is below: the issues' text, trusted comments and where the code is. There is no issue "
             "tool to call; do not try to read the issues again.",
             "One commit per issue. Test first, see it fail, then fix. Before changing a shared function, grep every "
-            "reader and run their tests.",
+            "reader and run their tests. If the behaviour is already in place, do not commit a test alone: commit the "
+            "proving test with the line `Already built: #N <test path>::<test name>` in the message (that test passes on "
+            "the base by design, so the check owes it no red; the landing comments the issue with the test).",
             "When all are committed print on its own line: DONE <short sha of branch head>, then the list of commits and "
             "which tests you ran.", ""]
     if rules.strip():

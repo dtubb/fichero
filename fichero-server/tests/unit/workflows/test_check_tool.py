@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -564,3 +565,23 @@ def test_a_change_outside_the_whole_tests_prefix_runs_only_the_changed_test_file
     cfg = ct.load(pinned)
     assert ct._whole_tests(["other.py", "tests/test_new.py"], cfg) == ()
     assert ct._whole_tests(["pkg/lib.py"], cfg) == ("pkg/tests",)
+
+
+def test_a_commit_that_says_already_built_owes_no_red_on_base_but_its_test_still_runs_green(tmp_path):
+    """A worker that found the behaviour in place commits the proving test with the line `Already built: #N <test>`: that
+    test passes on base by design, so red-on-base does not refuse it; it still runs in the green run."""
+    g, base = _git_repo(tmp_path)
+    (tmp_path / "test_have.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 1\n")
+    g("add", "."), g("commit", "-q", "-m", "docs: the value is there\n\nAlready built: #9 test_have.py::test_v")
+    assert ct.red_on_base(tmp_path, base, "HEAD", ["test_have.py"], timeout_s=120)["ok"]
+    # the same size and the same mtime second as the passing version: pytest's rewrite cache would serve the OLD bytecode
+    # (stale pyc flake, 1 in ~3 runs before the fresh pycache prefix per rung)
+    mtime = os.stat(tmp_path / "test_have.py").st_mtime
+    (tmp_path / "test_have.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 3\n")
+    os.utime(tmp_path / "test_have.py", (mtime, mtime))
+    g("add", "."), g("commit", "-q", "-m", "docs: broken\n\nAlready built: #9 test_have.py::test_v")
+    assert not ct.red_on_base(tmp_path, base, "HEAD", ["test_have.py"], timeout_s=120)["ok"], "the green run still judges it"
+    (tmp_path / "test_other.py").write_text("def test_t():\n    assert True\n")
+    g("add", "."), g("commit", "-q", "-m", "a plain commit")
+    r = ct.red_on_base(tmp_path, base, "HEAD", ["test_other.py"], timeout_s=120)
+    assert not r["ok"] and "NOT RED ON BASE" in r["stderr_tail"], "a test from a commit without the line still owes a red"
