@@ -415,6 +415,8 @@ def sweep(project, scratch):
 
 #: Writes under these prefixes change the owner's Mac (the MLX runtime, local models, machines, registered libraries, chain presets, a path an export writes to).
 MACHINE = re.compile(r"^(POST|PUT|PATCH|DELETE) /api/(local-inference|local-models|machines|registry|chains/presets|export/(jsonl|training|parquet|eleventy-site|markdown-folder|word|excel))\b")
+#: Routes that spend the owner's keys or use the network: a caller who can only read (a viewer, a person shared a folder to read) is refused.
+SPEND = re.compile(r"^POST /api/(model-comparison/(compare|compare-node)|research/tools/(web-search|browser-navigate))$")
 #: Reads a plain editor or viewer is refused on by design.
 OWNER_ONLY_GETS = {"/api/auth/invites", "/api/auth/local-clients/requests", "/api/auth/local-clients/switches", "/api/authz/members", "/api/hpc/clusters",
                    "/api/hpc/prompts", "/api/machines", "/api/pair/invites", "/api/users"}
@@ -442,6 +444,8 @@ def found(rows) -> dict:
                 out[("text", key[1])].add(who + ("+decoy" if decoy else ""))
             if who != "owner" and r["status"] not in (401, 403) and (MACHINE.match(key[1]) or _owner_only_action(key[1])):
                 out[("machine", key[1])].add(who)
+            if who in ("dana", "fred") and r["status"] not in (401, 403) and SPEND.match(key[1]):
+                out[("spend", key[1])].add(who)
             if key[0] == "state" and r["status"] != 200:
                 out[("acted", key[1])].add("a caller who must be refused")
         for who in SCOPED:
