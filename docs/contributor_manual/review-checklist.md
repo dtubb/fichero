@@ -18,3 +18,6 @@ review missed once.
 8. **No model reruns.** A model call must reuse an existing result for the same input and model first.
 9. **Boundary.** No private manuscripts, no absolute home paths, no tokens, no `user_manual` private directories.
 10. **Trailers.** `Directed-By: the maintainer` and a `Co-Authored-By:` line on every commit; author `Claude`.
+11. **Ladder output is untrusted.** Tests run the worker's own code, so a green ladder is never evidence against a hostile
+    diff (a test file can always exit 0). Read every new module for exits and for names that shadow the stdlib or an
+    installed package, and every conftest.py change. Name each such file on the last line: `READY: allow-shadow <path>`.

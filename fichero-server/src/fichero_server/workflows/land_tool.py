@@ -99,7 +99,7 @@ def resolve_branch(root, branch: str) -> str:
     return _git(root, "rev-parse", "--verify", "--end-of-options", f"refs/heads/{branch}^{{commit}}").strip()
 
 
-def write_verdict(store, root, base: str, head: str) -> str:
+def write_verdict(store, root, base: str, head: str, allow_shadow=()) -> str:
     """Record READY for the exact range base..head in `store` (an owner-owned file); returns the range key."""
     base = _git(root, "rev-parse", "--verify", f"{base}^{{commit}}").strip()
     keys = commit_keys(root, base, head)
@@ -108,7 +108,7 @@ def write_verdict(store, root, base: str, head: str) -> str:
         v = json.loads(safe_read(store))
     except FileNotFoundError:
         v = {}
-    v[key] = {"verdict": "READY", "commits": [k["sha"] for k in keys]}
+    v[key] = {"verdict": "READY", "commits": [k["sha"] for k in keys], "allow_shadow": sorted(allow_shadow)}
     safe_write(store, json.dumps(v, indent=1))
     return key
 
@@ -126,9 +126,53 @@ def unreviewed(root, branch: str, head: str, store) -> list[str]:
         return [str(e)]
     if not keys:
         return ["nothing to land: branch..head is empty"]
-    if verdicts.get(range_key(keys, base), {}).get("verdict") != "READY":
+    v = verdicts.get(range_key(keys, base), {})
+    if v.get("verdict") != "READY":
         return [f"no READY verdict for this exact range of {len(keys)} commit(s) (diffs and messages, in order)"]
+    try:
+        unnamed = sorted(set(risky_paths(root, base, head)) - set(v.get("allow_shadow", [])))
+    except RuntimeError as e:
+        return [str(e)]
+    if unnamed:
+        return [f"the reviewer did not name these files in READY (review them and re-run harness_review): {', '.join(unnamed)}"]
     return []
+
+
+def risky_paths(root, base: str, head: str) -> list[str]:
+    """Files that make a green ladder cheap to forge: any added or changed conftest.py, and any added top-level module
+    (a .py in a directory that is not a package, or a package whose parent is not one) whose name is a stdlib module or
+    an installed distribution's module. THE LIMIT, plainly: tests run the worker's own code, so no ladder green is proof
+    against a hostile worker; the reviewer is the wall, and a land needs these files NAMED in its READY line
+    (`READY: allow-shadow a.py, b.py`). A name inside a package (core/logging.py) shadows nothing and is fine."""
+    import sys
+    from importlib.metadata import packages_distributions
+    taken = set(sys.stdlib_module_names) | set(packages_distributions())
+    out = _gitb(root, "diff", "--raw", "-z", "--no-renames", f"{base}..{head}").split(b"\0")
+    found = []
+    for meta, path in zip(out[0::2], out[1::2]):
+        status, p = meta.split()[-1][:1].decode(), path.decode("utf-8", "replace")
+        parts = p.split("/")
+        if parts[-1] == "conftest.py":
+            found.append(p)
+            continue
+        if status != "A" or not p.endswith(".py"):
+            continue
+        d = "/".join(parts[:-1])
+        name = parts[-1][:-3]
+        if name == "__init__":  # a package: its name is the directory's, and it must itself be top-level
+            if len(parts) < 2:
+                continue
+            name, d = parts[-2], "/".join(parts[:-2])
+        pkg = f"{d}/__init__.py" if d else "__init__.py"
+        if _gitb_ok(root, "cat-file", "-e", f"{head}:{pkg}"):
+            continue  # inside a package
+        if name in taken:
+            found.append(p)
+    return found
+
+
+def _gitb_ok(root, *args) -> bool:
+    return subprocess.run([GIT, "-C", str(root), *_ATTR, *args], capture_output=True).returncode == 0
 
 
 def review_diff(root, base: str, head: str, cap: int = 60000) -> str:

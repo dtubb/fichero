@@ -222,3 +222,36 @@ def test_the_reviewer_reads_every_commit_not_the_net_diff(tmp_path):  # review 5
     g("add", "."), g("commit", "-qm", "A")
     g("rm", "-q", "e.py"), g("commit", "-qm", "B")
     assert "curl evil" in L.review_diff(tmp_path, base, "HEAD")
+
+
+def _store_with(tmp_path, g, base, allow=()):
+    s = tmp_path.parent / (tmp_path.name + "-verdicts.json")
+    L.write_verdict(s, tmp_path, base, "HEAD", allow_shadow=allow)
+    return s
+
+
+def test_land_refuses_conftest_and_stdlib_or_package_shadows_unless_the_reviewer_named_them(tmp_path):  # review 6 R2
+    """THE LIMIT, plainly: tests run the worker's code, so a green ladder is never proof against a hostile worker. The
+    reviewer is the wall. These two kinds of file are the ones that make a green cheap to forge, so a verdict must NAME them."""
+    g, base = _repo(tmp_path)
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "conftest.py").write_text("import os\nos._exit(0)\n")
+    (tmp_path / "tests" / "pdb.py").write_text("import os\nos._exit(0)\n")
+    g("add", "."), g("commit", "-qm", "plant")
+    store = _store_with(tmp_path, g, base)
+    why = L.unreviewed(tmp_path, "land", "HEAD", store)
+    assert why and "conftest.py" in why[0] and "pdb.py" in why[0]
+    named = _store_with(tmp_path, g, base, allow=["tests/conftest.py", "tests/pdb.py"])
+    assert L.unreviewed(tmp_path, "land", "HEAD", named) == []
+    one = _store_with(tmp_path, g, base, allow=["tests/conftest.py"])
+    assert L.unreviewed(tmp_path, "land", "HEAD", one)  # naming one is not naming both
+
+
+def test_a_module_inside_a_package_may_share_a_stdlib_name(tmp_path):  # review 6 R2: core/logging.py is legitimate
+    g, base = _repo(tmp_path)
+    (tmp_path / "core").mkdir()
+    (tmp_path / "core" / "__init__.py").write_text("")
+    (tmp_path / "core" / "logging.py").write_text("x = 1\n")
+    g("add", "."), g("commit", "-qm", "pkg")
+    # core/__init__.py is new, so core/ is the top-level package; it shadows nothing
+    assert L.unreviewed(tmp_path, "land", "HEAD", _store_with(tmp_path, g, base)) == []

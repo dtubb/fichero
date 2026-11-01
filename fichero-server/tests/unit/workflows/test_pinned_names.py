@@ -101,3 +101,22 @@ def test_a_planted_stdlib_or_dependency_module_cannot_forge_a_green_pytest(tmp_p
     assert ct.pytest_rung(tmp_path, ["test_a.py"], cfg, timeout_s=120)["ok"] is False
     (tmp_path / "test_a.py").write_text("def test_green():\n    assert True\n")
     assert ct.pytest_rung(tmp_path, ["test_a.py"], cfg, timeout_s=120)["ok"] is True  # the control: it still runs
+
+
+def test_pytest_tests_the_commit_not_an_editable_install(tmp_path):  # review 6 R1
+    """An editable install's .pth adds a directory right after site-packages; the tree must come before it, or the
+    commit's code is never imported and a green proves nothing."""
+    import sys
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "mod.py").write_text("def f():\n    return 1\n")  # the "install": returns what the test wants
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "mod.py").write_text("def f():\n    return 2\n")  # the commit under test
+    (tmp_path / "test_a.py").write_text("import mod\n\n\ndef test_a():\n    assert mod.f() == 1\n")
+    argv = ct.pytest_argv(tmp_path, ["test_a.py"], ct.Config(python=sys.executable, python_path=("src",)))
+    # what a .pth does: put `other` on sys.path right after the site-packages directory, before anything we add later
+    pth = (f"import sys; i = next(n for n, p in enumerate(sys.path) if p.endswith('site-packages')) + 1; "
+           f"sys.path.insert(i, {str(other)!r})\n")
+    argv[-1] = pth + argv[-1]
+    r = ct.run_command("pytest", argv, tmp_path, 120, {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path)})
+    assert r["ok"] is False and "assert 2 == 1" in r["stdout_tail"], r["stdout_tail"]  # the commit ran and failed

@@ -205,9 +205,13 @@ def pytest_argv(root, files: list[str], cfg: Config) -> list[str]:
     cfgfile = ["-c", str(Path(root) / cfg.pytest_config)] if cfg.pytest_config else []
     plugins = [x for p in cfg.pytest_plugins for x in ("-p", p)]
     args = ["-q", "-p", "no:cacheprovider", "-x", *cfgfile, *plugins, *files]
-    # review 5 N5: `python -I` (no PYTHONPATH, no cwd) and the tree's folders put on sys.path AFTER site-packages, so a
-    # planted src/gettext.py or src/pluggy.py shadows nothing; the same rule as `_isolated` for guards.
-    code = (f"import sys; sys.path.extend({[str(Path(root) / p) for p in cfg.python_path]!r})\n"  # AFTER site-packages
+    # review 5 N5 + review 6 R1: `python -I` (no PYTHONPATH, no cwd); the tree's folders go in RIGHT AFTER the site-packages
+    # directory: after it, so a planted src/pluggy.py shadows no installed package, and before what its .pth files add,
+    # so an editable install never replaces the commit under test. (`_isolated` for guards inserts before site-packages.)
+    # THE LIMIT: tests run the worker's own code, so a green is never proof against a hostile worker (a test file can
+    # always exit 0). The reviewer is the wall; land_tool.risky_paths makes it name the files that forge a green cheaply.
+    code = ("import sys; i = next((n for n, p in enumerate(sys.path) if p.endswith('site-packages')), len(sys.path) - 1) + 1; "
+            f"sys.path[i:i] = {[str(Path(root) / p) for p in cfg.python_path]!r}\n"
             f"import pytest; sys.exit(pytest.main({args!r}))")
     return [_py(cfg), "-I", "-c", code]
 
