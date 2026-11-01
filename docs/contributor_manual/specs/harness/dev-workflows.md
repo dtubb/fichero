@@ -197,31 +197,35 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
 
 ### A. Workers (the loop is the harness's)
 
-- `dev-workflows.run.worker-start-stop` [PARTIAL] (#6116) — the engine starts a worker for a task (a Builder cluster, headless
-  on a scratch base path with a pinned dev engine, ruling Q1; a Researcher task, in-app) with its brief, kind, model and
-  allow-list. A Builder worker is an interactive tmux session **as the worker user**: Claude Code with an explicit
-  permission mode, `--settings` and `--setting-sources` naming only the generated settings (no user or project hooks
-  inherited), a generated MCP config under `--strict-mcp-config`, the role's model, and the environment passed with
-  `tmux new-window -e` (`FICHERO_BASE_PATH` on the scratch path, `FICHERO_HARNESS_LOG`); Pi in a pane with its extension.
-  The hooks post the rows; the pane log is not followed. The register (process group, pane, session directory,
-  started-at) is a file, so a restart adopts or kills before any successor; stop is TERM then KILL after a grace. The
-  route module and its actions load **only under the `dev` tier**, `owner_only`, and `start` refuses unless
-  `FICHERO_DEV_WORKERS=1` from the scratch engine's launcher (built: dev-tier and owner-only actions; not yet: the
-  variable); at release `worker.start` is unreachable through `/api/actions/invoke`. Every worker, generation 1 or a
-  successor, starts through `scripts/harness_start.py` (§ 0), never bare. Tests: `fichero-server/tests/unit/workflows/test_worker_process.py`,
-  `fichero-server/tests/unit/workflows/test_worker_route.py::test_a_release_engine_has_no_worker_actions_and_refuses_to_start`.
-- `dev-workflows.run.worker-address` [PARTIAL] (#6116) — per task, the current generation's address (pane, process group,
-  session directory, kind, started-at) is registered, rewritten at each handoff, cleared when gone; `tell` appends to
-  that generation's inbox file, read by the worker's hook on prompt submit and after each tool; a worker idle at its
-  prompt is reached by the tick's keystroke into the pane, logged as a fallback; under 800 characters; a tell to a stale
-  generation is refused naming the current one. Test:
-  `fichero-server/tests/unit/workflows/test_worker_address.py::test_tell_reaches_only_the_current_generation`.
-- `dev-workflows.node.worker` [PARTIAL] (#6116) — kinds `claude` and `pi`, both the pane shape above; each kind has one
-  adapter (usage, tool errors, the reported sha, the tool names the hooks see) and a hook that meets an unknown tool name
-  **refuses**, never passes; `fake` replays recorded hook events through the real hooks and is never started by a person.
-  **Dated:** the `pi` kind runs one real cluster through OpenRouter by 2026-11-14 with its extension running the same hook
-  scripts; the per-item `claude -p` of `cli_agent.py` stays for one-shot reviewers and clerks. Test:
-  `fichero-server/tests/unit/workflows/test_worker_node.py::test_worker_kinds`.
+- `dev-workflows.run.worker-start-stop` [PARTIAL] (#6116) — `builder run <issues>` starts a worker for a cluster: one plain
+  process, no engine. It builds the brief (`brief`), writes the rules check (`check_tool.load` on `harness.toml`, read only
+  after its owner and mode are checked), and launches the worker **as the worker user** through the one start path
+  (`scripts/harness_start.py` today, `builder start` after the move), never bare: Claude Code with an explicit permission
+  mode, `--settings` and `--setting-sources` naming only the generated settings (no user or project hooks inherited), a
+  generated MCP config under `--strict-mcp-config`, the role's model, and the environment (`FICHERO_BASE_PATH` on the scratch
+  path, `FICHERO_HARNESS_LOG`); Pi over RPC with its extension. The register (process group, pane or pipe, session
+  directory, started-at) is a file, so a restart adopts or kills before any successor; stop is TERM then KILL after a grace.
+  The engine has no worker route or action (owner 2026-11-01: the Builder is apart from the engine); `worker_process.py`,
+  `routes/workers.py` and their actions are deleted in Step 1.1. Built: the start path, the jail probe, the rules check.
+  Not yet: the one process that owns start, watch and stop. Tests: `fichero-builder/tests/test_watcher.py`.
+- `dev-workflows.run.worker-address` [PARTIAL] (#6116) — per task, the current generation's address (pane or RPC pipe,
+  process group, session directory, kind, started-at) is registered in the journal, rewritten at each handoff, cleared when
+  gone; `builder ask` and a steer write a file in that generation's inbox, read by the worker at its next turn (the hook on
+  Claude, the extension on Pi); no keystroke into a pane (audit 2026-11-01: `unstick.sh` pressed Enter 11,081 times, 356
+  into a draft); a message to a stale generation is refused naming the current one; under 800 characters. Built: the
+  inbox file and the hook read. Not yet: the register in the journal; the refusal. Test:
+  `fichero-builder/tests/test_real_cluster_record.py::test_a_message_reaches_only_the_current_generation`.
+- `dev-workflows.node.worker` [PARTIAL] (#6116) — kinds `claude` and `pi`; each kind has one adapter (usage from the
+  session file, tool errors, the reported sha, the tool names the policy sees) and a policy that meets an unknown tool name
+  **refuses**, never passes; `fake` replays recorded events through the real policy and is never started by a person.
+  `claude` is an interactive session in a pane (probed: `claude -p` exits at the end of its turn). `pi` is driven over its
+  RPC mode (`prompt`, `steer`, `abort` on a pipe; Pi 0.75.5 `docs/rpc.md`) and carries `[policy]` in a `tool_call`
+  extension that can block (`docs/extensions.md`); the extension's crash must block, not allow, and that is tested before
+  the kind is used (audit 2026-11-01: the old claim that Pi has no policy hook was false). The context read must know both
+  usage shapes (Claude `input_tokens`; Pi `input` and `cacheRead`), else it reads 0 and stays silent. Order: Claude under
+  Max on real issues first, then Pi on a metered provider with Sonnet so only the agent changes, then local. The per-item
+  `claude -p` of `cli_agent.py` stays for one-shot clerks. Tests: `fichero-builder/tests/test_pi_rpc.py`,
+  `fichero-builder/tests/test_pi_policy_extension.py`.
 - `dev-workflows.tool.check` [PARTIAL] (#6116) — the `check` tool runs the ladder from the rules file: every rung an **argv
   list** with cwd, explicit environment (scratch base path and HOME, `PYTHONPATH` relative to the tree under test, thread
   caps) and timeout; a guard runs by its own shebang; the test command is configured, not `python -m pytest`; typed
@@ -251,14 +255,16 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   would change, a pinned check trips, a step is paid or irreversible, a source contradicts the premise or the spec
   contradicts the code; the countable stops are `check`'s (above); never for context. Test:
   `fichero-server/tests/unit/workflows/test_cluster_run.py::test_worker_steers_and_stop_and_ask_cases`.
-- `dev-workflows.worker.handoff` [PARTIAL] (#6116) — at 85 % of the context window or a task boundary the handoff hook
-  (tracked in the repository, no pane ids or session names in it) asks the worker to write the handoff: the spec or
-  question and its sections; ordered items with state and sha; one line per commit or saved source; commands run and
-  results; the failing command's tail; decisions and rejected alternatives; files touched; the do-not list; budget used;
-  under two thousand tokens; then ends the session (TERM after a grace, since an interactive session does not exit on
-  its own) and starts the successor **through the same start path**, in the jail; a result already on the task is refused
-  as re-done work. A parked worker ends the same way and its successor resumes with the answer. At 16-32k the handoff
-  fires per item. Test: `fichero-server/tests/unit/workflows/test_cluster_run.py::test_handoff_and_successor`.
+- `dev-workflows.worker.handoff` [PARTIAL] (#6116) — at 85 % of the context window or a task boundary the **watcher**, reading
+  the session file (not a Stop hook: audit 2026-11-01 H5, the hook is inert for workers), asks the worker to write the
+  handoff: the spec or question and its sections; ordered items with state and sha; one line per commit or saved source;
+  commands run and results; the failing command's tail; decisions and rejected alternatives; files touched; the do-not
+  list; budget used; under two thousand tokens; then ends the session (TERM after a grace, since an interactive session does
+  not exit on its own) and starts the successor **through the same start path**, in the jail, from the handoff file; a
+  result already on the task is refused as re-done work. A parked worker ends the same way and its successor resumes with
+  the answer. At 16-32k the handoff fires per item. The handoff file is tracked in the repository with no pane ids or
+  session names in it. Built: the hook form (`scripts/harness_handoff_hook.py`, reuses `sys.executable`). Not yet: the
+  watcher form. Test: `fichero-builder/tests/test_handoff.py::test_handoff_and_successor`.
 - `dev-workflows.worker.two-capability-sets` [PROPOSED] — Builder: worktree, shell, git, the step tools, scratch base path,
   `dev` tier only. Researcher: capabilities **per task**, never mixed in one session: find-sources holds web search and
   fetch and no library read; search-libraries holds read-only library and KG actions and no web; read-and-note reads only
@@ -308,19 +314,22 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   unknown tool name is refused. **Layers:** the user boundary holds the hard rules; the hook is fast feedback, not a
   security boundary; guards at landing catch the rest; prose-only rules are listed as such and become hook or guard
   rules once seen twice. Test: `fichero-server/tests/unit/workflows/test_policy_hook.py::test_each_forbidden_command_is_refused_with_a_reason`.
-- `dev-workflows.run.watch-tick` [PROPOSED] — a `launchd` job (not a session cron, not the engine's scheduler) runs the tick
-  every twenty to thirty minutes and keeps the dev engine alive: a worker gone with its task unfinished → a successor
-  from the handoff, or a question with none; a handoff with no successor after twenty minutes → started; a cluster READY
-  and unlanded after thirty minutes → `land` or its refusal as a question; a worker judged stuck by its process and its
-  session transcript's age, never by a missing row → told once by keystroke, then replaced; after an engine restart the
-  persisted register is adopted or killed before any successor; a budget stop parks with a question; the pinned dev
-  engine moves to a newer sha only between clusters; each action a row. Test:
-  `fichero-server/tests/unit/workflows/test_watch_tick.py::test_gone_orphan_unlanded_stuck_and_restart`.
-- `dev-workflows.run.records-are-truth` [PROPOSED] (maintainer 2026-10-31) — the jobs table is the truth for runs, and for a
-  worker its rows plus git plus the handoff; in Slice 0 the rows are JSON lines in `$FICHERO_HARNESS_LOG`, imported later
-  by one script; the run log (one row per item attempt: model, provider, context cap, tokens, tool calls and errors,
-  diff lines, wall time, cost, ladder, verdicts, rework rounds, false done) is written from them as rows and TSV. Test:
-  `fichero-server/tests/unit/workflows/test_records_are_truth.py::test_state_and_log_read_from_records`.
+- `dev-workflows.run.watch-tick` [PROPOSED] — the watcher is the `builder run` process itself, reading the worker's session
+  file (context, cost, idle, stuck, red), for Claude and Pi alike (`parse_session` reads both); not a session cron, not the
+  engine's scheduler, not a pane regex. A worker gone with its task unfinished → a successor from the handoff, or a question
+  with none; a handoff with no successor after twenty minutes → started; a cluster READY and unlanded after thirty minutes →
+  `land` or its refusal as a question; a worker judged stuck by its process and its session file's age, never by a missing
+  row → told once by file, then replaced; a silent worker raises an alert; an unknown price refuses to start; a per-session
+  or daily spend cap parks with a question (owner ruling pending: the daily amount); on restart the journal is reconciled
+  before any successor; the pinned dev engine moves to a newer sha only between clusters; each action a journal row. A
+  `launchd` job only keeps the watcher itself alive. Tests: `fichero-builder/tests/test_watcher.py`,
+  `fichero-builder/tests/test_spend_caps.py`.
+- `dev-workflows.run.records-are-truth` [PROPOSED] (maintainer 2026-10-31; owner 2026-11-01: no engine) — for a worker the
+  truth is its **journal** (JSON lines, one file per cluster under the Builder's state directory; `$FICHERO_HARNESS_LOG` in
+  Slice 0), plus git plus the handoff file; the run log (one row per item attempt: model, provider, context cap, tokens,
+  tool calls and errors, diff lines, wall time, cost, ladder, verdicts, rework rounds, false done) is written from the
+  journal as rows and TSV; the engine's jobs table is the truth only for recipe runs and the Researcher, and an app reads
+  the journal later. Test: `fichero-builder/tests/test_journal_is_truth.py::test_state_and_log_read_from_the_journal`.
 - `dev-workflows.run.rules-file` [PARTIAL] (#6116) — one `harness.toml` at the repository root declares **what must hold**,
   never the worker's order of work: integration and protected branches, worktree root and branch pattern, commit author
   and trailers, scratch path, allowed tools and forbidden commands, each rung of the ladder **declared on or off** as an
