@@ -11,10 +11,11 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from fichero_server.api.main import get_library_database
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import get_library_database, get_library_database_for_write, input_document_ids, write_check
 from fichero_server.db import Database
 from fichero_server.workflows.scheduler import (
     WorkflowScheduler,
@@ -177,6 +178,17 @@ async def get_scheduler(
     db: Database = Depends(get_library_database),
 ) -> WorkflowScheduler:
     """Get or create scheduler for the current library."""
+    return await _scheduler_for(db)
+
+
+async def get_scheduler_for_write(
+    db: Database = Depends(get_library_database_for_write),
+) -> WorkflowScheduler:
+    """The scheduler, for a route that starts, changes or removes a run: a viewer is refused (#6320)."""
+    return await _scheduler_for(db)
+
+
+async def _scheduler_for(db: Database) -> WorkflowScheduler:
     db_path = str(db.path)
 
     if db_path not in _schedulers:
@@ -189,15 +201,25 @@ async def get_scheduler(
     return _schedulers[db_path]
 
 
+async def _check_documents(http, library_path: str, db: Database, inputs: dict | None, batch_items: list | None) -> None:
+    """A run reads and writes the documents its inputs name, which the write dependency (path and query only) never sees (#6320)."""
+    if named := [*input_document_ids(inputs), *(d for item in batch_items or [] for d in input_document_ids(item))]:
+        await write_check(http, library_path, db, named)
+
+
 # Endpoints
 
 
 @router.post("", response_model=ScheduleResponse)
 async def create_schedule(
     request: CreateScheduleRequest,
-    scheduler: WorkflowScheduler = Depends(get_scheduler),
+    scheduler: WorkflowScheduler = Depends(get_scheduler_for_write),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ScheduleResponse:
     """Create a new workflow schedule."""
+    await _check_documents(http, library_path, db, request.inputs, request.batch_items)
 
     try:
         config = ScheduleConfig(
@@ -272,7 +294,7 @@ async def get_schedule(
 @router.delete("/{schedule_id}")
 async def delete_schedule(
     schedule_id: str,
-    scheduler: WorkflowScheduler = Depends(get_scheduler),
+    scheduler: WorkflowScheduler = Depends(get_scheduler_for_write),
 ) -> ScheduleDeletedResponse:
     """Delete a schedule."""
 
@@ -289,9 +311,13 @@ async def delete_schedule(
 async def update_schedule(
     schedule_id: str,
     request: UpdateScheduleRequest,
-    scheduler: WorkflowScheduler = Depends(get_scheduler),
+    scheduler: WorkflowScheduler = Depends(get_scheduler_for_write),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ScheduleResponse:
     """Update a schedule."""
+    await _check_documents(http, library_path, db, request.inputs, request.batch_items)
 
     # Verify schedule exists
     schedule = await scheduler.get_schedule(schedule_id)
@@ -347,7 +373,7 @@ async def update_schedule(
 @router.post("/{schedule_id}/pause", response_model=ScheduleResponse)
 async def pause_schedule(
     schedule_id: str,
-    scheduler: WorkflowScheduler = Depends(get_scheduler),
+    scheduler: WorkflowScheduler = Depends(get_scheduler_for_write),
 ) -> ScheduleResponse:
     """Pause an active schedule."""
 
@@ -361,7 +387,7 @@ async def pause_schedule(
 @router.post("/{schedule_id}/resume", response_model=ScheduleResponse)
 async def resume_schedule(
     schedule_id: str,
-    scheduler: WorkflowScheduler = Depends(get_scheduler),
+    scheduler: WorkflowScheduler = Depends(get_scheduler_for_write),
 ) -> ScheduleResponse:
     """Resume a paused schedule."""
 
@@ -375,9 +401,14 @@ async def resume_schedule(
 @router.post("/{schedule_id}/trigger", response_model=ScheduleRunResponse)
 async def trigger_schedule(
     schedule_id: str,
-    scheduler: WorkflowScheduler = Depends(get_scheduler),
+    scheduler: WorkflowScheduler = Depends(get_scheduler_for_write),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ScheduleRunResponse:
     """Manually trigger a schedule to run now."""
+    if (stored := await scheduler.get_schedule(schedule_id)) is not None:  # the run reads what the schedule names
+        await _check_documents(http, library_path, db, stored.inputs, stored.batch_items)
 
     try:
         run = await scheduler.trigger_now(schedule_id)

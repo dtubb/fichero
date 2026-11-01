@@ -21,6 +21,7 @@ class GraphAwareRetriever:
     def __init__(self, db, file_reader: Callable[[str | None], str | None] | None = None):
         self.db = db
         self._file_reader = file_reader
+        self._may_read: Callable[[str], bool] | None = None
 
     def retrieve(
         self,
@@ -34,7 +35,11 @@ class GraphAwareRetriever:
         search_type: str = "hybrid",
         filters: dict[str, Any] | None = None,
         min_score: float = 0.0,
+        may_read: Callable[[str], bool] | None = None,
     ) -> RetrievalPayload:
+        """`may_read`: a document (or a claim resting on one) this test refuses is left out of the prompt, whichever way it
+        was found: the search, the named scope, or a hop of the graph (#6320)."""
+        self._may_read = may_read
         payload = RetrievalPayload()
         content_by_doc_id: dict[str, str] = {}
         seed_doc_ids: list[str] = []
@@ -42,7 +47,7 @@ class GraphAwareRetriever:
         if document_ids:
             for doc_id in document_ids[:max_sources]:
                 doc = self.db.get(Document, doc_id)
-                if doc is None:
+                if doc is None or not self._readable(doc.id):
                     continue
                 content = self._read_content(doc)
                 if not content:
@@ -77,7 +82,7 @@ class GraphAwareRetriever:
             )
             for result in search_results:
                 doc = self.db.get(Document, result.document_id)
-                if doc is None:
+                if doc is None or not self._readable(doc.id):
                     continue
                 content = self._read_content(doc)
                 if not content:
@@ -137,7 +142,7 @@ class GraphAwareRetriever:
         if not seed_doc_ids or max_kg_claims <= 0:
             return
 
-        seed_claims = self.db.knowledge_claims_for_seed_documents(set(seed_doc_ids))
+        seed_claims = [c for c in self.db.knowledge_claims_for_seed_documents(set(seed_doc_ids)) if self._readable(c.source_document_id)]
         if not seed_claims:
             return
 
@@ -174,6 +179,7 @@ class GraphAwareRetriever:
                 exclude_ids=gathered_claim_ids,
                 limit=max(0, max_gathered - len(gathered_claim_ids)),
             )
+            new_claims = [c for c in new_claims or [] if self._readable(c.source_document_id)]
             if not new_claims:
                 break
             for claim in new_claims:
@@ -250,6 +256,9 @@ class GraphAwareRetriever:
 
         payload.kg_claims_used = len(ordered_claims)
         payload.kg_entities_used = len(seen_entities)
+
+    def _readable(self, doc_id: str | None) -> bool:
+        return self._may_read is None or not doc_id or self._may_read(doc_id)
 
     def _read_content(self, doc: Document) -> str | None:
         if doc.page_content:

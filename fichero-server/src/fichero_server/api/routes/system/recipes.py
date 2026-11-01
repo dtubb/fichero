@@ -21,7 +21,7 @@ from fichero_server.actions.registry import ActionContext, ChangeSpec, action, r
 from fichero_server.core.single_flight import single_flight
 from fichero_server.api.auth import action_context
 from fichero_server.api.routes.auth.accounts import _require_owner_or_bootstrap
-from fichero_server.api.library_header import optional_library_path
+from fichero_server.api.library_header import optional_library_path, require_library_path
 from fichero_server.llm.local_model_facts import GIB
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 # Imported, never redefined: one schema component for every route's refusal sentence (#5094).
@@ -729,9 +729,14 @@ async def get_samples(stage: Optional[str] = None, db: Database = Depends(get_li
 
 
 @router.put("/samples", response_model=SamplePages)
-async def choose_samples(body: ChooseSamples, db: Database = Depends(get_library_database_for_write)) -> SamplePages:
+async def choose_samples(body: ChooseSamples, db: Database = Depends(get_library_database_for_write), http: Request = None,
+                         library_path: str = Depends(require_library_path)) -> SamplePages:
     """Choose the sample pages by hand (kept beside the setup, for every stage); none: back to the proposal."""
+    from fichero_server.api.main import read_check  # noqa: PLC0415
     from fichero_server.recipes import samples
+
+    if body.ids:  # a try reads them and the answer names them (#6320)
+        await read_check(http, library_path, db, body.ids, deep=False)
 
     try:
         return SamplePages(**await asyncio.to_thread(samples.choose, db, body.ids))

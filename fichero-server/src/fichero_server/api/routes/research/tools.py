@@ -420,8 +420,12 @@ async def execute_browser_navigate(
 async def execute_document_fetch(
     request: DocumentFetchRequest,
     db: Database = Depends(get_library_database_for_write),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
 ) -> DocumentFetchResponse:
     """Fetch a document URL and optionally save as Layer 1 Source (sandboxed)."""
+    # It saves a new top-level document: the person must be able to write at the project's top level (#6320).
+    await write_check(http, library_path, db, [None], deep=False)
     from fichero_server.core.egress import check_egress  # noqa: PLC0415
     check_egress("cloud", what="the agent's request", to="the web")
     import httpx  # lazy (#3985): keep off the engine boot path

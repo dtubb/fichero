@@ -81,6 +81,9 @@ class ActionContext:
     # decide `KnowledgeClaim.provenance_kind` (`human` vs `agent`); it is
     # never an authorization input.
     via_mcp: bool = False
+    # A read-only action that lists documents keeps only those this returns True for (set for a caller whose reads differ
+    # page by page: a person with a deny, or shared a folder). None: everything (#6320).
+    may_read: "Callable[[str], bool] | None" = None
 
 
 def started_by_for(ctx: "ActionContext") -> str:

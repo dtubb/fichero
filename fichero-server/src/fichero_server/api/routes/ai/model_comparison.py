@@ -826,6 +826,9 @@ async def compare_vision_models(
 async def compare_tool_across_models(
     request: ToolCompareRequest,
     app_db: AppDatabase = Depends(_get_app_database),
+    db: Database = Depends(get_library_database_for_write),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
 ) -> ComparisonResultResponse:
     """Compare models running the same workflow tool.
 
@@ -834,6 +837,8 @@ async def compare_tool_across_models(
 
     Available tools can be found via the /api/workflows/tools endpoint.
     """
+    if named := input_document_ids(request.inputs):  # the tool reads them with every model (#6320)
+        await read_check(http, library_path, db, named, deep=False)
     model_specs = _model_specs(request.models, app_db)
 
     engine = get_comparison_engine()
@@ -857,7 +862,8 @@ async def compare_workflow_across_models(
     library_path: str = Depends(require_library_path),
 ) -> ComparisonResultResponse:
     """Run the same workflow once per provider/model override and compare outcomes."""
-    await read_check(http, library_path, db, [request.doc_id], deep=False)  # the body's document is read by every model (#6320)
+    # The body's document, and any the inputs name, are read by every model (#6320).
+    await read_check(http, library_path, db, [request.doc_id, *input_document_ids(request.inputs)], deep=False)
     workflow = _workflow_from_compare_request(request, db)
     model_specs = _model_specs(
         [model.model_dump() for model in request.models],

@@ -13,6 +13,7 @@ out=${1:?usage: m4_suite_by_dir.sh <out-dir> [<checkout> [<python>]]}
 repo=${2:-$HOME/code/fichero-worktrees/check}
 py=${3:-$HOME/code/fichero/.venv/bin/python}
 mkdir -p "$out"; cd "$repo" || exit 2
+scripts/check_pytest_pin.sh "$py" || exit 2  # a pytest that fails a test for its own reasons would read as a red of the code
 for d in fichero-server/tests/unit/*(/) ; do
   n=${d:t}
   PYTHONPATH=$PWD/fichero-server/src $py -m pytest -q -rfE --timeout=300 -p no:cacheprovider $d > $out/$n.log 2>&1

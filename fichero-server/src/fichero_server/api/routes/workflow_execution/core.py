@@ -337,8 +337,17 @@ async def execute_workflow(
         404: Workflow not found
     """
     # A run reads and writes the documents its inputs name, which the write dependency (path and query only) never sees (#6320).
-    if named := input_document_ids(request.inputs):
-        await write_check(http_request, library_path, db, named)
+    # The typed `selection` is read the same way, and the app sends only that field (segments: the pages they are on).
+    named = input_document_ids(request.inputs)
+    if request.selection is not None:
+        from fichero_server.workflows.selection import SelectionRefused, selection_document_ids  # noqa: PLC0415
+
+        try:
+            named += selection_document_ids(db, request.selection)
+        except SelectionRefused:  # a segment that is not there: the run refuses it in words below
+            pass
+    if named:
+        await write_check(http_request, library_path, db, list(dict.fromkeys(named)))
     try:
         # Load workflow. The recipe may live in this library, or be a shipped
         # DEFAULT resolved from the global library (#4450/#4102): defaults are

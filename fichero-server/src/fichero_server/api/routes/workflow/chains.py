@@ -31,7 +31,10 @@ from fichero_server.workflows.types import WorkflowDef
 from fichero_server.workflows.workflow_store import WorkflowStore
 from fichero_server.db import db_manager
 from fichero_server.api.library_header import require_library_path
-from fichero_server.api.main import assert_library_read_authorized
+from fichero_server.api.main import (
+    assert_library_read_authorized, get_library_database_for_write, input_document_ids, write_check,
+)
+from fichero_server.db import Database
 
 logger = logging.getLogger(__name__)
 
@@ -1196,6 +1199,7 @@ async def execute_chain_steps(
     request: ExecuteChainStepsRequest,
     http_request: Request,
     x_fichero_library_path: str = Depends(require_library_path),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ChainStepsAcceptedResponse:
     """Run a chain's steps as real, sequential workflow runs (workflow bar).
 
@@ -1203,6 +1207,9 @@ async def execute_chain_steps(
     GET /chains/executions/{execution_id} for per-step statuses, or attach to
     any step's SSE stream_url as it runs.
     """
+    # Every step is a run that reads and writes the documents the inputs name (#6320, the same class as /execute).
+    if named := input_document_ids(request.inputs):
+        await write_check(http_request, x_fichero_library_path, db, named)
     chain = chain_store.get(chain_id)
     if not chain:
         raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")

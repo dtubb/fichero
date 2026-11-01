@@ -203,6 +203,31 @@ def assert_can_read_every(user: Any, library: str | Path | None, page_ids: Any, 
         assert_can_read(user, library, page_id)
 
 
+def page_walk_needed(user: Any, library: str | Path | None, *, write: bool = False) -> bool:
+    """Whether a check of every page under a named folder can refuse anyone this caller: a per-page answer differs from the
+    answer for the named id only through a per-person override, a restricting rights record, or a folder-scoped or
+    read-only role. An owner, an editor (or a viewer reading) with none of those has nothing to find, so the walk (one
+    lookup per page, 1.6 ms each: 11 s at 5,000 pages) is skipped. Anything unclear: walk."""
+    if not multiuser_enabled():
+        return False
+    resolved = resolve_user(user)
+    library_path = normalize_library_path(library)
+    if resolved is None or library_path is None:
+        return True
+    app_db = get_app_db()
+    role = app_db.get_library_role(resolved.id, library_path)
+    if role is None or role.role not in (ROLE_OWNER, ROLE_EDITOR, ROLE_VIEWER) or (write and role.role == ROLE_VIEWER):
+        return True
+    if app_db.list_library_acl_overrides(resolved.id, library_path):
+        return True
+    try:
+        from fichero_server.db.manager import db_manager
+
+        return any(r.withdrawn_at is None for r in db_manager.get_database(library_path).query(RightsRecord, restricted=True))
+    except Exception:  # fail closed: a lookup error walks
+        return True
+
+
 def can_read(user: Any, library: str | Path | None, target_id: str | None = None) -> bool:
     """Return whether ``user`` may read a library or target subtree."""
     return _allowed(user, library, target_id, write=False)

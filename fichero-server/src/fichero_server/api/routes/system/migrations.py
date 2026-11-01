@@ -12,12 +12,13 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from fichero_server.db import Database
 
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import get_library_database, get_library_database_for_write, owner_check
 from fichero_server.db.migrations.runner import MigrationRunner, MigrationStatus
 from fichero_server.core.off_loop import off_loop
 
@@ -219,6 +220,11 @@ def _rollback_result_to_response(result) -> RollbackResponse:
 # =============================================================================
 
 
+def _owner_only(http: Request, library_path: str = Depends(require_library_path)) -> None:
+    """A migration rewrites the library's schema and data, and a rollback puts old values back on any page: the owner's (#6320)."""
+    owner_check(http, library_path)
+
+
 @router.get("", response_model=MigrationListResponse)
 async def list_migrations(
     db: Database = Depends(get_library_database),
@@ -231,6 +237,7 @@ async def list_migrations(
 async def run_migration(
     request: MigrationRunRequest,
     db: Database = Depends(get_library_database_for_write),
+    _owner: None = Depends(_owner_only),
 ) -> MigrationStatusResponse:
     """Run a migration with optional dry-run mode.
 
@@ -297,6 +304,7 @@ async def run_migration(
 async def validate_migration(
     request: MigrationValidationRequest,
     db: Database = Depends(get_library_database_for_write),
+    _owner: None = Depends(_owner_only),
 ) -> MigrationValidationResponse:
     """Validate if a migration can run safely on the current data.
 
@@ -357,6 +365,7 @@ async def get_migration_status(
 async def rollback_migration(
     request: RollbackRequest,
     db: Database = Depends(get_library_database_for_write),
+    _owner: None = Depends(_owner_only),
 ) -> RollbackResponse:
     """Rollback a migration using its audit ID.
 

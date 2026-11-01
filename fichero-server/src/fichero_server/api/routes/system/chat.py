@@ -23,7 +23,7 @@ from fichero_server.api.change_stream import emit_change
 from fichero_server.api.routes.claim.claims import _descendant_doc_ids
 from fichero_server.db import Database
 from fichero_server.api.library_header import require_library_path
-from fichero_server.api.main import get_library_database, get_library_database_for_write, read_check
+from fichero_server.api.main import document_reader, get_library_database, get_library_database_for_write, read_check
 from fichero_server.db.app import get_app_db, AppDatabase
 from fichero_server.models import (
     Conversation,
@@ -626,6 +626,7 @@ async def _run_chat_tools_loop(
     db: Database,
     ctx: ActionContext,
     config: Any = None,
+    may_read: Any = None,
 ) -> tuple[str, list[ToolCall]]:
     """Run the bounded chat-tools agent loop (read parity + selected writes).
 
@@ -771,6 +772,7 @@ async def _run_chat_tools_loop(
                     origin_window=ctx.origin_window,
                     run_id=ctx.run_id,
                     library_path=ctx.library_path,
+                    may_read=may_read,
                 )
                 tool_calls.append(
                     ToolCall(
@@ -829,17 +831,21 @@ async def chat(
     """
     from fichero_server.recipes.places import bound_project  # noqa: PLC0415
 
-    # A scope the BODY names is read into the prompt: the caller must read every document in it. (No scope = the whole project's
-    # retrieval, which is not yet limited to what a scoped person may read: #6325.)
-    if request.document_ids:
-        await read_check(http, library_path, db, request.document_ids)
+    # The scope the turn will retrieve over is read into the prompt: the caller must read every document in it. It is the one
+    # `_effective_scope` settles (the body's `document_ids`, its `scope_document_id`, or the conversation's own), not only the
+    # first of them. No scope = the whole project, so the retrieval and the agent's search are cut to what the caller may read.
+    stored = db.get(Conversation, request.conversation_id) if request.conversation_id else None
+    ids, scope_id = _effective_scope(db, request, stored or Conversation(title="", messages=[]))
+    if named := ([scope_id] if scope_id else list(ids or [])):
+        await read_check(http, library_path, db, named)
+    may_read = document_reader(http, library_path)
 
     # Every model call below is made for this project: the gate reads its own rule (`ai.where.egress-at-every-call`, #5368).
     with bound_project(ctx.library_path):
-        return await _chat(request, db, ctx)
+        return await _chat(request, db, ctx, may_read)
 
 
-async def _chat(request: ChatRequest, db: Database, ctx: ActionContext) -> ChatResponse:
+async def _chat(request: ChatRequest, db: Database, ctx: ActionContext, may_read=None) -> ChatResponse:
     if not request.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
@@ -892,6 +898,7 @@ async def _chat(request: ChatRequest, db: Database, ctx: ActionContext) -> ChatR
             document_ids=effective_document_ids,
             graph_hops=request.graph_hops,
             max_kg_claims=request.max_kg_claims,
+            may_read=may_read,
         )
         context_docs = retrieval.context_docs
         sources = [DocumentSource(**row) for row in retrieval.sources]
@@ -958,7 +965,7 @@ async def _chat(request: ChatRequest, db: Database, ctx: ActionContext) -> ChatR
     tool_calls: list[ToolCall] = []
     if _chat_tools_enabled():
         response_text, tool_calls = await _run_chat_tools_loop(
-            llm, messages, db=db, ctx=ctx, config=config
+            llm, messages, db=db, ctx=ctx, config=config, may_read=may_read
         )
     else:
         response = await _ask(llm, messages, config=config, ctx=ctx)

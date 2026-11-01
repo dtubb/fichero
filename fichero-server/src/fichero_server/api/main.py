@@ -1805,6 +1805,8 @@ def assert_library_reads_every(request: Request, library_path: str, named: list[
     assert_library_read_authorized(request, library_path, named=named)
     if getattr(getattr(request, "state", None), "bootstrap_auth", False):
         return
+    if not authz.page_walk_needed(getattr(getattr(request, "state", None), "user", None), library_path):
+        return
     try:
         authz.assert_can_read_every(getattr(getattr(request, "state", None), "user", None), library_path, scope(), bootstrap=False)
     except authz.AuthorizationError as exc:
@@ -1847,19 +1849,15 @@ def assert_library_write_authorized(
 
 def assert_library_writes_every(request: Request, library_path: str, named: list[str | None], scope: Callable[[], Sequence[str]]) -> None:
     """The write twin of `assert_library_reads_every`: each named id, then every document `scope()` lists, must be writable."""
-    from fichero_server.api.auth import library_access_denial_payload
     from fichero_server.security import authz
 
     assert_library_write_authorized(request, library_path, named=named)
     if getattr(getattr(request, "state", None), "bootstrap_auth", False):
         return
-    user = getattr(getattr(request, "state", None), "user", None)
-    try:
-        for doc_id in scope():
-            authz.assert_can_write(user, library_path, doc_id)
-    except authz.AuthorizationError as exc:
-        raise LibraryAccessDeniedError(
-            library_access_denial_payload(request, library_path, required="write", detail=str(exc))) from exc
+    if not authz.page_walk_needed(getattr(getattr(request, "state", None), "user", None), library_path, write=True):
+        return
+    if pages := list(scope()):  # the shared choke point, one answer per page; refused whole
+        assert_library_write_authorized(request, library_path, named=pages)
 
 
 def documents_under(db: Any, target_id: str | None) -> list[str]:
@@ -1885,6 +1883,20 @@ def input_document_ids(inputs: dict | None) -> list[str]:
     return out
 
 
+def owner_check(request: Request | None, library_path: str) -> None:
+    """The library's owner only (bootstrap included); anyone else is refused with the same 403 a missing role gives (#6320)."""
+    from fichero_server.api.auth import library_access_denial_payload
+    from fichero_server.security import authz
+
+    if request is None or getattr(getattr(request, "state", None), "bootstrap_auth", False):
+        return
+    try:
+        authz.require_owner(getattr(getattr(request, "state", None), "user", None), library_path)
+    except authz.AuthorizationError as exc:
+        raise LibraryAccessDeniedError(
+            library_access_denial_payload(request, library_path, required="owner", detail=str(exc))) from exc
+
+
 async def read_check(request: Request, library_path: str, db: Any, ids: Sequence[str | None], *, deep: bool = True) -> None:
     """Off the event loop (for a scoped caller it is a folder walk and one lookup per page): every id the BODY names, with
     everything under it, is readable by the caller. An empty or missing id is the whole project."""
@@ -1894,7 +1906,7 @@ async def read_check(request: Request, library_path: str, db: Any, ids: Sequence
         return
     named = [i or None for i in ids] or [None]
     await asyncio.to_thread(assert_library_reads_every, request, library_path, named,
-                            lambda: [d for i in named for d in (documents_under(db, i) if deep or not i else [i])])
+                            lambda: [d for i in named for d in (documents_under(db, i) if deep else ([i] if i else []))])
 
 
 async def write_check(request: Request, library_path: str, db: Any, ids: Sequence[str | None], *, deep: bool = True) -> None:
@@ -1905,7 +1917,18 @@ async def write_check(request: Request, library_path: str, db: Any, ids: Sequenc
         return
     named = [i or None for i in ids] or [None]
     await asyncio.to_thread(assert_library_writes_every, request, library_path, named,
-                            lambda: [d for i in named for d in (documents_under(db, i) if deep or not i else [i])])
+                            lambda: [d for i in named for d in (documents_under(db, i) if deep else ([i] if i else []))])
+
+
+def document_reader(request: Request | None, library_path: str | None) -> Callable[[str], bool] | None:
+    """`may_read` for a retrieval or a tool that lists documents: None when every document is readable to this caller
+    (bootstrap, multi-user off, or no override or scope that could differ), else a per-document test (#6320)."""
+    from fichero_server.security import authz
+
+    state = getattr(request, "state", None)
+    if request is None or getattr(state, "bootstrap_auth", False) or not authz.page_walk_needed(getattr(state, "user", None), library_path):
+        return None
+    return lambda doc_id: bool(readable_documents(request, library_path, [doc_id]))
 
 
 def readable_documents(request: Request | None, library_path: str | None, scope: list[str]) -> list[str]:

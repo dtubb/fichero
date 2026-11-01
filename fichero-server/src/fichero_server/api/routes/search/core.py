@@ -2791,6 +2791,8 @@ def _action_search_query(
     results, total_count, _stats = _run_content_search_sync(
         db, request, params.query
     )
+    if ctx.may_read is not None:  # the chat agent's caller reads only some pages (#6320)
+        results = [r for r in results if ctx.may_read(r.document_id)]
     # db.SearchResult is a dataclass, not a pydantic model.
     result = {
         "results": [asdict(r) for r in results],

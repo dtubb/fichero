@@ -11,10 +11,13 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from fichero_server.api.main import get_library_database
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import (
+    get_library_database, get_library_database_for_write, input_document_ids, owner_check, write_check,
+)
 from fichero_server.db import Database
 from fichero_server.workflows.file_watcher import (
     FileWatcherManager,
@@ -190,6 +193,17 @@ async def get_file_watcher(
     db: Database = Depends(get_library_database),
 ) -> FileWatcherManager:
     """Get or create file watcher for the current library."""
+    return await _watcher_for(db)
+
+
+async def get_file_watcher_for_write(
+    db: Database = Depends(get_library_database_for_write),
+) -> FileWatcherManager:
+    """The watcher, for a route that makes, changes or removes a trigger: a viewer is refused (#6320)."""
+    return await _watcher_for(db)
+
+
+async def _watcher_for(db: Database) -> FileWatcherManager:
     db_path = str(db.path)
 
     if db_path not in _watchers:
@@ -202,15 +216,26 @@ async def get_file_watcher(
     return _watchers[db_path]
 
 
+async def _check_documents(http, library_path: str, db: Database, inputs: dict | None) -> None:
+    """A run reads and writes the documents its inputs name (#6320)."""
+    if named := input_document_ids(inputs):
+        await write_check(http, library_path, db, named)
+
+
 # Endpoints
 
 
 @router.post("", response_model=TriggerResponse)
 async def create_trigger(
     request: CreateTriggerRequest,
-    watcher: FileWatcherManager = Depends(get_file_watcher),
+    watcher: FileWatcherManager = Depends(get_file_watcher_for_write),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
+    db: Database = Depends(get_library_database_for_write),
 ) -> TriggerResponse:
     """Create a new file trigger."""
+    owner_check(http, library_path)  # it watches a folder on the owner's Mac, whatever the library's documents say
+    await _check_documents(http, library_path, db, request.inputs_template)
 
     try:
         config = TriggerConfig(
@@ -285,7 +310,7 @@ async def get_trigger(
 @router.delete("/{trigger_id}")
 async def delete_trigger(
     trigger_id: str,
-    watcher: FileWatcherManager = Depends(get_file_watcher),
+    watcher: FileWatcherManager = Depends(get_file_watcher_for_write),
 ) -> TriggerDeletedResponse:
     """Delete a file trigger."""
 
@@ -302,9 +327,15 @@ async def delete_trigger(
 async def update_trigger(
     trigger_id: str,
     request: UpdateTriggerRequest,
-    watcher: FileWatcherManager = Depends(get_file_watcher),
+    watcher: FileWatcherManager = Depends(get_file_watcher_for_write),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
+    db: Database = Depends(get_library_database_for_write),
 ) -> TriggerResponse:
     """Update a file trigger."""
+    if request.config is not None:
+        owner_check(http, library_path)
+    await _check_documents(http, library_path, db, request.inputs_template)
 
     # Verify trigger exists
     trigger = await watcher.get_trigger(trigger_id)
@@ -358,7 +389,7 @@ async def update_trigger(
 @router.post("/{trigger_id}/pause", response_model=TriggerResponse)
 async def pause_trigger(
     trigger_id: str,
-    watcher: FileWatcherManager = Depends(get_file_watcher),
+    watcher: FileWatcherManager = Depends(get_file_watcher_for_write),
 ) -> TriggerResponse:
     """Pause an active file trigger."""
 
@@ -372,7 +403,7 @@ async def pause_trigger(
 @router.post("/{trigger_id}/resume", response_model=TriggerResponse)
 async def resume_trigger(
     trigger_id: str,
-    watcher: FileWatcherManager = Depends(get_file_watcher),
+    watcher: FileWatcherManager = Depends(get_file_watcher_for_write),
 ) -> TriggerResponse:
     """Resume a paused file trigger."""
 
