@@ -100,4 +100,11 @@ struct CompareViewTests {
         #expect(CompareViewModel.boxRect([1, 2, 3, 4], image: nil, canvas: CGSize(width: 10, height: 10)) == nil)
         #expect(CompareViewModel.boxRect([1, 2, 3], image: (10, 10), canvas: CGSize(width: 10, height: 10)) == nil)
     }
+
+    @Test("the box drawn is the photograph's bbox, never a rendition's frame_bbox")
+    func drawnBoxIsThePhotographs() throws {
+        let line = #"{"order":0,"differs":false,"picked_by_person":false,"bbox":[100,50,200,20],"frame_bbox":[10,5,20,2],"readings":[],"words":[]}"#
+        let model = CompareViewModel(answer: try answer(lines: line), platform: .mac)
+        #expect(CompareViewModel.drawnBox(of: model.lines[0]) == [100, 50, 200, 20])
+    }
 }

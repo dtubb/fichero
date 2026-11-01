@@ -34,7 +34,10 @@ private struct OwnWindow: NSViewRepresentable {
         DispatchQueue.main.async { found(view.window) }
         return view
     }
-    func updateNSView(_ view: NSView, context: Context) { found(view.window) }
+    func updateNSView(_ view: NSView, context: Context) {
+        // Never write state during a view update: hand the window over after it.
+        DispatchQueue.main.async { found(view.window) }
+    }
 }
 
 private struct TrackpadSwipe: ViewModifier {

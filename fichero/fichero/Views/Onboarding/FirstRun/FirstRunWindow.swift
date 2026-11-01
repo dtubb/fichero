@@ -54,6 +54,11 @@ struct FirstRunWindow: View {
     @State var discardError: String?
     @State var isSaving = false  // read by the Ready page in FirstRunWindow+Recipe.swift
 
+    /// Flag off, AI and ML Models shows no spinner while it saves, as today.
+    private var showsSavingSpinner: Bool {
+        (isSaving && (step != .whatFicheroRuns || FeatureManager.shared.isWideSetUpEnabled)) || newProject.isCreating
+    }
+
     let mode: Mode
     /// Tells the window which project setup made, when setup finishes, so it shows that project.
     private let onProjectReady: (UUID) -> Void
@@ -325,7 +330,7 @@ extension FirstRunWindow {
                 Text(reason).font(.callout).foregroundStyle(.secondary).lineLimit(2)
                     .accessibilityIdentifier("setup.footer.startReason")
             }
-            if isSaving || newProject.isCreating { ProgressView().controlSize(.small) }
+            if showsSavingSpinner { ProgressView().controlSize(.small) }
             if model.showsBack {
                 Button("Back") {
                     // Wide Set Up: Back is the pager's own move, as the arrows and the swipe are (`wide.pager.*`).

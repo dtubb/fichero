@@ -23,6 +23,7 @@ struct RenditionChainStripView: View {
                             ForEach(store.rows) { row in cell(row) }
                         }
                     }
+                    .pagerScroller()
                     if let shown, let row = store.rows.first(where: { $0.id == shown }) { large(row) }
                 }
                 .accessibilityIdentifier("prepareImages.chain")

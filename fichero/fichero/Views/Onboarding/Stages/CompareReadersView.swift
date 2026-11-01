@@ -49,7 +49,7 @@ struct CompareReadersView: View {
             .overlay {
                 Canvas { context, size in
                     for line in model.lines {
-                        guard let box = line.frameBbox ?? line.bbox,
+                        guard let box = CompareViewModel.drawnBox(of: line),
                               let rect = CompareViewModel.boxRect(box, image: store.image, canvas: size) else { continue }
                         context.stroke(Path(rect), with: .color(line.differs ? .orange : .blue), lineWidth: 1)
                     }
@@ -157,6 +157,6 @@ private extension View {
 }
 
 #Preview("Compare readers, before the engine answers") {
-    CompareReadersView(store: CompareReadersStore(client: FicheroClient(libraryPath: nil), pageId: "page-1"))
+    CompareReadersView(store: CompareReadersStore(client: FicheroClient(libraryPath: nil), pageId: "page-1", platform: .mac))
         .padding().frame(width: 520, height: 420)
 }

@@ -5,6 +5,7 @@ import SwiftUI
 /// each was chosen, Compare on These Pages (a cloud try says its cost first and runs only on a yes), and what it made per
 /// page. Read and Find Lines are tried by the comparison of candidates, which the page shows under its steps.
 struct SetupStageSamples: View {
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State var store: SetupStageTryStore
     /// Use This One, per model, from the compare window (the use-candidate route); nil where a step cannot take it.
     var useThis: ((StageCandidate) -> Void)?
@@ -96,7 +97,8 @@ struct SetupStageSamples: View {
         StageCompareWindow(pageId: page.id, name: store.name(of: page.id),
                            candidates: store.result?.candidates ?? [], useThis: useThis,
                            readers: FeatureManager.shared.isWideSetUpEnabled
-                               ? CompareReadersStore(client: store.client, pageId: page.id, tryStage: store.stageId) : nil)
+                               ? CompareReadersStore(client: store.client, pageId: page.id, tryStage: store.stageId,
+                                                     platform: .of(compactWidth: sizeClass == .compact)) : nil)
     }
 
     private func pageReading(_ page: SetupStageTryResult.Page) -> some View {

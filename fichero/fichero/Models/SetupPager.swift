@@ -83,10 +83,18 @@ struct SetupPager: Equatable {
         case compact
     }
 
-    /// The window's and columns' sizes as pure values (`wide.pager.window-is-wide`).
     /// A forward move waits while a save or the project's creation runs: a second press must not move a second page.
     static func forwardHeld(isSaving: Bool, isCreating: Bool) -> Bool { isSaving || isCreating }
 
+    /// A finger drag moves the page only when it is mostly sideways and did not start on a horizontal scroller
+    /// (`wide.pager.swipe-arrows-back-next`): scrolling the chain strip must not turn the page.
+    static func dragMoves(translation: CGSize, start: CGPoint, scrollers: [CGRect]) -> Bool? {
+        guard abs(translation.width) > 2 * abs(translation.height),
+              !scrollers.contains(where: { $0.contains(start) }) else { return nil }
+        return translation.width < 0
+    }
+
+    /// The window's and columns' sizes as pure values (`wide.pager.window-is-wide`).
     struct Layout: Equatable {
         let minWindow: (width: Double, height: Double)?
         let stepListWidth: Double?
@@ -117,7 +125,7 @@ struct SetupPager: Equatable {
         }
 
         /// The window that holds `leastWidth` with the page's padding either side (28), the gap between the columns (24) and the
-        /// divider (1), plus room for the card's own insets.
-        var windowWidth: Double? { leastWidth.map { $0 + 2 * 28 + 24 + 1 + 40 } }
+        /// divider (1), plus room for the card's own insets (22 each side).
+        var windowWidth: Double? { leastWidth.map { $0 + 2 * 28 + 24 + 1 + 44 } }
     }
 }

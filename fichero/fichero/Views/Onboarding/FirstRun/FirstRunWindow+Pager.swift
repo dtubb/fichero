@@ -37,22 +37,45 @@ extension FirstRunWindow {
     }
 }
 
+/// Where a horizontal scroller sits inside the pager, so a drag that starts on it scrolls it and does not turn the page.
+enum PagerScrollers {
+    static let space = "setup.pager.space"
+    struct Key: PreferenceKey {
+        static let defaultValue: [CGRect] = []
+        static func reduce(value: inout [CGRect], nextValue: () -> [CGRect]) { value += nextValue() }
+    }
+}
+
+extension View {
+    /// Marks this view as a horizontal scroller for the pager's drag.
+    func pagerScroller() -> some View {
+        background(GeometryReader { proxy in
+            Color.clear.preference(key: PagerScrollers.Key.self, value: [proxy.frame(in: .named(PagerScrollers.space))])
+        })
+    }
+}
+
 /// The keys, the drag and the announcement around one page. Arrow keys reach it only when no text field has taken them.
 private struct PagerBinding<Page: View>: View {
     let label: String
     let move: (Bool) -> Bool
     @ViewBuilder let page: Page
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var scrollers: [CGRect] = []
 
     var body: some View {
         page
             .focusable()
             .focusEffectDisabled()
-            .onKeyPress(.leftArrow) { move(false) ? .handled : .ignored }
-            .onKeyPress(.rightArrow) { move(true) ? .handled : .ignored }
-            .simultaneousGesture(DragGesture(minimumDistance: 60).onEnded { drag in
-                guard abs(drag.translation.width) > 2 * abs(drag.translation.height) else { return }
-                _ = move(drag.translation.width < 0)
+            .coordinateSpace(name: PagerScrollers.space)
+            .onPreferenceChange(PagerScrollers.Key.self) { scrollers = $0 }
+            // A held key is not a new press: one page per press.
+            .onKeyPress(.leftArrow, phases: .down) { move(false) ? .handled : .ignored }
+            .onKeyPress(.rightArrow, phases: .down) { move(true) ? .handled : .ignored }
+            .simultaneousGesture(DragGesture(minimumDistance: 60, coordinateSpace: .named(PagerScrollers.space)).onEnded { drag in
+                guard let forward = SetupPager.dragMoves(translation: drag.translation, start: drag.startLocation,
+                                                         scrollers: scrollers) else { return }
+                _ = move(forward)
             })
             .trackpadSwipe { forward in _ = move(forward) }
             .background {

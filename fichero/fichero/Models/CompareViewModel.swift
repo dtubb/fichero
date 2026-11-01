@@ -1,8 +1,5 @@
 import FicheroAPIClient
 import Foundation
-#if canImport(UIKit)
-import UIKit
-#endif
 
 /// The compare view's model (`wide.compare.three-modes`, `.per-line-diff`, `.empty-and-error-states`, #5900): modes, rows and
 /// states over the engine's one compare answer (`GET /api/pages/{id}/compare-readers`). Pure: no view, no network; the engine
@@ -15,13 +12,15 @@ struct CompareViewModel: Equatable {
     enum Platform: Equatable {
         case mac, iPad, iPhone
 
-        static var current: Platform {
+        /// The narrow screen is the iPhone's (a compact width); anything wider opens side by side.
+        static func of(compactWidth: Bool) -> Platform {
             #if os(macOS)
             .mac
             #else
-            UIDevice.current.userInterfaceIdiom == .phone ? .iPhone : .iPad
+            compactWidth ? .iPhone : .iPad
             #endif
         }
+
     }
 
     /// Side by side is the Mac's and iPad's default, Overlay the iPhone's (one picture fits the narrow screen).
@@ -94,6 +93,10 @@ struct CompareViewModel: Equatable {
         let counting = line.readings.first { $0.readerId == line.countingReaderId }?.representationId
         return Pick(segmentId: segment, representationId: representation, expectedCountingId: counting)
     }
+
+    /// The box drawn on the picture. The picture is the photograph with its saved edits, so the box is the line's `bbox` in the
+    /// photograph's pixels; `frame_bbox` is in a rendition's pixels (a crop) and would land in the wrong place on it.
+    static func drawnBox(of line: Components.Schemas.CompareLine) -> [Double]? { line.bbox }
 
     /// A box from the engine, in the page image's pixels, scaled onto a canvas that shows the whole image.
     static func boxRect(_ box: [Double], image: (width: Int, height: Int)?, canvas: CGSize) -> CGRect? {

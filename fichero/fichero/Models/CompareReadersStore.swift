@@ -18,7 +18,7 @@ final class CompareReadersStore {
     /// The iPhone opens on Overlay, the Mac and iPad side by side.
     private let platform: CompareViewModel.Platform
 
-    init(client: FicheroClient, pageId: String, tryStage: String? = nil, platform: CompareViewModel.Platform = .current) {
+    init(client: FicheroClient, pageId: String, tryStage: String? = nil, platform: CompareViewModel.Platform) {
         self.client = client
         self.tryStage = tryStage
         self.platform = platform
@@ -55,9 +55,11 @@ final class CompareReadersStore {
                                   expectedCountingId: pick.expectedCountingId))) {
             case .ok:
                 await load()
-            default:
+            case .undocumented(statusCode: 409, _):
                 await load()
                 failure = "That line has changed since you looked at it. The readings are shown again."
+            default:
+                failure = "Could not use that reading."
             }
         } catch {
             if error.isCancellationError { return }

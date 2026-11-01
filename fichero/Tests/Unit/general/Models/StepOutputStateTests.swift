@@ -4,6 +4,7 @@ import Testing
 
 /// The four states of a stage page's output column, and the dimmed stale result (`wide.output.four-states`,
 /// `wide.output.stale-says-so`). The state comes from the engine's try result, never from the app's guess.
+@MainActor
 struct StepOutputStateTests {
     private func result(_ json: String) throws -> SetupStageTryResult {
         try JSONDecoder().decode(SetupStageTryResult.self, from: Data(json.utf8))

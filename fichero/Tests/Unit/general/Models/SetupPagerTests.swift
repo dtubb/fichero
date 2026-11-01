@@ -3,6 +3,7 @@ import Foundation
 import Testing
 
 /// The wide Set Up's pager model (`wide.pager.*`): the move rules, the bounce, the label, the restore and the widths.
+@MainActor
 struct SetupPagerTests {
     private let steps: [SetupStep] = [.addMaterial, .aboutMaterial, .stages, .stage("prepare-images"), .stage("read"), .ready]
 
@@ -76,5 +77,21 @@ struct SetupPagerTests {
         #expect(SetupPager.forwardHeld(isSaving: true, isCreating: false))
         #expect(SetupPager.forwardHeld(isSaving: false, isCreating: true))
         #expect(!SetupPager.forwardHeld(isSaving: false, isCreating: false))
+    }
+
+    @Test("a drag that starts on a horizontal scroller scrolls it and does not move the page")
+    func dragOnAScrollerDoesNotMove() {
+        let strip = CGRect(x: 0, y: 100, width: 400, height: 80)
+        let sideways = CGSize(width: -120, height: 5)
+        #expect(SetupPager.dragMoves(translation: sideways, start: CGPoint(x: 50, y: 120), scrollers: [strip]) == nil)
+        #expect(SetupPager.dragMoves(translation: sideways, start: CGPoint(x: 50, y: 20), scrollers: [strip]) == true)
+        #expect(SetupPager.dragMoves(translation: CGSize(width: 120, height: 5), start: .zero, scrollers: []) == false)
+        #expect(SetupPager.dragMoves(translation: CGSize(width: 60, height: 60), start: .zero, scrollers: []) == nil)
+    }
+
+    @Test("the wide window holds the columns inside the card's 44 points of insets")
+    func windowCountsTheCardInsets() throws {
+        let columns = SetupPager.Layout.of(.mac)
+        #expect(try #require(columns.windowWidth) >= (columns.leastWidth ?? 0) + 2 * 28 + 24 + 1 + 44)
     }
 }
