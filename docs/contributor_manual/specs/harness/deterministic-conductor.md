@@ -9,6 +9,8 @@
 > "Rulings". Tags: [OK] built · [PARTIAL] exists, not wired · [MISSING] not built · [BROKEN] fails today ·
 > [PROPOSED] needs a ruling.
 
+> **2026-11-01 (rewrite 6 of `dev-workflows.md`, awaiting approval):** the Builder is a stdlib `fichero-builder/` package apart from the engine; `pipeline/` stays frozen and is deleted in that spec's Step 4.1 once the Builder has landed real clusters; its journal, `parse_session` and `budget` are ported in Step 1.1. The harness audit of 2026-11-01 (`agent-work/status/briefs/audit-2026-11-01-harness.md`) is the record of what here still runs and what never did. GitHub keeps only the issue and milestone workflows (`pipeline.github-actions`).
+>
 > See also: `dev-workflows.md` (rewritten 2026-10-31, PROPOSED: Fichero builds Fichero; this runner is its bridge and oracle and retires
 > per that spec's § Dry runs and rollout; the 2026-10-31 shape — the worker steers a cluster, scripts guard, land per cluster, models by
 > configuration — is specified there, not here).

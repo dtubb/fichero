@@ -10,6 +10,10 @@
 > in `AGENTS.md` — because a governance spec has no code surface to bind a test to. How the agent
 > team is structured to get work done without wasting tokens. Grounded in what this session showed.
 
+> **2026-11-01:** the manager and worker model of this page is how the work was done by hand through October 2026. The
+> Builder that replaces it (one watcher process, a journal, a sandboxed worker, review with a shell, land per cluster) is
+> `dev-workflows.md` rewrite 6; the roles table below stays as the record of the hand-run method and its model costs.
+
 ## The model — roles, and a swappable model list
 
 Work is **one layer deep**: a MANAGER dispatches WORKERS. Roles are stable; the model bound to each
