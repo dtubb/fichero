@@ -810,3 +810,29 @@ def test_item2_compare_tool_workflow_and_node_check_the_recipe_they_run(project,
     got = erin.post(base + "compare-tool", json={"tool_name": "folder", "models": [], "inputs": {"folder_id": project.ids["B"], "library_path": "/elsewhere/other.fichero"}})
     assert got.status_code != 403, got.text[:200]
     assert seen["inputs"]["library_path"] != "/elsewhere/other.fichero"
+
+
+def test_item4_a_caller_with_a_deny_cannot_save_a_recipe_the_run_check_would_refuse(project, four, tmp_path):
+    """Review 8 item 4: a schedule (or a file watcher) fires its recipe with no caller to check, so a recipe edited to `export_documents`
+    after it was scheduled wrote the path. The save is where the rule runs."""
+    alice = next(c for n, c, _ in four if n == "alice")
+    owner = _as(project.harness, "owner")
+    erin = _plain(project, "erin", authz.ROLE_EDITOR)
+    export = {"id": "e", "tool": "export_documents", "label": "E", "inputs": {"formats": ["markdown"], "destination": str(tmp_path / "copied")}, "config": {}}
+    search = {"id": "s", "tool": "search", "label": "S", "inputs": {"query": "SECRET", "search_type": "fulltext"}, "config": {}}
+    harmless = {"id": "h", "tool": "folder", "label": "F", "inputs": {"folder_id": project.ids["A"]}, "config": {}}
+    for node in (export, search):
+        assert alice.post("/api/workflows", json={"name": "r", "edges": [], "nodes": [node]}).status_code == 403
+        data = {"nodes": [node], "edges": []}
+        assert alice.post("/api/workflows/import", json=data).status_code == 403
+        assert alice.post("/api/actions/invoke", json={"name": "workflow.create", "params": {"name": "r", "edges": [], "nodes": [node]}}).status_code == 403
+        assert alice.post("/api/actions/invoke", json={"name": "workflow.import", "params": {"name": "r", "description": "", "workflow_data": data}}).status_code == 403
+    mine = _recipe(alice, [harmless])
+    owners = _recipe(owner, [harmless])
+    for wid in (mine, owners):
+        body = {"name": "r", "edges": [], "nodes": [export]}
+        assert alice.put(f"/api/workflows/{wid}", json=body).status_code == 403
+        assert alice.post("/api/actions/invoke", json={"name": "workflow.update", "params": {"workflow_id": wid, "workflow": body}}).status_code == 403
+    assert alice.put(f"/api/workflows/{mine}", json={"name": "renamed", "edges": [], "nodes": [harmless]}).status_code == 200
+    for client in (owner, erin):  # nobody whose reads can differ page by page is held to it
+        assert client.post("/api/workflows", json={"name": "r", "edges": [], "nodes": [export]}).status_code == 200

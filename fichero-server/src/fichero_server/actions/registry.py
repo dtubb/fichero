@@ -323,6 +323,15 @@ class ActionRegistry:
                 authz.reads_every_gated_page(ctx.actor, ctx.library_path) or authz.is_library_owner(ctx.actor, ctx.library_path)
             ):
                 raise authz.AuthorizationError("read access denied", required="read")
+            # A schedule or file watcher fires a saved recipe with no caller to check, so the save is held to the run rule (#6325, review 8 item 4).
+            if name in ("workflow.create", "workflow.update", "workflow.import") and authz.page_walk_needed(ctx.actor, ctx.library_path) and not (
+                authz.reads_every_gated_page(ctx.actor, ctx.library_path)
+            ):
+                from fichero_server.workflows.run_scope import recipe_hazard, saved_recipe_nodes, with_sub_workflows
+                from fichero_server.workflows.subworkflow import sub_workflow_resolver_for_db
+
+                if why := recipe_hazard(with_sub_workflows(saved_recipe_nodes(name, params), sub_workflow_resolver_for_db(db))):
+                    raise authz.AuthorizationError(why, required="read")
             if not target_ids:
                 authz.assert_can_write(ctx.actor, ctx.library_path)
             for target_id in target_ids:

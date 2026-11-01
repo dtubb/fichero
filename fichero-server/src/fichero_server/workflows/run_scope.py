@@ -90,6 +90,19 @@ def with_sub_workflows(nodes: Any, resolver: Any, *, depth: int = MAX_SUB_WORKFL
     return out
 
 
+def saved_recipe_nodes(action: str, params: Any) -> list:
+    """The steps a `workflow.create`, `workflow.update` or `workflow.import` action would save, else []."""
+    if action == "workflow.create":
+        return list(getattr(params, "nodes", None) or [])
+    if action == "workflow.update":
+        workflow = getattr(params, "workflow", None)
+        return list(workflow.nodes) if workflow is not None and "nodes" in workflow.model_fields_set else []
+    if action == "workflow.import":
+        nodes = (getattr(params, "workflow_data", None) or {}).get("nodes")
+        return nodes if isinstance(nodes, list) else []
+    return []
+
+
 def run_document_ids(run: Any) -> list[str]:
     """Every document id a run's record names: the scope it resolved, the inputs it was started with and the ids its recipe's nodes name.
     The pages its state, history and answers rest on, so they are shown (or the run is acted on) only to a caller who reads (writes) them all (#6325)."""

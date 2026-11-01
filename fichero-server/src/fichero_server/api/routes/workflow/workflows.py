@@ -17,7 +17,7 @@ from fichero_server.db import Database
 from fichero_server.api.library_header import require_library_path
 from fichero_server.api.auth import request_actor
 from fichero_server.api.change_stream import emit_change
-from fichero_server.api.main import get_library_database, get_library_database_for_write, read_check
+from fichero_server.api.main import get_library_database, get_library_database_for_write, read_check, recipe_save_check
 # NOTE: fichero_server.llm is imported inside the one handler that prices a model
 # (#3950) — it pulls langchain_core at startup for a cost lookup.
 from fichero_server.workflows.types import (
@@ -855,6 +855,7 @@ def _get_workflow_or_default(db: Database, workflow_id: str) -> "Workflow | None
 @router.post("")
 async def create_workflow(
     workflow: WorkflowDef,
+    http: Request = None,
     db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
@@ -863,6 +864,7 @@ async def create_workflow(
     actor: str = Depends(request_actor),
 ) -> WorkflowResponse:
     """Create and save a workflow definition."""
+    recipe_save_check(http, x_fichero_library_path, db, workflow.nodes)
     try:
         db_workflow = create_workflow_impl(db, workflow)
 
@@ -956,6 +958,7 @@ async def import_workflow(
     name: str = "",
     description: str = "",
     workflow_data: dict = Body(default_factory=dict),
+    http: Request = None,
     db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
@@ -964,6 +967,7 @@ async def import_workflow(
     actor: str = Depends(request_actor),
 ) -> WorkflowResponse:
     """Import a workflow from JSON data."""
+    recipe_save_check(http, x_fichero_library_path, db, workflow_data.get("nodes") if isinstance(workflow_data.get("nodes"), list) else [])
     try:
         db_workflow = import_workflow_impl(db, name, description, workflow_data)
 
@@ -1339,6 +1343,7 @@ def update_workflow_impl(
 async def update_workflow(
     workflow_id: str,
     workflow: WorkflowDef,
+    http: Request = None,
     db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
@@ -1347,6 +1352,8 @@ async def update_workflow(
     actor: str = Depends(request_actor),
 ) -> WorkflowResponse:
     """Update an existing workflow."""
+    if "nodes" in workflow.model_fields_set:
+        recipe_save_check(http, x_fichero_library_path, db, workflow.nodes)
     try:
         logger.debug(
             "[UPDATE] workflow=%s received nodes=%s edges=%s",

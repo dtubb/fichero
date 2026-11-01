@@ -1956,6 +1956,19 @@ async def recipe_check(request: Request | None, library_path: str | None, db: An
         raise LibraryAccessDeniedError(library_access_denial_payload(request, library_path, required="read", detail=why))
 
 
+def recipe_save_check(request: Request | None, library_path: str | None, db: Any, nodes: Any) -> None:
+    """The hazard half of `recipe_check`, at the save: a schedule or a file watcher fires its recipe with no caller to check, so a caller
+    whose reads differ page by page may not save a recipe whose source names no page or whose step writes a path (#6325, review 8 item 4)."""
+    if request is None or not library_path or document_reader(request, library_path) is None:
+        return
+    from fichero_server.api.auth import library_access_denial_payload
+    from fichero_server.workflows.run_scope import recipe_hazard, with_sub_workflows
+    from fichero_server.workflows.subworkflow import sub_workflow_resolver_for_db
+
+    if why := recipe_hazard(with_sub_workflows(nodes, sub_workflow_resolver_for_db(db))):
+        raise LibraryAccessDeniedError(library_access_denial_payload(request, library_path, required="read", detail=why))
+
+
 async def run_check(request: Request, library_path: str | None, db: Any, thread_ids: Sequence[str | None], *, write: bool) -> None:
     """A caller whose reads differ page by page may see a run's state, or act on it, only if they read (write) every page its record
     names (`run_document_ids`). A run whose record names no page, or whose recipe has a source that reads by a word or a name or a
