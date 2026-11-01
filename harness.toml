@@ -56,3 +56,7 @@ required_trailers = ["Directed-By: the maintainer", "Co-Authored-By: "]
 user = "fichero-worker"
 workroot = "/Users/Shared/fichero-worker"
 deny_read = ["~/.config/gh", "~/.ssh", "~/.claude"]
+
+[land]
+# Regexes over every ADDED line and commit message; any hit refuses the land (the public/private boundary).
+boundary = ['/Users/[A-Za-z0-9._-]+/', 'sk-ant-[A-Za-z0-9_-]{8,}', 'gh[ps]_[A-Za-z0-9]{20,}', 'BEGIN [A-Z ]*PRIVATE KEY']

@@ -50,3 +50,16 @@ def test_a_changed_message_or_a_merge_is_refused(tmp_path):
     g("checkout", "-q", "main")
     g("merge", "--no-ff", "-qm", "merge", "side")
     assert "merge" in L.unreviewed(tmp_path, base, "HEAD", store)[0]
+
+
+def test_the_boundary_grep_flags_private_text_in_added_lines_and_messages(tmp_path):
+    g, base = _repo(tmp_path)
+    (tmp_path / "m.py").write_text("if x:\n    g()\n    h()\nP = '/Users/someone/secret'\n")
+    g("commit", "-qam", "add; token sk-ant-abc123")
+    hits = L.boundary(tmp_path, base, "HEAD", [r"/Users/\w+", r"sk-ant-\w+"])
+    assert any("m.py" in h and "/Users/" in h for h in hits) and any("message" in h and "sk-ant-" in h for h in hits)
+    assert L.boundary(tmp_path, base, "HEAD", []) == []
+    g("reset", "-q", "--hard", base)
+    (tmp_path / "m.py").write_text("if x:\n    g()\n    h()\n    k()\n")
+    g("commit", "-qam", "clean")
+    assert L.boundary(tmp_path, base, "HEAD", [r"/Users/\w+"]) == []  # only ADDED lines count, not the old ones
