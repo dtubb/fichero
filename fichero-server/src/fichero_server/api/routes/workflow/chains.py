@@ -33,7 +33,7 @@ from fichero_server.db import db_manager
 from fichero_server.api.library_header import require_library_path
 from fichero_server.api.routes.auth.accounts import _require_owner_for_writes
 from fichero_server.api.main import (
-    assert_library_read_authorized, get_library_database_for_write, input_document_ids, write_check,
+    assert_library_read_authorized, get_library_database_for_write, input_document_ids, recipe_check, write_check,
 )
 from fichero_server.db import Database
 
@@ -496,11 +496,13 @@ def _build_paleography_chain(
 # =============================================================================
 
 
-async def _check_chain(http_request: Request, library_path: str, db: Database, *inputs: dict | None) -> None:
+async def _check_chain(http_request: Request, library_path: str, db: Database, *inputs: dict | None, steps: list | tuple = ()) -> None:
     """Making, changing, deleting or running a chain is a write the project's top level allows (a person shared one folder may not),
     and every run reads and writes the documents the inputs name (#6320)."""
     named = [d for one in inputs for d in input_document_ids(one)]
     await write_check(http_request, library_path, db, [None], deep=False)
+    for step in steps:  # every step starts a run of its recipe: the same check as /execute (#6325)
+        await recipe_check(http_request, library_path, db, step.workflow_id)
     if named:
         await write_check(http_request, library_path, db, list(dict.fromkeys(named)))
 
@@ -703,7 +705,7 @@ async def execute_chain(
     if not chain.steps:
         raise HTTPException(status_code=400, detail="Chain has no steps to run")
     # Every step is a run on the documents the inputs AND the step's own static_inputs name (they win on a collision).
-    await _check_chain(http_request, x_fichero_library_path, db, request.inputs, *(st.static_inputs for st in chain.steps))
+    await _check_chain(http_request, x_fichero_library_path, db, request.inputs, *(st.static_inputs for st in chain.steps), steps=chain.steps)
 
     # One way to run (`activity.run.one-way-to-run`): the chain's steps are real runs of the one runner, in list order,
     # under a chain row in Activity that Stop reaches; the same path as /execute-steps. The chain's conditions,
@@ -1231,7 +1233,7 @@ async def execute_chain_steps(
     if (stored := chain_store.get(chain_id)) is None:
         await _check_chain(http_request, x_fichero_library_path, db, request.inputs)
     else:
-        await _check_chain(http_request, x_fichero_library_path, db, request.inputs, *(st.static_inputs for st in stored.steps))
+        await _check_chain(http_request, x_fichero_library_path, db, request.inputs, *(st.static_inputs for st in stored.steps), steps=stored.steps)
     chain = chain_store.get(chain_id)
     if not chain:
         raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")

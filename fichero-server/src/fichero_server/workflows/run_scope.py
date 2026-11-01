@@ -38,6 +38,26 @@ def node_document_ids(nodes: Any) -> list[str]:
     return authz.target_ids_from_params({"nodes": [{"inputs": n.get("inputs") or {}, "config": n.get("config") or {}} for n in nodes or [] if isinstance(n, dict)]})
 
 
+#: Tools that write to a path the recipe names, and sources that read the library by a word or a name instead of by a page.
+_PATH_WRITING_TOOLS = frozenset({"export_documents", "write_file"})
+_LIBRARY_WIDE_SOURCES = frozenset({"search", "collection", "artifacts_source", "annotations_source"})
+
+
+def recipe_hazard(nodes: Any) -> str | None:
+    """Why a caller whose reads differ page by page may not start this recipe, or None. A source that names no page (a search, a folder
+    by name, a whole collection) reads whatever matches, denied pages included; a tool that writes to a path copies it off the project.
+    What a recipe's other nodes read is whatever its sources give them (#6325, H1)."""
+    for node in nodes or []:
+        if not isinstance(node, dict):
+            continue
+        tool, inputs, config = node.get("tool"), node.get("inputs") or {}, node.get("config") or {}
+        if tool in _PATH_WRITING_TOOLS:
+            return f"A recipe with a {tool} step writes to a path on the Mac: the owner's to run."
+        if tool in _LIBRARY_WIDE_SOURCES or (tool == "folder" and not (inputs.get("folder_id") or config.get("folder_id"))):
+            return f"A recipe with a {tool} source reads by a word or a name, not by pages you may read."
+    return None
+
+
 def run_document_ids(run: Any) -> list[str]:
     """Every document id a run's record names: the scope it resolved, the inputs it was started with and the ids its recipe's nodes name.
     The pages its state, history and answers rest on, so they are shown (or the run is acted on) only to a caller who reads (writes) them all (#6325)."""

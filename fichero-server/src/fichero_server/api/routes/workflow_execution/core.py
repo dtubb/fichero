@@ -25,7 +25,7 @@ from fastapi.responses import StreamingResponse
 from fichero_server.db import Database
 from fichero_server.security.revocation import end_on_revoke
 from fichero_server.api.library_header import require_library_path
-from fichero_server.api.main import get_library_database, get_library_database_for_write, input_document_ids, write_check
+from fichero_server.api.main import get_library_database, get_library_database_for_write, input_document_ids, recipe_check, write_check
 from fichero_server.models import Workflow
 from fichero_server.workflows.activity import get_activity_tracker
 from fichero_server.workflows.run_progress import summarize_run_state
@@ -370,11 +370,7 @@ async def execute_workflow(
 
         _validate_workflow_for_execution(workflow, request, db)
 
-        # ... and so does the recipe: a folder source names its folder in the node, not in the request (#6325, H1).
-        from fichero_server.workflows.run_scope import node_document_ids  # noqa: PLC0415
-
-        if recipe_pages := node_document_ids(workflow.nodes):
-            await write_check(http_request, library_path, db, recipe_pages)
+        await recipe_check(http_request, library_path, db, workflow)  # ... and so does the recipe (#6325)
 
         # #5604: a run on segments or a group is checked against the project and the workflow's
         # steps before it starts; a step that runs on pages is refused in words, never run on the

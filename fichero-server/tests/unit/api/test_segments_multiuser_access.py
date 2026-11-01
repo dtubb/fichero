@@ -633,8 +633,9 @@ class TestTheHandlerIsGeneralNotSegmentsSpecific:
         assert r.status_code == 403, r.text
         assert r.json().get("code") == "library_access_denied"
 
-        # Positive control: no override at all -- the SAME shape of
-        # request succeeds.
+        # Positive control: a caller with no override -- the SAME shape of
+        # request succeeds. (Not the editor who has the deny: such a caller is refused the whole claim family by design, #6320.)
+        _grant_role(app_db, users.owner, library_path, "owner")
         claim_c = KnowledgeClaim(text="Claim C")
         claim_d = KnowledgeClaim(text="Claim D")
         db.save(claim_c)
@@ -642,7 +643,7 @@ class TestTheHandlerIsGeneralNotSegmentsSpecific:
         r2 = client.post(
             "/api/kg/claims/merge",
             json={"surviving_claim_id": claim_c.id, "absorbed_claim_ids": [claim_d.id]},
-            headers=login("editor"),
+            headers=login("owner"),
         )
         assert r2.status_code != 403, r2.text
 

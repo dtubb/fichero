@@ -71,12 +71,14 @@ def _make_mock_scheduler(schedules: list | None = None):
 @pytest.fixture
 def mock_scheduler(client):
     """Override scheduler dependency with a mock."""
-    from fichero_server.api.routes.workflow.schedules import get_scheduler
+    from fichero_server.api.routes.workflow.schedules import get_scheduler, get_scheduler_for_write
     mock = _make_mock_scheduler()
     app.dependency_overrides[get_scheduler] = lambda: mock
+    app.dependency_overrides[get_scheduler_for_write] = lambda: mock  # the write routes take this one (#6320)
     yield mock
     # Restore
     app.dependency_overrides.pop(get_scheduler, None)
+    app.dependency_overrides.pop(get_scheduler_for_write, None)
 
 
 # ---------------------------------------------------------------------------

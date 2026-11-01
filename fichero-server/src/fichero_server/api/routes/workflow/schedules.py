@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from fichero_server.api.library_header import require_library_path
-from fichero_server.api.main import get_library_database, get_library_database_for_write, input_document_ids, write_check
+from fichero_server.api.main import get_library_database, get_library_database_for_write, input_document_ids, recipe_check, write_check
 from fichero_server.db import Database
 from fichero_server.workflows.scheduler import (
     WorkflowScheduler,
@@ -201,10 +201,12 @@ async def _scheduler_for(db: Database) -> WorkflowScheduler:
     return _schedulers[db_path]
 
 
-async def _check_documents(http, library_path: str, db: Database, inputs: dict | None, batch_items: list | None) -> None:
+async def _check_documents(http, library_path: str, db: Database, inputs: dict | None, batch_items: list | None, workflow_id: str | None = None) -> None:
     """A run reads and writes the documents its inputs name, which the write dependency (path and query only) never sees (#6320)."""
     if named := [*input_document_ids(inputs), *(d for item in batch_items or [] for d in input_document_ids(item))]:
         await write_check(http, library_path, db, named)
+    if workflow_id:
+        await recipe_check(http, library_path, db, workflow_id)  # a schedule starts its recipe (#6325)
 
 
 # Endpoints
@@ -219,7 +221,7 @@ async def create_schedule(
     db: Database = Depends(get_library_database_for_write),
 ) -> ScheduleResponse:
     """Create a new workflow schedule."""
-    await _check_documents(http, library_path, db, request.inputs, request.batch_items)
+    await _check_documents(http, library_path, db, request.inputs, request.batch_items, request.workflow_id)
 
     try:
         config = ScheduleConfig(
@@ -317,7 +319,7 @@ async def update_schedule(
     db: Database = Depends(get_library_database_for_write),
 ) -> ScheduleResponse:
     """Update a schedule."""
-    await _check_documents(http, library_path, db, request.inputs, request.batch_items)
+    await _check_documents(http, library_path, db, request.inputs, request.batch_items, getattr(request, "workflow_id", None))
 
     # Verify schedule exists
     schedule = await scheduler.get_schedule(schedule_id)
@@ -408,7 +410,7 @@ async def trigger_schedule(
 ) -> ScheduleRunResponse:
     """Manually trigger a schedule to run now."""
     if (stored := await scheduler.get_schedule(schedule_id)) is not None:  # the run reads what the schedule names
-        await _check_documents(http, library_path, db, stored.inputs, stored.batch_items)
+        await _check_documents(http, library_path, db, stored.inputs, stored.batch_items, stored.workflow_id)
 
     try:
         run = await scheduler.trigger_now(schedule_id)

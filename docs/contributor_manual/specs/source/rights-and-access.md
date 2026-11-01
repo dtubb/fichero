@@ -200,7 +200,7 @@ Rulings.
   A run is shown, and acted on, only to a caller who reads (writes) every page its record names (`source.rights.every-id-in-a-request-is-checked`):
   the scope it resolved, the inputs it was started with and the ids its recipe's nodes name, which is where a folder source names its folder.
   `status`, `history`, `run`, `episodes`, `stream`, the diagrams, comparisons and `read-again` are reads or writes on those pages; `cancel`, `pause`,
-  `resume` and delete are writes; starting a run checks the recipe's nodes as well as the request; deleting runs by state is refused to a caller
+  `resume` and delete are writes; starting a run (execute, chains, batches, schedules) goes through one check, `recipe_check`: the pages the recipe's nodes name must be writable, and a caller whose reads differ page by page may not start a recipe whose source names no page (a folder by name, a search, a whole collection or the artifact and annotation sources) or whose step writes to a path (`export_documents`, `write_file`); four of the shipped recipes (the ones with such a step) are therefore the owner's or a plain editor's to run; deleting runs by state is refused to a caller
   whose reads differ page by page. A run that names no page on its record has none to test (H1, H8, N6).
   An export that writes to a path the caller names on the Mac (`/api/export/jsonl`, `training`, `parquet`, `eleventy-site`, `markdown-folder`, `word`,
   `excel`: every one with an `output_path`) is the owner's, whatever pages it reads (H6, `source.rights.owner-only-asserted-in-the-action`).

@@ -1920,6 +1920,29 @@ async def write_check(request: Request, library_path: str, db: Any, ids: Sequenc
                             lambda: [d for i in named for d in (documents_under(db, i) if deep else ([i] if i else []))])
 
 
+async def recipe_check(request: Request | None, library_path: str | None, db: Any, workflow: Any) -> None:
+    """The one check before any recipe starts a run (execute, read-again, chains, batches, schedules). `workflow` is a recipe or its id.
+    The pages its nodes name must be writable; and a caller whose reads differ page by page may not start one whose source names no
+    page, or whose step writes to a path (`run_scope.recipe_hazard`). Owner, bootstrap and a plain editor are not touched (#6325, H1-H3)."""
+    if request is None or not library_path:
+        return
+    if isinstance(workflow, str):
+        from fichero_server.workflows.default_workflows import resolve_default_workflow
+        from fichero_server.workflows.workflow_store import WorkflowStore
+
+        workflow = WorkflowStore(db).get(workflow) or resolve_default_workflow(workflow)
+    if workflow is None:
+        return  # not found: the route says so
+    from fichero_server.api.auth import library_access_denial_payload
+    from fichero_server.workflows.run_scope import node_document_ids, recipe_hazard
+
+    nodes = workflow.nodes
+    if pages := node_document_ids(nodes):
+        await write_check(request, library_path, db, pages)
+    if document_reader(request, library_path) is not None and (why := recipe_hazard(nodes)):
+        raise LibraryAccessDeniedError(library_access_denial_payload(request, library_path, required="read", detail=why))
+
+
 async def run_check(request: Request, library_path: str | None, db: Any, thread_ids: Sequence[str | None], *, write: bool) -> None:
     """A caller whose reads differ page by page may see a run's state, or act on it, only if they read (write) every page its record
     names (`run_document_ids`). A run with no page on record names none to test (#6325, H1/H8/N6)."""

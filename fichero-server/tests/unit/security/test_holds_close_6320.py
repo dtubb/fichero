@@ -607,3 +607,40 @@ def test_h6_an_export_that_names_a_path_on_the_mac_is_the_owners(project, four):
         for route in named:
             got = client.post(route.path, json={"output_path": "x-path-no-write"})
             assert got.status_code == 403 and "owner access required" in got.text, (name, route.path, got.status_code, got.text[:100])
+
+
+def _recipe(client, nodes):
+    made = client.post("/api/workflows", json={"name": "recipe", "edges": [], "nodes": nodes})
+    assert made.status_code == 200, made.text
+    return made.json()["id"]
+
+
+def test_recipes_that_name_no_page_or_write_a_path_are_refused_at_every_start(project, four, tmp_path):
+    """#6325 items 1-3 (review 6): the run's text and files come out through a recipe whose source names no page (a folder by name, a
+    search) or whose step writes a path. One check, `recipe_check`, in front of execute, chains, batches and schedules."""
+    alice = next(c for n, c, _ in four if n == "alice")
+    owner = _as(project.harness, "owner")
+    out = str(tmp_path / "copied")
+    recipes = {
+        "by name": [{"id": "s", "tool": "folder", "label": "F", "inputs": {"folder_path": "SECRETFOLDER"}, "config": {}}],
+        "search": [{"id": "s", "tool": "search", "label": "S", "inputs": {"query": "SECRET", "search_type": "fulltext"}, "config": {}}],
+        "export": [{"id": "e", "tool": "export_documents", "label": "E", "inputs": {"formats": ["markdown"], "destination": out}, "config": {}}],
+        "export of B": [{"id": "e", "tool": "export_documents", "label": "E", "inputs": {"source_id": project.ids["B"], "destination": out}, "config": {}}],
+    }
+    for label, nodes in recipes.items():
+        wid = _recipe(alice, nodes)
+        assert alice.post("/api/workflow-execution/execute", json={"workflow_id": wid, "inputs": {}}).status_code == 403, label
+        chain = owner.post("/api/chains", json={"name": "c", "steps": [{"id": "s1", "workflow_id": wid, "name": "s"}]})
+        assert chain.status_code == 200, chain.text
+        cid = chain.json()["id"]
+        assert alice.post(f"/api/chains/{cid}/execute-steps", json={"inputs": {}}).status_code == 403, label
+        assert alice.post(f"/api/chains/{cid}/execute", json={"inputs": {}}).status_code == 403, label
+        batch = owner.post("/api/batches", json={"workflow_id": wid, "items": [{"x": 1}]})
+        assert batch.status_code == 200, batch.text
+        assert alice.post(f"/api/batches/{batch.json()['batch_id']}/execute").status_code == 403, label
+        assert alice.post("/api/schedules", json={"name": "n", "workflow_id": wid, "config": {"schedule_type": "cron", "cron_expression": "0 3 * * *"}, "inputs": {}}).status_code == 403, label
+        assert alice.post("/api/batches", json={"workflow_id": wid, "items": [{"x": 1}]}).status_code == 403, label
+    assert not (tmp_path / "copied").exists()
+    # the owner's own recipe is not touched
+    wid = _recipe(owner, recipes["by name"])
+    assert owner.post("/api/workflow-execution/execute", json={"workflow_id": wid, "inputs": {}}).status_code == 202
