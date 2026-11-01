@@ -136,9 +136,12 @@ Surfaces: `ImageEditorView` (+`+Canvas`/`+Clipboard`/`+Popovers`/`+Toolbar`/`+Ty
   keys of `data` (a tool's own structured answer), else the first 1000 characters of the text. A field a dev build had left as that provenance
   (`{"episode_id": ...}` since 2026-08-12, `{"image_read": ..., "episode_id": ...}` since 2026-10-30) is put back by a background job the open
   queues once (`maintenance/image_marker_repair.py`, marked done in `librarysettings`): from the newest artifact of the field's type (`doc_type`
-  reads `classification`, `script_type` reads `script_classification`), no model, a page saved only when a field changed. Its Activity row says
-  how many fields it put back and how many it could not (no artifact of their type, or a step whose `metadata_field` was overridden); those stay
-  as they are. Tests: `tests/unit/observability/test_episode_vision_wiring.py::test_a_run_with_a_library_leaves_the_text_in_the_documents_field_not_its_provenance`,
+  reads `classification`, `script_type` reads `script_classification`), no model, a page saved only when a field changed. A flagged (looping) read and a compare arm are saved as readings but never take the field (a flagged read writes nothing onto the
+  page, #5522), and the repair never puts their text back; it touches only a dict of provenance keys with `image_read` or `episode_id` in it.
+  Its Activity row (the scheduler keeps the words from `jobs.note_done`) says how many fields it put back and how many it could not (no
+  artifact of their type that is not flagged or a compare arm, or a step whose `metadata_field` was overridden); those stay as they are, and
+  the row's detail, the log and the audit (`repair.reading-fields`, with the pages put back, the pages left and the library) name them. A stop
+  or a defer resumes from a cursor in the row's detail with its counts kept. Tests: `tests/unit/observability/test_episode_vision_wiring.py::test_a_run_with_a_library_leaves_the_text_in_the_documents_field_not_its_provenance`,
   `tests/unit/workflows/test_image_marker_repair.py`.
 - `preview.edit.rendition-caches-invalidate-on-every-edit` — **[OK]** a successful edit drops
   BOTH derived-pixel caches (not just the storage-service one), including on the way OUT of
