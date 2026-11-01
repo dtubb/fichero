@@ -100,10 +100,16 @@ def crop_pages(db: Any, documents: list[str], run_id: str, stop: Callable[[], bo
                     account["blank_proposed"] = account.get("blank_proposed", 0) + 1
             if not trusted:
                 if prepare:
+                    # A page already read, with no rendition of this step to read from, keeps the photograph: turning it now
+                    # would change the image its readings were made from and the next read would pay again (same input, same model).
+                    from fichero_server.models import Rendition
+                    from fichero_server.recipes.done import pages_with_readings
+                    kept_as_read = doc.id in pages_with_readings(db, [doc.id]) and not any(
+                        r.producer_tool == PRODUCER for r in db.query(Rendition, document_id=doc.id))
                     _clear(db, doc.id, everything=True)
                     # The page itself is the base: no crop, square or flatten (no paper was found), but turn and straighten
                     # still run, each a rendition only when it changed something (`wide.prepare.operations-run-on-every-page`).
-                    if straighten:
+                    if straighten and not kept_as_read:
                         _turn_and_straighten(db, doc, image, [0.0, 0.0, 1.0, 1.0], None, run_id, library, ctx)
                 account["whole"] += 1
                 _write_stamp(db, doc.id, path, prepare, ctx, signature)
@@ -242,8 +248,10 @@ def _write(db: Any, doc: Any, role: str, picture: Any, run_id: str, library: Pat
     data = buffer.getvalue()
     stored = library / "files" / doc.id[:2].lower() / f"{doc.id}_{role}_{hashlib.sha256(data).hexdigest()[:16]}.png"
     stored.parent.mkdir(parents=True, exist_ok=True)
-    if not stored.exists():
-        stored.write_bytes(data)
+    if not stored.exists() or stored.stat().st_size != len(data):
+        partial = stored.with_suffix(".part")  # written whole or not at all: an interrupt leaves no half picture under the name
+        partial.write_bytes(data)
+        partial.replace(stored)
     row = Rendition(document_id=doc.id, role=role, path=str(stored), is_primary=False, pixel_width=picture.width,
                     pixel_height=picture.height, producer_tool=PRODUCER, producer_run_id=run_id, note=note,
                     derived_from_rendition_id=parent_id,

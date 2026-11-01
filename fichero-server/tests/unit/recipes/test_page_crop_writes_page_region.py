@@ -138,3 +138,83 @@ def test_a_page_prepared_again_keeps_its_image_signature_so_read_does_not_read_i
     assert first
     assert page_crop.crop_pages(db, [doc.id], "run-2", prepare=True)["cropped"] == 1
     assert names() == first
+
+
+def _skewed_whole_page(path):
+    """A ruled scan whose paper fills the frame (no page to cut), its lines turned 4 degrees: Prepare would straighten it."""
+    from PIL import Image, ImageDraw
+
+    page = Image.new("RGB", (900, 700), (235, 230, 215))
+    draw = ImageDraw.Draw(page)
+    for y in range(80, 640, 40):
+        draw.line([(40, y), (860, y)], fill=(40, 40, 70), width=3)
+    page.rotate(4, resample=Image.Resampling.BICUBIC, fillcolor=(235, 230, 215)).save(path)
+
+
+def _prepared_roles(db, tmp_path, monkeypatch, read):
+    from fichero_server.media import find_page as module
+    from fichero_server.models import Rendition
+    from fichero_server.recipes import page_crop
+
+    monkeypatch.setattr(module, "find_page_vision", lambda image: None)
+    path = tmp_path / "skewed.png"
+    _skewed_whole_page(path)
+    doc = Document(name=path.name, doc_type=DocType.file, file_type=FileType.image, path=str(path), metadata={})
+    db.save(doc)
+    read(doc)
+    page_crop.crop_pages(db, [doc.id], "run-1", prepare=True)
+    return sorted(r.role for r in db.query(Rendition, document_id=doc.id))
+
+
+def _whole_page_reading(db):
+    from fichero_server.models import Artifact
+
+    return lambda doc: db.save(Artifact(document_id=doc.id, artifact_type="transcription", model="m", provider="p", content="texto"))
+
+
+def _line_reading(db):
+    from fichero_server.models import Artifact, ContentRepresentation
+    from fichero_server.models.anchors import SourceAnchor
+
+    def read(doc):
+        art = Artifact(document_id=doc.id, artifact_type="kraken-lines", model="m", provider="kraken")
+        db.save(art)
+        db.save(ContentRepresentation(document_id=doc.id, kind="transcription", segment_id="line-1", derived_from_artifact_id=art.id,
+                                     content="texto", source_anchor=SourceAnchor(document_id=doc.id)))
+
+    return read
+
+
+def test_an_unread_skewed_whole_page_is_straightened(db, tmp_path, monkeypatch):
+    """The control: with no reading the operations still run on a page left whole."""
+    assert _prepared_roles(db, tmp_path, monkeypatch, lambda doc: None)
+
+
+def test_a_skewed_whole_page_read_by_a_direct_run_keeps_the_image_it_was_read_from(db, tmp_path, monkeypatch):
+    """Review 8 M1: turning a page already read changed the image its reading came from, so the skip-if-done lookup sent it again."""
+    assert _prepared_roles(db, tmp_path, monkeypatch, _whole_page_reading(db)) == []
+
+
+def test_a_skewed_whole_page_half_read_keeps_the_image_it_was_read_from(db, tmp_path, monkeypatch):
+    """Review 8 M1: a page stopped half-read asked for every line again once Prepare had turned it (`unread_by`)."""
+    assert _prepared_roles(db, tmp_path, monkeypatch, _line_reading(db)) == []
+
+
+def test_a_rendition_write_cut_short_is_written_again(db, tmp_path, monkeypatch):
+    """Review 8 M2: a half PNG under the hash name was kept for good; written to `.part` and replaced, and a short file is redone."""
+    from fichero_server.media import find_page as module
+    from fichero_server.models import Rendition
+    from fichero_server.recipes import page_crop
+
+    monkeypatch.setattr(module, "find_page_vision", lambda image: None)
+    path = tmp_path / "scan.png"
+    scan().save(path)
+    doc = Document(name=path.name, doc_type=DocType.file, file_type=FileType.image, path=str(path), metadata={})
+    db.save(doc)
+    page_crop.crop_pages(db, [doc.id], "run-1", prepare=True)
+    stored = Path(db.query(Rendition, document_id=doc.id)[0].path)
+    whole = stored.read_bytes()
+    stored.write_bytes(whole[: len(whole) // 2])  # a crash mid-write
+    page_crop._write(db, doc, stored.name.split("_")[1], __import__("PIL.Image").Image.open(__import__("io").BytesIO(whole)),
+                     "run-2", Path(db.path).parent, "again", [0, 0, 1, 1], None)
+    assert stored.read_bytes() == whole and not list(stored.parent.glob("*.part"))

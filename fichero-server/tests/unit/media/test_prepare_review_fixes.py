@@ -64,6 +64,11 @@ def _doc(db, path: Path) -> Document:
     return doc
 
 
+def _page_files(db, doc) -> set[Path]:
+    """The rendition files on disk for this page (named by its id) under the library's files/."""
+    return set((Path(db.path).parent / "files").glob(f"*/{doc.id}_*"))
+
+
 def test_each_rendition_names_the_one_before_it_and_a_rerun_leaves_no_old_files(db, tmp_path, monkeypatch):
     """Stage 2 MED 8 and MED 4: squared -> flattened -> rotated -> deskewed traced back to the photograph, and the files of
     a re-run replace the old ones on disk."""
@@ -91,8 +96,17 @@ def test_each_rendition_names_the_one_before_it_and_a_rerun_leaves_no_old_files(
     second = db.query(Rendition, document_id=doc.id)
     assert {r.role for r in second} == set(first), "no role is lost or doubled"
     assert len(second) == len(first)
-    assert not any(f.exists() for f in old_files), "the first run's files are gone from disk"
     assert all(Path(r.path).exists() for r in second)
+    # the orphan guard: the files on disk for this page are exactly the ones its rows name (same pixels keep the same name)
+    assert _page_files(db, doc) == {Path(r.path) for r in second}, "no file is left that no row names"
+    assert {Path(r.path) for r in second} == old_files, "the same pixels keep the same files"
+
+    # a changed picture: the old files go and the new ones are the only ones
+    Image.fromarray(255 - np.asarray(image.convert("RGB"))).save(path)
+    crop_pages(db, [doc.id], "run-3", prepare=True)
+    third = db.query(Rendition, document_id=doc.id)
+    assert _page_files(db, doc) == {Path(r.path) for r in third}
+    assert not ({Path(r.path) for r in third} & old_files), "a changed picture leaves none of the old files"
 
 
 def test_a_page_that_stops_being_found_loses_its_stale_renditions(db, tmp_path, monkeypatch):
