@@ -61,10 +61,18 @@ class NotFoundResponse(BaseModel):
     reason: str | None = None  # the image routes: why the original cannot be read (`media.image_reason`)
 
 
-def _original_unavailable(doc: Document, bare: str, db: Database) -> JSONResponse:
+NOT_GENERATED_YET = "not_generated_yet"
+NO_PICTURE = "no_picture"
+_NO_PICTURE_WORDS = (NO_PICTURE, "the original can be read but no picture could be made from it")
+
+
+def _original_unavailable(
+    doc: Document, bare: str, db: Database, when_readable: tuple[str, str] | None = None
+) -> JSONResponse:
     """The 404 for a picture that could not be served. Blocking (file system calls): call it with `asyncio.to_thread`.
     When `resolve_source` finds the document's source (or, for a PDF page, its parent's) the cause is not the original
-    and the 404 is bare; otherwise `detail` adds the words and `reason` the code (`media.image_reason`)."""
+    and the 404 is bare, or carries `when_readable` (code, words) if given; otherwise `detail` adds the words and
+    `reason` the code (`media.image_reason`)."""
     from fichero_server.db.storage import resolve_source
     from fichero_server.media import image_reason
 
@@ -73,6 +81,9 @@ def _original_unavailable(doc: Document, bare: str, db: Database) -> JSONRespons
     except (OSError, ValueError, RuntimeError):
         found = None
     if found:
+        if when_readable:
+            code, words = when_readable
+            return JSONResponse(status_code=404, content={"detail": f"{bare}: {words}", "reason": code})
         return JSONResponse(status_code=404, content={"detail": bare})
     code, words = image_reason.classify_image_unavailable(doc, db.path.parent, db)
     return JSONResponse(status_code=404, content={"detail": f"{bare}: {words}", "reason": code})
@@ -227,8 +238,12 @@ async def get_thumbnail(
                     _inline_thumbnail_permits.release()
             else:
                 perf["cache_state"] = "shed"
-                raise HTTPException(
-                    status_code=404, detail="Thumbnail not yet generated"
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "detail": "Thumbnail not yet generated: try again in a moment",
+                        "reason": NOT_GENERATED_YET,
+                    },
                 )
             perf["cache_state"] = "generated" if thumb_path else "unavailable"
             # Warm the companion display image so both formats exist after the
@@ -241,7 +256,7 @@ async def get_thumbnail(
                 )
 
         if not thumb_path or not thumb_path.exists():
-            return await asyncio.to_thread(_original_unavailable, doc, "Thumbnail not available", db)
+            return await asyncio.to_thread(_original_unavailable, doc, "Thumbnail not available", db, _NO_PICTURE_WORDS)
 
         perf["thumbnail_path"] = thumb_path.name
         return FileResponse(
@@ -302,7 +317,7 @@ async def get_display_image(
             )
 
     if not display_path or not display_path.exists():
-        return await asyncio.to_thread(_original_unavailable, doc, "Display image not available", db)
+        return await asyncio.to_thread(_original_unavailable, doc, "Display image not available", db, _NO_PICTURE_WORDS)
 
     return FileResponse(
         display_path,

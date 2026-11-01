@@ -86,7 +86,7 @@ def test_a_readable_file_that_is_not_an_image_is_not_blamed_on_the_original(clie
     doc = _doc(db, str(path))
     r = client.get(f"/api/storage/{route}/{doc.id}")
     assert r.status_code == 404
-    assert "reason" not in r.json()
+    assert r.json()["reason"] == "no_picture"  # named in test_thumbnail_404_names_reason.py
 
 
 @pytest.mark.parametrize("route", ROUTES)
