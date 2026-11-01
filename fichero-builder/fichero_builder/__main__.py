@@ -66,6 +66,7 @@ def main(argv=None) -> int:
     c.add_argument("since"), c.add_argument("head")
     c.add_argument("--pinned", required=True)
     c.add_argument("--id", action="append", default=[])
+    c.add_argument("--maintainer", action="store_true", help="a maintainer batch: a changed pinned file is recorded in the pinned-checks row, not refused; point --pinned at the candidate's own tree")
     c.add_argument("--state", help="where the journal lives (default: see run --state)")
     ms = sub.add_parser("milestone", help="a milestone's open issues as one cluster brief per build-order step; questions, never guesses")
     ms.add_argument("name"), ms.add_argument("--spec", required=True, help="the APPROVED spec whose Build order places the issues")
@@ -187,7 +188,7 @@ def main(argv=None) -> int:
             print(f"builder check: {a.since!r} is not a commit in {a.repo}", file=sys.stderr)
             return 1
         try:
-            r = check_tool.ladder_over(a.repo, since, head, a.pinned, a.id)
+            r = check_tool.ladder_over(a.repo, since, head, a.pinned, a.id, maintainer=a.maintainer)
         except check_tool.EmptyRange:  # the shared refusal, also `builder work`'s
             print(f"REFUSED: {a.since}..{a.head} is empty: nothing to check", file=sys.stderr)
             return 1

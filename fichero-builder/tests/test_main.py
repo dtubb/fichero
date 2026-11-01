@@ -78,3 +78,17 @@ def test_check_refuses_an_empty_range(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cli.check_tool, "run_ladder", lambda *a, **k: (_ for _ in ()).throw(AssertionError("the ladder must not run")))
     assert cli.main(["check", "--repo", "r", "base", "HEAD", "--pinned", str(tmp_path), "--state", str(tmp_path / "s")]) == 1
     assert "empty" in capsys.readouterr().err
+
+
+def test_check_passes_maintainer_through_to_the_ladder(monkeypatch, tmp_path, capsys):
+    """`builder check --maintainer` reaches ladder_over as maintainer=True (the flag was parsed and dropped once)."""
+    from fichero_builder import __main__ as m, check_tool
+
+    seen = {}
+    monkeypatch.setattr(m, "resolve", lambda repo, rev: {"a": "a" * 40, "b": "b" * 40}[rev])
+    monkeypatch.setattr(check_tool, "ladder_over", lambda *a, **k: seen.update(k) or {"ok": True, "failed": "", "rungs": []})
+    monkeypatch.setattr(m.journal, "append", lambda *a, **k: None)
+    rules = tmp_path / "harness.toml"
+    rules.write_text("[check]\nengine_repo = '" + str(tmp_path) + "'\n")
+    assert m.main(["check", "a", "b", "--pinned", str(tmp_path), "--maintainer", "--state", str(tmp_path)]) == 0
+    assert seen.get("maintainer") is True

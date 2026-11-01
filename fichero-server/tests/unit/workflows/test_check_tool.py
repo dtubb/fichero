@@ -409,3 +409,24 @@ def test_a_builder_change_owes_a_red_on_base_test_and_its_tests_run_with_the_bui
     assert ct._needs_red(["fichero-builder/fichero_builder/work.py"], [], cfg), "a Builder source change needs a red-on-base test"
     assert not ct._needs_red(["docs/contributor_manual/a.md"], [], cfg)
     assert "fichero-builder" in cfg.python_path
+
+
+def test_a_maintainer_batch_records_the_pinned_change_and_runs_the_rest(tmp_path):
+    """A maintainer batch changes a pinned file on purpose: with maintainer=True the pinned-checks row says so and stays
+    green, the ladder judges the candidate by its own rules; a weakened test or rewritten acceptance still refuses."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "ci" / "lint_ok.py").write_text("raise SystemExit(0)  # edited by the maintainer\n")
+    (work / "mod.py").write_text("VALUE = 2\n")
+    (work / "test_mod.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 2\n")
+    g("add", "."), g("commit", "-q", "-m", "edit guard")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False, maintainer=True)
+    assert r["ok"], r
+    assert r["rungs"][0]["ok"] and "ci/lint_ok.py" in r["rungs"][0]["stdout_tail"] and "maintainer" in r["rungs"][0]["stdout_tail"]
+    assert [x["name"] for x in r["rungs"]][:3] == ["pinned-checks", "ready", "diff-bound"]
+    (work / "test_old.py").write_text("def test_a():\n    assert 1\n    assert 2\ndef test_b():\n    assert 3\n")
+    g("add", "."), g("commit", "-q", "-m", "a test")
+    base2 = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+    (work / "test_old.py").write_text("def test_a():\n    assert 1\n")
+    g("add", "."), g("commit", "-q", "-m", "weaken")
+    r = ct.run_ladder(work, base2, "HEAD", pinned, jail_required=False, maintainer=True)
+    assert not r["ok"] and r["failed"] == "pinned-checks" and "weakens" in r["rungs"][0]["stderr_tail"]

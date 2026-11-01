@@ -527,18 +527,20 @@ class EmptyRange(RuntimeError):
     """since equals head: a landing branch that never got its commit judged green on nothing (2026-11-02)."""
 
 
-def ladder_over(root, since_sha: str, head: str, pinned, protected_ids=()) -> dict:
+def ladder_over(root, since_sha: str, head: str, pinned, protected_ids=(), maintainer: bool = False) -> dict:
     """The one way `builder check` and `builder work` run the ladder: an empty range is refused, never judged."""
     if since_sha == head:
         raise EmptyRange(f"{since_sha[:9]}..{head[:9]} is empty: nothing to check")
-    return run_ladder(root, since_sha, head, pinned, list(protected_ids))
+    return run_ladder(root, since_sha, head, pinned, list(protected_ids), maintainer=maintainer)
 
 
-def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_required: bool = True) -> dict:
+def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_required: bool = True, maintainer: bool = False) -> dict:
     """The project's whole ladder over the diff since..head, judged by the PINNED copy (an engine-owned checkout
     outside the worker's tree; its harness.toml is the config): pinned-checks, ready, diff bound, red-on-base for
     the changed test files (its green run is the pytest rung), guards, contract. Stops at the first red.
-    `protected_ids`: the behaviour ids of the item, whose spec acceptance the worker may not rewrite."""
+    `protected_ids`: the behaviour ids of the item, whose spec acceptance the worker may not rewrite.
+    `maintainer`: a maintainer batch changes pinned files on purpose; the pinned-checks row records which and the
+    ladder runs on (weakened tests and a rewritten acceptance still refuse)."""
     global _JAIL
     from . import jail as _jailmod
     if jail_required and (problems := rules_problems(pinned)):  # review 4 B5: the start's own checks, here too
@@ -552,7 +554,7 @@ def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_requi
             raise _jailmod.JailMissing("the jail leaks: " + "; ".join(wall))
     _JAIL = j
     try:
-        return _run_ladder(root, since, head, pinned, protected_ids)
+        return _run_ladder(root, since, head, pinned, protected_ids, maintainer)
     finally:
         _JAIL = None
 
@@ -562,9 +564,12 @@ def _needs_red(names: list[str], tests: list[str], cfg: Config) -> bool:
     return not cfg.red_paths or bool(tests) or any(n.startswith(cfg.red_paths) for n in names)
 
 
-def _run_ladder(root, since: str, head: str, pinned, protected_ids=()) -> dict:
+def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintainer: bool = False) -> dict:
     cfg = load(pinned)
     bad = pinned_violations(root, since, head, cfg, pinned)
+    noted = ""
+    if maintainer and bad:  # ponytail: the whole pinned list is noted, not only the "changed" kind; the reviewer reads it
+        noted, bad = "maintainer batch: " + "; ".join(bad), []
     if weak := weakened_tests(root, since, head, cfg):
         bad.append(f"the diff deletes or weakens existing tests ({', '.join(weak[:5])})")
     bad += [f"the diff rewrites the item's own acceptance ({h})" for h in acceptance_changed(root, since, head, cfg, protected_ids)[:8]]
@@ -579,7 +584,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=()) -> dict:
     tree = _scratch_tree(root, head, pinned, cfg)
     try:
         ok_pin = {"name": "pinned-checks", "argv": [], "exit_code": 0, "ok": True, "timed_out": False, "seconds": 0,
-                  "stdout_tail": f"checks from the pinned copy over {head}", "stderr_tail": ""}
+                  "stdout_tail": (noted + "\n" if noted else "") + f"checks from the pinned copy over {head}", "stderr_tail": ""}
         out = ladder([
             ("ready", lambda: ready(tree, cfg)),
             ("diff-bound", lambda: diff_bound(root, since, head, cfg)),
