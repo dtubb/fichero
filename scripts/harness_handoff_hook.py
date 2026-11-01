@@ -9,11 +9,13 @@ Hook for PostToolUse and Stop. Does nothing unless the session's worker is regis
      "successor": "watcher"}            # `builder run` wrote it: the hook tells and nudges, the watcher ends and starts
 The name comes from $FICHERO_BUILDER (set by harness_start.py).
 PostToolUse at 85%: tells the worker once to finish, commit, write the handoff and end with HANDOFF READY.
-Stop: without that line the worker is told to continue (capped) unless its message has a `WAITING: ` line;
+Stop: without that line the worker is told to continue (capped) unless its message has a `WAITING: ` line
+or the brief's end line `DONE <sha>` (then `builder run` ends the worker);
 with it the successor starts, once per session. Never run this from inside your own session (it TERMs the claude above it).
 ponytail: context is read from the transcript's last usage; if that format changes the worker is never told. --test self-checks."""
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -21,6 +23,7 @@ from pathlib import Path
 
 DONE = "HANDOFF READY"
 WAIT = "WAITING:"
+ENDED = re.compile(r"^DONE [0-9a-f]{7,}", re.M)  # the brief's own end line: `builder run` ends the worker on it
 NUDGES = 20
 AT = 0.85
 HERE = Path(__file__).resolve().parent
@@ -98,7 +101,7 @@ def on_stop(event, name, reg, state, run=subprocess.run):
     if DONE not in last:
         # ponytail: a cap per session stops a loop; the manager's check catches a worker past it.
         n = state.get("nudges", {}).get(sid, 0)
-        if WAIT in last or n >= NUDGES:
+        if WAIT in last or ENDED.search(last) or n >= NUDGES:
             return None, state
         words = f"Continue with the next item in {reg['handoff']} without waiting. If nothing can be done until someone acts, say why on a line starting {WAIT}"
         return {"decision": "block", "reason": words}, dict(state, nudges={**state.get("nudges", {}), sid: n + 1})
@@ -167,6 +170,8 @@ def test():
     assert on_stop({"last_assistant_message": f"{WAIT} owner", "session_id": "k"}, "b", reg, st, run)[0] is None
     assert on_stop({"last_assistant_message": "x", "session_id": "k"}, "b", reg, {"nudges": {"k": NUDGES}}, run)[0] is None
     assert not calls
+    assert on_stop({"last_assistant_message": "sweep green\nDONE 0123abcd", "session_id": "k"}, "b", reg, {}, run) == (None, {}), "the brief's DONE line ends the run: no nudge"
+    assert on_stop({"last_assistant_message": "DONE soon", "session_id": "k"}, "b", reg, {}, run)[0]["decision"] == "block", "DONE without a sha is not an end"
     _, st = on_stop({"last_assistant_message": DONE, "session_id": "s1"}, "b", reg, {}, run)
     start = calls[0]
     assert st["gen"] == 2 and start[1].endswith("harness_start.py") and start[start.index("--name") + 1] == "b" and calls[1][0] == "tellme", calls

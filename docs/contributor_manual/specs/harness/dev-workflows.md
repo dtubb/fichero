@@ -210,7 +210,8 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   Built 2026-11-01: `python -m fichero_builder run --worktree W --brief F` (`fichero_builder/run.py`), run as the worker
   user, starts through the start path and watches the newest session file under that user's `~/.claude/projects/<slug>`
   every tick; a cap or a provider refusal parks it (the pane is killed), a worker idle with the brief's DONE word in its last
-  text is ended, and the end is a `cost` row. First live run 2026-11-01: a one-word brief, started as the worker user, read,
+  text is ended, and the end is a `cost` row; the Stop hook accepts that `DONE <sha>` line too, so it stays the worker's last
+  text instead of being pushed out by a continue nudge (live run 2026-11-01). First live run 2026-11-01: a one-word brief, started as the worker user, read,
   priced and parked at a 5-cent trial cap in 30 s. Not yet: the register file. Tests:
   `fichero-builder/tests/test_dry_run.py`, `fichero-server/tests/unit/workflows/test_start_tool.py`.
 - `dev-workflows.run.worker-address` [PARTIAL] (#6116) — per task, the current generation's address (pane or RPC pipe,
