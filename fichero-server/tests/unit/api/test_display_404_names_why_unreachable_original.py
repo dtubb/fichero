@@ -217,3 +217,29 @@ def test_a_home_folder_of_a_user_that_does_not_exist_is_unreadable_not_a_500(qui
     assert r.status_code == 404
     assert r.json()["reason"] == "unreadable"
     assert "nosuchuser" not in r.text
+
+
+def _page_under(db, parent_path: str, parent_type: FileType | None = None):
+    parent = Document(name="Folder", doc_type=DocType.folder if parent_type is None else DocType.file,
+                      file_type=parent_type, path=parent_path)
+    db.save(parent)
+    page = Document(name="Page", doc_type=DocType.page, file_type=None, parent_id=parent.id, sequence=1)
+    db.save(page)
+    return page
+
+
+@pytest.mark.parametrize("route", ROUTES)
+def test_a_page_under_a_folder_that_has_a_file_still_has_no_recorded_file(client, db, tmp_path, route):
+    (tmp_path / "a.pdf").write_bytes(b"x")
+    page = _page_under(db, str(tmp_path / "a.pdf"))
+    r = client.get(f"/api/storage/{route}/{page.id}")
+    assert r.status_code == 404
+    assert r.json()["reason"] == "no_recorded_file"
+
+
+@pytest.mark.parametrize("route", ROUTES)
+def test_a_page_under_a_folder_on_a_gone_drive_is_not_blamed_on_the_drive(client, db, route):
+    page = _page_under(db, "/Volumes/NoSuchDriveForTest6308/x")
+    r = client.get(f"/api/storage/{route}/{page.id}")
+    assert r.status_code == 404
+    assert r.json()["reason"] == "no_recorded_file"

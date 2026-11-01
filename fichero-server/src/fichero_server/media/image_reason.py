@@ -28,13 +28,13 @@ def _paths_of(doc: Document) -> list[str]:
 
 
 def owner_of_source(doc: Document, db: Any = None) -> Document:
-    """The document whose file this one's picture comes from: itself, or for a page with no path of its own (a PDF page,
-    `db.storage.resolve_pdf_render_source`) its parent."""
-    from fichero_server.models import DocType
+    """The document whose file this one's picture comes from: itself, or for a page with no path of its own whose parent is
+    a PDF (as `db.storage.resolve_pdf_render_source` reads it) that parent."""
+    from fichero_server.models import DocType, FileType
 
     if db is not None and not _paths_of(doc) and doc.doc_type == DocType.page and doc.parent_id:
         parent = db.get_committed(Document, doc.parent_id)
-        if parent is not None:
+        if parent is not None and parent.file_type == FileType.pdf:
             return parent
     return doc
 
