@@ -14,9 +14,9 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "fichero-server" / "src"))
-from fichero_server.workflows import jail as J  # noqa: E402
-from fichero_server.workflows import start_tool as S  # noqa: E402
+sys.path.insert(0, str(ROOT / "fichero-builder"))
+from fichero_builder import jail as J  # noqa: E402
+from fichero_builder import start_tool as S  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--worktree", required=True)

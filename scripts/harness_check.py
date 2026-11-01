@@ -8,8 +8,8 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "fichero-server" / "src"))
-from fichero_server.workflows import check_tool  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "fichero-builder"))
+from fichero_builder import check_tool  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument("repo"), ap.add_argument("since"), ap.add_argument("head")

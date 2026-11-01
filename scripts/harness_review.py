@@ -17,8 +17,8 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "fichero-server" / "src"))
-from fichero_server.workflows import land_tool  # noqa: E402
+sys.path.insert(0, str(ROOT / "fichero-builder"))
+from fichero_builder import land_tool  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument("repo"), ap.add_argument("head")

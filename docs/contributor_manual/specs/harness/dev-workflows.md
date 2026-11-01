@@ -207,14 +207,15 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   directory, started-at) is a file, so a restart adopts or kills before any successor; stop is TERM then KILL after a grace.
   The engine has no worker route or action (owner 2026-11-01: the Builder is apart from the engine); `worker_process.py`,
   `routes/workers.py` and their actions are deleted in Step 1.1. Built: the start path, the jail probe, the rules check.
-  Not yet: the one process that owns start, watch and stop. Tests: `fichero-builder/tests/test_watcher.py`.
+  Not yet: the one process that owns start, watch and stop. Test (unwritten, Step 1.2): the watcher test under the
+  Builder's tests folder; today `fichero-server/tests/unit/workflows/test_start_tool.py`.
 - `dev-workflows.run.worker-address` [PARTIAL] (#6116) — per task, the current generation's address (pane or RPC pipe,
   process group, session directory, kind, started-at) is registered in the journal, rewritten at each handoff, cleared when
   gone; `builder ask` and a steer write a file in that generation's inbox, read by the worker at its next turn (the hook on
   Claude, the extension on Pi); no keystroke into a pane (audit 2026-11-01: `unstick.sh` pressed Enter 11,081 times, 356
   into a draft); a message to a stale generation is refused naming the current one; under 800 characters. Built: the
-  inbox file and the hook read. Not yet: the register in the journal; the refusal. Test:
-  `fichero-builder/tests/test_real_cluster_record.py::test_a_message_reaches_only_the_current_generation`.
+  inbox file and the hook read. Not yet: the register in the journal; the refusal. Test (unwritten, Step 2.2): a message reaches only the current
+  generation; today `fichero-server/tests/unit/workflows/test_worker_address.py`.
 - `dev-workflows.node.worker` [PARTIAL] (#6116) — kinds `claude` and `pi`; each kind has one adapter (usage from the
   session file, tool errors, the reported sha, the tool names the policy sees) and a policy that meets an unknown tool name
   **refuses**, never passes; `fake` replays recorded events through the real policy and is never started by a person.
@@ -224,8 +225,8 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   the kind is used (audit 2026-11-01: the old claim that Pi has no policy hook was false). The context read must know both
   usage shapes (Claude `input_tokens`; Pi `input` and `cacheRead`), else it reads 0 and stays silent. Order: Claude under
   Max on real issues first, then Pi on a metered provider with Sonnet so only the agent changes, then local. The per-item
-  `claude -p` of `cli_agent.py` stays for one-shot clerks. Tests: `fichero-builder/tests/test_pi_rpc.py`,
-  `fichero-builder/tests/test_pi_policy_extension.py`.
+  `claude -p` of `cli_agent.py` stays for one-shot clerks. Tests (unwritten, Step 3.1): the Pi RPC test and the policy
+  extension test under the Builder's tests folder.
 - `dev-workflows.tool.check` [PARTIAL] (#6116) — the `check` tool runs the ladder from the rules file: every rung an **argv
   list** with cwd, explicit environment (scratch base path and HOME, `PYTHONPATH` relative to the tree under test, thread
   caps) and timeout; a guard runs by its own shebang; the test command is configured, not `python -m pytest`; typed
@@ -264,7 +265,8 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   result already on the task is refused as re-done work. A parked worker ends the same way and its successor resumes with
   the answer. At 16-32k the handoff fires per item. The handoff file is tracked in the repository with no pane ids or
   session names in it. Built: the hook form (`scripts/harness_handoff_hook.py`, reuses `sys.executable`). Not yet: the
-  watcher form. Test: `fichero-builder/tests/test_handoff.py::test_handoff_and_successor`.
+  watcher form. Test (unwritten, Step 1.3): handoff and successor under the Builder's tests folder; today
+  `fichero-server/tests/unit/workflows/test_handoff_hook.py`.
 - `dev-workflows.worker.two-capability-sets` [PROPOSED] — Builder: worktree, shell, git, the step tools, scratch base path,
   `dev` tier only. Researcher: capabilities **per task**, never mixed in one session: find-sources holds web search and
   fetch and no library read; search-libraries holds read-only library and KG actions and no web; read-and-note reads only
@@ -322,14 +324,14 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   row → told once by file, then replaced; a silent worker raises an alert; an unknown price refuses to start; a per-session
   or daily spend cap parks with a question (owner ruling pending: the daily amount); on restart the journal is reconciled
   before any successor; the pinned dev engine moves to a newer sha only between clusters; each action a journal row. A
-  `launchd` job only keeps the watcher itself alive. Tests: `fichero-builder/tests/test_watcher.py`,
-  `fichero-builder/tests/test_spend_caps.py`.
+  `launchd` job only keeps the watcher itself alive. Tests (unwritten, Step 1.2): the watcher test and the spend-caps test
+  under the Builder's tests folder.
 - `dev-workflows.run.records-are-truth` [PROPOSED] (maintainer 2026-10-31; owner 2026-11-01: no engine) — for a worker the
   truth is its **journal** (JSON lines, one file per cluster under the Builder's state directory; `$FICHERO_HARNESS_LOG` in
   Slice 0), plus git plus the handoff file; the run log (one row per item attempt: model, provider, context cap, tokens,
   tool calls and errors, diff lines, wall time, cost, ladder, verdicts, rework rounds, false done) is written from the
   journal as rows and TSV; the engine's jobs table is the truth only for recipe runs and the Researcher, and an app reads
-  the journal later. Test: `fichero-builder/tests/test_journal_is_truth.py::test_state_and_log_read_from_the_journal`.
+  the journal later. Test (unwritten, Step 1.2): state and log read from the journal, under the Builder's tests folder.
 - `dev-workflows.run.rules-file` [PARTIAL] (#6116) — one `harness.toml` at the repository root declares **what must hold**,
   never the worker's order of work: integration and protected branches, worktree root and branch pattern, commit author
   and trailers, scratch path, allowed tools and forbidden commands, each rung of the ladder **declared on or off** as an
@@ -452,15 +454,18 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   match) and its injection resistance are not reproduced and small models are weaker at both; the fake kind proves
   wiring, not guardrails. A third kind (Goose) is admitted only by one real cluster against Pi on the same model. Test:
   `fichero-server/tests/unit/workflows/test_local_parity.py::test_same_hooks_rules_and_rows_on_every_kind`.
-- `dev-workflows.core.shared` [PROPOSED] (owner 2026-10-31: shared core, two front ends) — the Researcher area and a future
-  Builder front end share one core: the records, jobs, Activity route and rows, the question record, the allow-list,
-  the tools and the sync. What is kept free of the engine **now** is the three harness tools (`check_tool.py`,
-  `brief_tool.py`, `policy_hook.py`: stdlib only), by a one-line guard that imports each alone and fails on any
-  `fichero_server` module in `sys.modules`. A `builder` tier, a Builder bundle and the Activity table as a Swift package
-  are deferred text until a second app is scheduled: tiers filter registration, not import (a route's closure is about
-  373 modules), a bundle without the model stack still carries `lancedb`, `langgraph`, spaCy and OpenCV, and the Activity
-  views reach about seventy-five app types from 42 files, so each is size L for no consumer today. Test:
-  `fichero-server/tests/unit/workflows/test_core_shared.py::test_the_three_harness_tools_import_nothing_from_the_engine`.
+- `dev-workflows.core.shared` [PARTIAL] (#6116; owner 2026-10-31: shared core, two front ends; owner 2026-11-01: the
+  Builder apart from the engine) — the Builder is the top-level `fichero-builder/` package, plain Python on the standard
+  library: `check_tool`, `jail`, `land_tool`, `start_tool`, `brief_tool` and `policy_hook` live there (moved 2026-11-01),
+  the `scripts/harness_*.py` entry points import them from there, and the old `fichero_server.workflows.<name>` paths are
+  shims returning the same module object for the engine's dev-tier route and the older tests until Step 1.1 deletes that
+  route. Not yet in the package: `journal`, `parse_session` and `budget` from `pipeline/`, and the watcher. The Researcher
+  stays on the engine's core (records, jobs, Activity, the question record, the sync). A `builder` tier, a Builder bundle
+  and the Activity table as a Swift package are deferred text until a second app is scheduled: tiers filter registration,
+  not import (a route's closure is about 373 modules), a bundle without the model stack still carries `lancedb`,
+  `langgraph`, spaCy and OpenCV, and the Activity views reach about seventy-five app types from 42 files. Test:
+  `fichero-builder/tests/test_no_engine_import.py` (every module's imports are standard library; each imports alone with
+  no `fichero_server` in `sys.modules`); `fichero-server/tests/unit/workflows/test_harness_neutral.py`.
 
 ## Rulings
 

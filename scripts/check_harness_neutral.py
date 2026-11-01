@@ -10,11 +10,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-W = "fichero-server/src/fichero_server/workflows/"
-FILES = [W + f"{m}.py" for m in ("check_tool", "jail", "land_tool", "start_tool", "brief_tool", "policy_hook", "worker_process")] + [
+W = "fichero-builder/fichero_builder/"
+FILES = [W + f"{m}.py" for m in ("check_tool", "jail", "land_tool", "start_tool", "brief_tool", "policy_hook")] + ["fichero-server/src/fichero_server/workflows/worker_process.py"] + [
     f"scripts/harness_{m}.py" for m in ("check", "land", "review", "start", "policy_hook", "brief", "handoff_hook")]
 BAD = re.compile(r"integration|Fichero Projects|lane_ready_check|pipeline/|dtubb|fichero-|scripts/check_")
-OK = re.compile(r"fichero-server")  # sys.path import of the engine package
+OK = re.compile(r"fichero-(server|builder)")  # sys.path imports of the engine and the Builder packages
 
 
 def violations(path) -> list[str]:

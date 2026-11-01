@@ -8,8 +8,8 @@ import sys
 import tomllib
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "fichero-server" / "src"))
-from fichero_server.workflows import brief_tool, check_tool  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "fichero-builder"))
+from fichero_builder import brief_tool, check_tool  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument("numbers", type=int, nargs="+")
