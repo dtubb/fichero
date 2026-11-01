@@ -268,6 +268,15 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   stderr and exit 2 when any. Not yet: `builder steps` files issues in that title shape. Test:
   `fichero-builder/tests/test_milestone_verb.py` (a fake `gh`: three issues over two dependent steps give one brief
   and two questions).
+- `dev-workflows.tool.work` [PARTIAL] (#6116) — `builder work --brief FILE --worktree W --name N --issues N...` is the build,
+  check, review and land chain as one process: `builder run`, then on end `done` the worktree's commits as patches
+  (`git format-patch` over `origin/<[land].branch>` into `<state>/patches-<name>/`), the branch fetched into
+  `[check].engine_repo` by ref (`work-<name>`), the check over base..head from the pinned copy (`--pinned` required), the
+  review script with the check's JSON as `--ladder` and `[models].reviewer`, then the land gate, whose push line it prints;
+  it never pushes. A parked or gone worker, a red check, a NOT READY review or a refused land stops it with
+  `QUESTION: <why>` and exit 2; every step is a journal row (event `work`: step, ok, detail). **Built** (2026-11-01): the
+  verb, with the steps replaced by fakes in its test; the first real run is Step 2.2's. Test:
+  `fichero-builder/tests/test_work_verb.py::test_the_chain_runs_in_order_with_the_roles_models_prints_the_push_and_never_pushes`.
 - `dev-workflows.tool.spec` [PROPOSED] (owner 2026-11-01) — `builder spec <issue>` starts the **spec-writer** role from
   `[models]` as a worker whose brief is the spec template, the issue and the spec guards' rules; the result is one spec
   file under `spec_dir` on a branch with `> **Status: PROPOSED**`; the guards run on it; the owner approves by editing
@@ -613,8 +622,8 @@ Steps a long-running builder can take from the heading. `Depends on` defaults to
 - Size: S
 
 #### Step 2.3 — the chain as verbs: `builder milestone`, `builder spec`, `builder steps` (owner 2026-11-01)
-- Behaviours: `dev-workflows.tool.milestone`, `dev-workflows.tool.spec`, `dev-workflows.tool.steps`
-- Tests: fichero-builder/tests/test_milestone_verb.py, fichero-builder/tests/test_spec_verb.py, fichero-builder/tests/test_steps_verb.py
+- Behaviours: `dev-workflows.tool.milestone`, `dev-workflows.tool.work`, `dev-workflows.tool.spec`, `dev-workflows.tool.steps`
+- Tests: fichero-builder/tests/test_milestone_verb.py, fichero-builder/tests/test_work_verb.py, fichero-builder/tests/test_spec_verb.py, fichero-builder/tests/test_steps_verb.py
 - Depends on: 2.1
 - Size: M
 
@@ -677,6 +686,7 @@ Every behaviour names its test above, written in its step; each `security.*` and
 | `dev-workflows.run.worker-start-stop` | 1.1 |
 | `dev-workflows.tool.check` | 1.1 |
 | `dev-workflows.tool.milestone` | 2.3 |
+| `dev-workflows.tool.work` | 2.3 |
 | `dev-workflows.tool.spec` | 2.3 |
 | `dev-workflows.tool.steps` | 2.3 |
 | `dev-workflows.run.worker-address` | 1.1 |

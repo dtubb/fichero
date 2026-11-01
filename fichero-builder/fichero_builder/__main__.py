@@ -11,7 +11,7 @@ from pathlib import Path
 
 import json
 
-from fichero_builder import check_tool, journal
+from fichero_builder import check_tool, journal, work
 from fichero_builder import run as run_mod
 
 
@@ -77,6 +77,16 @@ def main(argv=None) -> int:
     land.add_argument("head")
     land.add_argument("--pinned", required=True), land.add_argument("--verdicts", required=True), land.add_argument("--log", required=True)
     land.add_argument("--state", help="where the journal lives (default: see run --state)")
+    w = sub.add_parser("work", help="run, patches, fetch, check, review, land as one process; stops with QUESTION: (exit 2), never pushes")
+    w.add_argument("--brief", required=True), w.add_argument("--worktree", required=True), w.add_argument("--name", required=True)
+    w.add_argument("--kind", default="claude", choices=["claude"])
+    w.add_argument("--issues", type=int, nargs="+", required=True)
+    w.add_argument("--pinned", required=True)
+    w.add_argument("--repo", help="the engine-owned repo (default [check].engine_repo of the pinned rules)")
+    w.add_argument("--model", help="the builder's model (default [models].builder)")
+    w.add_argument("--root", default=str(Path.cwd())), w.add_argument("--session", default="harness")
+    w.add_argument("--tick", type=float, default=30.0)
+    w.add_argument("--state", help="where the journal, patches, ladder and verdicts live (default: the owner's journal dir)")
     a = ap.parse_args(argv)
     if a.cmd == "milestone":
         import tomllib
@@ -98,6 +108,8 @@ def main(argv=None) -> int:
     # run (as the worker) journals under the shared workroot; check and land (as the owner) keep the owner's own journal,
     # because land trusts the check row: a journal the worker can write would let a worker forge one.
     journal.STATE = state_dir(a.root, a.state) if a.cmd == "run" else (Path(a.state) if a.state else journal.STATE)
+    if a.cmd == "work":
+        return work.main(a)
     if a.cmd in ("check", "land") and not a.repo:
         try:
             a.repo = check_tool.load(a.pinned).engine_repo
