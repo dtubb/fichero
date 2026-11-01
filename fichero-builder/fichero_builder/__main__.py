@@ -142,6 +142,9 @@ def main(argv=None) -> int:
         if not head:
             print(f"builder check: {a.head!r} is not a commit in {a.repo}", file=sys.stderr)
             return 1
+        if resolve(a.repo, a.since) == head:  # a landing branch that never got its commit judged green on nothing (2026-11-02)
+            print(f"REFUSED: {a.since}..{a.head} is empty: nothing to check", file=sys.stderr)
+            return 1
         r = check_tool.run_ladder(a.repo, a.since, head, a.pinned, a.id)
         print(json.dumps(r, indent=1))
         journal.append("check", repo=str(a.repo), since=a.since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""))

@@ -24,7 +24,7 @@ def test_the_journal_defaults_to_the_workroots_state_dir(tmp_path):
 
 def test_check_writes_a_row_with_the_heads_sha(tmp_path, monkeypatch):
     monkeypatch.setattr(cli.check_tool, "run_ladder", lambda *a, **k: {"ok": True, "failed": ""})
-    monkeypatch.setattr(cli, "resolve", lambda repo, rev: "a" * 40)
+    monkeypatch.setattr(cli, "resolve", lambda repo, rev: "a" * 40 if rev == "HEAD" else "9" * 40)
     assert cli.main(["check", "--repo", "repo", "base", "HEAD", "--pinned", str(tmp_path), "--state", str(tmp_path / "s")]) == 0
     monkeypatch.setattr(journal, "STATE", tmp_path / "s")
     rows = [r for r in journal.read() if r["event"] == "check"]
@@ -59,7 +59,7 @@ def test_check_uses_the_pinned_rules_engine_repo_when_no_repo_is_given(tmp_path,
     (tmp_path / "harness.toml").write_text('[check]\nengine_repo = "/engine"\n')
     seen = {}
     monkeypatch.setattr(cli.check_tool, "run_ladder", lambda repo, *a, **k: (seen.setdefault("repo", repo), {"ok": True, "failed": ""})[1])
-    monkeypatch.setattr(cli, "resolve", lambda repo, rev: "c" * 40)
+    monkeypatch.setattr(cli, "resolve", lambda repo, rev: "c" * 40 if rev == "HEAD" else "9" * 40)
     assert cli.main(["check", "base", "HEAD", "--pinned", str(tmp_path), "--state", str(tmp_path / "s")]) == 0
     assert seen["repo"] == "/engine"
     (tmp_path / "harness.toml").write_text("[breif]\nx = 1\n")
@@ -71,3 +71,10 @@ def test_run_exits_zero_on_a_clean_done_and_one_on_a_refusal(tmp_path, monkeypat
     for end, code in (("done", 0), ("gone", 0), ("parked", 0), ("refused", 1)):
         monkeypatch.setattr(cli.run_mod, "run", lambda *a, **k: end)
         assert cli.main(["run", "--worktree", str(tmp_path), "--brief", str(tmp_path / "b"), "--root", str(tmp_path), "--state", str(tmp_path / "s")]) == code, end
+
+
+def test_check_refuses_an_empty_range(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "resolve", lambda repo, rev: "d" * 40)
+    monkeypatch.setattr(cli.check_tool, "run_ladder", lambda *a, **k: (_ for _ in ()).throw(AssertionError("the ladder must not run")))
+    assert cli.main(["check", "--repo", "r", "base", "HEAD", "--pinned", str(tmp_path), "--state", str(tmp_path / "s")]) == 1
+    assert "empty" in capsys.readouterr().err
