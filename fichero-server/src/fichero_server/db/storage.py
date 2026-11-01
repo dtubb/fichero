@@ -468,6 +468,24 @@ def _resolve_thumbnail_cache_candidate(
 # =============================================================================
 
 
+def _exists(path: Path) -> bool:
+    """`Path.exists()`, but a path this process may not stat (a folder it holds no grant for) is not there: it raises
+    PermissionError on Python 3.12, and a caller that wants a source answers "not available", not a 500."""
+    try:
+        return path.exists()
+    except OSError:
+        return False
+
+
+def _expanded(value: object) -> Path | None:
+    """`Path(value).expanduser()`, or None for a recorded path that cannot be one: not a path, or `~name` of a user this
+    machine does not have (RuntimeError)."""
+    try:
+        return Path(value).expanduser()  # type: ignore[arg-type]
+    except (TypeError, RuntimeError):
+        return None
+
+
 def resolve_source(
     doc: "Document", library_root: "Path | str | None" = None
 ) -> Path | None:
@@ -494,7 +512,7 @@ def resolve_source(
 
     def confined_existing(candidate: Path) -> Path | None:
         """Confine a candidate to the library/storage/derived roots."""
-        if not candidate.exists():
+        if not _exists(candidate):
             return None
         return resolve_under_allowed_roots(candidate, allowed_roots)
 
@@ -513,14 +531,14 @@ def resolve_source(
         because "inside the package" is what relative means — widening it
         would let ``../outside.txt`` and an escaping symlink out.
         """
-        if not candidate.exists():
+        if not _exists(candidate):
             return None
         return resolve_document_source_path(
             candidate, library_root, storage_base=settings.base_path
         )
 
     def library_confined_existing(candidate: Path) -> Path | None:
-        if library_root is None or not candidate.exists():
+        if library_root is None or not _exists(candidate):
             return None
         library_roots = allowed_source_roots(
             library_root,
@@ -532,9 +550,8 @@ def resolve_source(
     def package_candidate(path_value: object) -> Path | None:
         if not path_value or library_root is None:
             return None
-        try:
-            p = Path(path_value).expanduser()
-        except TypeError:
+        p = _expanded(path_value)
+        if p is None:
             return None
         root = Path(library_root).expanduser()
         if not p.is_absolute():
@@ -569,10 +586,7 @@ def resolve_source(
 
     # Fall back to paths
     if doc.path:
-        try:
-            p = Path(doc.path).expanduser()
-        except TypeError:
-            p = None
+        p = _expanded(doc.path)
         if p is not None:
             # A relative path (e.g. "files/nc/<id>_<name>.jpg") is stored for
             # COPY/MOVE ingests so the library bundle can be renamed/moved
@@ -590,9 +604,8 @@ def resolve_source(
     if doc.metadata:
         for key in ["source_path", "full_path", "display_path", "local_path"]:
             if path_str := doc.metadata.get(key):
-                try:
-                    p = Path(path_str).expanduser()
-                except TypeError:
+                p = _expanded(path_str)
+                if p is None:
                     continue
                 if not p.is_absolute() and library_root is not None:
                     p = Path(library_root).expanduser() / p

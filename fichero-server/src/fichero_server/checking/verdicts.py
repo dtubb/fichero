@@ -15,6 +15,12 @@ from fichero_server.actions.registry import ActionContext, ChangeSpec
 from fichero_server.models.checking import CheckVerdict, CheckVerdictParams  # noqa: F401  (re-exported)
 
 
+def standing(verdict: Any) -> tuple[bool, Any, str]:
+    """The ONE sort key for "which verdict stands": a person's outranks a model's whatever the order, then the newer.
+    The last of a list sorted by it (or its `max`) is the standing verdict. Chronological histories sort by date alone."""
+    return (verdict.trust == "person", verdict.created_at, verdict.id)
+
+
 def trust_of(ctx: ActionContext, checker_model: str | None) -> str:
     from fichero_server.api.routes.document.segments import provenance_kind_from_ctx
     from fichero_server.models.knowledge import ProvenanceKind

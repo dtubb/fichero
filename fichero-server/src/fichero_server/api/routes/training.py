@@ -280,7 +280,7 @@ async def preview_training_set(
 ) -> TrainingSetPreview:
     """Counted exactly as a training job builds its set, nothing written or sent
     (`compute.tune.set-excludes-flagged-lines`): the pages and lines that would teach, the lines left
-    out by flag (an empty or `null` reading, a reading whose newest check verdict rejects it) with
+    out by flag (an empty or `null` reading, a reading whose standing check verdict rejects it: a person's verdict outranks a model's, otherwise the newest) with
     each line's segment, whether the check had run on the set's lines, the held-out pages and the
     pages missing with why."""
     from fichero_server.training.kraken_set import build_training_set, pages_in_scope

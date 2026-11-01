@@ -197,7 +197,7 @@ Read at export and in the table from facts the engine holds, never stored, each 
 - an uncertain or approximate normalised date: "fecha incierta";
 - untyped access points: "sin clasificar: Juzgado del Circuito";
 - a name in the row's lists that is still only a proposal in the graph: "nombre sin confirmar: …";
-- a check rejection on a statement of the folder (`checking/verdicts.py`): "declaración rechazada: …".
+- a statement of the folder whose standing check verdict is a reject (`checking.verdicts.standing`: a person's verdict outranks a model's whatever the order, otherwise the newest; `catalogue_sheet.facts`): "declaración rechazada: …".
 
 ## What the team's workbook taught (structure only; decided)
 
@@ -444,7 +444,7 @@ every kept export. The Word transcript streams one folder at a time into the zip
 - `catalogue.export.problems-column` — **[OK]** (#6282) Problemas para resolver joins the person's
   `catalogue_problems`, then the computed clauses: blank pages as image ranges, pages without lines,
   numbering gaps, `lint_flags`, the date clauses above, an uncertain date, untyped access points, an
-  unconfirmed name in the lists, a rejected statement; one function computes them for the export and
+  unconfirmed name in the lists, a statement whose standing check verdict is a reject (a person's over a model's); one function computes them for the export and
   the table; nothing computed is stored. Test: fichero-server/tests/unit/export/test_catalogue_sheet_problems.py.
 - `catalogue.export.new-optional-fields` — **[GAP]** (#6087, #6282) the Catalogue stage's option list
   gains Referencia original de archivo físico (`catalogue_original_reference`, declared inheriting and

@@ -29,6 +29,7 @@ MAX_SIGNATURES = 500
 
 _LOCK = threading.RLock()  # re-entrant: a finalizer that logs a warning while _count holds it must not deadlock the thread
 #: What core/log_throttle.py writes for the repeats it held back (template, count): the count is added, not the line.
+#: core/log_throttle.py is not on integration: it exists on the unmerged branch feat/logs-stale-servers-support (#6314).
 _COLLAPSED = "%s — repeated %d times in the last minute"
 _VARIABLE = re.compile(r"[0-9a-fA-F]{12,}|\d+")
 

@@ -2172,22 +2172,10 @@ class ExportImageUnavailable(ValueError):
 
 
 def _why_image_unavailable(doc: Document, package_path: Path | None = None) -> str:
-    """In words: no recorded file, not at its recorded place, not readable by this engine, or outside what it may open. A
-    package-relative path ("files/…") is looked for under the package, not the process's directory."""
-    if not doc.path:
-        return "no recorded file for this page"
-    recorded = Path(doc.path).expanduser()
-    if not recorded.is_absolute() and package_path is not None:
-        recorded = package_path / recorded
-    try:
-        os.stat(recorded)
-    except FileNotFoundError:
-        return "not found at its recorded place (moved or deleted)"
-    except PermissionError:
-        return "this engine may not read it: grant access to its folder"
-    except OSError as exc:
-        return f"this engine could not open it ({exc.strerror or type(exc).__name__})"
-    return "this engine may not open files in that folder: grant access to the folder"
+    """The words of `media.image_reason.classify_image_unavailable`."""
+    from fichero_server.media.image_reason import classify_image_unavailable
+
+    return classify_image_unavailable(doc, package_path)[1]
 
 
 def _require_image_source(db: Database, doc: Document, package_path: Path | None) -> Path:

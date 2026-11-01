@@ -528,9 +528,9 @@ class ReadingMeasures:
     a person checked it, and its reader's measured CER on this project. A caller counting a whole page
     hands one in, so the verdicts are read once and each reader's card once, not once per line.
 
-    * **Checked.** The reading's own newest verdict (`check.verdict`) is a person's confirm; or it was made
+    * **Checked.** The reading's own standing verdict (`check.verdict`; a person's outranks a model's, then the newest) is a person's confirm; or it was made
       from a page reading (`derived_from_artifact_id`, the tie) a person confirmed (their newest verdict on
-      it) or marked reviewed, and its own newest verdict is not a reject (a doubtful tied stretch stays
+      it) or marked reviewed, and its own standing verdict is not a reject (a doubtful tied stretch stays
       doubtful).
     * **Measured.** The reader is the page result it was read in (`derived_from_artifact_id`: its provider
       and model), its CER the newest evaluation on that model's card scored on this project's pages
@@ -545,12 +545,14 @@ class ReadingMeasures:
         self._scores: dict[tuple[str, str], float | None] = {}
 
     def _newest_verdicts(self) -> dict[str, Any]:
-        """The newest reading verdict per target, and the newest a PERSON gave (keyed `person:<id>`)."""
+        """The standing reading verdict per target (a person's over a model's, `checking.verdicts.standing`), and the
+        newest a PERSON gave (keyed `person:<id>`)."""
         if self._verdicts is None:
+            from fichero_server.checking.verdicts import standing
             from fichero_server.models.checking import CheckVerdict
 
             newest: dict[str, Any] = {}
-            for v in sorted(self.db.query(CheckVerdict, layer="readings"), key=lambda v: (v.created_at, v.id)):
+            for v in sorted(self.db.query(CheckVerdict, layer="readings"), key=standing):
                 newest[v.target_id] = v
                 if v.trust == "person":
                     newest[f"person:{v.target_id}"] = v
@@ -1622,7 +1624,10 @@ def _why_omitted(
 #:     comes out as and shipped without a bump, so pages cached before it re-derive once (#5778).
 #: 17: a provisional reading whose stored twin is also listed is no longer listed (#6085), so where the twin
 #:     was the newest machine reading the counted words are the next reading's; the bump re-derives every page once.
-DERIVATION_VERSION = 17
+#: 18: a person's check verdict on a machine reading outranks a model's whatever the order (#6327), and `checked`
+#:     (which ranks machine readings, 13) reads the standing verdict, so where a model's later verdict used to
+#:     decide `checked` the counted reading can differ; the bump re-derives every page once.
+DERIVATION_VERSION = 18
 #: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
 #: change to the code without a bump fails `test_derivation_version.py`.
 #: Re-pinned without a bump for #5467: the working pass is read through `working_pass`; a page

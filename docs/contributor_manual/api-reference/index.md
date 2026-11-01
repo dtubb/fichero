@@ -1087,8 +1087,8 @@ model read and a person checked), the Job's `last_lines` when it ends, and, once
 `reader_id` (`kraken-trained-…`) or `model_id` (`fichero-trained/…`) to read with. The job also appears in `GET /api/activity/jobs`.
 
 Every training set leaves out flagged lines (#5446, `compute.tune.set-excludes-flagged-lines`): a line
-whose reading is empty or the word `null`, and a line whose newest check verdict (`check.verdict`, a
-person's or a checker model's) rejects it. The set's manifest and the job's `training_set` count them
+whose reading is empty or the word `null`, and a line whose standing check verdict (`check.verdict`, a
+person's or a checker model's) rejects it: a person's verdict outranks a model's whatever the order, otherwise the newest stands. The set's manifest and the job's `training_set` count them
 (`lines_left_out`, `left_out` by flag, `left_out_lines` with each line's segment), say how many lines
 carry a verdict and whether the check had run (`check_ran`), and name the flags checked
 (`flags_checked`). `GET /api/training/set?teacher=…&scope_ids=…[&held_out_ids=…]` counts the same set

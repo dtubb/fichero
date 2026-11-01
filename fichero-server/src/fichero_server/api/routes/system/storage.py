@@ -13,7 +13,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from fichero_server.db import Database
@@ -57,6 +57,24 @@ class DocumentDebugResponse(BaseModel):
 
 class NotFoundResponse(BaseModel):
     detail: str
+    reason: str | None = None  # the image routes: why the original cannot be read (`media.image_reason`)
+
+
+def _original_unavailable(doc: Document, bare: str, db: Database) -> JSONResponse:
+    """The 404 for a picture that could not be served. Blocking (file system calls): call it with `asyncio.to_thread`.
+    When `resolve_source` finds the document's source (or, for a PDF page, its parent's) the cause is not the original
+    and the 404 is bare; otherwise `detail` adds the words and `reason` the code (`media.image_reason`)."""
+    from fichero_server.db.storage import resolve_source
+    from fichero_server.media import image_reason
+
+    try:
+        found = resolve_source(image_reason.owner_of_source(doc, db), library_root=db.path.parent)
+    except (OSError, ValueError, RuntimeError):
+        found = None
+    if found:
+        return JSONResponse(status_code=404, content={"detail": bare})
+    code, words = image_reason.classify_image_unavailable(doc, db.path.parent, db)
+    return JSONResponse(status_code=404, content={"detail": f"{bare}: {words}", "reason": code})
 
 
 def _record_snapshot_audit(
@@ -222,7 +240,7 @@ async def get_thumbnail(
                 )
 
         if not thumb_path or not thumb_path.exists():
-            raise HTTPException(status_code=404, detail="Thumbnail not available")
+            return await asyncio.to_thread(_original_unavailable, doc, "Thumbnail not available", db)
 
         perf["thumbnail_path"] = thumb_path.name
         return FileResponse(
@@ -283,7 +301,7 @@ async def get_display_image(
             )
 
     if not display_path or not display_path.exists():
-        raise HTTPException(status_code=404, detail="Display image not available")
+        return await asyncio.to_thread(_original_unavailable, doc, "Display image not available", db)
 
     return FileResponse(
         display_path,
@@ -338,11 +356,11 @@ async def get_source_file(
         logger.warning(
             f"resolve_source returned None for doc {doc_id}: path={doc.path}, has_bookmark={bool(doc.metadata.get('bookmark'))}"
         )
-        raise HTTPException(status_code=404, detail="Source file not available")
+        return await asyncio.to_thread(_original_unavailable, doc, "Source file not available", db)
 
     if not source_path.exists():
         logger.warning(f"Source path resolved but doesn't exist: {source_path}")
-        raise HTTPException(status_code=404, detail="Source file not available")
+        return await asyncio.to_thread(_original_unavailable, doc, "Source file not available", db)
 
     # Determine media type from file extension
     suffix = source_path.suffix.lower()
