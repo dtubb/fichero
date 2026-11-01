@@ -467,6 +467,9 @@ def test_a_change_under_a_whole_tests_prefix_runs_that_tests_dir_whole_in_the_gr
     ("sitecustomize", lambda w: (w / "sitecustomize.py").write_text("pass\n")),
     ("claude-dir", lambda w: ((w / ".claude").mkdir(), (w / ".claude" / "settings.json").write_text("{}\n"))),
     ("new-pinned-file", lambda w: (w / "ci" / "helper.py").write_text("pass\n")),
+    ("pth", lambda w: (w / "x.pth").write_text("import os\n")),
+    ("sitecustomize-under-a-dir-named-like-the-note",  # the phrase inside a worker-chosen path must not clear its own violation
+     lambda w: ((w / "a: a pinned check file was x").mkdir(), (w / "a: a pinned check file was x" / "sitecustomize.py").write_text("pass\n"))),
 ])
 def test_a_maintainer_batch_clears_only_a_changed_pinned_file_not_the_other_pinned_refusals(tmp_path, name, write):
     work, g, base, pinned = _project(tmp_path)

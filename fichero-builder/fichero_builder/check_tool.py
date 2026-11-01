@@ -575,7 +575,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
     bad = pinned_violations(root, since, head, cfg, pinned)
     noted = ""
     if maintainer:  # only "a pinned check file was changed/deleted" is noted; a symlink, sitecustomize/.pth, .claude/, a new pinned-path file still refuse
-        changed = [b for b in bad if ": a pinned check file was " in b]
+        changed = [b for b in bad if b.endswith((": a pinned check file was changed", ": a pinned check file was deleted"))]
         if changed:
             noted, bad = "maintainer batch: " + "; ".join(changed), [b for b in bad if b not in changed]
     if weak := weakened_tests(root, since, head, cfg):
