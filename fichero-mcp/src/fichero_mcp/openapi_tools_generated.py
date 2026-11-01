@@ -8718,7 +8718,7 @@ def fichero_training_preview_set(
     scope_ids: Annotated[list[str], Field(description='Folders or pages whose teacher-read lines are the lessons.')],
     teacher: Annotated[str, Field(description='The model whose line readings are the lessons.')],
 ) -> Any:
-    "What a training set from these pages would hold, and the flagged lines it leaves out\n\nCounted exactly as a training job builds its set, nothing written or sent\n(`compute.tune.set-excludes-flagged-lines`): the pages and lines that would teach, the lines left\nout by flag (an empty or `null` reading, a reading whose newest check verdict rejects it) with\neach line's segment, whether the check had run on the set's lines, the held-out pages and the\npages missing with why.\n\nRoute: GET /api/training/set (toolset `training`; reads)."
+    "What a training set from these pages would hold, and the flagged lines it leaves out\n\nCounted exactly as a training job builds its set, nothing written or sent\n(`compute.tune.set-excludes-flagged-lines`): the pages and lines that would teach, the lines left\nout by flag (an empty or `null` reading, a reading whose standing check verdict rejects it: a person's verdict outranks a model's, otherwise the newest) with\neach line's segment, whether the check had run on the set's lines, the held-out pages and the\npages missing with why.\n\nRoute: GET /api/training/set (toolset `training`; reads)."
     return _rt.call("GET", "/api/training/set", params={"held_out_ids": held_out_ids, "scope_ids": scope_ids, "teacher": teacher})
 
 

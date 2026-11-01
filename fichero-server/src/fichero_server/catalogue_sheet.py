@@ -181,6 +181,7 @@ class Facts:
 
 
 def facts(db: Any) -> Facts:
+    from fichero_server.checking.verdicts import standing
     from fichero_server.models.checking import CheckVerdict
     from fichero_server.models.knowledge import EntityCurationState, KnowledgeClaim, KnowledgeEntity
 
@@ -191,7 +192,7 @@ def facts(db: Any) -> Facts:
         for name in {entity.canonical_name, *entity.aliases}:
             out.entities.setdefault(fold(name), []).append(entity)
     latest: dict[str, Any] = {}
-    for verdict in sorted(db.query(CheckVerdict, layer="claims"), key=lambda v: (v.created_at, v.id)):
+    for verdict in sorted(db.query(CheckVerdict, layer="claims"), key=standing):
         latest[verdict.target_id] = verdict
     for target, verdict in latest.items():
         claim = db.get(KnowledgeClaim, target) if verdict.verdict == "reject" else None

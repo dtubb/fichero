@@ -250,23 +250,20 @@ def line_flag(text: str, rejected: bool, not_by_a_person: bool = False) -> str |
 
 def newest_reading_verdicts(db: Any) -> dict[str, Any]:
     """The verdict that stands on each reading, by the reading's id: the newest by a person, else the newest by a model."""
+    from fichero_server.checking.verdicts import standing
     from fichero_server.models.checking import CheckVerdict
 
     newest: dict[str, Any] = {}
-    for verdict in sorted(db.query(CheckVerdict, layer="readings"), key=_standing):
+    for verdict in sorted(db.query(CheckVerdict, layer="readings"), key=standing):
         newest[verdict.target_id] = verdict
     return newest
-
-
-def _standing(verdict: Any) -> tuple[bool, Any, str]:
-    """Sort key: a person's verdict outranks a model's whatever the order, then the newer."""
-    return (verdict.trust == "person", verdict.created_at, verdict.id)
 
 
 def lines_of_pass(db: Any, pass_id: str, verdicts: dict[str, Any]) -> tuple[dict[str, str], set[str], int]:
     """The pass's lines by their PAGE id (to their segment id), the PAGE ids of those whose newest
     verdict (a person's over a model's, else the newest), over all the line's readings, is a reject, and how many lines carry a verdict at all."""
     from fichero_server.api.routes.document.segment_readings import readings_of_segment
+    from fichero_server.checking.verdicts import standing
     from fichero_server.formats.harness import xml_id
     from fichero_server.models import Segment
 
@@ -280,7 +277,7 @@ def lines_of_pass(db: Any, pass_id: str, verdicts: dict[str, Any]) -> tuple[dict
         if not on_line:
             continue
         with_verdict += 1
-        if max(on_line, key=_standing).verdict == "reject":
+        if max(on_line, key=standing).verdict == "reject":
             rejected.add(page_id)
     return segments, rejected, with_verdict
 
