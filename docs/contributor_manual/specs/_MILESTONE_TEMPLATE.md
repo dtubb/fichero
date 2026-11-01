@@ -14,6 +14,8 @@ NUMBER (`gh api -X PATCH repos/dtubb/fichero/issues/<n> -F milestone=<number>`).
     Done when: every behaviour in the spec is [OK] or explicitly deferred with an issue;
     UX and server both done; no open issue without a spec behaviour.
 
+**Issues and labels:** `specs/harness/issues-and-labels.md` is the rule; `specs/build-order.md` says when this milestone is worked.
+
 **Hygiene:**
 - Each open issue cites a behaviour in the spec, or is the task of writing one.
 - Close issues as they are fixed (`Fixes #N` plus `scripts/close_fixed_issues.py --apply`).
