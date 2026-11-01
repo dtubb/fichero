@@ -10,10 +10,11 @@ HEALTHY = {"started": True, "idle": False, "context": 100, "tokens": 1000, "cost
 
 
 class Fake:
-    def __init__(self, states):
+    def __init__(self, states, heads=("aaaa111", "bbbb222")):
         self.states, self.alive_now, self.stopped, self.t = list(states), True, [], 0.0
+        self.heads = list(heads)  # the first is the base; the branch moves once a state has moved=True
         self.procs = run.Procs(start=self.start, alive=lambda p: self.alive_now, stop=self.stop, read=self.read,
-                               sleep=lambda s: None, now=lambda: self.t)
+                               sleep=lambda s: None, now=lambda: self.t, head=lambda: self.heads[0])
 
     def start(self, root, worktree, brief, name, model, tmux_session):
         self.started = (str(worktree), str(brief), name, model)
@@ -26,6 +27,8 @@ class Fake:
             self.alive_now = False
             return None
         s = self.states.pop(0)
+        if s != "gone" and s.get("moved") and len(self.heads) > 1:
+            self.heads.pop(0)
         return None if s == "gone" else s
 
     def stop(self, pane):
@@ -93,9 +96,20 @@ def test_session_dir_is_the_claude_code_slug(tmp_path):
 
 
 def test_an_idle_worker_whose_last_words_carry_the_done_line_is_ended(root):
-    fake = Fake([HEALTHY, {**HEALTHY, "idle": True, "last_text": "All three landed.\nDONE 4f4e38a9a"}, HEALTHY])
+    fake = Fake([HEALTHY, {**HEALTHY, "idle": True, "moved": True, "last_text": "All three landed.\nDONE bbbb222"}, HEALTHY])
     assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None) == "done"
     assert fake.stopped == ["%9"] and journal.read()[-1]["end"] == "done"
+
+
+def test_a_done_line_with_no_commit_or_another_sha_is_a_false_done_not_an_end(root):
+    said = []
+    # the first live run: the worker wrote "No `DONE` line, since nothing was committed" and the old word match ended the run
+    fake = Fake([{**HEALTHY, "idle": True, "last_text": "No `DONE` line, since nothing was committed."},
+                 {**HEALTHY, "idle": True, "last_text": "DONE aaaa111"},            # the base sha: the branch never moved
+                 {**HEALTHY, "idle": True, "moved": True, "last_text": "DONE 0000fff"}])  # moved, but names another sha
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=said.append) == "gone"
+    assert fake.stopped == []
+    assert [e["what"][:10] for e in journal.read() if e["event"] == "watch"] == ["false done"]
 
 
 def test_an_idle_worker_without_the_done_line_is_left_alone(root):
@@ -107,7 +121,7 @@ def test_an_idle_worker_without_the_done_line_is_left_alone(root):
 def test_handoff_ready_ends_the_worker_and_starts_a_successor_with_the_handoff_brief(root):
     (root / "wt").mkdir()
     fake = Fake([HEALTHY, {**HEALTHY, "idle": True, "context": 900, "tokens": 900, "fresh": 900, "last_text": "Committed.\nHANDOFF READY"},
-                 HEALTHY, {**HEALTHY, "idle": True, "last_text": "DONE abc"}])
+                 HEALTHY, {**HEALTHY, "idle": True, "moved": True, "last_text": "DONE bbbb222"}])
     starts = []
     real_start = fake.start
     fake.procs.start = lambda *a: starts.append(a) or real_start(*a)

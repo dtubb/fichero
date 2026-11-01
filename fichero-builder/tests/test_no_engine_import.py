@@ -34,3 +34,9 @@ def test_every_module_imports_without_the_engine_on_the_path():
     for info in pkgutil.iter_modules([str(PKG)]):
         importlib.import_module(f"fichero_builder.{info.name}")
     assert not any(p.startswith("fichero_server") for p in sys.modules)
+
+
+def test_the_start_path_points_at_hook_scripts_that_exist():
+    """The first live run was refused every edit: the hook path had the wrong number of parents after the move."""
+    from fichero_builder import start_tool
+    assert start_tool._HOOK.is_file() and start_tool._HANDOFF.is_file(), (start_tool._HOOK, start_tool._HANDOFF)

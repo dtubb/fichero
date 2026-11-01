@@ -17,7 +17,7 @@ from pathlib import Path
 from fichero_builder import check_tool
 from fichero_builder.jail import Jail
 
-_HOOK = Path(__file__).resolve().parents[4] / "scripts" / "harness_policy_hook.py"
+_HOOK = Path(__file__).resolve().parents[2] / "scripts" / "harness_policy_hook.py"  # <repo>/scripts; the first live run found parents[4] after the move
 _HANDOFF = _HOOK.with_name("harness_handoff_hook.py")
 
 
