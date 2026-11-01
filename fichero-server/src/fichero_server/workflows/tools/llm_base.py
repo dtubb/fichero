@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from fichero_server.llm import LLMConfig
 
 from fichero_server.media.ocr_geometry import OCRGeometryResult
-from fichero_server.media.current_image import PROVENANCE_KEYS
+from fichero_server.media.current_image import NOT_THE_FIELD_KEYS, PROVENANCE_KEYS
 from fichero_server.workflows.types import PortDef, DataType
 from fichero_server.workflows.tools._doc_lookup import find_document_by_path
 from fichero_server.workflows.tools.llm_prompting import (  # noqa: F401 (re-exported)
@@ -970,8 +970,8 @@ def _save_artifact_sync(
         if (final_metadata_field or custom_metadata) and doc is not None:
             if not isinstance(doc.metadata, dict):
                 doc.metadata = {}
-            if final_metadata_field:
-                # What rides on the artifact for the cache and the inspector (the image it was read from, its episode, its
+            if final_metadata_field and not (NOT_THE_FIELD_KEYS & set(data or {})):
+                # A flagged read or a compare arm writes nothing onto the page (#5522, #6320). What rides on the artifact for the cache and the inspector (the image it was read from, its episode, its
                 # thinking...) is provenance, not the field's value: without more, the field is the text (#6320).
                 shown = {k: v for k, v in (data or {}).items() if k not in PROVENANCE_KEYS}
                 doc.metadata[final_metadata_field] = shown if shown else content[:1000]

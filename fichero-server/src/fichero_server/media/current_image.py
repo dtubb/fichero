@@ -43,6 +43,9 @@ ORIGINAL, EDITED, RENDITION = "original", "edited", "rendition"
 IMAGE_READ = "image_read"
 #: Keys a run adds to a reading's `Artifact.data` that say how it was made: never the value of a document's metadata field.
 PROVENANCE_KEYS = frozenset({IMAGE_READ, "episode_id", "thinking", "read_flag", "read_onto_pass", "compare_group", "segment_id"})
+#: Data keys that mark an artifact as not the page's reading: a flagged (looping) read, and one arm of a compare run. Such a save leaves
+#: the document's field as it was, and the repair never takes its text.
+NOT_THE_FIELD_KEYS = frozenset({"read_flag", "compare_group"})
 
 
 def read_from(artifact: Any) -> str:

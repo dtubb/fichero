@@ -72,3 +72,27 @@ def test_the_finished_job_row_says_how_many_were_put_back_and_how_many_could_not
     assert repair.finish(db, job_id, 1, 1)["said"]
     reason = jobs.read_job(db, job_id)["reason"]
     assert "1 reading field put back" in reason and "1 could not be" in reason
+
+
+def _save_reading(db, doc, text, data):
+    import asyncio
+    from unittest.mock import patch
+
+    from fichero_server.llm import LLMConfig
+    from fichero_server.workflows.tools.llm_base import save_artifact
+    from fichero_server.workflows.tools.vision_base import VisionToolConfig
+
+    config = VisionToolConfig(artifact_type="description", update_page_content=False, trigger_embedding=False,
+                              supports_apple_vision=False, skip_if_artifact_exists=False, metadata_field="description")
+    with patch("fichero_server.db.db_manager.get_database", return_value=db):
+        asyncio.run(save_artifact(document_id=doc.id, file_path=None, content=text, data=data, library_path="/tmp/t.fichero",
+                                  llm_config=LLMConfig(provider="mock", model="m"), task_id=None, tool_config=config))
+
+
+def test_a_flagged_read_or_a_compare_arm_leaves_the_pages_field_as_it_was(db):
+    page = _page(db, {})
+    _save_reading(db, page, "A good description.", dict(REAL))
+    _save_reading(db, page, "the same words go round the same words go round", {**REAL, "read_flag": {"kind": "loop"}})
+    _save_reading(db, page, "A compare arm, other model.", {**REAL, "compare_group": "g1"})
+    assert db.get(Document, page.id).metadata["description"] == "A good description."
+    assert len(db.query(Artifact, document_id=page.id, artifact_type="description")) == 3  # all three are kept as readings
