@@ -169,11 +169,12 @@ def test_the_check_verb_runs_the_ladder_and_exits_on_its_verdict(monkeypatch, ca
     from fichero_builder import __main__ as cli, check_tool
 
     calls = []
+    monkeypatch.setattr(cli, "resolve", lambda repo, rev: rev)  # no git here: the head is taken as given
     monkeypatch.setattr(check_tool, "run_ladder", lambda *a: calls.append(a) or {"ok": False, "rungs": []})
-    assert cli.main(["check", "/r", "abc", "def", "--pinned", "/p", "--id", "x.y"]) == 1
+    assert cli.main(["check", "/r", "abc", "def", "--pinned", "/p", "--id", "x.y", "--state", "/tmp/fb-test-state"]) == 1
     assert calls == [("/r", "abc", "def", "/p", ["x.y"])] and '"ok": false' in capsys.readouterr().out
     monkeypatch.setattr(check_tool, "run_ladder", lambda *a: {"ok": True})
-    assert cli.main(["check", "/r", "abc", "def", "--pinned", "/p"]) == 0
+    assert cli.main(["check", "/r", "abc", "def", "--pinned", "/p", "--state", "/tmp/fb-test-state"]) == 0
 
 
 def test_the_land_verb_runs_the_gate_and_a_bad_rules_file_refuses_before_anything(tmp_path, capsys):

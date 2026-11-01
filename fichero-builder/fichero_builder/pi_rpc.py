@@ -23,7 +23,10 @@ _READ_ONLY = {"read", "grep", "find", "ls"}
 def policy_event(tool: str, inp: dict, worktree: Path) -> dict | None:
     """None when the policy has no name for the tool (refuse); else the event `policy_hook.check` reads."""
     def path():
-        p = Path(str(inp.get("path") or ""))
+        raw = str(inp.get("path") or "")
+        if raw.startswith("@"):  # Pi's resolveToCwd strips one leading @ and expands ~ itself (review 1 M3)
+            raw = raw[1:]
+        p = Path(raw).expanduser()
         return str(p if p.is_absolute() else Path(worktree) / p)
     if tool == "bash":
         return {"tool_name": "Bash", "tool_input": {"command": str(inp.get("command") or "")}}
@@ -43,7 +46,8 @@ def decide(call: dict, cfg: dict, *, worktree: Path, scratch: Path) -> str | Non
 
 
 def policy_argv(root, worktree, scratch) -> list[str]:
-    return [sys.executable, "-m", "fichero_builder.pi_rpc", "policy", "--root", str(root), "--worktree", str(worktree), "--scratch", str(scratch)]
+    # -P: never put the cwd (the worker's worktree) on sys.path, or a planted fichero_builder/ would answer ALLOW (review 1 M2)
+    return [sys.executable, "-P", "-m", "fichero_builder.pi_rpc", "policy", "--root", str(root), "--worktree", str(worktree), "--scratch", str(scratch)]
 
 
 EXTENSION = Path(__file__).resolve().parents[1] / "pi" / "policy.ts"
@@ -52,10 +56,10 @@ EXTENSION = Path(__file__).resolve().parents[1] / "pi" / "policy.ts"
 class Pi:
     """One `pi --mode rpc` process. `send` returns the matching response; events queue up in `events`."""
 
-    def __init__(self, cmd: list[str], *, cwd, env: dict, timeout_s: float = 60.0):
-        # bytes on purpose: iterating a binary pipe splits on LF only (rpc.md Framing); text mode would also split on \r
-        self.proc = subprocess.Popen(cmd, cwd=str(cwd), env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                     stderr=subprocess.PIPE)
+    def __init__(self, cmd: list[str], *, cwd, env: dict, timeout_s: float = 60.0, stderr=subprocess.PIPE):
+        # bytes on purpose: iterating a binary pipe splits on LF only (rpc.md Framing); text mode would also split on \r.
+        # stderr goes to a file in a real run (review 1 N4: a pipe nobody drains wedges Pi after ~64 KB).
+        self.proc = subprocess.Popen(cmd, cwd=str(cwd), env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=stderr)
         self.events: queue.Queue = queue.Queue()
         self._responses: dict[str, dict] = {}
         self._lock = threading.Lock()
@@ -90,7 +94,7 @@ class Pi:
             if r is not None:
                 return r
             if self.proc.poll() is not None:
-                err = self.proc.stderr.read().decode("utf-8", "replace")[-500:]
+                err = self.proc.stderr.read().decode("utf-8", "replace")[-500:] if self.proc.stderr else ""
                 raise RuntimeError(f"pi exited {self.proc.returncode} before answering {cmd.get('type')}: {err}")
             time.sleep(0.02)
         raise TimeoutError(f"pi did not answer {cmd.get('type')} in {timeout_s or self.timeout_s}s")
@@ -152,7 +156,8 @@ def start(worktree, *, root, scratch, model: str, provider: str, session_dir, ag
         e["PI_CODING_AGENT_DIR"] = str(agent_dir)
     cmd = [pi_bin, "--mode", "rpc", "--no-extensions", "-e", str(EXTENSION), "--provider", provider, "--model", model,
            "--session-dir", str(session_dir), *extra]
-    return Pi(cmd, cwd=worktree, env=e)
+    Path(session_dir).mkdir(parents=True, exist_ok=True)
+    return Pi(cmd, cwd=worktree, env=e, stderr=open(Path(session_dir) / "pi.stderr", "ab"))
 
 
 def priced(agent_dir, provider: str, model: str) -> bool:
@@ -177,6 +182,10 @@ def pi_procs(*, root, scratch, provider: str, session_dir, agent_dir=None, pi_bi
     wt: list = []
 
     def _start(root_, worktree, brief, name, model, tmux_session) -> str:
+        from fichero_builder import jail, start_tool
+
+        if bad := start_tool.refusals(root_, jail.load(root_)):  # the same wall as the Claude start path (review 1 M4)
+            raise RuntimeError("; ".join(bad))
         pi = start(worktree, root=root_, scratch=scratch, model=model, provider=provider, session_dir=session_dir,
                    agent_dir=agent_dir, pi_bin=pi_bin)
         handle = f"pi:{pi.proc.pid}"
@@ -191,7 +200,10 @@ def pi_procs(*, root, scratch, provider: str, session_dir, agent_dir=None, pi_bi
 
     def _tell(handle, words):
         if (pi := live.get(handle)) and pi.alive():
-            pi.steer(words)
+            try:
+                pi.steer(words)
+            except (RuntimeError, TimeoutError, OSError):
+                pass  # a steer that fails is not the loop's death; the watcher's next tick sees the worker
 
     def _stop(handle):
         if pi := live.pop(handle, None):
@@ -212,6 +224,9 @@ def main(argv=None) -> int:
     call = json.load(sys.stdin)
     reason = decide(call, ph.load(a.root), worktree=Path(a.worktree), scratch=Path(a.scratch))
     if reason:
+        if os.environ.get("FICHERO_HARNESS_LOG"):  # the same refusal row the Claude hook writes (run.policy-hook)
+            with open(os.environ["FICHERO_HARNESS_LOG"], "a") as f:
+                f.write(json.dumps({"at": time.time(), "refused": [reason], "kind": "pi"}) + "\n")
         print(reason, file=sys.stderr)
         return 2
     print("ALLOW")

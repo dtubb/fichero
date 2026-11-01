@@ -34,7 +34,7 @@ def test_responses_match_by_id_and_events_queue_separately(tmp_path):
 
 def test_the_policy_argv_runs_the_module_with_the_three_paths():
     argv = pi_rpc.policy_argv("/r", "/w", "/s")
-    assert argv[1:4] == ["-m", "fichero_builder.pi_rpc", "policy"] and "/w" in argv and "/s" in argv
+    assert argv[1:5] == ["-P", "-m", "fichero_builder.pi_rpc", "policy"] and "/w" in argv and "/s" in argv
 
 
 def test_live_pi_answers_stats_and_writes_a_session_file_the_parser_reads(tmp_path):

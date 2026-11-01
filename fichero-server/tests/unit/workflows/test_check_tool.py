@@ -354,3 +354,18 @@ def test_the_build_rung_runs_only_for_build_paths_and_reports_red(tmp_path):  # 
     assert not r["ok"] and not r["skipped"] and r["results"][0]["exit_code"] == 1
     assert (tmp_path / "built.txt").exists(), "the build ran in the tree it was given"
     assert ct.build(tmp_path, ["fichero/App.swift"], ct.Config(build_paths=("fichero/",), build=("true",)))["ok"]
+
+
+def test_the_build_rung_counts_a_deleted_swift_file_as_a_change(tmp_path):  # review 1 M7
+    import subprocess
+
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    (tmp_path / "fichero").mkdir()
+    (tmp_path / "fichero" / "A.swift").write_text("a")
+    env = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t", "HOME": str(tmp_path)}
+    subprocess.run(["git", "-C", str(tmp_path), "add", "-A"], check=True, env=env)
+    subprocess.run(["git", "-C", str(tmp_path), "commit", "-q", "-m", "base"], check=True, env=env)
+    base = subprocess.run(["git", "-C", str(tmp_path), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    (tmp_path / "fichero" / "A.swift").unlink()
+    subprocess.run(["git", "-C", str(tmp_path), "commit", "-qam", "delete"], check=True, env=env)
+    assert ct.build_names(tmp_path, base, "HEAD") == ["fichero/A.swift"]

@@ -39,11 +39,13 @@ pytest_plugins = ["anyio.pytest_plugin", "_hypothesis_pytestplugin", "langsmith.
 # scratch tree, one build at a time on this machine (owner 2026-11-01). Derived data under the shared area so a
 # second build reuses it; a stale incremental build is a known failure shape: delete the folder and run again.
 build_paths = ["fichero/"]
-build = ["xcodebuild", "-project", "fichero/fichero.xcodeproj", "-scheme", "Fichero (Dev Embedded)", "-configuration", "Debug",
+# The scheme's own configuration (Dev Embedded); no signing: the worker user has no identity (review 1 M6, N7).
+build = ["xcodebuild", "-project", "fichero/fichero.xcodeproj", "-scheme", "Fichero (Dev Embedded)",
          "-destination", "platform=macOS", "-derivedDataPath", "/Users/Shared/fichero-worker/derived", "-jobs", "4",
-         "-skipPackagePluginValidation", "build"]
+         "-skipPackagePluginValidation", "CODE_SIGNING_ALLOWED=NO", "build"]
 build_timeout_s = 3600
-build_lock = "/Users/Shared/fichero-worker/build.lock"
+# Only the owner's process takes this lock, so it lives in the owner's own state dir (~ expands), not the shared area.
+build_lock = "~/.local/state/fichero-builder/build.lock"
 [check.test_env]
 FICHERO_FEATURE_TIER = "dev"
 OMP_NUM_THREADS = "2"
@@ -74,7 +76,7 @@ deny_read = ["~/.config/gh", "~/.ssh", "~/.claude", "~/Fichero Projects"]
 [land]
 branch = "integration"   # the branch the Lead pushes a green head to
 # Regexes over every ADDED line and commit message; any hit refuses the land (the public/private boundary).
-boundary = ['/Users/[A-Za-z0-9._-]+/', 'sk-ant-[A-Za-z0-9_-]{8,}', 'gh[ps]_[A-Za-z0-9]{20,}', 'BEGIN [A-Z ]*PRIVATE KEY']
+boundary = ['/Users/(?!Shared/)[A-Za-z0-9._-]+/', 'sk-ant-[A-Za-z0-9_-]{8,}', 'gh[ps]_[A-Za-z0-9]{20,}', 'BEGIN [A-Z ]*PRIVATE KEY']
 
 [brief]
 # Project rules put at the top of every cluster brief (scripts/harness_brief.py); project names belong here, not in code.

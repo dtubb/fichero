@@ -272,12 +272,18 @@ def contract_current(root, changed: list[str], cfg: Config, timeout_s: float = 3
     return {"ok": all(r["ok"] for r in results), "skipped": False, "results": results}
 
 
+def build_names(root, since: str, head: str) -> list[str]:
+    """Changed paths for the build rung: added, modified AND deleted (a deleted Swift file still referenced must fail the
+    build, review 1 M7); the other rungs keep their added-or-modified list."""
+    return [f for _s, _m, f in _changes(root, since, head, "--diff-filter=AMD")]
+
+
 def build(root, changed: list[str], cfg: Config) -> dict:
     """The project's build-only compile, only when the diff touches its build paths; one at a time under the lock
     (owner 2026-11-01: a Swift change nobody compiled reached the land gate; builds stay serial on this machine)."""
     if not cfg.build or not any(f.startswith(cfg.build_paths) for f in changed):
         return {"ok": True, "skipped": True, "results": []}
-    lock = open(cfg.build_lock, "a") if cfg.build_lock else None
+    lock = open(os.path.expanduser(cfg.build_lock), "a") if cfg.build_lock else None  # ~ = the owner's own dir (review 1 N3)
     try:
         if lock is not None:
             fcntl.flock(lock, fcntl.LOCK_EX)
@@ -553,7 +559,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=()) -> dict:
              else {**_skipped("red-on-base"), "stdout_tail": "not required: no changed path is under [check].red_paths"}),
             ("guards", lambda: guards(tree, cfg)),
             ("contract-current", lambda: contract_current(tree, names, cfg)),
-            ("build", lambda: build(tree, names, cfg)),
+            ("build", lambda: build(tree, build_names(root, since, head), cfg)),
         ])
     finally:
         _git(root, "worktree", "remove", "--force", tree)

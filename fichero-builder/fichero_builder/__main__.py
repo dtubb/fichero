@@ -35,7 +35,8 @@ def state_dir(rules_root, explicit) -> Path:
 def resolve(repo, rev: str) -> str:
     import subprocess
 
-    return subprocess.run(["git", "-C", str(repo), "rev-parse", rev], capture_output=True, text=True).stdout.strip()
+    r = subprocess.run(["git", "-C", str(repo), "rev-parse", "--verify", "-q", f"{rev}^{{commit}}"], capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else ""  # unknown rev = no sha, never the rev's own text (review 1 N9)
 
 
 def checked(head: str) -> bool:
@@ -54,12 +55,12 @@ def main(argv=None) -> int:
     r.add_argument("--model", default="sonnet")
     r.add_argument("--kind", default="claude", choices=["claude", "pi"])
     r.add_argument("--provider", default="anthropic", help="pi: the provider in Pi's models.json")
-    r.add_argument("--agent-dir", help="pi: Pi's agent dir holding models.json (default ~/.pi/agent of the running user)")
+    r.add_argument("--agent-dir", help="pi: an OWNER-owned Pi agent dir holding models.json (prices and base URLs the cap trusts); required for --kind pi")
     r.add_argument("--scratch", help="pi: the scratch path the policy allows writes under (default $TMPDIR)")
     r.add_argument("--session", default="harness")
     r.add_argument("--tick", type=float, default=30.0)
     r.add_argument("--handoff", help="the handoff file a successor reads (default <worktree>/HANDOFF.md)")
-    r.add_argument("--state", help="where the journal lives (default $FICHERO_BUILDER_STATE or the XDG state home); a shared dir lets the owner read it without sudo")
+    r.add_argument("--state", help="where the journal lives (default $FICHERO_BUILDER_STATE, else <[jail].workroot>/state, else the XDG state home)")
     c = sub.add_parser("check", help="run the ladder over SINCE..HEAD from the pinned copy; exit 1 if red")
     c.add_argument("repo"), c.add_argument("since"), c.add_argument("head")
     c.add_argument("--pinned", required=True)
@@ -76,8 +77,17 @@ def main(argv=None) -> int:
     if a.cmd == "land":  # ponytail: the gate is scripts/harness_land.py whole; this verb runs it, it does not copy it
         import runpy
 
+        if problems := check_tool.rules_problems(a.pinned):  # the rules file first, as the gate script does: cheap and fail-closed
+            print("REFUSED (rules file):\n  " + "\n  ".join(problems), file=sys.stderr)
+            with open(a.log, "a") as f:
+                f.write(json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "refused": "rules", "detail": problems}) + "\n")
+            return 1
         head = resolve(a.repo, a.head)
-        if not checked(head):
+        jp = journal.path()
+        if jp.exists() and jp.stat().st_uid != os.getuid():  # land trusts this file: it must be the caller's own (review 1 N2)
+            print(f"REFUSED: {jp} is not owned by this user; land reads only the owner's journal", file=sys.stderr)
+            return 1
+        if not head or not checked(head):
             print(f"REFUSED: no green `builder check` row for {head[:9] or a.head} in {journal.path()}; run builder check first", file=sys.stderr)
             return 1
 
@@ -92,14 +102,21 @@ def main(argv=None) -> int:
             return int(e.code or 0)
         return 0
     if a.cmd == "check":
-        r = check_tool.run_ladder(a.repo, a.since, a.head, a.pinned, a.id)
+        head = resolve(a.repo, a.head)  # before the ladder: a commit made meanwhile never gets the row (review 1 M5)
+        if not head:
+            print(f"builder check: {a.head!r} is not a commit in {a.repo}", file=sys.stderr)
+            return 1
+        r = check_tool.run_ladder(a.repo, a.since, head, a.pinned, a.id)
         print(json.dumps(r, indent=1))
-        journal.append("check", repo=str(a.repo), since=a.since, head=resolve(a.repo, a.head), ok=bool(r.get("ok")), failed=r.get("failed", ""))
+        journal.append("check", repo=str(a.repo), since=a.since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""))
         return 0 if r.get("ok") else 1
     if a.kind == "pi":
         from fichero_builder import pi_rpc
 
-        agent_dir = Path(a.agent_dir) if a.agent_dir else Path.home() / ".pi" / "agent"
+        if not a.agent_dir:
+            print("builder run refuses: --kind pi needs --agent-dir (an owner-owned dir; the worker's own ~/.pi/agent could set its own prices)", file=sys.stderr)
+            return 1
+        agent_dir = Path(a.agent_dir)
         if not pi_rpc.priced(agent_dir, a.provider, a.model):
             print(f"builder run refuses: {agent_dir / 'models.json'} has no cost for {a.provider}/{a.model}: unknown price, no start", file=sys.stderr)
             return 1

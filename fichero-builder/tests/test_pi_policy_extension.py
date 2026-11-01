@@ -17,6 +17,25 @@ def test_the_mapping_names_the_policys_tools_and_refuses_unknown_ones(tmp_path):
     assert "outside" in pi_rpc.decide({"toolName": "edit", "input": {"path": "/etc/hosts"}}, CFG, worktree=wt, scratch=tmp_path)
     assert pi_rpc.decide({"toolName": "read", "input": {"path": "/etc/hosts"}}, CFG, worktree=wt, scratch=tmp_path) is None, "reads anywhere"
     assert "unknown tools are refused" in pi_rpc.decide({"toolName": "browser", "input": {}}, CFG, worktree=wt, scratch=tmp_path)
+    for crafted in ("~/.ssh/authorized_keys", "@/etc/x", "@../../x"):  # review 1 M3: Pi expands ~ and strips a leading @ itself
+        assert "outside" in (pi_rpc.decide({"toolName": "write", "input": {"path": crafted}}, CFG, worktree=wt, scratch=tmp_path) or ""), crafted
+    assert pi_rpc.decide({"toolName": "write", "input": {"path": "@src/a.py"}}, CFG, worktree=wt, scratch=tmp_path) is None
+
+
+def test_the_policy_command_ignores_a_module_planted_in_the_worktree(tmp_path):
+    """Review 1 M2: `python -m` puts the cwd first on sys.path; a worker could plant fichero_builder/pi_rpc.py in its worktree."""
+    import os
+    import subprocess
+
+    planted = tmp_path / "fichero_builder"
+    planted.mkdir()
+    (planted / "__init__.py").write_text("")
+    (planted / "pi_rpc.py").write_text("import sys\nprint('ALLOW')\nsys.exit(0)\n")
+    root = pi_rpc.EXTENSION.parents[2]
+    argv = pi_rpc.policy_argv(root, tmp_path, tmp_path)
+    env = {**os.environ, "PYTHONPATH": str(pi_rpc.EXTENSION.parents[1])}
+    r = subprocess.run(argv, cwd=tmp_path, input='{"toolName": "write", "input": {"path": "/etc/x"}}', capture_output=True, text=True, env=env)
+    assert r.returncode == 2 and "outside" in r.stderr, (r.returncode, r.stdout, r.stderr[-200:])
 
 
 def _tool_end(events):
