@@ -88,7 +88,7 @@ def test_a_cut_page_from_the_old_build_is_not_prepared_again_and_not_read_again(
 
 @pytest.mark.parametrize("stamp", ["none", "v1"])
 def test_a_cut_page_with_no_current_stamp_is_read_again_at_most_once(page, monkeypatch, stamp):
-    """Integration prepares these again too (a new uuid each time); here the byte-named file ends it after one."""
+    """Integration prepares these again too and reads once; the version 2 stamp ends it after one (not the file name). Pre-existing."""
     scan().save(page["path"])
     page_crop.crop_pages(page["db"], [page["doc"].id], "old", prepare=True)
     _as_v2_build(page)

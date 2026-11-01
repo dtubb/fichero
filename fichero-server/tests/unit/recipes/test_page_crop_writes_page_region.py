@@ -218,3 +218,19 @@ def test_a_rendition_write_cut_short_is_written_again(db, tmp_path, monkeypatch)
     page_crop._write(db, doc, stored.name.split("_")[1], __import__("PIL.Image").Image.open(__import__("io").BytesIO(whole)),
                      "run-2", Path(db.path).parent, "again", [0, 0, 1, 1], None)
     assert stored.read_bytes() == whole and not list(stored.parent.glob("*.part"))
+
+
+def test_a_rendition_is_written_to_part_and_replaced_never_directly(db, tmp_path, monkeypatch):
+    """Review 9: a direct write under the real name leaves half a picture after a crash; every write goes to `.part` first."""
+    from fichero_server.media import find_page as module
+    from fichero_server.recipes import page_crop
+
+    monkeypatch.setattr(module, "find_page_vision", lambda image: None)
+    path = tmp_path / "scan.png"
+    scan().save(path)
+    doc = Document(name=path.name, doc_type=DocType.file, file_type=FileType.image, path=str(path), metadata={})
+    db.save(doc)
+    real, written = Path.write_bytes, []
+    monkeypatch.setattr(Path, "write_bytes", lambda self, data: written.append(self.suffix) or real(self, data))
+    page_crop.crop_pages(db, [doc.id], "run-1", prepare=True)
+    assert written and set(written) == {".part"}
