@@ -102,7 +102,9 @@ struct SetupStageSamples: View {
             Label(error, systemImage: "xmark.octagon").font(.callout).foregroundStyle(.red)
         }
         if FeatureManager.shared.isWideSetUpEnabled {
-            StepResultFiguresView(result: result, name: { store.name(of: $0) })
+            StepResultFiguresView(result: result, name: { store.name(of: $0) }, showDifferences: {
+                if let first = (result.pages ?? store.samples.map(\.id)).first { comparing = ComparedPage(id: first) }
+            })
         }
         // Each model beside the others on each page (#6034).
         let compared = (result.candidates ?? []).filter { !($0.perPage ?? []).isEmpty }
