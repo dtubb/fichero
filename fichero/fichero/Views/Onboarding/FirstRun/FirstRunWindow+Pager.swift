@@ -52,6 +52,7 @@ private struct PagerBinding<Page: View>: View {
                 guard abs(drag.translation.width) > 2 * abs(drag.translation.height) else { return }
                 _ = move(drag.translation.width < 0)
             })
+            .trackpadSwipe { forward in _ = move(forward) }
             .background {
                 Group {
                     Button("") { _ = move(false) }.keyboardShortcut("[", modifiers: .command)
