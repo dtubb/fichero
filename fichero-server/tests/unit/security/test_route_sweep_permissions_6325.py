@@ -418,6 +418,7 @@ def test_the_seed_is_visible_to_the_owner_and_the_controls_are_not_over_refused(
 
 
 def test_report_the_time(sweep):
+    assert len(sweep) > 5000, "the sweep fired too little to mean anything"
     print(f"route sweep: {len(sweep)} requests, reads {_TIMES['get']:.0f}s, +actions {_TIMES['action'] - _TIMES['get']:.0f}s, +writes {_TIMES['total'] - _TIMES['action']:.0f}s")
 
 
