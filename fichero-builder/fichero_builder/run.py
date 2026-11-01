@@ -56,7 +56,15 @@ def _alive(pane: str) -> bool:
     return pane in out
 
 
-def _stop(pane: str) -> None:
+def _stop(pane: str, grace_s: float = 10.0) -> None:
+    """TERM the pane's process group, wait the grace, then kill the pane (an interactive session never exits on its own)."""
+    pid = subprocess.run(["tmux", "display-message", "-p", "-t", pane, "#{pane_pid}"], capture_output=True, text=True).stdout.strip()
+    if pid.isdigit():
+        subprocess.run(["kill", "-TERM", "--", f"-{pid}"], capture_output=True)
+        for _ in range(int(grace_s * 10)):
+            if not _alive(pane):
+                return
+            time.sleep(0.1)
     subprocess.run(["tmux", "kill-pane", "-t", pane], capture_output=True)
 
 
@@ -68,21 +76,33 @@ def real_procs(home, worktree) -> Procs:
 
 
 DONE = re.compile(r"\bDONE\b")
+HANDOFF_READY = "HANDOFF READY"
+
+
+def successor_brief(name: str, gen: int, worktree, handoff) -> str:
+    """The successor's whole brief: read the handoff, carry on, same rules, same end line (dev-workflows.worker.handoff)."""
+    return (f"You succeed long-running worker {name} (generation {gen}). Work in {worktree}. Read {handoff} first, then continue "
+            f"the work it lists, in order, under the rules it gives. When told your context is at 85%, finish the step, commit, "
+            f"update {handoff}, and end your turn with the exact line {HANDOFF_READY}. When every item is done, end with the DONE line.")
 
 
 def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = "claude", tmux_session: str = "harness",
-        tick_s: float = 30.0, procs: Procs, out=print, done=DONE) -> str:
+        tick_s: float = 30.0, procs: Procs, out=print, done=DONE, handoff=None, max_generations: int = 20) -> str:
     """Start, then watch until the worker is done (idle with the DONE word in its last text: the brief's own end line),
     parked (a cap or a provider refusal) or gone. Returns the end as a word.
-    Handoff at the context share is the in-session hook's job today; the loop records the decision."""
+    Handoff: the in-session hook tells the worker at 85 %; when the worker is then idle with HANDOFF READY in its last text,
+    the loop ends it (TERM, grace, kill) and starts a successor through the same start path with a brief that names the
+    handoff file (`<worktree>/HANDOFF.md` unless given); the successor is the same name, generation plus one."""
     spend = watcher.load(root)
     bad = watcher.refusals(spend, kind, model)
     if bad:
         for b in bad:
             out("builder run refuses: " + b)
         return "refused"
+    handoff = Path(handoff) if handoff else Path(worktree) / "HANDOFF.md"
+    gen = 1
     pane = procs.start(root, worktree, brief, name, model, tmux_session)
-    journal.append("worker", task=name, pane=pane, model=model, kind=kind, worktree=str(worktree))
+    journal.append("worker", task=name, pane=pane, model=model, kind=kind, worktree=str(worktree), generation=gen)
     started = last_change = procs.now()
     seen = None
     told: set[str] = set()
@@ -116,7 +136,27 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             procs.stop(pane)
             end = "done"
             break
+        if state.get("idle") and HANDOFF_READY in state.get("last_text", ""):
+            if gen >= max_generations:
+                procs.stop(pane)
+                end = "parked"
+                journal.append("watch", task=name, what=f"park: {gen} generations, the cap")
+                break
+            procs.stop(pane)
+            journal.append("cost", task=name, model=model, usd=round(watcher.cost_of(state, spend, model), 4),
+                           tokens=state.get("tokens", 0), turns=state.get("turns", 0), seconds=int(now - started), end="handoff",
+                           generation=gen)
+            gen += 1
+            b = Path(worktree) / f".builder-brief-{name}-{gen}.txt"
+            b.write_text(successor_brief(name, gen, worktree, handoff))
+            pane = procs.start(root, worktree, b, name, model, tmux_session)
+            journal.append("worker", task=name, pane=pane, model=model, kind=kind, worktree=str(worktree), generation=gen)
+            out(f"{name}: handoff, generation {gen} started")
+            started = last_change = procs.now()
+            seen, state, told = None, {}, set()
+            continue
     journal.append("cost", task=name, model=model, usd=round(watcher.cost_of(state, spend, model), 4),
-                   tokens=state.get("tokens", 0), turns=state.get("turns", 0), seconds=int(procs.now() - started), end=end)
+                   tokens=state.get("tokens", 0), turns=state.get("turns", 0), seconds=int(procs.now() - started), end=end,
+                   generation=gen)
     out(f"{name}: {end}")
     return end

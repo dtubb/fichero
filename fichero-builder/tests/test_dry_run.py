@@ -17,6 +17,7 @@ class Fake:
 
     def start(self, root, worktree, brief, name, model, tmux_session):
         self.started = (str(worktree), str(brief), name, model)
+        self.alive_now = True  # a successor is alive again
         return "%9"
 
     def read(self):
@@ -101,3 +102,27 @@ def test_an_idle_worker_without_the_done_line_is_left_alone(root):
     fake = Fake([{**HEALTHY, "idle": True, "last_text": "hello"}, {**HEALTHY, "idle": True, "last_text": "hello"}])
     assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None) == "gone"
     assert fake.stopped == []
+
+
+def test_handoff_ready_ends_the_worker_and_starts_a_successor_with_the_handoff_brief(root):
+    (root / "wt").mkdir()
+    fake = Fake([HEALTHY, {**HEALTHY, "idle": True, "context": 900, "tokens": 900, "fresh": 900, "last_text": "Committed.\nHANDOFF READY"},
+                 HEALTHY, {**HEALTHY, "idle": True, "last_text": "DONE abc"}])
+    starts = []
+    real_start = fake.start
+    fake.procs.start = lambda *a: starts.append(a) or real_start(*a)
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None) == "done"
+    assert fake.stopped == ["%9", "%9"] and len(starts) == 2
+    brief = (root / "wt" / ".builder-brief-w-2.txt").read_text()
+    assert "generation 2" in brief and str(root / "wt" / "HANDOFF.md") in brief and "HANDOFF READY" in brief
+    rows = journal.read()
+    assert [(e["event"], e.get("generation"), e.get("end")) for e in rows if e["event"] in ("worker", "cost")] == [
+        ("worker", 1, None), ("cost", 1, "handoff"), ("worker", 2, None), ("cost", 2, "done")]
+
+
+def test_the_generation_cap_parks_instead_of_starting_another(root):
+    (root / "wt").mkdir()
+    ready = {**HEALTHY, "idle": True, "last_text": "HANDOFF READY"}
+    fake = Fake([ready, ready, ready])
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None, max_generations=2) == "parked"
+    assert [e["what"] for e in journal.read() if e["event"] == "watch"][-1] == "park: 2 generations, the cap"
