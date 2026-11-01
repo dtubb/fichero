@@ -2,10 +2,10 @@
 
 > Milestone: Sharing & Pairing — Dead-Simple UX. Companion to `transport/library-sharing.md` (the
 > design and its rulings), `transport/transport-http-uds.md` and `transport/multiuser-always-on.md`.
-> Manual: TBD — a "Share a library with another Mac or your iPhone" page: turn Sharing on, pick the
-> address, send the link, and what each failure sentence means.
-> **Status: DRAFT, 2026-10-30; every claim re-checked against the code 2026-10-31 (file:line cited). §10 (2026-10-31, approved
-> for build) covers the owner's five live items on Mac, iPad and iPhone, with the per-platform test matrix, the live script and the slices.**
+> Manual: docs/contributor_manual/manual-facts/2026-11-02-sharing.md (the researcher-facing section authored in the user manual, tracked by this file: a "Share a library with another Mac or your iPhone" section: turn Sharing on, pick the address, send the link, and what each failure sentence means).
+> **Status: APPROVED by the owner 2026-11-02 (the build order added 2026-11-02; #5908 ruled the same day: 409 in the engine; the manual facts page written the same day at the owner's word).**
+> Before that: DRAFT, 2026-10-30; every claim re-checked against the code 2026-10-31 (file:line cited). §10 (2026-10-31, approved
+> for build) covers the owner's five live items on Mac, iPad and iPhone, with the per-platform test matrix, the live script and the slices.
 > Written from the owner's order ("try this Mac to the Air and vice
 > versa; the M4 to the M1 is not working; we need this rock solid"), a code read at integration
 > `98990d947`, and a headless two-Mac probe on 2026-10-30 (the MacBook Pro `macbook-pro-m1`, the M1 Air
@@ -650,6 +650,181 @@ UX completeness (every state has words and a way out): **off** → the switch an
 Tailscale row disabled with "Tailscale is not running on this Mac" (M2); **on with Tailscale** → two rows, default Tailscale (M2);
 **code expired** → renewed at expiry (built, #5915), the guest's sentence (I2); **code used** → the guest's sentence (I2), the host's card
 unchanged (M1); **error** → the engine's words beside the switch (S2), the step sentence on every sheet (I2), the Keychain sentence (S1).
+
+## Build order
+
+Steps a long-running builder can take from the heading. `Depends on` defaults to the step before. Order: what is written gets built and walked on two Macs first; then the engine, the shared Swift, the Mac panes, Set Up, and the phone last (§8, §10.9). A step with no number has no issue yet. No dates (no deadline, do it right). Each step's test is written first and red, as §10.9 says.
+
+### Stage 0 — built: build it, run its tests, walk the live script
+
+The engine slices E1-E3 and the Swift slices S1, S2, M1, M2, M3 are on integration; the Swift ones are written and not yet built. These steps build them, run the tests, fix only what those runs find, and move no tag without the run. Step 0.5 is the owner's two-Mac check, §10.8 steps 1-7, 10 and 11. If §10.8 step 10 reads `unknown` on a DMG (#5317), the Tailscale row cannot pass on that build, and the owner hears that before Stage 1.
+
+#### Step 0.1 — the code card keeps its code; one QR per link (#5915)
+- Behaviours: `sharing.card-keeps-its-code`, `sharing.qr-drawn-once-per-payload`
+- Tests: fichero/Tests/Unit/general/Sharing/ShareSettingsRefreshKeyTests.swift, fichero/Tests/Unit/general/Sharing/PairingCodeRenewalTests.swift, fichero/Tests/Unit/general/Transport/PairingLinkEncodingTests.swift, fichero/Tests/UI/mac/SharingPaneUITests.swift
+- Size: S
+
+#### Step 0.2 — the guest saves its token on every build; a failed save spends nothing
+- Behaviours: `sharing.token-saves-on-every-build`, `sharing.failed-save-spends-nothing`
+- Tests: fichero/Tests/Unit/general/Transport/KeychainTokenAccessibilityTests.swift, fichero/Tests/Unit/general/Transport/PairingPersistFailureTests.swift, fichero-server/tests/unit/security/test_a_device_revokes_its_own_pairing_6133.py
+- Size: S
+
+#### Step 0.3 — the Add Device and project Share sheets offer both addresses (#5318)
+- Behaviours: `sharing.share-sheet-offers-both-addresses`
+- Tests: fichero/Tests/Unit/general/Sharing/AddressChoiceModelTests.swift, fichero/Tests/UI/mac/SharingPaneUITests.swift
+- Size: S
+
+#### Step 0.4 — the Multi-user switch says the refusal; the Mac half of the People off-state, whose id closes in Step 5.1 (#6299)
+- Behaviours: `sharing.multiuser-switch-says-the-refusal`
+- Tests: fichero/Tests/Unit/general/Sharing/MultiuserSwitchWordsTests.swift, fichero/Tests/Unit/general/Sharing/PeoplePaneOffStateTests.swift, fichero/Tests/UI/mac/SharingPaneUITests.swift
+- Size: S
+
+#### Step 0.5 — the live two-Mac script on the built app, one record per step (#5049)
+- Behaviours: `sharing.sandboxed-engine-says-it-cannot-ask-tailscale`, `sharing.state-names-every-address`, `sharing.tailnet-forward-whenever-tailscale-is-up`, `sharing.multiuser-switch-needs-no-library`, `sharing.cli-mints-a-link`
+- Tests: docs/contributor_manual/testing/sharing-two-mac-checklist.md, fichero-server/tests/unit/security/test_forward_made_with_a_local_sharing_address_to_spec.py, fichero-server/tests/unit/api/test_sharing_state_names_every_address_to_spec.py, fichero-server/tests/unit/api/test_multiuser_switch_needs_no_library_to_spec.py, fichero-cli/tests/test_cli_mints_a_link_to_spec.py
+- Depends on: 0.1, 0.2, 0.3, 0.4
+- Size: M
+
+### Stage 1 — the engine: names, the address list, what it reports
+
+One contract regen for the stage, in Step 1.6, so the 404 question (open question 4) never forces a regen of its own. The §8.1 headless file starts here and gains a case with each step that has one.
+
+#### Step 1.1 — one key per Mac, a certificate naming every address, the `.local` name is the Bonjour name; open question 5 first (#2603)
+- Behaviours: `sharing.certificate-names-every-address`, `sharing.host-name-is-the-bonjour-name`
+- Tests: fichero-server/tests/unit/security/test_remote_access_tls.py, test_certificate_keeps_its_key_when_a_name_is_added_to_spec (not yet written), RemoteAccessConfigTests (not yet written)
+- Depends on: 0.5
+- Size: M
+
+#### Step 1.2 — the trust rule as one table both clients read
+- Behaviours: `sharing.trust-rule-is-one-function`
+- Tests: test_trust_rule_table_to_spec (not yet written), fichero/Tests/Unit/general/Transport/RemoteCertificatePinningTests.swift
+- Depends on: 0.5
+- Size: S
+
+#### Step 1.3 — `GET /api/pair/addresses`, and a forward Fichero did not make is reported with the command that frees it (#5320)
+- Behaviours: `sharing.stale-forward-says-so`
+- Tests: fichero-server/tests/unit/security/test_tailscale_serve.py, test_tailnet_conflict_is_reported_to_spec (not yet written), test_pair_addresses_to_spec (not yet written)
+- Depends on: 1.1
+- Size: M
+
+#### Step 1.4 — the `sharing` block in health, and `multiuser_blocker` in the sharing state
+- Behaviours: `sharing.health-reports-sharing`
+- Tests: test_health_reports_sharing_to_spec (not yet written)
+- Size: S
+
+#### Step 1.5 — the listener follows the network; a stale server holding the port gets a sentence
+- Behaviours: `sharing.listener-follows-the-network`, `sharing.stale-server-holding-the-port`
+- Tests: test_listener_rebinds_when_the_address_changes_to_spec (not yet written), test_port_in_use_message_to_spec (not yet written)
+- Depends on: 1.3
+- Size: M
+
+#### Step 1.6 — the stage's one regen; 404 becomes 409 in it only on the owner's ruling, else the id stays held
+- Behaviours: `sharing.multiuser-404-is-a-409-in-the-engine`
+- Tests: fichero-server/tests/integration/test_device_pairing_e2e.py
+- Depends on: 1.3, 1.4
+- Size: S
+
+#### Step 1.7 — the link carries every address, within the QR's size
+- Behaviours: `sharing.link-carries-every-address`, `sharing.ios-qr-payload-size`
+- Tests: test_pair_payload_carries_every_address_to_spec (not yet written), PairingPayloadTests (not yet written), PairingQRSizeTests (not yet written)
+- Depends on: 1.2, 1.6
+- Size: M
+
+### Stage 2 — one table of words, one client sequence
+
+#### Step 2.1 — the failure table: every step's sentence, the versions named, a forgotten device told so
+- Behaviours: `sharing.failure-names-the-step`, `sharing.version-mismatch-says-which-side`, `sharing.token-expired-or-rotated`, `sharing.ios-certificate-name`
+- Tests: PairingFailureWordsTests (not yet written), test_cli_pair_words_match_the_spec (not yet written), fichero-server/tests/integration/test_device_pairing_e2e.py
+- Depends on: 0.5
+- Size: M
+
+#### Step 2.2 — one person-facing error function, and the guard rule against a raw response in words (#6299)
+- Behaviours: `sharing.undocumented-never-reaches-the-person`
+- Tests: PersonFacingErrorTests (not yet written), fichero-server/tests/unit/scripts/test_check_swift_transport.py
+- Depends on: 0.5
+- Size: S
+
+#### Step 2.3 — the client tries every address in turn, 5 seconds each, in Swift and the CLI
+- Behaviours: `sharing.client-tries-every-address`, `sharing.ios-link-has-one-address`
+- Tests: PairingAddressTryTests (not yet written), test_two_macs_names_and_addresses_to_spec (not yet written)
+- Depends on: 1.7, 2.1
+- Size: M
+
+#### Step 2.4 — one pairing sequence for Mac and phone; a link with no library lists the host's (#3273)
+- Behaviours: `sharing.both-clients-run-the-same-checks`, `sharing.ios-bad-library-path`
+- Tests: PairingSequenceTests (not yet written), test_two_macs_names_and_addresses_to_spec (not yet written)
+- Size: M
+
+### Stage 3 — the Mac panes
+
+#### Step 3.1 — the sheet draws the engine's address list, with each row's reason; open questions 1 and 6 first
+- Behaviours: `sharing.address-choice`, `sharing.tailnet-down-says-so`
+- Tests: test_pair_addresses_to_spec (not yet written), fichero/Tests/Unit/general/Sharing/AddressChoiceModelTests.swift, fichero/Tests/UI/mac/SharingPaneUITests.swift
+- Depends on: 1.6, 2.1
+- Size: M
+
+#### Step 3.2 — the firewall sentence, and no link that cannot work
+- Behaviours: `sharing.firewall-prompt-says-what-to-click`
+- Tests: a model test of the sheet's firewall sentence (not yet written; §4 names none)
+- Size: S
+
+#### Step 3.3 — accounts off says so and offers the way on; accounts without sharing says what it means (#5908)
+- Behaviours: `sharing.multiuser-off-says-so`, `sharing.multiuser-needs-sharing-for-anyone-else`
+- Tests: MultiuserOffPaneTests (not yet written), fichero-server/tests/unit/security/test_owner_session_sets_the_switch_5908.py
+- Depends on: 1.6, 2.2
+- Size: M
+
+### Stage 4 — Set Up asks
+
+#### Step 4.1 — the questions-only stage is offered, in its words
+- Behaviours: `sharing.setup-stage-is-offered-without-jobs`, `sharing.setup-stage-wording`
+- Tests: test_sharing_stage_to_spec (not yet written)
+- Depends on: 0.5
+- Size: S
+
+#### Step 4.2 — the sharing question on the page, with the same controls as Settings
+- Behaviours: `sharing.setup-asks-sharing`, `sharing.setup-answers-change-later`
+- Tests: SharingStageTests (not yet written)
+- Depends on: 3.1, 4.1
+- Size: M
+
+#### Step 4.3 — the accounts question, and the saved answers beside the engine's state; open question 3 first
+- Behaviours: `sharing.setup-asks-accounts`, `sharing.setup-answer-is-per-library`
+- Tests: SharingStageTests (not yet written), test_sharing_stage_to_spec (not yet written)
+- Depends on: 3.3, 4.2
+- Size: M
+
+### Stage 5 — iPhone and iPad, and the whole thing live
+
+#### Step 5.1 — a Settings surface on iPhone and iPad; People's off-state in the phone's words (#5917)
+- Behaviours: `sharing.ios-settings-surface`, `sharing.people-pane-off-state`
+- Tests: fichero/Tests/Unit/general/Sharing/PeoplePaneOffStateTests.swift, IOSSettingsPeopleUITests (not yet written), IPadSettingsPeopleUITests (not yet written)
+- Depends on: 0.4
+- Size: M
+
+#### Step 5.2 — the phone's sheet says the step, with Try again, Copy details and Open Tailscale
+- Behaviours: `sharing.ios-says-which-step`, `sharing.ios-tailscale-not-on-the-phone`
+- Tests: PairingFailureWordsTests (not yet written)
+- Depends on: 2.4
+- Size: S
+
+#### Step 5.3 — a denied Local Network permission gets its sentence and Open Settings
+- Behaviours: `sharing.ios-local-network-permission`
+- Tests: NearbyHostsPolicyDeniedTests (not yet written)
+- Depends on: 2.4
+- Size: S
+
+#### Step 5.4 — the link opens the app from Messages: the entitlement, and the site file on the owner's word
+- Behaviours: `sharing.ios-link-opened-from-messages`
+- Tests: PairingLinkRoundTripTests (not yet written)
+- Depends on: 1.7
+- Size: S
+
+#### Step 5.5 — on real devices: all of §8.2 and §10.8, two Macs, iPhone, iPad (#5049)
+- Behaviours: `sharing.ios-end-to-end`, `sharing.ios-app-transport-security`
+- Tests: IOSConnectPairingUITests (not yet written), IPadConnectPairingUITests (not yet written), fichero/Tests/Unit/general/Transport/RemoteCertificatePinningTests.swift, fichero-server/tests/unit/scripts/test_check_swift_transport.py
+- Depends on: 3.2, 4.3, 5.1, 5.2, 5.3, 5.4
+- Size: M
 
 ## Open questions: decided, defaulted, or for the owner
 
