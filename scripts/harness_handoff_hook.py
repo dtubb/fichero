@@ -67,11 +67,11 @@ def brief_text(name, reg, gen):
 
 
 def start_successor(name, reg, gen, run=subprocess.run):
-    """Through harness_start.py only; its refusals come back as a failed result."""
+    """Through harness_start.py only; its refusals come back as a failed result. The name stays the same: FICHERO_BUILDER keys the registry."""
     brief = Path(tempfile.mkdtemp(prefix="handoff-")) / "brief.txt"
     brief.write_text(brief_text(name, reg, gen))
     argv = [sys.executable, str(HERE / "harness_start.py"), "--worktree", reg["worktree"], "--brief", str(brief),
-            "--name", f"{name}-{gen}", "--model", reg.get("model", "sonnet")]
+            "--name", name, "--model", reg.get("model", "sonnet")]
     if reg.get("session"):
         argv += ["--session", reg["session"]]
     return run(argv, capture_output=True, text=True)
@@ -166,7 +166,7 @@ def test():
     assert not calls
     _, st = on_stop({"last_assistant_message": DONE, "session_id": "s1"}, "b", reg, {}, run)
     start = calls[0]
-    assert st["gen"] == 2 and start[1].endswith("harness_start.py") and "b-2" in start and calls[1][0] == "tellme", calls
+    assert st["gen"] == 2 and start[1].endswith("harness_start.py") and start[start.index("--name") + 1] == "b" and calls[1][0] == "tellme", calls
     n = len(calls)
     assert on_stop({"last_assistant_message": DONE, "session_id": "s1"}, "b", reg, st, run)[1] == st and len(calls) == n, "once per session"
     assert on_stop({"last_assistant_message": DONE, "session_id": "s2"}, "b", reg, st, run)[1]["gen"] == 3

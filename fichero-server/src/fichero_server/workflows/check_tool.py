@@ -11,6 +11,7 @@ from __future__ import annotations
 import fnmatch
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -181,12 +182,23 @@ def _skipped(name: str) -> dict:
             "stdout_tail": "skipped: not configured", "stderr_tail": ""}
 
 
+def _run(name, argv, root, timeout_s, cfg: Config) -> dict:
+    """run_command with a fresh scratch env, its HOME and base dirs removed afterwards (no litter per rung)."""
+    env = _env(root, cfg)
+    try:
+        return run_command(name, argv, root, timeout_s, env)
+    finally:
+        for d in (env["HOME"], env.get(cfg.base_path_env or "")):
+            if d:
+                shutil.rmtree(d, ignore_errors=True)  # ponytail: a jailed user's files stay if we cannot remove them
+
+
 def ready(root, cfg: Config, timeout_s: float = 600) -> dict:
     if not cfg.ready:
         return _skipped("ready")
     argv = [str(Path(root) / cfg.ready[0]) if "/" in cfg.ready[0] and not cfg.ready[0].startswith("/") else cfg.ready[0],
             *cfg.ready[1:]]
-    return run_command("ready", argv, root, timeout_s, _env(root, cfg))
+    return _run("ready", argv, root, timeout_s, cfg)
 
 
 def pytest_argv(root, files: list[str], cfg: Config) -> list[str]:
@@ -199,7 +211,7 @@ def pytest_rung(root, files: list[str], cfg: Config = Config(), timeout_s: float
     """Named test files only (the env gives a fresh base path, so a run never opens real data)."""
     if not files:
         return run_command("pytest", [sys.executable, "-c", "import sys; sys.exit('no test files named')"], root, 5)
-    return run_command("pytest", pytest_argv(root, files, cfg), root, timeout_s, _env(root, cfg))
+    return _run("pytest", pytest_argv(root, files, cfg), root, timeout_s, cfg)
 
 
 def _isolated(script: Path, root: Path, cfg: Config) -> list[str]:
@@ -224,7 +236,7 @@ def guards(root, cfg: Config) -> dict:
     for s in found:
         if s.stem in cfg.guard_skip:
             continue
-        r = run_command(s.stem, _isolated(s, root, cfg), root, cfg.guard_timeout_s, _env(root, cfg))
+        r = _run(s.stem, _isolated(s, root, cfg), root, cfg.guard_timeout_s, cfg)
         r["argv"] = [str(s)]
         results.append(r)
     return {"ok": all(r["ok"] for r in results), "reason": "", "results": results}
@@ -235,7 +247,7 @@ def contract_current(root, changed: list[str], cfg: Config, timeout_s: float = 3
     if not cfg.contract_guards or not any(f.startswith(cfg.contract_paths) for f in changed):
         return {"ok": True, "skipped": True, "results": []}
     root = Path(root)
-    results = [run_command(Path(g).stem, _isolated(root / g, root, cfg), root, timeout_s, _env(root, cfg))
+    results = [_run(Path(g).stem, _isolated(root / g, root, cfg), root, timeout_s, cfg)
                for g in cfg.contract_guards]
     return {"ok": all(r["ok"] for r in results), "skipped": False, "results": results}
 

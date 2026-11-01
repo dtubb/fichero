@@ -72,7 +72,9 @@ def test_probe_flags_a_readable_secret(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", "/usr/bin:/bin")  # the fake sudo runs as us; keep our own gh login out of it
     secret = tmp_path / "hosts.yml"
     secret.write_text("token")
-    home = tmp_path / "h"; home.mkdir(); home.chmod(0)
+    home = tmp_path / "h"
+    home.mkdir()
+    home.chmod(0)
     monkeypatch.setenv("HOME", str(home))
     j = J.Jail(user="root", sudo=_fake_sudo(tmp_path), deny_read=(str(secret), str(tmp_path / "absent")))
     assert j.probe() == [f"{secret} is readable by root"]
@@ -96,7 +98,9 @@ def test_probe_flags_a_gh_login(tmp_path, monkeypatch):
     gh.write_text("#!/bin/sh\nexit 0\n")
     gh.chmod(0o755)
     monkeypatch.setenv("PATH", f"{gh.parent}:/usr/bin:/bin")
-    home = tmp_path / "h"; home.mkdir(); home.chmod(0)  # the probe's floor wants ~ unreadable
+    home = tmp_path / "h"
+    home.mkdir()
+    home.chmod(0)  # the probe's floor wants ~ unreadable
     monkeypatch.setenv("HOME", str(home))
     assert J.Jail(user="root", sudo=_fake_sudo(tmp_path)).probe() == ["root is signed in to gh"]
 

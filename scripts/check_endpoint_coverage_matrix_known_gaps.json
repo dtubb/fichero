@@ -304,5 +304,8 @@
   "POST /api/hands/attributions/withdraw-many": "the Inspector's multi-selection batch (#6082): engine first (r1 c50c0019d), reached through the generated CLI and MCP; the app has no batch withdraw control yet (the undo of the batch action withdraws)",
   "POST /api/rights/many": "the Inspector's multi-selection batch (#6082): engine first (r1 c50c0019d), reached through the generated CLI and MCP; the app's bulk controls send the matching audited actions (hand.attribute_many, editorial.record_many, rights.set_many) through the action invoke for one undo step, not this route (InspectorBulkSection)",
   "PUT /api/search/embedding": "the app chooses the search model when the project is made (POST /api/library takes embedding_model, #6122) and changes it later by the re-embed run (POST /api/search/embedding/change); this route sets it on a project that holds no vectors and is reached through the generated CLI and MCP only",
-  "POST /api/recipes/project/steps/place": "the app's control to put a reading step on Hugging Face Jobs is not built (#6173, source.recipe.step-runs-on-huggingface); the route is reached by the CLI and the MCP tools"
+  "POST /api/recipes/project/steps/place": "the app's control to put a reading step on Hugging Face Jobs is not built (#6173, source.recipe.step-runs-on-huggingface); the route is reached by the CLI and the MCP tools",
+  "POST /api/workers": "dev-only worker control (dev tier, FICHERO_DEV_WORKERS=1): reached through the CLI/harness scripts, never from the app; no store by design",
+  "POST /api/workers/tell": "dev-only worker control (dev tier, FICHERO_DEV_WORKERS=1): reached through the CLI/harness scripts, never from the app; no store by design",
+  "POST /api/workers/{job_id}/stop": "dev-only worker control (dev tier, FICHERO_DEV_WORKERS=1): reached through the CLI/harness scripts, never from the app; no store by design"
 }

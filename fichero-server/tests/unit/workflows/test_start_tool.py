@@ -80,6 +80,8 @@ def test_prepare_writes_hooked_settings_empty_mcp_and_the_commit_msg_hook(tmp_pa
     st = json.loads((scratch / "settings.json").read_text())
     cmds = json.dumps(st["hooks"]["PreToolUse"])
     assert "harness_policy_hook.py" in cmds and str(wt) in cmds
+    for ev in ("PostToolUse", "Stop"):  # H3: the handoff hook must be wired, not just written
+        assert "harness_handoff_hook.py" in json.dumps(st["hooks"][ev])
     assert json.loads((scratch / "mcp.json").read_text()) == {"mcpServers": {}}
     hook = wt / ".git" / "hooks" / "commit-msg"
     assert hook.is_file() and os.access(hook, os.X_OK) and "--commit-msg" in hook.read_text()

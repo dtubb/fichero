@@ -132,7 +132,7 @@ def test_check_tool_runs_the_ladder(tmp_path):
     assert ct.ladder(rungs[:1])["ok"] is True
 
 
-def _project(tmp_path, extra=""):
+def _project(tmp_path, extra="", check_extra=""):
     """A throwaway project: its own harness.toml, one good guard, one skipped bad guard; plus a pinned clone of it."""
     work = tmp_path / "work"
     work.mkdir()
@@ -141,7 +141,7 @@ def _project(tmp_path, extra=""):
     (work / "ci" / "lint_ok.py").write_text("pass\n")
     (work / "ci" / "lint_bad.py").write_text("raise SystemExit(7)\n")
     (work / "harness.toml").write_text(
-        '[check]\nready = ["python3", "-c", "print(1)"]\nguard_glob = "ci/lint_*.py"\nmin_guards = 2\n'
+        '[check]\n' + check_extra + 'ready = ["python3", "-c", "print(1)"]\nguard_glob = "ci/lint_*.py"\nmin_guards = 2\n'
         'guard_skip = ["lint_bad"]\ncheck_paths = ["ci/", "harness.toml"]\nmax_files = 10\n[check.test_env]\nTINY_PROJECT = "yes"\n' + extra)
     g("add", "."), g("commit", "-q", "-m", "project")
     base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
@@ -231,19 +231,19 @@ def test_a_worker_cannot_weaken_its_own_tests(tmp_path):
 def test_a_worker_cannot_rewrite_its_own_acceptance(tmp_path):
     """The item's own spec bullet may flip its status tag or gain (#N); any other change is needs-maintainer."""
     work, g, base0, pinned = _project(tmp_path)
-    (work / "specs").mkdir()
-    spec = work / "specs" / "s.md"
+    (work / "rules").mkdir()
+    spec = work / "rules" / "s.md"
     spec.write_text("- `demo.item.one` [PROPOSED] — it does the thing, and ten more.\n- `demo.other` [OK] — unrelated.\n")
     g("add", "."), g("commit", "-q", "-m", "spec")
     base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
-    cfg = ct.Config(spec_dir="specs")
+    cfg = ct.Config(spec_dir="rules")
     spec.write_text("- `demo.item.one` [OK] (#12) — it does the thing, and ten more.\n- `demo.other` [OK] — unrelated.\n")
     g("commit", "-qam", "tag flip")
     assert ct.acceptance_changed(work, base, "HEAD", cfg, ["demo.item.one"]) == []
     spec.write_text("- `demo.item.one` [OK] — it does less.\n- `demo.other` [OK] — unrelated.\n")
     g("commit", "-qam", "rewrite")
     hits = ct.acceptance_changed(work, base, "HEAD", cfg, ["demo.item.one"])
-    assert hits and "specs/s.md" in hits[0]
+    assert hits and "rules/s.md" in hits[0]
     assert ct.acceptance_changed(work, base, "HEAD", cfg, ["demo.other"]) == []  # only the item's own ids are protected
 
 
@@ -287,7 +287,8 @@ def test_the_ladder_runs_its_commands_as_the_jail_user(tmp_path, monkeypatch):
     sudo = tmp_path / "sudo"
     sudo.write_text('#!/bin/sh\necho "$3" >> "%s/asked"\nshift 4\nexec "$@"\n' % tmp_path)
     sudo.chmod(0o755)
-    work, g, base, pinned = _project(tmp_path, f'[jail]\nuser = "root"\nsudo = "{sudo}"\nworkroot = "{tmp_path}"\n')
+    work, g, base, pinned = _project(tmp_path, check_extra=f'python = "{sys.executable}"\ncontract_guards = ["ci/lint_ok.py"]\n', extra=f'[land]\nbranch = "main"\nboundary = "ci/"\n'
+                                f'[jail]\nuser = "root"\nsudo = "{sudo}"\nworkroot = "{tmp_path}"\ndeny_read = ["{tmp_path}/secret"]\n')
     _change(work, g)
     r = ct.run_ladder(work, base, "HEAD", pinned)
     assert r["ok"], r

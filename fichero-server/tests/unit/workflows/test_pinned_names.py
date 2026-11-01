@@ -77,3 +77,12 @@ def test_pytest_runs_with_pinned_config_no_autoload_and_safe_path(tmp_path):
     env = ct._env(tmp_path, cfg, {})
     assert env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] == "1" and env["PYTHONSAFEPATH"] == "1"
     assert not ct.pytest_rung(tmp_path, ["test_a.py"], cfg, timeout_s=60)["ok"]  # the shadow pytest.py did not win
+
+
+def test_a_rung_leaves_no_scratch_home_or_base_behind(tmp_path, monkeypatch):
+    from fichero_server.workflows import check_tool as ct
+    monkeypatch.setattr(ct.tempfile, "tempdir", str(tmp_path))
+    (tmp_path / "r").mkdir()
+    r = ct._run("x", ["/bin/echo", "hi"], tmp_path / "r", 10, ct.Config(base_path_env="BASE"))
+    assert r["ok"]
+    assert [p.name for p in tmp_path.iterdir() if p.name.startswith("check-")] == []

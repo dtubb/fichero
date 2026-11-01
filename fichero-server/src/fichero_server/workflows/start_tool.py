@@ -18,6 +18,7 @@ from fichero_server.workflows import check_tool
 from fichero_server.workflows.jail import Jail
 
 _HOOK = Path(__file__).resolve().parents[4] / "scripts" / "harness_policy_hook.py"
+_HANDOFF = _HOOK.with_name("harness_handoff_hook.py")
 
 
 def refusals(root, jail: Jail | None) -> list[str]:
@@ -52,7 +53,10 @@ def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_b
     root, worktree, scratch = Path(root), Path(worktree), Path(scratch)
     scratch.mkdir(parents=True, exist_ok=True)
     hook = {"type": "command", "command": _hook_cmd(root, worktree, scratch)}
-    settings = {"skipDangerousModePermissionPrompt": True, "hooks": {"PreToolUse": [{"matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit", "hooks": [hook]}]}}
+    handoff = {"hooks": [{"type": "command", "command": " ".join(shlex.quote(str(x)) for x in (sys.executable, _HANDOFF))}]}
+    settings = {"skipDangerousModePermissionPrompt": True, "hooks": {
+        "PreToolUse": [{"matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit", "hooks": [hook]}],
+        "PostToolUse": [handoff], "Stop": [handoff]}}
     (scratch / "settings.json").write_text(json.dumps(settings, indent=1))
     (scratch / "mcp.json").write_text(json.dumps({"mcpServers": {}}))
     # a linked worktree's .git is a file: ask git where hooks live (the clone's shared hooks dir)
