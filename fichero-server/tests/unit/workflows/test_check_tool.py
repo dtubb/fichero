@@ -430,3 +430,15 @@ def test_a_maintainer_batch_records_the_pinned_change_and_runs_the_rest(tmp_path
     g("add", "."), g("commit", "-q", "-m", "weaken")
     r = ct.run_ladder(work, base2, "HEAD", pinned, jail_required=False, maintainer=True)
     assert not r["ok"] and r["failed"] == "pinned-checks" and "weakens" in r["rungs"][0]["stderr_tail"]
+    # a rewritten acceptance line under --maintainer still refuses (the pinned list is noted; the acceptance rule is not)
+    (tmp_path / "two").mkdir()
+    work, g, _b, pinned = _project(tmp_path / "two", check_extra='spec_dir = "rules"\n')
+    (work / "rules").mkdir()
+    (work / "rules" / "s.md").write_text("- `demo.item.one` [PROPOSED] — it does the thing, and ten more.\n")
+    g("add", "."), g("commit", "-q", "-m", "spec")
+    base3 = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+    subprocess.run(["git", "fetch", "-q", str(work)], cwd=pinned, check=True)  # the pinned clone knows the spec commit
+    (work / "rules" / "s.md").write_text("- `demo.item.one` [OK] — it does less.\n")
+    g("commit", "-qam", "rewrite acceptance")
+    r = ct.run_ladder(work, base3, "HEAD", pinned, jail_required=False, maintainer=True, protected_ids=["demo.item.one"])
+    assert not r["ok"] and r["failed"] == "pinned-checks" and "acceptance" in r["rungs"][0]["stderr_tail"]
