@@ -30,6 +30,27 @@ logger = logging.getLogger(__name__)
 MAX_RECORDED_IDS = 5000
 
 
+def node_document_ids(nodes: Any) -> list[str]:
+    """Every id a recipe's nodes name in their `inputs` and `config` (a folder source names its folder there), as the write check reads
+    an action's params. A node's own `id` is not one (#6325)."""
+    from fichero_server.security import authz
+
+    return authz.target_ids_from_params({"nodes": [{"inputs": n.get("inputs") or {}, "config": n.get("config") or {}} for n in nodes or [] if isinstance(n, dict)]})
+
+
+def run_document_ids(run: Any) -> list[str]:
+    """Every document id a run's record names: the scope it resolved, the inputs it was started with and the ids its recipe's nodes name.
+    The pages its state, history and answers rest on, so they are shown (or the run is acted on) only to a caller who reads (writes) them all (#6325)."""
+    from fichero_server.security import authz
+
+    scope = getattr(run, "resolved_scope", None) or {}
+    snapshot = getattr(run, "workflow_snapshot", None) or {}
+    ids = [str(i) for key in ("requested_ids", "resolved_ids") for i in scope.get(key) or []]
+    ids += authz.target_ids_from_params({"inputs": snapshot.get("inputs") or {}})
+    ids += node_document_ids(snapshot.get("nodes"))
+    return list(dict.fromkeys(i for i in ids if i))
+
+
 def resolve_run_scope(
     db: Any,
     selected_doc_ids: list[str] | None,

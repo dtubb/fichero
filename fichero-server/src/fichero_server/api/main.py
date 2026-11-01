@@ -1920,6 +1920,30 @@ async def write_check(request: Request, library_path: str, db: Any, ids: Sequenc
                             lambda: [d for i in named for d in (documents_under(db, i) if deep else ([i] if i else []))])
 
 
+async def run_check(request: Request, library_path: str | None, db: Any, thread_ids: Sequence[str | None], *, write: bool) -> None:
+    """A caller whose reads differ page by page may see a run's state, or act on it, only if they read (write) every page its record
+    names (`run_document_ids`). A run with no page on record names none to test (#6325, H1/H8/N6)."""
+    if request is None or not library_path or document_reader(request, library_path) is None:
+        return  # nothing can differ for this caller: no lookup, no walk
+    from fichero_server.workflows.activity import get_activity_tracker
+    from fichero_server.workflows.run_scope import run_document_ids
+
+    store = get_activity_tracker(str(db.path)).store
+    pages: list[str] = []
+    for thread_id in dict.fromkeys(t for t in thread_ids if t):
+        if (run := await store.get_workflow_run(thread_id)) is not None:
+            pages += run_document_ids(run)
+    if pages:
+        await (write_check if write else read_check)(request, library_path, db, list(dict.fromkeys(pages)))
+
+
+async def run_routes_checked(request: Request, library_path: str | None = Depends(optional_library_path)) -> None:
+    """A router-level dependency for the run routes: the one named by `{thread_id}` (a read for GET, a write otherwise)."""
+    if thread_id := request.path_params.get("thread_id"):
+        if library_path and document_reader(request, library_path) is not None:
+            await run_check(request, library_path, db_manager.get_database(library_path), [thread_id], write=request.method not in ("GET", "HEAD"))
+
+
 def document_reader(request: Request | None, library_path: str | None) -> Callable[[str], bool] | None:
     """`may_read` for a retrieval or a tool that lists documents: None when every document is readable to this caller
     (bootstrap, multi-user off, or no override or scope that could differ), else a per-document test (#6320)."""

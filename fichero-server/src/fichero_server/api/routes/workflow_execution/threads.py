@@ -7,7 +7,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field, model_validator
 from starlette.concurrency import run_in_threadpool
@@ -15,7 +15,8 @@ from starlette.concurrency import run_in_threadpool
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import action_context
 from fichero_server.db import Database
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import document_reader, get_library_database, get_library_database_for_write, run_check
 from fichero_server.models import Artifact, Document
 from fichero_server.workflows.workflow_store import WorkflowStore
 from fichero_server.workflows.activity import get_activity_tracker
@@ -924,13 +925,18 @@ def _action_delete_workflow_runs(
 @router.post("/runs/delete", response_model=WorkflowRunDeleteResult)
 async def delete_workflow_runs_route(
     request: WorkflowRunDeleteParams,
+    http: Request,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
+    library_path: str = Depends(require_library_path),
 ) -> WorkflowRunDeleteResult:
     """Bulk-delete workflow runs, or "Clear Failed" via a status filter —
     the SAME audited action either way (#4960). Checkpoints are untouched;
     delete one thread's checkpoint too via ``DELETE /threads/{thread_id}``.
     """
+    if request.statuses and document_reader(http, library_path) is not None:  # "every failed run" cannot be cut to the caller's pages
+        raise HTTPException(status_code=403, detail="Delete runs by name: this removes every run in those states")
+    await run_check(http, library_path, db, request.thread_ids or [], write=True)
     result = registry.invoke(db, "workflow_run.delete", request.model_dump(), ctx)
     return WorkflowRunDeleteResult.model_validate(result.result)
 

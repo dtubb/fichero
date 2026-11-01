@@ -370,6 +370,12 @@ async def execute_workflow(
 
         _validate_workflow_for_execution(workflow, request, db)
 
+        # ... and so does the recipe: a folder source names its folder in the node, not in the request (#6325, H1).
+        from fichero_server.workflows.run_scope import node_document_ids  # noqa: PLC0415
+
+        if recipe_pages := node_document_ids(workflow.nodes):
+            await write_check(http_request, library_path, db, recipe_pages)
+
         # #5604: a run on segments or a group is checked against the project and the workflow's
         # steps before it starts; a step that runs on pages is refused in words, never run on the
         # whole page it was pointed into.
@@ -540,10 +546,8 @@ async def resume_workflow(
         activity_tracker = get_activity_tracker(str(db.path))
         # The run continues on the documents it started with and the ones this call adds; the caller must be able to write
         # them all, and is shown none of the run's state otherwise (#6320).
-        began = await activity_tracker.store.get_workflow_run(thread_id)
-        began_with = (began.workflow_snapshot or {}).get("request") if began and isinstance(began.workflow_snapshot, dict) else None
+        # (the run's own record is checked by the router, `run_routes_checked`)
         named = (input_document_ids(resume_state if isinstance(resume_state, dict) else None)
-                 + input_document_ids(began_with.get("inputs") if isinstance(began_with, dict) else None)
                  + input_document_ids(request.inputs if request else None))
         if named:
             await write_check(http_request, library_path, db, list(dict.fromkeys(named)))

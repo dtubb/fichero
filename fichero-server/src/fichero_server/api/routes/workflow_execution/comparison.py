@@ -17,10 +17,10 @@ import logging
 from dataclasses import asdict
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from fichero_server.api.main import get_library_database
+from fichero_server.api.main import get_library_database, optional_library_path, run_check
 from fichero_server.db import Database
 from fichero_server.models import Artifact, Document
 from fichero_server.workflows.activity import get_activity_tracker
@@ -227,6 +227,8 @@ def _document_names(db: Database, *artifact_lists: list[Any]) -> dict[str, str]:
 async def compare_workflow_runs(
     left: str = Query(description="Thread id of the first run"),
     right: str = Query(description="Thread id of the second run"),
+    http: Request = None,
+    library_path: str | None = Depends(optional_library_path),
     db: Database = Depends(get_library_database),
 ) -> RunComparisonResponse:
     """Diff what two runs produced from the same input.
@@ -245,6 +247,7 @@ async def compare_workflow_runs(
     `identical=null` — an empty diff from a broken run must never read the same
     as an empty diff from two runs that agreed.
     """
+    await run_check(http, library_path, db, [left, right], write=False)  # it shows both runs' text (#6325)
     try:
         left_run = await _load_run(db, left)
         right_run = await _load_run(db, right)

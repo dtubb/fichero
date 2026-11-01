@@ -197,6 +197,11 @@ Rulings.
   The routes that rank or draw the whole library (`POST` and `GET /api/search/explain`, `GET /view/kg/global`, `POST /api/multilingual/entities/search`)
   are refused to a caller whose reads differ page by page; the roots list (`/api/documents/collections`) and the sample pages leave out a page the caller
   may not read, and `GET /api/kg/search` leaves out a note resting on a page or folder they may not read (H2).
+  A run is shown, and acted on, only to a caller who reads (writes) every page its record names (`source.rights.every-id-in-a-request-is-checked`):
+  the scope it resolved, the inputs it was started with and the ids its recipe's nodes name, which is where a folder source names its folder.
+  `status`, `history`, `run`, `episodes`, `stream`, the diagrams, comparisons and `read-again` are reads or writes on those pages; `cancel`, `pause`,
+  `resume` and delete are writes; starting a run checks the recipe's nodes as well as the request; deleting runs by state is refused to a caller
+  whose reads differ page by page. A run that names no page on its record has none to test (H1, H8, N6).
   A person shared one folder opens the Table on it: `POST /api/documents/dataset/query` with that folder as `parent_id` answers,
   and a query for another folder, or none (the whole project), is refused (`source.rights.every-id-in-a-request-is-checked`).
 

@@ -8,7 +8,9 @@ Combines five sub-modules:
 - cache: node result cache management
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+
+from fichero_server.api.main import run_routes_checked
 
 from .core import router as core_router
 from .threads import router as threads_router
@@ -16,7 +18,7 @@ from .comparison import router as comparison_router
 from .visualization import router as visualization_router
 from .cache import router as cache_router
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(run_routes_checked)])  # a run shows, or is acted on by, a caller who reads (writes) its pages (#6325)
 router.include_router(core_router)
 router.include_router(threads_router)
 router.include_router(comparison_router)

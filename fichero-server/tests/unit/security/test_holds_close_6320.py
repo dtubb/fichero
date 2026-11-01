@@ -548,3 +548,45 @@ def test_h3_h4_a_conversation_without_a_scope_is_its_authors_and_every_route_and
     owner = _as(project.harness, "owner")  # the owner reads every page, so every conversation
     assert theirs.id in owner.get("/api/chat/conversations").text and onb.id in owner.get("/api/chat/conversations").text
     assert db.get(Conversation, theirs.id) is not None and db.get(Conversation, onb.id) is not None
+
+
+def test_h1_h8_n6_a_run_over_a_folder_source_is_shown_and_acted_on_only_to_a_caller_who_reads_its_pages(project, four, tmp_path, monkeypatch):
+    """#6325: the recipe's folder source names no id in the request. The run's record is what says which pages its state rests on."""
+    import time
+
+    from fichero_server.importers import derivatives
+    from fichero_server.models import DocType, FileType, Status
+
+    monkeypatch.setattr(derivatives, "_embed_stage", lambda doc_id, library: None)
+    db = db_manager.get_database(project.harness.library)
+    page = tmp_path / "b1.txt"
+    page.write_text("SECRETTEXT")
+    row = db.get(Document, project.ids["b1"])
+    row.path, row.file_type, row.doc_type, row.status, row.page_content = str(page), FileType.text, DocType.file, Status.completed, "SECRETTEXT"
+    db.save(row)
+    recipe = {"name": "recipe over B", "edges": [], "nodes": [
+        {"id": "src", "tool": "folder", "label": "F", "inputs": {"folder_id": project.ids["B"], "include_subfolders": True}, "config": {}}]}
+    owner = _as(project.harness, "owner")
+    wid = owner.post("/api/workflows", json=recipe).json()["id"]
+    thread = owner.post("/api/workflow-execution/execute", json={"workflow_id": wid, "inputs": {}}).json()["thread_id"]
+    for _ in range(300):
+        if owner.get(f"/api/workflow-execution/threads/{thread}/status").json().get("status") in ("completed", "failed"):
+            break
+        time.sleep(0.2)
+    base = f"/api/workflow-execution/threads/{thread}"
+    assert "SECRETTEXT" in owner.get(base + "/run").text  # the owner reads it: the run does hold the text
+    erin = _person(project.harness, "erin")
+    project.harness.app_db.set_library_role(user_id=erin.id, library_path=authz.normalize_library_path(project.library), role=authz.ROLE_EDITOR)
+    assert _as(project.harness, "erin").get(base + "/run").status_code == 200  # a plain editor keeps it
+    for name, client, decoy in four:
+        for path in ("/status", "/history", "/run", "/episodes"):
+            got = client.get(base + path + decoy)
+            assert got.status_code == 403 and "SECRET" not in got.text, (name, path, got.status_code)
+        if name != "bob" and name != "dana":  # a viewer is refused a write for being a viewer
+            for method, path in (("POST", "/read-again"), ("POST", "/cancel"), ("POST", "/pause"), ("DELETE", ""), ("POST", "/resume")):
+                assert client.request(method, base + path + decoy, json={}).status_code == 403, (name, method, path)
+            assert client.post("/api/workflow-execution/runs/delete" + decoy, json={"thread_ids": [thread]}).status_code == 403, name
+        assert client.get(f"/api/workflow-execution/comparisons?left={thread}&right={thread}").status_code == 403, name
+        # starting a run over the recipe is a write on its source folder
+        assert client.post("/api/workflow-execution/execute" + decoy, json={"workflow_id": wid, "inputs": {}}).status_code == 403, name
+    assert owner.get(base + "/run").status_code == 200

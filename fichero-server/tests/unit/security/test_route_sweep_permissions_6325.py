@@ -30,7 +30,7 @@ from fastapi.routing import APIRoute
 from pydantic import BaseModel
 
 from fichero_server.db.manager import db_manager
-from fichero_server.models import AgentNote, AgentNoteActor, AgentNoteSourceAnchor, Conversation, DocType, Document, KnowledgeClaim
+from fichero_server.models import AgentNote, AgentNoteActor, AgentNoteSourceAnchor, Conversation, DocType, Document, FileType, KnowledgeClaim, Status
 from fichero_server.models.knowledge import EntityType, KnowledgeEntity
 from fichero_server.security import authz
 from tests.route_inventory import served_routes
@@ -97,6 +97,9 @@ def scratch(monkeypatch, tmp_path):
             return real(path, *a, **k)
         return inner
 
+    from fichero_server.importers import derivatives
+
+    monkeypatch.setattr(derivatives, "_embed_stage", lambda doc_id, library: None)  # a saved page queues a model load: not what this proves
     monkeypatch.setattr(socket.socket, "connect", connect)
     for owner, name in ((subprocess, "Popen"), (os, "system"), (os, "kill"), (os, "_exit"), (os, "execv"), (os, "execvp")):
         monkeypatch.setattr(owner, name, nope)
@@ -126,12 +129,16 @@ def test_deletes_outside_scratch_are_blocked(scratch):
 
 # ---- seeding ---------------------------------------------------------------------------------------------------------------------
 
-def seed(project):
+def seed(project, scratch_dir):
     """SECRET on the denied folder, its page and every record resting on that page. Returns the records' ids."""
     db = db_manager.get_database(project.harness.library)
     ids = project.ids
     b = db.get(Document, ids["B"]); b.name = "SECRETFOLDER"; db.save(b)
-    d = db.get(Document, ids["b1"]); d.name = "SECRETNAME"; d.page_content = "SECRETTEXT"; d.attributes = {"secretattr": "SECRETATTR"}; db.save(d)
+    page_file = scratch_dir / "b1.txt"
+    page_file.write_text("SECRETTEXT")
+    d = db.get(Document, ids["b1"]); d.name = "SECRETNAME"; d.page_content = "SECRETTEXT"; d.attributes = {"secretattr": "SECRETATTR"}
+    d.path, d.file_type, d.doc_type, d.status = str(page_file), FileType.text, DocType.file, Status.completed
+    db.save(d)
     a = db.get(Document, ids["a1"]); a.page_content = "PLAINTEXT"; db.save(a)
     out = {}
     c = KnowledgeClaim(text="SECRETCLAIM", source_document_id=ids["b1"], subject_canonical="Ann", predicate_verb="owned", object_phrase="x", source_excerpt="SECRETEXCERPT"); db.save(c); out["claim_id"] = c.id
@@ -144,7 +151,24 @@ def seed(project):
     nt = Note(page_id=page.id, body="SECRETNOTE"); db.save(nt); out["note_id"] = nt.id
     s = _segment(db, d); out["segment_id"] = s.id; out["pass_id"] = s.pass_id
     r = ContentRepresentation(document_id=ids["b1"], kind="transcription", content="SECRETREADING", source_anchor=SourceAnchor(document_id=ids["b1"])); db.save(r); out["representation_id"] = r.id
+    out.update(_seed_a_run(project))
     return out
+
+
+def _seed_a_run(project):
+    """A real run, by the owner, over a recipe whose folder source is B: its state, history and record hold the page's text."""
+    owner = _as(project.harness, "owner")
+    made = owner.post("/api/workflows", json={"name": "recipe over B", "edges": [], "nodes": [
+        {"id": "src", "tool": "folder", "label": "F", "inputs": {"folder_id": project.ids["B"], "include_subfolders": True}, "config": {}}]})
+    assert made.status_code == 200, made.text
+    started = owner.post("/api/workflow-execution/execute", json={"workflow_id": made.json()["id"], "inputs": {}})
+    assert started.status_code == 202, started.text
+    thread_id = started.json()["thread_id"]
+    for _ in range(300):
+        if owner.get(f"/api/workflow-execution/threads/{thread_id}/status").json().get("status") in ("completed", "failed"):
+            break
+        time.sleep(0.2)
+    return {"workflow_id": made.json()["id"], "thread_id": thread_id}
 
 
 def fill(name, ids, seeded):
@@ -153,7 +177,7 @@ def fill(name, ids, seeded):
              "page_id": seeded.get("page_id"), "item_id": ids["b1"], "claim_id": seeded["claim_id"], "entity_id": seeded["entity_id"], "note_id": seeded["note_id"],
              "conversation_id": seeded["conversation_id"], "annotation_id": seeded["annotation_id"], "segment_id": seeded.get("segment_id"),
              "pass_id": seeded.get("pass_id"), "representation_id": seeded.get("representation_id"), "reading_id": seeded.get("representation_id"),
-             "q": "SECRET", "query": "SECRET", "id": ids["b1"]}
+             "q": "SECRET", "query": "SECRET", "id": ids["b1"], "workflow_id": seeded.get("workflow_id"), "thread_id": seeded.get("thread_id")}
     n = name.lower()
     return table.get(n) or ("x-" + n)
 
@@ -252,7 +276,7 @@ def _run_sweep(project, scratch_dir):
 
     _refuse_unless_isolated(scratch_dir)
     started = time.monotonic()
-    seeded = seed(project)
+    seeded = seed(project, scratch_dir)
     who = _people(project)
     ids, library = project.ids, project.library
     #: A route or action that names a conversation is fired on the scoped one and on the unscoped one.
