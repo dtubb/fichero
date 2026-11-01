@@ -465,7 +465,7 @@ enum FeatureTiers {
             tier: .dev,
             swiftFlag: nil,
             uxGroup: "Core",
-            notes: "The wide Set Up (a pager of stage pages, Prepare Images operations, Compare in the output column); off in release and beta until the owner ratifies it (wide-onboarding.md, section O)."
+            notes: "The wide Set Up (pager, operation switches, Compare); off in release until ratified."
         )
     ]
 }

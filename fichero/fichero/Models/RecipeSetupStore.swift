@@ -403,7 +403,8 @@ final class RecipeSetupStore {
         do {
             let body: Operations.StartProjectApiRecipesProjectStartPost.Input.Body? =
                 folderId == nil && redo.isEmpty && documents == nil && first == nil && steps == nil
-                ? nil : .json(.init(redo: redo.isEmpty ? nil : redo, folderId: folderId, documents: documents, firstPages: first, steps: steps))
+                ? nil : .json(.init(redo: redo.isEmpty ? nil : redo, folderId: folderId, documents: documents,
+                                    firstPages: first, steps: steps))
             switch try await client.api.startProjectApiRecipesProjectStartPost(body: body) {
             case .ok(let success):
                 var started = try success.body.json

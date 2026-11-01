@@ -83,7 +83,8 @@ struct SetupStageSamples: View {
                     .font(.callout).foregroundStyle(.secondary)
             }
             if let result = store.result {
-                resultView(result).opacity(StepOutputStateView.opacity(of: store.outputState(currentRevision: currentRevision, estimate: nil)))
+                resultView(result).opacity(StepOutputStateView.opacity(
+                    of: store.outputState(currentRevision: currentRevision, estimate: nil)))
             }
         }
         .task { await store.load(); await store.follow() }

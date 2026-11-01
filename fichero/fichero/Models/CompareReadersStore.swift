@@ -40,7 +40,8 @@ final class CompareReadersStore {
     /// The line's reading by `readerId` becomes the one that counts; the answer is read again.
     func pick(readerId: String, onLine order: Int) async {
         guard let line = model?.lines.first(where: { $0.order == order }), let segment = line.segmentId,
-              let reading = line.readings.first(where: { $0.readerId == readerId }), let representation = reading.representationId else { return }
+              let reading = line.readings.first(where: { $0.readerId == readerId }),
+              let representation = reading.representationId else { return }
         do {
             _ = try await client.api.chooseSegmentReadingApiSegmentsSegmentIdReadingsChoicePost(
                 path: .init(segmentId: segment),
@@ -52,7 +53,7 @@ final class CompareReadersStore {
         }
     }
 
-    func setOnlyDiffering(_ on: Bool) { model?.onlyDiffering = on }
+    func setOnlyDiffering(_ only: Bool) { model?.onlyDiffering = only }
     func set(mode: CompareViewModel.Mode) { model?.mode = mode }
     func toggle(reader id: String) { model?.toggle(reader: id) }
     func moveHandle(to position: Double) { model?.moveHandle(to: position) }
