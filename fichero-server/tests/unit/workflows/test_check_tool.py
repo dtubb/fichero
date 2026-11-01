@@ -401,3 +401,11 @@ def test_scratch_dirs_are_removed_through_the_jail_when_one_is_set(tmp_path, mon
     (d / "f").write_text("x")
     ct._remove_scratch(str(d))
     assert not d.exists() and calls and calls[0][:2] == ["rm", "-rf"]
+
+
+def test_a_builder_change_owes_a_red_on_base_test_and_its_tests_run_with_the_builder_on_the_path():
+    """dev-workflows.tool.check: the project's own harness.toml puts fichero-builder under red_paths and python_path."""
+    cfg = ct.load(REPO)
+    assert ct._needs_red(["fichero-builder/fichero_builder/work.py"], [], cfg), "a Builder source change needs a red-on-base test"
+    assert not ct._needs_red(["docs/contributor_manual/a.md"], [], cfg)
+    assert "fichero-builder" in cfg.python_path

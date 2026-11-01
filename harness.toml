@@ -4,7 +4,7 @@
 # The jail user's own tools, copied into the workroot by the owner-side set-up (nothing is read from the owner's home).
 python = "/Users/Shared/fichero-worker/venv/bin/python"
 path = "/Users/Shared/fichero-worker/bin:/Users/Shared/fichero-worker/venv/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-python_path = ["fichero-server/src", "fichero-cli/src", "fichero-mcp/src"]
+python_path = ["fichero-server/src", "fichero-cli/src", "fichero-mcp/src", "fichero-builder"]
 base_path_env = "FICHERO_BASE_PATH"
 ready = ["scripts/lane_ready_check.sh", "HEAD"]
 base_ref = "origin/integration"
@@ -27,8 +27,8 @@ check_paths = [
   "scripts/", "harness.toml", ".github/", ".gitattributes", ".gitmodules", "pyproject.toml", "pytest.ini",
   "fichero-server/pyproject.toml", "fichero-server/pytest.ini", "fichero-cli/pyproject.toml", "fichero-mcp/pyproject.toml",
 ]
-# red-on-base is owed only by engine/CLI/MCP Python; Swift or contract changes need a Lead build row, docs and specs neither.
-red_paths = ["fichero-server/src/", "fichero-cli/src/", "fichero-mcp/src/"]
+# red-on-base is owed only by engine/CLI/MCP/Builder Python; Swift or contract changes need a Lead build row, docs and specs neither.
+red_paths = ["fichero-server/src/", "fichero-cli/src/", "fichero-mcp/src/", "fichero-builder/fichero_builder/"]
 spec_dir = "docs/contributor_manual/specs"
 test_globs = ["test_*.py", "*_test.py"]
 # pytest runs with plugin autoload OFF, the pinned config, and only these plugins (module names in the worker venv).
