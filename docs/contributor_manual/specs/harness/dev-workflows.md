@@ -282,11 +282,12 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   file under `spec_dir` on a branch with `> **Status: PROPOSED**`; the guards run on it; the owner approves by editing
   the status line, and nothing in the spec is built before that. Test (unwritten, Step 2.3): the brief text names the
   template, the issue and the guards; a PROPOSED spec is refused by the steps verb.
-- `dev-workflows.tool.steps` [PROPOSED] (owner 2026-11-01) — `builder steps <spec>` reads an APPROVED spec's build order
+- `dev-workflows.tool.steps` [PARTIAL] (#6116) (owner 2026-11-01) — `builder steps <spec>` reads an APPROVED spec's build order
   and files one issue per step under the spec's milestone (`gh`): the step's title, behaviours, tests, size and
   `Depends on` as issue links in the body; a second run updates the step's issue rather than filing another (the body
-  carries the step id); every write is a journal row. Test (unwritten, Step 2.3): a fake `gh` records one create per step
-  and one update on the second run; a PROPOSED spec is refused.
+  carries the step id); every write is a journal row. **Built** (2026-11-01): `builder steps --spec FILE [--gh gh] [--dry-run]` titles each issue `<milestone> Step N.M: <title>`, finds it again by that exact title
+  (`gh issue list --milestone --search`), edits it on a second run, writes `Depends on: #N` once those issues exist, and refuses a PROPOSED spec; `--dry-run` writes nothing.
+  Test: `fichero-builder/tests/test_steps_verb.py::test_a_second_run_updates_by_title_and_files_nothing_new`.
 - `dev-workflows.builder.cluster` [PARTIAL] (#6116) — one spec and its build-order issues (parser ported from
   `pipeline/plan.py`), in order, one commit per issue with its test; the brief is built by `scripts/harness_brief.py` from
   `gh api repos/{repo}/issues/N`: the body and the **title** only when the author association is owner, member or

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import json
 
-from fichero_builder import check_tool, journal, work
+from fichero_builder import check_tool, journal, steps, work
 from fichero_builder import run as run_mod
 
 
@@ -87,6 +87,9 @@ def main(argv=None) -> int:
     w.add_argument("--root", default=str(Path.cwd())), w.add_argument("--session", default="harness")
     w.add_argument("--tick", type=float, default=30.0)
     w.add_argument("--state", help="where the journal, patches, ladder and verdicts live (default: the owner's journal dir)")
+    st = sub.add_parser("steps", help="file one issue per build-order step of an APPROVED spec under its milestone; a second run updates")
+    st.add_argument("--spec", required=True), st.add_argument("--gh", default="gh"), st.add_argument("--dry-run", action="store_true")
+    st.add_argument("--state", help="where the journal lives (default: the owner's journal dir)")
     a = ap.parse_args(argv)
     if a.cmd == "milestone":
         import tomllib
@@ -110,6 +113,13 @@ def main(argv=None) -> int:
     journal.STATE = state_dir(a.root, a.state) if a.cmd == "run" else (Path(a.state) if a.state else journal.STATE)
     if a.cmd == "work":
         return work.main(a)
+    if a.cmd == "steps":
+        try:
+            steps.run(a.spec, gh=a.gh, dry_run=a.dry_run)
+        except (steps.Refused, OSError, ValueError) as e:
+            print(f"REFUSED: {e}", file=sys.stderr)
+            return 1
+        return 0
     if a.cmd in ("check", "land") and not a.repo:
         try:
             a.repo = check_tool.load(a.pinned).engine_repo

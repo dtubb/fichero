@@ -1,0 +1,133 @@
+"""dev-workflows.tool.steps: `builder steps --spec FILE` files one issue per build-order step of an APPROVED spec under its
+milestone, updates (never duplicates) on a second run, refuses a PROPOSED spec, and journals every write. A fake `gh`
+script keeps issues in a JSON file and logs every call."""
+from __future__ import annotations
+
+import json
+import sys
+
+import pytest
+
+from fichero_builder import __main__ as cli
+from fichero_builder import journal
+
+SPEC = """# Thing — Design Spec
+
+> Milestone: thing
+> Manual: TBD
+
+> **Status: {status} by the owner 2026-11-01.**
+
+## Build order
+
+### Stage 1 — first
+
+#### Step 1.1 — the model (#99)
+- Behaviours: `thing.model`
+- Tests: tests/test_model.py
+- Size: S
+
+#### Step 1.2 — the route
+- Behaviours: `thing.route`, `thing.error`
+- Tests: tests/test_route.py
+- Depends on: 1.1
+- Size: M
+
+### Stage 2 — second
+
+#### Step 2.1 — the view
+- Behaviours: `thing.view`
+- Tests: tests/test_view.py
+- Depends on: 1.1, 1.2
+- Size: M
+
+## Test matrix
+"""
+
+FAKE_GH = """#!{py}
+import json, sys
+from pathlib import Path
+state = Path({state!r})
+db = json.loads(state.read_text()) if state.exists() else {{"issues": [], "calls": []}}
+argv = sys.argv[1:]
+db["calls"].append(argv)
+def opt(name):
+    return argv[argv.index(name) + 1] if name in argv else None
+if argv[:2] == ["issue", "list"]:
+    print(json.dumps([i for i in db["issues"] if i["milestone"] == opt("--milestone")]))
+elif argv[:2] == ["issue", "create"]:
+    n = 100 + len(db["issues"])
+    db["issues"].append({{"number": n, "title": opt("--title"), "body": opt("--body"), "milestone": opt("--milestone")}})
+    print("https://github.com/o/r/issues/%d" % n)
+elif argv[:2] == ["issue", "edit"]:
+    for i in db["issues"]:
+        if str(i["number"]) == argv[2]:
+            i["body"] = opt("--body")
+state.write_text(json.dumps(db))
+"""
+
+
+@pytest.fixture
+def env(tmp_path, monkeypatch):
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    state = tmp_path / "gh.json"
+    gh = tmp_path / "gh"
+    gh.write_text(FAKE_GH.format(py=sys.executable, state=str(state)))
+    gh.chmod(0o755)
+    spec = tmp_path / "spec.md"
+    spec.write_text(SPEC.format(status="APPROVED"))
+
+    def run(*extra, spec_path=spec):
+        return cli.main(["steps", "--spec", str(spec_path), "--gh", str(gh), "--state", str(tmp_path / "s"), *extra])
+
+    def db():
+        return json.loads(state.read_text()) if state.exists() else {"issues": [], "calls": []}
+    run.db, run.spec = db, spec
+    return run
+
+
+def writes(db, verb):
+    return [c for c in db["calls"] if c[:2] == ["issue", verb]]
+
+
+def test_one_issue_per_step_with_the_body_and_depends_on_links(env):
+    assert env() == 0
+    d = env.db()
+    assert [i["title"] for i in d["issues"]] == ["thing Step 1.1: the model", "thing Step 1.2: the route", "thing Step 2.1: the view"]
+    assert all(i["milestone"] == "thing" for i in d["issues"])
+    b1, b2, b3 = (i["body"] for i in d["issues"])
+    assert "Step: 1.1" in b1 and "Behaviours: `thing.model`" in b1 and "Tests: tests/test_model.py" in b1 and "Size: S" in b1
+    assert "Depends on" not in b1
+    assert "Depends on: #100" in b2 and "`thing.route`, `thing.error`" in b2
+    assert "Depends on: #100, #101" in b3 and "Step: 2.1" in b3
+
+
+def test_a_second_run_updates_by_title_and_files_nothing_new(env):
+    env()
+    assert env() == 0
+    d = env.db()
+    assert len(d["issues"]) == 3 and len(writes(d, "create")) == 3 and len(writes(d, "edit")) == 3
+    assert "Depends on: #100" in d["issues"][1]["body"]
+    acts = [(r["action"], r["step"]) for r in journal.read() if r["event"] == "steps"]
+    assert acts == [("create", "1.1"), ("create", "1.2"), ("create", "2.1"), ("update", "1.1"), ("update", "1.2"), ("update", "2.1")]
+    assert all(r["issue"] >= 100 and r["title"] for r in journal.read() if r["event"] == "steps")
+
+
+def test_a_proposed_spec_is_refused_and_nothing_is_written(env, capsys):
+    env.spec.write_text(SPEC.format(status="PROPOSED"))
+    assert env() == 1
+    assert "PROPOSED" in capsys.readouterr().err
+    assert env.db()["issues"] == [] and journal.read() == []
+
+
+def test_dry_run_prints_the_plan_and_writes_nothing(env, capsys):
+    assert env("--dry-run") == 0
+    out = capsys.readouterr().out
+    assert out.count("would create") == 3 and "thing Step 1.2: the route" in out
+    d = env.db()
+    assert writes(d, "create") == [] and writes(d, "edit") == [] and journal.read() == []
+
+
+def test_a_spec_with_no_milestone_line_is_refused(env, capsys):
+    env.spec.write_text(SPEC.format(status="APPROVED").replace("> Milestone: thing\n", ""))
+    assert env() == 1 and "Milestone" in capsys.readouterr().err
