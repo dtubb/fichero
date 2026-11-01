@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import shlex
+import subprocess
 import stat
 import sys
 from pathlib import Path
@@ -55,7 +56,10 @@ def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_b
     settings = {"hooks": {"PreToolUse": [{"matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit", "hooks": [hook]}]}}
     (scratch / "settings.json").write_text(json.dumps(settings, indent=1))
     (scratch / "mcp.json").write_text(json.dumps({"mcpServers": {}}))
-    cm = worktree / ".git" / "hooks" / "commit-msg"
+    # a linked worktree's .git is a file: ask git where hooks live (the clone's shared hooks dir)
+    hooks = subprocess.run(["git", "-C", str(worktree), "rev-parse", "--path-format=absolute", "--git-path", "hooks"],
+                           capture_output=True, text=True, check=True).stdout.strip()
+    cm = Path(hooks) / "commit-msg"
     cm.parent.mkdir(parents=True, exist_ok=True)
     cm.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(_HOOK))} --root {shlex.quote(str(root))} --commit-msg "$1"\n')
     cm.chmod(cm.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
