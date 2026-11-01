@@ -64,4 +64,4 @@ def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_b
     cm.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(_HOOK))} --root {shlex.quote(str(root))} --commit-msg "$1"\n')
     cm.chmod(cm.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     return [claude_bin, "--dangerously-skip-permissions", "--model", model, "--settings", str(scratch / "settings.json"),
-            "--strict-mcp-config", "--mcp-config", str(scratch / "mcp.json"), brief]
+            "--strict-mcp-config", f"--mcp-config={scratch / 'mcp.json'}", brief]  # =form: --mcp-config is variadic and would swallow the brief

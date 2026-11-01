@@ -120,7 +120,7 @@ def test_claude_kind_is_an_interactive_session_with_no_inherited_mcp(db, tmp_pat
     given = args.read_text().splitlines()
     assert "-p" not in given and "--print" not in given  # a long-running interactive session
     assert "--strict-mcp-config" in given and given[-1] == "build #1"
-    mcp = json.loads(open(given[given.index("--mcp-config") + 1]).read())
+    mcp = json.loads(open([g for g in given if g.startswith("--mcp-config=")][0].split("=", 1)[1]).read())
     assert mcp == {"mcpServers": {}}  # the owner's fichero MCP (the real library) never reaches a worker
 
 

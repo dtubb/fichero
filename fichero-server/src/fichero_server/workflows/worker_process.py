@@ -216,7 +216,7 @@ def _start_pane(db: Any, job_id: str, brief: str, cwd: Path, timeout_s: float, s
     mcp.write_text(json.dumps({"mcpServers": {}}))  # with --strict-mcp-config: no MCP server at all, not the owner's
     log, status = scratch / "pane.log", scratch / "exit_code"
     cmd = (f"cd {shlex.quote(str(cwd))} && {shlex.quote(claude_bin)} --dangerously-skip-permissions --model {shlex.quote(model)} "
-           f"--strict-mcp-config --mcp-config {shlex.quote(str(mcp))} {shlex.quote(brief)}; echo $? > {shlex.quote(str(status))}")
+           f"--strict-mcp-config --mcp-config={shlex.quote(str(mcp))} {shlex.quote(brief)}; echo $? > {shlex.quote(str(status))}")
     r = _tmux(jail, "new-window", "-d", "-P", "-F", "#{pane_id} #{pane_pid}", "-t", session, "-n", job_id, cmd)
     if r.returncode:
         raise RuntimeError(f"tmux could not open the worker window: {r.stderr.strip()}")
