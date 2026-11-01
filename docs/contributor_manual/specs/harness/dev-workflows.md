@@ -273,6 +273,9 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   (the project's own rules have none), so no brief needs a hand edit. The brief names the issues the step owes and tells the worker to put `Fixes #N` on the
   commit that finishes each and `Part of #N` on any before it (test `fichero-server/tests/unit/workflows/test_brief_tool.py::test_the_brief_names_what_the_step_owes_and_the_line_that_closes_each`). Tests: `fichero-server/tests/unit/workflows/test_brief_tool.py::test_the_rules_are_the_briefs_third_line_with_part_of_filled_from_the_clusters_issues`,
   `::test_the_projects_standing_worker_rules_are_in_harness_toml_so_no_brief_needs_a_hand_edit`.
+  **Step from the label** (built 2026-11-01): the verb lists issues with their labels and reads the step from `step:N.M`
+  first; the title shape and the `Step: N.M` body line are the fallback for an issue with no step label. Test:
+  `fichero-builder/tests/test_milestone_verb.py::test_the_step_label_is_read_first_and_the_title_shape_only_for_an_issue_with_no_step_label`.
 - `dev-workflows.tool.work` [PARTIAL] (#6116) — `builder work --brief FILE --worktree W --name N --issues N...` is the build,
   check, review and land chain as one process: `builder run`, then on end `done` the worktree's commits as patches
   (`git format-patch` over `origin/<[land].branch>` into `<state>/patches-<name>/`), the branch fetched into
@@ -310,6 +313,7 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   (it lists the milestone's issues with `gh issue list --milestone` and compares exact titles; no search), edits it on a second run, writes `Depends on: #N` once those issues exist, and refuses a PROPOSED spec; `--dry-run` writes nothing.
   Test: `fichero-builder/tests/test_steps_verb.py::test_a_second_run_updates_by_title_and_files_nothing_new`.
 - `dev-workflows.tool.landed` [PARTIAL] (#6116) — `builder landed <sha> [--push] [--no-issues]`: after a verdict the maintainer
+- `dev-workflows.tool.landed` [OK] (#6116) — `builder landed <sha> [--push] [--no-issues]`: after a verdict the maintainer
   runs one command instead of fifteen. It refuses a journal that is not this user's alone to write (it allows the push and
   names what `scratch` removes) and a rules file the land gate would refuse, then refuses unless the verdict store has READY
   for the sha, the journal has a green check row over exactly `<[land].branch>..<sha>` (a `--maintainer` row counts, because a

@@ -53,16 +53,23 @@ argv = sys.argv[1:]
 db["calls"].append(argv)
 def opt(name):
     return argv[argv.index(name) + 1] if name in argv else None
+db.setdefault("labels", ["spec:spec"])  # the spec label (from the spec FILE stem, spec.md) exists already
 if argv[:2] == ["issue", "list"]:
     print(json.dumps([i for i in db["issues"] if i["milestone"] == opt("--milestone")]))
 elif argv[:2] == ["issue", "create"]:
     n = 100 + len(db["issues"])
-    db["issues"].append({{"number": n, "title": opt("--title"), "body": opt("--body"), "milestone": opt("--milestone")}})
+    db["issues"].append({{"number": n, "title": opt("--title"), "body": opt("--body"), "milestone": opt("--milestone"),
+                         "labels": (opt("--label") or "").split(",") if opt("--label") else []}})
     print("https://github.com/o/r/issues/%d" % n)
 elif argv[:2] == ["issue", "edit"]:
     for i in db["issues"]:
         if str(i["number"]) == argv[2]:
-            i["body"] = opt("--body")
+            if opt("--body"): i["body"] = opt("--body")
+            if opt("--add-label"): i["labels"] = sorted(set(i.get("labels", [])) | set(opt("--add-label").split(",")))
+elif argv[:2] == ["label", "list"]:
+    print(json.dumps([{{"name": x}} for x in db["labels"]]))
+elif argv[:2] == ["label", "create"]:
+    db["labels"].append(argv[2])
 state.write_text(json.dumps(db))
 """
 
@@ -146,3 +153,21 @@ def test_find_lists_the_milestone_and_compares_exact_titles_and_a_hung_gh_is_ref
     monkeypatch.setattr(steps.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(subprocess.TimeoutExpired("gh", 120)))
     with pytest.raises(steps.Refused, match="timed out"):
         steps._gh("gh", "issue", "list")
+
+
+def test_every_step_issue_carries_the_spec_and_step_labels_made_first_only_when_absent(env):
+    """Item 8: labels are the step key. `spec:<spec file stem>` and `step:N.M`; a missing label is created (list first), an
+    existing one never re-created; create comes before the issue write that applies it."""
+    assert env() == 0
+    d = env.db()
+    assert [i["labels"] for i in d["issues"]] == [["spec:spec", "step:1.1"], ["spec:spec", "step:1.2"], ["spec:spec", "step:2.1"]]
+    creates = [c[2] for c in d["calls"] if c[:2] == ["label", "create"]]
+    assert creates == ["step:1.1", "step:1.2", "step:2.1"], "spec:spec existed; each step label once"
+    lists = [k for k, c in enumerate(d["calls"]) if c[:2] == ["label", "list"]]
+    first_create = next(k for k, c in enumerate(d["calls"]) if c[:2] == ["label", "create"])
+    first_issue = next(k for k, c in enumerate(d["calls"]) if c[:2] == ["issue", "create"])
+    assert lists and lists[0] < first_create < first_issue
+    assert env() == 0  # the second run applies the same labels to the found issues and creates no label
+    d = env.db()
+    assert [c[2] for c in d["calls"] if c[:2] == ["label", "create"]] == creates
+    assert all(c[:2] != ["issue", "edit"] or "--add-label" in c for c in d["calls"][len(d["calls"]) // 2:])

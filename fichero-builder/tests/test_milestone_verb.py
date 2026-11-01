@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import stat
+import types
 
 from fichero_builder import __main__ as cli
 from fichero_builder import milestone
@@ -84,3 +85,19 @@ def test_the_verb_writes_one_brief_per_cluster_and_prints_the_questions(tmp_path
     assert "Branch step-1.1" in brief and "base abc1234" in brief and "Rule one." in brief and "do the base" in brief
     assert not (tmp_path / "out" / "brief-step-1.2.txt").exists()
     assert os.listdir(tmp_path / "out") == ["brief-step-1.1.txt"]
+
+
+def test_the_step_label_is_read_first_and_the_title_shape_only_for_an_issue_with_no_step_label():
+    """Item 8: `step:N.M` is the key; the title shape and the body line are the fallback for unlabelled issues."""
+    labelled = {"number": 9, "title": "a plain title", "body": "", "labels": [{"name": "spec:m1"}, {"name": "step:2.1"}]}
+    assert milestone.step_of(labelled, "m1") == "2.1"
+    mislabelled_title = {"number": 10, "title": "m1 Step 1.1: old shape", "body": "", "labels": [{"name": "step:1.2"}]}
+    assert milestone.step_of(mislabelled_title, "m1") == "1.2", "the label wins over the title"
+    assert milestone.step_of({"number": 11, "title": "m1 Step 1.1: x", "body": "", "labels": []}, "m1") == "1.1"
+
+
+def test_list_issues_asks_gh_for_the_labels(tmp_path, monkeypatch):
+    seen = []
+    monkeypatch.setattr(milestone.subprocess, "run", lambda argv, **kw: (seen.append(argv), types.SimpleNamespace(returncode=0, stdout="[]", stderr=""))[1])
+    assert milestone.list_issues("m1", gh="gh") == []
+    assert "number,title,body,labels" in seen[0]

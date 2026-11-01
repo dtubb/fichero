@@ -45,13 +45,17 @@ def build_order(spec_path, guard=GUARD) -> list[dict]:
 def step_of(issue: dict, slug: str) -> str | None:
     """The step an issue names for THIS spec: `<slug> Step 1.3` in the title, else a `Step: 1.3` body line (the issue
     is in the spec's milestone already). Another spec's `other Step 1.3` is not this spec's step (first real run 2026-11-01)."""
+    for lb in issue.get("labels") or []:  # the labels are the key (`builder steps` applies `step:N.M`); the shapes below are the fallback
+        name = lb.get("name", "") if isinstance(lb, dict) else str(lb)
+        if name.startswith("step:"):
+            return name[5:]
     m = re.search(STEP_IN_TITLE.format(slug=re.escape(slug)), issue.get("title") or "") or STEP_IN_BODY.search(issue.get("body") or "")
     return m.group(1) if m else None
 
 
 def list_issues(milestone: str, *, gh: str = "gh") -> list[dict]:
     r = subprocess.run([gh, "issue", "list", "--milestone", milestone, "--state", "open", "--limit", "200",
-                        "--json", "number,title,body"], capture_output=True, text=True, timeout=60)
+                        "--json", "number,title,body,labels"], capture_output=True, text=True, timeout=60)
     if r.returncode:
         raise RuntimeError(f"gh could not list milestone {milestone!r}: {r.stderr.strip()}")
     return json.loads(r.stdout)
