@@ -157,7 +157,7 @@ nothing.
    with the most recognised words wins; skipped when the first try already recognises most of them. A
    lossless quarter turn, recorded with its reason. *(As built, 2026-10-29: one read, the turn taken from the order of the
    lines, because Vision reads every turn equally well; see `prep.turn-by-the-text`.)*
-6. **Straighten.** Hough median, the angle on the row, skipped under 0.3°; a page already squared or
+6. **Straighten.** The skew is read from the writing's row profile (the shear that sharpens it; the table, ruler and page edge are not read), the angle on the row, skipped under 0.3°; a page already squared or
    flattened is usually under that and writes nothing.
 7. **Mark blank pages.** A page with no ink beyond its ruling (ink pixels under 0.2 % after the ruling
    mask) is marked blank: kept, dimmed, **hidden in the item view**, skipped by every later step (find
