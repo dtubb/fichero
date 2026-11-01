@@ -2,6 +2,7 @@
 every step, stops with `QUESTION: <why>` (exit 2) and never pushes. The steps are faked; the order, stops and rows are real."""
 from __future__ import annotations
 
+import json
 import subprocess
 import types
 
@@ -10,6 +11,7 @@ import pytest
 from fichero_builder import __main__ as cli
 from fichero_builder import journal, work
 
+REAL_AS_WORKER = work.as_worker
 RULES = '[land]\nbranch = "integration"\n[check]\nengine_repo = "/engine"\n[models]\nproviders = ["claude-code"]\n' \
         'builder = { provider = "claude-code", model = "sonnet" }\nreviewer = { provider = "claude-code", model = "opus" }\n'
 HEAD = "c" * 40
@@ -107,6 +109,15 @@ def _g(repo, *args):
 def scratch(tmp_path, monkeypatch):
     monkeypatch.setattr(journal, "STATE", tmp_path / "s")
     (tmp_path / "s").mkdir()
+    (tmp_path / "pin").mkdir()
+    (tmp_path / "pin" / "harness.toml").write_text(f'[jail]\nuser = "wuser"\nworkroot = "{tmp_path}/wr"\n[check]\npython = "/py/python"\n')
+    (tmp_path / "wr" / "state").mkdir(parents=True)
+    ran = []
+
+    def local(a, script):  # the sudo boundary, faked: the same shell command, run here
+        ran.append(script)
+        return subprocess.run(["sh", "-c", script], capture_output=True, text=True)
+    monkeypatch.setattr(work, "as_worker", local)
     e, w = tmp_path / "engine", tmp_path / "wt"
     e.mkdir()
     env = {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null", "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@e",
@@ -117,7 +128,8 @@ def scratch(tmp_path, monkeypatch):
     (e / "f").write_text("0")
     _g(e, "add", "f"), _g(e, "commit", "-qm", "base")
     subprocess.run(["git", "clone", "-q", str(e), str(w)], check=True)
-    return types.SimpleNamespace(engine=e, wt=w, a=types.SimpleNamespace(worktree=str(w), name="n1"))
+    return types.SimpleNamespace(engine=e, wt=w, ran=ran, tmp=tmp_path, a=types.SimpleNamespace(
+        worktree=str(w), name="n1", pinned=str(tmp_path / "pin"), brief="b", root="r", kind="claude", session="h", tick=1.0))
 
 
 def _commit(w, name):
@@ -143,5 +155,43 @@ def test_fetch_never_passes_the_workers_branch_name_to_git(scratch, tmp_path):
 def test_export_counts_the_real_commits_over_the_base(scratch):
     _commit(scratch.wt, "one"), _commit(scratch.wt, "two")
     assert work.do_export(scratch.a, "integration") == 2
-    assert len(list((journal.STATE / "patches-n1").glob("*.patch"))) == 2
-    assert work.do_export(types.SimpleNamespace(worktree=str(scratch.engine), name="n2"), "integration") == 0
+    assert len(list((scratch.tmp / "wr" / "state" / "patches-n1").glob("*.patch"))) == 2
+    assert work.do_export(types.SimpleNamespace(**{**vars(scratch.a), "worktree": str(scratch.engine), "name": "n2"}), "integration") == 0
+
+
+def test_the_worker_side_goes_through_sudo_as_the_jail_user_from_the_workroot(scratch, monkeypatch):
+    seen = []
+    monkeypatch.setattr(work.subprocess, "run", lambda argv, **kw: (seen.append(argv), subprocess.CompletedProcess(argv, 0, "", ""))[1])
+    REAL_AS_WORKER(scratch.a, "echo hi")
+    assert seen[0][:7] == ["sudo", "-n", "-H", "-u", "wuser", "sh", "-c"]
+    assert seen[0][7] == f"cd {scratch.tmp}/wr && echo hi"
+
+
+def _journal_rows(scratch, *rows):
+    p = scratch.tmp / "wr" / "state" / "journal.jsonl"
+    with p.open("a") as f:
+        for r in rows:
+            f.write(json.dumps(r) + "\n")
+
+
+def test_run_starts_the_worker_as_the_jail_user_and_reads_its_end_from_the_shared_journal(scratch, monkeypatch):
+    monkeypatch.setattr(work.jail.Jail, "require", lambda self: None)
+    _journal_rows(scratch, {"event": "cost", "task": "n1", "end": "parked"})  # an older run of the same name: not this one
+
+    def fake(a, script):
+        scratch.ran.append(script)
+        _journal_rows(scratch, {"event": "worker", "task": "n1", "worktree": a.worktree},
+                      {"event": "cost", "task": "n1", "end": "handoff"}, {"event": "cost", "task": "n1", "end": "done"})
+        return subprocess.CompletedProcess(script, 0, "n1: done\n", "")
+    monkeypatch.setattr(work, "as_worker", fake)
+    assert work.do_run(scratch.a, "sonnet") == "done"
+    cmd = scratch.ran[0]
+    assert "/py/python -m fichero_builder run" in cmd and "--name n1" in cmd and "--model sonnet" in cmd
+    assert f"--state {scratch.tmp}/wr/state" in cmd and "PYTHONPATH=" in cmd
+
+
+def test_run_with_no_worker_row_raises_with_the_workers_words(scratch, monkeypatch):
+    monkeypatch.setattr(work.jail.Jail, "require", lambda self: None)
+    monkeypatch.setattr(work, "as_worker", lambda a, s: subprocess.CompletedProcess(s, 1, "", "sudo: a password is required"))
+    with pytest.raises(RuntimeError, match="password is required"):
+        work.do_run(scratch.a, "sonnet")
