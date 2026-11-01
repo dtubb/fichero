@@ -28,6 +28,7 @@ import shutil
 import threading
 from collections import defaultdict
 from datetime import datetime
+from fichero_server.api.routes.auth.accounts import _require_owner_or_bootstrap  # an app-wide or whole-library act: the owner's (#6320)
 from fichero_server.core.timeutil import utc_now
 from fichero_server.db import owner_grants
 from pathlib import Path
@@ -1301,7 +1302,7 @@ def update_library_access(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@router.delete("/registry/{library_path:path}")
+@router.delete("/registry/{library_path:path}", dependencies=[Depends(_require_owner_or_bootstrap)])
 def remove_known_library(
     request: Request,
     library_path: str,

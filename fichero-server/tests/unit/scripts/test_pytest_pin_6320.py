@@ -1,5 +1,6 @@
-"""The gate's pytest pin refuses only a pytest that fails the suite (9.2.0) or a venv missing pytest-asyncio, and every pytest the gate runs
-goes through it (#6320). 9.0.3 is on the Air and runs the suite; refusing it made `gate engine` unusable there."""
+"""The gate's pytest pin refuses only pytest 9.2.0 (fails test_perf_disk_reclaim) or a venv with no pytest-asyncio (async tests error), and
+every pytest the gate runs goes through it (#6320). It does NOT refuse by pytest version alone: 9.0.x and 9.1.x pass when pytest-asyncio is
+there. The Air's and the M4's venvs are 9.0.3 WITHOUT pytest-asyncio, so the pin refuses them until it is installed (review 4)."""
 from __future__ import annotations
 
 import os
@@ -25,7 +26,7 @@ def _pin(py: str, **env) -> subprocess.CompletedProcess:
     return subprocess.run(["bash", str(PIN), py], capture_output=True, text=True, env={**os.environ, "GATE_ALLOW_PYTEST": "", **env})
 
 
-def test_a_pytest_that_runs_the_suite_passes_whatever_its_patch(tmp_path):
+def test_a_pytest_with_pytest_asyncio_passes_whatever_its_patch(tmp_path):
     for version in ("9.0.3", "9.1.1"):
         assert _pin(_fake_python(tmp_path, version)).returncode == 0, version
 

@@ -229,3 +229,44 @@ def test_p2_a_signed_in_owner_or_plain_editor_pays_no_walk_but_a_denied_editor_s
 def test_g3_running_a_chain_on_a_denied_page_is_refused(project, four):
     """A chain's steps are runs: `inputs` names the pages they read and write, like /execute."""
     assert _all_refused(four, "POST", "/api/chains/c1/execute-steps", {"inputs": {"selected_doc_ids": [project.ids["b1"]]}})
+
+
+def test_n1_a_snapshot_is_restored_pinned_and_deleted_only_by_the_owner(project, four):
+    """Anyone signed in could restore one over the owner's whole project. The check comes before the snapshot is looked up."""
+    assert _all_refused(four, "POST", "/api/storage/snapshots/s1/restore", None)
+    assert _all_refused(four, "DELETE", "/api/storage/snapshots/s1", None)
+    assert _all_refused(four, "PATCH", "/api/storage/snapshots/s1/pin", None)
+    assert _all_refused(four, "POST", f"/api/storage/snapshots?library_path={project.library}", None)
+
+
+def test_n2_a_library_is_taken_off_the_list_only_by_the_owner(project, four):
+    from urllib.parse import quote
+
+    assert _all_refused(four, "DELETE", "/api/registry/" + quote(project.library, safe=""), None)
+
+
+def test_n8_tasks_and_policies_are_the_owners(project, four):
+    for path in ("/api/tasks/reindex", "/api/tasks/reanchor", "/api/tasks/vector-repair", "/api/tasks/metrics", "/api/tasks/kg-metrics"):
+        assert _all_refused(four, "POST", path, {}), path
+    assert _all_refused(four, "POST", "/api/policies/orchestration", {"name": "n", "entity_type": "claim", "action": "allow"})
+
+
+def _chain(project, static_inputs):
+    return {"name": "c", "steps": [{"id": "s1", "workflow_id": "w", "static_inputs": static_inputs}]}
+
+
+def test_n3_a_chain_is_made_changed_and_deleted_only_by_someone_who_can_write_there(project, four):
+    assert _all_refused(four, "POST", "/api/chains", _chain(project, {}), who=("bob", "carla", "dana"))
+    assert _all_refused(four, "POST", "/api/chains", _chain(project, {"selected_doc_ids": [project.ids["b1"]]}), who=("alice",))
+    assert _all_refused(four, "PUT", "/api/chains/c1", {"steps": _chain(project, {"doc_id": project.ids["b1"]})["steps"]}, who=("alice",))
+    assert _all_refused(four, "DELETE", "/api/chains/c1", None, who=("bob", "carla", "dana"))
+
+
+def test_n3_a_chain_whose_step_names_a_denied_page_is_not_run_and_a_viewer_does_not_run_one(project, four):
+    owner = _as(project.harness, "owner")
+    made = owner.post("/api/chains", json=_chain(project, {"selected_doc_ids": [project.ids["b1"]]}))
+    assert made.status_code == 200, made.text
+    cid = made.json()["id"]
+    assert _all_refused(four, "POST", f"/api/chains/{cid}/execute-steps", {"inputs": {}})  # the step's static_inputs, not the request, name b1
+    assert _all_refused(four, "POST", f"/api/chains/{cid}/execute", {"inputs": {}})
+    assert _all_refused(four, "POST", f"/api/chains/{cid}/execute", {"inputs": {"selected_doc_ids": [project.ids["b1"]]}}, who=("bob", "dana"))

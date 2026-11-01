@@ -8,6 +8,7 @@ import asyncio
 import threading
 import logging
 import os
+from fichero_server.api.routes.auth.accounts import _require_owner_or_bootstrap  # an app-wide or whole-library act: the owner's (#6320)
 from fichero_server.core.timeutil import utc_now
 from pathlib import Path
 from urllib.parse import quote
@@ -552,7 +553,7 @@ def _stop_the_workers(library_path: str) -> int:
     return jobs.stop_everything(db_manager.get_database(library_path))
 
 
-@router.post("/snapshots", response_model=LibrarySnapshot, tags=["snapshots"])
+@router.post("/snapshots", dependencies=[Depends(_require_owner_or_bootstrap)], response_model=LibrarySnapshot, tags=["snapshots"])
 async def create_snapshot(
     library_path: str = Query(..., description="Path to the .fichero package"),
     reason: str = Query(default="", description="Reason for the snapshot"),
@@ -640,7 +641,7 @@ async def get_snapshot(snapshot_id: str) -> LibrarySnapshot:
 
 
 @router.post(
-    "/snapshots/{snapshot_id}/restore",
+    "/snapshots/{snapshot_id}/restore", dependencies=[Depends(_require_owner_or_bootstrap)],
     response_model=SnapshotRestoreResponse,
     tags=["snapshots"],
 )
@@ -695,7 +696,7 @@ async def restore_library_snapshot(snapshot_id: str) -> SnapshotRestoreResponse:
 
 
 @router.delete(
-    "/snapshots/{snapshot_id}",
+    "/snapshots/{snapshot_id}", dependencies=[Depends(_require_owner_or_bootstrap)],
     response_model=SnapshotDeleteResponse,
     tags=["snapshots"],
 )
@@ -710,7 +711,7 @@ async def remove_snapshot(snapshot_id: str) -> SnapshotDeleteResponse:
 
 
 @router.patch(
-    "/snapshots/{snapshot_id}/pin", response_model=LibrarySnapshot, tags=["snapshots"]
+    "/snapshots/{snapshot_id}/pin", dependencies=[Depends(_require_owner_or_bootstrap)], response_model=LibrarySnapshot, tags=["snapshots"]
 )
 async def pin_snapshot(
     snapshot_id: str,

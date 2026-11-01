@@ -152,17 +152,17 @@ def test_revert_copys_documents_are_write_checked_by_their_ids():
 #: What a handler's CODE (no comment, no docstring) must call, or depend on, to count as checking the ids it is given. A word in a
 #: comment proves nothing (it did: `execute`, `chat` and `compare-workflow` held the mark and an unchecked id, review 3).
 _CHECKS = re.compile(
-    r"\b(?:registry\.invoke|assert_library_\w+|readable_documents|readable_rows|_read_checked|read_check|write_check|owner_check|"
-    r"_owner_only|_require_owner_or_bootstrap|get_action_store_for_write|get_scheduler_for_write|get_file_watcher_for_write|_check_documents)\b")
+    r"\b(?:registry\.invoke|assert_library_\w+_every|assert_library_\w+\(.{0,200}?named=|_check_chain|readable_documents|readable_rows|_read_checked|read_check|write_check|owner_check|"
+    r"_owner_only|_require_owner_or_bootstrap|get_action_store_for_write|get_scheduler_for_write|get_file_watcher_for_write|_check_documents)(?![A-Za-z_])")
 
 #: The checks written by hand in a handler (the registry's own check on an action's params has its tests where the action lives).
-_HAND_CHECKS = re.compile(r"\b(?:read_check|write_check|owner_check|assert_library_\w+|_owner_only|get_action_store_for_write|get_scheduler_for_write|get_file_watcher_for_write|_check_documents)\b")
+_HAND_CHECKS = re.compile(r"\b(?:read_check|write_check|owner_check|assert_library_\w+_every|assert_library_\w+\(.{0,200}?named=|_check_chain|_owner_only|get_action_store_for_write|get_scheduler_for_write|get_file_watcher_for_write|_check_documents)(?![A-Za-z_])")
 
 #: A body field that names documents, whatever it is called: `*_id`/`*_ids`, and the containers a workflow, a chat or a recipe
 #: carries them in (the old scan saw only `*_id`, so `ids`, `inputs`, `selection` and `pages` went unread).
 _DOCUMENT_CONTAINERS = {"ids", "inputs", "selection", "pages", "items", "documents", "batch_items", "pinned_inputs", "inputs_template"}
 
-NOT_DOC, VIA, OPEN = "NOT_DOC", "VIA", "OPEN"
+NOT_DOC, VIA, OPEN, PUBLIC = "NOT_DOC", "VIA", "OPEN", "PUBLIC"
 
 #: Routes whose body holds an id-like field and whose handler shows no check, each CLEARED by someone who read it:
 #:   NOT_DOC (reason): no document is named; the reason says what the field is.
@@ -187,7 +187,6 @@ BODY_IDS_CLEARED: dict[str, tuple] = {
     "/api/local-inference/profiles/validate": (NOT_DOC, "a model profile, not a document"),
     "/api/notes/{note_id}/links": (NOT_DOC, "links two note records and returns the ids; no document text comes back"),
     "/api/pair/code": (VIA, "`_owner_for_pairing`: the owner only", "_owner_for_pairing"),
-    "/api/policies/orchestration/{rule_id}": (NOT_DOC, "an orchestration policy rule: configuration"),
     "/api/search/saved/reorder": (NOT_DOC, "saved-search order: configuration"),
     "/api/chat/conversations/reorder": (NOT_DOC, "conversation order: configuration"),
     "/api/kg/entity-curation/enrich/preview": (NOT_DOC, "`entity_id` is a knowledge entity; it fetches statements from Wikidata and writes nothing"),
@@ -197,8 +196,6 @@ BODY_IDS_CLEARED: dict[str, tuple] = {
     "/api/research/tools/web-search": (NOT_DOC, "a web search; `source_ids` only filter the answer's citations"),
     "/api/agent-memory": (OPEN, "found unread by the widened scan (nested `document_id`): not read, #6325", ),
     "/api/agent-memory/{note_id}": (OPEN, "found unread by the widened scan (nested `document_id`): not read, #6325"),
-    "/api/chains": (OPEN, "found unread by the widened scan (`steps`): not read, #6325"),
-    "/api/chains/{chain_id}": (OPEN, "found unread by the widened scan (`steps`): not read, #6325"),
     "/api/documents/{document_id}/readings/compare": (OPEN, "found unread by the widened scan: not read, #6325"),
     "/api/recipes/assemble": (OPEN, "found unread by the widened scan (`pages`): not read, #6325"),
     "/api/workflow-execution/threads/{thread_id}/resume": (OPEN, "`inputs` on a resumed thread: a scoped person is refused, an editor with a deny reached 404 for a missing thread; not read past that, #6325"),
@@ -309,3 +306,113 @@ def test_a_cleared_entry_has_a_kind_and_an_open_one_names_its_issue():
     bad = [p for p, (kind, why, *_) in BODY_IDS_CLEARED.items()
            if kind not in (NOT_DOC, VIA, OPEN) or ((kind == OPEN or re.search(r"OPEN|NOTE|no .* check", why)) and not re.search(r"#\d{4,}", why))]
     assert bad == [], bad
+
+
+#: A route that changes something must depend on its caller (a library or owner dependency) or check in its code. These do neither, each
+#: either PUBLIC (read and cleared: it has no caller yet, or touches nothing) or OPEN (a known gap, named issue). The list may only
+#: shrink: a route that gains a dependency fails until it is taken off (the sweep that found /api/storage/snapshots and /api/registry).
+NO_CALLER_CLEARED: dict[str, tuple[str, str]] = {
+    "DELETE /api/chains/executions/{execution_id}": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "DELETE /api/kg/pykeen/models/{model_id}": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "PATCH /api/kg/pykeen/stored/{prediction_id}/verify": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/integrations/tinderbox/notes": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/integrations/{app_name}/open/{external_id}": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/integrations/{app_name}/refresh": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/model-comparison/compare": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/model-comparison/estimate-cost": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/model-comparison/recommend-models": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/research/tools/browser-navigate": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/research/tools/web-search": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/workflows/tools/{tool_name}/prompt": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "PUT /api/integrations/tinderbox/notes/{external_id}/attributes": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "DELETE /api/libraries/{lib:path}/entity-types/{entity_type_key}": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "DELETE /api/local-inference/models/{model_id:path}": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "DELETE /api/local-inference/runtime": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "DELETE /api/local-models/kraken": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "DELETE /api/local-models/{model_type}/{model_id:path}": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "DELETE /api/machines/{machine_id}": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "DELETE /api/pair/invites/{invite_id}": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/agents/write": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
+    "POST /api/agents/write/approve": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/auth/challenge": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
+    "POST /api/auth/first-run": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
+    "POST /api/auth/invites/redeem": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
+    "POST /api/auth/local-clients/register": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
+    "POST /api/auth/local-clients/request": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
+    "POST /api/auth/local-clients/requests/{request_id}/decision": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/auth/login": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
+    "POST /api/auth/migrate-owner": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/auth/sign-in": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
+    "POST /api/libraries/{lib:path}/entity-types": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/local-inference/profiles/validate": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
+    "POST /api/local-inference/profiles/{profile_id}/health": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/local-inference/profiles/{profile_id}/start": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/local-inference/profiles/{profile_id}/stop": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/local-inference/runtime/provision": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/local-models/kraken/install": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/machines/pair": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/pair": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
+    "POST /api/pair/devices/renew": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
+    "POST /api/pair/devices/revoke-self": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
+    "POST /api/pair/devices/{device_id}/revoke": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/pair/enroll": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
+    "POST /api/policies/orchestration/evaluate": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
+    "POST /api/recipes/assemble": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
+    "POST /api/recipes/check": (PUBLIC, "no caller to check yet (it signs in, pairs or answers a question) or it reads and writes nothing of the library; read 2026-11-01"),
+    "POST /api/registry/add": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/registry/update-access": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "POST /api/sandbox/security-scoped-access": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+    "PUT /api/auth/local-clients/switches": (OPEN, "no dependency on the caller and no check in its code (found by the sweep, not fired): #6325"),
+}
+_CALLER_DEPS = {"require_library_path", "get_library_database", "get_library_database_for_write", "optional_library_path", "get_action_store",
+                "get_action_store_for_write", "_require_owner_or_bootstrap", "action_context", "request_actor", "_owner_only", "get_scheduler",
+                "get_scheduler_for_write", "get_file_watcher", "get_file_watcher_for_write", "readable_rows"}
+_CALLER_CODE = re.compile(r"\b(?:registry\.invoke|assert_library_\w+|read_check|write_check|owner_check|require_owner|_require_\w*owner\w*|"
+                          r"request\.state|http_request\.state)\b")
+
+
+def mutating_routes_without_a_caller() -> set[str]:
+    import inspect
+
+    def names(dep, out):
+        out.add(getattr(dep.call, "__name__", ""))
+        for sub in dep.dependencies:
+            names(sub, out)
+        return out
+
+    found = set()
+    for route in served_routes_all():
+        verbs = set(route.methods) & {"POST", "PUT", "PATCH", "DELETE"}
+        if not verbs or names(route.dependant, set()) & _CALLER_DEPS:
+            continue
+        try:
+            if _CALLER_CODE.search(inspect.getsource(route.endpoint)):
+                continue
+        except (OSError, TypeError):
+            continue
+        found.add(f"{sorted(verbs)[0]} {route.path}")
+    return found
+
+
+def test_a_route_that_changes_something_depends_on_its_caller_or_is_cleared():
+    found = mutating_routes_without_a_caller()
+    assert found - set(NO_CALLER_CLEARED) == set(), f"a mutating route with no dependency on the caller and no check: {sorted(found - set(NO_CALLER_CLEARED))}"
+    stale = sorted(set(NO_CALLER_CLEARED) - found)
+    assert stale == [], f"these now depend on their caller: take them off NO_CALLER_CLEARED: {stale}"
+    bad = [k for k, (kind, why) in NO_CALLER_CLEARED.items() if kind not in (PUBLIC, OPEN) or (kind == OPEN and not re.search(r"#\d{4,}", why))]
+    assert bad == [], bad
+
+
+def test_a_call_that_ignores_the_ids_is_not_a_check():
+    """`assert_library_read_authorized(request, path)` names no id: it is the library-level answer (the chain routes passed on it)."""
+    assert not _CHECKS.search("assert_library_read_authorized(http_request, x_fichero_library_path)")
+    assert _CHECKS.search("assert_library_read_authorized(request, path, named=[i])")
+    assert _CHECKS.search("assert_library_reads_every(request, path, ids, scope)")
+
+
+def test_a_comment_or_docstring_is_not_a_check():
+    def handler(x):
+        """read_check(x)"""
+        pass  # read_check(x)
+
+    assert not _CHECKS.search(_code_of(handler))

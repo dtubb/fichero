@@ -8,9 +8,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
+from fichero_server.api.routes.auth.accounts import _require_owner_or_bootstrap  # an app-wide or whole-library act: the owner's (#6320)
 from fichero_server.llm.orchestration_policy import (
     AgentWriteRecord,
     AgentWriteRequest,
@@ -244,7 +245,7 @@ async def list_policy_rules(
 
 
 @router.post(
-    "/api/policies/orchestration",
+    "/api/policies/orchestration", dependencies=[Depends(_require_owner_or_bootstrap)],
     response_model=PolicyRuleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new policy rule",
@@ -294,7 +295,7 @@ async def get_policy_rule(
 
 
 @router.patch(
-    "/api/policies/orchestration/{rule_id}",
+    "/api/policies/orchestration/{rule_id}", dependencies=[Depends(_require_owner_or_bootstrap)],
     response_model=PolicyRuleResponse,
     summary="Update a policy rule",
     tags=["orchestration"],
@@ -317,7 +318,7 @@ async def update_policy_rule(
 
 
 @router.delete(
-    "/api/policies/orchestration/{rule_id}",
+    "/api/policies/orchestration/{rule_id}", dependencies=[Depends(_require_owner_or_bootstrap)],
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a policy rule",
     tags=["orchestration"],

@@ -495,9 +495,20 @@ def _build_paleography_chain(
 # =============================================================================
 
 
+async def _check_chain(http_request: Request, library_path: str, db: Database, *inputs: dict | None) -> None:
+    """Making, changing, deleting or running a chain is a write the project's top level allows (a person shared one folder may not),
+    and every run reads and writes the documents the inputs name (#6320)."""
+    named = [d for one in inputs for d in input_document_ids(one)]
+    await write_check(http_request, library_path, db, [None], deep=False)
+    if named:
+        await write_check(http_request, library_path, db, list(dict.fromkeys(named)))
+
+
 @router.post("", response_model=ChainResponse)
-async def create_chain(request: CreateChainRequest) -> ChainResponse:
+async def create_chain(request: CreateChainRequest, http_request: Request, x_fichero_library_path: str = Depends(require_library_path),
+                       db: Database = Depends(get_library_database_for_write)) -> ChainResponse:
     """Create a new workflow chain."""
+    await _check_chain(http_request, x_fichero_library_path, db, *(s.static_inputs for s in request.steps))
     # Convert request to domain model
     steps = []
     for step_req in request.steps:
@@ -563,8 +574,11 @@ async def get_chain(chain_id: str) -> ChainResponse:
 
 
 @router.put("/{chain_id}", response_model=ChainResponse)
-async def update_chain(chain_id: str, request: UpdateChainRequest) -> ChainResponse:
+async def update_chain(chain_id: str, request: UpdateChainRequest, http_request: Request,
+                       x_fichero_library_path: str = Depends(require_library_path),
+                       db: Database = Depends(get_library_database_for_write)) -> ChainResponse:
     """Update an existing workflow chain."""
+    await _check_chain(http_request, x_fichero_library_path, db, *(s.static_inputs for s in request.steps or []))
     chain = chain_store.get(chain_id)
     if not chain:
         raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
@@ -617,8 +631,10 @@ async def update_chain(chain_id: str, request: UpdateChainRequest) -> ChainRespo
 
 
 @router.delete("/{chain_id}")
-async def delete_chain(chain_id: str) -> ChainDeletedResponse:
+async def delete_chain(chain_id: str, http_request: Request, x_fichero_library_path: str = Depends(require_library_path),
+                       db: Database = Depends(get_library_database_for_write)) -> ChainDeletedResponse:
     """Delete a workflow chain."""
+    await _check_chain(http_request, x_fichero_library_path, db)
     if not chain_store.delete(chain_id):
         raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
     return ChainDeletedResponse(deleted=True, id=chain_id)
@@ -670,6 +686,7 @@ async def execute_chain(
     request: ExecuteChainRequest,
     http_request: Request,
     x_fichero_library_path: str = Depends(require_library_path),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ChainExecutionResponse:
     """Execute a workflow chain.
 
@@ -684,6 +701,8 @@ async def execute_chain(
     assert_library_read_authorized(http_request, x_fichero_library_path)
     if not chain.steps:
         raise HTTPException(status_code=400, detail="Chain has no steps to run")
+    # Every step is a run on the documents the inputs AND the step's own static_inputs name (they win on a collision).
+    await _check_chain(http_request, x_fichero_library_path, db, request.inputs, *(st.static_inputs for st in chain.steps))
 
     # One way to run (`activity.run.one-way-to-run`): the chain's steps are real runs of the one runner, in list order,
     # under a chain row in Activity that Stop reaches; the same path as /execute-steps. The chain's conditions,
@@ -1207,9 +1226,11 @@ async def execute_chain_steps(
     GET /chains/executions/{execution_id} for per-step statuses, or attach to
     any step's SSE stream_url as it runs.
     """
-    # Every step is a run that reads and writes the documents the inputs name (#6320, the same class as /execute).
-    if named := input_document_ids(request.inputs):
-        await write_check(http_request, x_fichero_library_path, db, named)
+    # Every step is a run that reads and writes the documents the inputs AND the step's own static_inputs name (they win).
+    if (stored := chain_store.get(chain_id)) is None:
+        await _check_chain(http_request, x_fichero_library_path, db, request.inputs)
+    else:
+        await _check_chain(http_request, x_fichero_library_path, db, request.inputs, *(st.static_inputs for st in stored.steps))
     chain = chain_store.get(chain_id)
     if not chain:
         raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
