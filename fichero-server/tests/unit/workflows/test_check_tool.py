@@ -75,7 +75,7 @@ def test_fichero_is_the_first_project_in_its_own_harness_toml():
 
 
 def test_pytest_runs_named_files_with_the_fixed_env(tmp_path):
-    (tmp_path / "test_a.py").write_text("import os\ndef test_a():\n    assert os.environ['FICHERO_FEATURE_TIER'] == 'dev'\n    assert os.environ['OMP_NUM_THREADS'] == '2'\n    assert os.environ['PYTHONSAFEPATH'] == '1'\n")
+    (tmp_path / "test_a.py").write_text("import os\ndef test_a():\n    assert os.environ['FICHERO_FEATURE_TIER'] == 'dev'\n    assert os.environ['OMP_NUM_THREADS'] == '2'\n    assert os.environ['PYTHONSAFEPATH'] == '1'\n    assert os.environ['RUFF_NO_CACHE'] == 'true'\n")
     cfg = ct.Config(test_env={"FICHERO_FEATURE_TIER": "dev", "OMP_NUM_THREADS": "2"})
     r = ct.pytest_rung(tmp_path, ["test_a.py"], cfg, timeout_s=120)
     assert r["ok"], r

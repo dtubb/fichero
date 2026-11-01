@@ -175,6 +175,7 @@ def _env(root, cfg: Config, extra: dict | None = None) -> dict:
         env["PATH"] = cfg.path
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"  # review 4 B6: only [check].pytest_plugins load, never a tree's entry points
+    env["RUFF_NO_CACHE"] = "true"                 # the scratch tree is owner-made and read-only to the jailed user: no caches in it
     env["HOME"] = tempfile.mkdtemp(prefix="check-home-")  # (jailed: dropped, the user's own HOME is used)
     if cfg.base_path_env:
         env[cfg.base_path_env] = _mkdtemp("check-base-")
