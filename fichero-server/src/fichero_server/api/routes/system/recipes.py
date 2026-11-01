@@ -23,7 +23,7 @@ from fichero_server.api.auth import action_context
 from fichero_server.api.routes.auth.accounts import _require_owner_or_bootstrap
 from fichero_server.api.library_header import optional_library_path, require_library_path
 from fichero_server.llm.local_model_facts import GIB
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.main import get_library_database, get_library_database_for_write, readable_rows
 # Imported, never redefined: one schema component for every route's refusal sentence (#5094).
 from fichero_server.api.routes.document.format_import import ErrorDetail as _ErrorDetail
 from fichero_server.db import Database
@@ -718,14 +718,16 @@ class StageTryResult(BaseModel):
 
 
 @router.get("/samples", response_model=SamplePages)
-async def get_samples(stage: Optional[str] = None, db: Database = Depends(get_library_database)) -> SamplePages:
+async def get_samples(stage: Optional[str] = None, db: Database = Depends(get_library_database), readable=Depends(readable_rows)) -> SamplePages:
     """The sample pages every stage page tries itself on (section 7c, `source.onboard.stages.samples-proposed`): the
     person's choice, else 3 to 5 proposed across the material (first, last, the largest and smallest images, then
     evenly spaced), each with why. With `stage=organise`, the run of up to 12 consecutive pages of one folder that
     Organise is tried on (`source.onboard.stages.organise-tried-on-a-run`)."""
     from fichero_server.recipes import samples
 
-    return SamplePages(**await asyncio.to_thread(samples.chosen, db, stage))
+    found = SamplePages(**await asyncio.to_thread(samples.chosen, db, stage))
+    found.pages, _ = readable(found.pages)  # a page the caller may not read is no sample (#6325 H2)
+    return found
 
 
 @router.put("/samples", response_model=SamplePages)

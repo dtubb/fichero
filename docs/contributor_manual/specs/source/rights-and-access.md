@@ -192,6 +192,9 @@ Rulings.
   The Mac's own machinery is the owner's: every write under `/api/local-inference`, `/api/local-models`, `/api/machines`, `/api/registry` and
   `POST /api/chains/presets/paleography` is refused to anyone but the owner (reads stay open); the MLX runtime, a model, a paired machine or
   the list of libraries is not changed by an editor or viewer (H9, `source.rights.owner-only-asserted-in-the-action`).
+  The routes that rank or draw the whole library (`POST` and `GET /api/search/explain`, `GET /view/kg/global`, `POST /api/multilingual/entities/search`)
+  are refused to a caller whose reads differ page by page; the roots list (`/api/documents/collections`) and the sample pages leave out a page the caller
+  may not read, and `GET /api/kg/search` leaves out a note resting on a page or folder they may not read (H2).
   A person shared one folder opens the Table on it: `POST /api/documents/dataset/query` with that folder as `parent_id` answers,
   and a query for another folder, or none (the whole project), is refused (`source.rights.every-id-in-a-request-is-checked`).
 

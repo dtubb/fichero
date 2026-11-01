@@ -12,7 +12,7 @@ from types import SimpleNamespace
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 
-from fichero_server.api.main import get_library_database
+from fichero_server.api.main import get_library_database, whole_library_reader_only
 from fichero_server.db import Database
 from fichero_server.models.knowledge import Annotation, KnowledgeClaim, KnowledgeEntity
 from fichero_server.models import Artifact, DocType, Document, FileType, Segment
@@ -1051,7 +1051,7 @@ def document_view(
     )
 
 
-@router.get("/kg/global", response_class=HTMLResponse, openapi_extra=BULK)
+@router.get("/kg/global", response_class=HTMLResponse, openapi_extra=BULK, dependencies=[Depends(whole_library_reader_only)])
 @off_loop
 def global_kg_view(
     request: Request,

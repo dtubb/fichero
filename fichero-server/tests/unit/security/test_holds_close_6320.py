@@ -8,7 +8,7 @@ import re
 import pytest
 
 from fichero_server.db.manager import db_manager
-from fichero_server.models import Conversation, Document
+from fichero_server.models import Conversation, DocType, Document
 from fichero_server.security import authz
 from tests.unit.security.test_sharing_probe_2026_10_01 import _multiuser_on, harness  # noqa: F401
 from tests.unit.transport.test_person_bound_invite_5910 import _as
@@ -491,3 +491,25 @@ def _all_dependencies(dependant):
     for dep in dependant.dependencies:
         yield dep
         yield from _all_dependencies(dep)
+
+
+def test_h2_read_routes_outside_the_walked_families_leave_out_a_denied_page(project, four):
+    """#6325 H2: search explain, the global KG view, cross-language entity search (refused to a caller whose reads differ page by page);
+    the roots list, the sample pages and the KG note hits leave out what rests on a denied page."""
+    from fichero_server.models.knowledge import Note
+
+    db = db_manager.get_database(project.harness.library)
+    leaf = Document(name="leaf", doc_type=DocType.page, parent_id=project.ids["b1"])
+    db.save(leaf)
+    db.save(Note(page_id=leaf.id, body="zzsecretnote"))
+    for name, client, decoy in four:
+        for path in ("/api/search/explain/SECRET", "/view/kg/global"):
+            assert client.get(path + decoy).status_code == 403, (name, path)
+        assert client.post("/api/search/explain" + decoy, json={"query": "SECRET"}).status_code == 403, name
+        assert client.post("/api/multilingual/entities/search" + decoy, json={"query": "SECRET", "target_languages": ["en"]}).status_code == 403, name
+        if name in ("alice", "bob"):
+            assert "Folder B" not in client.get("/api/documents/collections").text, name
+            assert "zzsecretnote" not in client.get("/api/kg/search?q=zzsec").text, name
+            assert project.ids["b1"] not in client.get("/api/recipes/samples").text, name
+    assert "Folder B" in _as(project.harness, "owner").get("/api/documents/collections").text
+    assert "zzsecretnote" in _as(project.harness, "owner").get("/api/kg/search?q=zzsec").text

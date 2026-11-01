@@ -344,8 +344,6 @@ def found(rows) -> dict:
 #: Known holes: name -> [(kind, regex of the ident)]. Each is a strict xfail citing #6325: when a fix lands the xfail passes, strict makes
 #: that a failure, and the entry is deleted. Anything the sweep finds that no entry covers fails `test_no_unlisted_leak`.
 HOLES: dict[str, list] = {
-    "H2 read routes outside the walked families": [("text", r"GET (/api/documents/collections|/api/kg/search|/api/recipes/samples|/api/search/explain/\{query\}|/view/kg/global)"),
-                                                   ("text", r"POST /api/search/explain")],
     "H4 a conversation on a denied page is deleted": [("text", r"ACTION conversation\.delete")],
 }
 

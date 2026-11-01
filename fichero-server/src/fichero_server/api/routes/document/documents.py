@@ -791,10 +791,11 @@ async def list_documents(
 @router.get("/collections")
 async def list_collections(
     db: Database = Depends(get_library_database),
+    readable=Depends(readable_rows),
 ) -> DocumentListResponse:
     """List all root-level items (documents without parents)."""
-    items = _ordered_by_sort_order(_list_documents(db, parent_id=None))
-    return DocumentListResponse(items=items, count=len(items))
+    items, withheld = readable(_ordered_by_sort_order(_list_documents(db, parent_id=None)))
+    return DocumentListResponse(items=items, count=len(items), withheld=withheld)
 
 
 def _apply_listing_sort(

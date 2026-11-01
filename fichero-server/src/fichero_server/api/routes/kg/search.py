@@ -118,7 +118,7 @@ def search_kg(
 
     if "note" in requested:
         for n in db.query(Note):
-            if may_read is not None and not all(may_read(d) for d in n.linked_document_ids):
+            if may_read is not None and not all(may_read(d) for d in {n.page_id, n.folder_id, *n.linked_document_ids} if d):  # its page and folder too (#6325 H2)
                 continue
             title = (n.title or "").lower()
             body = (n.body or "").lower()
