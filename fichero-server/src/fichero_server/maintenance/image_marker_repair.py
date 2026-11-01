@@ -44,9 +44,12 @@ def _mark_done(db: Any) -> None:
 
 
 def queue_if_needed(db: Any) -> str | None:
-    """At open: one setting read. Not marked done: queue the job (an earlier waiting one is reused). Returns its id."""
+    """At open: one setting read. Empty library: marked done, nothing queued. Otherwise, not marked done: queue the job (an earlier waiting one is reused). Returns its id."""
     try:
         if is_done(db):
+            return None
+        if db.execute_fetchone("SELECT 1 FROM documents LIMIT 1") is None:  # nothing to damage, and no new page can be (the writer is fixed)
+            _mark_done(db)
             return None
         register_job_kinds()
         return jobs.enqueue(db, KIND, SUBJECT)
@@ -63,9 +66,9 @@ def is_provenance_only(value: Any) -> bool:
 
 
 def candidates(db: Any) -> list[str]:
-    """The live documents whose metadata mentions a provenance key: a coarse prefilter, each is checked."""
+    """The documents (trashed ones too: a restored page must not keep the damage) whose metadata mentions a provenance key: a coarse prefilter, each is checked."""
     return [r[0] for r in db.execute_fetchall(
-        "SELECT id FROM documents WHERE deleted_at IS NULL AND (CAST(metadata AS VARCHAR) LIKE '%image_read%' "
+        "SELECT id FROM documents WHERE (CAST(metadata AS VARCHAR) LIKE '%image_read%' "
         "OR CAST(metadata AS VARCHAR) LIKE '%episode_id%') ORDER BY id")]
 
 

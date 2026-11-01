@@ -1,5 +1,8 @@
 """A reading field the artifact's provenance replaced gets its reading's text back, in the background, once (#6320)."""
+import json
 import time
+
+import pytest
 
 from fichero_server.db import db_manager
 from fichero_server.execution import jobs
@@ -147,7 +150,6 @@ def test_the_audit_names_the_pages_and_the_library_and_the_row_names_the_pages_l
 
 
 def test_a_resumed_job_keeps_its_counts_and_does_not_look_at_the_pages_it_has_done(db, monkeypatch):
-    db.execute("DELETE FROM jobs WHERE kind = ? AND state = 'waiting'", [repair.KIND])  # the open's own queued job must not race this one
     pages = [_page(db, {"description": dict(REAL)}, ("description", f"text {n}")) for n in range(4)]
     ids = sorted(p.id for p in pages)
     job_id = "repair-resume"
@@ -160,3 +162,37 @@ def test_a_resumed_job_keeps_its_counts_and_does_not_look_at_the_pages_it_has_do
     monkeypatch.setattr(repair, "repair_document", lambda d, i: (seen.append(i), real(d, i))[1])
     done = repair.run(db, repair.SUBJECT)
     assert seen == ids[2:] and done["put_back"] == 11 and done["left"] == 2
+
+
+def test_a_new_library_is_marked_done_and_queues_no_job(db):
+    assert repair.is_done(db) and db.execute_fetchone("SELECT 1 FROM jobs WHERE kind = ?", [repair.KIND]) is None
+
+
+def test_a_trashed_page_is_repaired_and_stays_trashed(db):
+    page = _page(db, {"description": dict(REAL)}, ("description", "A harbour."))
+    db.execute("UPDATE documents SET deleted_at = now() WHERE id = ?", [page.id])
+    assert repair.run(db, repair.SUBJECT)["put_back"] == 1
+    assert db.get(Document, page.id).metadata["description"] == "A harbour."
+    assert db.execute_fetchone("SELECT deleted_at FROM documents WHERE id = ?", [page.id])[0] is not None
+
+
+def test_a_deferred_run_resumes_from_its_cursor_with_its_counts_and_names(db, monkeypatch):
+    n = repair.CHUNK + 10
+    pages = [_page(db, {"description": dict(REAL)}, ("description", f"t{i}")) for i in range(n - 1)]
+    pages.append(_page(db, {"caption": dict(REAL)}))  # no reading: left
+    job_id = "repair-defer"
+    jobs._record(db, job_id, kind="workflow", subject=job_id, parent_id=None, state="running", reason="", name="Repair")
+    monkeypatch.setattr(jobs._current, "job_id", job_id, raising=False)
+    asks = iter([None, "busy"])
+    monkeypatch.setattr(repair, "_why_step_aside", lambda: next(asks, None))
+    seen = []
+    real = repair.repair_document
+    monkeypatch.setattr(repair, "repair_document", lambda d, i: (seen.append(i), real(d, i))[1])
+    with pytest.raises(jobs.JobDeferred):
+        repair.run(db, repair.SUBJECT)
+    assert len(seen) == repair.CHUNK
+    done = repair.run(db, repair.SUBJECT)
+    assert len(seen) == n and len(set(seen)) == n and seen == sorted(seen)  # none twice, in id order
+    assert done["put_back"] == n - 1 and done["left"] == 1
+    detail = json.loads(jobs.read_job(db, job_id)["detail"])
+    assert len(detail["put_ids"]) == n - 1 and detail["left_ids"] == [pages[-1].id]
