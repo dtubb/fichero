@@ -36,7 +36,7 @@ struct StageCandidateChooser: View {
     /// Whether a row can be ticked now: up to three, and never a model that won't fit this Mac (greyed with its
     /// reason, #5641); a row already ticked can always be unticked.
     nonisolated static func canTick(_ candidate: Components.Schemas.ModelCandidate, chosen: [String],
-                        in list: [Components.Schemas.ModelCandidate]) -> Bool {
+                                    in list: [Components.Schemas.ModelCandidate]) -> Bool {
         if chosen.contains(candidate.id) { return true }
         if CandidateFit.of(candidate, in: list)?.isGreyed == true { return false }
         return chosen.count < StageCandidateChoice.most

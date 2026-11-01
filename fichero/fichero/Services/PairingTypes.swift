@@ -357,7 +357,7 @@ struct SharingStateRecord: Equatable {
     let auditId: String?
     /// The host's addresses in one place (`sharing.state-names-every-address`): the sharing address the engine was started
     /// with, its LAN IP, and who holds the tailnet forward ("ours" | "foreign" | "none"); nil from an engine before the field.
-    var publicBaseURL: String? = nil
-    var lanIP: String? = nil
-    var tailnetForward: String? = nil
+    var publicBaseURL: String?
+    var lanIP: String?
+    var tailnetForward: String?
 }

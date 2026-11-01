@@ -124,7 +124,8 @@ extension ShareLibrarySheet {
     /// format, and never the loopback share_url.
     /// The rows the engine's state allows; the sharing address alone when the state is not loaded.
     var addressRows: [AddressRow] {
-        AddressChoiceModel.rows(sharingAddress: publicBaseURL, tailnetURL: sharingState?.tailnetURL, tailnetForward: sharingState?.tailnetForward)
+        AddressChoiceModel.rows(
+            sharingAddress: publicBaseURL, tailnetURL: sharingState?.tailnetURL, tailnetForward: sharingState?.tailnetForward)
     }
 
     var pairingLink: String? {

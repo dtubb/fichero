@@ -354,7 +354,8 @@ enum RemoteClientPairing {
             try persist(result.deviceToken, result.apiRoot)
         } catch {
             logger.error(
-                "Pairing: the device token could not be saved (\(String(describing: error), privacy: .public)); revoking the device on the host")
+                "Pairing: the device token could not be saved (\(String(describing: error), privacy: .public)); "
+                    + "revoking the device on the host")
             let host = result.apiRoot.absoluteString
             AuthTokenMiddleware.holdTransientRemoteToken(result.deviceToken, hostString: host)
             defer { AuthTokenMiddleware.dropTransientRemoteToken(hostString: host) }

@@ -44,7 +44,8 @@ extension ShareSettingsView {
         case .notNeeded: advertisedPin = nil
         case .pin(let pin): advertisedPin = pin
         }
-        let payload = PairingService.buildQRCodePayload(apiRoot: root, from: pairingCode, spki: advertisedPin, libraryPath: sharedLibraryPath)
+        let payload = PairingService.buildQRCodePayload(
+            apiRoot: root, from: pairingCode, spki: advertisedPin, libraryPath: sharedLibraryPath)
         return try? RemoteClientPairing.inviteLinkString(from: payload)
     }
 

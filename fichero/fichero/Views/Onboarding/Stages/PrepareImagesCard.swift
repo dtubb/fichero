@@ -78,7 +78,9 @@ struct PrepareImagesFolderAnswers: View {
                 }
             }
             .accessibilityIdentifier("prepareImages.folder.picker")
-            Text("Only \u{201C}Two pages in one picture?\u{201D} and the paper can differ by folder; the other questions are for the whole project.")
+            Text(
+                "Only \u{201C}Two pages in one picture?\u{201D} and the paper can differ by folder; "
+                    + "the other questions are for the whole project.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if !folderId.isEmpty {
                 twoPages

@@ -15,7 +15,7 @@ enum SharingToggles {
         Row(id: .sharing, label: "Sharing",
                caption: "Share Fichero on this Mac with other devices, the fichero command-line tool, and MCP clients."),
         Row(id: .multiUser, label: "Multi-user",
-               caption: "Give other people their own accounts on this Mac's libraries."),
+               caption: "Give other people their own accounts on this Mac's libraries.")
     ]
 
     /// Where the Sharing switches live: ONE constant, so moving them is one edit (#5917).
