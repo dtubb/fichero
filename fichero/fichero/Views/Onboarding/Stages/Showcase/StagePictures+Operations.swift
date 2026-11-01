@@ -110,3 +110,16 @@ struct PrepareOperationsPicture: View {
         PrepareOperationsPicture(showcase: showcase, progress: 0.3).frame(width: 320, height: 220).padding()
     }
 }
+
+#Preview("Split") { operationPreview("split") }
+#Preview("Straighten") { operationPreview("straighten") }
+#Preview("Crop") { operationPreview("crop") }
+#Preview("Clarity") { operationPreview("clarity") }
+
+/// One operation's picture mid-play, for its `#Preview`.
+@MainActor @ViewBuilder
+private func operationPreview(_ operation: String) -> some View {
+    if let showcase = StageShowcaseSource.showcase(for: nil) {
+        PrepareOperationPicture(operation: operation, showcase: showcase, progress: 0.5).frame(width: 320, height: 220).padding()
+    }
+}

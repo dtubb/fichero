@@ -236,6 +236,17 @@ struct StageNotInPlanTests {
         #expect(OperationFrame.at(1, operation: "split").gutterGap > 0)
     }
 
+    @Test("Prepare Images plays 3.5 seconds, and its turns visit every operation once, in order")
+    func prepareImagesPlaysEachOperationOnce() {
+        #expect(StageShowcasePlayback.duration(for: "prepare-images") == 3.5)
+        var seen: [String] = []
+        for step in stride(from: 0.0, through: 1.0, by: 0.01) {
+            let operation = OperationFrame.turn(at: step).operation
+            if seen.last != operation { seen.append(operation) }
+        }
+        #expect(seen == OperationFrame.operations)
+    }
+
     @Test("the stage plays the four operations in turn, each from 0 to 1")
     func theStagePlaysTheFourInTurn() {
         #expect(OperationFrame.turn(at: 0).operation == "split")
