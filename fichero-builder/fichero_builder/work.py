@@ -148,7 +148,11 @@ def main(a) -> int:
     state.mkdir(parents=True, exist_ok=True)
     ladder, verdicts, log = (str(state / f"{k}-{a.name}.{e}") for k, e in (("ladder", "json"), ("verdicts", "json"), ("land", "log")))
 
-    end = do_run(a, builder)
+    try:
+        end = do_run(a, builder)
+    except (RuntimeError, OSError) as e:  # JailMissing is a RuntimeError: a start that raised is a question, not a traceback
+        step("run", False, str(e))
+        return question(f"the worker could not run: {e}")
     if not step("run", end == "done", end):
         return question(f"the worker ended {end!r}, not done; read its handoff and the journal, then decide")
     n = do_export(a, branch)
@@ -157,7 +161,11 @@ def main(a) -> int:
     head = do_fetch(a, repo, branch)
     if not step("fetch", bool(head), head or f"could not fetch the worktree branch into {repo}"):
         return question(f"could not fetch the worktree's branch into {repo}")
-    r = do_check(a, repo, branch, head, ladder)
+    try:
+        r = do_check(a, repo, branch, head, ladder)
+    except (RuntimeError, OSError) as e:
+        step("check", False, str(e))
+        return question(f"the check could not run: {e}")
     if not step("check", bool(r.get("ok")), f"failed: {r.get('failed') or '-'}"):
         return question(f"the check is red at {head[:9]} (failed: {r.get('failed') or '?'}); ladder in {ladder}")
     ok, last = do_review(a, repo, head, ladder, verdicts, reviewer)

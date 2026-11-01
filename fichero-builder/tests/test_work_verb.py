@@ -195,3 +195,15 @@ def test_run_with_no_worker_row_raises_with_the_workers_words(scratch, monkeypat
     monkeypatch.setattr(work, "as_worker", lambda a, s: subprocess.CompletedProcess(s, 1, "", "sudo: a password is required"))
     with pytest.raises(RuntimeError, match="password is required"):
         work.do_run(scratch.a, "sonnet")
+
+
+@pytest.mark.parametrize("which", ["do_run", "do_check"])
+@pytest.mark.parametrize("exc", [RuntimeError("harness_start failed"), work.jail.JailMissing("no [jail] in the rules file")])
+def test_a_raised_step_is_a_question_row_and_exit_2_never_a_traceback(chain, monkeypatch, capsys, which, exc):
+    def boom(*a, **k):
+        raise exc
+    monkeypatch.setattr(work, which, boom)
+    assert chain() == 2
+    out = capsys.readouterr().out
+    assert out.startswith("QUESTION: ") and str(exc) in out
+    assert rows()[-1]["step"] == which[3:] and rows()[-1]["ok"] is False and str(exc) in rows()[-1]["detail"]
