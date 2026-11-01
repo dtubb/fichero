@@ -49,8 +49,8 @@ struct CompareReadersView: View {
             .overlay {
                 Canvas { context, size in
                     for line in model.lines {
-                        guard let box = CompareViewModel.drawnBox(of: line),
-                              let rect = CompareViewModel.boxRect(box, image: store.image, canvas: size) else { continue }
+                        guard let drawn = CompareViewModel.drawnBox(of: line, frame: store.frame, photograph: store.image),
+                              let rect = CompareViewModel.boxRect(drawn.box, image: drawn.image, canvas: size) else { continue }
                         context.stroke(Path(rect), with: .color(line.differs ? .orange : .blue), lineWidth: 1)
                     }
                 }

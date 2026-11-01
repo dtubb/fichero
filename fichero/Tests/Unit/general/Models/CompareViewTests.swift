@@ -101,10 +101,23 @@ struct CompareViewTests {
         #expect(CompareViewModel.boxRect([1, 2, 3], image: (10, 10), canvas: CGSize(width: 10, height: 10)) == nil)
     }
 
-    @Test("the box drawn is the photograph's bbox, never a rendition's frame_bbox")
-    func drawnBoxIsThePhotographs() throws {
-        let line = #"{"order":0,"differs":false,"picked_by_person":false,"bbox":[100,50,200,20],"frame_bbox":[10,5,20,2],"readings":[],"words":[]}"#
-        let model = CompareViewModel(answer: try answer(lines: line), platform: .mac)
-        #expect(CompareViewModel.drawnBox(of: model.lines[0]) == [100, 50, 200, 20])
+    @Test("the box drawn follows the picture shown: the edited image's frame_bbox, or the photograph's bbox")
+    func drawnBoxFollowsThePicture() {
+        let bbox: [Double] = [100, 50, 200, 20], frameBbox: [Double] = [10, 5, 20, 2]
+        let photo = (width: 1000, height: 500), edited = (width: 400, height: 300)
+        // No edits (a rendition is not what the picture shows): the photograph's bbox and size.
+        let plain = CompareViewModel.drawnBox(bbox: bbox, frameBbox: frameBbox, readFrom: "rendition", followed: true,
+                                              frameSize: edited, photograph: photo)
+        #expect(plain?.box == bbox && plain?.image.width == 1000)
+        let original = CompareViewModel.drawnBox(bbox: bbox, frameBbox: nil, readFrom: "original", followed: false,
+                                                 frameSize: nil, photograph: photo)
+        #expect(original?.box == bbox)
+        // Saved edits and the lines' place known: the frame's box in the edited image's size.
+        let followed = CompareViewModel.drawnBox(bbox: bbox, frameBbox: frameBbox, readFrom: "edited", followed: true,
+                                                 frameSize: edited, photograph: photo)
+        #expect(followed?.box == frameBbox && followed?.image.width == 400 && followed?.image.height == 300)
+        // Saved edits and the place unknown: no box rather than a wrong one.
+        #expect(CompareViewModel.drawnBox(bbox: bbox, frameBbox: nil, readFrom: "edited", followed: false,
+                                          frameSize: edited, photograph: photo) == nil)
     }
 }

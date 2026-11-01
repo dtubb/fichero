@@ -67,16 +67,16 @@ private struct PagerBinding<Page: View>: View {
         page
             .focusable()
             .focusEffectDisabled()
-            .coordinateSpace(name: PagerScrollers.space)
             .onPreferenceChange(PagerScrollers.Key.self) { scrollers = $0 }
             // A held key is not a new press: one page per press.
-            .onKeyPress(.leftArrow, phases: .down) { move(false) ? .handled : .ignored }
-            .onKeyPress(.rightArrow, phases: .down) { move(true) ? .handled : .ignored }
+            .onKeyPress(.leftArrow, phases: .down) { _ in move(false) ? .handled : .ignored }
+            .onKeyPress(.rightArrow, phases: .down) { _ in move(true) ? .handled : .ignored }
             .simultaneousGesture(DragGesture(minimumDistance: 60, coordinateSpace: .named(PagerScrollers.space)).onEnded { drag in
                 guard let forward = SetupPager.dragMoves(translation: drag.translation, start: drag.startLocation,
                                                          scrollers: scrollers) else { return }
                 _ = move(forward)
             })
+            .coordinateSpace(name: PagerScrollers.space)
             .trackpadSwipe { forward in _ = move(forward) }
             .background {
                 Group {

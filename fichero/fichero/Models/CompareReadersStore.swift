@@ -13,6 +13,8 @@ final class CompareReadersStore {
     let tryStage: String?
     private(set) var model: CompareViewModel?
     private(set) var image: (width: Int, height: Int)?
+    /// The image the boxes are drawn on (`frame`): the edited image when the page has saved edits.
+    private(set) var frame: Components.Schemas.CompareFrame?
     private(set) var failure: String?
 
     /// The iPhone opens on Overlay, the Mac and iPad side by side.
@@ -34,6 +36,7 @@ final class CompareReadersStore {
                 let mode = model?.mode
                 model = CompareViewModel(answer: answer, platform: platform)
                 if let mode { model?.mode = mode }
+                frame = answer.frame
                 if let width = answer.imageWidth, let height = answer.imageHeight { image = (width, height) }
                 failure = nil
             default:

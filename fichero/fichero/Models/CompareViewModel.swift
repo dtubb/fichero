@@ -94,9 +94,29 @@ struct CompareViewModel: Equatable {
         return Pick(segmentId: segment, representationId: representation, expectedCountingId: counting)
     }
 
-    /// The box drawn on the picture. The picture is the photograph with its saved edits, so the box is the line's `bbox` in the
-    /// photograph's pixels; `frame_bbox` is in a rendition's pixels (a crop) and would land in the wrong place on it.
-    static func drawnBox(of line: Components.Schemas.CompareLine) -> [Double]? { line.bbox }
+    /// A line's box and the size of the pixels it is in, for the picture shown. The picture is the page's saved edits when it has
+    /// any (`frame.read_from == "edited"`), else the photograph. On an edited page the boxes are `frame_bbox` in the edited
+    /// image's size, and when the lines' place on it is not known (`followed` false) no box is drawn; otherwise the line's `bbox`
+    /// in the photograph's pixels.
+    static func drawnBox(bbox: [Double]?, frameBbox: [Double]?, readFrom: String?, followed: Bool,
+                         frameSize: (width: Int, height: Int)?, photograph: (width: Int, height: Int)?)
+        -> (box: [Double], image: (width: Int, height: Int))? {
+        if readFrom == "edited" {
+            guard followed, let box = frameBbox, let frameSize else { return nil }
+            return (box, frameSize)
+        }
+        guard let bbox, let photograph else { return nil }
+        return (bbox, photograph)
+    }
+
+    /// `drawnBox` over one of the engine's lines and its answer's frame.
+    static func drawnBox(of line: Components.Schemas.CompareLine, frame: Components.Schemas.CompareFrame?,
+                         photograph: (width: Int, height: Int)?) -> (box: [Double], image: (width: Int, height: Int))? {
+        var size: (width: Int, height: Int)?
+        if let width = frame?.imageWidth, let height = frame?.imageHeight { size = (width, height) }
+        return drawnBox(bbox: line.bbox, frameBbox: line.frameBbox, readFrom: frame?.readFrom.rawValue,
+                        followed: frame?.followed ?? false, frameSize: size, photograph: photograph)
+    }
 
     /// A box from the engine, in the page image's pixels, scaled onto a canvas that shows the whole image.
     static func boxRect(_ box: [Double], image: (width: Int, height: Int)?, canvas: CGSize) -> CGRect? {
