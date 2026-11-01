@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from fichero_server.models import DocType, Document, FileType
 from tests.unit.media.test_find_page import PAGE, H, W, scan
 
@@ -193,6 +195,18 @@ def test_an_unread_skewed_whole_page_is_straightened(db, tmp_path, monkeypatch):
 def test_a_skewed_whole_page_read_by_a_direct_run_keeps_the_image_it_was_read_from(db, tmp_path, monkeypatch):
     """Review 8 M1: turning a page already read changed the image its reading came from, so the skip-if-done lookup sent it again."""
     assert _prepared_roles(db, tmp_path, monkeypatch, _whole_page_reading(db)) == []
+
+
+@pytest.mark.parametrize("kind", ["description", "caption", "handwriting"])
+def test_a_skewed_whole_page_described_keeps_the_image_it_was_described_from(db, tmp_path, monkeypatch, kind):
+    """Owner ruling 2026-11-01: describe (and caption, handwriting) skip a page by image too; straightening a page they hold an
+    artifact for would make them pay again for the same page (same input, same model: reuse), flag on or off."""
+    from fichero_server.models import Artifact
+
+    def described(doc):
+        db.save(Artifact(document_id=doc.id, artifact_type=kind, model="m", provider="p", content="una hoja rayada"))
+
+    assert _prepared_roles(db, tmp_path, monkeypatch, described) == []
 
 
 def test_a_skewed_whole_page_half_read_keeps_the_image_it_was_read_from(db, tmp_path, monkeypatch):

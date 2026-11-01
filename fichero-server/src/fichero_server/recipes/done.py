@@ -298,6 +298,20 @@ def pages_with_readings(db: Any, pages: list[str]) -> set[str]:
     return have
 
 
+#: Artifact types a vision tool that is not Read saves for a page: each skips the page it already holds one for, per image.
+_OTHER_IMAGE_READINGS = frozenset({"description", "caption", "handwriting"})
+
+
+def pages_with_any_image_reading(db: Any, pages: list[str]) -> set[str]:
+    """`pages_with_readings`, plus the pages one of the other vision tools (describe, caption, handwriting) has saved an artifact
+    for: a new image would make that tool pay again for the same page (same input, same model: reuse)."""
+    from fichero_server.models import Artifact
+
+    other = {a.document_id for a in db.query_fields_in(Artifact, ("id", "document_id", "artifact_type"), "document_id", pages)
+             if a.artifact_type in _OTHER_IMAGE_READINGS}
+    return pages_with_readings(db, pages) | other
+
+
 def lines_state(db: Any, doc_id: str, model: str | None = None) -> tuple[int, int, int]:
     """(lines found, lines with no reading and not looked at, lines looked at with no writing) on the page, from
     one scan of its segments and readings (#5758); `model`: only that reader's 'no writing' counts. A ruled or blank line the reader looked at is read: it has
