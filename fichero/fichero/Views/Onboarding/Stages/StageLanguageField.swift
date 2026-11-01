@@ -41,3 +41,9 @@ struct StageLanguageField: View {
         }
     }
 }
+
+#Preview("Language field") {
+    @Previewable @State var answer: StageAnswer? = .text("es")
+    StageLanguageField(store: RecipeSetupStore(client: FicheroClient(libraryPath: nil)), answer: $answer)
+        .padding().frame(width: 420)
+}

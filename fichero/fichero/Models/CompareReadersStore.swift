@@ -9,18 +9,26 @@ import Observation
 final class CompareReadersStore {
     private let client: FicheroClient
     let pageId: String
+    /// The stage whose try is compared (`?try_stage=`): the compare view opens from a try's sample page, so it shows that try.
+    let tryStage: String?
     private(set) var model: CompareViewModel?
     private(set) var image: (width: Int, height: Int)?
     private(set) var failure: String?
 
-    init(client: FicheroClient, pageId: String) {
+    /// The iPhone opens on Overlay, the Mac and iPad side by side.
+    private let platform: CompareViewModel.Platform
+
+    init(client: FicheroClient, pageId: String, tryStage: String? = nil, platform: CompareViewModel.Platform = .current) {
         self.client = client
+        self.tryStage = tryStage
+        self.platform = platform
         self.pageId = pageId
     }
 
-    func load(platform: CompareViewModel.Platform = .mac) async {
+    func load() async {
         do {
-            switch try await client.api.getCompareReadersApiDocumentsPageIdCompareReadersGet(path: .init(pageId: pageId)) {
+            switch try await client.api.getCompareReadersApiDocumentsPageIdCompareReadersGet(
+                path: .init(pageId: pageId), query: .init(tryStage: tryStage)) {
             case .ok(let success):
                 let answer = try success.body.json
                 let mode = model?.mode
@@ -37,16 +45,20 @@ final class CompareReadersStore {
         }
     }
 
-    /// The line's reading by `readerId` becomes the one that counts; the answer is read again.
+    /// The line's reading by `readerId` becomes the one that counts; the answer is read again. A refusal is said, never dropped.
     func pick(readerId: String, onLine order: Int) async {
-        guard let line = model?.lines.first(where: { $0.order == order }), let segment = line.segmentId,
-              let reading = line.readings.first(where: { $0.readerId == readerId }),
-              let representation = reading.representationId else { return }
+        guard let pick = model?.pick(readerId: readerId, onLine: order) else { return }
         do {
-            _ = try await client.api.chooseSegmentReadingApiSegmentsSegmentIdReadingsChoicePost(
-                path: .init(segmentId: segment),
-                body: .json(.init(kind: "transcription", representationId: representation, expectedCountingId: line.countingReaderId)))
-            await load()
+            switch try await client.api.chooseSegmentReadingApiSegmentsSegmentIdReadingsChoicePost(
+                path: .init(segmentId: pick.segmentId),
+                body: .json(.init(kind: "transcription", representationId: pick.representationId,
+                                  expectedCountingId: pick.expectedCountingId))) {
+            case .ok:
+                await load()
+            default:
+                await load()
+                failure = "That line has changed since you looked at it. The readings are shown again."
+            }
         } catch {
             if error.isCancellationError { return }
             failure = "Could not use that reading: \(error.localizedDescription)"

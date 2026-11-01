@@ -27,6 +27,11 @@ struct FirstRunWindow: View {
     static let sidebarWidth: CGFloat = 260
     /// The window's size on the Mac; the content column gets what the step list leaves.
     static let windowSize = CGSize(width: 820, height: 600)
+    /// The wide Set Up holds the list and both columns whole; off, the window is today's.
+    static func windowSize(wide: Bool) -> CGSize {
+        guard wide, let width = SetupPager.Layout.of(.mac).windowWidth else { return windowSize }
+        return CGSize(width: width, height: windowSize.height)
+    }
 
     @State var step: SetupStep
     /// Change… on a stage page's worked-out language goes back to About the Material (the step is private here).
@@ -68,25 +73,8 @@ struct FirstRunWindow: View {
         if let newProject { _newProject = State(initialValue: newProject) }
     }
 
-    /// The pages each way in starts with (`source.onboard.project.one-view`). Pure, for the tests.
-    static func flow(for mode: Mode, isCompanionPlatform: Bool = SetupFlow.runsOnCompanionPlatform) -> SetupFlow {
-        switch mode {
-        case .firstRun: SetupFlow(includesApp: true, project: .none, isCompanionPlatform: isCompanionPlatform)
-        case .newProject: SetupFlow(includesApp: false, project: .new)
-        case .setUp: SetupFlow(includesApp: false, project: .existing)
-        }
-    }
-
     /// The store of the project being set up; nil until Your project has made one.
     var store: RecipeSetupStore? { project?.recipeSetupStore }
-
-    /// The pages, with one per stage chosen so far, and the stage page the person is on even if they just unticked it.
-    var steps: [SetupStep] {
-        var current = flow
-        let onStage: String? = if case .stage(let id) = step { id } else { nil }
-        current.chosenStages = store?.stageIds(keeping: onStage) ?? []
-        return current.steps
-    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -103,7 +91,8 @@ struct FirstRunWindow: View {
         // The fixed two-pane card is a desktop window size; a compact companion
         // presentation sizes to its sheet instead (#2807).
         #if os(macOS)
-        .frame(width: Self.windowSize.width, height: Self.windowSize.height)
+        .frame(width: Self.windowSize(wide: featureManager.isWideSetUpEnabled).width,
+               height: Self.windowSize(wide: featureManager.isWideSetUpEnabled).height)
         #endif
         // Reopen where the person left off: the project's saved answers and
         // recipe (GET /api/recipes/project), the purposes, the jobs and the stages.
@@ -170,7 +159,9 @@ struct FirstRunWindow: View {
     func advance() {
         // Your project makes the project; the steps after it save into it.
         if step == .project {
+            isSaving = true  // before the Task: a second press in the same turn finds it held
             Task {
+                defer { isSaving = false }
                 guard let made = await newProject.create() else { return }
                 project = made
                 step = step.next(in: steps)
@@ -196,7 +187,9 @@ struct FirstRunWindow: View {
         }
         // AI and ML Models: Continue writes the answer, the default included (`source.onboard.places-cap-projects`).
         if step == .whatFicheroRuns, let placesStore {
+            isSaving = true
             Task {
+                defer { isSaving = false }
                 if await placesStore.keepAnswer() { step = step.next(in: steps) }
             }
             return
@@ -204,8 +197,8 @@ struct FirstRunWindow: View {
         // Continue keeps the answers so far as a draft on the project, so setup can be closed
         // at any step; saving is not Start.
         guard step.savesDraft, let store else { step = step.next(in: steps); return }
+        isSaving = true
         Task {
-            isSaving = true
             let saved = await store.save()
             isSaving = false
             // A refused save stays on its step with the engine's words.

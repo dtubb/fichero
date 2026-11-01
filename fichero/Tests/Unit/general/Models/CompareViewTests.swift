@@ -67,4 +67,37 @@ struct CompareViewTests {
         #expect(model.notReadBecause(reader: "b") == "Reader b did not read this page.")
         #expect(model.notReadBecause(reader: "a") == nil)
     }
+
+    @Test("Use This sends the representation of the reading that counted, never a reader id")
+    func pickExpectsARepresentation() throws {
+        let lines = """
+        {"order":0,"segment_id":"s1","counting_reader_id":"a","differs":true,"picked_by_person":false,
+         "readings":[{"reader_id":"a","text":"Yten","representation_id":"rep-a"},{"reader_id":"b","text":"Item","representation_id":"rep-b"}],"words":[]}
+        """
+        let model = CompareViewModel(answer: try answer(lines: lines), platform: .mac)
+        #expect(model.pick(readerId: "b", onLine: 0) == .init(segmentId: "s1", representationId: "rep-b", expectedCountingId: "rep-a"))
+        #expect(model.pick(readerId: "c", onLine: 0) == nil)
+    }
+
+    @Test("a line with no counting reading sends no expectation; a try's line (no segment) cannot be picked")
+    func pickEdges() throws {
+        let lines = """
+        {"order":0,"segment_id":"s1","differs":true,"picked_by_person":false,
+         "readings":[{"reader_id":"a","text":"x","representation_id":"rep-a"}],"words":[]},
+        {"order":1,"differs":true,"picked_by_person":false,
+         "readings":[{"reader_id":"a","text":"y","representation_id":"rep-a2"}],"words":[]}
+        """
+        let model = CompareViewModel(answer: try answer(lines: lines), platform: .mac)
+        #expect(model.pick(readerId: "a", onLine: 0)?.expectedCountingId == nil)
+        #expect(model.pick(readerId: "a", onLine: 1) == nil)
+        #expect(model.rows.map(\.canPick) == [true, false])
+    }
+
+    @Test("a line box in image pixels is scaled to the canvas, not multiplied by it")
+    func boxScalesFromImagePixels() {
+        let rect = CompareViewModel.boxRect([100, 50, 200, 20], image: (1000, 500), canvas: CGSize(width: 500, height: 250))
+        #expect(rect == CGRect(x: 50, y: 25, width: 100, height: 10))
+        #expect(CompareViewModel.boxRect([1, 2, 3, 4], image: nil, canvas: CGSize(width: 10, height: 10)) == nil)
+        #expect(CompareViewModel.boxRect([1, 2, 3], image: (10, 10), canvas: CGSize(width: 10, height: 10)) == nil)
+    }
 }

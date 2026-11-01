@@ -39,6 +39,7 @@ from __future__ import annotations
 import json
 import unicodedata
 import uuid
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -186,7 +187,10 @@ MOST_WAITS_FOR_KRAKEN = 60
 
 #: Kraken's reads of given lines, by (image bytes, model, frame, line shapes): each candidate of a try runs the tie on its own copy
 #: of the project, and the same input with the same model is never read twice (owner rule, #6127).
-_READS: dict[tuple[Any, ...], list[Any]] = {}
+#: Bounded: a candidate's copy is read right after the one before it, so only the latest pages matter; a 100k-page run must not
+#: keep every page's lines in memory.
+_READS: OrderedDict[tuple[Any, ...], list[Any]] = OrderedDict()
+_MOST_READS_KEPT = 32
 
 
 def _read_once(path: Any, model_path: str, lines: list[dict[str, Any]], frame: str | None) -> list[Any]:
@@ -201,10 +205,13 @@ def _read_once(path: Any, model_path: str, lines: list[dict[str, Any]], frame: s
         shapes = json.dumps([[ln.get("polygon"), ln.get("baseline")] for ln in lines], sort_keys=True)
         key = (hashlib.sha256(Path(path).read_bytes()).hexdigest(), model_path, frame, shapes)
         if key in _READS:
+            _READS.move_to_end(key)
             return list(_READS[key])
     reads = kraken_runtime.read_given_lines(path, model_path, lines, frame=frame)
     if key is not None:
         _READS[key] = list(reads)
+        while len(_READS) > _MOST_READS_KEPT:
+            _READS.popitem(last=False)
     return reads
 
 

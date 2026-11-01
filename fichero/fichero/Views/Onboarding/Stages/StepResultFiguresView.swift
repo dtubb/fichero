@@ -16,14 +16,14 @@ struct StepResultFiguresView: View {
                 Text(tie).font(.callout).accessibilityIdentifier("setup.output.tie")
                 if let showDifferences, StepRowWords.offersUntied(result.tie?.counts) {
                     Button("See where they differ", action: showDifferences)
-                        .accessibilityIdentifier("setup.output.tie.differ")
+                        .accessibilityIdentifier("setup.step.noModel.read-a-line.showUntied")
                 }
             }
             if let both = result.lineCounts?.pages {
                 ForEach(both.keys.sorted(), id: \.self) { page in
                     if let counts = both[page] {
                         Text("\(name(page)): \(StepRowWords.lineCounts(counts))").font(.callout)
-                            .accessibilityIdentifier("setup.output.lineCounts")
+                            .accessibilityIdentifier("setup.findLines.clarifiedCount")
                     }
                 }
             }
@@ -32,5 +32,12 @@ struct StepResultFiguresView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+}
+
+#Preview("Tie figures and line counts") {
+    let json = #"{"state":"done","tie":{"counts":{"tied":9,"doubtful":2,"untied":1,"drafts":1}}}"#
+    if let result = try? JSONDecoder().decode(SetupStageTryResult.self, from: Data(json.utf8)) {
+        StepResultFiguresView(result: result, name: { $0 }, showDifferences: {}).padding().frame(width: 420)
     }
 }

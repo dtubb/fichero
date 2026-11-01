@@ -47,6 +47,13 @@ struct StepOutputStateTests {
         #expect(state(nil, cost: "About $0.12") == .notTried(line: "About $0.12"))
     }
 
+    @Test("a stale result dims only with the wide Set Up on (release shows today's window)")
+    func staleDimsOnlyOnTheFlag() {
+        #expect(StepOutputStateView.opacity(of: .done(stale: true), wideSetUp: true) == 0.5)
+        #expect(StepOutputStateView.opacity(of: .done(stale: true), wideSetUp: false) == 1)
+        #expect(StepOutputStateView.opacity(of: .done(stale: false), wideSetUp: true) == 1)
+    }
+
     @Test("a finished try is done, and stale when the answers have changed since")
     func doneAndStale() throws {
         let done = try result(#"{"state":"done","answers_revision":"r1"}"#)

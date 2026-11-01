@@ -17,24 +17,26 @@ struct StepOutputStateView: View {
             case .running(let words):
                 ProgressView().controlSize(.small)
                 Text(words).font(.callout).foregroundStyle(.secondary)
-                if let stop { Button("Stop", action: stop).controlSize(.small) }
+                if let stop { Button("Stop", action: stop).controlSize(.small).accessibilityIdentifier("setup.stage.output.stop") }
             case .done(let stale):
                 if stale {
                     Label(StepOutputState.staleWords, systemImage: "clock.arrow.circlepath").font(.callout).foregroundStyle(.secondary)
-                    if let runThisStep { Button("Run This Step", action: runThisStep).controlSize(.small) }
+                    if let runThisStep { Button("Run This Step", action: runThisStep).controlSize(.small)
+                        .accessibilityIdentifier("setup.stage.output.runThisStep") }
                 }
             case .failed(let words):
                 Label(words, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.orange)
             }
         }
         .fixedSize(horizontal: false, vertical: true)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("setup.output.state")
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("setup.stage.output")
     }
 
-    /// A stale result is shown dimmed, never as current.
-    static func opacity(of state: StepOutputState) -> Double {
-        if case .done(true) = state { return 0.5 }
+    /// A stale result is shown dimmed, never as current. Only with the wide Set Up on: off, Set Up is today's window and nothing
+    /// explains a dimmed result (`wide.release.behind-one-flag`).
+    static func opacity(of state: StepOutputState, wideSetUp: Bool) -> Double {
+        if wideSetUp, case .done(true) = state { return 0.5 }
         return 1
     }
 }

@@ -63,4 +63,18 @@ struct SetupPagerTests {
         #expect(SetupPager.Layout.of(.compact).stacksColumns)
         #expect(SetupPager.Layout.of(.compact).stepListWidth == nil)
     }
+
+    @Test("the wide window holds the list and both columns; off, it is today's 820 x 600")
+    func windowHoldsTheColumns() {
+        let columns = SetupPager.Layout.of(.mac)
+        #expect(FirstRunWindow.windowSize(wide: false) == CGSize(width: 820, height: 600))
+        #expect(FirstRunWindow.windowSize(wide: true).width >= (columns.leastWidth ?? 0) + 2 * 28 + 24)
+    }
+
+    @Test("a forward move is held while a save or the project's creation runs")
+    func forwardHeldWhileSaving() {
+        #expect(SetupPager.forwardHeld(isSaving: true, isCreating: false))
+        #expect(SetupPager.forwardHeld(isSaving: false, isCreating: true))
+        #expect(!SetupPager.forwardHeld(isSaving: false, isCreating: false))
+    }
 }

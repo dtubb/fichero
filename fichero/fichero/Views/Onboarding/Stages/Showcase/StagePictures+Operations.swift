@@ -104,3 +104,9 @@ struct PrepareOperationsPicture: View {
         PrepareOperationPicture(operation: turn.operation, showcase: showcase, progress: turn.progress)
     }
 }
+
+#Preview("Prepare Images operations") {
+    if let showcase = StageShowcaseSource.showcase(for: nil) {
+        PrepareOperationsPicture(showcase: showcase, progress: 0.3).frame(width: 320, height: 220).padding()
+    }
+}

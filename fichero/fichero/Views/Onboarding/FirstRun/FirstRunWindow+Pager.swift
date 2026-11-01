@@ -23,6 +23,8 @@ extension FirstRunWindow {
     func movePage(forward: Bool) -> Bool {
         var pager = SetupPager(steps: steps, current: step)
         if forward {
+            // One save at a time: a second press while one runs would move two pages (and pass a page that bounced).
+            guard !SetupPager.forwardHeld(isSaving: isSaving, isCreating: newProject.isCreating) else { return false }
             let model = SetupFooter.of(step, in: steps, mode: mode, projectChosen: flow.project != .none,
                                        hasMaterial: store?.hasMaterial ?? false, hasLanguage: store?.languageWait == nil)
             guard case .moved = pager.advance(waitsFor: model.waitsFor) else { return false }
@@ -66,4 +68,9 @@ private struct PagerBinding<Page: View>: View {
             .accessibilityIdentifier("setup.pager")
             .onChange(of: label) { _, new in AccessibilityNotification.Announcement(new).post() }
     }
+}
+
+#Preview("Pager around a page") {
+    PagerBinding(label: "Page 2 of 5", move: { _ in true }, page: { Text("A page of Set Up").padding() })
+        .frame(width: 320, height: 120)
 }

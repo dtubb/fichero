@@ -1,5 +1,8 @@
 import FicheroAPIClient
 import Foundation
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// The compare view's model (`wide.compare.three-modes`, `.per-line-diff`, `.empty-and-error-states`, #5900): modes, rows and
 /// states over the engine's one compare answer (`GET /api/pages/{id}/compare-readers`). Pure: no view, no network; the engine
@@ -11,6 +14,14 @@ struct CompareViewModel: Equatable {
 
     enum Platform: Equatable {
         case mac, iPad, iPhone
+
+        static var current: Platform {
+            #if os(macOS)
+            .mac
+            #else
+            UIDevice.current.userInterfaceIdiom == .phone ? .iPhone : .iPad
+            #endif
+        }
     }
 
     /// Side by side is the Mac's and iPad's default, Overlay the iPhone's (one picture fits the narrow screen).
@@ -64,6 +75,31 @@ struct CompareViewModel: Equatable {
         let differingWords: [String]
         let pickedByPerson: Bool
         let countingReaderId: String?
+        /// A try's lines have no segment yet (`segment_id` null): there is nothing to make count, so no Use This.
+        let canPick: Bool
+    }
+
+    /// What Use This sends for one reading of one line: the line's segment, the reading chosen, and the reading that counted when
+    /// the person looked, as a representation id (the engine compares representation ids, never reader ids).
+    struct Pick: Equatable {
+        let segmentId: String
+        let representationId: String
+        let expectedCountingId: String?
+    }
+
+    func pick(readerId: String, onLine order: Int) -> Pick? {
+        guard let line = lines.first(where: { $0.order == order }), let segment = line.segmentId,
+              let reading = line.readings.first(where: { $0.readerId == readerId }),
+              let representation = reading.representationId else { return nil }
+        let counting = line.readings.first { $0.readerId == line.countingReaderId }?.representationId
+        return Pick(segmentId: segment, representationId: representation, expectedCountingId: counting)
+    }
+
+    /// A box from the engine, in the page image's pixels, scaled onto a canvas that shows the whole image.
+    static func boxRect(_ box: [Double], image: (width: Int, height: Int)?, canvas: CGSize) -> CGRect? {
+        guard box.count == 4, let image, image.width > 0, image.height > 0 else { return nil }
+        let across = canvas.width / Double(image.width), down = canvas.height / Double(image.height)
+        return CGRect(x: box[0] * across, y: box[1] * down, width: box[2] * across, height: box[3] * down)
     }
 
     var rows: [Row] {
@@ -71,7 +107,8 @@ struct CompareViewModel: Equatable {
             let byReader = Dictionary(line.readings.map { ($0.readerId, $0.text) }, uniquingKeysWith: { first, _ in first })
             return Row(id: line.order, texts: readers.map { byReader[$0.id] }, differs: line.differs,
                        differingWords: line.words.filter { !$0.variants.isEmpty }.map(\.text),
-                       pickedByPerson: line.pickedByPerson, countingReaderId: line.countingReaderId)
+                       pickedByPerson: line.pickedByPerson, countingReaderId: line.countingReaderId,
+                       canPick: line.segmentId != nil)
         }
     }
 

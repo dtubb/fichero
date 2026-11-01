@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import SwiftUI
 
 /// The compare view on a person's own page (`wide.compare.three-modes`, `.per-line-diff`, `.empty-and-error-states`, #5900): the
@@ -48,9 +49,8 @@ struct CompareReadersView: View {
             .overlay {
                 Canvas { context, size in
                     for line in model.lines {
-                        guard let box = line.frameBbox ?? line.bbox, box.count == 4 else { continue }
-                        let rect = CGRect(x: box[0] * size.width, y: box[1] * size.height,
-                                          width: box[2] * size.width, height: box[3] * size.height)
+                        guard let box = line.frameBbox ?? line.bbox,
+                              let rect = CompareViewModel.boxRect(box, image: store.image, canvas: size) else { continue }
                         context.stroke(Path(rect), with: .color(line.differs ? .orange : .blue), lineWidth: 1)
                     }
                 }
@@ -71,8 +71,25 @@ struct CompareReadersView: View {
 
     /// A column per reader, each line's text in its reader's column; a reader that did not read the page says why.
     private func sideBySide(_ model: CompareViewModel) -> some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 6) {
+        List {
+            Section {
+                ForEach(model.rows) { row in
+                    HStack(alignment: .top) {
+                        ForEach(Array(model.readers.enumerated()), id: \.offset) { index, reader in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(row.texts[index] ?? "").font(.callout).textSelection(.enabled)
+                                if row.texts[index] != nil, row.differs, row.canPick {
+                                    Button("Use This") { Task { await store.pick(readerId: reader.id, onLine: row.id) } }
+                                        .controlSize(.small)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    .padding(4)
+                    .background(row.differs ? Color.orange.opacity(0.1) : Color.clear, in: RoundedRectangle(cornerRadius: 4))
+                }
+            } header: {
                 HStack(alignment: .top) {
                     ForEach(model.readers, id: \.id) { reader in
                         VStack(alignment: .leading, spacing: 2) {
@@ -84,24 +101,9 @@ struct CompareReadersView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                ForEach(model.rows) { row in
-                    HStack(alignment: .top) {
-                        ForEach(Array(model.readers.enumerated()), id: \.offset) { index, reader in
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(row.texts[index] ?? "").font(.callout).textSelection(.enabled)
-                                if row.texts[index] != nil, row.differs {
-                                    Button("Use This") { Task { await store.pick(readerId: reader.id, onLine: row.id) } }
-                                        .controlSize(.small)
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-                    .padding(4)
-                    .background(row.differs ? Color.orange.opacity(0.1) : Color.clear, in: RoundedRectangle(cornerRadius: 4))
-                }
             }
         }
+        .listStyle(.plain)
     }
 
     /// One text per line, from the readers the legend has on; a click on a legend entry switches that reader off.
@@ -114,17 +116,14 @@ struct CompareReadersView: View {
                         .compareCheckbox()
                 }
             }
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 4) {
-                    ForEach(model.rows) { row in
-                        ForEach(Array(model.readers.enumerated()), id: \.offset) { index, reader in
-                            if model.drawn.contains(where: { $0.id == reader.id }), let text = row.texts[index] {
-                                Text(text).font(.callout).textSelection(.enabled)
-                            }
-                        }
+            List(model.rows) { row in
+                ForEach(Array(model.readers.enumerated()), id: \.offset) { index, reader in
+                    if model.drawn.contains(where: { $0.id == reader.id }), let text = row.texts[index] {
+                        Text(text).font(.callout).textSelection(.enabled)
                     }
                 }
             }
+            .listStyle(.plain)
         }
     }
 
@@ -135,16 +134,13 @@ struct CompareReadersView: View {
             Slider(value: Binding(get: { model.handle }, set: { store.moveHandle(to: $0) }), in: 0...1)
                 .accessibilityLabel("Wipe between the first two readers")
                 .accessibilityIdentifier("compare.wipe")
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 4) {
-                    ForEach(model.rows) { row in
-                        let first = row.texts.first.flatMap { $0 } ?? ""
-                        let second = row.texts.dropFirst().first.flatMap { $0 } ?? ""
-                        let cut = model.charactersOnA(of: first)
-                        Text(String(first.prefix(cut)) + String(second.dropFirst(min(second.count, cut)))).font(.callout)
-                    }
-                }
+            List(model.rows) { row in
+                let first = row.texts.first.flatMap { $0 } ?? ""
+                let second = row.texts.dropFirst().first.flatMap { $0 } ?? ""
+                let cut = model.charactersOnA(of: first)
+                Text(String(first.prefix(cut)) + String(second.dropFirst(min(second.count, cut)))).font(.callout)
             }
+            .listStyle(.plain)
         }
     }
 }
@@ -158,4 +154,9 @@ private extension View {
         self
         #endif
     }
+}
+
+#Preview("Compare readers, before the engine answers") {
+    CompareReadersView(store: CompareReadersStore(client: FicheroClient(libraryPath: nil), pageId: "page-1"))
+        .padding().frame(width: 520, height: 420)
 }

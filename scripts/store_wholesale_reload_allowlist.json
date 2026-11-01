@@ -310,5 +310,11 @@
     "method": "preselect",
     "class": "by-design",
     "reason": "by-design 2026-10-25 (#6119): a one-time initial fill of an empty set, not a reload: it runs once per visit (preselected flag) and only while chosenCandidates is empty, when the finder's first list arrives, so there is no prior item to splice against and a person's later unticking is never overwritten; the identity of the set is the stage's best model, chosen once"
+  },
+  {
+    "file": "fichero/fichero/Models/CompareReadersStore.swift",
+    "method": "pick",
+    "class": "by-design",
+    "reason": "by-design 2026-10-31: making one line's reading count changes the page's whole compare answer (the agreement, the differing words and the counting reader of that line), so the answer is resynced from the engine; the store holds one page's answer, not a list of items to splice"
   }
 ]

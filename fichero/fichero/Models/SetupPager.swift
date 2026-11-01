@@ -84,6 +84,9 @@ struct SetupPager: Equatable {
     }
 
     /// The window's and columns' sizes as pure values (`wide.pager.window-is-wide`).
+    /// A forward move waits while a save or the project's creation runs: a second press must not move a second page.
+    static func forwardHeld(isSaving: Bool, isCreating: Bool) -> Bool { isSaving || isCreating }
+
     struct Layout: Equatable {
         let minWindow: (width: Double, height: Double)?
         let stepListWidth: Double?
@@ -112,5 +115,9 @@ struct SetupPager: Equatable {
             guard let list = stepListWidth, let questions = questionsWidth, let output = minOutputWidth else { return nil }
             return list + questions + output
         }
+
+        /// The window that holds `leastWidth` with the page's padding either side (28), the gap between the columns (24) and the
+        /// divider (1), plus room for the card's own insets.
+        var windowWidth: Double? { leastWidth.map { $0 + 2 * 28 + 24 + 1 + 40 } }
     }
 }

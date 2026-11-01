@@ -25,7 +25,7 @@ struct RenditionChainStripView: View {
                     }
                     if let shown, let row = store.rows.first(where: { $0.id == shown }) { large(row) }
                 }
-                .accessibilityIdentifier("setup.chain.strip")
+                .accessibilityIdentifier("prepareImages.chain")
             } else if let failure = store.failure {
                 Text(failure).font(.caption).foregroundStyle(.secondary)
             }
@@ -47,7 +47,7 @@ struct RenditionChainStripView: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("setup.chain.row.\(row.id)")
+        .accessibilityIdentifier("prepareImages.chain.\(row.id)")
     }
 
     @ViewBuilder private func picture(_ row: RenditionChainRow) -> some View {
@@ -83,4 +83,8 @@ private struct RenditionPicture: View {
             #endif
         }
     }
+}
+
+#Preview("Chain strip, before the engine answers") {
+    RenditionChainStripView(client: FicheroClient(libraryPath: nil), pageId: "page-1").padding().frame(width: 420)
 }

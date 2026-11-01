@@ -84,16 +84,19 @@ struct SetupStageSamples: View {
             }
             if let result = store.result {
                 resultView(result).opacity(StepOutputStateView.opacity(
-                    of: store.outputState(currentRevision: currentRevision, estimate: nil)))
+                    of: store.outputState(currentRevision: currentRevision, estimate: nil),
+                    wideSetUp: FeatureManager.shared.isWideSetUpEnabled))
             }
         }
         .task { await store.load(); await store.follow() }
-        .sheet(item: $comparing) { page in
-            StageCompareWindow(pageId: page.id, name: store.name(of: page.id),
-                               candidates: store.result?.candidates ?? [], useThis: useThis,
-                               readers: FeatureManager.shared.isWideSetUpEnabled
-                                   ? CompareReadersStore(client: store.client, pageId: page.id) : nil)
-        }
+        .sheet(item: $comparing) { page in compareWindow(page) }
+    }
+
+    private func compareWindow(_ page: ComparedPage) -> some View {
+        StageCompareWindow(pageId: page.id, name: store.name(of: page.id),
+                           candidates: store.result?.candidates ?? [], useThis: useThis,
+                           readers: FeatureManager.shared.isWideSetUpEnabled
+                               ? CompareReadersStore(client: store.client, pageId: page.id, tryStage: store.stageId) : nil)
     }
 
     @ViewBuilder

@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import SwiftUI
 
 /// What Ready says will run, from the engine's start plan (`wide.ready.only-what-will-run`, #5840): each job with its pages done,
@@ -26,4 +27,8 @@ struct ReadyWillRunView: View {
             .accessibilityIdentifier("setup.ready.willRun")
         }
     }
+}
+
+#Preview("Nothing yet (draws nothing until the plan is read)") {
+    ReadyWillRunView(store: RecipeSetupStore(client: FicheroClient(libraryPath: nil))).padding().frame(width: 420)
 }
