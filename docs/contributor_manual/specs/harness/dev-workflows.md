@@ -274,7 +274,13 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   `[check].engine_repo` by ref (`work-<name>`), the check over base..head from the pinned copy (`--pinned` required), the
   review script with the check's JSON as `--ladder` and `[models].reviewer`, then the land gate, whose push line it prints;
   it never pushes. A parked or gone worker, a red check, a NOT READY review or a refused land stops it with
-  `QUESTION: <why>` and exit 2; every step is a journal row (event `work`: step, ok, detail). **Built** (2026-11-01): the
+  `QUESTION: <why>` and exit 2; every step is a journal row (event `work`: step, ok, detail). **Built** (2026-11-01), **no real run has completed yet**: a real test covers
+  the patch count on a scratch git repo, the bundle fetch with a branch named like an option attack (nothing runs), the
+  `sudo -n -H -u <user> sh -c "cd <workroot> && ..."` argv, and the end read from the shared journal; the order, the
+  stops and the journal rows are tested with the steps replaced by fakes, and the sudo boundary with a fake runner.
+  Nothing has yet run the real sudo, a real worker, the real check, review and land through this verb; the first real
+  run is Step 2.2's. Test:
+  `fichero-builder/tests/test_work_verb.py::test_the_chain_runs_in_order_with_the_roles_models_prints_the_push_and_never_pushes`.
   verb, with the steps replaced by fakes in its test; the first real run is Step 2.2's. Test:
   `fichero-builder/tests/test_work_verb.py::test_the_chain_runs_in_order_with_the_roles_models_prints_the_push_and_never_pushes`.
 - `dev-workflows.tool.spec` [PARTIAL] (#6116) (owner 2026-11-01) — `builder spec <issue>` starts the **spec-writer** role from
