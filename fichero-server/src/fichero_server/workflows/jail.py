@@ -43,6 +43,7 @@ class Jail:
     workroot: str = ""                 # shared dir (made by the owner, readable+writable by both) for trees and scratch
     deny_read: tuple = ()              # paths the user must NOT be able to read (the probe checks each)
     sudo: str = "sudo"
+    owner_home: str = ""               # what `~` means in deny_read/floor when the probe runs AS the jail user (else its own home)
     floor: tuple | None = None         # paths always probed; None = the owner's home and libraries (tests with a same-uid stand-in pass ())
     _checked: list = field(default_factory=list, compare=False, repr=False, hash=False)
 
@@ -87,9 +88,11 @@ class Jail:
         Returns the failures (empty = the wall holds)."""
         bad = []
         # floor (review 3 B1): the owner's home and the real libraries are always probed, whatever the rules file lists
-        floor = self.floor if self.floor is not None else (str(Path.home()),)
+        home = self.owner_home or str(Path.home())
+        floor = self.floor if self.floor is not None else (home,)
         for p in dict.fromkeys((*floor, *self.deny_read)):
-            r = subprocess.run(self.argv(["/bin/sh", "-c", f"test -r {shlex.quote(str(Path(p).expanduser()))}"], env={}),
+            p = home + p[1:] if p.startswith("~") else p
+            r = subprocess.run(self.argv(["/bin/sh", "-c", f"test -r {shlex.quote(p)}"], env={}),
                                capture_output=True)
             if r.returncode == 0:
                 bad.append(f"{p} is readable by {self.user}")
@@ -100,7 +103,7 @@ class Jail:
         return bad
 
 
-_KNOWN = {"user", "workroot", "deny_read", "sudo"}
+_KNOWN = {"user", "workroot", "deny_read", "sudo", "owner_home"}
 
 
 def load(root) -> Jail | None:
@@ -113,4 +116,4 @@ def load(root) -> Jail | None:
     if unknown := sorted(set(c) - _KNOWN):  # fail closed: a misspelt key is not silently ignored
         raise ValueError(f"harness.toml [jail]: unknown keys {unknown}")
     return Jail(user=c.get("user", ""), workroot=c.get("workroot", ""), deny_read=tuple(c.get("deny_read", ())),
-                sudo=c.get("sudo", "sudo"))
+                sudo=c.get("sudo", "sudo"), owner_home=c.get("owner_home", ""))

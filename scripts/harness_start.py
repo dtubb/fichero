@@ -39,21 +39,20 @@ if not claude:
     print("harness_start refuses: no `claude` on the worker user's PATH (install it for that user)", file=sys.stderr)
     sys.exit(1)
 tokfile = Path.home() / ".claude-token"  # the worker's own home, never the workroot; read by the pane's shell, not by us
-try:
+tok = ""  # optional: without the file the worker's own /login session is used
+if tokfile.exists():
     st = tokfile.stat()
-    tok_ok = (st.st_mode & 0o077) == 0 and st.st_size > 0
-except OSError:
-    tok_ok = False
-if not tok_ok and not a.dry:
-    print(f"harness_start refuses: {tokfile} missing, empty or not mode 600 (CLAUDE_CODE_OAUTH_TOKEN)", file=sys.stderr)
-    sys.exit(1)
+    if (st.st_mode & 0o077) or not st.st_size:
+        print(f"harness_start refuses: {tokfile} is empty or not mode 600", file=sys.stderr)
+        sys.exit(1)
+    tok = f'export CLAUDE_CODE_OAUTH_TOKEN="$(cat {shlex.quote(str(tokfile))})" && '
 scratch = Path(jail.workroot or "/tmp") / a.name
 argv = S.prepare(a.root, a.worktree, Path(a.brief).read_text(), scratch, model=a.model, claude_bin=claude)
 if a.dry:
     print(json.dumps(argv))
     sys.exit(0)
 env = f"FICHERO_HARNESS_LOG={shlex.quote(str(Path(jail.workroot) / 'log.jsonl'))} FICHERO_BUILDER={shlex.quote(a.name)}"
-cmd = f"cd {shlex.quote(a.worktree)} && export CLAUDE_CODE_OAUTH_TOKEN=\"$(cat {shlex.quote(str(tokfile))})\" && {env} {' '.join(shlex.quote(x) for x in argv)}"
+cmd = f"cd {shlex.quote(a.worktree)} && {tok}{env} {' '.join(shlex.quote(x) for x in argv)}"
 has = subprocess.run(["tmux", "has-session", "-t", a.session], capture_output=True).returncode == 0
 r = subprocess.run(["tmux", "new-window" if has else "new-session", "-d", "-P", "-F", "#{pane_id}", "-t" if has else "-s", a.session, "-n", a.name, cmd],
                    capture_output=True, text=True)

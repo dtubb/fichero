@@ -56,6 +56,7 @@ required_trailers = ["Directed-By: the maintainer", "Co-Authored-By: "]
 [jail]
 user = "fichero-worker"
 workroot = "/Users/Shared/fichero-worker"
+owner_home = "/Users/danieltubb"   # what ~ means below when the probe runs as the worker
 deny_read = ["~/.config/gh", "~/.ssh", "~/.claude", "~/Fichero Projects"]
 
 [land]
