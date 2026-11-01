@@ -211,8 +211,7 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   user, starts through the start path and watches the newest session file under that user's `~/.claude/projects/<slug>`
   every tick; a cap or a provider refusal parks it (the pane is killed), a worker idle with the brief's DONE word in its last
   text is ended, and the end is a `cost` row. First live run 2026-11-01: a one-word brief, started as the worker user, read,
-  priced and parked at a 5-cent trial cap in 30 s. Not yet: the successor on
-  handoff from the loop (the in-session hook does it), stop by TERM then KILL, the register file. Tests:
+  priced and parked at a 5-cent trial cap in 30 s. Not yet: the register file. Tests:
   `fichero-builder/tests/test_dry_run.py`, `fichero-server/tests/unit/workflows/test_start_tool.py`.
 - `dev-workflows.run.worker-address` [PARTIAL] (#6116) — per task, the current generation's address (pane or RPC pipe,
   process group, session directory, kind, started-at) is registered in the journal, rewritten at each handoff, cleared when
@@ -269,8 +268,11 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   not exit on its own) and starts the successor **through the same start path**, in the jail, from the handoff file; a
   result already on the task is refused as re-done work. A parked worker ends the same way and its successor resumes with
   the answer. At 16-32k the handoff fires per item. The handoff file is tracked in the repository with no pane ids or
-  session names in it. Built: the hook form (`scripts/harness_handoff_hook.py`, reuses `sys.executable`). Not yet: the
-  watcher form. Test (unwritten, Step 1.3): handoff and successor under the Builder's tests folder; today
+  session names in it. Built: the hook form (`scripts/harness_handoff_hook.py`, reuses `sys.executable`) tells the worker at 85 %; the
+  watcher form (2026-11-01): `builder run` sees the worker idle with HANDOFF READY, ends it (TERM to the pane's process group,
+  a grace, then the pane is killed), writes a `cost` row ending `handoff`, and starts generation plus one through the same
+  start path with a brief naming the handoff file (`<worktree>/HANDOFF.md` unless `--handoff`); a generation cap parks.
+  Not yet: the hook's tell replaced by a file the worker reads. Tests: `fichero-builder/tests/test_dry_run.py` (handoff and successor, the generation cap),
   `fichero-server/tests/unit/workflows/test_handoff_hook.py`.
 - `dev-workflows.worker.two-capability-sets` [PROPOSED] — Builder: worktree, shell, git, the step tools, scratch base path,
   `dev` tier only. Researcher: capabilities **per task**, never mixed in one session: find-sources holds web search and
