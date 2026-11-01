@@ -271,7 +271,7 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
 - `dev-workflows.tool.work` [PARTIAL] (#6116) — `builder work --brief FILE --worktree W --name N --issues N...` is the build,
   check, review and land chain as one process: `builder run`, then on end `done` the worktree's commits as patches
   (`git format-patch` over `origin/<[land].branch>` into `<state>/patches-<name>/`), the branch fetched into
-  `[check].engine_repo` by ref (`work-<name>`), the check over base..head from the pinned copy (`--pinned` required), the
+  `[check].engine_repo` as `work-<name>` from a bundle the owner names (never by the worker's branch name; the worker side, `builder run`, `format-patch` and the bundle, runs through `sudo -n -H -u <jail user>`), the check over base..head from the pinned copy (`--pinned` required), the
   review script with the check's JSON as `--ladder` and `[models].reviewer`, then the land gate, whose push line it prints;
   it never pushes. A parked or gone worker, a red check, a NOT READY review or a refused land stops it with
   `QUESTION: <why>` and exit 2; every step is a journal row (event `work`: step, ok, detail). **Built** (2026-11-01), **no real run has completed yet**: a real test covers
@@ -281,8 +281,6 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   Nothing has yet run the real sudo, a real worker, the real check, review and land through this verb; the first real
   run is Step 2.2's. Test:
   `fichero-builder/tests/test_work_verb.py::test_the_chain_runs_in_order_with_the_roles_models_prints_the_push_and_never_pushes`.
-  verb, with the steps replaced by fakes in its test; the first real run is Step 2.2's. Test:
-  `fichero-builder/tests/test_work_verb.py::test_the_chain_runs_in_order_with_the_roles_models_prints_the_push_and_never_pushes`.
 - `dev-workflows.tool.spec` [PARTIAL] (#6116) (owner 2026-11-01) — `builder spec <issue>` starts the **spec-writer** role from
   `[models]` as a worker whose brief is the spec template, the issue and the spec guards' rules; the result is one spec
   file under `spec_dir` on a branch with `> **Status: PROPOSED**`; the guards run on it; the owner approves by editing
@@ -291,7 +289,7 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   and files one issue per step under the spec's milestone (`gh`): the step's title, behaviours, tests, size and
   `Depends on` as issue links in the body; a second run updates the step's issue rather than filing another (the body
   carries the step id); every write is a journal row. **Built** (2026-11-01): `builder steps --spec FILE [--gh gh] [--dry-run]` titles each issue `<milestone> Step N.M: <title>`, finds it again by that exact title
-  (`gh issue list --milestone --search`), edits it on a second run, writes `Depends on: #N` once those issues exist, and refuses a PROPOSED spec; `--dry-run` writes nothing.
+  (it lists the milestone's issues with `gh issue list --milestone` and compares exact titles; no search), edits it on a second run, writes `Depends on: #N` once those issues exist, and refuses a PROPOSED spec; `--dry-run` writes nothing.
   Test: `fichero-builder/tests/test_steps_verb.py::test_a_second_run_updates_by_title_and_files_nothing_new`.
 - `dev-workflows.builder.cluster` [PARTIAL] (#6116) — one spec and its build-order issues (parser ported from
   `pipeline/plan.py`), in order, one commit per issue with its test; the brief is built by `scripts/harness_brief.py` from
