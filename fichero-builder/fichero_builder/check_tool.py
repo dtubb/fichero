@@ -506,7 +506,7 @@ def _scratch_tree(root, head: str, pinned, cfg: Config) -> str:
     committed code, never its uncommitted edits and never its own copies of the checks."""
     sha = (_lines(root, "rev-parse", head) or [""])[0]
     tree = _mkdtemp("check-tree-", readable=True)
-    r = _git(root, "worktree", "add", "--detach", "-q", tree, sha)
+    r = _git(root, "-c", "core.hooksPath=/dev/null", "worktree", "add", "--detach", "-q", tree, sha)  # no repo hook runs as the owner
     if not r["ok"]:
         raise RuntimeError(f"scratch tree failed: {r['stderr_tail']}")
     for f in _lines(pinned, "ls-files") or []:

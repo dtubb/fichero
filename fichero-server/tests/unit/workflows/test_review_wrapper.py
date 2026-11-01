@@ -11,7 +11,7 @@ from pathlib import Path
 SCRIPT = Path(__file__).resolve().parents[4] / "scripts" / "harness_review.py"
 
 
-def _run(tmp_path, reply):
+def _run(tmp_path, reply, extra=()):
     def g(*a):
         subprocess.run(["git", "-C", str(tmp_path / "r"), "-c", "user.name=t", "-c", "user.email=t@t", *a], check=True, capture_output=True)
     (tmp_path / "r").mkdir()
@@ -35,7 +35,7 @@ def _run(tmp_path, reply):
     d = tmp_path / "own"
     d.mkdir(mode=0o700)
     store = d / "verdicts.json"
-    r = subprocess.run([sys.executable, str(SCRIPT), str(tmp_path / "r"), "HEAD", "--pinned", str(pinned), "--verdicts", str(store)],
+    r = subprocess.run([sys.executable, str(SCRIPT), str(tmp_path / "r"), "HEAD", "--pinned", str(pinned), "--verdicts", str(store), *extra],
                        env={**os.environ, "PATH": f"{bin_}:{os.environ['PATH']}"}, capture_output=True, text=True)
     return r, store
 
@@ -91,3 +91,13 @@ def test_the_reviewer_gets_a_read_only_checkout_of_the_head_outside_its_cwd(tmp_
     assert f"--add-dir {tree}" in flags, "--restricted confines the tools to the cwd; the tree is added explicitly"
     listing = (tmp_path / "tree-ls").read_text()
     assert "a.py" in listing and "CLAUDE.md" not in listing, "planted instructions are stripped from the throwaway tree"
+
+
+def test_the_ladder_reaches_the_reviewer_as_one_line_per_rung(tmp_path):
+    import json
+
+    ladder = tmp_path / "ladder.json"
+    ladder.write_text(json.dumps({"ok": False, "failed": "guards", "rungs": [
+        {"name": "ready", "ok": True, "seconds": 3.0}, {"name": "guards", "ok": False, "results": [{"name": "check_a", "ok": False}, {"name": "check_b", "ok": True}]}]}))
+    r, _ = _run(tmp_path, "READY", extra=["--ladder", str(ladder), "--print"])
+    assert "- ready: ok=True" in r.stdout and "- guards: ok=False" in r.stdout and "red=['check_a']" in r.stdout

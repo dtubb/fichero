@@ -77,7 +77,14 @@ def main(argv=None) -> int:
     # because land trusts the check row: a journal the worker can write would let a worker forge one.
     journal.STATE = state_dir(a.root, a.state) if a.cmd == "run" else (Path(a.state) if a.state else journal.STATE)
     if a.cmd in ("check", "land") and not a.repo:
-        a.repo = check_tool.load(a.pinned).engine_repo
+        try:
+            a.repo = check_tool.load(a.pinned).engine_repo
+        except (ValueError, OSError) as e:  # a bad rules file is a refusal with a row, never a traceback
+            print(f"REFUSED (rules file):\n  {e}", file=sys.stderr)
+            if a.cmd == "land":
+                with open(a.log, "a") as f:
+                    f.write(json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "refused": "rules", "detail": [str(e)]}) + "\n")
+            return 1
         if not a.repo:
             print("REFUSED: no --repo and no [check].engine_repo in the pinned rules", file=sys.stderr)
             return 1

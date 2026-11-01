@@ -83,7 +83,7 @@ the previous mode and **undoes it** with `chmod <previous> ~` on `--undo`, which
 then the **smoke test** (below); 3 `harness.toml` fail-closed with `[jail]`, `[check] python`, `deny_read`; 4
 `harness_start.py` and the hooks wired through it; 5 `harness_check.py` over the built `run_ladder`, `red_on_base` by path,
 pinned set extended to `.github/`, `.gitattributes`, `.gitmodules`, `pyproject.toml`, `pytest.ini`, every `conftest.py`;
-6 `harness_land.py` (fetch the sha into the engine-owned repository under the workroot, ladder there, verdict per
+6 `harness_land.py` (fetch the sha into the engine-owned repository (first thought under the workroot; it lives outside every home dir, see tool.check), ladder there, verdict per
 `--verbatim` id and message, boundary grep over diff and messages, print the fast-forward; on a non-fast-forward the Lead
 rebases the worker's branch and the ladder runs again); 7 the review wrapper and `review-checklist.md`; 8 the brief script
 (built); 9 the engine change: `worker.*` actions only on a dev-tier engine and owner-only (built), plus the
@@ -251,7 +251,7 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   results; refuses when blind (fewer guards than the floor). **Pinned checks** (built): the ladder runs from a pinned copy
   of `scripts/`, the hooks, the agent settings directory, the rules file, `.github/`, `.gitattributes`, `.gitmodules`,
   `pyproject.toml`, `pytest.ini` and every `conftest.py` (matched by name anywhere), laid over a scratch tree built by the
-  land process from a fetched sha under the workroot, never the worker's clone or its git config; a diff touching a pinned
+  land process from a fetched sha, never the worker's clone or its git config (the engine-owned repository is `[check].engine_repo`, owner-owned and world-readable OUTSIDE every home directory, since a tree under the owner's home is unreadable to the jailed user: first real check 2026-11-01; the scratch trees are made from it under the workroot); a diff touching a pinned
   path, **adding** a file under one (`scripts/check_*` excepted), rewriting the item's own acceptance lines, or weakening
   or deleting a test is a question, not a pass. **By path:** `red_on_base` applies to paths the rules
   file names (Python here); a Swift or contract change needs a Lead build row on the sha; docs and spec changes need

@@ -6,6 +6,8 @@ import json
 import os
 import subprocess
 
+import pytest
+
 from fichero_server.workflows import jail as J
 from fichero_server.workflows import start_tool as S
 
@@ -28,6 +30,12 @@ deny_read = ["/nonexistent-secret"]
 branch = "main"
 boundary = ["zzz"]
 """
+
+
+@pytest.fixture(autouse=True)
+def _own_git_config(tmp_path, monkeypatch):
+    """prepare() writes the worker's global git config: in a test that file is a scratch one, never the real one (review: a leak)."""
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "gitconfig-global"))
 
 
 def _me():
@@ -103,11 +111,12 @@ def test_prepare_allows_the_workers_git_to_open_owner_made_trees(tmp_path, monke
 
     from fichero_server.workflows import start_tool
 
-    monkeypatch.setenv("HOME", str(tmp_path))  # a scratch global git config
+    monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "gitconfig"))  # the explicit global file: the real one is never touched (review: a leak)
     wt = tmp_path / "wt"
     subprocess.run(["git", "init", "-q", str(wt)], check=True)
     (tmp_path / "brief.txt").write_text("go")
     start_tool.prepare(tmp_path, wt, "go", tmp_path / "scratch")
     got = subprocess.run(["git", "config", "--global", "--get-all", "safe.directory"], capture_output=True, text=True).stdout.split()
-    assert "*" in got
+    assert "*" in got and "safe" in (tmp_path / "gitconfig").read_text()
