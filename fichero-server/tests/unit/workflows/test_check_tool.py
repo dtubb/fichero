@@ -87,6 +87,14 @@ def test_fichero_is_the_first_project_in_its_own_harness_toml():
     assert ct.load(REPO / "no-such-dir") == ct.Config()  # no harness.toml = no project rules, nothing hardcoded
 
 
+def test_the_build_rung_never_resolves_packages_so_a_read_only_check_tree_builds():
+    """2026-11-01: a real Swift check failed with exit 74, xcodebuild wanting to write Package.resolved into the owner-made
+    read-only scratch tree. Package.resolved is tracked, so resolution is told to read it and write nothing."""
+    cfg = ct.load(REPO)
+    assert "-disableAutomaticPackageResolution" in cfg.build
+    assert cfg.build.index("-disableAutomaticPackageResolution") < cfg.build.index("build")
+
+
 def test_pytest_runs_named_files_with_the_fixed_env(tmp_path):
     (tmp_path / "test_a.py").write_text("import os\ndef test_a():\n    assert os.environ['FICHERO_FEATURE_TIER'] == 'dev'\n    assert os.environ['OMP_NUM_THREADS'] == '2'\n    assert os.environ['PYTHONSAFEPATH'] == '1'\n    assert os.environ['RUFF_NO_CACHE'] == 'true'\n")
     cfg = ct.Config(test_env={"FICHERO_FEATURE_TIER": "dev", "OMP_NUM_THREADS": "2"})

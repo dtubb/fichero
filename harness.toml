@@ -43,9 +43,11 @@ pytest_plugins = ["anyio.pytest_plugin", "_hypothesis_pytestplugin", "langsmith.
 build_paths = ["fichero/"]
 # The Dev Local scheme: a compile of the app alone (Dev Embedded's "Embed Fichero Server" phase wants a briefcase-staged
 # engine, which is the release lane's job, not a check). No signing: the worker user has no identity (review 1 M6, N7).
+# The check tree is owner-made and read-only to the worker, and Package.resolved is tracked: resolution reads it and writes
+# nothing (-disableAutomaticPackageResolution); a first real Swift check failed with exit 74 writing it (2026-11-01).
 build = ["xcodebuild", "-project", "fichero/fichero.xcodeproj", "-scheme", "Fichero (Dev Local)",
          "-destination", "platform=macOS", "-derivedDataPath", "/Users/Shared/fichero-worker/derived", "-jobs", "4",
-         "-skipPackagePluginValidation", "CODE_SIGNING_ALLOWED=NO", "build"]
+         "-skipPackagePluginValidation", "-disableAutomaticPackageResolution", "CODE_SIGNING_ALLOWED=NO", "build"]
 build_timeout_s = 3600
 # Only the owner's process takes this lock, so it lives in the owner's own state dir (~ expands), not the shared area.
 build_lock = "~/.local/state/fichero-builder/build.lock"
