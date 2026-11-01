@@ -175,6 +175,10 @@ def main(argv=None) -> int:
     if a.cmd == "land":  # the green check row is the ladder's result for this head; the verb adds the verdict and the boundary only
         from fichero_builder import land_tool
 
+        if problems := check_tool.rules_problems(a.pinned):  # the rules file first: cheap and fail-closed, before any read of the journal
+            print("REFUSED (rules file):\n  " + "\n  ".join(problems), file=sys.stderr)
+            land_tool.safe_append(a.log, json.dumps({"at": time.time(), "land": a.head, "refused": "rules", "detail": problems}) + "\n")
+            return 1
         head = resolve(a.repo, a.head)
         jp = journal.path()
         if jp.exists() and jp.stat().st_uid != os.getuid():  # land trusts this file: it must be the caller's own (review 1 N2)
