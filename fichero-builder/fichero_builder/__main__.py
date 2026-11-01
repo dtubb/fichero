@@ -1,5 +1,6 @@
 """`python -m fichero_builder run --worktree W --brief FILE ...` starts and watches a worker (run AS the worker user);
-`python -m fichero_builder check REPO SINCE HEAD --pinned DIR [--id ID ...]` runs the project's ladder and prints typed JSON."""
+`python -m fichero_builder check REPO SINCE HEAD --pinned DIR [--id ID ...]` runs the project's ladder and prints typed JSON;
+`python -m fichero_builder land REPO HEAD --pinned DIR --verdicts FILE --log FILE` runs the land gate and prints the push."""
 from __future__ import annotations
 
 import argparse
@@ -31,7 +32,23 @@ def main(argv=None) -> int:
     c.add_argument("repo"), c.add_argument("since"), c.add_argument("head")
     c.add_argument("--pinned", required=True)
     c.add_argument("--id", action="append", default=[])
+    land = sub.add_parser("land", help="the land gate: a READY verdict for the exact range, the boundary, the ladder; prints the push, never pushes")
+    land.add_argument("repo"), land.add_argument("head")
+    land.add_argument("--pinned", required=True), land.add_argument("--verdicts", required=True), land.add_argument("--log", required=True)
     a = ap.parse_args(argv)
+    if a.cmd == "land":  # ponytail: the gate is scripts/harness_land.py whole; this verb runs it, it does not copy it
+        import runpy
+
+        script = Path(__file__).resolve().parents[2] / "scripts" / "harness_land.py"
+        sys.argv = [str(script), a.repo, a.head, "--pinned", a.pinned, "--verdicts", a.verdicts, "--log", a.log]
+        try:
+            runpy.run_path(str(script), run_name="__main__")
+        except SystemExit as e:
+            if isinstance(e.code, str):
+                print(e.code, file=sys.stderr)
+                return 1
+            return int(e.code or 0)
+        return 0
     if a.cmd == "check":
         r = check_tool.run_ladder(a.repo, a.since, a.head, a.pinned, a.id)
         print(json.dumps(r, indent=1))
