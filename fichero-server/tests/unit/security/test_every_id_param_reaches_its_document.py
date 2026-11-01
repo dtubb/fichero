@@ -198,7 +198,6 @@ BODY_IDS_CLEARED: dict[str, tuple] = {
     "/api/agent-memory/{note_id}": (OPEN, "found unread by the widened scan (nested `document_id`): not read, #6325"),
     "/api/documents/{document_id}/readings/compare": (OPEN, "found unread by the widened scan: not read, #6325"),
     "/api/recipes/assemble": (OPEN, "found unread by the widened scan (`pages`): not read, #6325"),
-    "/api/workflow-execution/threads/{thread_id}/resume": (OPEN, "`inputs` on a resumed thread: a scoped person is refused, an editor with a deny reached 404 for a missing thread; not read past that, #6325"),
     "/api/workflows": (NOT_DOC, "`id` is the new workflow's own id: a recipe, not a document"),
     "/api/workflows/import": (NOT_DOC, "imports a workflow file: a recipe, not a document"),
     "/api/workflows/reorder": (NOT_DOC, "workflow order: configuration"),
