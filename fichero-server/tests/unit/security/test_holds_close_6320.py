@@ -632,7 +632,7 @@ def test_recipes_that_name_no_page_or_write_a_path_are_refused_at_every_start(pr
         "export of B": [{"id": "e", "tool": "export_documents", "label": "E", "inputs": {"source_id": project.ids["B"], "destination": out}, "config": {}}],
     }
     for label, nodes in recipes.items():
-        wid = _recipe(alice, nodes)
+        wid = _recipe(owner, nodes)  # alice cannot save these (review 8 item 4); the owner's is what she is refused to start
         assert alice.post("/api/workflow-execution/execute", json={"workflow_id": wid, "inputs": {}}).status_code == 403, label
         chain = owner.post("/api/chains", json={"name": "c", "steps": [{"id": "s1", "workflow_id": wid, "name": "s"}]})
         assert chain.status_code == 200, chain.text
@@ -836,3 +836,21 @@ def test_item4_a_caller_with_a_deny_cannot_save_a_recipe_the_run_check_would_ref
     assert alice.put(f"/api/workflows/{mine}", json={"name": "renamed", "edges": [], "nodes": [harmless]}).status_code == 200
     for client in (owner, erin):  # nobody whose reads can differ page by page is held to it
         assert client.post("/api/workflows", json={"name": "r", "edges": [], "nodes": [export]}).status_code == 200
+
+
+def test_item5_a_recipe_step_that_writes_a_path_or_runs_a_program_is_the_owners_even_for_a_plain_editor(project, four, tmp_path):
+    """Review 8 item 5: `/api/export/jsonl` is the owner's, but a plain editor wrote the same path with a one-node `export_documents` recipe."""
+    owner = _as(project.harness, "owner")
+    erin = _plain(project, "erin", authz.ROLE_EDITOR)
+    out = tmp_path / "copied"
+    export = {"id": "e", "tool": "export_documents", "label": "E", "inputs": {"formats": ["markdown"], "destination": str(out)}, "config": {}}
+    cli = {"id": "c", "tool": "cli_agent", "label": "C", "inputs": {"task": "x"}, "config": {}}
+    folder_a = {"id": "f", "tool": "folder", "label": "F", "inputs": {"folder_id": project.ids["A"]}, "config": {}}
+    for label, node in (("export", export), ("cli_agent", cli)):
+        wid = _recipe(erin, [node])
+        assert erin.post("/api/workflow-execution/execute", json={"workflow_id": wid, "inputs": {}}).status_code == 403, label
+        if node is export:  # (the owner's cli_agent run is not fired: it would start a program)
+            assert owner.post("/api/workflow-execution/execute", json={"workflow_id": wid, "inputs": {}}).status_code == 202, label
+    assert erin.post("/api/workflow-execution/execute", json={"workflow_id": _recipe(erin, [folder_a]), "inputs": {}}).status_code == 202
+    schedule = {"name": "n", "workflow_id": _recipe(erin, [export]), "config": {"schedule_type": "cron", "cron_expression": "0 3 * * *"}, "inputs": {}}
+    assert erin.post("/api/schedules", json=schedule).status_code == 403
