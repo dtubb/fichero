@@ -81,3 +81,10 @@ def test_prepare_writes_hooked_settings_empty_mcp_and_the_commit_msg_hook(tmp_pa
     hook = wt / ".git" / "hooks" / "commit-msg"
     assert hook.is_file() and os.access(hook, os.X_OK) and "--commit-msg" in hook.read_text()
     assert "--strict-mcp-config" in argv and "--settings" in argv and argv[-1] == "do the thing"
+
+
+def test_trust_folder_marks_only_that_worktree(tmp_path):
+    (tmp_path / ".claude.json").write_text('{"x": 1, "projects": {"/a": {"k": 2}}}')
+    S.trust_folder("/wt", home=tmp_path)
+    cfg = json.loads((tmp_path / ".claude.json").read_text())
+    assert cfg["x"] == 1 and cfg["projects"]["/a"] == {"k": 2} and cfg["projects"]["/wt"] == {"hasTrustDialogAccepted": True}

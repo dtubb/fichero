@@ -51,6 +51,7 @@ argv = S.prepare(a.root, a.worktree, Path(a.brief).read_text(), scratch, model=a
 if a.dry:
     print(json.dumps(argv))
     sys.exit(0)
+S.trust_folder(a.worktree)
 env = f"FICHERO_HARNESS_LOG={shlex.quote(str(Path(jail.workroot) / 'log.jsonl'))} FICHERO_BUILDER={shlex.quote(a.name)}"
 cmd = f"cd {shlex.quote(a.worktree)} && {tok}{env} {' '.join(shlex.quote(x) for x in argv)}"
 has = subprocess.run(["tmux", "has-session", "-t", a.session], capture_output=True).returncode == 0

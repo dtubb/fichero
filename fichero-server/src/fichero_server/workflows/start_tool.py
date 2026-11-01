@@ -48,12 +48,20 @@ def _hook_cmd(root, worktree, scratch) -> str:
     return " ".join(shlex.quote(str(x)) for x in (sys.executable, _HOOK, "--root", root, "--worktree", worktree, "--scratch", scratch))
 
 
+def trust_folder(worktree, home=None) -> None:
+    """Mark `worktree` trusted in the worker's own ~/.claude.json (else claude waits on a trust prompt nobody answers)."""
+    f = Path(home or Path.home()) / ".claude.json"
+    cfg = json.loads(f.read_text()) if f.is_file() else {}
+    cfg.setdefault("projects", {}).setdefault(str(worktree), {})["hasTrustDialogAccepted"] = True
+    f.write_text(json.dumps(cfg, indent=1))
+
+
 def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_bin: str = "claude") -> list[str]:
     """Write settings.json, mcp.json under `scratch` and the commit-msg hook in the clone; return claude's argv."""
     root, worktree, scratch = Path(root), Path(worktree), Path(scratch)
     scratch.mkdir(parents=True, exist_ok=True)
     hook = {"type": "command", "command": _hook_cmd(root, worktree, scratch)}
-    settings = {"hooks": {"PreToolUse": [{"matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit", "hooks": [hook]}]}}
+    settings = {"skipDangerousModePermissionPrompt": True, "hooks": {"PreToolUse": [{"matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit", "hooks": [hook]}]}}
     (scratch / "settings.json").write_text(json.dumps(settings, indent=1))
     (scratch / "mcp.json").write_text(json.dumps({"mcpServers": {}}))
     # a linked worktree's .git is a file: ask git where hooks live (the clone's shared hooks dir)
