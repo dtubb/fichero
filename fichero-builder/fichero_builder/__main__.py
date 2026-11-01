@@ -81,7 +81,8 @@ def main(argv=None) -> int:
     c.add_argument("--maintainer", action="store_true", help="a maintainer batch: a changed pinned file is recorded in the pinned-checks row, not refused; point --pinned at the candidate's own tree")
     c.add_argument("--state", help="where the journal lives (default: see run --state)")
     ms = sub.add_parser("milestone", help="a milestone's open issues as one cluster brief per build-order step; questions, never guesses")
-    ms.add_argument("name"), ms.add_argument("--spec", required=True, help="the APPROVED spec whose Build order places the issues")
+    ms.add_argument("name", nargs="?", help="the milestone (default: the first under `## In order` in specs/build-order.md with open issues)")
+    ms.add_argument("--spec", help="the APPROVED spec whose Build order places the issues (default: the build-order line's `Spec:` path)")
     ms.add_argument("--repo-dir", default=str(Path.cwd())), ms.add_argument("--out", required=True, help="where the brief files go")
     ms.add_argument("--base", help="the base sha the briefs name (default: origin/<[land].branch> in --repo-dir)")
     ms.add_argument("--gh", default="gh")
@@ -100,9 +101,11 @@ def main(argv=None) -> int:
     ld.add_argument("--no-issues", action="store_true", help="leave the cited issues alone")
     ld.add_argument("--state", help="where the owner's journal lives (default: the owner's journal dir)")
     tr = sub.add_parser("triage", help="clean up the repo's GitHub metadata directly by the rules in harness.toml [triage]; --dry reads only")
-    tr.add_argument("--labels", action="store_true", help="kept label families only; spec:<stem> follows the spec files; the rest moved by [triage.labels] then deleted")
-    tr.add_argument("--specs", action="store_true", help="an open issue with no spec: label gets the label of the spec that cites it, else needs-spec")
-    tr.add_argument("--milestones", action="store_true", help="issues follow their spec's `> Milestone:`; a spec-less bug to Next release; empty milestones close; a spec-less milestone gets a write-the-spec issue")
+    tr.add_argument("--labels", action="store_true", help="the closed label set only (step, type, priority, phase, needs-*, status:blocked); the rest moved by [triage.labels] then deleted")
+    tr.add_argument("--specs", action="store_true", help="needs-spec on an issue inside a spec milestone that no spec cites, off one a spec cites; buckets left alone")
+    tr.add_argument("--milestones", action="store_true", help="an issue goes to the milestone of the spec that cites it and loses its spec:* hint; a spec-less bug to Next release; empty milestones close; a spec-less milestone gets a write-the-spec issue")
+    tr.add_argument("--assignees", action="store_true", help="the gh login on needs-your-decision / needs-your-test only; other assignees cleared")
+    tr.add_argument("--order", action="store_true", help="read specs/build-order.md and print proposed lines for milestones it lacks; never writes it")
     tr.add_argument("--dry", action="store_true"), tr.add_argument("--gh", default="gh")
     tr.add_argument("--root", default=str(Path.cwd()), help="the checkout holding harness.toml and docs/contributor_manual/specs")
     tr.add_argument("--state", help="where the journal lives (default: the owner's journal dir)")
@@ -133,8 +136,19 @@ def main(argv=None) -> int:
     if a.cmd == "milestone":
         import tomllib
 
-        from fichero_builder import brief_tool, milestone
+        from fichero_builder import brief_tool, milestone, triage
 
+        if not a.name:
+            try:
+                a.name, spec = triage.first_open(a.repo_dir, a.gh)
+            except triage.Refused as e:
+                print(f"REFUSED: {e}")
+                return 1
+            a.spec = a.spec or str(spec)
+            print(f"milestone {a.name} (first in build-order.md), spec {a.spec}")
+        if not a.spec:
+            print("REFUSED: --spec is needed when the milestone is named")
+            return 1
         order = milestone.build_order(a.spec)
         planned = milestone.plan(milestone.list_issues(a.name, gh=a.gh), order, milestone.spec_slug(a.spec))
         rules_doc = tomllib.loads((Path(a.repo_dir) / "harness.toml").read_text())

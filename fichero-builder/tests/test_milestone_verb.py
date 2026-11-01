@@ -101,3 +101,19 @@ def test_list_issues_asks_gh_for_the_labels(tmp_path, monkeypatch):
     monkeypatch.setattr(milestone.subprocess, "run", lambda argv, **kw: (seen.append(argv), types.SimpleNamespace(returncode=0, stdout="[]", stderr=""))[1])
     assert milestone.list_issues("m1", gh="gh") == []
     assert "number,title,body,labels" in seen[0]
+
+
+def test_no_name_takes_the_first_ordered_milestone_with_open_issues_and_its_spec(tmp_path, capsys):
+    """Rule 5 (issues-and-labels): `builder milestone` with no name reads specs/build-order.md: the first milestone under
+    `## In order` that still has open issues, and the spec that line names; no file is a refusal."""
+    specs = tmp_path / "docs" / "contributor_manual" / "specs" / "h"
+    specs.mkdir(parents=True)
+    (specs / "m1.md").write_text(SPEC)
+    (tmp_path / "harness.toml").write_text('[brief]\nrules = "Rule one."\n')
+    gh = _fake_gh(tmp_path)
+    rc = cli.main(["milestone", "--repo-dir", str(tmp_path), "--out", str(tmp_path / "out"), "--base", "abc1234", "--gh", gh])
+    assert rc == 1 and "no build-order file" in capsys.readouterr().out
+    (specs.parent / "build-order.md").write_text("# Order\n\n## In order\n\n1. `m1` — first. Spec: h/m1.md\n")
+    rc = cli.main(["milestone", "--repo-dir", str(tmp_path), "--out", str(tmp_path / "out"), "--base", "abc1234", "--gh", gh])
+    out, _ = capsys.readouterr()
+    assert rc == 2 and "milestone m1 (first in build-order.md)" in out and "Step 1.1: #7 ->" in out

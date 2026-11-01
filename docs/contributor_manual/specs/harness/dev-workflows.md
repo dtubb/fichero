@@ -197,6 +197,16 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
 | Builder, end state | M5 Studio 128 GB | small local models pinned under a memory cap, a local server with a prefix cache; cloud for the binding review until the log says otherwise | 2-3 builder sessions + research; headroom for the gate and a build |
 | Researcher | M5 MacBook Pro 24 GB | one small local model at a time, Apple frameworks, MLX readers when chosen; cloud only where the person allows, cost shown first | one task at a time, 16-32k context, handoff per source |
 
+### tool.triage — what `builder triage` reads and writes
+
+`builder triage` is the one writer of GitHub metadata besides `builder steps` and `builder landed`; a person edits by
+hand only to overrule. It reads three things: the spec files under `docs/contributor_manual/specs/<area>/` (which issues
+each cites, its `> Milestone:` line), `harness.toml [triage.labels]` (old label → kept label or `spec:<stem>` hint; edit
+there, not in code) and `docs/contributor_manual/specs/build-order.md` (the owner's order of milestones; read, proposed
+to, never written). Each flag is one rule of `harness/issues-and-labels.md` and runs alone or with the others, in the
+order labels → specs → milestones → assignees → order; a rerun changes nothing (idempotent), and `--dry` shows the counts
+the write path would produce.
+
 ## Behaviours
 
 ### A. Workers (the loop is the harness's)
@@ -365,6 +375,33 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   Tests: `fichero-builder/tests/test_triage_verb.py::test_labels_are_consolidated_by_the_rules_table_and_the_mapping_is_printed`,
   `::test_dry_changes_nothing_and_prints_the_counts`, `::test_the_spec_label_comes_from_the_spec_that_cites_the_issue_else_needs_spec`,
   `::test_milestones_follow_the_spec_and_empty_ones_close_and_a_spec_less_one_gets_a_write_the_spec_issue`.
+- `dev-workflows.tool.triage` [OK] (#6336; owner 2026-11-01) — `builder triage [--labels] [--specs] [--milestones]
+  [--assignees] [--order] [--dry]` cleans the repo's GitHub metadata deterministically and changes it directly (owner
+  ruling: no proposals file, no manual approval) by the rules of `harness/issues-and-labels.md`; every change is one journal
+  row (event `triage`) and one `gh` call that can be read back; `--dry` reads, prints and journals rows marked dry, writes
+  nothing. **The milestone is the spec**: `--milestones` moves an open issue to the milestone of the spec that cites `#N`
+  (created on the repo first when missing), else of the spec a `spec:<stem>` label hints at, and removes the `spec:*` label
+  once the issue sits there (a `spec:*` label no open issue carries is deleted; triage creates none); a spec with no
+  `> Milestone:` line gets one, the milestone most of its cited issues carry (a `spec-milestone-line` row); an issue no
+  spec cites with no milestone goes to `Next release` only if it is `type:bug`; a milestone with no open issue is closed;
+  a milestone with open issues that no spec names and that is not an ops bucket (`Bugs - *`, `Lint - *`, `Performance - *`)
+  or a grab-bag (`Next release`, `cand 16`) or parked in the build-order file gets one `spec: write <milestone> spec` issue labelled `needs-spec`, filed
+  once. **The label set is closed** (`--labels`): the table in `harness/issues-and-labels.md` (`step:N.M`,
+  `type:bug|feature|task`, `priority:P0-P3`, `phase:R0-R6` until the recipe phases are in a build order, `needs-spec`,
+  `needs-your-decision`, `needs-your-test`, `status:blocked`); every other label is removed from its issues and deleted
+  after the issues get what `harness.toml [triage.labels]` maps it to (absent = nothing; a `spec:<stem>` value is a hint
+  for `--milestones`), and the mapping applied is printed. **needs-spec** (`--specs`) goes on an open issue inside a spec's
+  milestone that no spec cites and comes off one a spec cites; ops buckets, grab-bags and issues with no milestone are left
+  alone. **Assignees** (`--assignees`): the `gh api user` login on `needs-your-decision` / `needs-your-test` only; every
+  other assignee is removed. **The build order** (`--order`): `docs/contributor_manual/specs/build-order.md` is the
+  owner's; triage reads it and prints a proposed line (one `order-missing` row) for each open milestone with open issues it
+  neither orders nor parks, never writes it; `builder milestone` with no name takes the first milestone under `## In order`
+  that still has open issues and the spec its line names. **Built** 2026-11-01: `fichero_builder/triage.py`. Tests:
+  `fichero-builder/tests/test_triage_verb.py::test_labels_are_the_closed_set_priority_and_phase_kept_spec_labels_never_created`,
+  `::test_dry_changes_nothing_and_prints_the_counts`, `::test_needs_spec_only_inside_a_spec_milestone_and_only_when_no_spec_cites_the_issue`,
+  `::test_milestones_follow_the_citing_spec_and_the_spec_label_goes_once_the_issue_sits_there`,
+  `::test_assignees_are_the_owner_on_needs_your_only`, `::test_order_reads_the_build_order_file_and_proposes_a_diff_never_writes`,
+  `fichero-builder/tests/test_milestone_verb.py::test_no_name_takes_the_first_ordered_milestone_with_open_issues_and_its_spec`.
 - `dev-workflows.builder.cluster` [PARTIAL] (#6116) — one spec and its build-order issues (parser ported from
   `pipeline/plan.py`), in order, one commit per issue with its test; the brief is built by `scripts/harness_brief.py` from
   `gh api repos/{repo}/issues/N`: the body and the **title** only when the author association is owner, member or
@@ -711,9 +748,9 @@ Steps a long-running builder can take from the heading. `Depends on` defaults to
 - Depends on: 2.3
 - Size: M
 
-#### Step 2.5 — `builder triage`: labels, spec labels, milestones, the build-order file, assignees (owner 2026-11-01)
+#### Step 2.5 — `builder triage`: the closed label set, the milestone is the spec, needs-spec, assignees, the build-order file read (owner 2026-11-01)
 - Behaviours: `dev-workflows.tool.triage`
-- Tests: fichero-builder/tests/test_triage_verb.py
+- Tests: fichero-builder/tests/test_triage_verb.py, fichero-builder/tests/test_milestone_verb.py
 - Depends on: 2.4
 - Size: M
 
