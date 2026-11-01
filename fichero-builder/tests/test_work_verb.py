@@ -25,6 +25,7 @@ def chain(tmp_path, monkeypatch):
     calls = []
     fakes = {
         "do_run": lambda a, model: (calls.append(("run", model)), "done")[1],
+        "do_rebase": lambda a, branch: (calls.append(("rebase", branch)), "")[1],
         "do_export": lambda a, branch: (calls.append(("export", branch)), 2)[1],
         "do_fetch": lambda a, repo, branch: (calls.append(("fetch", repo)), HEAD)[1],
         "do_check": lambda a, repo, since, head, ladder: (calls.append(("check", since, head)), {"ok": True, "failed": ""})[1],
@@ -47,11 +48,11 @@ def rows():
 
 def test_the_chain_runs_in_order_with_the_roles_models_prints_the_push_and_never_pushes(chain, capsys):
     assert chain() == 0
-    assert [c[0] for c in chain.calls] == ["run", "export", "fetch", "check", "review", "land"]
-    assert chain.calls[0][1] == "sonnet" and chain.calls[4][1] == "opus", "[models].builder and [models].reviewer"
-    assert chain.calls[3][1] == "integration" and chain.calls[3][2] == HEAD
+    assert [c[0] for c in chain.calls] == ["run", "rebase", "export", "fetch", "check", "review", "land"]
+    assert chain.calls[0][1] == "sonnet" and chain.calls[5][1] == "opus", "[models].builder and [models].reviewer"
+    assert chain.calls[4][1] == "integration" and chain.calls[4][2] == HEAD
     assert PUSH in capsys.readouterr().out
-    assert [(r["step"], r["ok"]) for r in rows()] == [(s, True) for s in ("run", "patches", "fetch", "check", "review", "land")]
+    assert [(r["step"], r["ok"]) for r in rows()] == [(s, True) for s in ("run", "rebase", "patches", "fetch", "check", "review", "land")]
     assert all(r["name"] == "n1" and r["issues"] == [7, 8] and "detail" in r for r in rows())
 
 
@@ -69,7 +70,7 @@ def test_a_red_check_stops_before_review(chain, monkeypatch, capsys):
     assert chain() == 2
     out = capsys.readouterr().out
     assert out.startswith("QUESTION: ") and "pytest" in out
-    assert [c[0] for c in chain.calls] == ["run", "export", "fetch"]
+    assert [c[0] for c in chain.calls] == ["run", "rebase", "export", "fetch"]
     assert rows()[-1]["step"] == "check" and rows()[-1]["ok"] is False
 
 
@@ -258,6 +259,8 @@ def real_chain(scratch, monkeypatch):
             (pin / "harness.toml").write_text((pin / "harness.toml").read_text() + toml)
 
         def fake(a, script):
+            if " rebase " in script:
+                return subprocess.CompletedProcess(script, 0, "", "")  # the rebase step, faked green
             if "fichero_builder run" not in script:
                 return subprocess.CompletedProcess(script, 1, "", "")
             with (scratch.tmp / "wr" / "state" / "journal.jsonl").open("a") as f:
@@ -327,3 +330,30 @@ def test_work_without_pinned_and_no_base_in_the_brief_is_a_question(scratch, cap
                      "--root", str(root), "--state", str(scratch.tmp / "s")]) == 2
     assert "base" in capsys.readouterr().out
 
+
+def test_rebase_puts_the_worktree_on_top_of_the_branch_another_lane_moved(scratch):
+    """Item 9: two lanes landing in turn. The other lane landed first (origin moved); the worktree is rebased as the worker
+    before its patches are taken, so the check judges the range that will land."""
+    _commit(scratch.wt, "mine")
+    _commit(scratch.engine, "theirs")
+    assert work.do_rebase(scratch.a, "integration") == ""
+    assert _g(scratch.wt, "rev-parse", "HEAD^") == _g(scratch.engine, "rev-parse", "HEAD")
+    assert _g(scratch.wt, "log", "--format=%s", "-1") == "mine"
+    assert any("rebase -q origin/integration" in r for r in scratch.ran), "run as the worker (through as_worker), not as the owner"
+
+
+def test_a_rebase_conflict_is_aborted_and_said_never_resolved(scratch):
+    (scratch.wt / "f").write_text("mine"), _g(scratch.wt, "commit", "-qam", "mine")
+    (scratch.engine / "f").write_text("theirs"), _g(scratch.engine, "commit", "-qam", "theirs")
+    why = work.do_rebase(scratch.a, "integration")
+    assert "conflict" in why.lower() or "could not" in why.lower()
+    assert not (scratch.wt / ".git" / "rebase-merge").exists(), "aborted"
+    assert _g(scratch.wt, "log", "--format=%s", "-1") == "mine"
+
+
+def test_a_failed_rebase_is_a_question_before_patches(chain, monkeypatch, capsys):
+    monkeypatch.setattr(work, "do_rebase", lambda a, branch: "conflict in f")
+    assert chain() == 2
+    assert [c[0] for c in chain.calls] == ["run"]
+    assert "conflict in f" in capsys.readouterr().out
+    assert [(r["step"], r["ok"]) for r in rows()][-1] == ("rebase", False)

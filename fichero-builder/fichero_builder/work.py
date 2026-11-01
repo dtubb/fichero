@@ -1,6 +1,6 @@
 """`builder work`: the chain a person ran by hand, as ONE process (dev-workflows.tool.work).
 
-run -> patches -> fetch -> check -> review -> land, each step a journal row (event "work": step, ok, detail). It stops with
+run -> rebase -> patches -> fetch -> check -> review -> land, each step a journal row (event "work": step, ok, detail). It stops with
 `QUESTION: <why>` (exit 2) on a worker that did not finish, a red check, a NOT READY review or a refused land, and it only
 prints the push line; nothing here pushes. Each step is a module function so a test replaces it."""
 from __future__ import annotations
@@ -77,6 +77,17 @@ def do_run(a, model: str) -> str:
     if not ends:
         raise RuntimeError(f"the worker left no end row in the shared journal (exit {r.returncode})")
     return ends[-1]
+
+
+def do_rebase(a, branch: str) -> str:
+    """As the worker: fetch origin and rebase the worktree onto origin/<branch>, so a lane that lands after another is judged
+    on the range that will land. '' = done; otherwise why (the rebase aborted, never resolved here)."""
+    q, g, wt = shlex.quote, shlex.quote(jail_git()), shlex.quote(str(a.worktree))
+    r = as_worker(a, f"{g} -C {wt} fetch -q origin && {g} -C {wt} rebase -q origin/{q(branch)}")
+    if r.returncode == 0:
+        return ""
+    as_worker(a, f"{g} -C {wt} rebase --abort")
+    return f"rebase onto origin/{branch} could not finish (conflict left to a person): {(r.stderr or r.stdout).strip()[-300:]}"
 
 
 def do_export(a, branch: str) -> int:
@@ -199,6 +210,9 @@ def main(a) -> int:
         return question(f"the worker could not run: {e}")
     if not step("run", end == "done", end):
         return question(f"the worker ended {end!r}, not done; read its handoff and the journal, then decide")
+    why = do_rebase(a, branch)
+    if not step("rebase", not why, why or f"on top of origin/{branch}"):
+        return question(why)
     n = do_export(a, branch)
     if not step("patches", n > 0, f"{n} patch(es) under patches-{a.name} in the shared state"):
         return question(f"the worktree has no commits over origin/{branch}")
