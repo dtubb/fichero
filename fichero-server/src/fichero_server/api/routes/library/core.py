@@ -18,8 +18,9 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
+from fichero_server.api.routes.auth.accounts import _require_owner_for_writes
 from fichero_server.db import db_manager
 from fichero_server.db.library_paths import nfc_path
 from fichero_server.models import (
@@ -68,7 +69,7 @@ def _register_known_library(stored_path: str, package: Path) -> None:
         logger.warning("Failed to register library in registry: %s", exc)
 
 
-@router.post("/library", response_model=LibraryCreateResponse)
+@router.post("/library", response_model=LibraryCreateResponse, dependencies=[Depends(_require_owner_for_writes)])
 def create_library(
     request: Request,
     body: LibraryCreateRequest,

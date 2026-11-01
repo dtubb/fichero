@@ -421,7 +421,7 @@ def sweep(project, scratch):
 # ---- what counts as a failure -----------------------------------------------------------------------------------------------------
 
 #: Writes under these prefixes change the owner's Mac (the MLX runtime, local models, machines, registered libraries, chain presets, a path an export writes to).
-MACHINE = re.compile(r"^(POST|PUT|PATCH|DELETE) /api/(local-inference|local-models|machines|registry|chains/presets|export/(jsonl|training|parquet|eleventy-site|markdown-folder|word|excel))\b")
+MACHINE = re.compile(r"^(POST|PUT|PATCH|DELETE) /api/(library(?=$)|local-inference|local-models|machines|registry|chains/presets|export/(jsonl|training|parquet|eleventy-site|markdown-folder|word|excel))\b")
 #: Routes that spend the owner's keys or use the network: a caller who can only read (a viewer, a person shared a folder to read) is refused.
 SPEND = re.compile(r"^POST /api/(model-comparison/(compare|compare-node)|research/tools/(web-search|browser-navigate))$")
 #: Reads a plain editor or viewer is refused on by design.

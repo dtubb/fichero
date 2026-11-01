@@ -854,3 +854,14 @@ def test_item5_a_recipe_step_that_writes_a_path_or_runs_a_program_is_the_owners_
     assert erin.post("/api/workflow-execution/execute", json={"workflow_id": _recipe(erin, [folder_a]), "inputs": {}}).status_code == 202
     schedule = {"name": "n", "workflow_id": _recipe(erin, [export]), "config": {"schedule_type": "cron", "cron_expression": "0 3 * * *"}, "inputs": {}}
     assert erin.post("/api/schedules", json=schedule).status_code == 403
+
+
+def test_item6_a_viewer_does_not_make_a_library_of_his_own_and_so_an_owner_role_to_spend_keys(project, tmp_path):
+    """Review 8 item 6: `POST /api/library` was open to a viewer, who got the `owner` role on the new library and named it to pass `editor_or_owner_only`."""
+    fred, erin = _plain(project, "fred", authz.ROLE_VIEWER), _plain(project, "erin", authz.ROLE_EDITOR)
+    for client in (fred, erin):
+        target = tmp_path / f"{id(client)}.fichero"
+        assert client.post("/api/library", json={"path": str(target)}).status_code == 403
+        assert not target.exists()
+    owner = _as(project.harness, "owner")
+    assert owner.post("/api/library", json={"path": str(tmp_path / "owners.fichero")}).status_code == 200
