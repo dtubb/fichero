@@ -672,3 +672,21 @@ def test_item5_only_the_owner_approves_an_agent_write(project, four):
         got = client.post("/api/agents/write/approve?record_id=x", json={"approved_by": "owner", "approved": True})
         assert got.status_code == 403 and "owner access required" in got.text, who
     assert _as(project.harness, "owner").post("/api/agents/write/approve?record_id=x", json={"approved_by": "owner", "approved": True}).status_code == 404
+
+
+def test_single_user_a_paired_device_acts_as_the_owner_so_the_owner_only_actions_still_answer(harness):
+    """Multi-user off: a paired device is bound to the owner account, so its actor passes `require_app_owner` (the actions made
+    owner-only for review 6 item 4 do not lock the one person out)."""
+    from fichero_server.actions.registry import ActionContext, registry
+    from fichero_server.security import accounts
+
+    assert not authz.multiuser_enabled()
+    owner = harness.app_db.create_user(username="theowner", display_name="O", password_hash=accounts.hash_password("x"), is_owner=True)
+    ctx = ActionContext(actor=owner.username, library_path=str(harness.library), is_bootstrap=False)
+    for name, params in (("provider.update", {"provider_id": "none"}), ("document.relink_originals", {"new_root": "/nowhere"})):
+        try:
+            registry.invoke(db_manager.get_database(harness.library), name, params, ctx)
+        except authz.AuthorizationError as refused:
+            raise AssertionError(f"{name} refused the one person: {refused}") from refused
+        except Exception:  # noqa: BLE001 -- a missing provider or folder is past the owner check
+            pass
