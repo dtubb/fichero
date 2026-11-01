@@ -152,3 +152,14 @@ def test_the_cli_refuses_without_a_cap_and_points_the_journal_at_the_state_dir(t
                    "--state", str(tmp_path / "state")])
     assert rc == 1 and "no cap, no start" in capsys.readouterr().out
     assert journal.STATE == tmp_path / "state"
+
+
+def test_the_check_verb_runs_the_ladder_and_exits_on_its_verdict(monkeypatch, capsys):
+    from fichero_builder import __main__ as cli, check_tool
+
+    calls = []
+    monkeypatch.setattr(check_tool, "run_ladder", lambda *a: calls.append(a) or {"ok": False, "rungs": []})
+    assert cli.main(["check", "/r", "abc", "def", "--pinned", "/p", "--id", "x.y"]) == 1
+    assert calls == [("/r", "abc", "def", "/p", ["x.y"])] and '"ok": false' in capsys.readouterr().out
+    monkeypatch.setattr(check_tool, "run_ladder", lambda *a: {"ok": True})
+    assert cli.main(["check", "/r", "abc", "def", "--pinned", "/p"]) == 0
