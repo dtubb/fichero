@@ -283,7 +283,11 @@ def build(root, changed: list[str], cfg: Config) -> dict:
     (owner 2026-11-01: a Swift change nobody compiled reached the land gate; builds stay serial on this machine)."""
     if not cfg.build or not any(f.startswith(cfg.build_paths) for f in changed):
         return {"ok": True, "skipped": True, "results": []}
-    lock = open(os.path.expanduser(cfg.build_lock), "a") if cfg.build_lock else None  # ~ = the owner's own dir (review 1 N3)
+    lock = None
+    if cfg.build_lock:  # ~ = the owner's own state dir (review 1 N3); the owner's process takes it, the build itself runs jailed
+        lp = Path(os.path.expanduser(cfg.build_lock))
+        lp.parent.mkdir(parents=True, exist_ok=True)
+        lock = open(lp, "a")
     try:
         if lock is not None:
             fcntl.flock(lock, fcntl.LOCK_EX)

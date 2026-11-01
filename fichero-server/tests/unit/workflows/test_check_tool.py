@@ -354,6 +354,8 @@ def test_the_build_rung_runs_only_for_build_paths_and_reports_red(tmp_path):  # 
     assert not r["ok"] and not r["skipped"] and r["results"][0]["exit_code"] == 1
     assert (tmp_path / "built.txt").exists(), "the build ran in the tree it was given"
     assert ct.build(tmp_path, ["fichero/App.swift"], ct.Config(build_paths=("fichero/",), build=("true",)))["ok"]
+    deep = ct.Config(build_paths=("fichero/",), build=("true",), build_lock=str(tmp_path / "no" / "such" / "dir" / "b.lock"))
+    assert ct.build(tmp_path, ["fichero/App.swift"], deep)["ok"] and (tmp_path / "no" / "such" / "dir" / "b.lock").exists(), "the lock's dir is made (review 2 R2)"
 
 
 def test_the_build_rung_counts_a_deleted_swift_file_as_a_change(tmp_path):  # review 1 M7

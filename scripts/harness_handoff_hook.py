@@ -23,7 +23,7 @@ from pathlib import Path
 
 DONE = "HANDOFF READY"
 WAIT = "WAITING:"
-ENDED = re.compile(r"^DONE [0-9a-f]{7,40}\b", re.M)  # the same shape `builder run` ends on  # the brief's own end line: `builder run` ends the worker on it
+ENDED = re.compile(r"^DONE [0-9a-f]{7,40}\b", re.M)  # the brief's own end line, the same shape `builder run` ends on
 NUDGES = 20
 AT = 0.85
 HERE = Path(__file__).resolve().parent

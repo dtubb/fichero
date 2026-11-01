@@ -32,6 +32,21 @@ def test_responses_match_by_id_and_events_queue_separately(tmp_path):
         pi.stop()
 
 
+def test_the_pi_start_meets_the_jail_wall(tmp_path, monkeypatch):
+    """Review 1 M4: builder run --kind pi refuses like the Claude start path when the jail says no."""
+    from fichero_builder import start_tool
+
+    monkeypatch.setattr(start_tool, "refusals", lambda root, jail: ["must run as the worker user"])
+    procs = pi_rpc.pi_procs(root=tmp_path, scratch=tmp_path, provider="fake", session_dir=tmp_path / "s", agent_dir=tmp_path)
+    (tmp_path / "brief.txt").write_text("go")
+    try:
+        procs.start(tmp_path, tmp_path, tmp_path / "brief.txt", "n", "fake-1", "harness")
+    except RuntimeError as e:
+        assert "worker user" in str(e)
+    else:
+        raise AssertionError("the start was not refused")
+
+
 def test_the_policy_argv_runs_the_module_with_the_three_paths():
     argv = pi_rpc.policy_argv("/r", "/w", "/s")
     assert argv[1:5] == ["-P", "-m", "fichero_builder.pi_rpc", "policy"] and "/w" in argv and "/s" in argv
