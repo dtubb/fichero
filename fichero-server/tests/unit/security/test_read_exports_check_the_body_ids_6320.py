@@ -88,7 +88,8 @@ def test_an_editor_with_a_deny_cannot_export_the_folder_or_the_whole_project(pro
     out = str(tmp_path / f"out-{route}")
     for body in ({"target_id": project.ids["B"]}, {}, {"target_id": ""}):
         assert client.post(f"/api/export/{route}", json={**body, "output_path": out}).status_code == 403, body
-    assert client.post(f"/api/export/{route}", json={"target_id": project.ids["A"], "output_path": out}).status_code != 403
+    # An export to a path on the Mac is the owner's (#6325 H6): the read checks above now sit behind that gate as the second line.
+    assert client.post(f"/api/export/{route}", json={"target_id": project.ids["A"], "output_path": out}).status_code == 403
 
 
 @pytest.mark.parametrize("route", FILE_EXPORTS)

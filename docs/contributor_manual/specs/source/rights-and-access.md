@@ -202,6 +202,8 @@ Rulings.
   `status`, `history`, `run`, `episodes`, `stream`, the diagrams, comparisons and `read-again` are reads or writes on those pages; `cancel`, `pause`,
   `resume` and delete are writes; starting a run checks the recipe's nodes as well as the request; deleting runs by state is refused to a caller
   whose reads differ page by page. A run that names no page on its record has none to test (H1, H8, N6).
+  An export that writes to a path the caller names on the Mac (`/api/export/jsonl`, `training`, `parquet`, `eleventy-site`, `markdown-folder`, `word`,
+  `excel`: every one with an `output_path`) is the owner's, whatever pages it reads (H6, `source.rights.owner-only-asserted-in-the-action`).
   A person shared one folder opens the Table on it: `POST /api/documents/dataset/query` with that folder as `parent_id` answers,
   and a query for another folder, or none (the whole project), is refused (`source.rights.every-id-in-a-request-is-checked`).
 

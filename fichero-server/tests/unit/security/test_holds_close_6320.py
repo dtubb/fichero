@@ -590,3 +590,20 @@ def test_h1_h8_n6_a_run_over_a_folder_source_is_shown_and_acted_on_only_to_a_cal
         # starting a run over the recipe is a write on its source folder
         assert client.post("/api/workflow-execution/execute" + decoy, json={"workflow_id": wid, "inputs": {}}).status_code == 403, name
     assert owner.get(base + "/run").status_code == 200
+
+
+def test_h6_an_export_that_names_a_path_on_the_mac_is_the_owners(project, four):
+    """#6325 H6: `output_path` is a path on the owner's Mac. Every export route that takes one depends on the owner check (looked at, then fired
+    with a path that would be refused whoever sent it)."""
+    from fastapi.routing import APIRoute
+    from fichero_server.api.routes.auth.accounts import _require_owner_for_writes
+    from tests.route_inventory import served_routes
+
+    named = [r for r in served_routes(project.harness.app) if isinstance(r, APIRoute) and r.path.startswith("/api/export/") and r.body_field is not None
+             and "output_path" in getattr(r.body_field.field_info.annotation, "model_fields", {})]
+    assert len(named) >= 7
+    assert not [r.path for r in named if _require_owner_for_writes not in {d.call for d in _all_dependencies(r.dependant)}]
+    for name, client, decoy in four:
+        for route in named:
+            got = client.post(route.path, json={"output_path": "x-path-no-write"})
+            assert got.status_code == 403 and "owner access required" in got.text, (name, route.path, got.status_code, got.text[:100])
