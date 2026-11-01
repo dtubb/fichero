@@ -16,8 +16,8 @@ from fichero_builder import run as run_mod
 
 
 def state_dir(rules_root, explicit) -> Path:
-    """--state, else $FICHERO_BUILDER_STATE, else `<[jail].workroot>/state` from the rules file (the shared area both
-    users can read, so the owner reads the worker's journal without sudo), else the XDG default."""
+    """For `run`: --state, else $FICHERO_BUILDER_STATE, else `<[jail].workroot>/state` from the rules file (the shared area
+    both users can read, so the owner reads the worker's journal without sudo), else the XDG default."""
     if explicit:
         return Path(explicit)
     if os.environ.get("FICHERO_BUILDER_STATE"):
@@ -70,7 +70,9 @@ def main(argv=None) -> int:
     land.add_argument("--pinned", required=True), land.add_argument("--verdicts", required=True), land.add_argument("--log", required=True)
     land.add_argument("--state", help="where the journal lives (default: see run --state)")
     a = ap.parse_args(argv)
-    journal.STATE = state_dir(a.pinned if a.cmd in ("check", "land") else a.root, a.state)
+    # run (as the worker) journals under the shared workroot; check and land (as the owner) keep the owner's own journal,
+    # because land trusts the check row: a journal the worker can write would let a worker forge one.
+    journal.STATE = state_dir(a.root, a.state) if a.cmd == "run" else (Path(a.state) if a.state else journal.STATE)
     if a.cmd == "land":  # ponytail: the gate is scripts/harness_land.py whole; this verb runs it, it does not copy it
         import runpy
 

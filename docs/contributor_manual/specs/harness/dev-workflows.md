@@ -133,6 +133,10 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
 
 ## Decisions
 
+- **The whole chain is deterministic verbs** (owner 2026-11-01): write a spec, break an approved spec into build-order
+  steps as issues under its milestone, take a milestone's connected issues as one cluster brief, build, check, review,
+  land. No step picks issue numbers by hand; a person approves specs and answers questions. The verbs come right after
+  check and land are in use (Step 2.3).
 - **Issues are managed in Fichero and synced to GitHub** (maintainer 2026-10-31); GitHub stays the public record; every
   write goes through one guarded step. Specs stay Markdown in the repo, bound by the guards.
 - **The Builder is separate from the engine** (owner 2026-11-01, products: Fichero client, Fichero iOS, Fichero Server,
@@ -253,7 +257,23 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   file names (Python here); a Swift or contract change needs a Lead build row on the sha; docs and spec changes need
   neither. **Counters:** the same named test red twice, the diff bound tripped twice, a tool call repeated with the same
   arguments after an error, the turn or dollar cap: counted by `check` and a PostToolUse counter, and enforced (a refusal
-  row and a question), not left to the model. Test: `fichero-server/tests/unit/workflows/test_check_tool.py::test_check_tool_runs_the_ladder`. **Build** (owner 2026-11-01, built): a diff under `[check].build_paths` runs `[check].build` (a build-only compile, never a test run) in the scratch tree, one build at a time under `[check].build_lock`, after the contract rung; red refuses. Test: `fichero-server/tests/unit/workflows/test_check_tool.py::test_the_build_rung_runs_only_for_build_paths_and_reports_red`.
+  row and a question), not left to the model. Test: `fichero-server/tests/unit/workflows/test_check_tool.py::test_check_tool_runs_the_ladder`. **Build** (owner 2026-11-01, built): a diff under `[check].build_paths` runs `[check].build` (a build-only compile, never a test run) in the scratch tree, one build at a time under `[check].build_lock`, after the contract rung; red refuses. Test: `fichero-server/tests/unit/workflows/test_check_tool.py::test_the_build_rung_runs_only_for_build_paths_and_reports_red`. **Check row** (built 2026-11-01): `builder check` appends a `check` row (repo, since, the head's full sha, ok, failed) to the owner's journal, and `builder land` refuses a head with no green row there (Step 2.1: check before review and land; the row lives in the owner's journal, never the worker's, so a worker cannot forge one). `builder run` journals under `[jail].workroot/state` by default so the owner reads the worker's rows without sudo. Test: `fichero-builder/tests/test_main.py`.
+- `dev-workflows.tool.milestone` [PROPOSED] (owner 2026-11-01) — `builder milestone <name>` reads the milestone's open
+  issues (`gh`), places each under the build-order step of the spec that names it (the issue body's step line, or the
+  milestone's spec by its `> Milestone:` line), orders steps by `Depends on`, and prints one cluster brief per step
+  through the brief tool; an issue under no step, or a step whose dependency is still open, is a **question**, never a
+  guess; nothing is picked by hand. Test (unwritten, Step 2.3): a fake `gh` with four issues over two steps gives two
+  briefs in order and one question, under the Builder's tests folder.
+- `dev-workflows.tool.spec` [PROPOSED] (owner 2026-11-01) — `builder spec <issue>` starts the **spec-writer** role from
+  `[models]` as a worker whose brief is the spec template, the issue and the spec guards' rules; the result is one spec
+  file under `spec_dir` on a branch with `> **Status: PROPOSED**`; the guards run on it; the owner approves by editing
+  the status line, and nothing in the spec is built before that. Test (unwritten, Step 2.3): the brief text names the
+  template, the issue and the guards; a PROPOSED spec is refused by the steps verb.
+- `dev-workflows.tool.steps` [PROPOSED] (owner 2026-11-01) — `builder steps <spec>` reads an APPROVED spec's build order
+  and files one issue per step under the spec's milestone (`gh`): the step's title, behaviours, tests, size and
+  `Depends on` as issue links in the body; a second run updates the step's issue rather than filing another (the body
+  carries the step id); every write is a journal row. Test (unwritten, Step 2.3): a fake `gh` records one create per step
+  and one update on the second run; a PROPOSED spec is refused.
 - `dev-workflows.builder.cluster` [PARTIAL] (#6116) — one spec and its build-order issues (parser ported from
   `pipeline/plan.py`), in order, one commit per issue with its test; the brief is built by `scripts/harness_brief.py` from
   `gh api repos/{repo}/issues/N`: the body and the **title** only when the author association is owner, member or
@@ -520,8 +540,8 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
 - Deferred as text: a typed git tool with an argv jail (the user wall guards git; the policy hook refuses push); a
   machine watch (the one-test-run lock is the control on load; a watch returns if the lock proves insufficient); a spec
   and plan layer with approvals in the engine (the Lead's `gh` and the spec guards do this for now; the pull sync stays);
-  invited contributors; shared projects; a `decider` role; a repository as a workspace source; a feeder
-  (a person points the milestone); bug narrowing before a brief; a Builder front end, `builder` tier and bundle; the
+  invited contributors; shared projects; a `decider` role; a repository as a workspace source; bug
+  narrowing before a brief; a Builder front end, `builder` tier and bundle; the
   Activity table as a Swift package; the private-text hash list; the ratchet's backslide guard; the release as a dev
   workflow (long, resumable at the failed step, a yes before anything public, step by step in Activity).
 
@@ -587,6 +607,12 @@ Steps a long-running builder can take from the heading. `Depends on` defaults to
 - Tests: fichero-builder/tests/test_real_cluster_record.py
 - Size: S
 
+#### Step 2.3 — the chain as verbs: `builder milestone`, `builder spec`, `builder steps` (owner 2026-11-01)
+- Behaviours: `dev-workflows.tool.milestone`, `dev-workflows.tool.spec`, `dev-workflows.tool.steps`
+- Tests: fichero-builder/tests/test_milestone_verb.py, fichero-builder/tests/test_spec_verb.py, fichero-builder/tests/test_steps_verb.py
+- Depends on: 2.1
+- Size: M
+
 ### Stage 3 — the Pi kind by RPC, the sandbox, local parity
 
 #### Step 3.1 — `--kind pi` over RPC with a fail-closed `tool_call` extension; a metered provider; one model per role in the rules file
@@ -606,11 +632,11 @@ Steps a long-running builder can take from the heading. `Depends on` defaults to
 - Depends on: 3.1
 - Size: M
 
-### Stage 4 — feeder, cleanup, the records, the Researcher, the app
+### Stage 4 — cleanup, the records, the Researcher, the app
 
-#### Step 4.1 — the feeder with a lint matched to how issues are written; `builder clean`; `pipeline/` deleted; AGENTS.md rewritten
+#### Step 4.1 — an issue lint matched to how issues are written; `builder clean`; `pipeline/` deleted; AGENTS.md rewritten
 - Behaviours: `dev-workflows.surface.one-action-layer`
-- Tests: fichero-builder/tests/test_feeder.py, fichero-builder/tests/test_clean.py
+- Tests: fichero-builder/tests/test_issue_lint.py, fichero-builder/tests/test_clean.py
 - Depends on: 2.2
 - Size: M
 
@@ -645,6 +671,9 @@ Every behaviour names its test above, written in its step; each `security.*` and
 | `dev-workflows.run.review-and-land` | 0.1 |
 | `dev-workflows.run.worker-start-stop` | 1.1 |
 | `dev-workflows.tool.check` | 1.1 |
+| `dev-workflows.tool.milestone` | 2.3 |
+| `dev-workflows.tool.spec` | 2.3 |
+| `dev-workflows.tool.steps` | 2.3 |
 | `dev-workflows.run.worker-address` | 1.1 |
 | `dev-workflows.node.worker` | 1.2 |
 | `dev-workflows.rollout.dry-run` | 1.2 |
