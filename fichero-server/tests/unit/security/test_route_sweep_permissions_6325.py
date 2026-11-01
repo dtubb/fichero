@@ -40,6 +40,9 @@ from tests.unit.security.test_sharing_probe_2026_10_01 import _multiuser_on, har
 from tests.unit.transport.test_person_bound_invite_5910 import _as
 from tests.unit.transport.test_share_scope_5967 import _person, project  # noqa: F401
 
+#: The fixture fires ~12000 requests: 326 s alone at load 30 to 95, past the project default of 300 s (`timeout_method = "thread"` in a gate ends the process).
+pytestmark = pytest.mark.timeout(1200)
+
 #: Streams hang a test client; ending a session ends the caller for every route after it.
 SKIP = re.compile(r"stream|/events|/sse|shutdown|/restart|/quit|/ws\b|/mcp\b|/auth/logout|/auth/sign-out|/auth/sessions|/change|revoke-self")
 WRITES = {"POST", "PUT", "PATCH", "DELETE"}
@@ -440,6 +443,11 @@ def _by(rows):
     for r in rows:
         out[(r["surface"], r["ident"])][(r["who"], r["decoy"])] = r
     return out
+
+
+def test_the_sweep_module_sets_a_timeout_past_the_projects_default():
+    mark = next(m for m in pytestmark if m.name == "timeout") if isinstance(pytestmark, list) else pytestmark
+    assert mark.args[0] >= 900
 
 
 def test_found_reads_every_row_not_the_last_one_per_caller():
