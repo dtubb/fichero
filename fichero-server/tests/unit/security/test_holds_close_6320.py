@@ -1,7 +1,11 @@
 # ruff: noqa: F811  (a fixture imported from another test module and taken by name: the pattern test_share_scope_5967 uses)
 """The holds of review 3 (#6320), each through the real HTTP stack with multi-user on, on a scratch library. Four callers:
 alice (project editor, a deny on folder B), bob (project viewer, a deny on B), carla (editor of folder A, a decoy `?x_id=A` in the
-query) and dana (viewer of A, the same decoy). Each test fails on the code before its fix."""
+query) and dana (viewer of A, the same decoy). Each test fails on the code before its fix.
+
+Spec ids these tests are cited by (rights-and-access.md): `source.rights.every-id-in-a-request-is-checked`,
+`source.rights.claims-with-only-denied-evidence-are-hidden`, `source.rights.a-viewer-cannot-spend-keys-or-network`,
+`source.rights.shared-folder-editor-writes-notes-on-that-folder`, `sharing.owner-only-asserted-in-the-action`."""
 
 import re
 
