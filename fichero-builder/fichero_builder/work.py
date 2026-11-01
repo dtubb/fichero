@@ -31,7 +31,7 @@ def do_export(a, branch: str) -> int:
     """The worktree's commits over origin/<land branch> as patch files; the count (0 = nothing to land)."""
     out = Path(journal.STATE) / f"patches-{a.name}"
     out.mkdir(parents=True, exist_ok=True)
-    r = _git(a.worktree, "format-patch", "-q", "-o", str(out), f"origin/{branch}")
+    r = _git(a.worktree, "format-patch", "-o", str(out), f"origin/{branch}")
     return len(r.stdout.split()) if r.returncode == 0 else 0
 
 

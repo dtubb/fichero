@@ -138,3 +138,10 @@ def test_fetch_never_passes_the_workers_branch_name_to_git(scratch, tmp_path):
     assert head == _g(w, "rev-parse", "HEAD") and head
     assert _g(scratch.engine, "rev-parse", "refs/heads/work-n1") == head
     assert not (tmp_path / "PWNED").exists()
+
+
+def test_export_counts_the_real_commits_over_the_base(scratch):
+    _commit(scratch.wt, "one"), _commit(scratch.wt, "two")
+    assert work.do_export(scratch.a, "integration") == 2
+    assert len(list((journal.STATE / "patches-n1").glob("*.patch"))) == 2
+    assert work.do_export(types.SimpleNamespace(worktree=str(scratch.engine), name="n2"), "integration") == 0
