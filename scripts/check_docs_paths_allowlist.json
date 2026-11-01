@@ -42,7 +42,6 @@
     "build/verify_all_needs_fixing.json",
     "docs/assets/about",
     "docs/contributor_manual/how-fichero-is-built.md",
-    "docs/contributor_manual/review-checklist.md",
     "docs/references.bib",
     "fichero-cli/tests/test_chat_dev_verbs.py",
     "fichero-server/build/fichero-backend/macos/app/FicheroBackend.app",
