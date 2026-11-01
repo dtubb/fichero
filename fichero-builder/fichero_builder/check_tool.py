@@ -42,6 +42,7 @@ class Config:
     spec_dir: str = ""                  # folder of the specs whose item acceptance a worker may not rewrite ("" = none)
     check_paths: tuple = ()             # files/folders that judge a diff: run from the pinned copy, never the worker's
     red_paths: tuple = ()               # a diff touching these (prefixes) needs a failing-on-base test; () = any file
+    whole_tests: dict = field(default_factory=dict)  # {path prefix: tests dir}: a diff under the prefix runs that dir WHOLE in the green run
     test_globs: tuple = ("test_*.py", "*_test.py")
     pytest_config: str = ""             # the pinned pytest config file (relative to the tree), passed as `-c`; "" = pytest's own search
     pytest_plugins: tuple = ()          # plugins loaded by -p; autoload is OFF, so a dist-info entry point in the tree loads nothing
@@ -61,7 +62,7 @@ def load(root) -> Config:
         return Config()
     doc = tomllib.loads(f.read_text())
     c = doc.get("check", {})
-    if unknown := sorted(set(c) - {x.name for x in fields(Config)} - {"test_env"}):  # fail closed (review 3, spec item 2)
+    if unknown := sorted(set(c) - {x.name for x in fields(Config)} - {"test_env", "whole_tests"}):  # fail closed (review 3, spec item 2)
         raise ValueError(f"harness.toml [check]: unknown keys {unknown}")
     if unknown := sorted(set(doc) - {"check", "jail", "policy", "land", "brief", "spend", "models"}):
         raise ValueError(f"harness.toml: unknown tables {unknown}")
@@ -78,7 +79,7 @@ def load(root) -> Config:
         guard_skip=frozenset(c.get("guard_skip", ())), guard_timeout_s=c.get("guard_timeout_s", d.guard_timeout_s),
         min_guards=c.get("min_guards", d.min_guards), contract_paths=tuple(c.get("contract_paths", d.contract_paths)),
         contract_guards=tuple(c.get("contract_guards", d.contract_guards)),
-        spec_dir=c.get("spec_dir", d.spec_dir), check_paths=tuple(c.get("check_paths", d.check_paths)), red_paths=tuple(c.get("red_paths", d.red_paths)), test_globs=tuple(c.get("test_globs", d.test_globs)),
+        whole_tests=dict(c.get("whole_tests", {})), spec_dir=c.get("spec_dir", d.spec_dir), check_paths=tuple(c.get("check_paths", d.check_paths)), red_paths=tuple(c.get("red_paths", d.red_paths)), test_globs=tuple(c.get("test_globs", d.test_globs)),
         pytest_config=c.get("pytest_config", d.pytest_config), pytest_plugins=tuple(c.get("pytest_plugins", d.pytest_plugins)), max_files=c.get("max_files", d.max_files),
         max_lines=c.get("max_lines", d.max_lines), build_paths=tuple(c.get("build_paths", d.build_paths)),
         build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
@@ -373,7 +374,7 @@ def diff_bound(root, since: str, head: str, cfg: Config) -> dict:
 
 
 def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Config(), timeout_s: float = 600,  # noqa: B008
-                head_tree=None) -> dict:
+                head_tree=None, also_green: tuple = ()) -> dict:
     """The failing run: each changed test file, copied onto a scratch tree at `since`, must FAIL there on its
     own, and all must PASS at `head`. A test that passes on base proves nothing."""
     root = Path(root)
@@ -393,7 +394,7 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
             r = pytest_rung(base, [f], cfg, timeout_s)
             if r["ok"]:
                 return red(f"NOT RED ON BASE: {f} passes at {since[:9]}, so it proves nothing")
-        here = pytest_rung(head_tree or root, files, cfg, timeout_s)  # the green run: in the pinned-overlay tree when given
+        here = pytest_rung(head_tree or root, [*files, *also_green], cfg, timeout_s)  # the green run: in the pinned-overlay tree when given
         return {**here, "name": "red-on-base"}
     finally:
         _git(root, "worktree", "remove", "--force", base)
@@ -564,6 +565,11 @@ def _needs_red(names: list[str], tests: list[str], cfg: Config) -> bool:
     return not cfg.red_paths or bool(tests) or any(n.startswith(cfg.red_paths) for n in names)
 
 
+def _whole_tests(names: list[str], cfg: Config) -> tuple:
+    """Tests dirs the green run takes whole: a changed source can break an old test its own new test never imports."""
+    return tuple(sorted({d for p, d in cfg.whole_tests.items() if any(n.startswith(p) for n in names)}))
+
+
 def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintainer: bool = False) -> dict:
     cfg = load(pinned)
     bad = pinned_violations(root, since, head, cfg, pinned)
@@ -588,7 +594,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
         out = ladder([
             ("ready", lambda: ready(tree, cfg)),
             ("diff-bound", lambda: diff_bound(root, since, head, cfg)),
-            ("red-on-base", lambda: red_on_base(root, since, head, tests, cfg, head_tree=tree) if _needs_red(names, tests, cfg)
+            ("red-on-base", lambda: red_on_base(root, since, head, tests, cfg, head_tree=tree, also_green=_whole_tests(names, cfg)) if _needs_red(names, tests, cfg)
              else {**_skipped("red-on-base"), "stdout_tail": "not required: no changed path is under [check].red_paths"}),
             ("guards", lambda: guards(tree, cfg)),
             ("contract-current", lambda: contract_current(tree, names, cfg)),

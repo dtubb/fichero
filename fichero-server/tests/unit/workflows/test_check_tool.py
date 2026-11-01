@@ -442,3 +442,21 @@ def test_a_maintainer_batch_records_the_pinned_change_and_runs_the_rest(tmp_path
     g("commit", "-qam", "rewrite acceptance")
     r = ct.run_ladder(work, base3, "HEAD", pinned, jail_required=False, maintainer=True, protected_ids=["demo.item.one"])
     assert not r["ok"] and r["failed"] == "pinned-checks" and "acceptance" in r["rungs"][0]["stderr_tail"]
+
+
+def test_a_change_under_a_whole_tests_prefix_runs_that_tests_dir_whole_in_the_green_run(tmp_path):
+    """review of fd9f26187: a Builder source change ran only its own new test, so an old test it broke slipped through."""
+    work, g, _b, pinned = _project(tmp_path, extra='[check.whole_tests]\n"mod.py" = "suite"\n',
+                                   check_extra=f'python = "{sys.executable}"\npython_path = ["."]\nred_paths = ["mod.py"]\n')
+    (work / "suite").mkdir()
+    (work / "mod.py").write_text("VALUE = 1\n")
+    (work / "suite" / "test_old.py").write_text("import mod\ndef test_old():\n    assert mod.VALUE == 1\n")
+    g("add", "."), g("commit", "-q", "-m", "old suite")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+    subprocess.run(["git", "fetch", "-q", str(work)], cwd=pinned, check=True)
+    (work / "mod.py").write_text("VALUE = 2\n")
+    (work / "test_mod.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 2\n")
+    g("add", "."), g("commit", "-q", "-m", "change")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert not r["ok"] and r["failed"] == "red-on-base", r
+    assert "test_old" in r["rungs"][-1]["stdout_tail"] + r["rungs"][-1]["stderr_tail"]
