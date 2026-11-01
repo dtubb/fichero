@@ -1946,9 +1946,10 @@ async def recipe_check(request: Request | None, library_path: str | None, db: An
     if workflow is None:
         return  # not found: the route says so
     from fichero_server.api.auth import library_access_denial_payload
-    from fichero_server.workflows.run_scope import node_document_ids, recipe_hazard
+    from fichero_server.workflows.run_scope import node_document_ids, recipe_hazard, with_sub_workflows
+    from fichero_server.workflows.subworkflow import sub_workflow_resolver_for_db
 
-    nodes = workflow.nodes
+    nodes = with_sub_workflows(workflow.nodes, sub_workflow_resolver_for_db(db))  # a `sub_workflow` step runs its child's steps
     if pages := node_document_ids(nodes):
         await write_check(request, library_path, db, pages)
     if document_reader(request, library_path) is not None and (why := recipe_hazard(nodes)):
@@ -1964,15 +1965,16 @@ async def run_check(request: Request, library_path: str | None, db: Any, thread_
         return  # nothing can differ for this caller: no lookup, no walk
     from fichero_server.workflows.activity import get_activity_tracker
     from fichero_server.api.auth import library_access_denial_payload
-    from fichero_server.workflows.run_scope import recipe_hazard, run_document_ids
+    from fichero_server.workflows.run_scope import node_document_ids, recipe_hazard, run_document_ids, with_sub_workflows
+    from fichero_server.workflows.subworkflow import sub_workflow_resolver_for_db
 
     store = get_activity_tracker(str(db.path)).store
     pages: list[str] = []
     for thread_id in dict.fromkeys(t for t in thread_ids if t):
         if (run := await store.get_workflow_run(thread_id)) is None:
             continue
-        run_pages = run_document_ids(run)
-        nodes = (getattr(run, "workflow_snapshot", None) or {}).get("nodes")
+        nodes = with_sub_workflows((getattr(run, "workflow_snapshot", None) or {}).get("nodes"), sub_workflow_resolver_for_db(db))
+        run_pages = list(dict.fromkeys([*run_document_ids(run), *node_document_ids(nodes)]))
         if not run_pages or (why := recipe_hazard(nodes)):
             raise LibraryAccessDeniedError(library_access_denial_payload(
                 request, library_path, required="write" if write else "read",

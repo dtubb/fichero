@@ -756,3 +756,20 @@ def test_item1_a_run_that_names_no_page_is_not_shown_to_a_caller_with_a_deny(pro
             for path in ("/status", "/history", "/run"):
                 got = client.get(base + path + decoy)
                 assert got.status_code == 403 and "SECRET" not in got.text, (label, name, path, got.status_code)
+
+
+def test_item3_a_sub_workflow_step_is_checked_with_its_childs_steps(project, four, tmp_path):
+    """Review 8 item 3: a parent whose only step is `sub_workflow` started a child that writes a path, or reads a folder by name or a search."""
+    alice = next(c for n, c, _ in four if n == "alice")
+    owner = _as(project.harness, "owner")
+    out = str(tmp_path / "copied")
+    children = {
+        "export": [{"id": "e", "tool": "export_documents", "label": "E", "inputs": {"formats": ["markdown"], "destination": out}, "config": {}}],
+        "search": [{"id": "s", "tool": "search", "label": "S", "inputs": {"query": "SECRET", "search_type": "fulltext"}, "config": {}}],
+        "folder on B": [{"id": "f", "tool": "folder", "label": "F", "inputs": {"folder_id": project.ids["B"]}, "config": {}}],
+    }
+    for label, nodes in children.items():
+        child = _recipe(owner, nodes)
+        parent = _recipe(owner, [{"id": "p", "tool": "sub_workflow", "label": "P", "inputs": {}, "config": {"workflow_ref": child}}])
+        assert alice.post("/api/workflow-execution/execute", json={"workflow_id": parent, "inputs": {}}).status_code == 403, label
+    assert not (tmp_path / "copied").exists()

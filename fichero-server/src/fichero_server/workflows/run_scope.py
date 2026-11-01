@@ -58,6 +58,38 @@ def recipe_hazard(nodes: Any) -> str | None:
     return None
 
 
+#: How many levels of `sub_workflow` the walk follows (the tool's own `max_depth` is at most 16).
+MAX_SUB_WORKFLOW_DEPTH = 16
+
+
+def with_sub_workflows(nodes: Any, resolver: Any, *, depth: int = MAX_SUB_WORKFLOW_DEPTH) -> list[dict]:
+    """The recipe's nodes plus, for each `sub_workflow` node, its child's nodes (and theirs), so `recipe_hazard` and `node_document_ids` see
+    what the child reads and writes. `resolver` is `sub_workflow_resolver_for_db(db)`. A child that does not resolve adds nothing; a recipe
+    that names itself again is followed once; nesting deeper than `depth` is not followed (#6325, review 8 item 3)."""
+    out: list[dict] = []
+    seen: set[str] = set()
+
+    def walk(level: Any, left: int) -> None:
+        for node in level or []:
+            node = node.model_dump() if hasattr(node, "model_dump") else node
+            if not isinstance(node, dict):
+                continue
+            out.append(node)
+            ref = (node.get("config") or {}).get("workflow_ref") or (node.get("inputs") or {}).get("workflow_ref")
+            if node.get("tool") != "sub_workflow" or not ref or left <= 0 or str(ref) in seen:
+                continue
+            seen.add(str(ref))
+            try:
+                child = resolver(str(ref))
+            except Exception:  # noqa: BLE001 -- an unresolvable child is the run's own error to report
+                child = None
+            if child is not None:
+                walk(child.nodes, left - 1)
+
+    walk(nodes, depth)
+    return out
+
+
 def run_document_ids(run: Any) -> list[str]:
     """Every document id a run's record names: the scope it resolved, the inputs it was started with and the ids its recipe's nodes name.
     The pages its state, history and answers rest on, so they are shown (or the run is acted on) only to a caller who reads (writes) them all (#6325)."""
