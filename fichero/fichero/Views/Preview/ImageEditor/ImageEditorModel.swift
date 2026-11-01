@@ -356,9 +356,11 @@ final class ImageEditorModel {
             return try await service.setOperations(documentId: self.documentId, operations: ops)
         }
     }
+}
 
-    // MARK: - Copy / Paste edits (Daniel, 2026-09-02)
+// MARK: - Copy / Paste edits (Daniel, 2026-09-02)
 
+@MainActor extension ImageEditorModel {
     /// Put this document's chain on the app-wide edit clipboard.
     func copyEdits() {
         ImageEditClipboard.shared.copy(

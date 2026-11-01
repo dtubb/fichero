@@ -28,6 +28,7 @@ extension ShareLibrarySheet {
             // (remote engine / iOS), where the honest fallback card renders instead.
             if !hostingEnabled && canHostFromHere {
                 await enableHostingForShare()
+                await readSharingState()  // the link goes out once: name the address that works now, not the one read at open (review P1)
             }
             loadSPKIPin()
             await mintPairingCodeIfPossible()
@@ -121,9 +122,16 @@ extension ShareLibrarySheet {
     /// as the `fichero://` payload iOS's `PairingQRCodePayloadDecoder` already
     /// parses. Identical to the QR and the copyable pairing link — not a second
     /// format, and never the loopback share_url.
+    /// The rows the engine's state allows; the sharing address alone when the state is not loaded.
+    var addressRows: [AddressRow] {
+        AddressChoiceModel.rows(
+            sharingAddress: publicBaseURL, tailnetURL: sharingState?.tailnetURL, tailnetForward: sharingState?.tailnetForward)
+    }
+
     var pairingLink: String? {
         guard let pairingCode,
-              let reachableURL = try? validatedHostedRemoteURL(from: publicBaseURL)
+              let reachableURL = AddressChoiceModel.root(for: addressChoice, rows: addressRows)
+                ?? (try? validatedHostedRemoteURL(from: publicBaseURL))
         else { return nil }
         let advertisedPin: String?
         switch RemoteClientPairing.invitePin(spkiPin, for: reachableURL) {
@@ -180,7 +188,9 @@ extension ShareLibrarySheet {
     /// "cannot proceed". The link is genuinely valid on a LAN, so it is still
     /// offered; we just say what its reach is and where to widen it.
     var localNetworkOnlyAdvisory: String? {
-        guard RemoteAccessConfig.isLocalNetworkOnly(publicBaseURL) else { return nil }
+        // The address the link carries, not the sharing address: a `.local` sharer's link may name its `.ts.net` row (review Q1).
+        let linked = AddressChoiceModel.root(for: addressChoice, rows: addressRows)?.absoluteString ?? publicBaseURL
+        guard RemoteAccessConfig.isLocalNetworkOnly(linked) else { return nil }
         return "This address only works on the same local network, and some networks "
             + "(many campus and office ones) can't reach it at all. To connect from "
             + "anywhere, set a Tailscale address in Settings → Sharing → Advanced."

@@ -400,7 +400,6 @@ extension ModelFinderStore {
     .frame(width: 320, height: 200)
 }
 
-
 private extension Components.Schemas.HtrUnitedDataset {
     /// A missing url is stored as "", so the title joins it to tell two datasets apart.
     var key: String { title + "|" + url }

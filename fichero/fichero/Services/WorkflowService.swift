@@ -137,9 +137,11 @@ class WorkflowService {
             throw WorkflowServiceError.unexpectedResponse
         }
     }
+}
 
-    // MARK: - Workflow CRUD
+// MARK: - Workflow CRUD
 
+@MainActor extension WorkflowService {
     /// Create a new workflow.
     func createWorkflow(_ workflow: WorkflowDefinition) async throws -> WorkflowResponse {
         let libraryPath = client.currentLibraryPath ?? ""

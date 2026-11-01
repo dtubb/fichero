@@ -23,7 +23,41 @@ extension ShareSettingsView {
     /// The advertised engine URL a QR/invite should point a phone at. NOT a
     /// service: minting a payload sends nothing, so it must not construct a
     /// client that would follow the app's own transport (#4224).
-    var advertisedPairingRoot: URL? { validatedPublicURL }
+    var advertisedPairingRoot: URL? {
+        AddressChoiceModel.root(for: addressChoice, rows: addressRows) ?? validatedPublicURL
+    }
+
+    /// The addresses the sheet offers (`sharing.share-sheet-offers-both-addresses`): the sharing address and the tailnet
+    /// address the engine reports, each with its reach and, when it cannot work, why.
+    var addressRows: [AddressRow] {
+        AddressChoiceModel.rows(sharingAddress: publicBaseURL,
+                                tailnetURL: sharingState?.tailnetURL ?? detectedTailnetURL,
+                                tailnetForward: sharingState?.tailnetForward)
+    }
+
+    /// The link for one row (its own Copy), built from the same code as the QR.
+    func inviteLinkString(for choice: AddressChoice) -> String? {
+        guard let pairingCode, let root = AddressChoiceModel.root(for: choice, rows: addressRows) else { return nil }
+        let advertisedPin: String?
+        switch RemoteClientPairing.invitePin(spkiPin, for: root) {
+        case .missing: return nil
+        case .notNeeded: advertisedPin = nil
+        case .pin(let pin): advertisedPin = pin
+        }
+        let payload = PairingService.buildQRCodePayload(
+            apiRoot: root, from: pairingCode, spki: advertisedPin, libraryPath: sharedLibraryPath)
+        return try? RemoteClientPairing.inviteLinkString(from: payload)
+    }
+
+    func copyInvite(for choice: AddressChoice) {
+        let outcome = PairingLinkCopy.attempt(
+            link: inviteLinkString(for: choice), blocker: pairingBlocker,
+            write: PlatformPasteboard.writeString, read: PlatformPasteboard.string)
+        switch outcome {
+        case .copied: copyNote = nil
+        case .notCopied(let reason): copyNote = reason
+        }
+    }
 
     var pairingQRPayload: PairingQRCodePayload? {
         guard let pairingCode, let advertisedPairingRoot else { return nil }
@@ -46,7 +80,8 @@ extension ShareSettingsView {
         return try? RemoteClientPairing.inviteLinkString(from: pairingQRPayload)
     }
 
-    var qrCodeImage: PlatformImage? {
+    /// Draws the QR for the current payload; called once per link by the view's task, never from the body.
+    func makeQRCodeImage() -> PlatformImage? {
         guard let pairingQRPayload else { return nil }
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

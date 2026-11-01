@@ -30,6 +30,7 @@ struct UsersSettingsView: View {
 }
 
 struct UsersContent: View {
+    @Environment(AppState.self) var appState
     let store: UsersStore
     let identityStore: IdentityStore
     let library: LibraryManager.LibraryReference

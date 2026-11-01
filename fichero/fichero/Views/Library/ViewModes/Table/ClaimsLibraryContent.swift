@@ -405,7 +405,11 @@ struct ClaimsLibraryContent: View {
         let trimmed = (searchQuery ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
+}
 
+// MARK: - Rows and source actions
+
+extension ClaimsLibraryContent {
     /// Resolve claims → sortable rows, filtered by the active search text over the
     /// claim's own words and its source page name.
     private var items: [ClaimsTableView.Item] {

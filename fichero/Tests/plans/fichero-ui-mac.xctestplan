@@ -15,7 +15,8 @@
     {
       "selectedTests" : [
         "InspectorFlowsUITests\/testDocumentInspectorLoadsSeededEntities()",
-        "MacUITargetCanaryTests"
+        "MacUITargetCanaryTests",
+        "SharingPaneUITests"
       ],
       "target" : {
         "containerPath" : "container:fichero.xcodeproj",

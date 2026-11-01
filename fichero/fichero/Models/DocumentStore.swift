@@ -544,7 +544,11 @@ final class DocumentStore {
             await self?.refreshPendingStatusesOnly(in: parentId)
         }
     }
+}
 
+// MARK: - Status refresh and child lookups
+
+@MainActor extension DocumentStore {
     @MainActor
     func refreshPendingStatusesOnly(in parentId: String) async {
         // Snapshot pending row ids before the fetch — we only care about

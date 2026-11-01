@@ -379,7 +379,11 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         }
         return coord
     }
+}
 
+// MARK: - Loading and laying out the image
+
+extension ImageWithCursorTracking {
     /// Decode `url` OFF the main thread, then apply the ready image on the main actor
     /// (#3864). Marks the URL requested immediately so re-renders during the decode
     /// don't re-kick it, and takes a token so a superseded page-flip's late decode is

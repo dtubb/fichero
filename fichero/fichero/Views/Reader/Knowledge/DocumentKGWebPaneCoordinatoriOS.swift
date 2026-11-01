@@ -284,7 +284,11 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
         syncSelection(into: webView)
         applyZoom(to: webView, zoom: parent?.zoom ?? 1.0)
     }
+}
 
+// MARK: - Web view callbacks
+
+extension DocumentKGWebPaneCoordinatoriOS {
     /// A genuine fetch failure (pinned remote unreachable, engine non-2xx) fails
     /// the `fichero-server://` provisional navigation. Fall back to the static
     /// failure page. Only fires for engine loads (or the key-less handler

@@ -68,11 +68,11 @@ extension RecipeSetupStore {
     /// Leave Out turned on or off from anywhere but the chooser (its page's toggle, Ready's take out and put back): the
     /// answer is saved and the stage's tick follows, so the three never disagree. A tick that cannot change (another
     /// chosen stage needs the stage) leaves the answer as the tick has it.
-    func setLeaveOut(_ on: Bool) {
-        jobAnswers[question: Self.leaveOutQuestion] = .yesNo(on)
+    func setLeaveOut(_ isOn: Bool) {
+        jobAnswers[question: Self.leaveOutQuestion] = .yesNo(isOn)
         guard let choice = stageChoice else { return }
-        if choice.chosen.contains(Self.leaveOutStage) != on { stageChoice?.toggle(Self.leaveOutStage) }
-        let ticked = stageChoice?.chosen.contains(Self.leaveOutStage) ?? on
+        if choice.chosen.contains(Self.leaveOutStage) != isOn { stageChoice?.toggle(Self.leaveOutStage) }
+        let ticked = stageChoice?.chosen.contains(Self.leaveOutStage) ?? isOn
         jobAnswers[question: Self.leaveOutQuestion] = .yesNo(ticked)
         // only this job's lines: the other steps taken out on Ready stay taken out
         removedJobs.removeAll { $0 == Self.leaveOutStage }

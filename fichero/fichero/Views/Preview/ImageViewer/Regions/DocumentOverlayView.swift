@@ -274,7 +274,11 @@ final class DocumentOverlayView: NSView {
         path.lineWidth = line
         path.stroke()
     }
+}
 
+// MARK: - Drawing the selection and its handles
+
+extension DocumentOverlayView {
     /// The hover, the Inspector's selected annotation, and the selected boxes (with their handles
     /// while editing) -- all in the selection's own style.
     private func drawSelection(

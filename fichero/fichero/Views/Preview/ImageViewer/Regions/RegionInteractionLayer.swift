@@ -273,9 +273,11 @@ struct RegionInteractionLayer: View {
             height: abs(current.y - start.y)
         )
     }
+}
 
-    // MARK: - Gestures
+// MARK: - Gestures
 
+extension RegionInteractionLayer {
     /// Where a normalized image point lands in this layer.
     private func layerPoint(_ normalized: CGPoint, in size: CGSize) -> CGPoint? {
         guard let rect = BoundingBoxGeometry.viewRect(

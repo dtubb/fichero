@@ -564,6 +564,12 @@ cmd_part() {
   run_leg "check_emit_change_coverage" run_gated "part-check_emit_change_coverage" 90 \
     "$part_py" scripts/check_emit_change_coverage.py \
     || failed=1
+  # What this item adds, red or green whatever the total says (#5995). A tree with no origin/integration has no item to measure.
+  if git rev-parse --verify -q origin/integration >/dev/null; then
+    run_leg "swiftlint-added-by-item" run_gated "part-swiftlint-added-by-item" 300 \
+      "$part_py" scripts/check_swiftlint_warning_ratchet.py --since origin/integration \
+      || failed=1
+  fi
 
   # 2. Build. Swift tests cannot run without it, and a part that does not
   #    compile is not verified whatever its tests say.

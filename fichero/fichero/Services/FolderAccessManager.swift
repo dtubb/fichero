@@ -455,7 +455,11 @@ class FolderAccessManager {
         let root = grant.hasSuffix("/") ? grant : grant + "/"
         return libraryPaths.contains { $0 == grant || $0.hasPrefix(root) }
     }
+}
 
+// MARK: - Restoring and clearing bookmarks
+
+@MainActor extension FolderAccessManager {
     /// Restore bookmarks on app launch
     private func restoreBookmarks() {
         guard var bookmarks = UserDefaults.standard.dictionary(forKey: bookmarksKey) as? [String: Data] else {

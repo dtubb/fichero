@@ -299,7 +299,11 @@ struct SegmentInspectorView: View {
             )
         }
     }
+}
 
+// MARK: - The path head
+
+extension SegmentInspectorView {
     private var pathHead: some View {
         HStack(spacing: 4) {
             crumb("Page", selected: inspected == nil) { level = .page }
@@ -446,8 +450,8 @@ struct InspectorTextSection: View {
         var parts = [reading.whoRead ?? reading.maker.capitalized]
         if let step = reading.producerStep { parts.append(step) }
         if let author = reading.author { parts.append(author) }
-        if let at = reading.createdAt {
-            parts.append(at.formatted(.relative(presentation: .named, unitsStyle: .abbreviated)))
+        if let created = reading.createdAt {
+            parts.append(created.formatted(.relative(presentation: .named, unitsStyle: .abbreviated)))
         }
         if let guideline = reading.guideline { parts.append(guideline) }
         if let level = reading.level { parts.append("level \(level)") }

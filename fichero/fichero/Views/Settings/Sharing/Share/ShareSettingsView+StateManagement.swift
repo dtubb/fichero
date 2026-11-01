@@ -5,10 +5,10 @@ import SwiftUI
 extension ShareSettingsView {
     // MARK: - State management
 
+    /// What a NEW code is minted for; the engine's phase is not in it (`sharing.card-keeps-its-code`, `PairingCardRefresh`).
     var refreshKey: String {
-        [hostingEnabled.description, publicBaseURL, spkiPin, engineHost,
-         appState.isBackendRunning.description, didBootstrap.description]
-            .joined(separator: "|")
+        PairingCardRefresh.key(hostingEnabled: hostingEnabled, publicBaseURL: publicBaseURL, spkiPin: spkiPin,
+                               engineHost: engineHost, didBootstrap: didBootstrap)
     }
 
     /// ONE ACTION. Flipping this on derives the address, advertises the Mac, restarts
@@ -81,6 +81,7 @@ extension ShareSettingsView {
             if hostingEnabled {
                 await refreshDevices()
             }
+            await refreshSharingState()  // the forward follows Sharing: re-read it (review N1)
             return
         }
 
@@ -103,10 +104,36 @@ extension ShareSettingsView {
         } catch {
             shareError = error.localizedDescription
         }
+        // The engine answers `none` until Sharing is on and makes the forward after readiness: re-read, or the row stays stale (review N1).
+        await refreshSharingState()
+    }
+
+    /// The engine process now running, by health's `engine_pid`; nil until health has answered once. Not
+    /// `backendService.backendPID`, which is nil for an adopted engine (Dev Local, an external one): that re-minted on every
+    /// health check (review N3).
+    var currentEnginePID: Int? { healthEnginePID }
+
+    /// Asks health who is running. A failed read keeps the last pid: a health check in flight must not make the card forget
+    /// which engine its code came from.
+    func refreshEnginePID() async {
+        guard let response = try? await appState.ficheroClient.api.healthCheckApiHealthGet(headers: .init()),
+              case .ok(let okResponse) = response, let pid = (try? okResponse.body.json)?.enginePid else { return }
+        healthEnginePID = pid
+    }
+
+    /// Whether the code on the card came from the engine process now running (`PairingCardRefresh.sameEngine`).
+    var codeIsFromThisEngine: Bool {
+        PairingCardRefresh.sameEngine(codePID: codeEnginePID, currentPID: currentEnginePID)
     }
 
     func refreshPairingCode() async {
+        await refreshEnginePID()
+        // A health check in flight is not a reason to blank the card: the code it holds is still good until it expires,
+        // as long as the SAME engine process holds it (a restart loses the engine's codes).
+        if PairingCardRefresh.keepsCode(whenBlockedBy: pairingBlocker == .engineNotRunning, hasCode: pairingCode != nil,
+                                        sameEngine: codeIsFromThisEngine) { return }
         pairingCode = nil
+        codeEnginePID = nil
         shareError = nil
         guard pairingBlocker == nil else { return }
         isGeneratingCode = true
@@ -115,6 +142,7 @@ extension ShareSettingsView {
             try await Task.sleep(for: .milliseconds(200))
             try Task.checkCancellation()
             pairingCode = try await PairingService(apiRoot: EngineConfig.host).createPairingCode()
+            codeEnginePID = currentEnginePID
         } catch {
             if !error.isCancellationError { shareError = error.localizedDescription }
         }
@@ -123,7 +151,8 @@ extension ShareSettingsView {
     func refreshSharingState() async {
         guard EngineConfig.engineIsLocal else { return }
         let pairing = PairingService(apiRoot: EngineConfig.host)
-        sharingState = try? await pairing.sharingState()
+        // A failed read keeps the last good state: nil would end the re-read and could read as "ours" (review P2).
+        if let state = try? await pairing.sharingState() { sharingState = state }
         detectedTailnetURL = try? await pairing.detectedTailnetURL()
     }
 

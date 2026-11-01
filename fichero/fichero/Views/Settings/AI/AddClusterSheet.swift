@@ -149,8 +149,8 @@ struct AddClusterSheet: View {
     private func save() async {
         switch await service.addCluster(
             name: name, hostAlias: hostAlias, username: username, remoteBaseDir: remoteBaseDir, account: account,
-            partition: partition)
-        {
+            partition: partition
+        ) {
         case .success(let saved):
             cluster = saved
             publicKey = await service.makeKey(clusterId: saved.id)

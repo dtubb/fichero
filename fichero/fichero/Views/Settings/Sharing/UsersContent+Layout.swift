@@ -20,7 +20,19 @@ extension UsersContent {
                 if let accountError {
                     Text(accountError).font(.caption).foregroundStyle(.red)
                 }
-                if identityStore.isOwnerAccess {
+                // While Multi-user is off there is nobody to add (the engine answers 404): the line names the switch instead
+                // (`sharing.people-pane-off-state`, #5917).
+                if let off = PeoplePaneOffState.words(multiuserOn: identityStore.multiuserEnabled, isOwner: identityStore.isOwnerAccess) {
+                    HStack(spacing: 8) {
+                        Text(off.line).font(.caption).foregroundStyle(.secondary)
+                            .accessibilityIdentifier("people.multiuserOff")
+                        if let button = off.button {
+                            Button(button) { appState.selectedSettingsTab = .connect }
+                                .accessibilityIdentifier("people.openSharing")
+                        }
+                    }
+                }
+                if PeoplePaneOffState.offersAdd(multiuserOn: identityStore.multiuserEnabled, isOwner: identityStore.isOwnerAccess) {
                     HStack(spacing: 4) {
                         Button { showAddAccount = true } label: { Image(systemName: "plus") }
                             .help("Add Account")

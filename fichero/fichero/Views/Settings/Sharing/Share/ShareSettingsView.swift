@@ -53,6 +53,15 @@ struct ShareSettingsView: View {
         var id: Self { self }
     }
     @State var activeSheet: ActiveSheet?
+    /// The QR, drawn once per link and kept (`sharing.qr-drawn-once-per-payload`): a computed image was rebuilt on every
+    /// body evaluation (the Devices poll every 10 s), which the person saw as the picture flashing.
+    @State var qrImage: PlatformImage?
+    /// The engine process (health's pid) that minted the code on the card: a code outlives a health check, never a restart.
+    @State var codeEnginePID: Int?
+    /// The engine process health last named (`refreshEnginePID`); what `codeEnginePID` is compared with.
+    @State var healthEnginePID: Int?
+    /// Which address the QR and Copy Link carry (`sharing.share-sheet-offers-both-addresses`); nil = the model's default.
+    @State var addressChoice: AddressChoice?
     var showAddDevice: Bool {
         get { activeSheet == .addDevice }
         nonmutating set { activeSheet = newValue ? .addDevice : (activeSheet == .addDevice ? nil : activeSheet) }
@@ -132,13 +141,32 @@ struct ShareSettingsView: View {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(10))
                 if Task.isCancelled { return }
-                if didBootstrap, appState.isBackendRunning { await refreshDevices() }
+                if didBootstrap, appState.isBackendRunning {
+                    await refreshDevices()
+                    // The forward is made just after the engine is ready: while it reads `none`, ask again (review N1).
+                    if PairingCardRefresh.readsForwardAgain(stateLoaded: sharingState != nil, forward: sharingState?.tailnetForward) {
+                        await refreshSharingState()
+                    }
+                }
             }
         }
         .task(id: refreshKey) {
             guard didBootstrap else { return }
             await refreshPairingCode()
         }
+        // The engine coming back mints when the card has nothing to show, or shows a code another engine process minted
+        // (a restart loses the engine's codes); its going away never clears the card.
+        .onChange(of: appState.isBackendRunning) { _, running in
+            guard didBootstrap else { return }
+            Task {
+                if running { await refreshEnginePID() }  // the pid health names now, to compare with the code's
+                guard PairingCardRefresh.mintsWhenEngineChanges(isRunning: running, hasCode: pairingCode != nil,
+                                                                blocked: pairingBlocker != nil, sameEngine: codeIsFromThisEngine)
+                else { return }
+                await refreshPairingCode()
+            }
+        }
+        .task(id: inviteLinkString) { qrImage = makeQRCodeImage() }
         // A code is replaced when it expires, not left on screen past the time it names (#5915). The task is keyed on
         // the code, so a new code (or none) cancels the wait; a failed mint leaves no code and so no retry loop.
         .task(id: pairingCode?.code) {
@@ -214,7 +242,8 @@ struct ShareSettingsView: View {
             case .finishing:
                 ProgressView("Finishing setup…")
             case .ready, .notReady:
-                if let image = qrCodeImage {
+                addressRowsView
+                if let image = qrImage {
                     Image(platformImage: image)
                         .interpolation(.none)
                         .resizable()
@@ -254,6 +283,38 @@ struct ShareSettingsView: View {
         .padding()
         .frame(minWidth: 320)
         .onChange(of: inviteLinkString) { _, _ in copyNote = nil }
+    }
+
+    /// The addresses this Mac can be reached at, the chosen one feeding the QR and Copy Link, each with its own Copy
+    /// (`sharing.share-sheet-offers-both-addresses`, #5318). A row that cannot work says why and cannot be chosen.
+    @ViewBuilder
+    private var addressRowsView: some View {
+        let rows = addressRows
+        if rows.count > 1 || rows.contains(where: { !$0.isEnabled }) {
+            VStack(alignment: .leading, spacing: 6) {
+                Picker("Address", selection: Binding(
+                    get: { AddressChoiceModel.shownChoice(addressChoice, rows: rows) ?? .thisNetwork },
+                    set: { addressChoice = $0 })) {
+                    ForEach(rows.filter(\.isEnabled)) { row in Text(row.title).tag(row.choice) }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("sharing.address.picker")
+                ForEach(rows) { row in
+                    HStack(spacing: 6) {
+                        Text(row.hostText.map { "\(row.title): \($0)" } ?? row.title)
+                            .font(.caption).foregroundStyle(row.isEnabled ? .primary : .secondary)
+                        Text(row.disabledReason ?? row.reach).font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        if row.isEnabled {
+                            Button("Copy") { copyInvite(for: row.choice) }
+                                .controlSize(.small)
+                                .accessibilityIdentifier("sharing.address.copy.\(row.choice.rawValue)")
+                        }
+                    }
+                    .accessibilityIdentifier("sharing.address.row.\(row.choice.rawValue)")
+                }
+            }
+        }
     }
 
     /// Connect to Another Mac: hosts the existing client pairing section on a sheet (`sharing.settings.connect-sheet`).

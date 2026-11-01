@@ -295,9 +295,11 @@ enum ReaderArtifactDiff {
         if rhs.isEmpty { return lhs }
         return lhs + " " + rhs
     }
+}
 
-    // MARK: - Rendering
+// MARK: - Rendering
 
+extension ReaderArtifactDiff {
     /// One artifact in the comparison, named the way the reader's "Showing"
     /// submenu names it.
     struct Column: Equatable {

@@ -461,9 +461,11 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         case .link: .systemGray
         }
     }
+}
 
-    // MARK: - Edges (rebuilt wholesale — few and cheap, per the contract)
+// MARK: - Edges (rebuilt wholesale — few and cheap, per the contract)
 
+@MainActor extension CanvasOrtho2DRenderer {
     // Internal, not private: the op-application extension (+Ops.swift) needs
     // it and Swift's `private` is FILE-scoped — the same trade documented on
     // CanvasSceneView's split state.

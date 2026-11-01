@@ -130,7 +130,8 @@ extension ImageEditorView {
                 }
             }
 
-            // The page's corners, to drag and square with Return. ponytail: drawn over the unzoomed fit; DocumentCanvas's own zoom is not followed.
+            // The page's corners, to drag and square with Return.
+            // ponytail: drawn over the unzoomed fit; DocumentCanvas's own zoom is not followed.
             if compareMode == .single, let corners = Binding($pageCorners), let size = model.preview?.pixelSize {
                 GeometryReader { geo in
                     PageCornerHandlesOverlay(

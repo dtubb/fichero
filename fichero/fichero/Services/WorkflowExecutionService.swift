@@ -326,9 +326,11 @@ class WorkflowExecutionService {
             throw WorkflowExecutionError.serverError(422, "Delete thread failed")
         }
     }
+}
 
-    // MARK: - Pause / Cancel
+// MARK: - Pause / Cancel
 
+@MainActor extension WorkflowExecutionService {
     /// Signal a pause. Returns WHAT THE ENGINE SAID (#4402).
     ///
     /// This used to return `Void`: the 200 body was decoded by the generated

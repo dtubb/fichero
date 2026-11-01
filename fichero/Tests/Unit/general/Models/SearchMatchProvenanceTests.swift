@@ -77,7 +77,7 @@ final class SearchMatchProvenanceTests: XCTestCase {
     func testMatchSourcesAreReadOffTheEnginesMetadata() {
         let hit = result(score: 0.8, metadata: ["match_sources": ["fulltext", "kg"]]).rowHit()
 
-        XCTAssertEqual(Set(hit.matchSources), [.fulltext, .kg])
+        XCTAssertEqual(Set(hit.matchSources), [.fulltext, .knowledgeGraph])
     }
 
     func testAnUnknownLegIsDroppedRatherThanChipped() {
@@ -102,7 +102,7 @@ final class SearchMatchProvenanceTests: XCTestCase {
     func testOnlyLiteralAndGraphLegsEarnAChip() {
         XCTAssertNil(SearchMatchSource.semantic.chipLabel)
         XCTAssertEqual(SearchMatchSource.fulltext.chipLabel, "exact")
-        XCTAssertEqual(SearchMatchSource.kg.chipLabel, "graph")
+        XCTAssertEqual(SearchMatchSource.knowledgeGraph.chipLabel, "graph")
     }
 
     func testEveryLegExplainsItselfOnHover() {
@@ -134,7 +134,7 @@ final class SearchMatchProvenanceTests: XCTestCase {
     /// A document reached ONLY through an entity or claim hit says which of
     /// those legs found it — NOT "graph" (corrected, Daniel live 2026-09-03).
     ///
-    /// This test previously pinned `.kg` for both, which is what put the word
+    /// This test previously pinned `.knowledgeGraph` for both, which is what put the word
     /// "graph" on rows in a library with essentially no graph and the graph
     /// tier switched off. The entity and claim legs are semantic searches
     /// over the entity and claim tables, requested on every search; the graph
@@ -155,6 +155,6 @@ final class SearchMatchProvenanceTests: XCTestCase {
 
         // The client must never synthesise a graph attribution: only the
         // engine may say "kg", and it says it in `match_sources`.
-        XCTAssertFalse(source.contains("matchSources: [.kg]"))
+        XCTAssertFalse(source.contains("matchSources: [.knowledgeGraph]"))
     }
 }

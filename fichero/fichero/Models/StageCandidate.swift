@@ -59,8 +59,8 @@ struct StageCandidate: Decodable, Equatable, Identifiable {
         if progress.state == "waiting" || progress.total == 0 {
             return "\(title): waiting" + (progress.waitingFor.map { ", \($0)" } ?? "")
         }
-        let at = min(progress.done + 1, progress.total)
-        return "\(title): page \(at) of \(progress.total)" + (progress.step.map { ", \($0)" } ?? "")
+        let current = min(progress.done + 1, progress.total)
+        return "\(title): page \(current) of \(progress.total)" + (progress.step.map { ", \($0)" } ?? "")
     }
 
     enum CodingKeys: String, CodingKey {

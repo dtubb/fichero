@@ -18,14 +18,6 @@ enum FlaggedLines {
         let runId: String?
         /// ISO 8601 as the engine writes it; the engine's own order is (created_at, id).
         let createdAt: String
-
-        enum CodingKeys: String, CodingKey {
-            case id, verdict, reasons, trust
-            case targetId = "target_id"
-            case documentId = "document_id"
-            case runId = "run_id"
-            case createdAt = "created_at"
-        }
     }
 
     struct VerdictList: Decodable {
@@ -41,11 +33,6 @@ enum FlaggedLines {
         /// Absent on a check run that is not the teacher-line check (it lists proposals instead).
         let flagged: [Flag]?
         let thresholds: Thresholds?
-
-        enum CodingKeys: String, CodingKey {
-            case state, counts, flagged, thresholds
-            case jobId = "job_id"
-        }
 
         /// The run is still writing its verdicts: its `flagged` list is not final until it has finished
         /// (the job's states: waiting, running, paused, then done, failed or cancelled).
@@ -67,13 +54,6 @@ enum FlaggedLines {
         let neighbour: Double
         /// The neighbour that matched best, in lines from this one (+1 the next line); nil when none.
         let offset: Int?
-
-        enum CodingKeys: String, CodingKey {
-            case flag, own, neighbour, offset
-            case documentId = "document_id"
-            case segmentId = "segment_id"
-            case readingId = "reading_id"
-        }
     }
 
     static let closerToANeighbour = "closer to a neighbour"
@@ -158,5 +138,31 @@ enum FlaggedLines {
             }
         }
         return lines
+    }
+}
+
+extension FlaggedLines.Verdict {
+    enum CodingKeys: String, CodingKey {
+        case id, verdict, reasons, trust
+        case targetId = "target_id"
+        case documentId = "document_id"
+        case runId = "run_id"
+        case createdAt = "created_at"
+    }
+}
+
+extension FlaggedLines.Run {
+    enum CodingKeys: String, CodingKey {
+        case state, counts, flagged, thresholds
+        case jobId = "job_id"
+    }
+}
+
+extension FlaggedLines.Flag {
+    enum CodingKeys: String, CodingKey {
+        case flag, own, neighbour, offset
+        case documentId = "document_id"
+        case segmentId = "segment_id"
+        case readingId = "reading_id"
     }
 }

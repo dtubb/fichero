@@ -339,7 +339,11 @@ class ImportService {
             throw ImportServiceError.unexpectedResponse(statusCode)
         }
     }
+}
 
+// MARK: - Ingesting a file in place
+
+@MainActor extension ImportService {
     private func ingestFileInPlace(
         _ url: URL,
         mode: IngestMode,

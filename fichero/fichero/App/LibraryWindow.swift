@@ -297,10 +297,10 @@ struct LibraryWindow: View {
                 libraryManager.newProjectSetUpAfterWelcome = false
                 showingNewProjectSetUp = true
             }
-        }) {
+        }, content: {
             FirstRunWindow(mode: .firstRun, onProjectReady: { assignLibrary(id: $0) })
                 .environment(appState)
-        }
+        })
         .modifier(NewProjectSetUpSheet(isPresented: $showingNewProjectSetUp) { assignLibrary(id: $0) })
         // Setup for THIS window's project (#5421): Project › Set Up…, or an empty project's
         // Set Up…. The same flow as Inspector › Info › Recipe › Set Up….

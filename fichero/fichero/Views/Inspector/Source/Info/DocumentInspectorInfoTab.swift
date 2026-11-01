@@ -169,9 +169,11 @@ struct DocumentInspectorInfoTab: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+}
 
-    // MARK: - Sections
+// MARK: - Sections
 
+extension DocumentInspectorInfoTab {
     @ViewBuilder
     private var statusSection: some View {
         attributeSection("Status", attributes: [.state]) {

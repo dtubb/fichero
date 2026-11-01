@@ -321,7 +321,6 @@ extension AISettingsView {
     }
 }
 
-
 /// The app-wide cloud switch in Settings (`source.onboard.places-cap-projects`): the same engine setting as Set Up
 /// Fichero's "A cloud AI service" tick (`AppPlacesStore`, `PUT /api/recipes/places`). Off caps every project; on lets
 /// each project's own yes (Set Up) send its pages.

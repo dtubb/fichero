@@ -13,8 +13,8 @@ enum StageKinds {
     }
 
     /// The kinds with `id` ticked or unticked, in the order they are held; ticking one already held changes nothing.
-    static func toggled(_ id: String, on: Bool, in kinds: [String]) -> [String] {
-        on ? adding(id, to: kinds) : kinds.filter { $0.caseInsensitiveCompare(id) != .orderedSame }
+    static func toggled(_ id: String, on isOn: Bool, in kinds: [String]) -> [String] {
+        isOn ? adding(id, to: kinds) : kinds.filter { $0.caseInsensitiveCompare(id) != .orderedSame }
     }
 
     /// The saved answer for every box unticked; the engine reads it as none. `[]` is an old project's "every kind" (## 1110).

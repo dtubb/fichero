@@ -163,7 +163,7 @@ struct RecipeFolderSteps: Equatable {
         let name: String
         /// nil: the step cannot tell which pages it has done.
         let done: Int?
-        let of: Int
+        let total: Int
     }
 
     let steps: [Step]
@@ -174,19 +174,20 @@ struct RecipeFolderSteps: Equatable {
         for folder in status.folderSteps ?? [] {
             out[folder.folderId] = RecipeFolderSteps(steps: folder.steps.map { counted in
                 let stage = status.steps.first { $0.steps == counted.steps }
-                return Step(name: stage?.title ?? counted.steps.joined(separator: ", "), done: counted.done, of: counted.of)
+                return Step(name: stage?.title ?? counted.steps.joined(separator: ", "), done: counted.done, total: counted.of)
             })
         }
         return out
     }
 
-    var allDone: Bool { steps.allSatisfy { ($0.done ?? -1) >= $0.of } }
+    var allDone: Bool { steps.allSatisfy { ($0.done ?? -1) >= $0.total } }
 
     /// One line a step: "Find lines and Read each line: 12 of 20 pages", "Find names: done".
     var words: String {
         steps.map { step in
             guard let done = step.done else { return "\(step.name): cannot tell" }
-            return done >= step.of ? "\(step.name): done" : "\(step.name): \(done) of \(step.of) \(step.of == 1 ? "page" : "pages")"
+            if done >= step.total { return "\(step.name): done" }
+            return "\(step.name): \(done) of \(step.total) \(step.total == 1 ? "page" : "pages")"
         }.joined(separator: "\n")
     }
 }
