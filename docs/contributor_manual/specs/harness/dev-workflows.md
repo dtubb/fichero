@@ -258,12 +258,16 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   neither. **Counters:** the same named test red twice, the diff bound tripped twice, a tool call repeated with the same
   arguments after an error, the turn or dollar cap: counted by `check` and a PostToolUse counter, and enforced (a refusal
   row and a question), not left to the model. Test: `fichero-server/tests/unit/workflows/test_check_tool.py::test_check_tool_runs_the_ladder`. **Build** (owner 2026-11-01, built): a diff under `[check].build_paths` runs `[check].build` (a build-only compile, never a test run) in the scratch tree, one build at a time under `[check].build_lock` (a file in the owner's own state dir, taken by the owner's check process; the build itself runs as the worker user with signing off), after the contract rung; red refuses. Proven 2026-11-01: the rung's exact command (Dev Local scheme, signing off, derived data under the shared area) run as the worker user compiled the app; the Dev Embedded scheme fails at its embed-the-engine script phase, so the rung names Dev Local. Test: `fichero-server/tests/unit/workflows/test_check_tool.py::test_the_build_rung_runs_only_for_build_paths_and_reports_red`. **Check row** (built 2026-11-01): `builder check` appends a `check` row (repo, since, the head's full sha, ok, failed) to the owner's journal, and `builder land` refuses a head with no green row there (Step 2.1: check before review and land; the row lives in the owner's journal, never the worker's, so a worker cannot forge one). `builder run` journals under `[jail].workroot/state` by default so the owner reads the worker's rows without sudo. Test: `fichero-builder/tests/test_main.py`.
-- `dev-workflows.tool.milestone` [PROPOSED] (owner 2026-11-01) — `builder milestone <name>` reads the milestone's open
+- `dev-workflows.tool.milestone` [PARTIAL] (#6116; owner 2026-11-01) — `builder milestone <name>` reads the milestone's open
   issues (`gh`), places each under the build-order step of the spec that names it (the issue body's step line, or the
   milestone's spec by its `> Milestone:` line), orders steps by `Depends on`, and prints one cluster brief per step
   through the brief tool; an issue under no step, or a step whose dependency is still open, is a **question**, never a
-  guess; nothing is picked by hand. Test (unwritten, Step 2.3): a fake `gh` with four issues over two steps gives two
-  briefs in order and one question, under the Builder's tests folder.
+  guess; nothing is picked by hand. Built 2026-11-01: `fichero_builder/milestone.py` and `builder milestone <name>
+  --spec FILE --out DIR`: `gh issue list --milestone`, the step from the issue title (`Step 1.3`) or a `Step: 1.3`
+  body line, the build order from the spec guard's own parser, one brief per step through the brief tool, questions on
+  stderr and exit 2 when any. Not yet: `builder steps` files issues in that title shape. Test:
+  `fichero-builder/tests/test_milestone_verb.py` (a fake `gh`: three issues over two dependent steps give one brief
+  and two questions).
 - `dev-workflows.tool.spec` [PROPOSED] (owner 2026-11-01) — `builder spec <issue>` starts the **spec-writer** role from
   `[models]` as a worker whose brief is the spec template, the issue and the spec guards' rules; the result is one spec
   file under `spec_dir` on a branch with `> **Status: PROPOSED**`; the guards run on it; the owner approves by editing

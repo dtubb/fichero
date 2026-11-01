@@ -67,12 +67,34 @@ def main(argv=None) -> int:
     c.add_argument("--pinned", required=True)
     c.add_argument("--id", action="append", default=[])
     c.add_argument("--state", help="where the journal lives (default: see run --state)")
+    ms = sub.add_parser("milestone", help="a milestone's open issues as one cluster brief per build-order step; questions, never guesses")
+    ms.add_argument("name"), ms.add_argument("--spec", required=True, help="the APPROVED spec whose Build order places the issues")
+    ms.add_argument("--repo-dir", default=str(Path.cwd())), ms.add_argument("--out", required=True, help="where the brief files go")
+    ms.add_argument("--base", help="the base sha the briefs name (default: origin/<[land].branch> in --repo-dir)")
+    ms.add_argument("--gh", default="gh")
     land = sub.add_parser("land", help="the land gate: a READY verdict for the exact range, the boundary, the ladder; prints the push, never pushes")
     land.add_argument("--repo", help="the engine-owned repo (default [check].engine_repo of the pinned rules)")
     land.add_argument("head")
     land.add_argument("--pinned", required=True), land.add_argument("--verdicts", required=True), land.add_argument("--log", required=True)
     land.add_argument("--state", help="where the journal lives (default: see run --state)")
     a = ap.parse_args(argv)
+    if a.cmd == "milestone":
+        import tomllib
+
+        from fichero_builder import brief_tool, milestone
+
+        steps = milestone.build_order(a.spec)
+        planned = milestone.plan(milestone.list_issues(a.name, gh=a.gh), steps, milestone.spec_slug(a.spec))
+        rules_doc = tomllib.loads((Path(a.repo_dir) / "harness.toml").read_text())
+        base = a.base or resolve(a.repo_dir, "origin/" + rules_doc.get("land", {}).get("branch", ""))
+        rules = rules_doc.get("brief", {}).get("rules", "")
+        written = milestone.write_briefs(planned, out=a.out, repo_dir=a.repo_dir, base=base, rules=rules,
+                                         fetch=lambda n: brief_tool.fetch_issue(n, gh=a.gh), cluster=brief_tool.cluster)
+        for c, p in zip(planned["clusters"], written):
+            print(f"Step {c['step']}: {', '.join('#%d' % i['number'] for i in c['issues'])} -> {p}")
+        for q in planned["questions"]:
+            print(f"QUESTION: {q}", file=sys.stderr)
+        return 0 if not planned["questions"] else 2
     # run (as the worker) journals under the shared workroot; check and land (as the owner) keep the owner's own journal,
     # because land trusts the check row: a journal the worker can write would let a worker forge one.
     journal.STATE = state_dir(a.root, a.state) if a.cmd == "run" else (Path(a.state) if a.state else journal.STATE)
