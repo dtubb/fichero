@@ -730,6 +730,21 @@ the write path would produce.
   the lane names a pane, else as an alert). Plain Claude Code lanes land through the loop this way. Test (to write):
   `fichero-builder/tests/test_loop.py` (`builder done` on an external lane lands it through fakes; no worker is started).
   **Built** 2026-11-02 against fakes: `builder queue add --kind external` makes the lane; the loop starts no worker for it and its step waits; `builder done <lane> <sha>` sets the step done (a `done` row; a worker lane or no waiting step is a `done-refused` row) and the chain runs; a red, NOT READY or refused is an alert with its evidence, never a fix round. Test `fichero-builder/tests/test_loop.py::test_builder_done_on_an_external_lane_lands_it_and_no_worker_is_started`. Not yet: findings by `builder tell` into a named pane; the real chain's rebase, export and fetch run as the jail user, so an owner-made external worktree must be readable by it.
+- `dev-workflows.run.loop-external-intake` [PROPOSED] (#6116; manager 2026-11-02, owner-delegated) — a lane that commits on its own
+  branch is landed with no manager step. Trigger: `builder done <lane> [--sha S]` (S = the lane's HEAD when it runs; later commits
+  go in the next batch), or the loop by itself when an external lane has `[loop].intake_commits` commits (default 8) or
+  `[loop].intake_hours` (default 3) since its last landed batch and its HEAD subject is a finished step (`(Step ` or a
+  `Behaviour:` trailer); a lane added with `--hold` (a milestone a person holds) is never taken. One batch per lane in the ladder
+  at a time. Take: the lane's own worktree and branch are never touched (an agent works there): the loop makes or refreshes
+  `land-<lane>` beside it at S and the chain rebases that onto origin/<land branch> as the owner; a conflict is a send-back.
+  Check and review as for any lane, never `--maintainer` for a product lane; a rerun after a send-back is a delta review. Any red
+  rung, refusal or NOT READY writes `findings-<lane>-<n>.txt` under the state dir, tells the lane's registered pane (`queue add
+  --pane %N`, through `[loop].tell`) and is an alert; the lane fixes on its branch and runs `done` again, which re-takes from its new
+  HEAD. Land: `landed --push` with full shas and the engine repo; then the lane is told `LANDED <sha>, rebase onto
+  origin/<branch> at your next step boundary` and `land-<lane>` is swept (patch first). Console: an external lane row shows its
+  stage and the commits waiting since its last landing. Test (to write): `fichero-builder/tests/test_loop.py` (done snapshots the
+  HEAD into land-<lane>, the lane's tree untouched; a red tells the pane and writes the findings; a re-done re-takes; the
+  thresholds take a finished step and never a held lane).
 - `dev-workflows.run.records-are-truth` [PROPOSED] (maintainer 2026-10-31; owner 2026-11-01: no engine) — for a worker the
   truth is its **journal** (JSON lines, one file per cluster under the Builder's state directory; `$FICHERO_HARNESS_LOG` in
   Slice 0), plus git plus the handoff file; the run log (one row per item attempt: model, provider, context cap, tokens,
