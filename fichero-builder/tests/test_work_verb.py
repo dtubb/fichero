@@ -32,6 +32,7 @@ def chain(tmp_path, monkeypatch):
         "do_check": lambda a, repo, since, head, ladder: (calls.append(("check", since, head)), {"ok": True, "failed": ""})[1],
         "do_review": lambda a, repo, head, ladder, verdicts, model: (calls.append(("review", model, ladder.endswith(".json"))), (True, "READY"))[1],
         "do_land": lambda a, repo, head, verdicts, log: (calls.append(("land", head)), (True, PUSH))[1],
+        "_base_moved": lambda a, branch, head: False,
     }
     for k, v in fakes.items():
         monkeypatch.setattr(work, k, v)
@@ -89,6 +90,20 @@ def test_a_refused_land_is_a_question_and_prints_no_push_line(chain, monkeypatch
     out = capsys.readouterr().out
     assert "QUESTION: " in out and "REFUSED: boundary" in out and "READY TO LAND" not in out
     assert rows()[-1]["step"] == "land" and rows()[-1]["ok"] is False
+
+
+def test_a_ready_range_whose_base_moved_before_the_land_gate_is_rebased_and_checked_again(chain, monkeypatch, capsys):
+    """Manager 2026-11-02: when the landing branch moves, a ready range is rebased and re-checked by the chain, never
+    refused for a person to rebase by hand; a base that never stops moving is still refused after three tries."""
+    lands = iter([(False, "REFUSED: integration is not an ancestor"), (True, PUSH)])
+    monkeypatch.setattr(work, "do_land", lambda *a: (chain.calls.append(("land",)), next(lands))[1])
+    monkeypatch.setattr(work, "_base_moved", lambda a, branch, head: True)
+    assert chain() == 0 and PUSH in capsys.readouterr().out
+    assert [c[0] for c in chain.calls] == ["run"] + ["rebase", "export", "fetch", "check", "review", "land"] * 2
+    assert any("moved under" in r["detail"] for r in rows() if r["step"] == "rebase")
+    monkeypatch.setattr(work, "do_land", lambda *a: (False, "REFUSED: still moving"))
+    chain.calls.clear()
+    assert chain() == 2 and [c[0] for c in chain.calls].count("check") == 1 + work.MOVES
 
 
 def test_no_patches_is_a_question(chain, monkeypatch):

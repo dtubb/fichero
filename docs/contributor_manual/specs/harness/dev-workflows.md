@@ -577,7 +577,7 @@ the write path would produce.
   --push`, which closes the Fixes issues → the lane rebased on the new tip → its next step's brief into the same session. A
   worker's DONE is a claim the ladder verifies, never taken on its word. Test (to write): `fichero-builder/tests/test_loop.py`
   (two steps of one lane land through fakes, each transition a row).
-  **Built** against fakes (`queue.tick_lane` over `work.after_run`): test `fichero-builder/tests/test_queue_verb.py::test_a_two_step_lane_lands_the_first_then_sends_the_second_into_the_same_session_and_stops_at_the_end`. Not yet: a real lane.
+  **Built** against fakes (`queue.tick_lane` over `work.after_run`): test `fichero-builder/tests/test_queue_verb.py::test_a_two_step_lane_lands_the_first_then_sends_the_second_into_the_same_session_and_stops_at_the_end`. A land gate refused because the landing branch moved after the rebase (another lane landed) rebases and runs the check, review and gate again, up to three times, never a hand rebase (manager 2026-11-02; test `fichero-builder/tests/test_work_verb.py::test_a_ready_range_whose_base_moved_before_the_land_gate_is_rebased_and_checked_again`). Not yet: a real lane; a push refused by a move after the gate.
 - `dev-workflows.run.loop-fix-rounds` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — a red check or a NOT READY review sends its findings back to the same worker
   as a fix brief and the chain runs again, up to `[loop].rounds` rounds (default 2); after that, and on a spend cap, a dead or
   stalled worker or a refused guard, the lane parks with an alert. A parked lane never blocks the other lanes. Test (to write):
