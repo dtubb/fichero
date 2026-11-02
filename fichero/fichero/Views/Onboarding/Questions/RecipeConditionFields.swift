@@ -38,7 +38,8 @@ struct RecipeConditionFields: View {
     let store = RecipeSetupStore(client: FicheroClient(libraryPath: nil))
     store.conditionOptions = [
         ConditionOption(id: "faded", name: "Faded ink", help: "Fichero raises the contrast of the faded pages before it finds the lines."),
-        ConditionOption(id: "stains", name: "Stains", help: "Fichero reads through them and asks a second model to check the lines they touch.")
+        ConditionOption(
+            id: "stains", name: "Stains", help: "Fichero reads through them and asks a second model to check the lines they touch.")
     ]
     return RecipeConditionFields(store: store).padding().frame(width: 520)
 }

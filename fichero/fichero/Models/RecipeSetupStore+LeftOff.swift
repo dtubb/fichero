@@ -21,7 +21,9 @@ extension RecipeSetupStore {
 
     /// The jobs a stage page offers with Add: the ones the recipe does not have, among `jobs` (the stage's), or all with nil
     /// (`wide.ready.adding-a-step-is-on-its-stage-page`: a stage's step is added on its own page, never listed on another's).
-    static func offered(_ jobs: [Components.Schemas.JobInfo], inRecipe: Set<String>, forJobs stage: Set<String>?) -> [Components.Schemas.JobInfo] {
+    static func offered(
+        _ jobs: [Components.Schemas.JobInfo], inRecipe: Set<String>, forJobs stage: Set<String>?
+    ) -> [Components.Schemas.JobInfo] {
         jobs.filter { !inRecipe.contains($0.id) && (stage?.contains($0.id) ?? true) }
     }
 

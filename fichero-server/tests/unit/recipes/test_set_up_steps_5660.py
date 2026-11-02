@@ -49,7 +49,7 @@ def test_into_what_is_a_list_and_a_single_saved_value_reads_as_one():
     assert levels == ["sideways"] and "no level 'sideways'" in problems[0]
 
 
-def test_each_level_asked_is_a_run_that_writes_that_level(mac):
+def test_each_level_asked_is_a_run_that_writes_that_level(mac):  # noqa: F811
     plan = plan_start(_normalise(["as_written", "expanded"]), stays_local=True)
     runs = _level_runs(plan)
     assert [r["tool_config"]["analyze"]["reading_level"] for r in runs] == ["as_written", "expanded"]
@@ -59,12 +59,12 @@ def test_each_level_asked_is_a_run_that_writes_that_level(mac):
     assert not [s for s in plan["skipped"] if s["step"] == "normalise"]
 
 
-def test_the_old_single_answer_still_gives_one_run(mac):
+def test_the_old_single_answer_still_gives_one_run(mac):  # noqa: F811
     [run] = _level_runs(plan_start(_normalise("normalised"), stays_local=True))
     assert run["tool_config"]["analyze"]["reading_level"] == "regularised"
 
 
-def test_a_translation_asked_beside_the_levels_is_a_translation_run(mac):
+def test_a_translation_asked_beside_the_levels_is_a_translation_run(mac):  # noqa: F811
     runs = _level_runs(plan_start(_normalise(["regularised", "translation:en"]), stays_local=True))
     configs = [r["tool_config"]["analyze"] for r in runs]
     assert [(c["reading_kind"], c["reading_level"]) for c in configs] == [
@@ -72,7 +72,7 @@ def test_a_translation_asked_beside_the_levels_is_a_translation_run(mac):
     assert "into English" in configs[1]["prompt"]
 
 
-def test_a_step_run_per_level_is_named_once_where_it_waits_for_its_model(mac):
+def test_a_step_run_per_level_is_named_once_where_it_waits_for_its_model(mac):  # noqa: F811
     """Two levels are two runs of one step: the download they wait for, and the refusal that names it, list the
     step once (B found "steps correct, translate-transliterate-normalise, translate-transliterate-normalise")."""
     recipe = _normalise(["as_written", "expanded"])
@@ -84,7 +84,7 @@ def test_a_step_run_per_level_is_named_once_where_it_waits_for_its_model(mac):
     assert said.count("normalise") == 1, said
 
 
-def test_set_up_carries_the_list_to_the_step(client, db, pages, mac):
+def test_set_up_carries_the_list_to_the_step(client, db, pages, mac):  # noqa: F811
     answers = {"purposes": ["translate-normalise"], "languages": ["es"], "scripts": ["Latn"],
                "materials": ["handwriting"], "mac_memory_gb": 32,
                "job_answers": {"normalise_how_far": ["as-written", "normalised"]}}
@@ -116,7 +116,7 @@ def claude_row(app_db):
     return row
 
 
-def test_find_names_offers_spacy_apple_mlx_and_the_cloud_saying_what_runs(client, mac, monkeypatch):
+def test_find_names_offers_spacy_apple_mlx_and_the_cloud_saying_what_runs(client, mac, monkeypatch):  # noqa: F811
     monkeypatch.setattr("fichero_server.llm.local_model_choice.apple_intelligence_in_this_build", lambda: False)
     items = _names(client)
     spacy = items["spacy:pkg/es_core_news_sm@bundled"]
@@ -131,7 +131,7 @@ def test_find_names_offers_spacy_apple_mlx_and_the_cloud_saying_what_runs(client
     assert claude["availability"] == "not_here" and "add Claude (Anthropic) in Settings" in claude["availability_words"]
 
 
-def test_a_configured_cloud_model_is_offered_and_kept_where_pages_may_leave(client, mac, claude_row, with_material):
+def test_a_configured_cloud_model_is_offered_and_kept_where_pages_may_leave(client, mac, claude_row, with_material):  # noqa: F811
     items = _names(client)
     [card] = [c for c in items.values() if c["pin"] == {"cloud": "anthropic", "model": "claude-sonnet-4-5"}]
     assert card["runs_where"] == "provider" and card["refused"] and "cloud" in card["refused"]
@@ -141,7 +141,7 @@ def test_a_configured_cloud_model_is_offered_and_kept_where_pages_may_leave(clie
 
 
 @pytest.mark.parametrize("who", ["mlx", "apple", "cloud"])
-def test_the_person_chooses_who_finds_names_and_the_run_honours_it(client, db, pages, mac, claude_row, monkeypatch,
+def test_the_person_chooses_who_finds_names_and_the_run_honours_it(client, db, pages, mac, claude_row, monkeypatch,  # noqa: F811
                                                                    who, with_material):
     monkeypatch.setattr("fichero_server.llm.local_model_choice.apple_intelligence_in_this_build", lambda: True)
     monkeypatch.setattr("fichero_server.recipes.derived._providers_with_keys", lambda: ["anthropic"])  # a key is set, whatever this machine holds
@@ -173,7 +173,7 @@ def test_the_person_chooses_who_finds_names_and_the_run_honours_it(client, db, p
 
 
 @pytest.mark.parametrize("apple_here", [True, False])
-def test_the_offered_choices_never_outrank_a_model_the_person_has(client, mac, ollama, monkeypatch, apple_here):
+def test_the_offered_choices_never_outrank_a_model_the_person_has(client, mac, ollama, monkeypatch, apple_here):  # noqa: F811
     """`source.recipe.local-text-models-are-cards`: a text model already here (an Ollama model on this Mac) is the
     finder's rank 1, whether or not this Mac has Apple Intelligence; the choices item 4 adds are the person's to
     make (`in_recipe_rules: false`, no rank), never the rules' (the M4, which has the bridge, ranked Apple first)."""

@@ -68,7 +68,9 @@ struct RecipeLeftOffTests {
     /// page never lists it, and a step the recipe already has is not offered again.
     @Test("the jobs offered with Add are the stage's own and not already in the recipe")
     func offeredOnItsStagePage() throws {
-        let json = "[" + #"{"id":"find-lines","name":"Find lines","description":"","topic":"find-lines","layer":"read","takes":[],"gives":[],"compare":"","settings":[],"since":""}"# + "," + #"{"id":"correct","name":"Correct","description":"","topic":"correct","layer":"read","takes":[],"gives":[],"compare":"","settings":[],"since":""}"# + "]"
+        let tail = #""takes":[],"gives":[],"compare":"","settings":[],"since":""}"#
+        let json = "[" + #"{"id":"find-lines","name":"Find lines","description":"","topic":"find-lines","layer":"read","# + tail + ","
+            + #"{"id":"correct","name":"Correct","description":"","topic":"correct","layer":"read","# + tail + "]"
         let jobs = try JSONDecoder().decode([Components.Schemas.JobInfo].self, from: Data(json.utf8))
         let read: Set<String> = ["read-a-line", "correct"]
         #expect(RecipeSetupStore.offered(jobs, inRecipe: [], forJobs: read).map(\.id) == ["correct"], "only the Read page's job")

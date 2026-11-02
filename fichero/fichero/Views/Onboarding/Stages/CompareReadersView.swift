@@ -46,10 +46,10 @@ struct CompareReadersView: View {
 
     private static func key(of press: KeyPress) -> CompareViewModel.Key? {
         switch press.key {
-        case .leftArrow: return .left
-        case .rightArrow: return .right
-        case .upArrow: return .up
-        case .downArrow: return .down
+        case .leftArrow: return .leftArrow
+        case .rightArrow: return .rightArrow
+        case .upArrow: return .upArrow
+        case .downArrow: return .downArrow
         case .return: return .return
         case .escape: return .escape
         default: return press.characters.first.flatMap { $0.wholeNumberValue }.map { .digit($0) }
@@ -114,8 +114,9 @@ struct CompareReadersView: View {
             Section {
                 ForEach(model.rows) { row in
                     HStack(alignment: .top) {
-                        ForEach(Array(model.readers.enumerated()).filter { pair in model.visibleReaders.contains { $0.id == pair.element.id } },
-                                id: \.offset) { index, reader in
+                        ForEach(Array(model.readers.enumerated()).filter { pair in
+                            model.visibleReaders.contains { $0.id == pair.element.id }
+                        }, id: \.offset) { index, reader in
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(row.texts[index] ?? "").font(.callout).textSelection(.enabled)
                                 if row.texts[index] != nil, row.differs, row.canPick {
@@ -148,8 +149,8 @@ struct CompareReadersView: View {
                 }
                 if CompareViewModel.usesPager(model.platform) {
                     HStack(spacing: 6) {  // the sample strip: a dot per candidate
-                        ForEach(Array(model.pagerDots.enumerated()), id: \.offset) { _, on in
-                            Circle().fill(on ? Color.accentColor : Color.secondary.opacity(0.4)).frame(width: 7, height: 7)
+                        ForEach(Array(model.pagerDots.enumerated()), id: \.offset) { _, isCurrent in
+                            Circle().fill(isCurrent ? Color.accentColor : Color.secondary.opacity(0.4)).frame(width: 7, height: 7)
                         }
                     }
                     .accessibilityHidden(true)

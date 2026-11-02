@@ -3,7 +3,8 @@ import Foundation
 
 /// How do you want to run this (`designer.how.*`, #6052): the answers ride on `RecipeSetupStore.how`; the options, their consequences,
 /// what is greyed and why, the card the answers propose and the pre-filled "what matters" are the engine's
-/// (`GET /api/recipes/questions`), asked again when an answer changes. What this Mac has is shown from the derived facts and stored nowhere.
+/// (`GET /api/recipes/questions`), asked again when an answer changes.
+/// What this Mac has is shown from the derived facts and stored nowhere.
 extension RecipeSetupStore {
     func toggle(place id: String) {
         how.places = Self.toggled(how.places, id)

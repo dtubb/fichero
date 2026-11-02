@@ -1,11 +1,12 @@
 import FicheroAPIClient
 import Foundation
 
-/// The compare view's keys, pager and spoken labels (`wide.compare.keyboard-and-voiceover`, `wide.compare.compact-layout`, #5900). Pure: the
-/// key map is a table, the layout a rule per platform, the labels functions of the engine's answer.
+/// The compare view's keys, pager and spoken labels (`wide.compare.keyboard-and-voiceover`,
+/// `wide.compare.compact-layout`, #5900). Pure: the key map is a table, the layout a rule per platform,
+/// the labels functions of the engine's answer.
 extension CompareViewModel {
     enum Key: Equatable {
-        case left, right, up, down, `return`, escape
+        case leftArrow, rightArrow, upArrow, downArrow, `return`, escape
         case digit(Int)
     }
 
@@ -15,13 +16,14 @@ extension CompareViewModel {
         case useThis, close
     }
 
-    /// ←/→ the candidate (or the wipe handle), ↑/↓ the line, ⌥↓ the next differing line, 1–3 one candidate or all (0), Return Use This, Esc close.
+    /// ←/→ the candidate (or the wipe handle), ↑/↓ the line, ⌥↓ the next differing line,
+    /// 1–3 one candidate or all (0), Return Use This, Esc close.
     static func command(for key: Key, option: Bool) -> Command? {
         switch key {
-        case .left: return .previousCandidate
-        case .right: return .nextCandidate
-        case .up: return .previousLine
-        case .down: return option ? .nextDifferingLine : .nextLine
+        case .leftArrow: return .previousCandidate
+        case .rightArrow: return .nextCandidate
+        case .upArrow: return .previousLine
+        case .downArrow: return option ? .nextDifferingLine : .nextLine
         case .digit(let number): return (0...3).contains(number) ? .showCandidate(number) : nil
         case .return: return .useThis
         case .escape: return .close
@@ -58,15 +60,20 @@ extension CompareViewModel {
             candidate = number == 0 || number > readers.count ? nil : number - 1
             return .moved
         case .useThis:
-            guard let line = focusedLine, let row = rows.first(where: { $0.id == line }), row.canPick,
-                  let reader = visibleReaders.first(where: { reader in
-                      guard let index = readers.firstIndex(where: { $0.id == reader.id }) else { return false }
-                      return row.texts[index] != nil && reader.id != row.countingReaderId
-                  }) else { return .nothing }
-            return .useThis(readerId: reader.id, line: line)
+            return useThisOutcome()
         case .close:
             return .close
         }
+    }
+
+    /// Return: Use This for the focused differing line, on the first shown reading that is not already the one counting.
+    private func useThisOutcome() -> Outcome {
+        guard let line = focusedLine, let row = rows.first(where: { $0.id == line }), row.canPick else { return .nothing }
+        let reader = visibleReaders.first { reader in
+            guard let index = readers.firstIndex(where: { $0.id == reader.id }) else { return false }
+            return row.texts[index] != nil && reader.id != row.countingReaderId
+        }
+        return reader.map { .useThis(readerId: $0.id, line: line) } ?? .nothing
     }
 
     private var rowIndex: Int? { focusedLine.flatMap { line in rows.firstIndex { $0.id == line } } }
