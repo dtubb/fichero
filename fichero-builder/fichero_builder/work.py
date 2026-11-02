@@ -6,6 +6,7 @@ prints the push line; nothing here pushes. Each step is a module function so a t
 from __future__ import annotations
 
 import contextlib
+import fnmatch
 import json
 import os
 import re
@@ -252,6 +253,22 @@ def r_since(repo: str, branch: str) -> str:
 MOVES = 3  # ponytail: a busier landing branch than three moves in one chain is a row for a person
 
 
+def keep_green(repo: str, old_base: str, old_files: list[str], new_base: str, files: list[str], cfg) -> str:
+    """Stale base (manager 2026-11-02): a green check survives a clean rebase when the base delta (old..new) touches no file
+    the batch changes, nothing under the top-level dirs it changes (its tests and whole-tests inputs), no pinned check file
+    and no guard. '' = check again; else the row's words."""
+    if not files or sorted(files) != sorted(old_files) or not old_base or new_base == old_base:
+        return ""
+    if _git(repo, "merge-base", "--is-ancestor", old_base, new_base).returncode:
+        return ""
+    delta = _git(repo, "diff", "--name-only", old_base, new_base).stdout.split()
+    tops = tuple({f.split("/", 1)[0] + "/" for f in files if "/" in f})
+    if not delta or any(p in files or p.startswith(tops) or p.startswith(tuple(cfg.check_paths)) or (cfg.guard_glob and fnmatch.fnmatch(p, cfg.guard_glob))
+                        for p in delta):
+        return ""
+    return f"kept across rebase onto {new_base[:9]}: base delta disjoint ({len(delta)} file(s))"
+
+
 def _base_moved(a, branch: str, head: str) -> bool:
     """As the worker: has origin/<branch> moved past the base `head` was made on? (fetch; is it still an ancestor of HEAD)"""
     g, wt = shlex.quote(jail_git()), shlex.quote(str(a.worktree))
@@ -337,6 +354,7 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
     state.mkdir(parents=True, exist_ok=True)
     ladder, verdicts, log = (str(state / f"{k}-{a.name}.{e}") for k, e in (("ladder", "json"), ("verdicts", "json"), ("land", "log")))
     moved = 0
+    carry = None  # (base, files) of a green check whose base moved before its review
     while True:  # dev-workflows.run.loop-chain: a ready range whose base moved is rebased and re-checked
         why = do_rebase(a, branch)
         if not step("rebase", not why, why or f"on top of origin/{branch}"):
@@ -348,9 +366,12 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
         if not step("fetch", bool(head), head or f"could not fetch the worktree branch into {repo}"):
             return no("error", f"could not fetch the worktree's branch into {repo}")
         try:
-            files = _git(repo, "diff", "--name-only", r_since(repo, branch), head).stdout.split()
+            since_now = r_since(repo, branch)
+            files = _git(repo, "diff", "--name-only", since_now, head).stdout.split()
         except (RuntimeError, OSError):
-            files = []  # unknown: shares every file, so it runs alone
+            since_now, files = "", []  # unknown: shares every file, so it runs alone
+        kept = keep_green(repo, carry[0], carry[1], since_now, files, check_tool.load(a.pinned)) if carry else ""
+        carry = None
         with ladder_slot(a.name, files, check_tool.load(a.pinned).parallel):  # speed 3: [check].parallel ladders, disjoint batches only
             if getattr(a, "repin", None):  # another lane's landing may have removed the copy this one started from; the lock keeps it from here on
                 a.pinned = a.repin()
@@ -365,7 +386,12 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                     early["fut"] = _EARLY.submit(do_review, a, repo, head, partial, verdicts, model, early)
             check_tool.ON_RUNG[0] = on_rung
             try:
-                r = do_check(a, repo, branch, head, ladder)
+                if kept:  # the green check of the same batch on the old base stands (its row names why)
+                    r = {"ok": True, "failed": ""}
+                    journal.append("check", repo=str(repo), since=since_now, head=head, ok=True, failed="", kept=kept)
+                    step("kept", True, kept)
+                else:
+                    r = do_check(a, repo, branch, head, ladder)
             except (RuntimeError, OSError, ValueError) as e:
                 step("check", False, str(e))
                 return no("error", f"the check could not run: {e}")
@@ -390,6 +416,13 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                     kind = "needs-maintainer" if "maintainer" in approvals else "weakened-tests" if "approve_weakened" in approvals else "pinned-new"
                     return {**no(kind, f"pinned-checks at {head[:9]}: {t[-300:]}", t, str(diff)), "approvals": approvals}
                 return no("red", f"the check is red at {head[:9]} (failed: {r.get('failed') or '?'}); ladder in {ladder}", f"failed rung: {r.get('failed') or '?'}\n{_tail(r)}", ladder)
+            if moved < MOVES and since_now and _base_moved(a, branch, head):  # never review a range that cannot land
+                moved += 1
+                if early.get("proc"):
+                    early["proc"].kill()
+                carry = (since_now, files)
+                step("rebase", True, f"origin/{branch} moved under {head[:9]} before its review: rebasing first ({moved}/{MOVES})")
+                continue
             stage("reviewing")
             if early.get("fut"):  # started beside the ladder: its result
                 ok, text = early["fut"].result()

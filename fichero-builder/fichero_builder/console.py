@@ -226,6 +226,9 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
                 row["waiting"] = len([c for c in _git_text(x["worktree"], "rev-list", "origin/integration..HEAD").split() if c])
         if a := running.get(x["id"]):  # what its check or review is doing now, and since when
             row["activity"] = {"kind": a["kind"], "now": a["now"], "started": a["started"], "done": len(a["rungs"])}
+            base, tip = str(a.get("key", "")).partition(" ")[2].split("..")[0], (st.get("last_land_git") or {}).get("sha", "")
+            if a["kind"] == "check" and base and tip and not tip.startswith(base):  # another batch landed under it (manager 2026-11-02)
+                row["activity"]["base_moved"] = True
         row.update(
             worktree=x["worktree"], title=_title(cur["brief"]) if cur else "", brief_text=_head(cur["brief"]) if cur else "",
             commit_ts=time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(ct)) if ct else "",

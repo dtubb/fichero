@@ -376,3 +376,14 @@ def test_a_cli_waiting_on_a_lock_says_so_on_stderr(tmp_path, monkeypatch, capsys
     with journal.Lock("queue", what="an alert answer"):
         pass
     assert "waiting for the queue lock, held by" in capsys.readouterr().err
+
+
+def test_a_check_whose_base_is_no_longer_the_landing_tip_reads_base_moved(monkeypatch, tmp_path):
+    """Manager 2026-11-02: another batch landing under a running check is visible on its lane row."""
+    lanes = [{"id": "x", "kind": "external", "worktree": str(tmp_path / "none"), "cursor": 0, "paused": False,
+              "steps": [{"step": "batch-1", "state": "checking", "issues": [], "why": "", "brief": ""}]}]
+    rows = [{"ts": f"{DAY}T10:00:00", "event": "activity", "kind": "check", "key": "check aaaaaaaaa..bbbbbbbbb", "lane": "x", "state": "start"}]
+    for tip, moved in (("a" * 40, False), ("c" * 40, True)):
+        monkeypatch.setattr(console, "_git_tiles", lambda tip=tip: {"last_land_git": {"sha": tip, "ts": "", "subject": ""}, "closed_today_git": []})
+        (row,) = console.api_status(rows, lanes)["lanes"]
+        assert bool(row["activity"].get("base_moved")) is moved

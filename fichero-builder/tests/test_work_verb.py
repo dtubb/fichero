@@ -572,3 +572,48 @@ def test_a_later_red_rung_kills_the_early_review(chain, monkeypatch):
     killed = _early_chain(chain, monkeypatch, later_red=True)
     assert chain() != 0
     assert killed == [True] and "land" not in [c[0] for c in chain.calls]
+
+
+def test_a_base_that_moved_during_the_check_is_rebased_before_the_review_and_a_disjoint_delta_keeps_the_green(chain, monkeypatch):
+    """Manager 2026-11-02 (ie-batch2 lost 55 min): the chain never reviews a range whose base moved; it rebases first, and a
+    base delta disjoint from the batch keeps the green check (a row names the new base) instead of a second ladder."""
+    import types
+    bases, moved = iter(["b" * 40, "c" * 40]), iter([True, False])
+    monkeypatch.setattr(work, "r_since", lambda repo, branch: next(bases))
+    monkeypatch.setattr(work, "_git", lambda repo, *args: types.SimpleNamespace(stdout="fichero-builder/x.py\n", returncode=0))
+    monkeypatch.setattr(work, "_base_moved", lambda a, branch, head: next(moved))
+    monkeypatch.setattr(work, "keep_green", lambda repo, ob, of, nb, f, cfg: f"kept across rebase onto {nb[:9]}: base delta disjoint (1 file(s))"
+                        if (ob, of, f) == ("b" * 40, ["fichero-builder/x.py"], ["fichero-builder/x.py"]) else "")
+    assert chain() == 0
+    assert [c[0] for c in chain.calls] == ["run", "rebase", "export", "fetch", "check", "rebase", "export", "fetch", "review", "land"]
+    (kept,) = [r for r in journal.read() if r["event"] == "check" and r.get("kept")]
+    assert kept["since"] == "c" * 40 and kept["ok"] is True and "ccccccccc" in kept["kept"]
+
+
+def test_keep_green_only_for_a_base_delta_outside_the_batchs_dirs_check_files_and_guards(tmp_path):
+    """The keep rule: the same batch files, an ancestor move, and a delta touching none of: the batch's files, the top-level
+    dirs it changes, [check].check_paths, the guard glob."""
+    g = lambda *a: _g(tmp_path, *a)  # noqa: E731
+    g("init", "-q"), g("config", "user.email", "t@e"), g("config", "user.name", "t")
+    for f in ("pkg/a.py", "other/b.py", "scripts/check_x.py", "harness.toml"):
+        (tmp_path / f).parent.mkdir(exist_ok=True)
+        (tmp_path / f).write_text("1\n")
+    g("add", "."), g("commit", "-qm", "base")
+    old = g("rev-parse", "HEAD")
+    cfg = work.check_tool.Config(check_paths=("harness.toml",), guard_glob="scripts/check_*.py")
+    batch = ["pkg/a.py"]
+
+    def move(f):
+        (tmp_path / f).write_text((tmp_path / f).read_text() + "2\n")
+        g("commit", "-qam", f)
+        return g("rev-parse", "HEAD")
+    new = move("other/b.py")
+    assert work.keep_green(str(tmp_path), old, batch, new, batch, cfg).startswith(f"kept across rebase onto {new[:9]}")
+    assert work.keep_green(str(tmp_path), old, batch, new, ["pkg/a.py", "pkg/c.py"], cfg) == "", "a different batch"
+    for f in ("pkg/a.py", "harness.toml", "scripts/check_x.py"):
+        g("reset", "-q", "--hard", old)
+        assert work.keep_green(str(tmp_path), old, batch, move(f), batch, cfg) == "", f
+    g("reset", "-q", "--hard", old)
+    (tmp_path / "pkg" / "z.py").write_text("1\n")
+    g("add", "."), g("commit", "-qm", "same dir")
+    assert work.keep_green(str(tmp_path), old, batch, g("rev-parse", "HEAD"), batch, cfg) == "", "a delta in the batch's own dir"
