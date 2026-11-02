@@ -80,6 +80,7 @@ def main(argv=None) -> int:
     c.add_argument("since"), c.add_argument("head")
     c.add_argument("--pinned", required=True)
     c.add_argument("--id", action="append", default=[])
+    c.add_argument("--guard-data", action="append", default=[], help="a guard data file (a .json under a check path) whose HEAD copy the guards read instead of the pinned one; the script stays pinned")
     c.add_argument("--approve-pinned-new", action="store_true", help="the manager approved this range's new files under a pinned path: recorded in the pinned-checks row, not refused")
     c.add_argument("--approve-red", action="store_true", help="the manager approved this range's red-on-base refusal (a test that passes on base by design): recorded in the row")
     c.add_argument("--approve-weakened", action="store_true", help="the manager approved this range's weakened tests (an owner ruling): recorded in the pinned-checks row, not refused")
@@ -449,7 +450,7 @@ def main(argv=None) -> int:
             check_tool.ACTIVITY = lambda **kw: journal.append("activity", lane="by hand", **kw)  # console view A sees a check run by hand
             check_tool.GUARD_CACHE[0] = journal.STATE / "guard-cache.json"  # speed 5: a guard's green is reused for the same inputs
             r = check_tool.ladder_over(a.repo, since, head, a.pinned, a.id, maintainer=a.maintainer, approve_weakened=a.approve_weakened, approve_red=a.approve_red,
-                                       approve_pinned_new=a.approve_pinned_new)
+                                       approve_pinned_new=a.approve_pinned_new, guard_data=tuple(a.guard_data))
         except check_tool.EmptyRange:  # the shared refusal, also `builder work`'s
             print(f"REFUSED: {a.since}..{a.head} is empty: nothing to check", file=sys.stderr)
             return 1

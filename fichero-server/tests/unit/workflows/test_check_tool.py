@@ -241,6 +241,36 @@ def test_the_tool_runs_in_a_throwaway_project_with_its_own_config(tmp_path):
     assert [x["name"] for x in r["rungs"]] == ["pinned-checks", "ready", "diff-bound", "red-on-base", "guards", "contract-current", "since-guards", "build"]
 
 
+def test_an_approved_guard_data_file_is_head_s_copy_under_the_pinned_guard_and_nothing_else_is(tmp_path):
+    """Manager 2026-11-02: a guard reads its allowlist beside itself, so the PINNED guard judged HEAD's routes against the pinned
+    list and a batch that changed the list could never pass. guard_data names the .json files laid from HEAD; the script stays
+    pinned, a file not named keeps the pinned copy."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "ci" / "lint_data.py").write_text("import json, pathlib, sys\nok = 'b' in json.loads(pathlib.Path(__file__).with_name('lint_data.json').read_text())['allow']\nsys.exit(0 if ok else 1)\n")
+    (work / "ci" / "lint_data.json").write_text('{"allow": ["b"]}\n')
+    g("add", "."), g("commit", "-q", "-m", "guard and data")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+    subprocess.run(["git", "-C", str(pinned), "pull", "-q"], check=True, capture_output=True)
+    (work / "ci" / "lint_data.json").write_text('{"allow": ["b", "c"]}\n')  # the batch adds an entry; the guard now wants the new list
+    (work / "ci" / "lint_data.py").write_text("raise SystemExit(9)\n")  # a hostile edit of the SCRIPT in the same batch
+    (work / "mod.py").write_text("VALUE = 2\n")  # a source change comes with its test (red on base, green on head)
+    (work / "test_mod.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 2\n")
+    g("add", "."), g("commit", "-q", "-m", "change the list and the script")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False, maintainer=True, guard_data=("ci/lint_data.json",))
+    assert r["ok"], [(x["name"], x.get("ok"), x.get("stderr_tail"), x.get("stdout_tail", "")[-200:]) for x in r["rungs"] if not x.get("ok")]  # the pinned script ran; the hostile one did not
+    tree = ct._scratch_tree(work, "HEAD", pinned, ct.load(pinned), data_from_head=("ci/lint_data.json", "ci/lint_ok.py"))
+    try:
+        assert '"c"' in (Path(tree) / "ci" / "lint_data.json").read_text(), "head's data file stays"
+        assert (Path(tree) / "ci" / "lint_data.py").read_text() != "raise SystemExit(9)\n", "the script is the pinned one"
+    finally:
+        ct._remove_scratch(tree)
+    tree = ct._scratch_tree(work, "HEAD", pinned, ct.load(pinned))
+    try:
+        assert '"c"' not in (Path(tree) / "ci" / "lint_data.json").read_text(), "not named: the pinned copy"
+    finally:
+        ct._remove_scratch(tree)
+
+
 def test_a_worker_cannot_change_the_checks_it_is_judged_by(tmp_path):
     """The worker edits a guard, the config, or .claude/: needs-maintainer, nothing else runs."""
     work, g, base, pinned = _project(tmp_path)

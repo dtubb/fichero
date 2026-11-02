@@ -900,11 +900,13 @@ def acceptance_changed(root, since: str, head: str, cfg: Config, ids) -> list[st
     return hits
 
 
-def _scratch_tree(root, head: str, pinned, cfg: Config, overlay: bool = True) -> str:
+def _scratch_tree(root, head: str, pinned, cfg: Config, overlay: bool = True, data_from_head: tuple = ()) -> str:
     """A detached worktree of `head` with the pinned copy's check files laid over it: the checks judge the worker's
     committed code, never its uncommitted edits and never its own copies of the checks. overlay=False: head's own tree,
     for the pytest rungs (manager 2026-11-02: pinned copies JUDGE, they are not the code under test; a batch that changes a
-    guard and its test, or harness.toml and the code reading it, is tested as it will land)."""
+    guard and its test, or harness.toml and the code reading it, is tested as it will land). `data_from_head`: guard DATA files
+    (a .json under a check path, e.g. an allowlist a guard reads beside itself) the manager approved by name: head's own copy
+    stays instead of the pinned one, so the pinned guard judges head's routes against head's allowlist; the script stays pinned."""
     sha = (_lines(root, "rev-parse", head) or [""])[0]
     tree = _mkdtemp("check-tree-", readable=True)
     r = _git(root, "-c", "core.hooksPath=/dev/null", "worktree", "add", "--detach", "-q", tree, sha)  # no repo hook runs as the owner
@@ -912,6 +914,8 @@ def _scratch_tree(root, head: str, pinned, cfg: Config, overlay: bool = True) ->
         raise RuntimeError(f"scratch tree failed: {r['stderr_tail']}")
     for f in (_lines(pinned, "ls-files") or []) if overlay else []:
         if f.startswith(cfg.check_paths):
+            if f in data_from_head and f.endswith(".json"):
+                continue
             src, dest = Path(pinned) / f, Path(tree) / f
             if src.is_symlink():
                 raise RuntimeError(f"pinned file {f} is a symlink: refused")
@@ -929,16 +933,16 @@ class EmptyRange(RuntimeError):
 
 
 def ladder_over(root, since_sha: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool = False,
-                approve_red: bool = False, approve_pinned_new: bool = False) -> dict:
+                approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = ()) -> dict:
     """The one way `builder check` and `builder work` run the ladder: an empty range is refused, never judged."""
     if since_sha == head:
         raise EmptyRange(f"{since_sha[:9]}..{head[:9]} is empty: nothing to check")
     return run_ladder(root, since_sha, head, pinned, list(protected_ids), maintainer=maintainer, approve_weakened=approve_weakened, approve_red=approve_red,
-                      approve_pinned_new=approve_pinned_new)
+                      approve_pinned_new=approve_pinned_new, guard_data=guard_data)
 
 
 def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_required: bool = True, maintainer: bool = False,
-               approve_weakened: bool = False, approve_red: bool = False, approve_pinned_new: bool = False) -> dict:
+               approve_weakened: bool = False, approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = ()) -> dict:
     """The project's whole ladder over the diff since..head, judged by the PINNED copy (an engine-owned checkout
     outside the worker's tree; its harness.toml is the config): pinned-checks, ready, diff bound, red-on-base for
     the changed test files (its green run is the pytest rung), guards, contract. Stops at the first red.
@@ -960,7 +964,7 @@ def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_requi
     ACTIVITY(kind="check", key=_KEY[0], state="start")
     ended: dict = {}
     try:
-        ended = _run_ladder(root, since, head, pinned, protected_ids, maintainer, approve_weakened, approve_red, approve_pinned_new)
+        ended = _run_ladder(root, since, head, pinned, protected_ids, maintainer, approve_weakened, approve_red, approve_pinned_new, guard_data)
         return ended
     finally:
         ACTIVITY(kind="check", key=_KEY[0], state="end", ok=bool(ended.get("ok")), failed=ended.get("failed", "?"))
@@ -987,7 +991,7 @@ def _no_red_row(tree, whole: tuple, cfg: Config) -> dict:
 
 
 def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool = False,
-                approve_red: bool = False, approve_pinned_new: bool = False) -> dict:
+                approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = ()) -> dict:
     cfg = load(pinned)
     bad = pinned_violations(root, since, head, cfg, pinned)
     noted = ""
@@ -1014,7 +1018,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
     tests = [f for f in names if any(fnmatch.fnmatch(Path(f).name, g) for g in cfg.test_globs)]
     if cfg.base_ref and not _git(root, "rev-parse", "--verify", "-q", f"refs/remotes/{cfg.base_ref}")["ok"]:
         _git(root, "update-ref", f"refs/remotes/{cfg.base_ref}", since)  # a remote-less clone: ready checks diff against it
-    tree = _scratch_tree(root, head, pinned, cfg)
+    tree = _scratch_tree(root, head, pinned, cfg, data_from_head=tuple(guard_data))
     own = _scratch_tree(root, head, pinned, cfg, overlay=False)  # the pytest rungs: head as it will land
     try:
         ok_pin = {"name": "pinned-checks", "argv": [], "exit_code": 0, "ok": True, "timed_out": False, "seconds": 0,

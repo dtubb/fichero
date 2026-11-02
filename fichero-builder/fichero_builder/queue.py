@@ -361,7 +361,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if left:
             journal.append("queue", lane=lane["id"], step=s["step"], state="issue-open", detail=", ".join(left))
         return True
-    if r.get("kind") in ("needs-maintainer", "weakened-tests", "red-on-base", "pinned-new"):  # a pinned check or a test changed on purpose: the manager's call
+    if r.get("kind") in ("needs-maintainer", "weakened-tests", "red-on-base", "pinned-new", "guard-data"):  # a pinned check or a test changed on purpose: the manager's call
         s["approve_kind"] = r["kind"]
         s["approvals"] = r.get("approvals") or []  # every reason the refusal listed: one approve sets them all
         return block(s, r["why"], ("approve", "send-back"), r.get("evidence", ""))
@@ -450,7 +450,7 @@ def related(worktree: str, old: str, new: str) -> bool:
     return r.returncode == 0 and any(ln.startswith("-") for ln in r.stdout.splitlines())
 
 
-APPROVALS = ("approve_red", "approve_weakened", "approve_pinned_new", "approve_kind", "approvals", "approved_head", "approved_tests", "maintainer")
+APPROVALS = ("approve_red", "approve_weakened", "approve_pinned_new", "approve_guard_data", "approve_kind", "approvals", "approved_head", "approved_tests", "maintainer")
 
 
 def land_tree(lane: dict, sha: str) -> tuple[str, str]:
@@ -561,7 +561,7 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
             s.update(state=again, rounds=0, restarts=0, why="")
             if action == "approve":  # manager 2026-11-02: an approve binds to this head and the tests the alert named; a new head clears it
                 s["approved_head"] = s.get("head", "")
-                s["approved_tests"] = sorted(set(re.findall(r"[\w./-]+\.py", said)))
+                s["approved_tests"] = sorted(set(re.findall(r"[\w./-]+\.(?:py|json)", said)))
             if action == "approve" and s.get("approvals"):  # every reason the alert listed (maintainer, weakened, pinned-new, red)
                 for k in s["approvals"]:
                     s[k] = True
@@ -796,8 +796,9 @@ def real_procs(root) -> Procs:
         return types.SimpleNamespace(worktree=tree, name=lane["id"], pinned=str(root), root=str(root), kind="claude", session="harness",
                                      tick=30.0, issues=step["issues"] if step else [], brief=brief, ids=[], repo=repo,
                                      maintainer=_approved(step, "maintainer") or bool(lane.get("maintainer")), approve_weakened=_approved(step, "approve_weakened"),
-                                     external=lane.get("kind") == "external", approve_red=_approved(step, "approve_red") and (tuple(step.get("approved_tests") or ()) or True),
+                                     external=lane.get("kind") == "external", approve_red=_approved(step, "approve_red") and (tuple(f for f in step.get("approved_tests") or () if f.endswith(".py")) or True),
                                      approve_pinned_new=_approved(step, "approve_pinned_new"),
+                                     guard_data=tuple(f for f in (step or {}).get("approved_tests", ()) if f.endswith(".json")) if _approved(step, "approve_guard_data") else (),
                                      reviewer_fast=reviewer_fast, opus_paths=opus_paths,
                                      last_step=bool(step) and lane.get("kind") != "external" and bool(lane.get("steps")) and step is lane["steps"][-1])
 

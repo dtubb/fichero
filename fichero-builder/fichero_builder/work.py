@@ -196,7 +196,7 @@ def do_check(a, repo: str, branch: str, head: str, ladder: str) -> dict:
     check_tool.GUARD_CACHE[0] = journal.STATE / "guard-cache.json"  # speed 5
     pin_new = bool(getattr(a, "approve_pinned_new", False))  # the manager approved a new file under a pinned path
     r = check_tool.ladder_over(repo, since, head, a.pinned, getattr(a, "ids", []), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok,
-                               approve_pinned_new=pin_new)
+                               approve_pinned_new=pin_new, guard_data=tuple(getattr(a, "guard_data", ()) or ()))
     Path(ladder).write_text(json.dumps(r, indent=1))
     journal.append("check", repo=str(repo), since=since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok)
     return r
@@ -438,6 +438,16 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                     diff.write_text(_git(repo, "diff", r_since(repo, branch), head, "--", *paths).stdout)
                     kind = "needs-maintainer" if "maintainer" in approvals else "weakened-tests" if "approve_weakened" in approvals else "pinned-new"
                     return {**no(kind, f"pinned-checks at {head[:9]}: {t[-300:]}", t, str(diff)), "approvals": approvals}
+                if r.get("failed") == "guards" and not getattr(a, "guard_data", ()):
+                    # a guard reads an allowlist beside itself (a .json under a check path): pinned, it judges head's routes against the
+                    # OLD list, so a batch that changes the list can never pass. The manager's approve, by file name, lays head's copy over it.
+                    cfg_now = check_tool.load(a.pinned)
+                    data = [f for f in files if f.endswith(".json") and f.startswith(tuple(cfg_now.check_paths))]
+                    if data:
+                        diff = state / f"guard-data-{a.name}.diff"
+                        diff.write_text(_git(repo, "diff", since_now, head, "--", *data).stdout)
+                        return {**no("guard-data", f"guards red at {head[:9]} with guard data changed by the batch: {', '.join(data)}; approve lays HEAD's copy of "
+                                     f"exactly these files under the pinned guards (the scripts stay pinned)", _tail(r), str(diff)), "approvals": ["approve_guard_data"]}
                 return no("red", f"the check is red at {head[:9]} (failed: {r.get('failed') or '?'}); ladder in {ladder}", f"failed rung: {r.get('failed') or '?'}\n{_tail(r)}", ladder)
             if moved < MOVES and since_now and _base_moved(a, branch, head):  # never review a range that cannot land
                 moved += 1

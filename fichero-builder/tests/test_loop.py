@@ -651,6 +651,23 @@ def test_a_newer_head_of_the_same_work_supersedes_a_batch_in_the_ladder_and_an_u
     assert any(r.get("state") == "superseded" for r in journal.read() if r["event"] == "queue")
 
 
+def test_a_guard_data_alert_is_approved_by_file_name_and_binds_to_the_head(state):
+    """Manager 2026-11-02 (lane-onboard -79): guards red only because a guard's allowlist .json changed in the batch. The alert offers
+    approve|send-back; the approve records `approve_guard_data` and the json file names it quoted, for that head only."""
+    lane(state)
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "guard-data", "approvals": ["approve_guard_data"], "evidence": "/s/gd.diff",
+                                 "why": "guards red at abc with guard data changed by the batch: scripts/check_x_known_gaps.json; approve lays HEAD's copy"}]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    assert a["actions"] == ["approve", "send-back"] and a["evidence"] == "/s/gd.diff"
+    lanes = queue.load()
+    lanes[0]["steps"][0]["head"] = "a" * 40
+    queue.save(lanes)
+    assert cli.main(["alert", a["id"], "approve", "--state", str(state / "s")]) == 0
+    s = steps()["1.1"]
+    assert s["approve_guard_data"] is True and s["approved_tests"] == ["scripts/check_x_known_gaps.json"] and s["approved_head"] == "a" * 40
+    assert queue._approved(s, "approve_guard_data") and not queue._approved({**s, "head": "b" * 40}, "approve_guard_data")
+
 
 def test_an_external_lanes_red_offers_send_back_retry_park_and_a_worker_lanes_keeps_its_own(state):
     """run.loop-external-lane: an external lane fixes its own reds, so it is never offered ask-owner; a worker lane is unchanged."""
