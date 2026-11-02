@@ -819,12 +819,13 @@ its basis, and it learns from the project's booked costs (`designer.budget.estim
   in the plan. One block, not a field under a question. *Test:* `BudgetBlockTests.swift`
   (pure: the block's lines from a served plan; the fields hold the served caps; a cap below 0 cannot be typed),
   `test_budget_in_the_plan.py` (the plan carries both caps and the basis).
-- `designer.budget.basis-per-step` [GAP] (#6295) — the estimate is shown per step and per page, each with its
+- `designer.budget.basis-per-step` [PARTIAL] (#6295) — the estimate is shown per step and per page, each with its
   basis in words: "Read: 16 pages × $0.021 a page, measured on 9 pages of this project" or "… assumed: one call
   a page of about 16 line pictures at Claude's listed rate"; the sum is the run's estimate. The basis is a
   field of the served estimate (`measured` · `assumed` · `unpriced`), never worked out in the app. *Test:*
-  `test_estimate_basis_per_step.py`.
-- `designer.budget.estimate-from-booked-usage` [GAP] (#6294) — once the project has booked calls for the same
+  `test_estimate_basis_per_step.py`. Built 2026-11-02 (engine): each `StartEstimateRun` carries `basis_kind` (measured · assumed · free · unpriced), `basis_words`, `cost_per_page_usd` and `measured_pages` (`start._basis_words`; `test_estimate_basis_per_step.py`); the app words nothing. Left: the per-step rows in the app's Budget block.
+
+- `designer.budget.estimate-from-booked-usage` [PARTIAL] (#6294) — once the project has booked calls for the same
   model and job (the usage rows `_record_usage` keeps, with their `place`), the per-page figure is the median
   booked cost a page over those calls, labelled measured with the page count; until then the token assumption,
   labelled assumed. A run's own booked cost replaces the assumption for its remaining pages, so a cap set at
@@ -833,7 +834,8 @@ its basis, and it learns from the project's booked costs (`designer.budget.estim
   basis beside it, and the booked costs are how it improves.
   *Test:* `test_estimate_learns_from_booked_usage_6294.py` (fake usage rows
   at 2.5× the assumption: the estimate reads the measured figure, says "measured on N pages", and a cap set at
-  the new estimate is not refused).
+  the new estimate is not refused). Built 2026-11-02 (engine): `recipes/booked_cost.per_page` takes the median booked cost a page over the pages whose job rows booked priced calls of the same model and job; the estimate uses it (`measured`, with the page count) before the token assumption (`test_estimate_learns_from_booked_usage_6294.py`). Left: a run's own booked cost replacing the assumption for its remaining pages, mid-run.
+
 - `designer.budget.run-cap` [GAP] (#6295) — Start takes a cap for this run (`StartRequest.run_cap_usd`, kept on
   the run's row); the run's cloud calls are held against **both** the run cap and the project cap, the lower
   deciding, through the one spend hold (`llm/spend.py`); a run with no run cap is held by the project cap alone.

@@ -1498,12 +1498,14 @@ def lines_to_send(bar: float, pages: int, known: dict[str, Any] | None) -> tuple
 
 
 def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str, Any] | None = None,
-             catalogue: list[dict[str, Any]] = (), folders: int = 0, todo: dict[str, int] | None = None) -> dict[str, Any]:
+             catalogue: list[dict[str, Any]] = (), folders: int = 0, todo: dict[str, int] | None = None,
+             booked: dict[tuple[str, str, str], tuple[float, int]] | None = None) -> dict[str, Any]:
     """What Start would cost, before anything runs (`source.onboard.estimate-before-start`). `todo`: per job, the pages
     still to do (`done.todo_counts`, by step id); a run is priced on those, not on pages it has already done.
 
     Local runs cost nothing; a cloud run is priced with the workflow estimate's per-page token
-    assumptions. An unpriced model is `None`, never a stand-in zero, and makes the total `None`.
+    assumptions. An unpriced model is `None`, never a stand-in zero, and makes the total `None`. `booked`: the median dollars a page this
+    project has booked for a `(job, provider, model)` (`booked_cost.for_workflows`), which replaces the token assumption (#6294).
     """
     from fichero_server.recipes.review_profiles import lens_ids, review_passes
 
@@ -1529,12 +1531,20 @@ def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str,
             cost = batch_cost_usd(w["provider_override"], w["model_override"] or "", pages * calls * tokens_in,
                                   pages * calls * tokens_out)  # a page read sends the picture, batch or not (#6265)
             basis = "unpriced" if cost is None else "the batch price, answered within a day"
+        measured = None
+        if (booked and to_send is None and cost is not None and runs_on.startswith("cloud") and basis == "the model's listed rate"
+                and (w.get("job"), w.get("provider_override"), w.get("model_override")) in booked):
+            per, measured = booked[(w.get("job"), w.get("provider_override"), w.get("model_override"))]
+            cost = round(per * pages, 6)  # the booked a-page figure already holds a page's every call
+        kind, words = _basis_words(w.get("job"), basis, cost, pages, calls, measured)
         # ponytail: a lens a pass, as the paleographer review runs them; each lens's page costs one call.
         per_lens = _priced(w, 1) if review and calls is not None else None
         lenses = [{"lens": lens, "on": w.get("lenses") is None or lens in w["lenses"], "cost_per_page_usd": per_lens}
                   for lens in lens_ids()] if review else []
         rows.append({"workflow": w["workflow"], "steps": w["steps"], "where": w["runs_on"],
                      "pages": pages, "cost_usd": cost, "basis": basis, "memory": _local_memory(w),
+                     "basis_kind": kind, "basis_words": words, "cost_per_page_usd": round(cost / pages, 6) if cost and pages else None,
+                     "measured_pages": measured,
                      "calls_per_page": calls, "lenses": lenses, "certainty_bar": bar, "lines_to_send": to_send,
                      "lines_to_send_kind": send_kind, "lines_basis": send_basis})
         total = None if total is None or cost is None else total + cost
@@ -1551,6 +1561,21 @@ def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str,
                      "lines_to_send_kind": None, "lines_basis": None})
         total = None if total is None or cost is None else total + cost
     return {"pages": all_pages, "runs": rows, "total_cost_usd": total}
+
+
+def _basis_words(job: str | None, basis: str, cost: float | None, pages: int, calls: int | None,
+                 measured: int | None) -> tuple[str, str]:
+    """(`measured` | `assumed` | `free` | `unpriced`, the basis in words) of one run's figure: never worked out in the app
+    (`designer.budget.basis-per-step`, #6295). A measured figure says how many pages it rests on; an assumed one says what it assumes."""
+    if cost is None or basis == "unpriced":
+        return "unpriced", "no price is listed for this model, so no figure is given"
+    if basis == "free on this Mac":
+        return "free", "free on this Mac"
+    per = f"${cost / pages:.3f}" if pages else "$0"
+    if measured:
+        return "measured", f"{pages} pages × {per} a page, measured on {measured} pages of this project"
+    what = "the batch price, answered within a day" if basis != "the model's listed rate" else f"{calls or 1} call(s) a page at the model's listed rate"
+    return "assumed", f"{pages} pages × {per} a page, assumed: {what}"
 
 
 def _page_read_tokens(run: dict[str, Any]) -> tuple[int, int]:

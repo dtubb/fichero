@@ -21,5 +21,7 @@ def test_the_cap_route_is_in_its_own_module_under_the_same_prefix(client):
     assert Path(recipe_cloud_cap.__file__).parent == Path(recipes.__file__).parent
     paths = {r.path for r in recipe_cloud_cap.router.routes}
     assert paths == {"/recipes/project/cloud-cap", "/recipes/project/bakeoffs", "/recipes/project/bakeoffs/{bakeoff_id}",
-                     "/recipes/project/bakeoffs/{bakeoff_id}/use"}  # the bake-off shares the module (one module, one import)
+                     "/recipes/project/bakeoffs/{bakeoff_id}/use",  # the bake-off shares the module (one module, one import)
+                     "/recipes/questions", "/recipes/defaults", "/recipes/suggestions", "/recipes/chain-risk",
+                     "/recipes/tries/page/{page_id}"}  # so do the onboarding reads (the import budget counts a module a route file)
     assert client.put("/api/recipes/project/cloud-cap", json={"cap_usd": 12}).status_code == 200

@@ -157,9 +157,10 @@ def folders_covering(db: Any, page_ids: list[str], memo: dict | None = None) -> 
 def estimate_on(db: Any, plan: dict[str, Any], pages: dict[str, Any], within: set[str] | None, memo: dict) -> dict[str, Any]:
     """The plan's estimate over `pages` (`done.material` of `within`): each run priced on the pages it has still to do, the
     review passes on their lines, the Catalogue step on its folders. The one pricing Start's plan and "run fewer pages" share."""
+    from fichero_server.recipes import booked_cost
     from fichero_server.recipes.done import todo_counts
     from fichero_server.recipes.start import estimate
 
     return estimate(plan["workflows"], pages["pages"], lines_known(db, plan["workflows"], pages["ids"], memo),
                     catalogue=catalogue_runs(plan["runs"]), folders=folders_covering(db, pages["ids"], memo),
-                    todo=todo_counts(db, plan, within, memo=memo))
+                    todo=todo_counts(db, plan, within, memo=memo), booked=booked_cost.for_workflows(db, plan["workflows"]))

@@ -2189,6 +2189,13 @@ class StartEstimateRun(BaseModel):
         "how cost_usd is known: `free on this Mac`, `the model's listed rate`, `the batch price, answered within a "
         "day` (a step sent as one provider batch, #5940), or `unpriced` (a cluster or other "
         "place, or a model with no price): never a $0 for what is not known (#5590)"))
+    basis_kind: Literal["measured", "assumed", "free", "unpriced"] = Field(default="unpriced", description=(
+        "how `cost_usd` is known (`designer.budget.basis-per-step`): `measured` on this project's booked calls, `assumed` from the "
+        "model's listed rate and a token assumption, `free` on this Mac, or `unpriced`"))
+    basis_words: Optional[str] = Field(default=None, description=(
+        'the basis in words: "16 pages × $0.021 a page, measured on 9 pages of this project"; the app words nothing itself'))
+    cost_per_page_usd: Optional[float] = Field(default=None, description="`cost_usd` over `pages`; null when unpriced or free")
+    measured_pages: Optional[int] = Field(default=None, description="with `measured`: the pages the figure rests on")
     memory: Optional[str] = Field(default=None, description=(
         "a run on this Mac's model server: the model's memory need, how many pages at once it reads on this Mac, "
         "and the peak that comes to (#5537); null for any other run"))
@@ -2781,12 +2788,14 @@ def _as_started(db: Database, plan: dict[str, Any], memo: Optional[dict] = None)
     counted = plan["estimate"].get("counted")
     within = (runner.folder_scope(db, plan["folder_id"]) if plan.get("folder_id")
               else set(first_pages_of(db, plan["first_pages"], memo)) if plan.get("first_pages") else None)  # the run's own pages (#6295)
+    from fichero_server.recipes import booked_cost
     from fichero_server.recipes.done import material, todo_counts
 
     memo = {} if memo is None else memo
     plan["estimate"] = {**estimate(plan["workflows"], plan["estimate"]["pages"], catalogue=catalogue_runs(plan["runs"]),
                                    folders=folders_covering(db, material(db, within, memo)["ids"], memo),
-                                   todo=todo_counts(db, plan, within, set(started["redo"]), memo=memo)), "counted": counted}
+                                   todo=todo_counts(db, plan, within, set(started["redo"]), memo=memo),
+                                   booked=booked_cost.for_workflows(db, plan["workflows"])), "counted": counted}
     return annotate(db, plan, within=within, redo=set(started["redo"]), memo=memo)  # its notes say what it redoes (#5689)
 
 

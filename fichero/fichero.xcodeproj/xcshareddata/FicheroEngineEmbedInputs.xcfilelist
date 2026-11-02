@@ -523,6 +523,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/adopt.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/answers.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/assemble.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/bakeoff.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/booked_cost.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/cards.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/catalogue_step.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/chain_risk.py
