@@ -564,54 +564,83 @@ the write path would produce.
   process that starts, reads and acts. Test: `fichero-builder/tests/test_watcher.py`.
   The caps in `harness.toml [spend]` are owner settings (8 USD a session, 60 USD a day as of 2026-11-01 evening). `[spend].window` is 1000000 and
   `[models].builder` is `sonnet[1m]`, the name that gets that window, because a lane takes its model from the role (test `fichero-builder/tests/test_model_config.py::test_a_window_past_the_standard_one_has_a_builder_model_that_gets_it`).
-- `dev-workflows.run.loop` [PROPOSED] (owner 2026-11-02: the harness keeps going with nobody watching; a stage that waits on a
+- `dev-workflows.run.loop` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) (owner 2026-11-02: the harness keeps going with nobody watching; a stage that waits on a
   person is a defect) — `builder loop` runs indefinitely: `builder queue run --lanes N --push` ticking forever, one `loop` heartbeat
   row a tick. It runs as the owner (a LaunchAgent with KeepAlive), because check rows, verdicts, the push and `gh` are the owner's
   and a worker never holds them; workers stay the jail user. Killed and restarted, it resumes every lane from `queue.json` and the
   journal, never repeating a landed step. Every stage transition is deterministic code; a model is called only to code (the
   builder), to review (the reviewer) or to fix findings (the builder). Test (to write): `fichero-builder/tests/test_loop.py`
   (fakes: a restart mid-chain resumes; a landed step is never re-run).
-- `dev-workflows.run.loop-chain` [PROPOSED] — per lane, with no person: the worker's DONE row → `builder check` with the
+- `dev-workflows.run.loop-chain` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — per lane, with no person: the worker's DONE row → `builder check` with the
   integration tip as base → the review wrapper (in commit groups when over the cap) → on READY the land gate and `builder landed
   --push`, which closes the Fixes issues → the lane rebased on the new tip → its next step's brief into the same session. A
   worker's DONE is a claim the ladder verifies, never taken on its word. Test (to write): `fichero-builder/tests/test_loop.py`
   (two steps of one lane land through fakes, each transition a row).
-- `dev-workflows.run.loop-fix-rounds` [PROPOSED] — a red check or a NOT READY review sends its findings back to the same worker
+- `dev-workflows.run.loop-fix-rounds` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — a red check or a NOT READY review sends its findings back to the same worker
   as a fix brief and the chain runs again, up to `[loop].rounds` rounds (default 2); after that, and on a spend cap, a dead or
   stalled worker or a refused guard, the lane parks with an alert. A parked lane never blocks the other lanes. Test (to write):
   `fichero-builder/tests/test_loop.py` (NOT READY → fix → READY lands; three reds → one alert, the lane parked, the other lane
   goes on).
-- `dev-workflows.run.loop-rolls-on` [PROPOSED] — when a lane's milestone has no open step left, the loop runs `builder build
+- `dev-workflows.run.loop-rolls-on` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — when a lane's milestone has no open step left, the loop runs `builder build
   --dev` (one row, pass or fail; a failure is an alert, the roll-on goes on) and the lane takes the first `## In order`
   milestone of `build-order.md` that no lane holds; up to N lanes at once, one ladder at a time on the machine. The order done
   is a row, and the loop keeps ticking for new issues. Test: `fichero-builder/tests/test_queue_verb.py::test_the_queue_rolls_on_to_the_next_build_order_milestone_when_a_lanes_steps_have_landed`,
   `::test_n_lanes_hold_n_milestones_and_their_chains_overlap_but_the_ladder_is_one_at_a_time`; (to write) the build after a
   milestone.
-- `dev-workflows.run.loop-alerts` [PROPOSED] — every stop is an `alert` row: id, lane, step, what failed in one line, the path
+- `dev-workflows.run.loop-alerts` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — every stop is an `alert` row: id, lane, step, what failed in one line, the path
   of its evidence (ladder JSON, review text, session file, log) and the allowed actions, a subset of `retry`, `park`,
   `ask-owner`. `builder alert <id> retry|park|ask-owner` is the manager's whole job, so a small model can do it: retry re-queues
   the step with its findings, park leaves it, ask-owner labels its issues `needs-your-decision` with the alert as the comment.
   The loop never ends silently: a heartbeat older than three ticks is itself an alert, raised by a second LaunchAgent that reads
   only the journal. Test (to write): `fichero-builder/tests/test_loop.py` (each stop kind gives one alert with its evidence and
   actions; each action does what it says; a stale heartbeat alerts).
-- `dev-workflows.run.loop-roles` [PROPOSED] — the model and the worker kind are per role in `harness.toml [models]` (builder,
+- `dev-workflows.run.loop-roles` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — the model and the worker kind are per role in `harness.toml [models]` (builder,
   reviewer, manager; today sonnet, opus, haiku), the kind from the provider: an interactive Claude Code session in tmux today,
   a Pi RPC session on OpenRouter or a local server next. The loop reads only journal rows and the DONE / QUESTION protocol, so
   nothing in it assumes Claude Code; no model name is written in code. Test (to write): `fichero-builder/tests/test_loop.py`
   (a fake provider kind runs a step end to end; a role with no provider is a question).
-- `dev-workflows.run.loop-machine-checked` [PROPOSED] (the open-model trial of 2026-10-18 failed on these) — after each step the
+- `dev-workflows.run.loop-machine-checked` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) (the open-model trial of 2026-10-18 failed on these) — after each step the
   loop checks that the jail root and every other lane's worktree are unmoved and clean (HEAD and `git status`), and alerts
   otherwise; the policy hook refuses `git reset --hard`, `git checkout --`, `git clean -f` and `git stash` outside the worker's
   own worktree, and any write outside it. Test (to write): `fichero-builder/tests/test_loop.py` (a step that moves another
   lane's tree alerts), `fichero-builder/tests/test_pi_policy_extension.py` and the policy hook's tests (each refused command).
-- `dev-workflows.run.loop-status` [PROPOSED] — `builder status`: a read-only page on 127.0.0.1 (stdlib HTTP, journal only):
+- `dev-workflows.run.loop-status` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — `builder status`: a read-only page on 127.0.0.1 (stdlib HTTP, journal only):
   lanes, each lane's step and state, the last check and landing, issues closed today, spend today, open alerts; the same as
   JSON at `/status.json` for the app. Test (to write): `fichero-builder/tests/test_status_page.py` (a journal of fixed rows gives
   that page and that JSON).
-- `dev-workflows.run.loop-soak` [PROPOSED] — acceptance for the loop as a whole: it runs a real build-order milestone for six
+- `dev-workflows.run.loop-soak` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — acceptance for the loop as a whole: it runs a real build-order milestone for six
   hours with no hand step; every step either lands or ends as an alert row with evidence, never as silence; the heartbeat has no
   gap longer than three ticks. Manual: the maintainer reads only `builder status` and the alerts for the six hours, and the
   journal is attached to the issue.
+- `dev-workflows.run.loop-session-cap-hands-off` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated; ie-lane2 was
+  parked mid-step with uncommitted work at the session cap) — reaching `[spend].session_usd` does what the context handoff does:
+  the session ends and a fresh one starts on the same step with "continue from the tree: the step, its brief and the commits so
+  far"; uncommitted work stays in the worktree. Only `[spend].day_usd` parks. Test (to write): `fichero-builder/tests/test_loop.py`
+  (a session over its cap gets a successor on the same step; over the day cap the lane parks with an alert).
+- `dev-workflows.run.loop-handoff-tokens` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated; ie-lane2 used 17M tokens for
+  three steps on a 1M window) — the handoff threshold is an absolute token count, `[spend].handoff_tokens` (150000), not a share
+  of the window; a session whose context passes it hands off. Test (to write): `fichero-builder/tests/test_watcher.py` (a session
+  at 150001 tokens on a 1M window hands off).
+- `dev-workflows.run.loop-fetches-the-lane` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated; a check refused "not a
+  commit in the engine repo" until a person fetched by hand) — on DONE the loop fetches the lane's head from its worktree into
+  `[check].engine_repo` and makes it readable to the jail user, before the check. Test (to write): `fichero-builder/tests/test_loop.py`
+  (a head that exists only in the lane's worktree is checked with no hand step).
+- `dev-workflows.run.loop-tell` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated; a finding was typed into a jail pane by
+  hand) — a check or review finding goes into the lane's live session (`builder tell <lane> <text>`, through the lane's feed, one
+  journal row) while it runs; with no live session it becomes the fix brief of a new one. The brief rules say: whenever you add a
+  tool or a route, run the generators (the capability reference, the OpenAPI and MCP files) in the same commit. Test (to write):
+  `fichero-builder/tests/test_loop.py` (a finding reaches the live session as its next message; with none, a new session gets it).
+- `dev-workflows.run.loop-needs-maintainer` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — a pinned-checks refusal
+  that says needs-maintainer becomes an alert carrying the diff of each pinned file, with actions `approve` (the check runs again
+  with `--maintainer`) and `send-back` (a fix brief). Separately, `scripts/verify_workflows.py` reads its image-input tool list
+  from the tool registry, so adding a node never edits a pinned check. Test (to write): `fichero-builder/tests/test_loop.py`
+  (the alert carries the diff; approve re-runs with --maintainer); `fichero-server/tests/unit/scripts/test_verify_workflows.py`
+  (a new image tool in the registry is in the list with no edit to the script).
+- `dev-workflows.run.loop-external-lane` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated: the baseline comparison) — a
+  lane of kind `external` is a branch in a worktree that the loop does not start a worker for; `builder done <lane> <sha>` is its
+  DONE, and from there the same chain runs (fetch, check, review, landed --push, alert on a stop, findings by `builder tell` when
+  the lane names a pane, else as an alert). Plain Claude Code lanes land through the loop this way. Test (to write):
+  `fichero-builder/tests/test_loop.py` (`builder done` on an external lane lands it through fakes; no worker is started).
 - `dev-workflows.run.records-are-truth` [PROPOSED] (maintainer 2026-10-31; owner 2026-11-01: no engine) — for a worker the
   truth is its **journal** (JSON lines, one file per cluster under the Builder's state directory; `$FICHERO_HARNESS_LOG` in
   Slice 0), plus git plus the handoff file; the run log (one row per item attempt: model, provider, context cap, tokens,
@@ -894,6 +923,24 @@ Steps a long-running builder can take from the heading. `Depends on` defaults to
 - Tests: fichero-builder/tests/test_build_verb.py
 - Depends on: 2.1
 - Size: S
+
+#### Step 2.9 — the continuous loop: a lane's DONE lands with no person (chain, fetch, fix rounds, tell) (owner 2026-11-02)
+- Behaviours: `dev-workflows.run.loop`, `dev-workflows.run.loop-chain`, `dev-workflows.run.loop-fetches-the-lane`, `dev-workflows.run.loop-fix-rounds`, `dev-workflows.run.loop-tell`
+- Tests: fichero-builder/tests/test_loop.py
+- Depends on: 2.6
+- Size: M
+
+#### Step 2.10 — the loop's stops: alerts with evidence and actions, needs-maintainer, the session cap hands off, the token handoff, roles (owner 2026-11-02)
+- Behaviours: `dev-workflows.run.loop-alerts`, `dev-workflows.run.loop-needs-maintainer`, `dev-workflows.run.loop-session-cap-hands-off`, `dev-workflows.run.loop-handoff-tokens`, `dev-workflows.run.loop-roles`
+- Tests: fichero-builder/tests/test_loop.py, fichero-builder/tests/test_watcher.py
+- Depends on: 2.9
+- Size: M
+
+#### Step 2.11 — the loop at large: rolls on, external lanes, machine-checked trees, `builder status`, the six-hour soak (owner 2026-11-02)
+- Behaviours: `dev-workflows.run.loop-rolls-on`, `dev-workflows.run.loop-external-lane`, `dev-workflows.run.loop-machine-checked`, `dev-workflows.run.loop-status`, `dev-workflows.run.loop-soak`
+- Tests: fichero-builder/tests/test_loop.py, fichero-builder/tests/test_status_page.py
+- Depends on: 2.10
+- Size: M
 
 ### Stage 3 — the Pi kind by RPC, the sandbox, local parity
 
