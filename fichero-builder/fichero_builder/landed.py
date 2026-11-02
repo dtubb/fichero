@@ -305,11 +305,12 @@ def main(a) -> int:
     def jail_root():
         q, g = shlex.quote, shlex.quote(land_tool.GIT)
         # a local file equal to what lands is dropped first (a hand edit the landing now carries aborted the merge, 2026-11-02);
-        # any other local edit stays and the merge refuses, naming it: never discarded
+        # any other local edit stays and the merge refuses, naming it: never discarded. A failed fetch stops here: the merge
+        # would take the FETCH_HEAD an earlier fetch left (review 2026-11-02)
         same = (f'{{ {g} -C root diff --name-only; {g} -C root ls-files --others --exclude-standard; }} | while IFS= read -r f; do '
                 f'[ "$({g} -C root hash-object -- "$f")" = "$({g} -C root rev-parse -q --verify "FETCH_HEAD:$f" 2>/dev/null)" ] && '
                 f'{{ {g} -C root checkout -q -- "$f" 2>/dev/null || rm -f -- "root/$f"; }}; done; ')
-        return _ok(as_worker(j, f"{g} -C root fetch -q origin {q(branch)} && {same}{g} -C root merge -q --ff-only FETCH_HEAD"), "jail root") or "root fast-forwarded"
+        return _ok(as_worker(j, f"{g} -C root fetch -q origin {q(branch)} || exit 1; {same}{g} -C root merge -q --ff-only FETCH_HEAD"), "jail root") or "root fast-forwarded"
 
     def scratch():  # never this landing's own worktree at once: a grace period, a patch, `git worktree remove` (#6204)
         grace = float(land.get("worktree_grace_hours", 36))
