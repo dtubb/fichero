@@ -9,6 +9,13 @@
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
+run_lint() {  # $1 = ruff|swiftlint, file names on stdin: the ratchet runs from a fresh empty dir, so nothing the batch can write is importable by it
+  local d rc; d=$(mktemp -d) || return 1
+  cp "$(git rev-parse --show-toplevel)/fichero-builder/fichero_builder/lint.py" "$d/lint.py" || { rm -rf "$d"; return 1; }
+  tr '\n' '\0' | xargs -0 python3 -I "$d/lint.py" --tool "$1" --base "$base"; rc=$?
+  rm -rf "$d"; return $rc
+}
+
 run_fast_guards() {  # prints each red guard with its output tail; returns 1 if any is red
   # tomllib is Python 3.11+: the system python3 may be older, so take the first interpreter that has it
   local py
@@ -62,9 +69,10 @@ check() {  # check <rev> -> prints FAIL lines, returns count
   # the findings are printed (first 40 lines): a coder told only "ruff failed" fixed the wrong thing twice (2026-10-25)
   local out
   if [ -n "$py" ] && [ "$rev" = HEAD ]; then
-    out=$(echo "$py" | tr '\n' '\0' | xargs -0 ruff check --output-format concise 2>&1) || { echo "FAIL: ruff on the changed Python"; echo "$out" | head -40; fails=$((fails+1)); }; fi
+    # a ratchet (2026-11-02): a rule a touched file already broke on base refuses only if its count grows; a new file, any
+    out=$(echo "$py" | run_lint ruff 2>&1) || { echo "FAIL: ruff on the changed Python (more findings than on base)"; echo "$out" | head -40; fails=$((fails+1)); }; fi
   if [ -n "$sw" ] && [ "$rev" = HEAD ] && command -v swiftlint >/dev/null; then
-    out=$(echo "$sw" | tr '\n' '\0' | xargs -0 swiftlint lint --quiet --strict 2>&1) || { echo "FAIL: swiftlint on the changed Swift"; echo "$out" | head -40; fails=$((fails+1)); }; fi
+    out=$(echo "$sw" | run_lint swiftlint 2>&1) || { echo "FAIL: swiftlint on the changed Swift (more findings than on base)"; echo "$out" | head -40; fails=$((fails+1)); }; fi
   # 4b. the fast guards (#6140): the SAME set the runner's fast-guards rung runs: every scripts/check_*.py except the
   # skip list in pipeline/projects/fichero.toml, read from there so no second list is kept here. 60 s each.
   if [ "$rev" = HEAD ] && [ -z "${NO_GUARDS:-}" ]; then

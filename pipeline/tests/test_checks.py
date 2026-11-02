@@ -4,7 +4,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from pipeline import checks
+from pipeline import checks, config
 from pipeline.tests.conftest import git
 
 
@@ -54,6 +54,15 @@ def test_a_stdlib_named_module_at_a_python_path_root_is_red_and_cannot_shadow(sc
     env = checks.test_env(wt, scratch["cfg"])
     res = checks.sh(checks.isolated(str(wt / "scripts" / "check_no_bad.py"), env), cwd=wt, env=env)
     assert res.returncode == 1 and "forbidden" in res.stdout
+
+
+def test_a_worker_edited_lint_py_is_a_pinned_path_refusal_and_the_real_profile_pins_it(scratch):
+    """Review 2026-11-02: lane_ready_check.sh runs lint.py from the tree it checks, so the pipeline's check_paths must pin it
+    too (it was listed only in harness.toml): a worker's own `sys.exit(0)` lint.py would judge its own lint."""
+    wt = lane(scratch, "lint", {**REAL_FIX, "fichero-builder/fichero_builder/lint.py": "import sys\nsys.exit(0)\n"})
+    r = checks.run_all(wt, scratch["cfg"])[0]
+    assert r["name"] == "pinned-checks" and not r["ok"] and "lint.py" in r["text"]
+    assert "fichero-builder/fichero_builder/lint.py" in config.load("fichero")["repo"]["check_paths"]
 
 
 def test_failing_rung_text_is_capped_by_chars_and_lines(scratch):
@@ -116,7 +125,7 @@ def test_checks_run_from_the_pinned_checkout(scratch):
     (wt / "scripts" / "lane_ready_check.sh").write_text("#!/bin/bash\necho hacked; exit 0\n")  # uncommitted edit
     (wt / "scripts" / "check_no_bad.py").write_text("print('hacked'); raise SystemExit(1)\n")  # uncommitted edit
     results = {r["name"]: r for r in checks.run_all(wt, scratch["cfg"])}
-    assert results["pinned-checks"]["ok"] and "2 files" in results["pinned-checks"]["text"]
+    assert results["pinned-checks"]["ok"] and "3 files" in results["pinned-checks"]["text"]
     assert results["ready"]["ok"] and "hacked" not in results["ready"]["text"]
     assert results["fast-guards"]["ok"], results["fast-guards"]["text"]
 
@@ -203,8 +212,18 @@ def test_a_ruff_failure_names_the_file_line_and_rule(scratch):
     wt = lane(scratch, "lint", {**REAL_FIX, "tests/test_1.py": "import os\nfrom src.mod import f1\n\ndef test_f1():\n    assert f1() == 1\n"})
     r = {x["name"]: x for x in checks.run_all(wt, scratch["cfg"])}
     assert not r["ready"]["ok"]
-    assert "tests/test_1.py:1:8" in r["ready"]["text"] and "F401" in r["ready"]["text"] and "`os` imported but unused" in r["ready"]["text"]
+    assert "tests/test_1.py:1:" in r["ready"]["text"] and "F401" in r["ready"]["text"] and "`os` imported but unused" in r["ready"]["text"]
     assert len(r["ready"]["text"].splitlines()) <= 45
+
+
+def test_a_module_planted_beside_lint_py_does_not_change_the_ready_checks_lint(scratch):
+    """Review 2026-11-02 (x2): the ratchet runs from a fresh temp copy, so a `__future__.py`/`json.py` the batch plants in
+    lint.py's folder is never importable by it and the F401 below is still found."""
+    plant = "raise SystemExit(0)\n"
+    wt = lane(scratch, "plant", {**REAL_FIX, "tests/test_1.py": "import os\nfrom src.mod import f1\n\ndef test_f1():\n    assert f1() == 1\n",
+                                 "fichero-builder/fichero_builder/__future__.py": plant, "fichero-builder/fichero_builder/json.py": plant})
+    r = {x["name"]: x for x in checks.run_all(wt, scratch["cfg"])}
+    assert not r["ready"]["ok"] and "F401" in r["ready"]["text"], r["ready"]["text"]
 
 
 def test_ready_check_fails_a_wrong_author_and_no_issue(scratch):

@@ -13,22 +13,25 @@ import pytest
 from pipeline import ROOT, coder, config, core, journal
 
 # The stub `ruff` the scratch repo's ready check runs: `ruff check [--output-format concise] [-q] <files>`, one rule
-# (F401: a bare `import x` whose name never appears again), the same concise line shape as the real tool.
+# (F401: a bare `import x` whose name never appears again), the JSON row shape of the real tool.
 STUB_RUFF = f'''#!{__import__("sys").executable}
-import re, sys
-files = [a for a in sys.argv[1:] if not a.startswith("-") and a != "check"]
-bad = 0
+import json, re, sys
+a = sys.argv[1:]
+stdin = "--stdin-filename" in a
+name = a[a.index("--stdin-filename") + 1] if stdin else None
+files = [name] if stdin else [x for i, x in enumerate(a) if not x.startswith("-") and x != "check" and a[i - 1] != "--output-format"]
+out = []
 for f in files:
     try:
-        lines = open(f).read().splitlines()
+        lines = (sys.stdin.read() if stdin else open(f).read()).splitlines()
     except OSError:
         continue
     for n, line in enumerate(lines, 1):
         m = re.match(r"^import (\\w+)\\s*$", line)
         if m and not any(m.group(1) in other for i, other in enumerate(lines, 1) if i != n):
-            print(f"{{f}}:{{n}}:8: F401 `{{m.group(1)}}` imported but unused")
-            bad += 1
-sys.exit(1 if bad else 0)
+            out.append({{"code": "F401", "message": f"`{{m.group(1)}}` imported but unused", "filename": f, "location": {{"row": n, "column": 8}}}})
+print(json.dumps(out))
+sys.exit(0)
 '''
 
 # The stub `pytest` for the red-on-base rung (a real pytest start costs ~0.8 s, three or four times per test): it
@@ -82,6 +85,8 @@ def scratch(tmp_path, monkeypatch):
     (repo / "tests" / "test_base.py").write_text("from src.mod import base\n\ndef test_base():\n    assert base() == 0\n")
     (repo / "scripts").mkdir()
     shutil.copy(ROOT / "scripts" / "lane_ready_check.sh", repo / "scripts" / "lane_ready_check.sh")
+    (repo / "fichero-builder" / "fichero_builder").mkdir(parents=True)
+    shutil.copy(ROOT / "fichero-builder" / "fichero_builder" / "lint.py", repo / "fichero-builder" / "fichero_builder" / "lint.py")
     (repo / "scripts" / "check_no_bad.py").write_text(GUARD)
     (repo / "specs").mkdir()
     (repo / "specs" / "s.md").write_text("- `demo.one` [MISSING] — acceptance: f(1) is 1. Test: tests/test_1.py\n")
@@ -102,13 +107,13 @@ def scratch(tmp_path, monkeypatch):
     cfg = {
         "name": "scratch",
         "repo": {"path": str(repo), "base": "origin/integration", "main": "main", "worktrees": ".worktrees/pipeline",
-                 "specs": "specs", "check_paths": ["scripts/", "pipeline/"], "python_path": ".", "test_env": {},
+                 "specs": "specs", "check_paths": ["scripts/", "pipeline/", "fichero-builder/fichero_builder/lint.py"], "python_path": ".", "test_env": {},
                  "scratch_base_env": "", "pinned": str(repo)},
         "labels": {"bug": "type:bug", "urgent": "urgent", "claimed": "claimed", "from_user": "from-user", "residue": "residue"},
         "github": {"maintainer": "dtubb", "allowed_authors": ["dtubb"], "agent_email": "noreply@anthropic.com",
                    "commit_trailer": "Co-Authored-By: Claude <noreply@anthropic.com>"},
         "ladder": [
-            {"name": "ready", "cmd": "{pinned}/scripts/lane_ready_check.sh HEAD"},
+            {"name": "ready", "cmd": "{pinned}/scripts/lane_ready_check.sh --no-guards HEAD"},
             {"name": "red-on-base", "kind": "red-on-base", "test_glob": ["*test*.py"],
              "pytest": f"{{python}} {bin_dir}/stub_pytest.py {{files}}"},
             {"name": "fast-guards", "glob": "{pinned}/scripts/check_*.py", "skip": [], "timeout_s": 30},

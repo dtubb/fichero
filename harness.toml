@@ -29,6 +29,7 @@ since_guards = { "scripts/check_swiftlint_warning_ratchet.py" = "fichero/" }
 check_paths = [
   "scripts/", "harness.toml", ".github/", ".gitattributes", ".gitmodules", "pyproject.toml", "pytest.ini",
   "fichero-server/pyproject.toml", "fichero-server/pytest.ini", "fichero-cli/pyproject.toml", "fichero-mcp/pyproject.toml",
+  "fichero-builder/fichero_builder/lint.py",  # the ready check's lint ratchet: judges the batch, so a batch never edits the copy that judges it
 ]
 # red-on-base is owed only by engine/CLI/MCP/Builder Python; Swift or contract changes need a Lead build row, docs and specs neither.
 red_paths = ["fichero-server/src/", "fichero-cli/src/", "fichero-mcp/src/", "fichero-builder/fichero_builder/"]
