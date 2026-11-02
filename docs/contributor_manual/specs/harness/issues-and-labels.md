@@ -41,7 +41,7 @@ No other labels. Area labels (what part of the app) are what the milestone alrea
 temporary: triage removes each one as it moves the issue into the spec's milestone.
 
 **The order of milestones is a file**, `docs/contributor_manual/specs/build-order.md`: one milestone per line, top
-to bottom, with a one-line reason and the spec path; a `## Parked` section for milestones that are not to be worked;
+to bottom, with a one-line reason and the spec path; a `## Parked` section for milestones that are not to be worked (a name or a pattern such as `UX - *`, which owes no spec and is never proposed; test `fichero-builder/tests/test_triage_verb.py::test_a_parked_line_may_name_a_pattern_and_the_milestones_it_matches_owe_no_spec_and_are_not_proposed`);
 everything else is unordered and the harness does not start it. The owner edits the file (or approves a triage
 proposal); the harness reads it and refuses to brief a milestone that is not the first unfinished one in the file
 unless told `--milestone` by a person.
@@ -59,7 +59,8 @@ never: it finishes one before the next, which is also the Studio's constraint (o
   behaviour line is marked `[OK]` with the test. Never before the commit is on `origin/integration`, never by hand.
 - **On a step issue being filed** (`builder steps`): title shape, `step:N.M`, the spec's milestone, `type:feature`.
 - **On triage** (`builder triage`, direct changes, no approval step): the milestone from the spec that cites the
-  issue; `spec:*` removed; one `type:`; `needs-spec` where no spec holds the behaviour; the write-the-spec issue per
+  issue (when several specs cite it and its current milestone's spec is one of them, it stays; else the first citing
+  spec by path; test `fichero-builder/tests/test_triage_verb.py::test_an_issue_its_current_milestones_spec_cites_stays_put_though_another_spec_cites_it_too`); `spec:*` removed; one `type:`; `needs-spec` where no spec holds the behaviour; the write-the-spec issue per
   spec-less milestone; empty milestones closed; assignees cleared except the owner on `needs-your-*`.
 - **On a question** (a QUESTION row): `needs-your-decision` and a comment with the question; the worker stops.
 
