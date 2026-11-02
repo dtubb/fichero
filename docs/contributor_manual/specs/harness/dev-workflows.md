@@ -393,7 +393,7 @@ the write path would produce.
   `fichero-builder/tests/test_milestone_verb.py::test_no_name_takes_the_first_ordered_milestone_with_open_issues_and_its_spec`.
 - `dev-workflows.tool.queue` [PARTIAL] (#6166; owner 2026-11-01) — `builder queue [add|run|pause|resume] [--push] [--once]`: one
   long-running worker per lane (a milestone), fed step by step, so it keeps what it has read and never re-reads the tree.
-  `<state>/queue.json` holds the lanes: worktree, cursor, message number, the steps in build order (`builder milestone
+  `<state>/queue.json` holds the lanes: worktree (stored absolute, test `fichero-builder/tests/test_queue_verb.py::test_a_relative_worktree_is_stored_absolute`), cursor, message number, the steps in build order (`builder milestone
   --enqueue` puts them there; a waiting step is a brief and a queued step, and the plan says all the waits in one line; such a brief names the lane's branch and head, not a fixed base).
   A step goes queued, sent, done, checking, reviewing, landed, or blocked. The worker side is `builder run --feed DIR`, as
   the jail user: a good `DONE <sha>` ends the step, not the session: one `step` row for the owner, then idle until
@@ -401,7 +401,7 @@ the write path would produce.
   same pane, or `stop` appears. The owner side is one loop: it sees the `step` row, runs `work.after_run` (rebase, patches,
   fetch, the ladder under the `ladder` lock, review, reused when this exact range already has READY, the land gate; the sha comes from the fetch, never from the worker's
   row), then `builder landed --keep-worktree` (push only with `--push`; the session is still working there), moves the cursor, rebases the worktree and sends the next brief. A
-  red check, a NOT READY review or a refused land goes back into the same session as a fix brief with the findings, two
+  red check (each red guard named, test `fichero-builder/tests/test_work_verb.py::test_a_red_guard_is_named_in_what_goes_back_to_the_worker`), a NOT READY review or a refused land goes back into the same session as a fix brief with the findings, two
   rounds, then blocked with `<state>/question-<lane>-<step>.txt`; a DONE with no commit, a refused landing or a chain error
   blocks at once. A new session only at the worker's own 85 % handoff or when it is gone (three times on a step blocks); a
   parked worker blocks. Pause = idle with nothing sent; resume = send the next brief, and clears a block. At most
@@ -418,7 +418,7 @@ the write path would produce.
   tree. `[jail].code_map` names the owner's install; the worker cannot read the owner's home, so before a start the owner
   copies the install's whole venv under the workroot and writes `<workroot>/bin/jcodemunch-mcp`, which runs the script with
   the copy's python and lifts the 2000-file default (again only after an upgrade). The start path writes that one server
-  into the worker's `--strict-mcp-config` file, and the worker's command indexes the worktree first. No setting, no install, a planted folder (test `::test_a_planted_install_folder_refuses_the_copy_and_touches_nothing_behind_it`)
+  into the worker's `--strict-mcp-config` file, and the worker's command indexes the worktree first. No setting, no install, a planted folder (each folder is made first and then checked, so no link can be planted between a check and a mkdir; tests `::test_a_planted_install_folder_refuses_the_copy_and_touches_nothing_behind_it`, `::test_a_folder_planted_between_the_check_and_the_mkdir_is_refused`)
   or a failed copy or index means a worker that greps, never a refusal. `[brief].rules` tells the worker to use the tools.
   Built and run 2026-11-01 as the real worker user: a full index of the repo took about two minutes and the server answered over
   MCP. Limit: the server names every worktree of a repo the same, so two lanes at once would share one index.

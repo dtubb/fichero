@@ -47,10 +47,13 @@ def provide(root, say=print) -> str:
     w = Path(t["workroot"]) / "bin" / "jcodemunch-mcp"
     try:
         for d in (home, w.parent):  # the workroot is world-writable: a worker's link here would have the owner copy and chmod through it
-            if d.is_symlink() or (d.exists() and d.stat().st_uid != os.getuid()):
+            try:
+                os.mkdir(d, 0o755)  # made first, never `exist_ok`: a check before the mkdir left a window for a planted link
+            except FileExistsError:
+                pass
+            if d.is_symlink() or d.lstat().st_uid != os.getuid():
                 raise OSError(f"{d} is not this user's folder")
         if not (w.is_file() and stamp.is_file() and stamp.read_text() == want):
-            home.mkdir(parents=True, exist_ok=True)
             tmp = home / "venv.tmp"
             shutil.rmtree(tmp, ignore_errors=True)
             shutil.copytree(script.parents[1], tmp, symlinks=True)
@@ -63,7 +66,6 @@ def provide(root, say=print) -> str:
                     if not p.is_symlink():
                         p.chmod(p.stat().st_mode | stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
             q = shlex.quote
-            w.parent.mkdir(parents=True, exist_ok=True)
             w.write_text(f'#!/bin/sh\nJCODEMUNCH_MAX_FOLDER_FILES={MAX_FILES} exec {q(str(venv / "bin" / "python"))} {q(str(venv / "bin" / script.name))} "$@"\n')
             w.chmod(0o755)
             stamp.write_text(want)
