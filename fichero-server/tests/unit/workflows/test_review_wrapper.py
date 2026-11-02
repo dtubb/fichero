@@ -157,3 +157,31 @@ def test_the_ladder_reaches_the_reviewer_as_one_line_per_rung(tmp_path):
         {"name": "ready", "ok": True, "seconds": 3.0}, {"name": "guards", "ok": False, "results": [{"name": "check_a", "ok": False}, {"name": "check_b", "ok": True}]}]}))
     r, _ = _run(tmp_path, "READY", extra=["--ladder", str(ladder), "--print"])
     assert "- ready: ok=True" in r.stdout and "- guards: ok=False" in r.stdout and "red=['check_a']" in r.stdout
+
+
+def test_a_rerun_after_a_fix_reviews_only_the_new_commits_and_keeps_the_ready_groups(tmp_path):
+    """Delta review (manager 2026-11-02): groups 1-2 READY and 3 NOT READY on one bug; the fix commit alone is re-reviewed,
+    with the finding that blocked named; a READY delta writes the one verdict for the whole range. A rebased head is reviewed whole."""
+    r, store = _split_run(tmp_path, ["READY", "NOT READY: the fetch can fail", "READY", "READY", "READY"])
+    assert r.returncode == 1 and not store.exists()
+
+    def g(*a):
+        return subprocess.run(["git", "-C", str(tmp_path / "r"), "-c", "user.name=t", "-c", "user.email=t@t", *a], check=True, capture_output=True, text=True).stdout
+
+    def again(*extra):
+        return subprocess.run([sys.executable, str(SCRIPT), str(tmp_path / "r"), "HEAD", "--pinned", str(tmp_path / "p"), "--verdicts", str(store), *extra],
+                              env={**os.environ, "PATH": f"{tmp_path / 'bin'}:{os.environ['PATH']}"}, capture_output=True, text=True)
+    (tmp_path / "r" / "a.py").write_text("x = 3\n")
+    g("commit", "-qam", "fix")
+    r = again()
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert (tmp_path / "calls").read_text().strip() == "3", "one call: the delta only"
+    p = (tmp_path / "prompt3").read_text()
+    assert "DELTA REVIEW" in p and "the fetch can fail" in p and "x = 3" in p
+    assert "o" * 20000 not in p and "t" * 20000 not in p, "the reviewed groups are not sent again"
+    (v,) = json.loads(store.read_text()).values()
+    assert len(v["commits"]) == 3, "one verdict for the whole range"
+    g("commit", "-q", "--amend", "-m", "fix, reworded")  # a rewritten head: the old one is no longer its ancestor
+    r = again()
+    assert r.returncode == 0 and (tmp_path / "calls").read_text().strip() == "5", "a rebased head is reviewed whole: two groups"
+    assert "DELTA REVIEW" not in (tmp_path / "prompt4").read_text()
