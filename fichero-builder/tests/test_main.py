@@ -217,3 +217,16 @@ def test_the_rules_checks_accept_the_settings_later_commits_add_and_still_refuse
     (tmp_path / "harness.toml").write_text(base.replace("code_map", "code_mapp"))
     with pytest.raises(ValueError, match="unknown keys"):
         jail.load(tmp_path)
+
+
+def test_a_land_branch_that_does_not_resolve_is_a_row_in_the_log(tmp_path, monkeypatch, capsys):
+    """Every refusal of the gate is a row, and this one was not."""
+    from fichero_builder import land_tool
+
+    e, head = _repo(tmp_path, monkeypatch)
+    import re
+
+    real = (cli.Path(__file__).resolve().parents[2] / "harness.toml").read_text()
+    (tmp_path / "harness.toml").write_text(re.sub(r'^branch = .*$', 'branch = "no-such-branch"', real, flags=re.M))
+    ok, out = land_tool.gate(str(e), head, tmp_path, tmp_path / "v", tmp_path / "l")
+    assert not ok and "REFUSED" in out and "no-such-branch" in (tmp_path / "l").read_text()

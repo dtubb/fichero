@@ -176,6 +176,16 @@ def ensure_pinned(root: str, brief: str, base: str) -> str:
 
 
 def main(a) -> int:
+    """The chain; a pinned copy another lane's landing removed takes the rules with it, which is a row and a question, not a traceback."""
+    try:
+        return _chain(a)
+    except jail.JailMissing as e:
+        journal.append("work", name=a.name, issues=list(a.issues), step="rules", ok=False, detail=str(e), worktree=str(a.worktree))
+        print(f"QUESTION: the rules this chain started from are gone or refuse: {e}")
+        return 2
+
+
+def _chain(a) -> int:
     issues = list(a.issues)
 
     def step(name: str, ok: bool, detail: str) -> bool:

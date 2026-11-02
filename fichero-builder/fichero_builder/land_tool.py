@@ -273,6 +273,7 @@ def gate(repo, head: str, pinned, verdicts, log) -> tuple[bool, str]:
         base = resolve_branch(repo, branch)
         head = _git(repo, "rev-parse", "--verify", f"{head}^{{commit}}").strip()
     except RuntimeError as e:
+        row(refused="ref", detail=str(e))
         return False, f"REFUSED: {e}"
     if stop := unreviewed(repo, branch, head, verdicts):
         row(refused="verdict", detail=stop)

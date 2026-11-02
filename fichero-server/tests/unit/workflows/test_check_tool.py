@@ -602,6 +602,39 @@ def test_already_built_must_pass_on_base_so_a_source_commit_before_it_cannot_ski
     assert not r["ok"] and "fails on base" in r["stderr_tail"]
 
 
+def test_a_source_change_whose_every_test_is_excused_is_refused(tmp_path):
+    """Review of range 1: source in one commit, `assert True` with the line in a test-only commit: it passes on base, so no test owed a red."""
+    g, base = _git_repo(tmp_path)
+    (tmp_path / "mod.py").write_text("VALUE = 2\n")
+    g("add", "."), g("commit", "-q", "-m", "the source")
+    (tmp_path / "test_x.py").write_text("def test_x():\n    assert True\n")
+    g("add", "."), g("commit", "-q", "-m", "a test\n\nAlready built: #9 test_x.py::test_x")
+    r = ct.red_on_base(tmp_path, base, "HEAD", ["test_x.py"], timeout_s=120)
+    assert not r["ok"] and "owes a red" in r["stderr_tail"]
+
+
+def test_a_source_change_with_another_test_that_goes_red_may_also_carry_an_excused_one(tmp_path):
+    """One step can fix a thing and prove another was there."""
+    g, base = _git_repo(tmp_path)
+    (tmp_path / "test_have.py").write_text("def test_h():\n    assert True\n")
+    g("add", "."), g("commit", "-q", "-m", "proof\n\nAlready built: #9 test_have.py::test_h")
+    (tmp_path / "mod.py").write_text("VALUE = 2\n")
+    (tmp_path / "test_new.py").write_text("import mod\ndef test_n():\n    assert mod.VALUE == 2\n")
+    g("add", "."), g("commit", "-q", "-m", "the fix")
+    assert ct.red_on_base(tmp_path, base, "HEAD", ["test_have.py", "test_new.py"], timeout_s=120)["ok"]
+
+
+def test_an_already_built_test_that_goes_red_on_head_is_refused_by_the_green_run(tmp_path):
+    """Passes on base, fails at head, through a change outside the red paths: the line excuses the red run, never the green one."""
+    g, base = _git_repo(tmp_path)
+    (tmp_path / "mod.py").write_text("VALUE = 2\n")
+    g("add", "."), g("commit", "-q", "-m", "not a red path")
+    (tmp_path / "test_x.py").write_text("import mod\ndef test_x():\n    assert mod.VALUE == 1\n")
+    g("add", "."), g("commit", "-q", "-m", "proof\n\nAlready built: #9 test_x.py::test_x")
+    r = ct.red_on_base(tmp_path, base, "HEAD", ["test_x.py"], ct.Config(red_paths=("src/",)), timeout_s=120)
+    assert not r["ok"] and "Already built" not in r["stderr_tail"] and "owes a red" not in r["stderr_tail"], "stopped by the green run"
+
+
 def test_a_commit_that_says_already_built_owes_no_red_on_base_but_its_test_still_runs_green(tmp_path):
     """A worker that found the behaviour in place commits the proving test with the line `Already built: #N <test>`: that
     test passes on base by design, so red-on-base does not refuse it; it still runs in the green run."""
@@ -615,7 +648,7 @@ def test_a_commit_that_says_already_built_owes_no_red_on_base_but_its_test_still
     (tmp_path / "test_have.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 3\n")
     os.utime(tmp_path / "test_have.py", (mtime, mtime))
     g("add", "."), g("commit", "-q", "-m", "docs: broken\n\nAlready built: #9 test_have.py::test_v")
-    assert not ct.red_on_base(tmp_path, base, "HEAD", ["test_have.py"], timeout_s=120)["ok"], "the green run still judges it"
+    assert not ct.red_on_base(tmp_path, base, "HEAD", ["test_have.py"], timeout_s=120)["ok"], "it fails on base, so the line is refused"
     (tmp_path / "test_other.py").write_text("def test_t():\n    assert True\n")
     g("add", "."), g("commit", "-q", "-m", "a plain commit")
     r = ct.red_on_base(tmp_path, base, "HEAD", ["test_other.py"], timeout_s=120)

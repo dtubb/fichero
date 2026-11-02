@@ -369,3 +369,14 @@ def test_a_land_log_the_gate_cannot_write_is_a_question_not_a_traceback(chain, m
     (journal.STATE / "land-n1.log").mkdir()
     assert chain() == 2 and "the land log" in capsys.readouterr().out, "before the worker runs, not after"
     assert not any(r.get("step") == "run" for r in rows())
+
+
+def test_a_pinned_copy_removed_under_the_chain_is_a_question_not_a_traceback(chain, monkeypatch, capsys):
+    """Another lane's landing removes this one's pinned copy, so the steps after the worker lose their rules: a row and a question."""
+    from fichero_builder import jail
+
+    def gone(a, branch):
+        raise jail.JailMissing("no [jail] user and workroot in the rules file")
+    monkeypatch.setattr(work, "do_rebase", gone)
+    assert chain() == 2
+    assert "QUESTION: " in capsys.readouterr().out and rows()[-1]["ok"] is False and "no [jail]" in rows()[-1]["detail"]

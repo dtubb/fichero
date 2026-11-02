@@ -445,6 +445,10 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
                 return red(f"{f} says Already built but fails on base at {since[:9]}: it owes a red like any test")
             if f not in have and r["ok"]:
                 return red(f"NOT RED ON BASE: {f} passes at {since[:9]}, so it proves nothing")
+        changed = _lines(root, "diff", "--name-only", f"{since}...{head}") or []
+        source = [n for n in changed if not any(fnmatch.fnmatch(Path(n).name, g) for g in cfg.test_globs) and (not cfg.red_paths or n.startswith(cfg.red_paths))]
+        if source and set(files) <= have:  # the line excuses a test, never a change: with every test excused nothing proves the source
+            return red(f"{source[0]} changed and every changed test says Already built: the change owes a red")
         here = green_runs(head_tree or root, files, also_green, cfg, timeout_s)  # the green run: in the pinned-overlay tree when given
         return {**here, "name": "red-on-base"}
     finally:
