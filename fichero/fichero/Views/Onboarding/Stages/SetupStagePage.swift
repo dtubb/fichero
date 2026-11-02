@@ -134,7 +134,8 @@ struct SetupStagePage: View {
         #if os(macOS)
         if stage.id == SharingStageModel.stageID {
             Divider()
-            SharingStageControls(wantsSharing: Self.wantsSharing(stage, answers: store.jobAnswers))
+            SharingStageControls(wantsSharing: Self.answeredYes(SharingStageModel.sharingKey, stage, store.jobAnswers),
+                                 wantsAccounts: Self.answeredYes(SharingStageModel.accountsKey, stage, store.jobAnswers))
         }
         #endif
         // The review's own instructions for each pass, from the profile built for this project (#6128).
