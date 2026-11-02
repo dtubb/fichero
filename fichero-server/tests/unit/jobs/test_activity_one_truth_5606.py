@@ -44,7 +44,9 @@ def _wait_for(predicate, seconds=30.0) -> bool:
 
 
 def _listed(client, job_id):
-    rows = [j for j in client.get("/api/activity/jobs").json()["jobs"] if j["id"] == job_id]
+    body = client.get("/api/activity/jobs").json()
+    # a live recipe run is listed once, as a live block, not also as a row (`activity.summary.one-row-per-run-in-list`, #5960)
+    rows = [j for j in [*body["jobs"], *body["activity"]["live"]] if j["id"] == job_id]
     assert len(rows) == 1, rows
     return rows[0]["state"], rows[0]["reason"]
 

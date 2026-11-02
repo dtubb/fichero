@@ -242,7 +242,7 @@ class ActivityService {
         case .ok(let okResponse):
             let body = try okResponse.body.json
             return BackgroundJobsSnapshot(
-                jobs: (body.jobs ?? []).map { ActivityJob($0) },
+                jobs: ActivityJob.withLiveRuns((body.jobs ?? []).map { ActivityJob($0) }, live: body.activity?.live ?? []),
                 processCpuPercent: body.processCpuPercent,
                 cpuCount: body.cpuCount,
                 paused: body.paused ?? false,

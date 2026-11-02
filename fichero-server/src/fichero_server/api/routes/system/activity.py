@@ -362,6 +362,11 @@ class ActivitySummary(BaseModel):
 _LIVE_STATES = ("running", "waiting", "paused")
 
 
+def is_live_recipe_run(job: "BackgroundJob") -> bool:
+    """A recipe run that is working, waiting or paused: the summary's live block stands for it."""
+    return job.task_type == "run-a-recipe" and job.state in _LIVE_STATES
+
+
 def background_lines(jobs: "list[BackgroundJob]") -> list[BackgroundLine]:
     """One line per kind of work nobody runs as a run of their own, with its total; none for an ended row."""
     return [BackgroundLine(kind=j.task_type, name=j.name, state=j.state, reason=j.reason, done=j.current, total=j.total)
@@ -389,6 +394,8 @@ def recipe_block(job: "BackgroundJob", status: dict[str, Any], workflow_name: Op
     seconds_left, eta_basis = live_stages.eta(status)
     account = (running or {}).get("account")
     waiting = status.get("reason") if status.get("state") == "waiting" else status.get("waiting_for")
+    if job.reason:
+        waiting = job.reason  # the row's own words, the one derivation (`_recipe_state`): the block and the tree say the same, as the row did
     return LiveBlock(
         stages=[StageCount(**row) for row in live_stages.stage_counts(status)], seconds_left=seconds_left, eta_basis=eta_basis,
         cost_usd=live_stages.cost_so_far(status),
@@ -950,6 +957,10 @@ async def list_background_jobs(
     # Off the loop (Fable review #2): the tree walk and the machine readings run subprocesses (ps, pmset).
     usage = await asyncio.to_thread(process_tree_rusage)  # once per poll, shared by memory and energy (#5358)
     jobs = order_for_activity(jobs)
+    # The summary names every live run as a block; a run that is a live block is not also a row of the list
+    # (`activity.summary.one-row-per-run-in-list`, #5960): the list is the queue, the background kinds and History.
+    summary = await activity_summary(db, jobs, recipe_statuses)
+    jobs = [j for j in jobs if not is_live_recipe_run(j)]
     return BackgroundJobsResponse(
         jobs=jobs,
         count=len(jobs),
@@ -961,7 +972,7 @@ async def list_background_jobs(
         mode=job_queue.mode(),
         machine=MachineState(**await asyncio.to_thread(throttle.machine_state)),
         summary=await asyncio.to_thread(_queue_summary, db, listed),
-        activity=await activity_summary(db, jobs, recipe_statuses),
+        activity=summary,
     )
 
 

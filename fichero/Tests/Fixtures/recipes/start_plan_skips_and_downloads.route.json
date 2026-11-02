@@ -3,6 +3,7 @@
  "status": 200,
  "response": {
   "started": null,
+  "from_tries": 0,
   "runs": [
    {
     "steps": [
@@ -89,7 +90,7 @@
     "provider": null,
     "model": null,
     "prompt": null,
-    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-3873/test_source_onboard_auto_plan_0/edition",
+    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-7314/test_source_onboard_auto_plan_0/edition",
     "formats": [
      "pagexml"
     ],
@@ -171,7 +172,7 @@
    "spent_at_most_usd": 0.0,
    "jobs": 0,
    "unpriced": 0,
-   "month": "2026-10",
+   "month": "2026-11",
    "sentence": "Hugging Face this month: at most $0.00 of $0.00, 0 Jobs."
   },
   "cloud_cap": {
@@ -180,6 +181,16 @@
    "remaining_usd": 10.0,
    "estimate_usd": 0.0,
    "over": false,
+   "over_month": false,
+   "over_project": false,
+   "needed_cap_usd": null,
+   "project_cap_usd": null,
+   "project_spent_usd": 0.0,
+   "project_remaining_usd": null,
+   "refusal": null,
+   "needed_project_cap_usd": null,
+   "pages": 2,
+   "fewer_pages": null,
    "unpriced_models": [],
    "note": null,
    "unpriced": false,
