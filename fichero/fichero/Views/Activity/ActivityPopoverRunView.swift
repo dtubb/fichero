@@ -72,9 +72,16 @@ struct ActivityPopoverBlockView: View {
             Label(block.title, systemImage: block.waiting == nil ? "play.circle.fill" : "hourglass")
                 .font(.callout.weight(.semibold))
                 .lineLimit(2)
-            Text(block.counts)
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
+            HStack {
+                Text([block.counts, block.timeLeft].compactMap { $0 }.joined(separator: " · "))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                if let cost = block.cost {
+                    Spacer()
+                    Text(cost).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("activity.block.cost")
+                }
+            }
             if let subtitle = block.subtitle {
                 Text(subtitle)
                     .font(.caption)

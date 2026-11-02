@@ -53,18 +53,6 @@ struct ActivityPopoverSummary: Equatable {
         let stages: [ActivityPopoverStage]
     }
 
-    /// What is working right now, from the engine's one summary (`activity.popover.same-summary`, #5852): "Recipe ›
-    /// Stage › Workflow" and "7 of 20 pages · 2 of 8 folders", the same words the window's live block has.
-    struct Block: Equatable, Identifiable {
-        let id: String
-        let title: String
-        let counts: String
-        /// What a waiting block waits for; nil while it works.
-        let waiting: String?
-        /// The model by its own name and where it runs, the engine's words as sent ("Kraken · on this Mac"); nil with neither.
-        var subtitle: String?
-    }
-
     /// One kind of background work and its total, from the same summary; a wait looks waiting and says why.
     struct BackgroundRow: Equatable, Identifiable {
         let id: String
@@ -203,7 +191,9 @@ struct ActivityPopoverSummary: Equatable {
             title: [live.recipe, live.stage, live.workflow].compactMap { $0 }.joined(separator: " › "),
             counts: [pages, folders, failed].compactMap { $0 }.joined(separator: " · "),
             waiting: live.state == "waiting" ? live.reason.map(worded) : nil,
-            subtitle: subtitle(model: live.model, place: live._where)
+            subtitle: subtitle(model: live.model, place: live._where),
+            timeLeft: timeLeft(seconds: live.secondsLeft),
+            cost: costText(live.costUsd)
         )
     }
 

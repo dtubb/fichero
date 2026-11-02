@@ -29,4 +29,20 @@ extension ActivityPopoverSummary {
     private static func gigabytes(_ bytes: Int) -> String {
         String(format: "%.1f GB", Double(bytes) / 1_073_741_824)
     }
+
+    /// What is working right now, from the engine's one summary (`activity.popover.same-summary`, #5852): "Recipe ›
+    /// Stage › Workflow" and "7 of 20 pages · 2 of 8 folders", the same words the window's live block has.
+    struct Block: Equatable, Identifiable {
+        let id: String
+        let title: String
+        let counts: String
+        /// What a waiting block waits for; nil while it works.
+        let waiting: String?
+        /// The model by its own name and where it runs, the engine's words as sent ("Kraken · on this Mac"); nil with neither.
+        var subtitle: String?
+        /// "about 12 min left", from the engine's own pace; nil until a page is done.
+        var timeLeft: String?
+        /// "$0.40" so far, at the right edge; nil when the run has cost nothing.
+        var cost: String?
+    }
 }
