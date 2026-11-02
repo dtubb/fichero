@@ -552,6 +552,22 @@ final class RecipeSetupStore {
     }
 
     private func apply(_ saved: RecipeSetupAnswers) {
+        applyMaterial(saved)
+        applyHowAndPlaces(saved)
+        applyCaps(saved)
+        if let value = saved.ingestMode {
+            // The engine's ingest modes are lowercase; the app's enum is upper.
+            // An unknown mode is an error, never a silent fallback to link.
+            guard let way = SetupWayIn(savedName: value) else {
+                errorMessage = "This project's saved import choice “\(value)” is not one Fichero knows"
+                return
+            }
+            wayIn = way
+        }
+    }
+
+    /// What the pages are: purposes, jobs, languages, scripts, material, condition.
+    private func applyMaterial(_ saved: RecipeSetupAnswers) {
         // A project saved before 2026-10-05 holds one purpose and one material: a list of one.
         if let value = saved.purposes ?? saved.purpose.map({ [$0] }) {
             purposes = value.filter { $0 != "not-sure" }
@@ -565,6 +581,10 @@ final class RecipeSetupStore {
         if let value = saved.materials ?? saved.material.map({ [$0] }), !value.isEmpty { materials = value }
         if let value = saved.pages { pages = value }
         if let value = saved.condition { conditions = value }
+    }
+
+    /// How the work runs and where, and what each stage asks.
+    private func applyHowAndPlaces(_ saved: RecipeSetupAnswers) {
         if let value = saved.how {
             how = value
             howMattersByHand = value.matters != nil
@@ -579,19 +599,13 @@ final class RecipeSetupStore {
         if let value = saved.period { period = value }
         if let value = saved.hands { hands = value }
         if let value = saved.place { place = value }
+    }
+
+    private func applyCaps(_ saved: RecipeSetupAnswers) {
         spendCapUsd = saved.hfSpendCapUsd
         cloudSpendCapUsd = saved.cloudSpendCapUsd
         cloudProjectCapUsd = saved.cloudProjectCapUsd
         copiesMayStay = saved.copiesMayStayOnCluster
-        if let value = saved.ingestMode {
-            // The engine's ingest modes are lowercase; the app's enum is upper.
-            // An unknown mode is an error, never a silent fallback to link.
-            guard let way = SetupWayIn(savedName: value) else {
-                errorMessage = "This project's saved import choice “\(value)” is not one Fichero knows"
-                return
-            }
-            wayIn = way
-        }
     }
 
     /// One Codable shape to another through JSON: the generated object

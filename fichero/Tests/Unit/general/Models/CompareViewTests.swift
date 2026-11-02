@@ -8,10 +8,12 @@ struct CompareViewTests {
     private func answer(readers: [String] = ["a", "b"], lines: String? = nil) throws -> Components.Schemas.CompareReadersResponse {
         let readerJSON = readers.map { #"{"id":"\#($0)","label":"Reader \#($0)","kind":"candidate"}"# }.joined(separator: ",")
         let linesJSON = lines ?? """
-        {"order":0,"differs":true,"picked_by_person":false,"readings":[{"reader_id":"a","text":"Yten dixo"},{"reader_id":"b","text":"Item dixo"}],
+        {"order":0,"differs":true,"picked_by_person":false,
+         "readings":[{"reader_id":"a","text":"Yten dixo"},{"reader_id":"b","text":"Item dixo"}],
          "words":[{"text":"Yten","char_start":0,"char_end":4,"agreement":0.5,"variants":[{"text":"Item","readers":["b"]}]},
                   {"text":"dixo","char_start":5,"char_end":9,"agreement":1,"variants":[]}]},
-        {"order":1,"differs":false,"picked_by_person":false,"readings":[{"reader_id":"a","text":"que"},{"reader_id":"b","text":"que"}],"words":[]}
+        {"order":1,"differs":false,"picked_by_person":false,
+         "readings":[{"reader_id":"a","text":"que"},{"reader_id":"b","text":"que"}],"words":[]}
         """
         let json = #"{"page_id":"p1","readers":[\#(readerJSON)],"lines":[\#(linesJSON)]}"#
         return try JSONDecoder().decode(Components.Schemas.CompareReadersResponse.self, from: Data(json.utf8))
@@ -62,7 +64,8 @@ struct CompareViewTests {
         #expect(CompareViewModel(answer: try answer(readers: []), platform: .mac).emptyState == "Nothing has read this page yet.")
         #expect(CompareViewModel(answer: try answer(readers: ["a"]), platform: .mac).emptyState?.hasPrefix("Only one reader") == true)
         #expect(CompareViewModel(answer: try answer(lines: ""), platform: .mac).emptyState?.hasPrefix("No reader has lines") == true)
-        let silent = try answer(lines: #"{"order":0,"differs":false,"picked_by_person":false,"readings":[{"reader_id":"a","text":"x"}],"words":[]}"#)
+        let silent = try answer(lines: #"{"order":0,"differs":false,"picked_by_person":false,"#
+            + #""readings":[{"reader_id":"a","text":"x"}],"words":[]}"#)
         let model = CompareViewModel(answer: silent, platform: .mac)
         #expect(model.notReadBecause(reader: "b") == "Reader b did not read this page.")
         #expect(model.notReadBecause(reader: "a") == nil)
@@ -72,7 +75,8 @@ struct CompareViewTests {
     func pickExpectsARepresentation() throws {
         let lines = """
         {"order":0,"segment_id":"s1","counting_reader_id":"a","differs":true,"picked_by_person":false,
-         "readings":[{"reader_id":"a","text":"Yten","representation_id":"rep-a"},{"reader_id":"b","text":"Item","representation_id":"rep-b"}],"words":[]}
+         "readings":[{"reader_id":"a","text":"Yten","representation_id":"rep-a"},
+                     {"reader_id":"b","text":"Item","representation_id":"rep-b"}],"words":[]}
         """
         let model = CompareViewModel(answer: try answer(lines: lines), platform: .mac)
         #expect(model.pick(readerId: "b", onLine: 0) == .init(segmentId: "s1", representationId: "rep-b", expectedCountingId: "rep-a"))

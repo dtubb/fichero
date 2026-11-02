@@ -125,125 +125,7 @@ struct RecipeSetupAnswers: Codable, Equatable {
         var steps: [String]
     }
 
-    /// The questions a ticked purpose opens under it on What you want to do (`answers.job_answers`).
-    struct JobAnswers: Codable, Equatable {
-        /// Entities (`find-names-tag-words`): the kinds to find; none named is every kind (#5805).
-        var entityKinds: [String] = []
-        /// Translate or normalise › Into what (#5660 item 1): the reading levels to write, each its own run, in the
-        /// engine's spelling (`as_written`, `expanded`, `regularised`, `modernised`), and at most one
-        /// `translation:<language tag>`.
-        var normaliseHowFar: [String] = ["expanded"]
-        /// Map places (`place-in-a-gazetteer`): which gazetteer.
-        var gazetteer: String = "geonames"
-        /// The review's own instructions for a pass, by its lens (`review_instructions`, #6128): only the passes the
-        /// person edited; a lens left out is sent the engine's default built from the project, and a blank is no edit.
-        var reviewInstructions: [String: String] = [:]
-        /// Every other stage question's answer, by the engine's key (section 7c, `GET /api/recipes/stages`): the
-        /// stage pages ask what the engine lists, so a question the app has no field for is still kept and saved.
-        var other: [String: StageAnswer] = [:]
-
-        enum CodingKeys: String, CodingKey, CaseIterable {
-            case entityKinds = "entity_kinds"
-            case normaliseHowFar = "normalise_how_far"
-            case gazetteer
-            case reviewInstructions = "review_instructions"
-        }
-
-        init() {}
-
-        /// One stage question's answer by its engine key: the typed fields for the keys they name, `other` for the
-        /// rest. What a stage page reads and writes.
-        subscript(question key: String) -> StageAnswer? {
-            get {
-                switch key {
-                case CodingKeys.entityKinds.rawValue: .many(entityKinds)
-                case CodingKeys.normaliseHowFar.rawValue: .many(normaliseHowFar)
-                case CodingKeys.gazetteer.rawValue: .text(gazetteer)
-                case CodingKeys.reviewInstructions.rawValue: nil
-                default: other[key]
-                }
-            }
-            set {
-                switch (key, newValue) {
-                case (CodingKeys.entityKinds.rawValue, .many(let kinds)?): entityKinds = kinds
-                case (CodingKeys.normaliseHowFar.rawValue, .many(let levels)?): normaliseHowFar = levels
-                case (CodingKeys.gazetteer.rawValue, .text(let name)?): gazetteer = name
-                case (CodingKeys.entityKinds.rawValue, _), (CodingKeys.normaliseHowFar.rawValue, _),
-                     (CodingKeys.gazetteer.rawValue, _), (CodingKeys.reviewInstructions.rawValue, _): break
-                default: other[key] = newValue
-                }
-            }
-        }
-
-        func encode(to encoder: Encoder) throws {
-            var values = encoder.container(keyedBy: CodingKeys.self)
-            try values.encode(entityKinds, forKey: .entityKinds)
-            try values.encode(normaliseHowFar, forKey: .normaliseHowFar)
-            try values.encode(gazetteer, forKey: .gazetteer)
-            if !reviewInstructions.isEmpty { try values.encode(reviewInstructions, forKey: .reviewInstructions) }
-            var rest = encoder.container(keyedBy: StageAnswerKey.self)
-            for (key, answer) in other where CodingKeys(rawValue: key) == nil {
-                try rest.encode(answer, forKey: StageAnswerKey(stringValue: key))
-            }
-        }
-
-        /// A field not saved yet keeps its default.
-        init(from decoder: Decoder) throws {
-            let values = try decoder.container(keyedBy: CodingKeys.self)
-            entityKinds = try values.decodeIfPresent([String].self, forKey: .entityKinds) ?? entityKinds
-            // A project saved before #5660 kept one value: it reads as a list of one.
-            if let many = try? values.decodeIfPresent([String].self, forKey: .normaliseHowFar) {
-                normaliseHowFar = many.map(Self.engineLevel)
-            } else if let one = try values.decodeIfPresent(String.self, forKey: .normaliseHowFar) {
-                normaliseHowFar = [Self.engineLevel(one)]
-            }
-            gazetteer = try values.decodeIfPresent(String.self, forKey: .gazetteer) ?? gazetteer
-            reviewInstructions = (try? values.decodeIfPresent([String: String].self, forKey: .reviewInstructions)) ?? [:]
-            let rest = try decoder.container(keyedBy: StageAnswerKey.self)
-            for key in rest.allKeys where CodingKeys(rawValue: key.stringValue) == nil {
-                if let answer = try? rest.decode(StageAnswer.self, forKey: key) { other[key.stringValue] = answer }
-            }
-        }
-
-        /// The levels Into what offers, in the order a reading cascades, with Set Up's words for them.
-        nonisolated static let normaliseLevels: [(id: String, title: String)] = [
-            ("as_written", "As written"), ("expanded", "Abbreviations expanded"),
-            ("regularised", "Normalised spelling"), ("modernised", "Modernised")
-        ]
-        nonisolated static let translationPrefix = "translation:"
-
-        /// A level as the engine spells it: Set Up's older words ("as-written", "normalised") are the same levels.
-        nonisolated static func engineLevel(_ value: String) -> String {
-            switch value {
-            case "as-written": "as_written"
-            case "normalised", "normalized", "normalised_spelling": "regularised"
-            case "abbreviations-expanded", "abbreviations_expanded": "expanded"
-            default: value
-            }
-        }
-
-        func writes(level: String) -> Bool { normaliseHowFar.contains(level) }
-
-        /// Tick or untick a level; the list keeps the cascade order, then the translation.
-        mutating func set(level: String, _ isOn: Bool) {
-            var levels = Set(normaliseHowFar.filter { !$0.hasPrefix(Self.translationPrefix) })
-            if isOn { levels.insert(level) } else { levels.remove(level) }
-            let ordered = Self.normaliseLevels.map(\.id).filter(levels.contains)
-            normaliseHowFar = ordered + normaliseHowFar.filter { $0.hasPrefix(Self.translationPrefix) }
-        }
-
-        /// The language a translation is asked into (its tag), or nil for none.
-        var translation: String? {
-            get {
-                normaliseHowFar.first { $0.hasPrefix(Self.translationPrefix) }
-                    .map { String($0.dropFirst(Self.translationPrefix.count)) }
-            }
-            set {
-                normaliseHowFar.removeAll { $0.hasPrefix(Self.translationPrefix) }
-                if let newValue, !newValue.isEmpty { normaliseHowFar.append(Self.translationPrefix + newValue) }
-            }
-        }
-    }
+    typealias JobAnswers = RecipeJobAnswers
 
     init(purposes: [String]? = nil, jobs: [String]? = nil, languages: [String]? = nil,
          scripts: [String]? = nil, directions: [String: String]? = nil, materials: [String]? = nil,
@@ -339,4 +221,124 @@ struct StageAnswerKey: CodingKey {
     var intValue: Int? { nil }
     init(stringValue: String) { self.stringValue = stringValue }
     init?(intValue: Int) { nil }
+}
+
+/// The questions a ticked purpose opens under it on What you want to do (`answers.job_answers`).
+struct RecipeJobAnswers: Codable, Equatable {
+    /// Entities (`find-names-tag-words`): the kinds to find; none named is every kind (#5805).
+    var entityKinds: [String] = []
+    /// Translate or normalise › Into what (#5660 item 1): the reading levels to write, each its own run, in the
+    /// engine's spelling (`as_written`, `expanded`, `regularised`, `modernised`), and at most one
+    /// `translation:<language tag>`.
+    var normaliseHowFar: [String] = ["expanded"]
+    /// Map places (`place-in-a-gazetteer`): which gazetteer.
+    var gazetteer: String = "geonames"
+    /// The review's own instructions for a pass, by its lens (`review_instructions`, #6128): only the passes the
+    /// person edited; a lens left out is sent the engine's default built from the project, and a blank is no edit.
+    var reviewInstructions: [String: String] = [:]
+    /// Every other stage question's answer, by the engine's key (section 7c, `GET /api/recipes/stages`): the
+    /// stage pages ask what the engine lists, so a question the app has no field for is still kept and saved.
+    var other: [String: StageAnswer] = [:]
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case entityKinds = "entity_kinds"
+        case normaliseHowFar = "normalise_how_far"
+        case gazetteer
+        case reviewInstructions = "review_instructions"
+    }
+
+    init() {}
+
+    /// One stage question's answer by its engine key: the typed fields for the keys they name, `other` for the
+    /// rest. What a stage page reads and writes.
+    subscript(question key: String) -> StageAnswer? {
+        get {
+            switch key {
+            case CodingKeys.entityKinds.rawValue: .many(entityKinds)
+            case CodingKeys.normaliseHowFar.rawValue: .many(normaliseHowFar)
+            case CodingKeys.gazetteer.rawValue: .text(gazetteer)
+            case CodingKeys.reviewInstructions.rawValue: nil
+            default: other[key]
+            }
+        }
+        set {
+            switch (key, newValue) {
+            case (CodingKeys.entityKinds.rawValue, .many(let kinds)?): entityKinds = kinds
+            case (CodingKeys.normaliseHowFar.rawValue, .many(let levels)?): normaliseHowFar = levels
+            case (CodingKeys.gazetteer.rawValue, .text(let name)?): gazetteer = name
+            case (CodingKeys.entityKinds.rawValue, _), (CodingKeys.normaliseHowFar.rawValue, _),
+                 (CodingKeys.gazetteer.rawValue, _), (CodingKeys.reviewInstructions.rawValue, _): break
+            default: other[key] = newValue
+            }
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(entityKinds, forKey: .entityKinds)
+        try values.encode(normaliseHowFar, forKey: .normaliseHowFar)
+        try values.encode(gazetteer, forKey: .gazetteer)
+        if !reviewInstructions.isEmpty { try values.encode(reviewInstructions, forKey: .reviewInstructions) }
+        var rest = encoder.container(keyedBy: StageAnswerKey.self)
+        for (key, answer) in other where CodingKeys(rawValue: key) == nil {
+            try rest.encode(answer, forKey: StageAnswerKey(stringValue: key))
+        }
+    }
+
+    /// A field not saved yet keeps its default.
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        entityKinds = try values.decodeIfPresent([String].self, forKey: .entityKinds) ?? entityKinds
+        // A project saved before #5660 kept one value: it reads as a list of one.
+        if let many = try? values.decodeIfPresent([String].self, forKey: .normaliseHowFar) {
+            normaliseHowFar = many.map(Self.engineLevel)
+        } else if let one = try values.decodeIfPresent(String.self, forKey: .normaliseHowFar) {
+            normaliseHowFar = [Self.engineLevel(one)]
+        }
+        gazetteer = try values.decodeIfPresent(String.self, forKey: .gazetteer) ?? gazetteer
+        reviewInstructions = (try? values.decodeIfPresent([String: String].self, forKey: .reviewInstructions)) ?? [:]
+        let rest = try decoder.container(keyedBy: StageAnswerKey.self)
+        for key in rest.allKeys where CodingKeys(rawValue: key.stringValue) == nil {
+            if let answer = try? rest.decode(StageAnswer.self, forKey: key) { other[key.stringValue] = answer }
+        }
+    }
+
+    /// The levels Into what offers, in the order a reading cascades, with Set Up's words for them.
+    nonisolated static let normaliseLevels: [(id: String, title: String)] = [
+        ("as_written", "As written"), ("expanded", "Abbreviations expanded"),
+        ("regularised", "Normalised spelling"), ("modernised", "Modernised")
+    ]
+    nonisolated static let translationPrefix = "translation:"
+
+    /// A level as the engine spells it: Set Up's older words ("as-written", "normalised") are the same levels.
+    nonisolated static func engineLevel(_ value: String) -> String {
+        switch value {
+        case "as-written": "as_written"
+        case "normalised", "normalized", "normalised_spelling": "regularised"
+        case "abbreviations-expanded", "abbreviations_expanded": "expanded"
+        default: value
+        }
+    }
+
+    func writes(level: String) -> Bool { normaliseHowFar.contains(level) }
+
+    /// Tick or untick a level; the list keeps the cascade order, then the translation.
+    mutating func set(level: String, _ isOn: Bool) {
+        var levels = Set(normaliseHowFar.filter { !$0.hasPrefix(Self.translationPrefix) })
+        if isOn { levels.insert(level) } else { levels.remove(level) }
+        let ordered = Self.normaliseLevels.map(\.id).filter(levels.contains)
+        normaliseHowFar = ordered + normaliseHowFar.filter { $0.hasPrefix(Self.translationPrefix) }
+    }
+
+    /// The language a translation is asked into (its tag), or nil for none.
+    var translation: String? {
+        get {
+            normaliseHowFar.first { $0.hasPrefix(Self.translationPrefix) }
+                .map { String($0.dropFirst(Self.translationPrefix.count)) }
+        }
+        set {
+            normaliseHowFar.removeAll { $0.hasPrefix(Self.translationPrefix) }
+            if let newValue, !newValue.isEmpty { normaliseHowFar.append(Self.translationPrefix + newValue) }
+        }
+    }
 }
