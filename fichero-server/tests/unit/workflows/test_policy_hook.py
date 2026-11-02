@@ -35,6 +35,12 @@ def _bash(cmd):
     ("killall Fichero", "killall"),
     ("ls /tmp/x && rm -rf /tmp/x", "rm"),
     ("cd /Users/someone/else && ls", "outside"),
+    ("git -C /Users/Shared/fichero-worker/root reset --hard origin/integration", "own worktree"),
+    ("git -C /w/other-lane checkout -- src/a.py", "own worktree"),
+    ("git --work-tree=/w/other-lane clean -fd", "own worktree"),
+    ("git -C /w/other-lane clean -df && ls", "own worktree"),
+    ("echo x > /Users/Shared/fichero-worker/root/harness.toml", "outside"),
+    ("python gen.py | tee -a /w/other-lane/out.txt", "outside"),
 ])
 def test_each_forbidden_command_is_refused_with_a_reason(cfg, tmp_path, cmd, word):
     reason = ph.check(_bash(cmd), cfg, worktree=tmp_path / "wt", scratch=tmp_path / "scratch")
@@ -42,7 +48,8 @@ def test_each_forbidden_command_is_refused_with_a_reason(cfg, tmp_path, cmd, wor
 
 
 @pytest.mark.parametrize("cmd", ["git status", "git commit -m x", "python -m pytest -q tests/x.py", "rm -rf build",
-                                 "cd . && ls"])
+                                 "cd . && ls", "git reset --hard HEAD~1", "git checkout -- src/a.py", "git clean -fd",
+                                 "git -C /w/other-lane log --oneline -3", "pytest -q 2>&1 > /dev/null", "echo x > out.txt"])
 def test_ordinary_commands_pass(cfg, tmp_path, cmd):
     assert ph.check(_bash(cmd), cfg, worktree=tmp_path / "wt", scratch=tmp_path / "scratch") is None
 

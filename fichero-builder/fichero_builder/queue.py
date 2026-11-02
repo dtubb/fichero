@@ -14,6 +14,7 @@ is done or a lane blocks on a QUESTION or a cap. With one lane the chain runs in
 runs in its own thread, so a lane waits only for the ladder lock (`work.after_run`), never for another lane's review."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -105,6 +106,34 @@ class Procs:
     # taken lane ids -> (lane id, worktree, [{step, brief, issues, waits}]) of the next build-order milestone, or None
     next_milestone: Callable[[set], tuple | None] = lambda taken: None
     build: Callable[[dict], tuple] = lambda lane: (0, "")  # lane -> (rc, output) of the dev build after its milestone landed
+    trees: Callable[[list], dict] = lambda paths: {}  # paths -> {path: "HEAD status-hash"}: what a step must leave unmoved (run.loop-machine-checked)
+    jail_root: str = ""
+
+
+QUIET = ("queued", "blocked", "landed")  # a step state in which the lane's own worker is not moving its tree
+
+
+def _others(lane: dict, handles: dict, procs: Procs) -> list[str]:
+    """The jail root and every other lane's worktree that no worker of its own may be moving now. ponytail: a lane with a live
+    session (even a blocked one) or an external lane in flight is skipped, so a stray write there is not seen until it is quiet."""
+    out = [procs.jail_root] if procs.jail_root else []
+    for x in load():
+        if x["id"] == lane["id"] or x["id"] in handles or x["worktree"] == lane["worktree"]:
+            continue
+        st = x["steps"][x["cursor"]]["state"] if x["cursor"] < len(x["steps"]) else "landed"
+        if st in QUIET and not (x.get("kind") == "external" and st == "queued"):
+            out.append(x["worktree"])
+    return out
+
+
+def tree_check(lane: dict, s: dict, handles: dict, procs: Procs) -> list[str]:
+    """After a step's DONE: each tree snapped when it started that is still quiet must be unmoved (HEAD and `git status`).
+    The jail root is skipped when a landing refreshed it meanwhile."""
+    snap, since = s.pop("trees", None) or {}, s.pop("trees_at", "")
+    if procs.jail_root in snap and any(r.get("event") == "landed" and r.get("step") == "jail-root" and r.get("ts", "") >= since for r in journal.read()):
+        snap.pop(procs.jail_root)
+    now = procs.trees([p for p in _others(lane, handles, procs) if p in snap])
+    return [f"{p}: {snap[p]} -> {now[p]}" for p in now if now[p] != snap[p]]
 
 
 def _gh_quiet(gh: str, args: list[str], cwd=None) -> str:
@@ -198,6 +227,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     if s["state"] == "queued":
         if lane["paused"]:
             return False
+        s["trees"], s["trees_at"] = procs.trees(_others(lane, handles, procs)), time.strftime("%Y-%m-%dT%H:%M:%S")  # before the worker can move anything
         try:
             if h is None:
                 if len(handles) >= workers_n:
@@ -220,6 +250,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if not row.get("moved"):
             return block(s, "the worker said DONE with no commit on this step")
         move(s, "done", "")
+        if moved := tree_check(lane, s, handles, procs):  # an alert to read; the step goes on: the stray write was not in its tree
+            alert(lane["id"], s["step"], "a tree outside the step's own moved: " + "; ".join(moved), str(journal.STATE / "journal.jsonl"), [])
     def chain() -> dict:
         try:
             return procs.chain(lane, s, lambda stage: move(s, stage, ""))
@@ -476,7 +508,19 @@ def real_procs(root) -> Procs:
 
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
-                 next_milestone=lambda taken: next_in_order(root, taken), build=build)
+                 next_milestone=lambda taken: next_in_order(root, taken), build=build, trees=trees,
+                 jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "")
+
+
+def trees(paths: list) -> dict:
+    """{path: "HEAD sha1-of-status"} read as the owner (the jail's trees are the worker's: safe.directory); unreadable is its own word."""
+    out = {}
+    for p in paths:
+        g = [land_tool.GIT, "-c", "safe.directory=*", "-C", p]
+        head = subprocess.run(g + ["rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip() or "unreadable"
+        st = subprocess.run(g + ["status", "--porcelain"], capture_output=True, text=True).stdout
+        out[p] = f"{head[:12]} {'clean' if not st else 'dirty ' + hashlib.sha1(st.encode()).hexdigest()[:8]}"
+    return out
 
 
 _SKIPPED: set = set()  # milestones this process found with no step to brief: asked once, not re-planned every tick
