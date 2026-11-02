@@ -71,7 +71,8 @@ def test_run_exits_zero_on_a_clean_done_and_one_on_a_refusal(tmp_path, monkeypat
     monkeypatch.setattr(cli.run_mod, "real_procs", lambda home, wt: object())
     for end, code in (("done", 0), ("done-unsaid", 0), ("gone", 0), ("parked", 0), ("refused", 1)):
         monkeypatch.setattr(cli.run_mod, "run", lambda *a, **k: end)
-        assert cli.main(["run", "--worktree", str(tmp_path), "--brief", str(tmp_path / "b"), "--root", str(tmp_path), "--state", str(tmp_path / "s")]) == code, end
+        assert cli.main(["run", "--worktree", str(tmp_path), "--brief", str(tmp_path / "b"), "--root", str(tmp_path), "--state", str(tmp_path / "s"),
+                         "--model", "sonnet"]) == code, end  # a rules file with no [models]: the model is named
 
 
 def test_check_refuses_an_empty_range(tmp_path, monkeypatch, capsys):

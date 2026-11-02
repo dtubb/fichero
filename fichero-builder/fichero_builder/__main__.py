@@ -64,7 +64,7 @@ def main(argv=None) -> int:
     r.add_argument("--brief", required=True, help="file holding the brief text")
     r.add_argument("--root", default=str(Path.cwd()))
     r.add_argument("--name", default=f"worker-{int(time.time())}")
-    r.add_argument("--model", default="sonnet")
+    r.add_argument("--model", help="default [models].builder of --root's harness.toml (no model name is written in code)")
     r.add_argument("--kind", default="claude", choices=["claude", "pi"])
     r.add_argument("--provider", default="anthropic", help="pi: the provider in Pi's models.json")
     r.add_argument("--agent-dir", help="pi: an OWNER-owned Pi agent dir holding models.json (prices and base URLs the cap trusts); required for --kind pi")
@@ -319,6 +319,14 @@ def main(argv=None) -> int:
         print(json.dumps(r, indent=1))
         journal.append("check", repo=str(a.repo), since=since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""), maintainer=a.maintainer)
         return 0 if r.get("ok") else 1
+    if a.cmd == "run" and not a.model:
+        from fichero_builder import models as models_mod
+
+        try:
+            a.model = models_mod.for_role(models_mod.load(a.root), "builder").model
+        except models_mod.Question as e:
+            print(f"builder run refuses: {e}", file=sys.stderr)
+            return 1
     if a.kind == "pi":
         from fichero_builder import pi_rpc
 

@@ -7,7 +7,7 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-ROLES = ("builder", "reviewer", "spec-writer", "helper", "researcher")
+ROLES = ("builder", "reviewer", "spec-writer", "helper", "researcher", "manager")  # manager: reads and answers the loop's alerts
 
 
 class Question(Exception):
