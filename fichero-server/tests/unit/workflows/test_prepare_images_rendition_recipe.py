@@ -55,3 +55,73 @@ def test_a_png_page_is_prepared_into_a_png_rendition(db, tmp_path):
     prepare_pages(db, [doc.id], "run-1")
     (row,) = db.query(Rendition, document_id=doc.id)
     assert (Path(db.path).parent / row.path).suffix == ".png"
+
+
+# --- the recipe sits on the rendition (`prep.derived-image-records-its-recipe`, #6191) ---------------------------------
+
+def _sha(path: Path) -> str:
+    import hashlib
+
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def test_the_recipe_step_records_its_operations_settings_card_and_run_on_the_rendition_it_serves(db, tmp_path, client):
+    from fichero_server.recipes.prepare import prepare_pages
+
+    source = tmp_path / "page.jpg"
+    _faded(source, "JPEG")
+    checksum = _sha(source)
+    doc = _doc(db, source)
+    prepare_pages(db, [doc.id], "run-7")
+    assert _sha(source) == checksum
+    got = client.get(f"/api/documents/{doc.id}/renditions")
+    assert got.status_code == 200, got.text
+    (row,) = got.json()["items"]
+    assert row["producer_run_id"] == "run-7"
+    assert row["steps"] == [{"step": "contrast", "params": {"cutoff": 1},
+                             "card": {"method": "autocontrast", "model_id": None}}]
+
+
+def test_a_workflow_node_rendition_records_the_step_its_settings_and_the_batch(db, tmp_path):
+    import asyncio
+
+    from fichero_server.workflows.tools import contrast_images
+
+    source = tmp_path / "page.png"
+    _faded(source, "PNG")
+    checksum = _sha(source)
+    doc = _doc(db, source)
+    state = {"library_path": str(db.path.parent), "run_id": "run-8", "batch_id": "batch-3"}
+    out = asyncio.run(contrast_images.contrast_images(
+        {"files": [str(source)], "documents": [{"id": doc.id}], "clip": 3.0, "output_format": "png"}, state, None))
+    assert out["error"] is None, out
+    (row,) = db.query(Rendition, document_id=doc.id)
+    assert (row.producer_run_id, row.producer_batch_id) == ("run-8", "batch-3")
+    assert row.steps == [{"step": "contrast", "params": {"clip": 3.0}, "card": {"method": "clahe", "model_id": None}}]
+    assert _sha(source) == checksum
+
+
+def test_reverting_a_prepared_image_removes_that_rendition_and_nothing_else(db, tmp_path):
+    from fichero_server.actions.registry import ActionContext, registry
+    from fichero_server.models import ImageEditChain
+    from fichero_server.recipes.prepare import prepare_pages
+
+    source = tmp_path / "page.jpg"
+    _faded(source, "JPEG")
+    checksum = _sha(source)
+    doc = _doc(db, source)
+    other = Rendition(document_id=doc.id, role="crop", path=str(source), is_primary=False)
+    db.save(other)
+    db.save(ImageEditChain(document_id=doc.id, operations=[{"op": "rotate", "page": 1, "params": {"angle": 90}}]))
+    prepare_pages(db, [doc.id], "run-9")
+    prepared = next(r for r in db.query(Rendition, document_id=doc.id) if r.role == "prepared")
+    stored = Path(db.path).parent / prepared.path
+    assert stored.is_file()
+
+    ctx = ActionContext(actor="person", library_path=str(db.path.parent), is_bootstrap=True)
+    registry.invoke(db, "image.revert_prepared", {"document_id": doc.id, "rendition_id": prepared.id}, ctx)
+
+    assert [r.id for r in db.query(Rendition, document_id=doc.id)] == [other.id]
+    assert not stored.exists() and source.is_file() and _sha(source) == checksum
+    (chain,) = db.query(ImageEditChain, document_id=doc.id)
+    assert chain.operations == [{"op": "rotate", "page": 1, "params": {"angle": 90}}]

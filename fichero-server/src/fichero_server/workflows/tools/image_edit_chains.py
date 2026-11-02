@@ -236,6 +236,8 @@ def persist_workflow_renditions(
                 is_primary=False,
                 producer_tool=str(state.get("tool_name") or inputs.get("tool_name") or ""),
                 producer_run_id=str(state.get("run_id") or ""),
+                producer_batch_id=str(state.get("batch_id") or inputs.get("batch_id") or "") or None,
+                steps=result.get("steps") or None,
                 note=f"produced by the {role} workflow",
             )
             db.save(rendition)

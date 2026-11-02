@@ -169,6 +169,42 @@ def _action_restore_proposals(
         params.document_id, before_ops, [dict(op) for op in chain.operations], domains=["image", "document"])
 
 
+class RevertPreparedParams(BaseModel):
+    """Params for image.revert_prepared — take one prepared picture away from a page."""
+
+    document_id: str
+    rendition_id: str
+
+
+@action(
+    "image.revert_prepared",
+    RevertPreparedParams,
+    domains=["image", "document"],
+    undoable=False,  # the picture's file is deleted; running the step again makes it again
+)
+def _action_revert_prepared(
+    db: Database, params: RevertPreparedParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Delete the rendition row and its file when the file is inside the library. The source file, the page's other renditions
+    and its edit chain are not touched."""
+    from pathlib import Path
+
+    from fichero_server.models import Rendition
+
+    _get_or_404_document(db, params.document_id)
+    row = db.get(Rendition, params.rendition_id)
+    if row is None or row.document_id != params.document_id:
+        raise HTTPException(404, "that page has no such picture")
+    root = Path(db.path).parent.resolve()
+    stored = Path(row.path) if Path(row.path).is_absolute() else root / row.path
+    db.delete(row)
+    if stored.resolve().is_relative_to(root):
+        stored.unlink(missing_ok=True)
+    return {"document_id": params.document_id, "rendition_id": params.rendition_id}, ChangeSpec(
+        domains=["image", "document"], target_ids=[params.document_id], before=row.model_dump(mode="json"), after=None,
+        emit_type=IMAGE_EDIT_EMIT_TYPE, document_ids=[params.document_id])
+
+
 class RestoreBlankStateParams(BaseModel):
     """Params for image.restore_blank — put a page's hidden state and edit chain back as they were."""
 

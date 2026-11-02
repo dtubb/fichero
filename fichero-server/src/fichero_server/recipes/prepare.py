@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 
 #: The rendition role the step writes, and the steps after it read.
 ROLE = "prepared"
+#: The share of darkest and lightest pixels the contrast step clips, in percent; the rendition's recorded settings say it.
+AUTOCONTRAST_CUTOFF = 1
 #: A page whose grey spread (darkest 1% to lightest 1%, of 255) is below this is faded. A clean scan or photograph
 #: of ink on paper spreads well over 150; faded ink on yellowed paper, under 100.
 FADED_BELOW = 100
@@ -167,7 +169,7 @@ def prepare_pages(db: Any, documents: list[str], run_id: str,
                 exif = image.getexif()
                 base = image if image.mode in ("RGB", "L") else image.convert("RGB")
                 # The faded ink raised: the darkest 1% to black, the lightest 1% to white (the measure's own cut).
-                out = ImageOps.autocontrast(base, cutoff=1)
+                out = ImageOps.autocontrast(base, cutoff=AUTOCONTRAST_CUTOFF)
                 shown_width, shown_height = upright_size(image)  # the size in the frame the page is shown in
             (library / relative).parent.mkdir(parents=True, exist_ok=True)
             partial = (library / relative).with_suffix(".part")  # written whole or not at all: an interrupt leaves no orphan
@@ -176,6 +178,8 @@ def prepare_pages(db: Any, documents: list[str], run_id: str,
             db.save(Rendition(document_id=doc.id, role=ROLE, path=str(relative), is_primary=False,
                               pixel_width=shown_width, pixel_height=shown_height, producer_run_id=run_id,
                               producer_tool="prepare-the-image",
+                              steps=[{"step": "contrast", "params": {"cutoff": AUTOCONTRAST_CUTOFF},
+                                      "card": {"method": "autocontrast", "model_id": None}}],
                               note=f"faded (grey spread {spread}/255): contrast raised",
                               # The page's own frame, said in a transform like the other operations' (the whole page,
                               # no cut, no turn), so no step has to guess it from the picture's shape (`wide.faded.*`).

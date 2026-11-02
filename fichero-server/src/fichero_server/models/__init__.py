@@ -1181,6 +1181,10 @@ class Rendition(BaseModel):
     producer_run_id: str | None = None
     producer_tool: str | None = None
     producer_model: str | None = None
+    #: The batch ("Apply to Selection") that made this rendition, beside `producer_run_id` for a recipe run.
+    producer_batch_id: str | None = None
+    #: The recipe that made these pixels, in order: each `{step, params, card: {method, model_id}}` (`prep.derived-image-records-its-recipe`).
+    steps: list[dict[str, Any]] | None = None
 
     #: Staging bookkeeping carried through from the sidecar contract:
     #: ``storage`` is where the bytes live (e.g. ``"staged"``) and

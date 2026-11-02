@@ -88663,6 +88663,20 @@
             "nullable": true,
             "title": "Producer Model"
           },
+          "producer_batch_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Producer Batch Id"
+          },
+          "steps": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Steps"
+          },
           "storage": {
             "type": "string",
             "nullable": true,

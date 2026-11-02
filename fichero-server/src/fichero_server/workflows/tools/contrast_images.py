@@ -85,6 +85,7 @@ def contrast_image_file(
             "source": str(source), "outputs": [str(output_path)], "output_files": [str(output_path)],
             "details": {"original_size": original_size, "prepared_size": list(prepared.size), "output_format": ext,
                         "account": account, "params": chosen},
+            "steps": [{"step": "contrast", "params": chosen, "card": {"method": account["method"], "model_id": None}}],
             "error": None,
         }
     except Exception as exc:
