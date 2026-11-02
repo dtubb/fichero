@@ -465,6 +465,20 @@ def test_a_maintainer_batch_records_the_pinned_change_and_runs_the_rest(tmp_path
     assert not r["ok"] and r["failed"] == "pinned-checks" and "acceptance" in r["rungs"][0]["stderr_tail"]
 
 
+def test_a_guard_and_its_test_changed_together_are_tested_on_head_and_judged_by_the_pinned_guard(tmp_path):
+    """Manager 2026-11-02: pinned copies JUDGE, they are not the code under test. A maintainer batch adds a rule to a guard and
+    a test of that rule: the pytest rungs run on head's own tree (the test sees the new rule), while the guards rung still runs
+    the pinned guard's bytes (head's copy would exit 5)."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "ci" / "lint_ok.py").write_text("RULE = 2\nif __name__ == '__main__':\n    raise SystemExit(5)\n")
+    (work / "test_rule.py").write_text("import runpy\ndef test_rule():\n    assert runpy.run_path('ci/lint_ok.py').get('RULE') == 2\n")
+    g("add", "."), g("commit", "-q", "-m", "a guard rule and its test")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False, maintainer=True)
+    assert r["ok"], r
+    rungs = {x["name"]: x for x in r["rungs"]}
+    assert rungs["red-on-base"]["ok"] and rungs["guards"]["ok"] and "ci/lint_ok.py" in rungs["pinned-checks"]["stdout_tail"]
+
+
 def test_a_maintainer_batch_skips_the_diff_bound_and_a_worker_range_keeps_it(tmp_path):
     """Owner 2026-11-02: guards that stop ordinary work are loosened; the 25-file/1500-line bound is for a jailed worker's
     range, a maintainer batch is split for review by size instead (land_tool.review_groups)."""

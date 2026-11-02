@@ -818,15 +818,17 @@ def acceptance_changed(root, since: str, head: str, cfg: Config, ids) -> list[st
     return hits
 
 
-def _scratch_tree(root, head: str, pinned, cfg: Config) -> str:
+def _scratch_tree(root, head: str, pinned, cfg: Config, overlay: bool = True) -> str:
     """A detached worktree of `head` with the pinned copy's check files laid over it: the checks judge the worker's
-    committed code, never its uncommitted edits and never its own copies of the checks."""
+    committed code, never its uncommitted edits and never its own copies of the checks. overlay=False: head's own tree,
+    for the pytest rungs (manager 2026-11-02: pinned copies JUDGE, they are not the code under test; a batch that changes a
+    guard and its test, or harness.toml and the code reading it, is tested as it will land)."""
     sha = (_lines(root, "rev-parse", head) or [""])[0]
     tree = _mkdtemp("check-tree-", readable=True)
     r = _git(root, "-c", "core.hooksPath=/dev/null", "worktree", "add", "--detach", "-q", tree, sha)  # no repo hook runs as the owner
     if not r["ok"]:
         raise RuntimeError(f"scratch tree failed: {r['stderr_tail']}")
-    for f in _lines(pinned, "ls-files") or []:
+    for f in (_lines(pinned, "ls-files") or []) if overlay else []:
         if f.startswith(cfg.check_paths):
             src, dest = Path(pinned) / f, Path(tree) / f
             if src.is_symlink():
@@ -932,14 +934,15 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
     if cfg.base_ref and not _git(root, "rev-parse", "--verify", "-q", f"refs/remotes/{cfg.base_ref}")["ok"]:
         _git(root, "update-ref", f"refs/remotes/{cfg.base_ref}", since)  # a remote-less clone: ready checks diff against it
     tree = _scratch_tree(root, head, pinned, cfg)
+    own = _scratch_tree(root, head, pinned, cfg, overlay=False)  # the pytest rungs: head as it will land
     try:
         ok_pin = {"name": "pinned-checks", "argv": [], "exit_code": 0, "ok": True, "timed_out": False, "seconds": 0,
                   "stdout_tail": (noted + "\n" if noted else "") + f"checks from the pinned copy over {head}", "stderr_tail": ""}
         out = ladder([
             ("ready", lambda: ready(tree, cfg)),
             ("diff-bound", lambda: diff_bound(root, since, head, cfg, maintainer)),
-            ("red-on-base", lambda: red_on_base(root, since, head, tests, cfg, head_tree=tree, also_green=whole, approve_red=approve_red) if _needs_red(names, tests, cfg)
-             else _no_red_row(tree, whole, cfg)),
+            ("red-on-base", lambda: red_on_base(root, since, head, tests, cfg, head_tree=own, also_green=whole, approve_red=approve_red) if _needs_red(names, tests, cfg)
+             else _no_red_row(own, whole, cfg)),
             ("guards", lambda: guards(tree, cfg)),
             ("contract-current", lambda: contract_current(tree, names, cfg)),
             ("since-guards", lambda: since_guards(tree, since, names, cfg)),
@@ -947,6 +950,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
         ])
     finally:
         _git(root, "worktree", "remove", "--force", tree)
+        _git(root, "worktree", "remove", "--force", own)
     return {**out, "rungs": [ok_pin, *out["rungs"]]}
 
 
@@ -962,7 +966,7 @@ def run_tests(root, head: str, pinned, paths: list[str], jail_required: bool = T
     if j is not None:
         j.require()
     _JAIL = j
-    tree = _scratch_tree(root, head, pinned, cfg)
+    tree = _scratch_tree(root, head, pinned, cfg, overlay=False)  # tests run on head as it is (manager 2026-11-02)
     try:
         return {**green_runs(tree, list(paths), (), cfg, 3600), "name": "tests"}
     finally:
