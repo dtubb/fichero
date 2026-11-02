@@ -2065,6 +2065,8 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
     from fichero_server.llm.spend import stopped_at_cap
 
     capped = stopped_at_cap(run_ids)  # a step's run paused at a cap: the row says so, and the app offers the change
+    if not capped and detail.get("paused_at_cap"):  # the run itself is paused at the cap (`_pause_at_the_cap`): the same row, the same offer
+        capped = {"words": f"Paused at the cap: {detail['paused_at_cap']['why']}"}
     capped = capped if row["state"] not in ("done", "cancelled") else None
     if capped:
         reason = capped["words"]

@@ -134,3 +134,9 @@ def test_stop_here_ends_a_run_paused_at_the_cap_and_keeps_what_is_done(db, caps)
     row = jobs.read_job(db, job)
     assert row["state"] == "cancelled"
     assert json.loads(row["detail"])["steps"] == CHECKPOINT["steps"]  # the finished pages stay noted on the run
+
+
+def test_a_run_paused_at_the_cap_says_so_in_its_status_for_the_apps_offer(db, caps):
+    job = _paused(db, caps)
+    status = runner.status(db, job)
+    assert status["stopped_at_cap"] is True and status["reason"].startswith("Paused at the cap: this project's cloud spend")
