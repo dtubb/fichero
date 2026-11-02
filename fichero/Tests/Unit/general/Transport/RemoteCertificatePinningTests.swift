@@ -15,6 +15,18 @@ final class RemoteCertificatePinningTests: XCTestCase {
     private let hostOnePin = Data("host-one-spki".utf8).base64EncodedString()
     private let hostTwoPin = Data("host-two-spki".utf8).base64EncodedString()
 
+    /// `sharing.trust-rule-is-one-function`: the CLI reads the same table (`test_trust_rule_table_to_spec.py`).
+    func testTrustRuleFollowsTheSharedTable() throws {
+        struct Row: Decodable { let host: String; let publicCa: Bool }
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let rows = try decoder.decode([Row].self, from: Data(contentsOf: TestFixtures.sampleFile("trust_rule_table.json")))
+        XCTAssertFalse(rows.isEmpty)
+        for row in rows {
+            XCTAssertEqual(RemoteCertificatePinning.usesPublicCertificateAuthority(host: row.host), row.publicCa, row.host)
+        }
+    }
+
     override func tearDown() {
         super.tearDown()
         RemoteCertificatePinning.clearAdvertisedSPKIPin(hostString: hostOne)
