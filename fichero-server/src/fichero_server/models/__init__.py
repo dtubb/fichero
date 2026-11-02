@@ -2083,6 +2083,8 @@ class SharingHealth(BaseModel):
     listeners: list[str]
     addresses: list[SharingAddress]
     certificate_names: list[str]
+    #: The sentence to show when the Mac's address changed under a running listener, else none (`sharing.listener-follows-the-network`).
+    address_changed: str | None = None
     tailnet_forward: Literal["ours", "foreign", "none", "unknown"]
     multiuser: bool
     paired_devices: int

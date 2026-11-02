@@ -147,3 +147,9 @@ def primary_lan_ip() -> str:
         return probe.getsockname()[0]
     finally:
         probe.close()
+
+
+def port_in_use_message(port: int) -> str:
+    """The sentence for a port an older engine still holds (`sharing.stale-server-holding-the-port`): what the app and the
+    Sharing pane show instead of "engine failed to start"."""
+    return f"Another copy of Fichero's server is using port {port}. Quit it (Activity Monitor › Fichero Server) or restart this Mac."

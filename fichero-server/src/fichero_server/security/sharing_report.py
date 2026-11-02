@@ -109,17 +109,38 @@ def address_rows(facts=None) -> list:
     return rows
 
 
+ADDRESS_CHANGED = "This Mac's network address changed. Turn Sharing off and on."
+
+
+def address_changed(lan_host: str) -> str | None:
+    """The listener is bound to one LAN address, not a wildcard (`sharing.listener-is-lan-only-not-wildcard`), so a DHCP
+    renewal or a Wi-Fi/Ethernet switch leaves it on a dead one. The sentence when the Mac's address is no longer the one
+    bound, else None. Not asked when the Mac has no network now: that is offline, not a change.
+    ponytail: reports the change and does not rebind the live socket; the person turns Sharing off and on. Rebind in place
+    if that proves too much to ask."""
+    from fichero_server.security import bind_host
+
+    if not lan_host:
+        return None
+    try:
+        now = bind_host.primary_lan_ip()
+    except OSError:
+        return None
+    return ADDRESS_CHANGED if now and now != lan_host else None
+
+
 def sharing_report(app_db):
     from fichero_server.models import SharingHealth
     from fichero_server.security.multiuser import multiuser_enabled
 
     facts = _facts()
-    _, _, on, forward, _, listeners = facts
+    _, lan_host, on, forward, _, listeners = facts
     return SharingHealth(
         on=on,
         listeners=listeners,
         addresses=address_rows(facts),
         certificate_names=_certificate_names(),
+        address_changed=address_changed(lan_host) if on else None,
         tailnet_forward=forward,
         multiuser=multiuser_enabled(),
         paired_devices=sum(1 for d in app_db.list_devices() if not d.revoked),

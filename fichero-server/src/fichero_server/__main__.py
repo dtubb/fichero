@@ -21,7 +21,7 @@ import faulthandler
 import tracemalloc
 import warnings
 
-from fichero_server.security.bind_host import listen_port, resolve_bind_host
+from fichero_server.security.bind_host import listen_port, port_in_use_message, resolve_bind_host
 from fichero_server.security.bind_host import resolve_lan_bind_host
 from fichero_server.security.bind_host import primary_lan_ip as _primary_lan_ip
 from fichero_server.security.security_scoped_access import activate_library_bookmarks
@@ -71,6 +71,17 @@ def _listener_hosts(bind_host: str, app_db=None) -> list[str]:  # noqa: ARG001 -
     if lan_host is None or lan_host == bind_host:
         return [bind_host]
     return [bind_host, lan_host]
+
+
+def _port_held_line(bind_host: str, port: int) -> str | None:
+    """The log line when something already answers on the port (`sharing.stale-server-holding-the-port`), else None.
+    The first words are the line the harness reads; the rest is the sentence the app shows."""
+    family = socket.AF_INET6 if ":" in bind_host else socket.AF_INET
+    with socket.socket(family, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if sock.connect_ex((bind_host, port)) == 0:
+            return f"Port {port} is already in use on {bind_host}. {port_in_use_message(port)}"
+    return None
 
 
 def _bind_listener_socket(host: str, port: int) -> socket.socket:
@@ -605,16 +616,9 @@ def _main(argv: list[str] | None = None):
     )
 
     # Preflight port check avoids noisy socket ResourceWarning when bind fails.
-    socket_family = socket.AF_INET6 if ":" in bind_host else socket.AF_INET
-    with socket.socket(socket_family, socket.SOCK_STREAM) as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        if sock.connect_ex((bind_host, port)) == 0:
-            logger.error(
-                "Port %d is already in use on %s. Stop the existing backend process and retry.",
-                port,
-                bind_host,
-            )
-            return
+    if held := _port_held_line(bind_host, port):
+        logger.error("%s", held)
+        return
 
     if len(listener_hosts) == 1:
         try:
