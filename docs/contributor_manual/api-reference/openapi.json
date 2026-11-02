@@ -35331,6 +35331,48 @@
         }
       }
     },
+    "/api/workflow-execution/dry-run": {
+      "post": {
+        "tags": [
+          "workflow-execution"
+        ],
+        "summary": "Dry Run Workflow",
+        "description": "Test a workflow before spending a real run (`workflows.canvas.dry-run`, #4370).\n\nAsks the same checks `/execute` makes (connections, models, privacy policy, run eligibility, the graph building) and\nanswers every problem in words, with the steps the run would take and which of them call a model. It starts no run,\ncalls no model, and writes nothing.",
+        "operationId": "dry_run_workflow_api_workflow_execution_dry_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecuteWorkflowRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DryRunResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workflow-execution/execute": {
       "post": {
         "tags": [
@@ -65788,6 +65830,93 @@
         ],
         "title": "DownloadStartedResponse",
         "description": "Confirmation that a model download has been queued."
+      },
+      "DryRunResponse": {
+        "properties": {
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "workflow_name": {
+            "type": "string",
+            "title": "Workflow Name"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "description": "True when `/execute` would accept this run as asked."
+          },
+          "problems": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Problems",
+            "description": "Every reason it would be refused, in words."
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/DryRunStep"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "model_steps": {
+            "type": "integer",
+            "title": "Model Steps",
+            "description": "How many of the steps call a model.",
+            "default": 0
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope",
+            "description": "per_file or once_per_folder (`workflows.defaults.declared-scope`).",
+            "default": "per_file"
+          },
+          "scope_sentence": {
+            "type": "string",
+            "title": "Scope Sentence",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "workflow_id",
+          "workflow_name",
+          "ok"
+        ],
+        "title": "DryRunResponse",
+        "description": "What a test of a workflow found, with nothing run (`workflows.canvas.dry-run`, #4370)."
+      },
+      "DryRunStep": {
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "tool": {
+            "type": "string",
+            "title": "Tool"
+          },
+          "uses_model": {
+            "type": "boolean",
+            "title": "Uses Model",
+            "description": "The step calls a language or vision model, so it is where a run spends."
+          }
+        },
+        "type": "object",
+        "required": [
+          "node_id",
+          "name",
+          "tool",
+          "uses_model"
+        ],
+        "title": "DryRunStep",
+        "description": "One step a run would take."
       },
       "DuplicateDocument": {
         "properties": {
@@ -105738,6 +105867,26 @@
             "type": "boolean",
             "title": "Produced Nothing",
             "default": false
+          },
+          "model_calls": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Model Calls"
+          },
+          "total_tokens": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Total Tokens"
+          },
+          "cost_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Usd"
+          },
+          "cost_priced": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Cost Priced"
           },
           "artifacts": {
             "items": {

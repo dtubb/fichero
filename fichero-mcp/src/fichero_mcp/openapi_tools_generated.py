@@ -9015,6 +9015,25 @@ def fichero_workflow_execution_compare_runs(
     return _rt.call("GET", "/api/workflow-execution/comparisons", params={"left": left, "right": right})
 
 
+def fichero_workflow_execution_dry_run(
+    *,
+    checkpoint_ns: Annotated[Optional[str], Field(description='Checkpoint namespace, for a sub-workflow. Default: "".')] = None,
+    force_new: Annotated[Optional[bool], Field(description='Force New. Default: false.')] = None,
+    force_recompute: Annotated[Optional[bool], Field(description='Run it again for real: bypass every cache. Default: false.')] = None,
+    inputs: Annotated[Optional[dict[str, Any]], Field(description="The workflow's inputs, a JSON object.")] = None,
+    interrupt_after: Annotated[Optional[list[Any]], Field(description='Interrupt After.')] = None,
+    interrupt_before: Annotated[Optional[list[Any]], Field(description='Interrupt Before.')] = None,
+    model_override: Annotated[Optional[str], Field(description='Run every step with this model.')] = None,
+    provider_override: Annotated[Optional[str], Field(description='Run every step on this provider.')] = None,
+    selection: Annotated[Optional[dict[str, Any]], Field(description='The declared scope of a run. Validation is the whole point: this is the first place in the system that can say "that request does not describe a coherent selection" and refuse, rather than running and discovering the scope was wrong from its effects on real archival data.')] = None,
+    skip_cache: Annotated[Optional[bool], Field(description='Skip Cache. Default: false.')] = None,
+    thread_id: Annotated[Optional[str], Field(description="Continue this run's thread; made up when not given.")] = None,
+    workflow_id: Annotated[str, Field(description='The workflow to run.')],
+) -> Any:
+    'Dry Run Workflow\n\nTest a workflow before spending a real run (`workflows.canvas.dry-run`, #4370).\n\nAsks the same checks `/execute` makes (connections, models, privacy policy, run eligibility, the graph building) and\nanswers every problem in words, with the steps the run would take and which of them call a model. It starts no run,\ncalls no model, and writes nothing.\n\nRoute: POST /api/workflow-execution/dry-run (toolset `workflow-execution`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/workflow-execution/dry-run", json=_rt.body({"checkpoint_ns": checkpoint_ns, "force_new": force_new, "force_recompute": force_recompute, "inputs": inputs, "interrupt_after": interrupt_after, "interrupt_before": interrupt_before, "model_override": model_override, "provider_override": provider_override, "selection": selection, "skip_cache": skip_cache, "thread_id": thread_id, "workflow_id": workflow_id}))
+
+
 def fichero_workflow_execution_execute(
     *,
     checkpoint_ns: Annotated[Optional[str], Field(description='Checkpoint namespace, for a sub-workflow. Default: "".')] = None,
@@ -10329,6 +10348,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_workflow_execution_clear_all_cache", "workflow-execution", "DELETE", "/api/workflow-execution/cache", fichero_workflow_execution_clear_all_cache),
     GeneratedTool("fichero_workflow_execution_get_all_cache_stats", "workflow-execution", "GET", "/api/workflow-execution/cache/stats", fichero_workflow_execution_get_all_cache_stats),
     GeneratedTool("fichero_workflow_execution_compare_runs", "workflow-execution", "GET", "/api/workflow-execution/comparisons", fichero_workflow_execution_compare_runs),
+    GeneratedTool("fichero_workflow_execution_dry_run", "workflow-execution", "POST", "/api/workflow-execution/dry-run", fichero_workflow_execution_dry_run),
     GeneratedTool("fichero_workflow_execution_execute", "workflow-execution", "POST", "/api/workflow-execution/execute", fichero_workflow_execution_execute),
     GeneratedTool("fichero_workflow_execution_list_runs_route", "workflow-execution", "GET", "/api/workflow-execution/runs", fichero_workflow_execution_list_runs_route),
     GeneratedTool("fichero_workflow_execution_delete_runs_route", "workflow-execution", "POST", "/api/workflow-execution/runs/delete", fichero_workflow_execution_delete_runs_route),

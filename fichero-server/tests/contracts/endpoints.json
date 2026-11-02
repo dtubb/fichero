@@ -12972,6 +12972,16 @@
       },
       {
         "method": "POST",
+        "path": "/workflow-execution/dry-run",
+        "operation_id": "dry_run_workflow_api_workflow_execution_dry_run_post",
+        "summary": "Dry Run Workflow",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ExecuteWorkflowRequest",
+        "response_model": "DryRunResponse"
+      },
+      {
+        "method": "POST",
         "path": "/workflow-execution/execute",
         "operation_id": "execute_workflow_api_workflow_execution_execute_post",
         "summary": "Execute Workflow",

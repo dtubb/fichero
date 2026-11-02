@@ -19089,6 +19089,56 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("dry-run")
+    def workflow_execution_dry_run_post(
+        ctx: typer.Context,
+        checkpoint_ns: Optional[str] = typer.Option(None, '--checkpoint-ns', help='Checkpoint namespace, for a sub-workflow. Default: "".'),
+        force_new: Optional[bool] = typer.Option(None, '--force-new/--no-force-new', help='Force New. Default: false.'),
+        force_recompute: Optional[bool] = typer.Option(None, '--force-recompute/--no-force-recompute', help='Run it again for real: bypass every cache. Default: false.'),
+        inputs: Optional[str] = typer.Option(None, '--inputs', help="The workflow's inputs, a JSON object. JSON."),
+        interrupt_after: Optional[list[str]] = typer.Option(None, '--interrupt-after', help='Interrupt After. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        interrupt_before: Optional[list[str]] = typer.Option(None, '--interrupt-before', help='Interrupt Before. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        model_override: Optional[str] = typer.Option(None, '--model-override', help='Run every step with this model.'),
+        provider_override: Optional[str] = typer.Option(None, '--provider-override', help='Run every step on this provider.'),
+        selection: Optional[str] = typer.Option(None, '--selection', help='The declared scope of a run. Validation is the whole point: this is the first place in the system that can say "that request does not describe a coherent selection" and refuse, rather than running and discovering the scope was wrong from its effects on real archival data. JSON.'),
+        skip_cache: Optional[bool] = typer.Option(None, '--skip-cache/--no-skip-cache', help='Skip Cache. Default: false.'),
+        thread_id: Optional[str] = typer.Option(None, '--thread-id', help="Continue this run's thread; made up when not given."),
+        workflow_id: str = typer.Option(..., '--workflow-id', help='The workflow to run.'),
+    ) -> None:
+        """Dry Run Workflow (POST /api/workflow-execution/dry-run)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/workflow-execution/dry-run"
+            params = None
+            payload = _build_json_payload({
+                "checkpoint_ns": checkpoint_ns,
+                "force_new": force_new,
+                "force_recompute": force_recompute,
+                "inputs": inputs,
+                "interrupt_after": interrupt_after,
+                "interrupt_before": interrupt_before,
+                "model_override": model_override,
+                "provider_override": provider_override,
+                "selection": selection,
+                "skip_cache": skip_cache,
+                "thread_id": thread_id,
+                "workflow_id": workflow_id,
+            }, {
+                "checkpoint_ns": {'type': 'string', 'title': 'Checkpoint Ns', 'description': 'Checkpoint namespace, for a sub-workflow.', 'default': '', 'x-cli-required': False},
+                "force_new": {'type': 'boolean', 'title': 'Force New', 'default': False, 'x-cli-required': False},
+                "force_recompute": {'type': 'boolean', 'title': 'Force Recompute', 'description': 'Run it again for real: bypass every cache.', 'default': False, 'x-cli-required': False},
+                "inputs": {'additionalProperties': True, 'type': 'object', 'title': 'Inputs', 'description': "The workflow's inputs, a JSON object.", 'x-cli-required': False},
+                "interrupt_after": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Interrupt After', 'x-cli-required': False},
+                "interrupt_before": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Interrupt Before', 'x-cli-required': False},
+                "model_override": {'type': 'string', 'nullable': True, 'title': 'Model Override', 'description': 'Run every step with this model.', 'x-cli-required': False},
+                "provider_override": {'type': 'string', 'nullable': True, 'title': 'Provider Override', 'description': 'Run every step on this provider.', 'x-cli-required': False},
+                "selection": {'properties': {'kind': {'$ref': '#/components/schemas/SelectionKind'}, 'ids': {'items': {'type': 'string'}, 'type': 'array', 'title': 'Ids'}}, 'type': 'object', 'required': ['kind'], 'title': 'WorkflowSelection', 'description': 'The declared scope of a run.\n\nValidation is the whole point: this is the first place in the system that\ncan say "that request does not describe a coherent selection" and refuse,\nrather than running and discovering the scope was wrong from its effects\non real archival data.', 'x-cli-required': False},
+                "skip_cache": {'type': 'boolean', 'title': 'Skip Cache', 'default': False, 'x-cli-required': False},
+                "thread_id": {'type': 'string', 'nullable': True, 'title': 'Thread Id', 'description': "Continue this run's thread; made up when not given.", 'x-cli-required': False},
+                "workflow_id": {'type': 'string', 'title': 'Workflow Id', 'description': 'The workflow to run.', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("execute")
     def workflow_execution_execute_post(
         ctx: typer.Context,
