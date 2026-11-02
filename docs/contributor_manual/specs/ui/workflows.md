@@ -291,7 +291,8 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   nothing) is untouched, and coverage of a single long call with no per-item
   loop, or a purely serial non-looping node boundary, was not independently
   re-verified.
-- `workflows.run.trace-view` — **[GAP]** no read-only "what actually happened"
+- `workflows.run.trace-view-in-the-app` — **[GAP]** (#4312, Step 4.4) the app shows a run's trace read-only: each planned step with its status (including `not_run`), its artifacts and how long it took, from `GET /api/workflow-execution/threads/{id}/run` (`steps`, `progress_timeline`, `diagram_svg_url`).
+- `workflows.run.trace-view` — **[PARTIAL]** (engine built, #4284: `GET /api/workflow-execution/threads/{id}/run` serves one record per planned step, `not_run` explicit, joining snapshot, timeline and artifacts, with the diagram and usage; pinned by `fichero-server/tests/unit/workflows/test_run_steps.py` and `test_run_step_failure_legibility.py`, 23 pass 2026-11-02; the app's view is `workflows.run.trace-view-in-the-app`, Step 4.4.) Was: no read-only "what actually happened"
   per-run trace view exists yet, though the review found most of the needed
   data (checkpoints, `progress_timeline`, Mermaid diagrams) already persisted
   — three leaks to plug, not new architecture (2026-07-29 review §3.3). ISSUE:
@@ -506,8 +507,8 @@ Engine only, one pytest per step. Each step flips its tags only with its test gr
 Engine only; the served shapes land with one OpenAPI regeneration at the end of the stage.
 
 #### Step 2.1 — A read-only trace of what a run did (#4312)
-- Behaviours: `workflows.run.trace-view`, `workflows.run.output-log-live`
-- Tests: fichero-server/tests/unit/workflows/test_run_trace_to_spec.py (not yet written)
+- Behaviours: `workflows.run.trace-view`
+- Tests: fichero-server/tests/unit/workflows/test_run_steps.py, fichero-server/tests/unit/workflows/test_run_step_failure_legibility.py
 - Size: M
 
 #### Step 2.2 — Cost per node and per workflow, and the estimate up front (#4343, #1818)
@@ -572,18 +573,23 @@ Engine only.
 Swift, after the Stage 1-3 regeneration. Pure types are verified with a standalone `swiftc` script; the landing check builds the rest.
 
 #### Step 4.1 — The run menu names the scope before anything runs (#4397)
-- Behaviours: `workflows.bar.scope-uses-the-real-primary-selection`, `workflows.bar.click-appends-not-runs`
+- Behaviours: `workflows.bar.scope-uses-the-real-primary-selection`, `workflows.bar.click-appends-not-runs`, `workflows.bar.step-popover-run-glance`, `workflows.bar.labels-toggle-persists`
 - Tests: fichero/Tests/Unit/general/Models/WorkflowRunScopeTests.swift (exists)
 - Size: S
 
-#### Step 4.2 — Pause, Resume and Stop show their state at once (#4402)
-- Behaviours: `workflows.run.controls-are-fire-and-forget`, `workflows.bar.step-popover-run-glance`, `workflows.bar.labels-toggle-persists`, `workflows.run.source-tools-excluded-from-file-columns`
+#### Step 4.2 — Pause, Resume and Stop show their state at once; the output log is pinned (#4402, #4797)
+- Behaviours: `workflows.run.controls-are-fire-and-forget`, `workflows.run.output-log-live`, `workflows.run.source-tools-excluded-from-file-columns`
 - Tests: fichero/Tests/Unit/general/Workflow/WorkflowRunControlsTests.swift (not yet written)
 - Size: S
 
 #### Step 4.3 — Selecting a workflow opens its editor; switching never blocks on a stale one (#4882, #4893)
 - Behaviours: `workflows.selection.library-row-opens-editor`, `workflows.canvas.switching-workflow-blocks-the-stale-editor`, `workflows.defaults.folder-click-opens-custom-view`
 - Tests: fichero/Tests/Unit/general/Workflow/WorkflowSelectionTests.swift (not yet written)
+- Size: M
+
+#### Step 4.4 — The app shows a run's trace, read-only (#4312)
+- Behaviours: `workflows.run.trace-view-in-the-app`
+- Tests: fichero/Tests/Unit/general/Workflow/WorkflowRunTraceTests.swift (not yet written)
 - Size: M
 
 ### Stage 5 — Swift: the canvas
