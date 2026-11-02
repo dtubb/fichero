@@ -68,7 +68,8 @@ def test_without_the_cloud_allowed_or_a_key_nothing_is_picked(answers):
 
 
 @pytest.mark.parametrize("job", [j for j in STEPS if j not in CLOUD_DEFAULT_JOBS])
-def test_a_good_enough_local_model_wins_over_the_cheapest_cloud_one_where_cloud_is_not_the_default(job):
+def test_a_good_enough_local_model_wins_over_the_cheapest_cloud_one(job):
+    """Where cloud is not the step's default (Correct); Translate, Names, Statements and Catalogue default to cloud (#6233, below)."""
     steps = _steps(answers={"cloud_allowed": True, "cloud_keys": ("google",)}, cards=[_local()], cloud_text=[CHEAP])
     assert steps[job]["runs_on"] == "this-mac" and steps[job]["model"] == {"hf": "x/Qwen3-4B"}
 
