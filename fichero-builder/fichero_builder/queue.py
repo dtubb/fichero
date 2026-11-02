@@ -72,13 +72,13 @@ def workers(root) -> int:
     return int(tomllib.loads(f.read_text()).get("queue", {}).get("workers", 1)) if f.is_file() else 1
 
 
-def add(lane_id: str, worktree: str, step: str, brief: str, issues: list[int], waits: list[str] | None = None) -> None:
+def add(lane_id: str, worktree: str, step: str, brief: str, issues: list[int], waits: list[str] | None = None, kind: str = "worker") -> None:
     """A step at the end of its lane (made when new); a step the lane has already keeps its state."""
     with journal.Lock("queue"):
         lanes = load()
         lane = next((x for x in lanes if x["id"] == lane_id), None)
         if lane is None:
-            lane = {"id": lane_id, "worktree": os.path.abspath(worktree), "cursor": 0, "seq": 0, "feed": "", "paused": False, "steps": []}
+            lane = {"id": lane_id, "worktree": os.path.abspath(worktree), "cursor": 0, "seq": 0, "feed": "", "paused": False, "steps": [], "kind": kind}
             lanes.append(lane)
         if any(s["step"] == step for s in lane["steps"]):
             return
@@ -174,6 +174,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     s = lane["steps"][lane["cursor"]]
     if s["state"] == "blocked":
         return False
+    if lane.get("kind") == "external" and s["state"] in ("queued", "sent"):
+        return False  # no worker: the lane's own session says `builder done <lane> <sha>` (dev-workflows.run.loop-external-lane)
     fut = (chains or {}).get(lane["id"])
     if fut is not None and not fut.done():
         return True  # its check or review is running in its own thread
@@ -244,7 +246,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         return True
     if r.get("kind") == "needs-maintainer":  # a pinned check changed on purpose: the manager's call, never the worker's
         return block(s, r["why"], ("approve", "send-back"), r.get("evidence", ""))
-    if r.get("kind") in ("red", "not-ready", "refused") and s["rounds"] < ROUNDS:
+    if r.get("kind") in ("red", "not-ready", "refused") and s["rounds"] < ROUNDS and lane.get("kind") != "external":  # external: an alert
         s["rounds"] += 1
         text = FIX.format(step=s["step"], kind=r["kind"], findings=r.get("findings") or r["why"])
         live = handles.get(lane["id"])
@@ -262,6 +264,23 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
 
 
 ACTIONS = ("retry", "park", "ask-owner")
+
+
+def done(lane_id: str, sha: str) -> str:
+    """`builder done <lane> <sha>`: an external lane's DONE; its current step goes to the chain. '' or why it is refused."""
+    with journal.Lock("queue"):
+        lanes = load()
+        lane = next((x for x in lanes if x["id"] == lane_id), None)
+        if lane is None or lane.get("kind") != "external":
+            why = f"no external lane {lane_id!r}"
+        elif lane["cursor"] >= len(lane["steps"]) or lane["steps"][lane["cursor"]]["state"] != "queued":
+            why = f"{lane_id} has no step waiting for its DONE"
+        else:
+            s, why = lane["steps"][lane["cursor"]], ""
+            s.update(state="done", head=sha, why=f"DONE {sha} (external)")
+            save(lanes)
+    journal.append("queue", lane=lane_id, step=s["step"] if not why else "-", state="done" if not why else "done-refused", detail=why or sha)
+    return why
 
 
 def alert(lane_id: str, step: str, why: str, evidence: str, actions: list[str]) -> str:
@@ -498,7 +517,7 @@ def main(a) -> int:
         if not (a.lane and a.worktree and a.step and a.brief):
             print("REFUSED: queue add needs --lane, --worktree, --step and --brief")
             return 1
-        add(a.lane, a.worktree, a.step, a.brief, a.issues)
+        add(a.lane, a.worktree, a.step, a.brief, a.issues, kind=getattr(a, "kind", "worker"))
         print(f"queued {a.lane} {a.step}")
         return 0
     if a.action == "tell":  # dev-workflows.run.loop-tell: a finding into the lane's live session, as its next message

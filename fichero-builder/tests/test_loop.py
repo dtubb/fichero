@@ -186,3 +186,21 @@ def test_a_one_lane_chain_runs_beside_the_ticks_so_the_heartbeat_keeps_beating(s
     assert queue.run(fake.procs, workers_n=1, push=True, heartbeat=True, out=lambda s: None) == 0
     assert fake.landed_calls == [("h1.1", True), ("h1.2", True)]
     assert sum(1 for r in journal.read() if r["event"] == "loop" and r.get("state") == "tick") >= 3
+
+
+def test_builder_done_on_an_external_lane_lands_it_and_no_worker_is_started(state, capsys):
+    """run.loop-external-lane: a plain Claude Code lane lands through the loop; a red is an alert, never a fix round."""
+    queue.add("ext", "/w/ext", "1.1", str(state / "b1.1"), [7], kind="external")
+    queue.add("ext", "/w/ext", "1.2", str(state / "b1.2"), [8], waits=["1.1"])
+    fake = Fake(chains={"1.2": [{"ok": False, "kind": "red", "why": "pytest red", "findings": "t1 failed", "evidence": "/l.json"}]})
+    assert queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None) == 0
+    assert fake.starts == [] and steps()["1.1"]["state"] == "queued", "no worker: it waits for its DONE"
+    assert cli.main(["done", "ext", "abc123", "--state", str(journal.STATE)]) == 0
+    assert queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None) == 0
+    assert fake.starts == [] and fake.landed_calls == [("h1.1", True)] and steps()["1.1"]["state"] == "landed"
+    assert cli.main(["done", "ext", "def456", "--state", str(journal.STATE)]) == 0
+    assert queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None) == 0
+    assert steps()["1.2"]["state"] == "blocked" and fake.sent == [], "a red on an external lane is an alert, not a fix brief"
+    assert [(r["lane"], r["evidence"]) for r in journal.read() if r["event"] == "alert"] == [("ext", "/l.json")]
+    lane(state)
+    assert cli.main(["done", "m1", "abc", "--state", str(journal.STATE)]) == 1 and "no external lane" in capsys.readouterr().out
