@@ -8,6 +8,7 @@ result, never a raise.
 
 from __future__ import annotations
 
+import ast
 import fcntl
 import fnmatch
 import importlib.util
@@ -518,17 +519,38 @@ def diff_bound(root, since: str, head: str, cfg: Config, maintainer: bool = Fals
     return {**r, "name": "diff-bound", "ok": not msg, "stderr_tail": msg}
 
 
+def data_only(root, since: str, head: str, f: str) -> bool:
+    """A test file on base whose test functions are all unchanged at head (only module-level data, such as a registration
+    set, changed): it owes no red, since its tests are the ones already there (manager 2026-11-02, #6325's OWNER_ONLY_GETS)."""
+    def defs(rev):
+        t = "\n".join(_lines(root, "show", f"{rev}:{f}") or [])
+        try:
+            tree = ast.parse(t)
+        except SyntaxError:
+            return None
+        # every top-level function and class (a class with its methods), not only test_*: a changed fixture or helper can hollow
+        # a test out while the test functions look unchanged (review 2026-11-02); module-level data is what may differ
+        return [ast.dump(n) for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))]
+    old, new = defs(since), defs(head)
+    return bool(old) and old == new
+
+
 def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Config(), timeout_s: float = 600,  # noqa: B008
-                head_tree=None, also_green: tuple = ()) -> dict:
+                head_tree=None, also_green: tuple = (), approve_red: bool = False) -> dict:
     """The failing run: each changed test file, copied onto a scratch tree at `since`, must FAIL there on its
     own, and all must PASS at `head`. A test that passes on base proves nothing."""
     root = Path(root)
 
-    def red(msg: str) -> dict:
+    approved: list[str] = []
+
+    def red(msg: str) -> dict | None:  # the manager's approve (an alert) records the refusal and goes on to the green run
+        if approve_red:
+            approved.append(msg)
+            return None
         return {"name": "red-on-base", "argv": [], "exit_code": 1, "ok": False, "timed_out": False, "seconds": 0,
-                "stdout_tail": "", "stderr_tail": msg}
-    if not files:
-        return red("no test file changed: a source change needs a test (red on base, green on the branch)")
+                "stdout_tail": "", "stderr_tail": msg + "\nneeds-approval"}
+    if not files and (r := red("no test file changed: a source change needs a test (red on base, green on the branch)")):
+        return r
     sha = _git(root, "rev-parse", head)["stdout_tail"].strip()  # `HEAD` inside the scratch tree would be `since`
     base = _mkdtemp("check-base-tree-", readable=True)
     try:
@@ -536,18 +558,24 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
             return red(f"could not make a scratch tree at {since[:9]}")
         _git(base, "checkout", sha, "--", *files)  # a new file is not on base; checkout still copies it
         have = already_built_files(root, since, head, cfg)  # a proving test of a behaviour already there passes on base by design
+        data_skipped: set[str] = set()
         for f in files:
+            if f not in have and data_only(root, since, head, f):
+                data_skipped.add(f)
+                continue  # its tests are base's own; it runs in the green run
             r = pytest_rung(base, [f], cfg, timeout_s)
-            if f in have and not r["ok"]:  # the line says the behaviour was there; a source commit beside it must not skip the red
-                return red(f"{f} says Already built but fails on base at {since[:9]}: it owes a red like any test")
-            if f not in have and r["ok"]:
-                return red(f"NOT RED ON BASE: {f} passes at {since[:9]}, so it proves nothing")
+            if f in have and not r["ok"] and (x := red(f"{f} says Already built but fails on base at {since[:9]}: it owes a red like any test")):
+                return x
+            if f not in have and r["ok"] and (x := red(f"NOT RED ON BASE: {f} passes at {since[:9]}, so it proves nothing")):
+                return x
         changed = _lines(root, "diff", "--name-only", f"{since}...{head}") or []
         source = [n for n in changed if not any(fnmatch.fnmatch(Path(n).name, g) for g in cfg.test_globs) and (not cfg.red_paths or n.startswith(cfg.red_paths))]
-        if source and set(files) <= have:  # the line excuses a test, never a change: with every test excused nothing proves the source
-            return red(f"{source[0]} changed and every changed test says Already built: the change owes a red")
-        here = green_runs(head_tree or root, files, also_green, cfg, timeout_s)  # the green run: in the pinned-overlay tree when given
-        return {**here, "name": "red-on-base"}
+        if source and files and set(files) <= have | data_skipped and (x := red(
+                f"{source[0]} changed and every changed test says Already built" + (" or changes only module data" if data_skipped else "")
+                + ": the change owes a red")):
+            return x  # a data-only edit to an existing test excuses no source change (review 2026-11-02)
+        here = green_runs(head_tree or root, files, also_green, cfg, timeout_s) if files or also_green else _skipped("red-on-base")
+        return {**here, "name": "red-on-base", **({"stdout_tail": "approved by the manager: " + "; ".join(approved) + "\n" + here.get("stdout_tail", "")} if approved else {})}
     finally:
         _git(root, "worktree", "remove", "--force", base)
 
@@ -698,15 +726,16 @@ class EmptyRange(RuntimeError):
     """since equals head: a landing branch that never got its commit judged green on nothing (2026-11-02)."""
 
 
-def ladder_over(root, since_sha: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool = False) -> dict:
+def ladder_over(root, since_sha: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool = False,
+                approve_red: bool = False) -> dict:
     """The one way `builder check` and `builder work` run the ladder: an empty range is refused, never judged."""
     if since_sha == head:
         raise EmptyRange(f"{since_sha[:9]}..{head[:9]} is empty: nothing to check")
-    return run_ladder(root, since_sha, head, pinned, list(protected_ids), maintainer=maintainer, approve_weakened=approve_weakened)
+    return run_ladder(root, since_sha, head, pinned, list(protected_ids), maintainer=maintainer, approve_weakened=approve_weakened, approve_red=approve_red)
 
 
 def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_required: bool = True, maintainer: bool = False,
-               approve_weakened: bool = False) -> dict:
+               approve_weakened: bool = False, approve_red: bool = False) -> dict:
     """The project's whole ladder over the diff since..head, judged by the PINNED copy (an engine-owned checkout
     outside the worker's tree; its harness.toml is the config): pinned-checks, ready, diff bound, red-on-base for
     the changed test files (its green run is the pytest rung), guards, contract. Stops at the first red.
@@ -726,7 +755,7 @@ def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_requi
             raise _jailmod.JailMissing("the jail leaks: " + "; ".join(wall))
     _JAIL = j
     try:
-        return _run_ladder(root, since, head, pinned, protected_ids, maintainer, approve_weakened)
+        return _run_ladder(root, since, head, pinned, protected_ids, maintainer, approve_weakened, approve_red)
     finally:
         _JAIL = None
         if _SHIPPED or _DOWN:
@@ -750,7 +779,8 @@ def _no_red_row(tree, whole: tuple, cfg: Config) -> dict:
     return {**_skipped("red-on-base"), "stdout_tail": "not required: no changed path is under [check].red_paths"}
 
 
-def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool = False) -> dict:
+def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool = False,
+                approve_red: bool = False) -> dict:
     cfg = load(pinned)
     bad = pinned_violations(root, since, head, cfg, pinned)
     noted = ""
@@ -780,7 +810,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
         out = ladder([
             ("ready", lambda: ready(tree, cfg)),
             ("diff-bound", lambda: diff_bound(root, since, head, cfg, maintainer)),
-            ("red-on-base", lambda: red_on_base(root, since, head, tests, cfg, head_tree=tree, also_green=whole) if _needs_red(names, tests, cfg)
+            ("red-on-base", lambda: red_on_base(root, since, head, tests, cfg, head_tree=tree, also_green=whole, approve_red=approve_red) if _needs_red(names, tests, cfg)
              else _no_red_row(tree, whole, cfg)),
             ("guards", lambda: guards(tree, cfg)),
             ("contract-current", lambda: contract_current(tree, names, cfg)),

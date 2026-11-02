@@ -159,9 +159,10 @@ def do_check(a, repo: str, branch: str, head: str, ladder: str) -> dict:
         raise RuntimeError(f"{branch!r} is not a branch in {repo}")
     maintainer = bool(getattr(a, "maintainer", False))  # the manager approved a pinned-file change (dev-workflows.run.loop-needs-maintainer)
     approve = bool(getattr(a, "approve_weakened", False))  # the manager approved weakened tests (an alert's approve)
-    r = check_tool.ladder_over(repo, since, head, a.pinned, getattr(a, "ids", []), maintainer=maintainer, approve_weakened=approve)
+    red_ok = bool(getattr(a, "approve_red", False))  # the manager approved a red-on-base refusal (an alert's approve)
+    r = check_tool.ladder_over(repo, since, head, a.pinned, getattr(a, "ids", []), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok)
     Path(ladder).write_text(json.dumps(r, indent=1))
-    journal.append("check", repo=str(repo), since=since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""), maintainer=maintainer, approve_weakened=approve)
+    journal.append("check", repo=str(repo), since=since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok)
     return r
 
 
@@ -274,6 +275,8 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                     globs = [f":(glob)**/{g}" for g in check_tool.load(a.pinned).test_globs]
                     diff.write_text(_git(repo, "diff", r_since(repo, branch), head, "--", *globs).stdout)
                     return no("weakened-tests", f"weakened tests at {head[:9]}: {_tail(r)[-300:]}", _tail(r), str(diff))
+                if r.get("failed") == "red-on-base" and "needs-approval" in _tail(r):  # a refusal, not a red test: the manager's call
+                    return no("red-on-base", f"red-on-base at {head[:9]}: {_tail(r).replace('needs-approval', '').strip()[-300:]}", _tail(r), ladder)
                 if r.get("failed") == "pinned-checks" and "needs-maintainer" in _tail(r):
                     diff = state / f"pinned-{a.name}.diff"
                     diff.write_text(_git(repo, "diff", r_since(repo, branch), head, "--", *check_tool.load(a.pinned).check_paths).stdout)

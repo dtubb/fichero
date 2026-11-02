@@ -338,3 +338,17 @@ def test_external_lanes_hold_their_milestone_but_are_not_the_loops_lanes_and_a_f
     fake.procs.next_milestone = lambda taken: ("image-enhancement", "/jail/wt-image-enhancement", [{"step": "1.1", "brief": str(state / "b1.1"), "issues": [7]}]) if "image-enhancement" not in taken else None
     assert queue.feed(fake.procs, 1, out=lambda s: None) is False, "a finished worker lane keeps its milestone: never a loop"
     assert [s["step"] for s in next(x for x in queue.load() if x["id"] == "image-enhancement")["steps"]] == ["ie-batch2", "1.1"]
+
+
+def test_a_red_on_base_refusal_is_an_alert_and_approve_reruns_with_approve_red(state):
+    lane(state)
+    seen = []
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "red-on-base", "why": "red-on-base at abc: NOT RED ON BASE: test_x.py", "evidence": "/s/ladder.json"}]})
+    base_chain = fake.procs.chain
+    fake.procs.chain = lambda lane_, step, stage: seen.append(bool(step.get("approve_red"))) or base_chain(lane_, step, stage)
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    assert a["actions"] == ["approve", "send-back"] and "NOT RED ON BASE" in a["what"]
+    assert cli.main(["alert", a["id"], "approve", "--state", str(state / "s")]) == 0
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert seen[:2] == [False, True] and steps()["1.1"]["state"] == "landed"

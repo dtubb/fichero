@@ -788,3 +788,33 @@ def test_weakened_tests_refuse_until_the_manager_approves_and_the_approval_is_re
     assert not r["ok"] and r["failed"] == "pinned-checks" and "weakens existing tests" in r["rungs"][0]["stderr_tail"]
     r = ct.run_ladder(work, base2, "HEAD", pinned, jail_required=False, approve_weakened=True)
     assert r["rungs"][0]["ok"] and "approved weakened tests: test_old.py" in r["rungs"][0]["stdout_tail"], r["rungs"][0]
+
+
+def test_a_test_file_whose_tests_are_unchanged_owes_no_red_and_any_other_refusal_can_be_approved(tmp_path):
+    """Manager 2026-11-02 (sharing a0d60afec2): a lane only added its route to OWNER_ONLY_GETS in an existing sweep test, which
+    of course passes on base. Its test functions are unchanged: no red owed. Any other red-on-base refusal says
+    needs-approval (the loop makes it an approve|send-back alert) and approve_red records it and runs the green run."""
+    g, base = _git_repo(tmp_path)
+    (tmp_path / "test_sweep.py").write_text("GETS = {'/a'}\ndef test_every_get_is_owner_only():\n    assert all(p.startswith('/') for p in GETS)\n")
+    g("add", "."), g("commit", "-q", "-m", "the sweep test")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True).stdout.strip()
+    (tmp_path / "test_sweep.py").write_text("GETS = {'/a', '/api/pair/addresses'}\ndef test_every_get_is_owner_only():\n    assert all(p.startswith('/') for p in GETS)\n")
+    g("add", "."), g("commit", "-q", "-m", "a new route, registered")
+    assert ct.data_only(tmp_path, base, "HEAD", "test_sweep.py")
+    assert ct.red_on_base(tmp_path, base, "HEAD", ["test_sweep.py"], timeout_s=120)["ok"], "data only: no red owed, green at head"
+    # review 2026-11-02: with a source change beside it, a data-only edit excuses nothing (the change owes a red or an approve)
+    (tmp_path / "mod.py").write_text("VALUE = 2\n")
+    (tmp_path / "test_sweep.py").write_text("GETS = {'/a', '/api/pair/addresses', '/b'}\ndef test_every_get_is_owner_only():\n    assert all(p.startswith('/') for p in GETS)\n")
+    g("add", "."), g("commit", "-q", "-m", "source plus a data-only test edit")
+    r = ct.red_on_base(tmp_path, base, "HEAD", ["test_sweep.py"], timeout_s=120)
+    assert not r["ok"] and "mod.py changed and every changed test says Already built or changes only module data" in r["stderr_tail"]
+    assert ct.red_on_base(tmp_path, base, "HEAD", ["test_sweep.py"], timeout_s=120, approve_red=True)["ok"]
+    (tmp_path / "test_sweep.py").write_text("def helper():\n    return 0\nGETS = {'/a', '/api/pair/addresses', '/b'}\ndef test_every_get_is_owner_only():\n    assert all(p.startswith('/') for p in GETS)\n")
+    g("add", "."), g("commit", "-q", "-m", "a new helper")
+    assert not ct.data_only(tmp_path, base, "HEAD", "test_sweep.py"), "a new helper is not data"
+    (tmp_path / "test_new.py").write_text("def test_t():\n    assert True\n")
+    g("add", "."), g("commit", "-q", "-m", "a test that proves nothing")
+    r = ct.red_on_base(tmp_path, base, "HEAD", ["test_new.py"], timeout_s=120)
+    assert not r["ok"] and "NOT RED ON BASE" in r["stderr_tail"] and "needs-approval" in r["stderr_tail"]
+    r = ct.red_on_base(tmp_path, base, "HEAD", ["test_new.py"], timeout_s=120, approve_red=True)
+    assert r["ok"] and "approved by the manager: NOT RED ON BASE" in r["stdout_tail"]
