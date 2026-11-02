@@ -96,25 +96,45 @@ def plan(issues: list[dict], steps: list[dict], slug: str) -> dict:
 
 
 _PATH = re.compile(r"(?<![\w/.-])((?:[\w.-]+/)+[\w.+-]*)")
-STOP = {"the", "and", "for", "with", "from", "into", "that", "this", "step", "builder", "spec"}
 OUTLINE = re.compile(r"^\s*(?:(?:public|private|internal|final|static|async|override) )*(?:def|class|func|struct|enum|protocol|actor)\s+(\w+)", re.M)
 
 
-def _grep_map(repo: str, words: list[str], dirs: list[str], limit: int = 10) -> dict[str, list[str]]:
-    """The fallback when the repo has no index: files that mention a word, with an outline read by regex."""
-    found: dict[str, list[str]] = {}
-    for w in words:
-        r = subprocess.run(["git", "-C", repo, "grep", "-l", "-i", w, "--", *(dirs or ["."]), ":(exclude,glob)**/*.md"], capture_output=True, text=True)
-        for f in r.stdout.split()[:limit]:
-            if f not in found and len(found) < limit:
-                text = (Path(repo) / f).read_text(errors="replace")
-                found[f] = [f"{m.group(1)} ({text.count(chr(10), 0, m.start(1)) + 1})" for m in OUTLINE.finditer(text)][:12]
-    return found
+NEVER = re.compile(r"^(agent-work/|LICENSE|COPYING)")  # drafts, experiments and legal text are never a step's starting point
 
 
-def where_map(spec_path, step_title: str, repo: str, binary: str) -> list[str]:
-    """A step's map, so its worker reads less: the spec, the directories its design section names, and the files and symbols
-    for the step's words (the code map when the repo is indexed, else grep), each with its outline."""
+def _outline(repo: str, f: str) -> list[str]:
+    text = (Path(repo) / f).read_text(errors="replace")
+    return [f"{m.group(1)} ({text.count(chr(10), 0, m.start(1)) + 1})" for m in OUTLINE.finditer(text)][:12]
+
+
+def _importers(repo: str, files: list[str], limit: int = 5) -> list[str]:
+    """Python files that import one of `files` by module name (git grep; Swift has no file imports)."""
+    out: list[str] = []
+    for f in files:
+        stem = Path(f).stem
+        if not f.endswith(".py") or stem == "__init__":
+            continue
+        r = subprocess.run(["git", "-C", repo, "grep", "-w", "-e", stem, "--", "*.py"], capture_output=True, text=True)
+        imp = re.compile(rf"^\s*(from|import)\s.*\b{re.escape(stem)}\b")  # git grep's -E has no \b on every platform
+        hits = [x.split(":", 1)[0] for x in r.stdout.splitlines() if imp.match(x.split(":", 1)[-1])]
+        out += [x for x in dict.fromkeys(hits) if x not in files and not NEVER.match(x)][:limit]
+    return list(dict.fromkeys(out))
+
+
+def _step_text(text: str, step: str) -> str:
+    """The step's own section of the build order and the behaviour bullets it lists (with their continuation lines)."""
+    m = re.search(rf"^(#+) Step {re.escape(step)}\b.*?$(.*?)(?=^#|\Z)", text, re.M | re.S)
+    section = m.group(0) if m else ""
+    ids = set(re.findall(r"`([a-z][a-z0-9-]*\.[a-z0-9.-]+)`", section))
+    bullets = [b for b in re.findall(r"^- `[^`]+`.*(?:\n  .*)*", text, re.M) if re.match(r"- `([^`]+)`", b).group(1) in ids]
+    return "\n".join([section, *bullets])
+
+
+def where_map(spec_path, step: str, repo: str, binary: str, issues=()) -> list[str]:
+    """A step's map, so its worker reads less: the spec, the directories its design section names, and only the files that
+    the step's section, its behaviour lines and its issues' Where/Test lines name, plus the Python files importing them, each
+    with its outline (the code map when the repo is indexed, else by regex). Never agent-work/ or LICENSE (real use 2026-11-02:
+    a search by the step's words listed both)."""
     spec = Path(spec_path)
     text = spec.read_text()
     try:
@@ -125,11 +145,17 @@ def where_map(spec_path, step_title: str, repo: str, binary: str) -> list[str]:
     dirs = []
     for p in _PATH.findall(m.group(1) if m else ""):
         d = p if p.endswith("/") else p.rsplit("/", 1)[0] + "/"
-        if (Path(repo) / d).is_dir() and d not in dirs:
+        if (Path(repo) / d).is_dir() and d not in dirs and not NEVER.match(d):
             dirs.append(d)
-    words = [w for w in re.findall(r"[a-z]{4,}", step_title.lower()) if w not in STOP]
-    found = (codemap.search(binary, repo, words) if words else None) or _grep_map(repo, words, dirs)
+    lines = [_step_text(text, step)] + [ln for i in issues for ln in (i.get("body") or "").splitlines() if re.search(r"\b(where|tests?)\b", ln, re.I)]
+    paths = [f for f in dict.fromkeys(_PATH.findall("\n".join(lines))) if f != rel and not NEVER.match(f)]
+    named = [f for f in paths if (Path(repo) / f).is_file()]
+    to_write = [(f.rsplit("/", 1)[0] + "/", f) for f in paths if "." in f.rsplit("/", 1)[-1] and not (Path(repo) / f).exists()
+                and (Path(repo) / f).parent.is_dir()]  # a file the step writes: its directory exists already
+    files = named + _importers(repo, named)
+    found = (codemap.outlines(binary, repo, files) if files else None) or {f: _outline(repo, f) for f in files}
     return [f"{rel} (the spec)", *(f"{d} (the directory the spec's design names)" for d in dirs),
+            *(f"{d} (where {f} goes; it does not exist yet)" for d, f in to_write),
             *(f"{f}: {', '.join(syms) or '(no symbols)'}" for f, syms in found.items())]
 
 
@@ -141,7 +167,7 @@ def write_briefs(planned: dict, *, out, repo_dir, base: str, rules: str, fetch, 
     written = []
     for c in planned["clusters"]:
         issues = [fetch(i["number"]) for i in c["issues"]]
-        where = where_map(spec_path, c["title"], str(repo_dir), binary) if spec_path else []
+        where = where_map(spec_path, c["step"], str(repo_dir), binary, issues) if spec_path else []
         text = cluster(issues, repo=str(repo_dir), branch=f"lane-{lane}" if lane else f"step-{c['step']}", base="the lane's head" if lane else base, rules=rules, where=where)
         p = out / f"brief-step-{c['step']}.txt"
         p.write_text(text)

@@ -151,6 +151,11 @@ def main(argv=None) -> int:
 
         from fichero_builder import brief_tool, codemap, milestone, queue, triage
 
+        journal.STATE = Path(a.state) if a.state else journal.STATE
+        if not (Path(a.repo_dir) / "harness.toml").is_file():  # a refusal with a row, never a traceback (real use 2026-11-02)
+            print(f"REFUSED: {a.repo_dir} has no harness.toml: --repo-dir must be a checkout of the project")
+            journal.append("milestone", refused="rules", detail=f"no harness.toml in {a.repo_dir}")
+            return 1
         if not a.name:
             try:
                 a.name, spec = triage.first_open(a.repo_dir, a.gh)

@@ -287,9 +287,13 @@ the write path would produce.
   `::test_the_projects_standing_worker_rules_are_in_harness_toml_so_no_brief_needs_a_hand_edit`.
   **Waits and the step's map** (built 2026-11-01): a step whose dependency still has open issues is a brief and, with
   `--enqueue`, a queued step of the lane, and every wait is said in ONE question line; every step brief opens with a map:
-  the spec's path, the directories its design section names that exist in the repo, and the files and symbols for the step's
-  words with each file's outline, from the code map when the repo is indexed (a file the tree lacks is dropped), else
-  from grep. Tests: `fichero-builder/tests/test_milestone_verb.py::test_plan_orders_clusters_and_asks_instead_of_guessing`,
+  the spec's path, the directories its design section names that exist in the repo, and only the files that the step's
+  section, its behaviour lines and its issues' Where/Test lines name, plus the Python files that import them, each with its
+  outline, from the code map when the repo is indexed (a file the tree lacks is dropped), else read by regex; a named file
+  the step will write is shown as its existing directory; never `agent-work/` or `LICENSE` (real use 2026-11-02: a search by
+  the step's words listed both, and openapi.json). `--repo-dir` without a `harness.toml` refuses with a `milestone` row.
+  Tests: `::test_the_where_list_names_only_what_the_step_its_behaviours_and_its_issues_name_plus_importers`,
+  `::test_a_repo_dir_that_is_not_a_checkout_refuses_with_a_row_not_a_traceback`, `fichero-builder/tests/test_milestone_verb.py::test_plan_orders_clusters_and_asks_instead_of_guessing`,
   `::test_the_where_list_is_the_spec_the_designs_directory_and_the_files_found_by_the_steps_words_with_their_outlines`,
   `::test_the_where_list_uses_the_code_map_when_the_repo_is_indexed_and_drops_what_the_tree_lacks`,
   `::test_a_server_that_fails_or_finds_nothing_falls_back_to_grep`.

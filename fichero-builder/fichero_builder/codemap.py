@@ -94,9 +94,9 @@ def owner_binary(root) -> str:
     return str(p) if p and p.is_file() else ""
 
 
-def search(binary: str, repo_dir: str, words: list[str], timeout_s: float = 60.0, limit: int = 10) -> dict[str, list[str]] | None:
-    """{file: ["name (line)", ...]} from a stdio MCP call to the server: the step's words through search_symbols and
-    search_text, then each file's outline. None when the server cannot answer or the repo is not indexed (the caller greps)."""
+def outlines(binary: str, repo_dir: str, files: list[str], timeout_s: float = 60.0) -> dict[str, list[str]] | None:
+    """{file: ["name (line)", ...]} for the given files, from a stdio MCP call to the server's get_file_outline; a file the
+    tree lacks is dropped. None when the server cannot answer or the repo is not indexed (the caller reads outlines by regex)."""
     if not binary:
         return None
     try:
@@ -129,11 +129,7 @@ def search(binary: str, repo_dir: str, words: list[str], timeout_s: float = 60.0
         if not found.get("indexed"):
             return None
         repo = found["repo"]
-        files = [r["file"] for r in tool("search_symbols", repo=repo, query=" ".join(words), max_results=limit, detail_level="compact").get("results", [])]
-        for w in words:
-            files += [r["file"] for r in tool("search_text", repo=repo, query=w, max_results=limit).get("results", [])]
         files = [f for f in dict.fromkeys(files) if (Path(repo_dir) / f).is_file()]
-        files = sorted(files, key=lambda f: bool(TEST_PATH.search(f)))[:limit]  # stable: the search's rank, the code before its tests
         if not files:
             return None
         outlines = tool("get_file_outline", repo=repo, file_paths=files).get("results", [])

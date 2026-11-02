@@ -156,7 +156,7 @@ def _repo(tmp_path):
 def test_the_where_list_is_the_spec_the_designs_directory_and_the_files_found_by_the_steps_words_with_their_outlines(tmp_path):
     """Defect 3 made concrete: no index, so grep; the worker gets a map, each file with its outline, and reads less."""
     repo = _repo(tmp_path)
-    where = milestone.where_map(repo / "docs" / "spec.md", "enhancement pipeline", str(repo), "")
+    where = milestone.where_map(repo / "docs" / "spec.md", "1.1", str(repo), "", [{"body": "Where: pkg/readers/runner.py"}])
     assert where == ["docs/spec.md (the spec)", "pkg/readers/ (the directory the spec's design names)",
                      "pkg/readers/runner.py: run_enhancement (1), Other (4)"]
     text = brief_tool.cluster([{"number": 7, "title": "t", "body": "b", "authorAssociation": "OWNER"}], repo=str(repo), branch="b", base="abc", where=where)
@@ -179,8 +179,6 @@ for line in sys.stdin:
     else:
         name, args = m["params"]["name"], m["params"]["arguments"]
         data = {{"resolve_repo": {{"indexed": True, "repo": "r"}},
-                "search_symbols": {{"results": [{{"file": "pkg/other.py", "name": "x"}}, {{"file": "gone/stale.py", "name": "y"}}]}},
-                "search_text": {{"results": [{{"file": "docs/spec.md", "matches": []}}, {{"file": "tests_here/test_x.py", "matches": []}}, {{"file": "pkg/readers/runner.py", "matches": []}}]}},
                 "get_file_outline": {{"results": [{{"file": "pkg/other.py", "symbols": [{{"name": "helper", "line": 3}}]}},
                                                   {{"file": "pkg/readers/runner.py", "symbols": [{{"name": "run_enhancement", "line": 1}}]}},
                                                   {{"file": "tests_here/test_x.py", "symbols": [{{"name": "test_x", "line": 1}}]}},
@@ -189,9 +187,10 @@ for line in sys.stdin:
     print(json.dumps({{"jsonrpc": "2.0", "id": m["id"], "result": result}}), flush=True)
 """)
     server.chmod(0o755)
-    where = milestone.where_map(repo / "docs" / "spec.md", "enhancement pipeline", str(repo), str(server))
-    assert where[2:] == ["pkg/other.py: helper (3)", "docs/spec.md: (no symbols)", "pkg/readers/runner.py: run_enhancement (1)", "tests_here/test_x.py: test_x (1)"], \
-        "the search's rank, tests last; a file the index has and the tree lacks is dropped"
+    issues = [{"body": "Where: pkg/other.py, gone/stale.py\nTests: tests_here/test_x.py, pkg/readers/runner.py"}]
+    where = milestone.where_map(repo / "docs" / "spec.md", "1.1", str(repo), str(server), issues)
+    assert where[2:] == ["pkg/other.py: helper (3)", "tests_here/test_x.py: test_x (1)", "pkg/readers/runner.py: run_enhancement (1)"], \
+        "the outlines come from the code map, in the order named; a named file the tree lacks is dropped"
 
 
 def test_a_server_that_fails_or_finds_nothing_falls_back_to_grep(tmp_path):
@@ -201,9 +200,10 @@ def test_a_server_that_fails_or_finds_nothing_falls_back_to_grep(tmp_path):
     bad = tmp_path / "bad"
     bad.write_text("#!/bin/sh\nexit 3\n")
     bad.chmod(0o755)
-    assert codemap.search(str(bad), str(repo), ["enhancement"]) is None
-    assert codemap.search(str(tmp_path / "nowhere"), str(repo), ["enhancement"]) is None
-    assert "pkg/readers/runner.py: run_enhancement (1), Other (4)" in milestone.where_map(repo / "docs" / "spec.md", "enhancement", str(repo), str(bad))
+    assert codemap.outlines(str(bad), str(repo), ["pkg/readers/runner.py"]) is None
+    assert codemap.outlines(str(tmp_path / "nowhere"), str(repo), ["pkg/readers/runner.py"]) is None
+    assert "pkg/readers/runner.py: run_enhancement (1), Other (4)" in milestone.where_map(
+        repo / "docs" / "spec.md", "1.1", str(repo), str(bad), [{"body": "Where: pkg/readers/runner.py"}]), "the outline read by regex instead"
 
 
 def test_a_step_heading_that_names_an_issue_places_it(tmp_path):
@@ -211,3 +211,42 @@ def test_a_step_heading_that_names_an_issue_places_it(tmp_path):
     steps = milestone.build_order(tmp_path / "spec.md")
     p = milestone.plan([{"number": 10, "title": "no step in the title", "body": "none in the body either"}], steps, "m1")
     assert [c["step"] for c in p["clusters"]] == ["1.2"] and not p["questions"]
+
+
+def test_a_repo_dir_that_is_not_a_checkout_refuses_with_a_row_not_a_traceback(tmp_path, capsys):
+    """Real use 2026-11-02: --repo-dir without a harness.toml raised FileNotFoundError."""
+    from fichero_builder import journal
+
+    (tmp_path / "spec.md").write_text(SPEC)
+    rc = cli.main(["milestone", "m1", "--spec", str(tmp_path / "spec.md"), "--repo-dir", str(tmp_path / "nowhere"), "--out", str(tmp_path / "out"),
+                   "--base", "abc1234", "--gh", _fake_gh(tmp_path), "--state", str(tmp_path / "s")])
+    assert rc == 1 and "REFUSED" in capsys.readouterr().out
+    journal.STATE = tmp_path / "s"
+    assert [r for r in journal.read() if r["event"] == "milestone" and r.get("refused") == "rules"]
+
+
+def test_the_where_list_names_only_what_the_step_its_behaviours_and_its_issues_name_plus_importers(tmp_path):
+    """Real use 2026-11-02: image-enhancement Step 1.1's map listed LICENSE, agent-work/ drafts, openapi.json and harness
+    modules found by the step's words. Now: the files the step's section, its behaviour lines and the issues' Where/Test lines
+    name, plus the Python files importing them; never agent-work/ or LICENSE."""
+    repo = _repo(tmp_path)
+    (repo / "t").mkdir()
+    (repo / "t" / "test_one.py").write_text("from pkg.readers import runner\n\ndef test_one():\n    pass\n")
+    (repo / "pkg" / "uses.py").write_text("from pkg.readers.runner import run_enhancement\n")
+    (repo / "pkg" / "named_by_issue.py").write_text("def where():\n    pass\n")
+    (repo / "agent-work").mkdir()
+    (repo / "agent-work" / "draft.py").write_text("from pkg.readers import runner\n")
+    (repo / "LICENSE").write_text("MIT\n")
+    (repo / "pkg" / "enhancement_noise.py").write_text("ENHANCEMENT = 1\n")  # the step's word, named by nothing
+    spec = (repo / "docs" / "spec.md")
+    spec.write_text(spec.read_text() + "\n## Behaviours\n\n- `a.b.one` [GAP] — the base. Test: `pkg/readers/runner.py`, LICENSE\n")
+    import subprocess
+    subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+    issues = [{"number": 7, "body": "Where: pkg/named_by_issue.py and agent-work/draft.py\nOther prose naming pkg/other.py\nTest: t/test_new.py"}]
+    where = milestone.where_map(spec, "1.1", str(repo), "", issues)
+    files = [w.split(":")[0] for w in where[1:] if " (the directory" not in w and " goes;" not in w]
+    assert where[0] == "docs/spec.md (the spec)"
+    assert set(files) == {"t/test_one.py", "pkg/readers/runner.py", "pkg/named_by_issue.py", "pkg/uses.py"}, files
+    assert "pkg/readers/runner.py: run_enhancement (1), Other (4)" in where, "each file with its outline"
+    assert "t/ (where t/test_new.py goes; it does not exist yet)" in where, "a test the step writes: its directory"
+    assert not any("agent-work" in w or "LICENSE" in w or "enhancement_noise" in w or "pkg/other.py" in w for w in where)
