@@ -62,7 +62,8 @@ def list_issues(milestone: str, *, gh: str = "gh") -> list[dict]:
 
 
 def plan(issues: list[dict], steps: list[dict], slug: str) -> dict:
-    """{'clusters': [{'step', 'title', 'issues'}] in build order, 'questions': [str]}."""
+    """{'clusters': [{'step', 'title', 'issues', 'waits'}] in build order (waits = the steps with open issues it depends on),
+    'questions': [str]} (an issue under no step, a step the spec lacks, and ONE line for all the waits)."""
     by_step: dict[str, list[dict]] = {}
     questions = []
     known = {s["number"] for s in steps}
@@ -74,17 +75,17 @@ def plan(issues: list[dict], steps: list[dict], slug: str) -> dict:
             questions.append(f"#{i['number']} names Step {st}, which the spec's build order does not have")
         else:
             by_step.setdefault(st, []).append(i)
-    clusters = []
+    clusters, waiting = [], []
     for s in steps:
         mine = by_step.get(s["number"])
         if not mine:
             continue
         waits = [d for d in s["depends_on"] if by_step.get(d)]
+        clusters.append({"step": s["number"], "title": s["title"], "issues": mine, "waits": waits})
         if waits:
-            questions.append(f"Step {s['number']} waits on Step {', '.join(waits)}: its issues ({', '.join('#%d' % i['number'] for i in mine)}) "
-                             "run after those land, or a person says otherwise")
-            continue
-        clusters.append({"step": s["number"], "title": s["title"], "issues": mine})
+            waiting.append(f"{s['number']} (after {', '.join(waits)})")
+    if waiting:  # one line, not one per step: the queue runs them in order, a person only reads it
+        questions.append(f"Steps that wait on earlier steps with open issues: {'; '.join(waiting)}: queued after those land, or a person says otherwise")
     return {"clusters": clusters, "questions": questions}
 
 

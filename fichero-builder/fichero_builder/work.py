@@ -236,17 +236,18 @@ def _chain(a) -> int:
     head = do_fetch(a, repo, branch)
     if not step("fetch", bool(head), head or f"could not fetch the worktree branch into {repo}"):
         return question(f"could not fetch the worktree's branch into {repo}")
-    try:
-        r = do_check(a, repo, branch, head, ladder)
-    except (RuntimeError, OSError, ValueError) as e:
-        step("check", False, str(e))
-        return question(f"the check could not run: {e}")
-    if not step("check", bool(r.get("ok")), f"failed: {r.get('failed') or '-'}"):
-        return question(f"the check is red at {head[:9]} (failed: {r.get('failed') or '?'}); ladder in {ladder}")
-    ok, last = do_review(a, repo, head, ladder, verdicts, reviewer)
-    if not step("review", ok, last):
-        return question(f"the review is not READY: {last}")
-    ok, out = do_land(a, repo, head, verdicts, log)
+    with journal.Lock("ladder"):  # one ladder at a time across the queue's parallel work processes (the machine is loaded)
+        try:
+            r = do_check(a, repo, branch, head, ladder)
+        except (RuntimeError, OSError, ValueError) as e:
+            step("check", False, str(e))
+            return question(f"the check could not run: {e}")
+        if not step("check", bool(r.get("ok")), f"failed: {r.get('failed') or '-'}"):
+            return question(f"the check is red at {head[:9]} (failed: {r.get('failed') or '?'}); ladder in {ladder}")
+        ok, last = do_review(a, repo, head, ladder, verdicts, reviewer)
+        if not step("review", ok, last):
+            return question(f"the review is not READY: {last}")
+        ok, out = do_land(a, repo, head, verdicts, log)
     if not step("land", ok, out[-300:]):
         return question(f"the land gate refused: {out[-300:]}")
     print(next((x for x in out.splitlines() if x.startswith("READY TO LAND")), out))

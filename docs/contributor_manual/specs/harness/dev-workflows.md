@@ -383,6 +383,21 @@ the write path would produce.
   `::test_milestones_follow_the_citing_spec_and_the_spec_label_goes_once_the_issue_sits_there`,
   `::test_a_specs_empty_milestone_stays_open_and_a_closed_one_is_reopened_not_made_twice`, `::test_labels_creates_a_missing_kept_target_and_skips_a_missing_spec_hint`, `::test_order_does_not_propose_what_the_file_already_lists_under_then`, `::test_assignees_are_the_owner_on_needs_your_only`, `::test_order_reads_the_build_order_file_and_proposes_a_diff_never_writes`,
   `fichero-builder/tests/test_milestone_verb.py::test_no_name_takes_the_first_ordered_milestone_with_open_issues_and_its_spec`.
+- `dev-workflows.tool.queue` [OK] (#6166; owner 2026-11-01) — `builder queue [add|run] [--push] [--once]` is the owner-side
+  loop that works briefs with no manager in the loop: one row per item in `<state>/queue.json` (id, brief, worktree,
+  base, depends-on, issues, state queued/running/landing/landed/blocked/question, head, why); `builder milestone
+  --enqueue` queues one item per step brief with the steps it waits for as depends-on (a waiting step is a brief and a
+  queued item, and the plan says all the waits in one line); the loop starts the next queued item whose depends-on are
+  satisfied (a sha on `origin/<[land].branch>`, or a queue item that has landed), at most `harness.toml [queue].workers`
+  at a time, each as one `builder work` process with the current origin head as its base, and `builder work` holds the
+  `ladder` lock across check, review and the land gate so the ladder runs one at a time across items; `builder work`
+  exit 0 -> `builder landed <head>` (push only with --push) -> landed, exit 2 -> question with the QUESTION line in
+  `<state>/question-<id>.txt` for a person, any other end or a refused landing -> blocked with the output tail; every
+  transition is a journal row (event `queue`) and `builder watch` shows the queue. **Built** 2026-11-01:
+  `fichero_builder/queue.py`. Tests: `fichero-builder/tests/test_queue_verb.py::test_add_writes_a_queued_row_and_refuses_a_running_duplicate`,
+  `::test_the_loop_starts_satisfied_items_up_to_the_worker_cap_lands_a_green_one_and_blocks_or_questions_the_rest`,
+  `::test_a_refused_landing_blocks_the_item_with_the_reason_and_push_is_passed_through`, `::test_once_does_one_pass_and_the_verb_prints_the_table`,
+  `::test_the_watch_page_shows_the_queue`, `fichero-builder/tests/test_milestone_verb.py::test_enqueue_queues_one_item_per_step_brief_with_its_waits_as_depends_on`.
 - `dev-workflows.builder.cluster` [PARTIAL] (#6116) — one spec and its build-order issues (parser ported from
   `pipeline/plan.py`), in order, one commit per issue with its test; the brief is built by `scripts/harness_brief.py` from
   `gh api repos/{repo}/issues/N`: the body and the **title** only when the author association is owner, member or
@@ -740,6 +755,12 @@ Steps a long-running builder can take from the heading. `Depends on` defaults to
 - Depends on: 2.4
 - Size: M
 
+#### Step 2.6 — `builder queue`: the owner-side loop over step briefs, one ladder at a time, questions for a person (owner 2026-11-01)
+- Behaviours: `dev-workflows.tool.queue`
+- Tests: fichero-builder/tests/test_queue_verb.py, fichero-builder/tests/test_milestone_verb.py
+- Depends on: 2.5
+- Size: M
+
 ### Stage 3 — the Pi kind by RPC, the sandbox, local parity
 
 #### Step 3.1 — `--kind pi` over RPC with a fail-closed `tool_call` extension; a metered provider; one model per role in the rules file
@@ -805,6 +826,7 @@ Every behaviour names its test above, written in its step; each `security.*` and
 | `dev-workflows.tool.landed` | 2.4 |
 | `dev-workflows.tool.watch` | 2.4 |
 | `dev-workflows.tool.triage` | 2.5 |
+| `dev-workflows.tool.queue` | 2.6 |
 | `dev-workflows.run.worker-address` | 1.1 |
 | `dev-workflows.node.worker` | 1.2 |
 | `dev-workflows.rollout.dry-run` | 1.2 |
