@@ -125,9 +125,20 @@ def rules_problems(root) -> list[str]:
     return out
 
 
+FAILURES = re.compile(r"^=+ (?:FAILURES|ERRORS) =+$")
+
+
 def tail(text: str, lines: int = 40, chars: int = 4000, line_chars: int = 300) -> str:
-    kept = [ln[:line_chars] for ln in (text or "").strip().splitlines()[-lines:]]
-    return "\n".join(kept)[-chars:]
+    """The last lines, bounded. A pytest failure section is kept whatever follows it: its end (the `E` lines) plus the run's
+    end, half the bound each; 40 lines of warnings once pushed the failure out of a red rung."""
+    all_lines = [ln[:line_chars] for ln in (text or "").strip().splitlines()]
+    start = next((i for i, ln in enumerate(all_lines) if FAILURES.match(ln)), None)
+    last = all_lines[-lines:]
+    if start is None or start >= len(all_lines) - lines:
+        return "\n".join(last)[-chars:]
+    stop = next((i for i in range(start + 1, len(all_lines)) if all_lines[i].startswith("=")), len(all_lines))
+    failure = "\n".join(all_lines[start:stop][-(lines // 2):])[-(chars // 2):]
+    return failure + "\n...\n" + "\n".join(all_lines[-(lines // 2 - 1):])[-(chars // 2):]
 
 
 _JAIL = None  # ponytail: module state set by run_ladder for the length of one ladder; per-call plumbing if two ladders overlap

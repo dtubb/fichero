@@ -53,6 +53,23 @@ def safe_append(path, text: str) -> None:
         f.write(text)
 
 
+def log_problem(path) -> str:
+    """Why the land log cannot be appended to, or ''. Checked before any work, and creates nothing: a directory here once
+    died with a traceback at the end of a six-minute ladder."""
+    p = Path(path)
+    if p.is_dir():
+        return f"{p} is a directory, not a log file"
+    if not p.parent.is_dir() or not os.access(p.parent, os.W_OK):
+        return f"{p.parent} is not a directory this user can write"
+    try:
+        _check_owned(p.parent, p.parent.stat(), "parent dir")
+        if p.exists() or p.is_symlink():
+            safe_append(p, "")
+    except OSError as e:
+        return f"{p}: {e}"
+    return ""
+
+
 def safe_write(path, text: str) -> None:
     fd = _safe_open(path, os.O_WRONLY | os.O_CREAT)
     with os.fdopen(fd, "w") as f:

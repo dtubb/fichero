@@ -34,6 +34,18 @@ def test_a_missing_program_is_a_red_result_not_a_raise(tmp_path):
     assert not r["ok"] and r["exit_code"] is None and "No such file" in r["stderr_tail"]
 
 
+def test_a_red_pytest_tail_keeps_the_failure_when_warnings_follow_it():
+    """A red rung lost its failure text to 40 lines of warnings after it (chunk A's red, 2026-11-01)."""
+    text = "\n".join(["collected", "=" * 20 + " FAILURES " + "=" * 20, "_ test_x _", "    def test_x():", "E   AssertionError: the real reason", "t.py:3: AssertionError",
+                      "=" * 20 + " warnings summary " + "=" * 20, *[f"warning {i}" for i in range(200)], "=" * 20 + " short test summary info " + "=" * 20,
+                      "FAILED t.py::test_x", "1 failed, 14 passed"])
+    kept = ct.tail(text)
+    assert "E   AssertionError: the real reason" in kept and "1 failed, 14 passed" in kept
+    assert len(kept) <= 4100 and len(kept.splitlines()) <= 41
+    plain = "\n".join(f"line {i}" for i in range(100))
+    assert ct.tail(plain).splitlines()[0] == "line 60", "no failure section: the plain last lines"
+
+
 def test_the_tail_is_bounded(tmp_path):
     r = ct.run_command("long", [sys.executable, "-c", "print('x'*5000); print('\\n'.join(map(str, range(100))))"], tmp_path, 20)
     assert len(r["stdout_tail"].splitlines()) <= 40 and len(r["stdout_tail"]) <= 4000

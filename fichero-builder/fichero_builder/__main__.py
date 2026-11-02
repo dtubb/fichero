@@ -139,6 +139,13 @@ def main(argv=None) -> int:
             print(f"REFUSED: {e}", file=sys.stderr)
             return 1
         return 0
+    if a.cmd == "land":
+        from fichero_builder import land_tool
+
+        if problem := land_tool.log_problem(a.log):  # first: every later refusal writes here
+            print(f"REFUSED (log): {problem}", file=sys.stderr)
+            journal.append("land", head=a.head, refused="log", detail=problem)
+            return 1
     if a.cmd in ("check", "land") and not a.repo:
         try:
             a.repo = check_tool.load(a.pinned).engine_repo

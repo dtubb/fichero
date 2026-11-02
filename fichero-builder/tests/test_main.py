@@ -36,7 +36,8 @@ def test_land_refuses_without_a_green_check_row_for_its_head(tmp_path, monkeypat
 
     shutil.copy(cli.Path(__file__).resolve().parents[2] / "harness.toml", tmp_path / "harness.toml")  # a rules file the gate accepts
     monkeypatch.setattr(cli, "resolve", lambda repo, rev: "b" * 40)
-    args = ["land", "--repo", "repo", "HEAD", "--pinned", str(tmp_path), "--verdicts", "v", "--log", "l", "--state", str(tmp_path / "s")]
+    # the log and verdicts in the test's own folder: the check tree, the cwd of a rung, is read-only to the worker (chunk A's red, 2026-11-01)
+    args = ["land", "--repo", "repo", "HEAD", "--pinned", str(tmp_path), "--verdicts", str(tmp_path / "v"), "--log", str(tmp_path / "l"), "--state", str(tmp_path / "s")]
     assert cli.main(args) == 1 and "check" in capsys.readouterr().err
     monkeypatch.setattr(journal, "STATE", tmp_path / "s")
     journal.append("check", head="b" * 40, ok=False)
@@ -92,3 +93,38 @@ def test_check_passes_maintainer_through_to_the_ladder(monkeypatch, tmp_path, ca
     rules.write_text("[check]\nengine_repo = '" + str(tmp_path) + "'\n")
     assert m.main(["check", "a", "b", "--pinned", str(tmp_path), "--maintainer", "--state", str(tmp_path)]) == 0
     assert seen.get("maintainer") is True
+
+
+@pytest.mark.parametrize("bad", ["a-directory", "missing-parent/land.log"])
+def test_land_refuses_a_log_it_cannot_write_before_anything_with_a_row(tmp_path, monkeypatch, capsys, bad):
+    """A directory as --log died with a traceback at the end of a six-minute ladder: the log is checked first."""
+    (tmp_path / "a-directory").mkdir()
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    monkeypatch.setattr(cli.check_tool, "rules_problems", lambda p: pytest.fail("the log comes first"))
+    rc = cli.main(["land", "--repo", "repo", "HEAD", "--pinned", str(tmp_path), "--verdicts", "v", "--log", str(tmp_path / bad), "--state", str(tmp_path / "s")])
+    assert rc == 1 and "REFUSED (log)" in capsys.readouterr().err
+    assert [r["refused"] for r in journal.read() if r["event"] == "land"] == ["log"]
+
+
+def test_the_log_check_passes_a_new_file_and_an_owned_one_and_creates_nothing(tmp_path):
+    from fichero_builder import land_tool
+
+    assert land_tool.log_problem(tmp_path / "new.log") == "" and not (tmp_path / "new.log").exists()
+    (tmp_path / "old.log").write_text("kept\n")
+    assert land_tool.log_problem(tmp_path / "old.log") == "" and (tmp_path / "old.log").read_text() == "kept\n"
+    (tmp_path / "link.log").symlink_to(tmp_path / "old.log")
+    assert land_tool.log_problem(tmp_path / "link.log"), "the same refusal the append would give, now first"
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    shared.chmod(0o777)
+    assert land_tool.log_problem(shared / "new.log"), "a parent others can write: the append would refuse at the end of the work"
+
+
+def test_the_hand_run_ladder_script_refuses_a_directory_log_before_its_ladder(tmp_path):
+    import subprocess
+    import sys
+
+    script = cli.Path(__file__).resolve().parents[2] / "scripts" / "harness_land.py"
+    r = subprocess.run([sys.executable, str(script), "repo", "HEAD", "--pinned", str(tmp_path), "--verdicts", "v", "--log", str(tmp_path)],
+                       capture_output=True, text=True, cwd=tmp_path)
+    assert r.returncode != 0 and "REFUSED (log)" in r.stderr and "Traceback" not in r.stderr

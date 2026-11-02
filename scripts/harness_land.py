@@ -26,6 +26,8 @@ def row(**kw):
     land_tool.safe_append(a.log, json.dumps({"at": time.time(), "land": a.head, **kw}) + "\n")
 
 
+if problem := land_tool.log_problem(a.log):  # first: every refusal below writes here, and the ladder takes minutes
+    sys.exit(f"REFUSED (log): {problem}")
 if problems := check_tool.rules_problems(a.pinned):
     row(refused="rules", detail=problems)
     sys.exit("REFUSED (rules file):\n  " + "\n  ".join(problems))
