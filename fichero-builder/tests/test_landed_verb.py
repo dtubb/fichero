@@ -44,8 +44,10 @@ def world(tmp_path, monkeypatch):
     _g(engine, "fetch", "-q", str(seed), "+refs/heads/lane:refs/heads/work-n1")
     pinned_dir = tmp_path / "pinned"
     (tmp_path / "harness.toml").write_text(
-        f'[check]\nengine_repo = "{engine}"\n[land]\nbranch = "integration"\nboundary = []\npinned_dir = "{pinned_dir}"\n'
-        f'[jail]\nuser = "wuser"\nworkroot = "{wr}"\n')
+        f'[check]\nengine_repo = "{engine}"\npython = "/py"\nready = ["r"]\nguard_glob = "g"\nmin_guards = 1\ncontract_guards = ["c"]\n'
+        f'check_paths = ["p"]\ncontract_paths = ["c"]\npytest_config = "pyproject.toml"\n'
+        f'[land]\nbranch = "integration"\nboundary = ["forbidden-token"]\npinned_dir = "{pinned_dir}"\n'
+        f'[jail]\nuser = "wuser"\nworkroot = "{wr}"\ndeny_read = ["~/.ssh"]\n')
     store = tmp_path / "verdicts.json"
     ran = []
 
@@ -238,3 +240,40 @@ def test_a_maintainer_row_lands_and_the_landing_says_it_was_one(world):
     journal.append("check", since=_g(world.engine, "rev-parse", "integration"), head=world.sha, ok=True, maintainer=True)
     assert world.go("--push") == 0
     assert "maintainer" in next(r["detail"] for r in rows() if r["step"] == "check-row")
+
+
+def test_a_range_over_the_boundary_is_not_pushed(world, capsys):
+    """Nothing on this path ran the boundary: a READY verdict and a green row pushed a token to the public repo."""
+    (world.seed / "leak").write_text("forbidden-token-here\n")
+    _g(world.seed, "add", "leak"), _g(world.seed, "commit", "-qm", "feat: leak\n\nPart of #7")
+    head = _g(world.seed, "rev-parse", "HEAD")
+    _g(world.engine, "fetch", "-q", str(world.seed), "+refs/heads/lane:refs/heads/work-n1")
+    land_tool.write_verdict(world.store, world.engine, "integration", head)
+    journal.append("check", head=head, since=_g(world.engine, "rev-parse", "integration"), ok=True)
+    assert cli.main(["landed", head, "--root", str(world.tmp), "--verdicts", str(world.store), "--gh", str(world.tmp / "gh"),
+                     "--state", str(world.tmp / "s"), "--push"]) == 1
+    assert "leak: pattern 0" in capsys.readouterr().err and rows()[-1]["step"] == "boundary" and rows()[-1]["ok"] is False
+    assert _g(world.origin, "rev-parse", "integration") != head
+
+
+def test_a_rules_file_the_land_gate_would_refuse_refuses_here_too(world, capsys):
+    world.ready(), world.green()
+    f = world.tmp / "harness.toml"
+    f.write_text(f.read_text().replace('min_guards = 1\n', ''))
+    assert world.go("--push") == 1
+    assert "min_guards" in capsys.readouterr().err and _g(world.origin, "rev-parse", "integration") != world.sha
+
+
+def test_a_red_step_after_the_refresh_can_be_run_again_and_finishes_the_rest(world, monkeypatch):
+    """Once the local branch has moved the range is empty, so a rerun used to die on `nothing to land` and the issues were never told."""
+    world.ready(), world.green()
+    real = landed.as_worker
+    monkeypatch.setattr(landed, "as_worker", lambda j, s: subprocess.CompletedProcess(s, 1, "", "sudo: a password is required"))
+    assert world.go("--push") == 1 and rows()[-1]["step"] == "jail-root"
+    assert not world.gh_log.exists()
+    monkeypatch.setattr(landed, "as_worker", real)
+    assert world.go("--push") == 0
+    assert rows()[-1]["step"] == "done"
+    calls = world.gh_log.read_text().splitlines()
+    assert any(c.startswith("issue close 7") for c in calls), "the base the first run saw still names the range"
+    assert world.go("--push") == 1, "a finished landing is not run twice"

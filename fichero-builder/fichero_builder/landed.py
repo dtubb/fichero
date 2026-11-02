@@ -15,7 +15,7 @@ import sys
 import tomllib
 from pathlib import Path
 
-from fichero_builder import jail, journal, land_tool
+from fichero_builder import check_tool, jail, journal, land_tool
 
 
 def _git(repo, *args) -> subprocess.CompletedProcess:
@@ -52,7 +52,8 @@ def pinned_worktrees(repo) -> dict[str, str]:
 def pin(repo, sha: str, pinned_dir: Path) -> str:
     """`pinned-<sha7>` as a branch and a worktree under pinned_dir; every other pinned-* branch and worktree goes."""
     name = f"pinned-{sha[:7]}"
-    _ok(_git(repo, "branch", "-f", name, sha), "branch -f")
+    if name not in pinned_worktrees(repo):  # git refuses `branch -f` on a branch its own worktree has out: a rerun finds it in place
+        _ok(_git(repo, "branch", "-f", name, sha), "branch -f")
     for b, path in pinned_worktrees(repo).items():
         if b != name:
             _ok(_git(repo, "worktree", "remove", "--force", path), f"worktree remove {path}")
@@ -122,7 +123,7 @@ def main(a) -> int:
         return 1
 
     def row(step: str, ok: bool, detail: str) -> None:
-        journal.append("landed", sha=a.sha, step=step, ok=ok, detail=detail)
+        journal.append("landed", sha=a.sha, step=step, ok=ok, detail=detail, **({"base": base} if step == "refresh" else {}))
 
     def step(name: str, fn) -> bool:
         try:
@@ -135,6 +136,8 @@ def main(a) -> int:
         return True
 
     try:
+        if problems := check_tool.rules_problems(a.root):  # the same refusal the land gate gives: one rules file, one answer
+            raise ValueError("; ".join(problems))
         doc = tomllib.loads(rules.read_text())
         land = doc["land"]
         branch, pinned_dir = land["branch"], Path(land.get("pinned_dir", ""))
@@ -169,6 +172,11 @@ def main(a) -> int:
             raise Red(f"{sha[:9]} is not a fast-forward of origin/{branch}: rebase the lane and check again")
         return f"fast-forward of origin/{branch}"
 
+    def boundary():
+        if hits := land_tool.boundary(repo, base, sha, land["boundary"]):
+            raise Red("the public boundary: " + "; ".join(hits))
+        return "clear"
+
     def push():
         nonlocal pushed
         if not a.push:
@@ -201,9 +209,16 @@ def main(a) -> int:
             return "skipped (--no-issues)"
         return "; ".join(update_issues(a.gh, cited, branch, sha)) or "no issue cited"
 
-    base = _git(repo, "merge-base", f"refs/heads/{branch}", sha).stdout.strip()  # the range: over the local branch BEFORE it is refreshed
-    for name, fn in (("verdict", verdict), ("check-row", check_row), ("fast-forward", fast_forward), ("push", push), ("refresh", refresh),
-                     ("pinned", lambda: pin(repo, sha, pinned_dir)), ("jail-root", jail_root), ("scratch", scratch), ("issues", issues)):
+    # a rerun after a red step past the refresh: the local branch has moved, so the range is empty and only the first run's base names it
+    earlier = [r for r in journal.read() if r.get("event") == "landed" and r.get("sha") == sha]
+    resume = None if any(r.get("step") == "done" for r in earlier) else next((r for r in earlier if r.get("step") == "refresh" and r.get("ok") and r.get("base")), None)
+    pushed = any(r.get("step") == "push" and r.get("ok") and str(r.get("detail")).startswith("pushed") for r in earlier) if resume else False
+    base = resume["base"] if resume else _git(repo, "merge-base", f"refs/heads/{branch}", sha).stdout.strip()  # the range: over the local branch BEFORE it is refreshed
+    steps = [("verdict", verdict), ("check-row", check_row), ("fast-forward", fast_forward), ("boundary", boundary), ("push", push), ("refresh", refresh),
+             ("pinned", lambda: pin(repo, sha, pinned_dir)), ("jail-root", jail_root), ("scratch", scratch), ("issues", issues)]
+    if resume:
+        steps = steps[[n for n, _ in steps].index("refresh") + 1:]
+    for name, fn in steps:
         if not step(name, fn):
             return 1
     journal.append("landed", sha=sha, step="done", ok=True, branch=branch, pushed=pushed, detail="landed",
