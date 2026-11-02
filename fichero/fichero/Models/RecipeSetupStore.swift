@@ -372,6 +372,8 @@ final class RecipeSetupStore {
     /// counts them; nil: every page. Never with a folder. Start sends it only when the caller names it (`start(firstPages:)`),
     /// and it is cleared once a Start is accepted or the material changes: it is for that one Start.
     var runFirstPages: Int?
+    /// "This run, at most" (US$), sent with Start alone (`designer.budget.run-cap`); nil: the project's caps hold.
+    var runCapUsd: Double?
 
     /// The folder the shown plan covers (`source.recipe.folder-scoped-start`); nil: the whole project.
     private(set) var startPlanFolderId: String?
@@ -412,9 +414,9 @@ final class RecipeSetupStore {
                steps: [String]? = nil) async -> Bool {
         do {
             let body: Operations.StartProjectApiRecipesProjectStartPost.Input.Body? =
-                folderId == nil && redo.isEmpty && documents == nil && first == nil && steps == nil
+                folderId == nil && redo.isEmpty && documents == nil && first == nil && steps == nil && runCapUsd == nil
                 ? nil : .json(.init(redo: redo.isEmpty ? nil : redo, folderId: folderId, documents: documents,
-                                    firstPages: first, steps: steps))
+                                    firstPages: first, steps: steps, runCapUsd: runCapUsd))
             switch try await client.api.startProjectApiRecipesProjectStartPost(body: body) {
             case .ok(let success):
                 var started = try success.body.json
@@ -423,6 +425,7 @@ final class RecipeSetupStore {
                 if (started.stepChoices ?? []).isEmpty, let kept = startPlan?.stepChoices { started.stepChoices = kept }
                 startPlan = started
                 runFirstPages = nil  // "the first N pages" was for this Start alone (#6295)
+                runCapUsd = nil  // and so is the run's own cap
                 if startPlanFolderId != folderId { startPlanFolderId = folderId }
                 // The first yes: its steps can now run again, named as the setup's `redo_steps` names them (no reload).
                 if redoSteps.isEmpty {

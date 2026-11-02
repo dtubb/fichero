@@ -13,6 +13,7 @@ struct RecipeCloudCapRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             CloudCapFields(store: store, line: line, undo: undo)
+            RecipeRunCapField(store: store, line: line)
             Text(Self.words(line)).font(.caption).foregroundStyle(line.over ? .orange : .secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if let estimate = store.startPlan?.estimate {
@@ -149,6 +150,9 @@ struct CloudCapOffers: View {
             VStack(alignment: .leading, spacing: 4) {
                 Label(reason, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
+                if let dearest = BudgetBlock(line).dearestWords(title: store.title(ofJob:)) {
+                    Text(dearest).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
                 HStack {
                     if let monthly = fix.monthly {
                         Button(monthly.title) { Task { await store.raise(monthly, project: false, undo: undo, steps: steps) } }
