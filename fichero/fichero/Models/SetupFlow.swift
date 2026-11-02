@@ -11,6 +11,8 @@ enum SetupStep: Hashable, Identifiable {
     case project
     case addMaterial
     case aboutMaterial
+    /// How do you want to run this (`designer.how.*`): after the material, before the stages; the wide Set Up only.
+    case how
     case stages
     case stage(String)
     case ready
@@ -31,6 +33,7 @@ enum SetupStep: Hashable, Identifiable {
         case .project: "Your Project"
         case .addMaterial: "Add Material"
         case .aboutMaterial: "About the Material"
+        case .how: "How"
         case .stages: "Choose the Stages"
         case .stage(let stageId): stageTitles[stageId] ?? stageId
         case .ready: "Ready"
@@ -45,6 +48,7 @@ enum SetupStep: Hashable, Identifiable {
         case .project: "folder"
         case .addMaterial: "tray.and.arrow.down"
         case .aboutMaterial: "text.magnifyingglass"
+        case .how: "slider.horizontal.3"
         case .stages: "checklist"
         case .stage: "circle.dashed"
         case .ready: "play.circle"
@@ -59,8 +63,9 @@ enum SetupStep: Hashable, Identifiable {
     /// existing project starts at Add material), then one page per chosen stage, in the engine's order, then Ready
     /// (training is not a step: the plan offers it once there is enough corrected work, #5804).
     /// `chosenStages` is in the engine's order already.
-    static func projectSteps(chosenStages: [String], isNewProject: Bool) -> [SetupStep] {
-        (isNewProject ? [.project] : []) + [.addMaterial, .aboutMaterial, .stages]
+    static func projectSteps(chosenStages: [String], isNewProject: Bool, withHow: Bool = false) -> [SetupStep] {
+        (isNewProject ? [.project] : []) + [.addMaterial, .aboutMaterial] + (withHow ? [.how] : [])
+            + [.stages]
             + chosenStages.map(SetupStep.stage) + [.ready]
     }
 
@@ -82,7 +87,7 @@ enum SetupStep: Hashable, Identifiable {
     /// Start, so nothing runs. Your project makes the project rather than saving into one; Ready saves with Start.
     var savesDraft: Bool {
         switch self {
-        case .addMaterial, .aboutMaterial, .stages, .stage: true
+        case .addMaterial, .aboutMaterial, .how, .stages, .stage: true
         default: false
         }
     }
@@ -119,6 +124,8 @@ struct SetupFlow: Equatable {
     var project: ProjectPages
     /// The chosen stages, in the engine's order.
     var chosenStages: [String] = []
+    /// The How page is in the flow (the wide Set Up).
+    var includesHow = false
 
     /// iPhone and iPad have no local engine to set up (#2807): their first run is the welcome alone.
     var isCompanionPlatform = false
@@ -138,8 +145,8 @@ struct SetupFlow: Equatable {
         let app = includesApp ? SetupStep.appSteps : []
         let projectSteps: [SetupStep] = switch project {
         case .none: []
-        case .new: SetupStep.projectSteps(chosenStages: chosenStages, isNewProject: true)
-        case .existing: SetupStep.projectSteps(chosenStages: chosenStages, isNewProject: false)
+        case .new: SetupStep.projectSteps(chosenStages: chosenStages, isNewProject: true, withHow: includesHow)
+        case .existing: SetupStep.projectSteps(chosenStages: chosenStages, isNewProject: false, withHow: includesHow)
         }
         return app + projectSteps
     }

@@ -15,6 +15,7 @@ extension FirstRunWindow {
         var current = flow
         let onStage: String? = if case .stage(let id) = step { id } else { nil }
         current.chosenStages = store?.stageIds(keeping: onStage) ?? []
+        current.includesHow = FeatureManager.shared.isWideSetUpEnabled
         return current.steps
     }
 }

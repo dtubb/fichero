@@ -71236,6 +71236,12 @@
             "nullable": true,
             "title": "Proposed Card",
             "description": "the route card (a to d) the answers sent propose; null when they say nothing"
+          },
+          "default_matters": {
+            "type": "string",
+            "nullable": true,
+            "title": "Default Matters",
+            "description": "what matters most, pre-filled from the places sent (privacy when only this Mac); null: nothing pre-filled"
           }
         },
         "type": "object",

@@ -24,3 +24,13 @@ def test_the_questions_route_serves_conditions_and_how():
     body = TestClient(app).get("/api/recipes/questions?places=cluster&matters=cost&pages=50").json()
     assert body["how"]["default_model_kind"] == "compare" and body["how"]["proposed_card"] == "b"
     assert [m for m in body["how"]["matters"]] == ["speed", "cost", "quality", "privacy"] and body["conditions"]
+
+
+def test_the_route_prefills_privacy_only_when_this_mac_alone_is_sent():
+    from fastapi.testclient import TestClient
+
+    from fichero_server.api.main import app
+
+    client = TestClient(app)
+    assert client.get("/api/recipes/questions?places=this-mac").json()["how"]["default_matters"] == "privacy"
+    assert client.get("/api/recipes/questions?places=this-mac,cloud").json()["how"]["default_matters"] is None

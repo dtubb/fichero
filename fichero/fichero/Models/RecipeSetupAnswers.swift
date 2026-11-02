@@ -89,6 +89,8 @@ struct RecipeSetupAnswers: Codable, Equatable {
     var materials: [String]?
     /// The condition of the pages, ticked by the person (`answers.condition`); nil is not asked, an empty list is none ticked.
     var condition: [String]?
+    /// How you want to run this (`answers.how`): where the work runs, which kind of model, what matters most.
+    var how: HowAnswers?
     /// Read only, as `purpose`.
     var material: String?
     var pages: Int?
@@ -250,8 +252,9 @@ struct RecipeSetupAnswers: Codable, Equatable {
          jobAnswersByFolder: [String: [String: StageAnswer]]? = nil, removedJobs: [String]? = nil,
          period: String? = nil, hands: [String]? = nil, place: String? = nil,
          hfSpendCapUsd: Double? = nil, cloudSpendCapUsd: Double? = nil, cloudProjectCapUsd: Double? = nil,
-         copiesMayStayOnCluster: Bool? = nil, condition: [String]? = nil) {
+         copiesMayStayOnCluster: Bool? = nil, condition: [String]? = nil, how: HowAnswers? = nil) {
         self.condition = condition
+        self.how = how
         self.hfSpendCapUsd = hfSpendCapUsd
         self.cloudSpendCapUsd = cloudSpendCapUsd
         self.cloudProjectCapUsd = cloudProjectCapUsd
@@ -277,7 +280,7 @@ struct RecipeSetupAnswers: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case purposes, purpose, jobs, languages, scripts, directions, materials, material, pages, layers, automatic
-        case condition
+        case condition, how
         case period, hands, place
         case hfSpendCapUsd = "hf_spend_cap_usd"
         case cloudSpendCapUsd = "cloud_spend_cap_usd"

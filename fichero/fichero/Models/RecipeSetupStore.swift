@@ -64,6 +64,12 @@ final class RecipeSetupStore {
     var conditions: [String]?
     /// The engine's tick boxes for the condition question (`GET /api/recipes/questions`).
     var conditionOptions: [ConditionOption] = []
+    /// How you want to run this: the answers, the engine's questions for them, and the line of what this Mac has.
+    var how = HowAnswers()
+    var howQuestions: Components.Schemas.HowQuestions?
+    var whatYouHave: String?
+    /// The person picked what matters most themselves: the engine's pre-fill no longer follows the places.
+    var howMattersByHand = false
     /// Scripts setup put in because a chosen language is usually written in them (#5626), each with the languages
     /// that proposed it: a language taken out again takes out a script only it proposed.
     private(set) var proposedScripts: [String: Set<String>] = [:]
@@ -525,7 +531,8 @@ final class RecipeSetupStore {
                            period: period, hands: hands, place: place,
                            hfSpendCapUsd: spendCapUsd, cloudSpendCapUsd: cloudSpendCapUsd,
                            cloudProjectCapUsd: cloudProjectCapUsd,
-                           copiesMayStayOnCluster: copiesMayStay, condition: conditions)
+                           copiesMayStayOnCluster: copiesMayStay, condition: conditions,
+                           how: how.isEmpty ? nil : how)
     }
 
     /// The answers as the project last saved them, as JSON, so a save keeps every field the
@@ -558,6 +565,10 @@ final class RecipeSetupStore {
         if let value = saved.materials ?? saved.material.map({ [$0] }), !value.isEmpty { materials = value }
         if let value = saved.pages { pages = value }
         if let value = saved.condition { conditions = value }
+        if let value = saved.how {
+            how = value
+            howMattersByHand = value.matters != nil
+        }
         if let value = saved.cloudAllowed {
             cloudAllowed = value
             cloudAnswered = true

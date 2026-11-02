@@ -30,6 +30,14 @@ extension FirstRunWindow {
         switch step {
         case .addMaterial, .aboutMaterial:
             materialPage(step, store: store)
+        case .how:
+            stepPage(
+                title: "How do you want to run this?",
+                subtitle: "Where the work runs, which kind of model, and what matters most.",
+                systemImage: step.icon
+            ) {
+                recipeCard(step) { RecipeHowFields(store: store) }
+            }
         case .stages, .stage:
             stagePage(step, store: store)
         default:

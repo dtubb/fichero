@@ -353,6 +353,7 @@ class HowQuestions(BaseModel):
     default_model_kind: str
     matters: list[str] = Field(description="What matters most? one of these")
     proposed_card: Optional[str] = Field(default=None, description="the route card (a to d) the answers sent propose; null when they say nothing")
+    default_matters: Optional[str] = Field(default=None, description="what matters most, pre-filled from the places sent (privacy when only this Mac); null: nothing pre-filled")
 
 
 class QuestionList(BaseModel):
@@ -376,7 +377,7 @@ async def questions(places: str = "", matters: str = "", pages: int = 0) -> Ques
             model_kinds=[HowOption(**o) for o in how_module.model_kind_options(
                 cloud_allowed=app_places.allows("cloud", allowed), memory_gb=derived.this_mac()["memory_gb"])],
             default_model_kind=how_module.DEFAULT_MODEL_KIND, matters=list(how_module.MATTERS),
-            proposed_card=how_module.proposed_card(said, pages)))
+            proposed_card=how_module.proposed_card(said, pages), default_matters=how_module.default_matters(said["places"])))
 
 
 class WhyOfDefault(BaseModel):
