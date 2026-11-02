@@ -128,7 +128,7 @@ prices = { sonnet = [3, 15], opus = [15, 75], haiku = [1, 5] }
 # `anthropic` and `omlx` are Pi providers (their models and prices live in Pi's models.json). Change by editing here.
 providers = ["claude-code", "anthropic", "omlx"]
 builder = { provider = "claude-code", model = "sonnet[1m]" }  # [spend].window is 1M: only this name gets that window
-reviewer = { provider = "claude-code", model = "opus" }
+reviewer = { provider = "claude-code", model = "opus", context = 200000 }  # its review cap is 40% of this at 3.5 bytes a token
 spec-writer = { provider = "claude-code", model = "opus" }
 helper = { provider = "claude-code", model = "haiku" }
 researcher = { provider = "claude-code", model = "sonnet" }

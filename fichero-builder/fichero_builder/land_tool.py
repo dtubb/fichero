@@ -211,16 +211,42 @@ def _gitb_ok(root, *args) -> bool:
     return subprocess.run([GIT, "-C", str(root), *_ATTR, *args], capture_output=True).returncode == 0
 
 
-def review_diff(root, base: str, head: str, cap: int = 300000) -> str:
-    """What the reviewer reads: EVERY commit of the range, oldest first, as text (no attributes, no textconv), or a
-    refusal. Never truncated. Not the net diff: a line added in one commit and removed in the next is still history
-    (review 5 N4)."""
+def review_cap(context: int) -> int:
+    """Bytes of diff one review takes: 40% of the reviewer's window at 3.5 bytes a token (the rest is the checklist,
+    the reads in the tree and the answer). ponytail: a flat bytes-per-token guess; count tokens if a group overflows."""
+    return int(context * 0.4 * 3.5)
+
+
+def _review_bytes(root, base: str, head: str) -> bytes:
     d = _gitb(root, "log", "-p", "--reverse", "--full-index", "--no-ext-diff", "--no-textconv", "--text", f"{base}..{head}")
     if b"\x00" in d:
         raise ValueError("binary content in the diff (a NUL byte): the reviewer cannot read it, refused")
+    return d
+
+
+def review_diff(root, base: str, head: str, cap: int = review_cap(200_000)) -> str:
+    """What the reviewer reads: EVERY commit of the range, oldest first, as text (no attributes, no textconv), or a
+    refusal. Never truncated. Not the net diff: a line added in one commit and removed in the next is still history
+    (review 5 N4)."""
+    d = _review_bytes(root, base, head)
     if len(d) > cap:
         raise ValueError(f"diff is {len(d)} bytes, over the {cap} cap: split the work, the reviewer must see all of it")
     return d.decode("utf-8", "replace")
+
+
+def review_groups(root, base: str, head: str, cap: int) -> list[tuple[str, str]]:
+    """base..head as consecutive (base, tip) commit groups, oldest first, each whose review_diff fits `cap`; together
+    they are the whole range. A single commit over the cap cannot be split: refused, never truncated."""
+    groups, start, prev, size = [], base, base, 0
+    for sha in _git(root, "rev-list", "--reverse", f"{base}..{head}").split():
+        n = len(_review_bytes(root, prev, sha))  # `git log -p` of a range is its commits' entries joined by a blank line
+        if n > cap:
+            raise ValueError(f"commit {sha[:10]} alone is {n} bytes, over the {cap} cap: split the commit, the reviewer must see all of it")
+        if size and size + 1 + n > cap:
+            groups.append((start, prev))
+            start, size = prev, 0
+        prev, size = sha, size + (1 if size else 0) + n
+    return groups + [(start, prev)] if prev != start else groups
 
 
 def boundary(root, base: str, head: str, patterns: list[str], cap: int = 30) -> list[str]:
