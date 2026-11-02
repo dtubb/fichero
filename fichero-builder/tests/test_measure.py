@@ -60,3 +60,27 @@ def test_the_measure_verb_takes_the_script_after_dashes(tmp_path, monkeypatch):
     assert cli.main(["measure", "--lane", "lane-x", "--machine", "imac", "--root", str(tmp_path), "--state", str(tmp_path / "s"),
                      "--", "-c", "import json; print(json.dumps({'ok': 1}))"]) == 0
     assert [x["json"] for x in journal.read() if x["event"] == "measure"] == ['{"ok": 1}']
+
+
+def test_install_copies_the_newest_dev_dmg_installs_and_reports_the_app_and_engine(tmp_path, monkeypatch):
+    """Owner 2026-11-02: 'Install on…' a test machine. A fake ssh stores the copy and answers the install script."""
+    from fichero_builder import __main__ as cli
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    b = tmp_path / "bin"
+    b.mkdir()
+    got = tmp_path / "remote.dmg"
+    (b / "ssh").write_text('#!/bin/sh\nwhile [ "$1" = "-o" ]; do shift 2; done\nshift\n'
+                           'case "$1" in df*) echo 50;; *"cat >"*) cat > ' + str(got) + ';; '
+                           '*hdiutil*) echo "APP Fichero Dev.app"; echo "RUNNING 123 /Applications/Fichero Dev.app/Contents/MacOS/Fichero"; '
+                           'echo "ENGINE 456 fichero_server";; esac\n')
+    (b / "ssh").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{b}:{os.environ['PATH']}")
+    (tmp_path / "harness.toml").write_text('[machines]\nm4 = { ssh = "m4", dir = "~/fichero-gate" }\n')
+    assert measure.install(tmp_path, "m4")[0] == 1, "nothing built yet"
+    dmg = tmp_path / "Fichero-dev.dmg"
+    dmg.write_bytes(b"DMG" * 1000)
+    journal.append("build", tier="dev", ok=True, dmg=str(dmg))
+    assert cli.main(["install", "m4", "--root", str(tmp_path), "--state", str(tmp_path / "s")]) == 0
+    assert got.read_bytes() == dmg.read_bytes(), "the DMG went over ssh whole"
+    r = [x for x in journal.read() if x["event"] == "install"][-1]
+    assert r["rc"] == 0 and r["app_running"] and r["engine_running"] and "Fichero Dev.app" in r["detail"]

@@ -151,6 +151,8 @@ def main(argv=None) -> int:
     me = sub.add_parser("measure", help="run a script on a test machine against a lane's commit (git archive of its engine source): one measure row, told to the lane's pane")
     me.add_argument("--lane", required=True), me.add_argument("--machine", required=True), me.add_argument("--sha", default="")
     me.add_argument("--root", default=str(Path.cwd())), me.add_argument("--state"), me.add_argument("argv", nargs=argparse.REMAINDER)
+    ins = sub.add_parser("install", help="copy the newest dev DMG to a [machines] test machine over ssh, install it in ~/Applications there, open it and say whether the app and its engine run")
+    ins.add_argument("machine"), ins.add_argument("dmg", nargs="?", default=""), ins.add_argument("--root", default=str(Path.cwd())), ins.add_argument("--state")
     od = sub.add_parser("order", help="the owner's build order (JSON {order, parked}) as one commit on branch build-order, queued as a tiny batch the loop lands")
     od.add_argument("--file", required=True), od.add_argument("--root", default=str(Path.cwd())), od.add_argument("--state")
     sw = sub.add_parser("sweep", help="clean up one landed worktree through the landing's sweep: a patch first, git worktree remove, never rm; a jail tree as the worker")
@@ -290,6 +292,13 @@ def main(argv=None) -> int:
 
         journal.STATE = Path(a.state) if a.state else journal.STATE
         return measure.main(a)
+    if a.cmd == "install":
+        from fichero_builder import measure
+
+        journal.STATE = Path(a.state) if a.state else journal.STATE
+        rc, out = measure.install(a.root, a.machine, a.dmg)
+        print(out)
+        return rc
     if a.cmd == "order":
         from fichero_builder import order
 

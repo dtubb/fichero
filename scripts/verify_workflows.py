@@ -108,11 +108,21 @@ print("registered 2 text-image docs")
 
 # Presets containing an image-input tool run against the seeded JPG fixture;
 # everything else runs against the seeded text fixture. (Selection only.)
+# The tools the sweep always counted as image input (the list before the registry rule): kept as a floor, so a tool whose image
+# port is a JSON `documents` one (denoise/deskew/autocrop/binarize, organize_same_documents...) is never silently dropped.
+IMAGE_INPUT_FLOOR = {
+    "adaptive_binarize_images", "auto_crop_border_images", "caption", "classify_script", "denoise_images", "describe",
+    "deskew_images", "contrast_images", "enhance_images", "faces", "fuzzy_clean_images", "handwriting", "layout", "objects",
+    "organize_same_documents", "prepare_images", "recombine_segments", "remove_background_images", "rotate_images", "scene",
+    "segment_images", "similarity", "split_images", "split_pages", "transcribe", "transcribe_review", "zoom",
+}
+
+
 def image_input_tools(tool_defs: dict[str, dict]) -> set[str]:
     """Tools that take an image, read from the live registry (dev-workflows.run.loop-needs-maintainer): a vision or
-    transform tool with a `files` input port. Adding such a node never edits this pinned script. `sub_workflow`: the only
+    transform tool with a `files` input port, plus the floor (IMAGE_INPUT_FLOOR) for those the registry names. Adding such a node never edits this pinned script. `sub_workflow`: the only
     shipped one wraps transcribe passes (as in classify_needs)."""
-    return {"sub_workflow"} | {
+    return {"sub_workflow"} | {n for n in IMAGE_INPUT_FLOOR if n in tool_defs} | {
         name for name, t in tool_defs.items()
         if t.get("category") in ("vision", "transform") and any(p.get("data_type") == "files" for p in t.get("input_ports") or [])
     }

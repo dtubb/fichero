@@ -277,6 +277,9 @@ function Release({ st }) {
       <${Card} k="Release PR" v=${d.prs?.length ? html`<a href=${d.prs[0].url} target="_blank">#${d.prs[0].number}</a>` : "none open"} dot=${d.prs?.length ? "blue" : ""} />
     </div>
     <p class="muted">Make release PR is the owner's to say: the console shows it, never does it.</p>
+    <h2>Install the newest dev build on a test machine</h2>
+    <div class="actions" style="justify-content:flex-start">${(st.machines || []).map(m => html`<button class="btn" onClick=${() => confirm(`Install the newest dev DMG on ${m}?`) && act("install", { machine: m })}>Install on ${m}</button>`)}</div>
+    ${[...st.console].reverse().filter(r => r.verb === "install").slice(0, 1).map(r => html`<pre>${r.state} ${r.detail || ""}</pre>`)}
     <div class="wrap"><table><tbody>${(d.commits || []).map(c => html`<tr><td class="mono">${c.split(" ")[0]}</td><td>${c.split(" ").slice(1).join(" ")}</td></tr>`)}</tbody></table></div>`;
 }
 
