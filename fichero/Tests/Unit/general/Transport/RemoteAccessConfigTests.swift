@@ -11,6 +11,16 @@ final class RemoteAccessConfigTests: XCTestCase {
     private let previousHost = "https://previous.tailnet.example"
     private let attemptedHost = URL(string: "https://attempted.tailnet.example:8443")!
 
+    /// `sharing.host-name-is-the-bonjour-name`: the address names the Mac as mDNS does, not as the directory does.
+    func testAutoLocalAddressUsesTheBonjourLocalHostName() {
+        let previous = RemoteAccessConfig.localHostName
+        defer { RemoteAccessConfig.localHostName = previous }
+        RemoteAccessConfig.localHostName = { "macbook-pro-m1" }
+        XCTAssertEqual(RemoteAccessConfig.autoLocalBaseURL, "https://macbook-pro-m1.local:8765")
+        RemoteAccessConfig.localHostName = { nil }  // no Bonjour name: the old reading, never an empty host
+        XCTAssertTrue(RemoteAccessConfig.autoLocalBaseURL.hasSuffix(".local:8765"))
+    }
+
     override func tearDown() {
         super.tearDown()
         AuthTokenMiddleware.clearRemoteToken(hostString: previousHost)

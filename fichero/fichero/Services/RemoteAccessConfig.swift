@@ -1,6 +1,7 @@
 import Darwin
 import FicheroAPIClient
 import Foundation
+import SystemConfiguration
 
 enum RemoteAccessConfig {
     /// Reads and writes go through this seam so tests can point the type at a
@@ -61,8 +62,16 @@ enum RemoteAccessConfig {
     /// The ONE home for the automatic address (#5042): the Share sheet and the
     /// Sharing settings pane both forward here, so they cannot drift apart.
     /// Port mirrors `EngineConfig.defaultHostString` so both stay in sync.
+    ///
+    /// The name is the Mac's LocalHostName, which is what mDNS publishes (`sharing.host-name-is-the-bonjour-name`), never
+    /// `ProcessInfo.hostName`, the DNS/directory name that no other Mac resolves. It is a seam so a test names the Mac.
+    static var localHostName: () -> String? = {
+        SCDynamicStoreCopyLocalHostName(nil) as String?
+    }
+
     static var autoLocalBaseURL: String {
-        var host = ProcessInfo.processInfo.hostName.lowercased()
+        let bonjour = (localHostName() ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        var host = (bonjour.isEmpty ? ProcessInfo.processInfo.hostName : bonjour).lowercased()
         if !host.hasSuffix(".local") {
             host = (host.components(separatedBy: ".").first ?? host) + ".local"
         }

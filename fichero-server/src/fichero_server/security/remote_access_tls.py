@@ -74,7 +74,11 @@ def prepare_remote_access_tls(
         subject_alt_hosts=alt_hosts,
     )
     certificate_path = material_dir / "server.crt"
-    key_path = material_dir / "server.key"
+    own_key = material_dir / "server.key"
+    # One key per Mac (`sharing.certificate-names-every-address`): a new name or LAN address re-issues the certificate under
+    # the same key, so the pin and every link and paired device built on it stay valid. A folder made before the shared
+    # key keeps the key it has, so no existing pin changes.
+    key_path = own_key if own_key.exists() else root / "key.pem"
 
     if not certificate_path.exists() or not key_path.exists():
         _generate_material(
@@ -240,8 +244,13 @@ def _generate_material(*, certificate_path: Path, key_path: Path, hosts: Sequenc
 
     certificate_path.parent.mkdir(parents=True, exist_ok=True)
     os.chmod(certificate_path.parent, 0o700)
+    if key_path.parent != certificate_path.parent:  # the shared key lives in the folder above
+        os.chmod(key_path.parent, 0o700)
 
-    private_key = ec.generate_private_key(ec.SECP256R1())
+    if key_path.exists():
+        private_key = serialization.load_pem_private_key(key_path.read_bytes(), password=None)
+    else:
+        private_key = ec.generate_private_key(ec.SECP256R1())
     subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, hosts[0])])
     certificate = (
         x509.CertificateBuilder()
@@ -256,13 +265,16 @@ def _generate_material(*, certificate_path: Path, key_path: Path, hosts: Sequenc
     )
 
     certificate_path.write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
-    key_path.write_bytes(
-        private_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.TraditionalOpenSSL,
-            encryption_algorithm=serialization.NoEncryption(),
-        )
-    )
+    if not key_path.exists():
+        fd = os.open(key_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)  # owner-only from the first byte
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(
+                private_key.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.TraditionalOpenSSL,
+                    encryption_algorithm=serialization.NoEncryption(),
+                )
+            )
     os.chmod(certificate_path, 0o600)
     os.chmod(key_path, 0o600)
 
