@@ -141,6 +141,8 @@ def main(argv=None) -> int:
     cl.add_argument("lane"), cl.add_argument("--root", default="."), cl.add_argument("--state", help="where the queue and the journal live")
     va = sub.add_parser("verify-all", help="everything on a checkout's HEAD verified before a dev DMG: every guard, the full engine suite (on [check].remote), the app build; one `verify` row; --build makes the dev DMG only after a green verdict")
     va.add_argument("--root", default="."), va.add_argument("--state", help="where the journal lives"), va.add_argument("--build", action="store_true")
+    hv = sub.add_parser("heavy", help="run a heavy command (xcodebuild, a full pytest run) under the machine's one-heavy-job lock; waits, and says who holds it after 30 s: builder heavy -- <cmd>")
+    hv.add_argument("--state", help="where the journal and the lock live"), hv.add_argument("argv", nargs=argparse.REMAINDER)
     hb = sub.add_parser("heartbeat", help="the loop's watchdog: an alert row when the journal has no `loop` tick for more than --ticks ticks (once per silence); exit 1 while stale")
     hb.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
     hb.add_argument("--tick", type=float, default=30.0), hb.add_argument("--ticks", type=int, default=3)
@@ -260,6 +262,15 @@ def main(argv=None) -> int:
         rc, msg = queue.answer(a.id, a.action, gh=a.gh, cwd=a.root)
         print(msg)
         return rc
+    if a.cmd == "heavy":
+        import subprocess
+
+        argv = [x for i, x in enumerate(a.argv) if not (i == 0 and x == "--")]
+        if not argv:
+            print("REFUSED: builder heavy -- <command>")
+            return 2
+        with journal.heavy("heavy: " + " ".join(argv)[:80]):
+            return subprocess.run(argv, env={**os.environ, journal.HEAVY_ENV: "1"}).returncode
     if a.cmd == "verify-all":
         from fichero_builder import verify
 

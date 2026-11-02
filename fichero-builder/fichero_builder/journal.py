@@ -3,6 +3,7 @@
 side effect; `Lock` is the one flock the watcher and the test runs take."""
 from __future__ import annotations
 
+import contextlib
 import fcntl
 import json
 import os
@@ -97,3 +98,18 @@ def ladder_slots(n: int) -> list[str]:
 def ladder_slots_known() -> list[str]:
     """Every ladder lock ever used here: a landing that must not pull a pinned copy from under a check probes them all."""
     return sorted({"ladder", *(p.name[:-5] for p in STATE.glob("ladder-*.lock") if p.name[7:-5].isdigit())})
+
+
+HEAVY_ENV = "FICHERO_HEAVY_HELD"  # set for what `builder heavy` runs: it already holds the lock
+
+
+@contextlib.contextmanager
+def heavy(what: str):
+    """One heavy job at a time on this machine (owner 2026-11-02): xcodebuild, the full engine suite and the guards rung take it,
+    and so do check, build --dev, verify-all and `builder test` through those. A wait over Lock.WARN_S says who holds it. A
+    child of `builder heavy` already holds it and passes straight through. Quick things (ruff, swiftlint, one test file) never ask."""
+    if os.environ.get(HEAVY_ENV):
+        yield
+        return
+    with Lock("heavy", what=what):
+        yield

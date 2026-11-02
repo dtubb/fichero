@@ -488,6 +488,18 @@ the write path would produce.
   `fichero-builder/tests/test_verify_all.py::test_green_runs_every_part_writes_one_row_and_builds_the_dmg_only_with_build`,
   `::test_a_red_part_is_not_verified_and_no_dmg_is_built`, `::test_build_flag_makes_the_dmg_after_a_green_verdict`,
   `::test_two_overlapping_ladders_keep_the_jail_until_the_last_one_ends`.
+- `dev-workflows.run.heavy-lock` [PARTIAL] (#6116; owner order via the manager 2026-11-02) — one heavy job at a time per machine: a flock
+  `heavy.lock` in the owner's state dir (`journal.heavy`). xcodebuild (the build rung), the full engine suite (the pytest runs of a check,
+  `builder test` and `verify-all` that run here) and the guards rung take it, so `builder check`, the loop's chains, `builder build --dev`,
+  `builder verify-all` and `builder test` take it through them; the dev build takes it around its script. A suite sent to
+  `[check].remote` takes no local lock (the iMac's own lock is still to be built). A lane or the manager runs any other heavy command with
+  `builder heavy -- <cmd>`: it waits, says who holds the lock after 30 s (the lock's own waiting row and a line on stderr), and its child
+  passes through the lock it holds (`FICHERO_HEAVY_HELD`), so a `builder test` run inside it never deadlocks. Quick things (ruff, swiftlint,
+  `swiftc -parse`, one test file) never ask. Two checks at once (`[check].parallel`) therefore overlap only in their quick rungs and the
+  remote runs. **Built** 2026-11-02: `journal.heavy`, `check_tool._heavy`, `builder heavy`. Not yet: the iMac's own lock; a real wait.
+  Tests: `fichero-builder/tests/test_heavy_lock.py::test_a_second_heavy_job_waits_and_a_wait_over_the_limit_names_the_holder`,
+  `::test_builder_heavy_runs_the_command_under_the_lock_and_its_children_pass_through`,
+  `::test_the_guards_rung_the_build_rung_and_a_local_full_suite_take_it_a_remote_suite_does_not`, `::test_the_dev_build_takes_the_lock`.
 - `dev-workflows.builder.cluster` [PARTIAL] (#6116) — one spec and its build-order issues (parser ported from
   `pipeline/plan.py`), in order, one commit per issue with its test; the brief is built by `scripts/harness_brief.py` from
   `gh api repos/{repo}/issues/N`: the body and the **title** only when the author association is owner, member or
@@ -1123,7 +1135,7 @@ Steps a long-running builder can take from the heading. `Depends on` defaults to
 - Size: M
 
 #### Step 2.7 — the code map for jail workers, briefs that carry it, the reading metric (owner 2026-11-01)
-- Behaviours: `dev-workflows.run.code-map`
+- Behaviours: `dev-workflows.run.code-map`, `dev-workflows.run.heavy-lock`
 - Tests: fichero-builder/tests/test_codemap.py, fichero-builder/tests/test_milestone_verb.py, fichero-builder/tests/test_dry_run.py, fichero-builder/tests/test_watch.py
 - Depends on: 2.6
 - Size: M

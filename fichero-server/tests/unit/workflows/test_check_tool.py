@@ -63,6 +63,7 @@ def test_a_load_flake_only_red_green_run_is_rerun_once_alone_and_a_real_failure_
     failed = {**flake, "stdout_tail": "FAILED t.py::test_y - assert 1 == 2\nERROR t.py::test_x\nOSError"}
     calls = []
     monkeypatch.setattr(ct.journal, "STATE", tmp_path / "state")  # its retry rows go to a throwaway journal, never the owner's
+    monkeypatch.setenv(ct.journal.HEAVY_ENV, "1")  # green_runs takes the machine's heavy lock; this test must not queue behind a live check
     for first, second, want_ok, want_calls in ((flake, green, True, 2), (failed, green, False, 1), (flake, flake, False, 2)):
         seq, calls[:] = iter([first, second]), []
         monkeypatch.setattr(ct, "pytest_rung", lambda *a, **k: calls.append(1) or next(seq))

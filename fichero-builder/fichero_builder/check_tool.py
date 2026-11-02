@@ -12,6 +12,7 @@ import ast
 import difflib
 import fcntl
 import fnmatch
+import functools
 import importlib.util
 import json
 import os
@@ -472,6 +473,21 @@ def _retry_flake(run_it, r: dict, what: str) -> dict:
     return {**run_it(), "retried": True}
 
 
+def _heavy(what: str, local_only: bool = False):
+    """The machine's one-heavy-job lock around a rung; local_only: a Config with [check].remote runs it on the iMac, whose own lock it takes."""
+    def deco(fn):
+        @functools.wraps(fn)
+        def wrapped(*a, **k):
+            cfg = next((x for x in (*a, *k.values()) if isinstance(x, Config)), None)
+            if local_only and cfg is not None and cfg.remote:
+                return fn(*a, **k)
+            with journal.heavy(what):
+                return fn(*a, **k)
+        return wrapped
+    return deco
+
+
+@_heavy("the full engine suite", local_only=True)
 def green_runs(tree, files: list[str], whole: tuple, cfg: Config, timeout_s: float) -> dict:
     """The green run: the engine-shaped pytest over the changed test files, then each whole-tests dir as its own pytest.
     One row: the first red (or the last green) as the row's own fields, `runs` = every command and its tail."""
@@ -502,6 +518,7 @@ def _isolated(script: Path, root: Path, cfg: Config) -> list[str]:
     return [_py(cfg), "-I", "-c", code]
 
 
+@_heavy("the guards rung")
 def guards(root, cfg: Config) -> dict:
     """Every guard script matching the project's glob and not in its skip list. Fewer than `min_guards` found =
     blind = not green."""
@@ -609,6 +626,7 @@ def build_names(root, since: str, head: str) -> list[str]:
     return [f for _s, _m, f in _changes(root, since, head, "--diff-filter=AMD")]
 
 
+@_heavy("xcodebuild (the build rung)")
 def build(root, changed: list[str], cfg: Config) -> dict:
     """The project's build-only compile, only when the diff touches its build paths; one at a time under the lock
     (owner 2026-11-01: a Swift change nobody compiled reached the land gate; builds stay serial on this machine)."""

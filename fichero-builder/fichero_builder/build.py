@@ -52,7 +52,7 @@ def main(a) -> int:
     started = time.time()
     journal.append("activity", kind="build", key=f"build {sha[:9]}", state="start")
     print(f"building the dev DMG of {sha[:9]}{' with uncommitted changes' if dirty else ''}; log {log}", flush=True)
-    with log.open("w") as f:
+    with log.open("w") as f, journal.heavy("the dev build"):
         rc = subprocess.run([str(script)], cwd=str(root), env=env, stdout=f, stderr=subprocess.STDOUT).returncode
     fresh = dmg.is_file() and dmg.stat().st_mtime >= started - 1
     ok = rc == 0 and fresh
