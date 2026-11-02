@@ -530,8 +530,8 @@ the write path would produce.
   `launchd` job only keeps the watcher itself alive. Built 2026-11-01: the judgement (`fichero_builder/watcher.py`: caps from
   `[spend]`, a missing cap or an unknown price refuses, decisions park, handoff, alert from a session state). Not yet: the
   process that starts, reads and acts. Test: `fichero-builder/tests/test_watcher.py`.
-  The caps in `harness.toml [spend]` are owner settings (8 USD a session, 60 USD a day as of 2026-11-01 evening). Not yet decided: a
-  Sonnet worker on the 1M context variant (`[1m]` on the model name, `window = 1000000`, handoff at 0.85) where the login allows it.
+  The caps in `harness.toml [spend]` are owner settings (8 USD a session, 60 USD a day as of 2026-11-01 evening). Not yet in code: a
+  Sonnet worker's model name carrying `[1m]`: the manager sets it by hand on a lane worker; `[spend].window` is 1000000, handoff at 0.85.
 - `dev-workflows.run.records-are-truth` [PROPOSED] (maintainer 2026-10-31; owner 2026-11-01: no engine) — for a worker the
   truth is its **journal** (JSON lines, one file per cluster under the Builder's state directory; `$FICHERO_HARNESS_LOG` in
   Slice 0), plus git plus the handoff file; the run log (one row per item attempt: model, provider, context cap, tokens,
