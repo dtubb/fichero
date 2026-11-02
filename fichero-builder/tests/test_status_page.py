@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import json
 import threading
+import time
+import urllib.error
 import urllib.request
 
+import pytest
+
 from fichero_builder import __main__ as cli
-from fichero_builder import journal, watch
+from fichero_builder import console, journal, watch
 
 DAY = "2026-11-02"
 ROWS = [
@@ -22,9 +26,13 @@ ROWS = [
     {"ts": f"{DAY}T11:10:00", "event": "alert-answer", "id": "a-s1-1", "action": "retry", "ok": True},
     {"ts": f"{DAY}T11:11:00", "event": "alert-answer", "id": "b-s2-2", "action": "retry", "ok": False},
 ]
+def _s(step, state):
+    return {"step": step, "state": state, "issues": [7], "why": "", "brief": "/nonexistent/brief"}
+
+
 LANES = [
-    {"id": "a", "cursor": 1, "paused": False, "kind": "worker", "steps": [{"step": "s0", "state": "landed"}, {"step": "s1", "state": "running"}]},
-    {"id": "b", "cursor": 1, "paused": True, "kind": "external", "steps": [{"step": "s2", "state": "landed"}]},
+    {"id": "a", "worktree": "/nonexistent/a", "cursor": 1, "paused": False, "kind": "worker", "steps": [_s("s0", "landed"), _s("s1", "running")]},
+    {"id": "b", "worktree": "/nonexistent/b", "cursor": 1, "paused": True, "kind": "external", "steps": [_s("s2", "landed")]},
 ]
 
 
@@ -53,9 +61,9 @@ def test_status_json_is_served_on_the_loopback(tmp_path, monkeypatch):
     assert [x["lane"] for x in st["lanes"]] == ["a", "b"] and [a["id"] for a in st["open_alerts"]] == ["b-s2-2"]
 
 
-def test_the_status_verb_is_the_watch_page(monkeypatch, tmp_path):
+def test_the_status_verb_serves_the_console_and_watch_keeps_the_page(monkeypatch, tmp_path):
     seen = {}
-    monkeypatch.setattr(watch, "server", lambda host, port: (seen.update(host=host, port=port), _Stub())[1])
+    monkeypatch.setattr(console, "server", lambda host, port: (seen.update(host=host, port=port), _Stub())[1])
     assert cli.main(["status", "--port", "9998", "--state", str(tmp_path)]) == 0
     assert seen == {"host": "127.0.0.1", "port": 9998}
 
@@ -65,3 +73,91 @@ class _Stub:
 
     def serve_forever(self):
         pass
+
+
+@pytest.fixture
+def live(tmp_path, monkeypatch):
+    """A console on an ephemeral loopback port over a fake journal and queue; verbs go to a fake runner."""
+    monkeypatch.setattr(journal, "STATE", tmp_path)
+    (tmp_path / "journal.jsonl").write_text("".join(json.dumps(r) + "\n" for r in ROWS))
+    monkeypatch.setattr(console.queue, "load", lambda: LANES)
+    monkeypatch.setattr(console, "ROOT", tmp_path)
+    ran = []
+    monkeypatch.setattr(console, "run_verb", lambda argv: ran.append(argv) or (0, "ok"))
+    monkeypatch.setattr(console, "EVENT_POLL_S", 0.05)
+    srv = console.server("127.0.0.1", 0)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{srv.server_address[1]}", ran
+    srv.shutdown()
+
+
+def _post(url, body, token=None, host=None):
+    req = urllib.request.Request(url + "/api/action", data=json.dumps(body).encode(), method="POST",
+                                 headers={"Content-Type": "application/json", **({"X-Builder-Token": token} if token else {}), **({"Host": host} if host else {})})
+    try:
+        r = urllib.request.urlopen(req, timeout=5)
+        return r.status, json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        return e.code, json.loads(e.read())
+
+
+def _wait(pred):
+    for _ in range(100):
+        if pred():
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def test_the_api_status_has_the_lanes_steps_spend_alerts_review_and_heartbeat(live):
+    url, _ = live
+    st = json.loads(urllib.request.urlopen(url + "/api/status", timeout=5).read())
+    a, b = st["lanes"]
+    assert a["lane"] == "a" and a["step"] == "s1" and [s["step"] for s in a["steps"]] == ["s0", "s1"] and a["usd"] == 1.25 + 9.0
+    assert [x["id"] for x in st["open_alerts"]] == ["b-s2-2"] and st["spend_today_usd"] >= 0 and "heartbeat" in st and "last_review" in st
+    page = urllib.request.urlopen(url + "/", timeout=5).read().decode()
+    assert console.TOKEN in page and "__TOKEN__" not in page and "htm@3.1.1/preact/standalone" in page, "the token is in the page; Preact pinned"
+
+
+def test_each_action_calls_its_existing_verb_and_writes_rows_naming_who(live):
+    url, ran = live
+    for verb, args, want in [("pause", {"lane": "a"}, ["queue", "pause", "--lane", "a"]),
+                             ("resume", {"lane": "a"}, ["queue", "resume", "--lane", "a"]),
+                             ("stop", {"lane": "a"}, ["queue", "stop", "--lane", "a"]),
+                             ("alert", {"id": "b-s2-2", "action": "retry"}, ["alert", "b-s2-2", "retry"]),
+                             ("build", {}, ["build", "--dev"]),
+                             ("done", {"lane": "b", "sha": "abc123"}, ["done", "b", "abc123"]),
+                             ("queue-add", {"lane": "c", "worktree": "/w/c", "step": "1.1", "brief": "/b/1.1", "issues": [5, 6]},
+                              ["queue", "add", "--lane", "c", "--worktree", "/w/c", "--step", "1.1", "--brief", "/b/1.1"])]:
+        code, body = _post(url, {"verb": verb, "args": args}, console.TOKEN)
+        assert code == 200 and body["ok"], (verb, body)
+        assert _wait(lambda: len(ran) and ran[-1][3:3 + len(want)] == want), (verb, ran[-1])
+    assert ran[-1][-3:] == ["--issues", "5", "6"]
+    code, _ = _post(url, {"verb": "loop-start"}, console.TOKEN)
+    assert code == 200 and _wait(lambda: ran[-1][:2] == ["launchctl", "bootstrap"])
+    assert _wait(lambda: sum(1 for r in journal.read() if r["event"] == "console" and r["state"] == "ended") == 8)
+    rows = [r for r in journal.read() if r["event"] == "console"]
+    assert all(r["who"].endswith("@console") for r in rows) and {r["verb"] for r in rows} >= {"pause", "build", "loop-start"}
+
+
+def test_a_missing_token_a_foreign_host_and_an_unlisted_verb_or_a_flag_value_are_refused_with_a_row(live):
+    url, ran = live
+    assert _post(url, {"verb": "build"})[0] == 403, "no token"
+    assert _post(url, {"verb": "build"}, console.TOKEN, host="evil.example:80")[0] == 403, "a foreign Host (DNS rebinding)"
+    code, body = _post(url, {"verb": "rm", "args": {}}, console.TOKEN)
+    assert code == 400 and "not a console verb" in body["error"]
+    code, body = _post(url, {"verb": "pause", "args": {"lane": "--push"}}, console.TOKEN)
+    assert code == 400 and "never a flag" in body["error"]
+    assert ran == []
+    assert [r["state"] for r in journal.read() if r["event"] == "console"] == ["refused"] * 4
+
+
+def test_events_stream_each_new_journal_row(live):
+    url, _ = live
+    resp = urllib.request.urlopen(url + "/api/events", timeout=5)
+    journal.append("queue", lane="a", step="s1", state="checking", detail="")
+    line = b""
+    while not line.startswith(b"data: "):
+        line = resp.readline()
+    assert json.loads(line[6:])["state"] == "checking"
+    resp.close()
