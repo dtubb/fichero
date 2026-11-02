@@ -95,15 +95,57 @@ function Alerts({ alerts }) {
   </div>`)}</div>`;
 }
 
+function Milestones({ st }) {
+  const [data, setData] = useState(null);
+  const [open, setOpen] = useState({});
+  const [pick, setPick] = useState({});
+  const load = () => fetch("/api/milestones").then(r => r.json()).then(setData);
+  useEffect(() => { load(); }, [st.console.length]);  // a refresh's console row reloads the cache
+  const refresh = () => fetch("/api/refresh", { method: "POST", headers: { "X-Builder-Token": TOKEN } });
+  if (!data) return html`<p class="muted">Loading…</p>`;
+  const running = st.lanes.filter(l => !l.done).length;
+  const room = Math.max(0, st.loop_lanes - running);
+  const picked = Object.keys(pick).filter(k => pick[k]);
+  const start = names => names.slice(0, room).forEach(n => act("start-milestone", { milestone: n }));
+  return html`
+    <div class="stats">
+      <button onClick=${refresh}>Refresh from GitHub</button>
+      <span class="muted">${data.ts ? `read ${data.ts}` : "never read: press Refresh"}${data.gh_ok === false ? " (gh failed)" : ""}</span>
+      <span class="muted">${running} lane(s) running of ${st.loop_lanes}</span>
+      ${picked.length > 0 && html`<button disabled=${!room} onClick=${() => start(picked)}>Start ${Math.min(picked.length, room)} lane(s)</button>`}
+    </div>
+    ${["In order", "Then", "Parked"].map(sec => html`<h2>${sec}</h2><table>
+      <tr><th></th><th></th><th>milestone</th><th>open</th><th>closed</th><th>steps</th><th></th></tr>
+      ${data.milestones.filter(m => m.section === sec).map(m => html`
+        <tr class="lane" onClick=${() => setOpen({ ...open, [m.name]: !open[m.name] })}>
+          <td onClick=${e => e.stopPropagation()}>${sec === "In order" && !m.lane && m.open ? html`<input type="checkbox" checked=${!!pick[m.name]} onChange=${e => setPick({ ...pick, [m.name]: e.target.checked })} />` : ""}</td>
+          <td>${m.steps.length || m.issues.length ? (open[m.name] ? "▾" : "▸") : ""}</td>
+          <td><b>${m.name}</b> ${m.lane && html`<span class="state-running">lane ${m.lane}</span>`}</td>
+          <td>${m.open ?? "-"}</td><td>${m.closed ?? "-"}</td>
+          <td>${m.steps.map(s => html`<span class=${"state-" + ({ done: "landed", running: "running", question: "blocked", next: "sent" }[s.state] || "queued")} title=${s.title}>${s.step} </span>`)}</td>
+          <td onClick=${e => e.stopPropagation()}>${sec === "In order" && !m.lane && m.open ? html`<button disabled=${!room} onClick=${() => start([m.name])}>Start lane</button>` : ""}</td>
+        </tr>
+        ${open[m.name] && html`
+          ${m.steps.map(s => html`<tr class="sub"><td></td><td></td><td>${s.step} ${s.title}</td><td colspan="2" class=${"state-" + s.state}>${s.state}</td><td colspan="2">${s.issues.map(n => "#" + n).join(", ")}</td></tr>`)}
+          ${m.questions.map(q => html`<tr class="sub"><td></td><td></td><td colspan="5" style="color:var(--amber)">${q}</td></tr>`)}
+          ${m.issues.map(i => html`<tr class="sub"><td></td><td></td><td>#${i.number} ${i.title}</td><td colspan="2">${i.step ? "step " + i.step : html`<span class="muted">no step</span>`}</td><td colspan="2" class="muted">${i.labels.join(", ")}</td></tr>`)}
+        `}
+      `)}
+    </table>`)}`;
+}
+
 function App() {
   const st = useStatus();
   const [msg, setMsg] = useState("");
+  const [tab, setTab] = useState(location.hash.slice(1) || "lanes");
+  const go = t => { setTab(t); location.hash = t; };
   alertBox = setMsg;
   if (!st) return html`<p class="muted">Loading…</p>`;
   const build = [...st.console].reverse().find(r => r.verb === "build");
   return html`
     <header>
       <h1>Builder</h1>
+      <nav>${["lanes", "milestones"].map(t => html`<button aria-pressed=${tab === t} onClick=${() => go(t)}>${t[0].toUpperCase() + t.slice(1)}</button> `)}</nav>
       <button onClick=${() => act("loop-start")}>Start loop</button>
       <button onClick=${() => act("loop-stop")}>Stop loop</button>
       <button onClick=${() => act("build")}>Build</button>
@@ -119,7 +161,7 @@ function App() {
       <div><span class="muted">spend today</span><b>$${st.spend_today_usd.toFixed(2)}</b></div>
     </div>
     <section><h2>Alerts</h2><${Alerts} alerts=${st.open_alerts} /></section>
-    <section><h2>Lanes</h2><${Lanes} lanes=${st.lanes} /></section>
+    ${tab === "milestones" ? html`<section><${Milestones} st=${st} /></section>` : html`<section><h2>Lanes</h2><${Lanes} lanes=${st.lanes} /></section>`}
     <section><h2>Console actions</h2><table>${[...st.console].reverse().map(r => html`<tr><td class="muted">${r.ts}</td><td>${r.who}</td><td>${r.verb}</td><td>${r.state}${r.rc != null ? ` (exit ${r.rc})` : ""}</td><td><pre>${r.detail || ""}</pre></td></tr>`)}</table></section>
   `;
 }

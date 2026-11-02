@@ -9,6 +9,7 @@ import getpass
 import http.server
 import json
 import os
+import re
 import secrets
 import subprocess
 import sys
@@ -47,6 +48,8 @@ VERBS = {
     "alert": (("id", "action"), lambda a: _builder("alert", a["id"], a["action"], "--root", str(ROOT), *_st())),
     "build": ((), lambda a: _builder("build", "--dev", "--root", str(ROOT), *_st())),
     "done": (("lane", "sha"), lambda a: _builder("done", a["lane"], a["sha"], *_st())),
+    "start-milestone": (("milestone",), lambda a: _builder("milestone", a["milestone"], "--enqueue", "--repo-dir", str(ROOT), *_st(),
+                                                          "--out", str(journal.STATE / f"briefs-{queue.slug(a['milestone'])}"))),
     "queue-add": (("lane", "worktree", "step", "brief", "issues", "kind"),
                   lambda a: _builder("queue", "add", "--lane", a["lane"], "--worktree", a["worktree"], "--step", a["step"], "--brief", a["brief"],
                                      "--kind", a.get("kind") or "worker", *_st(), "--issues", *a.get("issues", []))),
@@ -121,6 +124,7 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
     st["last_review"] = {k: reviews[-1].get(k) for k in ("ts", "sha", "ok", "detail")} if reviews else None
     st["heartbeat"] = ticks[-1]["ts"] if ticks else None
     st["console"] = [r for r in rows if r.get("event") == "console"][-20:]
+    st["loop_lanes"] = LOOP_LANES
     by_id = {x["id"]: x for x in lanes}
     for row in st["lanes"]:
         x = by_id[row["lane"]]
@@ -138,6 +142,75 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
             last_commit=commit(x["worktree"]) if Path(x["worktree"]).is_dir() else "",
             doing=(mine[-1].get("state") or mine[-1].get("event", "")) + (f": {str(mine[-1].get('detail', ''))[:160]}" if mine and mine[-1].get("detail") else "") if mine else "")
     return st
+
+
+SECTIONS = ("In order", "Then", "Parked")
+
+
+def milestones(root, gh: str = "gh", lanes: list[dict] | None = None) -> dict:
+    """The build-order list by section, each milestone's open/closed counts (one gh call), and for an In order one with a
+    spec its steps from the `builder milestone` plan (done / running / next / waiting) and questions, and its open issues
+    with labels and the step that names them. Read through gh only here: the console serves the cached copy."""
+    from fichero_builder import milestone as ms
+    from fichero_builder import triage
+
+    text = (Path(root) / triage.BUILD_ORDER).read_text()
+    r = subprocess.run([gh, "api", "repos/{owner}/{repo}/milestones?state=all&per_page=100", "--paginate"], capture_output=True, text=True,
+                       timeout=120, cwd=str(root))
+    counts = {m["title"]: (m["open_issues"], m["closed_issues"]) for m in json.loads(r.stdout or "[]")} if r.returncode == 0 else {}
+    held = {x["id"]: x for x in (lanes if lanes is not None else queue.load())}
+    out = []
+    for sec in SECTIONS:
+        body = next((part.split("\n", 1)[1] for part in text.split("\n## ")[1:] if part.startswith(sec)), "")
+        specs = dict(triage.ORDER_LINE.findall(body)) if sec == "In order" else {}
+        for name in dict.fromkeys(re.findall(r"`([^`]+)`", body)):
+            o, c = counts.get(name, (None, None))
+            m = {"name": name, "section": sec, "open": o, "closed": c, "spec": specs.get(name, ""), "steps": [], "questions": [], "issues": [],
+                 "lane": queue.slug(name) if queue.slug(name) in held else ""}
+            if sec == "In order" and m["spec"] and o:
+                try:
+                    issues = ms.list_issues(name, gh=gh)
+                    sp = Path(root) / triage.SPECS / m["spec"]
+                    order, slug = ms.build_order(sp), ms.spec_slug(sp)
+                    planned = ms.plan(issues, order, slug)
+                except (RuntimeError, ValueError, OSError, subprocess.SubprocessError) as e:
+                    m["questions"] = [f"could not plan: {e}"]
+                    out.append(m)
+                    continue
+                lane = held.get(m["lane"]) or {"steps": []}
+                live = {s["step"]: s["state"] for s in lane["steps"]}
+                open_steps = {c["step"]: c for c in planned["clusters"]}
+                nxt = next((c["step"] for c in planned["clusters"] if not c["waits"] and live.get(c["step"]) in (None, "queued")), None)
+                for st in order:
+                    c = open_steps.get(st["number"])
+                    state = ("done" if c is None else "running" if live.get(st["number"]) not in (None, "queued", "landed", "blocked")
+                             else "question" if live.get(st["number"]) == "blocked" else "next" if st["number"] == nxt else "waiting")
+                    m["steps"].append({"step": st["number"], "title": st["title"], "state": state, "issues": [i["number"] for i in c["issues"]] if c else []})
+                m["questions"] = planned["questions"]
+                m["issues"] = [{"number": i["number"], "title": i["title"], "labels": [lb.get("name", "") for lb in i.get("labels") or []],
+                                "step": ms.step_of(i, slug) or ""} for i in issues]
+            out.append(m)
+    return {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "milestones": out, "gh_ok": r.returncode == 0}
+
+
+def _cache() -> Path:
+    return journal.STATE / "console-milestones.json"
+
+
+def refresh(who: str) -> threading.Thread:
+    """Recompute the milestones cache in a thread; a console row each way."""
+    journal.append("console", who=who, verb="refresh", state="started")
+
+    def go():
+        try:
+            data = milestones(ROOT)
+            _cache().write_text(json.dumps(data))
+            journal.append("console", who=who, verb="refresh", state="ended", ok=True, rc=0, detail=f"{len(data['milestones'])} milestones")
+        except Exception as e:  # noqa: BLE001 - a row, never a dead thread
+            journal.append("console", who=who, verb="refresh", state="ended", ok=False, rc=1, detail=str(e)[-500:])
+    t = threading.Thread(target=go, daemon=True)
+    t.start()
+    return t
 
 
 def _json(h, code: int, body) -> None:
@@ -166,6 +239,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.wfile.write(b)
         if path in ("/api/status", "/status.json"):
             return _json(self, 200, api_status(watch.rows_of(ROOT), queue.load()))
+        if path == "/api/milestones":
+            try:
+                return _json(self, 200, json.loads(_cache().read_text()))
+            except (OSError, ValueError):
+                return _json(self, 200, {"ts": None, "milestones": []})
         if path == "/api/events":
             return self._events()
         return _json(self, 404, {"error": "not found"})
@@ -204,6 +282,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self._host_ok() or self.headers.get("X-Builder-Token") != TOKEN:
             journal.append("console", who="?", verb=self.path, ok=False, state="refused", detail="no token or a foreign Host")
             return _json(self, 403, {"error": "the console's token and a loopback Host are required"})
+        if self.path.split("?")[0] == "/api/refresh":
+            refresh(f"{getpass.getuser()}@console")
+            return _json(self, 200, {"ok": True, "started": "refresh"})
         if self.path.split("?")[0] != "/api/action":
             return _json(self, 404, {"error": "not found"})
         try:
@@ -220,6 +301,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 EVENT_POLL_S = 1.0
+LOOP_LANES = 1  # [loop].lanes, read by main: the page starts no more lanes than this
 
 
 def server(host: str, port: int) -> http.server.ThreadingHTTPServer:
@@ -230,7 +312,13 @@ def server(host: str, port: int) -> http.server.ThreadingHTTPServer:
 
 def main(a) -> int:
     global ROOT
+    global LOOP_LANES
     ROOT = Path(a.root)
+    try:
+        import tomllib
+        LOOP_LANES = int(tomllib.loads((ROOT / "harness.toml").read_text()).get("loop", {}).get("lanes", 1))
+    except (OSError, ValueError):
+        pass
     srv = server("127.0.0.1", a.port)
     print(f"the builder console at http://127.0.0.1:{srv.server_address[1]}/ (Ctrl-C stops)")
     try:

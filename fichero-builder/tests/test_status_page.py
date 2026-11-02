@@ -161,3 +161,35 @@ def test_events_stream_each_new_journal_row(live):
         line = resp.readline()
     assert json.loads(line[6:])["state"] == "checking"
     resp.close()
+
+
+def test_milestones_come_by_section_with_counts_steps_and_issues_and_start_calls_milestone_enqueue(tmp_path, monkeypatch, live):
+    """Milestones view: the build-order list (In order, Then, Parked), open/closed counts from one gh read, an In order
+    milestone's steps (done / running / next / waiting) and open issues with labels and step; Start lane = `milestone --enqueue`."""
+    from fichero_builder import milestone as ms
+    spec_dir = tmp_path / "docs" / "contributor_manual" / "specs"
+    spec_dir.mkdir(parents=True)
+    (spec_dir / "build-order.md").write_text("# Build order\n\n## In order\n\n1. `Alpha` Spec: alpha.md\n2. `Beta` Spec: beta.md\n\n"
+                                             "## Then (unordered)\n\n- `Gamma`\n\n## Parked\n\n- `Delta`\n")
+    (spec_dir / "alpha.md").write_text("> Milestone: alpha\n")
+    gh = tmp_path / "gh"
+    gh.write_text("#!/bin/sh\necho '[{\"title\":\"Alpha\",\"open_issues\":2,\"closed_issues\":5},{\"title\":\"Gamma\",\"open_issues\":1,\"closed_issues\":0}]'\n")
+    gh.chmod(0o755)
+    issues = [{"number": 11, "title": "alpha Step 1.2: b", "body": "", "labels": [{"name": "step:1.2"}, {"name": "bug"}]},
+              {"number": 12, "title": "alpha Step 1.3: c", "body": "", "labels": [{"name": "step:1.3"}]}]
+    monkeypatch.setattr(ms, "list_issues", lambda name, gh="gh": issues if name == "Alpha" else [])
+    monkeypatch.setattr(ms, "build_order", lambda p: [{"number": n, "title": t, "depends_on": d} for n, t, d in
+                                                      [("1.1", "a", []), ("1.2", "b", []), ("1.3", "c", ["1.2"])]])
+    lanes = [{"id": "alpha", "worktree": "/w", "cursor": 0, "steps": [{"step": "1.2", "state": "sent"}]}]
+    d = console.milestones(tmp_path, gh=str(gh), lanes=lanes)
+    by = {m["name"]: m for m in d["milestones"]}
+    assert [(m["name"], m["section"]) for m in d["milestones"]] == [("Alpha", "In order"), ("Beta", "In order"), ("Gamma", "Then"), ("Delta", "Parked")]
+    a = by["Alpha"]
+    assert (a["open"], a["closed"], a["lane"]) == (2, 5, "alpha") and by["Gamma"]["open"] == 1 and by["Delta"]["open"] is None
+    assert [(s["step"], s["state"]) for s in a["steps"]] == [("1.1", "done"), ("1.2", "running"), ("1.3", "waiting")]
+    assert a["issues"][0] == {"number": 11, "title": "alpha Step 1.2: b", "labels": ["step:1.2", "bug"], "step": "1.2"}
+    assert d["ts"] and d["gh_ok"]
+    url, ran = live
+    assert json.loads(urllib.request.urlopen(url + "/api/milestones", timeout=5).read())["milestones"] == [], "nothing read yet: the cache, never gh"
+    code, _ = _post(url, {"verb": "start-milestone", "args": {"milestone": "UX - Library"}}, console.TOKEN)
+    assert code == 200 and _wait(lambda: ran and ran[-1][3:6] == ["milestone", "UX - Library", "--enqueue"])

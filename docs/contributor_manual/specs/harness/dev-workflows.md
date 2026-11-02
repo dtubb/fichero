@@ -628,6 +628,15 @@ the write path would produce.
   CDN ESM URL, no npm and no build step: a lanes table with each lane's steps under a disclosure, alert cards with their action
   buttons, a Build button. Test (to write): `fichero-builder/tests/test_status_page.py` (the API and each action against a fake
   journal and a fake verb runner; a missing token, a foreign Host and an unlisted verb refused with a row).
+  Owner additions (2026-11-02): the page updates itself from `/api/events` with no reload; each lane shows its current step
+  (id and the brief's title), what it is doing now (its last row and the worktree's last commit), elapsed time, turns, tokens
+  and spend. A Milestones view lists the build order (In order, Then, Parked) with open and closed counts, and an In order
+  milestone's steps from the `builder milestone` plan (done, running, next, waiting, question), its questions and its open
+  issues with labels and the step that names them; GitHub is read through `gh` only on Refresh (`POST /api/refresh`), cached
+  with the time shown, never on a request. Start lane (one milestone) and Start N lanes (ticked ones, up to `[loop].lanes`)
+  call `builder milestone <name> --enqueue`. Built: tests `fichero-builder/tests/test_status_page.py` (API, actions, refusals,
+  events, milestones). Not yet: Start as one lane from ticked issues, Run check, Run tests, Install on a `[machines]` machine
+  (`builder install`), the worker's last tool from its session file.
   **Stop** (manager 2026-11-02, built): pause = no new step is fed; `builder queue stop --lane L [--grace S]` = the session
   ends: the lane is paused, a live worker is told to commit what is green and end, and the loop closes the session when the
   grace is over (default 300 s) or the worker ends first; the tree is kept, a step in flight goes back to queued with a brief
