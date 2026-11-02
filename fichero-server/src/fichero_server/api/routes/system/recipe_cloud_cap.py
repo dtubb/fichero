@@ -403,3 +403,42 @@ async def recipe_defaults(materials: str = "", condition: str = "", places: str 
     got = defaults.resolve({"materials": split(materials), "condition": split(condition),
                             "how": {"places": split(places), "matters": matters or None}}, pages)
     return RecipeDefaults(**got)
+
+
+class Suggestion(BaseModel):
+    id: str
+    what: str = Field(description="the suggestion, in words")
+    why: str = Field(description="the reason, in words")
+    from_: str = Field(alias="from", description="the answer or measure that fired it")
+    applied: bool = Field(description="whether it is already the project's answer")
+    change: str = Field(description="the page or question Change… opens")
+    price: Optional[str] = Field(default=None, description="its price in words where it has one")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class SuggestionList(BaseModel):
+    items: list[Suggestion]
+
+
+@router.get("/suggestions", response_model=SuggestionList, response_model_by_alias=True)
+async def suggestions(db: Database = Depends(get_library_database)) -> SuggestionList:
+    """The one list of what the project's answers and sample suggest, each with its reason (`wide.suggest.one-list-from-the-engine`).
+    The app draws it and reasons about none of it. Reads, writes nothing."""
+    import asyncio
+
+    from fichero_server.recipes import suggestions as suggest_module  # lazy: the import budget counts a module per route file
+    from fichero_server.recipes.discovery import candidate_installed, step_candidates
+    from fichero_server.recipes.prepare_suggest import suggest as sample_says
+    from fichero_server.recipes.project import read_saved_answers
+    from fichero_server.recipes.start import count_pages
+
+    answers = read_saved_answers(_library(db))
+    sample = await asyncio.to_thread(sample_says, db)
+    cards = step_candidates(known_cards(include_not_built=False), "read-a-line")
+    readers: dict[str, dict[str, list[str]]] = {}
+    for script in answers.get("scripts") or []:
+        fit = [c for c in cards if c.scripts is None or script in c.scripts]
+        readers[script] = {"found": [c.short_name or c.id for c in fit],
+                           "installed": [c.short_name or c.id for c in fit if candidate_installed(c)]}
+    return SuggestionList(items=[Suggestion(**row) for row in suggest_module.build(answers, count_pages(db), sample, readers)])

@@ -10051,6 +10051,16 @@
         "query_params": [],
         "request_model": "TryStageRequest",
         "response_model": "StageTryResult"
+      },
+      {
+        "method": "GET",
+        "path": "/recipes/suggestions",
+        "operation_id": "suggestions_api_recipes_suggestions_get",
+        "summary": "Suggestions",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SuggestionList"
       }
     ],
     "references": [

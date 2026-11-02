@@ -6867,6 +6867,12 @@ def fichero_recipes_try_stage(
     return _rt.call("POST", f"/api/recipes/stages/{stage}/try", json=_rt.body({"candidates": candidates, "cost_ok": cost_ok, "page_ids": page_ids}))
 
 
+def fichero_recipes_suggestions(
+) -> Any:
+    "Suggestions\n\nThe one list of what the project's answers and sample suggest, each with its reason (`wide.suggest.one-list-from-the-engine`).\nThe app draws it and reasons about none of it. Reads, writes nothing.\n\nRoute: GET /api/recipes/suggestions (toolset `recipes`; reads)."
+    return _rt.call("GET", "/api/recipes/suggestions")
+
+
 def fichero_references_list(
     *,
     kind: Annotated[Optional[str], Field(description='Kind')] = None,
@@ -10055,6 +10061,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_list_stages", "recipes", "GET", "/api/recipes/stages", fichero_recipes_list_stages),
     GeneratedTool("fichero_recipes_stage_try_result", "recipes", "GET", "/api/recipes/stages/{stage}/try", fichero_recipes_stage_try_result),
     GeneratedTool("fichero_recipes_try_stage", "recipes", "POST", "/api/recipes/stages/{stage}/try", fichero_recipes_try_stage),
+    GeneratedTool("fichero_recipes_suggestions", "recipes", "GET", "/api/recipes/suggestions", fichero_recipes_suggestions),
     GeneratedTool("fichero_references_list", "references", "GET", "/api/references", fichero_references_list),
     GeneratedTool("fichero_references_delete", "references", "DELETE", "/api/references/{reference_id}", fichero_references_delete),
     GeneratedTool("fichero_references_get", "references", "GET", "/api/references/{reference_id}", fichero_references_get),

@@ -17883,6 +17883,28 @@
         }
       }
     },
+    "/api/recipes/suggestions": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Suggestions",
+        "description": "The one list of what the project's answers and sample suggest, each with its reason (`wide.suggest.one-list-from-the-engine`).\nThe app draws it and reasons about none of it. Reads, writes nothing.",
+        "operationId": "suggestions_api_recipes_suggestions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestionList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/topics": {
       "get": {
         "tags": [
@@ -98568,6 +98590,71 @@
         },
         "type": "object",
         "title": "StraightenOperationRequest"
+      },
+      "Suggestion": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "what": {
+            "type": "string",
+            "title": "What",
+            "description": "the suggestion, in words"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "description": "the reason, in words"
+          },
+          "from": {
+            "type": "string",
+            "title": "From",
+            "description": "the answer or measure that fired it"
+          },
+          "applied": {
+            "type": "boolean",
+            "title": "Applied",
+            "description": "whether it is already the project's answer"
+          },
+          "change": {
+            "type": "string",
+            "title": "Change",
+            "description": "the page or question Change\u2026 opens"
+          },
+          "price": {
+            "type": "string",
+            "nullable": true,
+            "title": "Price",
+            "description": "its price in words where it has one"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "what",
+          "why",
+          "from",
+          "applied",
+          "change"
+        ],
+        "title": "Suggestion"
+      },
+      "SuggestionList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Suggestion"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "SuggestionList"
       },
       "SyncFolderList": {
         "properties": {
