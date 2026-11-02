@@ -486,6 +486,34 @@
       },
       {
         "method": "GET",
+        "path": "/activity/jobs/{job_id}/failed-pages",
+        "operation_id": "get_run_failed_pages_api_activity_jobs__job_id__failed_pages_get",
+        "summary": "Get Run Failed Pages",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "stage",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "RunPageStates"
+      },
+      {
+        "method": "GET",
         "path": "/activity/jobs/{job_id}/log",
         "operation_id": "get_job_log_api_activity_jobs__job_id__log_get",
         "summary": "Get Job Log",

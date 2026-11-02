@@ -307,5 +307,6 @@
   "POST /api/workers/{job_id}/stop": "dev-only worker control (dev tier, FICHERO_DEV_WORKERS=1): reached through the CLI/harness scripts, never from the app; no store by design",
   "GET /api/pair/addresses": "the addresses the host can be reached at, in the engine's order (sharing Step 2.4): reached from the CLI's pairing (fichero_cli/pairing.py); the app reads the same list through the pairing link it already holds, so no Swift call yet",
   "GET /api/recipes/defaults": "engine half of the defaults table (designer.defaults.*, #6052); the stage pages and Ready read it next",
-  "GET /api/recipes/chain-risk": "engine half of Ready's chain line (designer.how.chain-risk-on-ready, #6052); Ready's store reads it next"
+  "GET /api/recipes/chain-risk": "engine half of Ready's chain line (designer.how.chain-risk-on-ready, #6052); Ready's store reads it next",
+  "GET /api/activity/jobs/{job_id}/failed-pages": "engine half of the paged failed pages (activity.run.failed-pages-paged, #5960); the run details read it next"
 }

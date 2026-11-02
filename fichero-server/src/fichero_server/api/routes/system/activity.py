@@ -1295,6 +1295,23 @@ async def get_run_page_states(
                          items=[RunPageState.model_validate(page) for page in pages[offset:offset + limit]])
 
 
+@router.get("/jobs/{job_id}/failed-pages", response_model=RunPageStates)
+async def get_run_failed_pages(
+    job_id: str,
+    stage: Optional[str] = Query(None, description="a Set Up stage id; omitted: a page that failed in any stage"),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=2000),
+    db: Database = Depends(get_library_database),
+) -> RunPageStates:
+    """Every failed page of a run with its one reason, paged (`activity.run.failed-pages-paged`, #5960): the account lists the first ten;
+    this is the rest, so "and 14 more" is never the only answer."""
+    from fichero_server.api.routes.system.activity_pages import failed_only
+
+    pages = failed_only(await _run_page_list(db, job_id, stage))
+    return RunPageStates(job_id=job_id, stage=stage, total=len(pages), offset=offset,
+                         items=[RunPageState.model_validate(page) for page in pages[offset:offset + limit]])
+
+
 @router.get("/jobs/{job_id}/log", response_model=JobLog)
 async def get_job_log(
     job_id: str,

@@ -311,6 +311,17 @@ def fichero_activity_cancel_job(
     return _rt.call("POST", f"/api/activity/jobs/{job_id}/cancel")
 
 
+def fichero_activity_get_run_failed_pages(
+    *,
+    job_id: Annotated[str, Field(description='Job Id')],
+    limit: Annotated[Optional[int], Field(description='Limit')] = None,
+    offset: Annotated[Optional[int], Field(description='Offset')] = None,
+    stage: Annotated[Optional[str], Field(description='a Set Up stage id; omitted: a page that failed in any stage')] = None,
+) -> Any:
+    'Get Run Failed Pages\n\nEvery failed page of a run with its one reason, paged (`activity.run.failed-pages-paged`, #5960): the account lists the first ten;\nthis is the rest, so "and 14 more" is never the only answer.\n\nRoute: GET /api/activity/jobs/{job_id}/failed-pages (toolset `activity`; reads).'
+    return _rt.call("GET", f"/api/activity/jobs/{job_id}/failed-pages", params={"limit": limit, "offset": offset, "stage": stage})
+
+
 def fichero_activity_get_job_log(
     *,
     job_id: Annotated[str, Field(description='Job Id')],
@@ -9408,6 +9419,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_activity_set_background_paused", "activity", "PUT", "/api/activity/jobs/paused", fichero_activity_set_background_paused),
     GeneratedTool("fichero_activity_get_job_tree", "activity", "GET", "/api/activity/jobs/{job_id}", fichero_activity_get_job_tree),
     GeneratedTool("fichero_activity_cancel_job", "activity", "POST", "/api/activity/jobs/{job_id}/cancel", fichero_activity_cancel_job),
+    GeneratedTool("fichero_activity_get_run_failed_pages", "activity", "GET", "/api/activity/jobs/{job_id}/failed-pages", fichero_activity_get_run_failed_pages),
     GeneratedTool("fichero_activity_get_job_log", "activity", "GET", "/api/activity/jobs/{job_id}/log", fichero_activity_get_job_log),
     GeneratedTool("fichero_activity_get_run_page_states", "activity", "GET", "/api/activity/jobs/{job_id}/pages", fichero_activity_get_run_page_states),
     GeneratedTool("fichero_activity_set_job_paused", "activity", "PUT", "/api/activity/jobs/{job_id}/paused", fichero_activity_set_job_paused),

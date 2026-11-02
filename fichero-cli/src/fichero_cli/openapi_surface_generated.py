@@ -727,6 +727,25 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("get-run-failed-pages")
+    def activity_get_run_failed_pages_get(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help='Job Id'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
+        stage: Optional[str] = typer.Option(None, '--stage', help='a Set Up stage id; omitted: a page that failed in any stage.'),
+    ) -> None:
+        """Get Run Failed Pages (GET /api/activity/jobs/{job_id}/failed-pages)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/activity/jobs/{job_id}/failed-pages"
+            params = {
+                "limit": limit,
+                "offset": offset,
+                "stage": stage,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-job-log")
     def activity_get_job_log_get(
         ctx: typer.Context,

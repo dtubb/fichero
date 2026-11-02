@@ -535,6 +535,85 @@
         }
       }
     },
+    "/api/activity/jobs/{job_id}/failed-pages": {
+      "get": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Get Run Failed Pages",
+        "description": "Every failed page of a run with its one reason, paged (`activity.run.failed-pages-paged`, #5960): the account lists the first ten;\nthis is the rest, so \"and 14 more\" is never the only answer.",
+        "operationId": "get_run_failed_pages_api_activity_jobs__job_id__failed_pages_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "stage",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "a Set Up stage id; omitted: a page that failed in any stage",
+              "title": "Stage"
+            },
+            "description": "a Set Up stage id; omitted: a page that failed in any stage"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 2000,
+              "minimum": 1,
+              "default": 200,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunPageStates"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/activity/jobs/{job_id}/log": {
       "get": {
         "tags": [

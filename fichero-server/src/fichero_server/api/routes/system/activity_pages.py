@@ -97,6 +97,12 @@ def page_states(tree: dict[str, Any], stage: Optional[str], order: Optional[list
     return out
 
 
+def failed_only(pages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The pages whose state is failed, in the list's order, each with its one reason: every failed page of a run, for the paged read that
+    complements the account's first ten (`activity.run.failed-pages-paged`, #5960), so "and 14 more" is never the only answer."""
+    return [page for page in pages if page["state"] == "failed"]
+
+
 _WHERE = {"this_mac": "on this Mac", "own_machine": "on your own machine", "provider": "in the cloud"}
 #: When two places tie, the one nearer the person wins.
 _WHERE_ORDER = ("this_mac", "own_machine", "provider")
