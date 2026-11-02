@@ -96,7 +96,10 @@ def cited_issues(repo, base: str, sha: str) -> list[dict]:
     out = []
     for c in commits_of(repo, base, sha):
         for m in ISSUE_LINES.finditer(c["message"]):
-            out.append({"kind": m.group(1).lower(), "number": int(m.group(2)), "rest": m.group(3).strip(), "commit": c})
+            kind, rest = m.group(1).lower(), m.group(3).strip()
+            # `Fixes #7, #8` closes both; only a plain list right after the number: `Fixes #7 (see #9)` must not close #9
+            more = [] if kind == "already built" else re.findall(r"#(\d+)", (re.match(r"(?:,\s*#\d+)*", rest) or [""])[0])
+            out += [{"kind": kind, "number": int(n), "rest": rest, "commit": c} for n in [m.group(2), *more]]
     return out
 
 
@@ -301,7 +304,11 @@ def main(a) -> int:
     for name, fn in steps:
         if not step(name, fn):
             return 1
+    closing = {c["number"] for c in cited if c["kind"] in ("fixes", "closes")}
+    left_open = sorted({c["number"] for c in cited} - closing)  # a row, not a close: nothing is silently left (owner ruling)
     journal.append("landed", sha=sha, step="done", ok=True, branch=branch, pushed=pushed, detail="landed",
-                   issues=sorted({c["number"] for c in cited}))
+                   issues=sorted({c["number"] for c in cited}), left_open=left_open)
     print(f"landed {sha[:9]} on {branch}" + (" (pushed)" if pushed else " (not pushed)"))
+    if left_open:
+        print("left open: " + ", ".join(f"#{n}" for n in left_open))
     return 0

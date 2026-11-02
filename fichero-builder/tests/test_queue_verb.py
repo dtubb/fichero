@@ -120,6 +120,25 @@ def test_an_error_in_the_chain_or_a_refused_landing_or_a_commitless_done_blocks_
     assert steps()["1.1"]["state"] == "blocked" and "no commit" in steps()["1.1"]["why"]
 
 
+def test_an_issue_of_a_landed_step_that_stayed_open_is_a_row_and_on_the_step_never_a_close(state):
+    """Owner ruling: a step's issues close through `builder landed` on a Fixes line; what did not is reported, and the lane goes on."""
+    lane(state)
+    fake = Fake()
+    fake.procs.still_open = lambda the_lane, step: ["#8"] if step["step"] == "1.2" else []
+    assert run(fake) == 0
+    assert steps()["1.1"]["state"] == "landed" and "open" not in steps()["1.1"]["why"]
+    assert steps()["1.2"]["state"] == "landed" and "still open: #8" in steps()["1.2"]["why"]
+    assert [(r["step"], r["detail"]) for r in journal.read() if r["event"] == "queue" and r["state"] == "issue-open"] == [("1.2", "#8")]
+    assert queue.load()[0]["cursor"] == 2
+
+
+def test_the_open_check_reads_each_issue_from_gh_and_says_when_it_cannot(tmp_path):
+    gh = tmp_path / "gh"
+    gh.write_text('#!/bin/sh\ncase "$3" in 1) echo OPEN ;; 2) echo CLOSED ;; *) echo boom >&2; exit 1 ;; esac\n')
+    gh.chmod(0o755)
+    assert queue.open_of([1, 2, 3], str(gh)) == ["#1", "#3 (could not read)"]
+
+
 def test_a_rebase_conflict_before_the_next_step_blocks_that_step(state):
     lane(state)
     assert run(Fake(rebase="rebase could not finish")) == 0
