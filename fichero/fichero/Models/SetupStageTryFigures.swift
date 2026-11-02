@@ -14,6 +14,20 @@ struct SetupStageTie: Decodable, Equatable {
         let doubtful: Int
         let untied: Int
         let draft: Bool
+        /// The page text the tie did not tie to a line, kept so nothing the page reader wrote is lost
+        /// (`wide.nomodel.untied-remainder-kept`); absent from an older result.
+        var remainder: [Remainder]?
+    }
+
+    struct Remainder: Decodable, Equatable {
+        let segmentId: String?
+        let text: String
+        let why: String
+
+        enum CodingKeys: String, CodingKey {
+            case segmentId = "segment_id"
+            case text, why
+        }
     }
 
     let counts: Counts?

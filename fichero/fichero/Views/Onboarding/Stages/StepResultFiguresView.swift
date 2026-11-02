@@ -19,6 +19,11 @@ struct StepResultFiguresView: View {
                         .accessibilityIdentifier("setup.step.noModel.read-a-line.showUntied")
                 }
             }
+            ForEach((result.tie?.pages ?? [:]).keys.sorted(), id: \.self) { page in
+                if let rest = result.tie?.pages?[page]?.remainder, !rest.isEmpty {
+                    remainderView(page: page, rest: rest)
+                }
+            }
             if let both = result.lineCounts?.pages {
                 ForEach(both.keys.sorted(), id: \.self) { page in
                     if let counts = both[page] {
@@ -32,6 +37,19 @@ struct StepResultFiguresView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+}
+
+extension StepResultFiguresView {
+    /// The text kept on the page that no line took, named with the page; the engine's reason is the tooltip.
+    func remainderView(page: String, rest: [SetupStageTie.Remainder]) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(name(page)): text not tied to a line").font(.caption.weight(.medium))
+            ForEach(Array(rest.enumerated()), id: \.offset) { _, part in
+                Text(part.text).font(.caption).foregroundStyle(.secondary).help(part.why).lineLimit(3)
+            }
+        }
+        .accessibilityIdentifier("setup.output.tie.remainder")
     }
 }
 
