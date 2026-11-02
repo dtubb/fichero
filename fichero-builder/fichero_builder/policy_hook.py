@@ -17,6 +17,11 @@ from typing import Any
 
 _WRITE_TOOLS = {"Edit", "Write", "NotebookEdit", "MultiEdit"}
 _CD = re.compile(r"(?:^|[;&|]\s*|&&\s*)cd\s+(\"[^\"]+\"|'[^']+'|\S+)")
+_ARG = r"(\"[^\"]+\"|'[^']+'|[^\s;&|]+)"
+# dev-workflows.run.loop-machine-checked: a git verb that throws work away, pointed at another tree
+_GIT_AT = re.compile(r"\bgit\s+(?:-c\s+\S+\s+)*(?:-C\s+|--work-tree[=\s]\s*|--git-dir[=\s]\s*)" + _ARG)
+_DISCARD = re.compile(r"\b(?:reset\s+(?:\S+\s+)*--hard|checkout\s+(?:\S+\s+)*--(?=\s|$)|clean\s+(?:\S+\s+)*-\w*f|stash)")
+_WRITE_TO = re.compile(r"(?:>>?|\btee\s+(?:-a\s+)?)\s*" + _ARG)
 
 
 def load(root: str | Path) -> dict[str, Any]:
@@ -45,6 +50,14 @@ def check(event: dict[str, Any], cfg: dict[str, Any], *, worktree: Path, scratch
             target = Path(m.group(1).strip("\"'")).expanduser()
             if target.is_absolute() and not _inside(target, bases):
                 return f"cd {target} goes outside the worktree and scratch path"
+        for seg in re.split(r"&&|\|\||[;|]", cmd):
+            at = _GIT_AT.search(seg)
+            if at and _DISCARD.search(seg) and not _inside(Path(at.group(1).strip("\"'")).expanduser(), bases):
+                return f"{at.group(1)} is another tree: reset --hard, checkout --, clean -f and stash run only in the worker's own worktree"
+        for m in _WRITE_TO.finditer(cmd):  # ponytail: shell text only; a script that writes is the OS layer's (run.land-gate)
+            target = Path(m.group(1).strip("\"'")).expanduser()
+            if target.is_absolute() and str(target) != "/dev/null" and not _inside(target, bases):
+                return f"a write to {target} is outside the worktree and scratch path"
     return None
 
 

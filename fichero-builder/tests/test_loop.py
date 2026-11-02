@@ -204,3 +204,44 @@ def test_builder_done_on_an_external_lane_lands_it_and_no_worker_is_started(stat
     assert [(r["lane"], r["evidence"]) for r in journal.read() if r["event"] == "alert"] == [("ext", "/l.json")]
     lane(state)
     assert cli.main(["done", "m1", "abc", "--state", str(journal.STATE)]) == 1 and "no external lane" in capsys.readouterr().out
+
+
+def test_a_step_that_moves_another_lanes_tree_or_the_jail_root_alerts(state):
+    """run.loop-machine-checked: after a step's DONE the jail root and every quiet lane's worktree are unmoved and clean as
+    they were when it started; a moved one is an alert naming it, and the step itself still lands."""
+    lane(state)
+    queue.add("m2", "/w/m2", "2.1", str(state / "b1.1"), [9])
+    lanes = queue.load()
+    lanes[1]["paused"] = True  # quiet: its own worker never starts
+    queue.save(lanes)
+    world = {"/jail/root": "r1 clean", "/w/m2": "a1 clean"}
+    fake = Fake()
+    fake.procs.jail_root, fake.procs.trees = "/jail/root", lambda paths: {p: world[p] for p in paths}
+    base_start = fake.procs.start
+
+    def start(lane_, step):  # m1's worker commits in m2's tree on its first step
+        if step["step"] == "1.1":
+            world["/w/m2"] = "a2 dirty 1234"
+        return base_start(lane_, step)
+    fake.procs.start = start
+    queue.run(fake.procs, workers_n=1, push=False, out=lambda s: None)
+    (a,) = _alerts()
+    assert a["lane"] == "m1" and a["step"] == "1.1" and "/w/m2: a1 clean -> a2 dirty 1234" in a["what"] and "/jail/root" not in a["what"]
+    assert steps()["1.1"]["state"] == "landed" and steps()["1.2"]["state"] == "landed", "an alert, not a stop"
+    assert "trees" not in steps()["1.1"], "the snapshot is spent at the check"
+
+
+def test_a_landing_meanwhile_excuses_the_jail_root_and_a_busy_lane_is_not_checked(state):
+    lane(state)
+    queue.add("m2", "/w/m2", "2.1", str(state / "b1.1"), [9])
+    world = {"/jail/root": "r1 clean", "/w/m2": "a1 clean"}
+    fake = Fake()
+    fake.procs.jail_root, fake.procs.trees = "/jail/root", lambda paths: {p: world[p] for p in paths}
+
+    def row(lane_):  # by the DONE, another landing has refreshed the root and m2's own worker has committed
+        world["/jail/root"], world["/w/m2"] = "r2 clean", "a2 clean"
+        journal.append("landed", sha="x" * 40, step="jail-root", ok=True, detail="root fast-forwarded")
+        return {"moved": True} if lane_["seq"] in fake.seqs else None
+    fake.procs.row = row
+    queue.run(fake.procs, workers_n=2, push=False, out=lambda s: None)
+    assert _alerts() == []
