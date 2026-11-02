@@ -99,7 +99,7 @@ def matches(title: str, names: set[str]) -> bool:
 
 
 def listed(root) -> set[str]:
-    """Every milestone the file names anywhere below `## In order`: ordered, under `## Then`, or parked."""
+    """Every milestone the file names anywhere below `## In order`: ordered or parked (an older file's `## Then` counts too)."""
     text = (Path(root) / BUILD_ORDER).read_text()
     return set(re.findall(r"`([^`]+)`", text.split("## In order", 1)[-1]))
 
@@ -288,7 +288,7 @@ class Triage:
         specs = {spec_milestone(p.read_text()): p.relative_to(self.root / SPECS).as_posix() for p in spec_files(self.root)}
         missing = [m for m in json.loads(_gh(self.gh, "api", f"{API}?state=open&per_page=100", "--paginate") or "[]") if m["open_issues"] and not matches(m["title"], placed)]
         if missing:
-            self.say(f"proposed for {BUILD_ORDER} (under `## Then`; the owner orders them):")
+            self.say(f"proposed for {BUILD_ORDER} (appended to `## In order`; the owner orders the list in the console):")
         for m in sorted(missing, key=lambda m: m["title"]):
             spec = specs.get(m["title"], "")
             self.say(f"+ `{m['title']}` — {m['open_issues']} open. Spec: {spec or '(none: an ops bucket, or a spec to write)'}")

@@ -50,6 +50,7 @@ VERBS = {
     "done": (("lane", "sha"), lambda a: _builder("done", a["lane"], a["sha"], *_st())),
     "start-milestone": (("milestone",), lambda a: _builder("milestone", a["milestone"], "--enqueue", "--repo-dir", str(ROOT), *_st(),
                                                           "--out", str(journal.STATE / f"briefs-{queue.slug(a['milestone'])}"))),
+    "order": (("file",), lambda a: _builder("order", "--file", a["file"], "--root", str(ROOT), *_st())),
     "sweep": (("worktree",), lambda a: _builder("sweep", "--worktree", a["worktree"], "--root", str(ROOT), *_st())),
     "queue-add": (("lane", "worktree", "step", "brief", "issues", "kind"),
                   lambda a: _builder("queue", "add", "--lane", a["lane"], "--worktree", a["worktree"], "--step", a["step"], "--brief", a["brief"],
@@ -145,6 +146,7 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
     st["loop_on"] = bool(ticks) and now - time.mktime(time.strptime(ticks[-1]["ts"], "%Y-%m-%dT%H:%M:%S")) <= LOOP_STALE_S
     st["console"] = [r for r in rows if r.get("event") == "console"][-20:]
     st["loop_lanes"] = LOOP_LANES
+    st["order_saving"] = any(x["id"] == "build-order" and any(s["state"] != "landed" for s in x["steps"]) for x in lanes)
     by_id = {x["id"]: x for x in lanes}
     for row in st["lanes"]:
         x = by_id[row["lane"]]
@@ -168,7 +170,7 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
     return st
 
 
-SECTIONS = ("In order", "Then", "Parked")
+SECTIONS = ("In order", "Then", "Parked")  # Then: an older file; the owner's list is In order + Parked
 RANK = ("open", "in progress", "built, waiting to land", "landed", "released")
 
 
@@ -431,6 +433,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self._host_ok() or self.headers.get("X-Builder-Token") != TOKEN:
             journal.append("console", who="?", verb=self.path, ok=False, state="refused", detail="no token or a foreign Host")
             return _json(self, 403, {"error": "the console's token and a loopback Host are required"})
+        if self.path.split("?")[0] == "/api/order":  # the owner's reorder: the body to a file, then the `order` verb
+            try:
+                body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+                req = journal.STATE / f"order-request-{int(time.time())}.json"
+                req.write_text(json.dumps({"order": [str(x) for x in body["order"]], "parked": [str(x) for x in body.get("parked", [])]}))
+            except (ValueError, KeyError, TypeError):
+                return _json(self, 400, {"error": "order needs {order: [...], parked: [...]}"})
+            r = act("order", {"file": str(req)}, f"{getpass.getuser()}@console")
+            r.pop("thread", None)
+            return _json(self, 200 if r["ok"] else 400, r)
         if self.path.split("?")[0] == "/api/refresh":
             refresh(f"{getpass.getuser()}@console")
             return _json(self, 200, {"ok": True, "started": "refresh"})

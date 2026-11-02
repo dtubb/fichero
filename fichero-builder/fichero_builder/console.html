@@ -161,39 +161,57 @@ function Milestones({ st }) {
   const [data, setData] = useState(null);
   const [open, setOpen] = useState({});
   const [pick, setPick] = useState({});
+  const [ord, setOrd] = useState(null);  // the owner's unsaved order: {order, parked}
   useEffect(() => { fetch("/api/milestones").then(r => r.json()).then(setData); }, [st.console.length]);
   if (!data) return html`<p class="muted">Loading…</p>`;
   const running = st.lanes.filter(l => !l.done).length;
   const room = Math.max(0, st.loop_lanes - running);
   const picked = Object.keys(pick).filter(k => pick[k]);
   const start = names => names.slice(0, room).forEach(n => act("start-milestone", { milestone: n }));
-  return html`
-    <div class="toolbar" style="position:static;background:transparent;border:0;padding:0 0 8px">
-      <button class="btn" onClick=${() => post("/api/refresh")}>${I.refresh} Refresh from GitHub</button>
-      <span class="muted">${data.ts ? html`read <${Ago} ts=${data.ts} />` : "never read: press Refresh"}${data.gh_ok === false ? " (gh failed)" : ""}</span>
-      <span class="spacer"></span>
-      <span class="muted">${running} of ${st.loop_lanes} lane(s) running</span>
-      ${picked.length > 0 && html`<button class="btn primary" disabled=${!room} onClick=${() => start(picked)}>${I.play} Start ${Math.min(picked.length, room)} lane(s)</button>`}
-    </div>
-    ${["In order", "Then", "Parked"].filter(sec => data.milestones.some(m => m.section === sec)).map(sec => html`<h2>${sec}</h2><div class="wrap"><table>
-      <thead><tr><th></th><th></th><th>Milestone</th><th>Open</th><th>Closed</th><th>Status</th><th>Steps</th><th></th></tr></thead>
-      <tbody>${data.milestones.filter(m => m.section === sec).map(m => html`
-        <tr class="row">
+  const byName = Object.fromEntries(data.milestones.map(m => [m.name, m]));
+  const base = { order: data.milestones.filter(m => m.section !== "Parked").map(m => m.name), parked: data.milestones.filter(m => m.section === "Parked").map(m => m.name) };
+  const cur = ord || base;
+  const order = cur.order, parked = cur.parked;
+  const changed = ord && JSON.stringify(ord) !== JSON.stringify(base);
+  const move = (name, to) => { const o = order.filter(n => n !== name); o.splice(to, 0, name); setOrd({ order: o, parked: parked.filter(n => n !== name) }); };
+  const park = name => setOrd({ order: order.filter(n => n !== name), parked: [...parked, name] });
+  const save = async () => { const r = await post("/api/order", { order, parked: parked.filter(n => !base.parked.includes(n)) }); if (r.ok) setOrd(null); };
+  const row = (m, sec, idx) => html`
+        <tr class="row" draggable=${sec === "In order"} onDragStart=${e => e.dataTransfer.setData("text/plain", m.name)}
+            onDragOver=${e => sec === "In order" && e.preventDefault()} onDrop=${e => { e.preventDefault(); move(e.dataTransfer.getData("text/plain"), idx); }}>
           <td>${m.startable ? html`<input type="checkbox" checked=${!!pick[m.name]} onChange=${e => setPick({ ...pick, [m.name]: e.target.checked })} />` : ""}</td>
           <td class="tri" onClick=${() => setOpen({ ...open, [m.name]: !open[m.name] })}>${m.steps.length || m.issues.length ? (open[m.name] ? "▾" : "▸") : ""}</td>
-          <td><b>${m.name}</b> ${m.lane && html`<span class="pill green"><span class="dot green pulse"></span>${m.lane}</span>`}</td>
+          <td>${sec === "In order" ? html`<span class="muted" style="cursor:grab">≡ ${idx + 1}.</span> ` : ""}<b>${m.name}</b> ${m.lane && html`<span class="pill green"><span class="dot green pulse"></span>${m.lane}</span>`}</td>
           <td>${m.open ?? "-"}</td><td>${m.closed ?? "-"}</td>
           <td>${m.counts ? Object.entries(m.counts).filter(([, n]) => n).map(([k, n]) => html`<span class="pill" style="margin-right:3px"><span class=${"dot " + STATUS_DOT[k]}></span>${n} ${k}</span>`) : ""}</td>
           <td class="mono">${m.steps.map(s => html`<span title=${`${s.title}: ${s.status || "no issues"}`} style=${`color:var(--${STATUS_COLOR[s.status] || "label2"})`}>${s.step} </span>`)}</td>
-          <td><div class="actions">${m.startable ? html`<button class="btn" disabled=${!room} onClick=${() => start([m.name])}>${I.play} Start lane</button>` : m.held_by ? html`<span class="muted">${m.held_by}</span>` : ""}</div></td>
+          <td><div class="actions">
+            ${sec === "In order" ? html`${idx > 0 && html`<button class="btn" onClick=${() => move(m.name, 0)}>Move to top</button>`}<button class="btn" onClick=${() => park(m.name)}>Park</button>`
+                                 : html`<button class="btn" onClick=${() => move(m.name, order.length)}>Unpark</button>`}
+            ${m.startable ? html`<button class="btn" disabled=${!room} onClick=${() => start([m.name])}>${I.play} Start lane</button>` : m.held_by ? html`<span class="muted">${m.held_by}</span>` : ""}
+          </div></td>
         </tr>
         ${open[m.name] && html`
           ${m.steps.map(s => html`<tr class="sub"><td></td><td></td><td><span class="mono">${s.step}</span> ${s.title}</td><td colspan="2">${s.state}</td>
             <td><span class=${"dot " + (STATUS_DOT[s.status] || "")}></span> ${s.status || html`<span class="muted">no issues</span>`}</td><td colspan="2">${s.issues.map(n => "#" + n).join(", ")}</td></tr>`)}
           ${m.questions.map(q => html`<tr class="sub"><td></td><td></td><td colspan="6" class="note">${q}</td></tr>`)}
           ${m.issues.map(i => html`<tr class="sub"><td></td><td></td><td>#${i.number} ${i.title}</td><td colspan="2">${i.step ? "step " + i.step : html`<span class="muted">no step</span>`}</td>
-            <td><span class=${"dot " + (STATUS_DOT[i.status] || "")}></span> ${i.status} <span class="muted mono">${i.where}</span></td><td colspan="2" class="muted">${i.labels.join(", ")}</td></tr>`)}`}
-      `)}</tbody></table></div>`)}`;
+            <td><span class=${"dot " + (STATUS_DOT[i.status] || "")}></span> ${i.status} <span class="muted mono">${i.where}</span></td><td colspan="2" class="muted">${i.labels.join(", ")}</td></tr>`)}`}`;
+  const table = (names, sec) => html`<div class="wrap"><table>
+      <thead><tr><th></th><th></th><th>Milestone</th><th>Open</th><th>Closed</th><th>Status</th><th>Steps</th><th></th></tr></thead>
+      <tbody>${names.map((n, idx) => row(byName[n] || { name: n, steps: [], issues: [], questions: [] }, sec, idx))}</tbody></table></div>`;
+  return html`
+    <div class="toolbar" style="position:static;background:transparent;border:0;padding:0 0 8px">
+      <button class="btn" onClick=${() => post("/api/refresh")}>${I.refresh} Refresh from GitHub</button>
+      <span class="muted">${data.ts ? html`read <${Ago} ts=${data.ts} />` : "never read: press Refresh"}${data.gh_ok === false ? " (gh failed)" : ""}</span>
+      <span class="spacer"></span>
+      <span class="muted">${running} of ${st.loop_lanes} lane(s) running</span>
+      ${st.order_saving && html`<span class="pill blue"><span class="dot blue pulse"></span>saving the order…</span>`}
+      ${changed && html`<button class="btn" onClick=${() => setOrd(null)}>Discard</button><button class="btn primary" disabled=${st.order_saving} onClick=${save}>Save order</button>`}
+      ${picked.length > 0 && html`<button class="btn primary" disabled=${!room} onClick=${() => start(picked)}>${I.play} Start ${Math.min(picked.length, room)} lane(s)</button>`}
+    </div>
+    ${order.length > 0 && html`<h2>In order <span class="muted" style="font-weight:400">drag to reorder</span></h2>${table(order, "In order")}`}
+    ${parked.length > 0 && html`<h2>Parked</h2>${table(parked, "Parked")}`}`;
 }
 
 function Worktrees({ st }) {

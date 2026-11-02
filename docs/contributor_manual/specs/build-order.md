@@ -1,11 +1,10 @@
 # Build order — which milestone the harness works, top to bottom
 
-> Read by `builder milestone` and `builder queue` (spec `harness/issues-and-labels.md`). The harness briefs only the
-> first milestone here that still has open issues, unless a person passes `--milestone`. The owner edits this file;
-> `builder triage --order` proposes changes as a diff, never writes it.
->
-> **Status: PROPOSED 2026-11-01 — the first four lines are tonight's order; everything below "Then" is the
-> manager's guess for the owner to reorder.**
+> ONE ordered list, read by `builder milestone`, `builder queue` and the loop (spec `harness/issues-and-labels.md`): the
+> harness briefs the first milestone here that still has open issues, unless a person names one. The owner orders the whole
+> list, by dragging it in the console (`builder status`, Milestones), which commits this file on branch `build-order` as a
+> tiny batch the loop checks and lands; the order the loop uses is the landed one. `builder triage --order` proposes
+> additions at the end, as a diff, never writes it. `Parked` is not ordered: buckets and lists that are not milestones.
 
 ## In order
 
@@ -13,16 +12,39 @@
 2. `image-enhancement` — the one product lane tonight (Step 1.1 landed first). Spec: source/image-enhancement.md
 3. `Sharing & Pairing — Dead-Simple UX` — spec APPROVED with 27 steps; rename the milestone to `sharing-two-macs` when triage runs. Spec: source/sharing-two-macs.md
 4. `recipe-designer` — wide onboarding; the recipe phases R1–R5 go into its build order first. Spec: source/wide-onboarding.md
-
-## Then (unordered until the owner orders them)
-
-- `recipes-run`, `activity`, `workflows`, `workflow-node-config` — running things and watching them
-- `source-model`, `importer`, `undo-trash-rollback` — the data model and getting material in; each spec that named `source-model` now names its own milestone (its file stem, lead ruling 2026-11-02, option A): triage proposes them for this list
-- `panes-workspaces`, `modes-to-panes`, `library-view-modes`, `sidebar-crud`, `menus-and-commands`, `preview-surface`, `reader-view` — the shell
-- `kg-tables`, `kg-readable-representation`, `kg-entity-inspector`, `kg-enrichment`, `search`, `explore`, `research` — knowledge and finding
-- `ai-settings`, `remote-compute`, `transport-http-uds`, `engine-startup-lifecycle`, `audited-action-layer`, `observable-data-layer` — engine and providers
-- `export-pipeline`, `historical-text-normalization` — output
-- `test-environment-contract`, `ui-testing-strategy`, `ui-test-harness`, `release-and-versioning` — testing and release
+5. `recipes-run` — running things and watching them
+6. `activity` — running things and watching them
+7. `workflows` — running things and watching them
+8. `workflow-node-config` — running things and watching them
+9. `source-model` — the data model and getting material in
+10. `importer` — the data model and getting material in
+11. `undo-trash-rollback` — the data model and getting material in
+12. `panes-workspaces` — the shell
+13. `modes-to-panes` — the shell
+14. `library-view-modes` — the shell
+15. `sidebar-crud` — the shell
+16. `menus-and-commands` — the shell
+17. `preview-surface` — the shell
+18. `reader-view` — the shell
+19. `kg-tables` — knowledge and finding
+20. `kg-readable-representation` — knowledge and finding
+21. `kg-entity-inspector` — knowledge and finding
+22. `kg-enrichment` — knowledge and finding
+23. `search` — knowledge and finding
+24. `explore` — knowledge and finding
+25. `research` — knowledge and finding
+26. `ai-settings` — engine and providers
+27. `remote-compute` — engine and providers
+28. `transport-http-uds` — engine and providers
+29. `engine-startup-lifecycle` — engine and providers
+30. `audited-action-layer` — engine and providers
+31. `observable-data-layer` — engine and providers
+32. `export-pipeline` — output
+33. `historical-text-normalization` — output
+34. `test-environment-contract` — testing and release
+35. `ui-testing-strategy` — testing and release
+36. `ui-test-harness` — testing and release
+37. `release-and-versioning` — testing and release
 
 ## Parked
 

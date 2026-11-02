@@ -42,9 +42,13 @@ temporary: triage removes each one as it moves the issue into the spec's milesto
 
 **The order of milestones is a file**, `docs/contributor_manual/specs/build-order.md`: one milestone per line, top
 to bottom, with a one-line reason and the spec path; a `## Parked` section for milestones that are not to be worked (a name or a pattern such as `UX - *`, which owes no spec and is never proposed; test `fichero-builder/tests/test_triage_verb.py::test_a_parked_line_may_name_a_pattern_and_the_milestones_it_matches_owe_no_spec_and_are_not_proposed`);
-everything else is unordered and the harness does not start it. The owner edits the file (or approves a triage
-proposal); the harness reads it and refuses to brief a milestone that is not the first unfinished one in the file
-unless told `--milestone` by a person.
+`## In order` is ONE list (owner 2026-11-02: the older `## Then` section merged into it); a milestone in neither list is
+not started. The owner orders the whole list, and the console is the way to do it: `builder status`, Milestones, drag or
+Move to top / Park / Unpark, then Save, which is `builder order`: one commit `docs(build-order): owner reorders …` on branch
+`build-order` in its own worktree, queued as a tiny external batch the loop checks and lands like any other (shown as saving
+until it lands; a second Save waits for it). The order the harness uses is the landed one; triage proposes additions at the
+end as a diff. The harness refuses to brief a milestone that is not the first unfinished one in the list unless told
+`--milestone` by a person.
 
 ## How the harness picks the next thing
 
@@ -72,6 +76,7 @@ never: it finishes one before the next, which is also the Studio's constraint (o
 - `issues.milestone-is-the-spec` [PARTIAL] (#6336) — every open issue sits in the milestone its spec names; `check_spec_milestones.py` binds spec↔milestone today, nothing yet moves issues. Test: fichero-server/tests/unit/workflows/test_triage_tool.py → #6116
 - `issues.label-set-is-closed` [PARTIAL] (#6336) — only the labels in the table exist; the one-off consolidation was done by hand 2026-11-01 (70 → 48); triage refuses an unknown label. Test: fichero-server/tests/unit/workflows/test_triage_tool.py → #6116
 - `issues.build-order-file-orders-milestones` [PARTIAL] (#6336) — the harness briefs only the first unfinished milestone of `specs/build-order.md`. Test: fichero-builder/tests/test_milestone_verb.py → #6116
+  Built 2026-11-02: the owner's reorder from the console is `builder order` (tests `fichero-builder/tests/test_order_verb.py::test_rewrite_renumbers_parks_and_unparks_keeping_each_lines_text`, `::test_save_commits_on_the_build_order_branch_queues_a_tiny_batch_and_refuses_while_one_is_saving`).
 - `issues.pick-order-step-bug-priority` [GAP] — within a milestone: steps in build order, then bugs, then priority. Test: fichero-builder/tests/test_milestone_verb.py → #6116
 - `issues.harness-closes-after-integration` [OK] (#6337) — an issue closes only by `builder landed` once its commit is on origin/integration. Test: fichero-builder/tests/test_landed_verb.py → #6116
 - `issues.spec-less-milestone-gets-a-spec-issue` [PARTIAL] (#6336) — Test: fichero-server/tests/unit/workflows/test_triage_tool.py → #6116
