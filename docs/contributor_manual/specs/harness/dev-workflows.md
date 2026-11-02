@@ -476,6 +476,18 @@ the write path would produce.
   cached per file mtime), and the API-equivalent dollars in grey, "on Max, not billed" (`[spend].prices`; cache reads at 0.1x and cache writes at
   1.25x the input price). **Built** 2026-11-02: `console.lane_usage`, the card in `console.html`. Not yet: a per-model split.
   Test `fichero-builder/tests/test_status_page.py::test_lane_usage_today_sums_each_external_lanes_transcripts_once_per_message`.
+- `dev-workflows.run.verify-all` [PARTIAL] (#6344; manager 2026-11-02, owner order: the dev build is of everything on origin/integration, fully verified first) —
+  `builder verify-all --root R [--build]` verifies R's HEAD in three parts over scratch trees of it: every guard (`[check].guard_glob`
+  minus `guard_skip`, from R's own check files), the full engine suite (every `<package>/tests` dir, plus each `[check.whole_tests]` dir as its
+  own pytest, on `[check].remote` when one is set, on HEAD as it is), and the app's build rung (`[check].build`, forced on). The guards run first;
+  the suite and the build then run beside each other, the build holding every ladder slot so it runs only while no check does. A red part does
+  not stop the others. One `verify` row (sha, root, ok, per-part ok/seconds/detail, where the suite ran) and `VERIFIED <sha>` or `NOT VERIFIED`
+  printed; with `--build` the dev DMG (`builder build --dev`) is made only after a green verdict; nothing is pushed or notarized. Overlapping
+  ladders keep the jail until the last one ends (a counted `_JAIL`; found while building this: the first to end unjailed the other).
+  **Built** 2026-11-02 against fakes: `fichero_builder/verify.py`. Not yet: a real run, its timings. Tests:
+  `fichero-builder/tests/test_verify_all.py::test_green_runs_every_part_writes_one_row_and_builds_the_dmg_only_with_build`,
+  `::test_a_red_part_is_not_verified_and_no_dmg_is_built`, `::test_build_flag_makes_the_dmg_after_a_green_verdict`,
+  `::test_two_overlapping_ladders_keep_the_jail_until_the_last_one_ends`.
 - `dev-workflows.builder.cluster` [PARTIAL] (#6116) — one spec and its build-order issues (parser ported from
   `pipeline/plan.py`), in order, one commit per issue with its test; the brief is built by `scripts/harness_brief.py` from
   `gh api repos/{repo}/issues/N`: the body and the **title** only when the author association is owner, member or
@@ -1117,7 +1129,7 @@ Steps a long-running builder can take from the heading. `Depends on` defaults to
 - Size: M
 
 #### Step 2.8 — `builder build --dev`: the dev DMG as a verb (owner 2026-11-02)
-- Behaviours: `dev-workflows.tool.build`, `dev-workflows.run.measure`
+- Behaviours: `dev-workflows.tool.build`, `dev-workflows.run.measure`, `dev-workflows.run.verify-all`
 - Tests: fichero-builder/tests/test_build_verb.py
 - Depends on: 2.1
 - Size: S
