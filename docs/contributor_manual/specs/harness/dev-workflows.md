@@ -344,7 +344,7 @@ the write path would produce.
   `step:N.M` and `type:feature` in the spec's milestone; the verb lists the repo's labels once, creates only the absent
   step labels (`gh label create`, before any issue write) and applies them on create and on update; existing issues' other
   labels are left alone. Test: `fichero-builder/tests/test_steps_verb.py::test_every_step_issue_carries_the_step_label_and_type_feature_never_a_spec_label`.
-- `dev-workflows.tool.landed` [PARTIAL] (#6116) — `builder landed <sha> [--push] [--no-issues] [--keep-worktree]`: after a verdict the maintainer
+- `dev-workflows.tool.landed` [PARTIAL] (#6116) — `builder landed <sha> [--push] [--no-issues] [--keep-worktree]` (`--verdicts` defaults to the `verdicts*.json` under `--state` that holds a READY for the range; test `fichero-builder/tests/test_landed_verb.py::test_without_verdicts_the_store_under_state_that_holds_the_ready_is_used`): after a verdict the maintainer
   runs one command instead of fifteen. It refuses a journal that is not this user's alone to write (it allows the push and
   names what `scratch` removes) and a rules file the land gate would refuse, then refuses unless the verdict store has READY
   for the sha, the journal has a green check row over exactly `<[land].branch>..<sha>` (a `--maintainer` row counts, because a
@@ -355,7 +355,8 @@ the write path would produce.
   (the maintainer typed it; nothing else sets it) it pushes `<sha>:refs/heads/<branch>`; then it refuses unless the sha is on `origin/<branch>` (a hand push counts), so
   an unpushed sha pins, removes and closes nothing and a `--push` rerun pushes (test `fichero-builder/tests/test_landed_verb.py::test_without_push_an_unpushed_sha_is_refused_before_anything_moves_and_a_push_rerun_finishes`); then it refreshes the engine
   repo's local branch, makes the `pinned-<sha7>` branch and worktree under `[land].pinned_dir` (absolute, else refused
-  before anything moves) and removes the previous pinned pair, fast-forwards the jail root as the jail user, sweeps the jail
+  before anything moves) and removes the previous pinned pair, fast-forwards the jail root as the jail user (from `/`: the owner's cwd is unreadable to it; a local file equal to what lands is
+  dropped first, any other local edit refuses the merge and stays; test `fichero-builder/tests/test_landed_verb.py::test_the_jail_root_drops_a_local_edit_the_target_already_has_and_refuses_a_real_one`), sweeps the jail
   root's worktrees (#6204: one is removed only when its HEAD is on `origin/<branch>`, it has been idle `[land].worktree_grace_hours`, default 36,
   by the newer of its index's mtime and its HEAD's commit time, and no queue lane with steps left holds it; its uncommitted and untracked
   files go to a patch under `<workroot>/.removed/` first, kept even if the removal fails; `git worktree remove`, never rm; the branch stays;
