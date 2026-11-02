@@ -6,6 +6,7 @@ prints the push line; nothing here pushes. Each step is a module function so a t
 from __future__ import annotations
 
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -29,15 +30,27 @@ def _jail(a):
     return j
 
 
+def owner_tree(a) -> bool:
+    """A worktree outside the jail's workroot: an external lane's own checkout (land-*, lane-*), which the worker cannot read.
+    Its chain steps run as the owner, whose tree it is (soak 2026-11-02: ie-batch2 in land-ie)."""
+    if not getattr(a, "external", False):  # only the queue's external lanes; a worker's tree is always the jail's
+        return False
+    root = os.path.realpath(_jail(a).workroot) + "/"
+    return not os.path.realpath(str(a.worktree)).startswith(root)
+
+
 def shared_state(a) -> Path:
-    """`<[jail].workroot>/state`: the one folder both users read (the worker's journal, patches and bundle live here)."""
-    return Path(_jail(a).workroot) / "state"
+    """`<[jail].workroot>/state`: the one folder both users read (the worker's journal, patches and bundle live here); for an
+    owner's tree, the owner's own journal dir (the shared one is the worker's and the owner cannot write it)."""
+    return Path(journal.STATE) / "owner-trees" if owner_tree(a) else Path(_jail(a).workroot) / "state"
 
 
 def as_worker(a, script: str) -> subprocess.CompletedProcess:
     """`script` as the jail user from the workroot: the owner cannot read the worker's session files or git in its tree.
     The one place the chain crosses the user boundary; a test replaces it."""
     j = _jail(a)
+    if owner_tree(a):
+        return subprocess.run(["sh", "-c", script], capture_output=True, text=True, cwd=str(a.worktree))
     return subprocess.run([j.sudo, "-n", "-H", "-u", j.user, "sh", "-c", f"cd {shlex.quote(j.workroot)} && {script}"],
                           capture_output=True, text=True)
 

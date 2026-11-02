@@ -450,3 +450,21 @@ def test_the_chain_finds_its_pinned_copy_again_inside_the_ladder_lock(chain, mon
     monkeypatch.setattr(work, "do_check", lambda a_, *r: (seen.append(a_.pinned), {"ok": False, "failed": "x"})[1])
     assert work.after_run(a, "/r", "integration", "m")["kind"] == "red"
     assert seen == ["repin", "/fresh"]
+
+
+def test_an_external_lanes_own_checkout_runs_its_chain_steps_as_the_owner(tmp_path):
+    """Soak 2026-11-02: ie-batch2 waited in the owner's land-ie checkout, which the jail user cannot read; an external lane's
+    tree outside the workroot runs its rebase, export and bundle as the owner, into the owner's own state dir."""
+    import types
+
+    from fichero_builder import work
+    (tmp_path / "harness.toml").write_text(f'[jail]\nuser = "w"\nworkroot = "{tmp_path / "wr"}"\n')
+    (tmp_path / "wr").mkdir()
+    out = types.SimpleNamespace(pinned=str(tmp_path), worktree=str(tmp_path / "land-ie"), external=True)
+    inside = types.SimpleNamespace(pinned=str(tmp_path), worktree=str(tmp_path / "wr" / "wt-x"), external=True)
+    worker = types.SimpleNamespace(pinned=str(tmp_path), worktree=str(tmp_path / "land-ie"))
+    assert work.owner_tree(out) and not work.owner_tree(inside) and not work.owner_tree(worker)
+    (tmp_path / "land-ie").mkdir()
+    r = work.as_worker(out, "pwd")
+    assert r.returncode == 0 and r.stdout.strip().endswith("land-ie"), "as the owner, in the lane's own tree: no sudo"
+    assert work.shared_state(out) == work.journal.STATE / "owner-trees"

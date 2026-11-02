@@ -488,7 +488,8 @@ def real_procs(root) -> Procs:
         brief = (step.get("resume_brief") or step["brief"]) if step else ""  # a fix brief after a gone session (run.loop-fix-rounds)
         return types.SimpleNamespace(worktree=lane["worktree"], name=lane["id"], pinned=str(root), root=str(root), kind="claude", session="harness",
                                      tick=30.0, issues=step["issues"] if step else [], brief=brief, ids=[], repo=repo,
-                                     maintainer=bool(step and step.get("maintainer")), approve_weakened=bool(step and step.get("approve_weakened")))
+                                     maintainer=bool(step and step.get("maintainer")), approve_weakened=bool(step and step.get("approve_weakened")),
+                                     external=lane.get("kind") == "external")
 
     def start(lane, step):
         a, q = ns(lane, step), shlex.quote
