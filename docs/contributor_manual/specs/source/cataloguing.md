@@ -1,6 +1,6 @@
 # Source Model — Cataloguing and metadata: fields on prototypes, entries that show — Design Spec (#5365)
 
-> Milestone: source-model
+> Milestone: cataloguing
 > Manual: TBD — a section, "Cataloguing", explaining how a project's kinds of document (a letter, a
 > sale record, a diary entry) carry their fields, how values are proposed from the page and
 > confirmed, how a catalogue entry is made from them, and how it is exported to standard schemas.

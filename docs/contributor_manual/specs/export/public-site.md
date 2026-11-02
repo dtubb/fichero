@@ -1,6 +1,6 @@
 # Export — A public research site for an archive (first: Istmina) — Design Spec (#5381)
 
-> Milestone: source-model
+> Milestone: public-site
 > Manual: TBD — a section, "Publishing an archive for the public", explaining what goes on the site,
 > what is withheld and why, how people search it, and how it is updated as the work goes on.
 >

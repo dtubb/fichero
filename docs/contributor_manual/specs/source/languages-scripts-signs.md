@@ -1,6 +1,6 @@
 # Source Model — Languages, scripts and signs — Design Spec (#TBD)
 
-> Milestone: source-model
+> Milestone: languages-scripts-signs
 > Manual: TBD — part of the "How Fichero represents a source" section: how to say what
 > language and script a passage is in, how writing direction works, and how to work with a
 > script or a sign that no computer knows yet.

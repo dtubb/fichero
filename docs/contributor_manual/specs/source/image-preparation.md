@@ -1,6 +1,6 @@
 # Source Model — Image preparation: the Set Up step that turns photographs into pages a model can read — Design Spec (#5382)
 
-> Milestone: source-model
+> Milestone: image-preparation
 > Manual: TBD — a section, "Preparing images", explaining what Fichero does to a photograph before
 > reading it (find the page, split, turn, straighten, clean), that the original is never changed,
 > how to check and correct what it did, and how to see whether a step helped.

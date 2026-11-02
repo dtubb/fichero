@@ -1,6 +1,6 @@
 # Source Model — Models, recipes, projects and setup — Design Spec (#TBD)
 
-> Milestone: source-model
+> Milestone: models-chains-and-projects
 > Manual: TBD — a "Setting up a project" section: the purpose question and what each purpose
 > runs by itself; what setup asks and what it works out; the recipe it makes, and how to see
 > and change it in the Inspector; checking models on your own corrected pages; taking,

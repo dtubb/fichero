@@ -17,14 +17,16 @@
 ## Then (unordered until the owner orders them)
 
 - `recipes-run`, `activity`, `workflows`, `workflow-node-config` — running things and watching them
-- `source-model`, `importer`, `undo-trash-rollback` — the data model and getting material in
+- `source-model`, `importer`, `undo-trash-rollback` — the data model and getting material in; each spec that named `source-model` now names its own milestone (its file stem, lead ruling 2026-11-02, option A): triage proposes them for this list
 - `panes-workspaces`, `modes-to-panes`, `library-view-modes`, `sidebar-crud`, `menus-and-commands`, `preview-surface`, `reader-view` — the shell
 - `kg-tables`, `kg-readable-representation`, `kg-entity-inspector`, `kg-enrichment`, `search`, `explore`, `research` — knowledge and finding
-- `ai-settings`, `remote-compute`, `HF`, `transport-http-uds`, `engine-startup-lifecycle`, `audited-action-layer`, `observable-data-layer` — engine and providers
+- `ai-settings`, `remote-compute`, `transport-http-uds`, `engine-startup-lifecycle`, `audited-action-layer`, `observable-data-layer` — engine and providers
 - `export-pipeline`, `historical-text-normalization` — output
 - `test-environment-contract`, `ui-testing-strategy`, `ui-test-harness`, `release-and-versioning` — testing and release
 
 ## Parked
 
 - `Next release` (98 issues) and `cand 16` (18) — grab-bags, not specs: triage files each issue into its spec's milestone and these close.
-- `Bugs - Testing - Lint - *`, `Performance - *`, `Lint - Structural Debt - *` — ops buckets, worked by bug and priority, never as a lane.
+- `Bugs - *`, `Performance - *`, `Lint - Structural Debt - *` — ops buckets, worked by bug and priority, never as a lane.
+- `UX - *`, `Engine - *`, `App - *`, `Developer - *`, `Hygiene & Structure - *`, `SwiftUI/Engine - *`, `Mac App Store — *`, `Testing Overhaul — *`, `Inspector View`, `Library View`, `Keyboard Navigation`, `Search View - *`, `Sidebar & Launch Performance` — older area buckets, not specs: worked by bug and priority (lead ruling 2026-11-02).
+- `cand 14`, `Later (post-release)`, `iPhone`, `HF`, `ACENet` — not worked now (lead ruling 2026-11-02).

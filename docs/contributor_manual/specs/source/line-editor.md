@@ -1,6 +1,6 @@
 # Source Model — The line editor — Design Spec (#5209, #5211, #5212)
 
-> Milestone: source-model
+> Milestone: line-editor
 > Manual: TBD — part of "Transcribing a page": typing a manuscript's text line by line, against the
 > picture of each line.
 >

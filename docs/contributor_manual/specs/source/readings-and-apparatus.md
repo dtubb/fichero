@@ -1,6 +1,6 @@
 # Source Model — Readings and the scholar's apparatus — Design Spec (#TBD)
 
-> Milestone: source-model
+> Milestone: readings-and-apparatus
 > Manual: docs/contributor_manual/guide/02-the-node-model.md (the researcher-facing section authored in the user manual, tracked by this file: part of the "How Fichero represents a source" section: that one patch of ink can carry several readings, which one counts, and how hands, campaigns, damage and a researcher's own notes are recorded.)
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
