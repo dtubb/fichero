@@ -698,14 +698,15 @@ class EmptyRange(RuntimeError):
     """since equals head: a landing branch that never got its commit judged green on nothing (2026-11-02)."""
 
 
-def ladder_over(root, since_sha: str, head: str, pinned, protected_ids=(), maintainer: bool = False) -> dict:
+def ladder_over(root, since_sha: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool = False) -> dict:
     """The one way `builder check` and `builder work` run the ladder: an empty range is refused, never judged."""
     if since_sha == head:
         raise EmptyRange(f"{since_sha[:9]}..{head[:9]} is empty: nothing to check")
-    return run_ladder(root, since_sha, head, pinned, list(protected_ids), maintainer=maintainer)
+    return run_ladder(root, since_sha, head, pinned, list(protected_ids), maintainer=maintainer, approve_weakened=approve_weakened)
 
 
-def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_required: bool = True, maintainer: bool = False) -> dict:
+def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_required: bool = True, maintainer: bool = False,
+               approve_weakened: bool = False) -> dict:
     """The project's whole ladder over the diff since..head, judged by the PINNED copy (an engine-owned checkout
     outside the worker's tree; its harness.toml is the config): pinned-checks, ready, diff bound, red-on-base for
     the changed test files (its green run is the pytest rung), guards, contract. Stops at the first red.
@@ -725,7 +726,7 @@ def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_requi
             raise _jailmod.JailMissing("the jail leaks: " + "; ".join(wall))
     _JAIL = j
     try:
-        return _run_ladder(root, since, head, pinned, protected_ids, maintainer)
+        return _run_ladder(root, since, head, pinned, protected_ids, maintainer, approve_weakened)
     finally:
         _JAIL = None
         if _SHIPPED or _DOWN:
@@ -749,7 +750,7 @@ def _no_red_row(tree, whole: tuple, cfg: Config) -> dict:
     return {**_skipped("red-on-base"), "stdout_tail": "not required: no changed path is under [check].red_paths"}
 
 
-def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintainer: bool = False) -> dict:
+def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool = False) -> dict:
     cfg = load(pinned)
     bad = pinned_violations(root, since, head, cfg, pinned)
     noted = ""
@@ -758,7 +759,10 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
         if changed:
             noted, bad = "maintainer batch: " + "; ".join(changed), [b for b in bad if b not in changed]
     if weak := weakened_tests(root, since, head, cfg):
-        bad.append(f"the diff deletes or weakens existing tests ({', '.join(weak[:5])})")
+        if approve_weakened:  # the manager answered the alert with approve (an owner ruling renamed or dropped them): recorded, not refused
+            noted = (noted + "; " if noted else "") + f"approved weakened tests: {', '.join(weak[:5])}"
+        else:
+            bad.append(f"the diff deletes or weakens existing tests ({', '.join(weak[:5])})")
     bad += [f"the diff rewrites the item's own acceptance ({h})" for h in acceptance_changed(root, since, head, cfg, protected_ids)[:8]]
     if bad:
         r = {"name": "pinned-checks", "argv": [], "exit_code": 1, "ok": False, "timed_out": False, "seconds": 0,

@@ -284,3 +284,21 @@ def test_stop_tells_the_worker_closes_its_session_after_the_grace_and_resume_sta
     assert "Continue from the tree" in open(steps()["1.1"]["resume_brief"]).read()
     assert [r["state"] for r in journal.read() if r["event"] == "queue" and r.get("state") in ("stop", "stopped")] == ["stop", "stopped"]
     assert cli.main(["queue", "stop", "--lane", "nope", "--state", str(state / "s")]) == 1
+
+
+def test_weakened_tests_are_an_alert_with_the_test_diff_and_approve_reruns_recording_the_approval(state):
+    """Manager 2026-11-02: weakened tests had no approve path. Now: the same alert as needs-maintainer (evidence the test
+    files' diff, actions approve|send-back); approve re-runs the step's check with approve_weakened, not --maintainer."""
+    lane(state)
+    seen = []
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "weakened-tests", "why": "weakened tests at abc: test_old.py",
+                                 "evidence": "/s/weakened-m1.diff"}]})
+    base_chain = fake.procs.chain
+    fake.procs.chain = lambda lane_, step, stage: seen.append((bool(step.get("approve_weakened")), bool(step.get("maintainer")))) or base_chain(lane_, step, stage)
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    assert a["actions"] == ["approve", "send-back"] and a["evidence"] == "/s/weakened-m1.diff"
+    assert cli.main(["alert", a["id"], "approve", "--state", str(state / "s")]) == 0
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert seen[:2] == [(False, False), (True, False)], "approve re-ran the check recording the approval, never as a maintainer batch"
+    assert steps()["1.1"]["state"] == "landed"

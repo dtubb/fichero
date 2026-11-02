@@ -80,6 +80,7 @@ def main(argv=None) -> int:
     c.add_argument("since"), c.add_argument("head")
     c.add_argument("--pinned", required=True)
     c.add_argument("--id", action="append", default=[])
+    c.add_argument("--approve-weakened", action="store_true", help="the manager approved this range's weakened tests (an owner ruling): recorded in the pinned-checks row, not refused")
     c.add_argument("--maintainer", action="store_true", help="a maintainer batch: a changed pinned file is recorded in the pinned-checks row, not refused; point --pinned at the candidate's own tree")
     c.add_argument("--state", help="where the journal lives (default: see run --state)")
     ms = sub.add_parser("milestone", help="a milestone's open issues as one cluster brief per build-order step; questions, never guesses")
@@ -359,12 +360,13 @@ def main(argv=None) -> int:
             print(f"builder check: {a.since!r} is not a commit in {a.repo}", file=sys.stderr)
             return 1
         try:
-            r = check_tool.ladder_over(a.repo, since, head, a.pinned, a.id, maintainer=a.maintainer)
+            r = check_tool.ladder_over(a.repo, since, head, a.pinned, a.id, maintainer=a.maintainer, approve_weakened=a.approve_weakened)
         except check_tool.EmptyRange:  # the shared refusal, also `builder work`'s
             print(f"REFUSED: {a.since}..{a.head} is empty: nothing to check", file=sys.stderr)
             return 1
         print(json.dumps(r, indent=1))
-        journal.append("check", repo=str(a.repo), since=since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""), maintainer=a.maintainer)
+        journal.append("check", repo=str(a.repo), since=since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""), maintainer=a.maintainer,
+                       approve_weakened=a.approve_weakened)
         return 0 if r.get("ok") else 1
     if a.cmd == "run" and not a.model:
         from fichero_builder import models as models_mod

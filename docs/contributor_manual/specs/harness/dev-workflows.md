@@ -692,6 +692,12 @@ the write path would produce.
   (the alert carries the diff; approve re-runs with --maintainer); `fichero-server/tests/unit/scripts/test_verify_workflows.py`
   (a new image tool in the registry is in the list with no edit to the script).
   **Built** against fakes: `work.after_run` turns a pinned-checks needs-maintainer refusal into kind `needs-maintainer` with the diff of `[check].check_paths` in `pinned-<lane>.diff`; the queue alerts with approve|send-back (never a fix round); approve re-runs the chain with the check as `--maintainer`. Test `fichero-builder/tests/test_loop.py::test_needs_maintainer_is_an_alert_with_the_pinned_diff_and_approve_reruns_as_maintainer`. `scripts/verify_workflows.py` reads the image-input tools from the live registry (a vision or transform tool with a `files` input port; 13 vision presets that were given the `.txt` fixture now get the text-page image); test `fichero-server/tests/unit/scripts/test_verify_workflows.py::test_a_new_image_tool_in_the_registry_is_in_the_list_with_no_edit_to_the_script`. Not yet: the diff writer through a real check; the e2e lane run with the new selection.
+  **Weakened tests** (manager 2026-11-02): a range that renames, drops or weakens an existing test on purpose (an owner ruling,
+  #6088) is the same alert as needs-maintainer: evidence the diff of every test file in the range, actions approve | send-back;
+  approve re-runs the step's check with `--approve-weakened` (not `--maintainer`), which records `approved weakened tests: …` in
+  the pinned-checks row and in the check row; a maintainer batch alone still refuses a weakened test. Tests
+  `fichero-server/tests/unit/workflows/test_check_tool.py::test_weakened_tests_refuse_until_the_manager_approves_and_the_approval_is_recorded`,
+  `fichero-builder/tests/test_loop.py::test_weakened_tests_are_an_alert_with_the_test_diff_and_approve_reruns_recording_the_approval`.
 - `dev-workflows.run.loop-external-lane` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated: the baseline comparison) — a
   lane of kind `external` is a branch in a worktree that the loop does not start a worker for; `builder done <lane> <sha>` is its
   DONE, and from there the same chain runs (fetch, check, review, landed --push, alert on a stop, findings by `builder tell` when

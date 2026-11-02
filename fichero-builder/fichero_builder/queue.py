@@ -291,7 +291,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         lane["cursor"] += 1
         store(lane)
         return True
-    if r.get("kind") == "needs-maintainer":  # a pinned check changed on purpose: the manager's call, never the worker's
+    if r.get("kind") in ("needs-maintainer", "weakened-tests"):  # a pinned check or a test changed on purpose: the manager's call
+        s["approve_kind"] = r["kind"]
         return block(s, r["why"], ("approve", "send-back"), r.get("evidence", ""))
     if r.get("kind") in ("red", "not-ready", "refused") and s["rounds"] < ROUNDS and lane.get("kind") != "external":  # external: an alert
         s["rounds"] += 1
@@ -359,7 +360,9 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
             return 1, "REFUSED: the lane or step is gone"
         if action in ("retry", "approve", "send-back"):
             s.update(state="queued" if action != "approve" else "done", rounds=0, restarts=0, why="")
-            if action == "approve":
+            if action == "approve" and s.get("approve_kind") == "weakened-tests":
+                s["approve_weakened"] = True  # the chain re-runs the check recording the approval (the check row says so)
+            elif action == "approve":
                 s["maintainer"] = True  # the chain runs the check with --maintainer
             if action == "send-back":
                 fix = journal.STATE / f"sendback-{alert_id}.txt"
@@ -476,7 +479,7 @@ def real_procs(root) -> Procs:
         brief = (step.get("resume_brief") or step["brief"]) if step else ""  # a fix brief after a gone session (run.loop-fix-rounds)
         return types.SimpleNamespace(worktree=lane["worktree"], name=lane["id"], pinned=str(root), root=str(root), kind="claude", session="harness",
                                      tick=30.0, issues=step["issues"] if step else [], brief=brief, ids=[], repo=repo,
-                                     maintainer=bool(step and step.get("maintainer")))
+                                     maintainer=bool(step and step.get("maintainer")), approve_weakened=bool(step and step.get("approve_weakened")))
 
     def start(lane, step):
         a, q = ns(lane, step), shlex.quote

@@ -773,3 +773,18 @@ def test_a_remote_runner_runs_the_engine_pytest_there_and_an_unreachable_one_ale
     assert ct.pytest_rung(tree, ["test_where.py"], cfg, timeout_s=120)["ok"]
     assert len([x for x in journal.read() if x["event"] == "alert"]) == 1, "one alert per ladder, not one per run"
     ct._drop_remote(cfg)
+
+
+def test_weakened_tests_refuse_until_the_manager_approves_and_the_approval_is_recorded(tmp_path):
+    """Manager 2026-11-02: a test a lane renamed because of an owner ruling (#6088) was refused with no way through. Approve
+    (the alert's approve|send-back, like needs-maintainer) re-runs the check with approve_weakened, noted in the row."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "test_old.py").write_text("def test_cloud_is_off():\n    assert 1\n")
+    g("add", "."), g("commit", "-q", "-m", "a test")
+    base2 = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+    (work / "test_old.py").write_text("def test_cloud_is_the_default():\n    assert 1\n")
+    g("add", "."), g("commit", "-q", "-m", "rename per the owner's ruling")
+    r = ct.run_ladder(work, base2, "HEAD", pinned, jail_required=False)
+    assert not r["ok"] and r["failed"] == "pinned-checks" and "weakens existing tests" in r["rungs"][0]["stderr_tail"]
+    r = ct.run_ladder(work, base2, "HEAD", pinned, jail_required=False, approve_weakened=True)
+    assert r["rungs"][0]["ok"] and "approved weakened tests: test_old.py" in r["rungs"][0]["stdout_tail"], r["rungs"][0]
