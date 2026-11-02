@@ -351,13 +351,14 @@ the write path would produce.
   one comment per issue per landing naming every citing commit (sha7, subject, the test files it touches); `Fixes`/`Closes
   #N` closes with it, `Part of #N` stays open, `Already built: #N <test>` comments the proving test and labels
   needs-your-test; a behaviour id on a `Behaviour: <id>` trailer line of a commit (an id the message only mentions does not count) gets its spec line's open tag set to [OK] with the commit's
-  test files named when the line names none (a `spec-ok` row each; the owner commits the spec edit with the next batch);
+  test files named when the line names none (a `spec-ok` row each; the owner commits the spec edit with the next batch; a spec
+  file it would edit that has uncommitted changes refuses before the push);
   `--no-issues` skips both. Every step is a journal row (event `landed`); a red step stops the rest with exit 1.
   **Built** 2026-11-01: `fichero_builder/landed.py`. Tests:
   `fichero-builder/tests/test_landed_verb.py::test_the_happy_path_without_push_pins_and_refreshes_but_leaves_origin_alone`,
   `::test_refuses_a_sha_that_is_not_a_fast_forward_of_origin`, `::test_the_cited_issues_are_closed_or_commented_through_gh`,
   `::test_a_range_over_the_boundary_is_not_pushed`, `::test_a_journal_landed_does_not_own_or_others_can_write_refuses_before_anything`,
-  `::test_a_green_row_counts_only_for_the_range_being_landed`, `::test_issues_are_untouched_until_the_sha_is_on_origin`, `::test_the_spec_behaviour_line_a_landed_commit_names_gets_ok_with_the_test`. Not yet: a run with the real jail user and the real `gh`; both are faked in every test.
+  `::test_a_green_row_counts_only_for_the_range_being_landed`, `::test_issues_are_untouched_until_the_sha_is_on_origin`, `::test_the_spec_behaviour_line_a_landed_commit_names_gets_ok_with_the_test`, `::test_a_dirty_spec_file_it_would_edit_refuses_before_the_push_and_nothing_else_does`. Not yet: a run with the real jail user and the real `gh`; both are faked in every test.
 - `dev-workflows.tool.watch` [OK] (#6116; owner 2026-11-01) — `builder watch [--port 8765] [--state DIR] [--root DIR]` is a live progress
   page: a stdlib `http.server` bound to 127.0.0.1 serving one HTML page (no JavaScript; a 5 s meta refresh) read from the
   owner's journal and the worker's under `[jail].workroot/state` (from that file, which the worker can write, only its run rows, and a line that does not parse is skipped; test `fichero-builder/tests/test_watch.py::test_a_worker_cannot_put_a_check_or_a_landing_on_the_owners_page_and_a_bad_line_is_skipped`), newest first: one table per kind and nothing else: each run (name, worktree, model, started, turns, cost USD,
