@@ -424,7 +424,8 @@ def feed(procs: Procs, lanes_n: int, out=print) -> bool:
         busy = [x for x in lanes if x["cursor"] < len(x["steps"])]
         # an external lane (a session of its own, or one holding a milestone) is not one of the loop's lanes, but it holds its milestone;
         # a finished external lane (a batch landed for it) frees its milestone, so the issues left open are briefed (soak 2026-11-02)
-        if sum(1 for x in busy if x.get("kind") != "external") >= lanes_n:
+        # an external lane whose step the loop is checking, reviewing or landing uses one of the loop's lanes while it does
+        if sum(1 for x in busy if x.get("kind") != "external" or x["steps"][x["cursor"]]["state"] != "queued") >= lanes_n:
             return took
         nxt = procs.next_milestone({x["id"] for x in lanes if x in busy or x.get("kind") != "external"} | _SKIPPED)
         if not nxt:

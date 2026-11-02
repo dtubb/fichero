@@ -312,6 +312,10 @@ def test_external_lanes_hold_their_milestone_but_are_not_the_loops_lanes_and_a_f
     queue.add("dev-workflows", "/w/h", "held", str(state / "b1.1"), [], kind="external")
     queue.add("image-enhancement", "/w/land-ie", "ie-batch2", str(state / "b1.1"), [], kind="external")
     lanes = queue.load()
+    lanes[2]["steps"][0]["state"] = "checking"  # the loop is landing ie-batch2: that uses its one lane
+    queue.save(lanes)
+    assert queue.feed(Fake().procs, 1, out=lambda s: None) is False
+    lanes = queue.load()
     lanes[2]["steps"][0]["state"], lanes[2]["cursor"] = "landed", 1  # ie-batch2 landed through the chain
     queue.save(lanes)
     asked = []
