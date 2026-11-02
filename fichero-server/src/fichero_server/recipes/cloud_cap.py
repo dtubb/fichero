@@ -5,7 +5,7 @@ the plan's cap line and of the change, the cap's one refusal, the first pages in
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -34,6 +34,17 @@ class CloudCapChanged(BaseModel):
     audit_id: str = Field(description="the audit row of the change; Undo reverses it")
 
 
+class CapFix(BaseModel):
+    """One button a refused Start offers (`designer.budget.refusal-offers-the-fix`, #6295): served by the engine, computed by no client."""
+
+    kind: Literal["raise-cap", "change-model", "run-fewer-pages"]
+    step: Optional[str] = Field(default=None, description="`change-model`: the dearest step's workflow, whose finder opens")
+    raise_to_usd: Optional[float] = Field(default=None, description=(
+        "`raise-cap`: the cap under which the run fits (the estimate rounded up to the dollar, over what is spent), for the cap that refuses"))
+    cap: Optional[Literal["monthly", "project"]] = Field(default=None, description="`raise-cap`: the cap that is refusing")
+    pages_that_fit: Optional[int] = Field(default=None, description="`run-fewer-pages`: the first N pages (Finder order) that fit what the caps leave")
+
+
 class CloudCapLine(BaseModel):
     """The project's cloud spend cap against this run's estimate (`ai.where.cloud-spend-cap`, #5943, #5987)."""
 
@@ -58,6 +69,10 @@ class CloudCapLine(BaseModel):
     needed_project_cap_usd: Optional[float] = Field(default=None, description=(
         "when `over_project`: the project cap under which this run's estimate fits (spent in all plus the estimate, to the cent)"))
     pages: int = Field(default=0, description="the pages the estimate is for")
+    dearest_step: Optional[str] = Field(default=None, description="when `over`: the step with the largest estimate, the one to change")
+    fixes: list[CapFix] = Field(default_factory=list, description=(
+        "when `over`: the buttons the refusal offers, each one press (`refusal.fixes[]`): raise the cap that refuses, change the dearest "
+        "step's model, run the first N pages that fit; empty when the run is not over"))
     fewer_pages: Optional[int] = Field(default=None, description=(
         "when `over`: how many of the project's first pages, in Finder order, fit what the caps leave at this run's per-page "
         "estimate; null when none fit or the run is not over"))
@@ -69,6 +84,27 @@ class CloudCapLine(BaseModel):
     unpriced: bool = Field(description="the estimate is unknown (a cloud model with no listed price): asked about, never $0")
     assumed_calls: int = Field(default=0, description="calls this month booked at the assumed price of a model with no listed price")
     assumed_usd: float = Field(default=0.0, description="what those calls were booked at: counted against the cap, listed apart")
+
+
+def fixes_for(line: dict[str, Any], estimate: dict[str, Any]) -> tuple[Optional[str], list[dict[str, Any]]]:
+    """(the dearest step, the fixes) of an over-cap plan: raise the refusing cap to the estimate rounded up to the dollar (no margin),
+    change the dearest priced step's model, run the first N pages that fit. Nothing for a run that is not over."""
+    import math
+
+    if not line.get("over"):
+        return None, []
+    priced = [r for r in estimate.get("runs") or [] if r.get("cost_usd")]
+    dearest = max(priced, key=lambda r: r["cost_usd"], default=None)
+    fixes: list[dict[str, Any]] = []
+    for cap, needed in (("monthly", line.get("needed_cap_usd") if line.get("over_month") else None),
+                        ("project", line.get("needed_project_cap_usd") if line.get("over_project") else None)):
+        if needed is not None:
+            fixes.append({"kind": "raise-cap", "cap": cap, "raise_to_usd": float(math.ceil(needed))})
+    if dearest is not None:
+        fixes.append({"kind": "change-model", "step": dearest["workflow"]})
+    if line.get("fewer_pages"):
+        fixes.append({"kind": "run-fewer-pages", "pages_that_fit": line["fewer_pages"]})
+    return (dearest["workflow"] if dearest else None), fixes
 
 
 def only_if_set(**named: Any) -> dict[str, Any]:

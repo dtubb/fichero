@@ -57044,6 +57044,53 @@
         "title": "CanvasListResponse",
         "description": "Standardized envelope for canvas spatial list endpoints."
       },
+      "CapFix": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "raise-cap",
+              "change-model",
+              "run-fewer-pages"
+            ],
+            "title": "Kind"
+          },
+          "step": {
+            "type": "string",
+            "nullable": true,
+            "title": "Step",
+            "description": "`change-model`: the dearest step's workflow, whose finder opens"
+          },
+          "raise_to_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Raise To Usd",
+            "description": "`raise-cap`: the cap under which the run fits (the estimate rounded up to the dollar, over what is spent), for the cap that refuses"
+          },
+          "cap": {
+            "type": "string",
+            "enum": [
+              "monthly",
+              "project"
+            ],
+            "nullable": true,
+            "title": "Cap",
+            "description": "`raise-cap`: the cap that is refusing"
+          },
+          "pages_that_fit": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Pages That Fit",
+            "description": "`run-fewer-pages`: the first N pages (Finder order) that fit what the caps leave"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "CapFix",
+        "description": "One button a refused Start offers (`designer.budget.refusal-offers-the-fix`, #6295): served by the engine, computed by no client."
+      },
       "CatalogueWorkbookRequest": {
         "properties": {
           "target_id": {
@@ -60501,6 +60548,20 @@
             "title": "Pages",
             "description": "the pages the estimate is for",
             "default": 0
+          },
+          "dearest_step": {
+            "type": "string",
+            "nullable": true,
+            "title": "Dearest Step",
+            "description": "when `over`: the step with the largest estimate, the one to change"
+          },
+          "fixes": {
+            "items": {
+              "$ref": "#/components/schemas/CapFix"
+            },
+            "type": "array",
+            "title": "Fixes",
+            "description": "when `over`: the buttons the refusal offers, each one press (`refusal.fixes[]`): raise the cap that refuses, change the dearest step's model, run the first N pages that fit; empty when the run is not over"
           },
           "fewer_pages": {
             "type": "integer",

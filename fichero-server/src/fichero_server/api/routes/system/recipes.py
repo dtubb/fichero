@@ -35,6 +35,7 @@ from fichero_server.recipes.cloud_cap import (
     cap_refusals,
     catalogue_runs,
     estimate_on,
+    fixes_for,
     folders_covering,
     first_pages_of,
     first_pages_that_fit,
@@ -2747,6 +2748,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
                                               cloud_models=cloud_models, pages=plan["estimate"]["pages"])
     if plan["cloud_cap"]["over"] and not folder_id:
         plan["cloud_cap"]["fewer_pages"] = first_pages_that_fit(db, plan, plan["cloud_cap"], plan["estimate"]["pages"], lambda within: estimate_on(db, plan, material(db, within, memo), within, memo), memo=memo)
+    plan["cloud_cap"]["dearest_step"], plan["cloud_cap"]["fixes"] = fixes_for(plan["cloud_cap"], plan["estimate"])
     cap_refusals(plan)
     plan["step_choices"] = _step_choices_of(setup, may_leave=places.may_leave_to(setup["answers"], "cloud"),
                                             pages=plan["estimate"].get("pages"), clusters=clusters)
