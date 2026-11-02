@@ -166,7 +166,7 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   folder and opens it for editing (`WorkflowToolbar.swift:27-52`,
   `WorkflowEditor.swift:217-224`).
 - `workflows.text-reflow.ai-refinement-works` — **[BROKEN]** (#5921, found 2026-10-20 by the M4 run of the pause tests) the Text Reflow step's optional AI refinement (`use_ai_refinement`) has never worked: it imports `call_llm_with_cache` from `fichero_server.llm`, which defines no such function, so every run raised ImportError, swallowed into "return the heuristic text". Rule: an option that is on either refines or says why it could not; a broken import is not a provider failure. Today: a page with the option on keeps its reflowed text and the run says once, as an Activity warning, "AI refinement isn't available yet (#5921)" (not one per page, and no raw import error); fixing or removing the option is a separate owner decision. Pinned by `fichero-server/tests/unit/jobs/test_a_paused_page_is_paused_not_failed_5919.py` (the tripwire test, delete when #5921 is closed).
-- `workflows.canvas.edge-legality-matches-engine` — **[BROKEN]** the canvas's
+- `workflows.canvas.edge-legality-matches-engine` — **[OK]** (fixed: 76595815b6 made the engine's table the one owner and decided the six conversions, #4478; 12632c83b7 made the canvas derive `canConnect` from the served table, #4477; verified 2026-11-02: `PortConnectionRules.canConnect` has no table of its own.) Was: the canvas's
   `canConnect` allows five conversions the engine's `validate_port_connection`
   rejects (`json→text`, `array→json`, `array→text`, `image→file`,
   `image→files`), so the canvas lets a user draw and save an edge the engine
@@ -187,7 +187,7 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
 - `workflows.canvas.hidden-tools-in-palette` — **[GAP]** not every tool the
   engine can run appears in the canvas's node palette. ISSUE: #2440 ("Show the
   hidden tools").
-- `workflows.canvas.16-palette-tools-cannot-execute` — **[BROKEN]** ~16
+- `workflows.canvas.16-palette-tools-cannot-execute` — **[OK]** (fixed: 18c5b3cc68 "honest palette", #4322; verified 2026-11-02: `GET /api/workflows/tools` serves `list_executable_tools()` only, 128 of 144 registered, the 16 unimplemented ones are not offered.) Was: ~16
   palette-visible node kinds (`if`, `switch`, `loop`, `filter`, `merge`, the
   five export nodes, `custom_llm`, …) are declared in
   `registry_builtins.py` with no `@register_tool` implementation and served
@@ -460,6 +460,141 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
 Pure-policy tests first: `WorkflowSavePolicy.canAutoSave` and `WorkflowBarPolicy`
 are both already designed to be tested without a window (no SwiftUI in either) —
 the highest-leverage, cheapest tests to land first, ahead of any XCUITest.
+
+## Build order
+
+Steps a long-running builder can take from the heading, engine before Swift, one commit per step. A step flips its behaviours' tags only with its test green; `Depends on` defaults to the step before. Open question 4 (hide non-executable tools) is already met by #4322, and `workflows.canvas.16-palette-tools-cannot-execute` and `workflows.canvas.edge-legality-matches-engine` are [OK] (above). The step that needs the owner is 1.5.
+
+### Stage 1 — engine: declared scope, honest runs, provenance
+
+Engine only, one pytest per step. Each step flips its tags only with its test green. Tests are `fichero-server/tests/unit/workflows/test_*_to_spec.py`, each named for the step's behaviours and written first (red).
+
+#### Step 1.1 — Declared scope on every workflow (#4397)
+- Behaviours: `workflows.defaults.scope-contract-undeclared`, `workflows.defaults.declared-scope`
+- Tests: fichero-server/tests/unit/workflows/test_declared_scope_to_spec.py (not yet written)
+- Size: S
+
+#### Step 1.2 — A run's id and step name reach its artifacts (#4312)
+- Behaviours: `workflows.run.provenance-run-id-on-artifacts`
+- Tests: fichero-server/tests/unit/workflows/test_run_id_on_artifacts_to_spec.py (not yet written)
+- Size: M
+
+#### Step 1.3 — A paused run can be cancelled, deleted and resumed; a failed run frees its documents (#4312)
+- Behaviours: `workflows.run.pause-is-dead-end`, `workflows.run.stuck-processing-on-cancel-fail`
+- Tests: fichero-server/tests/unit/workflows/test_pause_cancel_frees_documents_to_spec.py (not yet written)
+- Size: M
+
+#### Step 1.4 — Stop reaches every boundary, including a serial node with no per-item loop (#4402)
+- Behaviours: `workflows.stop-cancels-at-every-boundary`, `workflows.run.controls-are-fire-and-forget`
+- Tests: fichero-server/tests/unit/workflows/test_stop_at_every_boundary_to_spec.py (not yet written)
+- Size: M
+
+#### Step 1.5 — Text Reflow's AI refinement refines or says why; wait for the owner's ruling to fix or remove the option first (#5921)
+- Behaviours: `workflows.text-reflow.ai-refinement-works`
+- Tests: fichero-server/tests/unit/jobs/test_a_paused_page_is_paused_not_failed_5919.py
+- Size: S
+
+#### Step 1.6 — Engine served-contract gaps: ports, requires-vision, lazy source node (#4736, #4390)
+- Behaviours: `workflows.canvas.ports-come-from-registry`, `workflows.requires-vision-unknown`, `workflows.source-node-hydrates-lazily`, `workflows.run.source-tools-excluded-from-file-columns`
+- Tests: fichero-server/tests/unit/workflows/test_served_contract_to_spec.py (not yet written)
+- Size: M
+
+### Stage 2 — engine: trace, cost, dry run
+
+Engine only; the served shapes land with one OpenAPI regeneration at the end of the stage.
+
+#### Step 2.1 — A read-only trace of what a run did (#4312)
+- Behaviours: `workflows.run.trace-view`, `workflows.run.output-log-live`
+- Tests: fichero-server/tests/unit/workflows/test_run_trace_to_spec.py (not yet written)
+- Size: M
+
+#### Step 2.2 — Cost per node and per workflow, and the estimate up front (#4343, #1818)
+- Behaviours: `workflows.run.cost-tracking-per-node`, `workflows.canvas.cost-estimate-up-front`, `workflows.canvas.cost-chip-counts-vision-and-unpriced`
+- Tests: fichero-server/tests/unit/workflows/test_cost_per_node_to_spec.py (not yet written)
+- Size: M
+
+#### Step 2.3 — Test / Dry Run (#4370)
+- Behaviours: `workflows.canvas.dry-run`
+- Tests: fichero-server/tests/unit/workflows/test_dry_run_to_spec.py (not yet written)
+- Size: M
+
+#### Step 2.4 — Scoreboard and comparison node (#4344, #4328)
+- Behaviours: `workflows.run.scoreboard-quality-and-cost`, `workflows.run.comparison-node`
+- Tests: fichero-server/tests/unit/workflows/test_scoreboard_and_comparison_to_spec.py (not yet written)
+- Size: M
+
+### Stage 3 — engine: presets and defaults
+
+Engine only.
+
+#### Step 3.1 — Every shipped preset proven on both axes; (Untested) only until then (#4369, #4501)
+- Behaviours: `workflows.defaults.every-preset-proven-on-both-axes`, `workflows.preset-validated`
+- Tests: fichero-server/tests/unit/workflows/test_presets_proven_to_spec.py (not yet written)
+- Size: M
+
+#### Step 3.2 — Near-duplicate presets pruned and the transcribe family follows one ensemble pattern (#4738)
+- Behaviours: `workflows.defaults.duplication-regrown`, `workflows.defaults.transcribe-family-consistent-ensemble-pattern`, `workflows.defaults.ensemble-workflow-validated-end-to-end`
+- Tests: fichero-server/tests/unit/workflows/test_preset_family_to_spec.py (not yet written)
+- Size: M
+
+#### Step 3.3 — Translate double-checks by default; extraction has a consistency pass (#3907, #3909)
+- Behaviours: `workflows.defaults.translate-crosschecks-by-default`, `workflows.defaults.extraction-has-consistency-pass`, `workflows.translate-from-artifact-menu-runs`
+- Tests: fichero-server/tests/unit/workflows/test_translate_and_extraction_checks_to_spec.py (not yet written)
+- Size: M
+
+#### Step 3.4 — Defaults resolve from the app; user definitions are user-level; chains persist (#4450, #4277, #3181)
+- Behaviours: `workflows.defaults-resolve-from-the-app-not-the-library`, `workflows.defaults.recipes-user-level-runs-library-pinned`, `workflows.defaults.chains-not-persisted`
+- Tests: fichero-server/tests/unit/workflows/test_defaults_resolution_to_spec.py (not yet written)
+- Size: M
+
+#### Step 3.5 — The bar's Catalogue item runs; folder order and empty states are served (#3387, #4387)
+- Behaviours: `workflows.bar.catalogue-menu-item-runs`, `workflows.bar.folder-order-and-icons-served`, `workflows.folders.route-ordered-not-alphabetical`, `workflows.folders.unknown-folder-still-visible`, `workflows.folders.empty-states-suggest-a-workflow`
+- Tests: fichero-server/tests/unit/workflows/test_bar_and_folders_served_to_spec.py (not yet written)
+- Size: M
+
+### Stage 4 — Swift: the run surface
+
+Swift, after the Stage 1-3 regeneration. Pure types are verified with a standalone `swiftc` script; the landing check builds the rest.
+
+#### Step 4.1 — The run menu names the scope before anything runs (#4397)
+- Behaviours: `workflows.bar.scope-uses-the-real-primary-selection`, `workflows.bar.click-appends-not-runs`
+- Tests: fichero/Tests/Unit/general/Workflow/WorkflowRunScopeTests.swift (not yet written)
+- Size: S
+
+#### Step 4.2 — Pause, Resume and Stop show their state at once (#4402)
+- Behaviours: `workflows.bar.step-popover-run-glance`, `workflows.bar.labels-toggle-persists`
+- Tests: fichero/Tests/Unit/general/Workflow/WorkflowRunControlsTests.swift (not yet written)
+- Size: S
+
+#### Step 4.3 — Selecting a workflow opens its editor; switching never blocks on a stale one (#4882, #4893)
+- Behaviours: `workflows.selection.library-row-opens-editor`, `workflows.canvas.switching-workflow-blocks-the-stale-editor`, `workflows.defaults.folder-click-opens-custom-view`
+- Tests: fichero/Tests/Unit/general/Workflow/WorkflowSelectionTests.swift (not yet written)
+- Size: M
+
+### Stage 5 — Swift: the canvas
+
+Swift.
+
+#### Step 5.1 — The canvas draws ports from the registry only, shows every executable tool, and renders nodes and edges as designed (#4736, #2440, #4797)
+- Behaviours: `workflows.canvas.renders-nodes-edges-ports`, `workflows.canvas.hidden-tools-in-palette`, `workflows.canvas.every-node-editable-tool`
+- Tests: fichero/Tests/Unit/general/Workflow/WorkflowCanvasPortsTests.swift (not yet written)
+- Size: M
+
+#### Step 5.2 — Fan-out is editable; edges are selectable and deletable; a node says what it reads and writes (#2442, #2524, #1660)
+- Behaviours: `workflows.canvas.fan-out-editable`, `workflows.canvas.edges-selectable-and-deletable`, `workflows.canvas.node-shows-reads-and-writes`
+- Tests: fichero/Tests/Unit/general/Workflow/WorkflowCanvasEdgesTests.swift (not yet written)
+- Size: M
+
+#### Step 5.3 — Arrange and resize; version history; duplicate to edit pinned (#4340, #4342)
+- Behaviours: `workflows.canvas.arrange-and-resize`, `workflows.canvas.version-history`, `workflows.canvas.duplicate-to-edit`
+- Tests: fichero/Tests/Unit/general/Workflow/WorkflowCanvasHistoryTests.swift (not yet written)
+- Size: M
+
+#### Step 5.4 — One icon for a workflow node, protected folders look protected (#4516, #4514)
+- Behaviours: `workflows.nodes-have-one-icon-in-sidebar-and-library`, `workflows.default-folders-visibly-protected`
+- Tests: fichero/Tests/Unit/general/Workflow/WorkflowNodeIconTests.swift, fichero/Tests/Unit/general/Workflow/WorkflowSavePolicyTests.swift (not yet written)
+- Size: S
+
 
 ## Rulings
 
