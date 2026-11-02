@@ -48,6 +48,13 @@ def trust_folder(worktree, home=None) -> None:
     f.write_text(json.dumps(cfg, indent=1))
 
 
+def brief_prompt(brief) -> str:
+    """What the command line carries: a short prompt naming the brief file, never its text (a 22 KB brief made tmux refuse
+    "command too long", 2026-11-02). The worker reads the file itself; a missing file raises FileNotFoundError."""
+    path = Path(brief).resolve(strict=True)
+    return f"Your brief is the file {path}. Read all of it with the Read tool first (in parts if it is long), then follow it."
+
+
 def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_bin: str = "claude") -> list[str]:
     """Write settings.json, mcp.json under `scratch` and the commit-msg hook in the clone; return claude's argv."""
     root, worktree, scratch = Path(root), Path(worktree), Path(scratch)
