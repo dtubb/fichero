@@ -120,9 +120,9 @@ RULES (earlier clusters were sent back for these):
 # Caps the watcher enforces (dev-workflows.run.watch-tick): 8 USD per worker session, 60 USD per day (owner ruling
 # 2026-11-01 evening, raised from 5/20 after the day cap parked the product worker; notional under the Max login, not a
 # bill). A worker whose model has no price here does not start.
-window = 1000000   # workers run the 1M context variant (owner 2026-11-01); the model name carries [1m] where the login allows it
+window = 200000   # plain sonnet's window (owner 2026-11-02: every turn stays under 200k; handoffs often, cheap and reliable)
 handoff_at = 0.85
-handoff_tokens = 150000   # hand off here, not at 85% of the 1M window: a lane used 17M tokens for three steps (2026-11-02)
+handoff_tokens = 175000   # owner 2026-11-02: hand off here, an absolute count (a lane used 17M tokens for three steps on a 1M window)
 session_usd = 8
 day_usd = 60
 silent_s = 1800
@@ -133,7 +133,7 @@ prices = { sonnet = [3, 15], opus = [15, 75], haiku = [1, 5] }
 # person, never a fallback. `claude-code` = an interactive Claude Code session in a pane (the model is its /model name);
 # `anthropic` and `omlx` are Pi providers (their models and prices live in Pi's models.json). Change by editing here.
 providers = ["claude-code", "anthropic", "omlx"]
-builder = { provider = "claude-code", model = "sonnet[1m]" }  # [spend].window is 1M: only this name gets that window
+builder = { provider = "claude-code", model = "sonnet" }  # owner 2026-11-02: plain sonnet, the 200k window in [spend].window
 reviewer = { provider = "claude-code", model = "opus", context = 200000 }  # its review cap is 40% of this at 3.5 bytes a token
 spec-writer = { provider = "claude-code", model = "opus" }
 helper = { provider = "claude-code", model = "haiku" }

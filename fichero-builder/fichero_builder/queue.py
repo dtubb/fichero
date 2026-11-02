@@ -294,6 +294,44 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
     return 0, f"{alert_id}: {action}"
 
 
+def heartbeat_check(tick_s: float = 30.0, ticks: int = 3, now: float | None = None) -> str | None:
+    """The watchdog (dev-workflows.run.loop-alerts): reads only the journal. No `loop` tick row for more than `ticks` ticks
+    is an alert, once per silence (a later tick row ends it). Returns the new alert's id, or None."""
+    rows = journal.read()
+    i = next((k for k in range(len(rows) - 1, -1, -1) if rows[k].get("event") == "loop" and rows[k].get("state") == "tick"), -1)
+    last = time.mktime(time.strptime(rows[i]["ts"], "%Y-%m-%dT%H:%M:%S")) if i >= 0 else None
+    age = (now or time.time()) - last if last is not None else None
+    if age is not None and age <= ticks * tick_s:
+        return None
+    if any(r.get("event") == "alert" and r.get("step") == "heartbeat" for r in rows[i + 1:]):
+        return None  # already said for this silence
+    what = f"no loop tick for {int(age)} s (> {ticks} ticks of {tick_s:g} s)" if age is not None else "no loop tick in the journal"
+    # ponytail: no action to answer: KeepAlive restarts a dead loop; a wedged one needs the owner (launchctl kickstart -k)
+    return alert("loop", "heartbeat", what, str(journal.path()), [])
+
+
+def launch_agents(root, out, *, state=None, tick_s: float = 30.0) -> list[Path]:
+    """The owner's two LaunchAgents (dev-workflows.run.loop): `builder loop` kept alive, and `builder heartbeat` every three
+    ticks. Both run as the owner from the checkout's package; logs beside the journal."""
+    import plistlib
+
+    pkg, out = Path(__file__).resolve().parents[1], Path(out)
+    logs = Path(state) if state else journal.STATE
+    st = ["--state", str(state)] if state else []
+    jobs = {"loop": (["loop", "--root", str(root), "--tick", f"{tick_s:g}", *st], {"KeepAlive": True, "RunAtLoad": True}),
+            "heartbeat": (["heartbeat", "--tick", f"{tick_s:g}", *st], {"StartInterval": int(3 * tick_s)})}
+    out.mkdir(parents=True, exist_ok=True)
+    paths = []
+    for name, (args, when) in jobs.items():
+        label = f"local.builder.{name}"
+        f = out / f"{label}.plist"
+        f.write_bytes(plistlib.dumps({"Label": label, "ProgramArguments": [sys.executable, "-m", "fichero_builder", *args],
+                                      "WorkingDirectory": str(pkg), "EnvironmentVariables": {"PYTHONPATH": str(pkg), "PATH": os.environ.get("PATH", "")},
+                                      "StandardOutPath": str(logs / f"{name}.log"), "StandardErrorPath": str(logs / f"{name}.log"), **when}))
+        paths.append(f)
+    return paths
+
+
 def feed(procs: Procs, lanes_n: int, out=print) -> bool:
     """While fewer than `lanes_n` lanes have steps left, queue the next build-order milestone no lane holds. True if one was taken."""
     took = False
@@ -324,7 +362,8 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
     """Ticks until nothing can move without a person; `forever` (the verb) keeps ticking so a blocked or paused lane keeps its
     session and a resume from another shell is picked up. Each tick first takes build-order milestones up to `lanes_n`."""
     handles: dict = {}
-    chains: dict | None = {"pool": ThreadPoolExecutor(max_workers=lanes_n)} if lanes_n > 1 else None
+    # the loop always chains in a thread: a one-lane check inside the tick would starve the heartbeat for its whole ladder
+    chains: dict | None = {"pool": ThreadPoolExecutor(max_workers=lanes_n)} if lanes_n > 1 or heartbeat else None
     while True:
         took = feed(procs, lanes_n, out)
         busy = tick(procs, handles, workers_n=workers_n, push=push, out=out, chains=chains) or took

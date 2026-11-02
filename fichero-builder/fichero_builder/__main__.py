@@ -125,6 +125,12 @@ def main(argv=None) -> int:
     lp = sub.add_parser("loop", help="the continuous loop (dev-workflows.run.loop): `queue run --push` forever with a heartbeat row a tick; lanes and rounds from [loop]")
     lp.add_argument("--root", default=str(Path.cwd())), lp.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
     lp.add_argument("--tick", type=float, default=30.0), lp.add_argument("--lanes", type=int, help="default [loop].lanes, else 1")
+    hb = sub.add_parser("heartbeat", help="the loop's watchdog: an alert row when the journal has no `loop` tick for more than --ticks ticks (once per silence); exit 1 while stale")
+    hb.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
+    hb.add_argument("--tick", type=float, default=30.0), hb.add_argument("--ticks", type=int, default=3)
+    la = sub.add_parser("launchd", help="write the owner's two LaunchAgents (the loop with KeepAlive; the heartbeat watchdog every 3 ticks) and print how to load them; never loads them")
+    la.add_argument("--root", default=str(Path.cwd())), la.add_argument("--state"), la.add_argument("--tick", type=float, default=30.0)
+    la.add_argument("--out", default=str(Path.home() / "Library" / "LaunchAgents"))
     al = sub.add_parser("alert", help="answer one alert row (dev-workflows.run.loop-alerts): retry | park | ask-owner, or approve | send-back for needs-maintainer")
     al.add_argument("id"), al.add_argument("action")
     al.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
@@ -216,6 +222,20 @@ def main(argv=None) -> int:
         rc, msg = queue.answer(a.id, a.action, gh=a.gh, cwd=a.root)
         print(msg)
         return rc
+    if a.cmd == "heartbeat":
+        from fichero_builder import queue
+
+        journal.STATE = Path(a.state) if a.state else journal.STATE
+        aid = queue.heartbeat_check(a.tick, a.ticks)
+        if aid:
+            print(f"ALERT {aid}: the loop's heartbeat is stale")
+        return 1 if aid else 0
+    if a.cmd == "launchd":
+        from fichero_builder import queue
+
+        for path in queue.launch_agents(a.root, a.out, state=a.state, tick_s=a.tick):
+            print(f"wrote {path}\nload: launchctl bootstrap gui/$(id -u) {path}")
+        return 0
     if a.cmd == "loop":
         import tomllib
 
