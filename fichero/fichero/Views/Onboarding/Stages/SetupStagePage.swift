@@ -19,6 +19,8 @@ struct SetupStagePage: View {
     @State private var tryStore: SetupStageTryStore?
     /// The stage's main step's candidates, for choosing who to compare.
     @State private var candidateFinder: ModelFinderStore?
+    /// The engine's suggestions for the project's answers, drawn on the page they concern.
+    @State private var suggestions: SuggestionsStore?
 
     var body: some View {
         layout
@@ -37,6 +39,10 @@ struct SetupStagePage: View {
             // The training offers ride on the Start plan.
             if store.startPlan == nil { await store.loadStartPlan() }
             await loadCandidates()
+            if FeatureManager.shared.isWideSetUpEnabled {
+                if suggestions == nil { suggestions = SuggestionsStore(client: store.client) }
+                await suggestions?.load()
+            }
         }
         // Use This / Use <smaller> instead: the stage's compared and listed candidates read again, so the chosen one is marked at once.
         .onChange(of: store.choiceRevision) { Task { await loadCandidates() } }
@@ -91,6 +97,10 @@ struct SetupStagePage: View {
     @ViewBuilder
     private var settings: some View {
         whoRunsIt
+        if FeatureManager.shared.isWideSetUpEnabled, let suggestions {
+            // What the engine suggests for this stage, each with its reason (`wide.suggest.reason-and-override`).
+            SuggestionRowsView(store: suggestions, page: .stage(jobs: stage.jobs))
+        }
         // This stage's steps left off until turned on: Read's Correct with no corrector here (#5677).
         RecipeLeftOffRows(store: store, onlyJobs: Set(stage.jobs))
         if FeatureManager.shared.isWideSetUpEnabled {

@@ -309,6 +309,5 @@
   "GET /api/recipes/questions": "engine half of the condition tick boxes (designer.material.condition-asked, #6052); About the Material's store reads it next",
   "GET /api/recipes/questions": "engine half of the condition tick boxes (designer.material.condition-asked, #6052); About the Material's store reads it next",
   "GET /api/recipes/defaults": "engine half of the defaults table (designer.defaults.*, #6052); the stage pages and Ready read it next",
-  "GET /api/recipes/suggestions": "engine half of the suggestion rows (wide.suggest.*, #6052); the pager's rows read it next (Step 8.2)",
   "GET /api/recipes/chain-risk": "engine half of Ready's chain line (designer.how.chain-risk-on-ready, #6052); Ready's store reads it next"
 }
