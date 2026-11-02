@@ -2900,6 +2900,7 @@ class StartParams(BaseModel):
     first_pages: Optional[int] = Field(default=None, ge=1, description="run on the first N pages of the project in "
                                        "Finder order alone (#6295); never with `folder_id` or `documents`")
     steps: list[str] = Field(default_factory=list, description="run these steps alone (`wide.output.run-this-step`)")
+    run_cap_usd: Optional[float] = Field(default=None, ge=0, description="the most this run's cloud calls may cost (`designer.budget.run-cap`)")
 
 
 class StartRequest(BaseModel):
@@ -2920,6 +2921,9 @@ class StartRequest(BaseModel):
     steps: list[str] = Field(default_factory=list, description=(
         "run these steps alone over the whole project (one stage's Run this step, `wide.output.run-this-step`); "
         "empty: the whole recipe"))
+    run_cap_usd: Optional[float] = Field(default=None, ge=0, description=(
+        "the most this run's cloud calls may cost, held beside the project's caps, the lowest deciding (`designer.budget.run-cap`, "
+        "#6295); kept on the run's row; null: the project's caps alone"))
     accept_unpriced: list[str] = Field(default_factory=list, description=(
         "cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: "
         "counted at an assumed price and listed apart, and recorded in the project by the one accept action "
@@ -3000,6 +3004,7 @@ async def start_project(
                                                   "documents": request.documents if request else None,
                                                   "first_pages": request.first_pages if request else None,
                                                   "steps": request.steps if request else [],
+                                                  "run_cap_usd": request.run_cap_usd if request else None,
                                                   "clusters": clusters}, ctx)
             finally:
                 _PLAN_READS.reset(token)
@@ -3326,7 +3331,7 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
             "pages": plan["estimate"]["pages"],
             "job_id": runner.enqueue(db, plan, documents=first_pages_of(db, params.first_pages, _PLAN_READS.get()) if params.first_pages else params.documents,
                                      first_pages=params.first_pages, started_by=started_by_for(ctx), redo=params.redo,
-                                     folder_id=params.folder_id, plan_reads=_PLAN_READS.get()),
+                                     folder_id=params.folder_id, plan_reads=_PLAN_READS.get(), run_cap_usd=params.run_cap_usd),
             "folder_id": params.folder_id,
         }
         # Start runs what an added layer proposed (source.onboard.add-layer): the proposal is done with.

@@ -127,7 +127,8 @@ def _plan(db: Any) -> dict[str, Any]:
 
 
 def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, started_by: str,
-            redo: list[str] | None = None, folder_id: str | None = None, first_pages: int | None = None, plan_reads: dict | None = None) -> str:
+            redo: list[str] | None = None, folder_id: str | None = None, first_pages: int | None = None, plan_reads: dict | None = None,
+            run_cap_usd: float | None = None) -> str:
     """Queue one run of the plan; `documents` None is all the project's material, or with `folder_id` that
     folder's (`source.recipe.folder-scoped-start`); `redo` names the steps to run again on pages that already have
     their output (`source.recipe.done-is-not-redone`). The downloads the plan found under way are kept on the run,
@@ -137,12 +138,18 @@ def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, start
     detail = {"runs": plan["runs"], "skipped": plan["skipped"], "documents": documents, "redo": list(redo or []),
               "folder_id": folder_id, "awaited": awaited,
               # Its name and page count in Activity (#5615), as they were when it was queued.
-              "title": _recipe_title(db), "pages": _pages_counted(db, documents, plan_reads)}
+              "title": _recipe_title(db), "pages": _pages_counted(db, documents, plan_reads),
+              **({"run_cap_usd": run_cap_usd} if run_cap_usd is not None else {})}
     words = "Waiting to run the recipe" + (f" on the first {len(documents)} pages" if first_pages else
                                            f" on {len(documents)} new pages" if documents is not None else
                                            " on one folder" if folder_id else "")
-    return jobs.enqueue_remote(db, KIND, f"recipe:{uuid.uuid4()}", target="this-mac", detail=json.dumps(detail),
-                               reason=words, started_by=started_by)
+    job_id = jobs.enqueue_remote(db, KIND, f"recipe:{uuid.uuid4()}", target="this-mac", detail=json.dumps(detail),
+                                 reason=words, started_by=started_by)
+    if run_cap_usd is not None:  # the run's own cap (`designer.budget.run-cap`): held with the project's, until the run ends
+        from fichero_server.llm import spend
+
+        spend.set_run_cap(str(_library(db)), job_id, run_cap_usd)
+    return job_id
 
 
 def _recipe_title(db: Any) -> str | None:
@@ -1271,6 +1278,12 @@ def _run(db: Any, job_id: str) -> dict[str, Any]:
         raise RuntimeError("The run stopped on an error in Fichero. What it finished is kept, and Start carries on from there; "
                            "the log has the detail.") from exc
     finally:  # stopped, failed, paused or done: a page saved before Search got to it is embedded after all (#6126)
+        try:
+            from fichero_server.llm import spend
+
+            spend.clear_run_cap(str(_library(db)), job_id)
+        except Exception:  # noqa: BLE001 -- a stale cap file must not replace the run's own result
+            logger.exception("run %s: its run cap could not be cleared", job_id)
         try:
             end_search_watch(db, job_id, (jobs.read_job(db, job_id) or {}).get("started_by") or "owner")
         except Exception:  # noqa: BLE001 -- never replace the run's own result or error with a queueing failure

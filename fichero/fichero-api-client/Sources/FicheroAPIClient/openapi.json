@@ -98232,6 +98232,13 @@
             "title": "Steps",
             "description": "run these steps alone over the whole project (one stage's Run this step, `wide.output.run-this-step`); empty: the whole recipe"
           },
+          "run_cap_usd": {
+            "type": "number",
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Run Cap Usd",
+            "description": "the most this run's cloud calls may cost, held beside the project's caps, the lowest deciding (`designer.budget.run-cap`, #6295); kept on the run's row; null: the project's caps alone"
+          },
           "accept_unpriced": {
             "items": {
               "type": "string"

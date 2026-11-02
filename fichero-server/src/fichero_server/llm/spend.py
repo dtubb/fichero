@@ -32,6 +32,8 @@ DEFAULT_CAP_USD = 10.0
 #: What one call to a model with no listed price is held at, and booked at when it reports no priced usage.
 UNPRICED_CALL_USD = 0.50
 LEDGER = "cloud-spend.json"
+#: The cap of the run under way (`StartRequest.run_cap_usd`, `designer.budget.run-cap`), kept beside the ledger while that run lasts.
+RUN_CAP = "run-cap.json"
 #: What a call is assumed to send when its caller does not say: a page image and its instruction, generously.
 DEFAULT_INPUT_TOKENS = 30_000
 
@@ -145,6 +147,31 @@ def project_cap_usd(library: str | None) -> float | None:
     return float(cap) if ok else None
 
 
+def run_cap(library: str | None) -> dict | None:
+    """The run under way's cap, `{job_id, cap_usd, from_usd}` (`from_usd`: what was booked in all when it started); None: no run cap."""
+    if not library:
+        return None
+    try:
+        data = json.loads((_recipe_dir(library) / RUN_CAP).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) and isinstance(data.get("cap_usd"), (int, float)) else None
+
+
+def set_run_cap(library: str, job_id: str, cap_usd: float) -> None:
+    """Hold the run `job_id`'s cloud calls to `cap_usd` more than is booked now, beside the project's caps."""
+    path = _recipe_dir(library) / RUN_CAP
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"job_id": job_id, "cap_usd": float(cap_usd), "from_usd": total_booked_usd(library)}), encoding="utf-8")
+
+
+def clear_run_cap(library: str, job_id: str) -> None:
+    """The run ended: its cap goes with it. Another run's cap is left alone."""
+    held = run_cap(library)
+    if held and held.get("job_id") == job_id:
+        (_recipe_dir(library) / RUN_CAP).unlink(missing_ok=True)
+
+
 def _past_a_cap(library: str, reserved: float, worst: float) -> str | None:
     """Why `worst` more, beside what is booked and `reserved`, does not fit the monthly cap or the project's total cap, in words
     naming that cap; None when it fits both. Called with the lock held."""
@@ -154,6 +181,8 @@ def _past_a_cap(library: str, reserved: float, worst: float) -> str | None:
         return f"this project's cloud spend is capped at ${cap:.2f} a month, of which ${booked:.2f} is spent this month"
     if project_cap is not None and total + reserved + worst > project_cap + 1e-9:
         return f"this project's cloud spend is capped at ${project_cap:.2f} in all, of which ${total:.2f} is spent"
+    if (run := run_cap(library)) and total - float(run.get("from_usd", 0.0)) + reserved + worst > float(run["cap_usd"]) + 1e-9:
+        return f"this run's cloud spend is capped at ${float(run['cap_usd']):.2f}, of which ${total - float(run.get('from_usd', 0.0)):.2f} is spent"
     return None
 
 

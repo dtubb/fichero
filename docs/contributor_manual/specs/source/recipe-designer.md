@@ -836,7 +836,7 @@ its basis, and it learns from the project's booked costs (`designer.budget.estim
   at 2.5× the assumption: the estimate reads the measured figure, says "measured on N pages", and a cap set at
   the new estimate is not refused). Built 2026-11-02 (engine): `recipes/booked_cost.per_page` takes the median booked cost a page over the pages whose job rows booked priced calls of the same model and job; the estimate uses it (`measured`, with the page count) before the token assumption (`test_estimate_learns_from_booked_usage_6294.py`). Left: a run's own booked cost replacing the assumption for its remaining pages, mid-run.
 
-- `designer.budget.run-cap` [GAP] (#6295) — Start takes a cap for this run (`StartRequest.run_cap_usd`, kept on
+- `designer.budget.run-cap` [PARTIAL] (#6295) — Start takes a cap for this run (`StartRequest.run_cap_usd`, kept on
   the run's row); the run's cloud calls are held against **both** the run cap and the project cap, the lower
   deciding, through the one spend hold (`llm/spend.py`); a run with no run cap is held by the project cap alone.
   The run cap is proposed at the estimate (the defaults table's cap column: the best estimate, assumed or
