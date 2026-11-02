@@ -27,10 +27,13 @@ extension UsersContent {
                         Text(off.line).font(.caption).foregroundStyle(.secondary)
                             .accessibilityIdentifier("people.multiuserOff")
                         if let button = off.button {
-                            Button(button) { appState.selectedSettingsTab = .connect }
-                                .accessibilityIdentifier("people.openSharing")
+                            Button(button) { showTurnOnAccounts = true }
+                                .accessibilityIdentifier("people.turnOnAccounts")
                         }
                     }
+                }
+                if let note = AccountsOnSequence.sharingNote(accountsOn: identityStore.multiuserEnabled, sharingOn: sharingIsOn) {
+                    Text(note).font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("people.sharingOffNote")
                 }
                 if PeoplePaneOffState.offersAdd(multiuserOn: identityStore.multiuserEnabled, isOwner: identityStore.isOwnerAccess) {
                     HStack(spacing: 4) {
@@ -54,6 +57,14 @@ extension UsersContent {
         .formStyle(.grouped)
         .sheet(isPresented: $showAddAccount) {
             AccountsAddSheet(store: store, multiUserOn: authzSnapshot?.multiuserEnabled == true) { showAddAccount = false }
+        }
+        .task {
+            guard EngineConfig.engineIsLocal else { return }
+            let state = try? await PairingService(apiRoot: EngineConfig.host).sharingState()
+            sharingIsOn = state?.publicBaseURL != nil
+        }
+        .sheet(isPresented: $showTurnOnAccounts) {
+            TurnOnAccountsSheet(store: store, identityStore: identityStore) { showTurnOnAccounts = false }
         }
         .sheet(item: $capturePerson) { target in
             CaptureSettingsView(startingUser: target.id, onClose: { capturePerson = nil })

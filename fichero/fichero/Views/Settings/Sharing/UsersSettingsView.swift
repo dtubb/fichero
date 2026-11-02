@@ -45,6 +45,9 @@ struct UsersContent: View {
     // The people list: the selected row (what − acts on), the `+` sheet, and a person's Capture… sheet.
     @State var selectedAccountID: String?
     @State var showAddAccount = false
+    @State var showTurnOnAccounts = false
+    /// Whether Sharing is on; true until read so the note never flashes (`sharing.multiuser-needs-sharing-for-anyone-else`).
+    @State var sharingIsOn = true
     @State var capturePerson: CapturePersonTarget?
     @State var isCreatingUser = false
     @State var accountError: String?

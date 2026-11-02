@@ -31,7 +31,7 @@ enum PeoplePaneOffState: Equatable {
         guard isOwner, !multiuserOn else { return nil }
         let name = SharingToggles.label(.multiUser)
         if platformHasSwitch {
-            return Words(line: "\(name) is off. Turn it on in Sharing to give people their own accounts.", button: "Open Sharing")
+            return Words(line: AccountsOnSequence.offSentence, button: AccountsOnSequence.buttonTitle)
         }
         return Words(line: "\(name) is off. Turn it on in Sharing on the Mac that shares this library.", button: nil)
     }

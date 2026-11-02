@@ -14,11 +14,11 @@ struct PeoplePaneOffStateTests {
         #expect(PeoplePaneOffState.words(multiuserOn: false, isOwner: false) == nil, "a non-owner reads the owner-only note, not this")
     }
 
-    @Test("a Mac names the Sharing section and offers the hop; a phone or iPad names the Mac and offers nothing")
+    @Test("a Mac says accounts are off and offers to turn them on; a phone or iPad names the Mac and offers nothing")
     func wordsPerPlatform() throws {
         let mac = try #require(PeoplePaneOffState.words(multiuserOn: false, isOwner: true, platformHasSwitch: true))
-        #expect(mac.line.hasPrefix("Multi-user is off.") && mac.line.contains("Sharing"))
-        #expect(mac.button == "Open Sharing")
+        #expect(mac.line == AccountsOnSequence.offSentence)
+        #expect(mac.button == AccountsOnSequence.buttonTitle, "the button runs the sequence in place (3.3)")
         let phone = try #require(PeoplePaneOffState.words(multiuserOn: false, isOwner: true, platformHasSwitch: false))
         #expect(phone.line.contains("on the Mac that shares this library"))
         #expect(phone.button == nil)

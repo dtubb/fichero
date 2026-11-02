@@ -109,6 +109,23 @@ final class UsersStore {
         await reload()
     }
 
+    /// The owner chooses a password (`sharing.multiuser-off-says-so`: before Multi-user can be turned on). A refusal keeps the
+    /// engine's status and words for `AccountsOnSequence`.
+    func setOwnerPassword(_ password: String) async throws {
+        guard let owner = currentUser?.id ?? users.first(where: { $0.isOwner })?.id else {
+            throw AccountsOnSequence.Refusal(status: 404, detail: "Sign in as the owner first.")
+        }
+        let response = try await client.api.updateUserApiUsersUserIdPatch(
+            .init(path: .init(userId: owner), body: .json(.init(password: password)))
+        )
+        guard case .ok = response else {
+            if case .undocumented(let status, let payload) = response {
+                throw AccountsOnSequence.Refusal(status: status, detail: await EngineErrorDetail.message(from: payload))
+            }
+            throw AccountsOnSequence.Refusal(status: 422, detail: nil)
+        }
+    }
+
     // MARK: - Invites (#3157)
 
     /// Load pending account invites (owner-only). Non-fatal: a non-200 (e.g. a
