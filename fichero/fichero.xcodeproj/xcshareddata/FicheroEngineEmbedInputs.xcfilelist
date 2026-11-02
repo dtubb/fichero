@@ -592,6 +592,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/suggestions.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/table.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/topics.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/train_offers.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/what_to_check.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/where_it_runs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/askpass.py

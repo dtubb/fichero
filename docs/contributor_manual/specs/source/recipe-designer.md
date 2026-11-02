@@ -310,12 +310,14 @@ says a model's trade-off on its row; these say the same once, where the choice i
   wrote"), and marks the steps whose errors carry furthest (the earliest model steps) with "check first". The
   line is the engine's, from the job registry's reads and writes (`source.recipe.steps-work-alone-in-order`).
   *Test:* `test_chain_risk_on_ready.py`.
-- `designer.how.what-to-check` [GAP] (#6052; issue to file on approval) — the run's summary (`recipes-run.journey.finish-summary`)
+- `designer.how.what-to-check` [PARTIAL] (#6052; issue to file on approval) — the run's summary (`recipes-run.journey.finish-summary`)
   gains one block, "What to check": for each model step that ran, the pages the engine is least sure of (lowest
   certainty for a CTC reader; highest insertion rate against Kraken's reading, or the lines the order check
   re-asked, for a vision-language reader), at most five, opened in the Reader by one press; a deterministic step
   lists its proposals instead (`prep.check.worklist-of-proposals-and-a-sample` (G)). *Test:*
-  `test_what_to_check_after_a_run.py`.
+  `test_what_to_check_after_a_run.py`. Built 2026-11-02 (engine): `recipes/what_to_check.least_sure` names up to five pages by the lowest mean
+  certainty of their read lines, in the run summary's `what_to_check`, when Read ran; a vision-language reader's pages (insertion rate, order check)
+  and a deterministic step's proposals have no figure yet and are not listed. Left: the block in the app and its one-press open.
 
 **Improves.**
 - `designer.path.cards-are-the-routes` [MISSING] (#6052) — the page shows the routes from `routes.py`

@@ -82529,6 +82529,37 @@
         ],
         "title": "PageRangeUpsertRequest"
       },
+      "PageToCheck": {
+        "properties": {
+          "page_id": {
+            "type": "string",
+            "title": "Page Id"
+          },
+          "certainty": {
+            "type": "number",
+            "title": "Certainty",
+            "description": "the mean certainty of the page's read lines, 0 to 1"
+          },
+          "lines_unsure": {
+            "type": "integer",
+            "title": "Lines Unsure",
+            "description": "of the page's read lines, those the reader was less than half sure of"
+          },
+          "lines": {
+            "type": "integer",
+            "title": "Lines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "page_id",
+          "certainty",
+          "lines_unsure",
+          "lines"
+        ],
+        "title": "PageToCheck",
+        "description": "A page the reader is least sure of (`designer.how.what-to-check`): opened in the Reader by one press."
+      },
       "PairCodeRequest": {
         "properties": {
           "username": {
@@ -87761,6 +87792,14 @@
             "title": "Pages Read Nothing",
             "description": "pages the reader returned nothing for, line by line: failed reads (#5758)",
             "default": 0
+          },
+          "what_to_check": {
+            "items": {
+              "$ref": "#/components/schemas/PageToCheck"
+            },
+            "type": "array",
+            "title": "What To Check",
+            "description": "up to five pages a reading step is least sure of, least sure first (`designer.how.what-to-check`); empty when no step that ran gives a certainty"
           },
           "next_reader": {
             "additionalProperties": true,

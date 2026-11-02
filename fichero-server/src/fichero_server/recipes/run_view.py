@@ -89,6 +89,15 @@ class LeftOutPage(BaseModel):
     why: str = Field(description="why it was left out, in words: 'a blank page: its image holds almost no ink'")
 
 
+class PageToCheck(BaseModel):
+    """A page the reader is least sure of (`designer.how.what-to-check`): opened in the Reader by one press."""
+
+    page_id: str
+    certainty: float = Field(description="the mean certainty of the page's read lines, 0 to 1")
+    lines_unsure: int = Field(description="of the page's read lines, those the reader was less than half sure of")
+    lines: int
+
+
 class FailedPage(BaseModel):
     """A page a step lost, and why."""
 
@@ -418,6 +427,9 @@ class RecipeRunSummary(BaseModel):
     lines_seen_blank: int = Field(default=0, description="lines the reader looked at and found no writing on, on pages that also have text (#5758)")
     lines_vision_could_not_read: int = Field(default=0, description="lines Apple Vision returned nothing for twice in one run: final, with a reason, not counted as lines the reader found no writing on (#5901)")
     pages_read_nothing: int = Field(default=0, description="pages the reader returned nothing for, line by line: failed reads (#5758)")
+    what_to_check: list[PageToCheck] = Field(default_factory=list, description=(
+        "up to five pages a reading step is least sure of, least sure first (`designer.how.what-to-check`); empty when no step that ran "
+        "gives a certainty"))
     next_reader: Optional[dict[str, Any]] = Field(default=None, description="when the reader left a page empty or mostly blank: the next candidate of the step's chain, with needs_permission for a cloud one (#5758)")
     download_failed: list[DownloadFailed] = Field(default_factory=list, description="steps waiting on a model download that failed, each with Retry (the download's job) and the next candidate of the step's chain (#5352)")
     lines_unread_why: dict[str, int] = Field(default_factory=dict, description="why those lines have none: each reason with its count (#5758)")
@@ -828,6 +840,10 @@ def _tail(db: Any, made: RecipeRunSummary, status: dict[str, Any], pages: list[s
         did = reviewed(db, pages)
         made.pages_reviewed, made.lines_reviewed = did["pages"], did["lines"]
         made.lines_corrected, made.lines_review_unreadable = did["corrected"], did["unreadable"]
+    if "read-a-line" in ran:
+        from fichero_server.recipes import what_to_check
+
+        made.what_to_check = [PageToCheck(**row) for row in what_to_check.least_sure(db, pages)]
     setup = read_project_setup(runner._library(db))
     made.next_reader = next_reader(setup["recipe"], lines_found=counts.lines_found,
                                    lines_blank=counts.lines_seen_blank + counts.lines_vision_could_not_read, pages_read_nothing=made.pages_read_nothing,
