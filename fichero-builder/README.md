@@ -24,13 +24,13 @@ pinned copy of the rules (`pinned-<sha7>`, made by `builder landed`) judges ever
 | `pi_rpc.py` | the Pi worker kind over RPC | `Pi` | `test_pi_rpc.py`, `test_pi_live_helpers.py` |
 | `brief_tool.py` | an issue + trusted comments + where the code is, as a brief; cluster briefs with the rules | `fetch_issue`, `build`, `cluster`, `localise` | `test_brief_tool.py` (server) |
 | `spec_tool.py`, `steps.py` | the spec-writer brief; build-order steps as issues under the spec's milestone | `run`, `ensure_labels` | `test_spec_verb.py`, `test_steps_verb.py`, `test_steps_name.py` |
-| `milestone.py` | a milestone's issues placed under steps, one brief per step, waits and new-module Where | `build_order`, `plan`, `write_briefs`, `where_for_new_modules` | `test_milestone_verb.py` |
+| `milestone.py` | a milestone's issues placed under steps, one brief per step, waits and the step's map | `build_order`, `plan`, `write_briefs`, `where_map` | `test_milestone_verb.py` |
 | `work.py` | run → rebase → patches → fetch → check → review → land gate as one process; the `ladder` lock | `main`, `after_run`, `run_cmd`, `do_*`, `ensure_pinned` | `test_work_verb.py` |
 | `landed.py` | after a verdict: push (`--push` only), refresh, pin, jail root, scratch, issues, spec [OK] | `main`, `update_issues`, `mark_specs_ok` | `test_landed_verb.py` |
 | `queue.py` | one long-running worker per lane, fed step by step: check, review, land, next brief into the same session | `add`, `run`, `tick_lane`, `Procs` | `test_queue_verb.py` |
 | `triage.py` | GitHub metadata by the rulings: labels, needs-spec, milestones, assignees, the build-order file | `Triage`, `first_open`, `build_order` | `test_triage_verb.py` |
 | `watch.py` | the live page: runs, checks, lands, the queue | `render`, `server` | `test_watch.py` |
-| `codemap.py` | jcodemunch where the jail worker can run it; the search behind a step's Where list | `provide`, `mcp_config`, `index_prefix` | `test_codemap.py` |
+| `codemap.py` | jcodemunch where the jail worker can run it; the search behind a step's Where list | `provide`, `mcp_config`, `index_prefix`, `search` | `test_codemap.py` |
 | `journal.py`, `models.py` | the append-only JSONL journal and its locks; one model per role | `append`, `read`, `Lock`, `for_role` | `test_journal.py`, `test_model_config.py` |
 
 ## The chain as verbs

@@ -146,7 +146,7 @@ def main(argv=None) -> int:
     if a.cmd == "milestone":
         import tomllib
 
-        from fichero_builder import brief_tool, milestone, triage
+        from fichero_builder import brief_tool, codemap, milestone, triage
 
         if not a.name:
             try:
@@ -166,7 +166,7 @@ def main(argv=None) -> int:
         rules = rules_doc.get("brief", {}).get("rules", "")
         written = milestone.write_briefs(planned, out=a.out, repo_dir=a.repo_dir, base=base, rules=rules,
                                          fetch=lambda n: brief_tool.fetch_issue(n, gh=a.gh), cluster=brief_tool.cluster,
-                                         spec_text=Path(a.spec).read_text())
+                                         spec_path=a.spec, binary=codemap.owner_binary(a.repo_dir))
         for c, p in zip(planned["clusters"], written):
             print(f"Step {c['step']}: {', '.join('#%d' % i['number'] for i in c['issues'])} -> {p}")
         if a.enqueue:

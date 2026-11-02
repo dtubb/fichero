@@ -283,12 +283,14 @@ the write path would produce.
   (the project's own rules have none), so no brief needs a hand edit. The brief names the issues the step owes and tells the worker to put `Fixes #N` on the
   commit that finishes each and `Part of #N` on any before it (test `fichero-server/tests/unit/workflows/test_brief_tool.py::test_the_brief_names_what_the_step_owes_and_the_line_that_closes_each`). Tests: `fichero-server/tests/unit/workflows/test_brief_tool.py::test_the_rules_are_the_briefs_third_line_with_part_of_filled_from_the_clusters_issues`,
   `::test_the_projects_standing_worker_rules_are_in_harness_toml_so_no_brief_needs_a_hand_edit`.
-  **Waits and new modules** (built 2026-11-01): a step whose dependency still has open issues is a brief and, with
-  `--enqueue`, a queued item that depends on it, and every wait is said in ONE question line; a step whose issues name
-  files that do not exist yet gets a "Where to put new modules" section: the directories the spec's design section
-  names that exist in the repo, and the existing files under them that mention the step's words (the callers to wire).
-  Tests: `fichero-builder/tests/test_milestone_verb.py::test_plan_orders_clusters_and_asks_instead_of_guessing`,
-  `::test_a_step_that_creates_new_modules_gets_the_designs_directory_and_callers_found_by_the_steps_words`.
+  **Waits and the step's map** (built 2026-11-01): a step whose dependency still has open issues is a brief and, with
+  `--enqueue`, a queued step of the lane, and every wait is said in ONE question line; every step brief opens with a map:
+  the spec's path, the directories its design section names that exist in the repo, and the files and symbols for the step's
+  words with each file's outline, from the code map when the repo is indexed (a file the tree lacks is dropped), else
+  from grep. Tests: `fichero-builder/tests/test_milestone_verb.py::test_plan_orders_clusters_and_asks_instead_of_guessing`,
+  `::test_the_where_list_is_the_spec_the_designs_directory_and_the_files_found_by_the_steps_words_with_their_outlines`,
+  `::test_the_where_list_uses_the_code_map_when_the_repo_is_indexed_and_drops_what_the_tree_lacks`,
+  `::test_a_server_that_fails_or_finds_nothing_falls_back_to_grep`.
   **Step from the label** (built 2026-11-01): the verb lists issues with their labels and reads the step from `step:N.M`
   first; the title shape and the `Step: N.M` body line are the fallback for an issue with no step label. Test:
   `fichero-builder/tests/test_milestone_verb.py::test_the_step_label_is_read_first_and_the_title_shape_only_for_an_issue_with_no_step_label`.
