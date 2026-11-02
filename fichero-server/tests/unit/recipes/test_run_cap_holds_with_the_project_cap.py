@@ -59,3 +59,24 @@ def test_no_run_cap_means_the_project_caps_alone_and_the_cap_goes_with_its_run(l
     spend.clear_run_cap(library, "job-1")
     assert spend.run_cap(library) is None
     _call(library)
+
+
+def test_the_run_cap_is_changed_in_place_and_a_run_without_one_refuses(library):
+    assert not spend.change_run_cap(library, 5.0)  # no run holds a cap
+    spend._book(library, 1.0)
+    spend.set_run_cap(library, "job-1", 0.03)
+    assert spend.change_run_cap(library, 2.0)
+    held = spend.run_cap(library)
+    assert held["cap_usd"] == 2.0 and held["job_id"] == "job-1" and held["from_usd"] == 1.0  # still counts from the run's start
+    _call(library)  # 0.04 now fits
+
+
+def test_the_cap_route_changes_the_run_cap_and_refuses_when_no_run_holds_one(client, db):
+    from fichero_server.api.routes.system import recipes as routes
+
+    library = str(routes._library(db))
+    refused = client.put("/api/recipes/project/cloud-cap", json={"run_cap_usd": 3.0})
+    assert refused.status_code == 422 and "No run is holding a cap" in refused.text
+    spend.set_run_cap(library, "job-1", 1.0)
+    ok = client.put("/api/recipes/project/cloud-cap", json={"run_cap_usd": 3.0})
+    assert ok.status_code == 200 and ok.json()["run_cap_usd"] == 3.0 and ok.json()["audit_id"] is None

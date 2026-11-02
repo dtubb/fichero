@@ -36,21 +36,27 @@ async def change_cloud_cap(
 
     from fichero_server.recipes.project import read_saved_answers  # lazy: it pulls recipes.recipe, jobs and topics into the app import (#5798)
 
-    answers = read_saved_answers(_library(db))
-    asked = {key: value for key, value in ((spend.CAP_KEY, request.cap_usd), (spend.PROJECT_CAP_KEY, request.project_cap_usd))
-             if value is not None}
-    try:
-        # Only the caps are checked and written, over the answers as the file holds them: reading them in today's shape and
-        # normalising them all wrote the defaults (`purposes: [not-sure]`, `materials: [handwriting]`) into a project that had
-        # answered nothing.
-        answers.update({key: normalise_answers(asked, strict=True)[key] for key in asked})
-        if request.clear_project_cap:
-            answers.pop(spend.PROJECT_CAP_KEY, None)
-        done = registry.invoke(db, "project.save_setup", {"answers": answers}, ctx)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return CloudCapChanged(cap_usd=spend.cap_usd(str(_library(db))) or 0.0, project_cap_usd=spend.project_cap_usd(str(_library(db))),
-                           audit_id=done.audit_id)
+    library = str(_library(db))
+    if request.run_cap_usd is not None and not spend.change_run_cap(library, request.run_cap_usd):
+        raise HTTPException(status_code=422, detail="No run is holding a cap of its own, so there is none to change.")
+    audit_id = None
+    if not (request.cap_usd is None and request.project_cap_usd is None and not request.clear_project_cap):
+        answers = read_saved_answers(_library(db))
+        asked = {key: value for key, value in ((spend.CAP_KEY, request.cap_usd), (spend.PROJECT_CAP_KEY, request.project_cap_usd))
+                 if value is not None}
+        try:
+            # Only the caps are checked and written, over the answers as the file holds them: reading them in today's shape and
+            # normalising them all wrote the defaults (`purposes: [not-sure]`, `materials: [handwriting]`) into a project that had
+            # answered nothing.
+            answers.update({key: normalise_answers(asked, strict=True)[key] for key in asked})
+            if request.clear_project_cap:
+                answers.pop(spend.PROJECT_CAP_KEY, None)
+            audit_id = registry.invoke(db, "project.save_setup", {"answers": answers}, ctx).audit_id
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    held = spend.run_cap(library)
+    return CloudCapChanged(cap_usd=spend.cap_usd(library) or 0.0, project_cap_usd=spend.project_cap_usd(library),
+                           run_cap_usd=float(held["cap_usd"]) if held else None, audit_id=audit_id)
 
 # =============================================================================
 # The bake-off, slice 1: the readers (#4951, `source.try.bakeoff-is-the-same-tool`). The evaluation job run on

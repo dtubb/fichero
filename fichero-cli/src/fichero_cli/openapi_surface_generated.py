@@ -14137,6 +14137,7 @@ def register_generated_openapi_commands(
         cap_usd: Optional[float] = typer.Option(None, '--cap-usd', help="the most the project's cloud calls may cost a month, in US$ (0 is a cap); left out: unchanged."),
         clear_project_cap: Optional[bool] = typer.Option(None, '--clear-project-cap/--no-clear-project-cap', help="remove the project's total cap (no such limit) Default: false."),
         project_cap_usd: Optional[float] = typer.Option(None, '--project-cap-usd', help='the most the project may spend on cloud calls in all, across months (`answers.cloud_project_cap_usd`); left out: unchanged.'),
+        run_cap_usd: Optional[float] = typer.Option(None, '--run-cap-usd', help='the cap of the run under way (`StartRequest.run_cap_usd`), changed in place: a run paused at it carries on when this is higher (`designer.budget.fix-during-the-run`); refused when no run holds a cap; left out: unchanged.'),
     ) -> None:
         """Change Cloud Cap (PUT /api/recipes/project/cloud-cap)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14146,10 +14147,12 @@ def register_generated_openapi_commands(
                 "cap_usd": cap_usd,
                 "clear_project_cap": clear_project_cap,
                 "project_cap_usd": project_cap_usd,
+                "run_cap_usd": run_cap_usd,
             }, {
                 "cap_usd": {'type': 'number', 'minimum': 0.0, 'nullable': True, 'title': 'Cap Usd', 'description': "the most the project's cloud calls may cost a month, in US$ (0 is a cap); left out: unchanged", 'x-cli-required': False},
                 "clear_project_cap": {'type': 'boolean', 'title': 'Clear Project Cap', 'description': "remove the project's total cap (no such limit)", 'default': False, 'x-cli-required': False},
                 "project_cap_usd": {'type': 'number', 'minimum': 0.0, 'nullable': True, 'title': 'Project Cap Usd', 'description': 'the most the project may spend on cloud calls in all, across months (`answers.cloud_project_cap_usd`); left out: unchanged', 'x-cli-required': False},
+                "run_cap_usd": {'type': 'number', 'minimum': 0.0, 'nullable': True, 'title': 'Run Cap Usd', 'description': 'the cap of the run under way (`StartRequest.run_cap_usd`), changed in place: a run paused at it carries on when this is higher (`designer.budget.fix-during-the-run`); refused when no run holds a cap; left out: unchanged', 'x-cli-required': False},
             }, required=True)
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)

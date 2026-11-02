@@ -188,6 +188,15 @@ def set_run_cap(library: str, job_id: str, cap_usd: float) -> None:
     path.write_text(json.dumps({"job_id": job_id, "cap_usd": float(cap_usd), "from_usd": total_booked_usd(library)}), encoding="utf-8")
 
 
+def change_run_cap(library: str, cap_usd: float) -> bool:
+    """Set the cap of the run under way to `cap_usd` (what that run may spend in all, as Start set it): False when no run holds one."""
+    held = run_cap(library)
+    if not held:
+        return False
+    (_recipe_dir(library) / RUN_CAP).write_text(json.dumps({**held, "cap_usd": float(cap_usd)}), encoding="utf-8")
+    return True
+
+
 def clear_run_cap(library: str, job_id: str) -> None:
     """The run ended: its cap goes with it. Another run's cap is left alone."""
     held = run_cap(library)

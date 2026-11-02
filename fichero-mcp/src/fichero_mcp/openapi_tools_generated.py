@@ -6711,9 +6711,10 @@ def fichero_recipes_change_cloud_cap(
     cap_usd: Annotated[Optional[float], Field(description="the most the project's cloud calls may cost a month, in US$ (0 is a cap); left out: unchanged.")] = None,
     clear_project_cap: Annotated[Optional[bool], Field(description="remove the project's total cap (no such limit) Default: false.")] = None,
     project_cap_usd: Annotated[Optional[float], Field(description='the most the project may spend on cloud calls in all, across months (`answers.cloud_project_cap_usd`); left out: unchanged.')] = None,
+    run_cap_usd: Annotated[Optional[float], Field(description='the cap of the run under way (`StartRequest.run_cap_usd`), changed in place: a run paused at it carries on when this is higher (`designer.budget.fix-during-the-run`); refused when no run holds a cap; left out: unchanged.')] = None,
 ) -> Any:
     'Change Cloud Cap\n\nSet the project\'s monthly cloud cap (`answers.cloud_spend_cap_usd`) and/or its total cap\n(`answers.cloud_project_cap_usd`), and nothing else in its setup: Set Up\'s "Raise the cap to N" (#6295). One\n`project.save_setup`, so audited and undoable as one step; the answer names the audit row.\n\nRoute: PUT /api/recipes/project/cloud-cap (toolset `recipes`; changes data, as the agent account when one exists).'
-    return _rt.call("PUT", "/api/recipes/project/cloud-cap", json=_rt.body({"cap_usd": cap_usd, "clear_project_cap": clear_project_cap, "project_cap_usd": project_cap_usd}))
+    return _rt.call("PUT", "/api/recipes/project/cloud-cap", json=_rt.body({"cap_usd": cap_usd, "clear_project_cap": clear_project_cap, "project_cap_usd": project_cap_usd, "run_cap_usd": run_cap_usd}))
 
 
 def fichero_recipes_change_project_layers(

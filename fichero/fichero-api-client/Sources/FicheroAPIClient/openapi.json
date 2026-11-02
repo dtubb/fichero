@@ -60435,6 +60435,13 @@
             "title": "Clear Project Cap",
             "description": "remove the project's total cap (no such limit)",
             "default": false
+          },
+          "run_cap_usd": {
+            "type": "number",
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Run Cap Usd",
+            "description": "the cap of the run under way (`StartRequest.run_cap_usd`), changed in place: a run paused at it carries on when this is higher (`designer.budget.fix-during-the-run`); refused when no run holds a cap; left out: unchanged"
           }
         },
         "additionalProperties": false,
@@ -60454,16 +60461,22 @@
             "title": "Project Cap Usd",
             "description": "the project's total cloud cap now; null: none"
           },
+          "run_cap_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Run Cap Usd",
+            "description": "the run under way's cap now; null: no run holds one"
+          },
           "audit_id": {
             "type": "string",
+            "nullable": true,
             "title": "Audit Id",
-            "description": "the audit row of the change; Undo reverses it"
+            "description": "the audit row of the change; Undo reverses it; null when only the run cap changed (it is kept on the run, not in the setup)"
           }
         },
         "type": "object",
         "required": [
-          "cap_usd",
-          "audit_id"
+          "cap_usd"
         ],
         "title": "CloudCapChanged"
       },

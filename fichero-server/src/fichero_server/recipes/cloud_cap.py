@@ -18,11 +18,14 @@ class CloudCapChange(BaseModel):
         "the most the project may spend on cloud calls in all, across months (`answers.cloud_project_cap_usd`); "
         "left out: unchanged"))
     clear_project_cap: bool = Field(default=False, description="remove the project's total cap (no such limit)")
+    run_cap_usd: Optional[float] = Field(default=None, ge=0, description=(
+        "the cap of the run under way (`StartRequest.run_cap_usd`), changed in place: a run paused at it carries on when this is higher "
+        "(`designer.budget.fix-during-the-run`); refused when no run holds a cap; left out: unchanged"))
 
     @model_validator(mode="after")
     def _says_something(self) -> "CloudCapChange":
-        if self.cap_usd is None and self.project_cap_usd is None and not self.clear_project_cap:
-            raise ValueError("send the monthly cap, the project cap, or clear_project_cap")
+        if self.cap_usd is None and self.project_cap_usd is None and not self.clear_project_cap and self.run_cap_usd is None:
+            raise ValueError("send the monthly cap, the project cap, the run cap, or clear_project_cap")
         if self.project_cap_usd is not None and self.clear_project_cap:
             raise ValueError("a project cap is set or cleared, not both")
         return self
@@ -31,7 +34,9 @@ class CloudCapChange(BaseModel):
 class CloudCapChanged(BaseModel):
     cap_usd: float = Field(description="the project's monthly cloud cap now")
     project_cap_usd: Optional[float] = Field(default=None, description="the project's total cloud cap now; null: none")
-    audit_id: str = Field(description="the audit row of the change; Undo reverses it")
+    run_cap_usd: Optional[float] = Field(default=None, description="the run under way's cap now; null: no run holds one")
+    audit_id: Optional[str] = Field(default=None, description=(
+        "the audit row of the change; Undo reverses it; null when only the run cap changed (it is kept on the run, not in the setup)"))
 
 
 class CapFix(BaseModel):
