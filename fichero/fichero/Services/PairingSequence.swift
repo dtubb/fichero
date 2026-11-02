@@ -26,9 +26,13 @@ enum PairingSequence {
         func pair(at url: String, code: String) async throws
         /// The library paths this device may use on the host (`GET /api/authz/libraries`).
         func libraries(at url: String) async throws -> [String]
+        /// Undo the pairing when a later step refuses (the token kept so the library call could be made is cleared).
+        func discardPairing(at url: String) async
     }
 
     enum Result: Equatable {
+        /// Something else stopped it, already in words (a thrown error that carries its own sentence, e.g. the Keychain refusal).
+        case stopped(message: String)
         case paired(url: String, libraryPath: String)
         /// The link named no library and the host has several: the person picks one, nothing is persisted yet.
         case choose(url: String, libraries: [String])
@@ -56,17 +60,23 @@ enum PairingSequence {
             try await host.pair(at: url, code: link.code)
             let libraries = try await host.libraries(at: url)
             if let named = link.libraryPath {
-                return libraries.contains(named) ? .paired(url: url, libraryPath: named) : .failed(.libraryNotGiven, context: context)
+                if libraries.contains(named) { return .paired(url: url, libraryPath: named) }
+                await host.discardPairing(at: url)
+                return .failed(.libraryNotGiven, context: context)
             }
             switch libraries.count {
-            case 0: return .failed(.libraryNotGiven, context: context)
+            case 0:
+                await host.discardPairing(at: url)
+                return .failed(.libraryNotGiven, context: context)
             case 1: return .paired(url: url, libraryPath: libraries[0])
             default: return .choose(url: url, libraries: libraries)
             }
         } catch let failure as PairingFailure {
+            await host.discardPairing(at: url)
             return .failed(failure, context: context)
         } catch {
-            return .failed(.noAnswer, context: context)
+            await host.discardPairing(at: url)
+            return .stopped(message: (error as? LocalizedError)?.errorDescription ?? "Fichero couldn't do that. Try again.")
         }
     }
 

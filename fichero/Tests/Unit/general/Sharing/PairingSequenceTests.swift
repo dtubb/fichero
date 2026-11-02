@@ -51,6 +51,17 @@ struct PairingSequenceTests {
         #expect(await host.log == ["health m.local", "health \(name)", "pair \(name)", "authz/libraries \(name)"])
     }
 
+    @Test func aLibraryTheHostDoesNotGiveDiscardsThePairing() async {
+        let host = FakeHost(libraries: ["/L1"])
+        _ = await run(link(library: "/Other"), host: host)
+        #expect(await host.log.last == "discard m.local")
+    }
+
+    @Test func anErrorThatCarriesItsOwnSentenceIsPassedOnInWords() async {
+        let result = await run(link(), host: FakeHost(pairErrorMessage: "This device couldn't save the connection key."))
+        #expect(result == .stopped(message: "This device couldn't save the connection key."))
+    }
+
     @Test func aRefusedCodeSaysWhichStepAndNothingIsPersisted() async {
         let result = await run(link(), host: FakeHost(pairFails: .codeUsedOrExpired))
         guard case .failed(.codeUsedOrExpired, _) = result else { Issue.record("\(result)"); return }
@@ -68,10 +79,12 @@ private struct FakeHost: PairingSequence.Host {
     var libraries = ["/Users/Shared/a/Notes.fichero"]
     var dead: [String] = []
     var pairFails: PairingFailure?
+    var pairErrorMessage: String?
     private let recorder = Log()
 
     init(contract: String = "c1", version: String = "2026.10.28", libraries: [String] = ["/Users/Shared/a/Notes.fichero"],
-         dead: [String] = [], pairFails: PairingFailure? = nil) {
+         dead: [String] = [], pairFails: PairingFailure? = nil, pairErrorMessage: String? = nil) {
+        self.pairErrorMessage = pairErrorMessage
         self.contract = contract
         self.version = version
         self.libraries = libraries
@@ -89,10 +102,20 @@ private struct FakeHost: PairingSequence.Host {
     func pair(at url: String, code: String) async throws {
         await recorder.add("pair \(PairingAddressTry.host(url))")
         if let pairFails { throw pairFails }
+        if let pairErrorMessage { throw MessageError(message: pairErrorMessage) }
+    }
+
+    func discardPairing(at url: String) async {
+        await recorder.add("discard \(PairingAddressTry.host(url))")
     }
 
     func libraries(at url: String) async throws -> [String] {
         await recorder.add("authz/libraries \(PairingAddressTry.host(url))")
         return libraries
     }
+}
+
+private struct MessageError: LocalizedError {
+    let message: String
+    var errorDescription: String? { message }
 }
