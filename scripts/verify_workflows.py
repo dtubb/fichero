@@ -111,7 +111,7 @@ print("registered 2 text-image docs")
 IMAGE_INPUT_TOOLS = {
     "adaptive_binarize_images", "auto_crop_border_images", "caption",
     "classify_script", "denoise_images", "describe", "deskew_images",
-    "enhance_images", "faces", "fuzzy_clean_images", "handwriting", "layout",
+    "contrast_images", "enhance_images", "faces", "fuzzy_clean_images", "handwriting", "layout",
     "objects", "organize_same_documents", "prepare_images",
     "recombine_segments", "remove_background_images", "rotate_images",
     "scene", "segment_images", "similarity", "split_images", "split_pages", "sub_workflow",

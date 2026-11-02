@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from fichero_server.media.enhance import node_config, rotate as rotate_step
 from fichero_server.workflows.tools.run_scratch import run_scratch_dir
 from fichero_server.llm import LLMConfig
 from fichero_server.workflows.registry import register_tool
@@ -35,6 +36,9 @@ ROTATE_IMAGES_CONFIG = {
         "default": True,
         "description": "Apply EXIF orientation before any explicit rotation.",
     },
+    # angle and expand are `media.enhance.rotate.Params`: the node config is built from that model. An `angle` turns by
+    # that many degrees counter-clockwise (the editor's rotate row) and wins over `rotation_degrees`.
+    **node_config(rotate_step.Params),
     "output_format": {
         "type": "string",
         "enum": ["jpg", "png", "tiff", "webp"],
@@ -102,8 +106,11 @@ def rotate_image_file(
     auto_orient: bool = True,
     output_format: str = "jpg",
     compression_quality: int = 90,
+    angle: float | None = None,
+    expand: bool = True,
 ) -> dict[str, Any]:
-    """Rotate one image into a derived output file."""
+    """Rotate one image into a derived output file. `angle` (degrees counter-clockwise, any value in the step's range) turns by
+    that and takes the place of `rotation_degrees`."""
     source = Path(file_path)
     output_root = Path(output_dir)
     ext = _extension_for_format(output_format)
@@ -114,16 +121,16 @@ def rotate_image_file(
 
         from PIL import Image, ImageOps
 
-        rotation = _normalise_rotation(rotation_degrees)
+        rotation = _normalise_rotation(rotation_degrees) if angle is None else 0
         with Image.open(source) as image:
             original_size = list(image.size)
             prepared = ImageOps.exif_transpose(image) if auto_orient else image.copy()
             oriented_size = list(prepared.size)
-            if rotation:
+            if angle is not None:
+                prepared, _ = rotate_step.run(prepared, rotate_step.Params(angle=float(angle), expand=expand))
+            elif rotation:
                 # PIL rotates counter-clockwise for positive angles; negate for clockwise UI semantics.
-                from fichero_server.media.enhance import rotate
-
-                prepared, _ = rotate.run(prepared, rotate.Params(angle=float(-rotation % 360), expand=True))
+                prepared, _ = rotate_step.run(prepared, rotate_step.Params(angle=float(-rotation % 360), expand=True))
 
             output_path = output_root / f"{source.stem}.{ext}"
             _save_image(
@@ -219,6 +226,8 @@ async def rotate_images(
             auto_orient=bool(inputs.get("auto_orient", True)),
             output_format=inputs.get("output_format", "jpg"),
             compression_quality=inputs.get("compression_quality", 90),
+            angle=inputs.get("angle"),
+            expand=bool(inputs.get("expand", True)),
         )
         for file_path in files
     ]
@@ -230,8 +239,8 @@ async def rotate_images(
             "op": "rotate",
             "page": int(inputs.get("page", 1)),
             "params": {
-                "angle": -_normalise_rotation(inputs.get("rotation_degrees", 0)),
-                "expand": True,
+                "angle": float(inputs["angle"]) if inputs.get("angle") is not None else -_normalise_rotation(inputs.get("rotation_degrees", 0)),
+                "expand": bool(inputs.get("expand", True)),
             },
         },
     )

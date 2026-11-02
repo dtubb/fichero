@@ -202,6 +202,45 @@ def test_the_batch_preview_of_a_turn_reaches_the_rotate_step(client, db, monkeyp
     assert got.json()["pages"] == 1 and [c.angle for c in calls] == [90.0]
 
 
+def test_the_contrast_node_is_registered_with_its_config_from_the_params_model():
+    from fichero_server.media.enhance import contrast
+    from fichero_server.workflows.registry import get_tool_def
+
+    config = get_tool_def("contrast_images").config_schema
+    for key, field in contrast.Params.model_fields.items():
+        assert config[key].get("default") == field.default
+    assert config["clip"]["minimum"] == 1.0 and config["clip"]["maximum"] == 4.0
+    assert config["profile"]["enum"] == ["handwritten", "typescript"]
+
+
+def test_the_contrast_node_runs_the_contrast_step_and_writes_an_enhanced_rendition(db, monkeypatch):
+    import asyncio
+
+    from fichero_server.workflows.tools import contrast_images
+
+    calls = _spy(monkeypatch, "contrast")
+    doc = _doc(db)
+    state = {"library_path": str(db.path.parent)}
+    out = asyncio.run(contrast_images.contrast_images(
+        {"files": [doc.path], "documents": [{"id": doc.id}], "clip": 3.0, "output_format": "png"}, state, None))
+    assert out["error"] is None and out["count"] == 1, out
+    assert [c.clip for c in calls] == [3.0]
+    assert Image.open(out["output_files"][0]).tobytes() != _ruled().tobytes()
+
+
+def test_the_rotate_node_config_has_the_params_models_angle_and_expand_and_the_node_turns_by_the_angle(tmp_path, monkeypatch):
+    from fichero_server.workflows.tools.rotate_images import ROTATE_IMAGES_CONFIG, rotate_image_file
+
+    assert ROTATE_IMAGES_CONFIG["angle"]["minimum"] == -360.0 and ROTATE_IMAGES_CONFIG["angle"]["maximum"] == 360.0
+    assert ROTATE_IMAGES_CONFIG["expand"]["default"] is True
+    calls = _spy(monkeypatch, "rotate")
+    source = tmp_path / "a.png"
+    _ruled(80, 50).save(source)
+    result = rotate_image_file(source, tmp_path, angle=5.0, expand=False, auto_orient=False, output_format="png")
+    assert result["error"] is None and [(c.angle, c.expand) for c in calls] == [(5.0, False)]
+    assert Image.open(result["outputs"][0]).size == (80, 50)
+
+
 def test_page_crop_run_finds_the_page_through_the_one_function(db, monkeypatch, tmp_path):
     from fichero_server.media.enhance import page_crop
     from fichero_server.recipes.page_crop import crop_pages

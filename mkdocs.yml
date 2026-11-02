@@ -229,6 +229,7 @@ nav:
               - Colors: reference_manual/tool_references/tools/colors.md
               - Compare: reference_manual/tool_references/tools/compare.md
               - Consistency Check: reference_manual/tool_references/tools/consistency-check.md
+              - Contrast Images: reference_manual/tool_references/tools/contrast_images.md
               - Denoise Images: reference_manual/tool_references/tools/denoise_images.md
               - Describe: reference_manual/tool_references/tools/describe.md
               - Describe Video: reference_manual/tool_references/tools/video_describe.md

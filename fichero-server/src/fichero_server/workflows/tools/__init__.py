@@ -54,6 +54,7 @@ from fichero_server.workflows.tools import organize_same_documents  # noqa: F401
 from fichero_server.workflows.tools import rotate_images  # noqa: F401  (#1387)
 from fichero_server.workflows.tools import prepare_images  # noqa: F401  (#1390)
 from fichero_server.workflows.tools import enhance_images  # noqa: F401  (#1388)
+from fichero_server.workflows.tools import contrast_images  # noqa: F401  (#6194)
 from fichero_server.workflows.tools import fuzzy_clean_images  # noqa: F401  (#1389)
 from fichero_server.workflows.tools import denoise_images  # noqa: F401  (#3606)
 from fichero_server.workflows.tools import deskew_images  # noqa: F401  (#3611)

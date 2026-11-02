@@ -836,6 +836,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/cli_agent.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/colors.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/compare.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/consistency_check.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/contrast_images.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/convert.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/date_extract.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/denoise_images.py

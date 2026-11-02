@@ -34,8 +34,10 @@ Create rotated or EXIF-oriented image derivatives without modifying source files
 
 | Option | Type | Default | What it does |
 | --- | --- | --- | --- |
+| `angle` | number | — | — |
 | `auto_orient` | boolean | yes | Apply EXIF orientation before any explicit rotation. |
 | `compression_quality` | integer | 90 | JPEG/WebP compression quality. |
+| `expand` | boolean | yes | — |
 | `output_dir` | string | — | Optional output directory. Defaults to a temp directory. |
 | `output_format` | string | jpg | Derived image format. One of: jpg, png, tiff, webp. |
 | `rotation_degrees` | integer | 0 | Clockwise rotation to apply after EXIF auto-orientation. One of: 0, 90, 180, 270. |

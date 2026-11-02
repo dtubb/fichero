@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-A tool is one step: it reads something, does one job, and emits a result. Workflows are tools wired together. Each page below says what the tool reads and emits, every option it takes, and — for tools that ask a model — the exact words it sends. There are 128 of them.
+A tool is one step: it reads something, does one job, and emits a result. Workflows are tools wired together. Each page below says what the tool reads and emits, every option it takes, and — for tools that ask a model — the exact words it sends. There are 129 of them.
 
 ## Agent
 
@@ -127,6 +127,7 @@ A tool is one step: it reads something, does one job, and emits a result. Workfl
 | [Auto Crop Scan Borders](tools/auto_crop_border_images.md) | Detect and crop dark scan margins locally. | no |
 | [Auto Deskew Images](tools/deskew_images.md) | Detect and straighten skewed scans locally. | no |
 | [Consistency Check](tools/consistency-check.md) | Flag deterministic numeral, name, and formula inconsistencies. | no |
+| [Contrast Images](tools/contrast_images.md) | Even out the light on a page with local contrast (CLAHE on the lightness channel), without modifying source files. | no |
 | [Denoise Images](tools/denoise_images.md) | Locally denoise selected scans without modifying sources. | no |
 | [Enhance Images](tools/enhance_images.md) | Create contrast/sharpness/denoise image derivatives without modifying source files. | no |
 | [Extract Date](tools/date_extract.md) | Extract the historical date a document was written (Gregorian, Julian, French Republican, Old Style, regnal, era names) and store it as a Julian Day Number range for sorting and filtering. | no |

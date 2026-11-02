@@ -49,6 +49,9 @@ def node_config(params: type[BaseModel], *, only: tuple[str, ...] | None = None)
     for key, prop in properties.items():
         if only is not None and key not in only:
             continue
-        entry = {k: prop[k] for k in ("type", "enum", "default", "minimum", "maximum", "description") if k in prop}
+        # an optional field (`X | None`) is an `anyOf` of its type and null: the node shows the type, the null is its default
+        branches = [b for b in prop.get("anyOf", []) if b.get("type") != "null"]
+        flat = {**(branches[0] if len(branches) == 1 else {}), **{k: v for k, v in prop.items() if k != "anyOf"}}
+        entry = {k: flat[k] for k in ("type", "enum", "default", "minimum", "maximum", "description") if k in flat}
         out[key] = entry
     return out
