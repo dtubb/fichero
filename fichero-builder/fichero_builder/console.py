@@ -11,6 +11,7 @@ import json
 import os
 import re
 import secrets
+import statistics
 import subprocess
 import sys
 import threading
@@ -429,7 +430,15 @@ def activity(rows: list[dict]) -> dict:
         elif r.get("state") == "end":
             a.update(ended=r["ts"], ok=r.get("ok"), failed=r.get("failed", ""), groups=r.get("groups"))
     items = list(seen.values())
-    return {"running": [a for a in items if not a["ended"]], "recent": [a for a in reversed(items) if a["ended"]][:15]}
+    times: dict = {}  # speed item 1: each rung's usual time, so a running one reads "usually 4 min"
+    for a in items:
+        for r in a["rungs"]:
+            if r.get("seconds") is not None:
+                times.setdefault(r["rung"], []).append(float(r["seconds"]))
+    medians = {k: round(statistics.median(v)) for k, v in times.items()}
+    for a in items:
+        a["usual"] = medians.get(a["now"]) if a["now"] else None
+    return {"running": [a for a in items if not a["ended"]], "recent": [a for a in reversed(items) if a["ended"]][:15], "medians": medians}
 
 
 def landing(root, lanes: list[dict], branch: str = "integration") -> dict:

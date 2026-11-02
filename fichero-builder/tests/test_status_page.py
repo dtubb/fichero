@@ -329,3 +329,16 @@ def test_console_tiles_come_from_origin_an_owned_milestone_has_no_start_and_the_
     assert names == ["Sharing & Pairing", "Delta"], "the spec's empty twin is dropped"
     m = d["milestones"][0]
     assert m["owner"] == "lane-sharing" and not m["startable"] and m["held_by"] == "owned by lane-sharing"
+
+
+def test_activity_gives_each_rung_its_usual_time_and_a_running_rung_reads_it():
+    """Speed item 1 (manager 2026-11-02): time every rung; the console shows the usual time per rung."""
+    rows = []
+    for i, s in enumerate((100, 300, 200)):
+        rows += [{"ts": f"2026-11-02T0{i}:00:00", "event": "activity", "kind": "check", "key": f"k{i}", "state": "start", "lane": "a"},
+                 {"ts": f"2026-11-02T0{i}:01:00", "event": "activity", "kind": "check", "key": f"k{i}", "state": "rung", "rung": "guards", "ok": True, "seconds": s},
+                 {"ts": f"2026-11-02T0{i}:02:00", "event": "activity", "kind": "check", "key": f"k{i}", "state": "end", "ok": True}]
+    rows += [{"ts": "2026-11-02T05:00:00", "event": "activity", "kind": "check", "key": "k9", "state": "start", "lane": "b"},
+             {"ts": "2026-11-02T05:00:01", "event": "activity", "kind": "check", "key": "k9", "state": "rung-start", "rung": "guards"}]
+    d = console.activity(rows)
+    assert d["medians"] == {"guards": 200} and d["running"][0]["now"] == "guards" and d["running"][0]["usual"] == 200

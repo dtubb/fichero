@@ -248,9 +248,10 @@ function Activity({ st }) {
   const row = a => html`<tr class="row"><td>${a.kind}</td><td class="mono">${a.key}</td><td>${a.lane}</td><td><${Ago} ts=${a.started} /></td>
     <td><${Okpill} ok=${a.ended ? a.ok : null} /> ${a.failed ? html`<span class="muted">at ${a.failed}</span>` : ""}</td>
     <td>${a.rungs.map(r => html`<span class=${"pill " + (r.ok ? "green" : "red")} style="margin-right:3px">${r.rung} ${r.seconds != null ? Math.round(r.seconds) + "s" : ""}</span>`)}
-      ${a.now && html`<span class="pill blue"><span class="dot blue pulse"></span>${a.now}</span>`}${a.groups ? html` <span class="muted">${a.groups} group(s)</span>` : ""}</td></tr>`;
+      ${a.now && html`<span class="pill blue"><span class="dot blue pulse"></span>${a.now}</span>${a.usual != null ? html` <span class="muted">usually ${dur(a.usual)}</span>` : ""}`}${a.groups ? html` <span class="muted">${a.groups} group(s)</span>` : ""}</td></tr>`;
   const table = (items) => html`<div class="wrap"><table><thead><tr><th>Kind</th><th>What</th><th>Lane</th><th>Started</th><th>State</th><th>Rungs</th></tr></thead><tbody>${items.map(row)}</tbody></table></div>`;
-  return html`<h2>Running now</h2>${d.running.length ? table(d.running) : html`<p class="muted">Nothing running.</p>`}<h2>Recently finished</h2>${table(d.recent)}`;
+  return html`<h2>Running now</h2>${d.running.length ? table(d.running) : html`<p class="muted">Nothing running.</p>`}<h2>Recently finished</h2>${table(d.recent)}
+    <h2>Usual time per rung</h2><div>${Object.entries(d.medians || {}).sort((x, y) => y[1] - x[1]).map(([k, v]) => html`<span class="pill" style="margin:2px">${k} ${dur(v)}</span>`)}</div>`;
 }
 
 function Landing({ st }) {
