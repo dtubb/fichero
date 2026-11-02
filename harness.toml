@@ -80,6 +80,7 @@ required_trailers = ["Directed-By: the maintainer", "Co-Authored-By: "]
 user = "fichero-worker"
 workroot = "/Users/Shared/fichero-worker"
 owner_home = "/Users/danieltubb"   # what ~ means below when the probe runs as the worker
+code_map = "~/.local/bin/jcodemunch-mcp"   # the owner's install; copied under workroot for the worker (dev-workflows.run.code-map); absent = the worker greps
 deny_read = ["~/.config/gh", "~/.ssh", "~/.claude", "~/Fichero Projects"]
 
 [land]
@@ -106,6 +107,7 @@ RULES (earlier clusters were sent back for these):
 - Run scripts/check_test_assertions.py and ruff on changed files; if routes/contract change, regenerate with the official tool (AGENTS.md ~134), never hand-merge generated files; a new engine .py file -> scripts/regen_engine_embed_filelist.py.
 - Test through the real route/action, not only the helper (a helper-only test passed once while the route 500'd).
 - A commit that builds a spec behaviour carries the trailer line `Behaviour: <id>`, so the landing marks that line [OK].
+- Find code with the jcodemunch tools (search_symbols, get_file_outline, get_symbol_source, find_references, search_text); Read only a file you edit.
 - When every item is committed, end your turn with the exact line DONE <short sha of the branch head>; the loop ends on that line and on nothing else.
 """
 

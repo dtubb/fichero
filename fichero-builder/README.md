@@ -30,6 +30,7 @@ pinned copy of the rules (`pinned-<sha7>`, made by `builder landed`) judges ever
 | `queue.py` | one long-running worker per lane, fed step by step: check, review, land, next brief into the same session | `add`, `run`, `tick_lane`, `Procs` | `test_queue_verb.py` |
 | `triage.py` | GitHub metadata by the rulings: labels, needs-spec, milestones, assignees, the build-order file | `Triage`, `first_open`, `build_order` | `test_triage_verb.py` |
 | `watch.py` | the live page: runs, checks, lands, the queue | `render`, `server` | `test_watch.py` |
+| `codemap.py` | jcodemunch where the jail worker can run it; the search behind a step's Where list | `provide`, `mcp_config`, `index_prefix` | `test_codemap.py` |
 | `journal.py`, `models.py` | the append-only JSONL journal and its locks; one model per role | `append`, `read`, `Lock`, `for_role` | `test_journal.py`, `test_model_config.py` |
 
 ## The chain as verbs

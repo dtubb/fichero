@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from fichero_builder import jail, journal, land_tool, models, work
+from fichero_builder import codemap, jail, journal, land_tool, models, work
 
 ROUNDS, RESTARTS = 2, 2
 FIX = ("Step {step}: the {kind} did not pass. Fix it on this branch with new commit(s), under the same rules.\n\n{findings}\n\n"
@@ -236,6 +236,7 @@ def real_procs(root) -> Procs:
         feed.mkdir(parents=True, exist_ok=True)
         feed.chmod(0o755)
         lane["feed"] = str(feed)
+        codemap.provide(root)
         cmd = work.run_cmd(a, builder, "--feed", feed, "--seq", lane["seq"])
         return subprocess.Popen([j.sudo, "-n", "-H", "-u", j.user, "sh", "-c", f"cd {q(j.workroot)} && {cmd}"],
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
