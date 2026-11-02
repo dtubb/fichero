@@ -278,7 +278,10 @@ def main(a) -> int:
         if a.no_issues:
             return "skipped (--no-issues)"
         would = sorted({ch["file"] for ch in mark_specs_ok(a.root, commits_of(repo, base, sha), write=False)})
-        if dirty := [f for f in would if _git(a.root, "status", "--porcelain", "--", f).stdout.strip()]:
+        status = {f: _git(a.root, "status", "--porcelain", "--", f) for f in would}
+        if unread := [f for f, r in status.items() if r.returncode]:
+            raise Red(f"the state of a spec file this landing would edit could not be read: {', '.join(unread)}")
+        if dirty := [f for f, r in status.items() if r.stdout.strip()]:
             raise Red(f"a spec file this landing would edit has uncommitted changes: {', '.join(dirty)}")
         return "; ".join(would) or "no spec line to edit"
 

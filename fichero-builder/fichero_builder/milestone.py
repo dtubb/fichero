@@ -1,8 +1,8 @@
 """`builder milestone <name> --spec FILE`: a milestone's open issues placed under the spec's build-order steps, one
 cluster brief per step in build order, dependencies respected (dev-workflows.tool.milestone, Step 2.3). An issue under
 no step, or a step whose `Depends on` names a step with open issues, is a QUESTION for a person, never a guess.
-The step is read from the issue title (`... Step 1.3: ...`, the shape `builder steps` files) or a `Step: 1.3` line in
-the body. The build order is parsed by the spec guard's own parser (one parser, never two). Imports nothing from the engine."""
+The step is read from the issue's `step:N.M` label, its title (`... Step 1.3: ...`, the shape `builder steps` files), a `Step: 1.3`
+line in the body, or a build-order heading that names the issue (`#### Step 1.3 — title (#N)`, for a spec written before `builder steps`). The build order is parsed by the spec guard's own parser (one parser, never two). Imports nothing from the engine."""
 from __future__ import annotations
 
 import importlib.util

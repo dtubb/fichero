@@ -276,3 +276,23 @@ def test_a_relative_worktree_is_stored_absolute(state, monkeypatch):
     monkeypatch.chdir(state)
     queue.add("m3", "rel/wt", "1.1", "/b", [1])
     assert queue.load()[-1]["worktree"] == str(Path.cwd() / "rel" / "wt")
+
+
+def test_a_gh_that_times_out_or_is_missing_counts_as_unread_and_the_lane_goes_on(state, tmp_path, monkeypatch):
+    """Review of range 5: after the push, a traceback here killed the loop before the cursor moved, and a restart then blocked a step that had landed."""
+    assert queue.open_of([1], str(tmp_path / "no-such-gh")) == ["#1 (could not read)"]
+
+    def slow(argv, **k):
+        raise queue.subprocess.TimeoutExpired(argv, 60)
+    monkeypatch.setattr(queue.subprocess, "run", slow)
+    assert queue.open_of([2]) == ["#2 (could not read)"]
+
+
+def test_the_open_check_runs_from_the_repo_so_gh_knows_which_one(state, monkeypatch):
+    seen = {}
+
+    def run(argv, **k):
+        seen.update(k)
+        return type("R", (), {"returncode": 0, "stdout": "CLOSED", "stderr": ""})()
+    monkeypatch.setattr(queue.subprocess, "run", run)
+    assert queue.open_of([1], cwd="/repo") == [] and seen["cwd"] == "/repo"
