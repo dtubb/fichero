@@ -125,3 +125,12 @@ def test_a_real_batch_refused_on_page_two_pauses_then_a_raised_cap_reads_only_pa
     runner.run(db, subject)
     assert asked == [pages, [pages[1]]], "page 1 is never read again"
     assert "paused_at_cap" not in json.loads(jobs.read_job(db, job_id)["detail"])
+
+
+def test_stop_here_ends_a_run_paused_at_the_cap_and_keeps_what_is_done(db, caps):
+    """The third fix, "stop here and keep what is done": a run paused at the cap waits off the lane, so the run's own Stop ends it now."""
+    job = _paused(db, caps)
+    assert runner.request_cancel(db, job) == "cancelled"
+    row = jobs.read_job(db, job)
+    assert row["state"] == "cancelled"
+    assert json.loads(row["detail"])["steps"] == CHECKPOINT["steps"]  # the finished pages stay noted on the run
