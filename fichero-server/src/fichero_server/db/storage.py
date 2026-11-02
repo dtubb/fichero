@@ -823,13 +823,30 @@ def ensure_thumbnail(
         return result
 
 
+def _display_key_path(display: Path) -> Path:
+    return display.with_suffix(".key")
+
+
+def _display_key(doc: "Document", chain_ns: int, pdf_page: int | None) -> str | None:
+    """What the working rendition was made from: the file's checksum, the side it was cut to, the edit chain's version and,
+    for a PDF, the page. None when the document has no checksum, which is nothing to identify the content by."""
+    if not doc.checksum:
+        return None
+    return f"{doc.checksum}:{max(settings.display_size)}:{chain_ns}:{'' if pdf_page is None else pdf_page}"
+
+
 def ensure_display(
     doc: "Document",
     force: bool = False,
     package_path: Path | None = None,
     db: "Database | None" = None,
 ) -> Path | None:
-    """Generate display-size image if needed.
+    """The working rendition: the display-size image, made once for a (content checksum, longest side, edit-chain version) key.
+
+    A display image whose recorded key equals the current one is returned without opening the source (the source may be
+    unmounted) and without a render, whatever the source file's modified time is. With no recorded key (a file made before
+    keys, or a document with no checksum) the picture is re-made when the source is newer than it. With no readable source
+    and a picture already made, that picture is returned; with neither, None.
 
     Args:
         doc: Document to generate display image for
@@ -844,24 +861,32 @@ def ensure_display(
         return None
 
     path = _display_path(doc.id, package_path)
+    pdf_hint = resolve_pdf_render_source(doc, db=db, library_root=package_path)
+    operations, chain_ns = edit_chain_operations(
+        doc, db, page=(pdf_hint[1] + 1) if pdf_hint else 1
+    )
+    key = _display_key(doc, chain_ns, pdf_hint[1] if pdf_hint else None)
+    keyfile = _display_key_path(path)
+    if path.exists() and not force and key is not None:
+        try:
+            if keyfile.read_text() == key:
+                return path
+        except OSError:
+            pass
+
     source = (
         resolve_edited_source(doc, db)
         if db is not None
         else resolve_source(doc, library_root=package_path)
     )
-    pdf_render = resolve_pdf_render_source(
-        doc, db=db, library_root=package_path
-    )
+    pdf_render = pdf_hint
     if not source and not pdf_render:
         source = iiif_page_image(doc, package_path)  # a page imported by reference over IIIF
 
     if not source and not pdf_render:
-        return None
+        return path if path.exists() and not force else None  # unmounted: the picture already made is still the page's
 
-    operations, chain_ns = edit_chain_operations(
-        doc, db, page=(pdf_render[1] + 1) if pdf_render else 1
-    )
-    if path.exists() and not force:
+    if path.exists() and not force and key is None:
         source_mtime = pdf_render[0].stat().st_mtime if pdf_render else source.stat().st_mtime
         # An edit is a newer revision of the page even though the file on disk
         # is untouched; comparing the file alone serves a stale rendition.
@@ -871,11 +896,16 @@ def ensure_display(
 
     if pdf_render:
         pdf_path, page_index = pdf_render
-        return _generate_pdf_image(
+        made = _generate_pdf_image(
             pdf_path, page_index, path, settings.display_size, operations
         )
-
-    return _generate_image(source, path, settings.display_size)
+    else:
+        made = _generate_image(source, path, settings.display_size)
+    if made is not None and key is not None:
+        keyfile.write_text(key)
+    elif keyfile.exists():
+        keyfile.unlink(missing_ok=True)
+    return made
 
 
 def _generate_pdf_image(
