@@ -217,6 +217,8 @@ def test_the_spec_behaviour_line_a_landed_commit_names_gets_ok_with_the_test(wor
     spec = world.tmp / "docs" / "contributor_manual" / "specs" / "h" / "x.md"
     spec.parent.mkdir(parents=True)
     spec.write_text("# X\n- `x.one` [GAP] (#7) — the thing\n  continues here.\n- `x.two` [OK] (#8) — done. Tests: `t.py`\n- `x.three` [GAP] (#9) — another\n")
+    subprocess.run(["git", "init", "-q", str(world.tmp)], check=True)  # the checkout it edits: a status it cannot read refuses
+    _g(world.tmp, "add", "docs"), _g(world.tmp, "commit", "-qm", "specs")
     world.ready(), world.green()
     (world.seed / "tests").mkdir()
     (world.seed / "tests" / "test_one.py").write_text("def test_one(): pass\n")
@@ -416,3 +418,20 @@ def test_making_the_new_pinned_copy_waits_for_a_running_ladder(world, monkeypatc
         return real(*a)
     monkeypatch.setattr(landed, "pin", probe)
     assert world.go("--push") == 0 and held
+
+
+def test_a_status_that_cannot_be_read_refuses_rather_than_counting_the_spec_clean(world, monkeypatch, capsys):
+    """Review of range 5: a failed `git status` left the file looking clean, and the landing then edited it."""
+    world.ready(), world.green()
+    spec = world.tmp / "docs" / "contributor_manual" / "specs" / "h" / "x.md"
+    spec.parent.mkdir(parents=True)
+    spec.write_text("- `x.one` [GAP] (#7) — the thing\n")
+    (world.seed / "n").write_text("7")
+    _g(world.seed, "add", "n"), _g(world.seed, "commit", "-qm", "feat: `x.one` built\n\nBehaviour: x.one\nFixes #7")
+    head = _g(world.seed, "rev-parse", "HEAD")
+    _g(world.engine, "fetch", "-q", str(world.seed), "+refs/heads/lane:refs/heads/work-n1")
+    land_tool.write_verdict(world.store, world.engine, "integration", head)
+    journal.append("check", head=head, since=_g(world.engine, "rev-parse", "integration"), ok=True)
+    assert cli.main(["landed", head, "--root", str(world.tmp), "--verdicts", str(world.store), "--gh", str(world.tmp / "gh"), "--state", str(world.tmp / "s"), "--push"]) == 1
+    assert "could not be read" in capsys.readouterr().err and rows()[-1]["step"] == "spec-clean"
+    assert _g(world.origin, "rev-parse", "integration") != head

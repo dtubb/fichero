@@ -100,11 +100,15 @@ class Procs:
     still_open: Callable[[dict, dict], list] = lambda lane, step: []  # (lane, step) -> issues of a landed step not closed, as "#N"
 
 
-def open_of(issues: list[int], gh: str = "gh") -> list[str]:
-    """The issues GitHub does not say are closed; one it cannot read counts, and says so."""
+def open_of(issues: list[int], gh: str = "gh", cwd=None) -> list[str]:
+    """The issues GitHub does not say are closed; one it cannot read counts, and says so. Never raises: the step has landed by now."""
     out = []
     for n in issues:
-        r = subprocess.run([gh, "issue", "view", str(n), "--json", "state", "--jq", ".state"], capture_output=True, text=True, timeout=60)
+        try:
+            r = subprocess.run([gh, "issue", "view", str(n), "--json", "state", "--jq", ".state"], capture_output=True, text=True, timeout=60, cwd=cwd)
+        except (subprocess.TimeoutExpired, OSError):
+            out.append(f"#{n} (could not read)")
+            continue
         if r.returncode:
             out.append(f"#{n} (could not read)")
         elif r.stdout.strip().upper() != "CLOSED":
@@ -284,7 +288,7 @@ def real_procs(root) -> Procs:
             (Path(lane["feed"]) / "stop").write_text("")
 
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
-                 landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"]))
+                 landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)))
 
 
 def main(a) -> int:
