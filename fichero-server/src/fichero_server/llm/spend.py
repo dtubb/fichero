@@ -147,15 +147,6 @@ def project_cap_usd(library: str | None) -> float | None:
     return float(cap) if ok else None
 
 
-#: Every cap refusal's sentence carries this (`_past_a_cap`): a run reads it to pause at the cap instead of failing.
-CAP_MARK = "cloud spend is capped at"
-
-
-def refused_for_cap(why: str | None) -> bool:
-    """Whether a step's end was a cap refusal (a monthly, project or run cap), not an unpriced model or any other failure."""
-    return bool(why) and CAP_MARK in why
-
-
 def caps_now(library: str) -> dict[str, float | None]:
     """The three caps as they stand: monthly, project (None: no limit) and the run's (None: none)."""
     run = run_cap(library)
@@ -168,6 +159,13 @@ def raised_since(library: str, held: dict[str, float | None]) -> bool:
     inf = float("inf")
     now = caps_now(library)
     return any((now[k] if now[k] is not None else inf) > (held.get(k) if held.get(k) is not None else inf) + 1e-9 for k in now)
+
+
+def raised_cap_stops(library: str) -> list[str]:
+    """The run ids paused at a cap (`_STOPPED_AT_CAP`) of which a cap is now higher than it was when they stopped."""
+    with _LOCK:
+        held = dict(_STOPPED_AT_CAP)
+    return [run for run, stop in held.items() if raised_since(library, stop.get("caps") or {})]
 
 
 def run_cap(library: str | None) -> dict | None:
@@ -330,6 +328,7 @@ def _cap_stop(library: str, worst: float, why: str) -> dict:
     cap, project_cap = cap_usd(library), project_cap_usd(library)
     booked, total = booked_usd(library), total_booked_usd(library)
     return {"words": f"Paused at the cloud spend cap: a call could cost up to ${worst:.2f} and {why}",
+            "caps": caps_now(library),
             "needed_cap_usd": needed_cap_usd(booked, worst) if cap is not None and booked + worst > cap + 1e-9 else None,
             "needed_project_cap_usd": (needed_cap_usd(total, worst)
                                        if project_cap is not None and total + worst > project_cap + 1e-9 else None)}

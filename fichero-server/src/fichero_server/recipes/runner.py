@@ -147,8 +147,6 @@ def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, start
     job_id = jobs.enqueue_remote(db, KIND, f"recipe:{uuid.uuid4()}", target="this-mac", detail=json.dumps(detail),
                                  reason=words, started_by=started_by)
     if run_cap_usd is not None:  # the run's own cap (`designer.budget.run-cap`): held with the project's, until the run ends
-        from fichero_server.llm import spend
-
         spend.set_run_cap(str(_library(db)), job_id, run_cap_usd)
     return job_id
 
@@ -436,30 +434,6 @@ def _park(db: Any, job_id: str, detail: dict[str, Any], card: dict[str, Any], th
     raise jobs.JobDeferred("Paused with its run")
 
 
-def _pause_at_the_cap(db: Any, job_id: str, detail: dict[str, Any], step: str, why: str) -> None:
-    """A page refused for a cap leaves the run paused at the cap, not failed (`designer.budget.fix-during-the-run`): the caps as they
-    stand and the sentence are kept on the run, the row goes back to waiting off the lane, and `_wait_for_a_raised_cap` lets it
-    carry on from the next unread page when a cap is raised. Pages the step finished are kept; none is read twice."""
-    detail["paused_at_cap"] = {"why": why, "step": step, "caps": spend.caps_now(str(_library(db)))}
-    jobs.save_detail(db, job_id, json.dumps(detail), reason=f"Paused at the cap: {why}")
-    jobs.come_back_after(db, job_id, PAUSED_LOOK_AGAIN_SECONDS)
-    raise jobs.JobDeferred("Paused at the cap")
-
-
-def _wait_for_a_raised_cap(db: Any, job_id: str, row: dict[str, Any]) -> None:
-    """A run paused at the cap stays paused until a cap is higher than it was; a lowered or unchanged cap never resumes it. Writes
-    nothing while it waits (the row keeps its reason); a raised cap clears the pause and the run goes on."""
-    detail = json.loads(row["detail"] or "{}")
-    held = detail.get("paused_at_cap")
-    if not held:
-        return
-    if not _stop_asked(job_id) and not spend.raised_since(str(_library(db)), held.get("caps") or {}):
-        jobs.come_back_after(db, job_id, PAUSED_LOOK_AGAIN_SECONDS)
-        raise jobs.JobDeferred("Paused at the cap")
-    detail.pop("paused_at_cap")
-    jobs.save_detail(db, job_id, json.dumps(detail), reason="Carrying on: the cap was raised")
-
-
 def _wait_out_a_pause(db: Any, job_id: str) -> None:
     """The recipe's Pause lands between steps: the recipe goes back to waiting (off the lane) and the next step does not start until
     Resume; a Stop ends it."""
@@ -497,6 +471,18 @@ def _awaited_child(db: Any, job_id: str) -> str | None:
     """The step run a parked recipe is waiting on, if it is parked on one."""
     row = jobs.read_job(db, job_id)
     return ((json.loads(row["detail"] or "{}")).get("awaiting") or {}).get("child")
+
+
+def resume_capped_runs(db: Any) -> list[str]:
+    """Resume, by the one Resume (`pause_recipe`), every recipe run whose step run is paused at a cap that is now higher than it was
+    (`spend.raised_cap_stops`); a lowered or unchanged cap resumes nothing. Called after the caps change (`designer.budget.fix-during-the-run`)."""
+    resumed: list[str] = []
+    for child in spend.raised_cap_stops(str(_library(db))):
+        parent = jobs.parent_of(db, child)
+        if parent and jobs._job_row(db, parent)[1] in ("running", "waiting", "paused"):
+            pause_recipe(db, parent, False)  # forgets the stop, resumes the step run from its checkpoint, takes the recipe up
+            resumed.append(parent)
+    return resumed
 
 
 def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
@@ -1294,9 +1280,11 @@ class RunEnded(RuntimeError):
 
 
 def _run(db: Any, job_id: str) -> dict[str, Any]:
+    deferred = False
     try:
         return _run_the_plan(db, job_id)
-    except (RunEnded, *_RUN_CONTROL):
+    except (RunEnded, *_RUN_CONTROL) as exc:
+        deferred = isinstance(exc, (jobs.JobDeferred, ParkedOnStepRun, WorkflowPaused))  # it comes back: its run cap stays
         raise
     except Exception as exc:  # noqa: BLE001 -- a slip in the run's own plan ends it in plain words, its work kept (#6298)
         logger.exception("run %s: stopped on an error", job_id)
@@ -1304,9 +1292,8 @@ def _run(db: Any, job_id: str) -> dict[str, Any]:
                            "the log has the detail.") from exc
     finally:  # stopped, failed, paused or done: a page saved before Search got to it is embedded after all (#6126)
         try:
-            from fichero_server.llm import spend
-
-            spend.clear_run_cap(str(_library(db)), job_id)
+            if not deferred:
+                spend.clear_run_cap(str(_library(db)), job_id)
         except Exception:  # noqa: BLE001 -- a stale cap file must not replace the run's own result
             logger.exception("run %s: its run cap could not be cleared", job_id)
         try:
@@ -1324,8 +1311,6 @@ def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
         jobs.come_back_after(db, job_id, PAUSED_LOOK_AGAIN_SECONDS)
         raise jobs.JobDeferred("Paused with its run")
     row = jobs.read_job(db, job_id)
-    _wait_for_a_raised_cap(db, job_id, row)
-    row = jobs.read_job(db, job_id)  # the pause, if it was cleared, is not carried on in the detail read below
     # Said at once: working out each step's pages can take a while on a big project (#5610, #5606).
     jobs.save_detail(db, job_id, row["detail"] or "{}", reason="Getting ready: working out which pages each step needs")
     detail = json.loads(row["detail"] or "{}")
@@ -1784,9 +1769,6 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
         done_notes.pop(job_id, None)
         if state != "done" and _stop_asked(job_id):  # it was stopped with the run (#5609)
             state, why = "cancelled", "Stopped by you"
-        if state != "done" and not _stop_asked(job_id) and spend.refused_for_cap(why):
-            step.update(state=before if before != "running" else "waiting", child_id=before_child)
-            _pause_at_the_cap(db, job_id, detail, named, str(why))  # the run waits for a raised cap; it does not fail (#6295)
         if state == "done" and card.get("job") in RAN_ON_JOBS:
             scratch["ran_on"] = list(documents)  # a page it looked at and found nothing on is done (#5706)
         _add(step, scratch)
@@ -2065,8 +2047,6 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
     from fichero_server.llm.spend import stopped_at_cap
 
     capped = stopped_at_cap(run_ids)  # a step's run paused at a cap: the row says so, and the app offers the change
-    if not capped and detail.get("paused_at_cap"):  # the run itself is paused at the cap (`_pause_at_the_cap`): the same row, the same offer
-        capped = {"words": f"Paused at the cap: {detail['paused_at_cap']['why']}"}
     capped = capped if row["state"] not in ("done", "cancelled") else None
     if capped:
         reason = capped["words"]

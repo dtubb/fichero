@@ -64,6 +64,9 @@ async def change_cloud_cap(
             audit_ids.append(run_audit)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    from fichero_server.recipes import runner  # lazy: it pulls jobs and the workflow runner into the app import
+
+    runner.resume_capped_runs(db)  # a run paused at a cap now raised goes on, by the one Resume
     held = spend.run_cap(library)
     return CloudCapChanged(cap_usd=spend.cap_usd(library) or 0.0, project_cap_usd=spend.project_cap_usd(library),
                            run_cap_usd=float(held["cap_usd"]) if held else None, audit_id=audit_ids[0],
