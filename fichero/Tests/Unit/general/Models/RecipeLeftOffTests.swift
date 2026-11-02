@@ -64,6 +64,18 @@ struct RecipeLeftOffTests {
         #expect(store.leftOff().first?.sentence.contains("5.7 GB") == true, "in the Start section, with its cost")
     }
 
+    /// WHY: `wide.ready.adding-a-step-is-on-its-stage-page`: a step the recipe lacks is added on its own stage's page; another stage's
+    /// page never lists it, and a step the recipe already has is not offered again.
+    @Test("the jobs offered with Add are the stage's own and not already in the recipe")
+    func offeredOnItsStagePage() throws {
+        let json = "[" + #"{"id":"find-lines","name":"Find lines","description":"","topic":"find-lines","layer":"read","takes":[],"gives":[],"compare":"","settings":[],"since":""}"# + "," + #"{"id":"correct","name":"Correct","description":"","topic":"correct","layer":"read","takes":[],"gives":[],"compare":"","settings":[],"since":""}"# + "]"
+        let jobs = try JSONDecoder().decode([Components.Schemas.JobInfo].self, from: Data(json.utf8))
+        let read: Set<String> = ["read-a-line", "correct"]
+        #expect(RecipeSetupStore.offered(jobs, inRecipe: [], forJobs: read).map(\.id) == ["correct"], "only the Read page's job")
+        #expect(RecipeSetupStore.offered(jobs, inRecipe: ["correct"], forJobs: read).isEmpty, "already in the recipe")
+        #expect(RecipeSetupStore.offered(jobs, inRecipe: [], forJobs: nil).count == 2, "nil lists every stage's")
+    }
+
     /// WHY: Turn On must ask for the step the way the rules read it -- ticked, and the Read question answered yes --
     /// or the engine leaves it off again on the next proposal.
     @Test("Turn On ticks the step, answers its question yes, and the plan comes back with it")

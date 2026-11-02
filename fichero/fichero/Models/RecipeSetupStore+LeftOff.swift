@@ -19,6 +19,16 @@ extension RecipeSetupStore {
         Self.leftOff(recipe?.leftOff ?? [], forJobs: jobs)
     }
 
+    /// The jobs a stage page offers with Add: the ones the recipe does not have, among `jobs` (the stage's), or all with nil
+    /// (`wide.ready.adding-a-step-is-on-its-stage-page`: a stage's step is added on its own page, never listed on another's).
+    static func offered(_ jobs: [Components.Schemas.JobInfo], inRecipe: Set<String>, forJobs stage: Set<String>?) -> [Components.Schemas.JobInfo] {
+        jobs.filter { !inRecipe.contains($0.id) && (stage?.contains($0.id) ?? true) }
+    }
+
+    func offered(forJobs stage: Set<String>? = nil) -> [Components.Schemas.JobInfo] {
+        Self.offered(offeredJobs, inRecipe: Set((recipe?.steps ?? []).map(\.job)), forJobs: stage)
+    }
+
     /// Turn On: ask for the step (tick it, put it back if it was taken out, and answer its question yes); the
     /// engine proposes the plan again with it, and says what it needs (a download, a cloud) as for any step.
     func turnOn(job: String) async {

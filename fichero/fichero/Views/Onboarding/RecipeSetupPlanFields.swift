@@ -171,8 +171,7 @@ struct OfferedJobsList: View {
     var onlyJobs: Set<String>?
 
     var body: some View {
-        let inRecipe = Set((store.recipe?.steps ?? []).map(\.job))
-        let others = store.offeredJobs.filter { !inRecipe.contains($0.id) && (onlyJobs?.contains($0.id) ?? true) }
+        let others = store.offered(forJobs: onlyJobs)
         if !others.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 Divider()
