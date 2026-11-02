@@ -152,6 +152,8 @@ def main(argv=None) -> int:
     me = sub.add_parser("measure", help="run a script on a test machine against a lane's commit (git archive of its engine source): one measure row, told to the lane's pane")
     me.add_argument("--lane", required=True), me.add_argument("--machine", required=True), me.add_argument("--sha", default="")
     me.add_argument("--root", default=str(Path.cwd())), me.add_argument("--state"), me.add_argument("argv", nargs=argparse.REMAINDER)
+    mc = sub.add_parser("machines", help="test machines: `sync <name>` installs the test plugins at the jail venv's exact pins into the machine's gate venv")
+    mc.add_argument("action", choices=["sync"]), mc.add_argument("machine"), mc.add_argument("--root", default=str(Path.cwd())), mc.add_argument("--state")
     ins = sub.add_parser("install", help="copy the newest dev DMG to a [machines] test machine over ssh, install it in ~/Applications there, open it and say whether the app and its engine run")
     ins.add_argument("machine"), ins.add_argument("dmg", nargs="?", default=""), ins.add_argument("--root", default=str(Path.cwd())), ins.add_argument("--state")
     tl = sub.add_parser("tell", help="a message into a Claude Code pane, submitted; over 400 characters it goes to a file and the pane reads it")
@@ -300,6 +302,13 @@ def main(argv=None) -> int:
 
         journal.STATE = Path(a.state) if a.state else journal.STATE
         return measure.main(a)
+    if a.cmd == "machines":
+        from fichero_builder import measure
+
+        journal.STATE = Path(a.state) if a.state else journal.STATE
+        rc, out = measure.sync(a.root, a.machine)
+        print(out)
+        return rc
     if a.cmd == "install":
         from fichero_builder import measure
 

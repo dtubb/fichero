@@ -124,3 +124,50 @@ def install(root, machine: str, dmg: str = "", wait: int = 20) -> tuple[int, str
     out = r.stdout.decode(errors="replace") + r.stderr.decode(errors="replace")
     running, engine = "RUNNING " in out, "ENGINE " in out
     return row(0 if r.returncode == 0 and running else 1, out.strip(), app_running=running, engine_running=engine)
+
+
+TEST_PLUGINS = ("pytest", "anyio", "hypothesis", "langsmith", "pytest-timeout", "pytest-asyncio")
+CLOSURE = r'''
+import json, re, sys
+from importlib import metadata
+want, seen = list(sys.argv[1:]), {}
+while want:
+    n = re.split(r"[ ;<>=!~\[(]", want.pop())[0].strip().lower().replace("_", "-")
+    if not n or n in seen:
+        continue
+    try:
+        d = metadata.distribution(n)
+    except metadata.PackageNotFoundError:
+        continue
+    seen[n] = d.version
+    want += [r for r in (d.requires or []) if "extra ==" not in r]
+print(json.dumps(seen))
+'''
+
+
+def sync(root, machine: str, python: str = "/Users/Shared/fichero-worker/venv/bin/python") -> tuple[int, str]:
+    """`builder machines sync <name>` (manager 2026-11-02): the test plugins and their dependencies, at the exact versions the
+    jail's venv has, installed into the machine's `<dir>/venv`, so a remote check collects what a local one does. Disk floor
+    first; one `machines` row."""
+    doc = tomllib.loads((Path(root) / "harness.toml").read_text())
+    m = doc.get("machines", {}).get(machine)
+
+    def row(rc: int, out: str) -> tuple[int, str]:
+        journal.append("machines", machine=machine, step="sync", rc=rc, detail=out[-800:])
+        return rc, out
+    if not m or not m.get("ssh") or not m.get("dir"):
+        return row(1, f"no [machines].{machine} with ssh and dir in harness.toml")
+    r = subprocess.run([python, "-I", "-c", CLOSURE, *TEST_PLUGINS], capture_output=True, text=True)
+    if r.returncode:
+        return row(1, f"could not read the jail venv's pins: {r.stderr.strip()[-200:]}")
+    pins = json.loads(r.stdout)
+    host, d = m["ssh"], m["dir"]
+    free = _ssh(host, f"df -g {d} | tail -1 | awk '{{print $4}}'", timeout=60).stdout.decode().strip()
+    if not free.isdigit() or int(free) < float(m.get("min_free_gb", 5)):
+        return row(1, f"{machine}: {free or '?'} GiB free, under {m.get('min_free_gb', 5)}: not synced")
+    req = "\n".join(f"{n}=={v}" for n, v in sorted(pins.items())) + "\n"
+    out = _ssh(host, (f"cat > {d}/test-pins.txt && export PATH={d}/bin:$PATH UV_CACHE_DIR={d}/uvcache && "  # a uv venv has no pip (the iMac's)
+                                f"if command -v uv >/dev/null; then uv pip install -q --python {d}/venv/bin/python -r {d}/test-pins.txt; "
+                                f"else {d}/venv/bin/python -m pip install -q -r {d}/test-pins.txt; fi"), stdin=req.encode(), timeout=1800)
+    text = (out.stdout + out.stderr).decode(errors="replace").strip()
+    return row(out.returncode, f"{len(pins)} pinned packages -> {machine}:{d}/venv" + (f": {text[-600:]}" if out.returncode or text else ""))

@@ -685,6 +685,10 @@ the write path would produce.
   shipped tree has none) sends the guards too; the build rung stays on the Pro. A registered maintainer lane (`queue add
   --maintainer`, the harness builder's) runs its checks `--maintainer`. An import-only change to a test file owes no red, like a
   data-only one (test `fichero-server/tests/unit/workflows/test_check_tool.py::test_an_import_only_change_to_a_test_file_owes_no_red`).
+  `builder machines sync <name>` (manager 2026-11-02): the test plugins (pytest, anyio, hypothesis, langsmith, pytest-timeout,
+  pytest-asyncio) and their dependencies, at the exact versions of the jail's venv, installed into the machine's gate venv (uv
+  when it has no pip), after the disk floor; one `machines` row. Proven on the iMac (33 pins; a remote check then ran 16 tests
+  there in 8 s), and `[check].remote = "imac:~/fichero-gate"` is on for the pytest rungs.
   **Stop** (manager 2026-11-02, built): pause = no new step is fed; `builder queue stop --lane L [--grace S]` = the session
   ends: the lane is paused, a live worker is told to commit what is green and end, and the loop closes the session when the
   grace is over (default 300 s) or the worker ends first; the tree is kept, a step in flight goes back to queued with a brief
