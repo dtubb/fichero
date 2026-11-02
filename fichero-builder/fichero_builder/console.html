@@ -21,7 +21,7 @@ th { font-weight:600; color:var(--muted); font-size:12px }
 tr.lane { cursor:pointer } tr.lane:hover { background:var(--row) }
 .sub td { background:var(--row) }
 .state-running,.state-sent,.state-checking,.state-reviewing { color:var(--accent) } .state-landed,.state-done { color:var(--green) }
-.state-blocked { color:var(--red) } .state-queued { color:var(--muted) }
+.state-blocked { color:var(--red) } .state-queued,.state-idle { color:var(--muted) } .state-working { color:var(--accent) }
 .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:8px; margin:8px 0 16px }
 .card { border:1px solid var(--line); border-left:4px solid var(--red); border-radius:6px; padding:8px }
 .card .what { margin:4px 0 8px; word-break:break-word }
@@ -146,11 +146,10 @@ function App() {
     <header>
       <h1>Builder</h1>
       <nav>${["lanes", "milestones"].map(t => html`<button aria-pressed=${tab === t} onClick=${() => go(t)}>${t[0].toUpperCase() + t.slice(1)}</button> `)}</nav>
-      <button onClick=${() => act("loop-start")}>Start loop</button>
-      <button onClick=${() => act("loop-stop")}>Stop loop</button>
       <button onClick=${() => act("build")}>Build</button>
       ${build && html`<span class="muted">build ${build.state}${build.state === "ended" ? (build.ok ? ": ok" : ": failed") : "…"}</span>`}
-      <span class="muted">heartbeat ${st.heartbeat || "none"}</span>
+      ${st.loop_on ? html`<span class="muted">Loop is on (heartbeat ${st.heartbeat})</span> <button onClick=${() => act("loop-stop")}>Stop loop</button>`
+                   : html`<span style="color:var(--amber)">Loop is off: lanes are not fed or landed automatically.</span> <button onClick=${() => act("loop-start")}>Start loop</button>`}
       ${msg && html`<span style="color:var(--red)">${msg} <button onClick=${() => setMsg("")}>×</button></span>`}
     </header>
     <div class="stats">

@@ -193,3 +193,21 @@ def test_milestones_come_by_section_with_counts_steps_and_issues_and_start_calls
     assert json.loads(urllib.request.urlopen(url + "/api/milestones", timeout=5).read())["milestones"] == [], "nothing read yet: the cache, never gh"
     code, _ = _post(url, {"verb": "start-milestone", "args": {"milestone": "UX - Library"}}, console.TOKEN)
     assert code == 200 and _wait(lambda: ran and ran[-1][3:6] == ["milestone", "UX - Library", "--enqueue"])
+
+
+def test_an_external_lane_is_working_or_idle_by_its_head_the_title_skips_rules_and_a_silent_loop_is_off(tmp_path):
+    """Owner 2026-11-02: an external lane read 'queued' while it committed every few minutes; the step title showed the
+    RULES preamble; 'heartbeat none' said nothing plain."""
+    brief = tmp_path / "b.md"
+    brief.write_text("RULES: you are a long-running builder. Read AGENTS.md first.\nLANE sharing, branch lane-sharing. Spec: x.md\n")
+    lanes = [{"id": n, "worktree": str(tmp_path), "cursor": 0, "paused": False, "kind": "external",
+              "steps": [{"step": "2.3", "state": "queued", "issues": [], "why": "", "brief": str(brief)}]} for n in ("busy", "quiet")]
+    now = time.time()
+    ticks = [{"ts": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now - 600)), "event": "loop", "state": "tick"}]
+    st = console.api_status(ticks, lanes, now=now, commit=lambda wt: ("abc fix (1 minute ago)", int(now - 60)))
+    assert st["lanes"][0]["state"] == "working" and st["lanes"][0]["title"] == "LANE sharing, branch lane-sharing"
+    assert st["loop_on"] is False, "the last tick is ten minutes old"
+    st = console.api_status([], lanes, now=now, commit=lambda wt: ("abc fix (1 hour ago)", int(now - 3600)))
+    assert st["lanes"][1]["state"] == "idle" and st["loop_on"] is False
+    st = console.api_status([{**ticks[0], "ts": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now - 20))}], lanes, now=now, commit=lambda wt: ("", 0))
+    assert st["loop_on"] is True

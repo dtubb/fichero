@@ -102,16 +102,26 @@ def act(verb: str, args: dict, who: str) -> dict:
     return {"ok": True, "started": verb, "thread": t}
 
 
-def _last_commit(worktree: str) -> str:
-    r = subprocess.run(["git", "-c", "safe.directory=*", "-C", worktree, "log", "-1", "--format=%h %s (%cr)"], capture_output=True, text=True)
-    return r.stdout.strip() if r.returncode == 0 else ""
+def _last_commit(worktree: str) -> tuple[str, int]:
+    """("<sha> <subject> (<age>)", its commit time) of the worktree's HEAD; ("", 0) when unreadable."""
+    r = subprocess.run(["git", "-c", "safe.directory=*", "-C", worktree, "log", "-1", "--format=%ct %h %s (%cr)"], capture_output=True, text=True)
+    ct, _, text = r.stdout.strip().partition(" ")
+    return (text, int(ct)) if r.returncode == 0 and ct.isdigit() else ("", 0)
 
 
 def _title(brief: str) -> str:
+    """A heading of the brief, else its first line that is not the RULES preamble, to its first full stop."""
     try:
-        return next((ln.lstrip("# ").strip() for ln in Path(brief).read_text().splitlines() if ln.strip()), "")[:120]
+        lines = [ln.strip() for ln in Path(brief).read_text().splitlines() if ln.strip()]
     except OSError:
         return ""
+    head = next((ln.lstrip("# ") for ln in lines if ln.startswith("#")), None)
+    first = head or next((ln for ln in lines if not ln.upper().startswith("RULES")), "")
+    return first.split(". ")[0][:120]
+
+
+WORKING_S = 15 * 60  # an external lane whose HEAD moved this recently is working
+LOOP_STALE_S = 3 * 30  # three ticks: no tick row since = the loop is off
 
 
 def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, commit=_last_commit) -> dict:
@@ -123,6 +133,7 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
     ticks = [r for r in rows if r.get("event") == "loop" and r.get("state") == "tick"]
     st["last_review"] = {k: reviews[-1].get(k) for k in ("ts", "sha", "ok", "detail")} if reviews else None
     st["heartbeat"] = ticks[-1]["ts"] if ticks else None
+    st["loop_on"] = bool(ticks) and now - time.mktime(time.strptime(ticks[-1]["ts"], "%Y-%m-%dT%H:%M:%S")) <= LOOP_STALE_S
     st["console"] = [r for r in rows if r.get("event") == "console"][-20:]
     st["loop_lanes"] = LOOP_LANES
     by_id = {x["id"]: x for x in lanes}
@@ -133,13 +144,16 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
         cost = [r for r in rows if r.get("event") == "cost" and r.get("task") == x["id"]]
         mine = [r for r in rows if r.get("lane") == x["id"] or r.get("task") == x["id"]]
         started = time.mktime(time.strptime(sent[-1]["ts"], "%Y-%m-%dT%H:%M:%S")) if sent and cur and cur["state"] not in ("queued", "blocked") else None
+        last, ct = commit(x["worktree"]) if Path(x["worktree"]).is_dir() else ("", 0)
+        if x.get("kind") == "external" and row["state"] == "queued":  # no worker of ours: its own commits say whether it works
+            row["state"] = "working" if ct and now - ct <= WORKING_S else "idle"
         row.update(
             worktree=x["worktree"], title=_title(cur["brief"]) if cur else "",
             steps=[{"step": s["step"], "state": s["state"], "issues": s["issues"], "why": s["why"][:300]} for s in x["steps"]],
             elapsed_s=int(now - started) if started else None,
             usd=round(sum(float(r.get("usd") or 0) for r in cost), 2), turns=cost[-1].get("turns") if cost else None,
             tokens=cost[-1].get("tokens") if cost else None,
-            last_commit=commit(x["worktree"]) if Path(x["worktree"]).is_dir() else "",
+            last_commit=last,
             doing=(mine[-1].get("state") or mine[-1].get("event", "")) + (f": {str(mine[-1].get('detail', ''))[:160]}" if mine and mine[-1].get("detail") else "") if mine else "")
     return st
 
