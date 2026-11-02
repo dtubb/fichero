@@ -118,7 +118,7 @@ def rules_problems(root) -> list[str]:
     if c.engine_repo and not (Path(c.engine_repo) / ".git").exists():  # first real check 2026-11-01: a tree under ~ is unreadable to the jailed user
         out.append(f"[check].engine_repo {c.engine_repo!r} is not a git repository (clone the owner's repo there, readable by the jailed user)")
     land = tomllib.loads(f.read_text()).get("land", {})
-    if unknown := sorted(set(land) - {"branch", "boundary", "pinned_dir"}):
+    if unknown := sorted(set(land) - {"branch", "boundary", "pinned_dir", "worktree_grace_hours"}):
         out.append(f"harness.toml [land]: unknown keys {unknown}")
     for k in ("branch", "boundary"):
         if not land.get(k):
