@@ -234,6 +234,12 @@ class WorkflowRunStepResponse(BaseModel):
     # Reached a terminal state having produced no artifact. Stated, not
     # inferred from an empty list.
     produced_nothing: bool = False
+    # What the step spent, present only when it called a model (`workflows.run.cost-tracking-per-node`, #4343). `cost_usd`
+    # is null when nothing could be priced: a client must not draw that as $0.00.
+    model_calls: int | None = None
+    total_tokens: int | None = None
+    cost_usd: float | None = None
+    cost_priced: bool | None = None
     artifacts: list[WorkflowRunArtifactResponse] = Field(default_factory=list)
 
 

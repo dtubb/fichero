@@ -299,7 +299,7 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   #4312 (trace is one leg of the EPIC).
 - `workflows.run.scoreboard-quality-and-cost` — **[GAP]** no per-workflow
   scoreboard tracking quality/cost over time. ISSUE: #4344.
-- `workflows.run.cost-tracking-per-node` — **[GAP]** no per-node/per-workflow
+- `workflows.run.cost-tracking-per-node` — **[PARTIAL]** (Step 2.2, #4343) each step record of `GET /api/workflow-execution/threads/{id}/run` carries `model_calls`, `total_tokens`, `cost_usd` and `cost_priced` from its timeline entry, present only when the step called a model, `cost_usd` null (never 0) when nothing could be priced; the run's own total is `run_usage` beside it. Pinned by `fichero-server/tests/unit/workflows/test_cost_per_node_to_spec.py`. The app's trace shows them in Step 4.4. Was: no per-node/per-workflow
   spend visibility. ISSUE: #4343.
 - `workflows.run.comparison-node` — **[GAP]** (#4797) **RESHAPED (creative-director ruling, 2026-09-18, same as
   `research.md`'s `research.compare-folds-into-chat`):** the RESULT side of this design is
@@ -511,9 +511,9 @@ Engine only; the served shapes land with one OpenAPI regeneration at the end of 
 - Tests: fichero-server/tests/unit/workflows/test_run_steps.py, fichero-server/tests/unit/workflows/test_run_step_failure_legibility.py
 - Size: M
 
-#### Step 2.2 — Cost per node and per workflow, and the estimate up front (#4343, #1818)
-- Behaviours: `workflows.run.cost-tracking-per-node`, `workflows.canvas.cost-estimate-up-front`, `workflows.canvas.cost-chip-counts-vision-and-unpriced`
-- Tests: fichero-server/tests/unit/workflows/test_cost_per_node_to_spec.py (not yet written)
+#### Step 2.2 — Cost per node, beside the run's total (#4343)
+- Behaviours: `workflows.run.cost-tracking-per-node`
+- Tests: fichero-server/tests/unit/workflows/test_cost_per_node_to_spec.py
 - Size: M
 
 #### Step 2.3 — Test / Dry Run (#4370)
@@ -590,6 +590,11 @@ Swift, after the Stage 1-3 regeneration. Pure types are verified with a standalo
 #### Step 4.4 — The app shows a run's trace, read-only (#4312)
 - Behaviours: `workflows.run.trace-view-in-the-app`
 - Tests: fichero/Tests/Unit/general/Workflow/WorkflowRunTraceTests.swift (not yet written)
+- Size: M
+
+#### Step 4.5 — The editor shows the cost estimate, and its chip counts vision and unpriced (#1818, #5742)
+- Behaviours: `workflows.canvas.cost-estimate-up-front`, `workflows.canvas.cost-chip-counts-vision-and-unpriced`
+- Tests: fichero/Tests/Unit/general/Workflow/WorkflowCostChipTests.swift (not yet written)
 - Size: M
 
 ### Stage 5 — Swift: the canvas
