@@ -2012,7 +2012,7 @@ and node, not by job); a retry action for failed pages.
   default to cloud. Built (#6233): `recipes/assemble.py` `CLOUD_DEFAULT_JOBS` picks the cheapest adequate cloud model for
   translate, names, statements and catalogue where the pages may leave and a key is set, even when a local model fits
   (the reason says so and that choosing another model keeps the pages on this Mac); Correct still prefers a fitting
-  local model; the per-step choice and per-step cost already exist. Left: the provider's Batch API, the network
+  local model; the per-step choice and per-step cost already exist. Parked 2026-11-02 (open question): the Batch API for the text steps (Translate, Names, Statements, Catalogue) is not built. Page reads batch today (`llm/provider_batch.py`'s seam sits in `llm.vision` only). A text step's capture run answers calls with stand-ins and relies on `is_capturing()` guards that exist only in `vision_base` and `observability/episodes`, so capturing a text step would save junk readings unless every text tool's write path is guarded first; its calls go through `chat` / `chat_structured` / `translate_text` (structured outputs need their own stand-ins). Unverified: all of it, and cost and replay against a real provider key. Order when taken up: guard sweep, seam on the text entry points, Translate, then the structured steps, then a real-key run. Left: the provider's Batch API, the network
   lane's width at the provider's stated limit. Read's default is already the spec's own reader choice
   (`source.recipe.reader-pick-from-the-material`): handwriting that may leave with a frontier key reads in the cloud; printed
   and typescript stay on Kraken or the local reader, as that line says.
