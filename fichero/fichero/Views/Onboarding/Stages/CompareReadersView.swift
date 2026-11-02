@@ -7,6 +7,7 @@ import SwiftUI
 /// this only lays it out. Behind the `wideSetUp` flag.
 struct CompareReadersView: View {
     @State var store: CompareReadersStore
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -26,6 +27,33 @@ struct CompareReadersView: View {
             }
         }
         .task { await store.load() }
+        .focusable()
+        .onKeyPress(phases: .down) { press in handle(press) }
+    }
+
+    /// The key map is `CompareViewModel.command(for:option:)`; this only reads the press and does what the model answers.
+    private func handle(_ press: KeyPress) -> KeyPress.Result {
+        let key = Self.key(of: press)
+        guard let key, let command = CompareViewModel.command(for: key, option: press.modifiers.contains(.option)),
+              let outcome = store.apply(command) else { return .ignored }
+        switch outcome {
+        case .useThis(let readerId, let line): Task { await store.pick(readerId: readerId, onLine: line) }
+        case .close: dismiss()
+        case .moved, .nothing: break
+        }
+        return outcome == .nothing ? .ignored : .handled
+    }
+
+    private static func key(of press: KeyPress) -> CompareViewModel.Key? {
+        switch press.key {
+        case .leftArrow: return .left
+        case .rightArrow: return .right
+        case .upArrow: return .up
+        case .downArrow: return .down
+        case .return: return .return
+        case .escape: return .escape
+        default: return press.characters.first.flatMap { $0.wholeNumberValue }.map { .digit($0) }
+        }
     }
 
     private func controls(_ model: CompareViewModel) -> some View {
@@ -86,7 +114,8 @@ struct CompareReadersView: View {
             Section {
                 ForEach(model.rows) { row in
                     HStack(alignment: .top) {
-                        ForEach(Array(model.readers.enumerated()), id: \.offset) { index, reader in
+                        ForEach(Array(model.readers.enumerated()).filter { pair in model.visibleReaders.contains { $0.id == pair.element.id } },
+                                id: \.offset) { index, reader in
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(row.texts[index] ?? "").font(.callout).textSelection(.enabled)
                                 if row.texts[index] != nil, row.differs, row.canPick {
@@ -99,10 +128,13 @@ struct CompareReadersView: View {
                     }
                     .padding(4)
                     .background(row.differs ? Color.orange.opacity(0.1) : Color.clear, in: RoundedRectangle(cornerRadius: 4))
+                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(model.focusedLine == row.id ? Color.accentColor : .clear))
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(model.rowAnnouncement(row))
                 }
             } header: {
                 HStack(alignment: .top) {
-                    ForEach(model.readers, id: \.id) { reader in
+                    ForEach(model.visibleReaders, id: \.id) { reader in
                         VStack(alignment: .leading, spacing: 2) {
                             Text(reader.label).font(.callout.weight(.medium))
                             if let why = model.notReadBecause(reader: reader.id) {
@@ -110,7 +142,17 @@ struct CompareReadersView: View {
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel(model.columnLabel(reader))
                     }
+                }
+                if CompareViewModel.usesPager(model.platform) {
+                    HStack(spacing: 6) {  // the sample strip: a dot per candidate
+                        ForEach(Array(model.pagerDots.enumerated()), id: \.offset) { _, on in
+                            Circle().fill(on ? Color.accentColor : Color.secondary.opacity(0.4)).frame(width: 7, height: 7)
+                        }
+                    }
+                    .accessibilityHidden(true)
                 }
             }
         }
@@ -144,6 +186,9 @@ struct CompareReadersView: View {
         if model.wipePair != nil {
             Slider(value: Binding(get: { model.handle }, set: { store.moveHandle(to: $0) }), in: 0...1)
                 .accessibilityLabel("Wipe between the first two readers")
+                .accessibilityAdjustableAction { direction in
+                    store.moveHandle(to: model.handle + (direction == .increment ? 1 : -1) * CompareViewModel.handleStep)
+                }
                 .accessibilityIdentifier("compare.wipe")
             List(model.rows) { row in
                 let first = row.texts.first.flatMap { $0 } ?? ""

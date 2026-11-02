@@ -17,10 +17,10 @@ struct CompareViewTests {
         return try JSONDecoder().decode(Components.Schemas.CompareReadersResponse.self, from: Data(json.utf8))
     }
 
-    @Test("Side by side is the Mac's default and Overlay the iPhone's")
+    @Test("Side by side is the Mac's default; Overlay the iPad's and iPhone's")
     func defaultModes() throws {
         #expect(CompareViewModel(answer: try answer(), platform: .mac).mode == .sideBySide)
-        #expect(CompareViewModel(answer: try answer(), platform: .iPad).mode == .sideBySide)
+        #expect(CompareViewModel(answer: try answer(), platform: .iPad).mode == .overlay)
         #expect(CompareViewModel(answer: try answer(), platform: .iPhone).mode == .overlay)
     }
 

@@ -23,8 +23,9 @@ struct CompareViewModel: Equatable {
 
     }
 
-    /// Side by side is the Mac's and iPad's default, Overlay the iPhone's (one picture fits the narrow screen).
-    static func defaultMode(for platform: Platform) -> Mode { platform == .iPhone ? .overlay : .sideBySide }
+    /// Side by side is the Mac's default, Overlay the iPad's and iPhone's (one picture fits the narrow screen).
+    /// On iPad and iPhone the columns are a pager and Overlay is the default (`wide.compare.compact-layout`).
+    static func defaultMode(for platform: Platform) -> Mode { platform == .mac ? .sideBySide : .overlay }
 
     let readers: [Components.Schemas.CompareReader]
     let lines: [Components.Schemas.CompareLine]
@@ -35,11 +36,18 @@ struct CompareViewModel: Equatable {
     var onlyDiffering = false
     /// Wipe's handle, 0 (all B) to 1 (all A).
     private(set) var handle = 0.5
+    /// The line the keys are on (`wide.compare.keyboard-and-voiceover`), by its order; nil before the first key.
+    var focusedLine: Int?
+    /// The one candidate shown, by place in `readers`; nil shows all. A pager's page on iPad and iPhone.
+    var candidate: Int?
+    let platform: Platform
 
     init(answer: Components.Schemas.CompareReadersResponse, platform: Platform) {
         readers = answer.readers
         lines = answer.lines
         mode = Self.defaultMode(for: platform)
+        self.platform = platform
+        candidate = Self.usesPager(platform) && !answer.readers.isEmpty ? 0 : nil
     }
 
     // MARK: Overlay and Wipe

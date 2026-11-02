@@ -74,4 +74,5 @@ final class CompareReadersStore {
     func set(mode: CompareViewModel.Mode) { model?.mode = mode }
     func toggle(reader id: String) { model?.toggle(reader: id) }
     func moveHandle(to position: Double) { model?.moveHandle(to: position) }
+    func apply(_ command: CompareViewModel.Command) -> CompareViewModel.Outcome? { model?.apply(command) }
 }

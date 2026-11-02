@@ -491,10 +491,7 @@ struct ReadingPaneView: View {
             // what is shown, not another way to choose it.
             controls: {
                 self.readerTableExportControl
-                if let documentId = self.effectiveDocument?.id {
-                    TryLabelButton(pageId: documentId)
-                    ReviewAcceptAllButton(documentId: documentId)
-                }
+                self.readerHeadTryControls
             },
             tools: { EmptyView() },
             switchableRoots: PaneCrumb.otherLibraries(than: windowState.libraryId)
@@ -529,7 +526,6 @@ struct ReadingPaneView: View {
 }
 
 // MARK: - Reader focus and its providers
-
 extension ReadingPaneView {
     /// Publish the reader's window-scoped focus keys — but ONLY from the PRIMARY reader pane. A
     /// window-scoped `focusedSceneValue` admits one publisher per key; a workspace's second reader
