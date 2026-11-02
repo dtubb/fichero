@@ -98,6 +98,20 @@ def register(name: str, worktree, handoff, model: str, window: int, tmux_session
     return p
 
 
+DONE_INSTRUCTION = "When every item is committed, end your turn with the exact line DONE <short sha of the branch head>."
+
+
+def with_done_line(brief, worktree, name: str):
+    """A brief that does not say how to end (a hand brief; cluster and successor briefs do) is copied into the worktree as
+    `.builder-brief-<name>-1.txt` with the DONE instruction appended, and the worker is started on the copy."""
+    p = Path(brief)
+    if not p.is_file() or "DONE <" in p.read_text():
+        return p
+    copy = Path(worktree) / f".builder-brief-{name}-1.txt"
+    copy.write_text(p.read_text().rstrip("\n") + "\n\n" + DONE_INSTRUCTION + "\n")
+    return copy
+
+
 def successor_brief(name: str, gen: int, worktree, handoff) -> str:
     """The successor's whole brief: read the handoff, carry on, same rules, same end line (dev-workflows.worker.handoff)."""
     return (f"You succeed long-running worker {name} (generation {gen}). Work in {worktree}. Read {handoff} first, then continue "
@@ -123,12 +137,13 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     register(name, worktree, handoff, model, spend.window, tmux_session)
     gen = 1
     base = procs.head()
-    pane = procs.start(root, worktree, brief, name, model, tmux_session)
+    pane = procs.start(root, worktree, with_done_line(brief, worktree, name), name, model, tmux_session)
     journal.append("worker", task=name, pane=pane, model=model, kind=kind, worktree=str(worktree), generation=gen)
     started = last_change = procs.now()
     seen = None
     told: set[str] = set()
     state: dict = {}
+    unsaid = 0  # ticks idle with the branch moved and no DONE line (defect 2: a worker that commits and never says DONE)
     while True:
         procs.sleep(tick_s)
         now = procs.now()
@@ -158,6 +173,18 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             end = "parked"
             break
         m = done.search(state.get("last_text", "")) if state.get("idle") else None
+        head = procs.head() if state.get("idle") and not m else ""
+        unsaid = unsaid + 1 if head and head != base else 0
+        if unsaid == 2:
+            words = f"Your branch has commits and your turn ended without the DONE line: end your turn with the exact line DONE {head[:7]}"
+            journal.append("watch", task=name, what=f"nudge: {words}")
+            out(f"{name}: nudged for the DONE line ({head[:7]})")
+            procs.tell(pane, words)
+        elif unsaid >= 4:
+            journal.append("watch", task=name, what=f"done-unsaid: the branch is at {head[:9]}, idle, no DONE line after a nudge")
+            procs.stop(pane)
+            end = "done-unsaid"
+            break
         if m:
             head = procs.head()
             if head and head != base and head.startswith(m.group(1)):
@@ -185,7 +212,7 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             journal.append("worker", task=name, pane=pane, model=model, kind=kind, worktree=str(worktree), generation=gen)
             out(f"{name}: handoff, generation {gen} started")
             started = last_change = procs.now()
-            seen, state, told = None, {}, set()
+            seen, state, told, unsaid = None, {}, set(), 0
             continue
     journal.append("cost", task=name, model=model, usd=round(watcher.cost_of(state, spend, model), 4),
                    tokens=state.get("tokens", 0), turns=state.get("turns", 0), seconds=int(procs.now() - started), end=end,

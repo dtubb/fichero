@@ -1,6 +1,8 @@
 """dev-workflows.rollout.dry-run: the loop runs against fakes; a cap parks and stops the worker, a gone worker ends with a cost row."""
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from fichero_builder import journal, run
@@ -199,3 +201,32 @@ def test_the_check_row_records_whether_it_was_a_maintainer_batch_and_checked_is_
     rows = [r for r in journal.read() if r["event"] == "check"]
     assert [r["maintainer"] for r in rows] == [False, True]
     assert land_tool.green_row(rows, "def", "abc")["maintainer"] is True
+
+
+def test_an_idle_worker_whose_branch_moved_but_said_no_done_is_nudged_once_then_ended_done_unsaid(root):
+    """Defect 2 (2026-11-01: two workers idled 30+ min with commits and no DONE line): idle with HEAD moved and no DONE
+    line for two ticks -> one nudge naming the exact line; still idle two ticks later -> end `done-unsaid` (a cost row,
+    exit 0 at the verb). A worker whose branch never moved is still left alone."""
+    told = []
+    idle_moved = {**HEALTHY, "idle": True, "moved": True, "last_text": "Committed, all green."}
+    fake = Fake([HEALTHY, idle_moved, idle_moved, idle_moved, idle_moved, HEALTHY])
+    fake.procs.tell = lambda pane, words: told.append((pane, words))
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None) == "done-unsaid"
+    assert told == [("%9", "Your branch has commits and your turn ended without the DONE line: end your turn with the exact line DONE bbbb222")]
+    assert fake.stopped == ["%9"]
+    rows = journal.read()
+    assert [r["what"].split(":")[0] for r in rows if r["event"] == "watch"] == ["nudge", "done-unsaid"] and rows[-1]["end"] == "done-unsaid"
+
+
+def test_a_hand_brief_without_the_done_instruction_gets_it_added_in_the_copy_the_worker_is_started_on(root):
+    (root / "wt").mkdir()
+    (root / "b.txt").write_text("Fix #1 in this worktree.\n")
+    fake = Fake([HEALTHY, {**HEALTHY, "idle": True, "moved": True, "last_text": "DONE bbbb222"}])
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None) == "done"
+    started = Path(fake.started[1])
+    assert started == root / "wt" / ".builder-brief-w-1.txt" and started.read_text().startswith("Fix #1 in this worktree.\n")
+    assert "end your turn with the exact line DONE <short sha of the branch head>" in started.read_text()
+    (root / "b.txt").write_text("Fix #1. When done print on its own line: DONE <short sha of the branch head>.\n")
+    fake = Fake([HEALTHY, {**HEALTHY, "idle": True, "moved": True, "last_text": "DONE bbbb222"}])
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None) == "done"
+    assert Path(fake.started[1]) == root / "b.txt", "a brief that carries the instruction is started as it is"

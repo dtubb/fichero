@@ -537,7 +537,12 @@ the write path would produce.
 - `dev-workflows.rollout.dry-run` [PARTIAL] (#6116) — the loop runs with no model and no money: `builder run` takes its
   process control (start, alive, stop, read the session file) as a small object, and the dry run swaps in fakes with a
   scripted sequence of session states. Built 2026-11-01: a missing price refuses before anything starts; a healthy worker
-  that ends leaves one `worker` row and one `cost` row; an idle worker is ended on its DONE line and left alone without it;
+  that ends leaves one `worker` row and one `cost` row; an idle worker is ended on its DONE line and left alone without it
+  while its branch has not moved; idle with the branch moved and no DONE line for two ticks it is nudged once with the
+  exact line to end on, and still idle two ticks later it is ended `done-unsaid` (a `watch` row, the cost row's end, exit
+  0); a hand brief that carries no DONE instruction is started on a copy in the worktree that does (built 2026-11-01,
+  `fichero-builder/tests/test_dry_run.py::test_an_idle_worker_whose_branch_moved_but_said_no_done_is_nudged_once_then_ended_done_unsaid`,
+  `::test_a_hand_brief_without_the_done_instruction_gets_it_added_in_the_copy_the_worker_is_started_on`);
   the session cap and the day cap park and stop the pane; a silent
   worker alerts once and is not stopped; a handoff decision is recorded. Not yet: recorded hook events replayed through the
   real policy (a refused command, a weakened test, a pinned-path edit, an acceptance-line change), a question and its

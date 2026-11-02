@@ -69,7 +69,7 @@ def test_check_uses_the_pinned_rules_engine_repo_when_no_repo_is_given(tmp_path,
 
 def test_run_exits_zero_on_a_clean_done_and_one_on_a_refusal(tmp_path, monkeypatch):
     monkeypatch.setattr(cli.run_mod, "real_procs", lambda home, wt: object())
-    for end, code in (("done", 0), ("gone", 0), ("parked", 0), ("refused", 1)):
+    for end, code in (("done", 0), ("done-unsaid", 0), ("gone", 0), ("parked", 0), ("refused", 1)):
         monkeypatch.setattr(cli.run_mod, "run", lambda *a, **k: end)
         assert cli.main(["run", "--worktree", str(tmp_path), "--brief", str(tmp_path / "b"), "--root", str(tmp_path), "--state", str(tmp_path / "s")]) == code, end
 
