@@ -610,10 +610,11 @@ the write path would produce.
   otherwise; the policy hook refuses `git reset --hard`, `git checkout --`, `git clean -f` and `git stash` outside the worker's
   own worktree, and any write outside it. Test (to write): `fichero-builder/tests/test_loop.py` (a step that moves another
   lane's tree alerts), `fichero-builder/tests/test_pi_policy_extension.py` and the policy hook's tests (each refused command).
-- `dev-workflows.run.loop-status` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — `builder status`: a read-only page on 127.0.0.1 (stdlib HTTP, journal only):
+- `dev-workflows.run.loop-status` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — `builder status`: a read-only page on 127.0.0.1 (stdlib HTTP, journal only):
   lanes, each lane's step and state, the last check and landing, issues closed today, spend today, open alerts; the same as
   JSON at `/status.json` for the app. Test (to write): `fichero-builder/tests/test_status_page.py` (a journal of fixed rows gives
   that page and that JSON).
+  **Built** 2026-11-02: `builder status` is `builder watch` (one page, one server): a Status, Today and Open alerts table on top of the runs, checks, lands and queue; `/status.json` serves the same dict (lanes with step and state, last check, last landing, issues closed today = `done` rows' issues less `left_open`, spend today = today's `cost` rows, open alerts = alerts with no answer that took). Tests `fichero-builder/tests/test_status_page.py::test_a_journal_of_fixed_rows_gives_that_status_and_that_page`, `::test_status_json_is_served_on_the_loopback`, `::test_the_status_verb_is_the_watch_page`.
 - `dev-workflows.run.loop-soak` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — acceptance for the loop as a whole: it runs a real build-order milestone for six
   hours with no hand step; every step either lands or ends as an alert row with evidence, never as silence; the heartbeat has no
   gap longer than three ticks. Manual: the maintainer reads only `builder status` and the alerts for the six hours, and the
