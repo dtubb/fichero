@@ -187,6 +187,21 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         return False
 
     h = handles.get(lane["id"])
+    if lane.get("stop_at") and (h is None or not procs.alive(h) or time.time() >= lane["stop_at"]):  # `queue stop`: the grace is over
+        if h is not None:
+            procs.stop(lane)
+            del handles[lane["id"]]
+        lane["feed"] = ""
+        lane.pop("stop_at")
+        if lane["cursor"] < len(lane["steps"]) and (s := lane["steps"][lane["cursor"]])["state"] == "sent":
+            cont = journal.STATE / f"stopped-{lane['id']}-{s['step']}.txt"
+            cont.write_text(Path(s.get("resume_brief") or s["brief"]).read_text().rstrip("\n") + "\n\n" + STOPPED)
+            s["resume_brief"] = str(cont)
+            move(s, "queued", "stopped by the owner: resume starts a fresh session from the tree")
+        else:
+            store(lane)
+        journal.append("queue", lane=lane["id"], step="-", state="stopped", detail="the session is closed; the tree is kept")
+        return False
     if lane["cursor"] >= len(lane["steps"]):
         if h is not None:
             procs.stop(lane)
@@ -296,6 +311,10 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
 
 
 ACTIONS = ("retry", "park", "ask-owner")
+STOP_NOTE = ("STOP (the owner): commit what is green now, leave the rest uncommitted in the worktree, and end your session. "
+             "The lane resumes later in a fresh session from this tree.")
+STOPPED = ("Continue from the tree: this step was stopped by the owner mid-way. Its commits so far are on the branch and any "
+           "uncommitted work is still in the worktree; read them first, then finish the step.")
 
 
 def done(lane_id: str, sha: str) -> str:
@@ -580,6 +599,25 @@ def main(a) -> int:
             p.chmod(0o644)
             save(lanes)
         journal.append("queue", lane=a.lane, step="-", state="told", detail=text[:300])
+        return 0
+    if a.action == "stop":  # pause = no new step is fed; stop = the session ends (the loop closes it after the grace)
+        with journal.Lock("queue"):
+            lanes = load()
+            lane = next((x for x in lanes if x["id"] == a.lane), None)
+            if lane is None:
+                print(f"REFUSED: no lane {a.lane!r}")
+                journal.append("queue", lane=a.lane, step="-", state="stop-refused", detail="no such lane")
+                return 1
+            lane["paused"], lane["stop_at"] = True, time.time() + a.grace
+            told = bool(lane.get("feed"))
+            if told:
+                lane["seq"] += 1
+                m = Path(lane["feed"]) / f"msg-{lane['seq']}.txt"
+                m.write_text(STOP_NOTE + "\n")
+                m.chmod(0o644)
+            save(lanes)
+        journal.append("queue", lane=a.lane, step="-", state="stop", detail=f"grace {a.grace:g} s" + ("; the worker was told" if told else "; no live session"))
+        print(f"stopping {a.lane}: the session closes within {a.grace:g} s; `builder queue resume --lane {a.lane}` starts a fresh one")
         return 0
     if a.action in ("pause", "resume"):
         with journal.Lock("queue"):

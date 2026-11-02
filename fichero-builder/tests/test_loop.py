@@ -245,3 +245,42 @@ def test_a_landing_meanwhile_excuses_the_jail_root_and_a_busy_lane_is_not_checke
     fake.procs.row = row
     queue.run(fake.procs, workers_n=2, push=False, out=lambda s: None)
     assert _alerts() == []
+
+
+def test_stop_tells_the_worker_closes_its_session_after_the_grace_and_resume_starts_a_fresh_one_from_the_tree(state):
+    """`queue stop` (manager 2026-11-02): pause = no new step is fed; stop = the worker is told to commit what is green, its
+    session is closed after the grace, the tree is kept, and resume starts a fresh session on the same step from the tree."""
+    lane(state)
+    fake = Fake()
+    working = fake.procs.row
+    fake.procs.row = lambda lane_: None  # the worker is mid-step
+    handles: dict = {}
+
+    def tick():
+        queue.tick(fake.procs, handles, workers_n=1, push=False, out=lambda s: None)
+    tick()
+    assert steps()["1.1"]["state"] == "sent" and "m1" in handles
+    feed = state / "feed"
+    feed.mkdir()
+    lanes = queue.load()
+    lanes[0]["feed"] = str(feed)
+    queue.save(lanes)
+    assert cli.main(["queue", "stop", "--lane", "m1", "--grace", "3600", "--state", str(state / "s")]) == 0
+    assert max(feed.iterdir()).read_text().startswith("STOP (the owner): commit what is green now")
+    tick()
+    assert fake.stops == [] and "m1" in handles, "within the grace the session is kept"
+    lanes = queue.load()
+    lanes[0]["stop_at"] = 1  # the grace is over
+    queue.save(lanes)
+    tick()
+    assert fake.stops == ["m1"] and "m1" not in handles and steps()["1.1"]["state"] == "queued"
+    assert queue.load()[0]["paused"] and "stop_at" not in queue.load()[0]
+    tick()
+    assert len(fake.starts) == 1, "stopped: nothing starts until resume"
+    assert cli.main(["queue", "resume", "--lane", "m1", "--state", str(state / "s")]) == 0
+    fake.procs.row = working
+    tick()
+    assert len(fake.starts) == 2 and fake.starts[-1][1] == "1.1", "a fresh session on the same step"
+    assert "Continue from the tree" in open(steps()["1.1"]["resume_brief"]).read()
+    assert [r["state"] for r in journal.read() if r["event"] == "queue" and r.get("state") in ("stop", "stopped")] == ["stop", "stopped"]
+    assert cli.main(["queue", "stop", "--lane", "nope", "--state", str(state / "s")]) == 1

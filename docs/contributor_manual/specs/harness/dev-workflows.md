@@ -617,6 +617,22 @@ the write path would produce.
   JSON at `/status.json` for the app. Test (to write): `fichero-builder/tests/test_status_page.py` (a journal of fixed rows gives
   that page and that JSON).
   **Built** 2026-11-02: `builder status` is `builder watch` (one page, one server): a Status, Today and Open alerts table on top of the runs, checks, lands and queue; `/status.json` serves the same dict (lanes with step and state, last check, last landing, issues closed today = `done` rows' issues less `left_open`, spend today = today's `cost` rows, open alerts = alerts with no answer that took). Tests `fichero-builder/tests/test_status_page.py::test_a_journal_of_fixed_rows_gives_that_status_and_that_page`, `::test_status_json_is_served_on_the_loopback`, `::test_the_status_verb_is_the_watch_page`.
+  **Console** (owner order 2026-11-02, APPROVED by the manager): `builder status` is an interactive console, the owner's main view;
+  `builder watch` keeps the read-only page. A stdlib server on 127.0.0.1 (a Tailscale bind behind a token later):
+  `GET /api/status` is the JSON above plus the last review and the heartbeat (the last `loop` tick); `GET /api/events` is a
+  server-sent-events tail of the journal. Actions are `POST /api/action` calls onto the existing verbs and nothing else (a lane's
+  pause and resume, loop start and stop through `launchctl` on the `local.builder.loop` agent, `alert <id> <action>`,
+  `build --dev`, `queue add`, `done`); a verb not on that list is refused, and every action, refused or not, writes one `console`
+  row naming who did it, the verb and its exit. A POST must carry the token the page was served with and a loopback Host, so
+  another site in the owner's browser cannot drive it. The page is one static `console.html` with Preact and htm from a pinned
+  CDN ESM URL, no npm and no build step: a lanes table with each lane's steps under a disclosure, alert cards with their action
+  buttons, a Build button. Test (to write): `fichero-builder/tests/test_status_page.py` (the API and each action against a fake
+  journal and a fake verb runner; a missing token, a foreign Host and an unlisted verb refused with a row).
+  **Stop** (manager 2026-11-02, built): pause = no new step is fed; `builder queue stop --lane L [--grace S]` = the session
+  ends: the lane is paused, a live worker is told to commit what is green and end, and the loop closes the session when the
+  grace is over (default 300 s) or the worker ends first; the tree is kept, a step in flight goes back to queued with a brief
+  that says to continue from the tree, and `queue resume` starts a fresh session on it. Rows `stop`, `stopped`, `stop-refused`.
+  Test `fichero-builder/tests/test_loop.py::test_stop_tells_the_worker_closes_its_session_after_the_grace_and_resume_starts_a_fresh_one_from_the_tree`.
 - `dev-workflows.run.loop-soak` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — acceptance for the loop as a whole: it runs a real build-order milestone for six
   hours with no hand step; every step either lands or ends as an alert row with evidence, never as silence; the heartbeat has no
   gap longer than three ticks. Manual: the maintainer reads only `builder status` and the alerts for the six hours, and the
