@@ -94,3 +94,29 @@ def test_the_handoff_threshold_is_an_absolute_token_count_when_set():
     assert watcher.assess({**STATE, "context": 149_999}, big, "sonnet", spent_today=0, silent_for_s=0) == []
     assert watcher.assess({**STATE, "context": 150_001}, big, "sonnet", spent_today=0, silent_for_s=0) == ["handoff: context 150001 of 150000"]
     assert watcher.threshold(big) == 150_000 and watcher.threshold(SPEND) == 850
+
+
+def test_a_machines_own_spend_caps_win_only_from_the_owners_private_file(tmp_path, monkeypatch):
+    """Manager 2026-11-02: per-machine caps live in an untracked `harness.local.toml` under the owner's home; its [spend] keys win,
+    the rest of [spend] stays, an unknown key still refuses. Review 2026-11-02: a file a worker could write must never count: one
+    owned by someone other than the checkout's owner, or writable by group or world, is ignored."""
+    import os
+    local = tmp_path / "home" / "harness.local.toml"
+    local.parent.mkdir()
+    monkeypatch.setattr(watcher, "LOCAL", local)
+    (tmp_path / "harness.toml").write_text("[spend]\nwindow = 200000\nsession_usd = 8\nday_usd = 60\n")
+    assert watcher.load(tmp_path).day_usd == 60
+    local.write_text("[spend]\nday_usd = 100\n")
+    local.chmod(0o600)
+    sp = watcher.load(tmp_path)
+    assert sp.day_usd == 100 and sp.session_usd == 8 and sp.window == 200000
+    local.chmod(0o666)
+    assert watcher.load(tmp_path).day_usd == 60, "a file others can write is ignored"
+    local.chmod(0o600)
+    monkeypatch.setattr(os, "stat", lambda p, *a, **k: type("S", (), {"st_uid": 0, "st_mode": 0o100600})() if str(p) == str(tmp_path) else os.lstat(p))
+    assert watcher.local_file(tmp_path) is None, "owned by someone other than the checkout's owner"
+    monkeypatch.undo()
+    monkeypatch.setattr(watcher, "LOCAL", local)
+    local.write_text("[spend]\nday_cap = 1\n")
+    with pytest.raises(ValueError, match="unknown keys"):
+        watcher.load(tmp_path)

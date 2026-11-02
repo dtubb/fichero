@@ -8,6 +8,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+
 KEYS = {"window", "handoff_at", "handoff_tokens", "session_usd", "day_usd", "silent_s", "prices"}
 
 
@@ -22,10 +23,27 @@ class Spend:
     prices: dict = field(default_factory=dict)  # model name or prefix -> [usd per M input tokens, usd per M output tokens]
 
 
+LOCAL = Path.home() / ".config" / "fichero-builder" / "harness.local.toml"
+
+
+def local_file(root) -> Path | None:
+    """The machine's own override, only when it is the owner's: it lives under the running user's home, is owned by whoever owns the
+    checkout (a jailed worker's own home file is owned by the worker, so its copy is ignored: review 2026-11-02, `builder run` sets
+    journal.STATE to a folder the worker writes), and is not group- or world-writable."""
+    try:
+        st = LOCAL.stat()
+        owner = Path(root).stat().st_uid
+    except OSError:
+        return None
+    return LOCAL if LOCAL.is_file() and st.st_uid == owner and not st.st_mode & 0o022 else None
+
+
 def load(root) -> Spend:
     """`<root>/harness.toml` [spend]; no table = the zero caps, which refuse. Unknown keys and bad prices refuse."""
     f = Path(root) / "harness.toml"
     t = tomllib.loads(f.read_text()).get("spend", {}) if f.is_file() else {}
+    if (local := local_file(root)) is not None:  # this machine's own caps (manager 2026-11-02)
+        t = {**t, **tomllib.loads(local.read_text()).get("spend", {})}
     if unknown := sorted(set(t) - KEYS):
         raise ValueError(f"harness.toml [spend]: unknown keys {unknown}")
     prices = t.get("prices", {})

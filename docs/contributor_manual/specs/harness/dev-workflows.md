@@ -473,6 +473,12 @@ the write path would produce.
   Not yet: a run of the real script. Tests: `fichero-builder/tests/test_build_verb.py::test_dev_runs_the_projects_script_for_the_dev_tier_without_a_stamp_or_notarizing_and_prints_the_dmg`,
   `::test_a_red_script_fails_with_the_log_and_the_row_says_so`, `::test_a_green_script_that_leaves_no_new_dmg_is_a_failure`,
   `::test_without_dev_it_refuses_a_full_release_needs_the_owner`.
+- `dev-workflows.ux.lane-usage` [PARTIAL] (#6116; owner 2026-11-02, "I want to see progress") — the console's "Lane usage today" card: for each
+  external lane (not held), today's tokens in (input, cache write, cache read) and out and its turns, summed from its Claude Code session
+  transcripts (`~/.claude/projects/<worktree path, non-alphanumerics as "-">/**/*.jsonl`, each message counted once by id, today in local time,
+  cached per file mtime), and the API-equivalent dollars in grey, "on Max, not billed" (`[spend].prices`; cache reads at 0.1x and cache writes at
+  1.25x the input price). **Built** 2026-11-02: `console.lane_usage`, the card in `console.html`. Not yet: a per-model split.
+  Test `fichero-builder/tests/test_status_page.py::test_lane_usage_today_sums_each_external_lanes_transcripts_once_per_message`.
 - `dev-workflows.builder.cluster` [PARTIAL] (#6116) — one spec and its build-order issues (parser ported from
   `pipeline/plan.py`), in order, one commit per issue with its test; the brief is built by `scripts/harness_brief.py` from
   `gh api repos/{repo}/issues/N`: the body and the **title** only when the author association is owner, member or
@@ -708,8 +714,9 @@ the write path would produce.
   A head whose every commit is already on origin by patch (`git cherry` all `-`, a pre-rebase copy of a landed batch) is never
   taken: the intake skips it and `builder done` refuses it with a row (manager 2026-11-02: the intake re-took land-ie's
   ie-batch2). Test `fichero-builder/tests/test_loop.py::test_a_head_whose_every_commit_is_on_origin_by_patch_is_never_taken`.
-  Speed 2 (built, test owed): the review starts in a thread once ready and red-on-base are green (`check_tool.ON_RUNG`), with a
-  partial ladder; a later red kills it before any verdict; a green check takes its result.
+  Speed 2 (built 2026-11-02): the review starts in a thread once ready and red-on-base are green (`check_tool.ON_RUNG`), with a
+  partial ladder; a later red kills it before any verdict; a green check takes its result (tests `fichero-builder/tests/test_work_verb.py::test_the_review_starts_once_red_on_base_is_green_and_its_verdict_is_used`, `::test_a_later_red_rung_kills_the_early_review`).
+  Speed 3 (manager 2026-11-02): `[check].parallel` (default 2) ladders run at once, each in a ladder slot (`ladder`, `ladder-2`, ...) taken under a pick lock, and never two whose batches share a file (an unknown file list shares every file); a waiting chain says why after 30 s. Rung hooks and the activity lane are per thread, the guard cache is written atomically, and a landing holds every ladder slot before it removes the older pinned copies. Tests `fichero-builder/tests/test_work_verb.py::test_two_disjoint_batches_check_at_once_and_a_batch_sharing_a_file_waits`, `::test_a_ladders_rung_hook_and_key_are_its_own_threads`, `fichero-builder/tests/test_landed_verb.py::test_a_check_in_the_second_ladder_slot_keeps_the_older_pinned_copies`.
   **Stop** (manager 2026-11-02, built): pause = no new step is fed; `builder queue stop --lane L [--grace S]` = the session
   ends: the lane is paused, a live worker is told to commit what is green and end, and the loop closes the session when the
   grace is over (default 300 s) or the worker ends first; the tree is kept, a step in flight goes back to queued with a brief
@@ -729,7 +736,7 @@ the write path would produce.
   three steps on a 1M window) — the handoff threshold is an absolute token count, `[spend].handoff_tokens` (175000, owner 2026-11-02), not a share
   of the window; a session whose context passes it hands off. Test (to write): `fichero-builder/tests/test_watcher.py` (a session
   at 150001 tokens on a 1M window hands off).
-  **Built** 2026-11-02: `[spend].handoff_tokens = 175000` (owner, was 150000); `watcher.threshold` and the in-session hook (through the registry's `handoff_tokens`) both use it. Tests `fichero-builder/tests/test_watcher.py::test_the_handoff_threshold_is_an_absolute_token_count_when_set`, `scripts/harness_handoff_hook.py`'s self-test through `fichero-server/tests/unit/workflows/test_handoff_hook.py`.
+  **Built** 2026-11-02: `[spend].handoff_tokens = 175000` (owner, was 150000); `watcher.threshold` and the in-session hook (through the registry's `handoff_tokens`) both use it. Tests `fichero-builder/tests/test_watcher.py::test_the_handoff_threshold_is_an_absolute_token_count_when_set`, `scripts/harness_handoff_hook.py`'s self-test through `fichero-server/tests/unit/workflows/test_handoff_hook.py`. A machine's own `[spend]` values go in an untracked `~/.config/fichero-builder/harness.local.toml` under the running user's home; its keys win over the tracked file's and an unknown key still refuses. It counts only when it is owned by whoever owns the checkout and is not group- or world-writable, so a jailed worker's own copy (its state dir and home are its own) is ignored (manager 2026-11-02, review 2026-11-02; test `fichero-builder/tests/test_watcher.py::test_a_machines_own_spend_caps_win_only_from_the_owners_private_file`).
 - `dev-workflows.run.loop-fetches-the-lane` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated; a check refused "not a
   commit in the engine repo" until a person fetched by hand) — on DONE the loop fetches the lane's head from its worktree into
   `[check].engine_repo` and makes it readable to the jail user, before the check. Test (to write): `fichero-builder/tests/test_loop.py`
@@ -1170,7 +1177,7 @@ Steps a long-running builder can take from the heading. `Depends on` defaults to
 - Size: M
 
 #### Step 4.4 — the app reads the journal: the Activity table with a hierarchy, and controls that work
-- Behaviours: `dev-workflows.ux.activity-table`, `dev-workflows.ux.controls-work`
+- Behaviours: `dev-workflows.ux.activity-table`, `dev-workflows.ux.controls-work`, `dev-workflows.ux.lane-usage`
 - Tests: fichero/Tests/Unit/general/Models/ActivityTableTests.swift, fichero-server/tests/unit/workflows/test_controls_reach_the_call.py
 - Depends on: 4.1
 - Size: M
