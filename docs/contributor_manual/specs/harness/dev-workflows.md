@@ -564,23 +564,26 @@ the write path would produce.
   process that starts, reads and acts. Test: `fichero-builder/tests/test_watcher.py`.
   The caps in `harness.toml [spend]` are owner settings (8 USD a session, 60 USD a day as of 2026-11-01 evening). `[spend].window` is 1000000 and
   `[models].builder` is `sonnet[1m]`, the name that gets that window, because a lane takes its model from the role (test `fichero-builder/tests/test_model_config.py::test_a_window_past_the_standard_one_has_a_builder_model_that_gets_it`).
-- `dev-workflows.run.loop` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) (owner 2026-11-02: the harness keeps going with nobody watching; a stage that waits on a
+- `dev-workflows.run.loop` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) (owner 2026-11-02: the harness keeps going with nobody watching; a stage that waits on a
   person is a defect) — `builder loop` runs indefinitely: `builder queue run --lanes N --push` ticking forever, one `loop` heartbeat
   row a tick. It runs as the owner (a LaunchAgent with KeepAlive), because check rows, verdicts, the push and `gh` are the owner's
   and a worker never holds them; workers stay the jail user. Killed and restarted, it resumes every lane from `queue.json` and the
   journal, never repeating a landed step. Every stage transition is deterministic code; a model is called only to code (the
   builder), to review (the reviewer) or to fix findings (the builder). Test (to write): `fichero-builder/tests/test_loop.py`
   (fakes: a restart mid-chain resumes; a landed step is never re-run).
-- `dev-workflows.run.loop-chain` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — per lane, with no person: the worker's DONE row → `builder check` with the
+  **Built** 2026-11-02 against fakes: `builder loop` (lanes and rounds from `[loop]`, push on, forever, a `loop` tick row each tick; a rules file that cannot run it is a row). Tests: `fichero-builder/tests/test_loop.py::test_a_restart_mid_chain_resumes_the_step_and_never_lands_it_twice`, `::test_rounds_come_from_the_loop_table`. Not yet: the LaunchAgent.
+- `dev-workflows.run.loop-chain` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — per lane, with no person: the worker's DONE row → `builder check` with the
   integration tip as base → the review wrapper (in commit groups when over the cap) → on READY the land gate and `builder landed
   --push`, which closes the Fixes issues → the lane rebased on the new tip → its next step's brief into the same session. A
   worker's DONE is a claim the ladder verifies, never taken on its word. Test (to write): `fichero-builder/tests/test_loop.py`
   (two steps of one lane land through fakes, each transition a row).
-- `dev-workflows.run.loop-fix-rounds` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — a red check or a NOT READY review sends its findings back to the same worker
+  **Built** against fakes (`queue.tick_lane` over `work.after_run`): test `fichero-builder/tests/test_queue_verb.py::test_a_two_step_lane_lands_the_first_then_sends_the_second_into_the_same_session_and_stops_at_the_end`. Not yet: a real lane.
+- `dev-workflows.run.loop-fix-rounds` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — a red check or a NOT READY review sends its findings back to the same worker
   as a fix brief and the chain runs again, up to `[loop].rounds` rounds (default 2); after that, and on a spend cap, a dead or
   stalled worker or a refused guard, the lane parks with an alert. A parked lane never blocks the other lanes. Test (to write):
   `fichero-builder/tests/test_loop.py` (NOT READY → fix → READY lands; three reds → one alert, the lane parked, the other lane
   goes on).
+  **Built** against fakes: `[loop].rounds`; a red with its session gone starts a new session on the step's brief plus the findings (`fix-<lane>-<step>-<round>.txt`), never into the dead feed. Test `fichero-builder/tests/test_loop.py::test_a_red_with_no_live_session_starts_a_new_one_on_a_fix_brief_with_the_findings`. Not yet: the alert at the last round (Step 2.10).
 - `dev-workflows.run.loop-rolls-on` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — when a lane's milestone has no open step left, the loop runs `builder build
   --dev` (one row, pass or fail; a failure is an alert, the roll-on goes on) and the lane takes the first `## In order`
   milestone of `build-order.md` that no lane holds; up to N lanes at once, one ladder at a time on the machine. The order done
@@ -621,15 +624,17 @@ the write path would produce.
   three steps on a 1M window) — the handoff threshold is an absolute token count, `[spend].handoff_tokens` (150000), not a share
   of the window; a session whose context passes it hands off. Test (to write): `fichero-builder/tests/test_watcher.py` (a session
   at 150001 tokens on a 1M window hands off).
-- `dev-workflows.run.loop-fetches-the-lane` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated; a check refused "not a
+- `dev-workflows.run.loop-fetches-the-lane` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated; a check refused "not a
   commit in the engine repo" until a person fetched by hand) — on DONE the loop fetches the lane's head from its worktree into
   `[check].engine_repo` and makes it readable to the jail user, before the check. Test (to write): `fichero-builder/tests/test_loop.py`
   (a head that exists only in the lane's worktree is checked with no hand step).
-- `dev-workflows.run.loop-tell` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated; a finding was typed into a jail pane by
+  **Built** in the chain: `work.do_fetch` bundles the worktree's commits as the jail user and the owner fetches them into the engine repo before the check (test `fichero-builder/tests/test_work_verb.py::test_fetch_never_passes_the_workers_branch_name_to_git`); the hand case was a bare `builder check`.
+- `dev-workflows.run.loop-tell` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated; a finding was typed into a jail pane by
   hand) — a check or review finding goes into the lane's live session (`builder tell <lane> <text>`, through the lane's feed, one
   journal row) while it runs; with no live session it becomes the fix brief of a new one. The brief rules say: whenever you add a
   tool or a route, run the generators (the capability reference, the OpenAPI and MCP files) in the same commit. Test (to write):
   `fichero-builder/tests/test_loop.py` (a finding reaches the live session as its next message; with none, a new session gets it).
+  **Built**: `builder queue tell --lane L --text T|--file F` writes the next message into the live feed and bumps the lane's seq (a `told` row); with no live session a `tell-refused` row; the generators rule is in `[brief].rules`. Test `fichero-builder/tests/test_loop.py::test_tell_puts_a_finding_into_the_live_session_and_refuses_with_a_row_when_there_is_none`.
 - `dev-workflows.run.loop-needs-maintainer` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — a pinned-checks refusal
   that says needs-maintainer becomes an alert carrying the diff of each pinned file, with actions `approve` (the check runs again
   with `--maintainer`) and `send-back` (a fix brief). Separately, `scripts/verify_workflows.py` reads its image-input tool list

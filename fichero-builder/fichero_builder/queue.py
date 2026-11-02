@@ -235,9 +235,17 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         return True
     if r.get("kind") in ("red", "not-ready", "refused") and s["rounds"] < ROUNDS:
         s["rounds"] += 1
-        lane["seq"] += 1
-        procs.send(lane, FIX.format(step=s["step"], kind=r["kind"], findings=r.get("findings") or r["why"]))
-        move(s, "sent", f"fix brief, round {s['rounds']}: {r['why']}")
+        text = FIX.format(step=s["step"], kind=r["kind"], findings=r.get("findings") or r["why"])
+        live = handles.get(lane["id"])
+        if live is not None and procs.alive(live):  # the findings into the running session (dev-workflows.run.loop-tell)
+            lane["seq"] += 1
+            procs.send(lane, text)
+            move(s, "sent", f"fix brief, round {s['rounds']}: {r['why']}")
+            return True
+        fix = journal.STATE / f"fix-{lane['id']}-{s['step']}-{s['rounds']}.txt"  # gone: a new session on the brief plus the findings
+        fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + "\n\n" + text)
+        s["resume_brief"], lane["feed"] = str(fix), ""
+        move(s, "queued", f"fix brief, round {s['rounds']}, in a new session: {r['why']}")
         return True
     return block(s, f"{r['why']}\n{r.get('findings', '')}".strip())
 
@@ -268,7 +276,7 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
 
 
 def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: float = 30.0, once: bool = False, forever: bool = False,
-        out=print) -> int:
+        heartbeat: bool = False, out=print) -> int:
     """Ticks until nothing can move without a person; `forever` (the verb) keeps ticking so a blocked or paused lane keeps its
     session and a resume from another shell is picked up. Each tick first takes build-order milestones up to `lanes_n`."""
     handles: dict = {}
@@ -276,6 +284,8 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
     while True:
         took = feed(procs, lanes_n, out)
         busy = tick(procs, handles, workers_n=workers_n, push=push, out=out, chains=chains) or took
+        if heartbeat:  # dev-workflows.run.loop: a watchdog reads the gap between these
+            journal.append("loop", state="tick", lanes=[f"{x['id']} {x['cursor']}/{len(x['steps'])}" for x in load()], busy=busy)
         if once or not (busy or forever):
             return 0
         procs.sleep(tick_s)
@@ -301,8 +311,9 @@ def real_procs(root) -> Procs:
     pkg = Path(__file__).resolve().parents[1]
 
     def ns(lane: dict, step: dict | None = None) -> types.SimpleNamespace:
+        brief = (step.get("resume_brief") or step["brief"]) if step else ""  # a fix brief after a gone session (run.loop-fix-rounds)
         return types.SimpleNamespace(worktree=lane["worktree"], name=lane["id"], pinned=str(root), root=str(root), kind="claude", session="harness",
-                                     tick=30.0, issues=step["issues"] if step else [], brief=step["brief"] if step else "", ids=[], repo=repo)
+                                     tick=30.0, issues=step["issues"] if step else [], brief=brief, ids=[], repo=repo)
 
     def start(lane, step):
         a, q = ns(lane, step), shlex.quote
@@ -393,6 +404,23 @@ def main(a) -> int:
         add(a.lane, a.worktree, a.step, a.brief, a.issues)
         print(f"queued {a.lane} {a.step}")
         return 0
+    if a.action == "tell":  # dev-workflows.run.loop-tell: a finding into the lane's live session, as its next message
+        text = Path(a.file).read_text() if getattr(a, "file", None) else (a.text or "")
+        with journal.Lock("queue"):
+            lanes = load()
+            lane = next((x for x in lanes if x["id"] == a.lane), None)
+            if lane is None or not lane.get("feed") or not text:
+                why = f"no lane {a.lane!r}" if lane is None else ("no text" if not text else "no live session: the finding goes in the next fix brief")
+                print(f"REFUSED: {why}")
+                journal.append("queue", lane=a.lane, step="-", state="tell-refused", detail=why)
+                return 1
+            lane["seq"] += 1
+            p = Path(lane["feed"]) / f"msg-{lane['seq']}.txt"
+            p.write_text(text.rstrip("\n") + "\n")
+            p.chmod(0o644)
+            save(lanes)
+        journal.append("queue", lane=a.lane, step="-", state="told", detail=text[:300])
+        return 0
     if a.action in ("pause", "resume"):
         with journal.Lock("queue"):
             lanes = load()
@@ -420,7 +448,8 @@ def main(a) -> int:
             print(f"REFUSED: the rules file cannot run the queue: {e}")
             return 1
         lanes_n = max(1, a.lanes)
-        return run(procs, workers_n=max(workers(a.root), lanes_n), push=a.push, lanes_n=lanes_n, tick_s=a.tick, once=a.once, forever=not a.once)
+        return run(procs, workers_n=max(workers(a.root), lanes_n), push=a.push, lanes_n=lanes_n, tick_s=a.tick, once=a.once, forever=not a.once,
+                   heartbeat=getattr(a, "heartbeat", False))
     for row in table():
         print("\t".join(row))
     return 0
