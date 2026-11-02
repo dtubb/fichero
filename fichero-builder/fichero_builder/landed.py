@@ -117,6 +117,9 @@ def update_issues(gh: str, cited: list[dict], branch: str, sha: str) -> list[str
 def main(a) -> int:
     rules = Path(a.root) / "harness.toml"
     pushed, cited = False, []
+    if problem := land_tool.journal_problem(journal.path()):  # before any row: it allows the push and names what `scratch` removes
+        print(f"REFUSED (journal): {problem}", file=sys.stderr)
+        return 1
 
     def row(step: str, ok: bool, detail: str) -> None:
         journal.append("landed", sha=a.sha, step=step, ok=ok, detail=detail)
@@ -155,9 +158,10 @@ def main(a) -> int:
         return "READY for the exact range"
 
     def check_row():
-        if not any(r.get("event") == "check" and r.get("head") == sha and r.get("ok") is True for r in journal.read()):
-            raise Red(f"no green `builder check` row for {sha[:9]} in {journal.path()}")
-        return "green check row"
+        row_ = land_tool.green_row(journal.read(), sha, land_tool.resolve_branch(repo, branch))
+        if row_ is None:
+            raise Red(f"no green `builder check` row over {branch}..{sha[:9]} in {journal.path()}")
+        return "green check row" + (" (a maintainer batch)" if row_.get("maintainer") else "")
 
     def fast_forward():
         _ok(_git(repo, "fetch", "-q", "origin"), "fetch origin")

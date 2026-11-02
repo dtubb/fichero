@@ -53,6 +53,25 @@ def safe_append(path, text: str) -> None:
         f.write(text)
 
 
+def journal_problem(path) -> str:
+    """Why a landing may not trust this journal, or '': its check row allows a push and its rows name worktrees to remove, so
+    the file and its folder must be this user's and no one else's to write. A missing file has no row to trust."""
+    p = Path(path)
+    try:
+        if p.exists() or p.is_symlink():
+            _check_owned(p, p.lstat(), "journal")
+            _check_owned(p.parent, p.parent.stat(), "journal folder")
+    except OSError as e:
+        return str(e)
+    return ""
+
+
+def green_row(rows: list[dict], head: str, since: str) -> dict | None:
+    """The green `check` row of exactly since..head. The ladder runs once, in the check, so a row over any other range is not
+    that ladder. A --maintainer row counts: a person typed the flag, no worker can; the row says so and the landing repeats it."""
+    return next((r for r in reversed(rows) if r.get("event") == "check" and r.get("head") == head and r.get("since") == since and r.get("ok") is True), None)
+
+
 def log_problem(path) -> str:
     """Why the land log cannot be appended to, or ''. Checked before any work, and creates nothing: a directory here once
     died with a traceback at the end of a six-minute ladder."""
@@ -234,7 +253,7 @@ def boundary(root, base: str, head: str, patterns: list[str], cap: int = 30) -> 
 
 def gate(repo, head: str, pinned, verdicts, log) -> tuple[bool, str]:
     """`builder land` after a green check row for `head`: the rules file, the READY verdict and the boundary, no second ladder
-    (the row IS the ladder's result for this exact head; a second run doubled the pytest load). Every refusal is a row in
+    (the caller has found the row of exactly branch..head, which IS the ladder's result; a second run doubled the pytest load). Every refusal is a row in
     `log`; the result is the push line, which the caller prints and nobody here runs. scripts/harness_land.py keeps the ladder."""
     import time
     import tomllib

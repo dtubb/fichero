@@ -190,7 +190,7 @@ def test_the_land_verb_runs_the_gate_and_a_bad_rules_file_refuses_before_anythin
 
 
 def test_the_check_row_records_whether_it_was_a_maintainer_batch_and_checked_is_unchanged(monkeypatch, tmp_path):
-    from fichero_builder import __main__ as cli, check_tool, journal
+    from fichero_builder import __main__ as cli, check_tool, journal, land_tool
 
     monkeypatch.setattr(cli, "resolve", lambda repo, rev: rev)
     monkeypatch.setattr(check_tool, "run_ladder", lambda *a, **k: {"ok": True})
@@ -198,4 +198,4 @@ def test_the_check_row_records_whether_it_was_a_maintainer_batch_and_checked_is_
     assert cli.main(argv) == 0 and cli.main([*argv, "--maintainer"]) == 0
     rows = [r for r in journal.read() if r["event"] == "check"]
     assert [r["maintainer"] for r in rows] == [False, True]
-    assert cli.checked("def")
+    assert land_tool.green_row(rows, "def", "abc")["maintainer"] is True

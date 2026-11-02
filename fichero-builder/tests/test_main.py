@@ -130,6 +130,12 @@ def test_the_hand_run_ladder_script_refuses_a_directory_log_before_its_ladder(tm
     assert r.returncode != 0 and "REFUSED (log)" in r.stderr and "Traceback" not in r.stderr
 
 
+def subprocess_rev(repo, rev):
+    import subprocess
+
+    return subprocess.run(["git", "-C", str(repo), "rev-parse", rev], capture_output=True, text=True, check=True).stdout.strip()
+
+
 def _repo(tmp_path, monkeypatch):
     import subprocess
 
@@ -144,6 +150,32 @@ def _repo(tmp_path, monkeypatch):
     return e, g("rev-parse", "HEAD")
 
 
+def test_land_refuses_a_green_row_that_does_not_cover_the_range(tmp_path, monkeypatch, capsys):
+    """Review of range 1: `builder land` matched head and ok only; a row over head~1..head then landed the whole range."""
+    e, head = _repo(tmp_path, monkeypatch)
+    import re
+
+    real = (cli.Path(__file__).resolve().parents[2] / "harness.toml").read_text()
+    (tmp_path / "harness.toml").write_text(re.sub(r'^branch = .*$', 'branch = "integration"', real, flags=re.M))
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    journal.append("check", head=head, since=head, ok=True)
+    args = ["land", "--repo", str(e), head, "--pinned", str(tmp_path), "--verdicts", str(tmp_path / "v"), "--log", str(tmp_path / "l"), "--state", str(tmp_path / "s")]
+    assert cli.main(args) == 1 and "no green" in capsys.readouterr().err
+
+
+def test_land_refuses_a_journal_others_can_write(tmp_path, monkeypatch, capsys):
+    e, head = _repo(tmp_path, monkeypatch)
+    import re
+
+    real = (cli.Path(__file__).resolve().parents[2] / "harness.toml").read_text()
+    (tmp_path / "harness.toml").write_text(re.sub(r'^branch = .*$', 'branch = "integration"', real, flags=re.M))
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    journal.append("check", head=head, ok=True)
+    journal.path().chmod(0o666)
+    args = ["land", "--repo", str(e), head, "--pinned", str(tmp_path), "--verdicts", str(tmp_path / "v"), "--log", str(tmp_path / "l"), "--state", str(tmp_path / "s")]
+    assert cli.main(args) == 1 and "REFUSED (journal)" in capsys.readouterr().err
+
+
 def test_land_with_a_green_check_row_runs_the_verdict_and_boundary_only_never_the_ladder_again(tmp_path, monkeypatch, capsys):
     """Item 9 (2026-11-01): the row is the ladder's result for this exact head; a second ladder doubled the pytest load."""
     from fichero_builder import check_tool, land_tool
@@ -154,7 +186,8 @@ def test_land_with_a_green_check_row_runs_the_verdict_and_boundary_only_never_th
     real = (cli.Path(__file__).resolve().parents[2] / "harness.toml").read_text()  # a rules file the gate accepts, its boundary kept
     (tmp_path / "harness.toml").write_text(re.sub(r'^branch = .*$', 'branch = "integration"', real, flags=re.M))
     monkeypatch.setattr(journal, "STATE", tmp_path / "s")
-    journal.append("check", head=head, ok=True)
+    base = subprocess_rev(e, "integration")
+    journal.append("check", head=head, since=base, ok=True)
     monkeypatch.setattr(check_tool, "run_ladder", lambda *a, **k: pytest.fail("the ladder ran again"))
     args = ["land", "--repo", str(e), head, "--pinned", str(tmp_path), "--verdicts", str(tmp_path / "v"), "--log", str(tmp_path / "l"), "--state", str(tmp_path / "s")]
     assert cli.main(args) == 1 and "verdict" in (tmp_path / "l").read_text()  # no READY verdict yet
@@ -165,6 +198,6 @@ def test_land_with_a_green_check_row_runs_the_verdict_and_boundary_only_never_th
     import subprocess
     subprocess.run(["git", "-C", str(e), "add", "h"], check=True), subprocess.run(["git", "-C", str(e), "commit", "-qm", "leak"], check=True)
     head2 = subprocess.run(["git", "-C", str(e), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
-    journal.append("check", head=head2, ok=True), land_tool.write_verdict(tmp_path / "v", e, "integration", head2)
+    journal.append("check", head=head2, since=base, ok=True), land_tool.write_verdict(tmp_path / "v", e, "integration", head2)
     args[3] = head2
     assert cli.main(args) == 1 and "boundary" in (tmp_path / "l").read_text().splitlines()[-1]

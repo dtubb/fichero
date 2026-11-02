@@ -39,9 +39,21 @@ def resolve(repo, rev: str) -> str:
     return r.stdout.strip() if r.returncode == 0 else ""  # unknown rev = no sha, never the rev's own text (review 1 N9)
 
 
-def checked(head: str) -> bool:
-    """A green `check` row for this exact head in the journal (dev-workflows.run.review-and-land: check before review and land)."""
-    return any(r.get("event") == "check" and r.get("head") == head and r.get("ok") is True for r in journal.read())
+def checked(repo, pinned, head: str) -> bool:
+    """The green `check` row of exactly <[land].branch>..head in the journal (dev-workflows.run.review-and-land: check before review and land)."""
+    from fichero_builder import land_tool
+
+    try:
+        since = land_tool.resolve_branch(repo, tomllib_land_branch(pinned))
+    except (RuntimeError, OSError, KeyError, ValueError):
+        return False
+    return land_tool.green_row(journal.read(), head, since) is not None
+
+
+def tomllib_land_branch(pinned) -> str:
+    import tomllib
+
+    return tomllib.loads((Path(pinned) / "harness.toml").read_text())["land"]["branch"]
 
 
 def main(argv=None) -> int:
@@ -73,7 +85,7 @@ def main(argv=None) -> int:
     ms.add_argument("--repo-dir", default=str(Path.cwd())), ms.add_argument("--out", required=True, help="where the brief files go")
     ms.add_argument("--base", help="the base sha the briefs name (default: origin/<[land].branch> in --repo-dir)")
     ms.add_argument("--gh", default="gh")
-    land = sub.add_parser("land", help="the land gate: a READY verdict for the exact range, the boundary, the ladder; prints the push, never pushes")
+    land = sub.add_parser("land", help="the land gate after a green check row: a READY verdict for the exact range and the boundary, no second ladder; prints the push, never pushes")
     land.add_argument("--repo", help="the engine-owned repo (default [check].engine_repo of the pinned rules)")
     land.add_argument("head")
     land.add_argument("--pinned", required=True), land.add_argument("--verdicts", required=True), land.add_argument("--log", required=True)
@@ -180,12 +192,11 @@ def main(argv=None) -> int:
             land_tool.safe_append(a.log, json.dumps({"at": time.time(), "land": a.head, "refused": "rules", "detail": problems}) + "\n")
             return 1
         head = resolve(a.repo, a.head)
-        jp = journal.path()
-        if jp.exists() and jp.stat().st_uid != os.getuid():  # land trusts this file: it must be the caller's own (review 1 N2)
-            print(f"REFUSED: {jp} is not owned by this user; land reads only the owner's journal", file=sys.stderr)
+        if problem := land_tool.journal_problem(journal.path()):  # land trusts this file: it must be the caller's own (review 1 N2)
+            print(f"REFUSED (journal): {problem}; land reads only the owner's journal", file=sys.stderr)
             return 1
-        if not head or not checked(head):
-            print(f"REFUSED: no green `builder check` row for {head[:9] or a.head} in {journal.path()}; run builder check first", file=sys.stderr)
+        if not head or not checked(a.repo, a.pinned, head):
+            print(f"REFUSED: no green `builder check` row over the land branch..{head[:9] or a.head} in {journal.path()}; run builder check first", file=sys.stderr)
             return 1
         ok, out = land_tool.gate(a.repo, head, a.pinned, a.verdicts, a.log)
         print(out, file=sys.stdout if ok else sys.stderr)

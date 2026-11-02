@@ -132,7 +132,7 @@ def test_a_second_landing_replaces_the_previous_pinned_branch_and_worktree(world
     second = _g(world.seed, "rev-parse", "HEAD")
     _g(world.engine, "fetch", "-q", str(world.seed), "+refs/heads/lane:refs/heads/work-n2")
     land_tool.write_verdict(world.store, world.engine, "integration", second)
-    journal.append("check", head=second, ok=True)
+    journal.append("check", head=second, since=_g(world.engine, "rev-parse", "integration"), ok=True)
     assert cli.main(["landed", second, "--root", str(world.tmp), "--verdicts", str(world.store), "--gh", str(world.tmp / "gh"),
                      "--state", str(world.tmp / "s"), "--push"]) == 0
     branches = _g(world.engine, "branch", "--list", "pinned-*", "--format=%(refname:short)").split()
@@ -183,7 +183,7 @@ def test_the_cited_issues_are_closed_or_commented_through_gh(world):
     second = _g(world.seed, "rev-parse", "HEAD")
     _g(world.engine, "fetch", "-q", str(world.seed), "+refs/heads/lane:refs/heads/work-n1")
     land_tool.write_verdict(world.store, world.engine, "integration", second)
-    journal.append("check", head=second, ok=True)
+    journal.append("check", head=second, since=_g(world.engine, "rev-parse", "integration"), ok=True)
     go = lambda *x: cli.main(["landed", second, "--root", str(world.tmp), "--verdicts", str(world.store), "--gh", str(world.tmp / "gh"),  # noqa: E731
                               "--state", str(world.tmp / "s"), "--push", *x])
     assert go() == 0
@@ -200,3 +200,41 @@ def test_no_issues_skips_gh_but_the_done_row_still_names_the_issues(world):
     assert world.go("--push", "--no-issues") == 0
     assert not world.gh_log.exists() and rows()[-1]["issues"] == [7, 6116]
     assert "--no-issues" in next(r["detail"] for r in rows() if r["step"] == "issues")
+
+
+def test_a_journal_landed_does_not_own_or_others_can_write_refuses_before_anything(world, monkeypatch, capsys):
+    """The check row allows a push and its rows name what `scratch` removes as the worker: `builder landed` trusts this file."""
+    world.ready(), world.green()
+    wt = world.wr / "wt-forged"
+    wt.mkdir()
+    journal.append("work", name="n", issues=[7], step="fetch", ok=True, detail=world.sha, worktree=str(wt))
+    jp = journal.path()
+    jp.chmod(0o666)
+    assert world.go("--push") == 1
+    assert "REFUSED (journal)" in capsys.readouterr().err
+    assert _g(world.origin, "rev-parse", "integration") != world.sha and wt.is_dir(), "nothing moved"
+    jp.chmod(0o644)
+    real = os.getuid()
+    monkeypatch.setattr(land_tool.os, "getuid", lambda: real + 1)
+    assert world.go("--push") == 1
+    assert "REFUSED (journal)" in capsys.readouterr().err and _g(world.origin, "rev-parse", "integration") != world.sha
+
+
+def test_a_green_row_counts_only_for_the_range_being_landed(world, capsys):
+    """The ladder runs once now, so the row must be that ladder: a row over head~1..head leaves the rest of the range unchecked."""
+    world.ready()
+    journal.append("check", repo=str(world.engine), since=world.sha, head=world.sha, ok=True, failed="")
+    assert world.go("--push") == 1
+    assert "check" in capsys.readouterr().err and rows()[-1]["step"] == "check-row" and rows()[-1]["ok"] is False
+    assert _g(world.origin, "rev-parse", "integration") != world.sha
+    world.green()
+    assert world.go("--push") == 0
+    assert _g(world.origin, "rev-parse", "integration") == world.sha
+
+
+def test_a_maintainer_row_lands_and_the_landing_says_it_was_one(world):
+    """A person typed --maintainer and no worker can: harness batches land this way, in the open."""
+    world.ready()
+    journal.append("check", since=_g(world.engine, "rev-parse", "integration"), head=world.sha, ok=True, maintainer=True)
+    assert world.go("--push") == 0
+    assert "maintainer" in next(r["detail"] for r in rows() if r["step"] == "check-row")
