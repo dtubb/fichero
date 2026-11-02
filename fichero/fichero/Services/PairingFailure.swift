@@ -3,7 +3,7 @@ import Foundation
 /// Every way pairing or connecting to another Mac can fail, in the order the steps run, and the one sentence for each
 /// (`sharing.failure-names-the-step`, sharing-two-macs.md §4). The person never sees a code or an enum: the sheets show
 /// `sentence(...)`, and the raw `NSError` code goes to the log and to Copy details. One table, so a test can walk it.
-enum PairingFailure: CaseIterable, Equatable {
+enum PairingFailure: CaseIterable, Equatable, Error {
     case invalidLink
     case olderLink
     case nameNotFound
