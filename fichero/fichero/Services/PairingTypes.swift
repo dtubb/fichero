@@ -230,6 +230,20 @@ final class PairingService {
         }
     }
 
+    /// Every address this Mac answers on, in the engine's order, each with its label and, where it cannot work, the reason
+    /// (`GET /api/pair/addresses`, `sharing.address-choice`).
+    func hostAddresses() async throws -> [HostAddressRecord] {
+        let response = try await client.api.pairAddressesApiPairAddressesGet(.init())
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items.map {
+                HostAddressRecord(url: $0.url, listening: $0.listening, label: $0.label, reason: $0.reason)
+            }
+        case .undocumented(let statusCode, _):
+            throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
+        }
+    }
+
     /// Which client surfaces (app, CLI, MCP) have talked to the engine this
     /// session — the Sharing pane's "Connected Clients" list (2026-08-27).
     func connectedClients() async throws -> [ConnectedClientRecord] {
@@ -369,28 +383,4 @@ final class PairingService {
     static func persistAuthToken(_ token: String, for apiRoot: URL) throws {
         try AuthTokenMiddleware.persistRemoteToken(token, hostString: apiRoot.absoluteString)
     }
-}
-
-/// One connected client surface, as the Sharing pane shows it (2026-08-27).
-struct ConnectedClientRecord: Identifiable, Equatable {
-    var id: String { client }
-    let client: String
-    let lastSeen: String
-    let requests: Int
-    let transport: String
-}
-
-struct SharingStateRecord: Equatable {
-    let tailnetURL: String?
-    let tailnetServeCommand: String?
-    let auditId: String?
-    /// The host's addresses in one place (`sharing.state-names-every-address`): the sharing address the engine was started
-    /// with, its LAN IP, and who holds the tailnet forward ("ours" | "foreign" | "none"); nil from an engine before the field.
-    var publicBaseURL: String?
-    var lanIP: String?
-    var tailnetForward: String?
-    /// Why Multi-user cannot be turned on yet (`multiuser_blocker`), nil when nothing blocks it.
-    var multiuserBlocker: String?
-    /// A tailnet forward Fichero did not make, with the command that frees it (`tailnet_serve_conflict`).
-    var tailnetServeConflict: TailnetServeConflict?
 }

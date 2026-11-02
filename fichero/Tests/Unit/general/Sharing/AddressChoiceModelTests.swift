@@ -27,18 +27,22 @@ struct AddressChoiceModelTests {
         #expect(rows[1].disabledReason == AddressChoiceModel.tailscaleOff)
         #expect(rows[1].hostText == nil, "a placeholder names no host (review M2: 'tailscale.invalid' was shown)")
         #expect(AddressChoiceModel.defaultChoice(rows: rows) == .thisNetwork)
-        #expect(AddressChoiceModel.root(for: .tailscale, rows: rows)?.absoluteString == local, "a disabled choice falls back to the default")
-        #expect(AddressChoiceModel.shownChoice(.tailscale, rows: rows) == .thisNetwork, "the picker shows the row it really uses (review L1)")
+        #expect(AddressChoiceModel.root(for: .tailscale, rows: rows)?.absoluteString == local,
+                "a disabled choice falls back to the default")
+        #expect(AddressChoiceModel.shownChoice(.tailscale, rows: rows) == .thisNetwork,
+                "the picker shows the row it really uses (review L1)")
     }
 
     @Test("an engine that could not ask Tailscale (unknown) offers the row as unchecked, not as 'not running', and not first")
     func unknownForwardIsUncheckedNotOff() {
-        #expect(AddressChoiceModel.tailscaleUnchecked == "This build cannot ask Tailscale; see Settings › Sharing", "the spec's words (§10.1)")
+        #expect(AddressChoiceModel.tailscaleUnchecked == "This build cannot ask Tailscale; see Settings › Sharing",
+                "the spec's words (§10.1)")
         let rows = AddressChoiceModel.rows(sharingAddress: local, tailnetURL: tail, tailnetForward: "unknown")
         #expect(rows[1].isEnabled && rows[1].reach == AddressChoiceModel.tailscaleUnchecked)
         #expect(AddressChoiceModel.defaultChoice(rows: rows) == .thisNetwork)
         let noDetection = AddressChoiceModel.rows(sharingAddress: local, tailnetURL: nil, tailnetForward: "unknown")
-        #expect(noDetection[1].disabledReason == AddressChoiceModel.tailscaleUnchecked, "never 'Tailscale is not running' when it was not asked")
+        #expect(noDetection[1].disabledReason == AddressChoiceModel.tailscaleUnchecked,
+                "never 'Tailscale is not running' when it was not asked")
     }
 
     @Test("a .ts.net sharer whose detection fails still gets its own address as the Tailscale row")
@@ -87,7 +91,8 @@ struct AddressChoiceModelTests {
 
     @Test("a .ts.net sharer has one row, Tailscale, with no This-network duplicate")
     func tailnetSharer() {
-        let rows = AddressChoiceModel.rows(sharingAddress: "https://m.tail1234.ts.net:8765", tailnetURL: "https://m.tail1234.ts.net", tailnetForward: "ours")
+        let rows = AddressChoiceModel.rows(
+            sharingAddress: "https://m.tail1234.ts.net:8765", tailnetURL: "https://m.tail1234.ts.net", tailnetForward: "ours")
         #expect(rows.map(\.choice) == [.tailscale])
         #expect(rows[0].url?.port == 8765)
     }

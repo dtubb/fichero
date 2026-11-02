@@ -155,6 +155,7 @@ extension ShareSettingsView {
         if let state = try? await pairing.sharingState() { sharingState = state }
         detectedTailnetURL = try? await pairing.detectedTailnetURL()
         firewallVerdict = await FirewallReader.read()
+        if let list = try? await pairing.hostAddresses() { hostAddresses = list }
     }
 
     func refreshDevices() async {
