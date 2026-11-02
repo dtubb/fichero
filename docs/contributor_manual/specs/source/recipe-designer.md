@@ -317,7 +317,7 @@ says a model's trade-off on its row; these say the same once, where the choice i
   lists its proposals instead (`prep.check.worklist-of-proposals-and-a-sample` (G)). *Test:*
   `test_what_to_check_after_a_run.py`. Built 2026-11-02 (engine): `recipes/what_to_check.least_sure` names up to five pages by the lowest mean
   certainty of their read lines, in the run summary's `what_to_check`, when Read ran; a vision-language reader's pages (insertion rate, order check)
-  and a deterministic step's proposals have no figure yet and are not listed. Left: the block in the app and its one-press open.
+  and a deterministic step's proposals have no figure yet and are not listed. The app (Swift, not compiled): the Read card lists them as buttons that open the page (`ActivityDetails+ToCheck.swift`, `ToCheckRowsTests.swift`). Left: the other readers' figures.
 
 **Improves.**
 - `designer.path.cards-are-the-routes` [MISSING] (#6052) — the page shows the routes from `routes.py`

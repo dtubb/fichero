@@ -30,6 +30,19 @@ struct ActivityDetailsStageCards: View {
         }
     }
 
+    /// The pages the reader is least sure of, each a button that opens the page in the Reader.
+    @ViewBuilder
+    private func toCheckList(_ card: ActivityDetails.StageCard) -> some View {
+        if !card.toCheck.isEmpty {
+            Text("What to check").font(.callout.weight(.medium))
+            ForEach(card.toCheck) { row in
+                Button(row.text) { perform(.openPage(documentId: row.id)) }
+                    .buttonStyle(.link)
+                    .controlSize(.small)
+            }
+        }
+    }
+
     private func cardView(_ card: ActivityDetails.StageCard) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
@@ -62,6 +75,7 @@ struct ActivityDetailsStageCards: View {
                 }
                 .font(.callout)
             }
+            toCheckList(card)
             if let why = card.why {
                 Text(why)
                     .font(.callout)
