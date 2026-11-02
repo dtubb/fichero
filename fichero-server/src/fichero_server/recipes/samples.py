@@ -796,8 +796,11 @@ def _run_try_watched(db: Any, subject: str) -> dict[str, Any]:
     from fichero_server.recipes.project import read_project_setup
     from fichero_server.recipes.stages import get_stage
 
+    from fichero_server.recipes import adopt
+
     stage_id = subject.split(":", 1)[0]
     library = Path(db.path).parent
+    adopt.sweep(_folder(library), keep_days=adopt.settings(library)["keep_days"], stage=stage_id)  # the new try replaces this stage's kept copies
     job_id = jobs.current_job_id() or jobs.job_id_for(db, TRY_KIND, subject)
     result = json.loads(_result_path(library, stage_id).read_text(encoding="utf-8"))
     stage = get_stage(stage_id)
@@ -824,6 +827,8 @@ def _run_try_watched(db: Any, subject: str) -> dict[str, Any]:
         runs.append(one)
     own = runs[0]
     result.update(state=own["state"], ran=own["ran"], **own["made"])
+    if own.get("adoption"):
+        result["adoption"] = own["adoption"]  # what the try ran per page, for Start to adopt from (`recipes/adopt.py`)
     if own.get("error"):
         result["error"] = own["error"]
     by_card = {card.id: run for card, run in zip(cards, runs)}
@@ -1007,6 +1012,13 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
         failed = [_sentence(r["why"]) or "the run stopped before it finished" for r in ran if r["state"] == "failed"]
         if failed:
             out["error"] = "; ".join(failed)  # a failure always says why in words, never a blank
+        if out["state"] == "done":  # kept for Start to adopt from (`wide.try.start-reuses-a-matching-try`); see `recipes/adopt.py`
+            from fichero_server.recipes import adopt
+
+            hash_ = adopt.settings_hash(cards)
+            out["adoption"] = {"stage": stage_id, "pages": [
+                adopt.page_record(db, library, old, plan.id_map[old], card_ids=[str(c.get("card")) for c in cards], hash_=hash_)
+                for old in page_ids if old in plan.id_map]}
     except Exception as exc:  # noqa: BLE001 -- the try says why, in words; the project is untouched either way
         out.update(state="failed", error=_sentence(str(exc)) or "the run stopped")
     finally:
@@ -1015,7 +1027,12 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
             if watcher is not None:
                 watcher.join()
         db_manager.close_database(scratch)
-        shutil.rmtree(scratch, ignore_errors=True)
+        if out.get("adoption"):
+            from fichero_server.recipes import adopt
+
+            adopt.keep(scratch, out["adoption"])  # a done try's copy stays until it expires or the stage is tried again
+        else:
+            shutil.rmtree(scratch, ignore_errors=True)
         real_project.close()
     return out
 
