@@ -3,6 +3,8 @@ reviews and lands that step, then sends the next brief into the SAME session; fi
 only when the worker is gone. The processes are fakes; the transitions and rows are real."""
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from fichero_builder import __main__ as cli
@@ -219,8 +221,8 @@ def test_the_real_start_makes_the_worktree_and_runs_the_worker_side_with_its_fee
     the_lane = {"id": "m1", "worktree": str(state / "wr" / "wt-m1"), "seq": 3}
     procs.start(the_lane, {"step": "1.1", "brief": str(state / "b1.1"), "issues": [7]})
     assert "worktree add" in scripts[0] and "lane-m1" in scripts[0] and "origin/integration" in scripts[0]
-    feed = state / "wr" / "inbox-m1-3"
-    assert feed.is_dir() and the_lane["feed"] == str(feed)
+    feed = Path(the_lane["feed"])
+    assert feed.parent == state / "wr" and feed.name.startswith("inbox-m1-3-") and feed.is_dir() and not feed.is_symlink()
     assert popens[0][:5] == ["/usr/bin/sudo", "-n", "-H", "-u", "wu"] or popens[0][1:5] == ["-n", "-H", "-u", "wu"]
     cmd = popens[0][-1]
     assert f"--feed {feed}" in cmd and "--seq 3" in cmd and "--name m1" in cmd
@@ -228,3 +230,23 @@ def test_the_real_start_makes_the_worktree_and_runs_the_worker_side_with_its_fee
     assert (feed / "msg-4.txt").read_text() == "next"
     procs.stop(the_lane)
     assert (feed / "stop").exists()
+
+
+def test_a_planted_inbox_cannot_turn_the_owners_chmod_or_writes_on_another_folder(state, monkeypatch):
+    """The workroot is world-writable, so a predictable inbox name could be a worker's symlink to the owner's home: mkdir accepted it,
+    chmod followed it, and send and stop wrote through it as the owner. The owner's folder is made exclusively under a name it picks."""
+    wr, private = state / "wr", state / "private"
+    wr.mkdir(), private.mkdir()
+    private.chmod(0o700)
+    (state / "harness.toml").write_text('[check]\nengine_repo = "/e"\n[land]\nbranch = "integration"\n[jail]\nuser = "wu"\nworkroot = "' + str(wr) + '"\n'
+                                        '[models]\nproviders = ["claude-code"]\nbuilder = { provider = "claude-code", model = "sonnet" }\nreviewer = { provider = "claude-code", model = "opus" }\n')
+    (wr / "inbox-m1-3").symlink_to(private)
+    monkeypatch.setattr(queue.work, "as_worker", lambda a, s: type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})())
+    monkeypatch.setattr(queue.subprocess, "Popen", lambda argv, **k: object())
+    the_lane = {"id": "m1", "worktree": str(wr / "wt-m1"), "seq": 3}
+    procs = queue.real_procs(state)
+    procs.start(the_lane, {"step": "1.1", "brief": "/b", "issues": [7]})
+    procs.send({**the_lane, "seq": 4}, "next")
+    procs.stop(the_lane)
+    assert private.stat().st_mode & 0o777 == 0o700 and list(private.iterdir()) == [], "nothing reached the folder the link points at"
+    assert (Path(the_lane["feed"]) / "msg-4.txt").read_text() == "next"

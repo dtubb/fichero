@@ -334,7 +334,7 @@ the write path would produce.
   `step:N.M` and `type:feature` in the spec's milestone; the verb lists the repo's labels once, creates only the absent
   step labels (`gh label create`, before any issue write) and applies them on create and on update; existing issues' other
   labels are left alone. Test: `fichero-builder/tests/test_steps_verb.py::test_every_step_issue_carries_the_step_label_and_type_feature_never_a_spec_label`.
-- `dev-workflows.tool.landed` [PARTIAL] (#6116) — `builder landed <sha> [--push] [--no-issues]`: after a verdict the maintainer
+- `dev-workflows.tool.landed` [PARTIAL] (#6116) — `builder landed <sha> [--push] [--no-issues] [--keep-worktree]`: after a verdict the maintainer
   runs one command instead of fifteen. It refuses a journal that is not this user's alone to write (it allows the push and
   names what `scratch` removes) and a rules file the land gate would refuse, then refuses unless the verdict store has READY
   for the sha, the journal has a green check row over exactly `<[land].branch>..<sha>` (a `--maintainer` row counts, because a
@@ -346,7 +346,7 @@ the write path would produce.
   an unpushed sha pins, removes and closes nothing and a `--push` rerun pushes (test `fichero-builder/tests/test_landed_verb.py::test_without_push_an_unpushed_sha_is_refused_before_anything_moves_and_a_push_rerun_finishes`); then it refreshes the engine
   repo's local branch, makes the `pinned-<sha7>` branch and worktree under `[land].pinned_dir` (absolute, else refused
   before anything moves) and removes the previous pinned pair, fast-forwards the jail root as the jail user, removes the
-  scratch worktrees the journal's work rows name for that sha, and, only once the sha is on `origin/<branch>` (the on-origin step has held it to that), updates the cited issues through `gh`:
+  scratch worktrees the journal's work rows name for that sha (not with `--keep-worktree`, which the queue passes because a lane's session is still working there; test `fichero-builder/tests/test_landed_verb.py::test_keep_worktree_leaves_a_lanes_worktree_for_its_open_session`), and, only once the sha is on `origin/<branch>` (the on-origin step has held it to that), updates the cited issues through `gh`:
   one comment per issue per landing naming every citing commit (sha7, subject, the test files it touches); `Fixes`/`Closes
   #N` closes with it, `Part of #N` stays open, `Already built: #N <test>` comments the proving test and labels
   needs-your-test; a behaviour id on a `Behaviour: <id>` trailer line of a commit (an id the message only mentions does not count) gets its spec line's open tag set to [OK] with the commit's
@@ -397,7 +397,7 @@ the write path would produce.
   --enqueue` puts them there; a waiting step is a brief and a queued step, and the plan says all the waits in one line).
   A step goes queued, sent, done, checking, reviewing, landed, or blocked. The worker side is `builder run --feed DIR`, as
   the jail user: a good `DONE <sha>` ends the step, not the session: one `step` row for the owner, then idle until
-  `msg-<seq+1>.txt` appears in the folder (the owner's, so a worker cannot write its own next brief) and is typed into the
+  `msg-<seq+1>.txt` appears in the folder (the owner's, made exclusively under a name no worker can plant a link at, so a worker cannot write its own next brief; test `fichero-builder/tests/test_queue_verb.py::test_a_planted_inbox_cannot_turn_the_owners_chmod_or_writes_on_another_folder`) and is typed into the
   same pane, or `stop` appears. The owner side is one loop: it sees the `step` row, runs `work.after_run` (rebase, patches,
   fetch, the ladder under the `ladder` lock, review, the land gate; the sha comes from the fetch, never from the worker's
   row), then `builder landed --keep-worktree` (push only with `--push`; the session is still working there), moves the cursor, rebases the worktree and sends the next brief. A
@@ -418,7 +418,7 @@ the write path would produce.
   tree. `[jail].code_map` names the owner's install; the worker cannot read the owner's home, so before a start the owner
   copies the install's whole venv under the workroot and writes `<workroot>/bin/jcodemunch-mcp`, which runs the script with
   the copy's python and lifts the 2000-file default (again only after an upgrade). The start path writes that one server
-  into the worker's `--strict-mcp-config` file, and the worker's command indexes the worktree first. No setting, no install
+  into the worker's `--strict-mcp-config` file, and the worker's command indexes the worktree first. No setting, no install, a planted folder (test `::test_a_planted_install_folder_refuses_the_copy_and_touches_nothing_behind_it`)
   or a failed copy or index means a worker that greps, never a refusal. `[brief].rules` tells the worker to use the tools.
   Built and run 2026-11-01 as the real worker user: a full index of the repo took about two minutes and the server answered over
   MCP. Limit: the server names every worktree of a repo the same, so two lanes at once would share one index.
