@@ -108,6 +108,7 @@ RULES (earlier clusters were sent back for these):
 - No "decided" / "ruled" / a date of a decision unless a ruling file or issue comment exists.
 - Before changing a shared function, list every reader (grep), say what each does with the change, run those readers' tests. If a pinned derivation changes (test_derivation_version) re-pin in the SAME commit.
 - A skipped issue ("stale", "not real") needs the grep/probe shown in your DONE message; never skip on a guess.
+- Whenever you add a tool, a workflow node or a route, run the generators in the same commit: the capability reference (scripts/generate_capability_reference.py), the OpenAPI and MCP files (the official tool, AGENTS.md ~134); a stale one fails the ready check.
 - Run scripts/check_test_assertions.py and ruff on changed files; if routes/contract change, regenerate with the official tool (AGENTS.md ~134), never hand-merge generated files; a new engine .py file -> scripts/regen_engine_embed_filelist.py.
 - Test through the real route/action, not only the helper (a helper-only test passed once while the route 500'd).
 - A commit that builds a spec behaviour carries the trailer line `Behaviour: <id>`, so the landing marks that line [OK].

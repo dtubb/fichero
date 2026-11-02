@@ -115,12 +115,16 @@ def main(argv=None) -> int:
     tr.add_argument("--root", default=str(Path.cwd()), help="the checkout holding harness.toml and docs/contributor_manual/specs")
     tr.add_argument("--state", help="where the journal lives (default: the owner's journal dir)")
     q = sub.add_parser("queue", help="one long-running worker per lane, fed step by step: no action prints the steps; add; run (the owner-side loop; push only with --push); pause; resume")
-    q.add_argument("action", nargs="?", choices=["add", "run", "pause", "resume"])
+    q.add_argument("action", nargs="?", choices=["add", "run", "pause", "resume", "tell"])
+    q.add_argument("--text", help="tell: the finding to put into the lane's live session"), q.add_argument("--file", help="tell: read the finding from this file")
     q.add_argument("--lane"), q.add_argument("--worktree"), q.add_argument("--step"), q.add_argument("--brief"), q.add_argument("--issues", type=int, nargs="*", default=[])
     q.add_argument("--push", action="store_true"), q.add_argument("--once", action="store_true"), q.add_argument("--tick", type=float, default=30.0)
     q.add_argument("--gh", default="gh", help="resume: the gh that takes needs-your-decision off the resumed steps' issues")
     q.add_argument("--lanes", type=int, default=1, help="run: how many build-order milestones are worked at once, each by its own long-running worker; an empty one gives its lane the next milestone no lane holds; checks stay one at a time")
     q.add_argument("--root", default=str(Path.cwd())), q.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
+    lp = sub.add_parser("loop", help="the continuous loop (dev-workflows.run.loop): `queue run --push` forever with a heartbeat row a tick; lanes and rounds from [loop]")
+    lp.add_argument("--root", default=str(Path.cwd())), lp.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
+    lp.add_argument("--tick", type=float, default=30.0), lp.add_argument("--lanes", type=int, help="default [loop].lanes, else 1")
     bd = sub.add_parser("build", help="the dev DMG through the project's own script, as the owner: one journal row, the DMG's path and pass or fail; a full release is refused")
     bd.add_argument("--dev", action="store_true", help="required: the dev tier, no version stamp, no notarizing")
     bd.add_argument("--root", default=str(Path.cwd()), help="the checkout to build"), bd.add_argument("--state", help="where the journal and the log live (default: the owner's journal dir)")
@@ -201,6 +205,23 @@ def main(argv=None) -> int:
         from fichero_builder import build
 
         return build.main(a)
+    if a.cmd == "loop":
+        import tomllib
+
+        from fichero_builder import queue
+
+        journal.STATE = Path(a.state) if a.state else journal.STATE
+        f = Path(a.root) / "harness.toml"
+        cfg = tomllib.loads(f.read_text()).get("loop", {}) if f.is_file() else {}
+        queue.ROUNDS = int(cfg.get("rounds", queue.ROUNDS))
+        lanes_n = max(1, a.lanes or int(cfg.get("lanes", 1)))
+        try:
+            procs = queue.real_procs(a.root)
+        except Exception as e:  # noqa: BLE001 - a rules file that cannot run the loop is a row and a line, never a traceback
+            print(f"REFUSED: the rules file cannot run the loop: {e}")
+            journal.append("loop", state="refused", detail=str(e)[-300:])
+            return 1
+        return queue.run(procs, workers_n=max(queue.workers(a.root), lanes_n), push=True, lanes_n=lanes_n, tick_s=a.tick, forever=True, heartbeat=True)
     if a.cmd == "queue":
         from fichero_builder import queue
 
