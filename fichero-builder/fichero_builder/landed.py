@@ -257,6 +257,10 @@ def main(a) -> int:
         _ok(_git(repo, "update-ref", f"refs/heads/{branch}", f"refs/remotes/origin/{branch}"), "update-ref")
         return f"{branch} = origin/{branch} ({_git(repo, 'rev-parse', '--short', branch).stdout.strip()})"
 
+    def pinned():
+        with journal.Lock("ladder"):  # it removes every other pinned copy, which another lane's running check may be reading
+            return pin(repo, sha, pinned_dir)
+
     def jail_root():
         q = shlex.quote
         return _ok(as_worker(j, f"{q(land_tool.GIT)} -C root fetch -q origin {q(branch)} && {q(land_tool.GIT)} -C root merge -q --ff-only FETCH_HEAD"), "jail root") or "root fast-forwarded"
@@ -298,7 +302,7 @@ def main(a) -> int:
     pushed = any(r.get("step") == "push" and r.get("ok") and str(r.get("detail")).startswith("pushed") for r in earlier) if resume else False
     base = resume["base"] if resume else _git(repo, "merge-base", f"refs/heads/{branch}", sha).stdout.strip()  # the range: over the local branch BEFORE it is refreshed
     steps = [("verdict", verdict), ("check-row", check_row), ("fast-forward", fast_forward), ("boundary", boundary), ("spec-clean", spec_clean), ("push", push), ("on-origin", on_origin), ("refresh", refresh),
-             ("pinned", lambda: pin(repo, sha, pinned_dir)), ("jail-root", jail_root), ("scratch", scratch), ("issues", issues), ("specs", specs)]
+             ("pinned", pinned), ("jail-root", jail_root), ("scratch", scratch), ("issues", issues), ("specs", specs)]
     if resume:
         steps = steps[[n for n, _ in steps].index("refresh") + 1:]
     for name, fn in steps:
