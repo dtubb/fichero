@@ -498,3 +498,16 @@ def test_the_worker_is_run_from_slash_so_sudo_never_inherits_an_unreadable_cwd(m
     monkeypatch.setattr(landed.subprocess, "run", run)
     landed.as_worker(types.SimpleNamespace(sudo="sudo", user="w", workroot="/wr"), "true")
     assert seen.get("cwd") == "/"
+
+
+def test_a_failed_fetch_in_the_jail_root_refuses_with_a_row_and_never_merges_a_stale_fetch_head(world):
+    """Review 2026-11-02: `fetch && ...; merge` merged the FETCH_HEAD an earlier fetch left, exited 0 and said fast-forwarded."""
+    world.ready(), world.green()
+    root = world.wr / "root"
+    _g(root, "fetch", "-q", "origin", "integration")  # a stale FETCH_HEAD: the tip before this landing
+    _g(root, "remote", "set-url", "origin", str(world.tmp / "gone.git"))
+    before = _g(root, "rev-parse", "HEAD")
+    assert world.go("--push") == 1
+    r = next(r for r in rows() if r["step"] == "jail-root")
+    assert r["ok"] is False and "fast-forwarded" not in r["detail"] and "done" not in [x["step"] for x in rows()]
+    assert _g(root, "rev-parse", "HEAD") == before
