@@ -30,6 +30,7 @@ class _Host:
     """The host engine as the CLI sees it: one mint, one sharing-state read, both recorded."""
 
     state: dict = {}
+    rows: list = []
     calls: list[str] = []
 
     def __init__(self, **kwargs):
@@ -45,6 +46,10 @@ class _Host:
         _Host.calls.append("sharing")
         return dict(_Host.state)
 
+    def pair_addresses(self):
+        _Host.calls.append("addresses")
+        return {"items": list(_Host.rows), "count": len(_Host.rows)}
+
     def create_pairing_code(self):
         _Host.calls.append("mint")
         return dict(MINT)
@@ -53,6 +58,7 @@ class _Host:
 @pytest.fixture
 def host(monkeypatch):
     _Host.calls = []
+    _Host.rows = []
     _Host.state = {"public_base_url": LOCAL, "tailnet_url": TAILNET, "tailnet_forward": "ours", "multiuser_enabled": False}
     monkeypatch.setattr(cli_main, "FicheroClient", _Host)
     return _Host
@@ -82,7 +88,7 @@ def test_the_link_for_a_tailnet_address_carries_no_pin():
 def test_invite_defaults_to_tailscale_when_the_host_has_a_forward_of_its_own(host):
     result = runner.invoke(cli_main.app, ["devices", "invite"])
     assert result.exit_code == 0, result.output
-    assert host.calls == ["sharing", "mint"]
+    assert host.calls == ["sharing", "mint", "addresses"]
     link = pairing.parse_link(result.output.strip().splitlines()[-1])
     assert link.api_url == TAILNET_LINK and link.spki is None and link.code == "ABCD-1234", "the sharing port rides on the tailnet name"
     assert "Tailscale" in result.output and "16:00" in result.output
@@ -197,3 +203,16 @@ def test_invite_words_name_what_exists(host):
     host.state["public_base_url"] = None
     result = runner.invoke(cli_main.app, ["devices", "invite", "--address", "this-network"])
     assert result.exit_code == 1 and "tailscale" not in result.output.lower(), result.output
+
+
+def test_the_link_the_cli_mints_carries_the_hosts_other_addresses(host, tmp_path):
+    """`sharing.link-carries-every-address`: the engine's list rides in `alt_urls`, the chosen address first."""
+    host.rows = [{"kind": "tailnet", "url": TAILNET, "listening": True, "reason": None},
+                 {"kind": "local-name", "url": LOCAL, "listening": True, "reason": None},
+                 {"kind": "lan", "url": "https://192.0.2.10:8765", "listening": True, "reason": None}]
+    out = tmp_path / "link.txt"
+    result = runner.invoke(cli_main.app, ["devices", "invite", "--link-file", str(out)])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(pairing._payload_of(out.read_text()))
+    assert payload["api_url"] == TAILNET_LINK
+    assert payload["alt_urls"] == [LOCAL, "https://192.0.2.10:8765"]

@@ -12,6 +12,9 @@ struct PairingQRCodePayload: Codable {
     /// must not claim it (#5041). Present for an engine serving its own cert.
     let spki: String?
     let libraryPath: String?
+    /// The host's other addresses, in the order to try (`sharing.link-carries-every-address`). Absent in an old link, and an
+    /// old client ignores it; `apiURL` stays the chosen first address.
+    var altURLs: [String]?
 
     enum CodingKeys: String, CodingKey {
         case version = "v"
@@ -20,6 +23,30 @@ struct PairingQRCodePayload: Codable {
         case expiresAt = "expires_at"
         case spki
         case libraryPath = "library_path"
+        case altURLs = "alt_urls"
+    }
+
+    /// The most encoded characters a QR carries and a phone camera still reads at level M (`sharing.ios-qr-payload-size`).
+    static let qrCharacterLimit = 400
+
+    /// The payload as the QR carries it: no library path (the guest asks the host for it), and addresses dropped from the
+    /// end until it fits. The chosen address is never the one dropped.
+    func forQR() -> PairingQRCodePayload {
+        var copy = PairingQRCodePayload(version: version, apiURL: apiURL, pairCode: pairCode, expiresAt: expiresAt,
+                                        spki: spki, libraryPath: nil, altURLs: altURLs)
+        while var alts = copy.altURLs, !alts.isEmpty, copy.encodedLength > Self.qrCharacterLimit {
+            alts.removeLast()
+            copy.altURLs = alts.isEmpty ? nil : alts
+        }
+        return copy
+    }
+
+    /// Length of the base64 of the payload's sorted JSON, the part a QR has to hold.
+    var encodedLength: Int {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = .sortedKeys
+        return ((try? encoder.encode(self))?.base64EncodedString().count) ?? 0
     }
 }
 

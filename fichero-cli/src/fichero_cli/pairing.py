@@ -39,6 +39,7 @@ class PairLink:
     api_url: str
     code: str
     spki: str | None
+    alt_urls: tuple[str, ...] = ()  # the host's other addresses, in order (`sharing.link-carries-every-address`); old links have none
 
 
 def parse_link(text: str) -> PairLink:
@@ -57,7 +58,9 @@ def parse_link(text: str) -> PairLink:
     except (ValueError, KeyError, TypeError, binascii.Error) as exc:
         raise FicheroError("The pairing link is damaged: ask the host for a new one.") from exc
     spki = data.get("spki") or None
-    return PairLink(api_url=api_url.rstrip("/"), code=code, spki=str(spki) if spki else None)
+    alts = data.get("alt_urls")
+    alt_urls = tuple(str(u).rstrip("/") for u in alts if isinstance(u, str) and u.strip()) if isinstance(alts, list) else ()
+    return PairLink(api_url=api_url.rstrip("/"), code=code, spki=str(spki) if spki else None, alt_urls=alt_urls)
 
 
 def _payload_of(text: str) -> bytes:
@@ -67,20 +70,55 @@ def _payload_of(text: str) -> bytes:
     return base64.b64decode(payload + "=" * (-len(payload) % 4), altchars=b"-_")
 
 
-def invite_link(*, api_url: str, code: str, spki: str | None, expires_at: str | None, library_path: str | None) -> str:
+MAX_LINK_ADDRESSES = 3  # ponytail: three is what the 5-second-each try budget allows (a dead link fails in <= 15 s)
+QR_PAYLOAD_LIMIT = 400  # characters of encoded payload a phone camera reads reliably at QR level M (`sharing.ios-qr-payload-size`)
+
+
+def alt_urls_from(rows: list[dict], *, chosen: str, sharing_address: str | None) -> list[str]:
+    """The addresses to carry beside the chosen one, from the engine's own list (`GET /api/pair/addresses`), in its order:
+    only rows with nothing against them, never loopback, none twice, at most `MAX_LINK_ADDRESSES` in all. A tailnet row is the
+    origin the engine reports, so it takes the sharing port (`tailnet_link_url`)."""
+    chosen = chosen.rstrip("/")
+    out: list[str] = []
+    for row in rows or []:
+        url = str(row.get("url") or "").strip().rstrip("/")
+        host = (urlparse(url).hostname or "").lower()
+        if not url or row.get("reason") or not row.get("listening", True) or host in ("localhost", "::1") or host.startswith("127."):
+            continue
+        if row.get("kind") == "tailnet":
+            url = tailnet_link_url(url, sharing_address)
+        if url != chosen and url not in out:
+            out.append(url)
+    return out[: MAX_LINK_ADDRESSES - 1]
+
+
+def invite_link(*, api_url: str, code: str, spki: str | None, expires_at: str | None, library_path: str | None,
+                alt_urls: list[str] | tuple[str, ...] = (), for_qr: bool = False) -> str:
     """The pairing link the app, the phone and `devices pair` all redeem (`sharing.cli-mints-a-link`): the app's own shape
     (`RemoteClientPairing.inviteLinkString`: `fichero://pair?payload=<base64 JSON>`), keys sorted so the same link reads
     the same from every machine. The pin rides only with an address that serves its own certificate; a `.ts.net` name
     is system trust and carries none (`_is_public_ca`). Absent values leave their key out, as the app's encoder does."""
-    host = urlparse(api_url).hostname or ""
     payload: dict[str, object] = {"v": 1, "api_url": api_url.rstrip("/"), "pair_code": code}
     if expires_at:
         payload["expires_at"] = expires_at
-    if spki and not _is_public_ca(host):
+    alts = [u.rstrip("/") for u in alt_urls if u and u.rstrip("/") != api_url.rstrip("/")]
+    # The one pin is the engine's key, whatever the name; a `.ts.net` address is system trust and needs none, so the pin rides
+    # only when some carried address serves the engine's own certificate.
+    if spki and not all(_is_public_ca(urlparse(u).hostname or "") for u in [api_url, *alts]):
         payload["spki"] = spki
-    if library_path:
+    if library_path and not for_qr:  # the QR leaves it out: the guest asks the host for it (`sharing.ios-qr-payload-size`)
         payload["library_path"] = library_path
-    encoded = base64.b64encode(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).decode()
+
+    def encode() -> str:
+        return base64.b64encode(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).decode()
+
+    if alts:
+        payload["alt_urls"] = alts
+    while for_qr and alts and len(encode()) > QR_PAYLOAD_LIMIT:
+        alts.pop()  # the chosen address is never the one dropped; `payload` holds this same list
+        if not alts:
+            del payload["alt_urls"]
+    encoded = encode()
     # Percent-encode as the app does: an unquoted `+` in the query reads back as a space and the link is "damaged".
     return f"fichero://pair?payload={quote(encoded, safe='')}"
 

@@ -862,8 +862,13 @@ def devices_invite(
             # `sharing.link-names-a-listener`), and its words are shown below as "Could not invite".
             api_url = pairing.tailnet_link_url(tailnet, local) if chosen == "tailscale" else local
             mint = client.create_pairing_code()
+            try:  # the link carries the host's other addresses too; an older engine has no list, so the link has one
+                rows = (client.pair_addresses() or {}).get("items") or []
+            except FicheroError:
+                rows = []
             text = pairing.invite_link(api_url=api_url, code=mint["code"], spki=mint.get("spki_pin"),
-                                       expires_at=mint.get("expires_at"), library_path=ctx.obj.get("library") or None)
+                                       expires_at=mint.get("expires_at"), library_path=ctx.obj.get("library") or None,
+                                       alt_urls=pairing.alt_urls_from(rows, chosen=api_url, sharing_address=local))
     except FicheroError as exc:
         typer.echo(f"Could not invite: {exc}", err=True)
         raise typer.Exit(1) from exc

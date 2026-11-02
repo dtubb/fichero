@@ -802,6 +802,10 @@ class FicheroClient:
         """The host's sharing state: its addresses, the tailnet forward, Multi-user (`sharing.state-names-every-address`)."""
         return self.request("GET", "/api/pair/sharing")
 
+    def pair_addresses(self) -> Any:
+        """Every address the host can be reached at, in the order to try (`sharing.address-choice`)."""
+        return self.request("GET", "/api/pair/addresses")
+
     def create_pairing_code(self) -> Any:
         """Mint one short-lived pairing code on this host (the owner over the engine's socket). Never logged."""
         return self.request("POST", "/api/pair/code", json={})
