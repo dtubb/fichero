@@ -123,6 +123,7 @@ def main(argv=None) -> int:
     q.add_argument("--text", help="tell: the finding to put into the lane's live session"), q.add_argument("--file", help="tell: read the finding from this file")
     q.add_argument("--lane"), q.add_argument("--worktree"), q.add_argument("--step"), q.add_argument("--brief"), q.add_argument("--issues", type=int, nargs="*", default=[])
     q.add_argument("--hold", action="store_true", help="add: a milestone a person holds (the intake never takes this lane)")
+    q.add_argument("--maintainer", action="store_true", help="add: a registered maintainer lane (the harness builder): its checks run --maintainer")
     q.add_argument("--pane", default="", help="add: the external lane's tmux pane, told its findings and LANDED")
     q.add_argument("--kind", choices=["worker", "external"], default="worker", help="add: external = a branch the loop starts no worker for; `builder done` is its DONE")
     q.add_argument("--push", action="store_true"), q.add_argument("--once", action="store_true"), q.add_argument("--tick", type=float, default=30.0)

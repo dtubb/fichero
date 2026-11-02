@@ -680,6 +680,11 @@ the write path would produce.
   owns shows `owned by <lane>` and no Start; a spec's empty twin of a GitHub milestone is dropped (one row per milestone); the
   milestones are read from GitHub again after each landing and every 15 minutes (test
   `fichero-builder/tests/test_status_page.py::test_console_tiles_come_from_origin_an_owned_milestone_has_no_start_and_the_spec_twin_is_one_row`).
+  Remote checks (manager 2026-11-02, the Pro CPU-bound): `[check].remote` refuses a host under `[check].remote_min_free_gb`
+  (default 5) free as unreachable (an alert, the run here); `[check].remote_guards` (off by default: the guards call git and the
+  shipped tree has none) sends the guards too; the build rung stays on the Pro. A registered maintainer lane (`queue add
+  --maintainer`, the harness builder's) runs its checks `--maintainer`. An import-only change to a test file owes no red, like a
+  data-only one (test `fichero-server/tests/unit/workflows/test_check_tool.py::test_an_import_only_change_to_a_test_file_owes_no_red`).
   **Stop** (manager 2026-11-02, built): pause = no new step is fed; `builder queue stop --lane L [--grace S]` = the session
   ends: the lane is paused, a live worker is told to commit what is green and end, and the loop closes the session when the
   grace is over (default 300 s) or the worker ends first; the tree is kept, a step in flight goes back to queued with a brief

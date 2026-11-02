@@ -59,6 +59,8 @@ class Config:
     build_lock: str = ""                # a lock file: one build at a time on the machine ("" = no lock)
     remote: str = ""                    # "host:dir": the engine pytest runs go over ssh to that machine ("" = here); unreachable = an alert, then here
     remote_python: str = ""             # the interpreter there ("" = <dir>/venv/bin/python)
+    remote_guards: bool = False         # the guards too (they call git, and the shipped tree has no .git: off by default)
+    remote_min_free_gb: float = 5       # less free on the remote = unreachable (an alert, the run here)
     engine_repo: str = ""               # the engine-owned repository check and land judge from: outside every home dir, readable by the jailed user ("" = the caller names one)
 
 
@@ -95,7 +97,8 @@ def load(root) -> Config:
         max_lines=c.get("max_lines", d.max_lines), build_paths=tuple(c.get("build_paths", d.build_paths)),
         build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
         build_lock=c.get("build_lock", d.build_lock), engine_repo=c.get("engine_repo", d.engine_repo),
-        remote=c.get("remote", d.remote), remote_python=c.get("remote_python", d.remote_python))
+        remote=c.get("remote", d.remote), remote_python=c.get("remote_python", d.remote_python),
+        remote_guards=c.get("remote_guards", d.remote_guards), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb))
 
 
 KNOWN_TABLES = {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines"}
@@ -251,6 +254,9 @@ def _ship(root, cfg: Config) -> str:
     if root in _SHIPPED:
         return _SHIPPED[root]
     host, _, base = cfg.remote.partition(":")
+    free = _ssh(host, f"df -g {base or '.'} | tail -1 | awk '{{print $4}}'", 30).stdout.decode().strip()
+    if free.isdigit() and int(free) < cfg.remote_min_free_gb:  # the iMac is 98% full: never fill it
+        raise OSError(f"{host}: {free} GiB free, under {cfg.remote_min_free_gb:g}")
     mk = _ssh(host, f'mkdir -p {base or "."} && cd {base or "."} && d=$(mktemp -d "$PWD/run-XXXXXX") && echo "$d"', 30)
     rdir = mk.stdout.decode().strip()
     if mk.returncode or not rdir.startswith("/"):
@@ -421,7 +427,7 @@ def guards(root, cfg: Config) -> dict:
                 "results": []}
     results = []
     for s in found:
-        r = _run(s.stem, _isolated(s, root, cfg), root, cfg.guard_timeout_s, cfg)
+        r = _run(s.stem, _isolated(s, root, cfg), root, cfg.guard_timeout_s, cfg, remote=cfg.remote_guards)
         r["argv"] = [str(s)]
         results.append(r)
     return {"ok": all(r["ok"] for r in results), "reason": "", "results": results}

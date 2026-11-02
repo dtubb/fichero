@@ -845,3 +845,14 @@ def test_a_collection_error_says_which_file_could_not_be_collected(tmp_path):
     (tmp_path / "test_x.py").write_text("from nowhere_at_all import thing\ndef test_x():\n    assert thing\n")
     r = ct.green_runs(tmp_path, ["test_x.py"], (), ct.Config(), 120)
     assert not r["ok"] and r["stderr_tail"].startswith("could not collect test_x.py: ModuleNotFoundError"), r["stderr_tail"][:300]
+
+
+def test_an_import_only_change_to_a_test_file_owes_no_red(tmp_path):
+    """Manager 2026-11-02: test_pi_policy_extension.py changed one import line (the `tests.` prefix) and was NOT RED ON BASE."""
+    g, base = _git_repo(tmp_path)
+    (tmp_path / "test_imp.py").write_text("from os import path\ndef test_t():\n    assert path\n")
+    g("add", "."), g("commit", "-q", "-m", "t")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True).stdout.strip()
+    (tmp_path / "test_imp.py").write_text("import os.path as path\ndef test_t():\n    assert path\n")
+    g("add", "."), g("commit", "-q", "-m", "import only")
+    assert ct.data_only(tmp_path, base, "HEAD", "test_imp.py")

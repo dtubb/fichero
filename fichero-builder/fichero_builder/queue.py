@@ -63,7 +63,7 @@ def store(lane: dict) -> None:
         fresh = next((x for x in lanes if x["id"] == lane["id"]), None)
         if fresh:
             lane["paused"] = fresh["paused"]
-            for k in ("pane", "hold"):  # set from outside while the tick held its copy (manager 2026-11-02: %537 was lost)
+            for k in ("pane", "hold", "maintainer"):  # set from outside while the tick held its copy (manager 2026-11-02: %537 was lost)
                 if k in fresh:
                     lane[k] = fresh[k]
             have = {s["step"] for s in lane["steps"]}
@@ -77,7 +77,7 @@ def workers(root) -> int:
 
 
 def add(lane_id: str, worktree: str, step: str, brief: str, issues: list[int], waits: list[str] | None = None, kind: str = "worker",
-        hold: bool | None = None, pane: str = "") -> None:
+        hold: bool | None = None, pane: str = "", maintainer: bool | None = None) -> None:
     """A step at the end of its lane (made when new); a step the lane has already keeps its state."""
     with journal.Lock("queue"):
         lanes = load()
@@ -91,6 +91,8 @@ def add(lane_id: str, worktree: str, step: str, brief: str, issues: list[int], w
             lane["hold"] = hold  # a milestone a person holds: never taken by the intake
         if pane:
             lane["pane"] = pane  # where findings and LANDED are told (an external lane's session)
+        if maintainer is not None:
+            lane["maintainer"] = maintainer  # the harness builder's lane: its batches change pinned files on purpose (--maintainer)
         if any(s["step"] == step for s in lane["steps"]):
             save(lanes)
             return
@@ -615,7 +617,7 @@ def real_procs(root) -> Procs:
         tree = (step or {}).get("land_tree") or lane["worktree"]  # an external lane's batch is taken from its land-<lane> snapshot
         return types.SimpleNamespace(worktree=tree, name=lane["id"], pinned=str(root), root=str(root), kind="claude", session="harness",
                                      tick=30.0, issues=step["issues"] if step else [], brief=brief, ids=[], repo=repo,
-                                     maintainer=bool(step and step.get("maintainer")), approve_weakened=bool(step and step.get("approve_weakened")),
+                                     maintainer=bool(step and step.get("maintainer")) or bool(lane.get("maintainer")), approve_weakened=bool(step and step.get("approve_weakened")),
                                      external=lane.get("kind") == "external", approve_red=bool(step and step.get("approve_red")),
                                      approve_pinned_new=bool(step and step.get("approve_pinned_new")),
                                      reviewer_fast=reviewer_fast, opus_paths=opus_paths,
@@ -754,7 +756,7 @@ def main(a) -> int:
             print("REFUSED: queue add needs --lane, --worktree, --step and --brief")
             return 1
         add(a.lane, a.worktree, a.step, a.brief, a.issues, kind=getattr(a, "kind", "worker"), hold=True if getattr(a, "hold", False) else None,
-            pane=getattr(a, "pane", ""))
+            pane=getattr(a, "pane", ""), maintainer=True if getattr(a, "maintainer", False) else None)
         print(f"queued {a.lane} {a.step}")
         return 0
     if a.action == "tell":  # dev-workflows.run.loop-tell: a finding into the lane's live session, as its next message
