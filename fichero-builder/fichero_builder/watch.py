@@ -48,7 +48,7 @@ def _runs(rows: list[dict]) -> list[list]:
             out.setdefault(r.get("task"), {"name": r.get("task"), "started": r.get("ts", ""), "model": r.get("model", ""),
                                            "worktree": r.get("worktree", ""), "turns": 0, "usd": 0.0, "status": "running", "read_turns": "-", "read_tokens": "-"})
             out[r.get("task")]["status"] = "running"  # the next generation after a handoff
-        elif r.get("event") == "reading" and r.get("task") in out and out[r["task"]]["read_turns"] == "-":  # the first generation's: what the run read to start
+        elif r.get("event") == "reading" and r.get("task") in out and out[r["task"]]["read_turns"] == "-":  # the first row: what the run read before its first commit
             out[r["task"]].update(read_turns=r.get("turns_before_first_commit"), read_tokens=r.get("tokens_before_first_commit"))
         elif r.get("event") == "cost" and r.get("task") in out:
             run = out[r["task"]]

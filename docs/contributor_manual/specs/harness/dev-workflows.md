@@ -311,6 +311,7 @@ the write path would produce.
   path; the base is `--base` or the `(base <sha>)` of the brief's first line) as a worktree of `[check].engine_repo` on a
   `pinned-<base7>` branch when it is missing, finds it otherwise, and reads the rules from that copy; a brief with no base
   line is a `QUESTION:`. Test: `fichero-builder/tests/test_work_verb.py::test_work_without_pinned_makes_the_pinned_worktree_for_the_briefs_base_and_reads_the_rules_from_it`.
+  **A missing worktree** (built 2026-11-01): `builder work` and the queue's start make the worktree when its path is missing, as the jail user, from `<workroot>/root` on a new branch (the name for `work`, `lane-<id>` for a lane), at `--base` when given, else origin's head of the land branch; a failure is a `QUESTION:`, and an existing tree costs no sudo (tests `fichero-builder/tests/test_work_verb.py::test_run_makes_a_missing_worktree_as_the_jail_user_from_its_clone_and_leaves_an_existing_one`, `::test_do_run_refuses_with_the_reason_when_the_worktree_cannot_be_made`).
   **Two lanes in turn** (built 2026-11-01): after `run` and before `patches`, a `rebase` step as the worker fetches origin
   and rebases the worktree onto `origin/<[land].branch>`, so a lane that lands after another is checked on the range that
   will land; a conflict aborts the rebase and stops with a `QUESTION:` row, never resolved here. Limit until the commit "a landing never removes the pinned copy": a landing removes every other pinned copy, so a second running lane that next reads its rules stops with a `QUESTION:` row, wherever it is in the chain (test `fichero-builder/tests/test_work_verb.py::test_a_pinned_copy_removed_under_the_chain_is_a_question_not_a_traceback`). The `land` step and
@@ -530,8 +531,8 @@ the write path would produce.
   `launchd` job only keeps the watcher itself alive. Built 2026-11-01: the judgement (`fichero_builder/watcher.py`: caps from
   `[spend]`, a missing cap or an unknown price refuses, decisions park, handoff, alert from a session state). Not yet: the
   process that starts, reads and acts. Test: `fichero-builder/tests/test_watcher.py`.
-  The caps in `harness.toml [spend]` are owner settings (8 USD a session, 60 USD a day as of 2026-11-01 evening). Not yet in code: a
-  Sonnet worker's model name carrying `[1m]`: the manager sets it by hand on a lane worker; `[spend].window` is 1000000, handoff at 0.85.
+  The caps in `harness.toml [spend]` are owner settings (8 USD a session, 60 USD a day as of 2026-11-01 evening). `[spend].window` is 1000000 and
+  `[models].builder` is `sonnet[1m]`, the name that gets that window, because a lane takes its model from the role (test `fichero-builder/tests/test_model_config.py::test_a_window_past_the_standard_one_has_a_builder_model_that_gets_it`).
 - `dev-workflows.run.records-are-truth` [PROPOSED] (maintainer 2026-10-31; owner 2026-11-01: no engine) — for a worker the
   truth is its **journal** (JSON lines, one file per cluster under the Builder's state directory; `$FICHERO_HARNESS_LOG` in
   Slice 0), plus git plus the handoff file; the run log (one row per item attempt: model, provider, context cap, tokens,

@@ -220,14 +220,9 @@ def test_the_real_start_makes_the_worktree_and_runs_the_worker_side_with_its_fee
     procs = queue.real_procs(state)
     the_lane = {"id": "m1", "worktree": str(state / "wr" / "wt-m1"), "seq": 3}
     procs.start(the_lane, {"step": "1.1", "brief": str(state / "b1.1"), "issues": [7]})
-    assert "worktree add" in scripts[0] and "lane-m1" in scripts[0] and "origin/integration" in scripts[0]
+    assert "worktree add" in scripts[0] and "lane-m1" in scripts[0] and "origin/integration" in scripts[0] and str(state / "wr" / "root") in scripts[0]
     feed = Path(the_lane["feed"])
     assert feed.parent == state / "wr" and feed.name.startswith("inbox-m1-3-") and feed.is_dir() and not feed.is_symlink()
-
-
-    assert "worktree add" in scripts[0] and "lane-m1" in scripts[0] and "origin/integration" in scripts[0] and str(state / "wr" / "root") in scripts[0]
-    feed = state / "wr" / "inbox-m1-3"
-    assert feed.is_dir() and the_lane["feed"] == str(feed)
     assert popens[0][:5] == ["/usr/bin/sudo", "-n", "-H", "-u", "wu"] or popens[0][1:5] == ["-n", "-H", "-u", "wu"]
     cmd = popens[0][-1]
     assert f"--feed {feed}" in cmd and "--seq 3" in cmd and "--name m1" in cmd

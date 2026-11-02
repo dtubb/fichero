@@ -127,7 +127,7 @@ prices = { sonnet = [3, 15], opus = [15, 75], haiku = [1, 5] }
 # person, never a fallback. `claude-code` = an interactive Claude Code session in a pane (the model is its /model name);
 # `anthropic` and `omlx` are Pi providers (their models and prices live in Pi's models.json). Change by editing here.
 providers = ["claude-code", "anthropic", "omlx"]
-builder = { provider = "claude-code", model = "sonnet" }
+builder = { provider = "claude-code", model = "sonnet[1m]" }  # [spend].window is 1M: only this name gets that window
 reviewer = { provider = "claude-code", model = "opus" }
 spec-writer = { provider = "claude-code", model = "opus" }
 helper = { provider = "claude-code", model = "haiku" }
