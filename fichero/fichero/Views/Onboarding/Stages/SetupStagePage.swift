@@ -123,6 +123,7 @@ struct SetupStagePage: View {
                         }
                     )
                 )
+                if stage.id == SharingStageModel.stageID { SharingStageNote(questionKey: question.key) }
                 if stage.id == "prepare-images", question.readByAStep != true {
                     // No step reads it yet (`read_by_a_step`): said, not implied (`StageKindsField` says the same).
                     Text("Saved with your answers. No step uses this yet.").font(.caption).foregroundStyle(.secondary)
@@ -130,6 +131,12 @@ struct SetupStagePage: View {
                 }
             }
         }
+        #if os(macOS)
+        if stage.id == SharingStageModel.stageID {
+            Divider()
+            SharingStageControls(wantsSharing: Self.wantsSharing(stage, answers: store.jobAnswers))
+        }
+        #endif
         // The review's own instructions for each pass, from the profile built for this project (#6128).
         // The project's one search model is chosen on the Search step, never on the first screen (#6249).
         if stage.jobs.contains("make-a-vector") {
