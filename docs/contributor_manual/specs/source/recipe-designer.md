@@ -295,7 +295,7 @@ Mac's chip and memory, the providers with a key and the places work can run).
 
 **Improves — the risks in plain words (the maintainer, 2026-10-30; DRAFT).** `designer.rank.predictability-in-words`
 says a model's trade-off on its row; these say the same once, where the choice is made, and on the plan.
-- `designer.how.risks-in-plain-words` [GAP] (#6052; issue to file on approval) — the page carries one short block, the engine's
+- `designer.how.risks-in-plain-words` [PARTIAL] (#6052; engine half built: the `how-risks` topic in `topics.yaml`, served by `GET /api/topics`; the page's block is not) — the page carries one short block, the engine's
   text (`recipes/seed/topics.yaml`, as `prep.setup.how-it-works-is-the-engines-sentence` does), with "Learn more"
   → manual "Reading the numbers": *"Some steps are deterministic tools: given the same page they do the same thing
   every time, and when they are wrong they are wrong in plain sight (a line missed, a word misread). Models that
@@ -305,7 +305,7 @@ says a model's trade-off on its row; these say the same once, where the choice i
   an early error carries through the chain. Check the earliest steps first."* Shown on every project, not only
   when a large model is chosen. *Test:* `test_risks_text_is_the_engines.py`
   (the text is served by the engine; the app has no copy).
-- `designer.how.chain-risk-on-ready` [GAP] (#6052; issue to file on approval) — Ready says, in one line per model step, what feeds
+- `designer.how.chain-risk-on-ready` [PARTIAL] (#6052; engine half built in `recipes/chain_risk.py`, `GET /api/recipes/chain-risk`; Ready does not show it yet) — Ready says, in one line per model step, what feeds
   it and what it feeds ("Read takes the lines Find Lines found; Names, Dates and Statements take what Read
   wrote"), and marks the steps whose errors carry furthest (the earliest model steps) with "check first". The
   line is the engine's, from the job registry's reads and writes (`source.recipe.steps-work-alone-in-order`).

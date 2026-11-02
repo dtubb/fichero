@@ -13730,6 +13730,20 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("chain-risk")
+    def recipes_chain_risk_get(
+        ctx: typer.Context,
+        jobs: str = typer.Option(..., '--jobs', help='Jobs.'),
+    ) -> None:
+        """Chain Risk (GET /api/recipes/chain-risk)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/chain-risk"
+            params = {
+                "jobs": jobs,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("check")
     def recipes_check_post(
         ctx: typer.Context,

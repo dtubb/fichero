@@ -9455,6 +9455,22 @@
         "response_model": "ModelCandidateList"
       },
       {
+        "method": "GET",
+        "path": "/recipes/chain-risk",
+        "operation_id": "chain_risk_api_recipes_chain_risk_get",
+        "summary": "Chain Risk",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "jobs",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ChainRisk"
+      },
+      {
         "method": "POST",
         "path": "/recipes/check",
         "operation_id": "check_api_recipes_check_post",

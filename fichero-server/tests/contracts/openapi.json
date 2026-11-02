@@ -17905,6 +17905,49 @@
         }
       }
     },
+    "/api/recipes/chain-risk": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Chain Risk",
+        "description": "One line per model step of these jobs (comma separated, in the recipe's order): what feeds it and what it feeds, the earliest marked\ncheck first (`designer.how.chain-risk-on-ready`). From the job registry; the app has no copy.",
+        "operationId": "chain_risk_api_recipes_chain_risk_get",
+        "parameters": [
+          {
+            "name": "jobs",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Jobs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChainRisk"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/topics": {
       "get": {
         "tags": [
@@ -57103,6 +57146,31 @@
         ],
         "title": "ChainExecutionStatusResponse"
       },
+      "ChainLine": {
+        "properties": {
+          "job": {
+            "type": "string",
+            "title": "Job"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line",
+            "description": "what feeds this step and what it feeds, in words"
+          },
+          "check_first": {
+            "type": "boolean",
+            "title": "Check First",
+            "description": "true for the earliest model steps: their errors carry furthest"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job",
+          "line",
+          "check_first"
+        ],
+        "title": "ChainLine"
+      },
       "ChainListResponse": {
         "properties": {
           "chains": {
@@ -57191,6 +57259,22 @@
         ],
         "title": "ChainResponse",
         "description": "Response model for chain data."
+      },
+      "ChainRisk": {
+        "properties": {
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/ChainLine"
+            },
+            "type": "array",
+            "title": "Steps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "steps"
+        ],
+        "title": "ChainRisk"
       },
       "ChainStepConditionRequest": {
         "properties": {

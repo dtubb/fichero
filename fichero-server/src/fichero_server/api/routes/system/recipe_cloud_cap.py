@@ -446,3 +446,22 @@ async def suggestions(db: Database = Depends(get_library_database)) -> Suggestio
 
     findings = await asyncio.to_thread(lambda: sample_findings(db, sample_ids(db.unit_of_work_ids())))
     return SuggestionList(items=[Suggestion(**row) for row in suggest_module.build(answers, count_pages(db), sample, readers, findings)])
+
+
+class ChainLine(BaseModel):
+    job: str
+    line: str = Field(description="what feeds this step and what it feeds, in words")
+    check_first: bool = Field(description="true for the earliest model steps: their errors carry furthest")
+
+
+class ChainRisk(BaseModel):
+    steps: list[ChainLine]
+
+
+@router.get("/chain-risk", response_model=ChainRisk)
+async def chain_risk(jobs: str) -> ChainRisk:
+    """One line per model step of these jobs (comma separated, in the recipe's order): what feeds it and what it feeds, the earliest marked
+    check first (`designer.how.chain-risk-on-ready`). From the job registry; the app has no copy."""
+    from fichero_server.recipes import chain_risk as chain  # lazy: the import budget counts a module per route file
+
+    return ChainRisk(steps=[ChainLine(**row) for row in chain.lines([j for j in jobs.split(",") if j])])

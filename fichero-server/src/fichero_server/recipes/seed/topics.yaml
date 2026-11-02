@@ -259,6 +259,15 @@ topics:
     short: Publishes a folder as IIIF or a static website.
     long: Others can then read the pages, and link to them, without Fichero.
   # --- Topics: what onboarding teaches (section 7a) -----------------------------------------------
+  - id: how-risks
+    kind: topic
+    title: Reading the numbers
+    short: >-
+      Some steps are deterministic tools: given the same page they do the same thing every time, and when they are wrong they are wrong in plain sight.
+    long: >-
+      A line missed or a word misread shows. Models that read fluently can also invent: a word that is not on the page, a spelling corrected, a line skipped without a gap.
+      Fichero measures this as the insertion rate and shows it beside accuracy. Steps feed each other: a line the layout step missed is never read, and a name the reader
+      got wrong is the name the Names step finds, so an early error carries through the chain. Check the earliest steps first.
   - id: languages
     kind: topic
     title: Languages
