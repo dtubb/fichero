@@ -916,8 +916,8 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   (`fichero-server/tests/unit/jobs/test_clear_failed_5634.py`); app `ActivityStore.clearFailed`
   (`ActivityTableTests` `testActivityWindowClearFailed_*`). Not yet seen in the app; the Swift is
   not compiled by the worker.
-- `activity.window.started-by` — **[GAP]** (#5354) a row says who or what started
-  it: a person, the recipe, a schedule, a trigger, an assistant.
+- `activity.window.started-by` — **[PARTIAL]** (#5354) a row says who or what started
+  it: a person, the recipe, a schedule, a trigger, an assistant. Built: the engine sends `started_by` on every row and tree node, and the opened run's heading words it (`ActivityDetails.startedByWords`, `ActivityStartedByTests`). Not built: the same words on the window's table row.
 - `activity.window.one-surface` — **[GAP]** (#5354) ingest progress, the conversion
   pill, Settings' download bars and the jobs list are views of the same rows or are retired; no
   surface keeps its own progress list.
