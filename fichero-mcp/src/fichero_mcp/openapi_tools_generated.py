@@ -6889,6 +6889,14 @@ def fichero_recipes_suggestions(
     return _rt.call("GET", "/api/recipes/suggestions")
 
 
+def fichero_recipes_tries_on_page(
+    *,
+    page_id: Annotated[str, Field(description='Page Id')],
+) -> Any:
+    'Tries On Page\n\nThe kept tries that ran on this page, labelled as tries (`wide.try.shown-outside-set-up`): stage, date, model, readings on its lines.\n\nRoute: GET /api/recipes/tries/page/{page_id} (toolset `recipes`; reads).'
+    return _rt.call("GET", f"/api/recipes/tries/page/{page_id}")
+
+
 def fichero_references_list(
     *,
     kind: Annotated[Optional[str], Field(description='Kind')] = None,
@@ -10080,6 +10088,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_stage_try_result", "recipes", "GET", "/api/recipes/stages/{stage}/try", fichero_recipes_stage_try_result),
     GeneratedTool("fichero_recipes_try_stage", "recipes", "POST", "/api/recipes/stages/{stage}/try", fichero_recipes_try_stage),
     GeneratedTool("fichero_recipes_suggestions", "recipes", "GET", "/api/recipes/suggestions", fichero_recipes_suggestions),
+    GeneratedTool("fichero_recipes_tries_on_page", "recipes", "GET", "/api/recipes/tries/page/{page_id}", fichero_recipes_tries_on_page),
     GeneratedTool("fichero_references_list", "references", "GET", "/api/references", fichero_references_list),
     GeneratedTool("fichero_references_delete", "references", "DELETE", "/api/references/{reference_id}", fichero_references_delete),
     GeneratedTool("fichero_references_get", "references", "GET", "/api/references/{reference_id}", fichero_references_get),

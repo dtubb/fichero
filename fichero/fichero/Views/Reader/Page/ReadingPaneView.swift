@@ -491,7 +491,10 @@ struct ReadingPaneView: View {
             // what is shown, not another way to choose it.
             controls: {
                 self.readerTableExportControl
-                if let documentId = self.effectiveDocument?.id { ReviewAcceptAllButton(documentId: documentId) }
+                if let documentId = self.effectiveDocument?.id {
+                    TryLabelButton(pageId: documentId)
+                    ReviewAcceptAllButton(documentId: documentId)
+                }
             },
             tools: { EmptyView() },
             switchableRoots: PaneCrumb.otherLibraries(than: windowState.libraryId)

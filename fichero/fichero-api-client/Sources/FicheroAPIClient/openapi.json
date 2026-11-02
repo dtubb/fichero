@@ -17991,6 +17991,49 @@
         }
       }
     },
+    "/api/recipes/tries/page/{page_id}": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Tries On Page",
+        "description": "The kept tries that ran on this page, labelled as tries (`wide.try.shown-outside-set-up`): stage, date, model, readings on its lines.",
+        "operationId": "tries_on_page_api_recipes_tries_page__page_id__get",
+        "parameters": [
+          {
+            "name": "page_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Page Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriesOnPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/topics": {
       "get": {
         "tags": [
@@ -102195,6 +102238,22 @@
         ],
         "title": "TriangulatedFact"
       },
+      "TriesOnPage": {
+        "properties": {
+          "tries": {
+            "items": {
+              "$ref": "#/components/schemas/TryOnPage"
+            },
+            "type": "array",
+            "title": "Tries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tries"
+        ],
+        "title": "TriesOnPage"
+      },
       "TriggerConfigRequest": {
         "properties": {
           "watch_path": {
@@ -102599,6 +102658,62 @@
         ],
         "title": "TryCost",
         "description": "A candidate's cost on the Try's pages (#5922). `measured` is the contract; `why` is words for a person."
+      },
+      "TryOnPage": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "always 'try': never the project's own reading, never a run's"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "ran_at": {
+            "type": "number",
+            "nullable": true,
+            "title": "Ran At",
+            "description": "when the try was kept, epoch seconds"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
+          "readings": {
+            "items": {
+              "$ref": "#/components/schemas/TryReading"
+            },
+            "type": "array",
+            "title": "Readings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "stage",
+          "readings"
+        ],
+        "title": "TryOnPage"
+      },
+      "TryReading": {
+        "properties": {
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "line",
+          "text"
+        ],
+        "title": "TryReading"
       },
       "TryStageRequest": {
         "properties": {

@@ -10089,6 +10089,18 @@
         "query_params": [],
         "request_model": null,
         "response_model": "SuggestionList"
+      },
+      {
+        "method": "GET",
+        "path": "/recipes/tries/page/{page_id}",
+        "operation_id": "tries_on_page_api_recipes_tries_page__page_id__get",
+        "summary": "Tries On Page",
+        "path_params": [
+          "page_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "TriesOnPage"
       }
     ],
     "references": [

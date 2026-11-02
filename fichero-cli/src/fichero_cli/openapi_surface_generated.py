@@ -14492,6 +14492,18 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("tries-on-page")
+    def recipes_tries_on_page_get(
+        ctx: typer.Context,
+        page_id: str = typer.Argument(..., help='Page Id'),
+    ) -> None:
+        """Tries On Page (GET /api/recipes/tries/page/{page_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/recipes/tries/page/{page_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('references')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for references endpoints.', no_args_is_help=True)

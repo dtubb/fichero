@@ -196,3 +196,43 @@ def kept_stages(samples_folder: Path) -> list[str]:
         except (OSError, ValueError):
             continue
     return sorted(set(out))
+
+
+def tries_on_page(db: Any, page_id: str) -> list[dict[str, Any]]:
+    """The kept tries that ran on this page, for the Reader and the Inspector (`wide.try.shown-outside-set-up`): each is labelled as a try's
+    (`kind: "try"`, never the project's), with the stage, the day it ran, the model, and its readings on the project's matching lines. Read from
+    the kept copy only: nothing is written, and the done rule never sees these."""
+    from fichero_server.db.manager import db_manager
+    from fichero_server.models import Artifact, ContentRepresentation, Segment
+    from fichero_server.recipes import samples
+
+    library = Path(db.path).parent
+    out: list[dict[str, Any]] = []
+    for scratch in kept_copies(samples._folder(library)):
+        try:
+            kept = json.loads((scratch / RECORD).read_text(encoding="utf-8"))
+            stage = str(kept.get("stage"))
+            result = json.loads(samples._result_path(library, stage).read_text(encoding="utf-8")).get("adoption") or {}
+        except (OSError, ValueError):
+            continue
+        rec = next((r for r in result.get("pages", []) if r["page"] == page_id), None)
+        if rec is None:
+            continue
+        before = result.get("before") or {}
+        scratch_db = db_manager.get_database(scratch)
+        try:
+            live = lambda rows: [r for r in rows if r.kind == "line" and r.deleted_at is None and not r.is_furniture]  # noqa: E731
+            mapping = match_lines(live(scratch_db.query(Segment, document_id=rec["copy_page"])),
+                                  live(db.query(Segment, document_id=page_id)), settings(library)["match_iou"])
+            old_art, old_rep = set(before.get("Artifact", ())), set(before.get("ContentRepresentation", ()))
+            artifacts = {a.id: a for a in scratch_db.query(Artifact, document_id=rec["copy_page"]) if a.id not in old_art}
+            readings = [{"line": mapping[r.segment_id], "text": r.content, "artifact": r.derived_from_artifact_id}
+                        for r in scratch_db.query(ContentRepresentation, document_id=rec["copy_page"])
+                        if r.id not in old_rep and not r.retracted_at and r.segment_id in mapping and r.derived_from_artifact_id in artifacts]
+        finally:
+            db_manager.close_database(scratch)
+        for art_id in sorted({r["artifact"] for r in readings}):
+            art = artifacts[art_id]
+            out.append({"kind": "try", "stage": stage, "ran_at": kept.get("kept_at"), "model": art.model,
+                        "readings": [{"line": r["line"], "text": r["text"]} for r in readings if r["artifact"] == art_id]})
+    return sorted(out, key=lambda t: (t["ran_at"] or 0, t["stage"]), reverse=True)

@@ -468,6 +468,31 @@ async def chain_risk(jobs: str) -> ChainRisk:
     return ChainRisk(steps=[ChainLine(**row) for row in chain.lines([j for j in jobs.split(",") if j])])
 
 
+class TryReading(BaseModel):
+    line: str
+    text: str
+
+
+class TryOnPage(BaseModel):
+    kind: str = Field(description="always 'try': never the project's own reading, never a run's")
+    stage: str
+    ran_at: Optional[float] = Field(default=None, description="when the try was kept, epoch seconds")
+    model: Optional[str] = None
+    readings: list[TryReading]
+
+
+class TriesOnPage(BaseModel):
+    tries: list[TryOnPage]
+
+
+@router.get("/tries/page/{page_id}", response_model=TriesOnPage)
+async def tries_on_page(page_id: str, db: Database = Depends(get_library_database)) -> TriesOnPage:
+    """The kept tries that ran on this page, labelled as tries (`wide.try.shown-outside-set-up`): stage, date, model, readings on its lines."""
+    from fichero_server.recipes import adopt  # lazy: the import budget counts a module per route file
+
+    return TriesOnPage(tries=[TryOnPage(**t) for t in adopt.tries_on_page(db, page_id)])
+
+
 class TryAdoptParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
