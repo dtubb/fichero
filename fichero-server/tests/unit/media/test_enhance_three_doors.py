@@ -1,7 +1,7 @@
 """Each enhancement step is one engine function reached by every door (`image.enhance.three-doors-one-function`,
 `image.enhance.old-conventions-left-behind`, #6194).
 
-The steps that exist in the engine today are page-crop, deskew, rotate, split and contrast. Stains, ruled lines and
+The steps that exist in the engine today are page-crop, deskew, rotate, split, contrast, yellowing and sharpen. Stains, ruled lines and
 show-through have no engine code yet (#6195 and the steps after it) and so no module here. Every door is pressed for
 real (the editor's routes, the node's file function, the page-crop run); a spy on the step's `run` proves the door
 reached it. Fixtures are drawn, never the owner's scans.
@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from fichero_server.models import DocType, Document, FileType
 
-STEPS = ["page_crop", "deskew", "rotate", "split", "contrast"]
+STEPS = ["page_crop", "deskew", "rotate", "split", "contrast", "yellowing", "sharpen"]
 SRC = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
 
 
@@ -68,7 +68,7 @@ def test_a_step_is_one_module_with_run_taking_image_and_params_and_returning_ima
 def test_the_registry_names_every_step_with_its_params_model():
     from fichero_server.media import enhance
 
-    assert set(enhance.STEPS) == {"page-crop", "deskew", "rotate", "split", "contrast"}
+    assert set(enhance.STEPS) == {"page-crop", "deskew", "rotate", "split", "contrast", "yellowing", "sharpen"}
     for name, spec in enhance.STEPS.items():
         assert issubclass(spec.params, BaseModel) and callable(spec.run)
 

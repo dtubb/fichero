@@ -73,3 +73,86 @@ def test_contrast_clahe_widens_the_lightness_and_keeps_the_colour():
     # an old chain row (a bare factor) is still the PIL contrast, unchanged
     old = apply_operation(page, {"op": "contrast", "params": {"factor": 1.0}})
     assert np.array_equal(np.asarray(old), np.asarray(page))
+
+
+def _tinted(b_offset: int):
+    """A flat paper page with ink, its LAB b channel moved by `b_offset`."""
+    import cv2
+
+    arr = np.full((200, 300, 3), 215, "uint8")
+    arr[90:96, 20:280] = 40
+    lab = cv2.cvtColor(arr, cv2.COLOR_RGB2LAB)
+    lab[:, :, 2] = np.clip(lab[:, :, 2].astype(int) + b_offset, 0, 255).astype("uint8")
+    return Image.fromarray(cv2.cvtColor(lab, cv2.COLOR_LAB2RGB))
+
+
+def _b_mean(image) -> float:
+    import cv2
+
+    return float(cv2.cvtColor(np.asarray(image.convert("RGB")), cv2.COLOR_RGB2LAB)[:, :, 2].mean())
+
+
+def test_yellowing_subtracts_min_8_3_cast_from_b_and_leaves_a_neutral_page_alone():
+    """`image.enhance.yellowing`: cast = (mean b - 128) / 30 clamped 0-1; b - min(8, 3 x cast) when cast > 0.1, a x 0.98."""
+    from fichero_server.media.enhance import yellowing
+
+    neutral = _tinted(0)
+    out, account = yellowing.run(neutral, yellowing.Params())
+    assert out.tobytes() == neutral.tobytes() and account["applied"] is False and account["step"] == "yellowing"
+    yellow = _tinted(12)
+    cast = min(1.0, max(0.0, (_b_mean(yellow) - 128) / 30))
+    assert cast > 0.1
+    out, account = yellowing.run(yellow, yellowing.Params())
+    assert account["applied"] is True and abs(account["strength"] - min(8, 3 * cast)) < 1e-6
+    assert abs((_b_mean(yellow) - _b_mean(out)) - account["strength"]) < 0.6, "b moved by the strength"
+    out, account = yellowing.run(yellow, yellowing.Params(strength=2.0))  # an explicit strength is used as given
+    assert account["strength"] == 2.0 and abs((_b_mean(yellow) - _b_mean(out)) - 2.0) < 0.6
+
+
+def test_sharpen_is_unsharp_mask_1_5_minus_0_5_at_sigma_3_and_leaves_flat_paper_alone():
+    import cv2
+
+    from fichero_server.media.enhance import sharpen
+
+    arr = np.full((120, 160, 3), 200, "uint8")
+    arr[:, 80:] = 100  # a step edge
+    image = Image.fromarray(arr)
+    out, account = sharpen.run(image, sharpen.Params())
+    expected = cv2.addWeighted(arr, 1.5, cv2.GaussianBlur(arr, (0, 0), 3), -0.5, 0)
+    assert np.array_equal(np.asarray(out), expected) and account["step"] == "sharpen"
+    assert np.asarray(out)[60, 10].tolist() == [200, 200, 200] and np.asarray(out)[60, 150].tolist() == [100, 100, 100]
+    assert np.asarray(out)[60, 77, 0] > 200 and np.asarray(out)[60, 82, 0] < 100, "the edge overshoots: it is sharper"
+
+
+def test_enhance_with_method_clahe_runs_contrast_then_yellowing_then_sharpen_and_a_row_without_a_method_is_the_pil_enhance():
+    from fichero_server.media.enhance import contrast, sharpen, yellowing
+    from fichero_server.media.image_ops import apply_operation
+
+    page = _tinted(12)
+    out = apply_operation(page, {"op": "enhance", "params": {"method": "clahe", "profile": "typescript"}})
+    step1, _ = contrast.run(page, contrast.Params(profile="typescript"))
+    step2, _ = yellowing.run(step1, yellowing.Params())
+    step3, _ = sharpen.run(step2, sharpen.Params())
+    assert out.tobytes() == step3.tobytes()
+    old = apply_operation(page, {"op": "enhance", "params": {"brightness": 1.0, "contrast": 1.0, "sharpen": 1.0}})
+    assert old.tobytes() == page.tobytes(), "a stored row with no method re-renders as it did"
+    with __import__("pytest").raises(Exception):
+        apply_operation(page, {"op": "enhance", "params": {"method": "magic"}})
+
+
+def test_a_saved_clahe_enhance_row_previews_through_the_route(client, db):
+    from fichero_server.models import Document, FileType
+
+    path = db.path.parent / "files" / "tint.png"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _tinted(12).save(path)
+    doc = Document(name="tint.png", path=str(path), file_type=FileType.image)
+    db.save(doc)
+    put = client.put(f"/api/images/{doc.id}/edits", json={"operations": [{"op": "enhance", "params": {"method": "clahe"}}]})
+    assert put.status_code == 200, put.text
+    got = client.get(f"/api/images/{doc.id}/preview")
+    assert got.status_code == 200, got.text[:200]
+    import io
+
+    shown = Image.open(io.BytesIO(got.content))
+    assert abs(_b_mean(shown) - _b_mean(_tinted(12))) > 1, "the preview is the enhanced page, not the source"

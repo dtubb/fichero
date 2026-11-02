@@ -450,7 +450,9 @@ $(SRCROOT)/../fichero-server/src/fichero_server/media/enhance/contrast.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/enhance/deskew.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/enhance/page_crop.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/enhance/rotate.py
+$(SRCROOT)/../fichero-server/src/fichero_server/media/enhance/sharpen.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/enhance/split.py
+$(SRCROOT)/../fichero-server/src/fichero_server/media/enhance/yellowing.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/find_page.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/flatten_curve.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/frame_map.py

@@ -391,6 +391,15 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
         return ImageEnhance.Sharpness(image).enhance(float(params.get("factor", 1.0)))
     if name == "auto_levels":
         return ImageOps.autocontrast(image)
+    if name == "enhance" and params.get("method", "pil") != "pil":
+        if params["method"] != "clahe":
+            raise HTTPException(400, f"Unsupported enhance method: {params['method']}")
+        from fichero_server.media.enhance import contrast, sharpen, yellowing
+
+        # The legacy `DocumentEnhancer.enhance`: CLAHE on L, the yellow cast, then the unsharp mask.
+        edited = contrast.run(image, contrast.Params(profile=params.get("profile", "handwritten")))[0]
+        edited = yellowing.run(edited, yellowing.Params())[0]
+        return sharpen.run(edited, sharpen.Params())[0]
     if name == "enhance":
         edited = image.filter(ImageFilter.MedianFilter(size=3)) if params.get("denoise") else image
         if params.get("auto_levels"):

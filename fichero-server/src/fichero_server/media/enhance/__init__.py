@@ -3,7 +3,7 @@
 Each module `<step>.py` has `Params` (a Pydantic model: the editor's request body and the workflow node's config are
 built from it) and `run(image, params) -> (image, account)`. The doors are the workflow node, the editor operation and the
 rendition writer; none of them has its own copy of a step's pixels. Steps in the engine today: page-crop, deskew, rotate,
-split, contrast. Nothing here imports from `fichero_archive` or reads an `assets/<stage>/` folder
+split, contrast, yellowing, sharpen. Nothing here imports from `fichero_archive` or reads an `assets/<stage>/` folder
 (`image.enhance.old-conventions-left-behind`; the guardrail is `tests/unit/media/test_enhance_three_doors.py`).
 """
 from __future__ import annotations
@@ -15,7 +15,8 @@ from typing import Any, Callable
 from pydantic import BaseModel
 
 #: step name (as the account and a rendition's `steps[].step` spell it) -> module name
-_MODULES = {"page-crop": "page_crop", "deskew": "deskew", "rotate": "rotate", "split": "split", "contrast": "contrast"}
+_MODULES = {"page-crop": "page_crop", "deskew": "deskew", "rotate": "rotate", "split": "split", "contrast": "contrast",
+            "yellowing": "yellowing", "sharpen": "sharpen"}
 
 
 @dataclass(frozen=True)
