@@ -704,6 +704,11 @@ the write path would produce.
   after on-origin, before the refresh, so a jail-root failure never loses the closes; on new code the loop stops starting chains
   until it re-execs (serial chains never left it a quiet tick). Tests in `fichero-builder/tests/test_landed_verb.py`,
   `test_loop.py`, `test_work_verb.py`.
+  A head whose every commit is already on origin by patch (`git cherry` all `-`, a pre-rebase copy of a landed batch) is never
+  taken: the intake skips it and `builder done` refuses it with a row (manager 2026-11-02: the intake re-took land-ie's
+  ie-batch2). Test `fichero-builder/tests/test_loop.py::test_a_head_whose_every_commit_is_on_origin_by_patch_is_never_taken`.
+  Speed 2 (built, test owed): the review starts in a thread once ready and red-on-base are green (`check_tool.ON_RUNG`), with a
+  partial ladder; a later red kills it before any verdict; a green check takes its result.
   **Stop** (manager 2026-11-02, built): pause = no new step is fed; `builder queue stop --lane L [--grace S]` = the session
   ends: the lane is paused, a live worker is told to commit what is green and end, and the loop closes the session when the
   grace is over (default 300 s) or the worker ends first; the tree is kept, a step in flight goes back to queued with a brief

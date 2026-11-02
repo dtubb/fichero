@@ -479,3 +479,22 @@ def test_a_lane_paused_after_the_tick_loaded_it_never_starts_a_step(state):
     fake = Fake()
     assert queue.tick_lane(stale, fake.procs, {}, 1, False, lambda s: None) is False
     assert fake.starts == [] and steps()["1.1"]["state"] == "queued"
+
+
+def test_a_head_whose_every_commit_is_on_origin_by_patch_is_never_taken(state, tmp_path):
+    """Manager 2026-11-02: the intake re-took land-ie's pre-rebase ie-batch2 (all 18 commits already landed by patch)."""
+    wt, g = _ext_repo(tmp_path, commits=3)
+    head = g(wt, "rev-parse", "HEAD")
+    seed = tmp_path / "seed"
+    (seed / "other").write_text("o")
+    g(seed, "add", "."), g(seed, "commit", "-qm", "another landing first")  # so the picks get other shas
+    g(seed, "fetch", "-q", str(wt), "HEAD")
+    base = g(wt, "rev-parse", "origin/integration")
+    g(seed, "cherry-pick", f"{base}..FETCH_HEAD")
+    g(seed, "push", "-q", str(tmp_path / "origin.git"), "integration")
+    g(wt, "fetch", "-q", "origin")
+    assert queue.missing(str(wt)) == 0, "every commit is on origin by patch"
+    lane_ = {"id": "lane-x", "worktree": str(wt)}
+    assert queue.intake_sha(lane_, "integration", 1, 0) == ""
+    queue.add("lane-x", str(wt), "batch-1", str(state / "b1.1"), [], kind="external")
+    assert "already on origin" in queue.done("lane-x", head)

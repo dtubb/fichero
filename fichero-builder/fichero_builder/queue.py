@@ -356,6 +356,8 @@ def intake_sha(lane: dict, branch: str, commits: int, hours: float, now: float |
     """The lane's HEAD when it is a finished step (`(Step ` in its subject or a `Behaviour:` trailer) and the lane has `commits`
     commits past origin/<branch>, or its oldest unlanded one is `hours` old; else ''."""
     g = ["git", "-c", "safe.directory=*", "-C", lane["worktree"]]
+    if not missing(lane["worktree"], branch):  # every commit is on origin by patch (a pre-rebase copy of a landed batch)
+        return ""
     log = subprocess.run(g + ["log", "--format=%H %ct", f"origin/{branch}..HEAD"], capture_output=True, text=True).stdout.split("\n")
     log = [x.split() for x in log if x.strip()]
     if not log:
@@ -387,6 +389,12 @@ def external_owner(spec: str, title: str = "") -> str:
         if stem in text or (title and f"`{title}`" in text):
             return x["id"]
     return ""
+
+
+def missing(worktree: str, branch: str = "integration", head: str = "HEAD") -> int:
+    """How many commits of head origin/<branch> lacks by patch (`git cherry`: '+'); -1 when git cannot say."""
+    r = subprocess.run(["git", "-c", "safe.directory=*", "-C", worktree, "cherry", f"origin/{branch}", head], capture_output=True, text=True)
+    return sum(1 for ln in r.stdout.splitlines() if ln.startswith("+")) if r.returncode == 0 else -1
 
 
 def lane_head(worktree: str) -> str:
@@ -424,6 +432,8 @@ def done(lane_id: str, sha: str = "") -> str:
             why = f"{lane_id} has a batch in the ladder: one at a time; run done again after it lands"
         elif not (sha := sha or lane_head(lane["worktree"])) and Path(lane["worktree"]).is_dir():
             why = f"cannot read {lane_id}'s HEAD in {lane['worktree']}"
+        elif Path(lane["worktree"]).is_dir() and missing(lane["worktree"], "integration", sha) == 0:
+            why = f"every commit of {sha[:9]} is already on origin/integration (git cherry): nothing to land"
         else:
             if lane["cursor"] >= len(lane["steps"]):  # finished: the next batch
                 n = sum(1 for x in lane["steps"] if x["step"].startswith("batch-")) + 1
