@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import subprocess
 
+import pytest
+
 from fichero_server.workflows import land_tool as L
 
 
@@ -134,6 +136,22 @@ def test_the_boundary_sees_an_added_line_that_looks_like_a_header(tmp_path):  # 
     (tmp_path / "m.py").write_text("if x:\n    g()\n    h()\n++ /Users/someone/secret\n")
     g("commit", "-qam", "c")
     assert L.boundary(tmp_path, base, "HEAD", [r"/Users/\w+"])
+
+
+def test_the_review_cap_refuses_one_byte_past_it_and_the_default_takes_a_step_a_big_worker_writes(tmp_path):
+    """A refused review blocked a real 63635-byte step: one spec step can reach 60 KB on a 1M window. Still refused, never truncated."""
+    g, base = _repo(tmp_path)
+    (tmp_path / "big.txt").write_text("z" * 63000 + "\n")
+    g("add", "."), g("commit", "-qm", "c")
+    whole = L.review_diff(tmp_path, base, "HEAD")
+    assert 60000 < len(whole) < 150000 and whole.count("z") >= 63000, "taken whole by the default cap"
+    assert L.review_diff(tmp_path, base, "HEAD", cap=len(whole)) == whole, "exactly at the cap is taken"
+    with pytest.raises(ValueError, match="cap"):
+        L.review_diff(tmp_path, base, "HEAD", cap=len(whole) - 1)
+    (tmp_path / "big.txt").write_text("z" * 150001 + "\n")
+    g("commit", "-qam", "more")
+    with pytest.raises(ValueError, match="150000 cap"):
+        L.review_diff(tmp_path, base, "HEAD")
 
 
 def test_the_review_diff_is_never_truncated_and_binary_is_refused(tmp_path):  # review 4 B4

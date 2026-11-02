@@ -211,7 +211,7 @@ def _gitb_ok(root, *args) -> bool:
     return subprocess.run([GIT, "-C", str(root), *_ATTR, *args], capture_output=True).returncode == 0
 
 
-def review_diff(root, base: str, head: str, cap: int = 60000) -> str:
+def review_diff(root, base: str, head: str, cap: int = 150000) -> str:
     """What the reviewer reads: EVERY commit of the range, oldest first, as text (no attributes, no textconv), or a
     refusal. Never truncated. Not the net diff: a line added in one commit and removed in the next is still history
     (review 5 N4)."""
