@@ -89,14 +89,44 @@ def plan(issues: list[dict], steps: list[dict], slug: str) -> dict:
     return {"clusters": clusters, "questions": questions}
 
 
-def write_briefs(planned: dict, *, out, repo_dir, base: str, rules: str, fetch, cluster) -> list[Path]:
-    """One brief file per cluster, through the brief tool (`fetch` reads an issue with its comments, `cluster` builds the text)."""
+_PATH = re.compile(r"(?<![\w/.-])((?:[\w.-]+/)+[\w.+-]*)")
+STOP = {"the", "and", "for", "with", "from", "into", "that", "this", "step", "builder", "spec"}
+
+
+def where_for_new_modules(spec_text: str, step_title: str, repo: str, issue_texts: list[str]) -> list[str]:
+    """For a step whose issues name files that do not exist yet: the directories the spec's design section names (that
+    exist in the repo) and the existing files under them that mention the step's words (the callers to wire). Empty when
+    every file the issues name exists (their own Where list serves)."""
+    named = [p for t in issue_texts for p in _PATH.findall(t) if not p.endswith("/")]
+    if not named or all((Path(repo) / p).exists() for p in named):
+        return []
+    m = re.search(r"^## (?:The )?[Dd]esign\b.*?$(.*?)(?=^## |\Z)", spec_text, re.M | re.S)
+    dirs = []
+    for p in _PATH.findall(m.group(1) if m else ""):
+        d = p if p.endswith("/") else p.rsplit("/", 1)[0] + "/"
+        if (Path(repo) / d).is_dir() and d not in dirs:
+            dirs.append(d)
+    out = [f"{d} (the directory the spec's design names)" for d in dirs]
+    words = [w for w in re.findall(r"[a-z]{4,}", step_title.lower()) if w not in STOP]
+    hits: dict[str, list[str]] = {}
+    for w in words:
+        r = subprocess.run(["git", "-C", repo, "grep", "-l", "-i", w, "--", *(dirs or ["."])], capture_output=True, text=True)
+        for f in r.stdout.split()[:8]:
+            if f not in named:
+                hits.setdefault(f, []).append(w)
+    return out + [f"{f} (mentions: {', '.join(ws)})" for f, ws in sorted(hits.items())]
+
+
+def write_briefs(planned: dict, *, out, repo_dir, base: str, rules: str, fetch, cluster, spec_text: str = "") -> list[Path]:
+    """One brief file per cluster, through the brief tool (`fetch` reads an issue with its comments, `cluster` builds the text);
+    a step that creates new modules gets the design's directory and the callers found by the step's words."""
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     written = []
     for c in planned["clusters"]:
         issues = [fetch(i["number"]) for i in c["issues"]]
-        text = cluster(issues, repo=str(repo_dir), branch=f"step-{c['step']}", base=base, rules=rules)
+        where = where_for_new_modules(spec_text, c["title"], str(repo_dir), [i.get("body") or "" for i in issues])
+        text = cluster(issues, repo=str(repo_dir), branch=f"step-{c['step']}", base=base, rules=rules, where=where)
         p = out / f"brief-step-{c['step']}.txt"
         p.write_text(text)
         written.append(p)

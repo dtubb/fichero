@@ -163,7 +163,8 @@ def main(argv=None) -> int:
         base = a.base or resolve(a.repo_dir, "origin/" + rules_doc.get("land", {}).get("branch", ""))
         rules = rules_doc.get("brief", {}).get("rules", "")
         written = milestone.write_briefs(planned, out=a.out, repo_dir=a.repo_dir, base=base, rules=rules,
-                                         fetch=lambda n: brief_tool.fetch_issue(n, gh=a.gh), cluster=brief_tool.cluster)
+                                         fetch=lambda n: brief_tool.fetch_issue(n, gh=a.gh), cluster=brief_tool.cluster,
+                                         spec_text=Path(a.spec).read_text())
         for c, p in zip(planned["clusters"], written):
             print(f"Step {c['step']}: {', '.join('#%d' % i['number'] for i in c['issues'])} -> {p}")
         if a.enqueue:

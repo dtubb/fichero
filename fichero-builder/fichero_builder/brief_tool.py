@@ -104,7 +104,7 @@ def build(issue: dict, *, repo: str) -> str:
     return "\n".join(out)
 
 
-def cluster(issues: list[dict], *, repo: str, branch: str, base: str, rules: str = "") -> str:
+def cluster(issues: list[dict], *, repo: str, branch: str, base: str, rules: str = "", where: list[str] = ()) -> str:
     """One brief for a cluster: two preamble lines, the project's [brief].rules from harness.toml as the THIRD line with
     `#N` filled from the cluster's issues (so no brief needs a hand edit), the rest of the preamble, then every issue's
     build(). The worker needs no issue tool: everything it may read is in the brief."""
@@ -122,4 +122,6 @@ def cluster(issues: list[dict], *, repo: str, branch: str, base: str, rules: str
              "the base by design, so the check owes it no red; the landing comments the issue with the test).",
              "When all are committed print on its own line: DONE <short sha of branch head>, then the list of commits and "
              "which tests you ran.", ""]
+    if where:
+        head += ["## Where to put new modules and what to wire (found by the tool)", *[f"- {w}" for w in where], ""]
     return "\n".join(head + [build(i, repo=repo) for i in issues])

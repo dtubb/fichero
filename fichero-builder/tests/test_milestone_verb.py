@@ -7,7 +7,7 @@ import stat
 import types
 
 from fichero_builder import __main__ as cli
-from fichero_builder import milestone
+from fichero_builder import brief_tool, milestone
 
 SPEC = """# A spec
 
@@ -132,3 +132,23 @@ def test_no_name_takes_the_first_ordered_milestone_with_open_issues_and_its_spec
     rc = cli.main(["milestone", "--repo-dir", str(tmp_path), "--out", str(tmp_path / "out"), "--base", "abc1234", "--gh", gh])
     out, _ = capsys.readouterr()
     assert rc == 2 and "milestone m1 (first in build-order.md)" in out and "Step 1.1: #7 ->" in out
+
+
+def test_a_step_that_creates_new_modules_gets_the_designs_directory_and_callers_found_by_the_steps_words(tmp_path):
+    """Defect 3: an issue naming files that do not exist yet has no Where list; the brief then names the directory the
+    spec's design section names and the existing files that mention the step's words (callers to wire)."""
+    import subprocess
+
+    repo = tmp_path / "repo"
+    (repo / "pkg" / "readers").mkdir(parents=True)
+    (repo / "pkg" / "readers" / "runner.py").write_text("def run_enhancement(): pass\n")
+    (repo / "pkg" / "other.py").write_text("nothing here\n")
+    subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+    spec = SPEC.replace("## Build order", "## The design\n\nNew modules live under `pkg/readers/` beside `pkg/readers/runner.py`.\n\n## Build order")
+    issue = {"number": 7, "title": "m1 Step 1.1: enhancement pipeline", "body": "Create pkg/readers/enhance.py.", "authorAssociation": "OWNER"}
+    where = milestone.where_for_new_modules(spec, "enhancement pipeline", str(repo), [issue["body"]])
+    assert where == ["pkg/readers/ (the directory the spec's design names)", "pkg/readers/runner.py (mentions: enhancement)"]
+    assert milestone.where_for_new_modules(spec, "enhancement pipeline", str(repo), ["Edit pkg/other.py"]) == [], "existing files: the issue's own Where list serves"
+    text = brief_tool.cluster([issue], repo=str(repo), branch="b", base="abc", where=where)
+    assert "## Where to put new modules and what to wire (found by the tool)\n- pkg/readers/ (the directory the spec's design names)\n- pkg/readers/runner.py (mentions: enhancement)" in text
