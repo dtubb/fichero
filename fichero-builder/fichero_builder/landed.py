@@ -98,8 +98,16 @@ def sweep(sh, repo_dir: str, ref: str, grace_h: float, removed: str, live: set[s
         if now - last < grace_h * 3600:
             continue
         patch = f"{removed}/{Path(wt).name}-{head[:7]}-{int(now)}.patch"
-        r = sh(f"mkdir -p {q(removed)} && (cd {q(wt)} && {git} add -A && {git} diff --cached --binary HEAD > {q(patch)}); "
-               f"{git} -C {q(repo_dir)} worktree remove --force {q(wt)}")
+        # the patch first, and the tree goes only when the patch was written (#6204): a failed mkdir, add or diff keeps it
+        saved = sh(f"mkdir -p {q(removed)} && cd {q(wt)} && {git} add -A && {git} diff --cached --binary HEAD > {q(patch)} && test -f {q(patch)}")
+        if saved.returncode:
+            why = (saved.stderr or "").strip()[-200:] or f"exit {saved.returncode}"
+            n = sum(1 for x in journal.read() if x.get("event") == "alert") + 1  # the queue's alert row shape (dev-workflows.run.loop-alerts)
+            journal.append("alert", id=f"land-sweep-{n}", lane="land", step="sweep", what=f"{wt} kept: its patch could not be written ({why})"[:300],
+                           evidence=wt, actions=[])
+            out.append(f"{wt}: kept, no patch ({why})")
+            continue
+        r = sh(f"{git} -C {q(repo_dir)} worktree remove --force {q(wt)}")
         out.append(f"{wt}: " + ("removed" if r.returncode == 0 else f"NOT removed ({(r.stderr or '').strip()[-200:]})") + f", patch {patch}")
     return out
 

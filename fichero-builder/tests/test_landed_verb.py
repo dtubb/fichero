@@ -511,3 +511,22 @@ def test_a_failed_fetch_in_the_jail_root_refuses_with_a_row_and_never_merges_a_s
     r = next(r for r in rows() if r["step"] == "jail-root")
     assert r["ok"] is False and "fast-forwarded" not in r["detail"] and "done" not in [x["step"] for x in rows()]
     assert _g(root, "rev-parse", "HEAD") == before
+
+
+def test_a_sweep_whose_patch_cannot_be_written_keeps_the_tree_and_alerts(world):
+    """Review 2026-11-02 (#6204): `patch; remove --force` destroyed uncommitted work when the patch failed. Now the tree goes
+    only after its patch is written; a failed one keeps the tree and is an alert row."""
+    import time
+
+    root = world.wr / "root"
+    wt = world.wr / "wt-lost"
+    _g(root, "worktree", "add", "-q", "-b", "lost", str(wt), "HEAD")
+    (wt / "precious").write_text("uncommitted work")
+    removed = world.wr / "removed-is-a-file"
+    removed.write_text("")  # mkdir -p fails: the patch cannot be written
+    sh = lambda script: subprocess.run(["sh", "-c", f"cd {world.wr} && {script}"], capture_output=True, text=True)  # noqa: E731
+    done = landed.sweep(sh, "root", "origin/integration", 36, str(removed), set(), now=time.time() + 37 * 3600)
+    assert wt.is_dir() and (wt / "precious").read_text() == "uncommitted work", "the tree and its work are kept"
+    assert len(done) == 1 and "kept, no patch" in done[0]
+    (a,) = [r for r in journal.read() if r["event"] == "alert"]
+    assert a["step"] == "sweep" and str(wt) in a["what"]
