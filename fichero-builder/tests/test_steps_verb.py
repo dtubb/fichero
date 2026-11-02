@@ -53,7 +53,7 @@ argv = sys.argv[1:]
 db["calls"].append(argv)
 def opt(name):
     return argv[argv.index(name) + 1] if name in argv else None
-db.setdefault("labels", ["spec:spec"])  # the spec label (from the spec FILE stem, spec.md) exists already
+db.setdefault("labels", ["type:feature"])  # the kind label exists already; no spec label is ever made
 if argv[:2] == ["issue", "list"]:
     print(json.dumps([i for i in db["issues"] if i["milestone"] == opt("--milestone")]))
 elif argv[:2] == ["issue", "create"]:
@@ -155,14 +155,15 @@ def test_find_lists_the_milestone_and_compares_exact_titles_and_a_hung_gh_is_ref
         steps._gh("gh", "issue", "list")
 
 
-def test_every_step_issue_carries_the_spec_and_step_labels_made_first_only_when_absent(env):
-    """Item 8: labels are the step key. `spec:<spec file stem>` and `step:N.M`; a missing label is created (list first), an
-    existing one never re-created; create comes before the issue write that applies it."""
+def test_every_step_issue_carries_the_step_label_and_type_feature_never_a_spec_label(env):
+    """The step key is (milestone, `step:N.M`): each issue gets `step:N.M` and `type:feature`, no `spec:*` (the milestone is
+    the spec); a missing step label is created (list first), an existing one never re-created; create comes before the
+    issue write that applies it."""
     assert env() == 0
     d = env.db()
-    assert [i["labels"] for i in d["issues"]] == [["spec:spec", "step:1.1"], ["spec:spec", "step:1.2"], ["spec:spec", "step:2.1"]]
+    assert [sorted(i["labels"]) for i in d["issues"]] == [["step:1.1", "type:feature"], ["step:1.2", "type:feature"], ["step:2.1", "type:feature"]]
     creates = [c[2] for c in d["calls"] if c[:2] == ["label", "create"]]
-    assert creates == ["step:1.1", "step:1.2", "step:2.1"], "spec:spec existed; each step label once"
+    assert creates == ["step:1.1", "step:1.2", "step:2.1"], "each step label once, no spec label"
     lists = [k for k, c in enumerate(d["calls"]) if c[:2] == ["label", "list"]]
     first_create = next(k for k, c in enumerate(d["calls"]) if c[:2] == ["label", "create"])
     first_issue = next(k for k, c in enumerate(d["calls"]) if c[:2] == ["issue", "create"])

@@ -311,7 +311,11 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   `Depends on` as issue links in the body; a second run updates the step's issue rather than filing another (the body
   carries the step id); every write is a journal row. **Built** (2026-11-01): `builder steps --spec FILE [--gh gh] [--dry-run]` titles each issue `<milestone> Step N.M: <title>`, finds it again by that exact title
   (it lists the milestone's issues with `gh issue list --milestone` and compares exact titles; no search), edits it on a second run, writes `Depends on: #N` once those issues exist, and refuses a PROPOSED spec; `--dry-run` writes nothing.
-  Test: `fichero-builder/tests/test_steps_verb.py::test_a_second_run_updates_by_title_and_files_nothing_new`.
+  Test: `fichero-builder/tests/test_steps_verb.py::test_a_second_run_updates_by_title_and_files_nothing_new`. **The step key is
+  (milestone, `step:N.M`)** (built 2026-11-01; owner: the milestone is the spec, no spec label): every step issue carries
+  `step:N.M` and `type:feature` in the spec's milestone; the verb lists the repo's labels once, creates only the absent
+  step labels (`gh label create`, before any issue write) and applies them on create and on update; existing issues' other
+  labels are left alone. Test: `fichero-builder/tests/test_steps_verb.py::test_every_step_issue_carries_the_step_label_and_type_feature_never_a_spec_label`.
 - `dev-workflows.tool.landed` [PARTIAL] (#6116) — `builder landed <sha> [--push] [--no-issues]`: after a verdict the maintainer
 - `dev-workflows.tool.landed` [OK] (#6116) — `builder landed <sha> [--push] [--no-issues]`: after a verdict the maintainer
   runs one command instead of fifteen. It refuses a journal that is not this user's alone to write (it allows the push and

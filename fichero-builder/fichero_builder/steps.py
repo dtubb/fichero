@@ -87,7 +87,7 @@ def find(gh: str, slug: str, title: str) -> int | None:
 
 def ensure_labels(gh: str, names: list[str]) -> list[str]:
     """`gh label create` for each name the repo lacks (one `gh label list` first; an existing label is never re-created).
-    Returns the names created. Labels are the step key: `spec:<spec file stem>` and `step:N.M` (dev-workflows.tool.steps)."""
+    Returns the names created. The step key is (milestone, `step:N.M`); no spec label (owner 2026-11-01: the milestone is the spec)."""
     have = {r["name"] for r in json.loads(_gh(gh, "label", "list", "--json", "name", "--limit", "1000") or "[]")}
     made = [n for n in names if n not in have]
     for n in made:
@@ -99,14 +99,13 @@ def run(spec_path, *, gh: str = "gh", dry_run: bool = False, say=print) -> None:
     spec = Path(spec_path)
     slug, steps = parse(spec.read_text())
     numbers: dict[str, int] = {}
-    spec_label = f"spec:{spec.stem}"
     if not dry_run:
-        ensure_labels(gh, [spec_label, *(f"step:{s['id']}" for s in steps)])
+        ensure_labels(gh, ["type:feature", *(f"step:{s['id']}" for s in steps)])
     for s in steps:
         title = title_of(slug, s)
         n = find(gh, slug, title)
         body = body_of(s, spec.as_posix(), numbers)
-        labels = f"{spec_label},step:{s['id']}"
+        labels = f"type:feature,step:{s['id']}"
         if dry_run:
             say(f"would {'update #' + str(n) if n else 'create'}: {title} [{labels}]")
             if n:
