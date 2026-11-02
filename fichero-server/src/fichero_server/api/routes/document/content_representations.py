@@ -15,7 +15,7 @@ import uuid
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from fastapi import APIRouter, Depends, HTTPException
 
-from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero_server.actions.registry import ActionContext, ActionRefused, ChangeSpec, action, registry
 from fichero_server.api.auth import action_context
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.api.routes.document.segments import provenance_kind_from_ctx
@@ -1095,6 +1095,111 @@ def unchoose_reading(
         document_ids=[segment.document_id],
         segment_ids=[segment.id],
     )
+
+
+class ReadingChooseManyParams(BaseModel):
+    """`reading.choose_many` — "Accept all N": confirm every line's review reading on one page (`wide.review.accept-line-and-all`)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    document_id: str
+    kind: str = "transcription"
+
+
+class ReadingRestoreItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    segment_id: str
+    kind: str
+    representation_id: str | None = Field(default=None, description="the reading that counted by a person's choice before; none: no choice")
+
+
+class ReadingRestoreParams(BaseModel):
+    """`reading.restore_choices` — the one-step undo of `reading.choose_many`: each line goes back to its earlier choice."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    document_id: str
+    items: list[ReadingRestoreItem]
+
+
+def _review_readings_waiting(db: Database, document_id: str, kind: str) -> list[tuple[str, ContentRepresentation]]:
+    """(segment id, reading) for each line whose COUNTING reading was made by a review (`transcription_review`) and that no person
+    has chosen yet. A review's corrections count at once; this is what Accept all confirms (owner ruling 2026-11-02, #5720)."""
+    from fichero_server.api.routes.document.segment_readings import document_text
+    from fichero_server.models import Artifact
+
+    spans = [s for s in document_text(db, document_id, include_furniture=True).spans if s.representation_id]
+    readings = {r.id: r for r in db.query_in(ContentRepresentation, "id", [s.representation_id for s in spans])}
+    chosen = {c.representation_id for c in db.query_in(ReadingChoice, "segment_id", [s.segment_id for s in spans])
+              if c.superseded_at is None}
+    kinds: dict[str, bool] = {}
+    out: list[tuple[str, ContentRepresentation]] = []
+    for span in spans:
+        reading = readings.get(span.representation_id)
+        if reading is None or reading.id in chosen or not reading.derived_from_artifact_id or reading.retracted_at:
+            continue
+        if reading.derived_from_artifact_id not in kinds:
+            artifact = db.get(Artifact, reading.derived_from_artifact_id)
+            kinds[reading.derived_from_artifact_id] = artifact is not None and artifact.artifact_type == "transcription_review"
+        if kinds[reading.derived_from_artifact_id] and reading_kind_filter(reading.kind)[0] == reading_kind_filter(kind)[0]:
+            out.append((span.segment_id, reading))
+    return out
+
+
+@action(
+    "reading.choose_many",
+    ReadingChooseManyParams,
+    domains=["representation", "segment"],
+    undoable=True,
+    invert=lambda before, after, ctx: (
+        ("reading.restore_choices", {"document_id": after["document_id"], "items": before["items"]}) if after and before else None
+    ),
+)
+def choose_many_readings(db: Database, params: ReadingChooseManyParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    """Accept all N: choose, for every line of the page whose counting reading is a review's, that reading (`reading.choose` per
+    line, so each keeps its own rules), as ONE action with ONE undo. Refused in words when no line is waiting."""
+    _assert_a_person(ctx, "a reading")
+    waiting = _review_readings_waiting(db, params.document_id, params.kind)
+    if not waiting:
+        raise ActionRefused("No line on this page has a review's reading waiting to be confirmed.")
+    items, earlier, choice_ids, segment_ids = [], [], [], []
+    for segment_id, reading in waiting:
+        _done, spec = choose_reading(db, ReadingChooseParams(
+            segment_id=segment_id, kind=params.kind, representation_id=reading.id, expected_counting_id=reading.id), ctx)
+        items.append({"segment_id": segment_id, "kind": params.kind, "representation_id": reading.id})
+        # what a person had chosen on the line before (none: no choice), which the undo puts back
+        earlier.append({"segment_id": segment_id, "kind": params.kind, "representation_id": (spec.before or {}).get("representation_id")})
+        choice_ids += spec.target_ids
+        segment_ids.append(segment_id)
+    after = {"document_id": params.document_id, "kind": params.kind, "items": items}
+    return after, ChangeSpec(
+        domains=["representation", "segment"], target_ids=choice_ids, before={"items": earlier}, after=after,
+        emit_type="reading.chosen", document_ids=[params.document_id], segment_ids=segment_ids)
+
+
+@action(
+    "reading.restore_choices",
+    ReadingRestoreParams,
+    domains=["representation", "segment"],
+    undoable=True,
+    invert=lambda before, after, ctx: ("reading.choose_many", {"document_id": after["document_id"]}) if after else None,
+)
+def restore_readings(db: Database, params: ReadingRestoreParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    """The undo of Accept all: each line goes back to the choice it had (`reading.choose`), or to none (`reading.unchoose`)."""
+    _assert_a_person(ctx, "a reading")
+    ids: list[str] = []
+    for item in params.items:
+        if item.representation_id:
+            _done, spec = choose_reading(db, ReadingChooseParams(
+                segment_id=item.segment_id, kind=item.kind, representation_id=item.representation_id), ctx)
+        else:
+            _done, spec = unchoose_reading(db, ReadingUnchooseParams(segment_id=item.segment_id, kind=item.kind), ctx)
+        ids += spec.target_ids
+    after = {"document_id": params.document_id, "items": [i.model_dump() for i in params.items]}
+    return after, ChangeSpec(
+        domains=["representation", "segment"], target_ids=ids, before=None, after=after, emit_type="reading.chosen",
+        document_ids=[params.document_id], segment_ids=[i.segment_id for i in params.items])
 
 
 class PassChooseWorkingParams(BaseModel):
