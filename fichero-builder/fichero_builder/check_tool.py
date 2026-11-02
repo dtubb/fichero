@@ -446,7 +446,8 @@ def ladder(rungs: list) -> dict:
 
 BYPASS_NAMES = ("sitecustomize.py", "usercustomize.py")
 # pinned by NAME anywhere, any status: pytest reads these from whatever directory it finds them in (review 4 B6)
-PINNED_NAMES = ("conftest.py", "pytest.ini", "tox.ini", "setup.cfg", ".gitattributes", "ruff.toml", ".ruff.toml")
+PINNED_NAMES = ("conftest.py", "pytest.ini", ".pytest.ini", "pytest.toml", ".pytest.toml", "pyproject.toml", "tox.ini",
+                "setup.cfg", ".gitattributes", "ruff.toml", ".ruff.toml")  # every name pytest's findpaths reads (review 6)
 
 
 def pinned_violations(root, since: str, head: str, cfg: Config, pinned) -> list[str]:

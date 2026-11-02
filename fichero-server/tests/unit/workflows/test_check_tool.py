@@ -518,6 +518,21 @@ def test_a_whole_tests_dir_runs_as_its_own_pytest_beside_an_engine_shaped_tests_
     assert "test_new.py" not in " ".join(row["runs"][1]["argv"]), "the engine-shaped run keeps only the changed files"
 
 
+@pytest.mark.parametrize("path", ["pkg/pyproject.toml", "pkg/tests/pyproject.toml", "pkg/.pytest.ini", "pkg/tests/.pytest.ini",
+                                  "pkg/pytest.toml", "pkg/.pytest.toml"])
+def test_a_pytest_config_file_anywhere_is_a_pinned_name_so_it_cannot_turn_the_whole_tests_run_into_collection(tmp_path, path):
+    """review 6 must-fix 1: the whole-tests run used the package's own pyproject.toml, or pytest's upward search, so a
+    worker-added config with `addopts = --co` made a red suite green by collecting only. Every name pytest reads is pinned."""
+    work, g, base, pinned = _whole_project(tmp_path)
+    (work / "pkg" / "lib.py").write_text("VALUE = 0\n")  # breaks test_old
+    body = ('[tool.pytest.ini_options]\naddopts = "--co"\n' if path.endswith("pyproject.toml")
+            else "[pytest]\naddopts = --co\n" if path.endswith(".ini") else '[pytest]\naddopts = "--co"\n')
+    (work / path).write_text(body)
+    g("add", "-A"), g("commit", "-q", "-m", "config")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert not r["ok"] and r["failed"] == "pinned-checks", r
+
+
 def test_a_deletion_under_a_whole_tests_prefix_runs_the_dir_whole_even_with_no_test_changed(tmp_path):
     """review 5 must-fix 3: a delete-only commit skipped red-on-base, so the old test importing the deleted file never ran."""
     work, g, base, pinned = _whole_project(tmp_path)
