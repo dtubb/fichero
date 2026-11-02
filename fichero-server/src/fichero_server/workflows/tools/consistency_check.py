@@ -94,11 +94,15 @@ def find_inconsistencies(text: str, *, check_formula_completeness: bool = False)
         PortDef(id="text", name="Text", port_type="input", data_type=DataType.TEXT, required=False),
         PortDef(id="documents", name="Documents", port_type="input", data_type=DataType.JSON, required=False),
     ],
-    output_ports=[PortDef(id="inconsistencies", name="Inconsistencies", port_type="output", data_type=DataType.JSON)],
+    output_ports=[
+        PortDef(id="inconsistencies", name="Inconsistencies", port_type="output", data_type=DataType.JSON),
+        # The checked text passes through, so a step placed last in a preset leaves the preset's own result as its output.
+        PortDef(id="text", name="Checked text", port_type="output", data_type=DataType.TEXT),
+    ],
     config_schema={"check_formula_completeness": {"type": "boolean", "default": False}}, sort_order=28,
 )
 async def consistency_check(inputs: dict[str, Any], state: State, llm_config: LLMConfig) -> dict[str, Any]:
     """Check transcription text without invoking an LLM."""
     text = str(inputs.get("text") or state.get("text") or "")
     flags = find_inconsistencies(text, check_formula_completeness=bool(inputs.get("check_formula_completeness")))
-    return {"inconsistencies": flags, "count": len(flags), "error": None}
+    return {"inconsistencies": flags, "count": len(flags), "text": text, "error": None}

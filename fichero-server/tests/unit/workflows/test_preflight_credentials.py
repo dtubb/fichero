@@ -176,10 +176,8 @@ def test_keyless_fresh_install_passes_preflight_for_every_default_workflow(
     monkeypatch.setattr("fichero_server.db.app.get_app_db", lambda: fresh_db)
     monkeypatch.setattr("fichero_server.llm.get_api_key", lambda provider: None)
 
-    # Translate (DeepL) exists specifically to use the DeepL cloud API — keyless
-    # it must fail AT PREFLIGHT naming the provider (the #4325 criterion), and is
-    # never silently rerouted to Apple (an explicit cloud choice).
-    keyed_presets = {"Translate (DeepL)"}
+    # No shipped preset names an explicit cloud provider now ("Translate (DeepL)" merged into Translate, #3907).
+    keyed_presets: set[str] = set()
 
     # DANIEL'S RULING (2026-09-06): keyless, a GENERATIVE-VISION node refuses
     # clearly — Apple has NO on-device generative-vision model on macOS 26 (Apple

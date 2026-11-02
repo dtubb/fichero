@@ -88,8 +88,8 @@
   "sha256": "22a9fae5952301b4d84d949c900a8ff91ffdbeefab0b3e4074c9800a82ab9c9f"
  },
  "extract_accounts_csv.json": {
-  "preset_version": 2,
-  "sha256": "9fc22746fd7c7c8b0a2a2549e6b40e83cbb8c9563c6e19317b9fd4ce12f0255a"
+  "preset_version": 3,
+  "sha256": "7dcd751d7c49f1604dfacf640c827e7b886edf74a2fb0963429e9c24230fb7d4"
  },
  "extract_events_timeline.json": {
   "preset_version": 1,
@@ -100,8 +100,8 @@
   "sha256": "f71beb5c3ff79c218270be0754c7a1062da30a6b2571206f838fcfc9303429f7"
  },
  "extract_table.json": {
-  "preset_version": 3,
-  "sha256": "07060c2553c38ac7f33aac027747245a7f12a98bd10df314e4422879f99d2a08"
+  "preset_version": 4,
+  "sha256": "7e3c2a4516c61296d1494f0fde86b9a822100948ef0089f9f09a7ac876f71c8b"
  },
  "fuzzy_clean_images.json": {
   "preset_version": 1,
@@ -224,16 +224,8 @@
   "sha256": "163b3b5b43c627d5785b480520aee1fb839f572257a13ffd5dbaa8eb6a52bae7"
  },
  "translate.json": {
-  "preset_version": 3,
-  "sha256": "fe039835d8610d866757b2d7de2ec018de9ed3f249baa8379c165470b7ecee22"
- },
- "translate_deepl.json": {
-  "preset_version": 2,
-  "sha256": "4bd70b129c9b470726e7b0f4d41950caa0aed979a8a3defbb52e647681504c6e"
- },
- "translate_review.json": {
-  "preset_version": 2,
-  "sha256": "1ff0bd54fdd1f1acbdac0176dd950db505c862f6bb4e3e3b1163ca226b7a033f"
+  "preset_version": 4,
+  "sha256": "525dcba8b3ff7c2637f5710f8cc865e834d491b2f1298a3063bf6c283a8380b9"
  },
  "translate_reviewed_transcription.json": {
   "preset_version": 1,

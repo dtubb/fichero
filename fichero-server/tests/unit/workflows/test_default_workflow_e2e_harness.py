@@ -62,9 +62,7 @@ _TRANSCRIBE_TERMINALS = {
 }
 
 _TRANSLATE_TERMINALS = {
-    "Translate": ("text_translate",),
-    "Translate (DeepL)": ("translate",),
-    "Translate + Double-Check": ("text_translate", "text_translate_review"),
+    "Translate": ("text_translate", "text_translate_review"),
 }
 
 _SPECIAL_OUTPUT_ASSERTIONS = {

@@ -4,12 +4,12 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-Transcribe each file (reusing any existing text layer), then translate the extracted text into your preferred language using an LLM. Target language, source language, model, and prompt are all editable on the Translate node. The LLM node uses the $small model alias — set your default small model in Settings → AI Defaults.
+Transcribe each file (reusing any existing text layer), translate the extracted text into your preferred language, then double-check the draft against the original and fix what it finds. Target language, source language, model, and prompt are all editable on the Translate and Double-Check nodes. The LLM nodes use the $small model alias - set your default small model in Settings > AI Defaults.
 
 | | |
 | --- | --- |
 | Folder | /Translate |
-| Steps | 3 |
+| Steps | 4 |
 | Tags | preset, translate, text, language, small |
 
 ## Steps, in run order
@@ -91,4 +91,43 @@ Rules:
 - If a passage is illegible or marked [ilegible] / [uncertain], carry the marker across unchanged and do not replace it with a guess.
 - Output ONLY the English translation, with no preamble, notes, or the original text.
 - Return PLAIN TEXT: no markdown formatting, no trailing spaces on lines, and no added blank lines beyond the original paragraph breaks.
+```
+
+### 4. Double-Check (Pass 2)
+
+Tool: [Translate Review](../tools/text_translate_review.md) — Second-pass AI double-check of a draft translation against the original source: corrects mistranslations, omissions, and altered names. Target language, model, and prompt are editable.
+
+Settings this step uses:
+
+| Option | Value |
+| --- | --- |
+| `provider_name` | $small |
+| `source_language` | auto |
+| `target_language` | English |
+
+What this step asks the model:
+
+```text
+You are reviewing a draft English translation against its original source.
+
+The ORIGINAL SOURCE TEXT appears in the Context section above (labelled
+"Document text"). The draft translation to review is the input below.
+
+Your job: compare the draft against the source, then produce a CORRECTED
+translation in English.
+
+Check for:
+- Mistranslations and false friends.
+- Omissions: source content the draft dropped.
+- Additions: text the draft invented that is not in the source.
+- Names, dates, and numbers altered, anglicised, or miscopied.
+- Register and idiom that read unnaturally in English.
+
+Rules:
+- Output ONLY the corrected English translation. No commentary, no diff,
+  no notes about what you changed, no preamble.
+- If the draft is already accurate and faithful, return it unchanged
+  verbatim. Do not paraphrase or reformat.
+- Preserve paragraph structure and any [ilegible] / [uncertain] markers
+  verbatim. Do not resolve or delete them.
 ```

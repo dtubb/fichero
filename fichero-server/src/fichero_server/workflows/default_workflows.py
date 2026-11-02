@@ -90,7 +90,13 @@ _DEPRECATED_PRESET_NAMES: set[str] = {
     "4 · Merge / Dedup",
     "5 · KG Persist / Finalize",
     "6 · Catalogue",
+    # 2026-11-02 (#3907): one Translate that double-checks by default; the old names resolve to it (RENAMED).
+    "Translate + Double-Check",
+    "Translate (DeepL)",
 }
+
+#: A shipped file's old key -> its key now, so a caller that held the key (a recipe, a saved run) still finds the preset.
+SHIPPED_KEY_ALIASES = {"translate_review": "translate", "translate_deepl": "translate"}
 
 
 def _load_preset_files() -> list[dict]:
@@ -117,7 +123,7 @@ def shipped_preset(key: str) -> dict | None:
     A preset's display name may change (#5497: the Catalogue stages lost their "N · " prefix); its file
     does not, so a caller that must find one shipped workflow (a recipe's job) holds the key, never the
     name. None for a key no preset ships under."""
-    path = _PRESETS_DIR / f"{key}.json"
+    path = _PRESETS_DIR / f"{SHIPPED_KEY_ALIASES.get(key, key)}.json"
     if not path.is_file():
         return None
     data = json.loads(path.read_text(encoding="utf-8"))

@@ -1,6 +1,6 @@
 {
   "name": "Translate",
-  "description": "Transcribe each file (reusing any existing text layer), then translate the extracted text into your preferred language using an LLM. Target language, source language, model, and prompt are all editable on the Translate node. The LLM node uses the $small model alias — set your default small model in Settings → AI Defaults.",
+  "description": "Transcribe each file (reusing any existing text layer), translate the extracted text into your preferred language, then double-check the draft against the original and fix what it finds. Target language, source language, model, and prompt are all editable on the Translate and Double-Check nodes. The LLM nodes use the $small model alias - set your default small model in Settings > AI Defaults.",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
@@ -13,7 +13,7 @@
     "small"
   ],
   "config": {
-    "preset_version": 3
+    "preset_version": 4
   },
   "nodes": [
     {
@@ -51,6 +51,22 @@
         "source_language": "auto",
         "preserve_names": true
       }
+    },
+    {
+      "id": "text_translate_review",
+      "tool": "text_translate_review",
+      "label": "Double-Check (Pass 2)",
+      "position_x": 680,
+      "position_y": 200,
+      "inputs": {
+        "context": "$.nodes.transcribe.text",
+        "documents": "$.nodes.files-source.documents"
+      },
+      "config": {
+        "provider_name": "$small",
+        "target_language": "English",
+        "source_language": "auto"
+      }
     }
   ],
   "edges": [
@@ -81,6 +97,13 @@
       "target": "text_translate",
       "source_port": "documents",
       "target_port": "documents"
+    },
+    {
+      "id": "edge-translate-review",
+      "source": "text_translate",
+      "target": "text_translate_review",
+      "source_port": "text",
+      "target_port": "text"
     }
   ]
 }

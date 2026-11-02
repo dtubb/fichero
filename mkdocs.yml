@@ -187,8 +187,6 @@ nav:
               - Transcribe Paleography (Economy): reference_manual/tool_references/workflows/transcribe-paleography-economy.md
               - Transcribe Typescript: reference_manual/tool_references/workflows/transcribe-typescript.md
               - Translate: reference_manual/tool_references/workflows/translate.md
-              - Translate (DeepL): reference_manual/tool_references/workflows/translate-deepl.md
-              - Translate + Double-Check: reference_manual/tool_references/workflows/translate-double-check.md
               - Translate the Reviewed Transcription: reference_manual/tool_references/workflows/translate-the-reviewed-transcription.md
               - Translate to English (Historical): reference_manual/tool_references/workflows/translate-to-english-historical.md
               - Work Out Dates: reference_manual/tool_references/workflows/work-out-dates.md

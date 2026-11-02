@@ -4,12 +4,12 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-Detect and extract tabular data from each image/page using vision, emitting CSV you can paste into a spreadsheet. Feeds the spreadsheet (Table) representation in the document viewer. The output style and header handling are editable on the Table node.
+Detect and extract tabular data from each image/page using vision, emitting CSV you can paste into a spreadsheet. Feeds the spreadsheet (Table) representation in the document viewer. The output style and header handling are editable on the Table node. A final Check Consistency step flags a figure that disagrees with its words and a name spelled two ways.
 
 | | |
 | --- | --- |
 | Folder | /Extract |
-| Steps | 2 |
+| Steps | 3 |
 | Tags | preset, table, extract, representation |
 
 ## Steps, in run order
@@ -59,3 +59,7 @@ a measuring ruler or scale bar laid beside the page, a colour calibration
 chart, a strip of page or folio numbers, a margin, or any other photographic
 furniture that belongs to the act of scanning rather than to the document.
 ```
+
+### 3. Check Consistency
+
+Tool: [Consistency Check](../tools/consistency-check.md) — Flag deterministic numeral, name, and formula inconsistencies.

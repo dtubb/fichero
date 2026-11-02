@@ -93,7 +93,12 @@ def with_instructions(nodes: list[dict], edits: dict[str, str], answers: dict[st
 #: The shipped review preset a recipe's Correct step runs (`start.WORKFLOW_FOR_JOB["correct"]`).
 REVIEW_PRESET = "transcribe_paleography_review"
 #: The name a run made before the rename carries as its `workflow` (#6128), read as the preset it became.
-RENAMED = {"Paleographer Review": "Review the Reading"}
+RENAMED = {
+    "Paleographer Review": "Review the Reading",
+    # Merged into one Translate that double-checks by default (#3907): the old names and ids still find it.
+    "Translate + Double-Check": "Translate",
+    "Translate (DeepL)": "Translate",
+}
 
 
 def review_passes(preset: str, lenses: list[str] | None) -> int | None:
