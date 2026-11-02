@@ -1,6 +1,6 @@
 # Source Model — Rights, consent and access — Design Spec (#TBD)
 
-> Milestone: source-model
+> Milestone: rights-and-access
 > Manual: TBD — a "Who may see this" section: recording rights and consent on a source or any
 > part of it; community protocols and labels; restricting, redacting and truly removing
 > material; and what exports and training sets do with restricted material.

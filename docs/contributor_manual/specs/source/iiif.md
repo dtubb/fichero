@@ -1,6 +1,6 @@
 # Source Model — IIIF: by reference in, standards out, Fichero as a server — Design Spec (#5323)
 
-> Milestone: source-model
+> Milestone: iiif
 > Manual: TBD — a section in "Bringing sources in" that explains opening a collection from a
 > library's IIIF manifest without copying it, what stays remote and what is cached, and a section
 > in "Sharing" that explains publishing a library as IIIF for other viewers and researchers.

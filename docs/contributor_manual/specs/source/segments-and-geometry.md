@@ -1,6 +1,6 @@
 # Source Model — Segments and geometry — Design Spec (#TBD)
 
-> Milestone: source-model
+> Milestone: segments-and-geometry
 > Manual: docs/contributor_manual/guide/02-the-node-model.md (the researcher-facing section authored in the user manual, tracked by this file: part of the "How Fichero represents a source" section: what a segment is, how segments nest, how they are ordered and linked, and how a page can have several images.)
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;

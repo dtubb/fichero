@@ -1,6 +1,6 @@
 # Knowledge Graph — The project gazetteer and the canonical name list — Design Spec (#5380)
 
-> Milestone: source-model
+> Milestone: project-gazetteer-and-names
 > Manual: TBD — a section, "Places and names", explaining the project's gazetteer and name list:
 > every way a place or person is written in the sources, the preferred form, the links to Wikidata
 > and gazetteers, what was fetched from them, and how to merge, split or correct.

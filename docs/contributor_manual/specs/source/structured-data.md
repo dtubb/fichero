@@ -1,6 +1,6 @@
 # Structured data — a question set over a collection, each answer tied to its source — Design Spec (#5636)
 
-> Milestone: source-model
+> Milestone: structured-data
 > Manual: TBD — a section, "Pulling a table out of a collection": choosing or writing the questions
 > for a kind of document, running them over a folder, reading the table, checking a cell against the
 > words it came from, correcting it, and exporting the table with its sources.

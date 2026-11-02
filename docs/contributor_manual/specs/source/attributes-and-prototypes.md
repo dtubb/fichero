@@ -1,6 +1,6 @@
 # Source Model — Attributes and prototypes: the kind of a node, its fields, and the cascade — Design Spec (#5365, #6282, #5636)
 
-> Milestone: source-model
+> Milestone: attributes-and-prototypes
 > Manual: TBD — a section, "Kinds of record and their fields", telling a researcher that a project,
 > a box, a folder or a page can be given a kind (a prototype), that the kind decides which fields the
 > record has and which columns a table or an export shows, that a folder's kind passes down to what is

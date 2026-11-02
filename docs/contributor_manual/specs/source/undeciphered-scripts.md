@@ -1,6 +1,6 @@
 # Source Model — Undeciphered and partly deciphered scripts — Design Spec (#5328)
 
-> Milestone: source-model
+> Milestone: undeciphered-scripts
 > Manual: TBD — a section, "Working with a script nobody can read yet", explaining how to mark
 > signs whose meaning is unknown, keep rival sign lists and rival identifications side by side,
 > let a model propose segments, groupings and readings, look for patterns in how signs combine,

@@ -1,6 +1,6 @@
 # Source Model — Formats in and out, and training — Design Spec (#TBD)
 
-> Milestone: source-model
+> Milestone: formats-and-training
 > Manual: TBD — an "Bringing work in and taking it out" section: importing a PageXML, ALTO or
 > TEI project; exporting one; what each format can and cannot carry; and making a training
 > set to teach a small model a new hand or script.

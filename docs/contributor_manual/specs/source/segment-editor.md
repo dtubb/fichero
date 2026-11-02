@@ -1,6 +1,6 @@
 # Source Model — The segment editor — Design Spec (#TBD)
 
-> Milestone: source-model
+> Milestone: segment-editor
 > Manual: docs/contributor_manual/manual-facts/2026-10-05.md (the researcher-facing section authored in the user manual, tracked by this file: an "Editing the layout of a page" section: selecting, drawing, reshaping, merging and splitting segments on the image; setting their order, direction and type; drawing links; working with the Apple Pencil.)
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;

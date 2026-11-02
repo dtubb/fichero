@@ -1,6 +1,6 @@
 # Source Model — The catalogue workbook: one row per folder, in the archive's template — Design Spec (#6282)
 
-> Milestone: source-model
+> Milestone: catalogue-export
 > Manual: TBD — a section, "Exporting your catalogue", telling a researcher that the recipe's last step
 > writes the catalogue as a workbook (Excel) or sheets (CSV) in their archive's own template, one row per
 > digital folder, with the people, places and institutions as lists beside it, that the same recipe can
