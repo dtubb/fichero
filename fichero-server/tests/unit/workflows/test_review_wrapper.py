@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[4] / "scripts" / "harness_review.py"
+MODELS = '[models]\nproviders = ["claude-code"]\nreviewer = {{ provider = "claude-code", model = "{model}", context = {ctx} }}\n'
 
 
 def _run(tmp_path, reply, extra=()):
@@ -31,7 +32,7 @@ def _run(tmp_path, reply, extra=()):
     g("branch", "landbr", base)
     pinned = tmp_path / "pinned"
     pinned.mkdir()
-    (pinned / "harness.toml").write_text('[land]\nbranch = "landbr"\nboundary = ["zzz"]\n')
+    (pinned / "harness.toml").write_text('[land]\nbranch = "landbr"\nboundary = ["zzz"]\n' + MODELS.format(model="opus-pinned", ctx=200000))
     d = tmp_path / "own"
     d.mkdir(mode=0o700)
     store = d / "verdicts.json"
@@ -72,7 +73,7 @@ def test_a_diff_over_the_cap_is_refused_not_truncated(tmp_path):  # review 4 B4
     g("add", "."), g("commit", "-q", "-m", "big")
     (tmp_path / "p").mkdir()
     # the cap is 40% of the reviewer's window at 3.5 bytes a token: 20000 tokens -> 28000 bytes; one commit cannot be split
-    (tmp_path / "p" / "harness.toml").write_text('[land]\nbranch = "landbr"\n[models]\nreviewer = { provider = "claude-code", model = "opus", context = 20000 }\n')
+    (tmp_path / "p" / "harness.toml").write_text('[land]\nbranch = "landbr"\n' + MODELS.format(model="opus", ctx=20000))
     r = subprocess.run([sys.executable, str(SCRIPT), str(tmp_path / "r"), "HEAD", "--pinned", str(tmp_path / "p"),
                         "--verdicts", str(tmp_path / "v.json"), "--print"], capture_output=True, text=True)
     assert r.returncode and "28000 cap" in r.stderr and "alone" in r.stderr
@@ -96,7 +97,7 @@ def _split_run(tmp_path, replies):
                                  f"cat > {tmp_path}/prompt$n\nsed -n ${{n}}p {tmp_path}/replies\n")
     (bin_ / "claude").chmod(0o755)
     (tmp_path / "p").mkdir()
-    (tmp_path / "p" / "harness.toml").write_text('[land]\nbranch = "landbr"\n[models]\nreviewer = { provider = "claude-code", model = "opus", context = 20000 }\n')
+    (tmp_path / "p" / "harness.toml").write_text('[land]\nbranch = "landbr"\n' + MODELS.format(model="opus", ctx=20000))
     (tmp_path / "own").mkdir(mode=0o700)
     store = tmp_path / "own" / "v.json"
     r = subprocess.run([sys.executable, str(SCRIPT), str(tmp_path / "r"), "HEAD", "--pinned", str(tmp_path / "p"), "--verdicts", str(store)],
@@ -157,6 +158,21 @@ def test_the_ladder_reaches_the_reviewer_as_one_line_per_rung(tmp_path):
         {"name": "ready", "ok": True, "seconds": 3.0}, {"name": "guards", "ok": False, "results": [{"name": "check_a", "ok": False}, {"name": "check_b", "ok": True}]}]}))
     r, _ = _run(tmp_path, "READY", extra=["--ladder", str(ladder), "--print"])
     assert "- ready: ok=True" in r.stdout and "- guards: ok=False" in r.stdout and "red=['check_a']" in r.stdout
+
+
+def test_the_reviewer_model_comes_from_the_pinned_rules_file(tmp_path):
+    r, _ = _run(tmp_path, "READY")
+    assert r.returncode == 0, r.stderr
+    assert "--model opus-pinned " in (tmp_path / "seen").read_text()
+
+
+def test_no_reviewer_role_in_the_pinned_rules_file_is_a_question(tmp_path):
+    r, store = _run(tmp_path, "READY", extra=("--print",))
+    assert r.returncode == 0  # sanity: the pinned file has the role
+    (tmp_path / "pinned" / "harness.toml").write_text('[land]\nbranch = "landbr"\n')
+    r = subprocess.run([sys.executable, str(SCRIPT), str(tmp_path / "r"), "HEAD", "--pinned", str(tmp_path / "pinned"), "--verdicts", str(store)],
+                       capture_output=True, text=True)
+    assert r.returncode == 1 and "QUESTION: harness.toml [models].reviewer" in r.stderr and not store.exists()
 
 
 def test_a_rerun_after_a_fix_reviews_only_the_new_commits_and_keeps_the_ready_groups(tmp_path):

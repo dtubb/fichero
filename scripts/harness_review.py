@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """review wrapper (#6116 Step 0.1 item 7): a fresh read-only reviewer over <land branch>..<head>, as the OWNER's user.
 
-Usage: scripts/harness_review.py <repo> <head> --pinned DIR --verdicts FILE [--ladder FILE] [--checklist FILE] [--model opus] [--print]
+Usage: scripts/harness_review.py <repo> <head> --pinned DIR --verdicts FILE [--ladder FILE] [--checklist FILE] [--model M (default: the pinned [models].reviewer)] [--print]
 The base is [land].branch of the pinned harness.toml, resolved in repo. The cap is land_tool.review_cap of the pinned
 [models].reviewer context (default 200000 tokens); a range over it is reviewed in consecutive commit groups that each fit
 (land_tool.review_groups; one commit over the cap or binary is refused, never truncated). Per group it builds the prompt
@@ -32,7 +32,7 @@ ap.add_argument("--pinned", required=True)
 ap.add_argument("--verdicts", required=True)
 ap.add_argument("--ladder")
 ap.add_argument("--checklist", default=str(ROOT / "docs" / "contributor_manual" / "review-checklist.md"))
-ap.add_argument("--model", default="opus")
+ap.add_argument("--model")  # default: the pinned [models].reviewer
 ap.add_argument("--print", dest="dry", action="store_true")
 ap.add_argument("--full", action="store_true", help="review the whole range even when an earlier run's groups could be kept")
 a = ap.parse_args()
@@ -42,6 +42,10 @@ branch = rules.get("land", {}).get("branch")
 cap = land_tool.review_cap(int((rules.get("models", {}).get("reviewer") or {}).get("context", models.Model.context)))
 if not branch:
     sys.exit("REFUSED: [land].branch is not declared in the pinned harness.toml")
+try:
+    a.model = a.model or models.for_role(rules.get("models", {}), "reviewer").model
+except models.Question as e:
+    sys.exit(f"QUESTION: {e}")
 base = land_tool.resolve_branch(a.repo, branch)
 a.head = land_tool._git(a.repo, "rev-parse", "--verify", f"{a.head}^{{commit}}").strip()  # one sha for the whole run
 if subprocess.run([land_tool.GIT, "-C", a.repo, "merge-base", "--is-ancestor", base, a.head], capture_output=True).returncode:
