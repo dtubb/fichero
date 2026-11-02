@@ -389,9 +389,12 @@ def main(a) -> int:
              ("pinned", pinned), ("jail-root", jail_root), ("scratch", scratch), ("issues", issues), ("specs", specs)]
     if resume:
         steps = steps[[n for n, _ in steps].index("refresh") + 1:]
+    journal.append("activity", kind="land", key=f"land {sha[:9]}", state="start")
     for name, fn in steps:
         if not step(name, fn):
+            journal.append("activity", kind="land", key=f"land {sha[:9]}", state="end", ok=False, failed=name)
             return 1
+    journal.append("activity", kind="land", key=f"land {sha[:9]}", state="end", ok=True)
     closing = {c["number"] for c in cited if c["kind"] in ("fixes", "closes")}
     left_open = sorted({c["number"] for c in cited} - closing)  # a row, not a close: nothing is silently left (owner ruling)
     journal.append("landed", sha=sha, step="done", ok=True, branch=branch, pushed=pushed, detail="landed",

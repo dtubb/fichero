@@ -159,7 +159,8 @@ def do_check(a, repo: str, branch: str, head: str, ladder: str) -> dict:
         raise RuntimeError(f"{branch!r} is not a branch in {repo}")
     maintainer = bool(getattr(a, "maintainer", False))  # the manager approved a pinned-file change (dev-workflows.run.loop-needs-maintainer)
     approve = bool(getattr(a, "approve_weakened", False))  # the manager approved weakened tests (an alert's approve)
-    red_ok = bool(getattr(a, "approve_red", False))  # the manager approved a red-on-base refusal (an alert's approve)
+    red_ok = bool(getattr(a, "approve_red", False))
+    check_tool.ACTIVITY = lambda **kw: journal.append("activity", lane=a.name, **kw)  # the manager approved a red-on-base refusal (an alert's approve)
     r = check_tool.ladder_over(repo, since, head, a.pinned, getattr(a, "ids", []), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok)
     Path(ladder).write_text(json.dumps(r, indent=1))
     journal.append("check", repo=str(repo), since=since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok)
@@ -172,7 +173,11 @@ def _script(name: str, *argv) -> tuple[bool, str]:
 
 
 def do_review(a, repo: str, head: str, ladder: str, verdicts: str, model: str) -> tuple[bool, str]:
+    key = f"review {head[:9]}"
+    journal.append("activity", kind="review", key=key, state="start", lane=a.name)
     ok, out = _script("harness_review.py", repo, head, "--pinned", a.pinned, "--verdicts", verdicts, "--ladder", ladder, "--model", model)
+    groups = re.findall(r"^\[group (\d+) of (\d+)", out or "", re.M)
+    journal.append("activity", kind="review", key=key, state="end", ok=ok, groups=len(groups) or 1)
     return ok, out or "the reviewer said nothing"  # the whole text: a queue sends the findings back to the worker
 
 

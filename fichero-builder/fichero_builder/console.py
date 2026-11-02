@@ -130,6 +130,48 @@ def _head(brief: str, n: int = 3000) -> str:
         return ""
 
 
+_PROGRESS: dict = {}  # (worktree, head) -> progress: a commit's step never changes
+
+
+def progress(worktree: str, step: str = "", milestone: str = "") -> dict:
+    """{step, i, n, spec, milestone} for a lane: the step given (a worker lane's queue step), else the newest commit's
+    `Step X.Y` or the step whose Build order section names its `Behaviour:` id (an external lane, re-read each call).
+    N is the spec's build order, read from the lane's own worktree. {} when nothing says."""
+    from fichero_builder import milestone as ms
+    head = _git_text(worktree, "rev-parse", "HEAD").strip()
+    if (worktree, head, step) in _PROGRESS:
+        return _PROGRESS[(worktree, head, step)]
+    msg = _git_text(worktree, "log", "-1", "--format=%B")
+    beh = re.search(r"^Behaviour:\s*`?([a-z][\w.-]+\.[\w.-]+)", msg, re.M)
+    out: dict = {}
+    spec = ""
+    if beh:
+        spec = next(iter(_git_text(worktree, "grep", "-l", "-F", f"`{beh.group(1)}`", "--", "docs/contributor_manual/specs").split()), "")
+    if not spec and milestone:
+        from fichero_builder import triage
+        spec = next((str(triage.SPECS / sp) for name, sp in triage.ORDER_LINE.findall((Path(worktree) / triage.BUILD_ORDER).read_text())
+                     if queue.slug(name) == milestone and sp), "") if (Path(worktree) / triage.BUILD_ORDER).is_file() else ""
+    st = step or (m.group(1) if (m := re.search(r"\bStep (\d+\.\d+)", msg)) else "")
+    if spec:
+        try:
+            order = ms.build_order(Path(worktree) / spec)
+            text = (Path(worktree) / spec).read_text()
+            if not st and beh:  # the step whose section names the behaviour
+                sec = text.split("Build order", 1)[-1]
+                for part in re.split(r"(?m)^#### Step ", sec)[1:]:
+                    if f"`{beh.group(1)}`" in part:
+                        st = part.split()[0]
+                        break
+            nums = [o["number"] for o in order]
+            out = {"step": st, "i": nums.index(st) + 1 if st in nums else None, "n": len(nums), "spec": spec, "milestone": ms.spec_slug(Path(worktree) / spec)}
+        except (ValueError, OSError):
+            out = {"step": st, "spec": spec}
+    elif st:
+        out = {"step": st}
+    _PROGRESS[(worktree, head, step)] = out
+    return out
+
+
 WORKING_S = 15 * 60  # an external lane whose HEAD moved this recently is working
 LOOP_STALE_S = 3 * 30  # three ticks: no tick row since = the loop is off
 
@@ -158,6 +200,11 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
         last, ct = commit(x["worktree"]) if Path(x["worktree"]).is_dir() else ("", 0)
         if x.get("kind") == "external" and row["state"] == "queued":  # no worker of ours: its own commits say whether it works
             row["state"] = "working" if ct and now - ct <= WORKING_S else "idle"
+        if Path(x["worktree"]).is_dir():
+            pr = progress(x["worktree"], "" if x.get("kind") == "external" else (cur or {}).get("step", ""), x["id"])
+            if x.get("kind") == "external" and pr.get("step"):
+                row["step"] = f"Step {pr['step']}"  # its own newest commit says where it is (the queue's step is the batch's name)
+            row["progress"] = pr
         row.update(
             worktree=x["worktree"], title=_title(cur["brief"]) if cur else "", brief_text=_head(cur["brief"]) if cur else "",
             commit_ts=time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(ct)) if ct else "",

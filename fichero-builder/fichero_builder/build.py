@@ -50,11 +50,13 @@ def main(a) -> int:
     env = {**os.environ, "FICHERO_RELEASE_TIER": "dev", "FICHERO_RELEASE_VERSION": m.group(1), "FICHERO_DMG_PATH": str(dmg),
            "PATH": os.pathsep.join([str(Path(sys.executable).parent), os.environ.get("PATH", "")])}  # the engine preflight calls a bare python3
     started = time.time()
+    journal.append("activity", kind="build", key=f"build {sha[:9]}", state="start")
     print(f"building the dev DMG of {sha[:9]}{' with uncommitted changes' if dirty else ''}; log {log}", flush=True)
     with log.open("w") as f:
         rc = subprocess.run([str(script)], cwd=str(root), env=env, stdout=f, stderr=subprocess.STDOUT).returncode
     fresh = dmg.is_file() and dmg.stat().st_mtime >= started - 1
     ok = rc == 0 and fresh
+    journal.append("activity", kind="build", key=f"build {sha[:9]}", state="end", ok=ok)
     journal.append("build", tier="dev", sha=sha, dirty=dirty, ok=ok, rc=rc, dmg=str(dmg) if ok else "", log=str(log), seconds=int(time.time() - started))
     if ok:
         print(f"PASSED {dmg}")

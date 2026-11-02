@@ -256,3 +256,24 @@ def test_worktrees_lists_each_tree_and_clean_up_sweeps_only_a_landed_clean_one_w
     (row,) = [r for r in journal.read() if r["event"] == "sweep"]
     assert row["ok"] and row["worktree"].endswith("done")
     assert console.argv_for("sweep", {"worktree": "/w/x"})[3:6] == ["sweep", "--worktree", "/w/x"]
+
+
+def test_an_external_lanes_step_and_progress_come_from_its_newest_commit_and_its_specs_build_order(tmp_path):
+    """Order 8 + manager defect 2026-11-02: lane-sharing showed its queue step 'sharing-2.3' while its HEAD was workflows Step 1.4.
+    The step comes from the newest commit (`Step X.Y`, else the step whose Build order section names its `Behaviour:`), and
+    i/N from that spec's build order in the lane's own tree."""
+    import subprocess
+
+    def g(*a):
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=tmp_path, check=True, capture_output=True)
+    spec = tmp_path / "docs/contributor_manual/specs/ui/flows.md"
+    spec.parent.mkdir(parents=True)
+    spec.write_text("> Milestone: flows\n\n## Build order\n\n#### Step 1.1 — a\n- Behaviours: `flows.a`\n\n#### Step 1.2 — b\n- Behaviours: `flows.b`\n")
+    g("init", "-q", "-b", "main"), g("add", "."), g("commit", "-qm", "spec")
+    (tmp_path / "x.txt").write_text("x")
+    g("add", "."), g("commit", "-qm", "feat: b works\n\nBehaviour: flows.b")
+    pr = console.progress(str(tmp_path))
+    assert (pr["step"], pr["i"], pr["n"], pr["milestone"]) == ("1.2", 2, 2, "flows"), pr
+    (tmp_path / "y.txt").write_text("y")
+    g("add", "."), g("commit", "-qm", "fix: a (Step 1.1, owner ruling)\n\nBehaviour: flows.b")
+    assert console.progress(str(tmp_path))["step"] == "1.1", "a Step in the message wins"

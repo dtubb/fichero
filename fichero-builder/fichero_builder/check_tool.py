@@ -597,11 +597,21 @@ def already_built_files(root, since: str, head: str, cfg: Config = Config()) -> 
     return have - other
 
 
+def _no_activity(**kw) -> None:
+    return None
+
+
+ACTIVITY = _no_activity  # `builder check` and the chain set this to a journal writer (console view A); tests write nowhere
+_KEY: list = [""]  # the running ladder's key, for its rung rows
+
+
 def ladder(rungs: list) -> dict:
     """Run (name, callable) rungs in order and stop at the first red, so the worker gets one failure at a time."""
     out = []
     for name, fn in rungs:
+        ACTIVITY(kind="check", key=_KEY[0], state="rung-start", rung=name)
         r = {"name": name, **fn()}
+        ACTIVITY(kind="check", key=_KEY[0], state="rung", rung=name, ok=bool(r.get("ok")), seconds=r.get("seconds"))
         out.append(r)
         if not r["ok"]:
             return {"ok": False, "failed": name, "rungs": out}
@@ -754,9 +764,14 @@ def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_requi
         if wall := j.probe():
             raise _jailmod.JailMissing("the jail leaks: " + "; ".join(wall))
     _JAIL = j
+    _KEY[0] = f"check {since[:9]}..{str(head)[:9]}"
+    ACTIVITY(kind="check", key=_KEY[0], state="start")
+    ended: dict = {}
     try:
-        return _run_ladder(root, since, head, pinned, protected_ids, maintainer, approve_weakened, approve_red)
+        ended = _run_ladder(root, since, head, pinned, protected_ids, maintainer, approve_weakened, approve_red)
+        return ended
     finally:
+        ACTIVITY(kind="check", key=_KEY[0], state="end", ok=bool(ended.get("ok")), failed=ended.get("failed", "?"))
         _JAIL = None
         if _SHIPPED or _DOWN:
             _drop_remote(load(pinned))
