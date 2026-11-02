@@ -114,7 +114,9 @@ def cluster(issues: list[dict], *, repo: str, branch: str, base: str, rules: str
             "tool to call; do not try to read the issues again."]
     if rules.strip():
         head.append(" ".join(rules.strip().replace("#N", numbers).split("\n")))
-    head += ["One commit per issue. Test first, see it fail, then fix. Before changing a shared function, grep every "
+    head += [f"This step owes {numbers}. Put `Fixes #N` on its own line on the commit that finishes issue N, and `Part of #N` on any commit before that: "
+             "an issue closes only through that line when the step lands.",
+             "One commit per issue. Test first, see it fail, then fix. Before changing a shared function, grep every "
              "reader and run their tests. If the behaviour is already in place, do not commit a test alone: commit the "
              "proving test with the line `Already built: #N <test path>::<test name>` in the message (that test passes on "
              "the base by design, so the check owes it no red; the landing comments the issue with the test).",

@@ -152,3 +152,13 @@ def test_the_projects_standing_worker_rules_are_in_harness_toml_so_no_brief_need
     rules = tomllib.loads((Path(__file__).resolve().parents[4] / "harness.toml").read_text())["brief"]["rules"]
     for must in ("--basetemp", "PYTHONPATH=src", "never xcodebuild", "Directed-By: the maintainer", "author Claude", "This step owes"):
         assert must in rules, must
+    assert "#N" not in rules, "filled with every number of a step, a line like `Part of #N` told the worker to cite all of them on every commit"
+
+
+def test_the_brief_names_what_the_step_owes_and_the_line_that_closes_each(tmp_path):
+    """An issue closes only through `builder landed`, on a `Fixes #N` line, so the brief says which numbers and how; the rules
+    point at this sentence, so a real brief must carry it."""
+    issues = [{"number": 7, "title": "a", "body": "", "authorAssociation": "OWNER"}, {"number": 8, "title": "b", "body": "", "authorAssociation": "OWNER"}]
+    text = brief_tool.cluster(issues, repo=".", branch="b", base="s")
+    assert "This step owes #7, #8." in text
+    assert "`Fixes #N` on its own line on the commit that finishes issue N" in text and "`Part of #N` on any commit before that" in text
