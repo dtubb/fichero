@@ -83,6 +83,7 @@ INSTALL = r'''set -e
 dmg={dmg}
 mnt=$(hdiutil attach -nobrowse -readonly "$dmg" | tail -1 | cut -f3-)
 app=$(ls -d "$mnt"/*.app | head -1); name=$(basename "$app")
+[ -n "$name" ] && [ -d "$app" ] || {{ echo "no .app in the mounted image"; exit 1; }}  # never rm -rf an empty name
 mkdir -p ~/Applications && rm -rf ~/Applications/"$name" && cp -R "$app" ~/Applications/
 hdiutil detach "$mnt" -quiet || true
 rm -f "$dmg"

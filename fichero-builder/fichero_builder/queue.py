@@ -19,9 +19,11 @@ import json
 import os
 import re
 import shlex
+import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import tomllib
 from concurrent.futures import ThreadPoolExecutor
@@ -30,7 +32,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from fichero_builder import codemap, jail, journal, land_tool, models, work
+from fichero_builder import check_tool, codemap, jail, journal, land_tool, models, work
 
 ROUNDS, RESTARTS = 2, 2
 FIX = ("Step {step}: the {kind} did not pass. Fix it on this branch with new commit(s), under the same rules.\n\n{findings}\n\n"
@@ -230,13 +232,21 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             procs.stop(lane)
             del handles[lane["id"]]
         if push and lane["steps"] and not lane.get("built"):  # dev-workflows.run.loop-rolls-on: one dev build per milestone landed for real
-            rc, output = procs.build(lane)
             lane["built"] = True
             store(lane)
-            journal.append("queue", lane=lane["id"], step="-", state="built" if rc == 0 else "build-failed", detail=output[-300:])
-            if rc:  # an alert to read, never a stop: the roll-on goes on
-                alert(lane["id"], "build", f"the dev build after {lane['id']} failed: {(output.strip().splitlines() or [''])[-1]}",
-                      str(journal.STATE), [])
+
+            def build_it():
+                rc, output = procs.build(lane)
+                journal.append("queue", lane=lane["id"], step="-", state="built" if rc == 0 else "build-failed", detail=output[-300:])
+                if rc:  # an alert to read, never a stop: the roll-on goes on
+                    alert(lane["id"], "build", f"the dev build after {lane['id']} failed: {(output.strip().splitlines() or [''])[-1]}",
+                          str(journal.STATE), [])
+            if chains is None:
+                build_it()
+            else:  # the build is a quarter of an hour: inline it stopped every tick for 17 min (2026-11-02, after harness-unblock landed)
+                t = threading.Thread(target=build_it, name=f"build-{lane['id']}", daemon=True)
+                BUILDS.append(t)
+                t.start()
         return False
     s = lane["steps"][lane["cursor"]]
     if s["state"] == "blocked":
@@ -278,7 +288,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                 if why := procs.rebase(lane):
                     return block(s, why)
                 lane["seq"] += 1
-                procs.send(lane, Path(s["brief"]).read_text())
+                procs.send(lane, Path(s.get("resume_brief") or s["brief"]).read_text())  # a send-back or a fix round writes it (review 2026-11-02: the finding never reached a live session)
         except (RuntimeError, OSError, ValueError, KeyError) as e:  # a refusal is a row, never a traceback
             return block(s, f"the step could not start: {e}")
         move(s, "sent", f"message {lane['seq']}")
@@ -307,9 +317,14 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if DRAIN[0]:  # new code waits: no new chain starts, so the loop can re-exec between chains
             return True
         chains[lane["id"]] = chains["pool"].submit(chain)
+        chains[lane["id"]].head = s.get("head", "")
         return True
     else:
-        r = chains.pop(lane["id"]).result()
+        f = chains.pop(lane["id"])
+        r = f.result()
+        if getattr(f, "head", s.get("head", "")) != s.get("head", ""):  # `builder done` at a newer head ended this batch: its result is dropped, the new head is checked next tick
+            journal.append("queue", lane=lane["id"], step=s["step"], state="stale-result", detail=f"the check of {f.head[:9]} ended after {s.get('head', '')[:9]} superseded it: dropped")
+            return True
     if r["ok"]:
         s["head"] = r["head"]
         rc, output = procs.landed(lane, r["head"], push)
@@ -320,6 +335,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             journal.append("queue", lane=lane["id"], step=s["step"], state="told" if not err else "tell-refused", detail=err or "LANDED")
             procs.after_land(lane, s, r["head"])
         left = procs.still_open(lane, s)  # a row, not a close: only `builder landed` closes, on a Fixes line (owner ruling)
+        close_alerts(lane["id"], s["step"], f"the step landed at {r['head'][:9]}")
         move(s, "landed", f"landed {r['head'][:9]}" + (" (pushed)" if push else " (not pushed)") + (f"; still open: {', '.join(left)}" if left else ""))
         if left:
             journal.append("queue", lane=lane["id"], step=s["step"], state="issue-open", detail=", ".join(left))
@@ -406,6 +422,18 @@ def lane_head(worktree: str) -> str:
     return r.stdout.strip() if r.returncode == 0 else ""
 
 
+def related(worktree: str, old: str, new: str) -> bool:
+    """`new` is a descendant of `old`, or a rewrite of it (some commit of old's patch is in new: `git cherry` '-')."""
+    g = ["git", "-c", "safe.directory=*", "-C", worktree]
+    if subprocess.run(g + ["merge-base", "--is-ancestor", old, new], capture_output=True).returncode == 0:
+        return True
+    r = subprocess.run(g + ["cherry", old, new], capture_output=True, text=True)
+    return r.returncode == 0 and any(ln.startswith("-") for ln in r.stdout.splitlines())
+
+
+APPROVALS = ("approve_red", "approve_weakened", "approve_pinned_new", "approve_kind", "approvals", "approved_head", "approved_tests", "maintainer")
+
+
 def land_tree(lane: dict, sha: str) -> tuple[str, str]:
     """(path, '') of `land-<lane>` beside the lane's worktree, made or reset at `sha` as the owner; the lane's own tree and
     branch are never touched (its agent works there). ('', why) when git refuses."""
@@ -432,8 +460,11 @@ def done(lane_id: str, sha: str = "") -> str:
         s = None
         if lane is None or lane.get("kind") != "external":
             why = f"no external lane {lane_id!r}"
-        elif lane["cursor"] < len(lane["steps"]) and lane["steps"][lane["cursor"]]["state"] in IN_LADDER:
-            why = f"{lane_id} has a batch in the ladder: one at a time; run done again after it lands"
+        elif lane["cursor"] < len(lane["steps"]) and lane["steps"][lane["cursor"]]["state"] in IN_LADDER and not (
+                lane["steps"][lane["cursor"]]["state"] in ("checking", "reviewing") and (sha := sha or lane_head(lane["worktree"]))
+                and sha != lane["steps"][lane["cursor"]].get("head") and lane["steps"][lane["cursor"]].get("head")
+                and related(lane["worktree"], lane["steps"][lane["cursor"]]["head"], sha)):
+            why = f"{lane_id} has a batch in the ladder: one at a time; run done again after it lands (a newer head of the same work supersedes it)"
         elif not (sha := sha or lane_head(lane["worktree"])) and Path(lane["worktree"]).is_dir():
             why = f"cannot read {lane_id}'s HEAD in {lane['worktree']}"
         elif Path(lane["worktree"]).is_dir() and missing(lane["worktree"], "integration", sha) == 0:
@@ -444,13 +475,34 @@ def done(lane_id: str, sha: str = "") -> str:
                 lane["steps"].append({"step": f"batch-{n}", "brief": lane["steps"][-1]["brief"] if lane["steps"] else "", "issues": [], "waits": [],
                                       "state": "queued", "head": "", "why": "", "rounds": 0, "restarts": 0})
             s = lane["steps"][lane["cursor"]]
+            if s["state"] in ("checking", "reviewing"):  # a newer head of the same work: the old check is cancelled, its approvals and alerts end with it
+                from fichero_builder import check_tool
+                old_head = s.get("head", "")
+                journal.STATE.mkdir(parents=True, exist_ok=True)
+                check_tool.cancel_file(old_head).write_text(sha)
+                for k in APPROVALS:
+                    s.pop(k, None)
+                journal.append("queue", lane=lane_id, step=s["step"], state="superseded", detail=f"{old_head[:9]} by {sha[:9]}: its check is cancelled")
             # no tree on this machine (a lane named by hand): the old DONE, taken from the lane's worktree
             path, why = land_tree(lane, sha) if Path(lane["worktree"]).is_dir() else ("", "")
             if not why:
                 s.update(state="done", head=sha, why=f"DONE {sha} (external)", rounds=0, restarts=0, **({"land_tree": path} if path else {}))
                 save(lanes)
     journal.append("queue", lane=lane_id, step=s["step"] if not why else "-", state="done" if not why else "done-refused", detail=why or sha)
+    if not why:
+        close_alerts(lane_id, s["step"], f"superseded by the new head {sha[:9]}")
     return why
+
+
+def close_alerts(lane_id: str, step: str, why: str) -> list[str]:
+    """Manager defect 2026-11-02: an alert about a superseded head stayed open on the console. Every open alert of this lane and
+    step is answered `superseded` (never park: that would act on the live step), so a new head or a passed step clears them."""
+    rows = journal.read()
+    answered = {r.get("id") for r in rows if r.get("event") == "alert-answer" and r.get("ok")}
+    ids = [r["id"] for r in rows if r.get("event") == "alert" and r.get("lane") == lane_id and r.get("step") == step and r["id"] not in answered]
+    for i in ids:
+        journal.append("alert-answer", id=i, action="superseded", ok=True, detail=why)
+    return ids
 
 
 def alert(lane_id: str, step: str, why: str, evidence: str, actions: list[str]) -> str:
@@ -482,7 +534,11 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
         if action in ("retry", "approve", "send-back"):
             # an external lane has no worker to send a step to: retry and approve re-take its snapshot; send-back waits for its done
             again = "done" if action == "approve" or (lane.get("kind") == "external" and action == "retry" and s.get("head")) else "queued"
+            said = f"{a.get('what', '')}\n{s.get('why', '')}"
             s.update(state=again, rounds=0, restarts=0, why="")
+            if action == "approve":  # manager 2026-11-02: an approve binds to this head and the tests the alert named; a new head clears it
+                s["approved_head"] = s.get("head", "")
+                s["approved_tests"] = sorted(set(re.findall(r"[\w./-]+\.py", said)))
             if action == "approve" and s.get("approvals"):  # every reason the alert listed (maintainer, weakened, pinned-new, red)
                 for k in s["approvals"]:
                     s[k] = True
@@ -525,6 +581,36 @@ def heartbeat_check(tick_s: float = 30.0, ticks: int = 3, now: float | None = No
     what = f"no loop tick for {int(age)} s (> {ticks} ticks of {tick_s:g} s)" if age is not None else "no loop tick in the journal"
     # ponytail: no action to answer: KeepAlive restarts a dead loop; a wedged one needs the owner (launchctl kickstart -k)
     return alert("loop", "heartbeat", what, str(journal.path()), [])
+
+
+def restart_loop(root, tick_s: float = 30.0) -> int:
+    """The watchdog's one restart per silence: the stale loop (loop.pid) and its children are killed, a new `builder loop` starts
+    detached from the checkout's package, and loop.pid names it. A wedged tick never recovers by itself (2026-11-02)."""
+    journal.STATE.mkdir(parents=True, exist_ok=True)
+    pidf = journal.STATE / "loop.pid"
+    try:
+        old = int(pidf.read_text().strip())
+    except (OSError, ValueError):
+        old = 0
+    if not old:  # no pid to kill: a second loop would tick beside the stuck one (review 2026-11-02), so say so and start nothing
+        journal.append("loop", state="restart-refused", detail="no loop.pid: the loop has not written its pid, nothing was started")
+        return 0
+    if old:
+        def kill_tree(pid: int) -> None:  # the whole tree: a build's script and xcodebuild are grandchildren and outlive a parent-only kill (2026-11-02)
+            for c in subprocess.run(["pgrep", "-P", str(pid)], capture_output=True, text=True).stdout.split():
+                kill_tree(int(c))
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
+        kill_tree(old)
+    pkg = Path(__file__).resolve().parents[1]
+    log = open(journal.STATE / "loop.out", "a")
+    p = subprocess.Popen([sys.executable, "-m", "fichero_builder", "loop", "--root", str(root), "--tick", f"{tick_s:g}", "--state", str(journal.STATE)],
+                         cwd=str(pkg), env={**os.environ, "PYTHONPATH": str(pkg)}, stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True)
+    pidf.write_text(f"{p.pid}\n")
+    journal.append("loop", state="restarted", detail="restarted by the heartbeat watchdog", pid=p.pid, was=old)
+    return p.pid
 
 
 def launch_agents(root, out, *, state=None, tick_s: float = 30.0) -> list[Path]:
@@ -583,6 +669,7 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
 
 
 DRAIN: list = [False]
+BUILDS: list = []  # the post-landing dev builds' threads: a re-exec waits for them
 
 
 def code_mark() -> tuple:
@@ -602,6 +689,8 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
     handles: dict = {}
     mark = code_mark()
     if heartbeat:
+        journal.STATE.mkdir(parents=True, exist_ok=True)
+        (journal.STATE / "loop.pid").write_text(f"{os.getpid()}\n")  # the watchdog's restart kills this pid; an exec keeps it
         from fichero_builder import check_tool
         for w in check_tool.rules_warnings(getattr(procs, "root", "") or "."):
             journal.append("rules", state="warning", detail=w)
@@ -622,7 +711,7 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
         # new code (soak 2026-11-02: a hand restart is a defect): between ticks, nothing in flight, the loop execs itself, same args.
         # ponytail: a live worker session holds the restart off (a restart would lose its handle); it runs at the next quiet tick
         DRAIN[0] = heartbeat and code_mark() != mark  # serial chains never left a gap: stop starting them until it re-execs
-        if heartbeat and code_mark() != mark and not handles and not any(not f.done() for k, f in (chains or {}).items() if k != "pool"):
+        if heartbeat and code_mark() != mark and not handles and not any(not f.done() for k, f in (chains or {}).items() if k != "pool") and not any(t.is_alive() for t in BUILDS):
             journal.append("loop", state="restarted", detail="loop restarted for new code", pid=os.getpid(), argv=sys.argv[1:])
             reexec()
             mark = code_mark()  # a test's reexec returns
@@ -640,6 +729,34 @@ def landed_argv(root, lane_id: str, head: str, push: bool) -> list[str]:
             "--verdicts", str(journal.STATE / f"verdicts-{lane_id}.json"), "--keep-worktree"] + (["--push"] if push else [])
 
 
+def check_head(root, lane_id: str, w=None) -> tuple[int, str]:
+    """`builder check-lane`: the lane's HEAD fetched into the engine repo (as `work-<lane>-check`, never the chain's ref) and
+    the pinned ladder run over it, in a ladder slot like any check; a check row, no review, nothing lands."""
+    w = w or work
+    rules = tomllib.loads((Path(root) / "harness.toml").read_text())
+    repo, branch = rules["check"]["engine_repo"], rules["land"]["branch"]
+    lane = next((x for x in load() if x["id"] == lane_id), None)
+    if lane is None:
+        return 1, f"REFUSED: no lane {lane_id!r}"
+    a = types.SimpleNamespace(worktree=lane["worktree"], name=f"{lane_id}-check", external=lane.get("kind") == "external", root=str(root),
+                              maintainer=bool(lane.get("maintainer")), ids=[], repo=repo)
+    a.pinned = w.ensure_pinned(str(root), "", w.r_since(repo, branch))
+    head = w.do_fetch(a, repo, branch)
+    if not head:
+        return 1, f"REFUSED: could not fetch {lane_id}'s HEAD into {repo}"
+    files = w._git(repo, "diff", "--name-only", w.r_since(repo, branch), head).stdout.split()
+    a.name = lane_id  # its activity rows sit on the lane's console row
+    with w.ladder_slot(f"{lane_id} (Run check)", files, check_tool.load(a.pinned).parallel):
+        r = w.do_check(a, repo, branch, head, str(journal.STATE / f"ladder-{lane_id}-check.json"))
+    return (0, f"{lane_id} at {head[:9]}: GREEN") if r.get("ok") else (1, f"{lane_id} at {head[:9]}: RED at {r.get('failed') or '?'}")
+
+
+def _approved(step: dict | None, key: str) -> bool:
+    """An approve counts only for the head it was given on (defect 2026-11-02: alert -36's approve_red excused a later head)."""
+    # a worker lane's step has no head until a chain is green: its approve is recorded with head "" and holds while it still has none
+    return bool(step and step.get(key) and step.get("approved_head") == step.get("head", ""))
+
+
 def real_procs(root) -> Procs:
     root = Path(root)
     rules = tomllib.loads((root / "harness.toml").read_text())
@@ -655,9 +772,9 @@ def real_procs(root) -> Procs:
         tree = (step or {}).get("land_tree") or lane["worktree"]  # an external lane's batch is taken from its land-<lane> snapshot
         return types.SimpleNamespace(worktree=tree, name=lane["id"], pinned=str(root), root=str(root), kind="claude", session="harness",
                                      tick=30.0, issues=step["issues"] if step else [], brief=brief, ids=[], repo=repo,
-                                     maintainer=bool(step and step.get("maintainer")) or bool(lane.get("maintainer")), approve_weakened=bool(step and step.get("approve_weakened")),
-                                     external=lane.get("kind") == "external", approve_red=bool(step and step.get("approve_red")),
-                                     approve_pinned_new=bool(step and step.get("approve_pinned_new")),
+                                     maintainer=_approved(step, "maintainer") or bool(lane.get("maintainer")), approve_weakened=_approved(step, "approve_weakened"),
+                                     external=lane.get("kind") == "external", approve_red=_approved(step, "approve_red") and (tuple(step.get("approved_tests") or ()) or True),
+                                     approve_pinned_new=_approved(step, "approve_pinned_new"),
                                      reviewer_fast=reviewer_fast, opus_paths=opus_paths,
                                      last_step=bool(step) and lane.get("kind") != "external" and bool(lane.get("steps")) and step is lane["steps"][-1])
 

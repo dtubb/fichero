@@ -145,6 +145,7 @@ function Lanes({ lanes }) {
         ${l.steps.map(s => html`<tr class="sub"><td></td><td></td><td><span class="mono">${s.step}</span></td><td><${Pill} state=${s.state} /></td>
           <td colspan="6">${s.issues.map(n => "#" + n).join(", ")} <span class="muted">${s.why}</span></td></tr>`)}
         <tr class="sub"><td></td><td colspan="9"><span class="muted">Brief</span><pre>${l.brief_text}</pre><span class="muted mono">${l.worktree}</span>
+          <button class="btn" style="margin-left:8px" title="the pinned ladder over this lane's HEAD now; lands nothing" onClick=${() => act("check-lane", { lane: l.lane })}>Run check</button>
           ${(window.__st?.machines || []).length > 0 && html`<form style="margin-top:6px" onSubmit=${e => { e.preventDefault(); const f = e.target; act("measure", { lane: l.lane, machine: f.machine.value, script: f.script.value }); }}>
             Measure on <select name="machine">${window.__st.machines.map(m => html`<option>${m}</option>`)}</select>
             <input name="script" placeholder="scripts/measure_x.py --pages 50" style="width:320px" required /> <button class="btn">Run</button></form>`}</td></tr>`}

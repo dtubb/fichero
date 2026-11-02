@@ -337,6 +337,28 @@ def test_a_finished_milestone_gets_one_dev_build_and_a_failed_build_is_an_alert_
     assert [r["state"] for r in journal.read() if r["event"] == "queue" and r["state"] in ("built", "build-failed")] == ["build-failed", "built", "built"]
 
 
+def test_the_dev_build_never_holds_a_tick_the_loops_other_lanes_wait_on(state):
+    """2026-11-02: harness-unblock landed, its inline `builder build --dev` ran 17 minutes inside the tick, and no lane was checked
+    for that long. With the loop's chains the build runs in its own thread and the tick returns at once."""
+    import threading
+    import time
+    fake = Fake()
+    queue.add("ma", "/w/ma", "1.1", str(state / "b1.1"), [])
+    lanes = queue.load()
+    lanes[0]["steps"][0]["state"], lanes[0]["cursor"] = "landed", 1
+    queue.save(lanes)
+    release, started = threading.Event(), threading.Event()
+    fake.procs.build = lambda lane: (started.set(), release.wait(10), (0, "PASSED x.dmg"))[2]
+    t0 = time.time()
+    queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains={"pool": None})
+    assert time.time() - t0 < 2 and started.wait(5), "the tick returned while the build was still running"
+    assert queue.load()[0]["built"] is True
+    release.set()
+    for t in list(queue.BUILDS):
+        t.join(5)
+    assert [r["state"] for r in journal.read() if r["event"] == "queue" and r["state"] in ("built", "build-failed")] == ["built"]
+
+
 def test_a_question_stops_the_roll_on_and_the_next_milestone_is_not_taken(state):
     fake = Fake(chains={"mb.1": [{"ok": False, "kind": "error", "why": "the ladder could not start"}]})
     taken = _feeding(fake, state, ["ma", "mb", "mc"])
@@ -417,3 +439,37 @@ def test_ticked_issues_become_one_lane_with_one_cluster_brief(state, monkeypatch
     assert ln["kind"] == "worker" and ln["worktree"] == str(state / "wr" / "wt-ux-fixes") and ln["steps"][0]["issues"] == [11, 12]
     assert open(ln["steps"][0]["brief"]).read() == "BRIEF #11 #12"
     assert queue.lane_from_issues(state, "ux-fixes", [13])[0] == 1, "a working lane is not given a second cluster"
+
+
+def test_the_watchdog_restarts_a_silent_loop_once_per_silence_and_names_the_new_pid(state, monkeypatch):
+    """2026-11-02: the loop sat 17 min in one tick and nobody restarted it. `builder heartbeat --restart ROOT`: a new stale alert
+    kills the loop in loop.pid (and its children), starts a new one, writes its pid; the same silence does nothing twice."""
+    import subprocess as sp
+    import time
+    old = sp.Popen(["bash", "-c", "sleep 60 & sleep 60; wait"])  # a child and its own children, like a build's scripts
+    time.sleep(0.3)
+    journal.STATE.mkdir(parents=True, exist_ok=True)
+    (journal.STATE / "loop.pid").write_text(f"{old.pid}\n")
+    spawned = []
+    shim = type("S", (), {"run": staticmethod(sp.run), "DEVNULL": sp.DEVNULL,
+                          "Popen": staticmethod(lambda argv, **kw: spawned.append(argv) or type("P", (), {"pid": 424242})())})
+    monkeypatch.setattr(queue, "subprocess", shim)  # only the new loop's start is faked; pkill runs for real
+    journal.append("loop", state="tick", lanes=[], busy=False)
+    rows = journal.read()
+    far = time.mktime(time.strptime(rows[-1]["ts"], "%Y-%m-%dT%H:%M:%S")) + 400
+    aid = queue.heartbeat_check(30.0, 3, now=far)
+    assert aid and queue.restart_loop("/root", 30.0) == 424242
+    old.wait(5)
+    assert old.returncode is not None, "the stale loop was killed"
+    assert sp.run(["pgrep", "-P", str(old.pid)], capture_output=True).returncode == 1, "and its children"
+    assert (journal.STATE / "loop.pid").read_text().strip() == "424242" and "loop" in spawned[0] and "/root" in spawned[0]
+    assert queue.heartbeat_check(30.0, 3, now=far + 60) is None, "once per silence"
+    assert any(r.get("event") == "loop" and r.get("state") == "restarted" and r.get("pid") == 424242 for r in journal.read())
+
+
+def test_the_watchdog_refuses_with_no_loop_pid_and_starts_no_second_loop(state, monkeypatch):
+    """Review 2026-11-02: with no loop.pid the restart killed nothing and started a second loop beside the stuck one."""
+    spawned = []
+    monkeypatch.setattr(queue.subprocess, "Popen", lambda *a, **k: spawned.append(a) or None)
+    assert queue.restart_loop("/root", 30.0) == 0 and not spawned
+    assert any(r.get("event") == "loop" and r.get("state") == "restart-refused" for r in journal.read())

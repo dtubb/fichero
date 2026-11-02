@@ -28,6 +28,8 @@ import tomllib
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 
+from fichero_builder import journal
+
 
 @dataclass(frozen=True)
 class Config:
@@ -156,6 +158,7 @@ def rules_problems(root) -> list[str]:
 
 
 FAILURES = re.compile(r"^=+ (?:FAILURES|ERRORS) =+$")
+ERRLINE = re.compile(r"^(?:Traceback \(most recent|E\s{2,}\S|\w*(?:Error|Exception)\b.*:)")
 
 
 def tail(text: str, lines: int = 40, chars: int = 4000, line_chars: int = 300) -> str:
@@ -164,6 +167,10 @@ def tail(text: str, lines: int = 40, chars: int = 4000, line_chars: int = 300) -
     all_lines = [ln[:line_chars] for ln in (text or "").strip().splitlines()]
     start = next((i for i, ln in enumerate(all_lines) if FAILURES.match(ln)), None)
     last = all_lines[-lines:]
+    if start is None and len(all_lines) > lines:  # no pytest failure section: keep the first exception lines the window drops (2026-11-02: an importlib stat error vanished)
+        first = [ln for ln in all_lines[:-lines] if ERRLINE.match(ln)][:8]
+        if first:
+            return ("\n".join(first) + "\n...\n" + "\n".join(last[-(lines - len(first) - 1):]))[-chars:]
     if start is None or start >= len(all_lines) - lines:
         return "\n".join(last)[-chars:]
     stop = next((i for i in range(start + 1, len(all_lines)) if all_lines[i].startswith("=")), len(all_lines))
@@ -171,7 +178,24 @@ def tail(text: str, lines: int = 40, chars: int = 4000, line_chars: int = 300) -
     return failure + "\n...\n" + "\n".join(all_lines[-(lines // 2 - 1):])[-(chars // 2):]
 
 
-_JAIL = None  # ponytail: module state set by run_ladder for the length of one ladder; per-call plumbing if two ladders overlap
+_JAIL = None  # module state set by run_ladder for the length of one ladder
+_JAIL_USERS = [0]  # ladders using _JAIL now: two run at once (speed 3), and the first to end must not unjail the other
+_JAIL_LOCK = threading.Lock()
+
+
+def _jail_enter(j) -> None:
+    global _JAIL
+    with _JAIL_LOCK:
+        _JAIL_USERS[0] += 1
+        _JAIL = j
+
+
+def _jail_exit() -> None:
+    global _JAIL
+    with _JAIL_LOCK:
+        _JAIL_USERS[0] -= 1
+        if _JAIL_USERS[0] <= 0:
+            _JAIL_USERS[0], _JAIL = 0, None
 
 
 def _mkdtemp(prefix: str, readable: bool = False) -> str:
@@ -199,19 +223,38 @@ def run_command(name: str, argv: list[str], cwd, timeout_s: float, env: dict | N
     except OSError as e:
         err = str(e)
     else:
-        try:
-            out, err = p.communicate(timeout=timeout_s)
-            code = p.returncode
-        except subprocess.TimeoutExpired:
-            timed_out = True
+        deadline = time.time() + timeout_s
+        while True:
             try:
-                os.killpg(p.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            out, err = p.communicate()
+                out, err = p.communicate(timeout=max(0.1, min(2.0, deadline - time.time())))
+                code = p.returncode
+                break
+            except subprocess.TimeoutExpired:
+                cancelled = cancel_requested()  # a `builder done` at a newer head wrote cancel-<head> (the loop is another process)
+                if not cancelled and time.time() < deadline:
+                    continue
+                timed_out = not cancelled
+                try:
+                    os.killpg(p.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                out, err = p.communicate()
+                if cancelled:
+                    err = "cancelled: superseded by a newer head\n" + (err or "")
+                break
     return {"name": name, "argv": list(argv), "exit_code": code, "ok": code == 0 and not timed_out,
             "timed_out": timed_out, "seconds": round(time.time() - t, 1),
             "stdout_tail": tail(out), "stderr_tail": tail(err)}
+
+
+def cancel_file(head: str) -> Path:
+    return journal.STATE / f"cancel-{head[:9]}"
+
+
+def cancel_requested() -> bool:
+    """The running ladder's head (its key ends `..<head9>`) has a cancel marker: its batch was superseded."""
+    key = _KEY[0] or ""
+    return ".." in key and cancel_file(key.rsplit("..", 1)[1]).exists()
 
 
 def _env(root, cfg: Config, extra: dict | None = None) -> dict:
@@ -241,7 +284,8 @@ def _skipped(name: str) -> dict:
             "stdout_tail": "skipped: not configured", "stderr_tail": ""}
 
 
-_SHIPPED: dict = {}  # local tree -> its copy on [check].remote, for this ladder; removed at the end (_drop_remote)
+_SHIPPED: dict = {}  # local tree -> its copy on [check].remote; removed by the ladder that shipped it at its end (_drop_remote)
+_MINE = threading.local()  # the local trees THIS thread's ladder shipped: two ladders run at once (speed 3) and one's end must not delete the other's copy
 _DOWN: list = []  # the remote failed once in this ladder: one alert, then every run here
 
 
@@ -256,6 +300,9 @@ def _ssh(host: str, script: str, timeout_s: float, stdin=None) -> subprocess.Com
 def _ship(root, cfg: Config) -> str:
     """The tree's files (tracked and the overlay's untracked ones, never .git) into a fresh dir on the remote; its absolute path."""
     root = str(root)
+    if not hasattr(_MINE, "roots"):
+        _MINE.roots = set()
+    _MINE.roots.add(root)
     if root in _SHIPPED:
         return _SHIPPED[root]
     host, _, base = cfg.remote.partition(":")
@@ -277,10 +324,14 @@ def _ship(root, cfg: Config) -> str:
 
 
 def _drop_remote(cfg: Config) -> None:
-    for rdir in _SHIPPED.values():
-        _ssh(cfg.remote.partition(":")[0], f"rm -rf {shlex.quote(rdir)}", 120)
-    _SHIPPED.clear()
-    _DOWN.clear()
+    """Remove the remote copies THIS thread's ladder shipped, never another running ladder's (review 2026-11-02); the down flag
+    is cleared when no ladder runs."""
+    for root in list(getattr(_MINE, "roots", ())):
+        if rdir := _SHIPPED.pop(root, None):
+            _ssh(cfg.remote.partition(":")[0], f"rm -rf {shlex.quote(rdir)}", 120)
+    _MINE.roots = set()
+    if _JAIL_USERS[0] <= 0:
+        _DOWN.clear()
 
 
 def _remote_run(name, argv, root, timeout_s, cfg: Config, extra: dict | None, cwd) -> dict | None:
@@ -344,6 +395,15 @@ def ready(root, cfg: Config, timeout_s: float = 600) -> dict:
     return _run("ready", argv, root, timeout_s, cfg)
 
 
+def _top_package(root, f: str) -> bool:
+    """True when `f` sits under a top-level folder of the tree that is itself an importable package (pipeline/)."""
+    try:
+        top = (Path(f).resolve().relative_to(Path(root).resolve()) if Path(f).is_absolute() else Path(f)).parts[0]
+    except (ValueError, IndexError):
+        return False
+    return (Path(root) / top / "__init__.py").is_file()
+
+
 def pytest_argv(root, files: list[str], cfg: Config, package: str = "") -> list[str]:
     """The engine-shaped command (cwd = the tree root, the pinned `-c`), or with `package` a whole-tests run: its own
     pytest from that package dir, `-c <package>/pyproject.toml` only when it exists, the package dir FIRST on the path
@@ -353,6 +413,8 @@ def pytest_argv(root, files: list[str], cfg: Config, package: str = "") -> list[
     cfgfile = ["-c", str(conf)] if conf else []
     plugins = [x for p in cfg.pytest_plugins for x in ("-p", p)]
     paths = [str(Path(root) / p) for p in cfg.python_path]
+    if not pkg and any(_top_package(root, f) for f in files):  # a test of a top-level package (pipeline/tests) imports it from the tree root
+        paths.append(str(root))
     if pkg:
         paths.insert(0, str(pkg))
         plugins = [x for p in cfg.pytest_plugins if importlib.util.find_spec(p) for x in ("-p", p)]
@@ -390,6 +452,25 @@ def whole_tests_rung(root, tests_dir: str, cfg: Config = Config(), timeout_s: fl
     return _run("pytest", argv, root, timeout_s, cfg, {"PYTHONSAFEPATH": "1"}, cwd=cwd, remote=True)
 
 
+LOAD_FLAKE = re.compile(r"TransactionException: .*Cannot CHECKPOINT|OSError|_path_stat|Too many open files")
+
+
+def _load_flake(r: dict) -> bool:
+    """A red pytest run whose only trouble is ERROR lines (no FAILED test) of a load kind: a teardown/import OSError or a DuckDB
+    CHECKPOINT TransactionException (manager 2026-11-02: two of these on one lane under load ~35, neither a test failing)."""
+    out = (r.get("stdout_tail") or "") + (r.get("stderr_tail") or "")
+    return (not r["ok"] and not r.get("timed_out") and not re.search(r"^FAILED ", out, re.M) and bool(re.search(r"^ERROR ", out, re.M))
+            and bool(LOAD_FLAKE.search(out)))
+
+
+def _retry_flake(run_it, r: dict, what: str) -> dict:
+    """Once, alone: the same run again; the retry is a journal row either way, and the second result stands."""
+    if not _load_flake(r):
+        return r
+    journal.append("check", state="retry", rung=what, detail="a load flake (only ERROR lines of a teardown/import OSError or a CHECKPOINT TransactionException): re-run once alone")
+    return {**run_it(), "retried": True}
+
+
 def green_runs(tree, files: list[str], whole: tuple, cfg: Config, timeout_s: float) -> dict:
     """The green run: the engine-shaped pytest over the changed test files, then each whole-tests dir as its own pytest.
     One row: the first red (or the last green) as the row's own fields, `runs` = every command and its tail."""
@@ -400,11 +481,11 @@ def green_runs(tree, files: list[str], whole: tuple, cfg: Config, timeout_s: flo
     for fs in groups.values():
         if runs and not runs[-1]["ok"]:
             break
-        runs.append(pytest_rung(tree, fs, cfg, timeout_s))
+        runs.append(_retry_flake(lambda fs=fs: pytest_rung(tree, fs, cfg, timeout_s), pytest_rung(tree, fs, cfg, timeout_s), "green-run"))
     for d in whole:
         if runs and not runs[-1]["ok"]:
             break
-        runs.append(whole_tests_rung(tree, d, cfg, timeout_s))
+        runs.append(_retry_flake(lambda d=d: whole_tests_rung(tree, d, cfg, timeout_s), whole_tests_rung(tree, d, cfg, timeout_s), "green-run"))
     row = next((r for r in runs if not r["ok"]), runs[-1])
     if not row["ok"] and (m := re.search(r"ERROR collecting (\S+).*?\n(?:.*\n)*?(E\s+\w+Error[^\n]*)", row.get("stdout_tail") or "")):
         # a collection error is not a red test (manager 2026-11-02): say which file could not be collected and why
@@ -628,7 +709,7 @@ def data_only(root, since: str, head: str, f: str) -> bool:
 
 
 def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Config(), timeout_s: float = 600,  # noqa: B008
-                head_tree=None, also_green: tuple = (), approve_red: bool = False) -> dict:
+                head_tree=None, also_green: tuple = (), approve_red: bool | tuple = False) -> dict:
     """The failing run: each changed test file, copied onto a scratch tree at `since`, must FAIL there on its
     own, and all must PASS at `head`. A test that passes on base proves nothing."""
     root = Path(root)
@@ -636,7 +717,8 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
     approved: list[str] = []
 
     def red(msg: str) -> dict | None:  # the manager's approve (an alert) records the refusal and goes on to the green run
-        if approve_red:
+        # True: every refusal; a tuple: only one naming an approved test file (an approve binds to the tests its alert named)
+        if approve_red is True or (isinstance(approve_red, tuple) and any(t in msg for t in approve_red)):
             approved.append(msg)
             return None
         return {"name": "red-on-base", "argv": [], "exit_code": 1, "ok": False, "timed_out": False, "seconds": 0,
@@ -863,7 +945,6 @@ def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_requi
     `protected_ids`: the behaviour ids of the item, whose spec acceptance the worker may not rewrite.
     `maintainer`: a maintainer batch changes pinned files on purpose; the pinned-checks row records which and the
     ladder runs on (weakened tests and a rewritten acceptance still refuse)."""
-    global _JAIL
     from . import jail as _jailmod
     if jail_required and (problems := rules_problems(pinned)):  # review 4 B5: the start's own checks, here too
         raise _jailmod.JailMissing("rules file refused: " + "; ".join(problems))
@@ -874,7 +955,7 @@ def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_requi
         j.require()
         if wall := j.probe():
             raise _jailmod.JailMissing("the jail leaks: " + "; ".join(wall))
-    _JAIL = j
+    _jail_enter(j)
     _KEY[0] = f"check {since[:9]}..{str(head)[:9]}"
     ACTIVITY(kind="check", key=_KEY[0], state="start")
     ended: dict = {}
@@ -883,7 +964,7 @@ def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_requi
         return ended
     finally:
         ACTIVITY(kind="check", key=_KEY[0], state="end", ok=bool(ended.get("ok")), failed=ended.get("failed", "?"))
-        _JAIL = None
+        _jail_exit()
         if _SHIPPED or _DOWN:
             _drop_remote(load(pinned))
 
@@ -911,7 +992,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
     bad = pinned_violations(root, since, head, cfg, pinned)
     noted = ""
     if maintainer:  # only "a pinned check file was changed/deleted" is noted; a symlink, sitecustomize/.pth, .claude/, a new pinned-path file still refuse
-        changed = [b for b in bad if b.endswith((": a pinned check file was changed", ": a pinned check file was deleted"))]
+        changed = [b for b in bad if b.endswith((": a pinned check file was changed", ": a pinned check file was deleted")) or " is pinned by name anywhere (" in b]  # a conftest.py edit: the manager's approve excuses it (2026-11-02)
         if changed:
             noted, bad = "maintainer batch: " + "; ".join(changed), [b for b in bad if b not in changed]
     if approve_pinned_new:  # the manager answered the alert with approve: a new file under a pinned path, recorded, not refused
@@ -957,7 +1038,6 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
 def run_tests(root, head: str, pinned, paths: list[str], jail_required: bool = True) -> dict:
     """`builder test` (the console's Run tests, owner 2026-11-02): the pinned pytest over `paths` (test files or dirs) in a
     scratch tree of `head`, as the jail user, on [check].remote when one is set; one pytest per top-level package."""
-    global _JAIL
     from . import jail as _jailmod
     cfg = load(pinned)
     j = _jailmod.load(pinned)
@@ -965,12 +1045,12 @@ def run_tests(root, head: str, pinned, paths: list[str], jail_required: bool = T
         raise _jailmod.JailMissing("no [jail] in the rules file: tests will not run as the owner")
     if j is not None:
         j.require()
-    _JAIL = j
+    _jail_enter(j)
     tree = _scratch_tree(root, head, pinned, cfg, overlay=False)  # tests run on head as it is (manager 2026-11-02)
     try:
         return {**green_runs(tree, list(paths), (), cfg, 3600), "name": "tests"}
     finally:
-        _JAIL = None
+        _jail_exit()
         _git(root, "worktree", "remove", "--force", tree)
         if _SHIPPED or _DOWN:
             _drop_remote(cfg)

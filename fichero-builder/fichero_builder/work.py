@@ -163,6 +163,25 @@ def _activity(**kw) -> None:
     journal.append("activity", lane=getattr(_LANE, "name", ""), **kw)
 
 
+def pinned_approvals(t: str) -> list[str]:
+    """The approvals a pinned-checks refusal needs, one per reason it lists (a reason with none was unapprovable: 2026-11-02)."""
+    return [k for k, hit in (("maintainer", "a pinned check file was" in t or " is pinned by name anywhere (" in t),
+                             ("approve_weakened", "weakens existing tests" in t),
+                             ("approve_pinned_new", "a new file under a pinned path" in t)) if hit]
+
+
+def blocking(text: str, last: str) -> str:
+    """What blocked: the first review group whose own closing line is NOT READY, named by its `[group n of m]` header with that
+    line quoted. The file's last line alone says READY when a later group passed (alert -75 read 'not READY: READY', 2026-11-02)."""
+    parts = re.split(r"(?m)^(?=\[group \d+ of \d+)", text or "")
+    for part in parts:
+        lines = [ln for ln in part.strip().splitlines() if ln.strip()]
+        if lines and lines[-1].startswith("NOT READY"):
+            head = lines[0] if lines[0].startswith("[group") else ""
+            return (f"{head.split(']')[0]}] " if head else "") + lines[-1]
+    return last
+
+
 def do_check(a, repo: str, branch: str, head: str, ladder: str) -> dict:
     """The ladder over <branch>..head; the range is the same refusal `builder check` has, `since` is a sha, not a name."""
     since = land_tool.resolve_branch(repo, branch)
@@ -170,11 +189,12 @@ def do_check(a, repo: str, branch: str, head: str, ladder: str) -> dict:
         raise RuntimeError(f"{branch!r} is not a branch in {repo}")
     maintainer = bool(getattr(a, "maintainer", False))  # the manager approved a pinned-file change (dev-workflows.run.loop-needs-maintainer)
     approve = bool(getattr(a, "approve_weakened", False))  # the manager approved weakened tests (an alert's approve)
-    red_ok = bool(getattr(a, "approve_red", False))
+    red_ok = getattr(a, "approve_red", False)
+    red_ok = red_ok if isinstance(red_ok, tuple) else bool(red_ok)  # a tuple: only the test files the approved alert named
     _LANE.name = a.name  # per chain thread: two ladders at once each write their own lane's rows (speed 3)
     check_tool.ACTIVITY = _activity
     check_tool.GUARD_CACHE[0] = journal.STATE / "guard-cache.json"  # speed 5
-    pin_new = bool(getattr(a, "approve_pinned_new", False))  # the manager approved a new file under a pinned path  # the manager approved a red-on-base refusal (an alert's approve)
+    pin_new = bool(getattr(a, "approve_pinned_new", False))  # the manager approved a new file under a pinned path
     r = check_tool.ladder_over(repo, since, head, a.pinned, getattr(a, "ids", []), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok,
                                approve_pinned_new=pin_new)
     Path(ladder).write_text(json.dumps(r, indent=1))
@@ -253,11 +273,15 @@ def r_since(repo: str, branch: str) -> str:
 MOVES = 3  # ponytail: a busier landing branch than three moves in one chain is a row for a person
 
 
-def keep_green(repo: str, old_base: str, old_files: list[str], new_base: str, files: list[str], cfg) -> str:
+def keep_green(repo: str, old_base: str, old_files: list[str], new_base: str, files: list[str], cfg, old_head: str = "", head: str = "") -> str:
     """Stale base (manager 2026-11-02): a green check survives a clean rebase when the base delta (old..new) touches no file
     the batch changes, nothing under the top-level dirs it changes (its tests and whole-tests inputs), no pinned check file
-    and no guard. '' = check again; else the row's words."""
-    if not files or sorted(files) != sorted(old_files) or not old_base or new_base == old_base:
+    and no guard, and the rebased batch is the same patch as the checked one (review 2026-11-02: file names alone let new content
+    ride a green). '' = check again; else the row's words."""
+    if not files or sorted(files) != sorted(old_files) or not old_base or new_base == old_base or not old_head or not head:
+        return ""
+    old_patch, new_patch = _git(repo, "diff", old_base, old_head), _git(repo, "diff", new_base, head)
+    if old_patch.returncode or new_patch.returncode or old_patch.stdout != new_patch.stdout:
         return ""
     if _git(repo, "merge-base", "--is-ancestor", old_base, new_base).returncode:
         return ""
@@ -354,7 +378,7 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
     state.mkdir(parents=True, exist_ok=True)
     ladder, verdicts, log = (str(state / f"{k}-{a.name}.{e}") for k, e in (("ladder", "json"), ("verdicts", "json"), ("land", "log")))
     moved = 0
-    carry = None  # (base, files) of a green check whose base moved before its review
+    carry = None  # (base, files, head) of a green check whose base moved before its review
     while True:  # dev-workflows.run.loop-chain: a ready range whose base moved is rebased and re-checked
         why = do_rebase(a, branch)
         if not step("rebase", not why, why or f"on top of origin/{branch}"):
@@ -370,7 +394,7 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
             files = _git(repo, "diff", "--name-only", since_now, head).stdout.split()
         except (RuntimeError, OSError):
             since_now, files = "", []  # unknown: shares every file, so it runs alone
-        kept = keep_green(repo, carry[0], carry[1], since_now, files, check_tool.load(a.pinned)) if carry else ""
+        kept = keep_green(repo, carry[0], carry[1], since_now, files, check_tool.load(a.pinned), carry[2], head) if carry else ""
         carry = None
         with ladder_slot(a.name, files, check_tool.load(a.pinned).parallel):  # speed 3: [check].parallel ladders, disjoint batches only
             if getattr(a, "repin", None):  # another lane's landing may have removed the copy this one started from; the lock keeps it from here on
@@ -408,8 +432,7 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                     # ONE alert for every reason the refusal lists, and one approve carries them all (manager 2026-11-02: an approve
                     # re-ran with maintainer only and refused again on the weakened tests it had already listed)
                     t = _tail(r)
-                    approvals = [k for k, hit in (("maintainer", "a pinned check file was" in t), ("approve_weakened", "weakens existing tests" in t),
-                                                  ("approve_pinned_new", "a new file under a pinned path" in t)) if hit]
+                    approvals = pinned_approvals(t)
                     paths = list(check_tool.load(a.pinned).check_paths) + [f":(glob)**/{g}" for g in check_tool.load(a.pinned).test_globs]
                     diff = state / f"pinned-{a.name}.diff"
                     diff.write_text(_git(repo, "diff", r_since(repo, branch), head, "--", *paths).stdout)
@@ -420,7 +443,7 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                 moved += 1
                 if early.get("proc"):
                     early["proc"].kill()
-                carry = (since_now, files)
+                carry = (since_now, files, head)
                 step("rebase", True, f"origin/{branch} moved under {head[:9]} before its review: rebasing first ({moved}/{MOVES})")
                 continue
             stage("reviewing")
@@ -434,7 +457,7 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
             last = text.splitlines()[-1] if text else "the reviewer said nothing"
             if not step("review", ok, last):
                 (state / f"review-{a.name}.txt").write_text(text)
-                return no("not-ready", f"the review is not READY: {last}", text, str(state / f"review-{a.name}.txt"))
+                return no("not-ready", f"the review is not READY: {blocking(text, last)}", text, str(state / f"review-{a.name}.txt"))
             ok, out = do_land(a, repo, head, verdicts, log)
             if not step("land", ok, out[-300:]):
                 if moved < MOVES and _base_moved(a, branch, head):

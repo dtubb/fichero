@@ -47,6 +47,45 @@ def test_a_red_pytest_tail_keeps_the_failure_when_warnings_follow_it():
     assert ct.tail(plain).splitlines()[0] == "line 60", "no failure section: the plain last lines"
 
 
+def test_the_tail_keeps_the_first_exception_when_a_long_run_buries_it_and_there_is_no_failure_section():
+    """2026-11-02: lane-sharing's red-on-base showed 'errors' but the importlib stat exception was above the 40-line window."""
+    text = "\n".join(["Traceback (most recent call last):", "  File x", "OSError: [Errno 5] Input/output error: '/t/x.py'"] + [f"noise {i}" for i in range(200)] + ["2 errors in 5s"])
+    out = ct.tail(text)
+    assert "OSError: [Errno 5]" in out and "2 errors in 5s" in out and len(out) <= 4000
+
+
+def test_a_load_flake_only_red_green_run_is_rerun_once_alone_and_a_real_failure_never_is(tmp_path, monkeypatch):
+    """Manager 2026-11-02: a teardown/import OSError or a DuckDB CHECKPOINT TransactionException with no FAILED test is re-run once
+    and logged; a FAILED test, or a second flake, stands."""
+    flake = {"ok": False, "exit_code": 1, "seconds": 1, "timed_out": False, "argv": [], "stderr_tail": "",
+             "stdout_tail": "E  _duckdb.TransactionException: TransactionContext Error: Cannot CHECKPOINT: other write\nERROR t.py::test_x\n1 error"}
+    green = {**flake, "ok": True, "exit_code": 0, "stdout_tail": "3 passed"}
+    failed = {**flake, "stdout_tail": "FAILED t.py::test_y - assert 1 == 2\nERROR t.py::test_x\nOSError"}
+    calls = []
+    monkeypatch.setattr(ct.journal, "STATE", tmp_path / "state")  # its retry rows go to a throwaway journal, never the owner's
+    for first, second, want_ok, want_calls in ((flake, green, True, 2), (failed, green, False, 1), (flake, flake, False, 2)):
+        seq, calls[:] = iter([first, second]), []
+        monkeypatch.setattr(ct, "pytest_rung", lambda *a, **k: calls.append(1) or next(seq))
+        r = ct.green_runs(tmp_path, ["pkg/test_t.py"], (), ct.Config(), 5)
+        assert r["ok"] is want_ok and len(calls) == want_calls, (first["stdout_tail"], r)
+    assert [x["rung"] for x in ct.journal.read() if x.get("event") == "check" and x.get("state") == "retry"] == ["green-run", "green-run"]
+
+
+def test_a_cancel_marker_for_the_ladders_head_kills_the_running_command(tmp_path, monkeypatch):
+    """A `builder done` at a newer head writes cancel-<head9>; the ladder's running command (another process' loop) is killed
+    within seconds, not at its timeout."""
+    import time
+    monkeypatch.setattr(ct.journal, "STATE", tmp_path)
+    ct._KEY[0] = "check aaaaaaaaa..bbbbbbbbb"
+    try:
+        ct.cancel_file("bbbbbbbbb").write_text("ccccccccc")
+        t0 = time.time()
+        r = ct.run_command("pytest", ["sleep", "60"], tmp_path, 120, as_jail=False)
+    finally:
+        ct._KEY[0] = ""
+    assert time.time() - t0 < 10 and r["ok"] is False and "cancelled: superseded" in r["stderr_tail"], r
+
+
 def test_the_tail_is_bounded(tmp_path):
     r = ct.run_command("long", [sys.executable, "-c", "print('x'*5000); print('\\n'.join(map(str, range(100))))"], tmp_path, 20)
     assert len(r["stdout_tail"].splitlines()) <= 40 and len(r["stdout_tail"]) <= 4000
@@ -93,6 +132,19 @@ def test_the_build_rung_never_resolves_packages_so_a_read_only_check_tree_builds
     cfg = ct.load(REPO)
     assert "-disableAutomaticPackageResolution" in cfg.build
     assert cfg.build.index("-disableAutomaticPackageResolution") < cfg.build.index("build")
+
+
+def test_a_test_of_a_top_level_package_imports_it_from_the_tree_root_under_the_jailed_pytest(tmp_path):
+    """Manager 2026-11-02: pipeline/tests/conftest.py does `from pipeline import ...`; the runner (python -I, safe path, only
+    the python_path dirs) never ran a pipeline test. A file under a top-level package gets the tree root on the path."""
+    (tmp_path / "pkg" / "tests").mkdir(parents=True)
+    (tmp_path / "pkg" / "__init__.py").write_text("VALUE = 7\n")
+    (tmp_path / "pkg" / "tests" / "test_p.py").write_text("from pkg import VALUE\ndef test_p():\n    assert VALUE == 7\n")
+    (tmp_path / "plain").mkdir()
+    (tmp_path / "plain" / "test_q.py").write_text("def test_q():\n    import importlib.util as u\n    assert u.find_spec('pkg') is None\n")
+    assert ct.pytest_rung(tmp_path, [str(tmp_path / "pkg" / "tests" / "test_p.py")], ct.Config(), timeout_s=120)["ok"]
+    assert ct.pytest_rung(tmp_path, ["pkg/tests/test_p.py"], ct.Config(), timeout_s=120)["ok"], "the ladder names its files relative to the tree"
+    assert ct.pytest_rung(tmp_path, [str(tmp_path / "plain" / "test_q.py")], ct.Config(), timeout_s=120)["ok"], "no package, no root on the path"
 
 
 def test_pytest_runs_named_files_with_the_fixed_env(tmp_path):
@@ -430,6 +482,17 @@ def test_a_builder_change_owes_a_red_on_base_test_and_its_tests_run_with_the_bui
     assert ct._needs_red(["fichero-builder/fichero_builder/work.py"], [], cfg), "a Builder source change needs a red-on-base test"
     assert not ct._needs_red(["docs/contributor_manual/a.md"], [], cfg)
     assert "fichero-builder" in cfg.python_path
+
+
+def test_a_maintainer_approve_excuses_a_conftest_edit_that_is_pinned_by_name(tmp_path):
+    """conftest.py is pinned by name anywhere; the manager's approve (maintainer=True) records it, a bare run refuses."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "conftest.py").write_text("# the maintainer's edit\n")
+    g("add", "."), g("commit", "-q", "-m", "conftest")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert not r["ok"] and r["failed"] == "pinned-checks" and "pinned by name" in r["rungs"][0]["stderr_tail"]
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False, maintainer=True)
+    assert r["rungs"][0]["ok"] and "conftest.py" in r["rungs"][0]["stdout_tail"], r
 
 
 def test_a_maintainer_batch_records_the_pinned_change_and_runs_the_rest(tmp_path):
@@ -789,6 +852,43 @@ def test_a_remote_runner_runs_the_engine_pytest_there_and_an_unreachable_one_ale
     ct._drop_remote(cfg)
 
 
+def test_one_ladders_end_keeps_the_other_running_ladders_remote_copy(tmp_path, monkeypatch):
+    """Review 2026-11-02: with [check].parallel = 2 the first ladder to end deleted every shipped copy, including the one the other
+    ladder was still running tests in. Each thread removes only the trees it shipped."""
+    import threading
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    _fake_ssh(tmp_path, monkeypatch)
+    (tmp_path / "gate").mkdir()
+    cfg = ct.Config(remote=f"imac:{tmp_path / 'gate'}", remote_python=sys.executable)
+    trees = []
+    for n in ("a", "b"):
+        t = tmp_path / f"tree-{n}"
+        t.mkdir()
+        _git_repo(t)
+        (t / "test_x.py").write_text("def test_x():\n    assert 1\n")
+        trees.append(t)
+    b_shipped, a_dropped, seen = threading.Event(), threading.Event(), {}
+
+    def ladder_a():
+        assert ct.pytest_rung(trees[0], ["test_x.py"], cfg, timeout_s=120)["ok"]
+        b_shipped.wait(20)
+        ct._drop_remote(cfg)
+        a_dropped.set()
+
+    def ladder_b():
+        assert ct.pytest_rung(trees[1], ["test_x.py"], cfg, timeout_s=120)["ok"]
+        b_shipped.set()
+        a_dropped.wait(20)
+        seen["after_a_ended"] = sorted(x.name for x in (tmp_path / "gate").iterdir() if x.name.startswith("run-"))
+        ct._drop_remote(cfg)
+    ts = [threading.Thread(target=f) for f in (ladder_a, ladder_b)]
+    [t.start() for t in ts]
+    [t.join(60) for t in ts]
+    assert len(seen["after_a_ended"]) == 1, "b's copy survived a's end"
+    assert not [x for x in (tmp_path / "gate").iterdir() if x.name.startswith("run-")], "and b removed its own"
+
+
 def test_weakened_tests_refuse_until_the_manager_approves_and_the_approval_is_recorded(tmp_path):
     """Manager 2026-11-02: a test a lane renamed because of an owner ruling (#6088) was refused with no way through. Approve
     (the alert's approve|send-back, like needs-maintainer) re-runs the check with approve_weakened, noted in the row."""
@@ -832,6 +932,18 @@ def test_a_test_file_whose_tests_are_unchanged_owes_no_red_and_any_other_refusal
     assert not r["ok"] and "NOT RED ON BASE" in r["stderr_tail"] and "needs-approval" in r["stderr_tail"]
     r = ct.red_on_base(tmp_path, base, "HEAD", ["test_new.py"], timeout_s=120, approve_red=True)
     assert r["ok"] and "approved by the manager: NOT RED ON BASE" in r["stdout_tail"]
+
+
+def test_an_approve_naming_test_files_excuses_only_those(tmp_path):
+    """Defect 2026-11-02: an approve given for one test file excused another later. A tuple approve_red excuses a refusal only
+    when it names one of those files."""
+    g, base = _git_repo(tmp_path)
+    (tmp_path / "test_a.py").write_text("def test_t():\n    assert True\n")
+    g("add", "."), g("commit", "-q", "-m", "a test that proves nothing")
+    r = ct.red_on_base(tmp_path, base, "HEAD", ["test_a.py"], timeout_s=120, approve_red=("test_other.py",))
+    assert not r["ok"] and "NOT RED ON BASE: test_a.py" in r["stderr_tail"]
+    r = ct.red_on_base(tmp_path, base, "HEAD", ["test_a.py"], timeout_s=120, approve_red=("test_a.py",))
+    assert r["ok"] and "approved by the manager: NOT RED ON BASE: test_a.py" in r["stdout_tail"]
 
 
 def test_a_new_file_under_a_pinned_path_refuses_until_approved_and_the_approval_is_recorded(tmp_path):
@@ -893,3 +1005,13 @@ def test_a_guard_green_is_reused_for_the_same_inputs_and_runs_again_when_one_cha
         assert r["ok"] and not r["results"][0].get("cached") and (tmp_path / "ran").read_text() == "xx", "an input changed: it runs"
     finally:
         ct.GUARD_CACHE[0] = None
+
+
+def test_two_overlapping_ladders_keep_the_jail_until_the_last_one_ends():
+    """Review 2026-11-02: with [check].parallel = 2 the first ladder to end set the jail to None and the other's rungs ran as the owner."""
+    j = object()
+    ct._jail_enter(j), ct._jail_enter(j)
+    ct._jail_exit()
+    assert ct._JAIL is j
+    ct._jail_exit()
+    assert ct._JAIL is None

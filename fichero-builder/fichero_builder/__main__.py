@@ -136,9 +136,12 @@ def main(argv=None) -> int:
     dn = sub.add_parser("done", help="an external lane's DONE (dev-workflows.run.loop-external-lane): its step at <sha> goes to the check, review and landing")
     dn.add_argument("lane"), dn.add_argument("sha", nargs="?", default=""), dn.add_argument("--sha", dest="sha_opt", default="")
     dn.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
+    cl = sub.add_parser("check-lane", help="the console's Run check (owner 2026-11-02): the pinned ladder over a lane's HEAD now, beside the loop; lands nothing")
+    cl.add_argument("lane"), cl.add_argument("--root", default="."), cl.add_argument("--state", help="where the queue and the journal live")
     hb = sub.add_parser("heartbeat", help="the loop's watchdog: an alert row when the journal has no `loop` tick for more than --ticks ticks (once per silence); exit 1 while stale")
     hb.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
     hb.add_argument("--tick", type=float, default=30.0), hb.add_argument("--ticks", type=int, default=3)
+    hb.add_argument("--restart", metavar="ROOT", help="on a new stale alert also kill the loop (loop.pid, with its children) and start `builder loop --root ROOT`, once per silence")
     la = sub.add_parser("launchd", help="write the owner's two LaunchAgents (the loop with KeepAlive; the heartbeat watchdog every 3 ticks) and print how to load them; never loads them")
     la.add_argument("--root", default=str(Path.cwd())), la.add_argument("--state"), la.add_argument("--tick", type=float, default=30.0)
     la.add_argument("--out", default=str(Path.home() / "Library" / "LaunchAgents"))
@@ -254,6 +257,13 @@ def main(argv=None) -> int:
         rc, msg = queue.answer(a.id, a.action, gh=a.gh, cwd=a.root)
         print(msg)
         return rc
+    if a.cmd == "check-lane":
+        from fichero_builder import queue
+
+        journal.STATE = Path(a.state) if a.state else journal.STATE
+        rc, msg = queue.check_head(a.root, a.lane)
+        print(msg)
+        return rc
     if a.cmd == "done":
         from fichero_builder import queue
 
@@ -270,6 +280,8 @@ def main(argv=None) -> int:
         aid = queue.heartbeat_check(a.tick, a.ticks)
         if aid:
             print(f"ALERT {aid}: the loop's heartbeat is stale")
+            if a.restart:
+                print(f"loop restarted, pid {queue.restart_loop(a.restart, a.tick)}")
         return 1 if aid else 0
     if a.cmd == "launchd":
         from fichero_builder import queue

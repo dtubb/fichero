@@ -582,7 +582,7 @@ def test_a_base_that_moved_during_the_check_is_rebased_before_the_review_and_a_d
     monkeypatch.setattr(work, "r_since", lambda repo, branch: next(bases))
     monkeypatch.setattr(work, "_git", lambda repo, *args: types.SimpleNamespace(stdout="fichero-builder/x.py\n", returncode=0))
     monkeypatch.setattr(work, "_base_moved", lambda a, branch, head: next(moved))
-    monkeypatch.setattr(work, "keep_green", lambda repo, ob, of, nb, f, cfg: f"kept across rebase onto {nb[:9]}: base delta disjoint (1 file(s))"
+    monkeypatch.setattr(work, "keep_green", lambda repo, ob, of, nb, f, cfg, oh="", h="": f"kept across rebase onto {nb[:9]}: base delta disjoint (1 file(s))"
                         if (ob, of, f) == ("b" * 40, ["fichero-builder/x.py"], ["fichero-builder/x.py"]) else "")
     assert chain() == 0
     assert [c[0] for c in chain.calls] == ["run", "rebase", "export", "fetch", "check", "rebase", "export", "fetch", "review", "land"]
@@ -608,12 +608,35 @@ def test_keep_green_only_for_a_base_delta_outside_the_batchs_dirs_check_files_an
         g("commit", "-qam", f)
         return g("rev-parse", "HEAD")
     new = move("other/b.py")
-    assert work.keep_green(str(tmp_path), old, batch, new, batch, cfg).startswith(f"kept across rebase onto {new[:9]}")
-    assert work.keep_green(str(tmp_path), old, batch, new, ["pkg/a.py", "pkg/c.py"], cfg) == "", "a different batch"
+    assert work.keep_green(str(tmp_path), old, batch, new, batch, cfg, old, new).startswith(f"kept across rebase onto {new[:9]}")
+    assert work.keep_green(str(tmp_path), old, batch, new, batch, cfg) == "", "no heads: the patch cannot be compared"
+    assert work.keep_green(str(tmp_path), old, batch, new, ["pkg/a.py", "pkg/c.py"], cfg, old, new) == "", "a different batch"
+    # same file names, different content: the patch of the rebased head is not the one the ladder judged
+    (tmp_path / "pkg" / "a.py").write_text("changed after the check\n")
+    g("commit", "-qam", "new content in the batch file")
+    assert work.keep_green(str(tmp_path), old, batch, new, batch, cfg, old, g("rev-parse", "HEAD")) == "", "new content rides no green"
+    g("reset", "-q", "--hard", new)
     for f in ("pkg/a.py", "harness.toml", "scripts/check_x.py"):
         g("reset", "-q", "--hard", old)
-        assert work.keep_green(str(tmp_path), old, batch, move(f), batch, cfg) == "", f
+        assert work.keep_green(str(tmp_path), old, batch, move(f), batch, cfg, old, old) == "", f
     g("reset", "-q", "--hard", old)
     (tmp_path / "pkg" / "z.py").write_text("1\n")
     g("add", "."), g("commit", "-qm", "same dir")
-    assert work.keep_green(str(tmp_path), old, batch, g("rev-parse", "HEAD"), batch, cfg) == "", "a delta in the batch's own dir"
+    assert work.keep_green(str(tmp_path), old, batch, g("rev-parse", "HEAD"), batch, cfg, old, old) == "", "a delta in the batch's own dir"
+
+
+def test_every_reason_a_pinned_refusal_lists_maps_to_the_approval_that_excuses_it():
+    """Manager 2026-11-02: four approves of a conftest.py batch did nothing: its reason matched no approval kind."""
+    tail = ("pipeline/tests/conftest.py: conftest.py is pinned by name anywhere (it changes what pytest does)\n"
+            "scripts/x.py: a new file under a pinned path (only a new guard may be added there)\nthe diff deletes or weakens existing tests (t.py)")
+    assert work.pinned_approvals(tail) == ["maintainer", "approve_weakened", "approve_pinned_new"]
+    assert work.pinned_approvals("a.py: conftest.py is pinned by name anywhere (x)") == ["maintainer"]
+
+
+def test_the_alert_names_the_group_that_blocked_not_the_files_last_line():
+    """Alert harness-gen3-batch-1-75 read 'the review is not READY: READY': the grouped review file ends with the last group's verdict."""
+    text = ("[group 1 of 3: a..b]\nfine\nREADY\n[group 2 of 3: b..c]\nbody\nNOT READY: a send-back never reaches a live session\n"
+            "[group 3 of 3: c..d]\nnotes\nREADY")
+    assert work.blocking(text, "READY") == "[group 2 of 3: b..c] NOT READY: a send-back never reaches a live session"
+    assert work.blocking("body\nNOT READY: x", "NOT READY: x") == "NOT READY: x"
+    assert work.blocking("nothing structured", "nothing structured") == "nothing structured"

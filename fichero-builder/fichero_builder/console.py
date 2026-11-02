@@ -56,6 +56,7 @@ VERBS = {
                                                                  "--", *__import__("shlex").split(a["script"]))),  # after `--`: the remote script's own args
     "start-issues": (("lane", "issues"), lambda a: _builder("lane", a["lane"], "--root", str(ROOT), *_st(), "--issues", *a["issues"])),
     "test": (("paths",), lambda a: _builder("test", "--root", str(ROOT), *_st(), *(a["paths"] if isinstance(a["paths"], list) else a["paths"].split()))),
+    "check-lane": (("lane",), lambda a: _builder("check-lane", a["lane"], "--root", str(ROOT), *_st())),
     "install": (("machine",), lambda a: _builder("install", a["machine"], "--root", str(ROOT), *_st())),
     "order": (("file",), lambda a: _builder("order", "--file", a["file"], "--root", str(ROOT), *_st())),
     "sweep": (("worktree",), lambda a: _builder("sweep", "--worktree", a["worktree"], "--root", str(ROOT), *_st())),

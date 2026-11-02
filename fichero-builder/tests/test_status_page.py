@@ -387,3 +387,15 @@ def test_a_check_whose_base_is_no_longer_the_landing_tip_reads_base_moved(monkey
         monkeypatch.setattr(console, "_git_tiles", lambda tip=tip: {"last_land_git": {"sha": tip, "ts": "", "subject": ""}, "closed_today_git": []})
         (row,) = console.api_status(rows, lanes)["lanes"]
         assert bool(row["activity"].get("base_moved")) is moved
+
+
+def test_a_held_external_lane_reads_held_even_when_its_tree_has_fresh_commits(tmp_path):
+    """Review 2026-11-02: a held lane's tree may be another lane's, so its commits say nothing about it: `held`, not `working`."""
+    brief = tmp_path / "b.md"
+    brief.write_text("LANE x, branch lane-x\n")
+    step = {"step": "2.3", "state": "queued", "issues": [], "why": "", "brief": str(brief)}
+    lanes = [{"id": n, "worktree": str(tmp_path), "cursor": 0, "paused": False, "kind": "external", "hold": h, "steps": [dict(step)]}
+             for n, h in (("held", True), ("free", False))]
+    now = time.time()
+    st = console.api_status([], lanes, now=now, commit=lambda wt: ("abc fix (1 minute ago)", int(now - 60)))
+    assert [x["state"] for x in st["lanes"]] == ["held", "working"]

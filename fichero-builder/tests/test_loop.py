@@ -2,10 +2,12 @@
 review -> landed --push -> the next step; a red goes back to the worker; every tick a heartbeat row. Processes are fakes."""
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from fichero_builder import __main__ as cli
-from fichero_builder import journal, queue
+from fichero_builder import journal, queue, watch
 from test_queue_verb import Fake, lane, steps
 
 
@@ -37,6 +39,7 @@ def test_a_restart_mid_chain_resumes_the_step_and_never_lands_it_twice(state):
     assert queue.run(fake.procs, workers_n=1, push=True, heartbeat=True, out=lambda s: None) == 0
     assert fake.landed_calls == [("h1.1", True), ("h1.2", True)], "each step landed once"
     assert [r for r in journal.read() if r["event"] == "loop" and r.get("state") == "tick"], "a heartbeat row a tick"
+    assert (journal.STATE / "loop.pid").read_text().strip() == str(os.getpid()), "the loop names itself for the watchdog"
 
 
 def test_a_red_with_no_live_session_starts_a_new_one_on_a_fix_brief_with_the_findings(state):
@@ -515,3 +518,180 @@ def test_a_paused_external_lanes_done_is_recorded_and_waits_for_resume(state, ca
     assert cli.main(["queue", "resume", "--lane", "ext", "--state", str(journal.STATE)]) == 0
     assert queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None) == 0
     assert fake.landed_calls and steps()["1.1"]["state"] == "landed"
+
+
+def test_run_check_fetches_the_lanes_head_and_runs_the_pinned_ladder_over_it_and_lands_nothing(state, tmp_path):
+    """Owner 2026-11-02 (console 'Run check'): `builder check-lane <lane>` checks the lane's HEAD now, under its own fetch
+    name, in a ladder slot; the result is printed; no review, no landing."""
+    import contextlib
+    import types
+    (tmp_path / "harness.toml").write_text('[check]\nengine_repo = "/engine"\n[land]\nbranch = "integration"\n')
+    queue.add("ext", "/w/ext", "1.1", str(state / "b1.1"), [7], kind="external")
+    seen = []
+
+    @contextlib.contextmanager
+    def slot(name, files, n):
+        seen.append(("slot", name, files))
+        yield "ladder"
+    w = types.SimpleNamespace(
+        ensure_pinned=lambda root, brief, base: str(tmp_path),
+        do_fetch=lambda a, repo, branch: (seen.append(("fetch", a.name)), "f" * 40)[1],
+        _git=lambda repo, *args: types.SimpleNamespace(stdout="x.py\n"), r_since=lambda repo, branch: "b" * 40, ladder_slot=slot,
+        do_check=lambda a, repo, branch, head, ladder: (seen.append(("check", a.name, head)), {"ok": False, "failed": "pytest"})[1])
+    rc, msg = queue.check_head(tmp_path, "ext", w)
+    assert rc == 1 and msg == "ext at fffffffff: RED at pytest"
+    assert seen == [("fetch", "ext-check"), ("slot", "ext (Run check)", ["x.py"]), ("check", "ext", "f" * 40)]
+    assert queue.check_head(tmp_path, "nope", w)[0] == 1
+    assert "check-lane" in __import__("fichero_builder.console", fromlist=["VERBS"]).VERBS
+
+
+def test_an_approve_binds_to_its_alerts_head_and_named_tests_and_a_new_head_clears_it(state):
+    """Defect 2026-11-02: alert -36's approve_red (for one import-only test at 8a145781e) was still set when the lane's next
+    head e4e23bbfb9 was checked. An approve records its head and the test files its alert named; the chain sees it only for
+    that head, and a `builder done` at a new head carries none of it."""
+    queue.add("ext", "/w/ext", "1.1", str(state / "b1.1"), [7], kind="external")
+    assert queue.done("ext", "a" * 40) == ""
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="blocked", approve_kind="red-on-base", why="red-on-base at aaaaaaaaa: NOT RED ON BASE: fichero-builder/tests/test_x.py passes")
+    queue.save(lanes)
+    aid = queue.alert("ext", "1.1", "red-on-base at aaaaaaaaa: NOT RED ON BASE: fichero-builder/tests/test_x.py passes at b", "/l.json", ["approve", "send-back"])
+    assert queue.answer(aid, "approve")[0] == 0
+    s = steps()["1.1"]
+    assert s["approved_head"] == "a" * 40 and s["approved_tests"] == ["fichero-builder/tests/test_x.py"]
+    assert queue._approved(s, "approve_red")
+    lanes = queue.load()
+    lanes[0]["steps"][0]["state"] = "blocked"
+    queue.save(lanes)
+    assert queue.done("ext", "c" * 40) == ""
+    assert not queue._approved(steps()["1.1"], "approve_red"), "a new head clears the approve"
+
+
+
+
+
+
+
+
+def test_a_new_head_or_a_landing_answers_the_steps_open_alerts_superseded_and_never_parks(state):
+    """Manager defect 2026-11-02: alerts -37, -48, -49 stayed open on the console after the batch moved to a new head."""
+    queue.add("ext", "/w/ext", "1.1", str(state / "b1.1"), [7], kind="external")
+    queue.add("ext", "/w/ext", "1.2", str(state / "b1.2"), [8], waits=["1.1"])
+    old = [queue.alert("ext", "1.1", f"red at {n}", "/l.json", ["retry", "park"]) for n in "ab"]
+    other = queue.alert("ext", "1.2", "another step", "/l.json", ["retry"])
+    assert queue.done("ext", "c" * 40) == ""
+    answers = {r["id"]: r for r in journal.read() if r["event"] == "alert-answer"}
+    assert set(answers) == set(old) and all(r["action"] == "superseded" and r["ok"] for r in answers.values())
+    assert [a["id"] for a in watch.status(journal.read(), queue.load())["open_alerts"]] == [other], "only this step's alerts closed"
+    assert steps()["1.1"]["state"] == "done", "the live step was not parked"
+    late = queue.alert("ext", "1.1", "red at the new head", "/l.json", ["retry"])
+    assert queue.close_alerts("ext", "1.1", "the step landed") == [late]
+
+
+def test_an_approve_on_a_worker_lane_whose_step_has_no_head_yet_still_counts(state):
+    """Review 2026-11-02: a worker lane's step has head "" until a chain is green, so an approve recorded with head "" never counted.
+    It holds while the step has no head and lapses when one is set (a new head clears it)."""
+    queue.add("w", "/w/w", "1.1", str(state / "b1.1"), [7])
+    step = {"state": "done", "head": "", "approve_red": True, "approved_head": ""}
+    assert queue._approved(step, "approve_red")
+    assert not queue._approved({**step, "head": "c" * 40}, "approve_red"), "a head set later clears it"
+    assert not queue._approved({"state": "done", "head": "", "approve_red": True}, "approve_red"), "no recorded approve head: no approve"
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="blocked", approve_kind="red-on-base", why="red-on-base: NOT RED ON BASE: t/test_x.py passes")
+    queue.save(lanes)
+    aid = queue.alert("w", "1.1", "red-on-base: NOT RED ON BASE: t/test_x.py passes", "/l.json", ["approve", "send-back"])
+    assert queue.answer(aid, "approve")[0] == 0
+    assert queue._approved(steps()["1.1"], "approve_red"), "an approve through the real answer path on a headless worker step counts"
+
+
+def test_a_send_back_or_fix_brief_reaches_a_live_session_not_the_original_brief(state):
+    """Review 2026-11-02: with a session still alive the queued step re-sent the original brief and ignored `resume_brief`, so the
+    manager's finding never reached the worker."""
+    fake = Fake()
+    queue.add("w", "/w/w", "1.1", str(state / "b1.1"), [7])
+    (state / "fix.txt").write_text("FIX: the manager's finding")
+    lanes = queue.load()
+    lanes[0]["feed"] = str(state / "feed")
+    lanes[0]["steps"][0].update(state="queued", resume_brief=str(state / "fix.txt"))
+    queue.save(lanes)
+    fake.procs.alive = lambda h: True
+    queue.tick(fake.procs, {"w": object()}, workers_n=1, push=True, out=lambda s: None)
+    assert fake.sent == ["FIX: the manager's finding"], fake.sent
+
+
+def test_a_newer_head_of_the_same_work_supersedes_a_batch_in_the_ladder_and_an_unrelated_one_is_refused(state, tmp_path):
+    """Manager 2026-11-02 (lane-onboard replaced its batch while it was checked: `done` refused): a head that descends from, or
+    rewrites, the head in the ladder takes its place: the old check is cancelled (cancel-<head>), its approvals and alerts end,
+    the step is `done` at the new head. Anything unrelated still waits its turn."""
+    import subprocess as sp
+
+    def g(*a, cwd=None):
+        return sp.run(["git", "-c", "user.email=t@e", "-c", "user.name=t", *a], cwd=cwd or repo, capture_output=True, text=True, check=True).stdout.strip()
+    repo = tmp_path / "ext"
+    repo.mkdir()
+    def commit(name, text):
+        (repo / name).write_text(text)
+        g("add", name), g("commit", "-q", "-m", name)
+    g("init", "-q", "-b", "main"), commit("a", "1")
+    old = g("rev-parse", "HEAD")
+    commit("b", "2")
+    child = g("rev-parse", "HEAD")
+    g("checkout", "-q", "--orphan", "other"), commit("c", "3")
+    stranger = g("rev-parse", "HEAD")
+    queue.add("ext", str(repo), "batch-1", str(state / "b1.1"), [], kind="external")
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="checking", head=old, approve_red=True, approved_head=old, approved_tests=["t.py"], approvals=["approve_red"])
+    queue.save(lanes)
+    aid = queue.alert("ext", "batch-1", "red-on-base at old", "/l.json", ["approve"])
+    assert "one at a time" in queue.done("ext", stranger) and steps()["batch-1"]["head"] == old, "an unrelated head waits"
+    assert queue.done("ext", child) == ""
+    s = steps()["batch-1"]
+    assert s["state"] == "done" and s["head"] == child and not any(k in s for k in queue.APPROVALS)
+    assert (journal.STATE / f"cancel-{old[:9]}").read_text() == child
+    assert any(r.get("event") == "alert-answer" and r["id"] == aid and r["action"] == "superseded" for r in journal.read())
+    assert any(r.get("state") == "superseded" for r in journal.read() if r["event"] == "queue")
+
+
+
+def test_an_external_lanes_red_offers_send_back_retry_park_and_a_worker_lanes_keeps_its_own(state):
+    """run.loop-external-lane: an external lane fixes its own reds, so it is never offered ask-owner; a worker lane is unchanged."""
+    queue.add("ext", "/w/ext", "1.1", str(state / "b1.1"), [7], kind="external")
+    red = {"ok": False, "kind": "red", "why": "pytest red", "findings": "t1 failed", "evidence": "/l.json"}
+    fake = Fake(chains={"1.1": [red]})
+    assert cli.main(["done", "ext", "abc123", "--state", str(journal.STATE)]) == 0
+    assert queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None) == 0
+    assert [a["actions"] for a in _alerts()] == [["send-back", "retry", "park"]]
+
+
+def test_send_back_on_an_external_lane_tells_its_pane_the_done_command_and_says_so_when_it_has_none(state, monkeypatch):
+    """run.loop-external-lane: send-back and park put the finding and the exact `builder done` command into the lane's pane;
+    a lane with no registered pane is a tell-refused row, never a silent send-back."""
+    from fichero_builder import tell
+    sent = []
+    monkeypatch.setattr(tell, "send", lambda pane, msg, **k: sent.append((pane, msg)) or (0, "sent"))
+    queue.add("ext", "/w/ext", "1.1", str(state / "b1.1"), [7], kind="external")
+    journal.append("alert", id="ext-1.1-1", lane="ext", step="1.1", what="pytest red", evidence="/l.json", actions=["send-back", "retry", "park"])
+    lanes = queue.load()
+    lanes[0]["pane"] = "%77"
+    queue.save(lanes)
+    assert queue.answer("ext-1.1-1", "send-back")[0] == 0
+    assert sent and sent[0][0] == "%77" and "SENT BACK (send-back) ext 1.1" in sent[0][1] and "fichero_builder done ext" in sent[0][1]
+    lanes = queue.load()
+    lanes[0]["pane"] = ""
+    queue.save(lanes)
+    assert queue.answer("ext-1.1-1", "park")[0] == 0 and len(sent) == 1
+    assert [r["state"] for r in journal.read() if r["event"] == "queue" and r.get("state") in ("told", "tell-refused")] == ["told", "tell-refused"]
+
+
+def test_a_draining_loop_starts_no_new_chain_so_it_can_re_exec_between_chains(state):
+    """Soak 2026-11-02: new code waits; while DRAIN is set no chain starts, and clearing it lets the same step run."""
+    queue.add("ext", "/w/ext", "1.1", str(state / "b1.1"), [7], kind="external")
+    fake = Fake(chains={})
+    assert cli.main(["done", "ext", "abc123", "--state", str(journal.STATE)]) == 0
+    chains = {"pool": queue.ThreadPoolExecutor(max_workers=1)}
+    queue.DRAIN[0] = True
+    try:
+        queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
+        assert set(chains) == {"pool"} and steps()["1.1"]["state"] != "landed", "no chain was submitted"
+    finally:
+        queue.DRAIN[0] = False
+        chains["pool"].shutdown()

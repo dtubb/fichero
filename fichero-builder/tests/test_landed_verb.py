@@ -555,15 +555,22 @@ def test_a_short_sha_is_resolved_before_every_comparison(world):
 
 def test_a_check_and_review_over_origin_land_while_the_local_land_branch_lags(world):
     """Manager 2026-11-02: the engine repo's local integration lagged origin; the check and review over origin/integration
-    are the same batch, so landed accepts a verdict and a check row over either base."""
+    are the same batch, so landed accepts a verdict and a check row over either base. The candidate here descends from origin's
+    NEW tip, and its verdict and check row exist ONLY over that tip: without the two-base rule `landed` refuses at the verdict."""
+    _g(world.seed, "checkout", "-q", "integration")
     _g(world.seed, "commit", "-q", "--allow-empty", "-m", "a landing by hand")
     _g(world.seed, "push", "-q", str(world.origin), "HEAD:integration")  # origin moved; the engine's local integration did not
+    (world.seed / "g2").write_text("2")
+    _g(world.seed, "add", "g2"), _g(world.seed, "commit", "-qm", "feat: g2\n\nFixes #7\nPart of #6116")
+    sha2 = _g(world.seed, "rev-parse", "HEAD")
+    _g(world.engine, "fetch", "-q", str(world.seed), "+HEAD:refs/heads/work-n1")
     _g(world.engine, "fetch", "-q", "origin")
     tip = _g(world.engine, "rev-parse", "refs/remotes/origin/integration")
-    assert _g(world.engine, "rev-parse", "integration") != tip
-    land_tool.write_verdict(world.store, world.engine, tip, world.sha) if _g(world.engine, "merge-base", tip, world.sha) == tip else None
-    journal.append("check", repo=str(world.engine), since=tip, head=world.sha, ok=True, failed="")
-    world.go()
-    names = [r["step"] for r in rows()]
-    assert "verdict" in names or "check-row" in names
-    assert not any(r["step"] == "check-row" and r["ok"] is False for r in rows()), "a check row over origin's tip counts"
+    assert _g(world.engine, "rev-parse", "integration") != tip and _g(world.engine, "merge-base", "--is-ancestor", tip, sha2) == ""
+    land_tool.write_verdict(world.store, world.engine, tip, sha2)
+    journal.append("check", repo=str(world.engine), since=tip, head=sha2, ok=True, failed="")
+    rc = cli.main(["landed", sha2, "--root", str(world.tmp), "--verdicts", str(world.store), "--gh", str(world.tmp / "gh"), "--state", str(world.tmp / "s")])
+    steps = [(r["step"], r["ok"]) for r in rows()]
+    assert steps[:2] == [("verdict", True), ("check-row", True)], steps
+    assert steps[2][0] != "check-row", steps  # past both gates: the next step is the land itself (it needs --push to go on)
+    assert rc in (0, 1)

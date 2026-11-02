@@ -68,7 +68,7 @@ def save(root, order: list[str], parked: list[str], branch: str = "integration")
         return 0, "the order is unchanged"
     f.write_text(new)
     moved = ", ".join(order[:3]) + (" …" if len(order) > 3 else "")
-    msg = f"docs(build-order): owner reorders: {moved}" + (f"; parks {', '.join(parked)}" if parked else "") + "\n\nDirected-By: the maintainer\n"
+    msg = f"docs(build-order): owner reorders: {moved}" + (f"; parks {', '.join(parked)}" if parked else "") + "\n\nDirected-By: the maintainer\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n"
     r = _git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-q", "-m", msg, "--", str(FILE))
     if r.returncode:
         return 1, f"commit failed: {r.stderr.strip()[-300:]}"
