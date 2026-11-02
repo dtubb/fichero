@@ -426,3 +426,12 @@ def test_do_run_refuses_with_the_reason_when_the_worktree_cannot_be_made(scratch
     monkeypatch.setattr(work, "ensure_worktree", lambda a, name: "the worktree could not be made: nope")
     with pytest.raises(RuntimeError, match="nope"):
         work.do_run(scratch.a, "sonnet")
+
+
+def test_the_chain_finds_its_pinned_copy_again_inside_the_ladder_lock(chain, monkeypatch):
+    """Another lane's landing may have removed the copy this lane started from; once the lock is held nothing can until the land gate is done."""
+    seen = []
+    a = types.SimpleNamespace(worktree="/w", name="n", pinned="/gone", issues=[1], repin=lambda: (seen.append("repin"), "/fresh")[1])
+    monkeypatch.setattr(work, "do_check", lambda a_, *r: (seen.append(a_.pinned), {"ok": False, "failed": "x"})[1])
+    assert work.after_run(a, "/r", "integration", "m")["kind"] == "red"
+    assert seen == ["repin", "/fresh"]

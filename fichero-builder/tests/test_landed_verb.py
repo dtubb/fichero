@@ -400,3 +400,19 @@ def test_a_fixes_line_naming_several_issues_closes_each_and_the_done_row_names_w
     assert closed == ["7", "20", "21", "22"]
     assert rows()[-1]["left_open"] == [23, 6116], "#7 has its Fixes line in the first commit; an issue only mentioned in prose is not cited"
     assert "left open: #23, #6116" in capsys.readouterr().out
+
+
+def test_making_the_new_pinned_copy_waits_for_a_running_ladder(world, monkeypatch):
+    """`pin` removes every other pinned worktree, which another lane's check may be reading: it takes the ladder's lock."""
+    world.ready(), world.green()
+    held = []
+    real = landed.pin
+
+    def probe(*a):
+        with pytest.raises(BlockingIOError):
+            with journal.Lock("ladder", wait=False):
+                pass
+        held.append(True)
+        return real(*a)
+    monkeypatch.setattr(landed, "pin", probe)
+    assert world.go("--push") == 0 and held

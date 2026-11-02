@@ -268,6 +268,7 @@ def real_procs(root) -> Procs:
     def chain(lane, step, stage):
         a = ns(lane, step)
         a.pinned = work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))
+        a.repin = lambda: work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))
         return work.after_run(a, repo, branch, reviewer, stage=stage)
 
     def landed(lane, head, push):
