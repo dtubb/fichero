@@ -1,5 +1,5 @@
-"""Enhancement steps as workflow nodes: `stain_flatten_images` and `ruled_lines_images` (`image.enhance.stain-flattening`,
-`image.enhance.ruled-lines`, #6195).
+"""Enhancement steps as workflow nodes: `stain_flatten_images`, `ruled_lines_images` and `bleed_through_images` (`image.enhance.stain-flattening`,
+`image.enhance.ruled-lines`, #6195; `bleed_through_images`, `image.enhance.bleed-through-suppression`, #6196).
 
 Each node's pixels are the step's `run` in `media.enhance`, the function the editor's chain row also calls; the node's config
 is built from the step's `Params`. A run writes an `enhanced` rendition whose `steps` row names the step and the settings
@@ -40,8 +40,9 @@ def _chosen(step: str, given: dict[str, Any]) -> dict[str, Any]:
 
 
 def step_image_file(step: str, file_path: str | Path, output_dir: str | Path, *, output_format: str = "jpg",
-                    compression_quality: int = 90, **given: Any) -> dict[str, Any]:
-    """Apply one enhancement step to one image into a derived output file."""
+                    compression_quality: int = 90, verso: str | Path | None = None, **given: Any) -> dict[str, Any]:
+    """Apply one enhancement step to one image into a derived output file. `verso` is the other side of the leaf, read by
+    bleed-through method b."""
     source = Path(file_path)
     fmt = (output_format or "jpg").lower().lstrip(".")
     try:
@@ -55,7 +56,15 @@ def step_image_file(step: str, file_path: str | Path, output_dir: str | Path, *,
         spec = STEPS[step]
         with Image.open(source) as image:
             original_size = list(image.size)
-            prepared, account = spec.run(image.copy(), spec.params(**chosen))
+            extra: dict[str, Any] = {}
+            if step == "bleed-through" and chosen.get("method") == "b":
+                if verso is None:
+                    raise ValueError(f"bleed-through method b needs the verso of {source.name}")
+                with Image.open(verso) as opened:
+                    extra["verso"] = opened.convert("RGB")
+            prepared, account = spec.run(image.copy(), spec.params(**chosen), **extra)
+            if account.get("applied") is False and account.get("reason"):
+                raise ValueError(f"{step}: {account['reason']}")
             output_path = Path(output_dir) / f"{source.stem}.{'jpg' if fmt == 'jpeg' else fmt}"
             output_path.parent.mkdir(parents=True, exist_ok=True)
             save_kwargs: dict[str, Any] = {"format": _FORMATS[fmt]}
@@ -73,7 +82,8 @@ def step_image_file(step: str, file_path: str | Path, output_dir: str | Path, *,
         return {"source": str(source), "outputs": [], "output_files": [], "details": {}, "error": str(exc)}
 
 
-def _register(tool: str, step: str, op: str, display: str, description: str, icon: str, sort_order: int) -> None:
+def _register(tool: str, step: str, op: str, display: str, description: str, icon: str, sort_order: int,
+              versos: bool = False) -> None:
     fields = list(STEPS[step].params.model_fields)
 
     async def node(inputs: dict[str, Any], state: State, llm_config: LLMConfig) -> dict[str, Any]:
@@ -82,10 +92,14 @@ def _register(tool: str, step: str, op: str, display: str, description: str, ico
             files = [files]
         output_dir = inputs.get("output_dir") or str(run_scratch_dir(state, tool.replace("_", "-")))
         given = {k: inputs.get(k) for k in fields}
+        verso_files = inputs.get("versos") or []
+        if isinstance(verso_files, str):
+            verso_files = [verso_files]
         results = [
             step_image_file(step, file_path, output_dir, output_format=inputs.get("output_format", "jpg"),
-                            compression_quality=inputs.get("compression_quality", 90), **given)
-            for file_path in files
+                            compression_quality=inputs.get("compression_quality", 90),
+                            verso=verso_files[index] if index < len(verso_files) else None, **given)
+            for index, file_path in enumerate(files)
         ]
         image_edit_operations = append_image_edit_operations(
             inputs, state, lambda _doc: {"op": op, "page": int(inputs.get("page", 1)), "params": _chosen(step, given)})
@@ -110,6 +124,8 @@ def _register(tool: str, step: str, op: str, display: str, description: str, ico
             PortDef(id="files", name="Files", port_type="input", data_type=DataType.FILES, required=True, description="Image files to adjust."),
             PortDef(id="documents", name="Documents", port_type="input", data_type=DataType.JSON, required=False,
                     description="Document metadata for preview-editor edit-chain updates."),
+            *([PortDef(id="versos", name="Versos", port_type="input", data_type=DataType.FILES, required=False,
+                       description="The other side of each file, in the same order (bleed-through method b).")] if versos else []),
         ],
         output_ports=[PortDef(id="output_files", name="Adjusted Files", port_type="output", data_type=DataType.FILES,
                               description="Derived image files.")],
@@ -124,3 +140,6 @@ _register("stain_flatten_images", "stain-flatten", "stain_flatten", "Flatten Sta
 _register("ruled_lines_images", "ruled-lines", "ruled_lines", "Quiet Ruled Lines",
           "Fill thin, long green, blue or red ruling from the surrounding paper and keep the ink, without modifying source files.",
           "text.alignleft", 29)
+_register("bleed_through_images", "bleed-through", "bleed_through", "Suppress Show-Through",
+          "Push the faint mirrored writing of the other side to paper and keep the ink; method b also reads the verso, without modifying source files.",
+          "doc.on.doc", 30, versos=True)

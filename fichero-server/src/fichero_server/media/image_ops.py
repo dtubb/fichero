@@ -387,7 +387,7 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
 
         # A stored row is applied as it was saved, not re-validated: model_construct keeps the old behaviour for an out-of-range value.
         return contrast.run(image, contrast.Params.model_construct(**{k: v for k, v in params.items() if k in contrast.Params.model_fields}))[0]
-    if name in {"stain_flatten", "ruled_lines"}:
+    if name in {"stain_flatten", "ruled_lines", "bleed_through"}:
         from fichero_server.media.enhance import STEPS
 
         spec = STEPS[name.replace("_", "-")]

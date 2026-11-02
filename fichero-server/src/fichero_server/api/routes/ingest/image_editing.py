@@ -28,7 +28,8 @@ from fichero_server.api.routes.workflow.batch import BatchResponse, get_batch_ma
 from fichero_server.api.routes.document.documents import _descendant_document_ids
 from fichero_server.db import Database
 from fichero_server.media.enhance import deskew as deskew_step, rotate as rotate_step
-from fichero_server.media.enhance import ruled_lines as ruled_lines_step, stain_flatten as stain_flatten_step
+from fichero_server.media.enhance import bleed_through as bleed_through_step, ruled_lines as ruled_lines_step
+from fichero_server.media.enhance import stain_flatten as stain_flatten_step
 from fichero_server.models import DocType, Document, FileType, ImageEditChain
 from fichero_server.models.anchors import NodeRegion, RegionConfidence
 from fichero_server.split_carry import carry_readings_over
@@ -112,6 +113,10 @@ class RuledLinesOperationRequest(ruled_lines_step.Params):
     page: int = Field(1, ge=1)
 
 
+class BleedThroughOperationRequest(bleed_through_step.Params):
+    page: int = Field(1, ge=1)
+
+
 class DenoiseOperationRequest(BaseModel):
     radius: int = Field(3, ge=3, le=5)
     page: int = Field(1, ge=1)
@@ -123,8 +128,9 @@ _OPERATION_MODELS = {
     "remove_background": RemoveBackgroundOperationRequest, "segment": SegmentOperationRequest,
     "brightness": FactorOperationRequest, "contrast": ContrastOperationRequest,
     "sharpen": FactorOperationRequest, "fuzzy_clean": FuzzyCleanOperationRequest,
-    "denoise": DenoiseOperationRequest,
-    "stain_flatten": StainFlattenOperationRequest, "ruled_lines": RuledLinesOperationRequest, "square": SquareOperationRequest, "mark_blank": MarkBlankOperationRequest,
+    "denoise": DenoiseOperationRequest, "stain_flatten": StainFlattenOperationRequest,
+    "ruled_lines": RuledLinesOperationRequest, "bleed_through": BleedThroughOperationRequest,
+    "square": SquareOperationRequest, "mark_blank": MarkBlankOperationRequest,
 }
 _PARAMETERLESS_OPERATIONS = {"flip_horizontal", "flip_vertical", "auto_levels", "grayscale", "auto_crop_border", "adaptive_binarize"}
 

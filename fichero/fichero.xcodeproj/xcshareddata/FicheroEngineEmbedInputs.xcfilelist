@@ -446,6 +446,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/media/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/blank_page.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/current_image.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/enhance/__init__.py
+$(SRCROOT)/../fichero-server/src/fichero_server/media/enhance/bleed_through.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/enhance/contrast.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/enhance/deskew.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/enhance/page_crop.py
