@@ -212,15 +212,15 @@ def test_issues_are_untouched_until_the_sha_is_on_origin(world):
 
 
 def test_the_spec_behaviour_line_a_landed_commit_names_gets_ok_with_the_test(world):
-    """A commit message that names a behaviour id in backticks marks that spec line [OK] and names the commit's test file
+    """A commit whose `Behaviour: <id>` trailer names a behaviour marks that spec line [OK] and names the commit's test file
     when the line names none; a line already [OK] is left alone; one `spec-ok` row per line changed."""
     spec = world.tmp / "docs" / "contributor_manual" / "specs" / "h" / "x.md"
     spec.parent.mkdir(parents=True)
-    spec.write_text("# X\n- `x.one` [GAP] (#7) — the thing\n  continues here.\n- `x.two` [OK] (#8) — done. Tests: `t.py`\n")
+    spec.write_text("# X\n- `x.one` [GAP] (#7) — the thing\n  continues here.\n- `x.two` [OK] (#8) — done. Tests: `t.py`\n- `x.three` [GAP] (#9) — another\n")
     world.ready(), world.green()
     (world.seed / "tests").mkdir()
     (world.seed / "tests" / "test_one.py").write_text("def test_one(): pass\n")
-    _g(world.seed, "add", "tests"), _g(world.seed, "commit", "-qm", "feat: `x.one` and `x.two` built\n\nFixes #7")
+    _g(world.seed, "add", "tests"), _g(world.seed, "commit", "-qm", "feat: x.one and x.two built, see `x.three`\n\nBehaviour: x.one\nBehaviour: x.two\nFixes #7")
     second = _g(world.seed, "rev-parse", "HEAD")
     _g(world.engine, "fetch", "-q", str(world.seed), "+refs/heads/lane:refs/heads/work-n1")
     land_tool.write_verdict(world.store, world.engine, "integration", second)
@@ -232,6 +232,7 @@ def test_the_spec_behaviour_line_a_landed_commit_names_gets_ok_with_the_test(wor
     assert "- `x.two` [OK] (#8) — done. Tests: `t.py`\n" in text
     ok = [r for r in rows() if r["step"] == "spec-ok"]
     assert [(r["id"], r["tests"]) for r in ok] == [("x.one", ["tests/test_one.py"])]
+    assert "- `x.three` [GAP]" in text, "an id a message only mentions in passing is not marked"
 
 
 def test_no_issues_skips_gh_but_the_done_row_still_names_the_issues(world):

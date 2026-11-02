@@ -19,15 +19,25 @@ REFRESH_S = 5
 ROOT = Path.cwd()  # ponytail: set once by main; one page, one rules file
 
 
+WORKER_ROWS = ("worker", "cost")  # what `builder run` writes to the shared state; everything else there is the worker's word
+
+
 def rows_of(root) -> list[dict]:
-    """The owner's journal (checks, landings) and the worker's under the shared state (runs), by time. The owner keeps its own so
-    a worker cannot forge a check row; a page of one file alone shows half of this."""
+    """The owner's journal (checks, landings) and the worker's under the shared state (runs), by time. From the shared file, which
+    the worker can write, only run rows are read, so a worker cannot put a check or a landing on this page; a line that does not
+    parse is skipped. A page of one file alone shows half of this."""
     rows = journal.read()
     f = Path(root) / "harness.toml"
     workroot = tomllib.loads(f.read_text()).get("jail", {}).get("workroot") if f.is_file() else None
     shared = Path(workroot) / "state" / "journal.jsonl" if workroot else None
     if shared and shared.is_file() and shared.resolve() != journal.path().resolve():
-        rows += [json.loads(ln) for ln in shared.read_text().splitlines() if ln.strip()]
+        for ln in shared.read_text(errors="replace").splitlines():
+            try:
+                r = json.loads(ln)
+            except ValueError:
+                continue
+            if isinstance(r, dict) and r.get("event") in WORKER_ROWS:
+                rows.append(r)
     return sorted(rows, key=lambda r: r.get("ts", ""))
 
 

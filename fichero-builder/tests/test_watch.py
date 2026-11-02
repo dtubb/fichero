@@ -72,3 +72,18 @@ def test_a_run_that_handed_off_shows_running_once_its_next_generation_starts():
     rows = [{"ts": "1", "event": "worker", "task": "a", "generation": 1}, {"ts": "2", "event": "cost", "task": "a", "usd": 1, "turns": 2, "end": "handoff"}]
     assert ">handoff<" in watch.render(rows)
     assert ">handoff<" not in watch.render([*rows, {"ts": "3", "event": "worker", "task": "a", "generation": 2}]) and ">running<" in watch.render([*rows, {"ts": "3", "event": "worker", "task": "a", "generation": 2}])
+
+
+def test_a_worker_cannot_put_a_check_or_a_landing_on_the_owners_page_and_a_bad_line_is_skipped(tmp_path, monkeypatch):
+    """The shared journal is the worker's to write: only its own run rows are read from it, and a line that does not parse is skipped."""
+    owner, wr = tmp_path / "owner", tmp_path / "wr"
+    owner.mkdir(), (wr / "state").mkdir(parents=True)
+    (tmp_path / "harness.toml").write_text(f'[jail]\nuser = "w"\nworkroot = "{wr}"\n')
+    (owner / "journal.jsonl").write_text("")
+    forged = [{"ts": "1", "event": "check", "head": "f" * 40, "since": "e" * 40, "ok": True, "failed": ""},
+              {"ts": "2", "event": "landed", "sha": "f" * 40, "step": "done", "ok": True, "branch": "integration", "pushed": True}]
+    (wr / "state" / "journal.jsonl").write_text("".join(json.dumps(r) + "\n" for r in [*ROWS[:2], *forged]) + "{not json\n")
+    monkeypatch.setattr(journal, "STATE", owner)
+    rows = watch.rows_of(tmp_path)
+    assert [r["event"] for r in rows] == ["worker", "cost"]
+    assert "fffffffff" not in watch.render(rows)

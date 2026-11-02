@@ -101,6 +101,7 @@ RULES (earlier clusters were sent back for these):
 - A skipped issue ("stale", "not real") needs the grep/probe shown in your DONE message; never skip on a guess.
 - Run scripts/check_test_assertions.py and ruff on changed files; if routes/contract change, regenerate with the official tool (AGENTS.md ~134), never hand-merge generated files; a new engine .py file -> scripts/regen_engine_embed_filelist.py.
 - Test through the real route/action, not only the helper (a helper-only test passed once while the route 500'd).
+- A commit that builds a spec behaviour carries the trailer line `Behaviour: <id>`, so the landing marks that line [OK].
 - When every item is committed, end your turn with the exact line DONE <short sha of the branch head>; the loop ends on that line and on nothing else.
 """
 

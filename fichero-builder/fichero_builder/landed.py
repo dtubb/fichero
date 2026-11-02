@@ -75,7 +75,7 @@ def worktrees_of(sha: str) -> list[str]:
 
 ISSUE_LINES = re.compile(r"^(Fixes|Closes|Part of|Already built):?\s*#(\d+)(.*)$", re.M | re.I)
 TEST_FILE = re.compile(r"(^|/)(test_[^/]*\.py|[^/]*_test\.py|[^/]*Tests?\.swift)$")
-BEHAVIOUR_ID = re.compile(r"`([a-z][a-z0-9-]*(?:\.[a-z0-9-]+)+)`")
+BEHAVIOUR_ID = re.compile(r"^Behaviour:\s*`?([a-z][a-z0-9-]*(?:\.[a-z0-9-]+)+)`?\s*$", re.M)  # a trailer line, never an id a message only mentions
 OPEN_TAGS = ("[GAP]", "[PARTIAL]", "[PROPOSED]")
 SPECS = Path("docs/contributor_manual/specs")
 
@@ -140,7 +140,7 @@ def update_issues(gh: str, cited: list[dict], branch: str, sha: str) -> list[str
 
 
 def mark_specs_ok(root, commits: list[dict]) -> list[dict]:
-    """A behaviour id a landed commit names in backticks: its spec line's open tag becomes [OK], and the commit's test
+    """A behaviour id on a landed commit's `Behaviour: <id>` trailer line: its spec line's open tag becomes [OK], and the commit's test
     files are named on the line when it names none. [{file, id, tests}] of the lines changed."""
     wanted: dict[str, list[str]] = {}
     for c in commits:

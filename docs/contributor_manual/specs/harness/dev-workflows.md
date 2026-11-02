@@ -341,7 +341,7 @@ the write path would produce.
   scratch worktrees the journal's work rows name for that sha, and, only once the sha is on `origin/<branch>` (the on-origin step has held it to that), updates the cited issues through `gh`:
   one comment per issue per landing naming every citing commit (sha7, subject, the test files it touches); `Fixes`/`Closes
   #N` closes with it, `Part of #N` stays open, `Already built: #N <test>` comments the proving test and labels
-  needs-your-test; a behaviour id a commit names in backticks gets its spec line's open tag set to [OK] with the commit's
+  needs-your-test; a behaviour id on a `Behaviour: <id>` trailer line of a commit (an id the message only mentions does not count) gets its spec line's open tag set to [OK] with the commit's
   test files named when the line names none (a `spec-ok` row each; the owner commits the spec edit with the next batch);
   `--no-issues` skips both. Every step is a journal row (event `landed`); a red step stops the rest with exit 1.
   **Built** 2026-11-01: `fichero_builder/landed.py`. Tests:
@@ -351,7 +351,7 @@ the write path would produce.
   `::test_a_green_row_counts_only_for_the_range_being_landed`, `::test_issues_are_untouched_until_the_sha_is_on_origin`, `::test_the_spec_behaviour_line_a_landed_commit_names_gets_ok_with_the_test`. Not yet: a run with the real jail user and the real `gh`; both are faked in every test.
 - `dev-workflows.tool.watch` [OK] (#6116; owner 2026-11-01) — `builder watch [--port 8765] [--state DIR] [--root DIR]` is a live progress
   page: a stdlib `http.server` bound to 127.0.0.1 serving one HTML page (no JavaScript; a 5 s meta refresh) read from the
-  owner's journal and the worker's under `[jail].workroot/state`, newest first: one table per kind and nothing else: each run (name, worktree, model, started, turns, cost USD,
+  owner's journal and the worker's under `[jail].workroot/state` (from that file, which the worker can write, only its run rows, and a line that does not parse is skipped; test `fichero-builder/tests/test_watch.py::test_a_worker_cannot_put_a_check_or_a_landing_on_the_owners_page_and_a_bad_line_is_skipped`), newest first: one table per kind and nothing else: each run (name, worktree, model, started, turns, cost USD,
   status done/parked/handoff or running), each check (range, green/red, the failed rung), each landing (tip, last step,
   branch, pushed). A naive page by design: the SwiftUI Builder app replaces it later and reads the same journal.
   Tests: `fichero-builder/tests/test_watch.py::test_the_page_shows_every_run_check_and_land_newest_first_with_status_and_cost`,
@@ -363,7 +363,7 @@ the write path would produce.
   row (event `triage`) and one `gh` call that can be read back; `--dry` reads, prints and journals rows marked dry, writes
   nothing. **The milestone is the spec**: `--milestones` moves an open issue to the milestone of the spec that cites `#N`
   (created on the repo first when missing), else of the spec a `spec:<stem>` label hints at, and removes the `spec:*` label
-  once the issue sits there (triage creates and deletes no label); a spec with no
+  once the issue sits there (triage deletes no label, and creates none but a missing kept one); a spec with no
   `> Milestone:` line gets one, the milestone most of its cited issues carry (a `spec-milestone-line` row); an issue no
   spec cites with no milestone goes to `Next release` only if it is `type:bug`; a milestone with no open issue that no spec names is closed (a spec's stays, and a closed one a spec needs is reopened, never made twice);
   a milestone with open issues that no spec names and that is not an ops bucket (`Bugs - *`, `Lint - *`, `Performance - *`)
