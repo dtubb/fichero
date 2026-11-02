@@ -87,6 +87,8 @@ struct RecipeSetupAnswers: Codable, Equatable {
     var scripts: [String]?
     var directions: [String: String]?
     var materials: [String]?
+    /// The condition of the pages, ticked by the person (`answers.condition`); nil is not asked, an empty list is none ticked.
+    var condition: [String]?
     /// Read only, as `purpose`.
     var material: String?
     var pages: Int?
@@ -248,7 +250,8 @@ struct RecipeSetupAnswers: Codable, Equatable {
          jobAnswersByFolder: [String: [String: StageAnswer]]? = nil, removedJobs: [String]? = nil,
          period: String? = nil, hands: [String]? = nil, place: String? = nil,
          hfSpendCapUsd: Double? = nil, cloudSpendCapUsd: Double? = nil, cloudProjectCapUsd: Double? = nil,
-         copiesMayStayOnCluster: Bool? = nil) {
+         copiesMayStayOnCluster: Bool? = nil, condition: [String]? = nil) {
+        self.condition = condition
         self.hfSpendCapUsd = hfSpendCapUsd
         self.cloudSpendCapUsd = cloudSpendCapUsd
         self.cloudProjectCapUsd = cloudProjectCapUsd
@@ -274,6 +277,7 @@ struct RecipeSetupAnswers: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case purposes, purpose, jobs, languages, scripts, directions, materials, material, pages, layers, automatic
+        case condition
         case period, hands, place
         case hfSpendCapUsd = "hf_spend_cap_usd"
         case cloudSpendCapUsd = "cloud_spend_cap_usd"

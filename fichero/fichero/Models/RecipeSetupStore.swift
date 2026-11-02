@@ -60,6 +60,10 @@ final class RecipeSetupStore {
     var directions: [String: String] = [:]
     /// Handwriting, print, typescript: any mix, at least one (#5478).
     var materials: [String] = ["handwriting"]
+    /// The condition of the pages the person ticked; nil until they answer (none ticked is an empty list, never a default).
+    var conditions: [String]?
+    /// The engine's tick boxes for the condition question (`GET /api/recipes/questions`).
+    var conditionOptions: [ConditionOption] = []
     /// Scripts setup put in because a chosen language is usually written in them (#5626), each with the languages
     /// that proposed it: a language taken out again takes out a script only it proposed.
     private(set) var proposedScripts: [String: Set<String>] = [:]
@@ -521,7 +525,7 @@ final class RecipeSetupStore {
                            period: period, hands: hands, place: place,
                            hfSpendCapUsd: spendCapUsd, cloudSpendCapUsd: cloudSpendCapUsd,
                            cloudProjectCapUsd: cloudProjectCapUsd,
-                           copiesMayStayOnCluster: copiesMayStay)
+                           copiesMayStayOnCluster: copiesMayStay, condition: conditions)
     }
 
     /// The answers as the project last saved them, as JSON, so a save keeps every field the
@@ -553,6 +557,7 @@ final class RecipeSetupStore {
         if let value = saved.directions { directions = value }
         if let value = saved.materials ?? saved.material.map({ [$0] }), !value.isEmpty { materials = value }
         if let value = saved.pages { pages = value }
+        if let value = saved.condition { conditions = value }
         if let value = saved.cloudAllowed {
             cloudAllowed = value
             cloudAnswered = true

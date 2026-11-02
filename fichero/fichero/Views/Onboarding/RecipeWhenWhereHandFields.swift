@@ -7,6 +7,7 @@ import SwiftUI
 struct RecipeWhenWhereHandFields: View {
     @Bindable var store: RecipeSetupStore
     @State private var typedHand = ""
+    @State private var suggestions: SuggestionsStore?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -18,12 +19,21 @@ struct RecipeWhenWhereHandFields: View {
                 TextField("Where written", text: $store.place, prompt: Text("e.g. Popayán"))
                     .labelsHidden()
             }
+            if FeatureManager.shared.isWideSetUpEnabled {
+                RecipeConditionFields(store: store, suggestions: suggestions)
+            }
             Text("Which hand").font(.headline)
             if !RecipeSetupStore.asksWhichHand(materials: store.materials) {
                 Text("Print and typescript have no hand.").font(.caption).foregroundStyle(.secondary)
             } else {
                 handChoices
             }
+        }
+        .task {
+            guard FeatureManager.shared.isWideSetUpEnabled else { return }
+            await store.loadConditionOptions()
+            if suggestions == nil { suggestions = SuggestionsStore(client: store.client) }
+            await suggestions?.load()
         }
         .task(id: "\(store.scripts.first ?? "")|\(store.period)|\(store.languages.joined(separator: ","))") {
             try? await Task.sleep(for: .milliseconds(300))  // the period as typed: ask once the person pauses
