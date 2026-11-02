@@ -27,6 +27,7 @@ from typing import Any
 from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused, cancellation_requested
 from fichero_server.workflows.types import State, WorkflowDef, NodeDef
 from fichero_server.workflows.node_context import set_current_node
+from fichero_server.workflows.document_refs import REF_AWARE_TOOLS, hydrate_documents, slim_documents
 from fichero_server.workflows.registry import get_tool, get_tool_def
 from fichero_server.workflows.resolver import resolve_inputs, evaluate_condition
 from fichero_server.workflows.cache import (
@@ -1262,10 +1263,19 @@ def _make_node_function(
                             cache_err,
                         )
 
+            # #4390: references become full documents for this one call only (not stored back in state).
+            call_state = state
+            if node_def.tool not in REF_AWARE_TOOLS:
+                lib = state.get("library_path")
+                if isinstance(tool_kwargs.get("documents"), list):
+                    tool_kwargs["documents"] = hydrate_documents(tool_kwargs["documents"], lib)
+                if isinstance(state.get("documents"), list):
+                    call_state = {**state, "documents": hydrate_documents(state["documents"], lib)}
+
             # Call the tool with resolved inputs
             result = await tool_fn(
                 inputs=tool_kwargs,
-                state=state,
+                state=call_state,
                 llm_config=node_llm_config,
             )
 
@@ -1378,6 +1388,15 @@ def _make_node_function(
                     logger.warning(
                         "Sequential cache write failed for %s: %s", node_label, cache_err
                     )
+
+            # #4390: a source's output carries references, not page text; `documents_as: "full"` keeps the dump.
+            if (
+                node_def.tool in SOURCE_TOOLS
+                and isinstance(result, dict)
+                and isinstance(result.get("documents"), list)
+                and (node_def.config or {}).get("documents_as") != "full"
+            ):
+                result = {**result, "documents": slim_documents(result["documents"])}
 
             # Update outputs
             outputs = dict(state.get("outputs", {}))
@@ -2111,7 +2130,10 @@ def _make_parallel_node_function(
             # Build inputs for single file
             tool_inputs = {
                 "files": [file_path],  # Single file as list
-                "documents": [document] if document else [],
+                "documents": (
+                    [document] if node_def.tool in REF_AWARE_TOOLS
+                    else hydrate_documents([document], state.get("library_path"))
+                ) if document else [],
                 **node_def.config,  # Static config
             }
             # The elementwise fan-out builds its inputs here rather than through
