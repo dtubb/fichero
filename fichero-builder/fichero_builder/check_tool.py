@@ -840,3 +840,25 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
     finally:
         _git(root, "worktree", "remove", "--force", tree)
     return {**out, "rungs": [ok_pin, *out["rungs"]]}
+
+
+def run_tests(root, head: str, pinned, paths: list[str], jail_required: bool = True) -> dict:
+    """`builder test` (the console's Run tests, owner 2026-11-02): the pinned pytest over `paths` (test files or dirs) in a
+    scratch tree of `head`, as the jail user, on [check].remote when one is set; one pytest per top-level package."""
+    global _JAIL
+    from . import jail as _jailmod
+    cfg = load(pinned)
+    j = _jailmod.load(pinned)
+    if j is None and jail_required:
+        raise _jailmod.JailMissing("no [jail] in the rules file: tests will not run as the owner")
+    if j is not None:
+        j.require()
+    _JAIL = j
+    tree = _scratch_tree(root, head, pinned, cfg)
+    try:
+        return {**green_runs(tree, list(paths), (), cfg, 3600), "name": "tests"}
+    finally:
+        _JAIL = None
+        _git(root, "worktree", "remove", "--force", tree)
+        if _SHIPPED or _DOWN:
+            _drop_remote(cfg)

@@ -153,6 +153,8 @@ def main(argv=None) -> int:
     me.add_argument("--root", default=str(Path.cwd())), me.add_argument("--state"), me.add_argument("argv", nargs=argparse.REMAINDER)
     ins = sub.add_parser("install", help="copy the newest dev DMG to a [machines] test machine over ssh, install it in ~/Applications there, open it and say whether the app and its engine run")
     ins.add_argument("machine"), ins.add_argument("dmg", nargs="?", default=""), ins.add_argument("--root", default=str(Path.cwd())), ins.add_argument("--state")
+    ts = sub.add_parser("test", help="the pinned pytest over test paths on the land branch's tip (or --head) in a scratch tree, as the jail user, local or [check].remote; one test row")
+    ts.add_argument("paths", nargs="+"), ts.add_argument("--head", default=""), ts.add_argument("--root", default=str(Path.cwd())), ts.add_argument("--state")
     ln = sub.add_parser("lane", help="ticked issues as one lane: a cluster brief from them, queued as a worker lane in the jail (the console's Start as one lane)")
     ln.add_argument("name"), ln.add_argument("--issues", type=int, nargs="+", required=True), ln.add_argument("--root", default=str(Path.cwd()))
     ln.add_argument("--gh", default="gh"), ln.add_argument("--state")
@@ -302,6 +304,20 @@ def main(argv=None) -> int:
         rc, out = measure.install(a.root, a.machine, a.dmg)
         print(out)
         return rc
+    if a.cmd == "test":
+        import subprocess
+        import tomllib
+
+        journal.STATE = Path(a.state) if a.state else journal.STATE
+        doc = tomllib.loads((Path(a.root) / "harness.toml").read_text())
+        repo, branch = doc["check"]["engine_repo"], doc["land"]["branch"]
+        subprocess.run(["git", "-C", repo, "fetch", "-q", "origin", branch], capture_output=True)
+        head = a.head or f"origin/{branch}"
+        r = check_tool.run_tests(repo, head, a.root, a.paths)
+        journal.append("test", head=head, paths=a.paths, ok=bool(r.get("ok")), seconds=r.get("seconds"), remote=r.get("remote", ""),
+                       detail=(r.get("stdout_tail") or "")[-600:])
+        print(r.get("stdout_tail", "")[-3000:])
+        return 0 if r.get("ok") else 1
     if a.cmd == "lane":
         from fichero_builder import queue
 

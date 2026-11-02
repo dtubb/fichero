@@ -279,6 +279,11 @@ function Release({ st }) {
       <${Card} k="Release PR" v=${d.prs?.length ? html`<a href=${d.prs[0].url} target="_blank">#${d.prs[0].number}</a>` : "none open"} dot=${d.prs?.length ? "blue" : ""} />
     </div>
     <p class="muted">Make release PR is the owner's to say: the console shows it, never does it.</p>
+    <h2>Run tests on the integration tip</h2>
+    <form onSubmit=${e => { e.preventDefault(); act("test", { paths: e.target.paths.value.trim().split(/\s+/) }); }}>
+      <input name="paths" placeholder="fichero-server/tests/unit/recipes fichero-builder/tests" style="width:420px" required /> <button class="btn">${I.play} Run tests</button>
+      <span class="muted">the pinned pytest, as the jail user, on [check].remote when set</span></form>
+    ${[...st.console].reverse().filter(r => r.verb === "test").slice(0, 1).map(r => html`<pre>${r.state}${r.rc != null ? " exit " + r.rc : ""} ${r.detail || ""}</pre>`)}
     <h2>Install the newest dev build on a test machine</h2>
     <div class="actions" style="justify-content:flex-start">${(st.machines || []).map(m => html`<button class="btn" onClick=${() => confirm(`Install the newest dev DMG on ${m}?`) && act("install", { machine: m })}>Install on ${m}</button>`)}</div>
     ${[...st.console].reverse().filter(r => r.verb === "install").slice(0, 1).map(r => html`<pre>${r.state} ${r.detail || ""}</pre>`)}

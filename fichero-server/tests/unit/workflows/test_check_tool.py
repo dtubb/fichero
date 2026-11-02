@@ -828,3 +828,13 @@ def test_a_new_file_under_a_pinned_path_refuses_until_approved_and_the_approval_
     assert not r["ok"] and "a new file under a pinned path" in r["rungs"][0]["stderr_tail"]
     r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False, maintainer=True, approve_pinned_new=True)
     assert r["rungs"][0]["ok"] and "approved new pinned files: ci/helper.py" in r["rungs"][0]["stdout_tail"], r["rungs"][0]
+
+
+def test_run_tests_runs_the_named_paths_in_a_scratch_tree_of_the_head(tmp_path):
+    """The console's Run tests (owner 2026-11-02): the pinned pytest over chosen paths on a commit, never the caller's tree."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "test_area.py").write_text("def test_ok():\n    assert True\n")
+    g("add", "."), g("commit", "-q", "-m", "an area test")
+    (work / "test_area.py").write_text("def test_ok():\n    assert False  # uncommitted: never run\n")
+    r = ct.run_tests(work, "HEAD", pinned, ["test_area.py"], jail_required=False)
+    assert r["ok"] and r["name"] == "tests", r
