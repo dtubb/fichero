@@ -173,19 +173,19 @@ def test_milestones_follow_the_citing_spec_and_the_spec_label_goes_once_the_issu
     d = world.db()
     by = {i["number"]: i for i in d["issues"]}
     assert by[7]["milestone"] == "sharing" and "spec:sharing-two-macs" not in by[7]["labels"], "cited by sharing-two-macs.md; the hint label is gone"
-    assert by[12]["milestone"] == "Bugs - old" and "spec:cataloguing" not in by[12]["labels"], \
-        "no-line.md cites #12 and takes Bugs - old as its milestone; the hint label is gone"
+    assert by[12]["milestone"] == "cat" and "spec:cataloguing" not in by[12]["labels"], \
+        "no-line.md takes no line from a bucket no spec names, so the spec:cataloguing hint places #12; the hint label is gone"
     assert by[8]["milestone"] == "cat" and "cat" in d["milestones"]
     assert by[11]["milestone"] == "Next release", "a bug with no spec goes to Next release"
     assert by[10]["milestone"] == "orphan-ms", "no spec, not a bug: stays where it is"
-    assert set(d["closed"]) == {"Empty one"}, "only an empty milestone closes"
+    assert set(d["closed"]) == {"Empty one", "Bugs - old"}, "only an empty milestone closes (Bugs - old emptied when #12 went to cat)"
     filed = [i for i in d["issues"] if i["title"].startswith("spec: write ")]
     assert [i["title"] for i in filed] == ["spec: write orphan-ms spec"], "no write-the-spec issue for a Lint bucket"
     assert "spec:sharing-two-macs" in d["labels"], "removed from the issue, never deleted from the repo"
     assert world("--labels", "--specs", "--milestones") == 0
     assert sum(1 for i in world.db()["issues"] if i["title"] == "spec: write orphan-ms spec") == 1, "idempotent"
-    assert "> Milestone: Bugs - old" in (world.root / "docs" / "contributor_manual" / "specs" / "x" / "no-line.md").read_text()
-    assert [r for r in journal.read() if r["event"] == "triage" and r["what"] == "spec-milestone-line"]
+    assert "> Milestone: Bugs - old" not in (world.root / "docs" / "contributor_manual" / "specs" / "x" / "no-line.md").read_text()
+    assert not [r for r in journal.read() if r["event"] == "triage" and r["what"] == "spec-milestone-line" and r["milestone"] == "Bugs - old"]
 
 
 def test_assignees_are_the_owner_on_needs_your_only(world):
@@ -302,3 +302,24 @@ def test_a_parked_line_may_name_a_pattern_and_the_milestones_it_matches_owe_no_s
     assert world("--order") == 0
     proposed = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("+ ")]
     assert not any("`orphan-ms`" in ln or "`Bugs - old`" in ln for ln in proposed), "parked by pattern: not proposed"
+
+
+def test_a_spec_line_is_written_only_for_a_milestone_whose_spec_names_the_file_or_the_files_stem(world, capsys):
+    """Lead ruling 2026-11-02: the dry run guessed kg-interactions.md -> historical-text-normalization from its cited issues'
+    milestones. A guess is written only when that milestone's own spec names the file, or it is the file's stem; build-notes
+    files are notes: no line, and their citations place no issue."""
+    specs = world.root / "docs" / "contributor_manual" / "specs" / "x"
+    (specs / "no-line.md").write_text("# No line\n\n- `n.o` [GAP] (#12) — z\n")       # #12 sits in `Bugs - old`: no spec names it
+    (specs / "guess-cat.md").write_text("# Guess\n\n- `g.c` [GAP] (#13) — c\n")       # #13 sits in `cat`, whose spec names this file
+    (specs / "unnamed.md").write_text("# Unnamed\n\n- `u.n` [GAP] (#13) — c\n")        # also `cat`, but cataloguing.md does not name it
+    (specs / "cataloguing.md").write_text("# Cat\n> Milestone: cat\n- `c.d` [GAP] (#8, #9) — y. Notes: guess-cat.md\n")
+    (specs / "orphan-ms.md").write_text("# Its stem\n\n- `o.m` [GAP] (#10) — o\n")    # #10 sits in `orphan-ms`: the stem
+    (specs / "build-notes-x.md").write_text("# Notes\n\n- `b.n` [GAP] (#11) — n\n")    # notes: no line, its citation moves nothing
+    assert world("--milestones") == 0
+    assert "> Milestone:" not in (specs / "no-line.md").read_text(), "a bucket no spec names is not written"
+    assert "> Milestone: cat" in (specs / "guess-cat.md").read_text()
+    assert "> Milestone:" not in (specs / "unnamed.md").read_text(), "a spec milestone whose spec does not name the file: not written"
+    assert "> Milestone: orphan-ms" in (specs / "orphan-ms.md").read_text()
+    assert "> Milestone:" not in (specs / "build-notes-x.md").read_text()
+    assert {i["number"]: i for i in world.db()["issues"]}[11]["milestone"] == "Next release", "a notes file's citation places nothing"
+    assert "no-line.md" in capsys.readouterr().out

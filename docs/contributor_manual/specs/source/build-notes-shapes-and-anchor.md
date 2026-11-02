@@ -1,6 +1,5 @@
 # Source Model — Build notes: shapes on the anchor, and where the retirement begins (slice 7)
 
-> Milestone: source-model
 > Manual: TBD — none of its own; engineering notes behind `segments-and-geometry.md`.
 >
 > **Status: DRAFT.** Engineering detail for the engine worker. The maintainer does not need to

@@ -25,7 +25,8 @@ OWNER_LABELS = ("needs-your-decision", "needs-your-test")
 SPECS = Path("docs/contributor_manual/specs")
 BUILD_ORDER = SPECS / "build-order.md"
 OPS_BUCKETS = ("Bugs - ", "Lint - ", "Performance - ")       # worked by bug and priority, never as a lane: no spec is owed
-GRAB_BAGS = ("Next release", "cand 16")                     # triage files their issues into spec milestones; they empty out
+GRAB_BAGS = ("Next release", "cand 16")
+NOTES = "build-notes-"                                       # engineering notes behind a spec: never a milestone of their own                     # triage files their issues into spec milestones; they empty out
 
 
 class Refused(Exception):
@@ -182,7 +183,8 @@ class Triage:
         """Rules 3 and 4: an open issue goes to the milestone of the spec that cites it (it stays in its current milestone
         when that milestone's spec is among the citing ones; else the first citing spec by path), else of the spec a spec:* hint label
         names; the hint goes once the issue sits there; a spec with no `> Milestone:` line gets the milestone most of its
-        cited issues carry; a spec-less bug with no milestone goes to Next release; an empty milestone closes; a milestone
+        cited issues carry, only when that milestone's own spec names the file or it is the file's stem (a build-notes file
+        gets none and places no issue); a spec-less bug with no milestone goes to Next release; an empty milestone closes; a milestone
         no spec names (not an ops bucket, a grab-bag or one parked in the build-order file, by name or pattern) gets one
         `spec: write <milestone> spec` issue (needs-spec)."""
         issues = self.issues("--state", "all")
@@ -201,9 +203,12 @@ class Triage:
                 self.counts["milestones created"] += 1
                 titles.add(title)
 
+        own = {spec_milestone(p.read_text()): p for p in spec_files(self.root)}  # milestone -> the spec that names it as its own
         named: dict[str, str] = {}  # spec label -> milestone
         cites: dict[int, list[str]] = {}  # issue -> the milestones of the specs that cite it, in path order
         for p, nums in self.citations().items():
+            if p.name.startswith(NOTES):  # notes behind a spec: no milestone, and no issue sits under them (lead ruling 2026-11-02)
+                continue
             text = p.read_text()
             title = spec_milestone(text)
             if not title:
@@ -212,6 +217,9 @@ class Triage:
                     self.say(f"{p.name}: no `> Milestone:` line and no cited issue carries one; left alone")
                     continue
                 title = Counter(carried).most_common(1)[0][0]
+                if title != p.stem and not (title in own and p.name in own[title].read_text()):  # a guess, never written (lead ruling 2026-11-02)
+                    self.say(f"{p.name}: its issues sit mostly in {title!r}, whose spec does not name this file and which is not its stem; left alone")
+                    continue
                 journal.append("triage", what="spec-milestone-line", dry=self.dry, spec=p.as_posix(), milestone=title)
                 self.counts["spec lines added"] += 1
                 if not self.dry:

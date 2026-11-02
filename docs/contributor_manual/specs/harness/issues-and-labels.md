@@ -60,7 +60,10 @@ never: it finishes one before the next, which is also the Studio's constraint (o
 - **On a step issue being filed** (`builder steps`): title shape, `step:N.M`, the spec's milestone, `type:feature`.
 - **On triage** (`builder triage`, direct changes, no approval step): the milestone from the spec that cites the
   issue (when several specs cite it and its current milestone's spec is one of them, it stays; else the first citing
-  spec by path; test `fichero-builder/tests/test_triage_verb.py::test_an_issue_its_current_milestones_spec_cites_stays_put_though_another_spec_cites_it_too`); `spec:*` removed; one `type:`; `needs-spec` where no spec holds the behaviour; the write-the-spec issue per
+  spec by path; test `fichero-builder/tests/test_triage_verb.py::test_an_issue_its_current_milestones_spec_cites_stays_put_though_another_spec_cites_it_too`);
+  a spec with no `> Milestone:` line gets one only when the milestone most of its issues sit in is its file's stem, or that
+  milestone's own spec names the file; a `build-notes-*` file gets none and places no issue (test
+  `fichero-builder/tests/test_triage_verb.py::test_a_spec_line_is_written_only_for_a_milestone_whose_spec_names_the_file_or_the_files_stem`); `spec:*` removed; one `type:`; `needs-spec` where no spec holds the behaviour; the write-the-spec issue per
   spec-less milestone; empty milestones closed; assignees cleared except the owner on `needs-your-*`.
 - **On a question** (a QUESTION row): `needs-your-decision` and a comment with the question; the worker stops.
 
