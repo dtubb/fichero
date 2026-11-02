@@ -378,8 +378,10 @@ def test_a_blocked_step_labels_its_issues_needs_your_decision_and_comments_the_q
     gh.chmod(0o755)
     lane(state)
     fake = Fake(chains={"1.1": [{"ok": False, "kind": "error", "why": "rules file broken"}]})
-    fake.procs.ask = lambda lane_, step, why: queue.ask(step["issues"], f"{lane_['id']} {step['step']}", why, gh=str(gh), cwd=str(state))
     assert run(fake) == 0 and steps()["1.1"]["state"] == "blocked"
+    assert not calls.exists(), "since the loop's alerts (2026-11-02) a block goes to the manager first: ask-owner puts it on GitHub"
+    (a,) = [r for r in journal.read() if r["event"] == "alert"]
+    assert cli.main(["alert", a["id"], "ask-owner", "--state", str(state / "s"), "--gh", str(gh), "--root", str(state)]) == 0
     seen = calls.read_text().splitlines()
     assert "issue edit 7 --add-label needs-your-decision" in seen
     assert any(x.startswith("issue comment 7 --body QUESTION (queue m1 1.1): rules file broken") for x in seen), seen

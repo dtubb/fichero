@@ -104,7 +104,6 @@ class Procs:
     still_open: Callable[[dict, dict], list] = lambda lane, step: []  # (lane, step) -> issues of a landed step not closed, as "#N"
     # taken lane ids -> (lane id, worktree, [{step, brief, issues, waits}]) of the next build-order milestone, or None
     next_milestone: Callable[[set], tuple | None] = lambda taken: None
-    ask: Callable[[dict, dict, str], None] = lambda lane, step, why: None  # (lane, step, why): the QUESTION on the step's issues
 
 
 def _gh_quiet(gh: str, args: list[str], cwd=None) -> str:
@@ -150,10 +149,11 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         out(f"{lane['id']} {s['step']}: {state}" + (f" ({detail.strip().splitlines()[-1][:120]})" if detail.strip() else ""))
         store(lane)
 
-    def block(s, why):
-        (journal.STATE / f"question-{lane['id']}-{s['step']}.txt").write_text(f"QUESTION: {why}\n")
+    def block(s, why, actions=ACTIONS, evidence=""):
+        q = journal.STATE / f"question-{lane['id']}-{s['step']}.txt"
+        q.write_text(f"QUESTION: {why}\n")
         move(s, "blocked", why)
-        procs.ask(lane, s, why)
+        alert(lane["id"], s["step"], why, evidence or str(q), list(actions))
         return False
 
     h = handles.get(lane["id"])
@@ -233,6 +233,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         lane["cursor"] += 1
         store(lane)
         return True
+    if r.get("kind") == "needs-maintainer":  # a pinned check changed on purpose: the manager's call, never the worker's
+        return block(s, r["why"], ("approve", "send-back"), r.get("evidence", ""))
     if r.get("kind") in ("red", "not-ready", "refused") and s["rounds"] < ROUNDS:
         s["rounds"] += 1
         text = FIX.format(step=s["step"], kind=r["kind"], findings=r.get("findings") or r["why"])
@@ -247,7 +249,49 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         s["resume_brief"], lane["feed"] = str(fix), ""
         move(s, "queued", f"fix brief, round {s['rounds']}, in a new session: {r['why']}")
         return True
-    return block(s, f"{r['why']}\n{r.get('findings', '')}".strip())
+    return block(s, f"{r['why']}\n{r.get('findings', '')}".strip(), evidence=r.get("evidence", ""))
+
+
+ACTIONS = ("retry", "park", "ask-owner")
+
+
+def alert(lane_id: str, step: str, why: str, evidence: str, actions: list[str]) -> str:
+    """One `alert` row: what failed in a line, where its evidence is, what the manager may answer (dev-workflows.run.loop-alerts)."""
+    n = sum(1 for r in journal.read() if r.get("event") == "alert") + 1
+    aid = f"{lane_id}-{step}-{n}"
+    journal.append("alert", id=aid, lane=lane_id, step=step, what=(why.strip().splitlines() or [""])[0][:300], evidence=evidence, actions=actions)
+    return aid
+
+
+def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, str]:
+    """The manager's one verb: retry or approve re-run the step, send-back gives it to a new session with the finding,
+    park leaves it, ask-owner puts it on GitHub for the owner. An action the alert does not offer is refused, with a row."""
+    a = next((r for r in reversed(journal.read()) if r.get("event") == "alert" and r.get("id") == alert_id), None)
+    if a is None or action not in a.get("actions", []):
+        why = f"no alert {alert_id!r}" if a is None else f"{action!r} is not one of {a['actions']}"
+        journal.append("alert-answer", id=alert_id, action=action, ok=False, detail=why)
+        return 1, f"REFUSED: {why}"
+    with journal.Lock("queue"):
+        lanes = load()
+        lane = next((x for x in lanes if x["id"] == a["lane"]), None)
+        s = next((x for x in (lane or {}).get("steps", []) if x["step"] == a["step"]), None)
+        if s is None:
+            journal.append("alert-answer", id=alert_id, action=action, ok=False, detail="the lane or step is gone")
+            return 1, "REFUSED: the lane or step is gone"
+        if action in ("retry", "approve", "send-back"):
+            s.update(state="queued" if action != "approve" else "done", rounds=0, restarts=0, why="")
+            if action == "approve":
+                s["maintainer"] = True  # the chain runs the check with --maintainer
+            if action == "send-back":
+                fix = journal.STATE / f"sendback-{alert_id}.txt"
+                fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + f"\n\nSent back by the manager: {a['what']}\nEvidence: {a['evidence']}\n")
+                s["resume_brief"] = str(fix)
+            lane["paused"] = False
+            save(lanes)
+    if action == "ask-owner":
+        ask(s["issues"], f"{a['lane']} {a['step']}", f"{a['what']} (evidence: {a['evidence']})", gh=gh, cwd=cwd)
+    journal.append("alert-answer", id=alert_id, action=action, ok=True, detail="")
+    return 0, f"{alert_id}: {action}"
 
 
 def feed(procs: Procs, lanes_n: int, out=print) -> bool:
@@ -313,7 +357,8 @@ def real_procs(root) -> Procs:
     def ns(lane: dict, step: dict | None = None) -> types.SimpleNamespace:
         brief = (step.get("resume_brief") or step["brief"]) if step else ""  # a fix brief after a gone session (run.loop-fix-rounds)
         return types.SimpleNamespace(worktree=lane["worktree"], name=lane["id"], pinned=str(root), root=str(root), kind="claude", session="harness",
-                                     tick=30.0, issues=step["issues"] if step else [], brief=brief, ids=[], repo=repo)
+                                     tick=30.0, issues=step["issues"] if step else [], brief=brief, ids=[], repo=repo,
+                                     maintainer=bool(step and step.get("maintainer")))
 
     def start(lane, step):
         a, q = ns(lane, step), shlex.quote
@@ -359,8 +404,7 @@ def real_procs(root) -> Procs:
 
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
-                 next_milestone=lambda taken: next_in_order(root, taken),
-                 ask=lambda lane, step, why: ask(step["issues"], f"{lane['id']} {step['step']}", why, cwd=str(root)))
+                 next_milestone=lambda taken: next_in_order(root, taken))
 
 
 _SKIPPED: set = set()  # milestones this process found with no step to brief: asked once, not re-planned every tick

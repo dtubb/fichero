@@ -590,13 +590,14 @@ the write path would produce.
   is a row, and the loop keeps ticking for new issues. Test: `fichero-builder/tests/test_queue_verb.py::test_the_queue_rolls_on_to_the_next_build_order_milestone_when_a_lanes_steps_have_landed`,
   `::test_n_lanes_hold_n_milestones_and_their_chains_overlap_but_the_ladder_is_one_at_a_time`; (to write) the build after a
   milestone.
-- `dev-workflows.run.loop-alerts` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — every stop is an `alert` row: id, lane, step, what failed in one line, the path
+- `dev-workflows.run.loop-alerts` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — every stop is an `alert` row: id, lane, step, what failed in one line, the path
   of its evidence (ladder JSON, review text, session file, log) and the allowed actions, a subset of `retry`, `park`,
   `ask-owner`. `builder alert <id> retry|park|ask-owner` is the manager's whole job, so a small model can do it: retry re-queues
   the step with its findings, park leaves it, ask-owner labels its issues `needs-your-decision` with the alert as the comment.
   The loop never ends silently: a heartbeat older than three ticks is itself an alert, raised by a second LaunchAgent that reads
   only the journal. Test (to write): `fichero-builder/tests/test_loop.py` (each stop kind gives one alert with its evidence and
   actions; each action does what it says; a stale heartbeat alerts).
+  **Built** 2026-11-02 against fakes: every block in the queue is an `alert` row (id `<lane>-<step>-<n>`, what, evidence: the ladder JSON, the review text or the question file, actions); `builder alert <id> <action>` answers it (an action not offered is a refused `alert-answer` row). A block no longer labels the issues by itself: `ask-owner` does (#6343's label and comment, test `fichero-builder/tests/test_queue_verb.py::test_a_blocked_step_labels_its_issues_needs_your_decision_and_comments_the_question`). Tests `fichero-builder/tests/test_loop.py::test_every_stop_is_an_alert_with_evidence_and_actions_and_retry_lands_it`, `::test_send_back_and_ask_owner`. Not yet: the heartbeat watchdog.
 - `dev-workflows.run.loop-roles` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — the model and the worker kind are per role in `harness.toml [models]` (builder,
   reviewer, manager; today sonnet, opus, haiku), the kind from the provider: an interactive Claude Code session in tmux today,
   a Pi RPC session on OpenRouter or a local server next. The loop reads only journal rows and the DONE / QUESTION protocol, so
@@ -637,12 +638,13 @@ the write path would produce.
   tool or a route, run the generators (the capability reference, the OpenAPI and MCP files) in the same commit. Test (to write):
   `fichero-builder/tests/test_loop.py` (a finding reaches the live session as its next message; with none, a new session gets it).
   **Built**: `builder queue tell --lane L --text T|--file F` writes the next message into the live feed and bumps the lane's seq (a `told` row); with no live session a `tell-refused` row; the generators rule is in `[brief].rules`. Test `fichero-builder/tests/test_loop.py::test_tell_puts_a_finding_into_the_live_session_and_refuses_with_a_row_when_there_is_none`.
-- `dev-workflows.run.loop-needs-maintainer` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — a pinned-checks refusal
+- `dev-workflows.run.loop-needs-maintainer` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — a pinned-checks refusal
   that says needs-maintainer becomes an alert carrying the diff of each pinned file, with actions `approve` (the check runs again
   with `--maintainer`) and `send-back` (a fix brief). Separately, `scripts/verify_workflows.py` reads its image-input tool list
   from the tool registry, so adding a node never edits a pinned check. Test (to write): `fichero-builder/tests/test_loop.py`
   (the alert carries the diff; approve re-runs with --maintainer); `fichero-server/tests/unit/scripts/test_verify_workflows.py`
   (a new image tool in the registry is in the list with no edit to the script).
+  **Built** against fakes: `work.after_run` turns a pinned-checks needs-maintainer refusal into kind `needs-maintainer` with the diff of `[check].check_paths` in `pinned-<lane>.diff`; the queue alerts with approve|send-back (never a fix round); approve re-runs the chain with the check as `--maintainer`. Test `fichero-builder/tests/test_loop.py::test_needs_maintainer_is_an_alert_with_the_pinned_diff_and_approve_reruns_as_maintainer`. Not yet: IMAGE_INPUT_TOOLS from the registry; the diff writer through a real check.
 - `dev-workflows.run.loop-external-lane` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated: the baseline comparison) — a
   lane of kind `external` is a branch in a worktree that the loop does not start a worker for; `builder done <lane> <sha>` is its
   DONE, and from there the same chain runs (fetch, check, review, landed --push, alert on a stop, findings by `builder tell` when
