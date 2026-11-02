@@ -53,6 +53,7 @@ if a.dry:
     sys.exit(0)
 S.trust_folder(a.worktree)
 env = f"FICHERO_HARNESS_LOG={shlex.quote(str(Path(jail.workroot) / 'log.jsonl'))} FICHERO_BUILDER={shlex.quote(a.name)}"
+env += "".join(f" {k}={shlex.quote(v)}" for k, v in S.AUTHOR.items())  # the worker's commits are Claude's, whatever the jail's git config says
 cmd = f"cd {shlex.quote(a.worktree)} && {tok}{env} {' '.join(shlex.quote(x) for x in argv)}"
 has = subprocess.run(["tmux", "has-session", "-t", a.session], capture_output=True).returncode == 0
 r = subprocess.run(["tmux", "new-window" if has else "new-session", "-d", "-P", "-F", "#{pane_id}", "-t" if has else "-s", a.session, "-n", a.name, cmd],
