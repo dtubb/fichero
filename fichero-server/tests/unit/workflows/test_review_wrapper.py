@@ -121,6 +121,18 @@ def test_one_group_not_ready_writes_no_verdict(tmp_path):
     assert "NOT READY: no test" in r.stdout
 
 
+def test_a_group_not_ready_still_lets_every_later_group_run_and_each_prompt_frames_the_whole_batch(tmp_path):
+    """Review of 4af943f703 (2026-11-02): group 1 blocked on a red that the head fixed, and groups 2-3 never ran."""
+    r, store = _split_run(tmp_path, ["NOT READY: red mid-range", "READY"])
+    assert r.returncode == 1 and not store.exists()
+    assert (tmp_path / "calls").read_text().strip() == "2", "the later group ran after the first was not READY"
+    head = subprocess.run(["git", "-C", str(tmp_path / "r"), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    for n in (1, 2):
+        p = (tmp_path / f"prompt{n}").read_text()
+        assert f"lands WHOLE at its head {head[:10]}" in p and "is a NOTE, not a blocker" in p
+        assert "A\tone.txt" in p and "A\ttwo.txt" in p, "every file the whole batch changes is named in every group"
+
+
 def test_the_reviewer_gets_a_read_only_checkout_of_the_head_outside_its_cwd(tmp_path):  # first real review, 2026-11-01
     """A reviewer in an empty directory cannot verify that a cited test or spec bullet exists; it reads a detached
     checkout of the head by absolute path (cwd stays the empty dir, so a planted CLAUDE.md is never obeyed), gone after."""
