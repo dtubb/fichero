@@ -215,7 +215,7 @@ engine measures faded pages from a sample by itself (`source.onboard.auto.prepar
   `answers.condition` (a list, refused in words for an unknown id, kept as a list of none). *Test:*
   `test_condition_answers.py` (the list is the engine's; an unknown id is
   refused; none ticked saves an empty list, never a default).
-- `designer.material.condition-suggested-from-a-sample` [GAP] (#6052; issue to file on approval) — the engine ticks a condition
+- `designer.material.condition-suggested-from-a-sample` [PARTIAL] (#6052; engine half built: `prepare_suggest.suggest` answers `condition.faded`, `condition.show-through`, `condition.ruled-lines` with "from N of M sample pages"; tight binding waits for the gutter-curve measure; the app does not show them yet) — the engine ticks a condition
   beforehand only when its sample measure says so (faded from `recipes/prepare.py`'s grey spread; show-through
   from the mirrored-verso match and tight binding from the gutter curve of
   `prep.setup.three-questions-suggested-from-a-sample`, once built), each suggested tick labelled "from 3 of 5

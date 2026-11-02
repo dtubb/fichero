@@ -178,6 +178,11 @@ def suggest(db: Any) -> dict[str, dict[str, Any]]:
         counts = {"ruled": (ruled, seen), "faded": (faded, seen), "show-through": (through, backed)}
         hits, of = max((counts[name] for name in paper), key=lambda pair: pair[0] / max(pair[1], 1))
         put("the_paper", paper, hits, of, "the sample shows " + " and ".join(paper) + " paper")
+    # `designer.material.condition-suggested-from-a-sample`: only a condition a measure can see is ticked beforehand, each labelled
+    # "from 3 of 5 sample pages". Torn, stains, water damage and (until the gutter curve is built) tight binding are never ticked.
+    for cid, hits, of in (("faded", faded, seen), ("show-through", through, backed), ("ruled-lines", ruled, seen)):
+        if _agrees(hits, of):
+            put(f"condition.{cid}", True, hits, of, f"from {hits} of {of} sample pages")
     if lined >= 3 and _agrees(missed, lined):
         put("check_missed_lines", True, missed, lined,
             f"over {MISSED_SHARE:.0%} of the ink lies outside the lines found (the characters-per-width test is not built yet)")
