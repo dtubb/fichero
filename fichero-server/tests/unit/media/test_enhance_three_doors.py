@@ -18,7 +18,7 @@ import pytest
 from PIL import Image
 from pydantic import BaseModel
 
-from fichero_server.models import Document, FileType
+from fichero_server.models import DocType, Document, FileType
 
 STEPS = ["page_crop", "deskew", "rotate", "split", "contrast"]
 SRC = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
@@ -188,6 +188,18 @@ def test_deskew_node_measures_with_the_deskew_step(client, db, monkeypatch, tmp_
     doc = _doc(db, image=_ruled(600, 400).rotate(-4, expand=True, fillcolor=(235, 235, 235)))
     out = asyncio.run(node.deskew_images({"library_path": str(db.path.parent), "documents": [{"id": doc.id}]}, {}, None))
     assert seen, out
+
+
+def test_the_batch_preview_of_a_turn_reaches_the_rotate_step(client, db, monkeypatch):
+    calls = _spy(monkeypatch, "rotate")
+    folder = Document(name="f", doc_type=DocType.folder)
+    db.save(folder)
+    doc = _doc(db)
+    doc.parent_id = folder.id
+    db.save(doc)
+    got = client.post("/api/images/batch-prepare/preview", json={"folder_id": folder.id, "operation": {"op": "rotate", "angle": 90}})
+    assert got.status_code == 200, got.text
+    assert got.json()["pages"] == 1 and [c.angle for c in calls] == [90.0]
 
 
 def test_page_crop_run_finds_the_page_through_the_one_function(db, monkeypatch, tmp_path):
