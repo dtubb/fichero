@@ -1325,6 +1325,7 @@ def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
         raise jobs.JobDeferred("Paused with its run")
     row = jobs.read_job(db, job_id)
     _wait_for_a_raised_cap(db, job_id, row)
+    row = jobs.read_job(db, job_id)  # the pause, if it was cleared, is not carried on in the detail read below
     # Said at once: working out each step's pages can take a while on a big project (#5610, #5606).
     jobs.save_detail(db, job_id, row["detail"] or "{}", reason="Getting ready: working out which pages each step needs")
     detail = json.loads(row["detail"] or "{}")

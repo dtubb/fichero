@@ -82,3 +82,46 @@ def test_a_raised_cap_carries_on_from_the_checkpoint_without_rereading(db, caps,
     detail = json.loads(row["detail"])
     assert "paused_at_cap" not in detail and row["reason"] == "Carrying on: the cap was raised"
     assert detail["steps"] == CHECKPOINT["steps"] and detail["batches_done"] == 1  # the same pages are done; none is read again
+
+
+def test_a_real_batch_refused_on_page_two_pauses_then_a_raised_cap_reads_only_page_two(db, jobs_run_by_the_test, monkeypatch):
+    """The whole path through `_run_batch_steps` with a fake reader (no model): page 1 is read and noted; the cap refuses page 2;
+    the run is deferred, not failed; raising the cap resumes it and the reader is asked for page 2 alone."""
+    from fichero_server.models import DocType, Document, FileType, Status
+    from fichero_server.recipes import done
+    from tests.unit.recipes.test_a_page_is_noted_as_it_finishes_1134 import NAMES
+
+    pages = []
+    for name in ("a.jpg", "b.jpg"):
+        doc = Document(name=name, doc_type=DocType.file, file_type=FileType.image, path=f"/p/{name}", status=Status.completed)
+        db.save(doc)
+        pages.append(doc.id)
+    sentence = "this project's cloud spend is capped at $10.00 a month, of which $9.99 is spent"
+    asked: list[list[str]] = []
+    cap = {"month": 10.0, "project": None, "run": None}
+    monkeypatch.setattr(spend, "caps_now", lambda library: dict(cap))
+    monkeypatch.setattr(spend, "raised_since", lambda library, held: cap["month"] > (held.get("month") or 0) + 1e-9)
+
+    def reader(db_, card_, documents, kinds, job_id, scratch, started_by, adopt=None):
+        asked.append(list(documents))
+        for page in documents:
+            if cap["month"] <= 10.0 and page == pages[1]:
+                return None, "failed", sentence  # the cap refuses page 2
+            done.page_finished(db_, job_id, page)
+        return "child-1", "done", None
+
+    monkeypatch.setattr(runner, "_run_card", reader)
+    job_id = runner.enqueue(db, {"runs": [NAMES], "skipped": []}, documents=pages, started_by="owner")
+    _kind, subject = db.execute_fetchone("SELECT kind, subject FROM jobs WHERE id = ?", [job_id])
+    with pytest.raises(jobs.JobDeferred):
+        runner.run(db, subject)  # paused at the cap: deferred, not failed
+    detail = json.loads(jobs.read_job(db, job_id)["detail"])
+    assert detail["paused_at_cap"]["step"] and detail["steps"][0]["ran_on"] == [pages[0]]  # page 1 done, noted on the run
+    assert asked == [pages]
+    with pytest.raises(jobs.JobDeferred):
+        runner.run(db, subject)  # the cap is unchanged: still paused, the reader not asked again
+    assert asked == [pages]
+    cap["month"] = 20.0  # raised
+    runner.run(db, subject)
+    assert asked == [pages, [pages[1]]], "page 1 is never read again"
+    assert "paused_at_cap" not in json.loads(jobs.read_job(db, job_id)["detail"])
