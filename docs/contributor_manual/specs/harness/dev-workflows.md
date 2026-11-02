@@ -615,15 +615,17 @@ the write path would produce.
   hours with no hand step; every step either lands or ends as an alert row with evidence, never as silence; the heartbeat has no
   gap longer than three ticks. Manual: the maintainer reads only `builder status` and the alerts for the six hours, and the
   journal is attached to the issue.
-- `dev-workflows.run.loop-session-cap-hands-off` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated; ie-lane2 was
+- `dev-workflows.run.loop-session-cap-hands-off` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated; ie-lane2 was
   parked mid-step with uncommitted work at the session cap) — reaching `[spend].session_usd` does what the context handoff does:
   the session ends and a fresh one starts on the same step with "continue from the tree: the step, its brief and the commits so
   far"; uncommitted work stays in the worktree. Only `[spend].day_usd` parks. Test (to write): `fichero-builder/tests/test_loop.py`
   (a session over its cap gets a successor on the same step; over the day cap the lane parks with an alert).
-- `dev-workflows.run.loop-handoff-tokens` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated; ie-lane2 used 17M tokens for
+  **Built** 2026-11-02: `watcher.assess` gives `handoff: session spend` at the session cap and parks only at the day cap; `builder run` tells the worker why and to hand off, and the successor starts as at the context mark. Tests `fichero-builder/tests/test_watcher.py::test_the_session_cap_then_the_day_cap_park`, `fichero-builder/tests/test_dry_run.py::test_the_session_cap_parks_and_stops_the_worker` (names kept from before). Not yet: a real lane at its cap.
+- `dev-workflows.run.loop-handoff-tokens` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated; ie-lane2 used 17M tokens for
   three steps on a 1M window) — the handoff threshold is an absolute token count, `[spend].handoff_tokens` (150000), not a share
   of the window; a session whose context passes it hands off. Test (to write): `fichero-builder/tests/test_watcher.py` (a session
   at 150001 tokens on a 1M window hands off).
+  **Built** 2026-11-02: `[spend].handoff_tokens = 150000`; `watcher.threshold` and the in-session hook (through the registry's `handoff_tokens`) both use it. Tests `fichero-builder/tests/test_watcher.py::test_the_handoff_threshold_is_an_absolute_token_count_when_set`, `scripts/harness_handoff_hook.py`'s self-test through `fichero-server/tests/unit/workflows/test_handoff_hook.py`.
 - `dev-workflows.run.loop-fetches-the-lane` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated; a check refused "not a
   commit in the engine repo" until a person fetched by hand) — on DONE the loop fetches the lane's head from its worktree into
   `[check].engine_repo` and makes it readable to the jail user, before the check. Test (to write): `fichero-builder/tests/test_loop.py`

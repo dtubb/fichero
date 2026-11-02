@@ -122,6 +122,7 @@ RULES (earlier clusters were sent back for these):
 # bill). A worker whose model has no price here does not start.
 window = 1000000   # workers run the 1M context variant (owner 2026-11-01); the model name carries [1m] where the login allows it
 handoff_at = 0.85
+handoff_tokens = 150000   # hand off here, not at 85% of the 1M window: a lane used 17M tokens for three steps (2026-11-02)
 session_usd = 8
 day_usd = 60
 silent_s = 1800

@@ -52,7 +52,7 @@ def test_run_registers_the_worker_for_the_in_session_hook_with_the_successor_lef
     fake = Fake([HEALTHY])
     run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None)
     reg = json.loads((root / "reg" / "w.json").read_text())
-    assert reg == {"worktree": str(root / "wt"), "handoff": str(root / "wt" / "HANDOFF.md"), "model": "sonnet", "window": 1000,
+    assert reg == {"worktree": str(root / "wt"), "handoff": str(root / "wt" / "HANDOFF.md"), "model": "sonnet", "window": 1000, "handoff_tokens": 850,
                    "session": "harness", "successor": "watcher"}
 
 
@@ -74,13 +74,15 @@ def test_a_healthy_worker_that_ends_leaves_one_worker_row_and_one_cost_row(root)
 
 
 def test_the_session_cap_parks_and_stops_the_worker(root):
+    """Since 2026-11-02 the session cap hands off (ie-lane2 was parked mid-step with uncommitted work); the day cap parks."""
     fake = Fake([HEALTHY, {**HEALTHY, "cost_usd": 1.0}, HEALTHY])
-    said = []
-    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=said.append) == "parked"
-    assert fake.stopped == ["%9"]
+    said, told = [], []
+    fake.procs.tell = lambda pane, words: told.append(words)
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=said.append) == "gone"
+    assert fake.stopped == [], "not stopped: told to hand off"
     watch = [e["what"] for e in journal.read() if e["event"] == "watch"]
-    assert watch == ["park: session spend 1.00 USD reached the cap 1.00"]
-    assert journal.read()[-1]["event"] == "cost" and journal.read()[-1]["end"] == "parked"
+    assert watch == ["handoff: session spend 1.00 USD reached the cap 1.00"]
+    assert any("session spend" in t and "successor" in t for t in told), "the worker is told why and to hand off"
 
 
 def test_yesterdays_spend_does_not_count_but_todays_does(root):
