@@ -105148,6 +105148,7 @@
           },
           "requires_vision": {
             "type": "boolean",
+            "nullable": true,
             "title": "Requires Vision",
             "default": false
           },
@@ -105165,6 +105166,16 @@
             "type": "integer",
             "title": "Edge Count",
             "default": 0
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope",
+            "default": "per_file"
+          },
+          "scope_sentence": {
+            "type": "string",
+            "title": "Scope Sentence",
+            "default": ""
           },
           "accepted_inputs": {
             "items": {

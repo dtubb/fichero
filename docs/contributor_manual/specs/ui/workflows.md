@@ -495,10 +495,10 @@ Engine only, one pytest per step. Each step flips its tags only with its test gr
 - Tests: fichero-server/tests/unit/workflows/test_text_reflow_has_no_ai_option_5921.py
 - Size: S
 
-#### Step 1.6 — Engine: requires-vision can say unknown; the source node hydrates lazily (#4506, #4390); both wait on a ruling or a design (see the handoff)
-- Behaviours: `workflows.requires-vision-unknown`, `workflows.source-node-hydrates-lazily`
-- Tests: fichero-server/tests/unit/workflows/test_served_contract_to_spec.py (not yet written)
-- Size: M
+#### Step 1.6 — The served requires_vision is true, false or unknown, with the OpenAPI and Swift regeneration for Stage 1 (#4506)
+- Behaviours: `workflows.requires-vision-unknown`
+- Tests: fichero-server/tests/unit/workflows/test_served_contract_to_spec.py, fichero-server/tests/unit/workflows/test_requires_vision_unknown_4506.py
+- Size: S
 
 ### Stage 2 — engine: trace, cost, dry run
 
@@ -522,6 +522,19 @@ Engine only; the served shapes land with one OpenAPI regeneration at the end of 
 #### Step 2.4 — Scoreboard and comparison node (#4344, #4328)
 - Behaviours: `workflows.run.scoreboard-quality-and-cost`, `workflows.run.comparison-node`
 - Tests: fichero-server/tests/unit/workflows/test_scoreboard_and_comparison_to_spec.py (not yet written)
+- Size: M
+
+#### Step 2.5 — Measure the source node's memory before changing it (#4390)
+- Behaviours: `workflows.source-node-memory-measured`
+- Tests: fichero-server/tests/unit/workflows/test_source_node_memory_measured_to_spec.py (not yet written)
+- Size: S
+
+The step writes a short design note under this spec's folder and measures peak RSS of a run over a 500-page folder, before any change; the number goes in the note. Step 2.6 is not started until the note is in.
+
+#### Step 2.6 — The source node emits ids and hydrates documents per batch (#4390)
+- Behaviours: `workflows.source-node-hydrates-lazily`
+- Tests: fichero-server/tests/unit/workflows/test_source_node_hydrates_lazily_to_spec.py (not yet written)
+- Depends on: 2.5
 - Size: M
 
 ### Stage 3 — engine: presets and defaults
@@ -866,7 +879,8 @@ cluster with ≥4 issues; PROPOSAL ONLY, not written, no milestone created):
 - `workflows.defaults.recipes-user-level-runs-library-pinned` — **[GAP]** (#4277) workflow definitions are user-level and offered in every open library; a run is pinned to the target library's engine; raw files are imported then run
 - `workflows.defaults.every-preset-proven-on-both-axes` — **[GAP]** (#4369) every shipped preset has a test of the model call and of the graph structure, and redundant presets are pruned
 - `workflows.preset-validated` — **[GAP]** (#4501) each shipped preset is validated and only then loses its (Untested) label; the 14 deterministic presets are done (f236db745), the rest are not.
-- `workflows.requires-vision-unknown` — **[PARTIAL]** (#4506) when a sub-workflow cannot be resolved the engine can say "could not determine" rather than False: `workflow_requires_vision_or_unknown` returns None (pinned: `fichero-server/tests/unit/workflows/test_requires_vision_unknown_4506.py`, written, run after gate3). Still owed: the served `requires_vision` field is a plain bool, so the route still spends unknown as False; making it tri-state changes the OpenAPI and the Swift client, and what the UI does with unknown is a ruling.
+- `workflows.requires-vision-unknown` — **[PARTIAL]** (#4506) when a sub-workflow cannot be resolved the engine says "could not determine" rather than False: `workflow_requires_vision_or_unknown` returns None (pinned: `fichero-server/tests/unit/workflows/test_requires_vision_unknown_4506.py`), and the served `requires_vision` is now true, false or null (`tests/unit/workflows/test_served_contract_to_spec.py`; OpenAPI and the Swift contract regenerated, Step 1.6). The app treats unknown as "may need a vision model" and shows the model picker (manager ruling 2026-11-02): `WorkflowResponse.visionIsUnknown` and a "May need vision" badge; written, not built.
+- `workflows.source-node-memory-measured` — **[GAP]** (#4390, manager ruling 2026-11-02) before the source node is changed, its peak RSS on a 500-page folder is measured and written in a short design note; the build waits on it.
 - `workflows.source-node-hydrates-lazily` — **[GAP]** (#4390) the workflow source node emits ids and hydrates documents per batch, so peak memory stays bounded instead of holding every selected document's page_content.
 - `workflows.run.scope-is-never-a-workflow` **[BROKEN]** (#4961): pressing Run while a workflow row is selected never sends the workflow or its folder as the run's scope; the run uses the documents the person was looking at, or refuses in the bar before starting, saying there is nothing to run on.
 - `workflows.bar.no-model-override-without-a-model-step` **[BROKEN]** (#4963): the workflow bar sends no model choice to a workflow that has no language or vision step (Detect Segments with Kraken), and its model control shows, disabled with the reason, that it does not apply there.

@@ -191,7 +191,9 @@ class WorkflowResponse(BaseModel):
     # client copy of this rule read the parent's nodes only, so a delegating
     # parent — the case where the whole vision requirement lives in a child —
     # was reported as needing nothing.
-    requires_vision: bool = False
+    # None = could not be determined (a sub-workflow did not resolve and no node needed vision): the UI treats it as "may need
+    # a vision model" (`workflows.requires-vision-unknown`, #4506), never as "does not".
+    requires_vision: bool | None = False
     # True = a shipped preset. The server already knows this and enforces it
     # (`_reject_if_read_only` 403s delete and update), but never serialised it,
     # so the client's `isSystem` was a constant False and four surfaces read it
@@ -280,15 +282,15 @@ def _scope_fields(wf) -> dict[str, str]:
     return {"scope": scope, "scope_sentence": SCOPE_SENTENCES[scope]}
 
 
-def _workflow_requires_vision(wf, workflow_resolver) -> bool:
+def _workflow_requires_vision(wf, workflow_resolver) -> bool | None:
     """Whether this workflow — or any sub-workflow it runs — needs vision.
 
     Served so the app can stop deriving it from the node list: that copy read
     the parent only and answered "no" for every delegating workflow (#3804).
     """
-    from fichero_server.workflows.validation import workflow_requires_vision
+    from fichero_server.workflows.validation import workflow_requires_vision_or_unknown
 
-    return workflow_requires_vision(
+    return workflow_requires_vision_or_unknown(
         getattr(wf, "nodes", None),
         workflow_resolver=workflow_resolver,
     )

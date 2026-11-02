@@ -78,6 +78,9 @@ struct WorkflowResponse: Codable {
     /// parent's vision requirement can live entirely in a child. Absent
     /// (old server) means `false`, which fails OPEN to an unfiltered menu.
     var requiresVision: Bool = false
+    /// The engine answered null: it could not tell whether a sub-workflow needs vision, so "may need a vision model"
+    /// (`workflows.requires-vision-unknown`). `requiresVision` stays false, so the model picker filters nothing out.
+    var visionIsUnknown: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case id, name, description, provider, model, nodes, edges
@@ -115,6 +118,8 @@ struct WorkflowResponse: Codable {
         directRunnable = try container.decodeIfPresent(Bool.self, forKey: .directRunnable)
         acceptsModelOverride = try container.decodeIfPresent(Bool.self, forKey: .acceptsModelOverride)
         requiresVision = try container.decodeIfPresent(Bool.self, forKey: .requiresVision) ?? false
+        let sentNull = (try? container.decodeNil(forKey: .requiresVision)) ?? false
+        visionIsUnknown = sentNull
         nodeCount = try container.decodeIfPresent(Int.self, forKey: .nodeCount)
         acceptedInputs = try container.decodeIfPresent([String].self, forKey: .acceptedInputs)
     }

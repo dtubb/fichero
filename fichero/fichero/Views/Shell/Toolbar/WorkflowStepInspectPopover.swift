@@ -131,6 +131,8 @@ struct WorkflowStepInspectPopover: View {
             if let workflow = step.workflow {
                 if workflow.requiresVision {
                     badge("Vision", systemImage: "eye", tint: .blue)
+                } else if workflow.visionIsUnknown {
+                    badge("May need vision", systemImage: "eye", tint: .secondary)
                 }
                 if workflow.isUntested {
                     badge("Untested", systemImage: "exclamationmark.triangle", tint: .orange)
