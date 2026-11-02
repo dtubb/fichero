@@ -3,6 +3,7 @@
 # A model's own report is not evidence: this is (spec harness/deterministic-conductor.md, conductor.ready-check).
 #
 # usage: scripts/lane_ready_check.sh [<rev>]       # default HEAD; compares against origin/integration
+#        scripts/lane_ready_check.sh --no-guards [<rev>]  # the Builder: its own guards rung runs them from the pinned copy
 #        scripts/lane_ready_check.sh --self-test   # proves each check can fail
 # exit 0 = READY, 1 = not ready (each failing check is printed)
 set -uo pipefail
@@ -66,7 +67,7 @@ check() {  # check <rev> -> prints FAIL lines, returns count
     out=$(echo "$sw" | tr '\n' '\0' | xargs -0 swiftlint lint --quiet --strict 2>&1) || { echo "FAIL: swiftlint on the changed Swift"; echo "$out" | head -40; fails=$((fails+1)); }; fi
   # 4b. the fast guards (#6140): the SAME set the runner's fast-guards rung runs: every scripts/check_*.py except the
   # skip list in pipeline/projects/fichero.toml, read from there so no second list is kept here. 60 s each.
-  if [ "$rev" = HEAD ]; then
+  if [ "$rev" = HEAD ] && [ -z "${NO_GUARDS:-}" ]; then
     out=$(run_fast_guards) || { echo "$out"; fails=$((fails+1)); }; fi
   # 5. a source change comes with a test change
   local src tst
@@ -97,6 +98,8 @@ if [ "${1:-}" = "--self-test" ]; then
   echo "self-test OK"; exit 0
 fi
 
+NO_GUARDS=""
+if [ "${1:-}" = "--no-guards" ]; then NO_GUARDS=1; shift; fi  # twice per check was minutes, and a timeout under load refused a green batch
 rev=${1:-HEAD}
 if out=$(check "$rev"); then echo "READY: $(git rev-parse --short "$rev")"; exit 0; fi
 echo "$out"; echo "NOT READY"; exit 1

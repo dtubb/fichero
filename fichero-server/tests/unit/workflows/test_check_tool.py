@@ -83,7 +83,7 @@ def test_skipped_guards_do_not_count_toward_the_minimum(tmp_path):  # review-2 H
 def test_fichero_is_the_first_project_in_its_own_harness_toml():
     cfg = ct.load(REPO)
     assert {"check_coverage_ratchet", "check_docs_paths", "check_hang_ratchet"} <= cfg.guard_skip and len(cfg.guard_skip) == 15
-    assert cfg.min_guards == 20 and cfg.guard_glob == "scripts/check_*.py" and cfg.ready == ("scripts/lane_ready_check.sh", "HEAD")
+    assert cfg.min_guards == 20 and cfg.guard_glob == "scripts/check_*.py" and cfg.ready == ("scripts/lane_ready_check.sh", "--no-guards", "HEAD")
     assert ct.load(REPO / "no-such-dir") == ct.Config()  # no harness.toml = no project rules, nothing hardcoded
 
 
@@ -692,3 +692,33 @@ def test_a_commit_that_says_already_built_owes_no_red_on_base_but_its_test_still
     g("add", "."), g("commit", "-q", "-m", "a plain commit")
     r = ct.red_on_base(tmp_path, base, "HEAD", ["test_other.py"], timeout_s=120)
     assert not r["ok"] and "NOT RED ON BASE" in r["stderr_tail"], "a test from a commit without the line still owes a red"
+
+
+def test_the_ready_check_skips_its_guard_copy_with_no_guards_because_the_guards_rung_runs_them(tmp_path):
+    """2026-11-02: the ready rung ran every guard again (60 s cap each) before the guards rung ran them from the pinned copy;
+    under load one timed out and refused a green batch. The Builder passes --no-guards; a bare run still runs them."""
+    import shutil
+
+    repo = Path(__file__).resolve().parents[4]
+    w = tmp_path / "w"
+    (w / "scripts").mkdir(parents=True)
+    shutil.copy(repo / "scripts" / "lane_ready_check.sh", w / "scripts" / "lane_ready_check.sh")
+    (w / "pipeline" / "projects").mkdir(parents=True)
+    (w / "pipeline" / "projects" / "fichero.toml").write_text('[repo]\npython_path = "."\n[[ladder]]\nname = "fast-guards"\nskip = []\n')
+    for i in range(20):
+        (w / "scripts" / f"check_ok{i:02}.py").write_text("pass\n")
+    (w / "scripts" / "check_red.py").write_text("raise SystemExit('red guard')\n")
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_AUTHOR_NAME": "C", "GIT_AUTHOR_EMAIL": "noreply@anthropic.com",
+           "GIT_COMMITTER_NAME": "C", "GIT_COMMITTER_EMAIL": "noreply@anthropic.com"}
+    def g(*a):
+        subprocess.run(["git", "-C", str(w), *a], check=True, capture_output=True, env=env)
+    g("init", "-q", "-b", "integration"), g("add", "."), g("commit", "-qm", "base #1234")
+    g("update-ref", "refs/remotes/origin/integration", "HEAD")
+    (w / "notes.txt").write_text("x\n")
+    g("add", "."), g("commit", "-qm", "docs: a note #1234")
+    run = lambda *a: subprocess.run(["bash", "scripts/lane_ready_check.sh", *a], cwd=w, capture_output=True, text=True, env=env)  # noqa: E731
+    bare = run("HEAD")
+    assert bare.returncode == 1 and "check_red.py" in bare.stdout, bare.stdout
+    skipped = run("--no-guards", "HEAD")
+    assert skipped.returncode == 0 and "READY" in skipped.stdout, skipped.stdout
+    assert "--no-guards" in ct.load(repo).ready, "the Builder's ready rung passes it"
