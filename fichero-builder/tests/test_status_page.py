@@ -342,3 +342,24 @@ def test_activity_gives_each_rung_its_usual_time_and_a_running_rung_reads_it():
              {"ts": "2026-11-02T05:00:01", "event": "activity", "kind": "check", "key": "k9", "state": "rung-start", "rung": "guards"}]
     d = console.activity(rows)
     assert d["medians"] == {"guards": 200} and d["running"][0]["now"] == "guards" and d["running"][0]["usual"] == 200
+
+
+def test_lane_usage_today_sums_each_external_lanes_transcripts_once_per_message(tmp_path):
+    """Owner 2026-11-02 'Lane usage today': a message's repeated content blocks count once, other days and held lanes are left
+    out, and the API-equivalent $ prices cache reads at 0.1x and cache writes at 1.25x the input price."""
+    wt = "/w/lane-x.y"
+    d = tmp_path / "-w-lane-x-y" / "sub"
+    d.mkdir(parents=True)
+    u = {"input_tokens": 1_000_000, "cache_creation_input_tokens": 1_000_000, "cache_read_input_tokens": 10_000_000, "output_tokens": 100_000}
+    day = time.strftime("%Y-%m-%d")
+    now = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
+    rows = [{"timestamp": now + ".1Z", "message": {"id": "m1", "model": "claude-sonnet-5-5", "usage": u}},
+            {"timestamp": now + ".2Z", "message": {"id": "m1", "model": "claude-sonnet-5-5", "usage": u}},
+            {"timestamp": "2020-01-01T12:00:00Z", "message": {"id": "m0", "model": "claude-sonnet-5-5", "usage": u}}]
+    (d / "s.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\nnot json \"usage\"\n")
+    lanes = [{"id": "x", "kind": "external", "worktree": wt}, {"id": "held", "kind": "external", "worktree": "/w/h", "hold": True},
+             {"id": "w", "kind": "worker", "worktree": wt}]
+    got = console.lane_usage(lanes, day=day, base=tmp_path, prices={"sonnet": [3, 15]})
+    assert [g["lane"] for g in got] == ["x"]
+    assert got[0]["turns"] == 1 and got[0]["tokens_in"] == 12_000_000 and got[0]["tokens_out"] == 100_000
+    assert got[0]["usd"] == round(3 + 3.75 + 3 + 1.5, 2)

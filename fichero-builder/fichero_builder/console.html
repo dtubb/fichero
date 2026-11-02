@@ -117,6 +117,7 @@ function Pill({ state, paused }) {
   return html`<span class=${"pill " + c}><span class=${`dot ${c} ${pulse ? "pulse" : ""}`}></span>${s === "blocked" ? "question" : s}</span>`;
 }
 
+const tok = n => n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? Math.round(n / 1e3) + "k" : String(n);
 function Card({ k, v, dot, sub }) {
   return html`<div class="card"><div class="k">${k}</div><div class="v">${dot && html`<span class=${"dot " + dot}></span>`}${v}</div><div class="k">${sub}</div></div>`;
 }
@@ -324,6 +325,10 @@ function App() {
         <${Card} k="Last landing" v=${st.last_land_git ? html`<span class="mono" title=${st.last_land_git.subject}>${st.last_land_git.sha.slice(0, 9)}</span>` : "-"} dot=${st.last_land_git ? "green" : ""} sub=${html`<${Ago} ts=${st.last_land_git?.ts} />`} />
         <${Card} k="Closed today" v=${(st.closed_today_git || []).length} dot=${(st.closed_today_git || []).length ? "green" : ""} sub="issues, from integration's Fixes lines" />
         <${Card} k="Spend today" v=${"$" + st.spend_today_usd.toFixed(2)} dot="blue" sub=${st.loop_on ? html`loop on · <${Ago} ts=${st.heartbeat} />` : "loop off"} />
+        ${(st.lane_usage || []).length > 0 && html`<div class="card"><div class="k">Lane usage today</div>
+          ${st.lane_usage.map(u => html`<div title=${`in ${u.in} · cache write ${u.cache_write} · cache read ${u.cache_read} · out ${u.out}`}>
+            <b>${u.lane}</b> ${tok(u.tokens_in)} in · ${tok(u.tokens_out)} out · ${u.turns} turns <span class="muted">$${u.usd.toFixed(2)}</span></div>`)}
+          <div class="k muted">API-equivalent $: on Max, not billed</div></div>`}
       </div>
       ${st.open_alerts.length > 0 && html`<h2>Alerts</h2><${Alerts} alerts=${st.open_alerts} />`}
       ${{ milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, issues: Issues, release: Release }[tab]

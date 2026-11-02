@@ -5,6 +5,7 @@ A POST needs the token the page was served with and a loopback Host, so another 
 ponytail: a Tailscale bind comes later, behind the same token."""
 from __future__ import annotations
 
+import calendar
 import getpass
 import http.server
 import json
@@ -194,6 +195,7 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
     st["loop_on"] = bool(ticks) and now - time.mktime(time.strptime(ticks[-1]["ts"], "%Y-%m-%dT%H:%M:%S")) <= LOOP_STALE_S
     st["console"] = [r for r in rows if r.get("event") == "console"][-20:]
     st["loop_lanes"] = LOOP_LANES
+    st["lane_usage"] = lane_usage(lanes)
     st.update(_git_tiles())  # last landing and today's closes from origin itself: true even for a landing run by hand
     workers = [x for x in lanes if x.get("kind") != "external" and x["cursor"] < len(x["steps"])]
     st["lanes_note"] = f"{len(workers)} worker lane(s) (limit {LOOP_LANES}) · {sum(1 for x in lanes if x.get('kind') == 'external' and not x.get('hold'))} external"
@@ -234,6 +236,66 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
             last_commit=last,
             doing=(mine[-1].get("state") or mine[-1].get("event", "")) + (f": {str(mine[-1].get('detail', ''))[:160]}" if mine and mine[-1].get("detail") else "") if mine else "")
     return st
+
+
+PRICES: dict = {}  # [spend].prices {model key: [in, out] USD per million tokens}, read by main
+PROJECTS = Path.home() / ".claude" / "projects"
+_USAGE: dict = {}  # transcript path -> ((mtime, size, day), {msg id: (local day, model, usage)})
+
+
+def _usage_rows(f: Path, day: str) -> dict:
+    """One transcript's assistant messages by id (a message's content blocks repeat its usage: counted once); cached per mtime."""
+    st = f.stat()
+    key = (st.st_mtime, st.st_size, day)
+    if (hit := _USAGE.get(str(f))) and hit[0] == key:
+        return hit[1]
+    out = {}
+    with f.open(errors="replace") as fh:
+        for line in fh:
+            if '"usage"' not in line:
+                continue
+            try:
+                r = json.loads(line)
+                m = r["message"]
+                ts = time.strftime("%Y-%m-%d", time.localtime(calendar.timegm(time.strptime(r["timestamp"][:19], "%Y-%m-%dT%H:%M:%S"))))  # the stamp is UTC
+            except (ValueError, KeyError, TypeError):
+                continue
+            if ts == day and m.get("id"):
+                out[m["id"]] = (m.get("model", ""), m.get("usage") or {})
+    _USAGE[str(f)] = (key, out)
+    return out
+
+
+def lane_usage(lanes: list[dict], day: str = "", base: Path | None = None, prices: dict | None = None) -> list[dict]:
+    """Per external lane (owner 2026-11-02 'Lane usage today'): today's tokens in/out and turns from its Claude Code session
+    transcripts (~/.claude/projects/<worktree, non-alphanumerics as '-'>/**/*.jsonl), and the API-equivalent USD (on Max, not
+    billed): cache reads at 0.1x and cache writes at 1.25x the input price. One row per worktree; held lanes are left out."""
+    day = day or time.strftime("%Y-%m-%d")
+    base = base or PROJECTS
+    prices = PRICES if prices is None else prices
+    rows, seen = [], set()
+    for x in lanes:
+        if x.get("kind") != "external" or x.get("hold") or x["worktree"] in seen:
+            continue
+        seen.add(x["worktree"])
+        d = base / re.sub(r"[^A-Za-z0-9]", "-", x["worktree"])
+        msgs = {}
+        for f in sorted(d.rglob("*.jsonl")) if d.is_dir() else []:
+            try:
+                msgs.update(_usage_rows(f, day))
+            except OSError:
+                continue
+        t = {"in": 0, "cache_write": 0, "cache_read": 0, "out": 0}
+        usd = 0.0
+        for model, u in msgs.values():
+            i, cw, cr, o = (int(u.get(k) or 0) for k in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens"))
+            t["in"] += i; t["cache_write"] += cw; t["cache_read"] += cr; t["out"] += o  # noqa: E702
+            p = next((v for k, v in prices.items() if k in model), None)
+            if p:
+                usd += (i + 1.25 * cw + 0.1 * cr) * p[0] / 1e6 + o * p[1] / 1e6
+        rows.append({"lane": x["id"], "turns": len(msgs), "tokens_in": t["in"] + t["cache_write"] + t["cache_read"], "tokens_out": t["out"],
+                     **t, "usd": round(usd, 2)})
+    return rows
 
 
 SECTIONS = ("In order", "Then", "Parked")  # Then: an older file; the owner's list is In order + Parked
@@ -688,6 +750,7 @@ def main(a) -> int:
         doc = tomllib.loads((ROOT / "harness.toml").read_text())
         LOOP_LANES = int(doc.get("loop", {}).get("lanes", 1))
         MACHINES[:] = sorted(doc.get("machines", {}))
+        PRICES.update(doc.get("spend", {}).get("prices", {}))
     except (OSError, ValueError):
         pass
     threading.Thread(target=_auto_refresh, daemon=True).start()
