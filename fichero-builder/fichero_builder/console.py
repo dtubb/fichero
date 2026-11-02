@@ -216,7 +216,7 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
         started = time.mktime(time.strptime(sent[-1]["ts"], "%Y-%m-%dT%H:%M:%S")) if sent and cur and cur["state"] not in ("queued", "blocked") else None
         last, ct = commit(x["worktree"]) if Path(x["worktree"]).is_dir() else ("", 0)
         if x.get("kind") == "external" and row["state"] == "queued":  # no worker of ours: its own commits say whether it works
-            row["state"] = "working" if ct and now - ct <= WORKING_S else "idle"
+            row["state"] = "held" if x.get("hold") else "working" if ct and now - ct <= WORKING_S else "idle"  # a held lane's tree may be another lane's
         if Path(x["worktree"]).is_dir():
             pr = progress(x["worktree"], "" if x.get("kind") == "external" else (cur or {}).get("step", ""), x["id"])
             if x.get("kind") == "external" and pr.get("step"):

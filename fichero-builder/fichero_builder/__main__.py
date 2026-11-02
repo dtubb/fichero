@@ -259,7 +259,9 @@ def main(argv=None) -> int:
 
         journal.STATE = Path(a.state) if a.state else journal.STATE
         why = queue.done(a.lane, a.sha_opt or a.sha)
-        print(f"REFUSED: {why}" if why else f"{a.lane}: DONE at {(a.sha_opt or a.sha or 'its HEAD')[:12]}, snapshot in land-{a.lane}; the loop checks it next tick")
+        paused = not why and any(x["id"] == a.lane and x.get("paused") for x in queue.load())
+        print(f"REFUSED: {why}" if why else f"{a.lane}: DONE at {(a.sha_opt or a.sha or 'its HEAD')[:12]}, snapshot in land-{a.lane}; "
+              + ("the lane is PAUSED: the head is recorded and waits for `builder queue resume`" if paused else "the loop checks it next tick"))
         return 1 if why else 0
     if a.cmd == "heartbeat":
         from fichero_builder import queue

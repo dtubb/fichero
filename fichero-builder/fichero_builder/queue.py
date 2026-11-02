@@ -292,6 +292,10 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         move(s, "done", "")
         if moved := tree_check(lane, s, handles, procs):  # an alert to read; the step goes on: the stray write was not in its tree
             alert(lane["id"], s["step"], "a tree outside the step's own moved: " + "; ".join(moved), str(journal.STATE / "journal.jsonl"), [])
+    if s["state"] == "done" and (lane["paused"] or next((x.get("paused") for x in load() if x["id"] == lane["id"]), False)):
+        lane["paused"] = True  # manager 2026-11-02: a paused lane is never checked; its DONE head waits for `queue resume`
+        return False
+
     def chain() -> dict:
         try:
             return procs.chain(lane, s, lambda stage: move(s, stage, ""))

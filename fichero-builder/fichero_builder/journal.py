@@ -6,6 +6,7 @@ from __future__ import annotations
 import fcntl
 import json
 import os
+import sys
 import time
 from pathlib import Path
 
@@ -74,6 +75,7 @@ class Lock:
                         append("lock", state="waiting", name=self.name, holder=holder, what=self.what, pid=os.getpid(),
                                detail=f"waiting for {self.name} held by {holder}")
                         said = True
+                        print(f"waiting for the {self.name} lock, held by {holder} ...", file=sys.stderr, flush=True)  # a CLI says so (manager 2026-11-02)
                     time.sleep(1)
             if said:
                 append("lock", state="acquired", name=self.name, what=self.what, pid=os.getpid(), seconds=int(time.time() - t0))

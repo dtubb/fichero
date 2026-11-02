@@ -498,3 +498,20 @@ def test_a_head_whose_every_commit_is_on_origin_by_patch_is_never_taken(state, t
     assert queue.intake_sha(lane_, "integration", 1, 0) == ""
     queue.add("lane-x", str(wt), "batch-1", str(state / "b1.1"), [], kind="external")
     assert "already on origin" in queue.done("lane-x", head)
+
+
+def test_a_paused_external_lanes_done_is_recorded_and_waits_for_resume(state, capsys):
+    """Manager 2026-11-02: lane-onboard was paused, ran `builder done`, and the loop checked it. A paused lane's DONE records
+    the head and says it waits; the loop starts no check until `queue resume`."""
+    queue.add("ext", "/w/ext", "1.1", str(state / "b1.1"), [7], kind="external")
+    lanes = queue.load()
+    lanes[0]["paused"] = True
+    queue.save(lanes)
+    fake = Fake()
+    assert cli.main(["done", "ext", "abc123", "--state", str(journal.STATE)]) == 0
+    assert "PAUSED" in capsys.readouterr().out
+    assert queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None) == 0
+    assert fake.landed_calls == [] and steps()["1.1"]["state"] == "done" and steps()["1.1"]["head"] == "abc123"
+    assert cli.main(["queue", "resume", "--lane", "ext", "--state", str(journal.STATE)]) == 0
+    assert queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None) == 0
+    assert fake.landed_calls and steps()["1.1"]["state"] == "landed"

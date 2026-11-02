@@ -363,3 +363,16 @@ def test_lane_usage_today_sums_each_external_lanes_transcripts_once_per_message(
     assert [g["lane"] for g in got] == ["x"]
     assert got[0]["turns"] == 1 and got[0]["tokens_in"] == 12_000_000 and got[0]["tokens_out"] == 100_000
     assert got[0]["usd"] == round(3 + 3.75 + 3 + 1.5, 2)
+
+
+def test_a_cli_waiting_on_a_lock_says_so_on_stderr(tmp_path, monkeypatch, capsys):
+    """Manager 2026-11-02: `builder alert ... send-back` sat over 2 min on the queue lock with no word."""
+    import threading
+
+    monkeypatch.setattr(journal, "STATE", tmp_path)
+    monkeypatch.setattr(journal.Lock, "WARN_S", 0.1)
+    held = journal.Lock("queue", what="the loop's tick").__enter__()
+    threading.Timer(1.5, held.__exit__).start()
+    with journal.Lock("queue", what="an alert answer"):
+        pass
+    assert "waiting for the queue lock, held by" in capsys.readouterr().err
