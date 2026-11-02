@@ -14,7 +14,8 @@ def _row(id_: str, what: str, why: str, source: str, applied: bool, change: str,
     return {"id": id_, "what": what, "why": why, "from": source, "applied": applied, "change": change, "price": price}
 
 
-def build(answers: dict[str, Any] | None, pages: int, sample: dict[str, Any] | None, readers: dict[str, dict[str, list[str]]] | None) -> list[dict[str, Any]]:
+def build(answers: dict[str, Any] | None, pages: int, sample: dict[str, Any] | None, readers: dict[str, dict[str, list[str]]] | None,
+          leave_out: dict[str, int] | None = None) -> list[dict[str, Any]]:
     """The rows: conditions (ticked or seen in the sample), the model kind the How answers chose, each script's readers, a try for damage, and Review for a large reader."""
     answers, sample, readers = answers or {}, sample or {}, readers or {}
     chosen = list(answers.get("condition") or [])
@@ -49,6 +50,13 @@ def build(answers: dict[str, Any] | None, pages: int, sample: dict[str, Any] | N
         rows.append(_row("try.compare-with-review", "Compare the reader alone with the reader and a review pass on your samples",
                          "Damaged handwriting may need a second look; the compare shows whether it pays. You choose in the compare view.",
                          "condition: " + ", ".join(c.replace("-", " ") for c in chosen if c in DAMAGE), False, "stage.read-a-line"))
+    if leave_out is not None and (leave_out.get("pages") or set(chosen) & set(DAMAGE)):  # nothing to say with no sample and no damage
+        from fichero_server.recipes.leave_out import suggestion
+
+        said = suggestion(leave_out, chosen)
+        rows.append(_row("leave-out", "Leave out what is not writing before reading" if said["value"] else "Do not leave anything out",
+                         said["why"], "the sample's own findings" + (" and your condition answers" if chosen else ""),
+                         (answers.get("job_answers") or {}).get("leave_out") == said["value"], "stage.leave-out"))
     if how.get("model_kind") == "large" or "large" in str(got["model_kind"]):
         rows.append(_row("review.on-for-large-cloud-reader", "Turn Review on", "A large reader may invent or regularise text; a review checks it.",
                          "model kind: large", got["review"] == "on", "stage.review"))

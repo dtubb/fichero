@@ -255,3 +255,48 @@ def test_wide_changing_the_operations_prepares_the_page_again(db, tmp_path, monk
     other: dict = {}
     run_prepare(db, [doc.id], "run-3", other, operations=["straighten", "crop"])
     assert other["page_prep"]["unchanged"] == 0 and other["page_prep"]["pages"] == 1
+
+
+def _fake_leave_out_db(pages):
+    """`pages`: a list of lists of (x, y, w, h); a page's lines as a stand-in library (`sample_findings` reads lines and the page's metadata only)."""
+    from types import SimpleNamespace
+
+    docs = {f"p{i}": lines for i, lines in enumerate(pages)}
+
+    def rows(i, lines):
+        return [SimpleNamespace(id=f"{i}-{n}", kind="line", deleted_at=None, is_furniture=False, bbox_x=x, bbox_y=y, bbox_w=w, bbox_h=h,
+                                confidence=0.9) for n, (x, y, w, h) in enumerate(lines)]
+
+    return list(docs), SimpleNamespace(
+        query=lambda _model, document_id: rows(document_id, docs[document_id]),
+        get=lambda _model, _id: SimpleNamespace(metadata={"page_box": [0, 0, 1, 1]}))
+
+
+CLEAN = [(0.1, 0.05 + 0.08 * n, 0.7, 0.04) for n in range(8)]
+SPECKLED = [*CLEAN, (0.5, 0.5, 0.004, 0.004)]
+
+
+def test_a_clean_sample_leaves_leave_out_off_with_its_why_and_a_speckled_one_turns_it_on():
+    from fichero_server.recipes import leave_out
+
+    ids, db = _fake_leave_out_db([CLEAN] * 5)
+    off = leave_out.suggestion(leave_out.sample_findings(db, ids), [])
+    assert off["value"] is False and "0 of 5 sample pages" in off["why"]
+    ids, db = _fake_leave_out_db([SPECKLED, SPECKLED, SPECKLED, CLEAN, CLEAN])
+    on = leave_out.suggestion(leave_out.sample_findings(db, ids), [])
+    assert on["value"] is True and "3 of 5 sample pages" in on["why"]
+
+
+def test_a_damage_answer_turns_leave_out_on_whatever_the_sample_shows_and_no_sample_says_so():
+    from fichero_server.recipes import leave_out
+
+    said = leave_out.suggestion({"pages": 5, "with_findings": 0}, ["water-damage"])
+    assert said["value"] is True and "water damage" in said["why"]
+    assert leave_out.suggestion({}, [])["value"] is False and "no sample pages" in leave_out.suggestion({}, [])["why"]
+
+
+def test_the_suggestions_list_carries_the_leave_out_row():
+    from fichero_server.recipes import suggestions
+
+    (row,) = suggestions.build({"materials": ["handwriting"]}, 5, None, None, {"pages": 5, "with_findings": 4})
+    assert row["id"] == "leave-out" and "4 of 5" in row["why"] and row["applied"] is False  # the saved default (no answer) is not this

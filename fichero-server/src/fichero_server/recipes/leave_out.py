@@ -168,6 +168,42 @@ def _contrast_path(db: Any, doc: Any, library: str) -> str | None:
     return _resolve_abs_path(doc, library)
 
 
+def sample_findings(db: Any, documents: list[str]) -> dict[str, int]:
+    """What Leave Out would mark on these pages, without marking anything (`wide.leaveout.decided-from-page-quality`): `pages` judged
+    and `with_findings` pages where at least one line would be left out. The bleed rule is skipped (it needs the image)."""
+    from fichero_server.models import Document, Segment
+
+    out = {"pages": 0, "with_findings": 0}
+    for doc_id in documents:
+        rows = [r for r in db.query(Segment, document_id=doc_id) if r.kind == "line" and r.deleted_at is None and not r.is_furniture]
+        if not rows:
+            continue
+        doc = db.get(Document, doc_id)
+        meta = (doc.metadata or {}) if doc is not None else {}
+        lines = [{"id": r.id, "x": r.bbox_x, "y": r.bbox_y, "w": r.bbox_w, "h": r.bbox_h, "confidence": r.confidence} for r in rows]
+        out["pages"] += 1
+        out["with_findings"] += bool(decide(lines, page_box=meta.get("page_box"), furniture=meta.get("page_furniture"), bleed=False))
+    return out
+
+
+#: Leave Out is suggested on when this share of the sample's pages have a finding, or the person said the pages are damaged.
+FINDING_SHARE = 0.4
+DAMAGE_CONDITIONS = ("torn", "water-damage", "stains")
+
+
+def suggestion(findings: dict[str, int], condition: list[str] | None) -> dict[str, Any]:
+    """`{value, why}`: no fixed default, the sample and the condition decide, and the stage page says why."""
+    hurt = [c for c in condition or [] if c in DAMAGE_CONDITIONS]
+    if hurt:
+        return {"value": True, "why": "you said the pages are " + ", ".join(c.replace("-", " ") for c in hurt) + "; damaged areas are left out before reading"}
+    seen, found = findings.get("pages", 0), findings.get("with_findings", 0)
+    if seen and found / seen >= FINDING_SHARE:
+        return {"value": True, "why": f"{found} of {seen} sample pages have marks that are not writing"}
+    if seen:
+        return {"value": False, "why": f"{found} of {seen} sample pages have marks that are not writing, so nothing needs leaving out"}
+    return {"value": False, "why": "there are no sample pages with lines yet to judge"}
+
+
 def _open_image(path: str | None) -> Any | None:
     from pathlib import Path
 

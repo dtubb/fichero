@@ -441,4 +441,8 @@ async def suggestions(db: Database = Depends(get_library_database)) -> Suggestio
         fit = [c for c in cards if c.scripts is None or script in c.scripts]
         readers[script] = {"found": [c.short_name or c.id for c in fit],
                            "installed": [c.short_name or c.id for c in fit if candidate_installed(c)]}
-    return SuggestionList(items=[Suggestion(**row) for row in suggest_module.build(answers, count_pages(db), sample, readers)])
+    from fichero_server.recipes.leave_out import sample_findings
+    from fichero_server.recipes.prepare_suggest import sample_ids
+
+    findings = await asyncio.to_thread(lambda: sample_findings(db, sample_ids(db.unit_of_work_ids())))
+    return SuggestionList(items=[Suggestion(**row) for row in suggest_module.build(answers, count_pages(db), sample, readers, findings)])
