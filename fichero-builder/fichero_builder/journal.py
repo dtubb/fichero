@@ -57,7 +57,11 @@ class Lock:
         self.p.parent.mkdir(parents=True, exist_ok=True)
         self.fd = os.open(self.p, os.O_RDWR | os.O_CREAT, 0o644)
         if not self.wait or self.name == "journal":  # the journal's own lock is held for a line: never a row about itself
-            fcntl.flock(self.fd, fcntl.LOCK_EX | (0 if self.wait else fcntl.LOCK_NB))
+            try:
+                fcntl.flock(self.fd, fcntl.LOCK_EX | (0 if self.wait else fcntl.LOCK_NB))
+            except BlockingIOError:
+                os.close(self.fd)  # a refused try keeps no descriptor (speed 3 retries every second)
+                raise
         else:
             t0, said = time.time(), False
             while True:
@@ -81,3 +85,13 @@ class Lock:
     def __exit__(self, *exc):
         fcntl.flock(self.fd, fcntl.LOCK_UN)
         os.close(self.fd)
+
+
+def ladder_slots(n: int) -> list[str]:
+    """The ladder locks [check].parallel allows: `ladder`, `ladder-2`, ... (speed 3)."""
+    return ["ladder"] + [f"ladder-{i}" for i in range(2, max(1, n) + 1)]
+
+
+def ladder_slots_known() -> list[str]:
+    """Every ladder lock ever used here: a landing that must not pull a pinned copy from under a check probes them all."""
+    return sorted({"ladder", *(p.name[:-5] for p in STATE.glob("ladder-*.lock") if p.name[7:-5].isdigit())})

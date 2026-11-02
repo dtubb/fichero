@@ -495,3 +495,80 @@ def test_the_review_model_is_sonnet_unless_the_range_touches_harness_paths_or_it
     g("add", "."), g("commit", "-qm", "harness")
     assert work.pick_reviewer(a, str(tmp_path), "integration", g("rev-parse", "HEAD"), "opus") == "opus", "a harness path: opus"
     assert work.pick_reviewer(types.SimpleNamespace(), str(tmp_path), "integration", head, "opus") == "opus", "no fast reviewer set: the full one"
+
+
+class _Waited(Exception):
+    pass
+
+
+def _stop(_s):
+    raise _Waited
+
+
+def test_two_disjoint_batches_check_at_once_and_a_batch_sharing_a_file_waits(scratch):
+    """Speed 3 (manager 2026-11-02): [check].parallel ladders at once, never two whose batches share a file; an unknown file
+    list shares every file; parallel 1 is the old single ladder."""
+    with work.ladder_slot("a", ["x.py"], 2) as s1:
+        with work.ladder_slot("b", ["y.py"], 2) as s2:
+            assert {s1, s2} == {"ladder", "ladder-2"}
+        for name, files, n in (("c", ["x.py", "z.py"], 2), ("d", [], 2), ("e", ["z.py"], 1)):
+            with pytest.raises(_Waited):
+                with work.ladder_slot(name, files, n, sleep=_stop):
+                    pass
+    with work.ladder_slot("c", ["x.py"], 2) as s:
+        assert s == "ladder"
+    assert not list(journal.STATE.glob("*.files")), "a slot's file list goes with its lock"
+
+
+def test_a_ladders_rung_hook_and_key_are_its_own_threads():
+    """Speed 3: two ladders at once in the loop's chain threads: one chain's ON_RUNG never fires for the other's rungs."""
+    import threading
+    work.check_tool.ON_RUNG[0], work.check_tool._KEY[0] = "mine", "k"
+    seen = []
+    t = threading.Thread(target=lambda: seen.append((work.check_tool.ON_RUNG[0], work.check_tool._KEY[0])))
+    t.start(), t.join()
+    assert seen == [(None, "")] and work.check_tool.ON_RUNG[0] == "mine"
+    work.check_tool.ON_RUNG[0], work.check_tool._KEY[0] = None, ""
+
+
+def _early_chain(chain, monkeypatch, later_red: bool):
+    """A fake ladder that reports ready and red-on-base green, then the rest green (or a later rung red)."""
+    import threading
+    started, release = threading.Event(), threading.Event()
+    killed = []
+
+    def review(a, repo, head, ladder, verdicts, model, holder=None):
+        chain.calls.append(("review", model, ladder.endswith(".partial")))
+        if holder is not None:
+            holder["proc"] = type("P", (), {"kill": lambda self: (killed.append(True), release.set())})()
+        started.set()
+        release.wait(5)
+        return True, "READY"
+
+    def check(a, repo, since, head, ladder):
+        chain.calls.append(("check", since, head))
+        work.check_tool.ON_RUNG[0]("red-on-base", True, [{"name": "ready", "ok": True}, {"name": "red-on-base", "ok": True}])
+        assert started.wait(5), "the review started beside the ladder, before the check ended"
+        if not later_red:
+            release.set()
+        return {"ok": not later_red, "failed": "pytest" if later_red else ""}
+    monkeypatch.setattr(work, "do_review", review)
+    monkeypatch.setattr(work, "do_check", check)
+    monkeypatch.setattr(work.land_tool, "unreviewed", lambda *a: True)
+    monkeypatch.setattr(work, "pick_reviewer", lambda *a: "opus")
+    return killed
+
+
+def test_the_review_starts_once_red_on_base_is_green_and_its_verdict_is_used(chain, monkeypatch):
+    """Speed 2: the review runs beside the rest of the ladder over the partial ladder; a green check takes its verdict."""
+    killed = _early_chain(chain, monkeypatch, later_red=False)
+    assert chain() == 0
+    assert [c[0] for c in chain.calls] == ["run", "rebase", "export", "fetch", "check", "review", "land"]
+    assert chain.calls[5] == ("review", "opus", True) and not killed
+
+
+def test_a_later_red_rung_kills_the_early_review(chain, monkeypatch):
+    """Speed 2: a rung after red-on-base goes red: the early review's process is killed and nothing lands."""
+    killed = _early_chain(chain, monkeypatch, later_red=True)
+    assert chain() != 0
+    assert killed == [True] and "land" not in [c[0] for c in chain.calls]

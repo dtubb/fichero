@@ -448,6 +448,17 @@ def test_making_the_new_pinned_copy_waits_for_a_running_ladder(world, monkeypatc
     assert world.go("--push") == 0 and held
 
 
+def test_a_check_in_the_second_ladder_slot_keeps_the_older_pinned_copies(world, monkeypatch):
+    """Speed 3: a check holding `ladder-2` reads its pinned copy as surely as one holding `ladder`."""
+    world.ready(), world.green()
+    kept = []
+    real = landed.pin
+    monkeypatch.setattr(landed, "pin", lambda *a, keep_others=False: (kept.append(keep_others), real(*a, keep_others=keep_others))[1])
+    with journal.Lock("ladder-2", what="the check of b"):
+        assert world.go("--push") == 0
+    assert kept == [True]
+
+
 def test_a_status_that_cannot_be_read_refuses_rather_than_counting_the_spec_clean(world, monkeypatch, capsys):
     """Review of range 5: a failed `git status` left the file looking clean, and the landing then edited it."""
     world.ready(), world.green()

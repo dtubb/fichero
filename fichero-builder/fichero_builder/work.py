@@ -5,12 +5,15 @@ run -> rebase -> patches -> fetch -> check -> review -> land, each step a journa
 prints the push line; nothing here pushes. Each step is a module function so a test replaces it."""
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
 import shlex
 import subprocess
 import sys
+import threading
+import time
 import tomllib
 from pathlib import Path
 
@@ -152,6 +155,13 @@ def do_fetch(a, repo: str, branch: str) -> str:
     return _git(repo, "rev-parse", "--verify", f"{ref}^{{commit}}").stdout.strip()
 
 
+_LANE = threading.local()
+
+
+def _activity(**kw) -> None:
+    journal.append("activity", lane=getattr(_LANE, "name", ""), **kw)
+
+
 def do_check(a, repo: str, branch: str, head: str, ladder: str) -> dict:
     """The ladder over <branch>..head; the range is the same refusal `builder check` has, `since` is a sha, not a name."""
     since = land_tool.resolve_branch(repo, branch)
@@ -160,7 +170,8 @@ def do_check(a, repo: str, branch: str, head: str, ladder: str) -> dict:
     maintainer = bool(getattr(a, "maintainer", False))  # the manager approved a pinned-file change (dev-workflows.run.loop-needs-maintainer)
     approve = bool(getattr(a, "approve_weakened", False))  # the manager approved weakened tests (an alert's approve)
     red_ok = bool(getattr(a, "approve_red", False))
-    check_tool.ACTIVITY = lambda **kw: journal.append("activity", lane=a.name, **kw)
+    _LANE.name = a.name  # per chain thread: two ladders at once each write their own lane's rows (speed 3)
+    check_tool.ACTIVITY = _activity
     check_tool.GUARD_CACHE[0] = journal.STATE / "guard-cache.json"  # speed 5
     pin_new = bool(getattr(a, "approve_pinned_new", False))  # the manager approved a new file under a pinned path  # the manager approved a red-on-base refusal (an alert's approve)
     r = check_tool.ladder_over(repo, since, head, a.pinned, getattr(a, "ids", []), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok,
@@ -248,6 +259,53 @@ def _base_moved(a, branch: str, head: str) -> bool:
     return r.returncode == 1
 
 
+@contextlib.contextmanager
+def ladder_slot(name: str, files: list[str], n: int, sleep=time.sleep):
+    """Speed 3 (manager 2026-11-02): up to n ladders at once ([check].parallel), never two whose batches share a file (an
+    unknown file list shares every file). The slot's files sit beside its lock while it runs; a slot whose lock is free is
+    not running, whatever file it left. A wait over Lock.WARN_S is one row, like the single lock's."""
+    t0, said, state = time.time(), False, Path(journal.STATE)
+    while True:
+        with journal.Lock("ladder-pick"):  # pick and claim as one step: two chains never both see the other's slot empty
+            free, clash = None, ""
+            for slot in journal.ladder_slots(n):
+                lk = journal.Lock(slot, wait=False, what=f"the check of {name}")
+                try:
+                    lk.__enter__()
+                except BlockingIOError:
+                    other = state / f"{slot}.files"
+                    try:
+                        o = json.loads(other.read_text())
+                    except (OSError, ValueError):
+                        o = {"name": "?", "files": []}
+                    if not files or not o["files"] or set(files) & set(o["files"]):
+                        clash = o["name"]
+                    continue
+                if free is None:
+                    free = (slot, lk)
+                else:
+                    lk.__exit__()
+            if free and clash:
+                free[1].__exit__()
+                free = None
+            if free:
+                (state / f"{free[0]}.files").write_text(json.dumps({"name": name, "files": files}))
+        if free:
+            break
+        if not said and time.time() - t0 > journal.Lock.WARN_S:
+            why = f"its batch shares files with the check of {clash}" if clash else f"all {n} ladder slot(s) are busy"
+            journal.append("lock", state="waiting", name="ladder", holder=clash or "?", what=f"the check of {name}", pid=os.getpid(), detail=why)
+            said = True
+        sleep(1)
+    if said:
+        journal.append("lock", state="acquired", name="ladder", what=f"the check of {name}", pid=os.getpid(), seconds=int(time.time() - t0))
+    try:
+        yield free[0]
+    finally:
+        (state / f"{free[0]}.files").unlink(missing_ok=True)
+        free[1].__exit__()
+
+
 _EARLY = __import__("concurrent.futures").futures.ThreadPoolExecutor(max_workers=2)  # early reviews (speed 2)
 OPUS_PATHS = ("fichero-builder/", "scripts/harness_", "scripts/lane_ready_check.sh", "harness.toml")
 
@@ -289,7 +347,11 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
         head = do_fetch(a, repo, branch)
         if not step("fetch", bool(head), head or f"could not fetch the worktree branch into {repo}"):
             return no("error", f"could not fetch the worktree's branch into {repo}")
-        with journal.Lock("ladder", what=f"the check of {a.name}"):  # one ladder at a time across the queue's lanes and any `builder work` (the machine is loaded)
+        try:
+            files = _git(repo, "diff", "--name-only", r_since(repo, branch), head).stdout.split()
+        except (RuntimeError, OSError):
+            files = []  # unknown: shares every file, so it runs alone
+        with ladder_slot(a.name, files, check_tool.load(a.pinned).parallel):  # speed 3: [check].parallel ladders, disjoint batches only
             if getattr(a, "repin", None):  # another lane's landing may have removed the copy this one started from; the lock keeps it from here on
                 a.pinned = a.repin()
             stage("checking")

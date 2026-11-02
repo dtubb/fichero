@@ -22,6 +22,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import tomllib
 from dataclasses import dataclass, field, fields
@@ -63,6 +64,7 @@ class Config:
     guard_inputs: dict = field(default_factory=dict)  # {guard stem: [path prefixes it reads]}: its cache key (speed 5); undeclared = the whole tree
     remote_guards: bool = False         # the guards too (they call git, and the shipped tree has no .git: off by default)
     remote_min_free_gb: float = 5       # less free on the remote = unreachable (an alert, the run here)
+    parallel: int = 2                   # ladders at once (speed 3), never two whose batches share a file; 1 = one at a time
     engine_repo: str = ""               # the engine-owned repository check and land judge from: outside every home dir, readable by the jailed user ("" = the caller names one)
 
 
@@ -100,7 +102,8 @@ def load(root) -> Config:
         build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
         build_lock=c.get("build_lock", d.build_lock), engine_repo=c.get("engine_repo", d.engine_repo),
         remote=c.get("remote", d.remote), remote_python=c.get("remote_python", d.remote_python),
-        remote_guards=c.get("remote_guards", d.remote_guards), guard_inputs=dict(c.get("guard_inputs", {})), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb))
+        remote_guards=c.get("remote_guards", d.remote_guards), guard_inputs=dict(c.get("guard_inputs", {})), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb),
+        parallel=max(1, int(c.get("parallel", d.parallel))))
 
 
 KNOWN_TABLES = {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines"}
@@ -490,7 +493,9 @@ def _guard_cache_load() -> dict:
 def _guard_cache_save(cache: dict) -> None:
     if GUARD_CACHE[0]:
         try:
-            Path(GUARD_CACHE[0]).write_text(json.dumps(dict(list(cache.items())[-2000:])))
+            tmp = Path(f"{GUARD_CACHE[0]}.{threading.get_ident()}")  # two ladders at once: never a half-written file
+            tmp.write_text(json.dumps(dict(list(cache.items())[-2000:])))
+            tmp.replace(GUARD_CACHE[0])
         except OSError:
             pass
 
@@ -688,9 +693,22 @@ def _no_activity(**kw) -> None:
     return None
 
 
-ON_RUNG: list = [None]  # (name, ok, rungs so far) after each rung: the chain starts the review early (speed 2)
+class _PerThread(threading.local):
+    """A one-slot list of its own in each thread: two ladders run at once in the loop's chain threads (speed 3)."""
+
+    def __init__(self, v=None):
+        self.v = [v]
+
+    def __getitem__(self, i):
+        return self.v[i]
+
+    def __setitem__(self, i, x):
+        self.v[i] = x
+
+
+ON_RUNG = _PerThread(None)  # (name, ok, rungs so far) after each rung: the chain starts the review early (speed 2)
 ACTIVITY = _no_activity  # `builder check` and the chain set this to a journal writer (console view A); tests write nowhere
-_KEY: list = [""]  # the running ladder's key, for its rung rows
+_KEY = _PerThread("")  # the running ladder's key, for its rung rows
 
 
 def ladder(rungs: list) -> dict:

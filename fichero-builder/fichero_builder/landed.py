@@ -8,6 +8,7 @@ replacing the previous one, the jail root fast-forwarded as the worker user, the
 that sha removed, the issues the range cites updated, and a final `done` row (sha, branch, pushed, issues)."""
 from __future__ import annotations
 
+import contextlib
 import os
 import re
 import shlex
@@ -338,7 +339,9 @@ def main(a) -> int:
 
     def pinned():
         try:  # it removes every other pinned copy, which another lane's running check may be reading: never wait for that check
-            with journal.Lock("ladder", wait=False):
+            with contextlib.ExitStack() as held:  # every ladder slot (speed 3: two checks may run at once)
+                for slot in journal.ladder_slots_known():
+                    held.enter_context(journal.Lock(slot, wait=False))
                 return pin(repo, sha, pinned_dir)
         except BlockingIOError:
             return pin(repo, sha, pinned_dir, keep_others=True) + " (the older pinned copies kept: a check holds the ladder)"
