@@ -65,12 +65,12 @@ never: it finishes one before the next, which is also the Studio's constraint (o
 
 ## Behaviors
 
-- `issues.milestone-is-the-spec` [PARTIAL] — every open issue sits in the milestone its spec names; `check_spec_milestones.py` binds spec↔milestone today, nothing yet moves issues. Test: fichero-server/tests/unit/workflows/test_triage_tool.py
-- `issues.label-set-is-closed` [PARTIAL] — only the labels in the table exist; the one-off consolidation was done by hand 2026-11-01 (70 → 48); triage refuses an unknown label. Test: fichero-server/tests/unit/workflows/test_triage_tool.py
-- `issues.build-order-file-orders-milestones` [GAP] — the harness briefs only the first unfinished milestone of `specs/build-order.md`. Test: fichero-builder/tests/test_milestone_verb.py
-- `issues.pick-order-step-bug-priority` [GAP] — within a milestone: steps in build order, then bugs, then priority. Test: fichero-builder/tests/test_milestone_verb.py
-- `issues.harness-closes-after-integration` [GAP] — an issue closes only by `builder landed` once its commit is on origin/integration. Test: fichero-builder/tests/test_landed_verb.py
-- `issues.spec-less-milestone-gets-a-spec-issue` [GAP] — Test: fichero-server/tests/unit/workflows/test_triage_tool.py
+- `issues.milestone-is-the-spec` [PARTIAL] — every open issue sits in the milestone its spec names; `check_spec_milestones.py` binds spec↔milestone today, nothing yet moves issues. Test: fichero-server/tests/unit/workflows/test_triage_tool.py → #6116
+- `issues.label-set-is-closed` [PARTIAL] — only the labels in the table exist; the one-off consolidation was done by hand 2026-11-01 (70 → 48); triage refuses an unknown label. Test: fichero-server/tests/unit/workflows/test_triage_tool.py → #6116
+- `issues.build-order-file-orders-milestones` [GAP] — the harness briefs only the first unfinished milestone of `specs/build-order.md`. Test: fichero-builder/tests/test_milestone_verb.py → #6116
+- `issues.pick-order-step-bug-priority` [GAP] — within a milestone: steps in build order, then bugs, then priority. Test: fichero-builder/tests/test_milestone_verb.py → #6116
+- `issues.harness-closes-after-integration` [GAP] — an issue closes only by `builder landed` once its commit is on origin/integration. Test: fichero-builder/tests/test_landed_verb.py → #6116
+- `issues.spec-less-milestone-gets-a-spec-issue` [GAP] — Test: fichero-server/tests/unit/workflows/test_triage_tool.py → #6116
 
 ## Test matrix
 
