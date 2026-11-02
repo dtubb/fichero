@@ -278,3 +278,27 @@ def test_order_does_not_propose_what_the_file_already_lists_under_then(world, ca
     assert world("--order") == 0
     proposed = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("+ ")]
     assert not any("`orphan-ms`" in ln for ln in proposed) and any("`Bugs - old`" in ln for ln in proposed)
+
+
+def test_an_issue_its_current_milestones_spec_cites_stays_put_though_another_spec_cites_it_too(world):
+    """Precedence (lead ruling 2026-11-02): the dry run moved 58 recipe-designer issues to source-model only because a spec
+    earlier by path also cited them. An issue stays where its current milestone's spec cites it; else the first citing spec."""
+    specs = world.root / "docs" / "contributor_manual" / "specs" / "x"
+    (specs / "aa-first.md").write_text("# First by path\n> Milestone: sharing\n- `e.f` [GAP] (#13, #10) — w\n")
+    (specs / "cataloguing.md").write_text("# Cat\n> Milestone: cat\n- `c.d` [GAP] (#8, #9, #13, #10) — y\n")
+    assert world("--milestones") == 0
+    by = {i["number"]: i for i in world.db()["issues"]}
+    assert by[13]["milestone"] == "cat", "cat's spec cites #13: it stays in cat"
+    assert by[10]["milestone"] == "sharing", "orphan-ms has no citing spec: the first citing spec by path wins"
+
+
+def test_a_parked_line_may_name_a_pattern_and_the_milestones_it_matches_owe_no_spec_and_are_not_proposed(world, capsys):
+    """Ops buckets are parked by pattern (`UX - *`): fnmatch over the milestone title, for --milestones and --order alike."""
+    bo = world.root / "docs" / "contributor_manual" / "specs" / "build-order.md"
+    bo.write_text(BUILD_ORDER.replace("- `Next release` — a grab-bag.", "- `Next release` — a grab-bag.\n- `orphan-*`, `Bugs - *` — buckets."))
+    assert world("--milestones") == 0
+    assert not any(i["title"].startswith("spec: write ") for i in world.db()["issues"]), "orphan-ms matches `orphan-*`"
+    capsys.readouterr()
+    assert world("--order") == 0
+    proposed = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("+ ")]
+    assert not any("`orphan-ms`" in ln or "`Bugs - old`" in ln for ln in proposed), "parked by pattern: not proposed"

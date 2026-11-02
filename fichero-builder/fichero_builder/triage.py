@@ -10,6 +10,7 @@ needs-spec, needs-your-decision, needs-your-test, status:blocked. `docs/contribu
 owner's: `--order` reads it and proposes lines for milestones it lacks, never writes it."""
 from __future__ import annotations
 
+import fnmatch
 import json
 import re
 import subprocess
@@ -89,6 +90,11 @@ def build_order(root) -> tuple[list[tuple[str, str]], set[str]]:
     ordered = text.split("## In order", 1)[1].split("\n## ", 1)[0] if "## In order" in text else ""
     parked = text.split("## Parked", 1)[1] if "## Parked" in text else ""
     return [(m.group(1), m.group(2) or "") for m in ORDER_LINE.finditer(ordered)], set(re.findall(r"`([^`]+)`", parked))
+
+
+def matches(title: str, names: set[str]) -> bool:
+    """A build-order line names a milestone exactly or by pattern (`UX - *`, fnmatch)."""
+    return any(fnmatch.fnmatchcase(title, n) for n in names)
 
 
 def listed(root) -> set[str]:
@@ -173,10 +179,11 @@ class Triage:
                 self.relabel(i, add="needs-spec")
 
     def milestones(self) -> None:
-        """Rules 3 and 4: an open issue goes to the milestone of the spec that cites it, else of the spec a spec:* hint label
+        """Rules 3 and 4: an open issue goes to the milestone of the spec that cites it (it stays in its current milestone
+        when that milestone's spec is among the citing ones; else the first citing spec by path), else of the spec a spec:* hint label
         names; the hint goes once the issue sits there; a spec with no `> Milestone:` line gets the milestone most of its
         cited issues carry; a spec-less bug with no milestone goes to Next release; an empty milestone closes; a milestone
-        no spec names (not an ops bucket, a grab-bag or one parked in the build-order file) gets one
+        no spec names (not an ops bucket, a grab-bag or one parked in the build-order file, by name or pattern) gets one
         `spec: write <milestone> spec` issue (needs-spec)."""
         issues = self.issues("--state", "all")
         by_num = {i["number"]: i for i in issues}
@@ -195,7 +202,7 @@ class Triage:
                 titles.add(title)
 
         named: dict[str, str] = {}  # spec label -> milestone
-        cites: dict[int, str] = {}  # issue -> the milestone of the spec that cites it (first spec by path)
+        cites: dict[int, list[str]] = {}  # issue -> the milestones of the specs that cite it, in path order
         for p, nums in self.citations().items():
             text = p.read_text()
             title = spec_milestone(text)
@@ -212,12 +219,13 @@ class Triage:
                     p.write_text(f"{head}\n\n> Milestone: {title}\n{rest.lstrip(chr(10))}")
             named[f"spec:{p.stem}"] = title
             for n in nums:
-                cites.setdefault(n, title)
+                cites.setdefault(n, []).append(title)
         for i in issues:
             if i["state"] != "open":
                 continue
             cur = i.get("milestone")
-            want = cites.get(i["number"]) or next((named[lb] for lb in i["labels"] if lb in named), "")
+            citing = cites.get(i["number"], [])  # its current milestone's spec cites it: it stays; else the first citing spec
+            want = (cur if cur in citing else citing[0]) if citing else next((named[lb] for lb in i["labels"] if lb in named), "")
             if not want and not cur and "type:bug" in i["labels"]:
                 want = "Next release"
             if want and want != cur:
@@ -226,7 +234,7 @@ class Triage:
                 self.counts["issues moved"] += 1
                 cur = want
             for lb in i["labels"]:  # the hint has served (or the citing spec overrules it): the milestone says it now
-                if lb.startswith("spec:") and (named.get(lb) == cur or cites.get(i["number"]) == cur):
+                if lb.startswith("spec:") and (named.get(lb) == cur or cur in cites.get(i["number"], [])):
                     self.relabel(i, remove=lb)
                     i["labels"] = [x for x in i["labels"] if x != lb]
         spec_named = set(named.values())
@@ -240,7 +248,7 @@ class Triage:
             if m["open_issues"] == 0 and m["title"] not in spec_named:  # a spec's milestone stays, empty or not
                 self.change("milestone-close", "api", "-X", "PATCH", f"{API}/{m['number']}", "-f", "state=closed", milestone=m["title"])
                 self.counts["milestones closed"] += 1
-            elif m["title"] not in spec_named and not is_ops(m["title"]) and m["title"] not in parked:
+            elif m["title"] not in spec_named and not is_ops(m["title"]) and not matches(m["title"], parked):
                 title = f"spec: write {m['title']} spec"
                 if not any(i["title"] == title and i["state"] == "open" for i in issues):
                     self.change("spec-issue", "issue", "create", "--milestone", m["title"], "--title", title, "--label", "needs-spec",
@@ -270,7 +278,7 @@ class Triage:
             self.say(str(e))
             placed = set()
         specs = {spec_milestone(p.read_text()): p.relative_to(self.root / SPECS).as_posix() for p in spec_files(self.root)}
-        missing = [m for m in json.loads(_gh(self.gh, "api", f"{API}?state=open&per_page=100", "--paginate") or "[]") if m["open_issues"] and m["title"] not in placed]
+        missing = [m for m in json.loads(_gh(self.gh, "api", f"{API}?state=open&per_page=100", "--paginate") or "[]") if m["open_issues"] and not matches(m["title"], placed)]
         if missing:
             self.say(f"proposed for {BUILD_ORDER} (under `## Then`; the owner orders them):")
         for m in sorted(missing, key=lambda m: m["title"]):
