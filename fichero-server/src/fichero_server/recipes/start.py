@@ -652,6 +652,11 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             if job == "read-a-line" and measured in ("lines", "region", "page"):
                 # How the bake-off measured this reader is how it reads (#5722).
                 entry["tool_config"] = {"transcribe": {"read_granularity": measured}}
+            if job == "read-a-line" and step.get("prompt_fragments"):
+                # The fragments the step names ride to the read node (`image.enhance.reader-prompt-fragment`).
+                entry.setdefault("tool_config", {}).setdefault("transcribe", {})["prompt_fragments"] = list(step["prompt_fragments"])
+                entry["prompt_fragments"] = [dict(zip(("id", "version"), (n.partition("@")[0], int(n.partition("@")[2] or 0))))
+                                             for n in step["prompt_fragments"]]  # ids and versions the run record keeps
             if step.get("readers"):
                 # One reader per kind of page (#5578). A kind whose reader cannot run here, or would send pages
                 # off a Mac that keeps them, is read by the step's own reader.

@@ -112,11 +112,12 @@ REASK_NOTE = (" Your previous reply to these images ended in an empty answer, wh
               "k is for image number k, count again, and reply with exactly {n} entries. A line with no writing is still null; do not invent text for it.")
 
 
-def prompt_for(n: int, language: str | None = None, page_context: bool = False, reask: bool = False) -> str:
+def prompt_for(n: int, language: str | None = None, page_context: bool = False, reask: bool = False,
+               fragments: str = "") -> str:
     """The instruction for n line pictures, with the language when it is known, and the page's place when it rides."""
     hint = f" (in {language})" if language and language not in ("und", "unknown") else ""
     return ((PAGE_CONTEXT.format(n=n) if page_context else "") + PROMPT.format(n=n, language=hint)
-            + (REASK_NOTE.format(n=n) if reask else ""))
+            + (REASK_NOTE.format(n=n) if reask else "") + (f" {fragments}" if fragments else ""))
 
 
 def _page_context_uri(page: Image.Image) -> str:
@@ -191,7 +192,8 @@ def _request_groups(found: list[OCRGeometryBox], granularity: str | None, per_ca
 
 async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, language: str | None = None,
                      apple: bool = False, granularity: str | None = None,
-                     page_context: bool | None = None, page_image: Any = None) -> OCRGeometryResult:
+                     page_context: bool | None = None, page_image: Any = None,
+                     fragments: str = "") -> OCRGeometryResult:
     """Kraken's lines (`segment_to_geometry`) with each one's text read by `config`'s vision model, or, with
     `apple`, by Apple Vision on each line's own picture (one line a call: its answer IS the reading, not a JSON
     array, and it is not checked for loops, as only a generative model loops).
@@ -226,7 +228,7 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
         rides = bool(page_uri) and with_page  # a retry of one line is a single picture: the page is not sent again
         async with gate:
             raw = await vision(images=([page_uri] if rides else []) + [crops[i] for i in indices],
-                               prompt=prompt_for(len(indices), language, page_context=rides, reask=reask),
+                               prompt=prompt_for(len(indices), language, page_context=rides, reask=reask, fragments=fragments),
                                config=line_call_config(config, len(indices)),
                                **({"language": language, "recognition_only_ok": True} if apple else {}))
         if apple:

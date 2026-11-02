@@ -107,6 +107,13 @@ TRANSCRIBE_CONFIG = {
         ),
         "x-group": "advanced",
     },
+    "prompt_fragments": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": ("Prompt fragments to send, as id@version (`llm/prompt_fragments.py`): ignore-show-through@1, "
+                        "ignore-furniture@1, read-over-stamps@1. The run keeps their ids and versions."),
+        "x-group": "advanced",
+    },
     "read_all_lines": {
         "type": "boolean",
         "default": False,
@@ -506,6 +513,7 @@ async def transcribe(
         kraken_recognition_model=inputs.get("kraken_model"),
         lines_read_by=lines_read_by,
         read_granularity=inputs.get("read_granularity") or None,
+        prompt_fragments=inputs.get("prompt_fragments") or None,
         read_all_lines=bool(inputs.get("read_all_lines")),
         # Apple Vision needs a concrete recognition locale and has no "unknown"
         # — it keeps its historical en-US fallback. That is an OCR hint, not a

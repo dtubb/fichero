@@ -4019,6 +4019,7 @@ async def process_vision(
     lines_read_by: str = "kraken",
     read_granularity: str | None = None,  # how the model is asked per call, as a bake-off measured it (#5722)
     read_all_lines: bool = False,  # a redo reads every line again; else only the lines this reader has not read
+    prompt_fragments: list[str] | None = None,  # `llm/prompt_fragments.py` ids the step sends (#6199)
 ) -> dict[str, Any]:
     """Process images with vision AI.
 
@@ -4316,6 +4317,18 @@ async def process_vision(
 
     # Build reference section
     ref_section = build_reference_section(reference_values, match_mode)
+    # The step's named prompt fragments, minus those the project switched off; the run keeps their ids and versions.
+    from fichero_server.llm import prompt_fragments as _pf
+
+    _fragment_kind = _pf.LINE if vision_mode == "kraken" and lines_read_by in ("model", "apple") else _pf.PAGE
+    _fragment_db = None
+    if prompt_fragments and library_path:
+        from fichero_server.db import db_manager as _fdbm
+
+        _fragment_db = _fdbm.get_database(library_path)
+    fragment_text, fragment_records = _pf.resolve(prompt_fragments, _fragment_kind, _pf.project_off(_fragment_db))
+    if fragment_text and _fragment_kind == _pf.PAGE:
+        prompt = f"{prompt} {fragment_text}"
 
     # Build output constraint
     output_constraint = build_output_constraint(output_format, output_options)
@@ -4942,7 +4955,7 @@ async def process_vision(
                                             model=effective_config.model),
                             effective_config, language=language,
                             **({"apple": True} if lines_read_by == "apple" else {}),
-                            granularity=read_granularity, page_image=_lines_on,
+                            granularity=read_granularity, page_image=_lines_on, fragments=fragment_text,
                         )
                         return _wl.whole_page(_dbm.get_database(library_path), whole, read, effective_config.model)
                     from fichero_server.llm import kraken_runtime as _kr
@@ -5070,7 +5083,7 @@ async def process_vision(
                             result = await read_lines(
                                 image_path, result, effective_config, language=language,
                                 **({"apple": True} if lines_read_by == "apple" else {}),
-                                granularity=read_granularity,
+                                granularity=read_granularity, fragments=fragment_text,
                             )
                     if _found_lines is None and _page_image is not None and image_path == _page_image.path:
                         # Found (and read) on the page's current image: its lines are carried back to the photograph, the
@@ -6377,5 +6390,6 @@ async def process_vision(
         "page_records": page_records,
         # What the read checker caught, one sentence each (#5522): the step reports them.
         "notes": notes,
+        "prompt_fragments": fragment_records,
         "error": error_msg,
     }

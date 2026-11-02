@@ -57,6 +57,7 @@ Extract text from images (OCR)
 | `model_name` | string | — | Model name. |
 | `output_format` | string | text | Response format. One of: text, boolean, choice, number, words, list, json. |
 | `prompt` | string | — | Custom prompt. |
+| `prompt_fragments` | array | — | Prompt fragments to send, as id@version (`llm/prompt_fragments.py`): ignore-show-through@1, ignore-furniture@1, read-over-stamps@1. The run keeps their ids and versions. |
 | `provider_name` | string | — | LLM provider. One of: openai, anthropic, google, ollama, lmstudio, groq, together, deepseek, mistral, openrouter, dashscope, xai, perplexity, fireworks, deepl. |
 | `quality_gate` | boolean | yes | Stop the run if output is unreadable. |
 | `read_all_lines` | boolean | no | Read every line of a page again. Unset: a page that already has readings by this reader is read on from its unread lines (a stopped read is resumed, nothing is paid for twice). |
