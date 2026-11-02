@@ -433,6 +433,7 @@ def main(argv=None) -> int:
             return 1
         try:
             check_tool.ACTIVITY = lambda **kw: journal.append("activity", lane="by hand", **kw)  # console view A sees a check run by hand
+            check_tool.GUARD_CACHE[0] = journal.STATE / "guard-cache.json"  # speed 5: a guard's green is reused for the same inputs
             r = check_tool.ladder_over(a.repo, since, head, a.pinned, a.id, maintainer=a.maintainer, approve_weakened=a.approve_weakened, approve_red=a.approve_red,
                                        approve_pinned_new=a.approve_pinned_new)
         except check_tool.EmptyRange:  # the shared refusal, also `builder work`'s

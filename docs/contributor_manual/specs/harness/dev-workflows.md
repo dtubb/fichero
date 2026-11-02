@@ -692,6 +692,11 @@ the write path would produce.
   Speed 1 (manager 2026-11-02): every rung's time is in its `activity` row; the console's Activity view gives each rung its
   median time, and a running rung reads `usually <median>` (test
   `fichero-builder/tests/test_status_page.py::test_activity_gives_each_rung_its_usual_time_and_a_running_rung_reads_it`).
+  Speed 5 (manager 2026-11-02): a guard's green is reused when its key is unchanged: sha256 of the guard's bytes, the git
+  tree ids of the inputs `[check].guard_inputs` declares for it (the whole tree when it declares none), the tree's diff and
+  status (the pinned overlay, anything uncommitted) and the interpreter, ruff and swiftlint versions; a red always runs again,
+  and any part that cannot be read means it runs. The cache is `<state>/guard-cache.json` (the chain and `builder check` only).
+  Test `fichero-server/tests/unit/workflows/test_check_tool.py::test_a_guard_green_is_reused_for_the_same_inputs_and_runs_again_when_one_changes`.
   **Stop** (manager 2026-11-02, built): pause = no new step is fed; `builder queue stop --lane L [--grace S]` = the session
   ends: the lane is paused, a live worker is told to commit what is green and end, and the loop closes the session when the
   grace is over (default 300 s) or the worker ends first; the tree is kept, a step in flight goes back to queued with a brief

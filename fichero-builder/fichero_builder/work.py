@@ -161,6 +161,7 @@ def do_check(a, repo: str, branch: str, head: str, ladder: str) -> dict:
     approve = bool(getattr(a, "approve_weakened", False))  # the manager approved weakened tests (an alert's approve)
     red_ok = bool(getattr(a, "approve_red", False))
     check_tool.ACTIVITY = lambda **kw: journal.append("activity", lane=a.name, **kw)
+    check_tool.GUARD_CACHE[0] = journal.STATE / "guard-cache.json"  # speed 5
     pin_new = bool(getattr(a, "approve_pinned_new", False))  # the manager approved a new file under a pinned path  # the manager approved a red-on-base refusal (an alert's approve)
     r = check_tool.ladder_over(repo, since, head, a.pinned, getattr(a, "ids", []), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok,
                                approve_pinned_new=pin_new)

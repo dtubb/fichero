@@ -856,3 +856,26 @@ def test_an_import_only_change_to_a_test_file_owes_no_red(tmp_path):
     (tmp_path / "test_imp.py").write_text("import os.path as path\ndef test_t():\n    assert path\n")
     g("add", "."), g("commit", "-q", "-m", "import only")
     assert ct.data_only(tmp_path, base, "HEAD", "test_imp.py")
+
+
+def test_a_guard_green_is_reused_for_the_same_inputs_and_runs_again_when_one_changes(tmp_path):
+    """Speed 5 (manager 2026-11-02): key = the guard file + its inputs' tree ids (or the whole tree) + tool versions."""
+    g, _ = _git_repo(tmp_path)
+    (tmp_path / "ci").mkdir()
+    (tmp_path / "ci" / "check_a.py").write_text("import pathlib, sys\nopen('ran', 'a').write('x')\nsys.exit(0)\n")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "m.py").write_text("x = 1\n")
+    (tmp_path / ".gitignore").write_text("ran\n")
+    g("add", "."), g("commit", "-q", "-m", "a guard")
+    cfg = ct.Config(guard_glob="ci/check_*.py", min_guards=1, guard_inputs={"check_a": ["src/"]})
+    ct.GUARD_CACHE[0] = tmp_path.parent / f"{tmp_path.name}-cache.json"
+    try:
+        assert ct.guards(tmp_path, cfg)["ok"] and (tmp_path / "ran").read_text() == "x"
+        r = ct.guards(tmp_path, cfg)
+        assert r["ok"] and r["results"][0].get("cached") and (tmp_path / "ran").read_text() == "x", "the same inputs: reused, not run"
+        (tmp_path / "src" / "m.py").write_text("x = 2\n")
+        g("commit", "-qam", "an input changed")
+        r = ct.guards(tmp_path, cfg)
+        assert r["ok"] and not r["results"][0].get("cached") and (tmp_path / "ran").read_text() == "xx", "an input changed: it runs"
+    finally:
+        ct.GUARD_CACHE[0] = None

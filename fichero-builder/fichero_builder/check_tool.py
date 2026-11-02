@@ -13,6 +13,7 @@ import difflib
 import fcntl
 import fnmatch
 import importlib.util
+import json
 import os
 import re
 import shlex
@@ -59,6 +60,7 @@ class Config:
     build_lock: str = ""                # a lock file: one build at a time on the machine ("" = no lock)
     remote: str = ""                    # "host:dir": the engine pytest runs go over ssh to that machine ("" = here); unreachable = an alert, then here
     remote_python: str = ""             # the interpreter there ("" = <dir>/venv/bin/python)
+    guard_inputs: dict = field(default_factory=dict)  # {guard stem: [path prefixes it reads]}: its cache key (speed 5); undeclared = the whole tree
     remote_guards: bool = False         # the guards too (they call git, and the shipped tree has no .git: off by default)
     remote_min_free_gb: float = 5       # less free on the remote = unreachable (an alert, the run here)
     engine_repo: str = ""               # the engine-owned repository check and land judge from: outside every home dir, readable by the jailed user ("" = the caller names one)
@@ -98,7 +100,7 @@ def load(root) -> Config:
         build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
         build_lock=c.get("build_lock", d.build_lock), engine_repo=c.get("engine_repo", d.engine_repo),
         remote=c.get("remote", d.remote), remote_python=c.get("remote_python", d.remote_python),
-        remote_guards=c.get("remote_guards", d.remote_guards), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb))
+        remote_guards=c.get("remote_guards", d.remote_guards), guard_inputs=dict(c.get("guard_inputs", {})), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb))
 
 
 KNOWN_TABLES = {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines"}
@@ -426,11 +428,71 @@ def guards(root, cfg: Config) -> dict:
         return {"ok": False, "reason": f"fewer than {cfg.min_guards} guards to run ({len(found)}): blind is not green",
                 "results": []}
     results = []
+    cache = _guard_cache_load()
     for s in found:
+        key = _guard_key(root, s, cfg) if GUARD_CACHE[0] else ""
+        if key and key in cache:  # the same guard, the same inputs, the same tools: its green is reused (speed 5)
+            results.append({**cache[key], "name": s.stem, "argv": [str(s)], "seconds": 0, "cached": True})
+            continue
         r = _run(s.stem, _isolated(s, root, cfg), root, cfg.guard_timeout_s, cfg, remote=cfg.remote_guards)
         r["argv"] = [str(s)]
         results.append(r)
+        if key and r["ok"]:  # only a green is kept: a red always runs again
+            cache[key] = {k: r[k] for k in ("exit_code", "ok", "timed_out", "stdout_tail", "stderr_tail")}
+    _guard_cache_save(cache)
     return {"ok": all(r["ok"] for r in results), "reason": "", "results": results}
+
+
+GUARD_CACHE: list = [None]  # the cache file, set by the chain and `builder check`; None (tests) = no cache
+_VERSIONS: list = []
+
+
+def _versions(cfg: Config) -> str:
+    """The interpreter and the linters a guard may call: a new version is a new key."""
+    if not _VERSIONS:
+        out = []
+        for argv in ([_py(cfg), "--version"], ["ruff", "--version"], ["swiftlint", "version"]):
+            try:
+                out.append(subprocess.run(argv, capture_output=True, text=True, timeout=30).stdout.strip())
+            except (OSError, subprocess.TimeoutExpired):
+                out.append("-")
+        _VERSIONS.append("|".join(out))
+    return _VERSIONS[0]
+
+
+def _guard_key(root, script: Path, cfg: Config) -> str:
+    """sha256 of the guard's own bytes, the git tree ids of the inputs it declares (or of the whole tree), and the tools'
+    versions; '' (no cache, it runs) when any part cannot be read. Any doubt = run."""
+    import hashlib
+    try:
+        h = hashlib.sha256(script.read_bytes())
+    except OSError:
+        return ""
+    prefixes = cfg.guard_inputs.get(script.stem) or [""]
+    for pre in prefixes:
+        tid = (_lines(root, "rev-parse", f"HEAD:{pre}".rstrip("/").rstrip(":") if pre else "HEAD^{tree}") or [""])[0]
+        if not tid:
+            return ""
+        h.update(f"{pre}={tid};".encode())
+    # what is not in the tree id: the pinned overlay and anything uncommitted (its diff and its status)
+    h.update("\n".join((_lines(root, "diff", "HEAD") or []) + (_lines(root, "status", "--porcelain", "--untracked-files=all") or [])).encode())
+    h.update(_versions(cfg).encode())
+    return h.hexdigest()
+
+
+def _guard_cache_load() -> dict:
+    try:
+        return json.loads(Path(GUARD_CACHE[0]).read_text()) if GUARD_CACHE[0] else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _guard_cache_save(cache: dict) -> None:
+    if GUARD_CACHE[0]:
+        try:
+            Path(GUARD_CACHE[0]).write_text(json.dumps(dict(list(cache.items())[-2000:])))
+        except OSError:
+            pass
 
 
 def contract_current(root, changed: list[str], cfg: Config, timeout_s: float = 300) -> dict:
