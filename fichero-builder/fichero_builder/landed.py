@@ -76,7 +76,7 @@ def live_worktrees() -> set[str]:
     return {os.path.realpath(x["worktree"]) for x in queue.load() if x["cursor"] < len(x["steps"])}
 
 
-def sweep(sh, repo_dir: str, ref: str, grace_h: float, removed: str, live: set[str], now: float | None = None) -> list[str]:
+def sweep(sh, repo_dir: str, ref: str, grace_h: float, removed: str, live: set[str], now: float | None = None, only: set | None = None) -> list[str]:
     """Remove each linked worktree of `repo_dir` whose HEAD is on `ref` (landed), idle for `grace_h` hours (the newer of its
     index's mtime and its HEAD's commit time) and held by no live lane: first its uncommitted and untracked files go to a
     patch under `removed` (kept even when the removal then fails), then `git worktree remove`, never rm; the branch stays
@@ -88,7 +88,7 @@ def sweep(sh, repo_dir: str, ref: str, grace_h: float, removed: str, live: set[s
     for block in listing.strip().split("\n\n")[1:]:  # the first is the main tree
         f = dict((ln.split(" ", 1) + [""])[:2] for ln in block.splitlines())
         wt, head = f.get("worktree", ""), f.get("HEAD", "")
-        if not wt or not head or os.path.realpath(wt) in live:
+        if not wt or not head or os.path.realpath(wt) in live or (only is not None and os.path.realpath(wt) not in only):
             continue
         if sh(f"{git} -C {q(repo_dir)} merge-base --is-ancestor {q(head)} {q(ref)}").returncode:
             continue  # not landed: work in progress
@@ -110,6 +110,23 @@ def sweep(sh, repo_dir: str, ref: str, grace_h: float, removed: str, live: set[s
         r = sh(f"{git} -C {q(repo_dir)} worktree remove --force {q(wt)}")
         out.append(f"{wt}: " + ("removed" if r.returncode == 0 else f"NOT removed ({(r.stderr or '').strip()[-200:]})") + f", patch {patch}")
     return out
+
+
+def sweep_one(root, worktree: str) -> tuple[int, str]:
+    """`builder sweep --worktree P`: the console's Clean up. The same sweep for that one tree with no grace (the owner asked
+    for it): landed, a patch first, `git worktree remove`, never rm. A jail tree is swept as the worker, any other as the owner."""
+    doc = tomllib.loads((Path(root) / "harness.toml").read_text())
+    branch, j = doc["land"]["branch"], jail.load(root)
+    wt = os.path.realpath(worktree)
+    if j is not None and j.workroot and wt.startswith(os.path.realpath(j.workroot) + "/"):
+        sh, repo_dir, removed = (lambda script: as_worker(j, script)), "root", f"{j.workroot}/.removed"
+    else:
+        sh = lambda script: subprocess.run(["sh", "-c", script], capture_output=True, text=True, cwd=str(root))  # noqa: E731
+        repo_dir, removed = str(Path(root).resolve()), str(journal.STATE / "removed")
+    done = sweep(sh, repo_dir, f"origin/{branch}", 0, removed, live_worktrees(), only={wt})
+    ok = bool(done) and ": removed" in done[0]
+    journal.append("sweep", worktree=wt, ok=ok, detail="; ".join(done) or "not swept: not a linked worktree of the repo, not landed, or a lane holds it")
+    return (0 if ok else 1), ("; ".join(done) or "not swept: not landed, or a lane holds it")
 
 
 def worktrees_of(sha: str) -> list[str]:

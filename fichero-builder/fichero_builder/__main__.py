@@ -142,6 +142,8 @@ def main(argv=None) -> int:
     bd = sub.add_parser("build", help="the dev DMG through the project's own script, as the owner: one journal row, the DMG's path and pass or fail; a full release is refused")
     bd.add_argument("--dev", action="store_true", help="required: the dev tier, no version stamp, no notarizing")
     bd.add_argument("--root", default=str(Path.cwd()), help="the checkout to build"), bd.add_argument("--state", help="where the journal and the log live (default: the owner's journal dir)")
+    sw = sub.add_parser("sweep", help="clean up one landed worktree through the landing's sweep: a patch first, git worktree remove, never rm; a jail tree as the worker")
+    sw.add_argument("--worktree", required=True), sw.add_argument("--root", default=str(Path.cwd())), sw.add_argument("--state")
     cs = sub.add_parser("status", help="the owner's console on 127.0.0.1: lanes live, alerts with their actions, Build, loop start/stop; /api/status, /api/events, POST /api/action onto the existing verbs")
     cs.add_argument("--port", type=int, default=8766), cs.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
     cs.add_argument("--root", default=str(Path.cwd()), help="the checkout whose harness.toml the verbs read")
@@ -272,6 +274,13 @@ def main(argv=None) -> int:
 
         journal.STATE = Path(a.state) if a.state else journal.STATE
         return queue.main(a)
+    if a.cmd == "sweep":
+        from fichero_builder import landed
+
+        journal.STATE = Path(a.state) if a.state else journal.STATE
+        rc, out = landed.sweep_one(a.root, a.worktree)
+        print(out)
+        return rc
     if a.cmd == "status":
         from fichero_builder import console
 

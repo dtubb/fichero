@@ -645,6 +645,15 @@ the write path would produce.
   it, Built, waiting to land when no step is still open, and is offered only when a step has nothing built and no lane holds
   the milestone. An external lane reads working when its HEAD moved in the last 15 minutes, else idle; a loop with no tick
   for three ticks reads "Loop is off: lanes are not fed or landed automatically", Start loop beside it.
+  Look (owner 2026-11-02): a Mac window: the system font (SF Mono for shas), the system colours light and dark, a toolbar with a
+  segmented control for the views and bordered buttons (Build prominent), summary cards with a coloured dot, an Activity
+  Monitor table (compact zebra rows, state pills: working a pulsing green dot, queued grey, paused orange, a question red),
+  relative times with the full time on hover, inline icons; a lane's step column is its id and title, its brief behind the
+  disclosure. Worktrees view (E): every worktree of the owner's checkout and of the jail root with branch, last commit, dirty,
+  landed (HEAD on origin/<land branch>) and the sweep's grace deadline; Clean up only on a landed, clean, linked tree no lane
+  holds, through `builder sweep --worktree P` = the landing's sweep for that one tree with no grace (a patch first,
+  `git worktree remove`, never rm; a jail tree as the worker), one `sweep` row (test
+  `fichero-builder/tests/test_status_page.py::test_worktrees_lists_each_tree_and_clean_up_sweeps_only_a_landed_clean_one_with_a_patch`).
   **Stop** (manager 2026-11-02, built): pause = no new step is fed; `builder queue stop --lane L [--grace S]` = the session
   ends: the lane is paused, a live worker is told to commit what is green and end, and the loop closes the session when the
   grace is over (default 300 s) or the worker ends first; the tree is kept, a step in flight goes back to queued with a brief

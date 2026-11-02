@@ -50,6 +50,7 @@ VERBS = {
     "done": (("lane", "sha"), lambda a: _builder("done", a["lane"], a["sha"], *_st())),
     "start-milestone": (("milestone",), lambda a: _builder("milestone", a["milestone"], "--enqueue", "--repo-dir", str(ROOT), *_st(),
                                                           "--out", str(journal.STATE / f"briefs-{queue.slug(a['milestone'])}"))),
+    "sweep": (("worktree",), lambda a: _builder("sweep", "--worktree", a["worktree"], "--root", str(ROOT), *_st())),
     "queue-add": (("lane", "worktree", "step", "brief", "issues", "kind"),
                   lambda a: _builder("queue", "add", "--lane", a["lane"], "--worktree", a["worktree"], "--step", a["step"], "--brief", a["brief"],
                                      "--kind", a.get("kind") or "worker", *_st(), "--issues", *a.get("issues", []))),
@@ -96,6 +97,7 @@ def act(verb: str, args: dict, who: str) -> dict:
 
     def go():
         rc, out = run_verb(argv)
+        _TREES.clear()  # a Clean up (or any action) shows at once
         journal.append("console", who=who, verb=verb, state="ended", ok=rc == 0, rc=rc, detail=out[-500:])
     t = threading.Thread(target=go, daemon=True)
     t.start()
@@ -118,6 +120,13 @@ def _title(brief: str) -> str:
     head = next((ln.lstrip("# ") for ln in lines if ln.startswith("#")), None)
     first = head or next((ln for ln in lines if not ln.upper().startswith("RULES")), "")
     return first.split(". ")[0][:120]
+
+
+def _head(brief: str, n: int = 3000) -> str:
+    try:
+        return Path(brief).read_text()[:n]
+    except OSError:
+        return ""
 
 
 WORKING_S = 15 * 60  # an external lane whose HEAD moved this recently is working
@@ -148,7 +157,8 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
         if x.get("kind") == "external" and row["state"] == "queued":  # no worker of ours: its own commits say whether it works
             row["state"] = "working" if ct and now - ct <= WORKING_S else "idle"
         row.update(
-            worktree=x["worktree"], title=_title(cur["brief"]) if cur else "",
+            worktree=x["worktree"], title=_title(cur["brief"]) if cur else "", brief_text=_head(cur["brief"]) if cur else "",
+            commit_ts=time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(ct)) if ct else "",
             steps=[{"step": s["step"], "state": s["state"], "issues": s["issues"], "why": s["why"][:300]} for s in x["steps"]],
             elapsed_s=int(now - started) if started else None,
             usd=round(sum(float(r.get("usd") or 0) for r in cost), 2), turns=cost[-1].get("turns") if cost else None,
@@ -284,6 +294,52 @@ def _closed_issues(name: str, gh: str) -> list[dict]:
     return json.loads(r.stdout) if r.returncode == 0 else []
 
 
+def _ts(t: float) -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(t)) if t else ""
+
+
+def worktrees(root, git=_git_text) -> dict:
+    """Every worktree of the owner's checkout and of the jail root: branch, last commit, dirty, landed (HEAD on origin/<land
+    branch>), the sweep's grace deadline, and whether Clean up is offered (landed, clean, not a main tree, no lane in it)."""
+    import tomllib
+    from fichero_builder import landed
+    doc = tomllib.loads((Path(root) / "harness.toml").read_text())
+    branch, grace = doc.get("land", {}).get("branch", "integration"), float(doc.get("land", {}).get("worktree_grace_hours", 36))
+    workroot = doc.get("jail", {}).get("workroot", "")
+    live = landed.live_worktrees()
+    todo = []
+    for repo, where in ((str(root), "checkout"), (f"{workroot}/root", "jail")) if workroot else ((str(root), "checkout"),):
+        blocks = git(repo, "worktree", "list", "--porcelain").strip().split("\n\n")
+        for k, block in enumerate(b for b in blocks if b.strip()):
+            f = dict((ln.split(" ", 1) + [""])[:2] for ln in block.splitlines())
+            if f.get("worktree") and Path(f["worktree"]).is_dir():
+                todo.append((repo, where, k, f))
+
+    def one(item) -> dict:
+        repo, where, k, f = item
+        wt = f["worktree"]
+        ct = int((git(wt, "log", "-1", "--format=%ct").strip() or "0"))
+        dirty = bool(git(wt, "status", "--porcelain").strip())
+        landed_ = bool(f.get("HEAD")) and subprocess.run(["git", "-c", "safe.directory=*", "-C", repo, "merge-base", "--is-ancestor", f["HEAD"], f"origin/{branch}"],
+                                                         capture_output=True).returncode == 0
+        return ({"path": wt, "where": where + (" (main tree)" if k == 0 else ""), "branch": f.get("branch", "").removeprefix("refs/heads/"),
+                    "commit_ts": _ts(ct), "dirty": dirty, "landed": landed_, "grace_until": _ts(ct + grace * 3600) if k and ct else "",
+                    "can_clean": k > 0 and landed_ and not dirty and os.path.realpath(wt) not in live and os.path.realpath(wt) != os.path.realpath(root)})
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=8) as pool:  # git status of ~35 trees one by one took 25 s
+        out = list(pool.map(one, todo))
+    return {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "trees": out}
+
+
+_TREES: dict = {}  # {"at": time, "data": ...}: a minute's cache; a console action (a Clean up) clears it
+
+
+def worktrees_cached(root) -> dict:
+    if not _TREES or time.time() - _TREES["at"] > 60:
+        _TREES.update(at=time.time(), data=worktrees(root))
+    return _TREES["data"]
+
+
 def _cache() -> Path:
     return journal.STATE / "console-milestones.json"
 
@@ -335,6 +391,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return _json(self, 200, json.loads(_cache().read_text()))
             except (OSError, ValueError):
                 return _json(self, 200, {"ts": None, "milestones": []})
+        if path == "/api/worktrees":
+            return _json(self, 200, worktrees_cached(ROOT))
         if path == "/api/events":
             return self._events()
         return _json(self, 404, {"error": "not found"})

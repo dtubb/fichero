@@ -3,6 +3,7 @@ today, spend today and open alerts, from the journal and the queue only; the sam
 from __future__ import annotations
 
 import json
+from pathlib import Path
 import threading
 import time
 import urllib.error
@@ -222,3 +223,36 @@ def test_each_issue_and_step_has_one_status_from_git_and_gh_and_start_is_offered
     assert st[1] == ("in progress", "lane-a aaaaaaaaa") and st[2] == ("built, waiting to land", "lane-a bbbbbbbbb")
     assert st[3] == ("open", "") and st[4] == ("released", "ccccccccc") and st[5] == ("landed", "ddddddddd")
     assert [r for r in console.RANK] == ["open", "in progress", "built, waiting to land", "landed", "released"], "lowest first: a step takes the lowest"
+
+
+def test_worktrees_lists_each_tree_and_clean_up_sweeps_only_a_landed_clean_one_with_a_patch(tmp_path, monkeypatch):
+    """View E (owner 2026-11-02): every worktree with branch, last commit, dirty, landed and the grace deadline; Clean up goes
+    through the landing's sweep (`builder sweep --worktree`): a patch first, `git worktree remove`, never rm."""
+    import subprocess
+
+    from fichero_builder import landed
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    monkeypatch.setattr(landed, "live_worktrees", lambda: set())
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    def g(cwd, *a):
+        return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
+    g(repo, "init", "-q", "-b", "main")
+    (repo / "harness.toml").write_text('[land]\nbranch = "integration"\nworktree_grace_hours = 36\n')
+    g(repo, "add", "."), g(repo, "commit", "-qm", "base")
+    g(repo, "update-ref", "refs/remotes/origin/integration", "HEAD")
+    g(repo, "worktree", "add", "-q", "-b", "done-lane", str(tmp_path / "done"), "HEAD")
+    g(repo, "worktree", "add", "-q", "-b", "busy-lane", str(tmp_path / "busy"), "HEAD")
+    (tmp_path / "busy" / "wip.txt").write_text("uncommitted")
+    d = console.worktrees(repo)
+    by = {Path(t["path"]).name: t for t in d["trees"]}
+    assert by["repo"]["where"] == "checkout (main tree)" and not by["repo"]["can_clean"]
+    assert by["done"]["landed"] and not by["done"]["dirty"] and by["done"]["can_clean"] and by["done"]["branch"] == "done-lane" and by["done"]["grace_until"]
+    assert by["busy"]["dirty"] and not by["busy"]["can_clean"], "a dirty tree is never offered"
+    rc, out = landed.sweep_one(repo, str(tmp_path / "done"))
+    assert rc == 0 and not (tmp_path / "done").exists() and "patch" in out
+    assert g(repo, "branch", "--list", "done-lane"), "the branch stays"
+    (row,) = [r for r in journal.read() if r["event"] == "sweep"]
+    assert row["ok"] and row["worktree"].endswith("done")
+    assert console.argv_for("sweep", {"worktree": "/w/x"})[3:6] == ["sweep", "--worktree", "/w/x"]
