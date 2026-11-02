@@ -28,10 +28,10 @@ class Fake:
         self.polled[h] = self.polled.get(h, 0) + 1
         return self.ends[h] if self.polled[h] >= 2 else None
 
-    def landed(self, head, push):
-        self.landed_calls.append((head, push))
+    def landed(self, item, push):
+        self.landed_calls.append((item["head"], push))
         if self.landed_rc == 0:
-            self.origin.add(head)
+            self.origin.add(item["head"])
         return self.landed_rc, "landed" if self.landed_rc == 0 else "REFUSED (verdict): no READY"
 
 
@@ -97,6 +97,12 @@ def test_once_does_one_pass_and_the_verb_prints_the_table(state, capsys):
 
 def test_workers_comes_from_the_rules_file_and_defaults_to_one(state, tmp_path):
     assert queue.workers(state) == 2 and queue.workers(tmp_path / "nowhere") == 1
+
+
+def test_the_real_landed_call_names_the_items_own_verdict_store(state):
+    """`builder work --name <id>` writes verdicts-<id>.json; the landing must read that one, not a shared verdicts.json."""
+    argv = queue.landed_argv(state, {"id": "step-1.1", "head": "abc1234def"}, True)
+    assert argv[3:5] == ["landed", "abc1234def"] and argv[argv.index("--verdicts") + 1] == str(state / "s" / "verdicts-step-1.1.json") and argv[-1] == "--push"
 
 
 def test_the_watch_page_shows_the_queue(state):
