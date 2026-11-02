@@ -258,7 +258,7 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   covers the "empty selection on a `.collection`-input workflow" case this
   behavior named, and the dispatched run uses the CONFIRMED scope rather than
   re-resolving it. Pinned: `WorkflowEditorRunGateTests`.
-- `workflows.run.provenance-run-id-on-artifacts` — **[GAP]** artifacts carry
+- `workflows.run.provenance-run-id-on-artifacts` — **[OK]** (built: 428c4ee77f, #4313 — `workflows/node_context.py` stamps run_id, step_name, workflow_id and a per-run sequence on the live path; pinned by `fichero-server/tests/unit/workflows/test_run_artifact_provenance.py`, 5 pass 2026-11-02, incl. a stubbed run whose artifacts link to it.) Was: artifacts carry
   `run_id`/`step_name` fields but the live execution path never populates them
   (2026-07-29 review F1 — carried as design evidence; the "Runs on N documents"
   provenance ruling from the workflows-done-right mandate depends on this).
@@ -477,7 +477,7 @@ Engine only, one pytest per step. Each step flips its tags only with its test gr
 
 #### Step 1.2 — A run's id and step name reach its artifacts (#4312)
 - Behaviours: `workflows.run.provenance-run-id-on-artifacts`
-- Tests: fichero-server/tests/unit/workflows/test_run_id_on_artifacts_to_spec.py (not yet written)
+- Tests: fichero-server/tests/unit/workflows/test_run_artifact_provenance.py
 - Size: M
 
 #### Step 1.3 — A paused run can be cancelled, deleted and resumed; a failed run frees its documents (#4312)
