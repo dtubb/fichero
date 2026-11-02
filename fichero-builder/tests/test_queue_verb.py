@@ -203,6 +203,7 @@ def test_the_workers_cap_comes_from_the_rules_file_and_defaults_to_one(state, tm
 def test_the_real_landing_reads_the_lanes_own_verdict_store(state):
     argv = queue.landed_argv(state, "m1", "abc1234def", True)
     assert argv[3:5] == ["landed", "abc1234def"] and argv[argv.index("--verdicts") + 1] == str(state / "s" / "verdicts-m1.json") and argv[-1] == "--push"
+    assert "--keep-worktree" in argv, "the lane's session is still working in that worktree"
 
 
 def test_the_real_start_makes_the_worktree_and_runs_the_worker_side_with_its_feed_as_the_jail_user(state, monkeypatch):

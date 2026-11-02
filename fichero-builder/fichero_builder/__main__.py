@@ -103,6 +103,7 @@ def main(argv=None) -> int:
     ld.add_argument("--gh", default="gh")
     ld.add_argument("--push", action="store_true", help="push sha to origin/<branch> first; nothing else ever sets this")
     ld.add_argument("--no-issues", action="store_true", help="leave the cited issues alone")
+    ld.add_argument("--keep-worktree", action="store_true", help="leave the worktree the work rows name: the queue's session is still open in it")
     ld.add_argument("--state", help="where the owner's journal lives (default: the owner's journal dir)")
     tr = sub.add_parser("triage", help="clean up the repo's GitHub metadata directly by the rules in harness.toml [triage]; --dry reads only")
     tr.add_argument("--labels", action="store_true", help="the closed label set only (step, type, priority, phase, needs-*, status:blocked); the rest moved by [triage.labels] then deleted")
