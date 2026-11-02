@@ -226,12 +226,9 @@ def real_procs(root) -> Procs:
                                      tick=30.0, issues=step["issues"] if step else [], brief=step["brief"] if step else "", ids=[], repo=repo)
 
     def start(lane, step):
-        a, q, g = ns(lane, step), shlex.quote, shlex.quote(work.jail_git())
-        wt = q(lane["worktree"])
-        r = work.as_worker(a, f"test -d {wt} || ({g} -C root fetch -q origin {q(branch)} && "
-                              f"{g} -C root worktree add -q -b {q('lane-' + lane['id'])} {wt} origin/{q(branch)})")
-        if r.returncode:
-            raise RuntimeError(f"the lane's worktree could not be made: {(r.stderr or r.stdout).strip()[-300:]}")
+        a, q = ns(lane, step), shlex.quote
+        if why := work.ensure_worktree(a, f"lane-{lane['id']}"):
+            raise RuntimeError(why)
         j = work._jail(a)
         # the owner's folder: a worker cannot write its own next brief. The workroot is world-writable, so the name is one no worker can
         # plant a link at: made exclusively, then opened to reading (the sticky bit keeps a worker from replacing it)

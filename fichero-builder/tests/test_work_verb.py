@@ -400,3 +400,29 @@ def test_a_red_guard_is_named_in_what_goes_back_to_the_worker():
     r = {"rungs": [{"name": "guards", "ok": False, "results": [{"name": "check_a", "ok": True, "stderr_tail": "fine"}, {"name": "check_b", "ok": False, "stdout_tail": "b is wrong"}]}]}
     text = work._tail(r)
     assert "check_b" in text and "b is wrong" in text and "check_a" not in text
+
+
+def test_run_makes_a_missing_worktree_as_the_jail_user_from_its_clone_and_leaves_an_existing_one(scratch, monkeypatch):
+    """Maintainer's answer: the worker's worktree is made as the jail user when missing, from `<workroot>/root` at the base."""
+    root = scratch.tmp / "wr" / "root"
+    subprocess.run(["git", "clone", "-q", str(scratch.engine), str(root)], check=True)
+    (scratch.tmp / "pin" / "harness.toml").write_text((scratch.tmp / "pin" / "harness.toml").read_text() + '[land]\nbranch = "integration"\n')
+    wt = scratch.tmp / "wr" / "wt-n9"
+    scratch.a.worktree, scratch.a.name = str(wt), "n9"
+    assert work.ensure_worktree(scratch.a, "n9") == ""
+    assert _g(wt, "rev-parse", "--abbrev-ref", "HEAD") == "n9" and (wt / "f").exists(), "a real worktree on a new branch, at origin's head"
+    made = len(scratch.ran)
+    assert work.ensure_worktree(scratch.a, "n9") == "" and len(scratch.ran) == made, "an existing one is left alone"
+    scratch.a.worktree = str(scratch.tmp / "wr" / "wt-other")
+    scratch.a.base = _g(root, "rev-parse", "HEAD")
+    assert work.ensure_worktree(scratch.a, "other") == ""
+    assert _g(scratch.a.worktree, "rev-parse", "HEAD") == scratch.a.base, "--base when one is given"
+    scratch.a.worktree, scratch.a.base = str(scratch.tmp / "wr" / "wt-bad"), "0" * 40
+    assert "could not be made" in work.ensure_worktree(scratch.a, "bad")
+
+
+def test_do_run_refuses_with_the_reason_when_the_worktree_cannot_be_made(scratch, monkeypatch):
+    monkeypatch.setattr(work.jail.Jail, "require", lambda self: None)
+    monkeypatch.setattr(work, "ensure_worktree", lambda a, name: "the worktree could not be made: nope")
+    with pytest.raises(RuntimeError, match="nope"):
+        work.do_run(scratch.a, "sonnet")

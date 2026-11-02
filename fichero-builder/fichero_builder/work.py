@@ -66,10 +66,24 @@ def run_cmd(a, model: str, *extra) -> str:
                      *(shlex.quote(str(x)) for x in extra)])
 
 
+def ensure_worktree(a, new_branch: str) -> str:
+    """As the worker, when the worktree is missing: `<workroot>/root` makes it on a new branch at --base, else origin's head of the
+    land branch. '' or why it could not. The path is checked first, so an existing tree costs no sudo."""
+    if Path(a.worktree).exists():
+        return ""
+    q, g, branch = shlex.quote, shlex.quote(jail_git()), tomllib.loads((Path(a.pinned) / "harness.toml").read_text())["land"]["branch"]
+    root = q(str(Path(_jail(a).workroot) / "root"))
+    r = as_worker(a, f"{g} -C {root} fetch -q origin {q(branch)} && {g} -C {root} worktree add -q -b {q(new_branch)} {q(str(a.worktree))} "
+                     f"{q(getattr(a, 'base', '') or 'origin/' + branch)}")
+    return "" if r.returncode == 0 else f"the worktree could not be made: {(r.stderr or r.stdout).strip()[-300:]}"
+
+
 def do_run(a, model: str) -> str:
     """`builder run` as the jail user; the end is read from the SHARED journal (the cost row, and the worker row's worktree)."""
     j = _jail(a)
     j.require()
+    if why := ensure_worktree(a, a.name):
+        raise RuntimeError(why)
     before = len(_shared_rows(a))
     codemap.provide(a.pinned)
     cmd = run_cmd(a, model)
