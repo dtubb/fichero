@@ -495,8 +495,8 @@ Engine only, one pytest per step. Each step flips its tags only with its test gr
 - Tests: fichero-server/tests/unit/workflows/test_text_reflow_has_no_ai_option_5921.py
 - Size: S
 
-#### Step 1.6 — Engine served-contract gaps: ports, requires-vision, lazy source node (#4736, #4390)
-- Behaviours: `workflows.canvas.ports-come-from-registry`, `workflows.requires-vision-unknown`, `workflows.source-node-hydrates-lazily`, `workflows.run.source-tools-excluded-from-file-columns`
+#### Step 1.6 — Engine: requires-vision can say unknown; the source node hydrates lazily (#4506, #4390); both wait on a ruling or a design (see the handoff)
+- Behaviours: `workflows.requires-vision-unknown`, `workflows.source-node-hydrates-lazily`
 - Tests: fichero-server/tests/unit/workflows/test_served_contract_to_spec.py (not yet written)
 - Size: M
 
@@ -563,7 +563,7 @@ Swift, after the Stage 1-3 regeneration. Pure types are verified with a standalo
 - Size: S
 
 #### Step 4.2 — Pause, Resume and Stop show their state at once (#4402)
-- Behaviours: `workflows.run.controls-are-fire-and-forget`, `workflows.bar.step-popover-run-glance`, `workflows.bar.labels-toggle-persists`
+- Behaviours: `workflows.run.controls-are-fire-and-forget`, `workflows.bar.step-popover-run-glance`, `workflows.bar.labels-toggle-persists`, `workflows.run.source-tools-excluded-from-file-columns`
 - Tests: fichero/Tests/Unit/general/Workflow/WorkflowRunControlsTests.swift (not yet written)
 - Size: S
 
@@ -577,7 +577,7 @@ Swift, after the Stage 1-3 regeneration. Pure types are verified with a standalo
 Swift.
 
 #### Step 5.1 — The canvas draws ports from the registry only, shows every executable tool, and renders nodes and edges as designed (#4736, #2440, #4797)
-- Behaviours: `workflows.canvas.renders-nodes-edges-ports`, `workflows.canvas.hidden-tools-in-palette`, `workflows.canvas.every-node-editable-tool`
+- Behaviours: `workflows.canvas.renders-nodes-edges-ports`, `workflows.canvas.hidden-tools-in-palette`, `workflows.canvas.every-node-editable-tool`, `workflows.canvas.ports-come-from-registry`
 - Tests: fichero/Tests/Unit/general/Workflow/WorkflowCanvasPortsTests.swift (not yet written)
 - Size: M
 
