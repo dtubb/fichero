@@ -149,11 +149,11 @@ def write_verdict(store, root, base: str, head: str, allow_shadow=()) -> str:
     return key
 
 
-def unreviewed(root, branch: str, head: str, store) -> list[str]:
+def unreviewed(root, branch: str, head: str, store, base: str = "") -> list[str]:
     """What stops a land: the range branch..head has no READY verdict for its exact commits, or `branch` is not an
     ancestor of head. Empty = clear."""
     try:
-        base = resolve_branch(root, branch)
+        base = base or resolve_branch(root, branch)  # `builder landed` may pass origin's tip: a lagging local ref (2026-11-02)
         if subprocess.run([GIT, "-C", str(root), "merge-base", "--is-ancestor", base, head], capture_output=True).returncode:
             return [f"{branch} is not an ancestor of {head[:10]}: land takes a fast-forward of the land branch only"]
         keys = commit_keys(root, base, head)

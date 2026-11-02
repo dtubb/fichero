@@ -274,19 +274,31 @@ def main(a) -> int:
         row("rules", False, str(e))
         print(f"REFUSED (rules file): {e}", file=sys.stderr)
         return 1
-    sha = a.sha
+    # one full sha for every comparison: a short one typed never matches a check row's head (manager 2026-11-02)
+    sha = _git(repo, "rev-parse", "--verify", "--end-of-options", f"{a.sha}^{{commit}}").stdout.strip()
+    if not sha:
+        row("sha", False, f"{a.sha!r} is not a commit in {repo}")
+        print(f"REFUSED (sha): {a.sha!r} is not a commit in {repo}", file=sys.stderr)
+        return 1
+    a.sha = sha
+    # the engine repo's local land branch can lag origin, and a check or review made over origin/<branch> is the same batch:
+    # the verdict and the check row may be over either base (manager 2026-11-02)
+    _git(repo, "fetch", "-q", "origin")
+    bases = list(dict.fromkeys(x for x in (land_tool.resolve_branch(repo, branch),
+                                           _git(repo, "rev-parse", "--verify", "-q", f"refs/remotes/origin/{branch}^{{commit}}").stdout.strip()) if x))
 
     def verdict():  # without --verdicts: the stores under --state (`builder work` and the queue write verdicts-<name>.json there)
         stores = [Path(a.verdicts)] if a.verdicts else sorted(journal.STATE.glob("verdicts*.json"))
         stops = []
         for store in stores:
-            if not (stop := land_tool.unreviewed(repo, branch, sha, store)):
-                return f"READY for the exact range in {store}"
+            for b in bases:
+                if not (stop := land_tool.unreviewed(repo, branch, sha, store, base=b)):
+                    return f"READY for the exact range in {store}"
             stops += stop
         raise Red("no READY verdict: " + ("; ".join(stops) or f"no verdict store under {journal.STATE}"))
 
     def check_row():
-        row_ = land_tool.green_row(journal.read(), sha, land_tool.resolve_branch(repo, branch))
+        row_ = next((r for b in bases if (r := land_tool.green_row(journal.read(), sha, b))), None)
         if row_ is None:
             raise Red(f"no green `builder check` row over {branch}..{sha[:9]} in {journal.path()}")
         return "green check row" + (" (a maintainer batch)" if row_.get("maintainer") else "")

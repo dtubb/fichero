@@ -530,3 +530,29 @@ def test_a_sweep_whose_patch_cannot_be_written_keeps_the_tree_and_alerts(world):
     assert len(done) == 1 and "kept, no patch" in done[0]
     (a,) = [r for r in journal.read() if r["event"] == "alert"]
     assert a["step"] == "sweep" and str(wt) in a["what"]
+
+
+def test_a_short_sha_is_resolved_before_every_comparison(world):
+    """Manager 2026-11-02: `builder landed <short sha>` refused check-row: the row holds the full head."""
+    world.ready(), world.green()
+    st = str(world.tmp / "s")
+    assert cli.main(["landed", world.sha[:9], "--root", str(world.tmp), "--verdicts", str(world.store), "--gh", str(world.tmp / "gh"), "--state", st, "--push"]) == 0
+    assert rows()[-1]["step"] == "done" and rows()[-1]["sha"] == world.sha
+    assert cli.main(["landed", "nonesuch", "--root", str(world.tmp), "--state", st]) == 1
+    assert rows()[-1]["step"] == "sha" and rows()[-1]["ok"] is False
+
+
+def test_a_check_and_review_over_origin_land_while_the_local_land_branch_lags(world):
+    """Manager 2026-11-02: the engine repo's local integration lagged origin; the check and review over origin/integration
+    are the same batch, so landed accepts a verdict and a check row over either base."""
+    _g(world.seed, "commit", "-q", "--allow-empty", "-m", "a landing by hand")
+    _g(world.seed, "push", "-q", str(world.origin), "HEAD:integration")  # origin moved; the engine's local integration did not
+    _g(world.engine, "fetch", "-q", "origin")
+    tip = _g(world.engine, "rev-parse", "refs/remotes/origin/integration")
+    assert _g(world.engine, "rev-parse", "integration") != tip
+    land_tool.write_verdict(world.store, world.engine, tip, world.sha) if _g(world.engine, "merge-base", tip, world.sha) == tip else None
+    journal.append("check", repo=str(world.engine), since=tip, head=world.sha, ok=True, failed="")
+    world.go()
+    names = [r["step"] for r in rows()]
+    assert "verdict" in names or "check-row" in names
+    assert not any(r["step"] == "check-row" and r["ok"] is False for r in rows()), "a check row over origin's tip counts"
