@@ -150,6 +150,7 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     seen = None
     told: set[str] = set()
     state: dict = {}
+    nudged = False
     unsaid = 0  # ticks idle with the branch moved and no DONE line (defect 2: a worker that commits and never says DONE)
     while True:
         procs.sleep(tick_s)
@@ -182,12 +183,13 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
         m = done.search(state.get("last_text", "")) if state.get("idle") else None
         head = procs.head() if state.get("idle") else ""
         unsaid = unsaid + 1 if head and head != base and not (m and head.startswith(m.group(1))) else 0
-        if unsaid == 2:
+        if unsaid == 2 and not nudged:
             words = f"Your branch has commits and your turn ended without the DONE line: end your turn with the exact line DONE {head[:7]}"
             journal.append("watch", task=name, what=f"nudge: {words}")
             out(f"{name}: nudged for the DONE line ({head[:7]})")
             procs.tell(pane, words)
-        elif unsaid >= 4:
+            unsaid, nudged = 0, True
+        elif unsaid >= 2:  # one nudge only: a reply with no line must not reset it into a nudge loop
             journal.append("watch", task=name, what=f"done-unsaid: the branch is at {head[:9]}, idle, no DONE line after a nudge")
             procs.stop(pane)
             end = "done-unsaid"
@@ -219,7 +221,7 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             journal.append("worker", task=name, pane=pane, model=model, kind=kind, worktree=str(worktree), generation=gen)
             out(f"{name}: handoff, generation {gen} started")
             started = last_change = procs.now()
-            seen, state, told, unsaid = None, {}, set(), 0
+            seen, state, told, unsaid, nudged = None, {}, set(), 0, False
             continue
     journal.append("cost", task=name, model=model, usd=round(watcher.cost_of(state, spend, model), 4),
                    tokens=state.get("tokens", 0), turns=state.get("turns", 0), seconds=int(procs.now() - started), end=end,

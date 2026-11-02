@@ -250,3 +250,21 @@ def test_a_done_line_naming_the_wrong_sha_on_a_moved_branch_is_nudged_and_ended_
     fake.procs.tell = lambda pane, words: told.append(words)
     assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None) == "done-unsaid"
     assert len(told) == 1 and told[0].endswith("DONE bbbb222")
+
+
+def test_a_worker_that_answers_the_nudge_without_the_line_still_ends(root):
+    """One nudge only: a reply with no DONE line between the idle ticks must not reset it into a nudge loop."""
+    told = []
+    idle = {**HEALTHY, "idle": True, "moved": True, "last_text": "Committed."}
+    busy = {**HEALTHY, "moved": False}
+    fake = Fake([idle, idle, busy, idle, idle, HEALTHY])
+    fake.procs.tell = lambda pane, words: told.append(words)
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None) == "done-unsaid"
+    assert len(told) == 1
+
+
+def test_the_brief_copy_is_ignored_so_a_worker_cannot_commit_it():
+    import os
+
+    root = Path(run.__file__).resolve().parents[2]
+    assert ".builder-brief-*" in (root / ".gitignore").read_text().splitlines(), os.fspath(root)

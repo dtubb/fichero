@@ -204,13 +204,11 @@ def test_the_cited_issues_are_closed_or_commented_through_gh(world):
 
 
 def test_issues_are_untouched_until_the_sha_is_on_origin(world):
-    """Never before the commit is on origin/<branch>: without --push and without a hand push, the issues step is a row
-    that says so and gh is not called; the landing still completes."""
+    """Never before the commit is on origin/<branch>: without --push and without a hand push the landing stops at on-origin."""
     world.ready(), world.green()
-    assert world.go() == 0
+    assert world.go() == 1
     assert not world.gh_log.exists()
-    assert "not on origin/integration" in next(r["detail"] for r in rows() if r["step"] == "issues")
-    assert rows()[-1]["step"] == "done"
+    assert rows()[-1]["step"] == "on-origin" and "not on origin/integration" in rows()[-1]["detail"]
 
 
 def test_the_spec_behaviour_line_a_landed_commit_names_gets_ok_with_the_test(world):

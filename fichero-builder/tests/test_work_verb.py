@@ -246,7 +246,6 @@ def test_work_check_passes_a_resolved_sha_as_since_and_the_items_ids_as_protecte
     assert kw[0].get("maintainer") is not True, "builder work can never set the maintainer flag"
 
 
-
 @pytest.fixture
 def real_chain(scratch, monkeypatch):
     """The real `work` main over a pinned rules file; only the sudo boundary is faked (what the worker leaves in the shared journal)."""
@@ -380,3 +379,10 @@ def test_a_pinned_copy_removed_under_the_chain_is_a_question_not_a_traceback(cha
     monkeypatch.setattr(work, "do_rebase", gone)
     assert chain() == 2
     assert "QUESTION: " in capsys.readouterr().out and rows()[-1]["ok"] is False and "no [jail]" in rows()[-1]["detail"]
+
+
+def test_a_worker_that_committed_and_never_said_done_goes_on_to_the_check(chain, monkeypatch):
+    """`builder run` ends such a worker `done-unsaid` with exit 0: the branch has the work, so the check judges it, as for done."""
+    monkeypatch.setattr(work, "do_run", lambda a, model: "done-unsaid")
+    assert chain() == 0
+    assert next(r for r in rows() if r["step"] == "run")["ok"] is True

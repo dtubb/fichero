@@ -225,7 +225,7 @@ def _chain(a) -> int:
     except (RuntimeError, OSError, ValueError) as e:  # JailMissing is a RuntimeError: a start that raised is a question, not a traceback
         step("run", False, str(e))
         return question(f"the worker could not run: {e}")
-    if not step("run", end == "done", end):
+    if not step("run", end in ("done", "done-unsaid"), end):
         return question(f"the worker ended {end!r}, not done; read its handoff and the journal, then decide")
     why = do_rebase(a, branch)
     if not step("rebase", not why, why or f"on top of origin/{branch}"):

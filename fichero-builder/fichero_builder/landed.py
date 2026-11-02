@@ -269,12 +269,10 @@ def main(a) -> int:
         cited[:] = cited_issues(repo, base, sha)
         if a.no_issues:
             return "skipped (--no-issues)"
-        if _git(repo, "merge-base", "--is-ancestor", sha, f"refs/remotes/origin/{branch}").returncode:
-            return f"not on origin/{branch}: issues untouched (push first)"
         return "; ".join(update_issues(a.gh, cited, branch, sha)) or "no issue cited"
 
     def specs():
-        if a.no_issues or _git(repo, "merge-base", "--is-ancestor", sha, f"refs/remotes/origin/{branch}").returncode:
+        if a.no_issues:
             return "untouched"
         changed = mark_specs_ok(a.root, commits_of(repo, base, sha))
         for ch in changed:
