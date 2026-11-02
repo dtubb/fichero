@@ -101,3 +101,18 @@ def test_a_planted_install_folder_refuses_the_copy_and_touches_nothing_behind_it
     (world.wr / "jcodemunch").symlink_to(private)
     assert codemap.provide(world.root) == ""
     assert list(private.iterdir()) == [] and "not provided" in capsys.readouterr().out
+
+
+def test_a_folder_planted_between_the_check_and_the_mkdir_is_refused(world, tmp_path, monkeypatch, capsys):
+    """Review of range 3: check-then-mkdir(exist_ok) let a worker plant a link in between. The folder is made first, then checked."""
+    private = tmp_path / "private"
+    private.mkdir()
+    real_mkdir = codemap.os.mkdir
+
+    def racing_mkdir(path, *a, **k):
+        if str(path) == str(world.wr / "jcodemunch") and not (world.wr / "jcodemunch").exists():
+            (world.wr / "jcodemunch").symlink_to(private)  # the worker wins the race
+        return real_mkdir(path, *a, **k)
+    monkeypatch.setattr(codemap.os, "mkdir", racing_mkdir)
+    assert codemap.provide(world.root) == ""
+    assert list(private.iterdir()) == [] and "not provided" in capsys.readouterr().out
