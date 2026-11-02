@@ -30,7 +30,7 @@ from fichero_server.execution.chaining import (
 from fichero_server.workflows.types import WorkflowDef
 from fichero_server.workflows.workflow_store import WorkflowStore
 from fichero_server.db import db_manager
-from fichero_server.api.library_header import require_library_path
+from fichero_server.api.library_header import optional_library_path, require_library_path
 from fichero_server.api.routes.auth.accounts import _require_owner_for_writes
 from fichero_server.api.main import (
     assert_library_read_authorized, get_library_database_for_write, input_document_ids, recipe_check, write_check,
@@ -507,6 +507,14 @@ async def _check_chain(http_request: Request, library_path: str, db: Database, *
         await write_check(http_request, library_path, db, list(dict.fromkeys(named)))
 
 
+def _chain_db(http_request: Request, library_path: str | None) -> Database | None:
+    """The open library's database, read-authorised; None when the caller names no library (the process's own chains)."""
+    if not library_path:
+        return None
+    assert_library_read_authorized(http_request, library_path)
+    return db_manager.get_database(library_path)
+
+
 @router.post("", response_model=ChainResponse)
 async def create_chain(request: CreateChainRequest, http_request: Request, x_fichero_library_path: str = Depends(require_library_path),
                        db: Database = Depends(get_library_database_for_write)) -> ChainResponse:
@@ -553,24 +561,27 @@ async def create_chain(request: CreateChainRequest, http_request: Request, x_fic
         initial_inputs=request.initial_inputs,
     )
 
-    saved = chain_store.save(chain)
+    saved = chain_store.save(chain, db)
     return _chain_to_response(saved)
 
 
 @router.get("", response_model=ChainListResponse)
-async def list_chains(limit: int = 50, offset: int = 0) -> ChainListResponse:
-    """List all workflow chains."""
-    chains = chain_store.list(limit=limit, offset=offset)
+async def list_chains(http_request: Request, limit: int = 50, offset: int = 0,
+                      library_path: str | None = Depends(optional_library_path)) -> ChainListResponse:
+    """List the workflow chains of the open library (the process's own when no library is named)."""
+    db = _chain_db(http_request, library_path)
+    chains = chain_store.list(limit=limit, offset=offset, db=db)
     return ChainListResponse(
         chains=[_chain_to_response(c) for c in chains],
-        total=len(chain_store._chains),
+        total=chain_store.count(db),
     )
 
 
 @router.get("/{chain_id}", response_model=ChainResponse)
-async def get_chain(chain_id: str) -> ChainResponse:
+async def get_chain(chain_id: str, http_request: Request,
+                    library_path: str | None = Depends(optional_library_path)) -> ChainResponse:
     """Get a workflow chain by ID."""
-    chain = chain_store.get(chain_id)
+    chain = chain_store.get(chain_id, _chain_db(http_request, library_path))
     if not chain:
         raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
     return _chain_to_response(chain)
@@ -582,7 +593,7 @@ async def update_chain(chain_id: str, request: UpdateChainRequest, http_request:
                        db: Database = Depends(get_library_database_for_write)) -> ChainResponse:
     """Update an existing workflow chain."""
     await _check_chain(http_request, x_fichero_library_path, db, *(s.static_inputs for s in request.steps or []))
-    chain = chain_store.get(chain_id)
+    chain = chain_store.get(chain_id, db)
     if not chain:
         raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
 
@@ -629,7 +640,7 @@ async def update_chain(chain_id: str, request: UpdateChainRequest, http_request:
             )
         chain.steps = steps
 
-    saved = chain_store.save(chain)
+    saved = chain_store.save(chain, db)
     return _chain_to_response(saved)
 
 
@@ -638,7 +649,7 @@ async def delete_chain(chain_id: str, http_request: Request, x_fichero_library_p
                        db: Database = Depends(get_library_database_for_write)) -> ChainDeletedResponse:
     """Delete a workflow chain."""
     await _check_chain(http_request, x_fichero_library_path, db)
-    if not chain_store.delete(chain_id):
+    if not chain_store.delete(chain_id, db):
         raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
     return ChainDeletedResponse(deleted=True, id=chain_id)
 
@@ -671,7 +682,7 @@ async def paleography_preset_create(
     chain, matched = _build_paleography_chain(
         _chain_candidate_workflows(db, x_fichero_library_path)
     )
-    saved = chain_store.save(chain)
+    saved = chain_store.save(chain, db)
     return PaleographyPresetResponse(
         chain=_chain_to_response(saved),
         matched_workflows=matched,
@@ -698,7 +709,7 @@ async def execute_chain(
 
     Requires X-Fichero-Library-Path header to identify the library.
     """
-    chain = chain_store.get(chain_id)
+    chain = chain_store.get(chain_id, db)
     if not chain:
         raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
     assert_library_read_authorized(http_request, x_fichero_library_path)
@@ -1230,11 +1241,11 @@ async def execute_chain_steps(
     any step's SSE stream_url as it runs.
     """
     # Every step is a run that reads and writes the documents the inputs AND the step's own static_inputs name (they win).
-    if (stored := chain_store.get(chain_id)) is None:
+    if (stored := chain_store.get(chain_id, db)) is None:
         await _check_chain(http_request, x_fichero_library_path, db, request.inputs)
     else:
         await _check_chain(http_request, x_fichero_library_path, db, request.inputs, *(st.static_inputs for st in stored.steps), steps=stored.steps)
-    chain = chain_store.get(chain_id)
+    chain = chain_store.get(chain_id, db)
     if not chain:
         raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
     if not chain.steps:
