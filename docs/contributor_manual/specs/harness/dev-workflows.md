@@ -697,6 +697,13 @@ the write path would produce.
   status (the pinned overlay, anything uncommitted) and the interpreter, ruff and swiftlint versions; a red always runs again,
   and any part that cannot be read means it runs. The cache is `<state>/guard-cache.json` (the chain and `builder check` only).
   Test `fichero-server/tests/unit/workflows/test_check_tool.py::test_a_guard_green_is_reused_for_the_same_inputs_and_runs_again_when_one_changes`.
+  Soak fixes 11:40 (manager): one approve carries every reason the refusal listed (maintainer, weakened, pinned-new, red: an
+  approve had re-run with maintainer only and refused again on the weakened tests it listed); an external lane's red offers
+  send-back | retry | park, and a send-back or park tells its pane what to fix and the exact `builder done <lane>` command (park
+  keeps the lane: its next done re-takes); every findings tell names that command too; the landing closes its issues right
+  after on-origin, before the refresh, so a jail-root failure never loses the closes; on new code the loop stops starting chains
+  until it re-execs (serial chains never left it a quiet tick). Tests in `fichero-builder/tests/test_landed_verb.py`,
+  `test_loop.py`, `test_work_verb.py`.
   **Stop** (manager 2026-11-02, built): pause = no new step is fed; `builder queue stop --lane L [--grace S]` = the session
   ends: the lane is paused, a live worker is told to commit what is green and end, and the loop closes the session when the
   grace is over (default 300 s) or the worker ends first; the tree is kept, a step in flight goes back to queued with a brief

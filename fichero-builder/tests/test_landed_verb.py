@@ -338,12 +338,12 @@ def test_a_red_step_after_the_refresh_can_be_run_again_and_finishes_the_rest(wor
     real = landed.as_worker
     monkeypatch.setattr(landed, "as_worker", lambda j, s: subprocess.CompletedProcess(s, 1, "", "sudo: a password is required"))
     assert world.go("--push") == 1 and rows()[-1]["step"] == "jail-root"
-    assert not world.gh_log.exists()
+    assert any(c.startswith("issue close 7") for c in world.gh_log.read_text().splitlines()), "the push is the landing: closed before the refresh"
     monkeypatch.setattr(landed, "as_worker", real)
     assert world.go("--push") == 0
     assert rows()[-1]["step"] == "done"
     calls = world.gh_log.read_text().splitlines()
-    assert any(c.startswith("issue close 7") for c in calls), "the base the first run saw still names the range"
+    assert sum(c.startswith("issue close 7") for c in calls) == 1, "the rerun finishes the rest and never closes twice"
     assert world.go("--push") == 1, "a finished landing is not run twice"
 
 

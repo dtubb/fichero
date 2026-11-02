@@ -175,10 +175,16 @@ def _script(name: str, *argv) -> tuple[bool, str]:
     return r.returncode == 0, (r.stdout + r.stderr).strip()
 
 
-def do_review(a, repo: str, head: str, ladder: str, verdicts: str, model: str) -> tuple[bool, str]:
+def do_review(a, repo: str, head: str, ladder: str, verdicts: str, model: str, holder: dict | None = None) -> tuple[bool, str]:
+    """The review script; with `holder`, its process is kept there so a later red rung can kill it (speed 2)."""
     key = f"review {head[:9]}"
     journal.append("activity", kind="review", key=key, state="start", lane=a.name, model=model)  # which reviewer (6a)
-    ok, out = _script("harness_review.py", repo, head, "--pinned", a.pinned, "--verdicts", verdicts, "--ladder", ladder, "--model", model)
+    argv = [sys.executable, str(SCRIPTS / "harness_review.py"), repo, head, "--pinned", a.pinned, "--verdicts", verdicts, "--ladder", ladder, "--model", model]
+    p = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    if holder is not None:
+        holder["proc"] = p
+    out = (p.communicate()[0] or "").strip()
+    ok = p.returncode == 0
     groups = re.findall(r"^\[group (\d+) of (\d+)", out or "", re.M)
     journal.append("activity", kind="review", key=key, state="end", ok=ok, groups=len(groups) or 1)
     return ok, out or "the reviewer said nothing"  # the whole text: a queue sends the findings back to the worker
@@ -242,6 +248,7 @@ def _base_moved(a, branch: str, head: str) -> bool:
     return r.returncode == 1
 
 
+_EARLY = __import__("concurrent.futures").futures.ThreadPoolExecutor(max_workers=2)  # early reviews (speed 2)
 OPUS_PATHS = ("fichero-builder/", "scripts/harness_", "scripts/lane_ready_check.sh", "harness.toml")
 
 
@@ -286,31 +293,45 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
             if getattr(a, "repin", None):  # another lane's landing may have removed the copy this one started from; the lock keeps it from here on
                 a.pinned = a.repin()
             stage("checking")
+            early: dict = {}  # speed 2: the review starts once ready and red-on-base are green, beside the rest of the ladder
+
+            def on_rung(name, ok, rungs):
+                if name == "red-on-base" and ok and all(x["ok"] for x in rungs) and "fut" not in early and land_tool.unreviewed(repo, branch, head, verdicts):
+                    partial = f"{ladder}.partial"
+                    Path(partial).write_text(json.dumps({"ok": None, "failed": "", "rungs": rungs}))
+                    model = pick_reviewer(a, repo, branch, head, reviewer)
+                    early["fut"] = _EARLY.submit(do_review, a, repo, head, partial, verdicts, model, early)
+            check_tool.ON_RUNG[0] = on_rung
             try:
                 r = do_check(a, repo, branch, head, ladder)
             except (RuntimeError, OSError, ValueError) as e:
                 step("check", False, str(e))
                 return no("error", f"the check could not run: {e}")
+            finally:
+                check_tool.ON_RUNG[0] = None
+            if not r.get("ok") and early.get("proc"):  # a later rung went red: the early review is cancelled, its verdict never written
+                early["proc"].kill()
+                journal.append("activity", kind="review", key=f"review {head[:9]}", state="end", ok=False, failed="cancelled: a later rung red")
             if not step("check", bool(r.get("ok")), f"failed: {r.get('failed') or '-'}"):
-                if r.get("failed") == "pinned-checks" and "weakens existing tests" in _tail(r) and "pinned check file" not in _tail(r):
-                    diff = state / f"weakened-{a.name}.diff"  # the evidence: every test file's diff in the range
-                    globs = [f":(glob)**/{g}" for g in check_tool.load(a.pinned).test_globs]
-                    diff.write_text(_git(repo, "diff", r_since(repo, branch), head, "--", *globs).stdout)
-                    return no("weakened-tests", f"weakened tests at {head[:9]}: {_tail(r)[-300:]}", _tail(r), str(diff))
                 if r.get("failed") == "red-on-base" and "needs-approval" in _tail(r):  # a refusal, not a red test: the manager's call
-                    return no("red-on-base", f"red-on-base at {head[:9]}: {_tail(r).replace('needs-approval', '').strip()[-300:]}", _tail(r), ladder)
-                pinned_changed = "a pinned check file was" in _tail(r) and not getattr(a, "maintainer", False)
-                if r.get("failed") == "pinned-checks" and "a new file under a pinned path" in _tail(r) and not pinned_changed:
-                    diff = state / f"pinned-new-{a.name}.diff"
-                    diff.write_text(_git(repo, "diff", r_since(repo, branch), head, "--diff-filter=A", "--", *check_tool.load(a.pinned).check_paths).stdout)
-                    return no("pinned-new", f"a new file under a pinned path at {head[:9]}: {_tail(r)[-300:]}", _tail(r), str(diff))
+                    return {**no("red-on-base", f"red-on-base at {head[:9]}: {_tail(r).replace('needs-approval', '').strip()[-300:]}", _tail(r), ladder),
+                            "approvals": ["approve_red"]}
                 if r.get("failed") == "pinned-checks" and "needs-maintainer" in _tail(r):
+                    # ONE alert for every reason the refusal lists, and one approve carries them all (manager 2026-11-02: an approve
+                    # re-ran with maintainer only and refused again on the weakened tests it had already listed)
+                    t = _tail(r)
+                    approvals = [k for k, hit in (("maintainer", "a pinned check file was" in t), ("approve_weakened", "weakens existing tests" in t),
+                                                  ("approve_pinned_new", "a new file under a pinned path" in t)) if hit]
+                    paths = list(check_tool.load(a.pinned).check_paths) + [f":(glob)**/{g}" for g in check_tool.load(a.pinned).test_globs]
                     diff = state / f"pinned-{a.name}.diff"
-                    diff.write_text(_git(repo, "diff", r_since(repo, branch), head, "--", *check_tool.load(a.pinned).check_paths).stdout)
-                    return no("needs-maintainer", f"pinned-checks at {head[:9]}: {_tail(r)[-300:]}", _tail(r), str(diff))
+                    diff.write_text(_git(repo, "diff", r_since(repo, branch), head, "--", *paths).stdout)
+                    kind = "needs-maintainer" if "maintainer" in approvals else "weakened-tests" if "approve_weakened" in approvals else "pinned-new"
+                    return {**no(kind, f"pinned-checks at {head[:9]}: {t[-300:]}", t, str(diff)), "approvals": approvals}
                 return no("red", f"the check is red at {head[:9]} (failed: {r.get('failed') or '?'}); ladder in {ladder}", f"failed rung: {r.get('failed') or '?'}\n{_tail(r)}", ladder)
             stage("reviewing")
-            if land_tool.unreviewed(repo, branch, head, verdicts):
+            if early.get("fut"):  # started beside the ladder: its result
+                ok, text = early["fut"].result()
+            elif land_tool.unreviewed(repo, branch, head, verdicts):
                 model = pick_reviewer(a, repo, branch, head, reviewer)
                 ok, text = do_review(a, repo, head, ladder, verdicts, model)
             else:  # same input, same model: this exact range has its READY (a queue restarted in `reviewing` lands here)

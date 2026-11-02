@@ -688,6 +688,7 @@ def _no_activity(**kw) -> None:
     return None
 
 
+ON_RUNG: list = [None]  # (name, ok, rungs so far) after each rung: the chain starts the review early (speed 2)
 ACTIVITY = _no_activity  # `builder check` and the chain set this to a journal writer (console view A); tests write nowhere
 _KEY: list = [""]  # the running ladder's key, for its rung rows
 
@@ -700,6 +701,8 @@ def ladder(rungs: list) -> dict:
         r = {"name": name, **fn()}
         ACTIVITY(kind="check", key=_KEY[0], state="rung", rung=name, ok=bool(r.get("ok")), seconds=r.get("seconds"))
         out.append(r)
+        if ON_RUNG[0]:
+            ON_RUNG[0](name, bool(r.get("ok")), out)
         if not r["ok"]:
             return {"ok": False, "failed": name, "rungs": out}
     return {"ok": True, "failed": "", "rungs": out}

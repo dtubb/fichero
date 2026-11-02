@@ -389,8 +389,9 @@ def main(a) -> int:
     resume = None if any(r.get("step") == "done" for r in earlier) else next((r for r in earlier if r.get("step") == "refresh" and r.get("ok") and r.get("base")), None)
     pushed = any(r.get("step") == "push" and r.get("ok") and str(r.get("detail")).startswith("pushed") for r in earlier) if resume else False
     base = resume["base"] if resume else _git(repo, "merge-base", f"refs/heads/{branch}", sha).stdout.strip()  # the range: over the local branch BEFORE it is refreshed
-    steps = [("verdict", verdict), ("check-row", check_row), ("fast-forward", fast_forward), ("boundary", boundary), ("spec-clean", spec_clean), ("push", push), ("on-origin", on_origin), ("refresh", refresh),
-             ("pinned", pinned), ("jail-root", jail_root), ("scratch", scratch), ("issues", issues), ("specs", specs)]
+    steps = [("verdict", verdict), ("check-row", check_row), ("fast-forward", fast_forward), ("boundary", boundary), ("spec-clean", spec_clean), ("push", push), ("on-origin", on_origin),
+             # the push is the landing: its issues close at once, so a refresh that fails never loses them (manager 2026-11-02)
+             ("issues", issues), ("refresh", refresh), ("pinned", pinned), ("jail-root", jail_root), ("scratch", scratch), ("specs", specs)]
     if resume:
         steps = steps[[n for n, _ in steps].index("refresh") + 1:]
     journal.append("activity", kind="land", key=f"land {sha[:9]}", state="start")

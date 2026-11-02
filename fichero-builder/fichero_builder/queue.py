@@ -204,7 +204,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             n = sum(1 for p in journal.STATE.glob(f"findings-{lane['id']}-*.txt")) + 1
             f = journal.STATE / f"findings-{lane['id']}-{n}.txt"
             f.write_text(f"{lane['id']} batch {s['step']} at {s.get('head', '')[:9]}: {why}\n\nEvidence: {evidence or q}\n")
-            err = procs.tell(lane, f"FINDINGS for {lane['id']} at {s.get('head', '')[:9]}: {why.splitlines()[0][:300]} (full: {f}). Fix on your branch, then `builder done {lane['id']}`.")
+            err = procs.tell(lane, f"FINDINGS for {lane['id']} at {s.get('head', '')[:9]}: {why.splitlines()[0][:300]} (full: {f}). "
+                                   f"Fix on your branch (a conflict: rebase onto origin/integration), then run: {done_cmd(lane['id'])}")
             journal.append("queue", lane=lane["id"], step=s["step"], state="told" if not err else "tell-refused", detail=err or str(f))
         return False
 
@@ -299,6 +300,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     if chains is None:
         r = chain()
     elif fut is None:
+        if DRAIN[0]:  # new code waits: no new chain starts, so the loop can re-exec between chains
+            return True
         chains[lane["id"]] = chains["pool"].submit(chain)
         return True
     else:
@@ -321,6 +324,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         return True
     if r.get("kind") in ("needs-maintainer", "weakened-tests", "red-on-base", "pinned-new"):  # a pinned check or a test changed on purpose: the manager's call
         s["approve_kind"] = r["kind"]
+        s["approvals"] = r.get("approvals") or []  # every reason the refusal listed: one approve sets them all
         return block(s, r["why"], ("approve", "send-back"), r.get("evidence", ""))
     if r.get("kind") in ("red", "not-ready", "refused") and s["rounds"] < ROUNDS and lane.get("kind") != "external":  # external: an alert
         s["rounds"] += 1
@@ -336,7 +340,9 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         s["resume_brief"], lane["feed"] = str(fix), ""
         move(s, "queued", f"fix brief, round {s['rounds']}, in a new session: {r['why']}")
         return True
-    return block(s, f"{r['why']}\n{r.get('findings', '')}".strip(), evidence=r.get("evidence", ""))
+    # an external lane fixes its own reds: send-back (findings to its pane, its next done re-takes); park keeps the lane too
+    acts = ("send-back", "retry", "park") if lane.get("kind") == "external" else ACTIONS
+    return block(s, f"{r['why']}\n{r.get('findings', '')}".strip(), acts, evidence=r.get("evidence", ""))
 
 
 ACTIONS = ("retry", "park", "ask-owner")
@@ -359,6 +365,12 @@ def intake_sha(lane: dict, branch: str, commits: int, hours: float, now: float |
         return ""
     old = (now or time.time()) - int(log[-1][1])
     return log[0][0] if len(log) >= commits or old >= hours * 3600 else ""
+
+
+def done_cmd(lane_id: str) -> str:
+    """The exact command an external lane runs to queue its next batch (manager 2026-11-02: lanes said DONE to a person)."""
+    pkg = Path(__file__).resolve().parents[1]
+    return f"cd {shlex.quote(str(pkg))} && PYTHONPATH=. {shlex.quote(sys.executable)} -m fichero_builder done {lane_id} --state {shlex.quote(str(journal.STATE))}"
 
 
 def external_owner(spec: str, title: str = "") -> str:
@@ -457,7 +469,10 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
             # an external lane has no worker to send a step to: retry and approve re-take its snapshot; send-back waits for its done
             again = "done" if action == "approve" or (lane.get("kind") == "external" and action == "retry" and s.get("head")) else "queued"
             s.update(state=again, rounds=0, restarts=0, why="")
-            if action == "approve" and s.get("approve_kind") == "pinned-new":
+            if action == "approve" and s.get("approvals"):  # every reason the alert listed (maintainer, weakened, pinned-new, red)
+                for k in s["approvals"]:
+                    s[k] = True
+            elif action == "approve" and s.get("approve_kind") == "pinned-new":
                 s["approve_pinned_new"] = True  # the chain re-runs the check recording the new pinned files as approved
             elif action == "approve" and s.get("approve_kind") == "red-on-base":
                 s["approve_red"] = True  # the chain re-runs the check recording the approval in the red-on-base row
@@ -473,6 +488,11 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
             save(lanes)
     if action == "ask-owner":
         ask(s["issues"], f"{a['lane']} {a['step']}", f"{a['what']} (evidence: {a['evidence']})", gh=gh, cwd=cwd)
+    if action in ("send-back", "park") and lane is not None and lane.get("kind") == "external":  # the lane fixes it: tell it how to come back
+        from fichero_builder import tell as tell_mod
+        rc, out = tell_mod.send(lane["pane"], f"SENT BACK ({action}) {a['lane']} {a['step']}: {a['what'][:300]} (evidence: {a['evidence']}). "
+                                f"Fix on your branch (a conflict: rebase onto origin/integration), then run: {done_cmd(a['lane'])}") if lane.get("pane") else (1, "no registered pane")
+        journal.append("queue", lane=a["lane"], step=a["step"], state="told" if rc == 0 else "tell-refused", detail=out[-200:])
     journal.append("alert-answer", id=alert_id, action=action, ok=True, detail="")
     return 0, f"{alert_id}: {action}"
 
@@ -548,6 +568,9 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
     return busy
 
 
+DRAIN: list = [False]
+
+
 def code_mark() -> tuple:
     """What the running loop's code is: each fichero_builder source's name, size and mtime."""
     pkg = Path(__file__).resolve().parent
@@ -584,7 +607,8 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
             return 0
         # new code (soak 2026-11-02: a hand restart is a defect): between ticks, nothing in flight, the loop execs itself, same args.
         # ponytail: a live worker session holds the restart off (a restart would lose its handle); it runs at the next quiet tick
-        if heartbeat and code_mark() != mark and not handles and not any(f.running() for k, f in (chains or {}).items() if k != "pool"):
+        DRAIN[0] = heartbeat and code_mark() != mark  # serial chains never left a gap: stop starting them until it re-execs
+        if heartbeat and code_mark() != mark and not handles and not any(not f.done() for k, f in (chains or {}).items() if k != "pool"):
             journal.append("loop", state="restarted", detail="loop restarted for new code", pid=os.getpid(), argv=sys.argv[1:])
             reexec()
             mark = code_mark()  # a test's reexec returns
