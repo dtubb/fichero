@@ -104,6 +104,26 @@ class Procs:
     still_open: Callable[[dict, dict], list] = lambda lane, step: []  # (lane, step) -> issues of a landed step not closed, as "#N"
     # taken lane ids -> (lane id, worktree, [{step, brief, issues, waits}]) of the next build-order milestone, or None
     next_milestone: Callable[[set], tuple | None] = lambda taken: None
+    ask: Callable[[dict, dict, str], None] = lambda lane, step, why: None  # (lane, step, why): the QUESTION on the step's issues
+
+
+def _gh_quiet(gh: str, args: list[str], cwd=None) -> str:
+    """'' or why the call failed; never raises."""
+    try:
+        r = subprocess.run([gh, *args], capture_output=True, text=True, timeout=60, cwd=cwd)
+    except (subprocess.TimeoutExpired, OSError) as e:
+        return str(e)
+    return r.stderr.strip()[-200:] if r.returncode else ""
+
+
+def ask(issues: list[int], where: str, why: str, gh: str = "gh", cwd=None) -> None:
+    """A blocked step's QUESTION where the owner sees it (issues-and-labels: a question labels needs-your-decision and
+    comments, #6343); a gh that fails is an `ask-failed` row, never a traceback."""
+    for n in issues:
+        for args in (["issue", "edit", str(n), "--add-label", "needs-your-decision"],
+                     ["issue", "comment", str(n), "--body", f"QUESTION (queue {where}): {why.strip()[:1500]}"]):
+            if err := _gh_quiet(gh, args, cwd):
+                journal.append("queue", lane=where, step="-", state="ask-failed", detail=f"#{n} {args[1]}: {err}"[-300:])
 
 
 def open_of(issues: list[int], gh: str = "gh", cwd=None) -> list[str]:
@@ -133,6 +153,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     def block(s, why):
         (journal.STATE / f"question-{lane['id']}-{s['step']}.txt").write_text(f"QUESTION: {why}\n")
         move(s, "blocked", why)
+        procs.ask(lane, s, why)
         return False
 
     h = handles.get(lane["id"])
@@ -327,7 +348,8 @@ def real_procs(root) -> Procs:
 
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
-                 next_milestone=lambda taken: next_in_order(root, taken))
+                 next_milestone=lambda taken: next_in_order(root, taken),
+                 ask=lambda lane, step, why: ask(step["issues"], f"{lane['id']} {step['step']}", why, cwd=str(root)))
 
 
 _SKIPPED: set = set()  # milestones this process found with no step to brief: asked once, not re-planned every tick
@@ -379,12 +401,17 @@ def main(a) -> int:
                 print(f"REFUSED: no lane {a.lane!r}")
                 return 1
             lane["paused"] = a.action == "pause"
+            unasked = []
             if a.action == "resume":
                 for s in lane["steps"]:
                     if s["state"] == "blocked":
                         s.update(state="queued", rounds=0, restarts=0, why="")
+                        unasked += s["issues"]
             save(lanes)
         journal.append("queue", lane=a.lane, step="-", state=a.action, detail="")
+        for n in unasked:  # answered: the label goes (the comment stays as the record)
+            if err := _gh_quiet(a.gh, ["issue", "edit", str(n), "--remove-label", "needs-your-decision"], a.root):
+                journal.append("queue", lane=a.lane, step="-", state="ask-failed", detail=f"#{n} unlabel: {err}"[-300:])
         return 0
     if a.action == "run":
         try:

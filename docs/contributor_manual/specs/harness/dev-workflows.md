@@ -434,7 +434,9 @@ the write path would produce.
   whose issues place no step is a `question` row and is skipped). One command so runs a spec to the end and then the next,
   until the order is done or a lane blocks on a QUESTION or a cap, which keeps its lane. N defaults to 1; with more, each
   lane's check and review run in their own thread, so a lane waits only for the ladder lock, one ladder at a time on the
-  machine. Tests: `fichero-builder/tests/test_queue_verb.py::test_the_queue_rolls_on_to_the_next_build_order_milestone_when_a_lanes_steps_have_landed`,
+  machine. A blocked step labels each of its issues `needs-your-decision` and comments the QUESTION (#6343; a `gh` that fails
+  is an `ask-failed` row); `resume` takes the label off (test `fichero-builder/tests/test_queue_verb.py::test_a_blocked_step_labels_its_issues_needs_your_decision_and_comments_the_question`).
+  Tests: `fichero-builder/tests/test_queue_verb.py::test_the_queue_rolls_on_to_the_next_build_order_milestone_when_a_lanes_steps_have_landed`,
   `::test_a_question_stops_the_roll_on_and_the_next_milestone_is_not_taken`,
   `::test_n_lanes_hold_n_milestones_and_their_chains_overlap_but_the_ladder_is_one_at_a_time`,
   `fichero-builder/tests/test_milestone_verb.py::test_the_queue_takes_the_first_ordered_milestone_no_lane_holds_with_its_step_briefs`.

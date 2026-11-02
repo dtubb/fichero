@@ -367,3 +367,23 @@ def test_n_lanes_hold_n_milestones_and_their_chains_overlap_but_the_ladder_is_on
     assert peak[0] == 1, "one ladder at a time"
     assert active_peak[0] == 2, "never more than two milestones held"
     assert sorted(h for h, _ in fake.landed_calls) == ["hma.1", "hmb.1", "hmc.1"]
+
+
+def test_a_blocked_step_labels_its_issues_needs_your_decision_and_comments_the_question(state, tmp_path):
+    """#6343: a QUESTION was only a file and a row; the owner could not see it from GitHub (issues-and-labels: a question labels
+    needs-your-decision and comments). A gh that fails is a row, never a traceback; resume takes the label off."""
+    calls = tmp_path / "calls"
+    gh = tmp_path / "gh"
+    gh.write_text(f'#!/bin/sh\necho "$*" >> {calls}\n')
+    gh.chmod(0o755)
+    lane(state)
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "error", "why": "rules file broken"}]})
+    fake.procs.ask = lambda lane_, step, why: queue.ask(step["issues"], f"{lane_['id']} {step['step']}", why, gh=str(gh), cwd=str(state))
+    assert run(fake) == 0 and steps()["1.1"]["state"] == "blocked"
+    seen = calls.read_text().splitlines()
+    assert "issue edit 7 --add-label needs-your-decision" in seen
+    assert any(x.startswith("issue comment 7 --body QUESTION (queue m1 1.1): rules file broken") for x in seen), seen
+    queue.ask([7], "m1 1.1", "x", gh=str(tmp_path / "no-such-gh"))  # never raises
+    assert [r for r in journal.read() if r["event"] == "queue" and r.get("state") == "ask-failed"]
+    assert cli.main(["queue", "resume", "--lane", "m1", "--state", str(state / "s"), "--gh", str(gh)]) == 0
+    assert "issue edit 7 --remove-label needs-your-decision" in calls.read_text().splitlines()
