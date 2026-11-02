@@ -23,6 +23,9 @@ contract_guards = [
   "scripts/check_openapi_route_set_current.py", "scripts/check_contract_identity_current.py",
   "scripts/check_mcp_generated_current.py",
 ]
+# A diff under the prefix runs the guard with `--since <base>` (its question about this range only, #6318). The whole-tree
+# ratchet stays in guard_skip; swiftlint must be in [check].path for the worker (a copy in <workroot>/bin, like ruff).
+since_guards = { "scripts/check_swiftlint_warning_ratchet.py" = "fichero/" }
 check_paths = [
   "scripts/", "harness.toml", ".github/", ".gitattributes", ".gitmodules", "pyproject.toml", "pytest.ini",
   "fichero-server/pyproject.toml", "fichero-server/pytest.ini", "fichero-cli/pyproject.toml", "fichero-mcp/pyproject.toml",

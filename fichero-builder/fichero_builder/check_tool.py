@@ -40,6 +40,7 @@ class Config:
     min_guards: int = 0                 # fewer guards found than this = blind = not green
     contract_paths: tuple = ()          # a diff touching these runs the contract guards
     contract_guards: tuple = ()         # guard script paths (relative)
+    since_guards: dict = field(default_factory=dict)  # {guard path: path prefix}: a diff under the prefix runs the guard with `--since <base>`
     spec_dir: str = ""                  # folder of the specs whose item acceptance a worker may not rewrite ("" = none)
     check_paths: tuple = ()             # files/folders that judge a diff: run from the pinned copy, never the worker's
     red_paths: tuple = ()               # a diff touching these (prefixes) needs a failing-on-base test; () = any file
@@ -79,7 +80,7 @@ def load(root) -> Config:
         ready=tuple(c.get("ready", d.ready)), base_ref=c.get("base_ref", d.base_ref), guard_glob=c.get("guard_glob", d.guard_glob),
         guard_skip=frozenset(c.get("guard_skip", ())), guard_timeout_s=c.get("guard_timeout_s", d.guard_timeout_s),
         min_guards=c.get("min_guards", d.min_guards), contract_paths=tuple(c.get("contract_paths", d.contract_paths)),
-        contract_guards=tuple(c.get("contract_guards", d.contract_guards)),
+        contract_guards=tuple(c.get("contract_guards", d.contract_guards)), since_guards=dict(c.get("since_guards", {})),
         whole_tests=dict(c.get("whole_tests", {})), spec_dir=c.get("spec_dir", d.spec_dir), check_paths=tuple(c.get("check_paths", d.check_paths)), red_paths=tuple(c.get("red_paths", d.red_paths)), test_globs=tuple(c.get("test_globs", d.test_globs)),
         pytest_config=c.get("pytest_config", d.pytest_config), pytest_plugins=tuple(c.get("pytest_plugins", d.pytest_plugins)), max_files=c.get("max_files", d.max_files),
         max_lines=c.get("max_lines", d.max_lines), build_paths=tuple(c.get("build_paths", d.build_paths)),
@@ -331,6 +332,17 @@ def contract_current(root, changed: list[str], cfg: Config, timeout_s: float = 3
     root = Path(root)
     results = [_run(Path(g).stem, _isolated(root / g, root, cfg), root, timeout_s, cfg)
                for g in cfg.contract_guards]
+    return {"ok": all(r["ok"] for r in results), "skipped": False, "results": results}
+
+
+def since_guards(root, since: str, changed: list[str], cfg: Config, timeout_s: float = 300) -> dict:
+    """Each `[check].since_guards` guard whose prefix the diff touches, run in the scratch tree with `--since <base>`: its
+    question about this range only (#6318: the SwiftLint ratchet's `--since`, which the gate ran and the ladder did not)."""
+    todo = [g for g, prefix in cfg.since_guards.items() if any(f.startswith(prefix) for f in changed)]
+    if not todo:
+        return {"ok": True, "skipped": True, "results": []}
+    root = Path(root)
+    results = [_run(Path(g).stem, [*_isolated(root / g, root, cfg), "--since", since], root, timeout_s, cfg) for g in todo]
     return {"ok": all(r["ok"] for r in results), "skipped": False, "results": results}
 
 
@@ -684,6 +696,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
              else _no_red_row(tree, whole, cfg)),
             ("guards", lambda: guards(tree, cfg)),
             ("contract-current", lambda: contract_current(tree, names, cfg)),
+            ("since-guards", lambda: since_guards(tree, since, names, cfg)),
             ("build", lambda: build(tree, build_names(root, since, head), cfg)),
         ])
     finally:
