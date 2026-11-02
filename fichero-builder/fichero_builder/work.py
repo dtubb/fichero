@@ -209,6 +209,16 @@ def r_since(repo: str, branch: str) -> str:
     return land_tool.resolve_branch(repo, branch) or branch
 
 
+MOVES = 3  # ponytail: a busier landing branch than three moves in one chain is a row for a person
+
+
+def _base_moved(a, branch: str, head: str) -> bool:
+    """As the worker: has origin/<branch> moved past the base `head` was made on? (fetch; is it still an ancestor of HEAD)"""
+    g, wt = shlex.quote(jail_git()), shlex.quote(str(a.worktree))
+    r = as_worker(a, f"{g} -C {wt} fetch -q origin && {g} -C {wt} merge-base --is-ancestor origin/{shlex.quote(branch)} HEAD")
+    return r.returncode == 1
+
+
 def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None) -> dict:
     """Rebase, patches, fetch, check, review, land gate: one journal row each; {ok, head, out} or {ok: False, kind, why,
     findings}. kind red / not-ready / refused can go back to the worker; error needs a person. `stage` hears checking, reviewing."""
@@ -224,43 +234,49 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
     state = Path(journal.STATE)
     state.mkdir(parents=True, exist_ok=True)
     ladder, verdicts, log = (str(state / f"{k}-{a.name}.{e}") for k, e in (("ladder", "json"), ("verdicts", "json"), ("land", "log")))
-    why = do_rebase(a, branch)
-    if not step("rebase", not why, why or f"on top of origin/{branch}"):
-        return no("error", why)
-    n = do_export(a, branch)
-    if not step("patches", n > 0, f"{n} patch(es) under patches-{a.name} in the shared state"):
-        return no("error", f"the worktree has no commits over origin/{branch}")
-    head = do_fetch(a, repo, branch)
-    if not step("fetch", bool(head), head or f"could not fetch the worktree branch into {repo}"):
-        return no("error", f"could not fetch the worktree's branch into {repo}")
-    with journal.Lock("ladder"):  # one ladder at a time across the queue's lanes and any `builder work` (the machine is loaded)
-        if getattr(a, "repin", None):  # another lane's landing may have removed the copy this one started from; the lock keeps it from here on
-            a.pinned = a.repin()
-        stage("checking")
-        try:
-            r = do_check(a, repo, branch, head, ladder)
-        except (RuntimeError, OSError, ValueError) as e:
-            step("check", False, str(e))
-            return no("error", f"the check could not run: {e}")
-        if not step("check", bool(r.get("ok")), f"failed: {r.get('failed') or '-'}"):
-            if r.get("failed") == "pinned-checks" and "needs-maintainer" in _tail(r):
-                diff = state / f"pinned-{a.name}.diff"
-                diff.write_text(_git(repo, "diff", r_since(repo, branch), head, "--", *check_tool.load(a.pinned).check_paths).stdout)
-                return no("needs-maintainer", f"pinned-checks at {head[:9]}: {_tail(r)[-300:]}", _tail(r), str(diff))
-            return no("red", f"the check is red at {head[:9]} (failed: {r.get('failed') or '?'}); ladder in {ladder}", f"failed rung: {r.get('failed') or '?'}\n{_tail(r)}", ladder)
-        stage("reviewing")
-        if land_tool.unreviewed(repo, branch, head, verdicts):
-            ok, text = do_review(a, repo, head, ladder, verdicts, reviewer)
-        else:  # same input, same model: this exact range has its READY (a queue restarted in `reviewing` lands here)
-            ok, text = True, "READY (the verdict this range already has; no second model pass)"
-        last = text.splitlines()[-1] if text else "the reviewer said nothing"
-        if not step("review", ok, last):
-            (state / f"review-{a.name}.txt").write_text(text)
-            return no("not-ready", f"the review is not READY: {last}", text, str(state / f"review-{a.name}.txt"))
-        ok, out = do_land(a, repo, head, verdicts, log)
-        if not step("land", ok, out[-300:]):
-            return no("refused", f"the land gate refused: {out[-300:]}", out[-2000:])
-    return {"ok": True, "head": head, "out": out}
+    moved = 0
+    while True:  # dev-workflows.run.loop-chain: a ready range whose base moved is rebased and re-checked
+        why = do_rebase(a, branch)
+        if not step("rebase", not why, why or f"on top of origin/{branch}"):
+            return no("error", why)
+        n = do_export(a, branch)
+        if not step("patches", n > 0, f"{n} patch(es) under patches-{a.name} in the shared state"):
+            return no("error", f"the worktree has no commits over origin/{branch}")
+        head = do_fetch(a, repo, branch)
+        if not step("fetch", bool(head), head or f"could not fetch the worktree branch into {repo}"):
+            return no("error", f"could not fetch the worktree's branch into {repo}")
+        with journal.Lock("ladder"):  # one ladder at a time across the queue's lanes and any `builder work` (the machine is loaded)
+            if getattr(a, "repin", None):  # another lane's landing may have removed the copy this one started from; the lock keeps it from here on
+                a.pinned = a.repin()
+            stage("checking")
+            try:
+                r = do_check(a, repo, branch, head, ladder)
+            except (RuntimeError, OSError, ValueError) as e:
+                step("check", False, str(e))
+                return no("error", f"the check could not run: {e}")
+            if not step("check", bool(r.get("ok")), f"failed: {r.get('failed') or '-'}"):
+                if r.get("failed") == "pinned-checks" and "needs-maintainer" in _tail(r):
+                    diff = state / f"pinned-{a.name}.diff"
+                    diff.write_text(_git(repo, "diff", r_since(repo, branch), head, "--", *check_tool.load(a.pinned).check_paths).stdout)
+                    return no("needs-maintainer", f"pinned-checks at {head[:9]}: {_tail(r)[-300:]}", _tail(r), str(diff))
+                return no("red", f"the check is red at {head[:9]} (failed: {r.get('failed') or '?'}); ladder in {ladder}", f"failed rung: {r.get('failed') or '?'}\n{_tail(r)}", ladder)
+            stage("reviewing")
+            if land_tool.unreviewed(repo, branch, head, verdicts):
+                ok, text = do_review(a, repo, head, ladder, verdicts, reviewer)
+            else:  # same input, same model: this exact range has its READY (a queue restarted in `reviewing` lands here)
+                ok, text = True, "READY (the verdict this range already has; no second model pass)"
+            last = text.splitlines()[-1] if text else "the reviewer said nothing"
+            if not step("review", ok, last):
+                (state / f"review-{a.name}.txt").write_text(text)
+                return no("not-ready", f"the review is not READY: {last}", text, str(state / f"review-{a.name}.txt"))
+            ok, out = do_land(a, repo, head, verdicts, log)
+            if not step("land", ok, out[-300:]):
+                if moved < MOVES and _base_moved(a, branch, head):
+                    moved += 1  # another lane landed after our rebase: rebase and judge the new range, never a person's hand step
+                    step("rebase", True, f"origin/{branch} moved under {head[:9]}: rebased and checked again ({moved}/{MOVES})")
+                    continue
+                return no("refused", f"the land gate refused: {out[-300:]}", out[-2000:])
+        return {"ok": True, "head": head, "out": out}
 
 
 def main(a) -> int:
