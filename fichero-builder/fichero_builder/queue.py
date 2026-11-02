@@ -451,11 +451,22 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
     return busy
 
 
+def code_mark() -> tuple:
+    """What the running loop's code is: each fichero_builder source's name, size and mtime."""
+    pkg = Path(__file__).resolve().parent
+    return tuple(sorted((f.name, f.stat().st_size, f.stat().st_mtime_ns) for f in pkg.glob("*.py")))
+
+
+def reexec() -> None:  # the tests replace this
+    os.execv(sys.executable, [sys.executable, "-m", "fichero_builder", *sys.argv[1:]])
+
+
 def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: float = 30.0, once: bool = False, forever: bool = False,
         heartbeat: bool = False, out=print) -> int:
     """Ticks until nothing can move without a person; `forever` (the verb) keeps ticking so a blocked or paused lane keeps its
     session and a resume from another shell is picked up. Each tick first takes build-order milestones up to `lanes_n`."""
     handles: dict = {}
+    mark = code_mark()
     # the loop always chains in a thread: a one-lane check inside the tick would starve the heartbeat for its whole ladder
     chains: dict | None = {"pool": ThreadPoolExecutor(max_workers=lanes_n)} if lanes_n > 1 or heartbeat else None
     while True:
@@ -465,6 +476,12 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
             journal.append("loop", state="tick", lanes=[f"{x['id']} {x['cursor']}/{len(x['steps'])}" for x in load()], busy=busy)
         if once or not (busy or forever):
             return 0
+        # new code (soak 2026-11-02: a hand restart is a defect): between ticks, nothing in flight, the loop execs itself, same args.
+        # ponytail: a live worker session holds the restart off (a restart would lose its handle); it runs at the next quiet tick
+        if heartbeat and code_mark() != mark and not handles and not any(f.running() for k, f in (chains or {}).items() if k != "pool"):
+            journal.append("loop", state="restarted", detail="loop restarted for new code", pid=os.getpid(), argv=sys.argv[1:])
+            reexec()
+            mark = code_mark()  # a test's reexec returns
         procs.sleep(tick_s)
 
 

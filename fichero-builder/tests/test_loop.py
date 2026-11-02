@@ -352,3 +352,20 @@ def test_a_red_on_base_refusal_is_an_alert_and_approve_reruns_with_approve_red(s
     assert cli.main(["alert", a["id"], "approve", "--state", str(state / "s")]) == 0
     queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
     assert seen[:2] == [False, True] and steps()["1.1"]["state"] == "landed"
+
+
+def test_the_loop_re_execs_itself_between_ticks_when_its_code_changes_and_nothing_is_in_flight(state, monkeypatch):
+    """Manager 2026-11-02: restarting the loop by hand to pick up new code is a hand step. Between ticks, with no chain and no
+    worker session, a changed source makes it exec itself with the same args, after one row."""
+    marks = iter([("a",), ("a",), ("b",), ("b",)])
+    monkeypatch.setattr(queue, "code_mark", lambda: next(marks, ("b",)))
+    execs = []
+    monkeypatch.setattr(queue, "reexec", lambda: execs.append(1))
+    fake = Fake()
+    n = []
+    fake.procs.sleep = lambda s: (n.append(1), len(n) > 3 and (_ for _ in ()).throw(SystemExit))
+    with pytest.raises(SystemExit):
+        queue.run(fake.procs, workers_n=1, push=False, forever=True, heartbeat=True, out=lambda s: None)
+    assert execs == [1], "one re-exec when the mark changed"
+    (r,) = [r for r in journal.read() if r["event"] == "loop" and r.get("state") == "restarted"]
+    assert r["detail"] == "loop restarted for new code" and r["pid"]

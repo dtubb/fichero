@@ -655,6 +655,19 @@ the write path would produce.
   holds, through `builder sweep --worktree P` = the landing's sweep for that one tree with no grace (a patch first,
   `git worktree remove`, never rm; a jail tree as the worker), one `sweep` row (test
   `fichero-builder/tests/test_status_page.py::test_worktrees_lists_each_tree_and_clean_up_sweeps_only_a_landed_clean_one_with_a_patch`).
+  Views A-D (owner 2026-11-02), read-only from the journal, git and gh: (A) Activity: every check, review, build and landing
+  that is running, from `activity` rows each writes at its start and end (a check also one per rung, a review one per group,
+  `group i of n`), including those started by hand, with elapsed time; (B) Landing queue: every branch with commits not on the
+  land branch (the lanes' and landing worktrees'), its head, commits, files, stage (waiting, checking, reviewing, READY, landing,
+  landed; `batch i of n` for a lane's steps) and the `Fixes` issues it closes; (C) Issues: today's closes, comments and labels
+  the harness made, linked to GitHub; (D) Integration to main: the commits on the land branch not on main, the last release tag
+  and whether a release PR is open (gh, cached on Refresh); Make release PR is shown only as the owner's to do, never done.
+  Progress reads `step i/N` everywhere: a lane row `Step 1.4 · 4/25 in <milestone>` (N from the spec's build order; an external
+  lane's step from its last commit's `Step N.M` or `Behaviour:` line), a milestone row a bar of done over total steps.
+  New code (manager 2026-11-02; a hand restart is a defect): between ticks, with no chain in flight and no live worker session,
+  the loop compares its `fichero_builder` sources' names, sizes and mtimes with those it started with and, when they changed,
+  writes a `loop` row `restarted` ("loop restarted for new code", pid, args) and execs itself with the same arguments (test
+  `fichero-builder/tests/test_loop.py::test_the_loop_re_execs_itself_between_ticks_when_its_code_changes_and_nothing_is_in_flight`).
   **Stop** (manager 2026-11-02, built): pause = no new step is fed; `builder queue stop --lane L [--grace S]` = the session
   ends: the lane is paused, a live worker is told to commit what is green and end, and the loop closes the session when the
   grace is over (default 300 s) or the worker ends first; the tree is kept, a step in flight goes back to queued with a brief
