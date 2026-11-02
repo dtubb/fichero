@@ -296,3 +296,74 @@ def test_the_open_check_runs_from_the_repo_so_gh_knows_which_one(state, monkeypa
         return type("R", (), {"returncode": 0, "stdout": "CLOSED", "stderr": ""})()
     monkeypatch.setattr(queue.subprocess, "run", run)
     assert queue.open_of([1], cwd="/repo") == [] and seen["cwd"] == "/repo"
+
+
+def _feeding(fake, state, names):
+    """The build order as a fake: each milestone one step `<name>.1`; next_milestone hands out the first one no lane holds."""
+    for n in names:
+        (state / f"b{n}").write_text(f"brief {n}")
+    taken_log = []
+
+    def next_milestone(taken):
+        n = next((x for x in names if x not in taken), None)
+        if n is None:
+            return None
+        taken_log.append(n)
+        return n, f"/w/{n}", [{"step": f"{n}.1", "brief": str(state / f"b{n}"), "issues": [1], "waits": []}]
+    fake.procs.next_milestone = next_milestone
+    return taken_log
+
+
+def test_the_queue_rolls_on_to_the_next_build_order_milestone_when_a_lanes_steps_have_landed(state):
+    """Owner 2026-11-02: one command runs a spec to the end, then the next build-order milestone, until the order is done."""
+    fake = Fake()
+    taken = _feeding(fake, state, ["ma", "mb", "mc"])
+    assert queue.run(fake.procs, workers_n=1, push=True, lanes_n=1, out=lambda s: None) == 0
+    assert taken == ["ma", "mb", "mc"] and [s[0] for s in fake.starts] == ["ma", "mb", "mc"], "one milestone at a time, in order"
+    assert fake.landed_calls == [("hma.1", True), ("hmb.1", True), ("hmc.1", True)]
+    assert all(x["cursor"] == len(x["steps"]) for x in queue.load())
+
+
+def test_a_question_stops_the_roll_on_and_the_next_milestone_is_not_taken(state):
+    fake = Fake(chains={"mb.1": [{"ok": False, "kind": "error", "why": "the ladder could not start"}]})
+    taken = _feeding(fake, state, ["ma", "mb", "mc"])
+    assert queue.run(fake.procs, workers_n=1, push=True, lanes_n=1, out=lambda s: None) == 0
+    assert taken == ["ma", "mb"], "mb is blocked on a QUESTION: it holds the one lane"
+    assert (journal.STATE / "question-mb-mb.1.txt").is_file()
+
+
+def test_n_lanes_hold_n_milestones_and_their_chains_overlap_but_the_ladder_is_one_at_a_time(state):
+    """`--lanes 2`: two milestones at once; a lane's check waits only for the ladder lock, never for the other lane's work."""
+    import threading
+    import time
+
+    fake = Fake()
+    taken = _feeding(fake, state, ["ma", "mb", "mc"])
+    started = {n: threading.Event() for n in ("ma", "mb", "mc")}
+    held, peak, log = [0], [0], []
+    base_chain = fake.chain
+
+    def chain(lane, step, stage):
+        started[lane["id"]].set()
+        if lane["id"] == "ma" and not started["mb"].wait(10):  # ma's chain is still running when mb's starts
+            return {"ok": False, "kind": "error", "why": "mb's chain waited for ma's"}
+        with journal.Lock("ladder"):
+            held[0] += 1
+            peak[0] = max(peak[0], held[0])
+            time.sleep(0.05)
+            held[0] -= 1
+        log.append(lane["id"])
+        return base_chain(lane, step, stage)
+    fake.procs.chain = chain
+    active_peak = [0]
+    orig_start = fake.procs.start
+
+    def start(lane, step):
+        active_peak[0] = max(active_peak[0], sum(1 for x in queue.load() if x["cursor"] < len(x["steps"])))
+        return orig_start(lane, step)
+    fake.procs.start = start
+    assert queue.run(fake.procs, workers_n=2, push=True, lanes_n=2, out=lambda s: None) == 0
+    assert taken == ["ma", "mb", "mc"] and set(log) == {"ma", "mb", "mc"}, "ma landed: mb's chain started while ma's ran"
+    assert peak[0] == 1, "one ladder at a time"
+    assert active_peak[0] == 2, "never more than two milestones held"
+    assert sorted(h for h, _ in fake.landed_calls) == ["hma.1", "hmb.1", "hmc.1"]

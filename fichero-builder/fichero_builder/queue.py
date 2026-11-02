@@ -8,7 +8,10 @@ blocked with its question in `<state>/question-<lane>-<step>.txt`. The worker st
 fetch, check, review and the land gate (`work.after_run`), then `builder landed` (push only with --push), then sends the next
 brief into the same session. Findings go back as a fix brief, two rounds, then blocked. A new session only when the worker
 is gone or at its own 85 % handoff. Pause = idle with nothing sent; resume = send the next brief.
-ponytail: the chain runs inside the tick, so one lane's ladder holds up the others' bookkeeping (never their workers); a thread per lane if that ever costs more than it saves."""
+`run` feeds itself from the build order: while fewer than `lanes_n` lanes have steps left, it takes the next build-order
+milestone no lane holds (`Procs.next_milestone`), so one command runs a spec to the end and then the next, until the order
+is done or a lane blocks on a QUESTION or a cap. With one lane the chain runs inside the tick; with more, each lane's chain
+runs in its own thread, so a lane waits only for the ladder lock (`work.after_run`), never for another lane's review."""
 from __future__ import annotations
 
 import json
@@ -20,6 +23,7 @@ import sys
 import tempfile
 import time
 import tomllib
+from concurrent.futures import ThreadPoolExecutor
 import types
 from dataclasses import dataclass
 from pathlib import Path
@@ -98,6 +102,8 @@ class Procs:
     stop: Callable[[dict], None]                    # end the lane's session
     sleep: Callable[[float], None] = time.sleep
     still_open: Callable[[dict, dict], list] = lambda lane, step: []  # (lane, step) -> issues of a landed step not closed, as "#N"
+    # taken lane ids -> (lane id, worktree, [{step, brief, issues, waits}]) of the next build-order milestone, or None
+    next_milestone: Callable[[set], tuple | None] = lambda taken: None
 
 
 def open_of(issues: list[int], gh: str = "gh", cwd=None) -> list[str]:
@@ -116,7 +122,7 @@ def open_of(issues: list[int], gh: str = "gh", cwd=None) -> list[str]:
     return out
 
 
-def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: bool, out) -> bool:
+def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: bool, out, chains: dict | None = None) -> bool:
     """One pass over one lane. False when it can do nothing more without a person: finished, blocked or paused."""
     def move(s, state, detail=""):
         s["state"], s["why"] = state, detail[-500:]
@@ -138,6 +144,9 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     s = lane["steps"][lane["cursor"]]
     if s["state"] == "blocked":
         return False
+    fut = (chains or {}).get(lane["id"])
+    if fut is not None and not fut.done():
+        return True  # its check or review is running in its own thread
     if h is not None and not procs.alive(h):
         del handles[lane["id"]]
         h, lane["feed"], end = None, "", procs.end_of(lane)
@@ -179,10 +188,18 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if not row.get("moved"):
             return block(s, "the worker said DONE with no commit on this step")
         move(s, "done", "")
-    try:
-        r = procs.chain(lane, s, lambda stage: move(s, stage, ""))
-    except (RuntimeError, OSError, ValueError, KeyError) as e:
-        r = {"ok": False, "kind": "error", "why": str(e)}
+    def chain() -> dict:
+        try:
+            return procs.chain(lane, s, lambda stage: move(s, stage, ""))
+        except (RuntimeError, OSError, ValueError, KeyError) as e:
+            return {"ok": False, "kind": "error", "why": str(e)}
+    if chains is None:
+        r = chain()
+    elif fut is None:
+        chains[lane["id"]] = chains["pool"].submit(chain)
+        return True
+    else:
+        r = chains.pop(lane["id"]).result()
     if r["ok"]:
         s["head"] = r["head"]
         rc, output = procs.landed(lane, r["head"], push)
@@ -204,19 +221,40 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     return block(s, f"{r['why']}\n{r.get('findings', '')}".strip())
 
 
-def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print) -> bool:
+def feed(procs: Procs, lanes_n: int, out=print) -> bool:
+    """While fewer than `lanes_n` lanes have steps left, queue the next build-order milestone no lane holds. True if one was taken."""
+    took = False
+    while True:
+        lanes = load()
+        if sum(1 for x in lanes if x["cursor"] < len(x["steps"])) >= lanes_n:
+            return took
+        nxt = procs.next_milestone({x["id"] for x in lanes})
+        if not nxt:
+            return took
+        lane_id, worktree, steps = nxt
+        for st in steps:
+            add(lane_id, worktree, st["step"], st["brief"], st["issues"], waits=st.get("waits"))
+        journal.append("queue", lane=lane_id, step="-", state="milestone", detail=f"taken: {len(steps)} steps")
+        out(f"{lane_id}: taken from the build order, {len(steps)} steps")
+        took = True
+
+
+def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, chains: dict | None = None) -> bool:
     busy = False
     for lane in load():
-        busy = tick_lane(lane, procs, handles, workers_n, push, out) or busy
+        busy = tick_lane(lane, procs, handles, workers_n, push, out, chains) or busy
     return busy
 
 
-def run(procs: Procs, *, workers_n: int, push: bool, tick_s: float = 30.0, once: bool = False, forever: bool = False, out=print) -> int:
+def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: float = 30.0, once: bool = False, forever: bool = False,
+        out=print) -> int:
     """Ticks until nothing can move without a person; `forever` (the verb) keeps ticking so a blocked or paused lane keeps its
-    session and a resume from another shell is picked up."""
+    session and a resume from another shell is picked up. Each tick first takes build-order milestones up to `lanes_n`."""
     handles: dict = {}
+    chains: dict | None = {"pool": ThreadPoolExecutor(max_workers=lanes_n)} if lanes_n > 1 else None
     while True:
-        busy = tick(procs, handles, workers_n=workers_n, push=push, out=out)
+        took = feed(procs, lanes_n, out)
+        busy = tick(procs, handles, workers_n=workers_n, push=push, out=out, chains=chains) or took
         if once or not (busy or forever):
             return 0
         procs.sleep(tick_s)
@@ -288,7 +326,41 @@ def real_procs(root) -> Procs:
             (Path(lane["feed"]) / "stop").write_text("")
 
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
-                 landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)))
+                 landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
+                 next_milestone=lambda taken: next_in_order(root, taken))
+
+
+_SKIPPED: set = set()  # milestones this process found with no step to brief: asked once, not re-planned every tick
+
+
+def next_in_order(root, taken: set, gh: str = "gh") -> tuple | None:
+    """The first `## In order` milestone of the build-order file that no lane holds, has open issues and a spec, with one
+    brief per step (the `builder milestone --enqueue` plan); a milestone whose issues place no step is a row and is skipped."""
+    from fichero_builder import brief_tool, milestone, triage
+
+    root = Path(root)
+    rules = tomllib.loads((root / "harness.toml").read_text())
+    for title, spec in triage.build_order(root)[0]:
+        lane = slug(title)
+        if lane in taken or lane in _SKIPPED or not spec:
+            continue
+        issues = milestone.list_issues(title, gh=gh)
+        if not issues:
+            continue
+        spec_path = root / triage.SPECS / spec
+        planned = milestone.plan(issues, milestone.build_order(spec_path), milestone.spec_slug(spec_path))
+        for q in planned["questions"]:
+            journal.append("queue", lane=lane, step="-", state="question", detail=q[-300:])
+        if not planned["clusters"]:
+            _SKIPPED.add(lane)
+            continue
+        written = milestone.write_briefs(planned, out=journal.STATE / f"briefs-{lane}", repo_dir=str(root), base="", lane=lane,
+                                         rules=rules.get("brief", {}).get("rules", ""), fetch=lambda n: brief_tool.fetch_issue(n, gh=gh),
+                                         cluster=brief_tool.cluster, spec_path=str(spec_path), binary=codemap.owner_binary(root))
+        worktree = str(Path(rules["jail"]["workroot"]) / f"wt-{lane}")
+        return lane, worktree, [{"step": c["step"], "brief": str(b), "issues": [i["number"] for i in c["issues"]], "waits": c["waits"]}
+                                for c, b in zip(planned["clusters"], written)]
+    return None
 
 
 def main(a) -> int:
@@ -320,7 +392,8 @@ def main(a) -> int:
         except (OSError, KeyError, ValueError, tomllib.TOMLDecodeError, models.Question, jail.JailMissing) as e:
             print(f"REFUSED: the rules file cannot run the queue: {e}")
             return 1
-        return run(procs, workers_n=workers(a.root), push=a.push, tick_s=a.tick, once=a.once, forever=not a.once)
+        lanes_n = max(1, a.lanes)
+        return run(procs, workers_n=max(workers(a.root), lanes_n), push=a.push, lanes_n=lanes_n, tick_s=a.tick, once=a.once, forever=not a.once)
     for row in table():
         print("\t".join(row))
     return 0

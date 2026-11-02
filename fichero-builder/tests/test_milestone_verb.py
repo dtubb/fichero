@@ -6,6 +6,7 @@ import os
 import stat
 import sys
 import types
+from pathlib import Path
 
 from fichero_builder import __main__ as cli
 from fichero_builder import brief_tool, milestone
@@ -250,3 +251,21 @@ def test_the_where_list_names_only_what_the_step_its_behaviours_and_its_issues_n
     assert "pkg/readers/runner.py: run_enhancement (1), Other (4)" in where, "each file with its outline"
     assert "t/ (where t/test_new.py goes; it does not exist yet)" in where, "a test the step writes: its directory"
     assert not any("agent-work" in w or "LICENSE" in w or "enhancement_noise" in w or "pkg/other.py" in w for w in where)
+
+
+def test_the_queue_takes_the_first_ordered_milestone_no_lane_holds_with_its_step_briefs(tmp_path, monkeypatch):
+    """The real feed of `builder queue run`: build-order.md's `## In order`, skipping held milestones and lines with no spec."""
+    from fichero_builder import journal, queue
+
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    specs = tmp_path / "docs" / "contributor_manual" / "specs" / "h"
+    specs.mkdir(parents=True)
+    (specs / "m1.md").write_text(SPEC)
+    (tmp_path / "harness.toml").write_text('[jail]\nworkroot = "/wr"\n[brief]\nrules = "Rule one."\n')
+    (specs.parent / "build-order.md").write_text("## In order\n\n1. `m0` — held. Spec: h/m1.md\n2. `no-spec` — none.\n3. `m1` — next. Spec: h/m1.md\n")
+    gh = _fake_gh(tmp_path)
+    lane, worktree, steps = queue.next_in_order(tmp_path, {"m0"}, gh=gh)
+    assert (lane, worktree) == ("m1", "/wr/wt-m1")
+    assert [(s["step"], s["issues"], s["waits"]) for s in steps] == [("1.1", [7], []), ("1.2", [8], ["1.1"])]
+    assert all(Path(s["brief"]).is_file() and "Rule one." in Path(s["brief"]).read_text() for s in steps)
+    assert queue.next_in_order(tmp_path, {"m0", "m1"}, gh=gh) is None, "the order is done"

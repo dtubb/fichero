@@ -428,6 +428,16 @@ the write path would produce.
   `::test_an_issue_of_a_landed_step_that_stayed_open_is_a_row_and_on_the_step_never_a_close`,
   `fichero-builder/tests/test_dry_run.py::test_feed_mode_keeps_the_session_and_types_the_next_brief_into_the_same_pane`,
   `fichero-builder/tests/test_milestone_verb.py::test_enqueue_puts_each_step_brief_in_the_milestones_lane_in_build_order`.
+  **Roll-on and lanes** (owner 2026-11-02, built against fakes): `builder queue run [--lanes N] [--push]` feeds itself from the
+  build-order file: while fewer than N lanes have steps left, it takes the first `## In order` milestone that no lane holds,
+  has open issues and a spec, with one brief per step (`queue.next_in_order`, the `milestone --enqueue` plan; a milestone
+  whose issues place no step is a `question` row and is skipped). One command so runs a spec to the end and then the next,
+  until the order is done or a lane blocks on a QUESTION or a cap, which keeps its lane. N defaults to 1; with more, each
+  lane's check and review run in their own thread, so a lane waits only for the ladder lock, one ladder at a time on the
+  machine. Tests: `fichero-builder/tests/test_queue_verb.py::test_the_queue_rolls_on_to_the_next_build_order_milestone_when_a_lanes_steps_have_landed`,
+  `::test_a_question_stops_the_roll_on_and_the_next_milestone_is_not_taken`,
+  `::test_n_lanes_hold_n_milestones_and_their_chains_overlap_but_the_ladder_is_one_at_a_time`,
+  `fichero-builder/tests/test_milestone_verb.py::test_the_queue_takes_the_first_ordered_milestone_no_lane_holds_with_its_step_briefs`.
 - `dev-workflows.run.code-map` [OK] (#6340; owner 2026-11-01) — jail workers find code with jcodemunch instead of reading the
   tree. `[jail].code_map` names the owner's install; the worker cannot read the owner's home, so before a start the owner
   copies the install's whole venv under the workroot and writes `<workroot>/bin/jcodemunch-mcp`, which runs the script with
