@@ -55,17 +55,23 @@ def _shared_rows(a) -> list[dict]:
     return rows
 
 
+def run_cmd(a, model: str, *extra) -> str:
+    """The `builder run` command line the jail user runs (the one-brief path, and the queue's long-running session with --feed)."""
+    py = check_tool.load(a.pinned).python or sys.executable
+    pkg = Path(__file__).resolve().parents[1]
+    return " ".join(["PYTHONPATH=" + shlex.quote(str(pkg)), shlex.quote(py), "-m fichero_builder run",
+                     *(f"{k} {shlex.quote(str(v))}" for k, v in (
+                         ("--worktree", a.worktree), ("--brief", a.brief), ("--root", a.root), ("--name", a.name), ("--model", model),
+                         ("--kind", a.kind), ("--session", a.session), ("--tick", a.tick), ("--state", shared_state(a)))),
+                     *(shlex.quote(str(x)) for x in extra)])
+
+
 def do_run(a, model: str) -> str:
     """`builder run` as the jail user; the end is read from the SHARED journal (the cost row, and the worker row's worktree)."""
     j = _jail(a)
     j.require()
     before = len(_shared_rows(a))
-    py = check_tool.load(a.pinned).python or sys.executable
-    pkg = Path(__file__).resolve().parents[1]
-    cmd = " ".join(["PYTHONPATH=" + shlex.quote(str(pkg)), shlex.quote(py), "-m fichero_builder run",
-                    *(f"{k} {shlex.quote(str(v))}" for k, v in (
-                        ("--worktree", a.worktree), ("--brief", a.brief), ("--root", a.root), ("--name", a.name), ("--model", model),
-                        ("--kind", a.kind), ("--session", a.session), ("--tick", a.tick), ("--state", shared_state(a))))])
+    cmd = run_cmd(a, model)
     r = as_worker(a, cmd)
     if r.stdout.strip():
         print(r.stdout.strip())
@@ -136,7 +142,7 @@ def _script(name: str, *argv) -> tuple[bool, str]:
 
 def do_review(a, repo: str, head: str, ladder: str, verdicts: str, model: str) -> tuple[bool, str]:
     ok, out = _script("harness_review.py", repo, head, "--pinned", a.pinned, "--verdicts", verdicts, "--ladder", ladder, "--model", model)
-    return ok, out.splitlines()[-1] if out else "the reviewer said nothing"
+    return ok, out or "the reviewer said nothing"  # the whole text: a queue sends the findings back to the worker
 
 
 def do_land(a, repo: str, head: str, verdicts: str, log: str) -> tuple[bool, str]:
@@ -173,6 +179,56 @@ def ensure_pinned(root: str, brief: str, base: str) -> str:
             if r.returncode:
                 raise RuntimeError(f"git {' '.join(args)}: {r.stderr.strip()}")
     return str(dest)
+
+
+def _tail(r: dict) -> str:
+    """What a red rung said, for the worker's fix brief."""
+    last = (r.get("rungs") or [{}])[-1]
+    return "\n".join(str(last[k]) for k in ("reason", "stdout_tail", "stderr_tail") if last.get(k))[-3000:]
+
+
+def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None) -> dict:
+    """Rebase, patches, fetch, check, review, land gate: one journal row each; {ok, head, out} or {ok: False, kind, why,
+    findings}. kind red / not-ready / refused can go back to the worker; error needs a person. `stage` hears checking, reviewing."""
+    issues = list(a.issues)
+
+    def step(name: str, ok: bool, detail: str) -> bool:
+        journal.append("work", name=a.name, issues=issues, step=name, ok=ok, detail=detail, worktree=str(a.worktree))
+        return ok
+
+    def no(kind: str, why: str, findings: str = "") -> dict:
+        return {"ok": False, "kind": kind, "why": why, "findings": findings}
+
+    state = Path(journal.STATE)
+    state.mkdir(parents=True, exist_ok=True)
+    ladder, verdicts, log = (str(state / f"{k}-{a.name}.{e}") for k, e in (("ladder", "json"), ("verdicts", "json"), ("land", "log")))
+    why = do_rebase(a, branch)
+    if not step("rebase", not why, why or f"on top of origin/{branch}"):
+        return no("error", why)
+    n = do_export(a, branch)
+    if not step("patches", n > 0, f"{n} patch(es) under patches-{a.name} in the shared state"):
+        return no("error", f"the worktree has no commits over origin/{branch}")
+    head = do_fetch(a, repo, branch)
+    if not step("fetch", bool(head), head or f"could not fetch the worktree branch into {repo}"):
+        return no("error", f"could not fetch the worktree's branch into {repo}")
+    with journal.Lock("ladder"):  # one ladder at a time across the queue's lanes and any `builder work` (the machine is loaded)
+        stage("checking")
+        try:
+            r = do_check(a, repo, branch, head, ladder)
+        except (RuntimeError, OSError, ValueError) as e:
+            step("check", False, str(e))
+            return no("error", f"the check could not run: {e}")
+        if not step("check", bool(r.get("ok")), f"failed: {r.get('failed') or '-'}"):
+            return no("red", f"the check is red at {head[:9]} (failed: {r.get('failed') or '?'}); ladder in {ladder}", f"failed rung: {r.get('failed') or '?'}\n{_tail(r)}")
+        stage("reviewing")
+        ok, text = do_review(a, repo, head, ladder, verdicts, reviewer)
+        last = text.splitlines()[-1] if text else "the reviewer said nothing"
+        if not step("review", ok, last):
+            return no("not-ready", f"the review is not READY: {last}", text)
+        ok, out = do_land(a, repo, head, verdicts, log)
+        if not step("land", ok, out[-300:]):
+            return no("refused", f"the land gate refused: {out[-300:]}", out[-2000:])
+    return {"ok": True, "head": head, "out": out}
 
 
 def main(a) -> int:
@@ -213,10 +269,8 @@ def _chain(a) -> int:
     if not repo:
         step("rules", False, "no --repo and no [check].engine_repo")
         return question("no --repo and no [check].engine_repo in the pinned rules")
-    state = Path(journal.STATE)
-    state.mkdir(parents=True, exist_ok=True)
-    ladder, verdicts, log = (str(state / f"{k}-{a.name}.{e}") for k, e in (("ladder", "json"), ("verdicts", "json"), ("land", "log")))
-    if problem := land_tool.log_problem(log):  # before the worker and the ladder, not after
+    Path(journal.STATE).mkdir(parents=True, exist_ok=True)
+    if problem := land_tool.log_problem(Path(journal.STATE) / f"land-{a.name}.log"):  # before the worker and the ladder, not after
         step("rules", False, problem)
         return question(f"the land log cannot be written: {problem}")
 
@@ -227,28 +281,9 @@ def _chain(a) -> int:
         return question(f"the worker could not run: {e}")
     if not step("run", end in ("done", "done-unsaid"), end):
         return question(f"the worker ended {end!r}, not done; read its handoff and the journal, then decide")
-    why = do_rebase(a, branch)
-    if not step("rebase", not why, why or f"on top of origin/{branch}"):
-        return question(why)
-    n = do_export(a, branch)
-    if not step("patches", n > 0, f"{n} patch(es) under patches-{a.name} in the shared state"):
-        return question(f"the worktree has no commits over origin/{branch}")
-    head = do_fetch(a, repo, branch)
-    if not step("fetch", bool(head), head or f"could not fetch the worktree branch into {repo}"):
-        return question(f"could not fetch the worktree's branch into {repo}")
-    with journal.Lock("ladder"):  # one ladder at a time across the queue's parallel work processes (the machine is loaded)
-        try:
-            r = do_check(a, repo, branch, head, ladder)
-        except (RuntimeError, OSError, ValueError) as e:
-            step("check", False, str(e))
-            return question(f"the check could not run: {e}")
-        if not step("check", bool(r.get("ok")), f"failed: {r.get('failed') or '-'}"):
-            return question(f"the check is red at {head[:9]} (failed: {r.get('failed') or '?'}); ladder in {ladder}")
-        ok, last = do_review(a, repo, head, ladder, verdicts, reviewer)
-        if not step("review", ok, last):
-            return question(f"the review is not READY: {last}")
-        ok, out = do_land(a, repo, head, verdicts, log)
-    if not step("land", ok, out[-300:]):
-        return question(f"the land gate refused: {out[-300:]}")
+    r = after_run(a, repo, branch, reviewer)
+    if not r["ok"]:
+        return question(r["why"])
+    out = r["out"]
     print(next((x for x in out.splitlines() if x.startswith("READY TO LAND")), out))
     return 0

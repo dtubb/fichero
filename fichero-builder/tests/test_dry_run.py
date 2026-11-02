@@ -252,6 +252,45 @@ def test_a_done_line_naming_the_wrong_sha_on_a_moved_branch_is_nudged_and_ended_
     assert len(told) == 1 and told[0].endswith("DONE bbbb222")
 
 
+def test_feed_mode_keeps_the_session_and_types_the_next_brief_into_the_same_pane(root):
+    """Owner ruling (the queue): after DONE the worker stays open; a `step` row says so; msg-<seq+1>.txt in the feed folder
+    goes into the SAME pane, one start only; the old idle DONE text is not read as the next step's end; `stop` ends it."""
+    feed = root / "inbox"
+    feed.mkdir()
+    done1 = {**HEALTHY, "idle": True, "moved": True, "turns": 2, "last_text": "DONE bbbb222"}
+    stale = {**done1, "moved": False}
+    done2 = {**HEALTHY, "idle": True, "moved": True, "turns": 3, "last_text": "DONE cccc333"}
+    fake = Fake([HEALTHY, done1, stale, stale, done2, stale], heads=("aaaa111", "bbbb222", "cccc333"))
+    told, starts, reads = [], [], []
+    real_read, real_start = fake.read, fake.start
+    fake.procs.tell = lambda pane, words: told.append((pane, words))
+    fake.procs.start = lambda *a: starts.append(a) or real_start(*a)
+
+    def read():
+        reads.append(1)
+        if len(reads) == 3:  # the owner has checked and landed the first step
+            (feed / "msg-1.txt").write_text("the next step")
+        if len(reads) == 6:
+            (feed / "stop").write_text("")
+        return real_read()
+    fake.procs.read = read
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None, feed=feed) == "lane-done"
+    assert len(starts) == 1 and fake.stopped == ["%9"], "one session from first brief to stop"
+    assert told == [("%9", f"Read {feed / 'msg-1.txt'} and do what it says; end your turn with the DONE line it names.")]
+    rows = [(r["seq"], r["sha"], r["moved"]) for r in journal.read() if r["event"] == "step"]
+    assert rows == [(0, "bbbb222", True), (1, "cccc333", True)], "one row per step; the stale DONE gave none"
+    assert not [r for r in journal.read() if r["event"] == "watch" and r["what"].startswith("false done")]
+
+
+def test_feed_mode_a_done_with_no_new_commit_is_a_step_row_saying_so(root):
+    """A fix brief answered with no commit must not hang the lane: the owner reads moved=False."""
+    feed = root / "inbox"
+    feed.mkdir()
+    fake = Fake([{**HEALTHY, "idle": True, "turns": 2, "last_text": "DONE aaaa111"}])
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None, feed=feed, seq=4) == "gone"
+    assert [(r["seq"], r["moved"]) for r in journal.read() if r["event"] == "step"] == [(4, False)]
+
+
 def test_a_worker_that_answers_the_nudge_without_the_line_still_ends(root):
     """One nudge only: a reply with no DONE line between the idle ticks must not reset it into a nudge loop."""
     told = []
