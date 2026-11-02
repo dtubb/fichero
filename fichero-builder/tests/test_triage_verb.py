@@ -1,6 +1,7 @@
 """dev-workflows.tool.triage: `builder triage` changes the repo's GitHub metadata directly, one journal row and one readable
 `gh` call per change; a fake gh records every call. The rules are the issues-and-labels spec's: the milestone is the spec,
-the label set is closed, needs-spec only inside a spec milestone, the build-order file is read never written."""
+the label set is closed, needs-spec only inside a spec milestone, the build-order file is read never written.
+spec: issues-and-labels"""
 from __future__ import annotations
 
 import json

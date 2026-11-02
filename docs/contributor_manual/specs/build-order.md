@@ -4,8 +4,7 @@
 > first milestone here that still has open issues, unless a person passes `--milestone`. The owner edits this file;
 > `builder triage --order` proposes changes as a diff, never writes it.
 >
-> **Status: PROPOSED 2026-11-01 — the first four lines are tonight's order; everything below "Then" is the
-> manager's guess for the owner to reorder.**
+> **Order set by the owner 2026-11-02:** the "In order" list is the order of work (image-enhancement, then sharing, then the recipe work); "Then" stays unordered until the owner orders it.
 
 ## In order
 

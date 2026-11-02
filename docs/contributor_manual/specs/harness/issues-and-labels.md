@@ -4,7 +4,7 @@
 > Manual: docs/contributor_manual/how-fichero-is-built.md — the contributor section says where work is recorded (GitHub)
 > and how the harness picks the next thing.
 
-> **Status: DRAFT — awaiting the owner's approval (written 2026-11-01 from the owner's rulings of that evening).**
+> **Status: APPROVED 2026-11-02 by the owner (written 2026-11-01 from the owner's rulings of that evening).**
 > Tags: [OK] built · [PARTIAL] exists, not wired · [GAP] not built · [PROPOSED] decided here, not yet ruled.
 > Scope with other specs: `harness/dev-workflows.md` owns the verbs (`builder milestone`, `steps`, `landed`, `triage`,
 > `queue`); this spec owns what those verbs read and write on GitHub. `specs/_TEMPLATE.md` and

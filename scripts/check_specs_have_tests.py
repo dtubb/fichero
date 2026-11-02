@@ -33,6 +33,7 @@ from _scan_files import scan_rglob
 SPECS_DIR = pathlib.Path("docs/contributor_manual/specs")
 TEST_ROOTS = [
     pathlib.Path("fichero/Tests"),
+    pathlib.Path("fichero-builder/tests"),
     pathlib.Path("fichero-server/tests"),
     pathlib.Path("fichero-mcp/tests"),
     pathlib.Path("fichero-cli/tests"),
