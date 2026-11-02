@@ -101,6 +101,10 @@ intake_commits = 8
 intake_hours = 3
 # tell = "<script> <pane> <text>"   # unset: the tracked `builder tell` (fichero_builder/tell.py)
 
+[machines]
+# dev-workflows.run.measure: test machines `builder measure` ships a lane's commit to (ssh host, the gate dir with venv/)
+imac = { ssh = "imac", dir = "~/fichero-gate", min_free_gb = 5 }
+
 [queue]
 # `builder queue run` (dev-workflows.tool.queue): how many `builder work` processes run at once; the ladder is one at a time regardless.
 workers = 1

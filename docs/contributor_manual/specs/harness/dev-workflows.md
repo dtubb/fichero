@@ -755,6 +755,14 @@ the write path would produce.
   waiting in the console. Tests `fichero-builder/tests/test_loop.py::test_done_snapshots_the_lanes_head_into_a_land_tree_and_a_red_tells_its_pane_and_a_re_done_re_takes`,
   `::test_the_intake_takes_a_finished_step_past_its_thresholds_and_never_a_held_lane`. Not yet: Sonnet/Opus review by path
   (speed item 6a); the first real run (lane-sharing, lane-onboard).
+- `dev-workflows.run.measure` [PARTIAL] (#6116; manager 2026-11-02: a measurement run on a test machine was a hand step) —
+  `builder measure <lane> --machine <name> [--sha S] -- <script> [args]`: the lane's commit (default its HEAD) ships its engine
+  source and the script (`git archive`, never the worktree) to `<dir>/wt/<sha12>` on the `[machines].<name>` host over ssh, runs
+  it there with `<dir>/venv/bin/python`, `PYTHONPATH` the shipped source and `TMPDIR=<dir>/tmp`, which is emptied after; a host
+  with less than `min_free_gb` (default 5) free refuses before shipping. One `measure` row (lane, machine, sha, args, exit, the
+  last JSON line of its output) and the line told to the lane's pane. The console offers it per lane. Test
+  `fichero-builder/tests/test_measure.py` (a fake ssh). Not yet: a lane's `MEASURE <machine> <cmd>` request read by the loop, a
+  step marked measure.
 - `dev-workflows.run.records-are-truth` [PROPOSED] (maintainer 2026-10-31; owner 2026-11-01: no engine) — for a worker the
   truth is its **journal** (JSON lines, one file per cluster under the Builder's state directory; `$FICHERO_HARNESS_LOG` in
   Slice 0), plus git plus the handoff file; the run log (one row per item attempt: model, provider, context cap, tokens,

@@ -50,6 +50,8 @@ VERBS = {
     "done": (("lane", "sha"), lambda a: _builder("done", a["lane"], a["sha"], *_st())),
     "start-milestone": (("milestone",), lambda a: _builder("milestone", a["milestone"], "--enqueue", "--repo-dir", str(ROOT), *_st(),
                                                           "--out", str(journal.STATE / f"briefs-{queue.slug(a['milestone'])}"))),
+    "measure": (("lane", "machine", "script"), lambda a: _builder("measure", a["lane"], "--machine", a["machine"], "--root", str(ROOT), *_st(),
+                                                                 "--", *__import__("shlex").split(a["script"]))),  # after `--`: the remote script's own args
     "order": (("file",), lambda a: _builder("order", "--file", a["file"], "--root", str(ROOT), *_st())),
     "sweep": (("worktree",), lambda a: _builder("sweep", "--worktree", a["worktree"], "--root", str(ROOT), *_st())),
     "queue-add": (("lane", "worktree", "step", "brief", "issues", "kind"),
@@ -188,6 +190,7 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
     st["loop_on"] = bool(ticks) and now - time.mktime(time.strptime(ticks[-1]["ts"], "%Y-%m-%dT%H:%M:%S")) <= LOOP_STALE_S
     st["console"] = [r for r in rows if r.get("event") == "console"][-20:]
     st["loop_lanes"] = LOOP_LANES
+    st["machines"] = MACHINES
     acquired = {(r.get("pid"), r.get("name")) for r in rows if r.get("event") == "lock" and r.get("state") == "acquired"}
     st["lock_waits"] = [r for r in rows if r.get("event") == "lock" and r.get("state") == "waiting" and (r.get("pid"), r.get("name")) not in acquired][-5:]
     running = {a["lane"]: a for a in activity(rows)["running"] if a.get("lane")}
@@ -616,6 +619,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 EVENT_POLL_S = 1.0
+MACHINES: list = []  # [machines] names, read by main
 LOOP_LANES = 1  # [loop].lanes, read by main: the page starts no more lanes than this
 
 
@@ -631,7 +635,9 @@ def main(a) -> int:
     ROOT = Path(a.root)
     try:
         import tomllib
-        LOOP_LANES = int(tomllib.loads((ROOT / "harness.toml").read_text()).get("loop", {}).get("lanes", 1))
+        doc = tomllib.loads((ROOT / "harness.toml").read_text())
+        LOOP_LANES = int(doc.get("loop", {}).get("lanes", 1))
+        MACHINES[:] = sorted(doc.get("machines", {}))
     except (OSError, ValueError):
         pass
     srv = server("127.0.0.1", a.port)
