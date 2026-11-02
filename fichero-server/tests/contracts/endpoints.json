@@ -9884,7 +9884,23 @@
         "operation_id": "questions_api_recipes_questions_get",
         "summary": "Questions",
         "path_params": [],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "matters",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "pages",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "places",
+            "required": false,
+            "type": "string"
+          }
+        ],
         "request_model": null,
         "response_model": "QuestionList"
       },

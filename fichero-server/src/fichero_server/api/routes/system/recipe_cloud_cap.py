@@ -339,13 +339,41 @@ class ConditionQuestion(BaseModel):
     help: str = Field(description="what Fichero does about it, in one line")
 
 
+class HowOption(BaseModel):
+    id: str
+    name: str
+    consequence: str = Field(description="what choosing it means, in one sentence")
+    allowed: bool = Field(description="false: shown greyed with the reason, never hidden")
+    reason: Optional[str] = None
+
+
+class HowQuestions(BaseModel):
+    places: list[HowOption] = Field(description="Where should the work run? limited to the places Set Up Fichero allows")
+    model_kinds: list[HowOption] = Field(description="Which kind of model? `compare` is the default")
+    default_model_kind: str
+    matters: list[str] = Field(description="What matters most? one of these")
+    proposed_card: Optional[str] = Field(default=None, description="the route card (a to d) the answers sent propose; null when they say nothing")
+
+
 class QuestionList(BaseModel):
     conditions: list[ConditionQuestion] = Field(description="the condition-of-the-pages tick boxes, in the order they are asked; none is ticked by default")
+    how: HowQuestions = Field(description="How do you want to run this: the four questions (`designer.how.*`)")
 
 
 @router.get("/questions", response_model=QuestionList)
-async def questions() -> QuestionList:
-    """The one list the app asks About the Material from. It invents none (`designer.material.condition-asked`)."""
-    from fichero_server.recipes.condition import CONDITIONS  # lazy: the import budget counts a module per route file
+async def questions(places: str = "", matters: str = "", pages: int = 0) -> QuestionList:
+    """The one list the app asks About the Material and How from. It invents none (`designer.material.condition-asked`,
+    `designer.how.*`). `places`, `matters` and `pages` are the answers so far, comma separated: the answer says the card they propose."""
+    from fichero_server.recipes import derived, how as how_module, places as app_places  # lazy: the import budget counts a module per route file
+    from fichero_server.recipes.condition import CONDITIONS
 
-    return QuestionList(conditions=[ConditionQuestion(id=i, name=n, help=h) for i, n, h in CONDITIONS])
+    allowed = app_places.get_places()
+    said = {"places": [p for p in places.split(",") if p], "matters": matters or None}
+    return QuestionList(
+        conditions=[ConditionQuestion(id=i, name=n, help=h) for i, n, h in CONDITIONS],
+        how=HowQuestions(
+            places=[HowOption(**o) for o in how_module.offered_places(allowed)],
+            model_kinds=[HowOption(**o) for o in how_module.model_kind_options(
+                cloud_allowed=app_places.allows("cloud", allowed), memory_gb=derived.this_mac()["memory_gb"])],
+            default_model_kind=how_module.DEFAULT_MODEL_KIND, matters=list(how_module.MATTERS),
+            proposed_card=how_module.proposed_card(said, pages)))

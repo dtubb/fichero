@@ -6785,9 +6785,13 @@ def fichero_recipes_list_purposes(
 
 
 def fichero_recipes_questions(
+    *,
+    matters: Annotated[Optional[str], Field(description='Matters')] = None,
+    pages: Annotated[Optional[int], Field(description='Pages')] = None,
+    places: Annotated[Optional[str], Field(description='Places')] = None,
 ) -> Any:
-    'Questions\n\nThe one list the app asks About the Material from. It invents none (`designer.material.condition-asked`).\n\nRoute: GET /api/recipes/questions (toolset `recipes`; reads).'
-    return _rt.call("GET", "/api/recipes/questions")
+    'Questions\n\nThe one list the app asks About the Material and How from. It invents none (`designer.material.condition-asked`,\n`designer.how.*`). `places`, `matters` and `pages` are the answers so far, comma separated: the answer says the card they propose.\n\nRoute: GET /api/recipes/questions (toolset `recipes`; reads).'
+    return _rt.call("GET", "/api/recipes/questions", params={"matters": matters, "pages": pages, "places": places})
 
 
 def fichero_recipes_routes_for_volume(

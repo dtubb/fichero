@@ -17741,8 +17741,40 @@
           "recipes"
         ],
         "summary": "Questions",
-        "description": "The one list the app asks About the Material from. It invents none (`designer.material.condition-asked`).",
+        "description": "The one list the app asks About the Material and How from. It invents none (`designer.material.condition-asked`,\n`designer.how.*`). `places`, `matters` and `pages` are the answers so far, comma separated: the answer says the card they propose.",
         "operationId": "questions_api_recipes_questions_get",
+        "parameters": [
+          {
+            "name": "places",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Places"
+            }
+          },
+          {
+            "name": "matters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Matters"
+            }
+          },
+          {
+            "name": "pages",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Pages"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -17750,6 +17782,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/QuestionList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -70891,6 +70933,87 @@
         "title": "HfSpend",
         "description": "This month's Hugging Face spend against the project's cap (`source.onboard.spend-cap`, #5769)."
       },
+      "HowOption": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "consequence": {
+            "type": "string",
+            "title": "Consequence",
+            "description": "what choosing it means, in one sentence"
+          },
+          "allowed": {
+            "type": "boolean",
+            "title": "Allowed",
+            "description": "false: shown greyed with the reason, never hidden"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "consequence",
+          "allowed"
+        ],
+        "title": "HowOption"
+      },
+      "HowQuestions": {
+        "properties": {
+          "places": {
+            "items": {
+              "$ref": "#/components/schemas/HowOption"
+            },
+            "type": "array",
+            "title": "Places",
+            "description": "Where should the work run? limited to the places Set Up Fichero allows"
+          },
+          "model_kinds": {
+            "items": {
+              "$ref": "#/components/schemas/HowOption"
+            },
+            "type": "array",
+            "title": "Model Kinds",
+            "description": "Which kind of model? `compare` is the default"
+          },
+          "default_model_kind": {
+            "type": "string",
+            "title": "Default Model Kind"
+          },
+          "matters": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Matters",
+            "description": "What matters most? one of these"
+          },
+          "proposed_card": {
+            "type": "string",
+            "nullable": true,
+            "title": "Proposed Card",
+            "description": "the route card (a to d) the answers sent propose; null when they say nothing"
+          }
+        },
+        "type": "object",
+        "required": [
+          "places",
+          "model_kinds",
+          "default_model_kind",
+          "matters"
+        ],
+        "title": "HowQuestions"
+      },
       "HpcCheckResponse": {
         "properties": {
           "cluster_id": {
@@ -85575,11 +85698,16 @@
             "type": "array",
             "title": "Conditions",
             "description": "the condition-of-the-pages tick boxes, in the order they are asked; none is ticked by default"
+          },
+          "how": {
+            "$ref": "#/components/schemas/HowQuestions",
+            "description": "How do you want to run this: the four questions (`designer.how.*`)"
           }
         },
         "type": "object",
         "required": [
-          "conditions"
+          "conditions",
+          "how"
         ],
         "title": "QuestionList"
       },

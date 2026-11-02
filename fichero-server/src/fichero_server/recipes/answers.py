@@ -84,6 +84,11 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
 
         out["condition"], refused = normalise_condition(out["condition"])
         problems += refused
+    if "how" in out:  # `designer.how.*`
+        from fichero_server.recipes.how import normalise as normalise_how
+
+        out["how"], refused = normalise_how(out["how"])
+        problems += refused
     if "languages" in out:
         out["languages"] = list(dict.fromkeys(keep_or_refuse(v, resolve_language) for v in _list(out["languages"])))
     if "scripts" in out:

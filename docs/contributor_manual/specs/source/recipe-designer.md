@@ -262,32 +262,32 @@ questions, before the route cards and before Choose the Stages, so the defaults 
 person; the cards (below) become the engine's answer to them, not a choice made cold. What the person has is
 derived, never asked twice (`source.onboard.derives-not-asks` (P): `recipes/derived.py` already reports this
 Mac's chip and memory, the providers with a key and the places work can run).
-- `designer.how.where` [GAP] (#6052; issue to file on approval) — "Where should the work run?": this Mac · another machine of mine
+- `designer.how.where` [PARTIAL] (#6052; engine half built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is not) — "Where should the work run?": this Mac · another machine of mine
   · a cluster · the cloud, each a tick with one sentence of consequence (pages stay here / leave to your own
   machine / to the cluster's administrators / to a company), limited to the places Set Up Fichero allows
   (`source.onboard.places-cap-projects` (P)); a place the app does not allow is shown greyed with the engine's
   reason and a link, never hidden. Saved as `answers.how.places` (a list). *Test:*
   `test_how_questions.py` (the offered places are the app's allowed ones; a
   disallowed place is listed with its reason, not dropped).
-- `designer.how.model-kind` [GAP] (#6052; issue to file on approval) — "Which kind of model?": small local models (Kraken, Apple's
+- `designer.how.model-kind` [PARTIAL] (#6052; engine half built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is not) — "Which kind of model?": small local models (Kraken, Apple's
   recognition, small MLX models: read only what is on the line, free, slower, may misread a word) · large
   vision-language models (Claude, Gemini, GPT, or a large local one: read fluently, cost per page, may invent or
   regularise text) · let Fichero compare and choose (the default: the compare of section 8 decides on the
   person's pages). Saved as `answers.how.model_kind`. *Test:* same file (the three options, the default, and
   that the large-model option is greyed with its reason when the cloud is not allowed and this Mac cannot run one).
-- `designer.how.what-matters` [GAP] (#6052; issue to file on approval; extends `designer.path.what-matters-most`) — "What matters
+- `designer.how.what-matters` [PARTIAL] (#6052; engine half built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is not; extends `designer.path.what-matters-most`) — "What matters
   most?": speed · cost · quality · privacy, one choice, pre-filled from the places answer (privacy when only
   this Mac is ticked). Privacy means nothing leaves this Mac and the cloud question of
   `designer.path.cloud-question-on-the-page` stays unanswered; the other three break ties inside the noise band
   as section 7 says (`designer.path.what-matters-most` keeps predictability as the compare's label). Saved as
   `answers.how.matters`. *Test:* same file (privacy never writes `cloud_allowed`).
-- `designer.how.access-derived-and-confirmed` [GAP] (#6052; issue to file on approval) — "What you have" is shown, not asked: this
+- `designer.how.access-derived-and-confirmed` [PARTIAL] (#6052; engine half built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is not) — "What you have" is shown, not asked: this
   Mac's memory in one sentence (the route's own), the providers with a key saved, the Hugging Face token, each
   cluster signed in, each from `recipes/derived.py` and the places route, with Add a Key…, Add a Token…, Sign
   In… beside what is missing (the existing sheets). The person confirms with Continue; nothing on this line is
   stored in the project. *Test:* `test_how_access_is_derived.py` (the line is
   the derived route's; a saved key changes it; nothing is written to the answers).
-- `designer.how.answers-pick-the-card` [GAP] (#6052; issue to file on approval) — the four answers choose which route card is
+- `designer.how.answers-pick-the-card` [PARTIAL] (#6052; engine half built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is not) — the four answers choose which route card is
   proposed (`designer.path.choosing-is-a-default`): this Mac + privacy → (d); cloud + quality → (c); a cluster
   or Hugging Face + cost → (b); cloud allowed + a large archive (the volume rule) → (a). The chosen card says
   "proposed from your answers; change here"; the other cards stay. Changing an answer re-proposes; a card the

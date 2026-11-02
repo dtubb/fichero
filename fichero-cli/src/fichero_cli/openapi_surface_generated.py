@@ -14304,11 +14304,18 @@ def register_generated_openapi_commands(
     @target_app.command("questions")
     def recipes_questions_get(
         ctx: typer.Context,
+        matters: Optional[str] = typer.Option(None, '--matters', help='Matters.'),
+        pages: Optional[int] = typer.Option(None, '--pages', help='Pages.'),
+        places: Optional[str] = typer.Option(None, '--places', help='Places.'),
     ) -> None:
         """Questions (GET /api/recipes/questions)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/recipes/questions"
-            params = None
+            params = {
+                "matters": matters,
+                "pages": pages,
+                "places": places,
+            }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
