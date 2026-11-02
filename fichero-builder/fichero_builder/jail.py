@@ -103,7 +103,7 @@ class Jail:
         return bad
 
 
-_KNOWN = {"user", "workroot", "deny_read", "sudo", "owner_home"}
+_KNOWN = {"user", "workroot", "deny_read", "sudo", "owner_home", "code_map"}
 
 
 def load(root) -> Jail | None:

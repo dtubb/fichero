@@ -65,7 +65,7 @@ def load(root) -> Config:
     c = doc.get("check", {})
     if unknown := sorted(set(c) - {x.name for x in fields(Config)} - {"test_env"}):  # fail closed (review 3, spec item 2)
         raise ValueError(f"harness.toml [check]: unknown keys {unknown}")
-    if unknown := sorted(set(doc) - {"check", "jail", "policy", "land", "brief", "spend", "models"}):
+    if unknown := sorted(set(doc) - {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue"}):
         raise ValueError(f"harness.toml: unknown tables {unknown}")
     brief = doc.get("brief", {})
     if unknown := sorted(set(brief) - {"rules"}):
@@ -117,7 +117,7 @@ def rules_problems(root) -> list[str]:
     if c.engine_repo and not (Path(c.engine_repo) / ".git").exists():  # first real check 2026-11-01: a tree under ~ is unreadable to the jailed user
         out.append(f"[check].engine_repo {c.engine_repo!r} is not a git repository (clone the owner's repo there, readable by the jailed user)")
     land = tomllib.loads(f.read_text()).get("land", {})
-    if unknown := sorted(set(land) - {"branch", "boundary"}):
+    if unknown := sorted(set(land) - {"branch", "boundary", "pinned_dir"}):
         out.append(f"harness.toml [land]: unknown keys {unknown}")
     for k in ("branch", "boundary"):
         if not land.get(k):
