@@ -259,6 +259,8 @@ def main(a) -> int:
         return _ok(as_worker(j, f"{q(land_tool.GIT)} -C root fetch -q origin {q(branch)} && {q(land_tool.GIT)} -C root merge -q --ff-only FETCH_HEAD"), "jail root") or "root fast-forwarded"
 
     def scratch():
+        if a.keep_worktree:
+            return "worktree kept: a lane's session is still working in it"
         gone = []
         for wt in worktrees_of(sha):
             _ok(as_worker(j, f"rm -rf {shlex.quote(wt)} && {shlex.quote(land_tool.GIT)} -C root worktree prune"), f"remove {wt}")

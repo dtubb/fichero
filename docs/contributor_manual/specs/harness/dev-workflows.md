@@ -398,7 +398,7 @@ the write path would produce.
   `msg-<seq+1>.txt` appears in the folder (the owner's, so a worker cannot write its own next brief) and is typed into the
   same pane, or `stop` appears. The owner side is one loop: it sees the `step` row, runs `work.after_run` (rebase, patches,
   fetch, the ladder under the `ladder` lock, review, the land gate; the sha comes from the fetch, never from the worker's
-  row), then `builder landed` (push only with `--push`), moves the cursor, rebases the worktree and sends the next brief. A
+  row), then `builder landed --keep-worktree` (push only with `--push`; the session is still working there), moves the cursor, rebases the worktree and sends the next brief. A
   red check, a NOT READY review or a refused land goes back into the same session as a fix brief with the findings, two
   rounds, then blocked with `<state>/question-<lane>-<step>.txt`; a DONE with no commit, a refused landing or a chain error
   blocks at once. A new session only at the worker's own 85 % handoff or when it is gone (three times on a step blocks); a

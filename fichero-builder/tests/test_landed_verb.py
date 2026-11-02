@@ -344,3 +344,13 @@ def test_a_gh_that_times_out_is_a_red_step_never_a_traceback(world, monkeypatch,
     monkeypatch.setattr(landed.subprocess, "run", run)
     assert world.go("--push") == 1
     assert "timed out" in capsys.readouterr().err and rows()[-1]["step"] == "issues" and rows()[-1]["ok"] is False
+
+
+def test_keep_worktree_leaves_a_lanes_worktree_for_its_open_session(world):
+    """The queue's worker stays open after a step, in that worktree: its landing must not remove what the fetch row names."""
+    world.ready(), world.green()
+    wt = world.wr / "wt-lane"
+    wt.mkdir()
+    journal.append("work", name="lane", issues=[7], step="fetch", ok=True, detail=world.sha, worktree=str(wt))
+    assert world.go("--push", "--keep-worktree") == 0
+    assert wt.is_dir() and "kept" in next(r["detail"] for r in rows() if r["step"] == "scratch")

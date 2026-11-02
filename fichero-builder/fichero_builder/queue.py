@@ -209,7 +209,7 @@ def table() -> list[list[str]]:
 def landed_argv(root, lane_id: str, head: str, push: bool) -> list[str]:
     """`builder landed` for a lane: the verdict store `builder work`'s chain wrote under the lane's name."""
     return [sys.executable, "-m", "fichero_builder", "landed", head, "--root", str(root), "--state", str(journal.STATE),
-            "--verdicts", str(journal.STATE / f"verdicts-{lane_id}.json")] + (["--push"] if push else [])
+            "--verdicts", str(journal.STATE / f"verdicts-{lane_id}.json"), "--keep-worktree"] + (["--push"] if push else [])
 
 
 def real_procs(root) -> Procs:
