@@ -289,8 +289,13 @@ def green_runs(tree, files: list[str], whole: tuple, cfg: Config, timeout_s: flo
     """The green run: the engine-shaped pytest over the changed test files, then each whole-tests dir as its own pytest.
     One row: the first red (or the last green) as the row's own fields, `runs` = every command and its tail."""
     runs = []
-    if files:
-        runs.append(pytest_rung(tree, files, cfg, timeout_s))
+    groups: dict[str, list[str]] = {}  # one pytest per top-level package: two `tests` dirs in one run shadow each other
+    for f in files:
+        groups.setdefault(Path(f).parts[0] if len(Path(f).parts) > 1 else "", []).append(f)
+    for fs in groups.values():
+        if runs and not runs[-1]["ok"]:
+            break
+        runs.append(pytest_rung(tree, fs, cfg, timeout_s))
     for d in whole:
         if runs and not runs[-1]["ok"]:
             break
