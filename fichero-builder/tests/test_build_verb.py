@@ -100,3 +100,9 @@ def test_a_missing_script_or_version_is_a_refusal_never_a_traceback(root, capsys
     (root / "scripts" / "build-release-dmg.sh").unlink()
     assert go(root, "--dev") == 1
     assert "build-release-dmg.sh" in capsys.readouterr().out
+
+
+def test_a_script_that_cannot_be_run_is_a_refusal_never_a_traceback(root, capsys):
+    (root / "scripts" / "build-release-dmg.sh").chmod(0o644)
+    assert go(root, "--dev") == 1
+    assert "not executable" in capsys.readouterr().out and not row()

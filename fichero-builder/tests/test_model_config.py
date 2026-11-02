@@ -43,3 +43,12 @@ def test_a_pi_model_without_a_price_in_models_json_is_not_priced(tmp_path):
     (tmp_path / "models.json").write_text(json.dumps({"providers": {"fake": {"models": [
         {"id": "zero", "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}}]}}}))
     assert pi_rpc.priced(tmp_path, "fake", "zero"), "a local model at zero is a price, not a missing one"
+
+
+def test_a_window_past_the_standard_one_has_a_builder_model_that_gets_it():
+    """A queue lane takes its model from this role. On plain `sonnet` a worker fills its real window long before an 85 % handoff of 1M."""
+    import tomllib
+    from pathlib import Path
+
+    rules = tomllib.loads((Path(models.__file__).resolve().parents[2] / "harness.toml").read_text())
+    assert rules["spend"]["window"] == 1000000 and "[1m]" in rules["models"]["builder"]["model"]

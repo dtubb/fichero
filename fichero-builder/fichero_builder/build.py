@@ -40,6 +40,9 @@ def main(a) -> int:
     if not script.is_file():
         print(f"REFUSED: no {script}")
         return 1
+    if not os.access(script, os.X_OK):
+        print(f"REFUSED: {script} is not executable")
+        return 1
     dmg = root / "build" / "releases" / "Fichero-dev.dmg"
     sha, dirty = _git(root, "rev-parse", "HEAD"), bool(_git(root, "status", "--porcelain"))
     journal.STATE.mkdir(parents=True, exist_ok=True)
