@@ -298,11 +298,11 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   data (checkpoints, `progress_timeline`, Mermaid diagrams) already persisted
   — three leaks to plug, not new architecture (2026-07-29 review §3.3). ISSUE:
   #4312 (trace is one leg of the EPIC).
-- `workflows.run.scoreboard-quality-and-cost` — **[GAP]** no per-workflow
+- `workflows.run.scoreboard-quality-and-cost` — **[PROPOSED]** (DEFERRED, manager ruling 2026-11-02: no definition of "quality" yet; the issue stays open; see Deferred under Build order) no per-workflow
   scoreboard tracking quality/cost over time. ISSUE: #4344.
 - `workflows.run.cost-tracking-per-node` — **[PARTIAL]** (Step 2.2, #4343) each step record of `GET /api/workflow-execution/threads/{id}/run` carries `model_calls`, `total_tokens`, `cost_usd` and `cost_priced` from its timeline entry, present only when the step called a model, `cost_usd` null (never 0) when nothing could be priced; the run's own total is `run_usage` beside it. Pinned by `fichero-server/tests/unit/workflows/test_cost_per_node_to_spec.py`. The app's trace shows them in Step 4.4. Was: no per-node/per-workflow
   spend visibility. ISSUE: #4343.
-- `workflows.run.comparison-node` — **[GAP]** (#4797) **RESHAPED (creative-director ruling, 2026-09-18, same as
+- `workflows.run.comparison-node` — **[PROPOSED]** (DEFERRED, manager ruling 2026-11-02: creative-director triage undecided; the issues stay open; see Deferred under Build order) (#4797) **RESHAPED (creative-director ruling, 2026-09-18, same as
   `research.md`'s `research.compare-folds-into-chat`):** the RESULT side of this design is
   retired — there is no persisted comparison node, view or window; a comparison's result is two
   sibling artifacts shown in two Reader panes with a diff lens. The PRODUCING side survives: a
@@ -522,17 +522,12 @@ Engine only; the served shapes land with one OpenAPI regeneration at the end of 
 - Tests: fichero-server/tests/unit/workflows/test_dry_run_to_spec.py
 - Size: M
 
-#### Step 2.4 — Scoreboard and comparison node (#4344, #4328)
-- Behaviours: `workflows.run.scoreboard-quality-and-cost`, `workflows.run.comparison-node`
-- Tests: fichero-server/tests/unit/workflows/test_scoreboard_and_comparison_to_spec.py (not yet written)
-- Size: M
-
 #### Step 2.5 — Measure the source node's memory before changing it (#4390)
 - Behaviours: `workflows.source-node-memory-measured`
-- Tests: fichero-server/tests/unit/workflows/test_source_node_memory_measured_to_spec.py (not yet written)
+- Tests: fichero-server/scripts/measure_source_node_memory.py
 - Size: S
 
-The step writes a short design note under this spec's folder and measures peak RSS of a run over a 500-page folder, before any change; the number goes in the note. Step 2.6 is not started until the note is in.
+`fichero-server/scripts/measure_source_node_memory.py` builds a temporary library (never the app's database) and prints peak RSS; proven at 50 pages on the Pro (2.0 MB of page text held in state, 3.4 MB RSS growth, linear in pages). The 500-page baseline is run on the M4 iMac, not the Pro (command in the handoff); the number goes in a short design note. Step 2.6 is not started until the note is in. (Step 2.4, the scoreboard and the comparison node, is deferred: see Deferred.)
 
 #### Step 2.6 — The source node emits ids and hydrates documents per batch (#4390)
 - Behaviours: `workflows.source-node-hydrates-lazily`
@@ -628,6 +623,11 @@ Swift.
 - Tests: fichero/Tests/Unit/general/Workflow/WorkflowNodeIconTests.swift, fichero/Tests/Unit/general/Workflow/WorkflowSavePolicyTests.swift (not yet written)
 - Size: S
 
+
+### Deferred (manager ruling 2026-11-02; not dropped, the issues stay open)
+
+- #4344, `workflows.run.scoreboard-quality-and-cost`: there is no definition of "quality" yet, so there is nothing to build a scoreboard from.
+- #4328, `workflows.run.comparison-node`: the creative director's triage of what survives the 2026-09-18 reshaping is undecided.
 
 ## Rulings
 
