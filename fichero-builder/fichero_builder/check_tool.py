@@ -404,9 +404,10 @@ def _changes(root, since: str, head: str, *extra: str) -> list[tuple[str, str, s
     return out
 
 
-def diff_bound(root, since: str, head: str, cfg: Config) -> dict:
-    """The diff since the item's start stays inside a size bound (files and added+removed lines).
-    ponytail: a size bound only; a per-folder scope bound if workers wander."""
+def diff_bound(root, since: str, head: str, cfg: Config, maintainer: bool = False) -> dict:
+    """The diff since the item's start stays inside a size bound (files and added+removed lines). A maintainer batch is
+    not bound (owner 2026-11-02: the bound is for a jailed worker's range; review splits a big batch by size); its row
+    still shows the size. ponytail: a size bound only; a per-folder scope bound if workers wander."""
     out = _lines(root, "diff", "--numstat", f"{since}...{head}")
     if out is None:
         return {**_git(root, "diff", "--numstat", f"{since}...{head}"), "name": "diff-bound"}
@@ -418,6 +419,8 @@ def diff_bound(root, since: str, head: str, cfg: Config) -> dict:
         msg = f"diff bound: {len(rows)} files, over {cfg.max_files}"
     elif lines > cfg.max_lines:
         msg = f"diff bound: {lines} lines, over {cfg.max_lines}"
+    if maintainer:
+        return {**r, "name": "diff-bound", "ok": True, "stdout_tail": f"maintainer batch, not bound: {len(rows)} files, {lines} lines", "stderr_tail": ""}
     return {**r, "name": "diff-bound", "ok": not msg, "stderr_tail": msg}
 
 
@@ -676,7 +679,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
                   "stdout_tail": (noted + "\n" if noted else "") + f"checks from the pinned copy over {head}", "stderr_tail": ""}
         out = ladder([
             ("ready", lambda: ready(tree, cfg)),
-            ("diff-bound", lambda: diff_bound(root, since, head, cfg)),
+            ("diff-bound", lambda: diff_bound(root, since, head, cfg, maintainer)),
             ("red-on-base", lambda: red_on_base(root, since, head, tests, cfg, head_tree=tree, also_green=whole) if _needs_red(names, tests, cfg)
              else _no_red_row(tree, whole, cfg)),
             ("guards", lambda: guards(tree, cfg)),

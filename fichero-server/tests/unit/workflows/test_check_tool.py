@@ -465,6 +465,21 @@ def test_a_maintainer_batch_records_the_pinned_change_and_runs_the_rest(tmp_path
     assert not r["ok"] and r["failed"] == "pinned-checks" and "acceptance" in r["rungs"][0]["stderr_tail"]
 
 
+def test_a_maintainer_batch_skips_the_diff_bound_and_a_worker_range_keeps_it(tmp_path):
+    """Owner 2026-11-02: guards that stop ordinary work are loosened; the 25-file/1500-line bound is for a jailed worker's
+    range, a maintainer batch is split for review by size instead (land_tool.review_groups)."""
+    work, g, base, pinned = _project(tmp_path, check_extra="max_lines = 3\n")
+    (work / "mod.py").write_text("VALUE = 2\n")
+    (work / "test_mod.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 2\n")
+    g("add", "."), g("commit", "-q", "-m", "change")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert not r["ok"] and r["failed"] == "diff-bound", r
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False, maintainer=True)
+    assert r["ok"], r
+    row = next(x for x in r["rungs"] if x["name"] == "diff-bound")
+    assert row["ok"] and "maintainer" in row["stdout_tail"] and "5 lines" in row["stdout_tail"], "the size is still shown"
+
+
 def test_a_change_under_a_whole_tests_prefix_runs_that_tests_dir_whole_in_the_green_run(tmp_path):
     """review of fd9f26187: a Builder source change ran only its own new test, so an old test it broke slipped through."""
     work, g, _b, pinned = _project(tmp_path, extra='[check.whole_tests]\n"mod.py" = "suite"\n',
