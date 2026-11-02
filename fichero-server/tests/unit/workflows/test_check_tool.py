@@ -838,3 +838,10 @@ def test_run_tests_runs_the_named_paths_in_a_scratch_tree_of_the_head(tmp_path):
     (work / "test_area.py").write_text("def test_ok():\n    assert False  # uncommitted: never run\n")
     r = ct.run_tests(work, "HEAD", pinned, ["test_area.py"], jail_required=False)
     assert r["ok"] and r["name"] == "tests", r
+
+
+def test_a_collection_error_says_which_file_could_not_be_collected(tmp_path):
+    """Manager 2026-11-02: a ModuleNotFoundError at collection read as a generic red."""
+    (tmp_path / "test_x.py").write_text("from nowhere_at_all import thing\ndef test_x():\n    assert thing\n")
+    r = ct.green_runs(tmp_path, ["test_x.py"], (), ct.Config(), 120)
+    assert not r["ok"] and r["stderr_tail"].startswith("could not collect test_x.py: ModuleNotFoundError"), r["stderr_tail"][:300]

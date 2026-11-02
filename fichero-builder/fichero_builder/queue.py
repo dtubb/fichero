@@ -63,6 +63,9 @@ def store(lane: dict) -> None:
         fresh = next((x for x in lanes if x["id"] == lane["id"]), None)
         if fresh:
             lane["paused"] = fresh["paused"]
+            for k in ("pane", "hold"):  # set from outside while the tick held its copy (manager 2026-11-02: %537 was lost)
+                if k in fresh:
+                    lane[k] = fresh[k]
             have = {s["step"] for s in lane["steps"]}
             lane["steps"] += [s for s in fresh["steps"] if s["step"] not in have]
         save([lane if x["id"] == lane["id"] else x for x in lanes])
@@ -257,7 +260,9 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         move(s, "queued", "stopping the session this loop lost track of")
         return True
     if s["state"] == "queued":
-        if lane["paused"]:
+        # the file, not this tick's copy: a pause written after the tick loaded the lanes must stop the start (manager 2026-11-02)
+        if lane["paused"] or next((x.get("paused") for x in load() if x["id"] == lane["id"]), False):
+            lane["paused"] = True
             return False
         s["trees"], s["trees_at"] = procs.trees(_others(lane, handles, procs)), time.strftime("%Y-%m-%dT%H:%M:%S")  # before the worker can move anything
         try:
@@ -354,6 +359,22 @@ def intake_sha(lane: dict, branch: str, commits: int, hours: float, now: float |
     return log[0][0] if len(log) >= commits or old >= hours * 3600 else ""
 
 
+def external_owner(spec: str, title: str = "") -> str:
+    """The external lane with steps left whose brief names this spec (or milestone), or ''. Manager 2026-11-02: the loop
+    planned `Sharing & Pairing` while lane-sharing (external) worked that spec."""
+    stem = Path(spec).name
+    for x in load():
+        if x.get("kind") != "external" or x.get("hold") or x["cursor"] >= len(x["steps"]):
+            continue
+        try:
+            text = Path(x["steps"][x["cursor"]]["brief"]).read_text()
+        except OSError:
+            continue
+        if stem in text or (title and f"`{title}`" in text):
+            return x["id"]
+    return ""
+
+
 def lane_head(worktree: str) -> str:
     r = subprocess.run(["git", "-c", "safe.directory=*", "-C", worktree, "rev-parse", "HEAD"], capture_output=True, text=True)
     return r.stdout.strip() if r.returncode == 0 else ""
@@ -416,7 +437,7 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
     """The manager's one verb: retry or approve re-run the step, send-back gives it to a new session with the finding,
     park leaves it, ask-owner puts it on GitHub for the owner. An action the alert does not offer is refused, with a row."""
     a = next((r for r in reversed(journal.read()) if r.get("event") == "alert" and r.get("id") == alert_id), None)
-    if a is None or action not in a.get("actions", []):
+    if a is None or (action not in a.get("actions", []) and not (action == "park" and not a.get("actions"))):  # a no-action alert may be parked
         why = f"no alert {alert_id!r}" if a is None else f"{action!r} is not one of {a['actions']}"
         journal.append("alert-answer", id=alert_id, action=action, ok=False, detail=why)
         return 1, f"REFUSED: {why}"
@@ -424,11 +445,16 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
         lanes = load()
         lane = next((x for x in lanes if x["id"] == a["lane"]), None)
         s = next((x for x in (lane or {}).get("steps", []) if x["step"] == a["step"]), None)
+        if s is None and action == "park":  # nothing to leave in place: the alert is answered (a plan's questions)
+            journal.append("alert-answer", id=alert_id, action=action, ok=True, detail="parked; no lane or step behind it")
+            return 0, f"{alert_id}: park"
         if s is None:
             journal.append("alert-answer", id=alert_id, action=action, ok=False, detail="the lane or step is gone")
             return 1, "REFUSED: the lane or step is gone"
         if action in ("retry", "approve", "send-back"):
-            s.update(state="queued" if action != "approve" else "done", rounds=0, restarts=0, why="")
+            # an external lane has no worker to send a step to: retry and approve re-take its snapshot; send-back waits for its done
+            again = "done" if action == "approve" or (lane.get("kind") == "external" and action == "retry" and s.get("head")) else "queued"
+            s.update(state=again, rounds=0, restarts=0, why="")
             if action == "approve" and s.get("approve_kind") == "pinned-new":
                 s["approve_pinned_new"] = True  # the chain re-runs the check recording the new pinned files as approved
             elif action == "approve" and s.get("approve_kind") == "red-on-base":
@@ -536,6 +562,10 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
     session and a resume from another shell is picked up. Each tick first takes build-order milestones up to `lanes_n`."""
     handles: dict = {}
     mark = code_mark()
+    if heartbeat:
+        from fichero_builder import check_tool
+        for w in check_tool.rules_warnings(getattr(procs, "root", "") or "."):
+            journal.append("rules", state="warning", detail=w)
     # the loop always chains in a thread: a one-lane check inside the tick would starve the heartbeat for its whole ladder
     chains: dict | None = {"pool": ThreadPoolExecutor(max_workers=lanes_n)} if lanes_n > 1 or heartbeat else None
     while True:
@@ -576,6 +606,8 @@ def real_procs(root) -> Procs:
     repo, branch = rules["check"]["engine_repo"], rules["land"]["branch"]
     mdl = models.load(root)
     builder, reviewer = models.for_role(mdl, "builder").model, models.for_role(mdl, "reviewer").model
+    reviewer_fast = models.for_role(mdl, "reviewer_fast").model if "reviewer_fast" in mdl else reviewer
+    opus_paths = tuple(mdl.get("reviewer_paths") or work.OPUS_PATHS)
     pkg = Path(__file__).resolve().parents[1]
 
     def ns(lane: dict, step: dict | None = None) -> types.SimpleNamespace:
@@ -585,7 +617,9 @@ def real_procs(root) -> Procs:
                                      tick=30.0, issues=step["issues"] if step else [], brief=brief, ids=[], repo=repo,
                                      maintainer=bool(step and step.get("maintainer")), approve_weakened=bool(step and step.get("approve_weakened")),
                                      external=lane.get("kind") == "external", approve_red=bool(step and step.get("approve_red")),
-                                     approve_pinned_new=bool(step and step.get("approve_pinned_new")))
+                                     approve_pinned_new=bool(step and step.get("approve_pinned_new")),
+                                     reviewer_fast=reviewer_fast, opus_paths=opus_paths,
+                                     last_step=bool(step) and lane.get("kind") != "external" and bool(lane.get("steps")) and step is lane["steps"][-1])
 
     def start(lane, step):
         a, q = ns(lane, step), shlex.quote
@@ -687,15 +721,21 @@ def next_in_order(root, taken: set, gh: str = "gh") -> tuple | None:
         lane = slug(title)
         if lane in taken or lane in _SKIPPED or not spec:
             continue
+        if owner := external_owner(spec, title):  # a session of its own works this spec: a lane here would duplicate it
+            journal.append("queue", lane=lane, step="-", state="owned", detail=f"{owner} (external) owns {spec}")
+            _SKIPPED.add(lane)
+            continue
         issues = milestone.list_issues(title, gh=gh)
         if not issues:
             continue
         spec_path = root / triage.SPECS / spec
         planned = milestone.plan(issues, milestone.build_order(spec_path), milestone.spec_slug(spec_path))
-        for q in planned["questions"]:  # the owner places them: one alert each, read in the console (soak 2026-11-02)
+        for q in planned["questions"]:
             journal.append("queue", lane=lane, step="-", state="question", detail=q[-300:])
-            if not any(r.get("event") == "alert" and r.get("what") == q[:300] for r in journal.read()):
-                alert(lane, "plan", q, str(spec_path), [])
+        if planned["questions"]:  # the owner places them: ONE alert for the milestone listing every question (not 25)
+            what = f"{lane}: {len(planned['questions'])} question(s) to place: " + "; ".join(planned["questions"])
+            if not any(r.get("event") == "alert" and r.get("lane") == lane and r.get("step") == "plan" and r.get("what") == what[:300] for r in journal.read()):
+                alert(lane, "plan", what, str(spec_path), ["park"])
         if not planned["clusters"]:
             _SKIPPED.add(lane)
             continue

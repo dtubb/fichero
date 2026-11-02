@@ -148,6 +148,9 @@ prices = { sonnet = [3, 15], opus = [15, 75], haiku = [1, 5] }
 providers = ["claude-code", "anthropic", "omlx"]
 builder = { provider = "claude-code", model = "sonnet" }  # owner 2026-11-02: plain sonnet, the 200k window in [spend].window
 reviewer = { provider = "claude-code", model = "opus", context = 200000 }  # its review cap is 40% of this at 3.5 bytes a token
+# manager 2026-11-02 (6a): sonnet reviews by default; opus (`reviewer`) when a range touches these paths, and once per milestone
+reviewer_fast = { provider = "claude-code", model = "sonnet", context = 200000 }
+reviewer_paths = ["fichero-builder/", "scripts/harness_", "scripts/lane_ready_check.sh", "harness.toml"]
 spec-writer = { provider = "claude-code", model = "opus" }
 helper = { provider = "claude-code", model = "haiku" }
 manager = { provider = "claude-code", model = "haiku" }  # reads alerts and answers them (dev-workflows.run.loop-roles)

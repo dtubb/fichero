@@ -223,6 +223,9 @@ def test_the_rules_checks_accept_the_settings_later_commits_add_and_still_refuse
     (tmp_path / "harness.toml").write_text(base + "[queuee]\nx = 1\n")
     with pytest.raises(ValueError, match="unknown tables"):
         check_tool.load(tmp_path)
+    # manager 2026-11-02: a NEW table (not a near-miss of a known one) is forward compatible: a warning, never a refusal
+    (tmp_path / "harness.toml").write_text(base + "[telemetry]\nx = 1\n")
+    assert check_tool.load(tmp_path) is not None and "unknown tables ['telemetry']" in check_tool.rules_warnings(tmp_path)[0]
     (tmp_path / "harness.toml").write_text(base.replace("code_map", "code_mapp"))
     with pytest.raises(ValueError, match="unknown keys"):
         jail.load(tmp_path)

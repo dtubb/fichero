@@ -779,6 +779,20 @@ the write path would produce.
   presses Enter and again while the text sits there; a message over 400 characters is written to `<state>/tells/` and the pane
   gets `Read <path>` (a long one arrived as its last line only). The loop and `builder measure` use it unless `[loop].tell` names
   a script. Test `fichero-builder/tests/test_tell.py`.
+- `dev-workflows.models.review-by-path` [PARTIAL] (#6116; manager 2026-11-02, speed item 6a) — the review model is
+  `[models].reviewer_fast` (sonnet) by default and `[models].reviewer` (opus) when the range touches `[models].reviewer_paths`
+  (the harness, land and jail paths: fichero-builder/, scripts/harness_*, scripts/lane_ready_check.sh, harness.toml), and for a
+  worker lane's last step of its milestone (one opus pass per milestone); the review's `activity` row names the model. Test
+  `fichero-builder/tests/test_work_verb.py::test_the_review_model_is_sonnet_unless_the_range_touches_harness_paths_or_it_is_the_milestones_last_step`.
+- Soak fixes 2026-11-02 (manager): a milestone whose spec an external lane's brief names is never planned (`owned` row: the loop
+  planned Sharing while lane-sharing worked it); a planned milestone's unplaced issues are ONE alert listing them (was one per
+  issue) with park; an alert with no actions, or whose lane is gone, can be parked; retry or approve on an external lane's step
+  re-takes its snapshot (a retry had left it waiting for a done); a lane paused after the tick loaded it never starts a step
+  (the start re-reads the file); a lane's `pane` and `hold` set from outside survive the tick's write; a NEW table in
+  harness.toml is a warning row at the loop's start, never a refusal (a near-miss of a known table still refuses as a
+  misspelling); a run that cannot collect a test file says `could not collect <file>: <error>`; the Builder's tests import
+  their siblings without a `tests.` prefix, so the ladder can run them under the engine's pytest config. Tests in
+  `fichero-builder/tests/test_loop.py`, `test_main.py`, `fichero-server/tests/unit/workflows/test_check_tool.py::test_a_collection_error_says_which_file_could_not_be_collected`.
 - `dev-workflows.run.records-are-truth` [PROPOSED] (maintainer 2026-10-31; owner 2026-11-01: no engine) — for a worker the
   truth is its **journal** (JSON lines, one file per cluster under the Builder's state directory; `$FICHERO_HARNESS_LOG` in
   Slice 0), plus git plus the handoff file; the run log (one row per item attempt: model, provider, context cap, tokens,

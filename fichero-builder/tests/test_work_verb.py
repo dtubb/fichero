@@ -468,3 +468,30 @@ def test_an_external_lanes_own_checkout_runs_its_chain_steps_as_the_owner(tmp_pa
     r = work.as_worker(out, "pwd")
     assert r.returncode == 0 and r.stdout.strip().endswith("land-ie"), "as the owner, in the lane's own tree: no sudo"
     assert work.shared_state(out) == work.journal.STATE / "owner-trees"
+
+
+def test_the_review_model_is_sonnet_unless_the_range_touches_harness_paths_or_it_is_the_milestones_last_step(tmp_path):
+    """Manager 2026-11-02 (6a): sonnet by default; opus for harness, land or jail paths, and one opus pass per milestone."""
+    import subprocess
+    import types
+
+    from fichero_builder import work
+
+    def g(*a):
+        return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=tmp_path, check=True, capture_output=True, text=True).stdout.strip()
+    g("init", "-q", "-b", "integration"), (tmp_path / "a").write_text("a"), g("add", "."), g("commit", "-qm", "base")
+    g("checkout", "-q", "-b", "lane")
+    (tmp_path / "fichero").mkdir()
+    (tmp_path / "fichero" / "View.swift").write_text("x")
+    g("add", "."), g("commit", "-qm", "product")
+    a = types.SimpleNamespace(reviewer_fast="sonnet", opus_paths=work.OPUS_PATHS, last_step=False)
+    head = g("rev-parse", "HEAD")
+    assert work.pick_reviewer(a, str(tmp_path), "integration", head, "opus") == "sonnet"
+    a.last_step = True
+    assert work.pick_reviewer(a, str(tmp_path), "integration", head, "opus") == "opus", "the milestone's last step: one opus pass"
+    a.last_step = False
+    (tmp_path / "fichero-builder").mkdir()
+    (tmp_path / "fichero-builder" / "x.py").write_text("x")
+    g("add", "."), g("commit", "-qm", "harness")
+    assert work.pick_reviewer(a, str(tmp_path), "integration", g("rev-parse", "HEAD"), "opus") == "opus", "a harness path: opus"
+    assert work.pick_reviewer(types.SimpleNamespace(), str(tmp_path), "integration", head, "opus") == "opus", "no fast reviewer set: the full one"

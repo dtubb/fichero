@@ -6,7 +6,7 @@ import pytest
 
 from fichero_builder import __main__ as cli
 from fichero_builder import journal, queue
-from tests.test_queue_verb import Fake, lane, steps
+from test_queue_verb import Fake, lane, steps
 
 
 @pytest.fixture
@@ -447,3 +447,35 @@ def test_the_intake_takes_a_finished_step_past_its_thresholds_and_never_a_held_l
 
 def steps_of(lane_id):
     return next(x for x in queue.load() if x["id"] == lane_id)["steps"]
+
+
+def test_a_milestone_an_external_lane_owns_is_skipped_unplaced_issues_are_one_alert_and_external_retry_re_takes(state, monkeypatch):
+    """Manager 2026-11-02: the loop planned Sharing (lane-sharing's spec) and raised 25 alerts, one per unplaced issue; a retry
+    left ie-batch2 waiting for a done no one would run."""
+    monkeypatch.setattr(queue, "_SKIPPED", set())
+    brief = state / "brief-sharing.md"
+    brief.write_text("LANE sharing. Spec: docs/contributor_manual/specs/source/sharing-two-macs.md\n")
+    queue.add("lane-sharing", "/w/s", "2.3", str(brief), [], kind="external")
+    assert queue.external_owner("source/sharing-two-macs.md") == "lane-sharing"
+    assert queue.external_owner("source/image-enhancement.md") == ""
+    for i in range(3):
+        journal.append("alert", id=f"old-{i}", lane="gone", step="plan", what="#1 names no step", evidence="", actions=[])
+    for i in range(3):
+        assert cli.main(["alert", f"old-{i}", "park", "--state", str(state / "s")]) == 0, "a no-action alert of a gone lane parks"
+    queue.add("ie", "/w/ie", "batch", str(brief), [], kind="external")
+    queue.done("ie", "a" * 40)
+    fake = Fake(chains={"batch": [{"ok": False, "kind": "not-ready", "why": "stale base"}]})
+    queue.run(fake.procs, workers_n=1, push=False, out=lambda s: None)
+    a = [x for x in _alerts() if x["lane"] == "ie"][0]
+    assert cli.main(["alert", a["id"], "retry", "--state", str(state / "s")]) == 0
+    assert steps_of("ie")[0]["state"] == "done", "an external retry re-takes the snapshot, never waits for a done"
+
+
+def test_a_lane_paused_after_the_tick_loaded_it_never_starts_a_step(state):
+    """Manager 2026-11-02: paused (then stopped) between the tick's load and the start, the lane still started step 0.3."""
+    lane(state)
+    stale = queue.load()[0]  # the tick's copy, taken before the pause
+    assert cli.main(["queue", "pause", "--lane", "m1", "--state", str(state / "s")]) == 0
+    fake = Fake()
+    assert queue.tick_lane(stale, fake.procs, {}, 1, False, lambda s: None) is False
+    assert fake.starts == [] and steps()["1.1"]["state"] == "queued"

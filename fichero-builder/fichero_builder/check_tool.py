@@ -9,6 +9,7 @@ result, never a raise.
 from __future__ import annotations
 
 import ast
+import difflib
 import fcntl
 import fnmatch
 import importlib.util
@@ -71,7 +72,11 @@ def load(root) -> Config:
     if unknown := sorted(set(c) - {x.name for x in fields(Config)} - {"test_env"}):  # fail closed (review 3, spec item 2)
         raise ValueError(f"harness.toml [check]: unknown keys {unknown}")
     if unknown := sorted(set(doc) - {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines"}):
-        raise ValueError(f"harness.toml: unknown tables {unknown}")
+        # forward compatible (manager 2026-11-02: a [machines] table stopped the running loop): the loop and the rules file can
+        # differ by a batch, so a NEW table is ignored here and named once by `rules_warnings`; a table that is a near-miss of
+        # a known one is a misspelling and still refuses, as an unknown key in [check] does
+        if misspelt := [u for u in unknown if difflib.get_close_matches(u, KNOWN_TABLES, 1, 0.75)]:
+            raise ValueError(f"harness.toml: unknown tables {misspelt}")
     brief = doc.get("brief", {})
     if unknown := sorted(set(brief) - {"rules"}):
         raise ValueError(f"harness.toml [brief]: unknown keys {unknown}")
@@ -91,6 +96,17 @@ def load(root) -> Config:
         build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
         build_lock=c.get("build_lock", d.build_lock), engine_repo=c.get("engine_repo", d.engine_repo),
         remote=c.get("remote", d.remote), remote_python=c.get("remote_python", d.remote_python))
+
+
+KNOWN_TABLES = {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines"}
+
+
+def rules_warnings(root) -> list[str]:
+    """What this code ignores in the rules file: tables newer than it (a warning, never a refusal)."""
+    f = Path(root) / "harness.toml"
+    doc = tomllib.loads(f.read_text()) if f.is_file() else {}
+    new = sorted(u for u in set(doc) - KNOWN_TABLES if not difflib.get_close_matches(u, KNOWN_TABLES, 1, 0.75))
+    return [f"harness.toml: unknown tables {new} (newer than this code?)"] if new else []
 
 
 def rules_problems(root) -> list[str]:
@@ -379,6 +395,9 @@ def green_runs(tree, files: list[str], whole: tuple, cfg: Config, timeout_s: flo
             break
         runs.append(whole_tests_rung(tree, d, cfg, timeout_s))
     row = next((r for r in runs if not r["ok"]), runs[-1])
+    if not row["ok"] and (m := re.search(r"ERROR collecting (\S+).*?\n(?:.*\n)*?(E\s+\w+Error[^\n]*)", row.get("stdout_tail") or "")):
+        # a collection error is not a red test (manager 2026-11-02): say which file could not be collected and why
+        row = {**row, "stderr_tail": f"could not collect {m.group(1)}: {m.group(2).lstrip('E ').strip()}\n" + (row.get("stderr_tail") or "")}
     return {**row, "runs": [{k: r[k] for k in ("argv", "exit_code", "ok", "seconds", "stdout_tail", "stderr_tail")} for r in runs]}
 
 

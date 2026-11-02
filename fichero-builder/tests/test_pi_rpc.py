@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 
 from fichero_builder import pi_rpc, session
-from tests.test_pi_live_helpers import live
+from test_pi_live_helpers import live
 
 FAKE_PI = r'''
 import json, sys

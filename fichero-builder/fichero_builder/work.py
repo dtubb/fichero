@@ -176,7 +176,7 @@ def _script(name: str, *argv) -> tuple[bool, str]:
 
 def do_review(a, repo: str, head: str, ladder: str, verdicts: str, model: str) -> tuple[bool, str]:
     key = f"review {head[:9]}"
-    journal.append("activity", kind="review", key=key, state="start", lane=a.name)
+    journal.append("activity", kind="review", key=key, state="start", lane=a.name, model=model)  # which reviewer (6a)
     ok, out = _script("harness_review.py", repo, head, "--pinned", a.pinned, "--verdicts", verdicts, "--ladder", ladder, "--model", model)
     groups = re.findall(r"^\[group (\d+) of (\d+)", out or "", re.M)
     journal.append("activity", kind="review", key=key, state="end", ok=ok, groups=len(groups) or 1)
@@ -241,6 +241,20 @@ def _base_moved(a, branch: str, head: str) -> bool:
     return r.returncode == 1
 
 
+OPUS_PATHS = ("fichero-builder/", "scripts/harness_", "scripts/lane_ready_check.sh", "harness.toml")
+
+
+def pick_reviewer(a, repo: str, branch: str, head: str, full: str) -> str:
+    """The review model (dev-workflows.models.review-by-path, manager 2026-11-02): `[models].reviewer_fast` (sonnet) by default;
+    the full reviewer (opus) when the range touches the harness, land or jail paths (`[models].reviewer_paths`), and for a
+    worker lane's last step of its milestone (one opus pass per milestone)."""
+    fast = getattr(a, "reviewer_fast", "") or full
+    if fast == full or getattr(a, "last_step", False):
+        return full
+    names = _git(repo, "diff", "--name-only", r_since(repo, branch), head).stdout.split()
+    return full if any(n.startswith(tuple(getattr(a, "opus_paths", OPUS_PATHS))) for n in names) else fast
+
+
 def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None) -> dict:
     """Rebase, patches, fetch, check, review, land gate: one journal row each; {ok, head, out} or {ok: False, kind, why,
     findings}. kind red / not-ready / refused can go back to the worker; error needs a person. `stage` hears checking, reviewing."""
@@ -296,7 +310,8 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                 return no("red", f"the check is red at {head[:9]} (failed: {r.get('failed') or '?'}); ladder in {ladder}", f"failed rung: {r.get('failed') or '?'}\n{_tail(r)}", ladder)
             stage("reviewing")
             if land_tool.unreviewed(repo, branch, head, verdicts):
-                ok, text = do_review(a, repo, head, ladder, verdicts, reviewer)
+                model = pick_reviewer(a, repo, branch, head, reviewer)
+                ok, text = do_review(a, repo, head, ladder, verdicts, model)
             else:  # same input, same model: this exact range has its READY (a queue restarted in `reviewing` lands here)
                 ok, text = True, "READY (the verdict this range already has; no second model pass)"
             last = text.splitlines()[-1] if text else "the reviewer said nothing"
