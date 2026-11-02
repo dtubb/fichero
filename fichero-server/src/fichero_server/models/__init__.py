@@ -1269,6 +1269,15 @@ class Workflow(BaseModel):
     # Default config for steps/nodes
     config: dict[str, Any] = Field(default_factory=dict)
 
+    @field_validator("config", mode="after")
+    @classmethod
+    def _declared_scope_is_one_of_two(cls, v: dict[str, Any]) -> dict[str, Any]:
+        """A workflow that declares its scope declares one of the two (`workflows.defaults.declared-scope`, #4397)."""
+        if "scope" in v and v["scope"] not in ("per_file", "once_per_folder"):
+            raise ValueError('config.scope must be "per_file" or "once_per_folder"')
+        return v
+
+
     # LLM configuration
     provider: str = ""
     model: str = ""

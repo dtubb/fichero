@@ -1257,3 +1257,27 @@ def get_compatible_tools(target_port: PortDef) -> list[ToolDef]:
                 break  # Only need one compatible output per tool
 
     return compatible_tools
+
+
+# -- Declared scope (`workflows.defaults.declared-scope`, #4397) --------------------------------------------------------
+#: The two scopes a workflow runs at: once for each document picked, or once on the folder.
+SCOPES = ("per_file", "once_per_folder")
+#: Tools that work on a whole folder and attach their output to it (`catalogue` writes the folder's record).
+FOLDER_LEVEL_TOOLS = frozenset({"catalogue"})
+SCOPE_SENTENCES = {
+    "per_file": "Runs on each file you select.",
+    "once_per_folder": "Runs once on the folder; its output is attached to the folder.",
+}
+
+
+def workflow_scope(config: dict | None, nodes: list | None) -> str:
+    """The scope a workflow declares: ``config["scope"]`` when it says one, else folder-level when a node's tool works on a
+    whole folder, else per file. One answer, served on the workflow, so the run menu never works it out."""
+    declared = (config or {}).get("scope")
+    if declared in SCOPES:
+        return str(declared)
+    for node in nodes or []:
+        tool = node.get("tool") if isinstance(node, dict) else getattr(node, "tool", None)
+        if tool in FOLDER_LEVEL_TOOLS:
+            return "once_per_folder"
+    return "per_file"

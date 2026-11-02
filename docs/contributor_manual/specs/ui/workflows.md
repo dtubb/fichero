@@ -8,7 +8,7 @@
 > canvas at all; every run has a live output log and a history of past runs.
 
 > Design-led (Testing Constitution). The creative director owns the intent below;
-> tests enforce it; code makes them pass. **Status: DRAFT.**
+> tests enforce it; code makes them pass. **Status: APPROVED 2026-11-02 by the manager (owner-delegated); build order as written.**
 >
 > Grounded in code, read/grepped this session (paths relative to
 > `fichero/fichero/` unless stated otherwise; server paths relative to
@@ -417,15 +417,16 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
 - `workflows.defaults.chains-not-persisted` — **[GAP]** workflow chains
   assembled interactively are in-memory only — lost on restart, and can leak
   across libraries/users. ISSUE: #3181.
-- `workflows.defaults.scope-contract-undeclared` — **[GAP]** a workflow has no
+- `workflows.defaults.scope-contract-undeclared` — **[PARTIAL]** a workflow has no
   declared contract for its source kind, fan-out, or where its output attaches
   — needed so scope-widening bugs (the class the confirm/cancel gate patched
   point-fashion, `workflows.run.scope-widening-confirmed`) get closed
   structurally rather than one at a time. ISSUE: #4397.
+  **Engine built (Step 1.1): `workflow_scope` in `workflows/validation.py` — `config.scope` when declared, else folder-level when a node's tool is in `FOLDER_LEVEL_TOOLS` (`catalogue`), else per file — served as `scope` and `scope_sentence` on every workflow; the run menu (Step 4.1) is the Swift half.**
   **Ruled 2026-10-04 (#4397):** each workflow declares its scope, per file or once per folder; a
   folder-level run's output is attached to the folder; the run menu says which before the person
   runs it (`workflows.defaults.declared-scope`).
-- `workflows.defaults.declared-scope` — **[GAP]** (#4397) every workflow declares whether it runs
+- `workflows.defaults.declared-scope` — **[PARTIAL]** (#4397) every workflow declares whether it runs
   per file or once per folder. A once-per-folder run attaches its output to the folder, not to a
   file in it, and the run menu names the scope ("Runs on each of N files" or "Runs once on this
   folder") before anything runs. (Ruled 2026-10-04.)

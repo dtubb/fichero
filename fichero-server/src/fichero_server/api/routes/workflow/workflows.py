@@ -214,6 +214,10 @@ class WorkflowResponse(BaseModel):
     # here for the same reason as requires_vision: a client re-deriving it
     # gets delegating workflows wrong, and the summary payload has no nodes
     # to derive it from at all.
+    # Where the workflow runs: "per_file" (once for each document picked) or "once_per_folder" (its output attaches to the
+    # folder), with the sentence the run menu shows before anything runs (`workflows.defaults.declared-scope`, #4397).
+    scope: str = "per_file"
+    scope_sentence: str = ""
     accepted_inputs: list[str] = ["documents"]
 
 
@@ -266,6 +270,14 @@ def _workflow_input_kinds(wf, workflow_resolver) -> list[str]:
         getattr(wf, "edges", None),
         workflow_resolver=workflow_resolver,
     )
+
+
+def _scope_fields(wf) -> dict[str, str]:
+    """The workflow's declared scope and the sentence that names it (`workflows.defaults.declared-scope`)."""
+    from fichero_server.workflows.validation import SCOPE_SENTENCES, workflow_scope
+
+    scope = workflow_scope(getattr(wf, "config", None), getattr(wf, "nodes", None))
+    return {"scope": scope, "scope_sentence": SCOPE_SENTENCES[scope]}
 
 
 def _workflow_requires_vision(wf, workflow_resolver) -> bool:
@@ -822,6 +834,7 @@ def _workflow_to_response(
         ),
         requires_vision=_workflow_requires_vision(workflow, workflow_resolver),
         accepted_inputs=_workflow_input_kinds(workflow, workflow_resolver),
+        **_scope_fields(workflow),
         is_system=bool(getattr(workflow, "is_system", False)),
     )
 
