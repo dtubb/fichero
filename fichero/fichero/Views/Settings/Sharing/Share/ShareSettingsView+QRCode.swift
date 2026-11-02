@@ -32,7 +32,8 @@ extension ShareSettingsView {
     var addressRows: [AddressRow] {
         AddressChoiceModel.rows(sharingAddress: publicBaseURL,
                                 tailnetURL: sharingState?.tailnetURL ?? detectedTailnetURL,
-                                tailnetForward: sharingState?.tailnetForward)
+                                tailnetForward: sharingState?.tailnetForward,
+                                tailnetConflict: sharingState?.tailnetServeConflict)
     }
 
     /// The link for one row (its own Copy), built from the same code as the QR.

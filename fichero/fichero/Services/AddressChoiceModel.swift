@@ -25,19 +25,54 @@ struct AddressRow: Equatable, Identifiable {
     var hostText: String? { url?.host }
 }
 
+/// A tailnet forward Fichero did not make, and the one command that frees the port (`sharing.stale-forward-says-so`).
+struct TailnetServeConflict: Equatable {
+    let holds: String
+    let freeWith: String
+
+    /// From the engine's `{"holds": ..., "free_with": ...}`; nil when there is none or it is missing either part.
+    init?(_ fields: [String: String]?) {
+        guard let holds = fields?["holds"], let freeWith = fields?["free_with"] else { return nil }
+        self.holds = holds
+        self.freeWith = freeWith
+    }
+
+    init(holds: String, freeWith: String) {
+        self.holds = holds
+        self.freeWith = freeWith
+    }
+}
+
 enum AddressChoiceModel {
     static let thisNetworkReach = "Works only on the same Wi-Fi, when the network lets Macs find each other"
     static let tailscaleReach = "Works anywhere your Tailscale is on"
     static let tailscaleOff = "Tailscale is not running on this Mac"
     static let tailscaleHeld = "Another service holds this port on your tailnet; see Settings › Sharing"
     static let tailscaleNotPublished = "Fichero hasn't published this Mac on your tailnet yet: turn Sharing off and on"
+    /// Shown beside the address rows when the Mac has no Tailscale address (`sharing.tailnet-down-says-so`, open question 6).
+    static let campusNote = "On a campus or hotel network, Macs often can't see each other. "
+        + "If pairing fails, install Tailscale on both and try again."
+
+    /// The foreign-forward reason with the holder and the freeing command named, else the generic line.
+    static func heldReason(_ conflict: TailnetServeConflict?, port: Int) -> String {
+        guard let conflict else { return tailscaleHeld }
+        return "Port \(port) on your tailnet already goes to \(conflict.holds), not to Fichero. "
+            + "Run \(conflict.freeWith), then turn Sharing off and on."
+    }
+
+    /// Whether the campus note is worth showing: no Tailscale address to offer, so nothing but the local network works.
+    static func showsCampusNote(rows: [AddressRow]) -> Bool {
+        rows.contains { $0.choice == .tailscale && $0.url == nil }
+    }
+
     /// `tailnet_forward == "unknown"`: a sandboxed engine could not ask Tailscale (#5317). The row is offered, not first.
     static let tailscaleUnchecked = "This build cannot ask Tailscale; see Settings › Sharing"
 
     /// The rows from the engine's sharing state. `sharingAddress` is the address the engine was started with (the one the
     /// link named before); `tailnetURL` the detected `.ts.net` origin (no port); `tailnetForward` "ours" | "foreign" | "none"
     /// (nil for an engine from before the field: treated as "ours" when a tailnet address exists, the old behaviour).
-    static func rows(sharingAddress: String, tailnetURL: String?, tailnetForward: String?) -> [AddressRow] {
+    static func rows(sharingAddress: String, tailnetURL: String?, tailnetForward: String?,
+                     tailnetConflict: TailnetServeConflict? = nil) -> [AddressRow] {
         var rows: [AddressRow] = []
         let sharing = URL(string: sharingAddress.trimmingCharacters(in: .whitespacesAndNewlines))
         guard let sharing, let sharingHost = sharing.host else { return rows }
@@ -59,7 +94,7 @@ enum AddressChoiceModel {
             switch tailnetForward {
             case nil, "ours": reason = nil
             case "unknown": reason = nil; reach = tailscaleUnchecked
-            case "foreign": reason = tailscaleHeld
+            case "foreign": reason = heldReason(tailnetConflict, port: parts.port ?? port)
             default: reason = tailscaleNotPublished
             }
             rows.append(AddressRow(choice: .tailscale, url: parts.url, title: "Tailscale", reach: reach, disabledReason: reason))

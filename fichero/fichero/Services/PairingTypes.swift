@@ -211,7 +211,9 @@ final class PairingService {
             let body = try okResponse.body.json
             return SharingStateRecord(tailnetURL: body.tailnetUrl, tailnetServeCommand: body.tailnetServeCommand,
                                       auditId: body.auditId, publicBaseURL: body.publicBaseUrl, lanIP: body.lanIp,
-                                      tailnetForward: body.tailnetForward?.rawValue)  // optional in the schema: a default is not `required`
+                                      tailnetForward: body.tailnetForward?.rawValue,  // optional in the schema: a default is not `required`
+                                      multiuserBlocker: body.multiuserBlocker,
+                                      tailnetServeConflict: TailnetServeConflict(body.tailnetServeConflict?.additionalProperties))
         case .undocumented(let statusCode, _):
             throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
         }
@@ -387,4 +389,8 @@ struct SharingStateRecord: Equatable {
     var publicBaseURL: String?
     var lanIP: String?
     var tailnetForward: String?
+    /// Why Multi-user cannot be turned on yet (`multiuser_blocker`), nil when nothing blocks it.
+    var multiuserBlocker: String?
+    /// A tailnet forward Fichero did not make, with the command that frees it (`tailnet_serve_conflict`).
+    var tailnetServeConflict: TailnetServeConflict?
 }

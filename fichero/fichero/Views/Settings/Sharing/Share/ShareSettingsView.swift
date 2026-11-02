@@ -313,6 +313,10 @@ struct ShareSettingsView: View {
                     }
                     .accessibilityIdentifier("sharing.address.row.\(row.choice.rawValue)")
                 }
+                if AddressChoiceModel.showsCampusNote(rows: rows) {
+                    Text(AddressChoiceModel.campusNote).font(.caption).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("sharing.address.campus-note")
+                }
             }
         }
     }

@@ -55,6 +55,30 @@ struct AddressChoiceModelTests {
         #expect(AddressChoiceModel.defaultChoice(rows: rows) == .thisNetwork)
     }
 
+    @Test("a foreign forward names what holds the port and the command that frees it (sharing.stale-forward-says-so)")
+    func foreignForwardNamesTheHolderAndTheCommand() {
+        let conflict = TailnetServeConflict(holds: "tcp://localhost:8000", freeWith: "tailscale serve --tcp=8765 off")
+        let rows = AddressChoiceModel.rows(sharingAddress: local, tailnetURL: tail, tailnetForward: "foreign", tailnetConflict: conflict)
+        let reason = rows[1].disabledReason ?? ""
+        #expect(reason.contains("tcp://localhost:8000") && reason.contains("tailscale serve --tcp=8765 off"))
+        #expect(reason.contains("turn Sharing off and on") && !rows[1].isEnabled)
+    }
+
+    @Test("the engine's conflict object reads only when it has both parts")
+    func conflictFromTheEnginesFields() {
+        #expect(TailnetServeConflict(["holds": "x", "free_with": "y"]) == TailnetServeConflict(holds: "x", freeWith: "y"))
+        #expect(TailnetServeConflict(["holds": "x"]) == nil && TailnetServeConflict(nil) == nil)
+    }
+
+    @Test("the campus note shows when there is no Tailscale address to offer, and not when there is one (sharing.tailnet-down-says-so)")
+    func campusNote() {
+        let without = AddressChoiceModel.rows(sharingAddress: local, tailnetURL: nil, tailnetForward: "none")
+        #expect(AddressChoiceModel.showsCampusNote(rows: without))
+        let with = AddressChoiceModel.rows(sharingAddress: local, tailnetURL: tail, tailnetForward: "ours")
+        #expect(!AddressChoiceModel.showsCampusNote(rows: with))
+        #expect(AddressChoiceModel.campusNote.contains("install Tailscale on both"))
+    }
+
     @Test("an engine from before the field (nil forward) keeps the old behaviour: the tailnet row works")
     func oldEngine() {
         let rows = AddressChoiceModel.rows(sharingAddress: local, tailnetURL: tail, tailnetForward: nil)
