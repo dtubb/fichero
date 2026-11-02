@@ -19,6 +19,11 @@ struct IOSConnectionMenu: View {
                     .accessibilityIdentifier("connection.menu.host")
             }
             Section {
+                // The phone's way to People, with its off-state in the phone's words (`sharing.ios-settings-surface`).
+                NavigationLink("People", destination: { UsersSettingsView() })
+                    .accessibilityIdentifier("connection.menu.people")
+            }
+            Section {
                 Button("Reconnect", systemImage: "arrow.clockwise") { Task { await engineRetry?() } }
                     .accessibilityIdentifier("connection.menu.reconnect")
                 Button("Add or Change Server…", systemImage: "server.rack") { choosingServer = true }
