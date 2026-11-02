@@ -486,8 +486,8 @@ Engine only, one pytest per step. Each step flips its tags only with its test gr
 - Size: M
 
 #### Step 1.4 — Stop reaches every boundary, including a serial node with no per-item loop (#4402)
-- Behaviours: `workflows.stop-cancels-at-every-boundary`, `workflows.run.controls-are-fire-and-forget`
-- Tests: fichero-server/tests/unit/workflows/test_stop_at_every_boundary_to_spec.py (not yet written)
+- Behaviours: `workflows.stop-cancels-at-every-boundary`
+- Tests: fichero-server/tests/unit/workflows/test_stop_at_every_boundary_to_spec.py
 - Size: M
 
 #### Step 1.5 — Text Reflow's AI refinement refines or says why; wait for the owner's ruling to fix or remove the option first (#5921)
@@ -563,7 +563,7 @@ Swift, after the Stage 1-3 regeneration. Pure types are verified with a standalo
 - Size: S
 
 #### Step 4.2 — Pause, Resume and Stop show their state at once (#4402)
-- Behaviours: `workflows.bar.step-popover-run-glance`, `workflows.bar.labels-toggle-persists`
+- Behaviours: `workflows.run.controls-are-fire-and-forget`, `workflows.bar.step-popover-run-glance`, `workflows.bar.labels-toggle-persists`
 - Tests: fichero/Tests/Unit/general/Workflow/WorkflowRunControlsTests.swift (not yet written)
 - Size: S
 
@@ -879,5 +879,5 @@ cluster with ≥4 issues; PROPOSAL ONLY, not written, no milestone created):
 - `workflows.nodes-have-one-icon-in-sidebar-and-library` — **[PARTIAL]** (#4516) a workflow node shows the same SF Symbol in the sidebar and the library views, distinct from a document and a folder. Test: a new WorkflowNodeIconTests.swift in `fichero/Tests/Unit/` (to write).
 - `workflows.default-folders-visibly-protected` — **[PARTIAL]** (#4514, `WorkflowSavePolicy.swift`) default workflow folders look protected in library views as in the bar. Test: a new WorkflowSavePolicyTests.swift in `fichero/Tests/Unit/` (to write).
 - `workflows.translate-from-artifact-menu-runs` — **[PARTIAL]** (#4306) Translate from an artifact's context menu starts the run instead of failing with an error. Test: a new test_translate_from_artifact_context.py in `fichero-server/tests/unit/workflows/` (to write).
-- `workflows.stop-cancels-at-every-boundary` — **[PARTIAL]** (#4402) see `workflows.run.controls-are-fire-and-forget` above for what is built; a serial node with no per-item loop is still unproved. Test: a new test_cancellation_boundaries.py in `fichero-server/tests/unit/workflows/` (to write).
+- `workflows.stop-cancels-at-every-boundary` — **[OK]** (Step 1.4: a node's start is checked too, so a serial node with no per-item loop stops or pauses before its one call; `_make_node_function` in `workflows/builder.py`; pinned by `fichero-server/tests/unit/workflows/test_stop_at_every_boundary_to_spec.py`. A single call already running is not interrupted: that is a provider call's own length.) Was **[PARTIAL]** (#4402) see `workflows.run.controls-are-fire-and-forget` above for what is built; a serial node with no per-item loop is still unproved. Test: a new test_cancellation_boundaries.py in `fichero-server/tests/unit/workflows/` (to write).
 - `workflows.canvas.cost-chip-counts-vision-and-unpriced` — **[PARTIAL]** (#5742) the cost chip adds image (vision) tokens to text tokens and shows "unknown" for a model with no price entry (gemini-3-flash-preview), never a low or zero figure. Test: a new test_workflow_cost_estimate_vision.py in `fichero-server/tests/unit/core/` (to write).

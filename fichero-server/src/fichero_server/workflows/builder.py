@@ -1059,6 +1059,22 @@ def _make_node_function(
             logger.info("Skipping already-completed node: %s", node_id)
             return {}
 
+        # A node's start is a boundary too (`workflows.stop-cancels-at-every-boundary`, #4402): a serial node with no
+        # per-item loop reports no progress, so a Stop or Pause pressed while the node before it ran must land here, not
+        # after this node's single long call. Stop is checked first: a run both paused and stopped is stopped.
+        from fichero_server.execution.cancellation import (  # noqa: PLC0415
+            WorkflowCancelled,
+            WorkflowPaused,
+            cancellation_requested,
+            pause_requested,
+        )
+
+        entry_run_id = state.get("task_id", "")
+        if cancellation_requested(entry_run_id):
+            raise WorkflowCancelled(entry_run_id)
+        if pause_requested(entry_run_id):
+            raise WorkflowPaused(entry_run_id)
+
         if incoming_edges:
             outputs = state.get("outputs", {}) or {}
             missing_sources = sorted(
