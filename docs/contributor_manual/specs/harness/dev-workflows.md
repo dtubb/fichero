@@ -412,6 +412,17 @@ the write path would produce.
   `::test_pause_leaves_the_worker_idle_with_nothing_sent_and_resume_sends_the_next_brief`,
   `fichero-builder/tests/test_dry_run.py::test_feed_mode_keeps_the_session_and_types_the_next_brief_into_the_same_pane`,
   `fichero-builder/tests/test_milestone_verb.py::test_enqueue_puts_each_step_brief_in_the_milestones_lane_in_build_order`.
+- `dev-workflows.run.code-map` [OK] (#6340; owner 2026-11-01) — jail workers find code with jcodemunch instead of reading the
+  tree. `[jail].code_map` names the owner's install; the worker cannot read the owner's home, so before a start the owner
+  copies the install's whole venv under the workroot and writes `<workroot>/bin/jcodemunch-mcp`, which runs the script with
+  the copy's python and lifts the 2000-file default (again only after an upgrade). The start path writes that one server
+  into the worker's `--strict-mcp-config` file, and the worker's command indexes the worktree first. No setting, no install
+  or a failed copy or index means a worker that greps, never a refusal. `[brief].rules` tells the worker to use the tools.
+  Built and run 2026-11-01 as the real worker user: a full index of the repo took about two minutes and the server answered over
+  MCP. Limit: the server names every worktree of a repo the same, so two lanes at once would share one index.
+  Tests: `fichero-builder/tests/test_codemap.py::test_provide_copies_the_install_and_the_wrapper_runs_it_past_the_owner_only_shebang`,
+  `::test_prepare_registers_only_the_copied_server_and_keeps_the_strict_config`,
+  `::test_the_worker_side_command_indexes_the_worktree_first_and_a_failed_index_does_not_stop_it`.
 - `dev-workflows.builder.cluster` [PARTIAL] (#6116) — one spec and its build-order issues (parser ported from
   `pipeline/plan.py`), in order, one commit per issue with its test; the brief is built by `scripts/harness_brief.py` from
   `gh api repos/{repo}/issues/N`: the body and the **title** only when the author association is owner, member or
@@ -775,6 +786,12 @@ Steps a long-running builder can take from the heading. `Depends on` defaults to
 - Depends on: 2.5
 - Size: M
 
+#### Step 2.7 — the code map for jail workers, briefs that carry it, the reading metric (owner 2026-11-01)
+- Behaviours: `dev-workflows.run.code-map`
+- Tests: fichero-builder/tests/test_codemap.py, fichero-builder/tests/test_milestone_verb.py, fichero-builder/tests/test_dry_run.py, fichero-builder/tests/test_watch.py
+- Depends on: 2.6
+- Size: M
+
 ### Stage 3 — the Pi kind by RPC, the sandbox, local parity
 
 #### Step 3.1 — `--kind pi` over RPC with a fail-closed `tool_call` extension; a metered provider; one model per role in the rules file
@@ -841,6 +858,7 @@ Every behaviour names its test above, written in its step; each `security.*` and
 | `dev-workflows.tool.watch` | 2.4 |
 | `dev-workflows.tool.triage` | 2.5 |
 | `dev-workflows.tool.queue` | 2.6 |
+| `dev-workflows.run.code-map` | 2.7 |
 | `dev-workflows.run.worker-address` | 1.1 |
 | `dev-workflows.node.worker` | 1.2 |
 | `dev-workflows.rollout.dry-run` | 1.2 |

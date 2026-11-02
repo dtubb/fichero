@@ -13,7 +13,7 @@ import sys
 import tomllib
 from pathlib import Path
 
-from fichero_builder import check_tool, jail, journal, land_tool, models
+from fichero_builder import check_tool, codemap, jail, journal, land_tool, models
 
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 
@@ -59,7 +59,7 @@ def run_cmd(a, model: str, *extra) -> str:
     """The `builder run` command line the jail user runs (the one-brief path, and the queue's long-running session with --feed)."""
     py = check_tool.load(a.pinned).python or sys.executable
     pkg = Path(__file__).resolve().parents[1]
-    return " ".join(["PYTHONPATH=" + shlex.quote(str(pkg)), shlex.quote(py), "-m fichero_builder run",
+    return codemap.index_prefix(a.pinned, a.worktree) + " ".join(["PYTHONPATH=" + shlex.quote(str(pkg)), shlex.quote(py), "-m fichero_builder run",
                      *(f"{k} {shlex.quote(str(v))}" for k, v in (
                          ("--worktree", a.worktree), ("--brief", a.brief), ("--root", a.root), ("--name", a.name), ("--model", model),
                          ("--kind", a.kind), ("--session", a.session), ("--tick", a.tick), ("--state", shared_state(a)))),
@@ -71,6 +71,7 @@ def do_run(a, model: str) -> str:
     j = _jail(a)
     j.require()
     before = len(_shared_rows(a))
+    codemap.provide(a.pinned)
     cmd = run_cmd(a, model)
     r = as_worker(a, cmd)
     if r.stdout.strip():

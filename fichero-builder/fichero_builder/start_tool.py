@@ -14,7 +14,7 @@ import stat
 import sys
 from pathlib import Path
 
-from fichero_builder import check_tool
+from fichero_builder import check_tool, codemap
 from fichero_builder.jail import Jail
 
 _HOOK = Path(__file__).resolve().parents[2] / "scripts" / "harness_policy_hook.py"  # <repo>/scripts; the first live run found parents[4] after the move
@@ -62,7 +62,7 @@ def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_b
     # with "dubious ownership" (first real check, 2026-11-01); the worker user is the jail, so the wide allow is its own risk only
     if "*" not in subprocess.run(["git", "config", "--global", "--get-all", "safe.directory"], capture_output=True, text=True).stdout.split():
         subprocess.run(["git", "config", "--global", "--add", "safe.directory", "*"], check=True)
-    (scratch / "mcp.json").write_text(json.dumps({"mcpServers": {}}))
+    (scratch / "mcp.json").write_text(json.dumps(codemap.mcp_config(root)))  # with --strict-mcp-config: this file is all the worker gets
     # a linked worktree's .git is a file: ask git where hooks live (the clone's shared hooks dir)
     hooks = subprocess.run(["git", "-C", str(worktree), "rev-parse", "--path-format=absolute", "--git-path", "hooks"],
                            capture_output=True, text=True, check=True).stdout.strip()
