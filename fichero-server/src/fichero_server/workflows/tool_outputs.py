@@ -207,6 +207,8 @@ TOOL_OUTPUTS: dict[str, OutputDeclaration] = {
     "prepare_images": _RENDITION,
     "enhance_images": _RENDITION,
     "contrast_images": _RENDITION,
+    "stain_flatten_images": _RENDITION,
+    "ruled_lines_images": _RENDITION,
     "denoise_images": _RENDITION,
     "fuzzy_clean_images": _RENDITION,
     "deskew_images": _RENDITION,

@@ -450,8 +450,10 @@ $(SRCROOT)/../fichero-server/src/fichero_server/media/enhance/contrast.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/enhance/deskew.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/enhance/page_crop.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/enhance/rotate.py
+$(SRCROOT)/../fichero-server/src/fichero_server/media/enhance/ruled_lines.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/enhance/sharpen.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/enhance/split.py
+$(SRCROOT)/../fichero-server/src/fichero_server/media/enhance/stain_flatten.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/enhance/yellowing.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/find_page.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/flatten_curve.py
@@ -851,6 +853,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/diagram.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/diary_entries.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/economy_htr.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/enhance_images.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/enhance_step_nodes.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/entities.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/export_documents.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/extract.py

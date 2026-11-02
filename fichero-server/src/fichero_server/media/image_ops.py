@@ -387,6 +387,12 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
 
         # A stored row is applied as it was saved, not re-validated: model_construct keeps the old behaviour for an out-of-range value.
         return contrast.run(image, contrast.Params.model_construct(**{k: v for k, v in params.items() if k in contrast.Params.model_fields}))[0]
+    if name in {"stain_flatten", "ruled_lines"}:
+        from fichero_server.media.enhance import STEPS
+
+        spec = STEPS[name.replace("_", "-")]
+        # A stored row is applied as it was saved (as the contrast row is): out-of-range values are not re-validated.
+        return spec.run(image, spec.params.model_construct(**{k: v for k, v in params.items() if k in spec.params.model_fields}))[0]
     if name == "sharpen":
         return ImageEnhance.Sharpness(image).enhance(float(params.get("factor", 1.0)))
     if name == "auto_levels":
