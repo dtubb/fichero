@@ -163,6 +163,8 @@ class SharingStateResponse(BaseModel):
     # (a sandboxed app cannot run the Tailscale CLI, #5317); None when nothing is missing.
     tailnet_serve_command: str | None = None
     paired_device_count: int
+    # Why Multi-user cannot be turned on yet (no owner password chosen), else None: the pane reads this, not a guess.
+    multiuser_blocker: str | None = None
     # The audit row of a change this answer follows (PUT /multiuser): what ⌘Z takes back.
     audit_id: str | None = None
 
@@ -195,7 +197,7 @@ def _tailnet_serve_command() -> str | None:
 
 def _sharing_state(app_db: AppDatabase) -> SharingStateResponse:
     from fichero_server.security import tailscale_serve  # lazy: app-import budget (#3950)
-    from fichero_server.security.multiuser import multiuser_enabled
+    from fichero_server.security.multiuser import multiuser_enabled, owner_password_gap
 
     from fichero_server.security import bind_host
 
@@ -203,8 +205,10 @@ def _sharing_state(app_db: AppDatabase) -> SharingStateResponse:
         lan_ip = bind_host.primary_lan_ip() or None
     except OSError:  # no network: no address, never a failed read of the pane
         lan_ip = None
+    enabled = multiuser_enabled()
     return SharingStateResponse(
-        multiuser_enabled=multiuser_enabled(),
+        multiuser_enabled=enabled,
+        multiuser_blocker=None if enabled else owner_password_gap(app_db),
         public_base_url=(os.environ.get("FICHERO_PUBLIC_BASE_URL") or "").strip() or None,
         lan_ip=lan_ip,
         tailnet_url=tailscale_serve.detected_tailnet_url() or None,

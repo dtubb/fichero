@@ -2066,6 +2066,26 @@ class DegradedFailure(BaseModel):
     since: str = Field(description="Local time of the first failure, ISO 8601 without zone.")
 
 
+class SharingAddress(BaseModel):
+    """One address the host can be reached at, and whether something is listening on it now."""
+
+    kind: Literal["tailnet", "local-name", "lan"]
+    url: str
+    listening: bool
+
+
+class SharingHealth(BaseModel):
+    """What this engine is sharing, for `GET /api/health` (`sharing.health-reports-sharing`). No secrets."""
+
+    on: bool
+    listeners: list[str]
+    addresses: list[SharingAddress]
+    certificate_names: list[str]
+    tailnet_forward: Literal["ours", "foreign", "none", "unknown"]
+    multiuser: bool
+    paired_devices: int
+
+
 class HealthResponse(BaseModel):
     """Response from ``GET /api/health`` endpoint.
 
@@ -2084,6 +2104,8 @@ class HealthResponse(BaseModel):
     backend_version: str | None = None
     active_libraries: int | None = None
     remote_backend: RemoteBackendHealth | None = None
+    #: Sharing, apart from `remote_backend` (the ssh-loopback status: its `enabled=false` is not "sharing off").
+    sharing: SharingHealth | None = None
     server_proof: str | None = None
     # Instance identity (#2862): the host app passes FICHERO_LAUNCH_NONCE at
     # spawn and verifies it is echoed here, proving this responder is the engine

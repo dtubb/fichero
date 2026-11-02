@@ -2446,6 +2446,13 @@ def _reset_dependency_report() -> None:
     _missing_required_modules.cache_clear()
 
 
+def _sharing_health():
+    from fichero_server.db.app import get_app_db  # lazy: app-import budget (#3950)
+    from fichero_server.security.sharing_report import sharing_report
+
+    return sharing_report(get_app_db())
+
+
 def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthResponse:
     """Attach HMAC(server bootstrap secret, nonce) when the client asks. Every health answer passes
     through here, so it also names any missing required package (#5384)."""
@@ -2453,6 +2460,7 @@ def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthRes
     from fichero_server.core import failure_ledger
     from fichero_server.models import DegradedFailure
 
+    response.sharing = _sharing_health()  # `sharing.health-reports-sharing`: every answer, with or without a project
     response.missing_dependencies = _missing_required_modules()
     response.device_token_migration_error = device_token_migration_error()
     response.dependencies = {**response.dependencies, **startup_warnings.as_dependencies()}

@@ -716,6 +716,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/security/remote_access_tls.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/remote_backend.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/revocation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/security_scoped_access.py
+$(SRCROOT)/../fichero-server/src/fichero_server/security/sharing_report.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/synced_host.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/tailscale_serve.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/url_security.py
