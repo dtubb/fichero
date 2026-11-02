@@ -94,13 +94,13 @@ DONE = re.compile(r"^DONE ([0-9a-f]{7,40})\b", re.M)  # the brief's end line: DO
 HANDOFF_READY = "HANDOFF READY"
 
 
-def register(name: str, worktree, handoff, model: str, window: int, tmux_session: str, reg_dir=None) -> Path:
+def register(name: str, worktree, handoff, model: str, window: int, tmux_session: str, reg_dir=None, handoff_tokens: int = 0) -> Path:
     """The registry entry the in-session handoff hook reads (scripts/harness_handoff_hook.py): with it the hook tells the
     worker at 85 % and nudges an idle one on; `successor: watcher` leaves ending and the successor to this loop."""
     d = Path(reg_dir or os.environ.get("FICHERO_HARNESS_REG") or Path.home() / ".claude" / "builders")
     d.mkdir(parents=True, exist_ok=True)
     p = d / f"{name}.json"
-    p.write_text(json.dumps({"worktree": str(worktree), "handoff": str(handoff), "model": model, "window": window,
+    p.write_text(json.dumps({"worktree": str(worktree), "handoff": str(handoff), "model": model, "window": window, "handoff_tokens": handoff_tokens,
                              "session": tmux_session, "successor": "watcher"}, indent=1))
     return p
 
@@ -148,7 +148,7 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             out("builder run refuses: " + b)
         return "refused"
     handoff = Path(handoff) if handoff else Path(worktree) / "HANDOFF.md"
-    register(name, worktree, handoff, model, spend.window, tmux_session)
+    register(name, worktree, handoff, model, spend.window, tmux_session, handoff_tokens=watcher.threshold(spend))
     gen = 1
     base = procs.head()
     pane = procs.start(root, worktree, with_done_line(brief, worktree, name), name, model, tmux_session)
@@ -190,8 +190,8 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
                 journal.append("watch", task=name, what=d)
                 out(f"{name}: {d}")
                 told.add(kind_of)
-                if kind_of == "handoff":  # the watcher delivers the 85 % word itself where it can (Pi); Claude's hook does it
-                    procs.tell(pane, f"Your context is at 85%. Finish this step, commit, update {handoff.name} so a successor "
+                if kind_of == "handoff":  # the watcher delivers the word itself where it can (Pi); Claude's hook does it at the context mark
+                    procs.tell(pane, f"Hand off now ({d.split(': ', 1)[1]}). Finish this step, commit, update {handoff.name} so a successor "
                                      f"can continue without asking, and end your turn with the exact line {HANDOFF_READY}.")
         if any(d.startswith("park") for d in decisions):
             procs.stop(pane)

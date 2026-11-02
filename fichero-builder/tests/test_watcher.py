@@ -69,8 +69,9 @@ def test_handoff_at_the_share_of_the_window():
 
 
 def test_the_session_cap_then_the_day_cap_park():
+    """Since 2026-11-02 (dev-workflows.run.loop-session-cap-hands-off) the session cap hands off; only the day cap parks."""
     out = watcher.assess({**STATE, "cost_usd": 5.0}, SPEND, "sonnet", spent_today=0, silent_for_s=0)
-    assert out == ["park: session spend 5.00 USD reached the cap 5.00"]
+    assert out == ["handoff: session spend 5.00 USD reached the cap 5.00"]
     out = watcher.assess({**STATE, "cost_usd": 1.0}, SPEND, "sonnet", spent_today=19.5, silent_for_s=0)
     assert out == ["park: today's spend 20.50 USD reached the cap 20.00"]
 
@@ -85,3 +86,11 @@ def test_a_silent_working_session_alerts_and_an_idle_one_does_not():
     assert watcher.assess(STATE, SPEND, "sonnet", spent_today=0, silent_for_s=600) == ["alert: no change in the session file for 600 s"]
     assert watcher.assess({**STATE, "idle": True}, SPEND, "sonnet", spent_today=0, silent_for_s=6000) == []
     assert watcher.assess({**STATE, "started": False}, SPEND, "sonnet", spent_today=0, silent_for_s=6000) == [], "not yet started is not silent"
+
+
+def test_the_handoff_threshold_is_an_absolute_token_count_when_set():
+    """dev-workflows.run.loop-handoff-tokens: ie-lane2 used 17M tokens for three steps on a 1M window; 150000 tokens, not 85% of it."""
+    big = watcher.Spend(window=1_000_000, handoff_at=0.85, handoff_tokens=150_000, session_usd=5.0, day_usd=20.0, silent_s=600, prices=PRICES)
+    assert watcher.assess({**STATE, "context": 149_999}, big, "sonnet", spent_today=0, silent_for_s=0) == []
+    assert watcher.assess({**STATE, "context": 150_001}, big, "sonnet", spent_today=0, silent_for_s=0) == ["handoff: context 150001 of 150000"]
+    assert watcher.threshold(big) == 150_000 and watcher.threshold(SPEND) == 850

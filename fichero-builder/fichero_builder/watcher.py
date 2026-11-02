@@ -8,13 +8,14 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-KEYS = {"window", "handoff_at", "session_usd", "day_usd", "silent_s", "prices"}
+KEYS = {"window", "handoff_at", "handoff_tokens", "session_usd", "day_usd", "silent_s", "prices"}
 
 
 @dataclass(frozen=True)
 class Spend:
     window: int = 200_000          # the model's context window, tokens
     handoff_at: float = 0.85       # hand off when the latest prompt reaches this share of the window
+    handoff_tokens: int = 0        # or at this many tokens, when set (dev-workflows.run.loop-handoff-tokens: a 1M window cost 17M tokens a lane)
     session_usd: float = 0.0       # 0 = no cap declared = refuse to start
     day_usd: float = 0.0
     silent_s: int = 1800           # a session file unchanged this long while not idle = alert
@@ -32,9 +33,14 @@ def load(root) -> Spend:
         if not (isinstance(v, list) and len(v) == 2 and all(isinstance(x, (int, float)) and x >= 0 for x in v)):
             raise ValueError(f"harness.toml [spend].prices.{k}: two numbers, usd per million input and output tokens")
     d = Spend()
-    return Spend(window=int(t.get("window", d.window)), handoff_at=float(t.get("handoff_at", d.handoff_at)),
+    return Spend(window=int(t.get("window", d.window)), handoff_at=float(t.get("handoff_at", d.handoff_at)), handoff_tokens=int(t.get("handoff_tokens", 0)),
                  session_usd=float(t.get("session_usd", 0)), day_usd=float(t.get("day_usd", 0)),
                  silent_s=int(t.get("silent_s", d.silent_s)), prices=dict(prices))
+
+
+def threshold(spend: Spend) -> int:
+    """The context size at which a session hands off: `handoff_tokens` when set, else the share of the window."""
+    return spend.handoff_tokens or int(spend.window * spend.handoff_at)
 
 
 def price_for(model: str, spend: Spend):
@@ -82,12 +88,12 @@ def assess(state: dict, spend: Spend, model: str, *, spent_today: float, silent_
     elif state.get("error") and not state.get("transient"):
         out.append(f"park: provider error: {state['error'][:120]}")
     cost = cost_of(state, spend, model)
-    if cost >= spend.session_usd:
-        out.append(f"park: session spend {cost:.2f} USD reached the cap {spend.session_usd:.2f}")
-    elif spent_today + cost >= spend.day_usd:
+    if spent_today + cost >= spend.day_usd:  # only the day cap parks (dev-workflows.run.loop-session-cap-hands-off)
         out.append(f"park: today's spend {spent_today + cost:.2f} USD reached the cap {spend.day_usd:.2f}")
-    if state.get("context", 0) >= spend.window * spend.handoff_at:
-        out.append(f"handoff: context {state['context']} of {spend.window}")
+    elif cost >= spend.session_usd:  # a fresh session continues from the tree, as at the context handoff
+        out.append(f"handoff: session spend {cost:.2f} USD reached the cap {spend.session_usd:.2f}")
+    elif state.get("context", 0) >= threshold(spend):
+        out.append(f"handoff: context {state['context']} of {threshold(spend) if spend.handoff_tokens else spend.window}")
     if not state.get("idle") and state.get("started") and silent_for_s >= spend.silent_s:
         out.append(f"alert: no change in the session file for {int(silent_for_s)} s")
     return out

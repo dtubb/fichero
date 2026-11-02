@@ -88,7 +88,8 @@ def tell(reg, message, run=subprocess.run):
 
 def on_post_tool(event, name, reg, state):
     sid = event.get("session_id", "")
-    if state.get("told") == sid or context_used(event.get("transcript_path", "")) < AT * reg.get("window", 200_000):
+    limit = reg.get("handoff_tokens") or AT * reg.get("window", 200_000)  # an absolute count when the loop sets one (run.loop-handoff-tokens)
+    if state.get("told") == sid or context_used(event.get("transcript_path", "")) < limit:
         return None, state
     words = (f"Your context is at 85%. Finish this step, commit, update {reg['handoff']} so a successor can continue "
              f"without asking, and end your turn with the exact line {DONE}. A successor starts automatically.")
@@ -157,6 +158,9 @@ def test():
     assert out and st["told"] == ""
     assert on_post_tool({"transcript_path": str(t)}, "b", reg, st)[0] is None, "told once"
     assert on_post_tool({"transcript_path": str(t), "session_id": "n"}, "b", reg, st)[0], "a successor is told in its own right"
+    big = dict(reg, window=1_000_000)
+    assert on_post_tool({"transcript_path": str(t)}, "b", big, {})[0] is None, "171k of a 1M window is under 85%"
+    assert on_post_tool({"transcript_path": str(t)}, "b", dict(big, handoff_tokens=150_000), {})[0], "past an absolute 150000: told"
     usage["cache_read_input_tokens"] = 1000
     t.write_text(json.dumps({"message": {"usage": usage}}) + "\n")
     assert on_post_tool({"transcript_path": str(t)}, "b", reg, {})[0] is None, "under 85% is quiet"
