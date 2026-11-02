@@ -363,15 +363,15 @@ the write path would produce.
   row (event `triage`) and one `gh` call that can be read back; `--dry` reads, prints and journals rows marked dry, writes
   nothing. **The milestone is the spec**: `--milestones` moves an open issue to the milestone of the spec that cites `#N`
   (created on the repo first when missing), else of the spec a `spec:<stem>` label hints at, and removes the `spec:*` label
-  once the issue sits there (a `spec:*` label no open issue carries is deleted; triage creates none); a spec with no
+  once the issue sits there (triage creates and deletes no label); a spec with no
   `> Milestone:` line gets one, the milestone most of its cited issues carry (a `spec-milestone-line` row); an issue no
   spec cites with no milestone goes to `Next release` only if it is `type:bug`; a milestone with no open issue that no spec names is closed (a spec's stays, and a closed one a spec needs is reopened, never made twice);
   a milestone with open issues that no spec names and that is not an ops bucket (`Bugs - *`, `Lint - *`, `Performance - *`)
   or a grab-bag (`Next release`, `cand 16`) or parked in the build-order file gets one `spec: write <milestone> spec` issue labelled `needs-spec`, filed
   once. **The label set is closed** (`--labels`): the table in `harness/issues-and-labels.md` (`step:N.M`,
   `type:bug|feature|task`, `priority:P0-P3`, `phase:R0-R6` until the recipe phases are in a build order, `needs-spec`,
-  `needs-your-decision`, `needs-your-test`, `status:blocked`); every other label is removed from its issues and deleted
-  after the issues get what `harness.toml [triage.labels]` maps it to (absent = nothing; a `spec:<stem>` value is a hint
+  `needs-your-decision`, `needs-your-test`, `status:blocked`); every other label is reported (one `label-unknown` row each) and never deleted, and
+  its issues get what `harness.toml [triage.labels]` maps it to (absent = nothing; a `spec:<stem>` value is a hint
   for `--milestones`), and the mapping applied is printed; a missing kept label is created first, and a missing `spec:` hint is skipped, never made. **needs-spec** (`--specs`) goes on an open issue inside a spec's
   milestone that no spec cites and comes off one a spec cites; ops buckets, grab-bags and issues with no milestone are left
   alone. **Assignees** (`--assignees`): the `gh api user` login on `needs-your-decision` / `needs-your-test` only; every

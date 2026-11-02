@@ -128,23 +128,21 @@ def world(tmp_path, monkeypatch):
 
 
 def test_labels_are_the_closed_set_priority_and_phase_kept_spec_labels_never_created(world, capsys):
-    """Rule 1 as ruled: the label set is the spec's table (priority:P0-P3 and phase:R0-R6 kept for now); a spec:* label is
-    neither created from the spec files nor deleted here (it is temporary, removed per issue by --milestones); the rest is
-    moved by the table, then deleted."""
+    """Rule 1 as ruled: the label set is the spec's table (priority:P0-P3 and phase:R0-R6 kept for now). A label outside it is
+    reported, its issues get what the table maps it to, and it is never deleted: a delete on the public repo is not undone,
+    and the spec says triage refuses an unknown label, not that it removes one. No spec label is created."""
+    before = set(world.db()["labels"])
     assert world("--labels") == 0
     d = world.db()
-    assert set(d["labels"]) == {"spec:sharing-two-macs", "phase:R1", "priority:P1", "type:bug", "needs-spec", "needs-your-test"}, \
-        "a spec label with no file goes; no spec label is created; priority and phase stay"
+    assert set(d["labels"]) == before, "nothing deleted, nothing created"
     by = {i["number"]: i["labels"] for i in d["issues"]}
-    assert by[7] == ["phase:R1", "priority:P1", "spec:sharing-two-macs"] and by[8] == ["needs-spec", "type:bug"] and by[9] == []
+    assert "spec:sharing-two-macs" in by[7] and "sharing" in by[7] and "type:bug" in by[8] and "performance" in by[8]
     out = capsys.readouterr().out
-    assert "sharing -> spec:sharing-two-macs" in out and "performance -> type:bug" in out and "phase:R1" not in out
+    assert "unknown label sharing -> spec:sharing-two-macs" in out and "unknown label performance -> type:bug" in out and "phase:R1" not in out
     calls = d["calls"]
-    assert not any(c[:2] == ["label", "create"] for c in calls), "triage creates no spec label"
-    for old, new in (("sharing", "spec:sharing-two-macs"), ("performance", "type:bug")):
-        move = next(k for k, c in enumerate(calls) if c[:2] == ["issue", "edit"] and c[-1] == new)
-        delete = next(k for k, c in enumerate(calls) if c[:2] == ["label", "delete"] and c[2] == old)
-        assert move < delete, "an issue is relabelled before its old label is deleted"
+    assert not any(c[:2] in (["label", "create"], ["label", "delete"]) for c in calls)
+    rows = [r for r in journal.read() if r["event"] == "triage" and r["what"] == "label-unknown"]
+    assert {r["label"] for r in rows} == {"sharing", "performance", "spec:gone-spec"}
 
 
 def test_dry_changes_nothing_and_prints_the_counts(world, capsys):
@@ -153,7 +151,7 @@ def test_dry_changes_nothing_and_prints_the_counts(world, capsys):
     after = world.db()
     assert after["labels"] == before["labels"] and after["issues"] == before["issues"]
     assert all(c[:2] in (["label", "list"], ["issue", "list"]) for c in after["calls"]), "reads only"
-    assert "labels deleted: 3" in capsys.readouterr().out
+    assert "labels unknown: 3" in capsys.readouterr().out
     assert all(r.get("dry") for r in journal.read() if r["event"] == "triage")
 
 
@@ -183,7 +181,7 @@ def test_milestones_follow_the_citing_spec_and_the_spec_label_goes_once_the_issu
     assert set(d["closed"]) == {"Empty one"}, "only an empty milestone closes"
     filed = [i for i in d["issues"] if i["title"].startswith("spec: write ")]
     assert [i["title"] for i in filed] == ["spec: write orphan-ms spec"], "no write-the-spec issue for a Lint bucket"
-    assert "spec:sharing-two-macs" not in d["labels"], "a spec label no open issue carries is deleted"
+    assert "spec:sharing-two-macs" in d["labels"], "removed from the issue, never deleted from the repo"
     assert world("--labels", "--specs", "--milestones") == 0
     assert sum(1 for i in world.db()["issues"] if i["title"] == "spec: write orphan-ms spec") == 1, "idempotent"
     assert "> Milestone: Bugs - old" in (world.root / "docs" / "contributor_manual" / "specs" / "x" / "no-line.md").read_text()

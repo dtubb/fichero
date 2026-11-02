@@ -109,7 +109,7 @@ def first_open(root, gh: str = "gh") -> tuple[str, Path]:
 class Triage:
     def __init__(self, root, gh: str, dry: bool, say=print):
         self.root, self.gh, self.dry, self.say = Path(root), gh, dry, say
-        self.counts = {"labels created": 0, "labels deleted": 0, "issues relabelled": 0, "issues moved": 0, "milestones created": 0, "milestones closed": 0,
+        self.counts = {"labels created": 0, "labels unknown": 0, "issues relabelled": 0, "issues moved": 0, "milestones created": 0, "milestones closed": 0,
                        "spec issues filed": 0, "spec lines added": 0, "assignees changed": 0, "milestones unordered": 0}
 
     def change(self, what: str, *gh_args, **row) -> None:
@@ -136,8 +136,9 @@ class Triage:
         return {p: {int(n) for n in re.findall(r"#(\d+)\b", p.read_text())} for p in spec_files(self.root)}
 
     def labels(self) -> None:
-        """Rule 1: the closed set only; a spec:* label with a file stays (a hint --milestones consumes), one with no file goes;
-        every other label is moved by the table, then deleted."""
+        """Rule 1: the closed set only. A label outside it (a spec:* label with a file is a hint --milestones consumes, so it stays
+        quiet) is reported, one row each, and its issues get what the table maps it to; it is never deleted, because the spec
+        says triage refuses an unknown label and a delete on the public repo is not undone."""
         have = {r["name"] for r in json.loads(_gh(self.gh, "label", "list", "--json", "name", "--limit", "1000") or "[]")}
         stems = {f"spec:{p.stem}" for p in spec_files(self.root)}
         table = mapping(self.root)
@@ -148,7 +149,9 @@ class Triage:
             if new.startswith("spec:") and new not in have:  # triage makes no spec label; the citing spec still places the issue
                 self.say(f"{old} -> {new} is absent: no hint applied")
                 new = ""
-            self.say(f"{old} -> {new or '(nothing)'}")
+            self.say(f"unknown label {old} -> {new or '(nothing)'}")
+            journal.append("triage", what="label-unknown", dry=self.dry, label=old, maps_to=new)
+            self.counts["labels unknown"] += 1
             if new and new not in have:
                 self.change("label-create", "label", "create", new, label=new)
                 have.add(new)
@@ -157,8 +160,6 @@ class Triage:
                 for i in self.issues("--label", old, "--state", "all"):
                     if new not in i["labels"]:
                         self.relabel(i, add=new, was=old)
-            self.change("label-delete", "label", "delete", old, "--yes", label=old)
-            self.counts["labels deleted"] += 1
 
     def specs(self) -> None:
         """Rule 2: needs-spec only on an open issue inside a spec's milestone that no spec cites; an issue a spec cites loses it;
@@ -228,11 +229,6 @@ class Triage:
                 if lb.startswith("spec:") and (named.get(lb) == cur or cites.get(i["number"]) == cur):
                     self.relabel(i, remove=lb)
                     i["labels"] = [x for x in i["labels"] if x != lb]
-        hinted = {lb for i in issues if i["state"] == "open" for lb in i["labels"] if lb.startswith("spec:")}
-        for lb in sorted(set(named) - hinted):
-            if lb in {r["name"] for r in json.loads(_gh(self.gh, "label", "list", "--json", "name", "--limit", "1000") or "[]")}:
-                self.change("label-delete", "label", "delete", lb, "--yes", label=lb)
-                self.counts["labels deleted"] += 1
         spec_named = set(named.values())
         try:
             parked = build_order(self.root)[1]  # a parked milestone is the owner's to leave: no spec is owed
