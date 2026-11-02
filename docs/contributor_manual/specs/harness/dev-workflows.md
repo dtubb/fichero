@@ -63,7 +63,9 @@ runs **check**. Not promised: Seatbelt, a disabled push URL, a closed outbound n
 **Start path, fail-closed.** `scripts/harness_start.py` is the only way a worker starts, for generation 1 and for every
 successor the handoff hook starts: it refuses unless it runs as the worker user, unless the **probe** has passed since the
 last set-up change, and unless the rules file loads with every rung declared; then it writes the generated settings
-(hooks, permission mode, empty strict MCP config) and opens the pane. The probe, run as the worker user, must **fail** on:
+(hooks, permission mode, empty strict MCP config) and opens the pane. The pane's command line carries a short prompt
+naming the brief file, never the brief's text, which the worker reads itself (a 22 KB brief made tmux refuse "command too
+long", 2026-11-02; test `fichero-server/tests/unit/workflows/test_start_tool.py::test_a_brief_over_100_kb_reaches_the_worker_as_a_short_prompt_naming_its_file`). The probe, run as the worker user, must **fail** on:
 a `git push --dry-run` by URL, a `gh api` write, a read of the owner's home and of each real library path, a read of the
 owner's Keychain; `deny_read` has a required floor and an empty list refuses. `check` run by the worker user runs
 directly; run by the owner it uses `sudo -u <worker>`; with no `[jail]` in the rules file it refuses.

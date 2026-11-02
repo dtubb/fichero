@@ -120,3 +120,18 @@ def test_prepare_allows_the_workers_git_to_open_owner_made_trees(tmp_path, monke
     start_tool.prepare(tmp_path, wt, "go", tmp_path / "scratch")
     got = subprocess.run(["git", "config", "--global", "--get-all", "safe.directory"], capture_output=True, text=True).stdout.split()
     assert "*" in got and "safe" in (tmp_path / "gitconfig").read_text()
+
+
+def test_a_brief_over_100_kb_reaches_the_worker_as_a_short_prompt_naming_its_file(tmp_path):
+    """2026-11-02: a 22 KB brief on the tmux command line died with "command too long". The command line carries only a
+    short prompt naming the brief file; the worker reads the file. Never the brief's text."""
+    brief = tmp_path / "brief.txt"
+    brief.write_text("step " * 30000)  # 150 KB
+    p = S.brief_prompt(brief)
+    assert len(p) < 500 and str(brief.resolve()) in p and "step step" not in p
+    wt = tmp_path / "clone"
+    subprocess.run(["git", "init", "-q", str(wt)], check=True)
+    argv = S.prepare(_root(tmp_path), wt, p, tmp_path / "scratch")
+    assert argv[-1] == p and sum(len(x) for x in argv) < 2000, "the whole argv stays short"
+    with pytest.raises(FileNotFoundError):
+        S.brief_prompt(tmp_path / "missing.txt")

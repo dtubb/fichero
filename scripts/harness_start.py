@@ -47,7 +47,7 @@ if tokfile.exists():
         sys.exit(1)
     tok = f'export CLAUDE_CODE_OAUTH_TOKEN="$(cat {shlex.quote(str(tokfile))})" && '
 scratch = Path(jail.workroot or "/tmp") / a.name
-argv = S.prepare(a.root, a.worktree, Path(a.brief).read_text(), scratch, model=a.model, claude_bin=claude)
+argv = S.prepare(a.root, a.worktree, S.brief_prompt(a.brief), scratch, model=a.model, claude_bin=claude)  # never the text on tmux's line
 if a.dry:
     print(json.dumps(argv))
     sys.exit(0)
