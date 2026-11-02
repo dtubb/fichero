@@ -264,10 +264,10 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   provenance ruling from the workflows-done-right mandate depends on this).
   ISSUE: #4312 (EPIC: "Every run tells you what it did — provenance, trace, and
   honest controls").
-- `workflows.run.pause-is-dead-end` — **[GAP]** a paused run cannot be
+- `workflows.run.pause-is-dead-end` — **[OK]** (built: 393600d9ee, #4316 — a paused run is cancelled directly (`_cancel_settled_run`), deleted, and resumes from its checkpoint; pinned by `tests/unit/workflows/test_run_lifecycle_vocabulary.py` (cancel and delete a paused run) and `test_pause_inside_a_long_node.py`, 45 pass with the next line's tests, 2026-11-02.) Was: a paused run cannot be
   cancelled, deleted, or reliably resumed (2026-07-29 review F3). Folded into
   #4312.
-- `workflows.run.stuck-processing-on-cancel-fail` — **[GAP]** a
+- `workflows.run.stuck-processing-on-cancel-fail` — **[OK]** (built: d16c75f879, #4315 — every terminal path calls `finalize_run_documents`, so processing documents return to pending; pinned by `tests/unit/workflows/test_finalize_run_documents.py` (cancelled and failed runs) and `tests/unit/api/test_workflow_cancel.py`.) Was: a
   cancelled/failed run can leave its documents at `processing` forever, never
   calling the completion path that flips status back (2026-07-29 review F2).
   Folded into #4312.
@@ -482,7 +482,7 @@ Engine only, one pytest per step. Each step flips its tags only with its test gr
 
 #### Step 1.3 — A paused run can be cancelled, deleted and resumed; a failed run frees its documents (#4312)
 - Behaviours: `workflows.run.pause-is-dead-end`, `workflows.run.stuck-processing-on-cancel-fail`
-- Tests: fichero-server/tests/unit/workflows/test_pause_cancel_frees_documents_to_spec.py (not yet written)
+- Tests: fichero-server/tests/unit/workflows/test_run_lifecycle_vocabulary.py, fichero-server/tests/unit/workflows/test_finalize_run_documents.py
 - Size: M
 
 #### Step 1.4 — Stop reaches every boundary, including a serial node with no per-item loop (#4402)
