@@ -54490,6 +54490,18 @@
             "type": "integer",
             "title": "Total",
             "default": 0
+          },
+          "seconds_left": {
+            "type": "number",
+            "nullable": true,
+            "title": "Seconds Left",
+            "description": "the items left at the kind's median time per item; null when none of the kind is measured (`activity.summary.eta-basis`, #5960)"
+          },
+          "eta_basis": {
+            "type": "string",
+            "nullable": true,
+            "title": "Eta Basis",
+            "description": "what `seconds_left` rests on: \"the last 50 of this kind\""
           }
         },
         "type": "object",

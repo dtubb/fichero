@@ -333,6 +333,9 @@ class BackgroundLine(BaseModel):
     reason: Optional[str] = None
     done: int = 0
     total: int = 0
+    seconds_left: Optional[float] = Field(None, description=(
+        "the items left at the kind's median time per item; null when none of the kind is measured (`activity.summary.eta-basis`, #5960)"))
+    eta_basis: Optional[str] = Field(None, description='what `seconds_left` rests on: "the last 50 of this kind"')
 
 
 class UpNextItem(BaseModel):
@@ -367,10 +370,23 @@ def is_live_recipe_run(job: "BackgroundJob") -> bool:
     return job.task_type == "run-a-recipe" and job.state in _LIVE_STATES
 
 
-def background_lines(jobs: "list[BackgroundJob]") -> list[BackgroundLine]:
-    """One line per kind of work nobody runs as a run of their own, with its total; none for an ended row."""
-    return [BackgroundLine(kind=j.task_type, name=j.name, state=j.state, reason=j.reason, done=j.current, total=j.total)
-            for j in jobs if j.task_type not in _RUN_TASK_TYPES and j.state in _LIVE_STATES]
+#: What a background line's time left rests on when the kind has no pace of its own yet (`activity.summary.eta-basis`).
+KIND_PACE_BASIS = "the last 50 of this kind"
+
+
+def background_lines(jobs: "list[BackgroundJob]", per_item: Optional[dict[str, float]] = None) -> list[BackgroundLine]:
+    """One line per kind of work nobody runs as a run of their own, with its total; none for an ended row. `per_item`: the kind's
+    median seconds an item took (`jobs.seconds_per_item`), which gives a running line its time left."""
+    per_item = per_item or {}
+    lines = []
+    for j in jobs:
+        if j.task_type in _RUN_TASK_TYPES or j.state not in _LIVE_STATES:
+            continue
+        pace, left = per_item.get(j.task_type), max(0, j.total - j.current)
+        lines.append(BackgroundLine(kind=j.task_type, name=j.name, state=j.state, reason=j.reason, done=j.current, total=j.total,
+                                    seconds_left=round(pace * left, 1) if pace and left else None,
+                                    eta_basis=KIND_PACE_BASIS if pace and left else None))
+    return lines
 
 
 def workflow_block(job: "BackgroundJob", model: Optional[str] = None, where: Optional[str] = None) -> LiveBlock:
@@ -523,7 +539,11 @@ async def activity_summary(db: Database, jobs: "list[BackgroundJob]",
                            statuses: "dict[str, dict[str, Any]] | None" = None) -> ActivitySummary:
     """THE summary (`activity.popover.same-summary`): built once per poll from the ordered job list, so the popover and
     the window can only agree."""
-    return ActivitySummary(live=await live_blocks(db, jobs, statuses), background=background_lines(jobs),
+    from fichero_server.execution import jobs as job_queue
+
+    kinds = sorted({j.task_type for j in jobs if j.task_type not in _RUN_TASK_TYPES and j.state in _LIVE_STATES})
+    paces = await asyncio.to_thread(lambda: {k: p for k in kinds if (p := job_queue.seconds_per_item(db, k)) is not None})
+    return ActivitySummary(live=await live_blocks(db, jobs, statuses), background=background_lines(jobs, paces),
                            history=sum(1 for j in jobs if j.group == "earlier"), up_next=up_next(jobs, statuses))
 
 
