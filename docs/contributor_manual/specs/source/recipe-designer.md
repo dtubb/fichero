@@ -305,7 +305,7 @@ says a model's trade-off on its row; these say the same once, where the choice i
   an early error carries through the chain. Check the earliest steps first."* Shown on every project, not only
   when a large model is chosen. *Test:* `test_risks_text_is_the_engines.py`
   (the text is served by the engine; the app has no copy).
-- `designer.how.chain-risk-on-ready` [PARTIAL] (#6052; engine half built in `recipes/chain_risk.py`, `GET /api/recipes/chain-risk`; Ready does not show it yet) — Ready says, in one line per model step, what feeds
+- `designer.how.chain-risk-on-ready` [PARTIAL] (#6052; engine half built in `recipes/chain_risk.py`, `GET /api/recipes/chain-risk`; Ready does not show it yet) — Ready says, in one line per model step, what feeds *Open question (2026-11-02): the Swift reader of `GET /api/recipes/chain-risk` (Ready's store) is still to wire, #6052; listed in `scripts/check_endpoint_coverage_matrix_known_gaps.json` until it is.*
   it and what it feeds ("Read takes the lines Find Lines found; Names, Dates and Statements take what Read
   wrote"), and marks the steps whose errors carry furthest (the earliest model steps) with "check first". The
   line is the engine's, from the job registry's reads and writes (`source.recipe.steps-work-alone-in-order`).
@@ -380,7 +380,7 @@ the preparation step (`source.onboard.auto.prepare-damaged-images` (P)), and a p
 `routes.py`, and none says on screen *why* a default was chosen.
 
 **Improves.**
-- `designer.defaults.table` [PARTIAL] (#6052; engine half built in `recipes/defaults.py`, `GET /api/recipes/defaults`; not yet applied by `assemble.py` or shown in the app) — one vendored table, `recipes/seed/defaults-by-answers.yaml`,
+- `designer.defaults.table` [PARTIAL] (#6052; engine half built in `recipes/defaults.py`, `GET /api/recipes/defaults`; not yet applied by `assemble.py` or shown in the app) — one vendored table, `recipes/seed/defaults-by-answers.yaml`, *Open question (2026-11-02): the Swift reader of `GET /api/recipes/defaults` (the stage pages and Ready) is still to wire, #6052; listed in `scripts/check_endpoint_coverage_matrix_known_gaps.json` until it is.*
   maps the answers (kind of material, condition, where, model kind, what matters, the volume) to the recipe's
   defaults: which stages are ticked, each step's default candidate kind (CTC reader, vision-language reader,
   Apple's recognition, a cloud or local place), whether Review is on, the preparation steps, and the proposed caps.
