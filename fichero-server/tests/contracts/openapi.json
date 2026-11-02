@@ -42753,7 +42753,7 @@
           "chains"
         ],
         "summary": "List Chains",
-        "description": "List all workflow chains.",
+        "description": "List the workflow chains of the open library (the process's own when no library is named).",
         "operationId": "list_chains_api_chains_get",
         "parameters": [
           {

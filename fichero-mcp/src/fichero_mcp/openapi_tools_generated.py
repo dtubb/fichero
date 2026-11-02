@@ -1263,7 +1263,7 @@ def fichero_chains_list(
     limit: Annotated[Optional[int], Field(description='Limit')] = None,
     offset: Annotated[Optional[int], Field(description='Offset')] = None,
 ) -> Any:
-    'List Chains\n\nList all workflow chains.\n\nRoute: GET /api/chains (toolset `chains`; reads).'
+    "List Chains\n\nList the workflow chains of the open library (the process's own when no library is named).\n\nRoute: GET /api/chains (toolset `chains`; reads)."
     return _rt.call("GET", "/api/chains", params={"limit": limit, "offset": offset})
 
 
