@@ -1192,25 +1192,36 @@ def person_lines(lines: list["JobLogLine"]) -> list["JobLogLine"]:
     return kept
 
 
-def _job_rows_log(node: dict[str, Any]) -> list[JobLogLine]:
-    """The lines a job's own row says, and the rows under it: it started, how it ended, what it waits for."""
+def _job_rows_log(node: dict[str, Any], stage: Optional[str] = None, seen: Optional[set[tuple[Optional[str], str]]] = None
+                  ) -> list[JobLogLine]:
+    """The lines a job's own row says, and the rows under it: it started, how it ended, what it waits for.
+
+    Keyed by (stage, page) (`activity.log.one-line-per-page`, #5960): a stage says its start and end once, and a page says only that it
+    failed, once for the stage; a page that merely finished says nothing, however many step rows the lanes handled it in."""
+    seen = set() if seen is None else seen
     name = node.get("display_name") or node.get("name") or node["id"]
+    page = node.get("document_id")
     lines = []
-    if node.get("started_at"):
+    if page is None and node.get("started_at"):
         lines.append(JobLogLine(timestamp=node["started_at"], level="info", message=f"Started {name}",
                                 job_id=node["id"], detail="developer"))
     state, reason = node.get("state") or "", node.get("reason")
     ended = {"done": ("info", f"Done: {name}"),
              "failed": ("error", f"Failed: {name}: {reason or 'no reason recorded'}"),
              "cancelled": ("warning", f"Stopped: {name}" + (f": {reason}" if reason else ""))}.get(state)
+    if page is not None and ended is not None and (state != "failed" or (stage, page) in seen):
+        ended = None  # a page's Done is no line; its failure is one line a stage
+    if page is not None and state == "failed":
+        seen.add((stage, page))
     if ended is not None:
         lines.append(JobLogLine(timestamp=node.get("finished_at"), level=ended[0], message=ended[1],
                                 job_id=node["id"]))
-    elif reason:
+    elif reason and page is None:
         lines.append(JobLogLine(timestamp=None, level="info", message=f"{state.capitalize()}: {name}: {reason}",
                                 job_id=node["id"], detail="developer"))
+    below = node["id"] if node.get("kind") in ("workflow", "run-a-recipe") else stage
     for child in node.get("children", []):
-        lines.extend(_job_rows_log(child))
+        lines.extend(_job_rows_log(child, below, seen))
     return lines
 
 
