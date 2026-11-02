@@ -139,3 +139,50 @@ def test_send_back_and_ask_owner(state, tmp_path):
     assert cli.main(["alert", first["id"], "send-back", "--state", str(state / "s")]) == 1, "not offered for an error"
     assert cli.main(["alert", first["id"], "park", "--state", str(state / "s")]) == 0
     assert steps()["1.1"]["state"] == "blocked"
+
+
+def test_a_stale_heartbeat_is_one_alert_per_silence_and_a_fresh_one_is_none(state, capsys):
+    """run.loop-alerts: the watchdog reads only the journal; no tick for more than three ticks is an alert, said once."""
+    assert queue.heartbeat_check(30, 3) is not None, "no tick ever is stale"
+    journal.append("loop", state="tick", lanes=[], busy=False)
+    t = journal.read()[-1]["ts"]
+    import time
+    at = time.mktime(time.strptime(t, "%Y-%m-%dT%H:%M:%S"))
+    assert queue.heartbeat_check(30, 3, now=at + 90) is None
+    aid = queue.heartbeat_check(30, 3, now=at + 91)
+    a = [r for r in journal.read() if r["event"] == "alert" and r["id"] == aid]
+    assert a and a[0]["step"] == "heartbeat" and "91 s" in a[0]["what"] and a[0]["evidence"] == str(journal.path())
+    assert queue.heartbeat_check(30, 3, now=at + 500) is None, "said once per silence"
+    journal.append("loop", state="tick", lanes=[], busy=False)
+    assert queue.heartbeat_check(30, 3) is None
+    assert cli.main(["heartbeat", "--state", str(journal.STATE)]) == 0
+
+
+def test_the_launch_agents_keep_the_loop_alive_and_run_the_watchdog_every_three_ticks(state):
+    import plistlib
+    paths = queue.launch_agents(state, state / "la", state=state / "s", tick_s=30)
+    loop, hb = (plistlib.loads(p.read_bytes()) for p in paths)
+    assert loop["KeepAlive"] is True
+    assert loop["ProgramArguments"][1:4] == ["-m", "fichero_builder", "loop"] and "--state" in loop["ProgramArguments"]
+    assert hb["StartInterval"] == 90 and hb["ProgramArguments"][1:4] == ["-m", "fichero_builder", "heartbeat"] and "KeepAlive" not in hb
+
+
+def test_a_one_lane_chain_runs_beside_the_ticks_so_the_heartbeat_keeps_beating(state):
+    """run.loop-alerts: a 15-minute ladder inside the tick would make every check a stale heartbeat."""
+    import threading
+    lane(state)
+    fake = Fake()
+    go, sleeps = threading.Event(), []
+
+    def chain(lane_, step, stage):
+        assert go.wait(5), "the ticks never went on while the chain ran"
+        return Fake.chain(fake, lane_, step, stage)
+
+    def sleep(s):
+        sleeps.append(s)
+        if len(sleeps) == 3:
+            go.set()
+    fake.procs.chain, fake.procs.sleep = chain, sleep
+    assert queue.run(fake.procs, workers_n=1, push=True, heartbeat=True, out=lambda s: None) == 0
+    assert fake.landed_calls == [("h1.1", True), ("h1.2", True)]
+    assert sum(1 for r in journal.read() if r["event"] == "loop" and r.get("state") == "tick") >= 3
