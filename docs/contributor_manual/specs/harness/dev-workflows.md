@@ -429,6 +429,15 @@ the write path would produce.
   `::test_the_worker_side_command_indexes_the_worktree_first_and_a_failed_index_does_not_stop_it`,
   `fichero-builder/tests/test_dry_run.py::test_a_run_records_what_it_read_before_its_first_commit`,
   `fichero-builder/tests/test_watch.py::test_each_run_shows_turns_and_tokens_before_its_first_commit_live_and_after_it_ends`.
+- `dev-workflows.tool.build` [PARTIAL] (#6344; owner 2026-11-02) — `builder build --dev` is the owner's dev DMG as one command, so nobody
+  re-derives the procedure. It runs the project's own `scripts/build-release-dmg.sh` from `--root` and rewrites none of it: the dev
+  tier, the current `MARKETING_VERSION` so the script's auto-stamp leaves the tree alone, the running venv first on `PATH` for the
+  engine preflight, no notarizing. One journal row (event `build`: tier, sha, dirty, ok, rc, dmg, log, seconds), the log in the
+  state directory, and `PASSED <dmg>` or `FAILED` with the log's tail. A green script with no new DMG is a failure. Without `--dev`
+  it refuses: a full release needs the owner's yes. The jail user is refused. **Built** 2026-11-02 against a fake script: `fichero_builder/build.py`.
+  Not yet: a run of the real script. Tests: `fichero-builder/tests/test_build_verb.py::test_dev_runs_the_projects_script_for_the_dev_tier_without_a_stamp_or_notarizing_and_prints_the_dmg`,
+  `::test_a_red_script_fails_with_the_log_and_the_row_says_so`, `::test_a_green_script_that_leaves_no_new_dmg_is_a_failure`,
+  `::test_without_dev_it_refuses_a_full_release_needs_the_owner`.
 - `dev-workflows.builder.cluster` [PARTIAL] (#6116) — one spec and its build-order issues (parser ported from
   `pipeline/plan.py`), in order, one commit per issue with its test; the brief is built by `scripts/harness_brief.py` from
   `gh api repos/{repo}/issues/N`: the body and the **title** only when the author association is owner, member or
@@ -800,6 +809,12 @@ Steps a long-running builder can take from the heading. `Depends on` defaults to
 - Depends on: 2.6
 - Size: M
 
+#### Step 2.8 — `builder build --dev`: the dev DMG as a verb (owner 2026-11-02)
+- Behaviours: `dev-workflows.tool.build`
+- Tests: fichero-builder/tests/test_build_verb.py
+- Depends on: 2.1
+- Size: S
+
 ### Stage 3 — the Pi kind by RPC, the sandbox, local parity
 
 #### Step 3.1 — `--kind pi` over RPC with a fail-closed `tool_call` extension; a metered provider; one model per role in the rules file
@@ -867,6 +882,7 @@ Every behaviour names its test above, written in its step; each `security.*` and
 | `dev-workflows.tool.triage` | 2.5 |
 | `dev-workflows.tool.queue` | 2.6 |
 | `dev-workflows.run.code-map` | 2.7 |
+| `dev-workflows.tool.build` | 2.8 |
 | `dev-workflows.run.worker-address` | 1.1 |
 | `dev-workflows.node.worker` | 1.2 |
 | `dev-workflows.rollout.dry-run` | 1.2 |

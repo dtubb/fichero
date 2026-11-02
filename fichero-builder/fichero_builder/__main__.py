@@ -119,6 +119,9 @@ def main(argv=None) -> int:
     q.add_argument("--lane"), q.add_argument("--worktree"), q.add_argument("--step"), q.add_argument("--brief"), q.add_argument("--issues", type=int, nargs="*", default=[])
     q.add_argument("--push", action="store_true"), q.add_argument("--once", action="store_true"), q.add_argument("--tick", type=float, default=30.0)
     q.add_argument("--root", default=str(Path.cwd())), q.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
+    bd = sub.add_parser("build", help="the dev DMG through the project's own script, as the owner: one journal row, the DMG's path and pass or fail; a full release is refused")
+    bd.add_argument("--dev", action="store_true", help="required: the dev tier, no version stamp, no notarizing")
+    bd.add_argument("--root", default=str(Path.cwd()), help="the checkout to build"), bd.add_argument("--state", help="where the journal and the log live (default: the owner's journal dir)")
     wa = sub.add_parser("watch", help="a live progress page from the journal on 127.0.0.1 (runs, checks, lands, the queue)")
     wa.add_argument("--port", type=int, default=8765)
     wa.add_argument("--state", help="where the owner's journal lives (default: the owner's journal dir)")
@@ -187,6 +190,10 @@ def main(argv=None) -> int:
         from fichero_builder import triage
 
         return triage.main(a)
+    if a.cmd == "build":
+        from fichero_builder import build
+
+        return build.main(a)
     if a.cmd == "queue":
         from fichero_builder import queue
 
