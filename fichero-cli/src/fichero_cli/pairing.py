@@ -169,6 +169,8 @@ def check_trust(api_url: str, spki: str | None, *, fetch_der: Callable[[str, int
         )
     if _is_public_ca(url.hostname):
         return
+    if url.hostname.startswith("100."):  # Tailscale's certificate names the MagicDNS name only, never the number
+        raise FicheroError("Tailscale addresses work by name, not by number. Ask for a new link.")
     if not spki:
         raise FicheroError(
             f"The link carries no certificate pin for {url.hostname}, and that host serves its own certificate. "
