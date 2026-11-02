@@ -265,6 +265,7 @@ nav:
               - Extract SVO Claims: reference_manual/tool_references/tools/extract_svo_only.md
               - Faces: reference_manual/tool_references/tools/faces.md
               - Files: reference_manual/tool_references/tools/files.md
+              - Flatten Stains: reference_manual/tool_references/tools/stain_flatten_images.md
               - Folder: reference_manual/tool_references/tools/folder.md
               - Fuzzy Clean Images: reference_manual/tool_references/tools/fuzzy_clean_images.md
               - Handwriting: reference_manual/tool_references/tools/handwriting.md
@@ -285,6 +286,7 @@ nav:
               - Prepare Images: reference_manual/tool_references/tools/prepare_images.md
               - Quality: reference_manual/tool_references/tools/quality.md
               - Questions: reference_manual/tool_references/tools/questions.md
+              - Quiet Ruled Lines: reference_manual/tool_references/tools/ruled_lines_images.md
               - ReAct Agent: reference_manual/tool_references/tools/react_agent.md
               - Recombine Segments: reference_manual/tool_references/tools/recombine_segments.md
               - Remove Background Images: reference_manual/tool_references/tools/remove_background_images.md
@@ -308,6 +310,7 @@ nav:
               - Summarize File: reference_manual/tool_references/tools/summarize_file.md
               - Summarize Folder: reference_manual/tool_references/tools/summarize_folder.md
               - Supervisor Agent: reference_manual/tool_references/tools/supervisor_agent.md
+              - Suppress Show-Through: reference_manual/tool_references/tools/bleed_through_images.md
               - Swarm Agent: reference_manual/tool_references/tools/swarm_agent.md
               - Table: reference_manual/tool_references/tools/table_extract.md
               - Tags: reference_manual/tool_references/tools/tags.md

@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-A tool is one step: it reads something, does one job, and emits a result. Workflows are tools wired together. Each page below says what the tool reads and emits, every option it takes, and — for tools that ask a model — the exact words it sends. There are 129 of them.
+A tool is one step: it reads something, does one job, and emits a result. Workflows are tools wired together. Each page below says what the tool reads and emits, every option it takes, and — for tools that ask a model — the exact words it sends. There are 132 of them.
 
 ## Agent
 
@@ -131,15 +131,18 @@ A tool is one step: it reads something, does one job, and emits a result. Workfl
 | [Denoise Images](tools/denoise_images.md) | Locally denoise selected scans without modifying sources. | no |
 | [Enhance Images](tools/enhance_images.md) | Create contrast/sharpness/denoise image derivatives without modifying source files. | no |
 | [Extract Date](tools/date_extract.md) | Extract the historical date a document was written (Gregorian, Julian, French Republican, Old Style, regnal, era names) and store it as a Julian Day Number range for sorting and filtering. | no |
+| [Flatten Stains](tools/stain_flatten_images.md) | Even out stains and shadows by dividing the page by a closing of its lightness, without modifying source files. | no |
 | [Fuzzy Clean Images](tools/fuzzy_clean_images.md) | Despeckle and clean scan background without modifying source files. | no |
 | [OCR Cleanup](tools/ocr_cleanup.md) | Fix common OCR artefacts: dehyphenate line-break splits, rejoin multi-column text, strip library ownership stamps. | no |
 | [Prepare Images](tools/prepare_images.md) | Normalize images/PDF pages for OCR without modifying source files. | no |
+| [Quiet Ruled Lines](tools/ruled_lines_images.md) | Fill thin, long green, blue or red ruling from the surrounding paper and keep the ink, without modifying source files. | no |
 | [Recombine Segments](tools/recombine_segments.md) | Stitch segment image files into one derived image. | no |
 | [Remove Background Images](tools/remove_background_images.md) | Create alpha-background image derivatives without modifying source files. | no |
 | [Rotate / Auto-Orient Images](tools/rotate_images.md) | Create rotated or EXIF-oriented image derivatives without modifying source files. | no |
 | [Segment Images](tools/segment_images.md) | Detect foreground document regions and emit cropped segment derivatives. | no |
 | [Split Images](tools/split_images.md) | Split images into grid tiles or PDFs into page images without modifying sources. | no |
 | [Split Pages](tools/split_pages.md) | Find the document in a photograph and cut an open book or notebook at its gutter into pages, in reading order; a closed cover or single page is kept whole, an unclear gutter is proposed for review. Sources are never changed. | no |
+| [Suppress Show-Through](tools/bleed_through_images.md) | Push the faint mirrored writing of the other side to paper and keep the ink; method b also reads the verso, without modifying source files. | no |
 | [Text Reflow](tools/text_reflow.md) | Join soft-wrapped lines within paragraphs, preserve paragraph structure, and de-hyphenate words split across line breaks. Optional AI refinement pass available for edge-case word joins. | yes |
 | [Zoom](tools/zoom.md) | Crop and magnify image regions or line strips. | no |
 
