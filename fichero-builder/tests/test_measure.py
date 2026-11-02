@@ -52,3 +52,11 @@ def test_a_machine_short_of_disk_refuses_before_shipping(tmp_path, monkeypatch):
     rc, out = measure.run(tmp_path, "lane-x", "imac", ["measure.py"])
     assert rc == 1 and "not shipped" in out and not (gate / "wt").exists()
     assert measure.run(tmp_path, "lane-x", "nope", ["measure.py"])[0] == 1
+
+
+def test_the_measure_verb_takes_the_script_after_dashes(tmp_path, monkeypatch):
+    from fichero_builder import __main__ as cli
+    gate, g, told = _world(tmp_path, monkeypatch)
+    assert cli.main(["measure", "--lane", "lane-x", "--machine", "imac", "--root", str(tmp_path), "--state", str(tmp_path / "s"),
+                     "--", "-c", "import json; print(json.dumps({'ok': 1}))"]) == 0
+    assert [x["json"] for x in journal.read() if x["event"] == "measure"] == ['{"ok": 1}']

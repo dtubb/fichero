@@ -756,7 +756,7 @@ the write path would produce.
   `::test_the_intake_takes_a_finished_step_past_its_thresholds_and_never_a_held_lane`. Not yet: Sonnet/Opus review by path
   (speed item 6a); the first real run (lane-sharing, lane-onboard).
 - `dev-workflows.run.measure` [PARTIAL] (#6116; manager 2026-11-02: a measurement run on a test machine was a hand step) —
-  `builder measure <lane> --machine <name> [--sha S] -- <script> [args]`: the lane's commit (default its HEAD) ships its engine
+  `builder measure --lane <lane> --machine <name> [--sha S] -- <script> [args]`: the lane's commit (default its HEAD) ships its engine
   source and the script (`git archive`, never the worktree) to `<dir>/wt/<sha12>` on the `[machines].<name>` host over ssh, runs
   it there with `<dir>/venv/bin/python`, `PYTHONPATH` the shipped source and `TMPDIR=<dir>/tmp`, which is emptied after; a host
   with less than `min_free_gb` (default 5) free refuses before shipping. One `measure` row (lane, machine, sha, args, exit, the

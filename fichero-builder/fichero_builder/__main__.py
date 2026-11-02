@@ -149,7 +149,7 @@ def main(argv=None) -> int:
     bd.add_argument("--dev", action="store_true", help="required: the dev tier, no version stamp, no notarizing")
     bd.add_argument("--root", default=str(Path.cwd()), help="the checkout to build"), bd.add_argument("--state", help="where the journal and the log live (default: the owner's journal dir)")
     me = sub.add_parser("measure", help="run a script on a test machine against a lane's commit (git archive of its engine source): one measure row, told to the lane's pane")
-    me.add_argument("lane"), me.add_argument("--machine", required=True), me.add_argument("--sha", default="")
+    me.add_argument("--lane", required=True), me.add_argument("--machine", required=True), me.add_argument("--sha", default="")
     me.add_argument("--root", default=str(Path.cwd())), me.add_argument("--state"), me.add_argument("argv", nargs=argparse.REMAINDER)
     od = sub.add_parser("order", help="the owner's build order (JSON {order, parked}) as one commit on branch build-order, queued as a tiny batch the loop lands")
     od.add_argument("--file", required=True), od.add_argument("--root", default=str(Path.cwd())), od.add_argument("--state")
