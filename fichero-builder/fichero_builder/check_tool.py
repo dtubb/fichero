@@ -439,9 +439,11 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
             return red(f"could not make a scratch tree at {since[:9]}")
         _git(base, "checkout", sha, "--", *files)  # a new file is not on base; checkout still copies it
         have = already_built_files(root, since, head, cfg)  # a proving test of a behaviour already there passes on base by design
-        for f in [f for f in files if f not in have]:
+        for f in files:
             r = pytest_rung(base, [f], cfg, timeout_s)
-            if r["ok"]:
+            if f in have and not r["ok"]:  # the line says the behaviour was there; a source commit beside it must not skip the red
+                return red(f"{f} says Already built but fails on base at {since[:9]}: it owes a red like any test")
+            if f not in have and r["ok"]:
                 return red(f"NOT RED ON BASE: {f} passes at {since[:9]}, so it proves nothing")
         here = green_runs(head_tree or root, files, also_green, cfg, timeout_s)  # the green run: in the pinned-overlay tree when given
         return {**here, "name": "red-on-base"}

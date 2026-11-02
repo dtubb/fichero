@@ -590,6 +590,18 @@ def test_already_built_exempts_only_a_test_only_commit_that_names_its_test(tmp_p
     assert ct.already_built_files(tmp_path, base, "HEAD", ct.Config(test_globs=("test_*.py",))) == {"test_a.py"}
 
 
+def test_already_built_must_pass_on_base_so_a_source_commit_before_it_cannot_skip_the_red(tmp_path):
+    """Review of range 1: the source in one commit and the test in a test-only commit with the line skipped the red proof for a
+    behaviour that was not on base. "Already built" means the test passes on base, so that is what is run."""
+    g, base = _git_repo(tmp_path)
+    (tmp_path / "mod.py").write_text("VALUE = 2\n")
+    g("add", "."), g("commit", "-q", "-m", "the source")
+    (tmp_path / "test_new.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 2\n")
+    g("add", "."), g("commit", "-q", "-m", "the test\n\nAlready built: #9 test_new.py::test_v")
+    r = ct.red_on_base(tmp_path, base, "HEAD", ["test_new.py"], timeout_s=120)
+    assert not r["ok"] and "fails on base" in r["stderr_tail"]
+
+
 def test_a_commit_that_says_already_built_owes_no_red_on_base_but_its_test_still_runs_green(tmp_path):
     """A worker that found the behaviour in place commits the proving test with the line `Already built: #N <test>`: that
     test passes on base by design, so red-on-base does not refuse it; it still runs in the green run."""

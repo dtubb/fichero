@@ -201,3 +201,19 @@ def test_land_with_a_green_check_row_runs_the_verdict_and_boundary_only_never_th
     journal.append("check", head=head2, since=base, ok=True), land_tool.write_verdict(tmp_path / "v", e, "integration", head2)
     args[3] = head2
     assert cli.main(args) == 1 and "boundary" in (tmp_path / "l").read_text().splitlines()[-1]
+
+
+def test_the_rules_checks_accept_the_settings_later_commits_add_and_still_refuse_a_misspelt_one(tmp_path):
+    """The check overlays the batch tip's harness.toml on each piece's code, so a piece must not refuse settings it does not read yet."""
+    from fichero_builder import check_tool, jail
+
+    base = '[jail]\nuser = "w"\nworkroot = "/w"\ncode_map = "~/x"\n[land]\nbranch = "b"\nboundary = ["x"]\npinned_dir = "/p"\n[queue]\nworkers = 1\n[triage.labels]\na = "b"\n'
+    (tmp_path / "harness.toml").write_text(base)
+    assert check_tool.load(tmp_path) and jail.load(tmp_path).user == "w"
+    assert not [p for p in check_tool.rules_problems(tmp_path) if "unknown" in p]
+    (tmp_path / "harness.toml").write_text(base + "[queuee]\nx = 1\n")
+    with pytest.raises(ValueError, match="unknown tables"):
+        check_tool.load(tmp_path)
+    (tmp_path / "harness.toml").write_text(base.replace("code_map", "code_mapp"))
+    with pytest.raises(ValueError, match="unknown keys"):
+        jail.load(tmp_path)
