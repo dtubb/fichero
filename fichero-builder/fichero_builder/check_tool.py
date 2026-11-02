@@ -438,7 +438,7 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
         if not _git(root, "worktree", "add", "--detach", "-q", base, since)["ok"]:
             return red(f"could not make a scratch tree at {since[:9]}")
         _git(base, "checkout", sha, "--", *files)  # a new file is not on base; checkout still copies it
-        have = already_built_files(root, since, head)  # a proving test of a behaviour already there passes on base by design
+        have = already_built_files(root, since, head, cfg)  # a proving test of a behaviour already there passes on base by design
         for f in [f for f in files if f not in have]:
             r = pytest_rung(base, [f], cfg, timeout_s)
             if r["ok"]:
@@ -449,17 +449,20 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
         _git(root, "worktree", "remove", "--force", base)
 
 
-ALREADY_BUILT = re.compile(r"^Already built:?\s*#\d+", re.M | re.I)
+ALREADY_BUILT = re.compile(r"^Already built:?\s*#\d+\s+(\S+?)::\w+", re.M | re.I)
 
 
-def already_built_files(root, since: str, head: str) -> set[str]:
-    """Files touched ONLY by commits of since..head whose message has an `Already built: #N` line (the worker found the
-    behaviour in place and committed the test that proves it); a file another commit also touches owes its red."""
+def already_built_files(root, since: str, head: str, cfg: Config = Config()) -> set[str]:  # noqa: B008
+    """Files touched ONLY by commits of since..head that prove a behaviour already in place: the message has an `Already
+    built: #N <path>::<test>` line, the named file is in the commit, and the commit changes test files and nothing else. The
+    worker writes the message, so a line on a commit that also changes source earns nothing. Any other commit's file owes its red."""
     have, other = set(), set()
     for sha in _lines(root, "rev-list", f"{since}..{head}") or []:
         msg = "\n".join(_lines(root, "log", "-n1", "--format=%B", sha) or [])
         touched = set(_lines(root, "diff-tree", "--no-commit-id", "--name-only", "-r", sha) or [])
-        (have if ALREADY_BUILT.search(msg) else other).update(touched)
+        named = ALREADY_BUILT.findall(msg)
+        test_only = all(any(fnmatch.fnmatch(Path(f).name, g) for g in cfg.test_globs) for f in touched)
+        (have if named and test_only and set(named) <= touched else other).update(touched)
     return have - other
 
 

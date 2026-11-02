@@ -575,6 +575,21 @@ def test_a_change_outside_the_whole_tests_prefix_runs_only_the_changed_test_file
     assert ct._whole_tests(["pkg/lib.py"], cfg) == ("pkg/tests",)
 
 
+def test_already_built_exempts_only_a_test_only_commit_that_names_its_test(tmp_path):
+    """The worker writes the message: a line on a commit that also changes source would opt out of the red proof."""
+    g, base = _git_repo(tmp_path)
+    (tmp_path / "test_a.py").write_text("def test_a():\n    assert True\n")
+    g("add", "."), g("commit", "-q", "-m", "good\n\nAlready built: #9 test_a.py::test_a")
+    (tmp_path / "test_b.py").write_text("def test_b():\n    assert True\n")
+    (tmp_path / "mod.py").write_text("VALUE = 2\n")
+    g("add", "."), g("commit", "-q", "-m", "source too\n\nAlready built: #9 test_b.py::test_b")
+    (tmp_path / "test_c.py").write_text("def test_c():\n    assert True\n")
+    g("add", "."), g("commit", "-q", "-m", "no test named\n\nAlready built: #9")
+    (tmp_path / "test_d.py").write_text("def test_d():\n    assert True\n")
+    g("add", "."), g("commit", "-q", "-m", "another test named\n\nAlready built: #9 test_a.py::test_a")
+    assert ct.already_built_files(tmp_path, base, "HEAD", ct.Config(test_globs=("test_*.py",))) == {"test_a.py"}
+
+
 def test_a_commit_that_says_already_built_owes_no_red_on_base_but_its_test_still_runs_green(tmp_path):
     """A worker that found the behaviour in place commits the proving test with the line `Already built: #N <test>`: that
     test passes on base by design, so red-on-base does not refuse it; it still runs in the green run."""
