@@ -65,3 +65,31 @@ def test_leave_out_names_the_ruler_and_the_card_and_keeps_the_text():
              line("mount", 0.96, 0.5, 0.03, 0.03)]
     verdicts = decide(lines, page_box=list(found.box), furniture=list(found.furniture))
     assert verdicts == {"ruler": RULER, "card": COLOUR_CARD, "mount": "off the page"}
+
+
+def test_the_stage_marks_the_ruler_the_card_and_the_mount_lines_of_a_cropped_scan_and_keeps_the_text(db, tmp_path):
+    """Page crop writes `page_box` and `page_furniture` on the document; Leave Out, run on the same document through the real
+    store, reads them: the ruler's, the card's and the mount's lines are marked with their reasons and the text lines stay."""
+    from fichero_server.models import Segment
+    from fichero_server.recipes import leave_out
+    from fichero_server.recipes.page_crop import crop_pages
+    from tests.unit.recipes.test_leave_out import _segment
+
+    doc, _ = _doc(db, tmp_path)
+    assert crop_pages(db, [doc.id], "run-1")["cropped"] == 1
+    text = [{"id": f"text{i}", "x": 0.3, "y": 0.4 + 0.06 * i, "w": 0.55, "h": 0.03, "confidence": 0.9} for i in range(8)]
+    others = [{"id": "ruler", "x": 0.04, "y": 0.3, "w": 0.02, "h": 0.05, "confidence": 0.9},
+              {"id": "card", "x": 0.45, "y": 0.06, "w": 0.1, "h": 0.03, "confidence": 0.9},
+              {"id": "mount", "x": 0.96, "y": 0.5, "w": 0.03, "h": 0.03, "confidence": 0.9}]
+    made = {}
+    for line in [*text, *others]:
+        row = _segment(doc.id, line)
+        db.save(row)
+        made[line["id"]] = row.id
+
+    account = leave_out.leave_out_pages(db, [doc.id], "run-2")
+
+    reasons = {name: db.get(Segment, sid).metadata.get("left_out", {}).get("why") for name, sid in made.items()}
+    assert reasons["ruler"] == leave_out.RULER and reasons["card"] == leave_out.COLOUR_CARD and reasons["mount"] == leave_out.OFF_THE_PAGE
+    assert not any(reasons[f"text{i}"] for i in range(8)), reasons
+    assert account["left_out"] == 3 and account["why"] == {leave_out.RULER: 1, leave_out.COLOUR_CARD: 1, leave_out.OFF_THE_PAGE: 1}

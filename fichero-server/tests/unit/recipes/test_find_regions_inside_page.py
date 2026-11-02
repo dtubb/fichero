@@ -457,3 +457,50 @@ def test_a_chain_of_turns_opens_each_file_a_bounded_number_of_times(db, tmp_path
     image = current_page_image(db, page, library_root=tmp_path)
 
     assert image.kind == "rendition" and len(opened) <= 12, f"{len(opened)} opens"
+
+
+def _stub_whole_and_cut(seen):
+    """Kraken's seam when the whole frame is also read: the whole frame has a text line on the paper and the ruler's line in the
+    ruler strip; the page's crop has the text line only."""
+    def segment(path, **_):
+        with Image.open(path) as image:
+            w, h = image.size
+        seen.append((w, h))
+        if w == W:
+            lines = [{"id": "text", "regions": [], "polygon": [[350, 150], [850, 150], [850, 190], [350, 190]], "baseline": [[350, 185], [850, 185]]},
+                     {"id": "ruler", "regions": [], "polygon": [[30, 0], [90, 0], [90, h], [30, h]], "baseline": [[60, 0], [60, h]]}]
+        else:
+            lines = [{"id": "text", "regions": [], "polygon": [[50, 50], [550, 50], [550, 90], [50, 90]], "baseline": [[50, 85], [550, 85]]}]
+        return {"width": w, "height": h, "regions": [], "lines": lines}
+    return segment
+
+
+def test_the_run_reports_seconds_per_page_and_lines_inside_and_outside_the_page_before_and_after_when_asked(db, tmp_path, monkeypatch):
+    from fichero_server.recipes.regions import find_regions
+
+    seen: list = []
+    monkeypatch.setattr(kraken_runtime, "segment_lines", _stub_whole_and_cut(seen))
+    page = _page(db, tmp_path, BOX)
+
+    account = find_regions(db, [page.id], "run-1", "blla", provider="kraken", measure_whole=True)
+
+    assert sorted(seen) == [(600, 640), (W, H)], "the whole frame was read once to measure, and the page's crop once"
+    assert (account["whole_lines_inside"], account["whole_lines_outside"]) == (1, 1), account
+    assert (account["lines_inside"], account["lines_outside"]) == (1, 0), account
+    assert account["cropped"] == 1 and account["seconds_per_page"] == account["seconds"]
+    assert account["whole_seconds_per_page"] == account["whole_seconds"] and account["whole_seconds"] > 0
+    ((x, y, w, h),) = _lines(db, page)
+    assert BOX[0] <= x and x + w <= BOX[0] + BOX[2] + 1e-6, "what is saved is the page's lines, not the measuring read's"
+
+
+def test_without_the_ask_the_whole_frame_is_not_read_and_no_before_figures_are_reported(db, tmp_path, monkeypatch):
+    from fichero_server.recipes.regions import find_regions
+
+    seen: list = []
+    monkeypatch.setattr(kraken_runtime, "segment_lines", _stub_whole_and_cut(seen))
+    page = _page(db, tmp_path, BOX)
+
+    account = find_regions(db, [page.id], "run-1", "blla", provider="kraken")
+
+    assert seen == [(600, 640)] and not [k for k in account if k.startswith("whole_")]
+    assert account["seconds_per_page"] == account["seconds"] and account["lines_outside"] == 0

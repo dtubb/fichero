@@ -107,7 +107,7 @@ def shift_payload(payload: dict[str, Any], left: int, top: int, width: int, heig
 def find_regions(db: Any, documents: list[str], run_id: str, model: str,
                  stop: Callable[[], bool] | None = None, provider: str = "yolo",
                  say: Callable[[str], None] | None = None, person: bool | None = None,
-                 created: list[str] | None = None, progress: bool = True) -> dict[str, int]:
+                 created: list[str] | None = None, progress: bool = True, measure_whole: bool = False) -> dict[str, int]:
     """Each page image's regions found and saved, by Kraken's segmenter (`provider="kraken"`) or a YOLO model; the
     account: `pages` read, `regions` found, `no_image` (a PDF's page or a text file: nothing to look at), and `renditions_passed_over` (only when above 0: newer renditions that could
     not be read or followed, so the page was read on an older image or the photograph). `stop` is
@@ -194,6 +194,15 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
             box = page_box_on(on_current, photo_box)
             with tempfile.TemporaryDirectory() as scratch:
                 cut = page_crop(path, box, scratch)
+                if cut and measure_whole:  # the read the cut replaces, kept out of the page's saved geometry
+                    whole_started = time.monotonic()
+                    whole_geometry, _ = _find_on(db, doc, path, width, height, provider, model, run_id, library, page_index, None)
+                    if on_current is not None:
+                        whole_geometry = on_current.geometry_to_photograph(whole_geometry)
+                    whole_in, whole_out = _lines_by_page_box(whole_geometry, photo_box)
+                    account["whole_seconds"] = account.get("whole_seconds", 0.0) + time.monotonic() - whole_started
+                    account["whole_lines_inside"] = account.get("whole_lines_inside", 0) + whole_in
+                    account["whole_lines_outside"] = account.get("whole_lines_outside", 0) + whole_out
                 found_geometry, regions_here = _find_on(db, doc, cut[0] if cut else path, width, height, provider, model,
                                                         run_id, library, page_index, cut)
             # `_find_on` has put a cut's answer back on the current image; from there it goes to the photograph.
@@ -217,6 +226,10 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
             created.append(artifact_id)
         account["pages"] += 1
         account["regions"] += regions_here
+    if account.get("cropped"):  # the seconds a page took, said beside the total
+        account["seconds_per_page"] = account["seconds"] / account["cropped"]
+        if "whole_seconds" in account:
+            account["whole_seconds_per_page"] = account["whole_seconds"] / account["cropped"]
     if say is not None and progress and documents and not (stop is not None and stop()):
         say(f"Finding regions: {len(documents)} of {len(documents)} pages")
     return account
