@@ -102,6 +102,9 @@ def test_enqueue_puts_each_step_brief_in_the_milestones_lane_in_build_order(tmp_
     assert lane["id"] == "m1" and lane["worktree"] == "/wr/wt-m1" and lane["cursor"] == 0
     assert [(s["step"], s["issues"], s["waits"]) for s in lane["steps"]] == [("1.1", [7], []), ("1.2", [8], ["1.1"])]
     assert lane["steps"][1]["brief"].endswith("brief-step-1.2.txt")
+    brief = (tmp_path / "out" / "brief-step-1.2.txt").read_text()
+    assert "Branch lane-m1" in brief and "step-1.2" not in brief.split("\n")[0] and "abc1234" not in brief.split("\n")[0], \
+        "a lane works on its own branch and each step starts from what the last one landed"
 
 
 def test_the_step_label_is_read_first_and_the_title_shape_only_for_an_issue_with_no_step_label():

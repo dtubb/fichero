@@ -394,12 +394,12 @@ the write path would produce.
 - `dev-workflows.tool.queue` [PARTIAL] (#6166; owner 2026-11-01) — `builder queue [add|run|pause|resume] [--push] [--once]`: one
   long-running worker per lane (a milestone), fed step by step, so it keeps what it has read and never re-reads the tree.
   `<state>/queue.json` holds the lanes: worktree, cursor, message number, the steps in build order (`builder milestone
-  --enqueue` puts them there; a waiting step is a brief and a queued step, and the plan says all the waits in one line).
+  --enqueue` puts them there; a waiting step is a brief and a queued step, and the plan says all the waits in one line; such a brief names the lane's branch and head, not a fixed base).
   A step goes queued, sent, done, checking, reviewing, landed, or blocked. The worker side is `builder run --feed DIR`, as
   the jail user: a good `DONE <sha>` ends the step, not the session: one `step` row for the owner, then idle until
   `msg-<seq+1>.txt` appears in the folder (the owner's, made exclusively under a name no worker can plant a link at, so a worker cannot write its own next brief; test `fichero-builder/tests/test_queue_verb.py::test_a_planted_inbox_cannot_turn_the_owners_chmod_or_writes_on_another_folder`) and is typed into the
   same pane, or `stop` appears. The owner side is one loop: it sees the `step` row, runs `work.after_run` (rebase, patches,
-  fetch, the ladder under the `ladder` lock, review, the land gate; the sha comes from the fetch, never from the worker's
+  fetch, the ladder under the `ladder` lock, review, reused when this exact range already has READY, the land gate; the sha comes from the fetch, never from the worker's
   row), then `builder landed --keep-worktree` (push only with `--push`; the session is still working there), moves the cursor, rebases the worktree and sends the next brief. A
   red check, a NOT READY review or a refused land goes back into the same session as a fix brief with the findings, two
   rounds, then blocked with `<state>/question-<lane>-<step>.txt`; a DONE with no commit, a refused landing or a chain error
