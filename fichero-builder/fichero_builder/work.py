@@ -265,7 +265,7 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
         head = do_fetch(a, repo, branch)
         if not step("fetch", bool(head), head or f"could not fetch the worktree branch into {repo}"):
             return no("error", f"could not fetch the worktree's branch into {repo}")
-        with journal.Lock("ladder"):  # one ladder at a time across the queue's lanes and any `builder work` (the machine is loaded)
+        with journal.Lock("ladder", what=f"the check of {a.name}"):  # one ladder at a time across the queue's lanes and any `builder work` (the machine is loaded)
             if getattr(a, "repin", None):  # another lane's landing may have removed the copy this one started from; the lock keeps it from here on
                 a.pinned = a.repin()
             stage("checking")

@@ -668,6 +668,12 @@ the write path would produce.
   the loop compares its `fichero_builder` sources' names, sizes and mtimes with those it started with and, when they changed,
   writes a `loop` row `restarted` ("loop restarted for new code", pid, args) and execs itself with the same arguments (test
   `fichero-builder/tests/test_loop.py::test_the_loop_re_execs_itself_between_ticks_when_its_code_changes_and_nothing_is_in_flight`).
+  Locks (manager 2026-11-02: a landing sat 16 minutes in flock behind a check, with no row): the holder of a lock writes its pid
+  and what it is doing into the lock file; a wait longer than 30 s is one `lock` row (`waiting for <lock> held by <pid> <what>`)
+  and an `acquired` row when it ends, and the console shows a waiting one as a banner. The landing's `pinned` step never waits
+  for a running check: with the ladder held it pins its copy and keeps the older ones for the next landing to remove. A lane row
+  shows its check or review's running rung and since when (from the `activity` rows); views A-D are built (tests
+  `fichero-builder/tests/test_status_page.py::test_a_lock_wait_over_its_limit_is_a_row_naming_the_holder_and_the_console_shows_it`).
   **Stop** (manager 2026-11-02, built): pause = no new step is fed; `builder queue stop --lane L [--grace S]` = the session
   ends: the lane is paused, a live worker is told to commit what is green and end, and the loop closes the session when the
   grace is over (default 300 s) or the worker ends first; the tree is kept, a step in flight goes back to queued with a brief

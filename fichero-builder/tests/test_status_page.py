@@ -3,6 +3,7 @@ today, spend today and open alerts, from the journal and the queue only; the sam
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import threading
 import time
@@ -277,3 +278,26 @@ def test_an_external_lanes_step_and_progress_come_from_its_newest_commit_and_its
     (tmp_path / "y.txt").write_text("y")
     g("add", "."), g("commit", "-qm", "fix: a (Step 1.1, owner ruling)\n\nBehaviour: flows.b")
     assert console.progress(str(tmp_path))["step"] == "1.1", "a Step in the message wins"
+
+
+def test_a_lock_wait_over_its_limit_is_a_row_naming_the_holder_and_the_console_shows_it(tmp_path, monkeypatch):
+    """Manager 2026-11-02: a landing sat 16 min in flock on ladder.lock, held by a check, with no row."""
+    import multiprocessing
+
+    monkeypatch.setattr(journal, "STATE", tmp_path)
+    monkeypatch.setattr(journal.Lock, "WARN_S", 0.2)
+    with journal.Lock("ladder", what="the check of ie"):
+        def wait():
+            journal.STATE = tmp_path
+            journal.Lock.WARN_S = 0.2
+            with journal.Lock("ladder", what="a landing"):
+                pass
+        p = multiprocessing.get_context("fork").Process(target=wait)
+        p.start()
+        assert _wait(lambda: any(r["event"] == "lock" for r in journal.read()))
+        st = console.api_status(journal.read(), [])
+        (w,) = st["lock_waits"]
+        assert w["what"] == "a landing" and "the check of ie" in w["holder"] and str(os.getpid()) in w["holder"]
+    p.join(5)
+    assert [r["state"] for r in journal.read() if r["event"] == "lock"] == ["waiting", "acquired"]
+    assert console.api_status(journal.read(), [])["lock_waits"] == []

@@ -132,7 +132,7 @@ function Lanes({ lanes }) {
         <td><b>${l.lane}</b>${l.kind === "external" ? html` <span class="muted">external</span>` : ""}</td>
         <td><span class="mono">${l.step}</span>${l.progress?.n ? html` · <b>${l.progress.i ?? "?"}/${l.progress.n}</b> in ${l.progress.milestone}` : ""}<div class="muted">${l.title}</div></td>
         <td><${Pill} state=${l.state} paused=${l.paused} /></td>
-        <td>${l.doing}<div class="muted">${l.last_commit && html`<span class="mono">${l.last_commit.split(" ")[0]}</span> ${l.last_commit.split(" ").slice(1).join(" ").replace(/ \([^)]*\)$/, "")} · <${Ago} ts=${l.commit_ts} />`}</div></td>
+        <td>${l.activity ? html`<span class="pill blue"><span class="dot blue pulse"></span>${l.activity.kind}${l.activity.now ? ": " + l.activity.now : ""}</span> <span class="muted">since <${Ago} ts=${l.activity.started} />, ${l.activity.done} rung(s) done</span>` : l.doing}<div class="muted">${l.last_commit && html`<span class="mono">${l.last_commit.split(" ")[0]}</span> ${l.last_commit.split(" ").slice(1).join(" ").replace(/ \([^)]*\)$/, "")} · <${Ago} ts=${l.commit_ts} />`}</div></td>
         <td>${dur(l.elapsed_s)}</td><td>${l.turns ?? "-"}</td><td>${l.tokens ?? "-"}</td><td>${l.usd.toFixed(2)}</td>
         <td><div class="actions">
           ${l.paused ? html`<button class="btn" onClick=${() => act("resume", { lane: l.lane })}>${I.play} Resume</button>`
@@ -230,6 +230,53 @@ function Worktrees({ st }) {
     </tr>`)}</tbody></table></div>`;
 }
 
+function useApi(path, dep) {
+  const [d, setD] = useState(null);
+  useEffect(() => { fetch(path).then(r => r.json()).then(setD).catch(() => setD({})); }, [dep]);
+  return d;
+}
+const Okpill = ({ ok }) => ok == null ? html`<span class="pill blue"><span class="dot blue pulse"></span>running</span>` : html`<span class=${"pill " + (ok ? "green" : "red")}>${ok ? "ok" : "red"}</span>`;
+
+function Activity({ st }) {
+  const d = useApi("/api/activity", st.console.length + (st.heartbeat || ""));
+  if (!d) return html`<p class="muted">Loading…</p>`;
+  const row = a => html`<tr class="row"><td>${a.kind}</td><td class="mono">${a.key}</td><td>${a.lane}</td><td><${Ago} ts=${a.started} /></td>
+    <td><${Okpill} ok=${a.ended ? a.ok : null} /> ${a.failed ? html`<span class="muted">at ${a.failed}</span>` : ""}</td>
+    <td>${a.rungs.map(r => html`<span class=${"pill " + (r.ok ? "green" : "red")} style="margin-right:3px">${r.rung} ${r.seconds != null ? Math.round(r.seconds) + "s" : ""}</span>`)}
+      ${a.now && html`<span class="pill blue"><span class="dot blue pulse"></span>${a.now}</span>`}${a.groups ? html` <span class="muted">${a.groups} group(s)</span>` : ""}</td></tr>`;
+  const table = (items) => html`<div class="wrap"><table><thead><tr><th>Kind</th><th>What</th><th>Lane</th><th>Started</th><th>State</th><th>Rungs</th></tr></thead><tbody>${items.map(row)}</tbody></table></div>`;
+  return html`<h2>Running now</h2>${d.running.length ? table(d.running) : html`<p class="muted">Nothing running.</p>`}<h2>Recently finished</h2>${table(d.recent)}`;
+}
+
+function Landing({ st }) {
+  const d = useApi("/api/landing", st.console.length);
+  if (!d) return html`<p class="muted">Loading…</p>`;
+  return html`<h2>Landing queue <span class="muted" style="font-weight:400">every branch with commits not on integration</span></h2><div class="wrap"><table>
+    <thead><tr><th>Branch</th><th>Head</th><th>Commits</th><th>Files</th><th>Stage</th><th>Closes</th></tr></thead>
+    <tbody>${(d.branches || []).map(b => html`<tr class="row"><td><b>${b.name}</b><div class="muted mono">${b.worktree}</div></td><td class="mono">${b.head}</td><td>${b.commits}</td><td>${b.files}</td>
+      <td><${Pill} state=${{ checking: "checking", reviewing: "reviewing", landed: "landed", question: "blocked", building: "working" }[b.stage] || "queued"} /> <span class="muted">${b.stage} ${b.batch}</span></td>
+      <td>${b.fixes.map(n => "#" + n).join(", ")}</td></tr>`)}</tbody></table></div>`;
+}
+
+function Issues({ st }) {
+  const d = useApi("/api/issues", st.console.length + (st.heartbeat || ""));
+  if (!d) return html`<p class="muted">Loading…</p>`;
+  return html`<h2>What the harness did on GitHub today</h2>${(d.issues || []).length ? html`<div class="wrap"><table><tbody>${d.issues.map(i => html`<tr class="row"><td class="muted"><${Ago} ts=${i.ts} /></td>
+    <td>${i.what}</td><td>${i.links.map(l => html`<a href=${l.url} target="_blank" style="margin-right:6px">#${l.n}</a>`)}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">Nothing yet today.</p>`}`;
+}
+
+function Release({ st }) {
+  const d = useApi("/api/release", st.console.length);
+  if (!d) return html`<p class="muted">Loading…</p>`;
+  return html`<div class="cards">
+      <${Card} k="On integration, not on main" v=${d.ahead ?? "-"} dot=${d.ahead ? "orange" : "green"} sub=${d.ts ? html`read <${Ago} ts=${d.ts} />` : "press Refresh in Milestones"} />
+      <${Card} k="Last release tag" v=${html`<span class="mono">${d.tag || "-"}</span>`} />
+      <${Card} k="Release PR" v=${d.prs?.length ? html`<a href=${d.prs[0].url} target="_blank">#${d.prs[0].number}</a>` : "none open"} dot=${d.prs?.length ? "blue" : ""} />
+    </div>
+    <p class="muted">Make release PR is the owner's to say: the console shows it, never does it.</p>
+    <div class="wrap"><table><tbody>${(d.commits || []).map(c => html`<tr><td class="mono">${c.split(" ")[0]}</td><td>${c.split(" ").slice(1).join(" ")}</td></tr>`)}</tbody></table></div>`;
+}
+
 function App() {
   const st = useStatus();
   const [msg, setMsg] = useState("");
@@ -243,7 +290,7 @@ function App() {
   return html`
     <div class="toolbar">
       <h1>Builder</h1>
-      <div class="seg">${[["lanes", "Lanes"], ["milestones", "Milestones"], ["worktrees", "Worktrees"]].map(([t, n]) =>
+      <div class="seg">${[["lanes", "Lanes"], ["activity", "Activity"], ["landing", "Landing"], ["milestones", "Milestones"], ["issues", "Issues"], ["release", "Release"], ["worktrees", "Worktrees"]].map(([t, n]) =>
         html`<button aria-pressed=${tab === t} onClick=${() => go(t)}>${n}</button>`)}</div>
       <span class="spacer"></span>
       ${st.loop_on && html`<button class="btn" onClick=${() => act("loop-stop")}>${I.stop} Stop loop</button>`}
@@ -253,6 +300,7 @@ function App() {
     <main>
       ${!st.loop_on && html`<div class="banner"><span class="dot orange"></span>Loop is off: lanes are not fed or landed automatically.
         <button class="btn" onClick=${() => act("loop-start")}>${I.play} Start loop</button></div>`}
+      ${(st.lock_waits || []).map(w => html`<div class="banner"><span class="dot orange pulse"></span>${w.what || "a step"} is waiting for the ${w.name} lock, held by ${w.holder} (since <${Ago} ts=${w.ts} />)</div>`)}
       ${msg && html`<div class="banner err">${msg} <button class="btn" onClick=${() => setMsg("")}>Dismiss</button></div>`}
       <div class="cards">
         <${Card} k="Last check" v=${lc ? (lc.ok ? "Green" : "Red") : "-"} dot=${lc ? (lc.ok ? "green" : "red") : ""} sub=${html`<${Ago} ts=${lc?.ts} />`} />
@@ -262,7 +310,9 @@ function App() {
         <${Card} k="Spend today" v=${"$" + st.spend_today_usd.toFixed(2)} dot="blue" sub=${st.loop_on ? html`loop on · <${Ago} ts=${st.heartbeat} />` : "loop off"} />
       </div>
       ${st.open_alerts.length > 0 && html`<h2>Alerts</h2><${Alerts} alerts=${st.open_alerts} />`}
-      ${tab === "milestones" ? html`<${Milestones} st=${st} />` : tab === "worktrees" ? html`<${Worktrees} st=${st} />` : html`<h2>Lanes</h2><${Lanes} lanes=${st.lanes} />`}
+      ${{ milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, issues: Issues, release: Release }[tab]
+        ? html`<${{ milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, issues: Issues, release: Release }[tab]} st=${st} />`
+        : html`<h2>Lanes</h2><${Lanes} lanes=${st.lanes} />`}
       <h2>Console actions</h2>
       <div class="wrap"><table><tbody>${[...st.console].reverse().map(r => html`<tr>
         <td class="muted"><${Ago} ts=${r.ts} /></td><td>${r.who}</td><td>${r.verb}</td>

@@ -188,6 +188,9 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
     st["loop_on"] = bool(ticks) and now - time.mktime(time.strptime(ticks[-1]["ts"], "%Y-%m-%dT%H:%M:%S")) <= LOOP_STALE_S
     st["console"] = [r for r in rows if r.get("event") == "console"][-20:]
     st["loop_lanes"] = LOOP_LANES
+    acquired = {(r.get("pid"), r.get("name")) for r in rows if r.get("event") == "lock" and r.get("state") == "acquired"}
+    st["lock_waits"] = [r for r in rows if r.get("event") == "lock" and r.get("state") == "waiting" and (r.get("pid"), r.get("name")) not in acquired][-5:]
+    running = {a["lane"]: a for a in activity(rows)["running"] if a.get("lane")}
     st["order_saving"] = any(x["id"] == "build-order" and any(s["state"] != "landed" for s in x["steps"]) for x in lanes)
     by_id = {x["id"]: x for x in lanes}
     for row in st["lanes"]:
@@ -205,6 +208,8 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
             if x.get("kind") == "external" and pr.get("step"):
                 row["step"] = f"Step {pr['step']}"  # its own newest commit says where it is (the queue's step is the batch's name)
             row["progress"] = pr
+        if a := running.get(x["id"]):  # what its check or review is doing now, and since when
+            row["activity"] = {"kind": a["kind"], "now": a["now"], "started": a["started"], "done": len(a["rungs"])}
         row.update(
             worktree=x["worktree"], title=_title(cur["brief"]) if cur else "", brief_text=_head(cur["brief"]) if cur else "",
             commit_ts=time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(ct)) if ct else "",
@@ -380,6 +385,7 @@ def worktrees(root, git=_git_text) -> dict:
     return {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "trees": out}
 
 
+_LANDING: dict = {}  # a minute's cache of view B
 _TREES: dict = {}  # {"at": time, "data": ...}: a minute's cache; a console action (a Clean up) clears it
 
 
@@ -387,6 +393,91 @@ def worktrees_cached(root) -> dict:
     if not _TREES or time.time() - _TREES["at"] > 60:
         _TREES.update(at=time.time(), data=worktrees(root))
     return _TREES["data"]
+
+
+def activity(rows: list[dict]) -> dict:
+    """View A: each check, review, build and landing from its `activity` rows: running (a start with no end) with its rungs
+    so far and the rung now, and the last finished ones."""
+    seen: dict = {}
+    for r in rows:
+        if r.get("event") != "activity":
+            continue
+        k = (r.get("kind"), r.get("key"))
+        if r.get("state") == "start" or k not in seen:
+            seen[k] = {"kind": r.get("kind"), "key": r.get("key"), "lane": r.get("lane", ""), "started": r["ts"], "rungs": [], "now": "", "ended": None, "ok": None}
+        a = seen[k]
+        if r.get("state") == "rung-start":
+            a["now"] = r.get("rung", "")
+        elif r.get("state") == "rung":
+            a["rungs"].append({"rung": r.get("rung"), "ok": r.get("ok"), "seconds": r.get("seconds")})
+            a["now"] = ""
+        elif r.get("state") == "end":
+            a.update(ended=r["ts"], ok=r.get("ok"), failed=r.get("failed", ""), groups=r.get("groups"))
+    items = list(seen.values())
+    return {"running": [a for a in items if not a["ended"]], "recent": [a for a in reversed(items) if a["ended"]][:15]}
+
+
+def landing(root, lanes: list[dict], branch: str = "integration") -> dict:
+    """View B: every branch with commits not on origin/<branch>: the queue lanes' trees and the repo's branch worktrees with
+    commits of the last 7 days; head, commits, files, the Fixes issues, and the stage the queue gives it."""
+    srcs = [(x["id"], x["worktree"], x) for x in lanes if Path(x["worktree"]).is_dir()]
+    seen = {os.path.realpath(w) for _n, w, _x in srcs}
+    for block in _git_text(str(root), "worktree", "list", "--porcelain").strip().split("\n\n"):
+        f = dict((ln.split(" ", 1) + [""])[:2] for ln in block.splitlines())
+        name = f.get("branch", "").removeprefix("refs/heads/")
+        if name and name not in (branch, "main") and f.get("worktree") and os.path.realpath(f["worktree"]) not in seen:
+            srcs.append((name, f["worktree"], None))
+    stage_of = {"queued": "waiting", "sent": "building", "done": "waiting for the check", "checking": "checking", "reviewing": "reviewing",
+                "blocked": "question", "landed": "landed"}
+    out = []
+    for name, wt, lane in srcs:
+        log = _git_text(wt, "log", "--format=%x1e%H%x00%B", *([] if lane else ["--since=7.days"]), f"origin/{branch}..HEAD")
+        if not log.strip():
+            continue
+        cited = _cited(log)
+        files = len([x for x in _git_text(wt, "diff", "--name-only", f"origin/{branch}...HEAD").splitlines() if x])
+        cur = lane["steps"][min(lane["cursor"], len(lane["steps"]) - 1)] if lane and lane["steps"] else None
+        out.append({"name": name, "worktree": wt, "head": log.split("\x1e")[1].split("\x00")[0][:9] if "\x1e" in log else "",
+                    "commits": log.count("\x1e"), "files": files, "fixes": sorted({n for _s, k, n in cited if k in ("fixes", "closes")}),
+                    "stage": stage_of.get(cur["state"], cur["state"]) if cur else "waiting",
+                    "batch": f"batch {min(lane['cursor'] + 1, len(lane['steps']))} of {len(lane['steps'])}" if lane and lane["steps"] else ""})
+    return {"ts": _ts(time.time()), "branches": out}
+
+
+def repo_url(root) -> str:
+    u = _git_text(str(root), "remote", "get-url", "origin").strip()
+    m = re.search(r"github\.com[:/](.+?)(?:\.git)?$", u)
+    return f"https://github.com/{m.group(1)}" if m else ""
+
+
+def issues_today(rows: list[dict], url: str = "", today: str = "") -> list[dict]:
+    """View C: what the harness did to GitHub today: the landings' issue lines, ask-owner answers, failed asks."""
+    today = today or time.strftime("%Y-%m-%d")
+    out = []
+    for r in rows:
+        if not str(r.get("ts", "")).startswith(today):
+            continue
+        what = ""
+        if r.get("event") == "landed" and r.get("step") == "issues" and r.get("ok"):
+            what = str(r.get("detail", ""))
+        elif r.get("event") == "alert-answer" and r.get("action") == "ask-owner" and r.get("ok"):
+            what = f"asked the owner (needs-your-decision) for {r.get('id')}"
+        elif r.get("event") == "queue" and r.get("state") in ("ask-failed", "issue-open"):
+            what = f"{r.get('state')}: {r.get('detail', '')}"
+        if what:
+            out.append({"ts": r["ts"], "what": what, "links": [{"n": int(n), "url": f"{url}/issues/{n}" if url else ""} for n in re.findall(r"#(\d+)", what)]})
+    return out
+
+
+def release(root, branch: str = "integration", gh: str = "gh", pr=None) -> dict:
+    """View D: the commits on origin/<branch> not on main, the last release tag, and an open release PR (gh, on Refresh)."""
+    log = _git_text(str(root), "log", "--format=%h %s", f"origin/main..origin/{branch}").splitlines()
+    tag = _git_text(str(root), "describe", "--tags", "--abbrev=0", "origin/main").strip()
+    if pr is None:
+        r = subprocess.run([gh, "pr", "list", "--base", "main", "--head", branch, "--state", "open", "--json", "number,url,title"],
+                           capture_output=True, text=True, timeout=60, cwd=str(root))
+        pr = json.loads(r.stdout or "[]") if r.returncode == 0 else []
+    return {"ts": _ts(time.time()), "ahead": len(log), "commits": log[:40], "tag": tag, "prs": pr}
 
 
 def _cache() -> Path:
@@ -401,6 +492,7 @@ def refresh(who: str) -> threading.Thread:
         try:
             data = milestones(ROOT)
             _cache().write_text(json.dumps(data))
+            (journal.STATE / "console-release.json").write_text(json.dumps(release(ROOT)))
             journal.append("console", who=who, verb="refresh", state="ended", ok=True, rc=0, detail=f"{len(data['milestones'])} milestones")
         except Exception as e:  # noqa: BLE001 - a row, never a dead thread
             journal.append("console", who=who, verb="refresh", state="ended", ok=False, rc=1, detail=str(e)[-500:])
@@ -440,6 +532,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return _json(self, 200, json.loads(_cache().read_text()))
             except (OSError, ValueError):
                 return _json(self, 200, {"ts": None, "milestones": []})
+        if path == "/api/activity":
+            return _json(self, 200, activity(journal.read()))
+        if path == "/api/landing":
+            if not _LANDING or time.time() - _LANDING["at"] > 60:
+                _LANDING.update(at=time.time(), data=landing(ROOT, queue.load()))
+            return _json(self, 200, _LANDING["data"])
+        if path == "/api/issues":
+            return _json(self, 200, {"issues": issues_today(journal.read(), repo_url(ROOT))})
+        if path == "/api/release":
+            try:
+                return _json(self, 200, json.loads((journal.STATE / "console-release.json").read_text()))
+            except (OSError, ValueError):
+                return _json(self, 200, {"ts": None, "ahead": None, "commits": [], "tag": "", "prs": []})
         if path == "/api/worktrees":
             return _json(self, 200, worktrees_cached(ROOT))
         if path == "/api/events":

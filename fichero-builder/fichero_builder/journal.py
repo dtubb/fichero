@@ -48,13 +48,34 @@ def open_intents() -> list[dict]:
 class Lock:
     """flock on a file under the state dir; wait=False raises BlockingIOError when someone else holds it."""
 
-    def __init__(self, name: str = "journal", wait: bool = True):
-        self.p, self.wait, self.fd = STATE / f"{name}.lock", wait, None
+    WARN_S = 30  # a wait longer than this is a row (soak 2026-11-02: a landing sat 16 min in flock with no word)
+
+    def __init__(self, name: str = "journal", wait: bool = True, what: str = ""):
+        self.name, self.p, self.wait, self.fd, self.what = name, STATE / f"{name}.lock", wait, None, what
 
     def __enter__(self):
         self.p.parent.mkdir(parents=True, exist_ok=True)
         self.fd = os.open(self.p, os.O_RDWR | os.O_CREAT, 0o644)
-        fcntl.flock(self.fd, fcntl.LOCK_EX | (0 if self.wait else fcntl.LOCK_NB))
+        if not self.wait or self.name == "journal":  # the journal's own lock is held for a line: never a row about itself
+            fcntl.flock(self.fd, fcntl.LOCK_EX | (0 if self.wait else fcntl.LOCK_NB))
+        else:
+            t0, said = time.time(), False
+            while True:
+                try:
+                    fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if not said and time.time() - t0 > self.WARN_S:
+                        holder = os.pread(self.fd, 200, 0).decode(errors="replace").strip() or "?"
+                        append("lock", state="waiting", name=self.name, holder=holder, what=self.what, pid=os.getpid(),
+                               detail=f"waiting for {self.name} held by {holder}")
+                        said = True
+                    time.sleep(1)
+            if said:
+                append("lock", state="acquired", name=self.name, what=self.what, pid=os.getpid(), seconds=int(time.time() - t0))
+        if self.name != "journal":  # who holds it, for the next one who waits
+            os.ftruncate(self.fd, 0)
+            os.pwrite(self.fd, f"{os.getpid()} {self.what}".encode(), 0)
         return self
 
     def __exit__(self, *exc):

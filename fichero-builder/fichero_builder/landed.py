@@ -51,15 +51,16 @@ def pinned_worktrees(repo) -> dict[str, str]:
     return out
 
 
-def pin(repo, sha: str, pinned_dir: Path) -> str:
-    """`pinned-<sha7>` as a branch and a worktree under pinned_dir; every other pinned-* branch and worktree goes."""
+def pin(repo, sha: str, pinned_dir: Path, keep_others: bool = False) -> str:
+    """`pinned-<sha7>` as a branch and a worktree under pinned_dir; every other pinned-* branch and worktree goes, unless
+    `keep_others` (a check is reading one: the next landing removes them)."""
     name = f"pinned-{sha[:7]}"
     if name not in pinned_worktrees(repo):  # git refuses `branch -f` on a branch its own worktree has out: a rerun finds it in place
         _ok(_git(repo, "branch", "-f", name, sha), "branch -f")
-    for b, path in pinned_worktrees(repo).items():
+    for b, path in ({} if keep_others else pinned_worktrees(repo)).items():
         if b != name:
             _ok(_git(repo, "worktree", "remove", "--force", path), f"worktree remove {path}")
-    for b in _git(repo, "branch", "--list", "pinned-*", "--format=%(refname:short)").stdout.split():
+    for b in ([] if keep_others else _git(repo, "branch", "--list", "pinned-*", "--format=%(refname:short)").stdout.split()):
         if b != name:
             _ok(_git(repo, "branch", "-D", b), f"branch -D {b}")
     dest = pinned_dir / name
@@ -336,8 +337,11 @@ def main(a) -> int:
         return f"{branch} = origin/{branch} ({_git(repo, 'rev-parse', '--short', branch).stdout.strip()})"
 
     def pinned():
-        with journal.Lock("ladder"):  # it removes every other pinned copy, which another lane's running check may be reading
-            return pin(repo, sha, pinned_dir)
+        try:  # it removes every other pinned copy, which another lane's running check may be reading: never wait for that check
+            with journal.Lock("ladder", wait=False):
+                return pin(repo, sha, pinned_dir)
+        except BlockingIOError:
+            return pin(repo, sha, pinned_dir, keep_others=True) + " (the older pinned copies kept: a check holds the ladder)"
 
     def jail_root():
         q, g = shlex.quote, shlex.quote(land_tool.GIT)
