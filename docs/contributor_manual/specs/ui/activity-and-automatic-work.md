@@ -2013,7 +2013,9 @@ and node, not by job); a retry action for failed pages.
   translate, names, statements and catalogue where the pages may leave and a key is set, even when a local model fits
   (the reason says so and that choosing another model keeps the pages on this Mac); Correct still prefers a fitting
   local model; the per-step choice and per-step cost already exist. Left: the provider's Batch API, the network
-  lane's width at the provider's stated limit, and Read's default.
+  lane's width at the provider's stated limit. Read's default is already the spec's own reader choice
+  (`source.recipe.reader-pick-from-the-material`): handwriting that may leave with a frontier key reads in the cloud; printed
+  and typescript stay on Kraken or the local reader, as that line says.
 - `activity.recipe.declares-automatic` — **[GAP]** (→ #4950) a recipe lists the job kinds that run on
   add; the dependency graph comes from the job kinds' declared inputs, never written twice.
 
