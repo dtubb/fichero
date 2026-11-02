@@ -4493,6 +4493,18 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("review-waiting")
+    def content_representations_review_waiting_get(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help='Document Id'),
+    ) -> None:
+        """Review Waiting (GET /api/content-representations/document/{document_id}/review-waiting)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/content-representations/document/{document_id}/review-waiting"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("list-revisions")
     def content_representations_list_revisions_get(
         ctx: typer.Context,

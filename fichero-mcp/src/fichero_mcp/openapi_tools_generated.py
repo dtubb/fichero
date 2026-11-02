@@ -2047,6 +2047,14 @@ def fichero_content_representations_list(
     return _rt.call("GET", f"/api/content-representations/document/{document_id}")
 
 
+def fichero_content_representations_review_waiting(
+    *,
+    document_id: Annotated[str, Field(description='Document Id')],
+) -> Any:
+    'Review Waiting\n\nHow many lines `reading.choose_many` would confirm on this page (`wide.review.accept-line-and-all`).\n\nRoute: GET /api/content-representations/document/{document_id}/review-waiting (toolset `content-representations`; reads).'
+    return _rt.call("GET", f"/api/content-representations/document/{document_id}/review-waiting")
+
+
 def fichero_content_representations_list_revisions(
     *,
     representation_id: Annotated[str, Field(description='Representation Id')],
@@ -9558,6 +9566,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_content_representations_create_route", "content-representations", "POST", "/api/content-representations", fichero_content_representations_create_route),
     GeneratedTool("fichero_content_representations_create_batch_route", "content-representations", "POST", "/api/content-representations/batch", fichero_content_representations_create_batch_route),
     GeneratedTool("fichero_content_representations_list", "content-representations", "GET", "/api/content-representations/document/{document_id}", fichero_content_representations_list),
+    GeneratedTool("fichero_content_representations_review_waiting", "content-representations", "GET", "/api/content-representations/document/{document_id}/review-waiting", fichero_content_representations_review_waiting),
     GeneratedTool("fichero_content_representations_list_revisions", "content-representations", "GET", "/api/content-representations/{representation_id}/revisions", fichero_content_representations_list_revisions),
     GeneratedTool("fichero_content_representations_create_revision", "content-representations", "POST", "/api/content-representations/{representation_id}/revisions", fichero_content_representations_create_revision),
     GeneratedTool("fichero_conversion_status", "conversion", "GET", "/api/conversion/status", fichero_conversion_status),

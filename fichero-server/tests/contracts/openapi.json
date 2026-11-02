@@ -3970,6 +3970,49 @@
         }
       }
     },
+    "/api/content-representations/document/{document_id}/review-waiting": {
+      "get": {
+        "tags": [
+          "content-representations"
+        ],
+        "summary": "Review Waiting",
+        "description": "How many lines `reading.choose_many` would confirm on this page (`wide.review.accept-line-and-all`).",
+        "operationId": "review_waiting_api_content_representations_document__document_id__review_waiting_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewWaiting"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/content-representations/{representation_id}/revisions": {
       "get": {
         "tags": [
@@ -90452,6 +90495,20 @@
         ],
         "title": "ReviewSummaryResponse",
         "description": "Compact queue status for badge/UI polling."
+      },
+      "ReviewWaiting": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "lines of the page whose counting reading is a review's and that no person has chosen: Accept all N"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count"
+        ],
+        "title": "ReviewWaiting"
       },
       "RightsAnswer": {
         "properties": {

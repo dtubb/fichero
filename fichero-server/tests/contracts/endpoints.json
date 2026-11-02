@@ -2957,6 +2957,18 @@
       },
       {
         "method": "GET",
+        "path": "/content-representations/document/{document_id}/review-waiting",
+        "operation_id": "review_waiting_api_content_representations_document__document_id__review_waiting_get",
+        "summary": "Review Waiting",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ReviewWaiting"
+      },
+      {
+        "method": "GET",
         "path": "/content-representations/{representation_id}/revisions",
         "operation_id": "list_revisions_api_content_representations__representation_id__revisions_get",
         "summary": "List Revisions",

@@ -46,3 +46,11 @@ def test_a_page_with_nothing_waiting_is_refused_in_words_and_a_second_accept_is_
     page, _ = _reviewed(db, tmp_path, notebook)
     assert _accept(client, page).status_code == 200
     assert _accept(client, page).status_code == 409  # nothing left to confirm
+
+
+def test_the_count_the_button_shows_is_what_accept_all_will_confirm(client, db, tmp_path, notebook):  # noqa: F811
+    page, lines = _reviewed(db, tmp_path, notebook)
+    url = f"/api/content-representations/document/{page.id}/review-waiting"
+    assert client.get(url).json() == {"count": len(lines)}
+    assert _accept(client, page).status_code == 200
+    assert client.get(url).json() == {"count": 0}

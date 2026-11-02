@@ -122,6 +122,19 @@ async def list_representations(
     return ContentRepresentationListResponse(items=items, count=len(items))
 
 
+class ReviewWaiting(BaseModel):
+    count: int = Field(description="lines of the page whose counting reading is a review's and that no person has chosen: Accept all N")
+
+
+@router.get("/document/{document_id}/review-waiting", response_model=ReviewWaiting)
+async def review_waiting(
+    document_id: str,
+    db: Database = Depends(get_library_database),
+) -> ReviewWaiting:
+    """How many lines `reading.choose_many` would confirm on this page (`wide.review.accept-line-and-all`)."""
+    return ReviewWaiting(count=len(_review_readings_waiting(db, document_id, "transcription")))
+
+
 @router.get(
     "/{representation_id}/revisions",
     response_model=ContentRepresentationRevisionListResponse,
