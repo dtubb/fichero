@@ -722,3 +722,13 @@ def test_the_ready_check_skips_its_guard_copy_with_no_guards_because_the_guards_
     skipped = run("--no-guards", "HEAD")
     assert skipped.returncode == 0 and "READY" in skipped.stdout, skipped.stdout
     assert "--no-guards" in ct.load(repo).ready, "the Builder's ready rung passes it"
+
+
+def test_the_green_run_is_one_pytest_per_package_so_two_tests_dirs_never_shadow_each_other(monkeypatch):
+    """Real check 2026-11-02: fichero-server/tests and fichero-builder/tests in one pytest: `tests.test_queue_verb` not found."""
+    seen = []
+    monkeypatch.setattr(ct, "pytest_rung", lambda tree, fs, cfg, t: seen.append(fs) or {"argv": fs, "exit_code": 0, "ok": True, "seconds": 0,
+                                                                                         "stdout_tail": "", "stderr_tail": ""})
+    r = ct.green_runs(".", ["fichero-server/tests/a/test_x.py", "fichero-builder/tests/test_y.py", "fichero-server/tests/test_z.py"], (), ct.Config(), 5)
+    assert seen == [["fichero-server/tests/a/test_x.py", "fichero-server/tests/test_z.py"], ["fichero-builder/tests/test_y.py"]]
+    assert r["ok"] and len(r["runs"]) == 2
