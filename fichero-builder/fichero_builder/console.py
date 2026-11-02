@@ -208,6 +208,8 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
             if x.get("kind") == "external" and pr.get("step"):
                 row["step"] = f"Step {pr['step']}"  # its own newest commit says where it is (the queue's step is the batch's name)
             row["progress"] = pr
+            if x.get("kind") == "external":  # commits waiting since its last landing
+                row["waiting"] = len([c for c in _git_text(x["worktree"], "rev-list", "origin/integration..HEAD").split() if c])
         if a := running.get(x["id"]):  # what its check or review is doing now, and since when
             row["activity"] = {"kind": a["kind"], "now": a["now"], "started": a["started"], "done": len(a["rungs"])}
         row.update(

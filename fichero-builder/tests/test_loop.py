@@ -384,3 +384,66 @@ def test_a_new_file_under_a_pinned_path_is_an_alert_and_approve_reruns_with_appr
     assert cli.main(["alert", a["id"], "approve", "--state", str(state / "s")]) == 0
     queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
     assert seen[:2] == [False, True] and steps()["1.1"]["state"] == "landed"
+
+
+def _ext_repo(tmp_path, commits=1, subject="feat: x (Step 1.2, a.b)"):
+    import subprocess
+
+    def g(cwd, *a):
+        return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
+    seed = tmp_path / "seed"
+    seed.mkdir()
+    g(seed, "init", "-q", "-b", "integration"), (seed / "a").write_text("a"), g(seed, "add", "."), g(seed, "commit", "-qm", "base")
+    g(tmp_path, "clone", "-q", "--bare", str(seed), "origin.git")
+    wt = tmp_path / "lane-x"
+    g(tmp_path, "clone", "-q", str(tmp_path / "origin.git"), str(wt))
+    for i in range(commits):
+        (wt / f"f{i}").write_text(str(i))
+        g(wt, "add", "."), g(wt, "commit", "-qm", subject if i == commits - 1 else f"wip {i}")
+    return wt, g
+
+
+def test_done_snapshots_the_lanes_head_into_a_land_tree_and_a_red_tells_its_pane_and_a_re_done_re_takes(state, tmp_path):
+    """dev-workflows.run.loop-external-intake: the lane's own tree is never touched; findings go to a file and its pane."""
+    wt, g = _ext_repo(tmp_path)
+    queue.add("lane-x", str(wt), "batch-1", str(state / "b1.1"), [], kind="external", pane="%7")
+    head = g(wt, "rev-parse", "HEAD")
+    assert queue.done("lane-x") == ""
+    s = steps_of("lane-x")[0]
+    land = tmp_path / "land-lane-x"
+    assert s["state"] == "done" and s["head"] == head and s["land_tree"] == str(land.resolve()) and g(land, "rev-parse", "HEAD") == head
+    assert g(wt, "rev-parse", "--abbrev-ref", "HEAD") != "land-lane-x" and g(wt, "status", "--porcelain") == "", "the lane's tree is untouched"
+    told, swept = [], []
+    fake = Fake(chains={"batch-1": [{"ok": False, "kind": "red", "why": "ruff on the changed Python", "findings": "x.py:1 F401"}]})
+    fake.procs.tell, fake.procs.after_land = (lambda lane, text: told.append((lane.get("pane"), text)) or ""), (lambda lane, step, head: swept.append(step["land_tree"]))
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert steps_of("lane-x")[0]["state"] == "blocked" and told and told[0][0] == "%7" and "FINDINGS" in told[0][1]
+    (f,) = (state / "s").glob("findings-lane-x-*.txt")
+    assert "ruff on the changed Python" in f.read_text()
+    (wt / "fix").write_text("fixed")
+    g(wt, "add", "."), g(wt, "commit", "-qm", "fix: the finding (Step 1.2)")
+    assert queue.done("lane-x") == "", "the lane fixed it and ran done again"
+    assert steps_of("lane-x")[0]["head"] == g(wt, "rev-parse", "HEAD")
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert steps_of("lane-x")[0]["state"] == "landed" and any("LANDED" in t for _p, t in told) and swept == [str(land.resolve())]
+    assert queue.done("lane-x") == "" and [x["step"] for x in steps_of("lane-x")] == ["batch-1", "batch-2"], "a finished lane gets its next batch"
+
+
+def test_the_intake_takes_a_finished_step_past_its_thresholds_and_never_a_held_lane(state, tmp_path):
+    wt, g = _ext_repo(tmp_path, commits=3)
+    lane_ = {"id": "lane-x", "worktree": str(wt)}
+    assert queue.intake_sha(lane_, "integration", 3, 99) == g(wt, "rev-parse", "HEAD"), "three commits, a finished step"
+    assert queue.intake_sha(lane_, "integration", 8, 99) == "", "under the commit threshold and young"
+    assert queue.intake_sha(lane_, "integration", 8, 0) != "", "old enough"
+    (wt / "z").write_text("z")
+    g(wt, "add", "."), g(wt, "commit", "-qm", "wip: half a step")
+    assert queue.intake_sha(lane_, "integration", 1, 0) == "", "the HEAD is not a finished step"
+    queue.add("held", str(wt), "held", str(state / "b1.1"), [], kind="external", hold=True)
+    fake = Fake()
+    fake.procs.intake = lambda lane: "f" * 40
+    queue.run(fake.procs, workers_n=1, push=False, once=True, out=lambda s: None)
+    assert steps_of("held")[0]["state"] == "queued", "a held lane is never taken"
+
+
+def steps_of(lane_id):
+    return next(x for x in queue.load() if x["id"] == lane_id)["steps"]

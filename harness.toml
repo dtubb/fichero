@@ -94,6 +94,13 @@ pinned_dir = "/Users/Shared/fichero-pinned"
 # Regexes over every ADDED line and commit message; any hit refuses the land (the public/private boundary).
 boundary = ['/Users/(?!Shared/)[A-Za-z0-9._-]+/', 'sk-ant-[A-Za-z0-9_-]{8,}', 'gh[ps]_[A-Za-z0-9]{20,}', 'BEGIN [A-Z ]*PRIVATE KEY']
 
+[loop]
+# dev-workflows.run.loop-external-intake: an external lane is taken by itself at this many commits past the land branch, or when
+# its oldest unlanded commit is this old, if its HEAD is a finished step; findings and LANDED go to its pane through `tell`
+intake_commits = 8
+intake_hours = 3
+# tell = "<script> <pane> <text>"   # unset: the tracked `builder tell` (fichero_builder/tell.py)
+
 [queue]
 # `builder queue run` (dev-workflows.tool.queue): how many `builder work` processes run at once; the ladder is one at a time regardless.
 workers = 1

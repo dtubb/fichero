@@ -122,6 +122,8 @@ def main(argv=None) -> int:
     q.add_argument("--grace", type=float, default=300.0, help="stop: seconds the worker has to commit what is green before its session is closed")
     q.add_argument("--text", help="tell: the finding to put into the lane's live session"), q.add_argument("--file", help="tell: read the finding from this file")
     q.add_argument("--lane"), q.add_argument("--worktree"), q.add_argument("--step"), q.add_argument("--brief"), q.add_argument("--issues", type=int, nargs="*", default=[])
+    q.add_argument("--hold", action="store_true", help="add: a milestone a person holds (the intake never takes this lane)")
+    q.add_argument("--pane", default="", help="add: the external lane's tmux pane, told its findings and LANDED")
     q.add_argument("--kind", choices=["worker", "external"], default="worker", help="add: external = a branch the loop starts no worker for; `builder done` is its DONE")
     q.add_argument("--push", action="store_true"), q.add_argument("--once", action="store_true"), q.add_argument("--tick", type=float, default=30.0)
     q.add_argument("--gh", default="gh", help="resume: the gh that takes needs-your-decision off the resumed steps' issues")
@@ -131,7 +133,8 @@ def main(argv=None) -> int:
     lp.add_argument("--root", default=str(Path.cwd())), lp.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
     lp.add_argument("--tick", type=float, default=30.0), lp.add_argument("--lanes", type=int, help="default [loop].lanes, else 1")
     dn = sub.add_parser("done", help="an external lane's DONE (dev-workflows.run.loop-external-lane): its step at <sha> goes to the check, review and landing")
-    dn.add_argument("lane"), dn.add_argument("sha"), dn.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
+    dn.add_argument("lane"), dn.add_argument("sha", nargs="?", default=""), dn.add_argument("--sha", dest="sha_opt", default="")
+    dn.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
     hb = sub.add_parser("heartbeat", help="the loop's watchdog: an alert row when the journal has no `loop` tick for more than --ticks ticks (once per silence); exit 1 while stale")
     hb.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
     hb.add_argument("--tick", type=float, default=30.0), hb.add_argument("--ticks", type=int, default=3)
@@ -240,8 +243,8 @@ def main(argv=None) -> int:
         from fichero_builder import queue
 
         journal.STATE = Path(a.state) if a.state else journal.STATE
-        why = queue.done(a.lane, a.sha)
-        print(f"REFUSED: {why}" if why else f"{a.lane}: DONE {a.sha}, the loop checks it next tick")
+        why = queue.done(a.lane, a.sha_opt or a.sha)
+        print(f"REFUSED: {why}" if why else f"{a.lane}: DONE at {(a.sha_opt or a.sha or 'its HEAD')[:12]}, snapshot in land-{a.lane}; the loop checks it next tick")
         return 1 if why else 0
     if a.cmd == "heartbeat":
         from fichero_builder import queue

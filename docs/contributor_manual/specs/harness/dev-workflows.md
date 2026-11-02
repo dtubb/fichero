@@ -735,7 +735,7 @@ the write path would produce.
   the lane names a pane, else as an alert). Plain Claude Code lanes land through the loop this way. Test (to write):
   `fichero-builder/tests/test_loop.py` (`builder done` on an external lane lands it through fakes; no worker is started).
   **Built** 2026-11-02 against fakes: `builder queue add --kind external` makes the lane; the loop starts no worker for it and its step waits; `builder done <lane> <sha>` sets the step done (a `done` row; a worker lane or no waiting step is a `done-refused` row) and the chain runs; a red, NOT READY or refused is an alert with its evidence, never a fix round. Test `fichero-builder/tests/test_loop.py::test_builder_done_on_an_external_lane_lands_it_and_no_worker_is_started`. Not yet: findings by `builder tell` into a named pane; the real chain's rebase, export and fetch run as the jail user, so an owner-made external worktree must be readable by it.
-- `dev-workflows.run.loop-external-intake` [PROPOSED] (#6116; manager 2026-11-02, owner-delegated) — a lane that commits on its own
+- `dev-workflows.run.loop-external-intake` [PARTIAL] (#6116; manager 2026-11-02, owner-delegated) — a lane that commits on its own
   branch is landed with no manager step. Trigger: `builder done <lane> [--sha S]` (S = the lane's HEAD when it runs; later commits
   go in the next batch), or the loop by itself when an external lane has `[loop].intake_commits` commits (default 8) or
   `[loop].intake_hours` (default 3) since its last landed batch and its HEAD subject is a finished step (`(Step ` or a
@@ -750,6 +750,11 @@ the write path would produce.
   stage and the commits waiting since its last landing. Test (to write): `fichero-builder/tests/test_loop.py` (done snapshots the
   HEAD into land-<lane>, the lane's tree untouched; a red tells the pane and writes the findings; a re-done re-takes; the
   thresholds take a finished step and never a held lane).
+  **Built** 2026-11-02 against fakes and real git: `builder done <lane> [sha|--sha S]` (land_tree, done), `queue add --hold
+  --pane`, `[loop].intake_commits/intake_hours/tell`, findings + tell on any stop, LANDED + sweep after landing, commits
+  waiting in the console. Tests `fichero-builder/tests/test_loop.py::test_done_snapshots_the_lanes_head_into_a_land_tree_and_a_red_tells_its_pane_and_a_re_done_re_takes`,
+  `::test_the_intake_takes_a_finished_step_past_its_thresholds_and_never_a_held_lane`. Not yet: Sonnet/Opus review by path
+  (speed item 6a); the first real run (lane-sharing, lane-onboard).
 - `dev-workflows.run.records-are-truth` [PROPOSED] (maintainer 2026-10-31; owner 2026-11-01: no engine) — for a worker the
   truth is its **journal** (JSON lines, one file per cluster under the Builder's state directory; `$FICHERO_HARNESS_LOG` in
   Slice 0), plus git plus the handoff file; the run log (one row per item attempt: model, provider, context cap, tokens,

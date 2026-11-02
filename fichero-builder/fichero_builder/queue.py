@@ -73,7 +73,8 @@ def workers(root) -> int:
     return int(tomllib.loads(f.read_text()).get("queue", {}).get("workers", 1)) if f.is_file() else 1
 
 
-def add(lane_id: str, worktree: str, step: str, brief: str, issues: list[int], waits: list[str] | None = None, kind: str = "worker") -> None:
+def add(lane_id: str, worktree: str, step: str, brief: str, issues: list[int], waits: list[str] | None = None, kind: str = "worker",
+        hold: bool | None = None, pane: str = "") -> None:
     """A step at the end of its lane (made when new); a step the lane has already keeps its state."""
     with journal.Lock("queue"):
         lanes = load()
@@ -83,7 +84,12 @@ def add(lane_id: str, worktree: str, step: str, brief: str, issues: list[int], w
             lanes.append(lane)
         elif lane["cursor"] >= len(lane["steps"]) and not any(s["step"] == step for s in lane["steps"]):
             lane.update(kind=kind, worktree=os.path.abspath(worktree))  # a finished lane handed new work takes its kind and tree
+        if hold is not None:
+            lane["hold"] = hold  # a milestone a person holds: never taken by the intake
+        if pane:
+            lane["pane"] = pane  # where findings and LANDED are told (an external lane's session)
         if any(s["step"] == step for s in lane["steps"]):
+            save(lanes)
             return
         lane["steps"].append({"step": step, "brief": str(brief), "issues": list(issues), "waits": list(waits or []), "state": "queued",
                               "head": "", "why": "", "rounds": 0, "restarts": 0})
@@ -108,6 +114,9 @@ class Procs:
     # taken lane ids -> (lane id, worktree, [{step, brief, issues, waits}]) of the next build-order milestone, or None
     next_milestone: Callable[[set], tuple | None] = lambda taken: None
     build: Callable[[dict], tuple] = lambda lane: (0, "")  # lane -> (rc, output) of the dev build after its milestone landed
+    tell: Callable[[dict, str], str] = lambda lane, text: ""  # (lane, text) -> '' or why: into an external lane's registered pane
+    after_land: Callable[[dict, dict, str], None] = lambda lane, step, head: None  # an external lane's batch landed: sweep its land tree
+    intake: Callable[[dict], str] = lambda lane: ""  # an external lane -> the sha to take now by itself (thresholds), or ''
     trees: Callable[[list], dict] = lambda paths: {}  # paths -> {path: "HEAD status-hash"}: what a step must leave unmoved (run.loop-machine-checked)
     jail_root: str = ""
 
@@ -186,6 +195,12 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         q.write_text(f"QUESTION: {why}\n")
         move(s, "blocked", why)
         alert(lane["id"], s["step"], why, evidence or str(q), list(actions))
+        if lane.get("kind") == "external" and s.get("land_tree"):  # the lane fixes it on its branch: tell it where the findings are
+            n = sum(1 for p in journal.STATE.glob(f"findings-{lane['id']}-*.txt")) + 1
+            f = journal.STATE / f"findings-{lane['id']}-{n}.txt"
+            f.write_text(f"{lane['id']} batch {s['step']} at {s.get('head', '')[:9]}: {why}\n\nEvidence: {evidence or q}\n")
+            err = procs.tell(lane, f"FINDINGS for {lane['id']} at {s.get('head', '')[:9]}: {why.splitlines()[0][:300]} (full: {f}). Fix on your branch, then `builder done {lane['id']}`.")
+            journal.append("queue", lane=lane["id"], step=s["step"], state="told" if not err else "tell-refused", detail=err or str(f))
         return False
 
     h = handles.get(lane["id"])
@@ -286,6 +301,10 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         rc, output = procs.landed(lane, r["head"], push)
         if rc:
             return block(s, output)
+        if lane.get("kind") == "external" and s.get("land_tree"):
+            err = procs.tell(lane, f"LANDED {r['head'][:9]}: rebase onto origin/integration at your next step boundary.")
+            journal.append("queue", lane=lane["id"], step=s["step"], state="told" if not err else "tell-refused", detail=err or "LANDED")
+            procs.after_land(lane, s, r["head"])
         left = procs.still_open(lane, s)  # a row, not a close: only `builder landed` closes, on a Fixes line (owner ruling)
         move(s, "landed", f"landed {r['head'][:9]}" + (" (pushed)" if push else " (not pushed)") + (f"; still open: {', '.join(left)}" if left else ""))
         if left:
@@ -320,19 +339,67 @@ STOPPED = ("Continue from the tree: this step was stopped by the owner mid-way. 
            "uncommitted work is still in the worktree; read them first, then finish the step.")
 
 
-def done(lane_id: str, sha: str) -> str:
-    """`builder done <lane> <sha>`: an external lane's DONE; its current step goes to the chain. '' or why it is refused."""
+def intake_sha(lane: dict, branch: str, commits: int, hours: float, now: float | None = None) -> str:
+    """The lane's HEAD when it is a finished step (`(Step ` in its subject or a `Behaviour:` trailer) and the lane has `commits`
+    commits past origin/<branch>, or its oldest unlanded one is `hours` old; else ''."""
+    g = ["git", "-c", "safe.directory=*", "-C", lane["worktree"]]
+    log = subprocess.run(g + ["log", "--format=%H %ct", f"origin/{branch}..HEAD"], capture_output=True, text=True).stdout.split("\n")
+    log = [x.split() for x in log if x.strip()]
+    if not log:
+        return ""
+    msg = subprocess.run(g + ["log", "-1", "--format=%B"], capture_output=True, text=True).stdout
+    if "(Step " not in msg.split("\n", 1)[0] and not re.search(r"(?m)^Behaviour:", msg):
+        return ""
+    old = (now or time.time()) - int(log[-1][1])
+    return log[0][0] if len(log) >= commits or old >= hours * 3600 else ""
+
+
+def lane_head(worktree: str) -> str:
+    r = subprocess.run(["git", "-c", "safe.directory=*", "-C", worktree, "rev-parse", "HEAD"], capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def land_tree(lane: dict, sha: str) -> tuple[str, str]:
+    """(path, '') of `land-<lane>` beside the lane's worktree, made or reset at `sha` as the owner; the lane's own tree and
+    branch are never touched (its agent works there). ('', why) when git refuses."""
+    path = str(Path(lane["worktree"]).resolve().parent / f"land-{lane['id']}")
+    g = ["git", "-c", "safe.directory=*"]
+    if Path(path).is_dir():
+        r = subprocess.run(g + ["-C", path, "checkout", "-q", "-f", "-B", f"land-{lane['id']}", sha], capture_output=True, text=True)
+    else:
+        r = subprocess.run(g + ["-C", lane["worktree"], "worktree", "add", "-q", "-f", "-B", f"land-{lane['id']}", path, sha], capture_output=True, text=True)
+    return (path, "") if r.returncode == 0 else ("", (r.stderr or r.stdout).strip()[-300:])
+
+
+IN_LADDER = ("checking", "reviewing", "sent")
+
+
+def done(lane_id: str, sha: str = "") -> str:
+    """`builder done <lane> [sha]`: an external lane's DONE (dev-workflows.run.loop-external-intake). The sha (default: the
+    lane's HEAD now) is a snapshot: `land-<lane>` is made there and the chain takes it, so later commits go in the next batch.
+    A blocked step is re-taken from the new sha (the lane fixed its findings); a finished lane gets a new batch step; a batch
+    already in the ladder refuses (one at a time). '' or why it is refused."""
     with journal.Lock("queue"):
         lanes = load()
         lane = next((x for x in lanes if x["id"] == lane_id), None)
+        s = None
         if lane is None or lane.get("kind") != "external":
             why = f"no external lane {lane_id!r}"
-        elif lane["cursor"] >= len(lane["steps"]) or lane["steps"][lane["cursor"]]["state"] != "queued":
-            why = f"{lane_id} has no step waiting for its DONE"
+        elif lane["cursor"] < len(lane["steps"]) and lane["steps"][lane["cursor"]]["state"] in IN_LADDER:
+            why = f"{lane_id} has a batch in the ladder: one at a time; run done again after it lands"
+        elif not (sha := sha or lane_head(lane["worktree"])) and Path(lane["worktree"]).is_dir():
+            why = f"cannot read {lane_id}'s HEAD in {lane['worktree']}"
         else:
-            s, why = lane["steps"][lane["cursor"]], ""
-            s.update(state="done", head=sha, why=f"DONE {sha} (external)")
-            save(lanes)
+            if lane["cursor"] >= len(lane["steps"]):  # finished: the next batch
+                n = sum(1 for x in lane["steps"] if x["step"].startswith("batch-")) + 1
+                lane["steps"].append({"step": f"batch-{n}", "brief": lane["steps"][-1]["brief"] if lane["steps"] else "", "issues": [], "waits": [],
+                                      "state": "queued", "head": "", "why": "", "rounds": 0, "restarts": 0})
+            s = lane["steps"][lane["cursor"]]
+            # no tree on this machine (a lane named by hand): the old DONE, taken from the lane's worktree
+            path, why = land_tree(lane, sha) if Path(lane["worktree"]).is_dir() else ("", "")
+            if not why:
+                s.update(state="done", head=sha, why=f"DONE {sha} (external)", rounds=0, restarts=0, **({"land_tree": path} if path else {}))
+                save(lanes)
     journal.append("queue", lane=lane_id, step=s["step"] if not why else "-", state="done" if not why else "done-refused", detail=why or sha)
     return why
 
@@ -472,6 +539,11 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
     # the loop always chains in a thread: a one-lane check inside the tick would starve the heartbeat for its whole ladder
     chains: dict | None = {"pool": ThreadPoolExecutor(max_workers=lanes_n)} if lanes_n > 1 or heartbeat else None
     while True:
+        for x in load():  # dev-workflows.run.loop-external-intake: an external lane past its thresholds is taken as if done ran
+            cur = x["steps"][x["cursor"]]["state"] if x["cursor"] < len(x["steps"]) else "landed"
+            if x.get("kind") == "external" and not x.get("hold") and cur in ("queued", "landed") and (sha := procs.intake(x)):
+                why = done(x["id"], sha)
+                out(f"{x['id']}: intake at {sha[:9]}" + (f" refused: {why}" if why else ""))
         took = feed(procs, lanes_n, out)
         busy = tick(procs, handles, workers_n=workers_n, push=push, out=out, chains=chains) or took
         if heartbeat:  # dev-workflows.run.loop: a watchdog reads the gap between these
@@ -508,7 +580,8 @@ def real_procs(root) -> Procs:
 
     def ns(lane: dict, step: dict | None = None) -> types.SimpleNamespace:
         brief = (step.get("resume_brief") or step["brief"]) if step else ""  # a fix brief after a gone session (run.loop-fix-rounds)
-        return types.SimpleNamespace(worktree=lane["worktree"], name=lane["id"], pinned=str(root), root=str(root), kind="claude", session="harness",
+        tree = (step or {}).get("land_tree") or lane["worktree"]  # an external lane's batch is taken from its land-<lane> snapshot
+        return types.SimpleNamespace(worktree=tree, name=lane["id"], pinned=str(root), root=str(root), kind="claude", session="harness",
                                      tick=30.0, issues=step["issues"] if step else [], brief=brief, ids=[], repo=repo,
                                      maintainer=bool(step and step.get("maintainer")), approve_weakened=bool(step and step.get("approve_weakened")),
                                      external=lane.get("kind") == "external", approve_red=bool(step and step.get("approve_red")),
@@ -561,9 +634,27 @@ def real_procs(root) -> Procs:
         if lane.get("feed"):
             (Path(lane["feed"]) / "stop").write_text("")
 
+    loop_cfg = rules.get("loop", {})
+
+    def tell(lane, text):
+        if not lane.get("pane") or not loop_cfg.get("tell"):
+            return "no registered pane or no [loop].tell"
+        try:
+            r = subprocess.run([os.path.expanduser(loop_cfg["tell"]), lane["pane"], text[:780]], capture_output=True, text=True, timeout=60)
+        except (OSError, subprocess.TimeoutExpired) as e:
+            return str(e)
+        return "" if r.returncode == 0 else (r.stderr or r.stdout).strip()[-200:]
+
+    def after_land(lane, step, head):
+        from fichero_builder import landed
+        landed.sweep_one(root, step["land_tree"])
+
+    def intake(lane):
+        return intake_sha(lane, branch, int(loop_cfg.get("intake_commits", 8)), float(loop_cfg.get("intake_hours", 3)))
+
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
-                 next_milestone=lambda taken: next_in_order(root, taken), build=build, trees=trees,
+                 next_milestone=lambda taken: next_in_order(root, taken), build=build, trees=trees, tell=tell, after_land=after_land, intake=intake,
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "")
 
 
@@ -618,7 +709,8 @@ def main(a) -> int:
         if not (a.lane and a.worktree and a.step and a.brief):
             print("REFUSED: queue add needs --lane, --worktree, --step and --brief")
             return 1
-        add(a.lane, a.worktree, a.step, a.brief, a.issues, kind=getattr(a, "kind", "worker"))
+        add(a.lane, a.worktree, a.step, a.brief, a.issues, kind=getattr(a, "kind", "worker"), hold=True if getattr(a, "hold", False) else None,
+            pane=getattr(a, "pane", ""))
         print(f"queued {a.lane} {a.step}")
         return 0
     if a.action == "tell":  # dev-workflows.run.loop-tell: a finding into the lane's live session, as its next message
