@@ -144,7 +144,7 @@ A tool is one step: it reads something, does one job, and emits a result. Workfl
 | [Split Images](tools/split_images.md) | Split images into grid tiles or PDFs into page images without modifying sources. | no |
 | [Split Pages](tools/split_pages.md) | Find the document in a photograph and cut an open book or notebook at its gutter into pages, in reading order; a closed cover or single page is kept whole, an unclear gutter is proposed for review. Sources are never changed. | no |
 | [Suppress Show-Through](tools/bleed_through_images.md) | Push the faint mirrored writing of the other side to paper and keep the ink; method b also reads the verso, without modifying source files. | no |
-| [Text Reflow](tools/text_reflow.md) | Join soft-wrapped lines within paragraphs, preserve paragraph structure, and de-hyphenate words split across line breaks. Optional AI refinement pass available for edge-case word joins. | yes |
+| [Text Reflow](tools/text_reflow.md) | Join soft-wrapped lines within paragraphs, preserve paragraph structure, and de-hyphenate words split across line breaks. | no |
 | [Zoom](tools/zoom.md) | Crop and magnify image regions or line strips. | no |
 
 ## Utility

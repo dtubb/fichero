@@ -545,29 +545,5 @@ dendritic remodeling."""
         assert "2022" in result
 
 
-class TestAIPassConfiguration:
-    """Test AI-pass configuration without actual LLM calls (mock/fixture based)."""
-
-    def test_config_ai_refinement_disabled_by_default(self):
-        """AI refinement should be disabled by default."""
-        config = {}
-        use_ai = bool(config.get("use_ai_refinement", False))
-        assert use_ai is False
-
-    def test_config_ai_refinement_can_be_enabled(self):
-        """AI refinement should be controllable via config."""
-        config = {"use_ai_refinement": True}
-        use_ai = bool(config.get("use_ai_refinement", False))
-        assert use_ai is True
-
-    def test_config_fallback_to_programmatic_on_ai_failure(self):
-        """When AI call fails or is unavailable, programmatic reflow should be returned."""
-        # This is tested implicitly in _refine_with_llm exception handling
-        # The function catches exceptions and returns the input text unchanged
-        text = "This is test text with some soft-\nwrapped lines"
-        # If LLM config is None or fails, should return the programmatic result
-        assert text is not None
-
-
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

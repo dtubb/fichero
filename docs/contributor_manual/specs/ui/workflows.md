@@ -165,7 +165,7 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   #4797) duplicating a locked preset makes an editable copy in a personal
   folder and opens it for editing (`WorkflowToolbar.swift:27-52`,
   `WorkflowEditor.swift:217-224`).
-- `workflows.text-reflow.ai-refinement-works` — **[BROKEN]** (#5921, found 2026-10-20 by the M4 run of the pause tests) the Text Reflow step's optional AI refinement (`use_ai_refinement`) has never worked: it imports `call_llm_with_cache` from `fichero_server.llm`, which defines no such function, so every run raised ImportError, swallowed into "return the heuristic text". Rule: an option that is on either refines or says why it could not; a broken import is not a provider failure. Today: a page with the option on keeps its reflowed text and the run says once, as an Activity warning, "AI refinement isn't available yet (#5921)" (not one per page, and no raw import error); fixing or removing the option is a separate owner decision. Pinned by `fichero-server/tests/unit/jobs/test_a_paused_page_is_paused_not_failed_5919.py` (the tripwire test, delete when #5921 is closed).
+- `workflows.text-reflow.ai-refinement-works` — **[OK]** (**Owner ruling 2026-11-02, #5921: REMOVE the option.** Step 1.5: `use_ai_refinement`, `_refine_with_llm` and its Activity note are deleted from `workflows/tools/text_reflow.py`, the tool no longer claims a model, and a stored workflow that still names the key is accepted and ignored with no error; no preset or app setting named it. Pinned by `fichero-server/tests/unit/workflows/test_text_reflow_has_no_ai_option_5921.py`.) Was: (#5921, found 2026-10-20 by the M4 run of the pause tests) the Text Reflow step's optional AI refinement (`use_ai_refinement`) has never worked: it imports `call_llm_with_cache` from `fichero_server.llm`, which defines no such function, so every run raised ImportError, swallowed into "return the heuristic text". Rule: an option that is on either refines or says why it could not; a broken import is not a provider failure. Today: a page with the option on keeps its reflowed text and the run says once, as an Activity warning, "AI refinement isn't available yet (#5921)" (not one per page, and no raw import error); fixing or removing the option is a separate owner decision. Pinned by `fichero-server/tests/unit/jobs/test_a_paused_page_is_paused_not_failed_5919.py` (the tripwire test, delete when #5921 is closed).
 - `workflows.canvas.edge-legality-matches-engine` — **[OK]** (fixed: 76595815b6 made the engine's table the one owner and decided the six conversions, #4478; 12632c83b7 made the canvas derive `canConnect` from the served table, #4477; verified 2026-11-02: `PortConnectionRules.canConnect` has no table of its own.) Was: the canvas's
   `canConnect` allows five conversions the engine's `validate_port_connection`
   rejects (`json→text`, `array→json`, `array→text`, `image→file`,
@@ -490,9 +490,9 @@ Engine only, one pytest per step. Each step flips its tags only with its test gr
 - Tests: fichero-server/tests/unit/workflows/test_stop_at_every_boundary_to_spec.py
 - Size: M
 
-#### Step 1.5 — Text Reflow's AI refinement refines or says why; wait for the owner's ruling to fix or remove the option first (#5921)
+#### Step 1.5 — Text Reflow's AI refinement refines or says why; remove the option (owner ruling 2026-11-02, #5921)
 - Behaviours: `workflows.text-reflow.ai-refinement-works`
-- Tests: fichero-server/tests/unit/jobs/test_a_paused_page_is_paused_not_failed_5919.py
+- Tests: fichero-server/tests/unit/workflows/test_text_reflow_has_no_ai_option_5921.py
 - Size: S
 
 #### Step 1.6 — Engine served-contract gaps: ports, requires-vision, lazy source node (#4736, #4390)

@@ -4,13 +4,13 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-Join soft-wrapped lines within paragraphs, preserve paragraph structure, and de-hyphenate words split across line breaks. Optional AI refinement pass available for edge-case word joins.
+Join soft-wrapped lines within paragraphs, preserve paragraph structure, and de-hyphenate words split across line breaks.
 
 | | |
 | --- | --- |
 | Tool id | `text_reflow` |
 | Category | transform |
-| Uses a language model | yes |
+| Uses a language model | no |
 | Needs a generative model | no |
 | Runs over many items | yes |
 | Item handling | batch |
@@ -31,9 +31,7 @@ Join soft-wrapped lines within paragraphs, preserve paragraph structure, and de-
 
 ## Options
 
-| Option | Type | Default | What it does |
-| --- | --- | --- | --- |
-| `use_ai_refinement` | boolean | no | Optional: Call LLM to refine reflowed text and catch edge-case word joins. Disabled by default; programmatic reflow is sufficient for most cases. |
+This tool has no options.
 
 ## The prompt it sends
 
