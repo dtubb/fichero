@@ -118,6 +118,7 @@ def main(argv=None) -> int:
     q.add_argument("action", nargs="?", choices=["add", "run", "pause", "resume"])
     q.add_argument("--lane"), q.add_argument("--worktree"), q.add_argument("--step"), q.add_argument("--brief"), q.add_argument("--issues", type=int, nargs="*", default=[])
     q.add_argument("--push", action="store_true"), q.add_argument("--once", action="store_true"), q.add_argument("--tick", type=float, default=30.0)
+    q.add_argument("--gh", default="gh", help="resume: the gh that takes needs-your-decision off the resumed steps' issues")
     q.add_argument("--lanes", type=int, default=1, help="run: how many build-order milestones are worked at once, each by its own long-running worker; an empty one gives its lane the next milestone no lane holds; checks stay one at a time")
     q.add_argument("--root", default=str(Path.cwd())), q.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
     bd = sub.add_parser("build", help="the dev DMG through the project's own script, as the owner: one journal row, the DMG's path and pass or fail; a full release is refused")
