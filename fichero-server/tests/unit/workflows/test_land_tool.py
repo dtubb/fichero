@@ -153,8 +153,29 @@ def test_the_review_cap_refuses_one_byte_past_it_and_the_default_takes_a_step_a_
     assert len(L.review_diff(tmp_path, base, "HEAD")) > 166636, "a real range of 166636 bytes was refused at 150000"
     (tmp_path / "big.txt").write_text("z" * 300001 + "\n")
     g("commit", "-q", "--amend", "-am", "more")
-    with pytest.raises(ValueError, match="300000 cap"):
+    with pytest.raises(ValueError, match="280000 cap"):  # the default is the 200k-token reviewer window's cap
         L.review_diff(tmp_path, base, "HEAD")
+    assert L.review_cap(200_000) == 280_000 and L.review_cap(1_000_000) == 1_400_000, "40% of the window at 3.5 bytes a token"
+
+
+def test_a_range_over_the_cap_splits_into_consecutive_groups_that_each_fit_and_lose_nothing(tmp_path):
+    """The reviewer reads a big range group by group, never truncated: every group fits, together they are the whole range."""
+    g, base = _repo(tmp_path)
+    shas = []
+    for i in range(3):
+        (tmp_path / f"f{i}.txt").write_text(f"{i}" * 30000 + "\n")
+        g("add", "."), g("commit", "-qm", f"c{i}")
+        shas.append(g("rev-parse", "HEAD"))
+    whole = L.review_diff(tmp_path, base, "HEAD", cap=10**6)
+    groups = L.review_groups(tmp_path, base, shas[-1], cap=70000)
+    assert groups == [(base, shas[1]), (shas[1], shas[2])], "two commits fit, the third starts a group"
+    assert "\n".join(L.review_diff(tmp_path, b, h, cap=70000) for b, h in groups) == whole, "nothing dropped or repeated"
+    exact = L.review_groups(tmp_path, base, shas[-1], cap=len(L.review_diff(tmp_path, base, shas[1], cap=10**6)))
+    assert exact == [(base, shas[1]), (shas[1], shas[2])], "a group exactly at the cap is taken, the blank line between entries counted"
+    assert L.review_groups(tmp_path, base, shas[-1], cap=10**6) == [(base, shas[-1])], "a range that fits is one group"
+    assert L.review_groups(tmp_path, base, base, cap=70000) == [], "an empty range has no group"
+    with pytest.raises(ValueError, match="alone"):  # one commit bigger than the cap cannot be split: refused, never cut
+        L.review_groups(tmp_path, base, shas[-1], cap=20000)
 
 
 def test_the_review_diff_is_never_truncated_and_binary_is_refused(tmp_path):  # review 4 B4

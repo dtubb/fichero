@@ -71,10 +71,54 @@ def test_a_diff_over_the_cap_is_refused_not_truncated(tmp_path):  # review 4 B4
     (tmp_path / "r" / "zz.txt").write_text("z" * 70000 + "\n")
     g("add", "."), g("commit", "-q", "-m", "big")
     (tmp_path / "p").mkdir()
-    (tmp_path / "p" / "harness.toml").write_text('[land]\nbranch = "landbr"\n')
+    # the cap is 40% of the reviewer's window at 3.5 bytes a token: 20000 tokens -> 28000 bytes; one commit cannot be split
+    (tmp_path / "p" / "harness.toml").write_text('[land]\nbranch = "landbr"\n[models]\nreviewer = { provider = "claude-code", model = "opus", context = 20000 }\n')
     r = subprocess.run([sys.executable, str(SCRIPT), str(tmp_path / "r"), "HEAD", "--pinned", str(tmp_path / "p"),
                         "--verdicts", str(tmp_path / "v.json"), "--print"], capture_output=True, text=True)
-    assert r.returncode and "cap" in r.stderr
+    assert r.returncode and "28000 cap" in r.stderr and "alone" in r.stderr
+
+
+def _split_run(tmp_path, replies):
+    """Two 20 KB commits over a 28000-byte cap: two groups, one reviewer call each; `replies` are the calls' last lines."""
+    def g(*a):
+        subprocess.run(["git", "-C", str(tmp_path / "r"), "-c", "user.name=t", "-c", "user.email=t@t", *a], check=True, capture_output=True)
+    (tmp_path / "r").mkdir()
+    g("init", "-q", "-b", "main")
+    (tmp_path / "r" / "a.py").write_text("x = 1\n")
+    g("add", "."), g("commit", "-q", "-m", "base"), g("branch", "landbr")
+    for n in ("one", "two"):
+        (tmp_path / "r" / f"{n}.txt").write_text(n[0] * 20000 + "\n")
+        g("add", "."), g("commit", "-q", "-m", n)
+    (tmp_path / "replies").write_text("\n".join(replies) + "\n")
+    bin_ = tmp_path / "bin"
+    bin_.mkdir()
+    (bin_ / "claude").write_text(f"#!/bin/sh\nn=$(($(cat {tmp_path}/calls 2>/dev/null || echo 0) + 1)); echo $n > {tmp_path}/calls\n"
+                                 f"cat > {tmp_path}/prompt$n\nsed -n ${{n}}p {tmp_path}/replies\n")
+    (bin_ / "claude").chmod(0o755)
+    (tmp_path / "p").mkdir()
+    (tmp_path / "p" / "harness.toml").write_text('[land]\nbranch = "landbr"\n[models]\nreviewer = { provider = "claude-code", model = "opus", context = 20000 }\n')
+    (tmp_path / "own").mkdir(mode=0o700)
+    store = tmp_path / "own" / "v.json"
+    r = subprocess.run([sys.executable, str(SCRIPT), str(tmp_path / "r"), "HEAD", "--pinned", str(tmp_path / "p"), "--verdicts", str(store)],
+                       env={**os.environ, "PATH": f"{bin_}:{os.environ['PATH']}"}, capture_output=True, text=True)
+    return r, store
+
+
+def test_a_range_over_the_cap_is_reviewed_group_by_group_and_ready_only_if_every_group_is(tmp_path):
+    r, store = _split_run(tmp_path, ["READY", "READY"])
+    assert r.returncode == 0, r.stderr
+    assert (tmp_path / "calls").read_text().strip() == "2", "one reviewer call per group"
+    p1, p2 = (tmp_path / "prompt1").read_text(), (tmp_path / "prompt2").read_text()
+    assert "o" * 20000 in p1 and "t" * 20000 not in p1 and "t" * 20000 in p2 and "o" * 20000 not in p2, "each group whole, in order"
+    assert "group 1 of 2" in p1 and "group 2 of 2" in p2
+    v = json.loads(store.read_text())
+    assert len(v) == 1 and len(next(iter(v.values()))["commits"]) == 2, "one verdict for the whole range"
+
+
+def test_one_group_not_ready_writes_no_verdict(tmp_path):
+    r, store = _split_run(tmp_path, ["READY", "NOT READY: no test"])
+    assert r.returncode == 1 and not store.exists()
+    assert "NOT READY: no test" in r.stdout
 
 
 def test_the_reviewer_gets_a_read_only_checkout_of_the_head_outside_its_cwd(tmp_path):  # first real review, 2026-11-01
