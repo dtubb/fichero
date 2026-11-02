@@ -46,6 +46,9 @@ def provide(root, say=print) -> str:
     want = str(script.stat().st_mtime_ns)
     w = Path(t["workroot"]) / "bin" / "jcodemunch-mcp"
     try:
+        for d in (home, w.parent):  # the workroot is world-writable: a worker's link here would have the owner copy and chmod through it
+            if d.is_symlink() or (d.exists() and d.stat().st_uid != os.getuid()):
+                raise OSError(f"{d} is not this user's folder")
         if not (w.is_file() and stamp.is_file() and stamp.read_text() == want):
             home.mkdir(parents=True, exist_ok=True)
             tmp = home / "venv.tmp"

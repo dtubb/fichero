@@ -17,6 +17,7 @@ import re
 import shlex
 import subprocess
 import sys
+import tempfile
 import time
 import tomllib
 import types
@@ -232,8 +233,9 @@ def real_procs(root) -> Procs:
         if r.returncode:
             raise RuntimeError(f"the lane's worktree could not be made: {(r.stderr or r.stdout).strip()[-300:]}")
         j = work._jail(a)
-        feed = Path(j.workroot) / f"inbox-{lane['id']}-{lane['seq']}"  # the owner's folder: a worker cannot write its own next brief
-        feed.mkdir(parents=True, exist_ok=True)
+        # the owner's folder: a worker cannot write its own next brief. The workroot is world-writable, so the name is one no worker can
+        # plant a link at: made exclusively, then opened to reading (the sticky bit keeps a worker from replacing it)
+        feed = Path(tempfile.mkdtemp(prefix=f"inbox-{lane['id']}-{lane['seq']}-", dir=j.workroot))
         feed.chmod(0o755)
         lane["feed"] = str(feed)
         codemap.provide(root)

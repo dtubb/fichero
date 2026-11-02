@@ -92,3 +92,12 @@ def test_the_standing_rules_tell_the_worker_to_find_code_with_the_map():
     rules = tomllib.loads((Path(codemap.__file__).resolve().parents[2] / "harness.toml").read_text())
     assert "search_symbols" in rules["brief"]["rules"] and "Read only a file you edit" in rules["brief"]["rules"]
     assert rules["jail"]["code_map"].startswith("~/"), "no owner path in the public rules file beyond what ~ means"
+
+
+def test_a_planted_install_folder_refuses_the_copy_and_touches_nothing_behind_it(world, tmp_path, capsys):
+    """The workroot is world-writable: a worker's symlink at `jcodemunch` would have the owner copy and chmod through it."""
+    private = tmp_path / "private"
+    private.mkdir()
+    (world.wr / "jcodemunch").symlink_to(private)
+    assert codemap.provide(world.root) == ""
+    assert list(private.iterdir()) == [] and "not provided" in capsys.readouterr().out
