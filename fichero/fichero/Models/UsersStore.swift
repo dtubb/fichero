@@ -162,8 +162,9 @@ final class UsersStore {
         await load()
     }
 
+    /// Every route here is gated by Multi-user, so a 404 means accounts are off (`sharing.undocumented-never-reaches-the-person`).
     private static func error(from response: some Sendable) -> UsersStoreError {
-        UsersStoreError(message: "\(response)")
+        UsersStoreError(message: PersonFacingError.message(forResponse: response, context: .init(accountsOff: true)))
     }
 }
 
