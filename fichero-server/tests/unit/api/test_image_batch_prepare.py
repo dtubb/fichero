@@ -108,3 +108,67 @@ def test_a_turn_is_copied_as_degrees_and_a_square_needs_its_four_corners(db, tmp
     assert _ops(db, docs[1].id)[0]["params"] == {"angle": 90.0, "expand": True}
     bad = client.post("/api/images/batch-prepare/preview", json=_params(folder, docs, {"op": "square"}))
     assert bad.status_code == 422
+
+
+# --- POST /api/images/batch-apply takes every image operation (`prep.cleanup.*`, #6192) -----------------------------
+from tests.unit.api.test_batch_image_apply import batch_manager  # noqa: E402,F401  (the library's batch manager)
+
+
+def _apply(client, folder, operation, **extra):
+    return client.post("/api/images/batch-apply", json={"folder_id": folder.id, "operation": operation, **extra})
+
+
+def test_batch_apply_adds_a_stamped_step_for_a_non_crop_operation_on_every_page(db, client, batch_manager):  # noqa: F811
+    folder, docs = _folder(db, 4)
+    got = _apply(client, folder, "rotate", params={"angle": 90})
+    assert got.status_code == 200, got.text
+    batch_id = got.json()["batch_id"]
+    assert got.json()["status"] == "completed"
+    for doc in docs:
+        (step,) = _ops(db, doc.id)
+        assert step["op"] == "rotate" and step["params"] == {"angle": 90} and step["batch_id"] == batch_id
+
+
+def test_batch_apply_takes_the_other_operations_too(db, client, batch_manager):  # noqa: F811
+    folder, docs = _folder(db, 2)
+    for operation, params in [("contrast", {"factor": 1.3}), ("grayscale", {}), ("flip_horizontal", {})]:
+        assert _apply(client, folder, operation, params=params).status_code == 200, operation
+    assert [op["op"] for op in _ops(db, docs[0].id)] == ["contrast", "grayscale", "flip_horizontal"]
+
+
+def test_preview_three_shows_first_middle_last_before_and_after_and_writes_nothing(db, client, batch_manager):  # noqa: F811
+    folder, docs = _folder(db, 7)
+    got = client.post("/api/images/batch-apply?preview=3", json={
+        "folder_id": folder.id, "operation": "rotate", "params": {"angle": 90}})
+    assert got.status_code == 200, got.text
+    body = got.json()
+    assert [p["document_id"] for p in body["previews"]] == [docs[0].id, docs[3].id, docs[6].id]
+    assert body["pages"] == 7
+    first = body["previews"][0]
+    before = Image.open(io.BytesIO(base64.b64decode(first["before_base64"])))
+    after = Image.open(io.BytesIO(base64.b64decode(first["after_base64"])))
+    assert before.size == (200, 120) and after.size == (120, 200), "the after is the page turned a quarter"
+    assert all(_ops(db, d.id) == [] for d in docs), "a preview adds no step"
+    assert all(a.action_name != "batch.create" for a in db.query(ActionAudit)), "and starts no batch"
+
+
+def test_undo_on_the_batch_removes_every_step_it_added_and_only_those(db, client, batch_manager):  # noqa: F811
+    folder, docs = _folder(db, 3)
+    registry.invoke(db, "image.rotate", {"document_id": docs[0].id, "angle": 90}, _ctx(db.path.parent))
+    kept = list(_ops(db, docs[0].id))
+    batch_id = _apply(client, folder, "contrast", params={"factor": 1.2}).json()["batch_id"]
+    assert all(len(_ops(db, d.id)) >= 1 for d in docs)
+
+    undone = client.post(f"/api/images/batch-apply/{batch_id}/undo")
+
+    assert undone.status_code == 200 and set(undone.json()["removed_step_document_ids"]) == {d.id for d in docs}
+    assert _ops(db, docs[0].id) == kept, "the person's own earlier step stays"
+    assert all(_ops(db, d.id) == [] for d in docs[1:])
+
+
+def test_deleting_one_pages_step_leaves_the_rest_of_the_batch(db, client, batch_manager):  # noqa: F811
+    folder, docs = _folder(db, 3)
+    batch_id = _apply(client, folder, "contrast", params={"factor": 1.2}).json()["batch_id"]
+    registry.invoke(db, "image.undo_batch_page", {"document_id": docs[1].id, "batch_id": batch_id}, _ctx(db.path.parent))
+    assert _ops(db, docs[1].id) == []
+    assert all(_ops(db, d.id)[0]["batch_id"] == batch_id for d in (docs[0], docs[2]))

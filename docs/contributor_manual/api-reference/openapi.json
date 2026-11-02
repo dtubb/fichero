@@ -26984,9 +26984,23 @@
           "images"
         ],
         "summary": "Batch Apply Image Operation",
-        "description": "Apply one reversible crop or split spec to every image under a folder.",
+        "description": "Apply one reversible image operation to every image under a folder: `crop` and `split` make child documents; any\nother operation adds a step to each page's edit chain, stamped with this batch's id. `?preview=3` returns the first,\nmiddle and last page before and after and writes nothing.",
         "operationId": "batch_apply_image_operation_api_images_batch_apply_post",
         "parameters": [
+          {
+            "name": "preview",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 3,
+              "minimum": 1,
+              "nullable": true,
+              "description": "3: show three sample pages before and after; nothing is written",
+              "title": "Preview"
+            },
+            "description": "3: show three sample pages before and after; nothing is written"
+          },
           {
             "name": "X-Fichero-Origin-Window",
             "in": "header",
@@ -27024,7 +27038,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BatchResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/BatchResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/BatchApplyPreview"
+                    }
+                  ],
+                  "title": "Response Batch Apply Image Operation Api Images Batch Apply Post"
                 }
               }
             }
@@ -54801,6 +54823,58 @@
         ],
         "title": "BakeoffUseRequest"
       },
+      "BatchApplyPreview": {
+        "properties": {
+          "previews": {
+            "items": {
+              "$ref": "#/components/schemas/BatchApplyPreviewItem"
+            },
+            "type": "array",
+            "title": "Previews"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages",
+            "description": "how many pages the batch would change"
+          }
+        },
+        "type": "object",
+        "required": [
+          "previews",
+          "pages"
+        ],
+        "title": "BatchApplyPreview"
+      },
+      "BatchApplyPreviewItem": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "before_base64": {
+            "type": "string",
+            "title": "Before Base64",
+            "description": "the page as it is, a small JPEG"
+          },
+          "after_base64": {
+            "type": "string",
+            "title": "After Base64",
+            "description": "the page with the operation applied, a small JPEG; nothing is written"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "name",
+          "before_base64",
+          "after_base64"
+        ],
+        "title": "BatchApplyPreviewItem"
+      },
       "BatchClaimCurationRequest": {
         "properties": {
           "claim_ids": {
@@ -54986,7 +55060,23 @@
             "type": "string",
             "enum": [
               "crop",
-              "split"
+              "split",
+              "rotate",
+              "straighten",
+              "flip_horizontal",
+              "flip_vertical",
+              "brightness",
+              "contrast",
+              "sharpen",
+              "auto_levels",
+              "enhance",
+              "fuzzy_clean",
+              "denoise",
+              "adaptive_binarize",
+              "grayscale",
+              "remove_background",
+              "auto_crop_border",
+              "square"
             ],
             "title": "Operation"
           },
@@ -55034,6 +55124,12 @@
             "type": "array",
             "nullable": true,
             "title": "Bboxes"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params",
+            "description": "the step's settings, for an operation that adds a chain step"
           }
         },
         "type": "object",
@@ -55055,6 +55151,13 @@
             },
             "type": "array",
             "title": "Deleted Child Ids"
+          },
+          "removed_step_document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Removed Step Document Ids"
           }
         },
         "type": "object",

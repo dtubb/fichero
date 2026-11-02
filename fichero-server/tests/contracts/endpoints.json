@@ -5684,9 +5684,15 @@
         "operation_id": "batch_apply_image_operation_api_images_batch_apply_post",
         "summary": "Batch Apply Image Operation",
         "path_params": [],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "preview",
+            "required": false,
+            "type": "integer"
+          }
+        ],
         "request_model": "BatchImageApplyRequest",
-        "response_model": "BatchResponse"
+        "response_model": null
       },
       {
         "method": "POST",

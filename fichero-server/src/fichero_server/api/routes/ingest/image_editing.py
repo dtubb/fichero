@@ -204,14 +204,33 @@ class ImageBatchCropResponse(BaseModel):
 
 class BatchImageApplyRequest(BaseModel):
     folder_id: str
-    operation: Literal["crop", "split"]
+    operation: Literal[
+        "crop", "split", "rotate", "straighten", "flip_horizontal", "flip_vertical", "brightness", "contrast", "sharpen",
+        "auto_levels", "enhance", "fuzzy_clean", "denoise", "adaptive_binarize", "grayscale", "remove_background",
+        "auto_crop_border", "square",
+    ]
     bbox: tuple[int, int, int, int] | None = None
     bboxes: list[tuple[int, int, int, int]] | None = None
+    params: dict[str, Any] = Field(default_factory=dict, description="the step's settings, for an operation that adds a chain step")
 
 
 class BatchImageUndoResponse(BaseModel):
     batch_id: str
     deleted_child_ids: list[str]
+    #: Pages whose chain lost the step this batch added.
+    removed_step_document_ids: list[str] = Field(default_factory=list)
+
+
+class BatchApplyPreviewItem(BaseModel):
+    document_id: str
+    name: str
+    before_base64: str = Field(description="the page as it is, a small JPEG")
+    after_base64: str = Field(description="the page with the operation applied, a small JPEG; nothing is written")
+
+
+class BatchApplyPreview(BaseModel):
+    previews: list[BatchApplyPreviewItem]
+    pages: int = Field(description="how many pages the batch would change")
 
 
 def _get_or_404_document(db: Database, document_id: str) -> Document:
@@ -1183,24 +1202,74 @@ async def segment_image(
     return ImageEditChainResponse.model_validate(result.result)
 
 
-@router.post("/batch-apply", response_model=BatchResponse)
+def _sample_pages(images: list[Document], db: Database, count: int) -> list[Document]:
+    """`count` pages spread over the folder in the project's page order: 3 is the first, the middle and the last."""
+    order = {doc_id: i for i, doc_id in enumerate(db.unit_of_work_ids())}
+    pages = sorted(images, key=lambda d: (order.get(d.id, len(order)), d.name))
+    if len(pages) <= count:
+        return pages
+    last = len(pages) - 1
+    return [pages[i] for i in sorted({round(k * last / (count - 1)) for k in range(count)})] if count > 1 else pages[:1]
+
+
+def _chain_step(request: BatchImageApplyRequest) -> dict[str, Any]:
+    return {"op": request.operation, "page": 1, "params": dict(request.params)}
+
+
+def _batch_apply_preview(db: Database, images: list[Document], request: BatchImageApplyRequest, count: int) -> BatchApplyPreview:
+    import base64
+
+    if request.operation == "split":
+        raise HTTPException(status_code=422, detail="A split makes new pages and has no before/after preview")
+    if request.operation == "crop":
+        if request.bbox is None:
+            raise HTTPException(status_code=422, detail="Crop batch requires bbox")
+        step = {"op": "crop", "page": 1, "params": dict(zip(("left", "top", "width", "height"), request.bbox, strict=True))}
+    else:
+        step = _chain_step(request)
+
+    def small(picture: Image.Image) -> str:
+        picture = picture.copy()
+        picture.thumbnail((480, 480))
+        out = io.BytesIO()
+        picture.convert("RGB").save(out, format="JPEG", quality=80)
+        return base64.b64encode(out.getvalue()).decode("ascii")
+
+    previews = []
+    for doc in _sample_pages(images, db, count):
+        source_path, page = _resolve_source_and_page(db, doc, 1)
+        before = _load_source_image(source_path, page=page)
+        after = _apply_operation(before, {**step, "page": page})
+        previews.append(BatchApplyPreviewItem(document_id=doc.id, name=doc.name, before_base64=small(before),
+                                              after_base64=small(after)))
+    return BatchApplyPreview(previews=previews, pages=len(images))
+
+
+@router.post("/batch-apply", response_model=BatchResponse | BatchApplyPreview)
 async def batch_apply_image_operation(
     request: BatchImageApplyRequest,
+    preview: int | None = Query(default=None, ge=1, le=3, description="3: show three sample pages before and after; nothing is written"),
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
-) -> BatchResponse:
-    """Apply one reversible crop or split spec to every image under a folder."""
+) -> BatchResponse | BatchApplyPreview:
+    """Apply one reversible image operation to every image under a folder: `crop` and `split` make child documents; any
+    other operation adds a step to each page's edit chain, stamped with this batch's id. `?preview=3` returns the first,
+    middle and last page before and after and writes nothing."""
     images = _folder_images(db, request.folder_id)
     if not images:
         raise HTTPException(status_code=422, detail="Folder has no image documents")
+    if preview is not None:
+        return await asyncio.to_thread(_batch_apply_preview, db, images, request, preview)
     if request.operation == "crop":
         if request.bbox is None:
             raise HTTPException(status_code=422, detail="Crop batch requires bbox")
         operation_request: CropOperationRequest | ImageSplitRequest = CropOperationRequest(
             left=request.bbox[0], top=request.bbox[1], width=request.bbox[2], height=request.bbox[3]
         )
-    else:
+    elif request.operation == "split":
         operation_request = ImageSplitRequest(bboxes=request.bboxes)
+    else:
+        operation_request = None  # a chain step: no request model, the step is built from `params`
 
     inputs = [
         {"source_id": image.id, "operation": request.operation, "child_ids": []}
@@ -1236,6 +1305,16 @@ async def batch_apply_image_operation(
             workflow_id=batch.workflow_id,
         )
         try:
+            if operation_request is None:
+                await asyncio.to_thread(_append_batch_step, db, image, request, batch.batch_id)
+                item.inputs["chain_document_id"] = image.id
+                item.status = BatchItemStatus.COMPLETED
+                item.completed_at = datetime.now(timezone.utc)
+                manager.activity_tracker.batch_item_completed(
+                    batch_id=batch.batch_id, thread_id=item.thread_id, item_index=item.item_index, duration_ms=0,
+                    workflow_id=batch.workflow_id)
+                await manager._save_batch(batch)
+                continue
             action_name = "image.crop_child" if request.operation == "crop" else "image.split"
             result = await asyncio.to_thread(
                 registry.invoke,
@@ -1295,6 +1374,12 @@ async def batch_apply_image_operation(
     return BatchResponse.from_batch(batch, include_items=True)
 
 
+def _append_batch_step(db: Database, image: Document, request: BatchImageApplyRequest, batch_id: str) -> None:
+    source_path, page = _resolve_source_and_page(db, image, 1)
+    step = {**_chain_step(request), "page": page, "who": "person", "batch_id": batch_id}
+    _render_and_append(db, image.id, source_path, step, page)
+
+
 @router.post("/batch-apply/{batch_id}/undo", response_model=BatchImageUndoResponse)
 async def undo_batch_image_operation(
     batch_id: str,
@@ -1310,13 +1395,17 @@ async def undo_batch_image_operation(
         for item in batch.items
         for child_id in item.inputs.get("child_ids", [])
     ]
+    stepped = [item.inputs["chain_document_id"] for item in batch.items if item.inputs.get("chain_document_id")]
+    for document_id in stepped:  # a chain batch: the step it added leaves each page's chain, the other steps stay
+        kept = [op for op in _chain_ops_snapshot(db, document_id) if op.get("batch_id") != batch_id]
+        await asyncio.to_thread(set_operations_impl, db, document_id, kept)
     for child_id in child_ids:
         child = db.get(Document, child_id)
         if child and child.deleted_at is None:
             await asyncio.to_thread(
                 registry.invoke, db, "document.delete", {"doc_id": child_id}, ctx
             )
-    return BatchImageUndoResponse(batch_id=batch_id, deleted_child_ids=child_ids)
+    return BatchImageUndoResponse(batch_id=batch_id, deleted_child_ids=child_ids, removed_step_document_ids=stepped)
 
 
 @router.post("/crops/batch", response_model=ImageBatchCropResponse)
