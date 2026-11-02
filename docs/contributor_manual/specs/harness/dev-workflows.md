@@ -492,11 +492,11 @@ the write path would produce.
   `heavy.lock` in the owner's state dir (`journal.heavy`). xcodebuild (the build rung), the full engine suite (the pytest runs of a check,
   `builder test` and `verify-all` that run here) and the guards rung take it, so `builder check`, the loop's chains, `builder build --dev`,
   `builder verify-all` and `builder test` take it through them; the dev build takes it around its script. A suite sent to
-  `[check].remote` takes no local lock (the iMac's own lock is still to be built). A lane or the manager runs any other heavy command with
+  `[check].remote` takes no local lock; the remote script runs under that machine's own `heavy.lock` in its gate dir (the remote python holds the flock while the script runs; test `::test_the_remote_wrapper_holds_the_machines_lock_while_its_script_runs_and_passes_the_exit_code`). A lane or the manager runs any other heavy command with
   `builder heavy -- <cmd>`: it waits, says who holds the lock after 30 s (the lock's own waiting row and a line on stderr), and its child
   passes through the lock it holds (`FICHERO_HEAVY_HELD`), so a `builder test` run inside it never deadlocks. Quick things (ruff, swiftlint,
   `swiftc -parse`, one test file) never ask. Two checks at once (`[check].parallel`) therefore overlap only in their quick rungs and the
-  remote runs. **Built** 2026-11-02: `journal.heavy`, `check_tool._heavy`, `builder heavy`. Not yet: the iMac's own lock; a real wait.
+  remote runs. **Built** 2026-11-02: `journal.heavy`, `check_tool._heavy`, `builder heavy`. Not yet: a real wait on the iMac.
   Tests: `fichero-builder/tests/test_heavy_lock.py::test_a_second_heavy_job_waits_and_a_wait_over_the_limit_names_the_holder`,
   `::test_builder_heavy_runs_the_command_under_the_lock_and_its_children_pass_through`,
   `::test_the_guards_rung_the_build_rung_and_a_local_full_suite_take_it_a_remote_suite_does_not`, `::test_the_dev_build_takes_the_lock`.

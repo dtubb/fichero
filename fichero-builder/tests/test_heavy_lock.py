@@ -76,3 +76,20 @@ def test_the_dev_build_takes_the_lock(state, monkeypatch, tmp_path):
     subprocess.run(["git", "init", "-q", str(root)], check=True)
     assert cli.main(["build", "--dev", "--root", str(root), "--state", str(state)]) == 0
     assert held == ["the dev build"]
+
+
+def test_the_remote_wrapper_holds_the_machines_lock_while_its_script_runs_and_passes_the_exit_code(tmp_path):
+    """The iMac's own lock (owner 2026-11-02): the wrapper `_remote_run` puts round a remote script serialises two runs on the
+    lock file and returns the script's exit code; run here with the local python standing in for the remote one."""
+    import shlex
+    import time
+    lock = str(tmp_path / "heavy.lock")
+    log = tmp_path / "log"
+    one = check_tool._remote_heavy(sys.executable, lock, f"echo a-start >> {log}; sleep 1; echo a-end >> {log}; exit 7")
+    two = check_tool._remote_heavy(sys.executable, lock, f"echo b-start >> {log}; echo b-end >> {log}")
+    p1 = subprocess.Popen(["sh", "-c", one])
+    time.sleep(0.4)
+    p2 = subprocess.Popen(["sh", "-c", two])
+    assert p1.wait(10) == 7 and p2.wait(10) == 0
+    assert log.read_text().split() == ["a-start", "a-end", "b-start", "b-end"], "the second waited for the first"
+    assert shlex.split(one)[0] == sys.executable

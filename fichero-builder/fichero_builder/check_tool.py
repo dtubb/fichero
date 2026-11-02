@@ -336,6 +336,16 @@ def _drop_remote(cfg: Config) -> None:
         _DOWN.clear()
 
 
+_LOCK_CODE = ("import fcntl, os, subprocess, sys; f = open(sys.argv[1], 'a'); fcntl.flock(f, fcntl.LOCK_EX); "
+              "sys.exit(subprocess.call(['/bin/sh', '-c', sys.argv[2]]))")
+
+
+def _remote_heavy(py: str, lock: str, script: str) -> str:
+    """`script` on the remote under that machine's own one-heavy-job lock (a flock file in its gate dir, held while the script runs;
+    macOS has no flock(1), so the remote python takes it). Owner order 2026-11-02: one heavy job at a time per machine."""
+    return shlex.join([py, "-c", _LOCK_CODE, lock, script])
+
+
 def _remote_run(name, argv, root, timeout_s, cfg: Config, extra: dict | None, cwd) -> dict | None:
     """The same pytest command on [check].remote over the shipped tree: local paths become the copy's, the interpreter the
     remote's, the env the rung's own keys (a fresh base dir there). None when the remote cannot be reached: one alert row,
@@ -354,6 +364,7 @@ def _remote_run(name, argv, root, timeout_s, cfg: Config, extra: dict | None, cw
     bp = f'{cfg.base_path_env}="$B" ' if cfg.base_path_env else ""
     script = (f'cd {shlex.quote(sub(cwd or root))} && B=$(mktemp -d) && env -i HOME="$HOME" PATH=/usr/bin:/bin {kv} {bp}'
               f'{shlex.join(cmd)}; rc=$?; rm -rf "$B"; exit $rc')
+    script = _remote_heavy(py, f"{rdir.rsplit('/', 1)[0]}/heavy.lock", script)  # the iMac's own lock
     r = run_command(name, ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host, script], root, timeout_s, None, as_jail=False)
     if r["exit_code"] == 255:  # ssh's own failure, never pytest's
         return _remote_down(cfg, r["stderr_tail"][-200:])

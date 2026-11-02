@@ -902,7 +902,7 @@ def test_a_remote_runner_runs_the_engine_pytest_there_and_an_unreachable_one_ale
     where = (tmp_path / "ran").read_text().split()
     assert len(where) == 2 and where[0] == where[1] and where[0].startswith(str(tmp_path / "gate" / "run-")), "one copy, shipped once"
     ct._drop_remote(cfg)
-    assert list((tmp_path / "gate").iterdir()) == [], "the copy is removed at the end"
+    assert [x.name for x in (tmp_path / "gate").iterdir()] == ["heavy.lock"], "the copy is removed at the end; the machine's lock file stays"
     (tmp_path / "down").write_text("")
     r = ct.pytest_rung(tree, ["test_where.py"], cfg, timeout_s=120)
     assert r["ok"] and "remote" not in r, "unreachable: the same tests ran here"
