@@ -80,6 +80,7 @@ def main(argv=None) -> int:
     c.add_argument("since"), c.add_argument("head")
     c.add_argument("--pinned", required=True)
     c.add_argument("--id", action="append", default=[])
+    c.add_argument("--approve-pinned-new", action="store_true", help="the manager approved this range's new files under a pinned path: recorded in the pinned-checks row, not refused")
     c.add_argument("--approve-red", action="store_true", help="the manager approved this range's red-on-base refusal (a test that passes on base by design): recorded in the row")
     c.add_argument("--approve-weakened", action="store_true", help="the manager approved this range's weakened tests (an owner ruling): recorded in the pinned-checks row, not refused")
     c.add_argument("--maintainer", action="store_true", help="a maintainer batch: a changed pinned file is recorded in the pinned-checks row, not refused; point --pinned at the candidate's own tree")
@@ -369,7 +370,8 @@ def main(argv=None) -> int:
             return 1
         try:
             check_tool.ACTIVITY = lambda **kw: journal.append("activity", lane="by hand", **kw)  # console view A sees a check run by hand
-            r = check_tool.ladder_over(a.repo, since, head, a.pinned, a.id, maintainer=a.maintainer, approve_weakened=a.approve_weakened, approve_red=a.approve_red)
+            r = check_tool.ladder_over(a.repo, since, head, a.pinned, a.id, maintainer=a.maintainer, approve_weakened=a.approve_weakened, approve_red=a.approve_red,
+                                       approve_pinned_new=a.approve_pinned_new)
         except check_tool.EmptyRange:  # the shared refusal, also `builder work`'s
             print(f"REFUSED: {a.since}..{a.head} is empty: nothing to check", file=sys.stderr)
             return 1

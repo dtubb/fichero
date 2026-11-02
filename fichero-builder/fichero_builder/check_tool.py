@@ -737,15 +737,16 @@ class EmptyRange(RuntimeError):
 
 
 def ladder_over(root, since_sha: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool = False,
-                approve_red: bool = False) -> dict:
+                approve_red: bool = False, approve_pinned_new: bool = False) -> dict:
     """The one way `builder check` and `builder work` run the ladder: an empty range is refused, never judged."""
     if since_sha == head:
         raise EmptyRange(f"{since_sha[:9]}..{head[:9]} is empty: nothing to check")
-    return run_ladder(root, since_sha, head, pinned, list(protected_ids), maintainer=maintainer, approve_weakened=approve_weakened, approve_red=approve_red)
+    return run_ladder(root, since_sha, head, pinned, list(protected_ids), maintainer=maintainer, approve_weakened=approve_weakened, approve_red=approve_red,
+                      approve_pinned_new=approve_pinned_new)
 
 
 def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_required: bool = True, maintainer: bool = False,
-               approve_weakened: bool = False, approve_red: bool = False) -> dict:
+               approve_weakened: bool = False, approve_red: bool = False, approve_pinned_new: bool = False) -> dict:
     """The project's whole ladder over the diff since..head, judged by the PINNED copy (an engine-owned checkout
     outside the worker's tree; its harness.toml is the config): pinned-checks, ready, diff bound, red-on-base for
     the changed test files (its green run is the pytest rung), guards, contract. Stops at the first red.
@@ -768,7 +769,7 @@ def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_requi
     ACTIVITY(kind="check", key=_KEY[0], state="start")
     ended: dict = {}
     try:
-        ended = _run_ladder(root, since, head, pinned, protected_ids, maintainer, approve_weakened, approve_red)
+        ended = _run_ladder(root, since, head, pinned, protected_ids, maintainer, approve_weakened, approve_red, approve_pinned_new)
         return ended
     finally:
         ACTIVITY(kind="check", key=_KEY[0], state="end", ok=bool(ended.get("ok")), failed=ended.get("failed", "?"))
@@ -795,7 +796,7 @@ def _no_red_row(tree, whole: tuple, cfg: Config) -> dict:
 
 
 def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool = False,
-                approve_red: bool = False) -> dict:
+                approve_red: bool = False, approve_pinned_new: bool = False) -> dict:
     cfg = load(pinned)
     bad = pinned_violations(root, since, head, cfg, pinned)
     noted = ""
@@ -803,6 +804,10 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
         changed = [b for b in bad if b.endswith((": a pinned check file was changed", ": a pinned check file was deleted"))]
         if changed:
             noted, bad = "maintainer batch: " + "; ".join(changed), [b for b in bad if b not in changed]
+    if approve_pinned_new:  # the manager answered the alert with approve: a new file under a pinned path, recorded, not refused
+        new = [b for b in bad if b.endswith(": a new file under a pinned path (only a new guard may be added there)")]
+        if new:
+            noted, bad = (noted + "; " if noted else "") + "approved new pinned files: " + "; ".join(new), [b for b in bad if b not in new]
     if weak := weakened_tests(root, since, head, cfg):
         if approve_weakened:  # the manager answered the alert with approve (an owner ruling renamed or dropped them): recorded, not refused
             noted = (noted + "; " if noted else "") + f"approved weakened tests: {', '.join(weak[:5])}"

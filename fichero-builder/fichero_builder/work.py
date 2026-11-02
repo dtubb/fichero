@@ -160,8 +160,10 @@ def do_check(a, repo: str, branch: str, head: str, ladder: str) -> dict:
     maintainer = bool(getattr(a, "maintainer", False))  # the manager approved a pinned-file change (dev-workflows.run.loop-needs-maintainer)
     approve = bool(getattr(a, "approve_weakened", False))  # the manager approved weakened tests (an alert's approve)
     red_ok = bool(getattr(a, "approve_red", False))
-    check_tool.ACTIVITY = lambda **kw: journal.append("activity", lane=a.name, **kw)  # the manager approved a red-on-base refusal (an alert's approve)
-    r = check_tool.ladder_over(repo, since, head, a.pinned, getattr(a, "ids", []), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok)
+    check_tool.ACTIVITY = lambda **kw: journal.append("activity", lane=a.name, **kw)
+    pin_new = bool(getattr(a, "approve_pinned_new", False))  # the manager approved a new file under a pinned path  # the manager approved a red-on-base refusal (an alert's approve)
+    r = check_tool.ladder_over(repo, since, head, a.pinned, getattr(a, "ids", []), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok,
+                               approve_pinned_new=pin_new)
     Path(ladder).write_text(json.dumps(r, indent=1))
     journal.append("check", repo=str(repo), since=since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok)
     return r
@@ -282,6 +284,11 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                     return no("weakened-tests", f"weakened tests at {head[:9]}: {_tail(r)[-300:]}", _tail(r), str(diff))
                 if r.get("failed") == "red-on-base" and "needs-approval" in _tail(r):  # a refusal, not a red test: the manager's call
                     return no("red-on-base", f"red-on-base at {head[:9]}: {_tail(r).replace('needs-approval', '').strip()[-300:]}", _tail(r), ladder)
+                pinned_changed = "a pinned check file was" in _tail(r) and not getattr(a, "maintainer", False)
+                if r.get("failed") == "pinned-checks" and "a new file under a pinned path" in _tail(r) and not pinned_changed:
+                    diff = state / f"pinned-new-{a.name}.diff"
+                    diff.write_text(_git(repo, "diff", r_since(repo, branch), head, "--diff-filter=A", "--", *check_tool.load(a.pinned).check_paths).stdout)
+                    return no("pinned-new", f"a new file under a pinned path at {head[:9]}: {_tail(r)[-300:]}", _tail(r), str(diff))
                 if r.get("failed") == "pinned-checks" and "needs-maintainer" in _tail(r):
                     diff = state / f"pinned-{a.name}.diff"
                     diff.write_text(_git(repo, "diff", r_since(repo, branch), head, "--", *check_tool.load(a.pinned).check_paths).stdout)

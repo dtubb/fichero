@@ -818,3 +818,13 @@ def test_a_test_file_whose_tests_are_unchanged_owes_no_red_and_any_other_refusal
     assert not r["ok"] and "NOT RED ON BASE" in r["stderr_tail"] and "needs-approval" in r["stderr_tail"]
     r = ct.red_on_base(tmp_path, base, "HEAD", ["test_new.py"], timeout_s=120, approve_red=True)
     assert r["ok"] and "approved by the manager: NOT RED ON BASE" in r["stdout_tail"]
+
+
+def test_a_new_file_under_a_pinned_path_refuses_until_approved_and_the_approval_is_recorded(tmp_path):
+    work, g, base, pinned = _project(tmp_path)
+    (work / "ci" / "helper.py").write_text("X = 1\n")  # not a guard: a new file under the pinned ci/ path
+    g("add", "."), g("commit", "-q", "-m", "a helper")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False, maintainer=True)
+    assert not r["ok"] and "a new file under a pinned path" in r["rungs"][0]["stderr_tail"]
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False, maintainer=True, approve_pinned_new=True)
+    assert r["rungs"][0]["ok"] and "approved new pinned files: ci/helper.py" in r["rungs"][0]["stdout_tail"], r["rungs"][0]

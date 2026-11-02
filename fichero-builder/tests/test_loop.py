@@ -369,3 +369,18 @@ def test_the_loop_re_execs_itself_between_ticks_when_its_code_changes_and_nothin
     assert execs == [1], "one re-exec when the mark changed"
     (r,) = [r for r in journal.read() if r["event"] == "loop" and r.get("state") == "restarted"]
     assert r["detail"] == "loop restarted for new code" and r["pid"]
+
+
+def test_a_new_file_under_a_pinned_path_is_an_alert_and_approve_reruns_with_approve_pinned_new(state):
+    """Manager 2026-11-02: on a --maintainer batch a new file under a pinned path was a dead end (no flag, no answer)."""
+    lane(state)
+    seen = []
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "pinned-new", "why": "a new file under a pinned path at abc: scripts/x.py", "evidence": "/s/new.diff"}]})
+    base_chain = fake.procs.chain
+    fake.procs.chain = lambda lane_, step, stage: seen.append(bool(step.get("approve_pinned_new"))) or base_chain(lane_, step, stage)
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    assert a["actions"] == ["approve", "send-back"] and a["evidence"] == "/s/new.diff"
+    assert cli.main(["alert", a["id"], "approve", "--state", str(state / "s")]) == 0
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert seen[:2] == [False, True] and steps()["1.1"]["state"] == "landed"

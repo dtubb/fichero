@@ -724,6 +724,11 @@ the write path would produce.
   the same approve | send-back alert; approve re-runs with `--approve-red`, which records the refusal in the row and still
   needs the green run. Tests `fichero-server/tests/unit/workflows/test_check_tool.py::test_a_test_file_whose_tests_are_unchanged_owes_no_red_and_any_other_refusal_can_be_approved`,
   `fichero-builder/tests/test_loop.py::test_a_red_on_base_refusal_is_an_alert_and_approve_reruns_with_approve_red`.
+  **New pinned file** (manager 2026-11-02: a dead end on a `--maintainer` batch): a new file under a pinned path that is not a
+  guard is the same approve | send-back alert (evidence the added files' diff); approve re-runs with `--approve-pinned-new`,
+  recorded as `approved new pinned files: …` in the pinned-checks row. Tests
+  `fichero-server/tests/unit/workflows/test_check_tool.py::test_a_new_file_under_a_pinned_path_refuses_until_approved_and_the_approval_is_recorded`,
+  `fichero-builder/tests/test_loop.py::test_a_new_file_under_a_pinned_path_is_an_alert_and_approve_reruns_with_approve_pinned_new`.
 - `dev-workflows.run.loop-external-lane` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated: the baseline comparison) — a
   lane of kind `external` is a branch in a worktree that the loop does not start a worker for; `builder done <lane> <sha>` is its
   DONE, and from there the same chain runs (fetch, check, review, landed --push, alert on a stop, findings by `builder tell` when
