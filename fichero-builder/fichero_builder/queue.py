@@ -104,6 +104,7 @@ class Procs:
     still_open: Callable[[dict, dict], list] = lambda lane, step: []  # (lane, step) -> issues of a landed step not closed, as "#N"
     # taken lane ids -> (lane id, worktree, [{step, brief, issues, waits}]) of the next build-order milestone, or None
     next_milestone: Callable[[set], tuple | None] = lambda taken: None
+    build: Callable[[dict], tuple] = lambda lane: (0, "")  # lane -> (rc, output) of the dev build after its milestone landed
 
 
 def _gh_quiet(gh: str, args: list[str], cwd=None) -> str:
@@ -161,6 +162,14 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if h is not None:
             procs.stop(lane)
             del handles[lane["id"]]
+        if push and lane["steps"] and not lane.get("built"):  # dev-workflows.run.loop-rolls-on: one dev build per milestone landed for real
+            rc, output = procs.build(lane)
+            lane["built"] = True
+            store(lane)
+            journal.append("queue", lane=lane["id"], step="-", state="built" if rc == 0 else "build-failed", detail=output[-300:])
+            if rc:  # an alert to read, never a stop: the roll-on goes on
+                alert(lane["id"], "build", f"the dev build after {lane['id']} failed: {(output.strip().splitlines() or [''])[-1]}",
+                      str(journal.STATE), [])
         return False
     s = lane["steps"][lane["cursor"]]
     if s["state"] == "blocked":
@@ -437,13 +446,18 @@ def real_procs(root) -> Procs:
         return next((r["end"] for r in reversed(work._shared_rows(ns(lane))) if r.get("event") == "cost" and r.get("task") == lane["id"]
                      and r.get("end") != "handoff"), "gone")
 
+    def build(lane):
+        r = subprocess.run([sys.executable, "-m", "fichero_builder", "build", "--dev", "--root", str(root), "--state", str(journal.STATE)],
+                           cwd=str(pkg), capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(pkg)})
+        return r.returncode, (r.stdout + r.stderr)[-2000:]
+
     def stop(lane):
         if lane.get("feed"):
             (Path(lane["feed"]) / "stop").write_text("")
 
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
-                 next_milestone=lambda taken: next_in_order(root, taken))
+                 next_milestone=lambda taken: next_in_order(root, taken), build=build)
 
 
 _SKIPPED: set = set()  # milestones this process found with no step to brief: asked once, not re-planned every tick
