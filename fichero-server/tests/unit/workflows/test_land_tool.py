@@ -144,13 +144,16 @@ def test_the_review_cap_refuses_one_byte_past_it_and_the_default_takes_a_step_a_
     (tmp_path / "big.txt").write_text("z" * 63000 + "\n")
     g("add", "."), g("commit", "-qm", "c")
     whole = L.review_diff(tmp_path, base, "HEAD")
-    assert 60000 < len(whole) < 150000 and whole.count("z") >= 63000, "taken whole by the default cap"
+    assert 60000 < len(whole) < 300000 and whole.count("z") >= 63000, "taken whole by the default cap"
     assert L.review_diff(tmp_path, base, "HEAD", cap=len(whole)) == whole, "exactly at the cap is taken"
     with pytest.raises(ValueError, match="cap"):
         L.review_diff(tmp_path, base, "HEAD", cap=len(whole) - 1)
-    (tmp_path / "big.txt").write_text("z" * 150001 + "\n")
-    g("commit", "-qam", "more")
-    with pytest.raises(ValueError, match="150000 cap"):
+    (tmp_path / "big.txt").write_text("z" * 200000 + "\n")
+    g("commit", "-q", "--amend", "-am", "bigger")  # amended: the reviewer reads every commit, so a second one would add up
+    assert len(L.review_diff(tmp_path, base, "HEAD")) > 166636, "a real range of 166636 bytes was refused at 150000"
+    (tmp_path / "big.txt").write_text("z" * 300001 + "\n")
+    g("commit", "-q", "--amend", "-am", "more")
+    with pytest.raises(ValueError, match="300000 cap"):
         L.review_diff(tmp_path, base, "HEAD")
 
 
