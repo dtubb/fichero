@@ -8,10 +8,12 @@ replacing the previous one, the jail root fast-forwarded as the worker user, the
 that sha removed, the issues the range cites updated, and a final `done` row (sha, branch, pushed, issues)."""
 from __future__ import annotations
 
+import os
 import re
 import shlex
 import subprocess
 import sys
+import time
 import tomllib
 from pathlib import Path
 
@@ -65,6 +67,41 @@ def pin(repo, sha: str, pinned_dir: Path) -> str:
         pinned_dir.mkdir(parents=True, exist_ok=True)
         _ok(_git(repo, "worktree", "add", "-q", str(dest), name), "worktree add")
     return str(dest)
+
+
+def live_worktrees() -> set[str]:
+    """The worktrees a queue lane with steps left holds: its session may be working there."""
+    from fichero_builder import queue
+
+    return {os.path.realpath(x["worktree"]) for x in queue.load() if x["cursor"] < len(x["steps"])}
+
+
+def sweep(sh, repo_dir: str, ref: str, grace_h: float, removed: str, live: set[str], now: float | None = None) -> list[str]:
+    """Remove each linked worktree of `repo_dir` whose HEAD is on `ref` (landed), idle for `grace_h` hours (the newer of its
+    index's mtime and its HEAD's commit time) and held by no live lane: first its uncommitted and untracked files go to a
+    patch under `removed` (kept even when the removal then fails), then `git worktree remove`, never rm; the branch stays
+    (#6204). `sh` runs a script as the jail user. Returns one line per worktree touched.
+    ponytail: idle = the index's mtime; a process watch if a worker ever sits 36 h without touching git."""
+    q, git, now = shlex.quote, shlex.quote(land_tool.GIT), now or time.time()
+    out = []
+    listing = sh(f"{git} -C {q(repo_dir)} worktree list --porcelain").stdout or ""
+    for block in listing.strip().split("\n\n")[1:]:  # the first is the main tree
+        f = dict((ln.split(" ", 1) + [""])[:2] for ln in block.splitlines())
+        wt, head = f.get("worktree", ""), f.get("HEAD", "")
+        if not wt or not head or os.path.realpath(wt) in live:
+            continue
+        if sh(f"{git} -C {q(repo_dir)} merge-base --is-ancestor {q(head)} {q(ref)}").returncode:
+            continue  # not landed: work in progress
+        idx = (sh(f"{git} -C {q(wt)} rev-parse --path-format=absolute --git-path index").stdout or "").strip()
+        ct = (sh(f"{git} -C {q(wt)} log -1 --format=%ct HEAD").stdout or "0").strip()
+        last = max(int(ct or 0), int(os.stat(idx).st_mtime) if idx and os.path.exists(idx) else 0)
+        if now - last < grace_h * 3600:
+            continue
+        patch = f"{removed}/{Path(wt).name}-{head[:7]}-{int(now)}.patch"
+        r = sh(f"mkdir -p {q(removed)} && (cd {q(wt)} && {git} add -A && {git} diff --cached --binary HEAD > {q(patch)}); "
+               f"{git} -C {q(repo_dir)} worktree remove --force {q(wt)}")
+        out.append(f"{wt}: " + ("removed" if r.returncode == 0 else f"NOT removed ({(r.stderr or '').strip()[-200:]})") + f", patch {patch}")
+    return out
 
 
 def worktrees_of(sha: str) -> list[str]:
@@ -265,14 +302,11 @@ def main(a) -> int:
         q = shlex.quote
         return _ok(as_worker(j, f"{q(land_tool.GIT)} -C root fetch -q origin {q(branch)} && {q(land_tool.GIT)} -C root merge -q --ff-only FETCH_HEAD"), "jail root") or "root fast-forwarded"
 
-    def scratch():
-        if a.keep_worktree:
-            return "worktree kept: a lane's session is still working in it"
-        gone = []
-        for wt in worktrees_of(sha):
-            _ok(as_worker(j, f"rm -rf {shlex.quote(wt)} && {shlex.quote(land_tool.GIT)} -C root worktree prune"), f"remove {wt}")
-            gone.append(wt)
-        return "removed " + ", ".join(gone) if gone else "no scratch worktree in the work rows"
+    def scratch():  # never this landing's own worktree at once: a grace period, a patch, `git worktree remove` (#6204)
+        grace = float(land.get("worktree_grace_hours", 36))
+        done = sweep(lambda script: as_worker(j, script), "root", f"origin/{branch}", grace, f"{j.workroot}/.removed", live_worktrees())
+        kept = "worktree kept: a lane's session is still working in it; " if a.keep_worktree else ""
+        return kept + ("; ".join(done) or f"nothing past the {grace:g} h grace period")
 
     def spec_clean():
         if a.no_issues:

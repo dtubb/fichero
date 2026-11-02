@@ -143,14 +143,42 @@ def test_a_second_landing_replaces_the_previous_pinned_branch_and_worktree(world
 
 
 def test_scratch_worktrees_of_the_work_rows_for_that_sha_are_removed_as_the_worker(world):
+    """#6204: the landing keeps a fresh worktree (a late review or revert can still use it); past the grace period the sweep
+    removes it as the worker with `git worktree remove`, a patch of its uncommitted files first, the branch kept."""
     world.ready(), world.green()
     wt = world.wr / "wt-n1"
-    wt.mkdir()
+    _g(world.wr / "root", "worktree", "add", "-q", "-b", "n1", str(wt), "HEAD")
     (wt / "x").write_text("x")
     journal.append("work", name="n1", issues=[7], step="fetch", ok=True, detail=world.sha, worktree=str(wt))
     assert world.go("--push") == 0
-    assert not wt.exists()
-    assert any(r["step"] == "scratch" and str(wt) in r["detail"] for r in rows())
+    assert wt.is_dir(), "inside the grace period it stays"
+    assert any(r["step"] == "scratch" and "grace" in r["detail"] for r in rows())
+    sh = lambda script: subprocess.run(["sh", "-c", f"cd {world.wr} && {script}"], capture_output=True, text=True)  # noqa: E731
+    done = landed.sweep(sh, "root", "origin/integration", 36, str(world.wr / ".removed"), set(), now=__import__("time").time() + 37 * 3600)
+    assert not wt.exists() and len(done) == 1 and "removed" in done[0]
+    (patch,) = (world.wr / ".removed").iterdir()
+    assert "+x" in patch.read_text(), "the untracked file is in the patch"
+    assert _g(world.wr / "root", "branch", "--list", "n1"), "the branch survives"
+
+
+def test_the_sweep_keeps_unlanded_live_and_recently_used_worktrees_and_a_longer_grace_keeps_them_all(world):
+    import time
+
+    root = world.wr / "root"
+    sh = lambda script: subprocess.run(["sh", "-c", f"cd {world.wr} && {script}"], capture_output=True, text=True)  # noqa: E731
+    made = {}
+    for n in ("landed", "live", "busy", "unlanded"):
+        made[n] = world.wr / f"wt-{n}"
+        _g(root, "worktree", "add", "-q", "-b", n, str(made[n]), "HEAD")
+    (made["unlanded"] / "y").write_text("y")
+    _g(made["unlanded"], "add", "y"), _g(made["unlanded"], "commit", "-qm", "not on integration")
+    later = time.time() + 37 * 3600
+    idx = _g(made["busy"], "rev-parse", "--path-format=absolute", "--git-path", "index")
+    os.utime(idx, (later, later))  # used just now, as far as the sweep's clock is concerned
+    done = landed.sweep(sh, "root", "origin/integration", 36, str(world.wr / ".removed"), {os.path.realpath(made["live"])}, now=later)
+    assert [d.split(":")[0] for d in done] == [str(made["landed"])], done
+    assert all(made[n].is_dir() for n in ("live", "busy", "unlanded"))
+    assert landed.sweep(sh, "root", "origin/integration", 100, str(world.wr / ".removed"), set(), now=later) == [], "a longer grace keeps them"
 
 
 def test_a_relative_pinned_dir_is_refused_before_anything_moves(world, capsys):
@@ -332,7 +360,7 @@ def test_without_push_an_unpushed_sha_is_refused_before_anything_moves_and_a_pus
     assert _g(world.engine, "rev-parse", "integration") != world.sha, "the engine repo's branch stays with origin"
     assert world.go("--push") == 0, "the rerun pushes"
     assert _g(world.origin, "rev-parse", "integration") == world.sha and rows()[-1]["step"] == "done" and rows()[-1]["pushed"] is True
-    assert "issue close 7" in world.gh_log.read_text() and not wt.exists()
+    assert "issue close 7" in world.gh_log.read_text() and wt.is_dir(), "a landed worktree waits out its grace period (#6204)"
 
 
 def test_a_gh_that_times_out_is_a_red_step_never_a_traceback(world, monkeypatch, capsys):

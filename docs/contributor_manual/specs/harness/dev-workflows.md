@@ -355,8 +355,13 @@ the write path would produce.
   (the maintainer typed it; nothing else sets it) it pushes `<sha>:refs/heads/<branch>`; then it refuses unless the sha is on `origin/<branch>` (a hand push counts), so
   an unpushed sha pins, removes and closes nothing and a `--push` rerun pushes (test `fichero-builder/tests/test_landed_verb.py::test_without_push_an_unpushed_sha_is_refused_before_anything_moves_and_a_push_rerun_finishes`); then it refreshes the engine
   repo's local branch, makes the `pinned-<sha7>` branch and worktree under `[land].pinned_dir` (absolute, else refused
-  before anything moves) and removes the previous pinned pair, fast-forwards the jail root as the jail user, removes the
-  scratch worktrees the journal's work rows name for that sha (not with `--keep-worktree`, which the queue passes because a lane's session is still working there; test `fichero-builder/tests/test_landed_verb.py::test_keep_worktree_leaves_a_lanes_worktree_for_its_open_session`), and, only once the sha is on `origin/<branch>` (the on-origin step has held it to that), updates the cited issues through `gh`:
+  before anything moves) and removes the previous pinned pair, fast-forwards the jail root as the jail user, sweeps the jail
+  root's worktrees (#6204: one is removed only when its HEAD is on `origin/<branch>`, it has been idle `[land].worktree_grace_hours`, default 36,
+  by the newer of its index's mtime and its HEAD's commit time, and no queue lane with steps left holds it; its uncommitted and untracked
+  files go to a patch under `<workroot>/.removed/` first, kept even if the removal fails; `git worktree remove`, never rm; the branch stays;
+  tests `fichero-builder/tests/test_landed_verb.py::test_scratch_worktrees_of_the_work_rows_for_that_sha_are_removed_as_the_worker`,
+  `::test_the_sweep_keeps_unlanded_live_and_recently_used_worktrees_and_a_longer_grace_keeps_them_all`; `--keep-worktree`, which the queue passes, still names the lane's worktree as kept;
+  test `fichero-builder/tests/test_landed_verb.py::test_keep_worktree_leaves_a_lanes_worktree_for_its_open_session`), and, only once the sha is on `origin/<branch>` (the on-origin step has held it to that), updates the cited issues through `gh`:
   one comment per issue per landing naming every citing commit (sha7, subject, the test files it touches); `Fixes`/`Closes
   #N` closes with it, `Part of #N` stays open, `Already built: #N <test>` comments the proving test and labels
   needs-your-test; a behaviour id on a `Behaviour: <id>` trailer line of a commit (an id the message only mentions does not count) gets its spec line's open tag set to [OK] with the commit's
