@@ -1998,7 +1998,7 @@ and node, not by job); a retry action for failed pages.
   stopped page, so the run goes on. Left: a stored page job (not handed in); the run's summary counting those pages
   under that reason with Run again on what was missed. *Test:*
   `fichero-server/tests/unit/jobs/test_trashed_page_leaves_the_run_6232.py`.
-- `activity.run.cloud-batch` — **[GAP]** (#6233, #6234; ruled 2026-10-27, answering the report's decision 5) a recipe
+- `activity.run.cloud-batch` — **[PARTIAL]** (#6233, #6234; ruled 2026-10-27, answering the report's decision 5) a recipe
   step runs in the cloud BY DEFAULT, with a per-step choice of local or cloud on Set Up's stage page, and the cost
   of each step is shown beside its time (`recipes-run.timing.cost-per-step`, #6234). A step a person is not waiting
   for goes to the provider's Batch API where the provider has one (half price, answered within a day), said on the
@@ -2008,6 +2008,12 @@ and node, not by job); a retry action for failed pages.
   cost on the row); a batch-only model is refused (`workflows/validation.py:337`). Where the line is drawn
   (lines local, the text steps to the cloud when the local pace is slow) is answered by the ruling above: cloud by
   default, local by choice per step; the recipe's step kinds that have no cloud form (lines, regions) stay local.
+  The line (owner, 2026-10-27): finding lines stays local (Kraken); Read, Translate, Names, Statements and Catalogue
+  default to cloud. Built (#6233): `recipes/assemble.py` `CLOUD_DEFAULT_JOBS` picks the cheapest adequate cloud model for
+  translate, names, statements and catalogue where the pages may leave and a key is set, even when a local model fits
+  (the reason says so and that choosing another model keeps the pages on this Mac); Correct still prefers a fitting
+  local model; the per-step choice and per-step cost already exist. Left: the provider's Batch API, the network
+  lane's width at the provider's stated limit, and Read's default.
 - `activity.recipe.declares-automatic` — **[GAP]** (→ #4950) a recipe lists the job kinds that run on
   add; the dependency graph comes from the job kinds' declared inputs, never written twice.
 

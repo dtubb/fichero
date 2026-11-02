@@ -144,13 +144,17 @@ def test_a_configured_cloud_model_is_offered_and_kept_where_pages_may_leave(clie
 def test_the_person_chooses_who_finds_names_and_the_run_honours_it(client, db, pages, mac, claude_row, monkeypatch,
                                                                    who, with_material):
     monkeypatch.setattr("fichero_server.llm.local_model_choice.apple_intelligence_in_this_build", lambda: True)
+    monkeypatch.setattr("fichero_server.recipes.derived._providers_with_keys", lambda: ["anthropic"])  # a key is set, whatever this machine holds
     answers = {"purposes": ["transcribe", "entities"], "languages": ["es"], "scripts": ["Latn"],
                "materials": ["handwriting"], "cloud_allowed": who == "cloud", "mac_memory_gb": 32}
     recipe = client.post("/api/recipes/assemble", json=answers)
     assert recipe.status_code == 200, recipe.text
     assert client.put("/api/recipes/project", json={"answers": answers, "recipe": recipe.json()}).status_code == 200
     [step] = [s for s in recipe.json()["steps"] if s["job"] == "find-names-tag-words"]
-    assert step["model"].get("spacy"), step  # spaCy until the person chooses
+    if who == "cloud":  # #6233: Names defaults to cloud where the pages may leave and a key is set
+        assert step["model"].get("cloud"), step
+    else:
+        assert step["model"].get("spacy"), step  # spaCy until the person chooses
 
     items = _names(client, cloud_allowed=who == "cloud")
     card = {"mlx": next(c for c in items.values() if c["id"].startswith("mlx:text/")),

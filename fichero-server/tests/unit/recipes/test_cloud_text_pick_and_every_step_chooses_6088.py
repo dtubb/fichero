@@ -7,7 +7,7 @@ import asyncio
 
 import pytest
 
-from fichero_server.recipes.assemble import Answers, Card, assemble
+from fichero_server.recipes.assemble import CLOUD_DEFAULT_JOBS, Answers, Card, assemble
 from tests.unit.recipes.test_installed_model_first_to_spec import mac  # noqa: F401  (fixture)
 
 TEXT = frozenset({"find-statements", "split-into-entries", "find-names-tag-words", "describe-for-the-catalogue",
@@ -67,10 +67,29 @@ def test_without_the_cloud_allowed_or_a_key_nothing_is_picked(answers):
         assert "model" not in steps[job] and steps[job].get("gap"), job
 
 
-@pytest.mark.parametrize("job", STEPS)
-def test_a_good_enough_local_model_wins_over_the_cheapest_cloud_one(job):
+@pytest.mark.parametrize("job", [j for j in STEPS if j not in CLOUD_DEFAULT_JOBS])
+def test_a_good_enough_local_model_wins_over_the_cheapest_cloud_one_where_cloud_is_not_the_default(job):
     steps = _steps(answers={"cloud_allowed": True, "cloud_keys": ("google",)}, cards=[_local()], cloud_text=[CHEAP])
     assert steps[job]["runs_on"] == "this-mac" and steps[job]["model"] == {"hf": "x/Qwen3-4B"}
+
+
+@pytest.mark.parametrize("job", [j for j in STEPS if j in CLOUD_DEFAULT_JOBS])
+def test_cloud_is_the_default_for_translate_names_statements_and_catalogue_even_where_a_local_model_fits(job):
+    """`activity.run.cloud-batch` (#6233, ruled 2026-10-27): cloud by default where pages may leave and a key is set; local by choice."""
+    steps = _steps(answers={"cloud_allowed": True, "cloud_keys": ("google",), "jobs": (job,)}, cards=[_local()], cloud_text=[CHEAP])
+    assert steps[job]["runs_on"] == "cloud:google"
+    assert "cloud is this step's default" in steps[job]["reasons"][0] and "choose another model on this step" in steps[job]["reasons"][-1]
+
+
+@pytest.mark.parametrize("job", sorted(CLOUD_DEFAULT_JOBS))
+def test_without_the_cloud_allowed_or_a_key_the_local_model_stays(job):
+    for answers in ({"cloud_allowed": False, "cloud_keys": ("google",)}, {"cloud_allowed": True, "cloud_keys": ()}):
+        steps = _steps(answers={**answers, "jobs": (job,)}, cards=[_local()], cloud_text=[CHEAP])
+        assert steps[job]["runs_on"] == "this-mac", (job, answers)  # a Mac with no key runs every step locally
+
+
+def test_finding_lines_stays_local():
+    assert "find-lines" not in CLOUD_DEFAULT_JOBS and "find-regions" not in CLOUD_DEFAULT_JOBS
 
 
 def test_an_unpriced_cloud_model_is_not_picked():

@@ -729,7 +729,11 @@ def _frontier_first(job: str, choice: Choice, readers: list[Card] | tuple[Card, 
 
 #: The text steps a cloud model is picked for by itself when pages may leave, a key is set and no local model fits
 #: (`source.recipe.cloud-text-pick`, owner ruling 2026-10-24).
-CLOUD_TEXT_JOBS = ("translate-transliterate-normalise", "describe-for-the-catalogue", "correct")
+#: The steps whose DEFAULT is a cloud model once pages may leave and a key is set, even where a local model fits (`activity.run.cloud-batch`,
+#: #6233, ruled 2026-10-27): Translate, Names, Statements and Catalogue (Read is `_frontier_first`; lines and regions stay local, a segmenter
+#: has no cloud form). The person chooses local or cloud on any step.
+CLOUD_DEFAULT_JOBS = ("translate-transliterate-normalise", "find-names-tag-words", "find-statements", "describe-for-the-catalogue")
+CLOUD_TEXT_JOBS = (*CLOUD_DEFAULT_JOBS, "correct")
 
 
 def _cloud_text_pick(job: str, choice: Choice, pool: list[Card] | tuple[Card, ...], a: Answers) -> Choice:
@@ -742,8 +746,9 @@ def _cloud_text_pick(job: str, choice: Choice, pool: list[Card] | tuple[Card, ..
 
     if job not in CLOUD_TEXT_JOBS or not a.cloud_allowed or not a.cloud_keys:
         return choice
-    if choice.card is not None and (choice.card.local or not choice.card.runs_on.startswith("cloud")):
-        return choice  # a local model fits: it wins
+    local_fits = choice.card is not None and (choice.card.local or not choice.card.runs_on.startswith("cloud"))
+    if local_fits and job not in CLOUD_DEFAULT_JOBS:
+        return choice  # a local model fits: it wins (Correct; the cloud-default steps below take the cloud model instead)
     fits = [c for c in pool
             if c.runs_on.startswith("cloud:") and c.runs_on.split(":", 1)[1] in a.cloud_keys
             and not c.cannot_run_because
@@ -756,7 +761,9 @@ def _cloud_text_pick(job: str, choice: Choice, pool: list[Card] | tuple[Card, ..
     best = ranked[0]
     provider = best.runs_on.split(":", 1)[1]
     price = _page_price(best)
-    reasons = [f"no local model fits, so the rules took the cheapest cloud text model whose provider has a key here: "
+    why = "cloud is this step's default (a local model also fits: choose it here to keep the pages on this Mac)" if local_fits \
+        else "no local model fits"
+    reasons = [f"{why}, so the rules took the cheapest cloud text model whose provider has a key here: "
                f"{best.note or best.id} at {provider}, about ${price:.4f} a page by the price list",
                "its pages leave this Mac (you allowed the cloud); the project's monthly spending cap applies to every call",
                "you can choose another model on this step"]
