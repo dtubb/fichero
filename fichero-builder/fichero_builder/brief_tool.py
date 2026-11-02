@@ -123,5 +123,5 @@ def cluster(issues: list[dict], *, repo: str, branch: str, base: str, rules: str
              "When all are committed print on its own line: DONE <short sha of branch head>, then the list of commits and "
              "which tests you ran.", ""]
     if where:
-        head += ["## Where to put new modules and what to wire (found by the tool)", *[f"- {w}" for w in where], ""]
+        head += ["## Where to start (found by the tool; your code tools find the rest)", *[f"- {w}" for w in where], ""]
     return "\n".join(head + [build(i, repo=repo) for i in issues])

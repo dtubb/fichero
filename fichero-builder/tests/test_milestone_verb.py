@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import stat
+import sys
 import types
 
 from fichero_builder import __main__ as cli
@@ -135,21 +136,68 @@ def test_no_name_takes_the_first_ordered_milestone_with_open_issues_and_its_spec
     assert rc == 2 and "milestone m1 (first in build-order.md)" in out and "Step 1.1: #7 ->" in out
 
 
-def test_a_step_that_creates_new_modules_gets_the_designs_directory_and_callers_found_by_the_steps_words(tmp_path):
-    """Defect 3: an issue naming files that do not exist yet has no Where list; the brief then names the directory the
-    spec's design section names and the existing files that mention the step's words (callers to wire)."""
+def _repo(tmp_path):
     import subprocess
 
     repo = tmp_path / "repo"
     (repo / "pkg" / "readers").mkdir(parents=True)
-    (repo / "pkg" / "readers" / "runner.py").write_text("def run_enhancement(): pass\n")
+    (repo / "docs").mkdir()
+    (repo / "pkg" / "readers" / "runner.py").write_text("def run_enhancement():\n    pass\n\nclass Other:\n    pass\n")
     (repo / "pkg" / "other.py").write_text("nothing here\n")
+    (repo / "docs" / "spec.md").write_text(SPEC.replace("## Build order", "## The design\n\nNew modules live under `pkg/readers/` beside `pkg/readers/runner.py`.\n\n## Build order"))
     subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
     subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
-    spec = SPEC.replace("## Build order", "## The design\n\nNew modules live under `pkg/readers/` beside `pkg/readers/runner.py`.\n\n## Build order")
-    issue = {"number": 7, "title": "m1 Step 1.1: enhancement pipeline", "body": "Create pkg/readers/enhance.py.", "authorAssociation": "OWNER"}
-    where = milestone.where_for_new_modules(spec, "enhancement pipeline", str(repo), [issue["body"]])
-    assert where == ["pkg/readers/ (the directory the spec's design names)", "pkg/readers/runner.py (mentions: enhancement)"]
-    assert milestone.where_for_new_modules(spec, "enhancement pipeline", str(repo), ["Edit pkg/other.py"]) == [], "existing files: the issue's own Where list serves"
-    text = brief_tool.cluster([issue], repo=str(repo), branch="b", base="abc", where=where)
-    assert "## Where to put new modules and what to wire (found by the tool)\n- pkg/readers/ (the directory the spec's design names)\n- pkg/readers/runner.py (mentions: enhancement)" in text
+    return repo
+
+
+def test_the_where_list_is_the_spec_the_designs_directory_and_the_files_found_by_the_steps_words_with_their_outlines(tmp_path):
+    """Defect 3 made concrete: no index, so grep; the worker gets a map, each file with its outline, and reads less."""
+    repo = _repo(tmp_path)
+    where = milestone.where_map(repo / "docs" / "spec.md", "enhancement pipeline", str(repo), "")
+    assert where == ["docs/spec.md (the spec)", "pkg/readers/ (the directory the spec's design names)",
+                     "pkg/readers/runner.py: run_enhancement (1), Other (4)"]
+    text = brief_tool.cluster([{"number": 7, "title": "t", "body": "b", "authorAssociation": "OWNER"}], repo=str(repo), branch="b", base="abc", where=where)
+    assert "## Where to start (found by the tool; your code tools find the rest)\n- docs/spec.md (the spec)\n" in text
+
+
+def test_the_where_list_uses_the_code_map_when_the_repo_is_indexed_and_drops_what_the_tree_lacks(tmp_path):
+    repo = _repo(tmp_path)
+    (repo / "tests_here").mkdir()
+    (repo / "tests_here" / "test_x.py").write_text("def test_x(): pass\n")
+    server = tmp_path / "server"
+    server.write_text(f"""#!{sys.executable}
+import json, sys
+for line in sys.stdin:
+    m = json.loads(line)
+    if "id" not in m:
+        continue
+    if m["method"] == "initialize":
+        result = {{}}
+    else:
+        name, args = m["params"]["name"], m["params"]["arguments"]
+        data = {{"resolve_repo": {{"indexed": True, "repo": "r"}},
+                "search_symbols": {{"results": [{{"file": "pkg/other.py", "name": "x"}}, {{"file": "gone/stale.py", "name": "y"}}]}},
+                "search_text": {{"results": [{{"file": "docs/spec.md", "matches": []}}, {{"file": "tests_here/test_x.py", "matches": []}}, {{"file": "pkg/readers/runner.py", "matches": []}}]}},
+                "get_file_outline": {{"results": [{{"file": "pkg/other.py", "symbols": [{{"name": "helper", "line": 3}}]}},
+                                                  {{"file": "pkg/readers/runner.py", "symbols": [{{"name": "run_enhancement", "line": 1}}]}},
+                                                  {{"file": "tests_here/test_x.py", "symbols": [{{"name": "test_x", "line": 1}}]}},
+                                                  {{"file": "docs/spec.md", "symbols": []}}]}}}}[name]
+        result = {{"content": [{{"type": "text", "text": json.dumps(data)}}]}}
+    print(json.dumps({{"jsonrpc": "2.0", "id": m["id"], "result": result}}), flush=True)
+""")
+    server.chmod(0o755)
+    where = milestone.where_map(repo / "docs" / "spec.md", "enhancement pipeline", str(repo), str(server))
+    assert where[2:] == ["pkg/other.py: helper (3)", "docs/spec.md: (no symbols)", "pkg/readers/runner.py: run_enhancement (1)", "tests_here/test_x.py: test_x (1)"], \
+        "the search's rank, tests last; a file the index has and the tree lacks is dropped"
+
+
+def test_a_server_that_fails_or_finds_nothing_falls_back_to_grep(tmp_path):
+    from fichero_builder import codemap
+
+    repo = _repo(tmp_path)
+    bad = tmp_path / "bad"
+    bad.write_text("#!/bin/sh\nexit 3\n")
+    bad.chmod(0o755)
+    assert codemap.search(str(bad), str(repo), ["enhancement"]) is None
+    assert codemap.search(str(tmp_path / "nowhere"), str(repo), ["enhancement"]) is None
+    assert "pkg/readers/runner.py: run_enhancement (1), Other (4)" in milestone.where_map(repo / "docs" / "spec.md", "enhancement", str(repo), str(bad))

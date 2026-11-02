@@ -4,13 +4,18 @@ the whole venv is copied to `<workroot>/jcodemunch/venv` and `<workroot>/bin/jco
 python. Everything here is optional: no setting, no install or a failed copy means a worker that greps, never a refusal."""
 from __future__ import annotations
 
+import json
 import os
+import re
 import shlex
 import shutil
 import stat
+import subprocess
+import threading
 import tomllib
 from pathlib import Path
 
+TEST_PATH = re.compile(r"(^|/)(tests?|Tests)/|(^|/)test_|Tests?\.swift$")
 MAX_FILES = 20000  # jcodemunch's default stops at 2000 files, a fraction of this repo
 
 
@@ -75,3 +80,63 @@ def index_prefix(root, worktree) -> str:
     """Shell to run as the worker before the session: `<wrapper> index <worktree> ...; ` (a failed index never stops the worker)."""
     w = wrapper(root)
     return f"{shlex.quote(w)} index {shlex.quote(str(worktree))} --no-ai-summaries >/dev/null 2>&1; " if w else ""
+
+
+def owner_binary(root) -> str:
+    """The owner's own install, for the search behind a step's Where list; '' when none is set or it is missing."""
+    t = _jail_table(root)
+    p = Path(t["code_map"]).expanduser() if t.get("code_map") else None
+    return str(p) if p and p.is_file() else ""
+
+
+def search(binary: str, repo_dir: str, words: list[str], timeout_s: float = 60.0, limit: int = 10) -> dict[str, list[str]] | None:
+    """{file: ["name (line)", ...]} from a stdio MCP call to the server: the step's words through search_symbols and
+    search_text, then each file's outline. None when the server cannot answer or the repo is not indexed (the caller greps)."""
+    if not binary:
+        return None
+    try:
+        p = subprocess.Popen([binary], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                             env={**os.environ, "JCODEMUNCH_DEFAULT_FORMAT": "json"})
+    except OSError:
+        return None
+    guard = threading.Timer(timeout_s, p.kill)  # a hung server costs a grep, never the verb
+    guard.start()
+    n = [0]
+
+    def call(method: str, params: dict) -> dict:
+        n[0] += 1
+        p.stdin.write(json.dumps({"jsonrpc": "2.0", "id": n[0], "method": method, "params": params}) + "\n")
+        p.stdin.flush()
+        for line in p.stdout:
+            r = json.loads(line)
+            if r.get("id") == n[0]:
+                return r["result"]
+        raise OSError("the server closed its output")
+
+    def tool(name: str, **args) -> dict:
+        return json.loads(call("tools/call", {"name": name, "arguments": args})["content"][0]["text"])
+
+    try:
+        call("initialize", {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "builder", "version": "1"}})
+        p.stdin.write(json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}) + "\n")
+        p.stdin.flush()
+        found = tool("resolve_repo", path=str(repo_dir))
+        if not found.get("indexed"):
+            return None
+        repo = found["repo"]
+        files = [r["file"] for r in tool("search_symbols", repo=repo, query=" ".join(words), max_results=limit, detail_level="compact").get("results", [])]
+        for w in words:
+            files += [r["file"] for r in tool("search_text", repo=repo, query=w, max_results=limit).get("results", [])]
+        files = [f for f in dict.fromkeys(files) if (Path(repo_dir) / f).is_file()]
+        files = sorted(files, key=lambda f: bool(TEST_PATH.search(f)))[:limit]  # stable: the search's rank, the code before its tests
+        if not files:
+            return None
+        outlines = tool("get_file_outline", repo=repo, file_paths=files).get("results", [])
+        by_file = {o.get("file"): [f"{x['name']} ({x['line']})" for x in o.get("symbols", [])[:12]] for o in outlines}
+        return {f: by_file[f] for f in files if f in by_file}
+    except (OSError, ValueError, KeyError, IndexError, TypeError):
+        return None
+    finally:
+        guard.cancel()
+        p.kill()
+        p.wait()
