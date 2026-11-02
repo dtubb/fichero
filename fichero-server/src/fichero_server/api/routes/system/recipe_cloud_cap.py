@@ -9,7 +9,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
-from fichero_server.actions.registry import ActionContext, registry, started_by_for
+from fichero_server.actions.registry import ActionContext, ChangeSpec, action as registry_action, registry, started_by_for
 from fichero_server.api.auth import action_context
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.api.routes.document.format_import import ErrorDetail as _ErrorDetail
@@ -465,3 +465,38 @@ async def chain_risk(jobs: str) -> ChainRisk:
     from fichero_server.recipes import chain_risk as chain  # lazy: the import budget counts a module per route file
 
     return ChainRisk(steps=[ChainLine(**row) for row in chain.lines([j for j in jobs.split(",") if j])])
+
+
+class TryAdoptParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    stage: str = Field(description="the stage whose kept try Start adopts from")
+
+
+class TryUnadoptParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reading_ids: list[str]
+
+
+@registry_action("try.adopt", TryAdoptParams, domains=["representation"], undoable=True,
+                 invert=lambda before, after, ctx: ("try.unadopt", {"reading_ids": after["reading_ids"]}) if after and after.get("reading_ids") else None)
+def adopt_try(db: Database, params: TryAdoptParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    """Start's first action: adopt a kept try's readings onto the project's own lines where the page and the step's settings are what the try ran
+    on (`wide.try.start-reuses-a-matching-try`). Whoever may Start may adopt: it is the same gate as `reading.choose`'s for an agent. One undo."""
+    from fichero_server.recipes.adopt import adopt_stage
+
+    got = adopt_stage(db, params.stage, run_id=ctx.run_id or "start")
+    return got, ChangeSpec(domains=["representation"], target_ids=got["reading_ids"], before=None, after=got, emit_type="representation.created",
+                           document_ids=[])
+
+
+@registry_action("try.unadopt", TryUnadoptParams, domains=["representation"], undoable=False)
+def unadopt_try(db: Database, params: TryUnadoptParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    """The undo of `try.adopt`: each adopted reading is retracted (the row stays), so the page is run again."""
+    from fichero_server.api.routes.document.content_representations import RepresentationRetractParams, retract_representation
+
+    for reading_id in params.reading_ids:
+        retract_representation(db, RepresentationRetractParams(representation_id=reading_id), ctx)
+    return {"retracted": len(params.reading_ids)}, ChangeSpec(domains=["representation"], target_ids=params.reading_ids, before=None,
+                                                              after={"retracted": params.reading_ids}, emit_type="representation.retracted", document_ids=[])

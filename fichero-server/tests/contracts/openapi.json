@@ -97487,6 +97487,12 @@
             "nullable": true,
             "description": "the first yes, once given"
           },
+          "from_tries": {
+            "type": "integer",
+            "title": "From Tries",
+            "description": "pages whose readings came from a kept try, adopted as Start's first action: \"N pages came from your try\"",
+            "default": 0
+          },
           "runs": {
             "items": {
               "$ref": "#/components/schemas/StartRun"

@@ -83,3 +83,59 @@ def test_overlap_is_one_for_the_same_box_zero_when_apart_and_each_line_is_used_o
     box = lambda i, x: N(id=i, bbox_x=x, bbox_y=0.0, bbox_w=0.5, bbox_h=0.1)  # noqa: E731
     assert adopt.overlap((0, 0, 1, 1), (0, 0, 1, 1)) == 1 and adopt.overlap((0, 0, 1, 1), (2, 2, 1, 1)) == 0
     assert adopt.match_lines([box("c1", 0.0), box("c2", 0.0)], [box("p1", 0.0)], 0.9) == {"c1": "p1"}
+
+
+def _kept_try(db, tmp_path, notebook, monkeypatch, *, stage="read"):  # noqa: F811
+    """A project whose `read` stage was tried: the kept copy lives where `samples` keeps it, the result file records what the try ran."""
+    import json
+    from pathlib import Path
+
+    from fichero_server.recipes import samples
+
+    library = Path(db.path).parent
+    (tmp_path / "a").mkdir(), (tmp_path / "b").mkdir()
+    page = _page(db, tmp_path / "a", "P1", notebook)
+    scratch = samples._folder(library) / f"{stage}.fichero"
+    for sub in ("lance", "storage", "files"):
+        (scratch / sub).mkdir(parents=True)
+    copy = db_manager.get_database(scratch)
+    folder = Document(name="Samples", doc_type=DocType.folder)
+    copy.save(folder)
+    twin = _page(copy, tmp_path / "b", "P1", folder)
+    snap = _snapshot(copy)
+    art = Artifact(document_id=twin.id, artifact_type="transcription", content="hola", model="m")
+    copy.save(art)
+    write_readings(copy, document_id=twin.id, readings=[(_lines(copy, twin)[0].id, "hola", 0.9)], artifact_id=art.id, run_id="r", level="as_written")
+    db_manager.close_database(scratch)
+    cards = [{"card": "workflow"}]
+    monkeypatch.setattr(samples, "_stage_plan", lambda *a, **k: {"runs": cards})
+    rec = adopt.page_record(db, library, page.id, twin.id, card_ids=["workflow"], hash_=adopt.settings_hash(cards))
+    record = {"stage": stage, "before": {k: sorted(v) for k, v in snap.items() if k in ("Artifact", "ContentRepresentation")}, "pages": [rec]}
+    adopt.keep(scratch, record)
+    samples._result_path(library, stage).write_text(json.dumps({"adoption": record}), encoding="utf-8")
+    return page, record
+
+
+def test_start_adopts_a_stage_whose_page_and_settings_are_unchanged_and_one_undo_puts_it_back(client, db, tmp_path, notebook, monkeypatch):  # noqa: F811
+    page, _ = _kept_try(db, tmp_path, notebook, monkeypatch)
+    from pathlib import Path
+
+    from fichero_server.recipes import samples
+
+    assert adopt.kept_stages(samples._folder(Path(db.path).parent)) == ["read"]
+    done_ = client.post("/api/actions/invoke", json={"name": "try.adopt", "params": {"stage": "read"}})
+    assert done_.status_code == 200, done_.text
+    assert done_.json()["result"]["pages"] == 1 and done._has_line_readings(db, page.id, "m")
+    undone = client.post(f"/api/actions/audit/{done_.json()['audit_id']}/undo")
+    assert undone.status_code == 200, undone.text
+    assert not [r for r in db.query(ContentRepresentation, document_id=page.id) if r.content == "hola" and not r.retracted_at]
+
+
+def test_a_page_changed_since_the_try_is_left_to_run_and_named(db, tmp_path, notebook, monkeypatch):  # noqa: F811
+    from fichero_server.recipes import samples
+
+    page, record = _kept_try(db, tmp_path, notebook, monkeypatch)
+    monkeypatch.setattr(samples, "_stage_plan", lambda *a, **k: {"runs": [{"card": "another"}]})  # the step's settings changed
+    got = adopt.adopt_stage(db, "read", run_id="start")
+    assert got["pages"] == 0 and got["left_to_run"][0]["page"] == page.id and "settings changed" in got["left_to_run"][0]["why"]
+    assert not done._has_line_readings(db, page.id, "m")

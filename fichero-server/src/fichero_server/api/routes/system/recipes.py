@@ -2518,6 +2518,7 @@ class StartPlan(BaseModel):
     """What pressing Start would run, on how many pages, and every reason it cannot yet."""
 
     started: Optional[StartRecord] = Field(default=None, description="the first yes, once given")
+    from_tries: int = Field(default=0, description="pages whose readings came from a kept try, adopted as Start's first action: \"N pages came from your try\"")
     runs: list[StartRun] = Field(description="what Start runs, in order")
     workflows: list[StartWorkflow]
     skipped: list[SkippedStep] = Field(description="steps Start skips, each with why; the others still run")
@@ -2969,7 +2970,14 @@ async def start_project(
         if request and request.first_pages and (folder_id or request.documents is not None):
             raise ValueError("Start takes the first pages, a folder, or some pages: one of them")
 
+        from_tries = [0]  # pages that came from a kept try, adopted as Start's first action (`wide.try.start-reuses-a-matching-try`)
+
         def accept_then_start() -> None:  # the accept builds the Start plan: off the loop with the start (#6178)
+            import fichero_server.api.routes.system.recipe_cloud_cap  # noqa: F401  (registers try.adopt)
+            from fichero_server.recipes import adopt, samples
+
+            for stage_id in adopt.kept_stages(samples._folder(Path(db.path).parent)):
+                from_tries[0] += registry.invoke(db, "try.adopt", {"stage": stage_id}, ctx).result.get("pages", 0)
             # Read here, outside any transaction; the action's plan inside its transaction reuses these reads and asks the
             # caps again, so the spending check still runs under the gate, just before the run is queued.
             _accept_asked(db, request.accept_unpriced if request else [], folder_id, clusters, ctx, memo=reads,
@@ -2991,7 +2999,8 @@ async def start_project(
     clusters = _cluster_names(http)
     return StartPlan(**await asyncio.to_thread(lambda: _as_started(
         db, _start_plan(db, folder_id, clusters=clusters, memo=reads,
-                        **only_if_set(first_pages=first, steps=(request.steps if request else None) or None)), reads)))
+                        **only_if_set(first_pages=first, steps=(request.steps if request else None) or None)), reads)),
+                     from_tries=from_tries[0])
 
 
 class UseInsteadRequest(BaseModel):

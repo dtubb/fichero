@@ -106,7 +106,7 @@ def adopt_page(db: Any, scratch_db: Any, rec: dict[str, Any], before: dict[str, 
     """Adopt one page's readings from the kept copy onto the project's own lines (`wide.try.start-reuses-a-matching-try`): matched lines only,
     the try's artifacts copied (so the reading says which model made it and the done rule counts it), never over a person's reading, and once
     only (a second call finds the copied artifact and does nothing). Lines the try made that the page lacks are not created here.
-    Returns `{readings, unmatched, skipped_person}`."""
+    Returns `{readings, unmatched, skipped_person, reading_ids}`."""
     from fichero_server.llm.working_lines import write_readings
     from fichero_server.models import Artifact, ContentRepresentation, Segment
     from fichero_server.models.knowledge import ProvenanceKind
@@ -120,7 +120,7 @@ def adopt_page(db: Any, scratch_db: Any, rec: dict[str, Any], before: dict[str, 
               if r.segment_id and r.provenance_kind == ProvenanceKind.human and not r.retracted_at}
     old_art, old_rep = set(before.get("Artifact", ())), set(before.get("ContentRepresentation", ()))
     artifacts = {a.id: a for a in scratch_db.query(Artifact, document_id=copy_page) if a.id not in old_art}
-    out = {"readings": 0, "unmatched": 0, "skipped_person": 0}
+    out: dict[str, Any] = {"readings": 0, "unmatched": 0, "skipped_person": 0, "reading_ids": []}
     new_ids: dict[str, str] = {}
     for row in scratch_db.query(ContentRepresentation, document_id=copy_page):
         if row.id in old_rep or row.retracted_at or not row.segment_id or row.derived_from_artifact_id not in artifacts:
@@ -141,7 +141,58 @@ def adopt_page(db: Any, scratch_db: Any, rec: dict[str, Any], before: dict[str, 
                 "data": {**(artifacts[row.derived_from_artifact_id].data or {}), "adopted_from": source}})
             db.save(copied)
             new_ids[row.derived_from_artifact_id] = copied.id
-        out["readings"] += len(write_readings(
+        made = write_readings(
             db, document_id=page_id, readings=[(target, row.content, row.machine_confidence)], artifact_id=new_ids[row.derived_from_artifact_id],
-            run_id=run_id, level=row.level, library_path=library_path))
+            run_id=run_id, level=row.level, library_path=library_path)
+        out["readings"] += len(made)
+        out["reading_ids"] += made
     return out
+
+
+def adopt_stage(db: Any, stage_id: str, *, run_id: str) -> dict[str, Any]:
+    """Start's first action for one stage: adopt from the stage's kept try every page whose image signature and settings are the ones the try ran
+    on, and name the others. `{pages, readings, reading_ids, left_to_run: [{page, why}]}`; nothing adopted is `pages: 0` with the reason."""
+    from fichero_server.db.manager import db_manager
+    from fichero_server.recipes import samples
+    from fichero_server.recipes.project import read_project_setup
+    from fichero_server.recipes.stages import get_stage
+
+    library = Path(db.path).parent
+    out: dict[str, Any] = {"pages": 0, "readings": 0, "reading_ids": [], "left_to_run": []}
+    try:
+        record = json.loads(samples._result_path(library, stage_id).read_text(encoding="utf-8")).get("adoption")
+    except (OSError, ValueError):
+        record = None
+    scratch = samples._folder(library) / f"{stage_id}.fichero"
+    stage = get_stage(stage_id)
+    if not record or stage is None or not (scratch / RECORD).is_file():
+        return out
+    setup = read_project_setup(library)
+    now = settings_hash(samples._stage_plan(db, stage, setup, len(record["pages"]))["runs"])
+    scratch_db = db_manager.get_database(scratch)
+    try:
+        for rec in record["pages"]:
+            current = page_record(db, library, rec["page"], rec["copy_page"], card_ids=rec["cards"], hash_=now)
+            if now != rec["settings"] or not current["signature"] or current["signature"] != rec["signature"]:
+                out["left_to_run"].append({"page": rec["page"], "why": "the page or the step's settings changed since the try"})
+                continue
+            got = adopt_page(db, scratch_db, rec, record.get("before") or {}, scratch_name=stage_id, run_id=run_id,
+                             min_iou=settings(library)["match_iou"], library_path=str(library))
+            if got["readings"]:
+                out["pages"] += 1
+                out["readings"] += got["readings"]
+                out["reading_ids"] += got["reading_ids"]
+    finally:
+        db_manager.close_database(scratch)
+    return out
+
+
+def kept_stages(samples_folder: Path) -> list[str]:
+    """The stages that have a kept try, in a fixed order."""
+    out = []
+    for path in kept_copies(samples_folder):
+        try:
+            out.append(str(json.loads((path / RECORD).read_text(encoding="utf-8")).get("stage")))
+        except (OSError, ValueError):
+            continue
+    return sorted(set(out))
