@@ -88,7 +88,10 @@ def cited_issues(repo, base: str, sha: str) -> list[dict]:
 
 
 def _gh(gh: str, *args) -> None:
-    r = subprocess.run([gh, *args], capture_output=True, text=True, timeout=120)
+    try:
+        r = subprocess.run([gh, *args], capture_output=True, text=True, timeout=120)
+    except subprocess.TimeoutExpired:
+        raise Red(f"gh {' '.join(args[:2])} timed out") from None
     if r.returncode:
         raise Red(f"gh {' '.join(args[:2])}: {r.stderr.strip()[-300:]}")
 
@@ -185,6 +188,12 @@ def main(a) -> int:
         pushed = True
         return f"pushed {sha[:9]} to origin/{branch}"
 
+    def on_origin():
+        _ok(_git(repo, "fetch", "-q", "origin"), "fetch origin")  # a push by hand counts; nothing below may run for a sha origin lacks
+        if _git(repo, "merge-base", "--is-ancestor", sha, f"refs/remotes/origin/{branch}").returncode:
+            raise Red(f"{sha[:9]} is not on origin/{branch}: nothing is pinned, removed or closed for it; push by hand or run again with --push")
+        return f"on origin/{branch}"
+
     def refresh():
         _ok(_git(repo, "fetch", "-q", "origin"), "fetch origin")
         if _git(repo, "merge-base", "--is-ancestor", f"refs/heads/{branch}", f"refs/remotes/origin/{branch}").returncode:
@@ -194,12 +203,12 @@ def main(a) -> int:
 
     def jail_root():
         q = shlex.quote
-        return _ok(as_worker(j, f"git -C root fetch -q origin {q(branch)} && git -C root merge -q --ff-only FETCH_HEAD"), "jail root") or "root fast-forwarded"
+        return _ok(as_worker(j, f"{q(land_tool.GIT)} -C root fetch -q origin {q(branch)} && {q(land_tool.GIT)} -C root merge -q --ff-only FETCH_HEAD"), "jail root") or "root fast-forwarded"
 
     def scratch():
         gone = []
         for wt in worktrees_of(sha):
-            _ok(as_worker(j, f"rm -rf {shlex.quote(wt)} && git -C root worktree prune"), f"remove {wt}")
+            _ok(as_worker(j, f"rm -rf {shlex.quote(wt)} && {shlex.quote(land_tool.GIT)} -C root worktree prune"), f"remove {wt}")
             gone.append(wt)
         return "removed " + ", ".join(gone) if gone else "no scratch worktree in the work rows"
 
@@ -214,7 +223,7 @@ def main(a) -> int:
     resume = None if any(r.get("step") == "done" for r in earlier) else next((r for r in earlier if r.get("step") == "refresh" and r.get("ok") and r.get("base")), None)
     pushed = any(r.get("step") == "push" and r.get("ok") and str(r.get("detail")).startswith("pushed") for r in earlier) if resume else False
     base = resume["base"] if resume else _git(repo, "merge-base", f"refs/heads/{branch}", sha).stdout.strip()  # the range: over the local branch BEFORE it is refreshed
-    steps = [("verdict", verdict), ("check-row", check_row), ("fast-forward", fast_forward), ("boundary", boundary), ("push", push), ("refresh", refresh),
+    steps = [("verdict", verdict), ("check-row", check_row), ("fast-forward", fast_forward), ("boundary", boundary), ("push", push), ("on-origin", on_origin), ("refresh", refresh),
              ("pinned", lambda: pin(repo, sha, pinned_dir)), ("jail-root", jail_root), ("scratch", scratch), ("issues", issues)]
     if resume:
         steps = steps[[n for n, _ in steps].index("refresh") + 1:]

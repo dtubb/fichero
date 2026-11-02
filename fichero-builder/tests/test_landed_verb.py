@@ -277,3 +277,32 @@ def test_a_red_step_after_the_refresh_can_be_run_again_and_finishes_the_rest(wor
     calls = world.gh_log.read_text().splitlines()
     assert any(c.startswith("issue close 7") for c in calls), "the base the first run saw still names the range"
     assert world.go("--push") == 1, "a finished landing is not run twice"
+
+
+def test_without_push_an_unpushed_sha_is_refused_before_anything_moves_and_a_push_rerun_finishes(world, capsys):
+    """Review of range 1: a run without --push pinned, removed scratch trees and closed issues as "landed" for a sha never pushed."""
+    world.ready(), world.green()
+    wt = world.wr / "wt-n1"
+    wt.mkdir()
+    journal.append("work", name="n1", issues=[7], step="fetch", ok=True, detail=world.sha, worktree=str(wt))
+    assert world.go() == 1
+    assert "not on origin" in capsys.readouterr().err and rows()[-1]["step"] == "on-origin" and rows()[-1]["ok"] is False
+    assert not world.pinned_dir.exists() and wt.is_dir() and not world.gh_log.exists(), "nothing moved"
+    assert "done" not in [r["step"] for r in rows()]
+    assert _g(world.engine, "rev-parse", "integration") != world.sha, "the engine repo's branch stays with origin"
+    assert world.go("--push") == 0, "the rerun pushes"
+    assert _g(world.origin, "rev-parse", "integration") == world.sha and rows()[-1]["step"] == "done" and rows()[-1]["pushed"] is True
+    assert "issue close 7" in world.gh_log.read_text() and not wt.exists()
+
+
+def test_a_gh_that_times_out_is_a_red_step_never_a_traceback(world, monkeypatch, capsys):
+    world.ready(), world.green()
+    real = subprocess.run
+
+    def run(argv, **k):
+        if argv[0] == str(world.tmp / "gh"):
+            raise subprocess.TimeoutExpired(argv, 120)
+        return real(argv, **k)
+    monkeypatch.setattr(landed.subprocess, "run", run)
+    assert world.go("--push") == 1
+    assert "timed out" in capsys.readouterr().err and rows()[-1]["step"] == "issues" and rows()[-1]["ok"] is False
