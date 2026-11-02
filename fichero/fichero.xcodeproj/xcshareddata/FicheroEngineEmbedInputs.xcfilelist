@@ -525,6 +525,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/bakeoff.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/cards.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/catalogue_step.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/cloud_cap.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/condition.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/derived.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/diff.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/discovery.py

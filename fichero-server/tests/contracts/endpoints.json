@@ -9880,6 +9880,16 @@
       },
       {
         "method": "GET",
+        "path": "/recipes/questions",
+        "operation_id": "questions_api_recipes_questions_get",
+        "summary": "Questions",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "QuestionList"
+      },
+      {
+        "method": "GET",
         "path": "/recipes/routes",
         "operation_id": "routes_for_volume_api_recipes_routes_get",
         "summary": "Routes For Volume",

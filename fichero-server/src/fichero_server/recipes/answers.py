@@ -79,6 +79,11 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
     if unknown:
         problems.append(f"Material is handwriting, print, typescript or text (already text), not {', '.join(map(repr, unknown))}.")
     out["materials"] = [m for m in MATERIALS if m in materials] + unknown or ["handwriting"]
+    if "condition" in out:  # `designer.material.condition-asked`: none ticked is [], never a default
+        from fichero_server.recipes.condition import normalise as normalise_condition
+
+        out["condition"], refused = normalise_condition(out["condition"])
+        problems += refused
     if "languages" in out:
         out["languages"] = list(dict.fromkeys(keep_or_refuse(v, resolve_language) for v in _list(out["languages"])))
     if "scripts" in out:

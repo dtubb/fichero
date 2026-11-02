@@ -17735,6 +17735,28 @@
         }
       }
     },
+    "/api/recipes/questions": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Questions",
+        "description": "The one list the app asks About the Material from. It invents none (`designer.material.condition-asked`).",
+        "operationId": "questions_api_recipes_questions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/topics": {
       "get": {
         "tags": [
@@ -61098,6 +61120,31 @@
         "title": "ComputePreferences",
         "description": "`priority`: balanced (default; the Mac stays usable), fast (no throttle, every core), or\nbackground (yields to everything). `device`: auto (Apple's GPU when available), cpu or gpu.\n`effective` is what applies now: an environment override (FICHERO_COMPUTE_PRIORITY /\nFICHERO_COMPUTE_DEVICE, for test runs) wins over the saved choice."
       },
+      "ConditionQuestion": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "the condition's name, as the tick box says it"
+          },
+          "help": {
+            "type": "string",
+            "title": "Help",
+            "description": "what Fichero does about it, in one line"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "help"
+        ],
+        "title": "ConditionQuestion"
+      },
       "ConnectedClientsResponse": {
         "properties": {
           "clients": {
@@ -85518,6 +85565,23 @@
         ],
         "title": "PykeenListResponse",
         "description": "Standardized envelope for PyKEEN prediction endpoints."
+      },
+      "QuestionList": {
+        "properties": {
+          "conditions": {
+            "items": {
+              "$ref": "#/components/schemas/ConditionQuestion"
+            },
+            "type": "array",
+            "title": "Conditions",
+            "description": "the condition-of-the-pages tick boxes, in the order they are asked; none is ticked by default"
+          }
+        },
+        "type": "object",
+        "required": [
+          "conditions"
+        ],
+        "title": "QuestionList"
       },
       "QueueClaimItem": {
         "properties": {

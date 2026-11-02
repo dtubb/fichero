@@ -6784,6 +6784,12 @@ def fichero_recipes_list_purposes(
     return _rt.call("GET", "/api/recipes/purposes")
 
 
+def fichero_recipes_questions(
+) -> Any:
+    'Questions\n\nThe one list the app asks About the Material from. It invents none (`designer.material.condition-asked`).\n\nRoute: GET /api/recipes/questions (toolset `recipes`; reads).'
+    return _rt.call("GET", "/api/recipes/questions")
+
+
 def fichero_recipes_routes_for_volume(
     *,
     local_reader: Annotated[str, Field(description='Local Reader')],
@@ -10024,6 +10030,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_use_readers_for_step", "recipes", "POST", "/api/recipes/project/steps/use-readers", fichero_recipes_use_readers_for_step),
     GeneratedTool("fichero_recipes_use_setup_pick_for_step", "recipes", "POST", "/api/recipes/project/steps/use-setup-pick", fichero_recipes_use_setup_pick_for_step),
     GeneratedTool("fichero_recipes_list_purposes", "recipes", "GET", "/api/recipes/purposes", fichero_recipes_list_purposes),
+    GeneratedTool("fichero_recipes_questions", "recipes", "GET", "/api/recipes/questions", fichero_recipes_questions),
     GeneratedTool("fichero_recipes_routes_for_volume", "recipes", "GET", "/api/recipes/routes", fichero_recipes_routes_for_volume),
     GeneratedTool("fichero_recipes_get_samples", "recipes", "GET", "/api/recipes/samples", fichero_recipes_get_samples),
     GeneratedTool("fichero_recipes_choose_samples", "recipes", "PUT", "/api/recipes/samples", fichero_recipes_choose_samples),

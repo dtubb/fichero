@@ -207,7 +207,7 @@ what the material is (handwriting, print, typescript, text: `answers.materials`,
 engine measures faded pages from a sample by itself (`source.onboard.auto.prepare-damaged-images` (P),
 `recipes/prepare.py`); nothing asks about damage, and the Prepare Images questions are two with fixed defaults
 (`recipes/stages.py`; `prep.setup.three-questions-suggested-from-a-sample` (G)).
-- `designer.material.condition-asked` [GAP] (#6052, #6295; issue to file on approval) — About the Material
+- `designer.material.condition-asked` [PARTIAL] (#6052, #6295; engine half built: `recipes/condition.py`, `answers.condition`, `GET /api/recipes/questions`; the app's tick boxes are not) — About the Material
   asks, under the kind of material, "What condition are the pages in?": tick boxes, none ticked by default,
   from one engine list (`GET /api/recipes/questions`): faded ink · torn or missing parts · stains · show-through
   from the other side · water damage · tight binding (text curves into the gutter) · ruled or printed lines

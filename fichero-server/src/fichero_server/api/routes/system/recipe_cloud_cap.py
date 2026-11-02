@@ -326,3 +326,26 @@ async def use_bakeoff_choice(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _whole_setup(result.result)
+
+
+# =============================================================================
+# The questions About the Material asks from the engine's own list (`designer.material.condition-asked`, #6052).
+# =============================================================================
+
+
+class ConditionQuestion(BaseModel):
+    id: str
+    name: str = Field(description="the condition's name, as the tick box says it")
+    help: str = Field(description="what Fichero does about it, in one line")
+
+
+class QuestionList(BaseModel):
+    conditions: list[ConditionQuestion] = Field(description="the condition-of-the-pages tick boxes, in the order they are asked; none is ticked by default")
+
+
+@router.get("/questions", response_model=QuestionList)
+async def questions() -> QuestionList:
+    """The one list the app asks About the Material from. It invents none (`designer.material.condition-asked`)."""
+    from fichero_server.recipes.condition import CONDITIONS  # lazy: the import budget counts a module per route file
+
+    return QuestionList(conditions=[ConditionQuestion(id=i, name=n, help=h) for i, n, h in CONDITIONS])

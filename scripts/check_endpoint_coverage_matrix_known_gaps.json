@@ -305,5 +305,6 @@
   "POST /api/workers": "dev-only worker control (dev tier, FICHERO_DEV_WORKERS=1): reached through the CLI/harness scripts, never from the app; no store by design",
   "POST /api/workers/tell": "dev-only worker control (dev tier, FICHERO_DEV_WORKERS=1): reached through the CLI/harness scripts, never from the app; no store by design",
   "POST /api/workers/{job_id}/stop": "dev-only worker control (dev tier, FICHERO_DEV_WORKERS=1): reached through the CLI/harness scripts, never from the app; no store by design",
-  "GET /api/pair/addresses": "the addresses the host can be reached at, in the engine's order (sharing Step 2.4): reached from the CLI's pairing (fichero_cli/pairing.py); the app reads the same list through the pairing link it already holds, so no Swift call yet"
+  "GET /api/pair/addresses": "the addresses the host can be reached at, in the engine's order (sharing Step 2.4): reached from the CLI's pairing (fichero_cli/pairing.py); the app reads the same list through the pairing link it already holds, so no Swift call yet",
+  "GET /api/recipes/questions": "engine half of the condition tick boxes (designer.material.condition-asked, #6052); About the Material's store reads it next"
 }
