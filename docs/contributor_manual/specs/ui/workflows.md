@@ -399,10 +399,13 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   legacy preset folder can open the custom workflow view instead of the
   expected folder browse, and legacy preset folders can be stuck at the tree
   root with no lock applied. ISSUE: #4186.
-- `workflows.defaults.duplication-regrown` — **[GAP]** the shipped preset set
+- `workflows.defaults.duplication-regrown` — **[PARTIAL]** the shipped preset set
   has regrown near-duplicate presets (e.g. multiple topologically-identical
   transcription presets; Catalogue exists in three shapes) — a pruning pass is
-  design work, not a bug fix (2026-07-29 review F15). (#4738).
+  design work, not a bug fix (2026-07-29 review F15). Today no two presets are the
+  same graph with the same settings, and the five groups that share a topology are
+  pinned in `test_preset_family_to_spec.py` so the set cannot grow unnoticed; which
+  members to prune waits on a ruling. (#4738).
 - `workflows.defaults.transcribe-family-consistent-ensemble-pattern` — **[GAP]** the
   transcribe preset family should share one pattern where the input is hard: cross-model
   ensemble → critical review surfacing disagreement → resolve only the disputed spans →
@@ -546,7 +549,7 @@ Engine only.
 
 #### Step 3.2 — Near-duplicate presets pruned and the transcribe family follows one ensemble pattern (#4738)
 - Behaviours: `workflows.defaults.duplication-regrown`, `workflows.defaults.transcribe-family-consistent-ensemble-pattern`, `workflows.defaults.ensemble-workflow-validated-end-to-end`
-- Tests: fichero-server/tests/unit/workflows/test_preset_family_to_spec.py (not yet written)
+- Tests: fichero-server/tests/unit/workflows/test_preset_family_to_spec.py
 - Size: M
 
 #### Step 3.3 — Translate double-checks by default; extraction has a consistency pass (#3907, #3909)
