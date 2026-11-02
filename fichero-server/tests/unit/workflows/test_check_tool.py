@@ -186,7 +186,7 @@ def test_the_tool_runs_in_a_throwaway_project_with_its_own_config(tmp_path):
     g("add", "."), g("commit", "-q", "-m", "change")
     r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
     assert r["ok"], r
-    assert [x["name"] for x in r["rungs"]] == ["pinned-checks", "ready", "diff-bound", "red-on-base", "guards", "contract-current", "build"]
+    assert [x["name"] for x in r["rungs"]] == ["pinned-checks", "ready", "diff-bound", "red-on-base", "guards", "contract-current", "since-guards", "build"]
 
 
 def test_a_worker_cannot_change_the_checks_it_is_judged_by(tmp_path):
