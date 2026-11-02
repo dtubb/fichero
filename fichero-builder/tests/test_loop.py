@@ -64,6 +64,7 @@ def test_a_red_with_no_live_session_starts_a_new_one_on_a_fix_brief_with_the_fin
 
 def test_rounds_come_from_the_loop_table(state, monkeypatch):
     calls = {}
+    monkeypatch.setattr(queue, "ROUNDS", queue.ROUNDS)  # restored after: the verb sets the module's round count
     monkeypatch.setattr(queue, "real_procs", lambda root: Fake().procs)
     monkeypatch.setattr(queue, "run", lambda procs, **k: calls.update(k) or 0)
     assert cli.main(["loop", "--root", str(state), "--state", str(state / "s")]) == 0
@@ -86,3 +87,55 @@ def test_tell_puts_a_finding_into_the_live_session_and_refuses_with_a_row_when_t
     assert cli.main(["queue", "tell", "--lane", "m1", "--text", "x", "--state", str(state / "s")]) == 1
     assert "no live session" in capsys.readouterr().out
     assert [r["state"] for r in journal.read() if r["event"] == "queue" and r.get("state") in ("told", "tell-refused")] == ["told", "tell-refused"]
+
+
+def _alerts():
+    return [r for r in journal.read() if r["event"] == "alert"]
+
+
+def test_every_stop_is_an_alert_with_evidence_and_actions_and_retry_lands_it(state, tmp_path):
+    """run.loop-alerts: the manager reads one row (what, evidence, actions) and answers with one verb."""
+    lane(state)
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "error", "why": "the ladder could not start", "evidence": "/s/ladder-m1.json"}]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    assert a["lane"] == "m1" and a["step"] == "1.1" and "could not start" in a["what"] and a["evidence"] == "/s/ladder-m1.json"
+    assert a["actions"] == ["retry", "park", "ask-owner"]
+    assert cli.main(["alert", a["id"], "launch", "--state", str(state / "s")]) == 1, "an action the alert does not offer is refused"
+    assert cli.main(["alert", a["id"], "retry", "--state", str(state / "s")]) == 0
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "landed" and steps()["1.2"]["state"] == "landed"
+    assert [(r["action"], r["ok"]) for r in journal.read() if r["event"] == "alert-answer"] == [("launch", False), ("retry", True)]
+
+
+def test_needs_maintainer_is_an_alert_with_the_pinned_diff_and_approve_reruns_as_maintainer(state):
+    """run.loop-needs-maintainer: a pinned file changed on purpose is the manager's call, not the worker's."""
+    lane(state)
+    seen = []
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "needs-maintainer", "why": "pinned-checks: scripts/verify_workflows.py changed",
+                                 "evidence": "/s/pinned-m1.diff"}]})
+    base_chain = fake.procs.chain
+    fake.procs.chain = lambda lane_, step, stage: seen.append(bool(step.get("maintainer"))) or base_chain(lane_, step, stage)
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    assert a["actions"] == ["approve", "send-back"] and a["evidence"] == "/s/pinned-m1.diff"
+    assert steps()["1.1"]["rounds"] == 0, "never sent back to the worker on its own"
+    assert cli.main(["alert", a["id"], "approve", "--state", str(state / "s")]) == 0
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert seen[:2] == [False, True] and steps()["1.1"]["state"] == "landed"
+
+
+def test_send_back_and_ask_owner(state, tmp_path):
+    calls = tmp_path / "calls"
+    gh = tmp_path / "gh"
+    gh.write_text(f'#!/bin/sh\necho "$*" >> {calls}\n')
+    gh.chmod(0o755)
+    lane(state)
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "error", "why": "boom"}, {"ok": False, "kind": "error", "why": "boom again"}]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    first = _alerts()[-1]
+    assert cli.main(["alert", first["id"], "ask-owner", "--state", str(state / "s"), "--gh", str(gh)]) == 0
+    assert "issue edit 7 --add-label needs-your-decision" in calls.read_text()
+    assert cli.main(["alert", first["id"], "send-back", "--state", str(state / "s")]) == 1, "not offered for an error"
+    assert cli.main(["alert", first["id"], "park", "--state", str(state / "s")]) == 0
+    assert steps()["1.1"]["state"] == "blocked"

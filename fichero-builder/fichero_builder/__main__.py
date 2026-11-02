@@ -125,6 +125,10 @@ def main(argv=None) -> int:
     lp = sub.add_parser("loop", help="the continuous loop (dev-workflows.run.loop): `queue run --push` forever with a heartbeat row a tick; lanes and rounds from [loop]")
     lp.add_argument("--root", default=str(Path.cwd())), lp.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
     lp.add_argument("--tick", type=float, default=30.0), lp.add_argument("--lanes", type=int, help="default [loop].lanes, else 1")
+    al = sub.add_parser("alert", help="answer one alert row (dev-workflows.run.loop-alerts): retry | park | ask-owner, or approve | send-back for needs-maintainer")
+    al.add_argument("id"), al.add_argument("action")
+    al.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
+    al.add_argument("--gh", default="gh"), al.add_argument("--root", default=str(Path.cwd()), help="the checkout gh runs from (ask-owner)")
     bd = sub.add_parser("build", help="the dev DMG through the project's own script, as the owner: one journal row, the DMG's path and pass or fail; a full release is refused")
     bd.add_argument("--dev", action="store_true", help="required: the dev tier, no version stamp, no notarizing")
     bd.add_argument("--root", default=str(Path.cwd()), help="the checkout to build"), bd.add_argument("--state", help="where the journal and the log live (default: the owner's journal dir)")
@@ -205,6 +209,13 @@ def main(argv=None) -> int:
         from fichero_builder import build
 
         return build.main(a)
+    if a.cmd == "alert":
+        from fichero_builder import queue
+
+        journal.STATE = Path(a.state) if a.state else journal.STATE
+        rc, msg = queue.answer(a.id, a.action, gh=a.gh, cwd=a.root)
+        print(msg)
+        return rc
     if a.cmd == "loop":
         import tomllib
 

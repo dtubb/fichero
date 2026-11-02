@@ -144,9 +144,10 @@ def do_check(a, repo: str, branch: str, head: str, ladder: str) -> dict:
     since = land_tool.resolve_branch(repo, branch)
     if not since:
         raise RuntimeError(f"{branch!r} is not a branch in {repo}")
-    r = check_tool.ladder_over(repo, since, head, a.pinned, getattr(a, "ids", []))
+    maintainer = bool(getattr(a, "maintainer", False))  # the manager approved a pinned-file change (dev-workflows.run.loop-needs-maintainer)
+    r = check_tool.ladder_over(repo, since, head, a.pinned, getattr(a, "ids", []), maintainer=maintainer)
     Path(ladder).write_text(json.dumps(r, indent=1))
-    journal.append("check", repo=str(repo), since=since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""))
+    journal.append("check", repo=str(repo), since=since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""), maintainer=maintainer)
     return r
 
 
@@ -204,6 +205,10 @@ def _tail(r: dict) -> str:
     return "\n".join([*(str(last[k]) for k in keys if last.get(k)), *red])[-3000:]
 
 
+def r_since(repo: str, branch: str) -> str:
+    return land_tool.resolve_branch(repo, branch) or branch
+
+
 def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None) -> dict:
     """Rebase, patches, fetch, check, review, land gate: one journal row each; {ok, head, out} or {ok: False, kind, why,
     findings}. kind red / not-ready / refused can go back to the worker; error needs a person. `stage` hears checking, reviewing."""
@@ -213,8 +218,8 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
         journal.append("work", name=a.name, issues=issues, step=name, ok=ok, detail=detail, worktree=str(a.worktree))
         return ok
 
-    def no(kind: str, why: str, findings: str = "") -> dict:
-        return {"ok": False, "kind": kind, "why": why, "findings": findings}
+    def no(kind: str, why: str, findings: str = "", evidence: str = "") -> dict:
+        return {"ok": False, "kind": kind, "why": why, "findings": findings, "evidence": evidence}
 
     state = Path(journal.STATE)
     state.mkdir(parents=True, exist_ok=True)
@@ -238,7 +243,11 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
             step("check", False, str(e))
             return no("error", f"the check could not run: {e}")
         if not step("check", bool(r.get("ok")), f"failed: {r.get('failed') or '-'}"):
-            return no("red", f"the check is red at {head[:9]} (failed: {r.get('failed') or '?'}); ladder in {ladder}", f"failed rung: {r.get('failed') or '?'}\n{_tail(r)}")
+            if r.get("failed") == "pinned-checks" and "needs-maintainer" in _tail(r):
+                diff = state / f"pinned-{a.name}.diff"
+                diff.write_text(_git(repo, "diff", r_since(repo, branch), head, "--", *check_tool.load(a.pinned).check_paths).stdout)
+                return no("needs-maintainer", f"pinned-checks at {head[:9]}: {_tail(r)[-300:]}", _tail(r), str(diff))
+            return no("red", f"the check is red at {head[:9]} (failed: {r.get('failed') or '?'}); ladder in {ladder}", f"failed rung: {r.get('failed') or '?'}\n{_tail(r)}", ladder)
         stage("reviewing")
         if land_tool.unreviewed(repo, branch, head, verdicts):
             ok, text = do_review(a, repo, head, ladder, verdicts, reviewer)
@@ -246,7 +255,8 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
             ok, text = True, "READY (the verdict this range already has; no second model pass)"
         last = text.splitlines()[-1] if text else "the reviewer said nothing"
         if not step("review", ok, last):
-            return no("not-ready", f"the review is not READY: {last}", text)
+            (state / f"review-{a.name}.txt").write_text(text)
+            return no("not-ready", f"the review is not READY: {last}", text, str(state / f"review-{a.name}.txt"))
         ok, out = do_land(a, repo, head, verdicts, log)
         if not step("land", ok, out[-300:]):
             return no("refused", f"the land gate refused: {out[-300:]}", out[-2000:])
