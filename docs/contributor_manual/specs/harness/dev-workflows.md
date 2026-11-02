@@ -514,9 +514,9 @@ the write path would produce.
   process control (start, alive, stop, read the session file) as a small object, and the dry run swaps in fakes with a
   scripted sequence of session states. Built 2026-11-01: a missing price refuses before anything starts; a healthy worker
   that ends leaves one `worker` row and one `cost` row; an idle worker is ended on its DONE line and left alone without it
-  while its branch has not moved; idle with the branch moved and no DONE line for two ticks it is nudged once with the
-  exact line to end on, and still idle two ticks later it is ended `done-unsaid` (a `watch` row, the cost row's end, exit
-  0); a hand brief that carries no DONE instruction is started on a copy in the worktree that does (built 2026-11-01,
+  while its branch has not moved; idle with the branch moved and no good DONE line (none, or one naming another sha) for two ticks it is nudged once with the
+  exact line to end on, through the pane, and still idle two more ticks later, even after a reply without the line, it is ended `done-unsaid` (a `watch` row, the cost row's end, exit
+  0, and `builder work` goes on to the check, because the branch holds the work; tests `fichero-builder/tests/test_dry_run.py::test_a_done_line_naming_the_wrong_sha_on_a_moved_branch_is_nudged_and_ended_too`, `::test_a_worker_that_answers_the_nudge_without_the_line_still_ends`, `fichero-builder/tests/test_work_verb.py::test_a_worker_that_committed_and_never_said_done_goes_on_to_the_check`); a hand brief that carries no DONE instruction is started on a copy in the worktree that does (built 2026-11-01,
   `fichero-builder/tests/test_dry_run.py::test_an_idle_worker_whose_branch_moved_but_said_no_done_is_nudged_once_then_ended_done_unsaid`,
   `::test_a_hand_brief_without_the_done_instruction_gets_it_added_in_the_copy_the_worker_is_started_on`);
   the session cap and the day cap park and stop the pane; a silent
