@@ -141,7 +141,7 @@ def main(argv=None) -> int:
     bd = sub.add_parser("build", help="the dev DMG through the project's own script, as the owner: one journal row, the DMG's path and pass or fail; a full release is refused")
     bd.add_argument("--dev", action="store_true", help="required: the dev tier, no version stamp, no notarizing")
     bd.add_argument("--root", default=str(Path.cwd()), help="the checkout to build"), bd.add_argument("--state", help="where the journal and the log live (default: the owner's journal dir)")
-    wa = sub.add_parser("watch", help="a live progress page from the journal on 127.0.0.1 (runs, checks, lands, the queue)")
+    wa = sub.add_parser("watch", aliases=["status"], help="a live progress page from the journal on 127.0.0.1 (status: lanes, last check and landing, issues closed and spend today, open alerts; runs, checks, lands, the queue); /status.json for the app")
     wa.add_argument("--port", type=int, default=8765)
     wa.add_argument("--state", help="where the owner's journal lives (default: the owner's journal dir)")
     wa.add_argument("--root", default=str(Path.cwd()), help="the checkout whose harness.toml names the worker's shared state, read too")
@@ -268,7 +268,7 @@ def main(argv=None) -> int:
 
         journal.STATE = Path(a.state) if a.state else journal.STATE
         return queue.main(a)
-    if a.cmd == "watch":
+    if a.cmd in ("watch", "status"):
         from fichero_builder import watch
 
         return watch.main(a)
