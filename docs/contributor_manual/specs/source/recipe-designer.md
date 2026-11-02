@@ -866,13 +866,13 @@ its basis, and it learns from the project's booked costs (`designer.budget.estim
   paused run (`designer.budget.fix-during-the-run`) is the same action. *Test:*
   `test_set_budget_is_audited_and_undoable.py` (the audit row names the cap and
   both figures; undo restores the old cap and nothing else; MCP and the command line reach it through the regen). Found built 2026-11-02 (#6295): `PUT /api/recipes/project/cloud-cap` is one `project.save_setup` writing only the caps, audited, one Undo puts both back (`test_raise_the_cap_in_place_6295.py::test_changing_the_caps_is_audited_keeps_the_rest_and_one_undo_puts_both_back`; the app: `RecipeSetupStore+CloudCaps.changeCloudCaps`). Left: an action of its own named `project.set_budget` (the audit row names `project.save_setup`), and the run cap.
-- `designer.budget.fix-during-the-run` [GAP] (#6295; extends `designer.run.cap-stops-and-says`) — when a run is
+- `designer.budget.fix-during-the-run` [PARTIAL] (#6295; extends `designer.run.cap-stops-and-says`) — when a run is
   paused at the cap, the run's Activity row and the project's run strip show the same three fixes, and both cap
   fields editable in place (the maintainer's ruling, 2026-10-30) (raise to $N,
   change the step's model for the remaining pages, stop here and keep what is done), with the booked figure so
   far; pressing raise sets the cap and resumes the run (the run's own Resume, #5932/#5933), never silently.
   *Test:* `test_run_cap_fix_in_place.py` (a paused run resumes after the cap is
-  raised through the action; a stop keeps the finished pages).
+  raised through the action; a stop keeps the finished pages). Built 2026-11-02 (engine): a step refused for a cap leaves the run *paused at the cap*, not failed (`runner._pause_at_the_cap`: the sentence, the step and the three caps are kept on the run; the checkpoint is untouched), and the run carries on from its checkpoint when any cap is higher than it was, no page read again; a lowered or unchanged cap never resumes it (`runner._wait_for_a_raised_cap`, `spend.raised_since`; `test_run_pauses_at_the_cap_6295.py`). Left: the Activity row and run strip fixes with the booked figure, a stop-here fix, and raising the run's own cap mid-run.
 
 ### 12. Start, and the run
 

@@ -147,6 +147,29 @@ def project_cap_usd(library: str | None) -> float | None:
     return float(cap) if ok else None
 
 
+#: Every cap refusal's sentence carries this (`_past_a_cap`): a run reads it to pause at the cap instead of failing.
+CAP_MARK = "cloud spend is capped at"
+
+
+def refused_for_cap(why: str | None) -> bool:
+    """Whether a step's end was a cap refusal (a monthly, project or run cap), not an unpriced model or any other failure."""
+    return bool(why) and CAP_MARK in why
+
+
+def caps_now(library: str) -> dict[str, float | None]:
+    """The three caps as they stand: monthly, project (None: no limit) and the run's (None: none)."""
+    run = run_cap(library)
+    return {"month": cap_usd(library), "project": project_cap_usd(library), "run": float(run["cap_usd"]) if run else None}
+
+
+def raised_since(library: str, held: dict[str, float | None]) -> bool:
+    """Whether any cap is higher than `held` (no limit counts as the highest): a raised cap resumes a run paused at the cap, a
+    lowered or unchanged one never does."""
+    inf = float("inf")
+    now = caps_now(library)
+    return any((now[k] if now[k] is not None else inf) > (held.get(k) if held.get(k) is not None else inf) + 1e-9 for k in now)
+
+
 def run_cap(library: str | None) -> dict | None:
     """The run under way's cap, `{job_id, cap_usd, from_usd}` (`from_usd`: what was booked in all when it started); None: no run cap."""
     if not library:
