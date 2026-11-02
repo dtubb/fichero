@@ -1,0 +1,74 @@
+# The defaults table (`designer.defaults.table`, #6052): the answers -> the recipe's defaults, each with its `why`.
+# `base` rows are exclusive: the first whose `when` matches wins, the last (no `when`) is the fallback. `adds` rows
+# are per condition and add preparation steps / Leave Out / Review. `when` keys: material (any of), where, matters,
+# large (bool), condition (any of). Caps: none | estimate | estimate-rounded | first-pages-estimate | hf-cap-estimate.
+# To be checked against the maintainer's judgement (open question 6): the rows are the spec's first rows, not final.
+base:
+  - id: clean-print-this-mac
+    when: {material: [print, typescript], where: this-mac}
+    steps: [find-lines, read-a-line, make-a-vector]
+    model_kind: Apple's recognition or a shipped Kraken print reader
+    review: "off"
+    cap: none
+    why: clean print reads well with a free reader that never invents text
+  - id: handwriting-privacy
+    when: {material: [handwriting], where: this-mac, matters: privacy}
+    steps: [find-lines, read-a-line, correct, make-a-vector]
+    model_kind: Kraken reader for the script and period
+    review: unsure-lines
+    cap: none
+    why: nothing leaves this Mac; the unsure lines are checked again
+  - id: cloud-quality
+    when: {where: cloud, matters: quality}
+    steps: [find-lines, read-a-line, make-a-vector]
+    model_kind: a large vision-language model
+    review: "off"
+    cap: estimate-rounded
+    why: a large model reads a hard hand best; the cap is Fichero's best estimate of the cost, and it learns from what your project has booked
+  - id: cloud-cost-large-archive
+    when: {where: cloud, matters: cost, large: true}
+    steps: [find-lines, read-a-line, make-a-vector]
+    model_kind: a large model on the first pages, then a small model taught from your corrections
+    review: "off"
+    cap: first-pages-estimate
+    why: the cloud reads the first pages, your corrections teach a free model for the rest
+  - id: cluster-cost
+    when: {where: cluster, matters: cost}
+    steps: [find-lines, read-a-line, make-a-vector]
+    model_kind: the readers you chose, run there
+    review: "off"
+    cap: hf-cap-estimate
+    why: long runs go where your allocation is
+  - id: fallback
+    steps: [find-lines, read-a-line, make-a-vector]
+    model_kind: Fichero's usual default
+    review: "off"
+    cap: none
+adds:
+  faded:
+    prepare: [clarity]
+    why: faded ink reads better after contrast; the original is kept
+  stains:
+    prepare: [clarity]
+    why: stains are lightened with contrast before reading; the original is kept
+  show-through:
+    prepare: []
+    why: writing from the other side is dimmed before reading (not built yet, so nothing is run for it)
+  tight-binding:
+    prepare: [crop]
+    why: text that curves into the gutter is flattened first
+  torn:
+    steps: [leave-out]
+    review: "on"
+    model_kind_offered: a vision-language reader beside the CTC one, compared
+    cap: estimate
+    why: a damaged page needs a reader that uses context, and a check for what it invents
+  water-damage:
+    steps: [leave-out]
+    review: "on"
+    model_kind_offered: a vision-language reader beside the CTC one, compared
+    cap: estimate
+    why: a damaged page needs a reader that uses context, and a check for what it invents
+  ruled-lines:
+    prepare: []
+    why: ruling under the writing is removed before the lines are found (not built yet, so nothing is run for it)

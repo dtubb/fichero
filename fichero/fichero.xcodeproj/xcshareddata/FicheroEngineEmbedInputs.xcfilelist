@@ -526,6 +526,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/cards.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/catalogue_step.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/cloud_cap.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/condition.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/defaults.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/derived.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/diff.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/discovery.py
@@ -559,6 +560,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/run_view.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/runner.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/samples.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/cards.yaml
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/defaults-by-answers.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/feast-days.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/frontier-cloud-providers.txt
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/glottolog.txt.gz

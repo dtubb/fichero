@@ -221,7 +221,7 @@ engine measures faded pages from a sample by itself (`source.onboard.auto.prepar
   `prep.setup.three-questions-suggested-from-a-sample`, once built), each suggested tick labelled "from 3 of 5
   sample pages"; a condition no measure can see (torn, stains, water damage) is never pre-ticked. The person
   changes any tick. *Test:* `test_condition_suggested_from_a_sample.py`.
-- `designer.material.condition-feeds-the-defaults` [GAP] (#6052; issue to file on approval) — the condition answers and the kind of
+- `designer.material.condition-feeds-the-defaults` [PARTIAL] (#6052; engine half built in `recipes/defaults.py`; not yet applied by `assemble.py`) — the condition answers and the kind of
   material are rows of the defaults table (section 4b): they choose the preparation steps (contrast for faded,
   show-through suppression, flattening for a tight binding, ruling removal), the reader kind (a CTC reader on
   clean print; a vision-language reader offered for damaged handwriting), and whether a Review pass is on by
@@ -378,7 +378,7 @@ the preparation step (`source.onboard.auto.prepare-damaged-images` (P)), and a p
 `routes.py`, and none says on screen *why* a default was chosen.
 
 **Improves.**
-- `designer.defaults.table` [GAP] (#6052; issue to file on approval) — one vendored table, `recipes/seed/defaults-by-answers.yaml`,
+- `designer.defaults.table` [PARTIAL] (#6052; engine half built in `recipes/defaults.py`, `GET /api/recipes/defaults`; not yet applied by `assemble.py` or shown in the app) — one vendored table, `recipes/seed/defaults-by-answers.yaml`,
   maps the answers (kind of material, condition, where, model kind, what matters, the volume) to the recipe's
   defaults: which stages are ticked, each step's default candidate kind (CTC reader, vision-language reader,
   Apple's recognition, a cloud or local place), whether Review is on, the preparation steps, and the proposed caps.
@@ -401,15 +401,15 @@ the preparation step (`source.onboard.auto.prepare-damaged-images` (P)), and a p
   *Test:* `test_defaults_table.py` (every row loads; every answer combination
   the questions can produce hits exactly one row or the fallback row; the chosen defaults match the table for
   each row above).
-- `designer.defaults.says-why` [GAP] (#6052; issue to file on approval) — every default a stage page or Ready shows carries the
+- `designer.defaults.says-why` [PARTIAL] (#6052; engine half built in `recipes/defaults.py`, `GET /api/recipes/defaults`; not yet applied by `assemble.py` or shown in the app) — every default a stage page or Ready shows carries the
   table row's `why` in grey under it ("chosen because: faded ink, this Mac only"), served by the engine with
   the plan; a default with no row says "Fichero's usual default". *Test:*
   `test_defaults_say_why.py`.
-- `designer.defaults.person-wins` [GAP] (#6052; issue to file on approval) — a choice the person made on a stage page, in the
+- `designer.defaults.person-wins` [PARTIAL] (#6052; engine half built in `recipes/defaults.py`, `GET /api/recipes/defaults`; not yet applied by `assemble.py` or shown in the app) — a choice the person made on a stage page, in the
   finder or on Ready is never replaced by the table when an answer changes; the changed default is offered
   beside it ("your answers now suggest X; keep Y?"), as `source.onboard.step-choice-overrides-the-pick` keeps a
   choice over the rules. *Test:* `test_defaults_never_override_a_choice.py`.
-- `designer.defaults.caps-proposed-from-the-table` [GAP] (#6052; issue to file on approval) — the table's cap column is what
+- `designer.defaults.caps-proposed-from-the-table` [PARTIAL] (#6052; engine half built in `recipes/defaults.py`, `GET /api/recipes/defaults`; not yet applied by `assemble.py` or shown in the app) — the table's cap column is what
   `designer.path.caps-proposed-not-written` proposes; it is written only on the person's confirmation of the
   typed figure (section 11b). *Test:* in `test_defaults_table.py` (a proposal writes nothing).
 

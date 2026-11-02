@@ -377,3 +377,29 @@ async def questions(places: str = "", matters: str = "", pages: int = 0) -> Ques
                 cloud_allowed=app_places.allows("cloud", allowed), memory_gb=derived.this_mac()["memory_gb"])],
             default_model_kind=how_module.DEFAULT_MODEL_KIND, matters=list(how_module.MATTERS),
             proposed_card=how_module.proposed_card(said, pages)))
+
+
+class WhyOfDefault(BaseModel):
+    why: str
+    because: str = Field(description="the answers that chose it, e.g. 'faded, this mac'")
+
+
+class RecipeDefaults(BaseModel):
+    steps: list[str]
+    prepare: list[str] = Field(description="the Prepare Images operations the answers choose")
+    model_kind: str
+    review: str = Field(description="off, on or unsure-lines")
+    cap: str = Field(description="what the cap is proposed from (none, estimate, ...); a figure is shown, never written")
+    rows: list[str] = Field(description="the table rows that chose these defaults")
+    why: dict[str, WhyOfDefault] = Field(description="by default: the row's sentence and what chose it; a default with no entry says Fichero's usual default")
+
+
+@router.get("/defaults", response_model=RecipeDefaults)
+async def recipe_defaults(materials: str = "", condition: str = "", places: str = "", matters: str = "", pages: int = 0) -> RecipeDefaults:
+    """The defaults the answers so far propose, each saying why (`designer.defaults.table`, `designer.defaults.says-why`). Reads, writes nothing."""
+    from fichero_server.recipes import defaults  # lazy: the import budget counts a module per route file
+
+    split = lambda text: [t for t in text.split(",") if t]  # noqa: E731
+    got = defaults.resolve({"materials": split(materials), "condition": split(condition),
+                            "how": {"places": split(places), "matters": matters or None}}, pages)
+    return RecipeDefaults(**got)

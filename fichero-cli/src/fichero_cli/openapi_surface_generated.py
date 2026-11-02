@@ -13770,6 +13770,28 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("defaults")
+    def recipes_defaults_get(
+        ctx: typer.Context,
+        condition: Optional[str] = typer.Option(None, '--condition', help='Condition.'),
+        materials: Optional[str] = typer.Option(None, '--materials', help='Materials.'),
+        matters: Optional[str] = typer.Option(None, '--matters', help='Matters.'),
+        pages: Optional[int] = typer.Option(None, '--pages', help='Pages.'),
+        places: Optional[str] = typer.Option(None, '--places', help='Places.'),
+    ) -> None:
+        """Recipe Defaults (GET /api/recipes/defaults)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/defaults"
+            params = {
+                "condition": condition,
+                "materials": materials,
+                "matters": matters,
+                "pages": pages,
+                "places": places,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("derived-facts")
     def recipes_derived_facts_get(
         ctx: typer.Context,

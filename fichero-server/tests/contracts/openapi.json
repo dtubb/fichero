@@ -17799,6 +17799,90 @@
         }
       }
     },
+    "/api/recipes/defaults": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Recipe Defaults",
+        "description": "The defaults the answers so far propose, each saying why (`designer.defaults.table`, `designer.defaults.says-why`). Reads, writes nothing.",
+        "operationId": "recipe_defaults_api_recipes_defaults_get",
+        "parameters": [
+          {
+            "name": "materials",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Materials"
+            }
+          },
+          {
+            "name": "condition",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Condition"
+            }
+          },
+          {
+            "name": "places",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Places"
+            }
+          },
+          {
+            "name": "matters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Matters"
+            }
+          },
+          {
+            "name": "pages",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Pages"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeDefaults"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/topics": {
       "get": {
         "tags": [
@@ -87083,6 +87167,66 @@
         "title": "RecipeChange",
         "description": "One step a fresh assembly would add, take out or run differently from the project's saved recipe."
       },
+      "RecipeDefaults": {
+        "properties": {
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "prepare": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Prepare",
+            "description": "the Prepare Images operations the answers choose"
+          },
+          "model_kind": {
+            "type": "string",
+            "title": "Model Kind"
+          },
+          "review": {
+            "type": "string",
+            "title": "Review",
+            "description": "off, on or unsure-lines"
+          },
+          "cap": {
+            "type": "string",
+            "title": "Cap",
+            "description": "what the cap is proposed from (none, estimate, ...); a figure is shown, never written"
+          },
+          "rows": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Rows",
+            "description": "the table rows that chose these defaults"
+          },
+          "why": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WhyOfDefault"
+            },
+            "type": "object",
+            "title": "Why",
+            "description": "by default: the row's sentence and what chose it; a default with no entry says Fichero's usual default"
+          }
+        },
+        "type": "object",
+        "required": [
+          "steps",
+          "prepare",
+          "model_kind",
+          "review",
+          "cap",
+          "rows",
+          "why"
+        ],
+        "title": "RecipeDefaults"
+      },
       "RecipeRunStatus": {
         "properties": {
           "job_id": {
@@ -103402,6 +103546,25 @@
           "on_correction"
         ],
         "title": "WhatRunsByItself"
+      },
+      "WhyOfDefault": {
+        "properties": {
+          "why": {
+            "type": "string",
+            "title": "Why"
+          },
+          "because": {
+            "type": "string",
+            "title": "Because",
+            "description": "the answers that chose it, e.g. 'faded, this mac'"
+          }
+        },
+        "type": "object",
+        "required": [
+          "why",
+          "because"
+        ],
+        "title": "WhyOfDefault"
       },
       "WikidataStatementModel": {
         "properties": {

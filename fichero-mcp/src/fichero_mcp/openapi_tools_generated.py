@@ -6518,6 +6518,18 @@ def fichero_recipes_accept_unpriced_cloud_model(
     return _rt.call("POST", "/api/recipes/cloud/accept-unpriced", json=_rt.body({"model": model, "provider": provider, "withdraw": withdraw}))
 
 
+def fichero_recipes_defaults(
+    *,
+    condition: Annotated[Optional[str], Field(description='Condition')] = None,
+    materials: Annotated[Optional[str], Field(description='Materials')] = None,
+    matters: Annotated[Optional[str], Field(description='Matters')] = None,
+    pages: Annotated[Optional[int], Field(description='Pages')] = None,
+    places: Annotated[Optional[str], Field(description='Places')] = None,
+) -> Any:
+    'Recipe Defaults\n\nThe defaults the answers so far propose, each saying why (`designer.defaults.table`, `designer.defaults.says-why`). Reads, writes nothing.\n\nRoute: GET /api/recipes/defaults (toolset `recipes`; reads).'
+    return _rt.call("GET", "/api/recipes/defaults", params={"condition": condition, "materials": materials, "matters": matters, "pages": pages, "places": places})
+
+
 def fichero_recipes_derived_facts(
     *,
     period: Annotated[Optional[str], Field(description='Period')] = None,
@@ -10002,6 +10014,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_model_candidates", "recipes", "GET", "/api/recipes/candidates", fichero_recipes_model_candidates),
     GeneratedTool("fichero_recipes_check", "recipes", "POST", "/api/recipes/check", fichero_recipes_check),
     GeneratedTool("fichero_recipes_accept_unpriced_cloud_model", "recipes", "POST", "/api/recipes/cloud/accept-unpriced", fichero_recipes_accept_unpriced_cloud_model),
+    GeneratedTool("fichero_recipes_defaults", "recipes", "GET", "/api/recipes/defaults", fichero_recipes_defaults),
     GeneratedTool("fichero_recipes_derived_facts", "recipes", "GET", "/api/recipes/derived", fichero_recipes_derived_facts),
     GeneratedTool("fichero_recipes_choose_font", "recipes", "PUT", "/api/recipes/font", fichero_recipes_choose_font),
     GeneratedTool("fichero_recipes_list_hands", "recipes", "GET", "/api/recipes/hands", fichero_recipes_list_hands),

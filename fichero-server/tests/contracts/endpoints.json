@@ -9476,6 +9476,42 @@
       },
       {
         "method": "GET",
+        "path": "/recipes/defaults",
+        "operation_id": "recipe_defaults_api_recipes_defaults_get",
+        "summary": "Recipe Defaults",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "condition",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "materials",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "matters",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "pages",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "places",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "RecipeDefaults"
+      },
+      {
+        "method": "GET",
         "path": "/recipes/derived",
         "operation_id": "derived_facts_api_recipes_derived_get",
         "summary": "Derived Facts",
