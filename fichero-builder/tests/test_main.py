@@ -75,6 +75,14 @@ def test_run_exits_zero_on_a_clean_done_and_one_on_a_refusal(tmp_path, monkeypat
                          "--model", "sonnet"]) == code, end  # a rules file with no [models]: the model is named
 
 
+def test_run_with_no_model_and_no_builder_role_refuses_as_a_question(tmp_path, monkeypatch, capsys):
+    """dev-workflows.run.loop-roles: no model name is written in code; with no --model and no [models].builder, run refuses."""
+    monkeypatch.setattr(cli.run_mod, "real_procs", lambda home, wt: object())
+    monkeypatch.setattr(cli.run_mod, "run", lambda *a, **k: "done")
+    assert cli.main(["run", "--worktree", str(tmp_path), "--brief", str(tmp_path / "b"), "--root", str(tmp_path), "--state", str(tmp_path / "s")]) == 1
+    assert "[models].builder" in capsys.readouterr().err
+
+
 def test_check_refuses_an_empty_range(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cli, "resolve", lambda repo, rev: "d" * 40)
     monkeypatch.setattr(cli.check_tool, "run_ladder", lambda *a, **k: (_ for _ in ()).throw(AssertionError("the ladder must not run")))
