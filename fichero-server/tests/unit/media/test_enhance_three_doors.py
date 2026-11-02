@@ -265,3 +265,12 @@ def test_no_enhancement_step_reads_or_writes_an_assets_stage_folder_or_a_stage_m
                 if text == "assets" or text.startswith("assets/") or "/assets/" in text or text.endswith("_manifest.jsonl"):
                     offenders.append(f"{path.relative_to(SRC)}:{node.lineno}: {text!r}")
     assert offenders == [], f"an enhancement step must not use an assets/<stage>/ folder or a stage manifest: {offenders}"
+
+
+def test_a_stored_contrast_row_out_of_range_still_previews_as_it_was_saved(client, db):
+    from fichero_server.models import ImageEditChain
+
+    doc = _doc(db)
+    # An old library holds this row; the save route would now refuse it (422), so it goes in the table directly.
+    db.save(ImageEditChain(document_id=doc.id, operations=[{"op": "contrast", "params": {"factor": 12, "clip": 6.0}}]))
+    assert client.get(f"/api/images/{doc.id}/preview").status_code == 200
