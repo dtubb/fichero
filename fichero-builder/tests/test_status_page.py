@@ -181,13 +181,13 @@ def test_milestones_come_by_section_with_counts_steps_and_issues_and_start_calls
     monkeypatch.setattr(ms, "build_order", lambda p: [{"number": n, "title": t, "depends_on": d} for n, t, d in
                                                       [("1.1", "a", []), ("1.2", "b", []), ("1.3", "c", ["1.2"])]])
     lanes = [{"id": "alpha", "worktree": "/w", "cursor": 0, "steps": [{"step": "1.2", "state": "sent"}]}]
-    d = console.milestones(tmp_path, gh=str(gh), lanes=lanes)
+    d = console.milestones(tmp_path, gh=str(gh), lanes=lanes, reads=lambda root, ls, br: ({}, "", set()), closed=lambda name: [])
     by = {m["name"]: m for m in d["milestones"]}
     assert [(m["name"], m["section"]) for m in d["milestones"]] == [("Alpha", "In order"), ("Beta", "In order"), ("Gamma", "Then"), ("Delta", "Parked")]
     a = by["Alpha"]
     assert (a["open"], a["closed"], a["lane"]) == (2, 5, "alpha") and by["Gamma"]["open"] == 1 and by["Delta"]["open"] is None
     assert [(s["step"], s["state"]) for s in a["steps"]] == [("1.1", "done"), ("1.2", "running"), ("1.3", "waiting")]
-    assert a["issues"][0] == {"number": 11, "title": "alpha Step 1.2: b", "labels": ["step:1.2", "bug"], "step": "1.2"}
+    assert {k: a["issues"][0][k] for k in ("number", "title", "labels", "step")} == {"number": 11, "title": "alpha Step 1.2: b", "labels": ["step:1.2", "bug"], "step": "1.2"}
     assert d["ts"] and d["gh_ok"]
     url, ran = live
     assert json.loads(urllib.request.urlopen(url + "/api/milestones", timeout=5).read())["milestones"] == [], "nothing read yet: the cache, never gh"
@@ -211,3 +211,14 @@ def test_an_external_lane_is_working_or_idle_by_its_head_the_title_skips_rules_a
     assert st["lanes"][1]["state"] == "idle" and st["loop_on"] is False
     st = console.api_status([{**ticks[0], "ts": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now - 20))}], lanes, now=now, commit=lambda wt: ("", 0))
     assert st["loop_on"] is True
+
+
+def test_each_issue_and_step_has_one_status_from_git_and_gh_and_start_is_offered_only_where_nothing_is_built():
+    """Owner 2026-11-02: 'done but not landed' was invisible; a milestone whose lane built everything still offered Start."""
+    log = lambda *cs: "".join(f"\x1e{sha}\x00subject\n\n{body}\n" for sha, body in cs)  # noqa: E731
+    st = console.statuses({1, 2, 3}, {4, 5},
+                          {"lane-a": log(("a" * 40, "Part of #1"), ("b" * 40, "Fixes #2\nPart of #1"))},
+                          log(("c" * 40, "Fixes #4"), ("d" * 40, "Closes #5")), {"d" * 40})
+    assert st[1] == ("in progress", "lane-a aaaaaaaaa") and st[2] == ("built, waiting to land", "lane-a bbbbbbbbb")
+    assert st[3] == ("open", "") and st[4] == ("released", "ccccccccc") and st[5] == ("landed", "ddddddddd")
+    assert [r for r in console.RANK] == ["open", "in progress", "built, waiting to land", "landed", "released"], "lowest first: a step takes the lowest"

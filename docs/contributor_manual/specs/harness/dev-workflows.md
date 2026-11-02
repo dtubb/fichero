@@ -637,6 +637,14 @@ the write path would produce.
   call `builder milestone <name> --enqueue`. Built: tests `fichero-builder/tests/test_status_page.py` (API, actions, refusals,
   events, milestones). Not yet: Start as one lane from ticked issues, Run check, Run tests, Install on a `[machines]` machine
   (`builder install`), the worker's last tool from its session file.
+  Status per issue and step (owner 2026-11-02), from git and gh, no new labels: open (nothing built); in progress (a
+  `Part of #N` commit on an unlanded branch, naming the lane); built, waiting to land (a `Fixes #N` or `Closes #N` commit on an
+  unlanded branch, naming it); landed (closed, its `Fixes` commit on the land branch); released (that commit on main). The
+  unlanded branches are the queue's lanes' worktrees, external ones included (commits past the land branch). A step's status is
+  the lowest of its issues'; a milestone shows a count per status, and its Start button reads Lane running when a lane holds
+  it, Built, waiting to land when no step is still open, and is offered only when a step has nothing built and no lane holds
+  the milestone. An external lane reads working when its HEAD moved in the last 15 minutes, else idle; a loop with no tick
+  for three ticks reads "Loop is off: lanes are not fed or landed automatically", Start loop beside it.
   **Stop** (manager 2026-11-02, built): pause = no new step is fed; `builder queue stop --lane L [--grace S]` = the session
   ends: the lane is paused, a live worker is told to commit what is green and end, and the loop closes the session when the
   grace is over (default 300 s) or the worker ends first; the tree is kept, a step in flight goes back to queued with a brief

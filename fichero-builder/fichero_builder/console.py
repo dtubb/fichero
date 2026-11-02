@@ -159,9 +159,62 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
 
 
 SECTIONS = ("In order", "Then", "Parked")
+RANK = ("open", "in progress", "built, waiting to land", "landed", "released")
 
 
-def milestones(root, gh: str = "gh", lanes: list[dict] | None = None) -> dict:
+def _cited(log: str) -> list[tuple[str, str, int]]:
+    """(sha, kind, issue) for every `Fixes|Closes|Part of #N` line of a `git log --format=%x1e%H%x00%B` text."""
+    from fichero_builder.landed import ISSUE_LINES
+    out = []
+    for rec in log.split("\x1e"):
+        sha, _, body = rec.partition("\x00")
+        out += [(sha.strip(), m.group(1).lower(), int(m.group(2))) for m in ISSUE_LINES.finditer(body)]
+    return out
+
+
+def statuses(open_ns: set, closed_ns: set, branches: dict, landing_log: str, unreleased: set) -> dict:
+    """{issue: (status, where)}. `branches`: {lane: its unlanded log text}; `landing_log`: the land branch's log;
+    `unreleased`: the land branch's shas not on main. A closed issue is landed, released when its Fixes commit is on main."""
+    landing = {n: sha for sha, kind, n in _cited(landing_log) if kind in ("fixes", "closes")}
+    built: dict = {}
+    for lane, log in branches.items():
+        for sha, kind, n in _cited(log):
+            st = "built, waiting to land" if kind in ("fixes", "closes") else "in progress" if kind == "part of" else None
+            if st and (n not in built or RANK.index(st) > RANK.index(built[n][0])):
+                built[n] = (st, f"{lane} {sha[:9]}")
+    out = {}
+    for n in open_ns:
+        out[n] = built.get(n, ("open", ""))
+    for n in closed_ns:
+        sha = landing.get(n, "")
+        out[n] = ("released" if sha and sha not in unreleased else "landed", sha[:9])
+    return out
+
+
+def _git_text(repo: str, *args: str) -> str:
+    r = subprocess.run(["git", "-c", "safe.directory=*", "-C", repo, *args], capture_output=True, text=True, timeout=120)
+    return r.stdout if r.returncode == 0 else ""
+
+
+def git_reads(root, lanes: list[dict], branch: str) -> tuple[dict, str, set]:
+    """The unlanded log of every lane's worktree, the land branch's log (90 days) and its shas not on main."""
+    _git_text(str(root), "fetch", "-q", "origin", branch, "main")
+    fmt = "--format=%x1e%H%x00%B"
+    branches = {x["id"]: _git_text(x["worktree"], "log", fmt, f"origin/{branch}..HEAD") for x in lanes if Path(x["worktree"]).is_dir()}
+    # the landing queue: every branch worktree of the repo (land-*, lanes started by hand) with unlanded commits.
+    # ponytail: commits of the last 7 days only, so the hundreds of stale branches from before the history rewrite never count
+    for block in _git_text(str(root), "worktree", "list", "--porcelain").strip().split("\n\n"):
+        f = dict((ln.split(" ", 1) + [""])[:2] for ln in block.splitlines())
+        name = f.get("branch", "").removeprefix("refs/heads/")
+        if name and name not in (branch, "main") and name not in branches:
+            if log := _git_text(f["worktree"], "log", fmt, "--since=7.days", f"origin/{branch}..HEAD"):
+                branches[name] = log
+    landing = _git_text(str(root), "log", fmt, "--since=90.days", f"origin/{branch}")
+    unreleased = set(_git_text(str(root), "rev-list", f"origin/main..origin/{branch}").split())
+    return branches, landing, unreleased
+
+
+def milestones(root, gh: str = "gh", lanes: list[dict] | None = None, reads=None, closed=None) -> dict:
     """The build-order list by section, each milestone's open/closed counts (one gh call), and for an In order one with a
     spec its steps from the `builder milestone` plan (done / running / next / waiting) and questions, and its open issues
     with labels and the step that names them. Read through gh only here: the console serves the cached copy."""
@@ -173,6 +226,12 @@ def milestones(root, gh: str = "gh", lanes: list[dict] | None = None) -> dict:
                        timeout=120, cwd=str(root))
     counts = {m["title"]: (m["open_issues"], m["closed_issues"]) for m in json.loads(r.stdout or "[]")} if r.returncode == 0 else {}
     held = {x["id"]: x for x in (lanes if lanes is not None else queue.load())}
+    try:
+        import tomllib
+        branch = tomllib.loads((Path(root) / "harness.toml").read_text()).get("land", {}).get("branch", "integration")
+    except (OSError, ValueError):
+        branch = "integration"
+    branches, landing, unreleased = reads(root, list(held.values()), branch) if reads else git_reads(root, list(held.values()), branch)
     out = []
     for sec in SECTIONS:
         body = next((part.split("\n", 1)[1] for part in text.split("\n## ")[1:] if part.startswith(sec)), "")
@@ -184,9 +243,11 @@ def milestones(root, gh: str = "gh", lanes: list[dict] | None = None) -> dict:
             if sec == "In order" and m["spec"] and o:
                 try:
                     issues = ms.list_issues(name, gh=gh)
+                    shut = closed(name) if closed else _closed_issues(name, gh)
                     sp = Path(root) / triage.SPECS / m["spec"]
                     order, slug = ms.build_order(sp), ms.spec_slug(sp)
                     planned = ms.plan(issues, order, slug)
+                    every = ms.plan(issues + shut, order, slug)  # closed ones too: a step's status needs all its issues
                 except (RuntimeError, ValueError, OSError, subprocess.SubprocessError) as e:
                     m["questions"] = [f"could not plan: {e}"]
                     out.append(m)
@@ -195,16 +256,32 @@ def milestones(root, gh: str = "gh", lanes: list[dict] | None = None) -> dict:
                 live = {s["step"]: s["state"] for s in lane["steps"]}
                 open_steps = {c["step"]: c for c in planned["clusters"]}
                 nxt = next((c["step"] for c in planned["clusters"] if not c["waits"] and live.get(c["step"]) in (None, "queued")), None)
+                status = statuses({i["number"] for i in issues}, {i["number"] for i in shut}, branches, landing, unreleased)
+                all_steps = {c["step"]: c for c in every["clusters"]}
                 for st in order:
                     c = open_steps.get(st["number"])
                     state = ("done" if c is None else "running" if live.get(st["number"]) not in (None, "queued", "landed", "blocked")
                              else "question" if live.get(st["number"]) == "blocked" else "next" if st["number"] == nxt else "waiting")
-                    m["steps"].append({"step": st["number"], "title": st["title"], "state": state, "issues": [i["number"] for i in c["issues"]] if c else []})
+                    ns = [i["number"] for i in all_steps[st["number"]]["issues"]] if st["number"] in all_steps else []
+                    low = min((status[n][0] for n in ns), key=RANK.index, default="")
+                    m["steps"].append({"step": st["number"], "title": st["title"], "state": state, "status": low,
+                                       "issues": [i["number"] for i in c["issues"]] if c else []})
                 m["questions"] = planned["questions"]
                 m["issues"] = [{"number": i["number"], "title": i["title"], "labels": [lb.get("name", "") for lb in i.get("labels") or []],
-                                "step": ms.step_of(i, slug) or ""} for i in issues]
+                                "step": ms.step_of(i, slug) or "", "status": status[i["number"]][0], "where": status[i["number"]][1]} for i in issues]
+                m["counts"] = {k: sum(1 for v in status.values() if v[0] == k) for k in RANK}
+                if not m["lane"]:  # a lane named otherwise holds it when its commits cite the milestone's issues
+                    m["lane"] = next((w.split()[0] for st_, w in status.values() if st_ in RANK[1:3] and w.split()[0] in held), "")
+                m["startable"] = not m["lane"] and any(x["status"] == "open" for x in m["steps"])
+                m["held_by"] = "Lane running" if m["lane"] else ("" if m["startable"] else "Built, waiting to land" if m["counts"]["built, waiting to land"] else "")
             out.append(m)
     return {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "milestones": out, "gh_ok": r.returncode == 0}
+
+
+def _closed_issues(name: str, gh: str) -> list[dict]:
+    r = subprocess.run([gh, "issue", "list", "--milestone", name, "--state", "closed", "--limit", "500", "--json", "number,title,body,labels"],
+                       capture_output=True, text=True, timeout=120)
+    return json.loads(r.stdout) if r.returncode == 0 else []
 
 
 def _cache() -> Path:

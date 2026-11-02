@@ -115,20 +115,21 @@ function Milestones({ st }) {
       ${picked.length > 0 && html`<button disabled=${!room} onClick=${() => start(picked)}>Start ${Math.min(picked.length, room)} lane(s)</button>`}
     </div>
     ${["In order", "Then", "Parked"].map(sec => html`<h2>${sec}</h2><table>
-      <tr><th></th><th></th><th>milestone</th><th>open</th><th>closed</th><th>steps</th><th></th></tr>
+      <tr><th></th><th></th><th>milestone</th><th>open</th><th>closed</th><th>status</th><th>steps</th><th></th></tr>
       ${data.milestones.filter(m => m.section === sec).map(m => html`
         <tr class="lane" onClick=${() => setOpen({ ...open, [m.name]: !open[m.name] })}>
-          <td onClick=${e => e.stopPropagation()}>${sec === "In order" && !m.lane && m.open ? html`<input type="checkbox" checked=${!!pick[m.name]} onChange=${e => setPick({ ...pick, [m.name]: e.target.checked })} />` : ""}</td>
+          <td onClick=${e => e.stopPropagation()}>${m.startable ? html`<input type="checkbox" checked=${!!pick[m.name]} onChange=${e => setPick({ ...pick, [m.name]: e.target.checked })} />` : ""}</td>
           <td>${m.steps.length || m.issues.length ? (open[m.name] ? "▾" : "▸") : ""}</td>
           <td><b>${m.name}</b> ${m.lane && html`<span class="state-running">lane ${m.lane}</span>`}</td>
           <td>${m.open ?? "-"}</td><td>${m.closed ?? "-"}</td>
+          <td class="muted">${m.counts ? Object.entries(m.counts).filter(([, n]) => n).map(([k, n]) => `${n} ${k}`).join(" · ") : ""}</td>
           <td>${m.steps.map(s => html`<span class=${"state-" + ({ done: "landed", running: "running", question: "blocked", next: "sent" }[s.state] || "queued")} title=${s.title}>${s.step} </span>`)}</td>
-          <td onClick=${e => e.stopPropagation()}>${sec === "In order" && !m.lane && m.open ? html`<button disabled=${!room} onClick=${() => start([m.name])}>Start lane</button>` : ""}</td>
+          <td onClick=${e => e.stopPropagation()}>${m.startable ? html`<button disabled=${!room} onClick=${() => start([m.name])}>Start lane</button>` : m.held_by ? html`<span class="muted">${m.held_by}</span>` : ""}</td>
         </tr>
         ${open[m.name] && html`
-          ${m.steps.map(s => html`<tr class="sub"><td></td><td></td><td>${s.step} ${s.title}</td><td colspan="2" class=${"state-" + s.state}>${s.state}</td><td colspan="2">${s.issues.map(n => "#" + n).join(", ")}</td></tr>`)}
-          ${m.questions.map(q => html`<tr class="sub"><td></td><td></td><td colspan="5" style="color:var(--amber)">${q}</td></tr>`)}
-          ${m.issues.map(i => html`<tr class="sub"><td></td><td></td><td>#${i.number} ${i.title}</td><td colspan="2">${i.step ? "step " + i.step : html`<span class="muted">no step</span>`}</td><td colspan="2" class="muted">${i.labels.join(", ")}</td></tr>`)}
+          ${m.steps.map(s => html`<tr class="sub"><td></td><td></td><td>${s.step} ${s.title}</td><td colspan="2" class=${"state-" + s.state}>${s.state}</td><td>${s.status || html`<span class="muted">no issues</span>`}</td><td colspan="2">${s.issues.map(n => "#" + n).join(", ")}</td></tr>`)}
+          ${m.questions.map(q => html`<tr class="sub"><td></td><td></td><td colspan="6" style="color:var(--amber)">${q}</td></tr>`)}
+          ${m.issues.map(i => html`<tr class="sub"><td></td><td></td><td>#${i.number} ${i.title}</td><td colspan="2">${i.step ? "step " + i.step : html`<span class="muted">no step</span>`}</td><td>${i.status} <span class="muted">${i.where}</span></td><td colspan="2" class="muted">${i.labels.join(", ")}</td></tr>`)}
         `}
       `)}
     </table>`)}`;
