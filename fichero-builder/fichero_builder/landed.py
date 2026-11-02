@@ -139,9 +139,9 @@ def update_issues(gh: str, cited: list[dict], branch: str, sha: str) -> list[str
     return done
 
 
-def mark_specs_ok(root, commits: list[dict]) -> list[dict]:
+def mark_specs_ok(root, commits: list[dict], write: bool = True) -> list[dict]:
     """A behaviour id on a landed commit's `Behaviour: <id>` trailer line: its spec line's open tag becomes [OK], and the commit's test
-    files are named on the line when it names none. [{file, id, tests}] of the lines changed."""
+    files are named on the line when it names none. [{file, id, tests}] of the lines changed (`write=False`: would change)."""
     wanted: dict[str, list[str]] = {}
     for c in commits:
         for bid in BEHAVIOUR_ID.findall(c["message"]):
@@ -166,7 +166,7 @@ def mark_specs_ok(root, commits: list[dict]) -> list[dict]:
             lines[k] = ln
             hit = True
             changed.append({"file": p.relative_to(root).as_posix(), "id": m.group(1), "tests": tests})
-        if hit:
+        if hit and write:
             p.write_text("\n".join(lines))
     return changed
 
@@ -267,6 +267,14 @@ def main(a) -> int:
             gone.append(wt)
         return "removed " + ", ".join(gone) if gone else "no scratch worktree in the work rows"
 
+    def spec_clean():
+        if a.no_issues:
+            return "skipped (--no-issues)"
+        would = sorted({ch["file"] for ch in mark_specs_ok(a.root, commits_of(repo, base, sha), write=False)})
+        if dirty := [f for f in would if _git(a.root, "status", "--porcelain", "--", f).stdout.strip()]:
+            raise Red(f"a spec file this landing would edit has uncommitted changes: {', '.join(dirty)}")
+        return "; ".join(would) or "no spec line to edit"
+
     def issues():
         cited[:] = cited_issues(repo, base, sha)
         if a.no_issues:
@@ -286,7 +294,7 @@ def main(a) -> int:
     resume = None if any(r.get("step") == "done" for r in earlier) else next((r for r in earlier if r.get("step") == "refresh" and r.get("ok") and r.get("base")), None)
     pushed = any(r.get("step") == "push" and r.get("ok") and str(r.get("detail")).startswith("pushed") for r in earlier) if resume else False
     base = resume["base"] if resume else _git(repo, "merge-base", f"refs/heads/{branch}", sha).stdout.strip()  # the range: over the local branch BEFORE it is refreshed
-    steps = [("verdict", verdict), ("check-row", check_row), ("fast-forward", fast_forward), ("boundary", boundary), ("push", push), ("on-origin", on_origin), ("refresh", refresh),
+    steps = [("verdict", verdict), ("check-row", check_row), ("fast-forward", fast_forward), ("boundary", boundary), ("spec-clean", spec_clean), ("push", push), ("on-origin", on_origin), ("refresh", refresh),
              ("pinned", lambda: pin(repo, sha, pinned_dir)), ("jail-root", jail_root), ("scratch", scratch), ("issues", issues), ("specs", specs)]
     if resume:
         steps = steps[[n for n, _ in steps].index("refresh") + 1:]

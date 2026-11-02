@@ -354,3 +354,33 @@ def test_keep_worktree_leaves_a_lanes_worktree_for_its_open_session(world):
     journal.append("work", name="lane", issues=[7], step="fetch", ok=True, detail=world.sha, worktree=str(wt))
     assert world.go("--push", "--keep-worktree") == 0
     assert wt.is_dir() and "kept" in next(r["detail"] for r in rows() if r["step"] == "scratch")
+
+
+def test_a_dirty_spec_file_it_would_edit_refuses_before_the_push_and_nothing_else_does(world, capsys):
+    """Maintainer's answer: landing refuses when the spec file it would edit is dirty, nothing else. An unrelated dirty file
+    or a dirty spec it would not touch goes through."""
+    specs = world.tmp / "docs" / "contributor_manual" / "specs" / "h"
+    specs.mkdir(parents=True)
+    spec, other = specs / "x.md", specs / "y.md"
+    spec.write_text("- `x.one` [GAP] (#7) — the thing\n")
+    other.write_text("- `y.one` [GAP] (#8) — not named\n")
+    (world.tmp / "unrelated.txt").write_text("a\n")
+    subprocess.run(["git", "init", "-q", str(world.tmp)], check=True)
+    _g(world.tmp, "add", "docs", "unrelated.txt"), _g(world.tmp, "commit", "-qm", "specs")
+    (world.seed / "k").write_text("5")
+    _g(world.seed, "add", "k"), _g(world.seed, "commit", "-qm", "feat: `x.one` built\n\nBehaviour: x.one\nFixes #7")
+    head = _g(world.seed, "rev-parse", "HEAD")
+    _g(world.engine, "fetch", "-q", str(world.seed), "+refs/heads/lane:refs/heads/work-n1")
+    land_tool.write_verdict(world.store, world.engine, "integration", head)
+    journal.append("check", head=head, since=_g(world.engine, "rev-parse", "integration"), ok=True)
+    go = lambda: cli.main(["landed", head, "--root", str(world.tmp), "--verdicts", str(world.store), "--gh", str(world.tmp / "gh"),  # noqa: E731
+                           "--state", str(world.tmp / "s"), "--push"])
+    spec.write_text("- `x.one` [GAP] (#7) — the thing, edited by hand\n")
+    assert go() == 1
+    assert "x.md" in capsys.readouterr().err and rows()[-1]["step"] == "spec-clean" and rows()[-1]["ok"] is False
+    assert _g(world.origin, "rev-parse", "integration") != head, "refused before the push"
+    _g(world.tmp, "checkout", "--", "docs/contributor_manual/specs/h/x.md")
+    other.write_text("- `y.one` [GAP] (#8) — dirty, and not named\n")
+    (world.tmp / "unrelated.txt").write_text("b\n")
+    assert go() == 0
+    assert "[OK]" in spec.read_text() and "dirty" in other.read_text()
