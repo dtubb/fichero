@@ -767,6 +767,9 @@ the write path would produce.
   the `[machines]` host, its app copied into ~/Applications there (no sudo) and opened; the `install` row says whether the app
   and its engine are running (a machine with no GUI session says so). The console's Release view has Install on <machine>. Test
   `fichero-builder/tests/test_measure.py::test_install_copies_the_newest_dev_dmg_installs_and_reports_the_app_and_engine`.
+  Start as one lane (owner 2026-11-02): ticked open issues in the Milestones view become one lane, `builder lane <name> --issues
+  N...`: one cluster brief from them (the brief tool, as `builder milestone` writes them), queued as a worker lane in the jail; a
+  lane already working is refused. Test `fichero-builder/tests/test_queue_verb.py::test_ticked_issues_become_one_lane_with_one_cluster_brief`.
 - `dev-workflows.run.records-are-truth` [PROPOSED] (maintainer 2026-10-31; owner 2026-11-01: no engine) — for a worker the
   truth is its **journal** (JSON lines, one file per cluster under the Builder's state directory; `$FICHERO_HARNESS_LOG` in
   Slice 0), plus git plus the handoff file; the run log (one row per item attempt: model, provider, context cap, tokens,

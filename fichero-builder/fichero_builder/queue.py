@@ -781,3 +781,29 @@ def main(a) -> int:
     for row in table():
         print("\t".join(row))
     return 0
+
+
+def lane_from_issues(root, lane_id: str, issues: list[int], gh: str = "gh") -> tuple[int, str]:
+    """`builder lane <name> --issues N...` (the console's Start as one lane): one cluster brief from those issues (the brief tool,
+    as `builder milestone` writes them), queued as a worker lane in the jail. One `queue` row."""
+    from fichero_builder import brief_tool, land_tool
+
+    root = Path(root)
+    rules = tomllib.loads((root / "harness.toml").read_text())
+    branch, workroot = rules["land"]["branch"], rules["jail"]["workroot"]
+    if not issues:
+        return 1, "no issues ticked"
+    if any(x["id"] == lane_id and x["cursor"] < len(x["steps"]) for x in load()):
+        return 1, f"lane {lane_id!r} is already working"
+    try:
+        got = [brief_tool.fetch_issue(n, gh=gh) for n in issues]
+    except (RuntimeError, OSError, ValueError) as e:
+        return 1, f"gh could not read the issues: {e}"
+    base = land_tool.resolve_branch(str(root), branch) or f"origin/{branch}"
+    text = brief_tool.cluster(got, repo=str(root), branch=branch, base=base, rules=rules.get("brief", {}).get("rules", ""))
+    out = journal.STATE / f"briefs-{lane_id}"
+    out.mkdir(parents=True, exist_ok=True)
+    step = "issues-" + "-".join(str(n) for n in issues[:4])
+    (out / f"{step}.md").write_text(text)
+    add(lane_id, str(Path(workroot) / f"wt-{lane_id}"), step, str(out / f"{step}.md"), list(issues))
+    return 0, f"queued {lane_id} {step}: {len(issues)} issue(s) in one cluster brief"

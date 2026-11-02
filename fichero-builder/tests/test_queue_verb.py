@@ -402,3 +402,18 @@ def test_a_blocked_step_labels_its_issues_needs_your_decision_and_comments_the_q
     assert [r for r in journal.read() if r["event"] == "queue" and r.get("state") == "ask-failed"]
     assert cli.main(["queue", "resume", "--lane", "m1", "--state", str(state / "s"), "--gh", str(gh)]) == 0
     assert "issue edit 7 --remove-label needs-your-decision" in calls.read_text().splitlines()
+
+
+def test_ticked_issues_become_one_lane_with_one_cluster_brief(state, monkeypatch):
+    """Owner 2026-11-02: tick issues in the console and Start as one lane: `builder lane <name> --issues N...`."""
+    from fichero_builder import brief_tool, land_tool
+    (state / "harness.toml").write_text(state.joinpath("harness.toml").read_text() + f'[jail]\nworkroot = "{state / "wr"}"\n')
+    monkeypatch.setattr(brief_tool, "fetch_issue", lambda n, gh="gh": {"number": n, "title": f"issue {n}", "body": "b", "labels": []})
+    monkeypatch.setattr(brief_tool, "cluster", lambda issues, **k: "BRIEF " + " ".join(f"#{i['number']}" for i in issues))
+    monkeypatch.setattr(land_tool, "resolve_branch", lambda repo, b: "abc")
+    rc, out = queue.lane_from_issues(state, "ux-fixes", [11, 12])
+    assert rc == 0, out
+    (ln,) = [x for x in queue.load() if x["id"] == "ux-fixes"]
+    assert ln["kind"] == "worker" and ln["worktree"] == str(state / "wr" / "wt-ux-fixes") and ln["steps"][0]["issues"] == [11, 12]
+    assert open(ln["steps"][0]["brief"]).read() == "BRIEF #11 #12"
+    assert queue.lane_from_issues(state, "ux-fixes", [13])[0] == 1, "a working lane is not given a second cluster"

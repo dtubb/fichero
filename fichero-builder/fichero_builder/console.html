@@ -165,6 +165,7 @@ function Milestones({ st }) {
   const [open, setOpen] = useState({});
   const [pick, setPick] = useState({});
   const [ord, setOrd] = useState(null);  // the owner's unsaved order: {order, parked}
+  const [iss, setIss] = useState({});  // ticked issues: Start as one lane
   useEffect(() => { fetch("/api/milestones").then(r => r.json()).then(setData); }, [st.console.length]);
   if (!data) return html`<p class="muted">Loading…</p>`;
   const running = st.lanes.filter(l => !l.done).length;
@@ -198,7 +199,7 @@ function Milestones({ st }) {
           ${m.steps.map(s => html`<tr class="sub"><td></td><td></td><td><span class="mono">${s.step}</span> ${s.title}</td><td colspan="2">${s.state}</td>
             <td><span class=${"dot " + (STATUS_DOT[s.status] || "")}></span> ${s.status || html`<span class="muted">no issues</span>`}</td><td colspan="2">${s.issues.map(n => "#" + n).join(", ")}</td></tr>`)}
           ${m.questions.map(q => html`<tr class="sub"><td></td><td></td><td colspan="6" class="note">${q}</td></tr>`)}
-          ${m.issues.map(i => html`<tr class="sub"><td></td><td></td><td>#${i.number} ${i.title}</td><td colspan="2">${i.step ? "step " + i.step : html`<span class="muted">no step</span>`}</td>
+          ${m.issues.map(i => html`<tr class="sub"><td></td><td>${i.status === "open" ? html`<input type="checkbox" checked=${!!iss[i.number]} onChange=${e => setIss({ ...iss, [i.number]: e.target.checked })} />` : ""}</td><td>#${i.number} ${i.title}</td><td colspan="2">${i.step ? "step " + i.step : html`<span class="muted">no step</span>`}</td>
             <td><span class=${"dot " + (STATUS_DOT[i.status] || "")}></span> ${i.status} <span class="muted mono">${i.where}</span></td><td colspan="2" class="muted">${i.labels.join(", ")}</td></tr>`)}`}`;
   const table = (names, sec) => html`<div class="wrap"><table>
       <thead><tr><th></th><th></th><th>Milestone</th><th>Open</th><th>Closed</th><th>Status</th><th>Steps</th><th></th></tr></thead>
@@ -211,6 +212,7 @@ function Milestones({ st }) {
       <span class="muted">${running} of ${st.loop_lanes} lane(s) running</span>
       ${st.order_saving && html`<span class="pill blue"><span class="dot blue pulse"></span>saving the order…</span>`}
       ${changed && html`<button class="btn" onClick=${() => setOrd(null)}>Discard</button><button class="btn primary" disabled=${st.order_saving} onClick=${save}>Save order</button>`}
+      ${Object.values(iss).some(Boolean) && html`<button class="btn primary" onClick=${() => { const n = prompt("Name of the new lane", "issues-" + Object.keys(iss).filter(k => iss[k])[0]); if (n) { act("start-issues", { lane: n, issues: Object.keys(iss).filter(k => iss[k]) }); setIss({}); } }}>${I.play} Start ${Object.values(iss).filter(Boolean).length} issue(s) as one lane</button>`}
       ${picked.length > 0 && html`<button class="btn primary" disabled=${!room} onClick=${() => start(picked)}>${I.play} Start ${Math.min(picked.length, room)} lane(s)</button>`}
     </div>
     ${order.length > 0 && html`<h2>In order <span class="muted" style="font-weight:400">drag to reorder</span></h2>${table(order, "In order")}`}

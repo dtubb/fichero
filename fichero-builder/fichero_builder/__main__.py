@@ -153,6 +153,9 @@ def main(argv=None) -> int:
     me.add_argument("--root", default=str(Path.cwd())), me.add_argument("--state"), me.add_argument("argv", nargs=argparse.REMAINDER)
     ins = sub.add_parser("install", help="copy the newest dev DMG to a [machines] test machine over ssh, install it in ~/Applications there, open it and say whether the app and its engine run")
     ins.add_argument("machine"), ins.add_argument("dmg", nargs="?", default=""), ins.add_argument("--root", default=str(Path.cwd())), ins.add_argument("--state")
+    ln = sub.add_parser("lane", help="ticked issues as one lane: a cluster brief from them, queued as a worker lane in the jail (the console's Start as one lane)")
+    ln.add_argument("name"), ln.add_argument("--issues", type=int, nargs="+", required=True), ln.add_argument("--root", default=str(Path.cwd()))
+    ln.add_argument("--gh", default="gh"), ln.add_argument("--state")
     od = sub.add_parser("order", help="the owner's build order (JSON {order, parked}) as one commit on branch build-order, queued as a tiny batch the loop lands")
     od.add_argument("--file", required=True), od.add_argument("--root", default=str(Path.cwd())), od.add_argument("--state")
     sw = sub.add_parser("sweep", help="clean up one landed worktree through the landing's sweep: a patch first, git worktree remove, never rm; a jail tree as the worker")
@@ -297,6 +300,13 @@ def main(argv=None) -> int:
 
         journal.STATE = Path(a.state) if a.state else journal.STATE
         rc, out = measure.install(a.root, a.machine, a.dmg)
+        print(out)
+        return rc
+    if a.cmd == "lane":
+        from fichero_builder import queue
+
+        journal.STATE = Path(a.state) if a.state else journal.STATE
+        rc, out = queue.lane_from_issues(a.root, a.name, a.issues, gh=a.gh)
         print(out)
         return rc
     if a.cmd == "order":

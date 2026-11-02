@@ -52,6 +52,7 @@ VERBS = {
                                                           "--out", str(journal.STATE / f"briefs-{queue.slug(a['milestone'])}"))),
     "measure": (("lane", "machine", "script"), lambda a: _builder("measure", "--lane", a["lane"], "--machine", a["machine"], "--root", str(ROOT), *_st(),
                                                                  "--", *__import__("shlex").split(a["script"]))),  # after `--`: the remote script's own args
+    "start-issues": (("lane", "issues"), lambda a: _builder("lane", a["lane"], "--root", str(ROOT), *_st(), "--issues", *a["issues"])),
     "install": (("machine",), lambda a: _builder("install", a["machine"], "--root", str(ROOT), *_st())),
     "order": (("file",), lambda a: _builder("order", "--file", a["file"], "--root", str(ROOT), *_st())),
     "sweep": (("worktree",), lambda a: _builder("sweep", "--worktree", a["worktree"], "--root", str(ROOT), *_st())),
