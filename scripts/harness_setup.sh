@@ -149,7 +149,7 @@ run_probe
 cat <<MSG
 
 == left for you, as the worker (sudo -iu $WUSER), each once:
-  - install claude, uv, ruff and gh? (gh is optional; without it the gh probe line stays UNPROVEN) for that user: they live in
+  - install claude, uv, ruff, swiftlint ([check].since_guards) and gh? (gh is optional; without it the gh probe line stays UNPROVEN) for that user: they live in
     your home otherwise, which it cannot read. Create a venv under $WORKROOT and put its python in harness.toml [check] python
     (venv: uv sync --frozen --extra dev --no-install-project (no editable install of the tree: pytest must test the commit), plus pytest-asyncio/timeout/hypothesis, plus `uv pip install lxml==6.1.3` AS THE OWNER, run
     from /: the venv is owner-owned. lxml is in the briefcase requires on purpose, not in [project] or uv.lock; the dev venv has 6.1.3)

@@ -480,6 +480,30 @@ def test_a_maintainer_batch_skips_the_diff_bound_and_a_worker_range_keeps_it(tmp
     assert row["ok"] and "maintainer" in row["stdout_tail"] and "5 lines" in row["stdout_tail"], "the size is still shown"
 
 
+def test_a_since_guard_runs_with_the_range_base_only_when_the_diff_touches_its_prefix(tmp_path):
+    """#6318: the SwiftLint ratchet's `--since` question (did this item add warnings in the files it changes) ran in the gate
+    only; `[check].since_guards` runs a guard with `--since <base>` in the scratch tree when the diff touches its prefix."""
+    work, g, base, pinned = _project(tmp_path, check_extra='since_guards = { "ci/since_g.py" = "app/" }\nred_paths = ["src/"]\n')
+    (work / "ci" / "since_g.py").write_text(
+        "import sys, pathlib\nargs = sys.argv[1:]\nprint('since', args)\n"
+        "raise SystemExit(1 if args[:1] == ['--since'] and pathlib.Path('app/warn.txt').exists() else 0)\n")
+    g("add", "."), g("commit", "-q", "-m", "the guard")
+    subprocess.run(["git", "-C", str(pinned), "pull", "-q"], check=True, capture_output=True)
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+    (work / "other.txt").write_text("x\n")
+    g("add", "."), g("commit", "-q", "-m", "not under app/")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    row = next(x for x in r["rungs"] if x["name"] == "since-guards")
+    assert r["ok"] and row.get("skipped"), r
+    (work / "app").mkdir()
+    (work / "app" / "warn.txt").write_text("a warning\n")
+    g("add", "."), g("commit", "-q", "-m", "adds a warning")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert not r["ok"] and r["failed"] == "since-guards", r
+    row = next(x for x in r["rungs"] if x["name"] == "since-guards")
+    assert f"'--since', '{base}'" in row["results"][0]["stdout_tail"], "the guard gets the range's base"
+
+
 def test_a_change_under_a_whole_tests_prefix_runs_that_tests_dir_whole_in_the_green_run(tmp_path):
     """review of fd9f26187: a Builder source change ran only its own new test, so an old test it broke slipped through."""
     work, g, _b, pinned = _project(tmp_path, extra='[check.whole_tests]\n"mod.py" = "suite"\n',
