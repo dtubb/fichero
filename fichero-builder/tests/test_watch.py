@@ -50,3 +50,25 @@ class _Stub:
 
     def serve_forever(self):
         raise KeyboardInterrupt
+
+
+def test_the_page_reads_the_owners_journal_and_the_workers_shared_one(tmp_path, monkeypatch):
+    """`builder run` writes runs under the shared state; check and landed rows stay in the owner's, so a worker cannot forge them.
+    One file alone shows half the page."""
+    owner, wr = tmp_path / "owner", tmp_path / "wr"
+    owner.mkdir(), (wr / "state").mkdir(parents=True)
+    (tmp_path / "harness.toml").write_text(f'[jail]\nuser = "w"\nworkroot = "{wr}"\n')
+    (owner / "journal.jsonl").write_text("".join(json.dumps(r) + "\n" for r in ROWS[2:5]))
+    (wr / "state" / "journal.jsonl").write_text("".join(json.dumps(r) + "\n" for r in ROWS[:2]))
+    monkeypatch.setattr(journal, "STATE", owner)
+    html = watch.render(watch.rows_of(tmp_path))
+    assert "lane-a" in html and "aaaaaaaaa..bbbbbbbbb" in html and "ccccccccc" in html, "runs from one file, checks and lands from the other"
+    monkeypatch.setattr(journal, "STATE", wr / "state")
+    assert len(watch.rows_of(tmp_path)) == 2, "the same file is not read twice"
+    assert len(watch.rows_of(tmp_path / "no-rules-here")) == 2, "no rules file: the one journal"
+
+
+def test_a_run_that_handed_off_shows_running_once_its_next_generation_starts():
+    rows = [{"ts": "1", "event": "worker", "task": "a", "generation": 1}, {"ts": "2", "event": "cost", "task": "a", "usd": 1, "turns": 2, "end": "handoff"}]
+    assert ">handoff<" in watch.render(rows)
+    assert ">handoff<" not in watch.render([*rows, {"ts": "3", "event": "worker", "task": "a", "generation": 2}]) and ">running<" in watch.render([*rows, {"ts": "3", "event": "worker", "task": "a", "generation": 2}])

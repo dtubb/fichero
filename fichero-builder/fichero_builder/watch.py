@@ -6,11 +6,29 @@ from __future__ import annotations
 
 import html
 import http.server
+import json
+import tomllib
 from itertools import groupby
+from pathlib import Path
 
 from fichero_builder import journal
 
 REFRESH_S = 5
+
+
+ROOT = Path.cwd()  # ponytail: set once by main; one page, one rules file
+
+
+def rows_of(root) -> list[dict]:
+    """The owner's journal (checks, landings) and the worker's under the shared state (runs), by time. The owner keeps its own so
+    a worker cannot forge a check row; a page of one file alone shows half of this."""
+    rows = journal.read()
+    f = Path(root) / "harness.toml"
+    workroot = tomllib.loads(f.read_text()).get("jail", {}).get("workroot") if f.is_file() else None
+    shared = Path(workroot) / "state" / "journal.jsonl" if workroot else None
+    if shared and shared.is_file() and shared.resolve() != journal.path().resolve():
+        rows += [json.loads(ln) for ln in shared.read_text().splitlines() if ln.strip()]
+    return sorted(rows, key=lambda r: r.get("ts", ""))
 
 
 def _runs(rows: list[dict]) -> list[list]:
@@ -19,6 +37,7 @@ def _runs(rows: list[dict]) -> list[list]:
         if r.get("event") == "worker":
             out.setdefault(r.get("task"), {"name": r.get("task"), "started": r.get("ts", ""), "model": r.get("model", ""),
                                            "worktree": r.get("worktree", ""), "turns": 0, "usd": 0.0, "status": "running"})
+            out[r.get("task")]["status"] = "running"  # the next generation after a handoff
         elif r.get("event") == "cost" and r.get("task") in out:
             run = out[r["task"]]
             run["usd"] = round(run["usd"] + float(r.get("usd") or 0), 4)
@@ -60,7 +79,7 @@ def render(rows: list[dict]) -> str:
 
 class _Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        body = render(journal.read()).encode()
+        body = render(rows_of(ROOT)).encode()
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
@@ -76,8 +95,10 @@ def server(host: str, port: int) -> http.server.HTTPServer:
 
 
 def main(a) -> int:
+    global ROOT
+    ROOT = Path(a.root)
     srv = server("127.0.0.1", a.port)
-    print(f"watching {journal.path()} at http://127.0.0.1:{srv.server_address[1]}/ (Ctrl-C stops)")
+    print(f"watching {journal.path()} and the shared state of {ROOT / 'harness.toml'} at http://127.0.0.1:{srv.server_address[1]}/ (Ctrl-C stops)")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

@@ -330,12 +330,14 @@ per refusal, check, verdict and land. Findings are counted by hand and start the
   `::test_a_range_over_the_boundary_is_not_pushed`, `::test_a_journal_landed_does_not_own_or_others_can_write_refuses_before_anything`,
   `::test_a_green_row_counts_only_for_the_range_being_landed`. Not yet: a run with the real jail user and the real `gh`; both are faked in every test.
 - `dev-workflows.tool.watch` [OK] (#6116; owner 2026-11-01) — `builder watch [--port 8765] [--state DIR]` is a live progress
+- `dev-workflows.tool.watch` [OK] (#6116; owner 2026-11-01) — `builder watch [--port 8765] [--state DIR] [--root DIR]` is a live progress
   page: a stdlib `http.server` bound to 127.0.0.1 serving one HTML page (no JavaScript; a 5 s meta refresh) read from the
-  journal, newest first: one table per kind and nothing else: each run (name, worktree, model, started, turns, cost USD,
+  owner's journal and the worker's under `[jail].workroot/state`, newest first: one table per kind and nothing else: each run (name, worktree, model, started, turns, cost USD,
   status done/parked/handoff or running), each check (range, green/red, the failed rung), each landing (tip, last step,
   branch, pushed). A naive page by design: the SwiftUI Builder app replaces it later and reads the same journal.
   Tests: `fichero-builder/tests/test_watch.py::test_the_page_shows_every_run_check_and_land_newest_first_with_status_and_cost`,
-  `::test_watch_serves_the_journal_page_on_the_loopback_only`.
+  `::test_watch_serves_the_journal_page_on_the_loopback_only`, `::test_the_page_reads_the_owners_journal_and_the_workers_shared_one`,
+  `::test_a_run_that_handed_off_shows_running_once_its_next_generation_starts`.
 - `dev-workflows.builder.cluster` [PARTIAL] (#6116) — one spec and its build-order issues (parser ported from
   `pipeline/plan.py`), in order, one commit per issue with its test; the brief is built by `scripts/harness_brief.py` from
   `gh api repos/{repo}/issues/N`: the body and the **title** only when the author association is owner, member or
