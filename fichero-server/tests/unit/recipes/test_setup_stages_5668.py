@@ -13,7 +13,7 @@ from fichero_server.recipes.stages import STAGES
 #: Section 7d's pipeline order (Daniel, 2026-10-11): Find Regions before Find Lines; Normalise apart from Translate.
 #: Leave Out sits between Find Lines and Read (#6070).
 ORDER = ["prepare-images", "find-regions", "find-lines", "leave-out", "read", "normalise", "translate", "organise", "names",
-         "statements", "dates", "structured-data", "search", "catalogue"]
+         "statements", "dates", "structured-data", "search", "catalogue", "sharing"]
 #: Passages waits for its job (`source.job.pull-out-passages`): the stage exists, but Set Up does not offer it.
 WAITING = ["passages"]
 
@@ -27,6 +27,8 @@ def test_the_offered_stages_in_pipeline_order_each_job_registered_and_each_need_
     ids = set(ORDER)
     assert not set(WAITING) & {s["id"] for s in items}  # a stage no job runs is not asked about
     for stage in items:
+        if stage["id"] == "sharing":  # questions only: no job, no example (`sharing.setup-stage-is-offered-without-jobs`)
+            continue
         assert stage["title"] and stage["sentence"] and stage["example"]
         assert stage["jobs"] and all(get_job(j) is not None for j in stage["jobs"]), stage["jobs"]
         assert all(n["stage"] in ids and n["why"].endswith(f"needs {next(s['title'] for s in items if s['id'] == n['stage'])}")
@@ -85,6 +87,9 @@ def test_every_offered_stage_has_a_job_that_runs_or_a_way_by_hand_and_a_waiting_
 
     for stage in STAGES:
         runs = any(start_runs(j) or j in BY_HAND_FIX for j in stage.jobs)
+        if not stage.jobs and stage.questions:  # questions only (Sharing and accounts): offered for its questions
+            assert offered(stage) and stage.id not in WAITING
+            continue
         assert offered(stage) is runs
         assert (stage.id in WAITING) is (not runs), stage.id
 

@@ -169,6 +169,15 @@ STAGES: tuple[Stage, ...] = (
           "merchant, with 40 accounts bound in.",
           (),
           needs=("read",)),
+    # Questions only, no job (`sharing.setup-stage-is-offered-without-jobs`, `sharing.setup-stage-wording`): the two answers
+    # are kept with the library's Set Up answers; sharing and accounts themselves are the Mac's engine state, so nothing
+    # here runs at Start. Neither is pre-answered, and the words name no pins, certificates, ports or tokens.
+    Stage("sharing", "Sharing and accounts", (),
+          "Decide now whether other people or your other devices can open this library, and whether each person gets their "
+          "own account. You can leave both off and change this later.",
+          "",
+          (Question("sharing_open_to_others", "Let other people or your other Macs open this library?", "yes-no", default=False),
+           Question("accounts_each_person", "Give each person their own account?", "yes-no", default=False))),
 )
 
 #: The stages a sample run can try (`POST /api/recipes/stages/{stage}/try`): Find Lines and Read by the bake-off, the
@@ -242,8 +251,9 @@ def runs_or_by_hand(job: str) -> bool:
 
 def offered(stage: Stage) -> bool:
     """Whether Set Up offers this stage: at least one of its jobs is one Start runs by itself, or one that has a way to
-    do it by hand. A stage whose every job has no tool yet asks its questions for nothing, so it waits for its job."""
-    return any(runs_or_by_hand(job) for job in stage.jobs)
+    do it by hand. A stage whose every job has no tool yet asks its questions for nothing, so it waits for its job. A stage
+    with no jobs at all and questions of its own (Sharing and accounts) is offered: its questions are its whole point."""
+    return any(runs_or_by_hand(job) for job in stage.jobs) or (not stage.jobs and bool(stage.questions))
 
 
 def _answer(q: Question, answered: dict[str, Any], recipe: dict[str, Any] | None) -> Any:
@@ -273,7 +283,7 @@ def answers_revision(stage: Stage, answers: dict[str, Any] | None, recipe: dict[
 
 def listing(recipe: dict[str, Any] | None, answers: dict[str, Any] | None = None,
             tried: dict[str, dict[str, Any]] | None = None) -> list[dict[str, Any]]:
-    """The thirteen stages, in pipeline order, each on or off in this project's recipe, with its questions (answered where the
+    """The stages, in pipeline order, each on or off in this project's recipe, with its questions (answered where the
     project has answered them, else their defaults) and its needs in words. `tried` is each stage's sample result, where
     it has one: what a kinds question suggests and Passages' example come from it and from nothing else."""
     in_recipe = {str(s.get("job")) for s in (recipe or {}).get("steps") or []}
