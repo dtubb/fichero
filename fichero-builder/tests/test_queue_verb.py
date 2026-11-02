@@ -324,6 +324,19 @@ def test_the_queue_rolls_on_to_the_next_build_order_milestone_when_a_lanes_steps
     assert all(x["cursor"] == len(x["steps"]) for x in queue.load())
 
 
+def test_a_finished_milestone_gets_one_dev_build_and_a_failed_build_is_an_alert_while_the_roll_on_goes_on(state):
+    """run.loop-rolls-on: `builder build --dev` after each milestone; a failure is an alert row, never a stop."""
+    fake = Fake()
+    taken = _feeding(fake, state, ["ma", "mb", "mc"])
+    built = []
+    fake.procs.build = lambda lane: (built.append(lane["id"]), (1, "FAILED: exit 65") if lane["id"] == "ma" else (0, "PASSED x.dmg"))[1]
+    assert queue.run(fake.procs, workers_n=1, push=True, lanes_n=1, out=lambda s: None) == 0
+    assert taken == ["ma", "mb", "mc"] and built == ["ma", "mb", "mc"], "one build per milestone, and the failed one did not stop the order"
+    alerts = [r for r in journal.read() if r["event"] == "alert"]
+    assert [(a["lane"], a["step"]) for a in alerts] == [("ma", "build")] and "exit 65" in alerts[0]["what"]
+    assert [r["state"] for r in journal.read() if r["event"] == "queue" and r["state"] in ("built", "build-failed")] == ["build-failed", "built", "built"]
+
+
 def test_a_question_stops_the_roll_on_and_the_next_milestone_is_not_taken(state):
     fake = Fake(chains={"mb.1": [{"ok": False, "kind": "error", "why": "the ladder could not start"}]})
     taken = _feeding(fake, state, ["ma", "mb", "mc"])
