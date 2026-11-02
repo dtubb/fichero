@@ -8,7 +8,6 @@ struct PairingIncomingLinkSheet: View {
     @Environment(LibraryManager.self) private var libraryManager
     @Environment(MobileCaptureQueueStore.self) private var captureQueue
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
 
     let url: URL
     let onConnected: @MainActor () async -> Void
@@ -48,32 +47,8 @@ struct PairingIncomingLinkSheet: View {
         .task { await pair() }
     }
 
-    @ViewBuilder
     private var failureButtons: some View {
-        ForEach(PairingFailureActions.actions(for: failure?.failure, host: failure?.context.host ?? ""), id: \.self) { action in
-            Button(PairingFailureActions.title(action)) { perform(action) }
-                .buttonStyle(action == .tryAgain ? .borderedProminent : .bordered)
-        }
-    }
-
-    private func perform(_ action: PairingFailureActions.Action) {
-        switch action {
-        case .tryAgain:
-            Task { await pair() }
-        case .copyDetails:
-            if let failure {
-                UIPasteboard.general.string = PairingFailureActions.details(failure.failure, context: failure.context)
-            } else if let errorMessage {
-                UIPasteboard.general.string = errorMessage
-            }
-        case .openSettings:
-            if let settings = URL(string: UIApplication.openSettingsURLString) { openURL(settings) }
-        case .openTailscale:
-            // The app if it is installed, else its App Store page.
-            if let app = URL(string: PairingFailureActions.tailscaleURL), let store = URL(string: PairingFailureActions.tailscaleStoreURL) {
-                openURL(app) { accepted in if !accepted { openURL(store) } }
-            }
-        }
+        PairingFailureButtons(failure: failure, message: errorMessage ?? "") { Task { await pair() } }
     }
 
     private func pair() async {

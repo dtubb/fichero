@@ -17,6 +17,7 @@ enum SharingStageModel {
     static let linkOpensAsYou = "Anyone you give the link to can open this library as you. "
         + "Turn on accounts to give people their own sign-in."
     static let accountsOffNote = "You asked for each person to have an account, but accounts are off."
+    static let addPersonTitle = "Add a person…"
     static let turnOffAsk = "Everyone returns to being the owner. Turn off?"
     static let alreadyShares = "This Mac already shares libraries. Share this one too from the project's Share sheet."
 

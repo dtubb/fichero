@@ -33,6 +33,7 @@ struct SharingStageControls: View {
     @AppStorage(RemoteAccessConfig.hostingEnabledKey) private var hostingEnabled = false
     @State private var showTurnOn = false
     @State private var askTurnOff = false
+    @State private var showAddPerson = false
     @State private var failure: String?
 
     private var accountsOn: Bool { appState.identityStore.multiuserEnabled }
@@ -51,11 +52,17 @@ struct SharingStageControls: View {
             ForEach(SharingStageModel.accountLines(wantsSharing: wantsSharing, wantsAccounts: wantsAccounts, accountsOn: accountsOn),
                     id: \.self) { Text($0).font(.callout) }
             accountsAction
+            if wantsAccounts, accountsOn {
+                Button(SharingStageModel.addPersonTitle) { showAddPerson = true }.accessibilityIdentifier("setup.accounts.addPerson")
+            }
             if let failure { Text(failure).font(.caption).foregroundStyle(.red) }
             Text(SharingStageModel.settingsFooter).font(.caption).foregroundStyle(.secondary)
         }
         .sheet(isPresented: $showTurnOn) {
             TurnOnAccountsSheet(store: appState.usersStore, identityStore: appState.identityStore) { showTurnOn = false }
+        }
+        .sheet(isPresented: $showAddPerson) {
+            AccountsAddSheet(store: appState.usersStore, multiUserOn: true) { showAddPerson = false }
         }
         .confirmationDialog(SharingStageModel.turnOffAsk, isPresented: $askTurnOff, titleVisibility: .visible) {
             Button("Turn Off Accounts", role: .destructive) { Task { await turnOff() } }

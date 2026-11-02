@@ -28,6 +28,7 @@ struct RemoteConnectionSetupView: View {
     @State private var showingManualEntry = false
     @State private var isPairing = false
     @State private var errorMessage: String?
+    @State private var failure: PairingFailureError?
     @State private var pickerSource: CaptureSource?
     @State private var showingDocumentScanner = false
     @State private var captureError: String?
@@ -193,6 +194,7 @@ struct RemoteConnectionSetupView: View {
                         Text(errorMessage)
                             .font(.caption)
                             .foregroundStyle(.red)
+                        PairingFailureButtons(failure: failure, message: errorMessage) { showingScanner = true }
                     }
                     if let captureError {
                         Text(captureError)
@@ -251,7 +253,7 @@ struct RemoteConnectionSetupView: View {
         do {
             try await finishPairing(with: RemoteClientPairing.pairingFields(from: payload))
         } catch {
-            errorMessage = error.localizedDescription
+            show(error)
         }
     }
 }
@@ -314,9 +316,15 @@ private extension RemoteConnectionSetupView {
             do {
                 try await finishPairing(with: RemoteClientPairing.pairingFields(fromInviteOrPayload: trimmed))
             } catch {
-                errorMessage = error.localizedDescription
+                show(error)
             }
         }
+    }
+
+    /// The failure's sentence (the permission line where it explains it) and, for a pairing step, the buttons that go with it.
+    func show(_ error: Error) {
+        failure = error as? PairingFailureError
+        errorMessage = failure.map { LocalNetworkPolicy.sentence(for: $0.failure, context: $0.context) } ?? error.localizedDescription
     }
 
     func finishPairing(with fields: RemoteClientPairingFields) async throws {
@@ -325,6 +333,7 @@ private extension RemoteConnectionSetupView {
         }
         isPairing = true
         errorMessage = nil
+        failure = nil
         defer { isPairing = false }
         _ = try await RemoteClientPairing.pairAndPersistHost(
             remoteURL: fields.remoteURL,
