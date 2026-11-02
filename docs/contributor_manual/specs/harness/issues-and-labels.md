@@ -65,23 +65,23 @@ never: it finishes one before the next, which is also the Studio's constraint (o
 
 ## Behaviors
 
-- `issues.milestone-is-the-spec` [PARTIAL] — every open issue sits in the milestone its spec names; `check_spec_milestones.py` binds spec↔milestone today, nothing yet moves issues. Test: fichero-server/tests/unit/workflows/test_triage_tool.py → #6116
-- `issues.label-set-is-closed` [PARTIAL] — only the labels in the table exist; the one-off consolidation was done by hand 2026-11-01 (70 → 48); triage refuses an unknown label. Test: fichero-server/tests/unit/workflows/test_triage_tool.py → #6116
-- `issues.build-order-file-orders-milestones` [GAP] — the harness briefs only the first unfinished milestone of `specs/build-order.md`. Test: fichero-builder/tests/test_milestone_verb.py → #6116
+- `issues.milestone-is-the-spec` [PARTIAL] — every open issue sits in the milestone its spec names; `check_spec_milestones.py` binds spec↔milestone, and `builder triage --milestones` moves issues (built, its write path not yet run on the repo). Test: fichero-builder/tests/test_triage_verb.py → #6116
+- `issues.label-set-is-closed` [PARTIAL] — only the labels in the table exist; the one-off consolidation was done by hand 2026-11-01 (70 → 48); `builder triage --labels` moves an unknown label's issues by the table and deletes it (built, its write path not yet run on the repo). Test: fichero-builder/tests/test_triage_verb.py → #6116
+- `issues.build-order-file-orders-milestones` [PARTIAL] — `builder milestone` with no name takes the first unfinished milestone of `specs/build-order.md`; a named milestone is not yet refused. Test: fichero-builder/tests/test_milestone_verb.py → #6116
 - `issues.pick-order-step-bug-priority` [GAP] — within a milestone: steps in build order, then bugs, then priority. Test: fichero-builder/tests/test_milestone_verb.py → #6116
-- `issues.harness-closes-after-integration` [GAP] — an issue closes only by `builder landed` once its commit is on origin/integration. Test: fichero-builder/tests/test_landed_verb.py → #6116
-- `issues.spec-less-milestone-gets-a-spec-issue` [GAP] — Test: fichero-server/tests/unit/workflows/test_triage_tool.py → #6116
+- `issues.harness-closes-after-integration` [PARTIAL] — an issue closes only by `builder landed` once its commit is on origin/integration (built; `gh` is faked in its tests). Test: fichero-builder/tests/test_landed_verb.py → #6116
+- `issues.spec-less-milestone-gets-a-spec-issue` [PARTIAL] — `builder triage --milestones` files one (built, its write path not yet run on the repo). Test: fichero-builder/tests/test_triage_verb.py → #6116
 
 ## Test matrix
 
 | Behaviour | Test | Status |
 |---|---|---|
-| milestone-is-the-spec | test_triage_tool.py | to write |
-| label-set-is-closed | test_triage_tool.py | to write |
-| build-order-file-orders-milestones | test_milestone_verb.py | to write |
+| milestone-is-the-spec | test_triage_verb.py | written |
+| label-set-is-closed | test_triage_verb.py | written |
+| build-order-file-orders-milestones | test_milestone_verb.py | written |
 | pick-order-step-bug-priority | test_milestone_verb.py | to write |
-| harness-closes-after-integration | test_landed_verb.py | to write |
-| spec-less-milestone-gets-a-spec-issue | test_triage_tool.py | to write |
+| harness-closes-after-integration | test_landed_verb.py | written |
+| spec-less-milestone-gets-a-spec-issue | test_triage_verb.py | written |
 
 ## Build order
 
@@ -100,7 +100,7 @@ never: it finishes one before the next, which is also the Studio's constraint (o
 
 #### Step 1.3 — triage (#6116)
 - Behaviours: `issues.milestone-is-the-spec`, `issues.label-set-is-closed`, `issues.spec-less-milestone-gets-a-spec-issue`
-- Tests: fichero-server/tests/unit/workflows/test_triage_tool.py
+- Tests: fichero-builder/tests/test_triage_verb.py
 - Depends on: 1.2
 - Size: M
 

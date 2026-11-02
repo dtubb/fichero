@@ -91,6 +91,12 @@ def build_order(root) -> tuple[list[tuple[str, str]], set[str]]:
     return [(m.group(1), m.group(2) or "") for m in ORDER_LINE.finditer(ordered)], set(re.findall(r"`([^`]+)`", parked))
 
 
+def listed(root) -> set[str]:
+    """Every milestone the file names anywhere below `## In order`: ordered, under `## Then`, or parked."""
+    text = (Path(root) / BUILD_ORDER).read_text()
+    return set(re.findall(r"`([^`]+)`", text.split("## In order", 1)[-1]))
+
+
 def first_open(root, gh: str = "gh") -> tuple[str, Path]:
     """The first milestone under `## In order` that still has open issues, with its spec file (rule 5: `builder milestone`
     and the queue take it when no milestone is named)."""
@@ -103,7 +109,7 @@ def first_open(root, gh: str = "gh") -> tuple[str, Path]:
 class Triage:
     def __init__(self, root, gh: str, dry: bool, say=print):
         self.root, self.gh, self.dry, self.say = Path(root), gh, dry, say
-        self.counts = {"labels deleted": 0, "issues relabelled": 0, "issues moved": 0, "milestones created": 0, "milestones closed": 0,
+        self.counts = {"labels created": 0, "labels deleted": 0, "issues relabelled": 0, "issues moved": 0, "milestones created": 0, "milestones closed": 0,
                        "spec issues filed": 0, "spec lines added": 0, "assignees changed": 0, "milestones unordered": 0}
 
     def change(self, what: str, *gh_args, **row) -> None:
@@ -139,7 +145,14 @@ class Triage:
             if kept(old) or old in stems:
                 continue
             new = table.get(old, "")
+            if new.startswith("spec:") and new not in have:  # triage makes no spec label; the citing spec still places the issue
+                self.say(f"{old} -> {new} is absent: no hint applied")
+                new = ""
             self.say(f"{old} -> {new or '(nothing)'}")
+            if new and new not in have:
+                self.change("label-create", "label", "create", new, label=new)
+                have.add(new)
+                self.counts["labels created"] += 1
             if new:
                 for i in self.issues("--label", old, "--state", "all"):
                     if new not in i["labels"]:
@@ -166,11 +179,16 @@ class Triage:
         `spec: write <milestone> spec` issue (needs-spec)."""
         issues = self.issues("--state", "all")
         by_num = {i["number"]: i for i in issues}
-        ms = json.loads(_gh(self.gh, "api", f"{API}?state=open&per_page=100") or "[]")
+        every = json.loads(_gh(self.gh, "api", f"{API}?state=all&per_page=100", "--paginate") or "[]")
+        ms = [m for m in every if m.get("state") != "closed"]
         titles = {m["title"] for m in ms}
+        closed = {m["title"]: m["number"] for m in every if m.get("state") == "closed"}
 
         def ensure(title: str) -> None:
-            if title not in titles:
+            if title in closed:  # GitHub refuses a second milestone of one title, open or closed
+                self.change("milestone-reopen", "api", "-X", "PATCH", f"{API}/{closed.pop(title)}", "-f", "state=open", milestone=title)
+                titles.add(title)
+            elif title not in titles:
                 self.change("milestone-create", "api", "-X", "POST", API, "-f", f"title={title}", milestone=title)
                 self.counts["milestones created"] += 1
                 titles.add(title)
@@ -221,9 +239,9 @@ class Triage:
         except Refused:
             parked = set()
         if not self.dry:  # the counts after the moves above, not before
-            ms = json.loads(_gh(self.gh, "api", f"{API}?state=open&per_page=100") or "[]")
+            ms = json.loads(_gh(self.gh, "api", f"{API}?state=open&per_page=100", "--paginate") or "[]")
         for m in ms:
-            if m["open_issues"] == 0:
+            if m["open_issues"] == 0 and m["title"] not in spec_named:  # a spec's milestone stays, empty or not
                 self.change("milestone-close", "api", "-X", "PATCH", f"{API}/{m['number']}", "-f", "state=closed", milestone=m["title"])
                 self.counts["milestones closed"] += 1
             elif m["title"] not in spec_named and not is_ops(m["title"]) and m["title"] not in parked:
@@ -250,13 +268,13 @@ class Triage:
         """Rule 5: the build-order file is read; an open milestone with open issues it neither orders nor parks is printed as a
         proposed line (and one row); the file is never written."""
         try:
-            ordered, parked = build_order(self.root)
+            build_order(self.root)  # says so when the file is missing
+            placed = listed(self.root)
         except Refused as e:
             self.say(str(e))
-            ordered, parked = [], set()
-        placed = {t for t, _ in ordered} | parked
+            placed = set()
         specs = {spec_milestone(p.read_text()): p.relative_to(self.root / SPECS).as_posix() for p in spec_files(self.root)}
-        missing = [m for m in json.loads(_gh(self.gh, "api", f"{API}?state=open&per_page=100") or "[]") if m["open_issues"] and m["title"] not in placed]
+        missing = [m for m in json.loads(_gh(self.gh, "api", f"{API}?state=open&per_page=100", "--paginate") or "[]") if m["open_issues"] and m["title"] not in placed]
         if missing:
             self.say(f"proposed for {BUILD_ORDER} (under `## Then`; the owner orders them):")
         for m in sorted(missing, key=lambda m: m["title"]):

@@ -327,7 +327,6 @@ the write path would produce.
   step labels (`gh label create`, before any issue write) and applies them on create and on update; existing issues' other
   labels are left alone. Test: `fichero-builder/tests/test_steps_verb.py::test_every_step_issue_carries_the_step_label_and_type_feature_never_a_spec_label`.
 - `dev-workflows.tool.landed` [PARTIAL] (#6116) — `builder landed <sha> [--push] [--no-issues]`: after a verdict the maintainer
-- `dev-workflows.tool.landed` [OK] (#6116) — `builder landed <sha> [--push] [--no-issues]`: after a verdict the maintainer
   runs one command instead of fifteen. It refuses a journal that is not this user's alone to write (it allows the push and
   names what `scratch` removes) and a rules file the land gate would refuse, then refuses unless the verdict store has READY
   for the sha, the journal has a green check row over exactly `<[land].branch>..<sha>` (a `--maintainer` row counts, because a
@@ -339,8 +338,7 @@ the write path would produce.
   an unpushed sha pins, removes and closes nothing and a `--push` rerun pushes (test `fichero-builder/tests/test_landed_verb.py::test_without_push_an_unpushed_sha_is_refused_before_anything_moves_and_a_push_rerun_finishes`); then it refreshes the engine
   repo's local branch, makes the `pinned-<sha7>` branch and worktree under `[land].pinned_dir` (absolute, else refused
   before anything moves) and removes the previous pinned pair, fast-forwards the jail root as the jail user, removes the
-  scratch worktrees the journal's work rows name for that sha, and, only once the sha is on `origin/<branch>` (a hand
-  push counts; otherwise the row says "issues untouched" and nothing is written), updates the cited issues through `gh`:
+  scratch worktrees the journal's work rows name for that sha, and, only once the sha is on `origin/<branch>` (the on-origin step has held it to that), updates the cited issues through `gh`:
   one comment per issue per landing naming every citing commit (sha7, subject, the test files it touches); `Fixes`/`Closes
   #N` closes with it, `Part of #N` stays open, `Already built: #N <test>` comments the proving test and labels
   needs-your-test; a behaviour id a commit names in backticks gets its spec line's open tag set to [OK] with the commit's
@@ -350,10 +348,8 @@ the write path would produce.
   `fichero-builder/tests/test_landed_verb.py::test_the_happy_path_without_push_pins_and_refreshes_but_leaves_origin_alone`,
   `::test_refuses_a_sha_that_is_not_a_fast_forward_of_origin`, `::test_the_cited_issues_are_closed_or_commented_through_gh`,
   `::test_a_range_over_the_boundary_is_not_pushed`, `::test_a_journal_landed_does_not_own_or_others_can_write_refuses_before_anything`,
-  `::test_a_green_row_counts_only_for_the_range_being_landed`. Not yet: a run with the real jail user and the real `gh`; both are faked in every test.
-- `dev-workflows.tool.watch` [OK] (#6116; owner 2026-11-01) — `builder watch [--port 8765] [--state DIR]` is a live progress
+  `::test_a_green_row_counts_only_for_the_range_being_landed`, `::test_issues_are_untouched_until_the_sha_is_on_origin`, `::test_the_spec_behaviour_line_a_landed_commit_names_gets_ok_with_the_test`. Not yet: a run with the real jail user and the real `gh`; both are faked in every test.
 - `dev-workflows.tool.watch` [OK] (#6116; owner 2026-11-01) — `builder watch [--port 8765] [--state DIR] [--root DIR]` is a live progress
-- `dev-workflows.tool.watch` [OK] (#6116; owner 2026-11-01) — `builder watch [--port 8765] [--state DIR]` is a live progress
   page: a stdlib `http.server` bound to 127.0.0.1 serving one HTML page (no JavaScript; a 5 s meta refresh) read from the
   owner's journal and the worker's under `[jail].workroot/state`, newest first: one table per kind and nothing else: each run (name, worktree, model, started, turns, cost USD,
   status done/parked/handoff or running), each check (range, green/red, the failed rung), each landing (tip, last step,
@@ -361,25 +357,6 @@ the write path would produce.
   Tests: `fichero-builder/tests/test_watch.py::test_the_page_shows_every_run_check_and_land_newest_first_with_status_and_cost`,
   `::test_watch_serves_the_journal_page_on_the_loopback_only`, `::test_the_page_reads_the_owners_journal_and_the_workers_shared_one`,
   `::test_a_run_that_handed_off_shows_running_once_its_next_generation_starts`.
-- `dev-workflows.tool.triage` [PARTIAL] (#6116; owner 2026-11-01) — `builder triage [--labels] [--specs] [--dry]` cleans
-  the repo's GitHub metadata deterministically and changes it directly (owner ruling: no proposals file, no manual approval);
-  every change is one journal row (event `triage`) and one `gh` call that can be read back; `--dry` reads, prints and journals
-  rows marked dry, writes nothing. **Labels** (built 2026-11-01): the kept families are `spec:<spec file stem>` (one per file
-  under `docs/contributor_manual/specs/<area>/`; a missing one is created, a `spec:` label with no file is deleted), `step:N.M`,
-  `type:bug|feature|task`, `needs-your-decision`, `needs-your-test`, `needs-spec`, `status:blocked`; every other label is
-  removed from its issues and deleted after the issues get the kept label the table `harness.toml [triage.labels]` names
-  for it (absent = nothing), and the mapping applied is printed. **Spec label from the citing spec** (built 2026-11-01): an
-  open issue with no `spec:` label gets the label of every spec whose text cites `#N`; none found gives `needs-spec`.
-  **Milestones** (built 2026-11-01, `--milestones`): an open issue moves to the milestone its spec's `> Milestone:` line
-  names (created on the repo first when missing); a spec with no such line gets one, the milestone most of its cited
-  issues carry (a `spec-milestone-line` row; a spec whose cited issues carry none is left alone and said); an issue with
-  no spec and no milestone goes to `Next release` only if it is `type:bug`, else stays and keeps `needs-spec`; after the
-  moves a milestone with no open issue is closed (the dated grab-bags empty out this way), and a milestone with open
-  issues that no spec names gets one `spec: write <milestone> spec` issue labelled `needs-spec`, filed once.
-  Not yet: the build-order file and the top-milestone default, assignees.
-  Tests: `fichero-builder/tests/test_triage_verb.py::test_labels_are_consolidated_by_the_rules_table_and_the_mapping_is_printed`,
-  `::test_dry_changes_nothing_and_prints_the_counts`, `::test_the_spec_label_comes_from_the_spec_that_cites_the_issue_else_needs_spec`,
-  `::test_milestones_follow_the_spec_and_empty_ones_close_and_a_spec_less_one_gets_a_write_the_spec_issue`.
 - `dev-workflows.tool.triage` [OK] (#6336; owner 2026-11-01) — `builder triage [--labels] [--specs] [--milestones]
   [--assignees] [--order] [--dry]` cleans the repo's GitHub metadata deterministically and changes it directly (owner
   ruling: no proposals file, no manual approval) by the rules of `harness/issues-and-labels.md`; every change is one journal
@@ -388,24 +365,23 @@ the write path would produce.
   (created on the repo first when missing), else of the spec a `spec:<stem>` label hints at, and removes the `spec:*` label
   once the issue sits there (a `spec:*` label no open issue carries is deleted; triage creates none); a spec with no
   `> Milestone:` line gets one, the milestone most of its cited issues carry (a `spec-milestone-line` row); an issue no
-  spec cites with no milestone goes to `Next release` only if it is `type:bug`; a milestone with no open issue is closed;
+  spec cites with no milestone goes to `Next release` only if it is `type:bug`; a milestone with no open issue that no spec names is closed (a spec's stays, and a closed one a spec needs is reopened, never made twice);
   a milestone with open issues that no spec names and that is not an ops bucket (`Bugs - *`, `Lint - *`, `Performance - *`)
   or a grab-bag (`Next release`, `cand 16`) or parked in the build-order file gets one `spec: write <milestone> spec` issue labelled `needs-spec`, filed
   once. **The label set is closed** (`--labels`): the table in `harness/issues-and-labels.md` (`step:N.M`,
   `type:bug|feature|task`, `priority:P0-P3`, `phase:R0-R6` until the recipe phases are in a build order, `needs-spec`,
   `needs-your-decision`, `needs-your-test`, `status:blocked`); every other label is removed from its issues and deleted
   after the issues get what `harness.toml [triage.labels]` maps it to (absent = nothing; a `spec:<stem>` value is a hint
-  for `--milestones`), and the mapping applied is printed. **needs-spec** (`--specs`) goes on an open issue inside a spec's
+  for `--milestones`), and the mapping applied is printed; a missing kept label is created first, and a missing `spec:` hint is skipped, never made. **needs-spec** (`--specs`) goes on an open issue inside a spec's
   milestone that no spec cites and comes off one a spec cites; ops buckets, grab-bags and issues with no milestone are left
   alone. **Assignees** (`--assignees`): the `gh api user` login on `needs-your-decision` / `needs-your-test` only; every
   other assignee is removed. **The build order** (`--order`): `docs/contributor_manual/specs/build-order.md` is the
-  owner's; triage reads it and prints a proposed line (one `order-missing` row) for each open milestone with open issues it
-  neither orders nor parks, never writes it; `builder milestone` with no name takes the first milestone under `## In order`
+  owner's; triage reads it and prints a proposed line (one `order-missing` row) for each open milestone with open issues it does not name, never writes it; `builder milestone` with no name takes the first milestone under `## In order`
   that still has open issues and the spec its line names. **Built** 2026-11-01: `fichero_builder/triage.py`. Tests:
   `fichero-builder/tests/test_triage_verb.py::test_labels_are_the_closed_set_priority_and_phase_kept_spec_labels_never_created`,
   `::test_dry_changes_nothing_and_prints_the_counts`, `::test_needs_spec_only_inside_a_spec_milestone_and_only_when_no_spec_cites_the_issue`,
   `::test_milestones_follow_the_citing_spec_and_the_spec_label_goes_once_the_issue_sits_there`,
-  `::test_assignees_are_the_owner_on_needs_your_only`, `::test_order_reads_the_build_order_file_and_proposes_a_diff_never_writes`,
+  `::test_a_specs_empty_milestone_stays_open_and_a_closed_one_is_reopened_not_made_twice`, `::test_labels_creates_a_missing_kept_target_and_skips_a_missing_spec_hint`, `::test_order_does_not_propose_what_the_file_already_lists_under_then`, `::test_assignees_are_the_owner_on_needs_your_only`, `::test_order_reads_the_build_order_file_and_proposes_a_diff_never_writes`,
   `fichero-builder/tests/test_milestone_verb.py::test_no_name_takes_the_first_ordered_milestone_with_open_issues_and_its_spec`.
 - `dev-workflows.builder.cluster` [PARTIAL] (#6116) — one spec and its build-order issues (parser ported from
   `pipeline/plan.py`), in order, one commit per issue with its test; the brief is built by `scripts/harness_brief.py` from

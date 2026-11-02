@@ -54,11 +54,17 @@ elif argv[:2] == ["issue", "create"]:
 elif argv[:2] == ["api", "user"]:
     print("owner-login")
 elif argv[0] == "api" and "milestones?" in argv[1]:
-    print(json.dumps([{{"number": k, "title": t, "open_issues": sum(1 for i in db["issues"] if i["state"] == "open" and i.get("milestone") == t)}} for k, t in enumerate(db["milestones"], 1)]))
+    rows = [{{"number": k, "title": t, "state": "closed" if t in db["closed"] else "open",
+              "open_issues": sum(1 for i in db["issues"] if i["state"] == "open" and i.get("milestone") == t)}} for k, t in enumerate(db["milestones"], 1)]
+    print(json.dumps([r for r in rows if "state=all" in argv[1] or r["state"] == "open"]))
 elif argv[0] == "api" and opt("-X") == "POST":
     db["milestones"].append(opt("-f").split("=", 1)[1])
 elif argv[0] == "api" and opt("-X") == "PATCH":
-    db["closed"].append(db["milestones"][int(argv[argv.index("-X") + 2].rsplit("/", 1)[1]) - 1])
+    title = db["milestones"][int(argv[argv.index("-X") + 2].rsplit("/", 1)[1]) - 1]
+    if opt("-f") == "state=open":
+        db["closed"].remove(title)
+    else:
+        db["closed"].append(title)
 else:
     sys.exit("unexpected: " + " ".join(argv))
 state.write_text(json.dumps(db))
@@ -231,3 +237,46 @@ def test_a_milestone_parked_in_the_build_order_file_owes_no_spec_issue(world):
     (world.root / "docs" / "contributor_manual" / "specs" / "build-order.md").write_text("## In order\n\n## Parked\n\n- `orphan-ms` — later.\n")
     assert world("--milestones") == 0
     assert not any(i["title"].startswith("spec: write ") for i in world.db()["issues"])
+
+
+def test_a_specs_empty_milestone_stays_open_and_a_closed_one_is_reopened_not_made_twice(world):
+    """Review of range 2: an empty spec milestone was closed against the rule, and a later issue citing that spec then POSTed a
+    duplicate title, which GitHub refuses, so a rerun stopped halfway."""
+    db = world.db()
+    for i in db["issues"]:
+        if i["number"] == 13:
+            i["state"] = "closed"
+    db["issues"] = [i for i in db["issues"] if i["number"] not in (8, 9)]
+    (world.root.parent / "gh.json").write_text(json.dumps(db))
+    assert world("--milestones") == 0
+    assert "cat" not in world.db()["closed"], "cataloguing.md names it, so it stays though nothing is open in it"
+    db = world.db()
+    db["closed"].append("sharing")
+    for i in db["issues"]:
+        if i["number"] == 7:
+            i["milestone"] = None
+    (world.root.parent / "gh.json").write_text(json.dumps(db))
+    assert world("--milestones") == 0
+    d = world.db()
+    assert "sharing" not in d["closed"] and d["milestones"].count("sharing") == 1, "reopened, not created again"
+
+
+def test_labels_creates_a_missing_kept_target_and_skips_a_missing_spec_hint(world):
+    """Review of range 2: --add-label fails on a label that does not exist; triage still never creates a spec label."""
+    db = world.db()
+    db["labels"] = [x for x in db["labels"] if x not in ("type:bug", "spec:sharing-two-macs")]
+    (world.root.parent / "gh.json").write_text(json.dumps(db))
+    assert world("--labels") == 0
+    calls = world.db()["calls"]
+    made = next(k for k, c in enumerate(calls) if c[:3] == ["label", "create", "type:bug"])
+    used = next(k for k, c in enumerate(calls) if c[:2] == ["issue", "edit"] and c[-1] == "type:bug")
+    assert made < used
+    assert not any(c[:3] == ["label", "create", "spec:sharing-two-macs"] or c[-1] == "spec:sharing-two-macs" for c in calls)
+
+
+def test_order_does_not_propose_what_the_file_already_lists_under_then(world, capsys):
+    bo = world.root / "docs" / "contributor_manual" / "specs" / "build-order.md"
+    bo.write_text(BUILD_ORDER.replace("## Parked", "## Then\n\n- `orphan-ms` — unordered.\n\n## Parked"))
+    assert world("--order") == 0
+    proposed = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("+ ")]
+    assert not any("`orphan-ms`" in ln for ln in proposed) and any("`Bugs - old`" in ln for ln in proposed)
