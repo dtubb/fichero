@@ -811,14 +811,14 @@ There is **no margin multiplier**: the estimate says what Fichero thinks the run
 its basis, and it learns from the project's booked costs (`designer.budget.estimate-from-booked-usage`).
 
 **Improves.**
-- `designer.budget.beside-the-estimate` [GAP] (#6295) — Ready has one Budget block, above Start: the estimate
+- `designer.budget.beside-the-estimate` [PARTIAL] (#6295) — Ready has one Budget block, above Start: the estimate
   for this run (`estimate.total_cost_usd`), Fichero's best estimate, with its basis, the project's cap for the month with what is spent
   and what is left (the `CloudCapLine` figures), and two editable fields, both changeable in place, so that
   whichever cap would block Start can be updated from the block: **this run, at most** and **this
   project a month, at most**. The Hugging Face cap joins the block as a third line when a Hugging Face place is
   in the plan. One block, not a field under a question. *Test:* `BudgetBlockTests.swift`
   (pure: the block's lines from a served plan; the fields hold the served caps; a cap below 0 cannot be typed),
-  `test_budget_in_the_plan.py` (the plan carries both caps and the basis).
+  `test_budget_in_the_plan.py` (the plan carries both caps and the basis). Found partly built 2026-11-02 (#6295): the plan's `cloud_cap` line carries the monthly cap, spent, remaining, the project cap and its remaining, and the caps are changeable in place (`CloudCapLine`, `changeCloudCaps`). Left: the Budget block as one block above Start with the run cap field and the Hugging Face line, and `BudgetBlockTests.swift`.
 - `designer.budget.basis-per-step` [PARTIAL] (#6295) — the estimate is shown per step and per page, each with its
   basis in words: "Read: 16 pages × $0.021 a page, measured on 9 pages of this project" or "… assumed: one call
   a page of about 16 line pictures at Claude's listed rate"; the sum is the run's estimate. The basis is a
@@ -844,7 +844,7 @@ its basis, and it learns from the project's booked costs (`designer.budget.estim
   (`designer.path.caps-proposed-not-written`). *Test:*
   `test_run_cap_holds_with_the_project_cap.py` (a run cap below the project's
   remaining refuses at the run cap; the project cap still refuses first when lower).
-- `designer.budget.refusal-offers-the-fix` [GAP] (#6295) — a Start refused for the cap says, in plain words,
+- `designer.budget.refusal-offers-the-fix` [PARTIAL] (#6295) — a Start refused for the cap says, in plain words,
   which cap refused (the project cap or the monthly cap), what the estimate is, what that cap leaves, and which step costs most; and the refusal carries typed fixes
   the app shows as buttons in the Budget block, each one press, with **both** cap fields editable in place on the
   same screen (the maintainer's ruling, 2026-10-30): **Raise the cap to $N** (N = the estimate, rounded up to the
@@ -858,14 +858,14 @@ its basis, and it learns from the project's booked costs (`designer.budget.estim
   *Test:* `test_cap_refusal_offers_the_fix_6295.py` (each fix is served with
   its figure; the refusal names which cap refused; raising to N clears the refusal; the fewer-pages count fits what is left,
   and the Start it makes names the first N pages in Finder order as `documents`, nothing more),
-  `BudgetRefusalFixTests.swift` (the three buttons from a served refusal).
-- `designer.budget.change-is-audited-and-undoable` [GAP] (#6295) — raising or lowering either cap, from the
+  `BudgetRefusalFixTests.swift` (the three buttons from a served refusal). Found partly built 2026-11-02 (#6295): the cap line serves `needed_cap_usd`, `needed_project_cap_usd`, `fewer_pages` and the refusal's own sentence naming which cap refused. Left: the typed `refusal.fixes[]` (kind, step, raise_to_usd, pages_that_fit), the dearest step, and Change the model.
+- `designer.budget.change-is-audited-and-undoable` [PARTIAL] (#6295) — raising or lowering either cap, from the
   field or from a fix button, is one audited action, `project.set_budget` (project, which cap, from, to, who,
   when), undoable through Edit › Undo, the same write permission as any change to the project; it reuses
   `project.save_setup`'s audit and invert, so a cap change never writes any other answer. A cap raised during a
   paused run (`designer.budget.fix-during-the-run`) is the same action. *Test:*
   `test_set_budget_is_audited_and_undoable.py` (the audit row names the cap and
-  both figures; undo restores the old cap and nothing else; MCP and the command line reach it through the regen).
+  both figures; undo restores the old cap and nothing else; MCP and the command line reach it through the regen). Found built 2026-11-02 (#6295): `PUT /api/recipes/project/cloud-cap` is one `project.save_setup` writing only the caps, audited, one Undo puts both back (`test_raise_the_cap_in_place_6295.py::test_changing_the_caps_is_audited_keeps_the_rest_and_one_undo_puts_both_back`; the app: `RecipeSetupStore+CloudCaps.changeCloudCaps`). Left: an action of its own named `project.set_budget` (the audit row names `project.save_setup`), and the run cap.
 - `designer.budget.fix-during-the-run` [GAP] (#6295; extends `designer.run.cap-stops-and-says`) — when a run is
   paused at the cap, the run's Activity row and the project's run strip show the same three fixes, and both cap
   fields editable in place (the maintainer's ruling, 2026-10-30) (raise to $N,
