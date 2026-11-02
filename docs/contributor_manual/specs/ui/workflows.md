@@ -205,8 +205,9 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   #4340.
 - `workflows.canvas.version-history` — **[GAP]** no snapshot/diff history of a
   workflow's definition changes over time. ISSUE: #4342.
-- `workflows.canvas.dry-run` — **[GAP]** no "Test / Dry Run" affordance to
+- `workflows.canvas.dry-run` — **[PARTIAL]** (Step 2.3, #4370) `POST /api/workflow-execution/dry-run` asks the same checks `/execute` makes (`_execution_problems`, one function) and answers `ok`, every problem in words, the steps and which call a model, the declared scope; it starts no run, calls no model and writes nothing. Pinned by `fichero-server/tests/unit/workflows/test_dry_run_to_spec.py`. The editor's Test button is Swift, not yet built. Was: no "Test / Dry Run" affordance to
   validate a workflow before spending a real run. ISSUE: #4370.
+- `workflows.canvas.dry-run-button` — **[GAP]** (#4370, Step 4.6) the editor has a Test button that calls the dry run and shows its problems in words, the steps that call a model and the scope sentence, before any run is spent.
 - `workflows.canvas.cost-estimate-up-front` — **[GAP]** no shown cost/call
   estimate before running from the editor. ISSUE: #1818. The estimate itself (time,
   cost and greenhouse gas, each measured, estimated or unknown) is owned by
@@ -518,7 +519,7 @@ Engine only; the served shapes land with one OpenAPI regeneration at the end of 
 
 #### Step 2.3 — Test / Dry Run (#4370)
 - Behaviours: `workflows.canvas.dry-run`
-- Tests: fichero-server/tests/unit/workflows/test_dry_run_to_spec.py (not yet written)
+- Tests: fichero-server/tests/unit/workflows/test_dry_run_to_spec.py
 - Size: M
 
 #### Step 2.4 — Scoreboard and comparison node (#4344, #4328)
@@ -596,6 +597,12 @@ Swift, after the Stage 1-3 regeneration. Pure types are verified with a standalo
 - Behaviours: `workflows.canvas.cost-estimate-up-front`, `workflows.canvas.cost-chip-counts-vision-and-unpriced`
 - Tests: fichero/Tests/Unit/general/Workflow/WorkflowCostChipTests.swift (not yet written)
 - Size: M
+
+#### Step 4.6 — The editor's Test button shows what a dry run found (#4370)
+- Behaviours: `workflows.canvas.dry-run-button`
+- Tests: fichero/Tests/Unit/general/Workflow/WorkflowDryRunTests.swift (not yet written)
+- Depends on: 2.3
+- Size: S
 
 ### Stage 5 — Swift: the canvas
 

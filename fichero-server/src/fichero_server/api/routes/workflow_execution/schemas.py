@@ -161,6 +161,28 @@ class ThreadListResponse(BaseModel):
     threads: list[ExecutionStatusResponse]
 
 
+class DryRunStep(BaseModel):
+    """One step a run would take."""
+
+    node_id: str
+    name: str
+    tool: str
+    uses_model: bool = Field(description="The step calls a language or vision model, so it is where a run spends.")
+
+
+class DryRunResponse(BaseModel):
+    """What a test of a workflow found, with nothing run (`workflows.canvas.dry-run`, #4370)."""
+
+    workflow_id: str
+    workflow_name: str
+    ok: bool = Field(description="True when `/execute` would accept this run as asked.")
+    problems: list[str] = Field(default_factory=list, description="Every reason it would be refused, in words.")
+    steps: list[DryRunStep] = Field(default_factory=list)
+    model_steps: int = Field(0, description="How many of the steps call a model.")
+    scope: str = Field("per_file", description="per_file or once_per_folder (`workflows.defaults.declared-scope`).")
+    scope_sentence: str = ""
+
+
 class ExecuteAcceptedResponse(BaseModel):
     """Response when workflow execution has been accepted (202)."""
 

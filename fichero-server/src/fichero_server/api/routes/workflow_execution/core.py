@@ -33,6 +33,8 @@ from fichero_server.workflows.workflow_store import WorkflowStore
 
 
 from .schemas import (
+    DryRunResponse,
+    DryRunStep,
     ExecuteAcceptedResponse,
     ExecuteWorkflowRequest,
     ExecutionStatusResponse,
@@ -130,7 +132,29 @@ def _validate_workflow_for_execution(
     request: "ExecuteWorkflowRequest | None" = None,
     db: "Database | None" = None,
 ) -> None:
-    """Fail fast on malformed workflows before spawning a background run.
+    """Fail fast on malformed workflows before spawning a background run (400 with every problem)."""
+    errors = _execution_problems(workflow, request, db)
+    if errors:
+        detail = f"Workflow validation failed: {'; '.join(errors)}"
+        logger.warning(
+            "Workflow validation failed for id=%s name=%r: %s",
+            workflow.id,
+            workflow.name,
+            detail,
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=detail,
+        )
+
+
+def _execution_problems(
+    workflow: Workflow,
+    request: "ExecuteWorkflowRequest | None" = None,
+    db: "Database | None" = None,
+) -> list[str]:
+    """Every reason this workflow cannot be run as asked, in words; empty when it can. No run is started and no model is
+    called: a real run and a dry run (`workflows.canvas.dry-run`, #4370) ask this one function, so they cannot disagree.
 
     ``db`` resolves sub-workflow children the same way the list response does,
     so preflight sees the child THIS library holds — a user who edits a shared
@@ -189,18 +213,7 @@ def _validate_workflow_for_execution(
         except ValueError as exc:
             errors.append(str(exc))
 
-    if errors:
-        detail = f"Workflow validation failed: {'; '.join(errors)}"
-        logger.warning(
-            "Workflow validation failed for id=%s name=%r: %s",
-            workflow.id,
-            workflow.name,
-            detail,
-        )
-        raise HTTPException(
-            status_code=400,
-            detail=detail,
-        )
+    return errors
 
 
 # =============================================================================
@@ -304,6 +317,37 @@ async def stream_workflow_events(thread_id: str, http_request: Request) -> Strea
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
+    )
+
+
+@router.post("/dry-run", response_model=DryRunResponse)
+async def dry_run_workflow(
+    request: ExecuteWorkflowRequest,
+    db: Database = Depends(get_library_database),
+) -> DryRunResponse:
+    """Test a workflow before spending a real run (`workflows.canvas.dry-run`, #4370).
+
+    Asks the same checks `/execute` makes (connections, models, privacy policy, run eligibility, the graph building) and
+    answers every problem in words, with the steps the run would take and which of them call a model. It starts no run,
+    calls no model, and writes nothing.
+    """
+    from fichero_server.workflows.runtime import to_workflow_def  # noqa: PLC0415
+    from fichero_server.workflows.validation import SCOPE_SENTENCES, node_uses_llm, workflow_scope  # noqa: PLC0415
+
+    workflow = WorkflowStore(db).get(request.workflow_id)
+    if not workflow:
+        from fichero_server.workflows.default_workflows import resolve_default_workflow  # noqa: PLC0415
+
+        workflow = resolve_default_workflow(request.workflow_id)
+    if not workflow:
+        raise HTTPException(status_code=404, detail=f"Workflow not found in this library: {request.workflow_id}")
+    problems = _execution_problems(workflow, request, db)
+    nodes = to_workflow_def(workflow).nodes
+    steps = [DryRunStep(node_id=n.id, name=n.label or n.tool, tool=n.tool, uses_model=node_uses_llm(n)) for n in nodes]
+    scope = workflow_scope(getattr(workflow, "config", None), workflow.nodes)
+    return DryRunResponse(
+        workflow_id=workflow.id, workflow_name=workflow.name, ok=not problems, problems=problems, steps=steps,
+        model_steps=sum(1 for s in steps if s.uses_model), scope=scope, scope_sentence=SCOPE_SENTENCES[scope],
     )
 
 
