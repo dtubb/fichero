@@ -276,13 +276,19 @@ the write path would produce.
   --spec FILE --out DIR`: `gh issue list --milestone`, the step from the issue title (`Step 1.3`) or a `Step: 1.3`
   body line, the build order from the spec guard's own parser, one brief per step through the brief tool, questions on
   stderr and exit 2 when any. Not yet: `builder steps` files issues in that title shape. Test:
-  `fichero-builder/tests/test_milestone_verb.py` (a fake `gh`: three issues over two dependent steps give one brief
+  `fichero-builder/tests/test_milestone_verb.py` (a fake `gh`: three issues over two dependent steps give two briefs
   and two questions). **Rules in the brief** (built 2026-11-01): the project's standing worker rules (one pytest at a time
   with its own `--basetemp` under the workroot, `PYTHONPATH=src`, never xcodebuild, author Claude, the trailers) are
   `[brief].rules` in `harness.toml`, the third line of every cluster brief, with any `#N` filled from the cluster's issues
   (the project's own rules have none), so no brief needs a hand edit. The brief names the issues the step owes and tells the worker to put `Fixes #N` on the
   commit that finishes each and `Part of #N` on any before it (test `fichero-server/tests/unit/workflows/test_brief_tool.py::test_the_brief_names_what_the_step_owes_and_the_line_that_closes_each`). Tests: `fichero-server/tests/unit/workflows/test_brief_tool.py::test_the_rules_are_the_briefs_third_line_with_part_of_filled_from_the_clusters_issues`,
   `::test_the_projects_standing_worker_rules_are_in_harness_toml_so_no_brief_needs_a_hand_edit`.
+  **Waits and new modules** (built 2026-11-01): a step whose dependency still has open issues is a brief and, with
+  `--enqueue`, a queued item that depends on it, and every wait is said in ONE question line; a step whose issues name
+  files that do not exist yet gets a "Where to put new modules" section: the directories the spec's design section
+  names that exist in the repo, and the existing files under them that mention the step's words (the callers to wire).
+  Tests: `fichero-builder/tests/test_milestone_verb.py::test_plan_orders_clusters_and_asks_instead_of_guessing`,
+  `::test_a_step_that_creates_new_modules_gets_the_designs_directory_and_callers_found_by_the_steps_words`.
   **Step from the label** (built 2026-11-01): the verb lists issues with their labels and reads the step from `step:N.M`
   first; the title shape and the `Step: N.M` body line are the fallback for an issue with no step label. Test:
   `fichero-builder/tests/test_milestone_verb.py::test_the_step_label_is_read_first_and_the_title_shape_only_for_an_issue_with_no_step_label`.
