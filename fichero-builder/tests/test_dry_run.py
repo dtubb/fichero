@@ -230,3 +230,23 @@ def test_a_hand_brief_without_the_done_instruction_gets_it_added_in_the_copy_the
     fake = Fake([HEALTHY, {**HEALTHY, "idle": True, "moved": True, "last_text": "DONE bbbb222"}])
     assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None) == "done"
     assert Path(fake.started[1]) == root / "b.txt", "a brief that carries the instruction is started as it is"
+
+
+def test_the_real_procs_tell_types_the_words_then_enter_as_two_tmux_calls(tmp_path, monkeypatch):
+    """Defect in the first nudge: the Claude kind's Procs had no tell, so the nudge reached nobody. A bare send-keys with the
+    Enter in one call loses the Enter, so the words go literally (-l) and the Enter is its own call."""
+    calls = []
+    monkeypatch.setattr(run.subprocess, "run", lambda argv, **k: calls.append(argv))
+    monkeypatch.setattr(run.time, "sleep", lambda s: None)
+    run.real_procs(tmp_path, tmp_path / "wt").tell("%3", "end with DONE abc")
+    assert calls == [["tmux", "send-keys", "-t", "%3", "-l", "end with DONE abc"], ["tmux", "send-keys", "-t", "%3", "Enter"]]
+
+
+def test_a_done_line_naming_the_wrong_sha_on_a_moved_branch_is_nudged_and_ended_too(root):
+    """The same idle-forever defect: the branch moved, the DONE line names another sha, nothing else would end the run."""
+    told = []
+    wrong = {**HEALTHY, "idle": True, "moved": True, "last_text": "DONE 0000fff"}
+    fake = Fake([HEALTHY, wrong, wrong, wrong, wrong, HEALTHY])
+    fake.procs.tell = lambda pane, words: told.append(words)
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None) == "done-unsaid"
+    assert len(told) == 1 and told[0].endswith("DONE bbbb222")

@@ -72,6 +72,13 @@ def _stop(pane: str, grace_s: float = 10.0) -> None:
     subprocess.run(["tmux", "kill-pane", "-t", pane], capture_output=True)
 
 
+def _tell(pane: str, words: str) -> None:
+    """Into a Claude pane: the words literally, then Enter as its own call (one send-keys with both loses the Enter)."""
+    subprocess.run(["tmux", "send-keys", "-t", pane, "-l", words], capture_output=True)
+    time.sleep(0.5)
+    subprocess.run(["tmux", "send-keys", "-t", pane, "Enter"], capture_output=True)
+
+
 def _head(worktree) -> str:
     return subprocess.run(["git", "-C", str(worktree), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
 
@@ -80,7 +87,7 @@ def real_procs(home, worktree) -> Procs:
     def read():
         f = newest_session(home, worktree)
         return session.parse_session(f) if f else None
-    return Procs(start=_start, alive=_alive, stop=_stop, read=read, head=lambda: _head(worktree))
+    return Procs(start=_start, alive=_alive, stop=_stop, read=read, head=lambda: _head(worktree), tell=_tell)
 
 
 DONE = re.compile(r"^DONE ([0-9a-f]{7,40})\b", re.M)  # the brief's end line: DONE <short sha of the branch head>
@@ -173,8 +180,8 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             end = "parked"
             break
         m = done.search(state.get("last_text", "")) if state.get("idle") else None
-        head = procs.head() if state.get("idle") and not m else ""
-        unsaid = unsaid + 1 if head and head != base else 0
+        head = procs.head() if state.get("idle") else ""
+        unsaid = unsaid + 1 if head and head != base and not (m and head.startswith(m.group(1))) else 0
         if unsaid == 2:
             words = f"Your branch has commits and your turn ended without the DONE line: end your turn with the exact line DONE {head[:7]}"
             journal.append("watch", task=name, what=f"nudge: {words}")
