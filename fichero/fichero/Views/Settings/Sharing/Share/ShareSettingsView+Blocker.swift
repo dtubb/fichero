@@ -30,7 +30,8 @@ extension ShareSettingsView {
         guard hasValidSPKIPin else {
             return backendService.isUsingExternalBackend ? .pinNotDerivedOnExternalEngine : .pinNotDerived
         }
-        return nil
+        // Last, so every cause the app can cure is named first; a link made behind a blocking firewall cannot work.
+        return firewallVerdict == .blocking ? .firewallBlocking : nil
     }
 
     /// Perform the blocker's own cure. Only offered where the app can genuinely do
@@ -57,7 +58,8 @@ extension ShareSettingsView {
             await applySharing()
         case .pinNotDerived:
             await applySharing()  // restarts the engine, which mints and files the pin; only on the person's press (#5891)
-        case .engineIsRemote, .addressMissing, .addressInsecure, .addressInvalid, .pinNotDerivedOnExternalEngine:
+        case .engineIsRemote, .addressMissing, .addressInsecure, .addressInvalid, .pinNotDerivedOnExternalEngine,
+             .firewallBlocking:
             break  // no button offered — see PairingBlocker.actionTitle
         }
     }

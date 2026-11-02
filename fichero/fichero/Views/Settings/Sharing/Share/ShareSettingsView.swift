@@ -45,6 +45,7 @@ struct ShareSettingsView: View {
     @State var addressDraft = ""
     @State var sharingState: SharingStateRecord?
     @State var detectedTailnetURL: String?
+    @State var firewallVerdict = FirewallCheck.Verdict.unknown
     @State var selectedDevices = Set<String>()
     @State var confirmRemoveSelected = false
     /// The one sheet this pane presents: two `.sheet(isPresented:)` on the same view race, and only one shows reliably.

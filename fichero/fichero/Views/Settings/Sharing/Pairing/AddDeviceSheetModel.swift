@@ -26,6 +26,7 @@ enum AddDeviceSheetModel {
         case .engineIsRemote: return .failed("Sharing is set on the Mac that runs this project")
         case .addressMissing, .addressInsecure, .addressInvalid: return .failed("The address needs fixing under Advanced")
         case .pinNotDerivedOnExternalEngine: return .failed("This engine was started outside Fichero")
+        case .firewallBlocking: return .failed(FirewallCheck.blockedSentence)
         case nil:
             guard hasCode else { return .finishing }
             return hasLink ? .ready : .notReady
