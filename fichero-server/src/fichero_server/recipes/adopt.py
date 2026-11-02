@@ -9,6 +9,7 @@ import hashlib
 import json
 import shutil
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -71,3 +72,76 @@ def sweep(samples: Path, *, keep_days: float, stage: str | None = None, now: flo
             shutil.rmtree(path, ignore_errors=True)
             removed.append(path.name)
     return removed
+
+
+def _box(row: Any) -> tuple[float, float, float, float]:
+    return row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h
+
+
+def overlap(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> float:
+    """Intersection over union of two (x, y, w, h) boxes: 0 when apart, 1 when the same."""
+    ax, ay, aw, ah = a
+    bx, by, bw, bh = b
+    w, h = min(ax + aw, bx + bw) - max(ax, bx), min(ay + ah, by + bh) - max(ay, by)
+    if w <= 0 or h <= 0:
+        return 0.0
+    inter = w * h
+    return inter / (aw * ah + bw * bh - inter)
+
+
+def match_lines(copy_lines: list[Any], page_lines: list[Any], min_iou: float) -> dict[str, str]:
+    """Each copy line to the project line it overlaps most (at least `min_iou`), each project line used once: `{copy id: page id}`."""
+    pairs = sorted(((overlap(_box(c), _box(p)), c.id, p.id) for c in copy_lines for p in page_lines), key=lambda t: (-t[0], t[1], t[2]))
+    out: dict[str, str] = {}
+    taken: set[str] = set()
+    for score, copy_id, page_id in pairs:
+        if score >= min_iou and copy_id not in out and page_id not in taken:
+            out[copy_id] = page_id
+            taken.add(page_id)
+    return out
+
+
+def adopt_page(db: Any, scratch_db: Any, rec: dict[str, Any], before: dict[str, list[str]], *, scratch_name: str, run_id: str,
+               min_iou: float, library_path: str | None = None) -> dict[str, int]:
+    """Adopt one page's readings from the kept copy onto the project's own lines (`wide.try.start-reuses-a-matching-try`): matched lines only,
+    the try's artifacts copied (so the reading says which model made it and the done rule counts it), never over a person's reading, and once
+    only (a second call finds the copied artifact and does nothing). Lines the try made that the page lacks are not created here.
+    Returns `{readings, unmatched, skipped_person}`."""
+    from fichero_server.llm.working_lines import write_readings
+    from fichero_server.models import Artifact, ContentRepresentation, Segment
+    from fichero_server.models.knowledge import ProvenanceKind
+
+    page_id, copy_page = rec["page"], rec["copy_page"]
+    done = {(a.data or {}).get("adopted_from") for a in db.query(Artifact, document_id=page_id)}
+    live = lambda rows: [r for r in rows if r.kind == "line" and r.deleted_at is None and not r.is_furniture]  # noqa: E731
+    page_lines, copy_lines = live(db.query(Segment, document_id=page_id)), live(scratch_db.query(Segment, document_id=copy_page))
+    mapping = match_lines(copy_lines, page_lines, min_iou)
+    people = {r.segment_id for r in db.query(ContentRepresentation, document_id=page_id)
+              if r.segment_id and r.provenance_kind == ProvenanceKind.human and not r.retracted_at}
+    old_art, old_rep = set(before.get("Artifact", ())), set(before.get("ContentRepresentation", ()))
+    artifacts = {a.id: a for a in scratch_db.query(Artifact, document_id=copy_page) if a.id not in old_art}
+    out = {"readings": 0, "unmatched": 0, "skipped_person": 0}
+    new_ids: dict[str, str] = {}
+    for row in scratch_db.query(ContentRepresentation, document_id=copy_page):
+        if row.id in old_rep or row.retracted_at or not row.segment_id or row.derived_from_artifact_id not in artifacts:
+            continue
+        target = mapping.get(row.segment_id)
+        if target is None:
+            out["unmatched"] += 1
+            continue
+        if target in people:
+            out["skipped_person"] += 1
+            continue
+        source = f"{scratch_name}:{row.derived_from_artifact_id}"
+        if source in done:
+            continue
+        if row.derived_from_artifact_id not in new_ids:
+            copied = artifacts[row.derived_from_artifact_id].model_copy(update={
+                "id": uuid.uuid4().hex, "document_id": page_id,
+                "data": {**(artifacts[row.derived_from_artifact_id].data or {}), "adopted_from": source}})
+            db.save(copied)
+            new_ids[row.derived_from_artifact_id] = copied.id
+        out["readings"] += len(write_readings(
+            db, document_id=page_id, readings=[(target, row.content, row.machine_confidence)], artifact_id=new_ids[row.derived_from_artifact_id],
+            run_id=run_id, level=row.level, library_path=library_path))
+    return out

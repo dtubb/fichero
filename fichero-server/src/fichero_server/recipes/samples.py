@@ -1016,7 +1016,8 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
             from fichero_server.recipes import adopt
 
             hash_ = adopt.settings_hash(cards)
-            out["adoption"] = {"stage": stage_id, "pages": [
+            out["adoption"] = {"stage": stage_id, "before": {k: sorted(v) for k, v in before.items() if k in ("Artifact", "ContentRepresentation")},
+                               "pages": [
                 adopt.page_record(db, library, old, plan.id_map[old], card_ids=[str(c.get("card")) for c in cards], hash_=hash_)
                 for old in page_ids if old in plan.id_map]}
     except Exception as exc:  # noqa: BLE001 -- the try says why, in words; the project is untouched either way
