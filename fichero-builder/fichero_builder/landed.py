@@ -27,7 +27,7 @@ def _git(repo, *args) -> subprocess.CompletedProcess:
 def as_worker(j: jail.Jail, script: str) -> subprocess.CompletedProcess:
     """`script` as the jail user from the workroot (the same boundary `builder work` crosses); a test replaces it."""
     return subprocess.run([j.sudo, "-n", "-H", "-u", j.user, "sh", "-c", f"cd {shlex.quote(j.workroot)} && {script}"],
-                          capture_output=True, text=True)
+                          capture_output=True, text=True, cwd="/")  # the owner's cwd is unreadable to the worker: getcwd failed (2026-11-02)
 
 
 class Red(Exception):
@@ -251,10 +251,14 @@ def main(a) -> int:
         return 1
     sha = a.sha
 
-    def verdict():
-        if stop := land_tool.unreviewed(repo, branch, sha, a.verdicts):
-            raise Red("no READY verdict: " + "; ".join(stop))
-        return "READY for the exact range"
+    def verdict():  # without --verdicts: the stores under --state (`builder work` and the queue write verdicts-<name>.json there)
+        stores = [Path(a.verdicts)] if a.verdicts else sorted(journal.STATE.glob("verdicts*.json"))
+        stops = []
+        for store in stores:
+            if not (stop := land_tool.unreviewed(repo, branch, sha, store)):
+                return f"READY for the exact range in {store}"
+            stops += stop
+        raise Red("no READY verdict: " + ("; ".join(stops) or f"no verdict store under {journal.STATE}"))
 
     def check_row():
         row_ = land_tool.green_row(journal.read(), sha, land_tool.resolve_branch(repo, branch))
@@ -299,8 +303,13 @@ def main(a) -> int:
             return pin(repo, sha, pinned_dir)
 
     def jail_root():
-        q = shlex.quote
-        return _ok(as_worker(j, f"{q(land_tool.GIT)} -C root fetch -q origin {q(branch)} && {q(land_tool.GIT)} -C root merge -q --ff-only FETCH_HEAD"), "jail root") or "root fast-forwarded"
+        q, g = shlex.quote, shlex.quote(land_tool.GIT)
+        # a local file equal to what lands is dropped first (a hand edit the landing now carries aborted the merge, 2026-11-02);
+        # any other local edit stays and the merge refuses, naming it: never discarded
+        same = (f'{{ {g} -C root diff --name-only; {g} -C root ls-files --others --exclude-standard; }} | while IFS= read -r f; do '
+                f'[ "$({g} -C root hash-object -- "$f")" = "$({g} -C root rev-parse -q --verify "FETCH_HEAD:$f" 2>/dev/null)" ] && '
+                f'{{ {g} -C root checkout -q -- "$f" 2>/dev/null || rm -f -- "root/$f"; }}; done; ')
+        return _ok(as_worker(j, f"{g} -C root fetch -q origin {q(branch)} && {same}{g} -C root merge -q --ff-only FETCH_HEAD"), "jail root") or "root fast-forwarded"
 
     def scratch():  # never this landing's own worktree at once: a grace period, a patch, `git worktree remove` (#6204)
         grace = float(land.get("worktree_grace_hours", 36))

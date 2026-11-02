@@ -99,7 +99,7 @@ def main(argv=None) -> int:
     ld.add_argument("sha")
     ld.add_argument("--root", default=str(Path.cwd()), help="the checkout holding harness.toml ([land].branch, [land].pinned_dir, [check].engine_repo, [jail])")
     ld.add_argument("--repo", help="the engine-owned repo (default [check].engine_repo)")
-    ld.add_argument("--verdicts", required=True, help="the owner-owned verdict store")
+    ld.add_argument("--verdicts", help="the owner-owned verdict store (default: the verdicts*.json under --state that holds a READY for the range)")
     ld.add_argument("--gh", default="gh")
     ld.add_argument("--push", action="store_true", help="push sha to origin/<branch> first; nothing else ever sets this")
     ld.add_argument("--no-issues", action="store_true", help="leave the cited issues alone")

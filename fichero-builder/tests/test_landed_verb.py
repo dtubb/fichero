@@ -463,3 +463,38 @@ def test_a_status_that_cannot_be_read_refuses_rather_than_counting_the_spec_clea
     assert cli.main(["landed", head, "--root", str(world.tmp), "--verdicts", str(world.store), "--gh", str(world.tmp / "gh"), "--state", str(world.tmp / "s"), "--push"]) == 1
     assert "could not be read" in capsys.readouterr().err and rows()[-1]["step"] == "spec-clean"
     assert _g(world.origin, "rev-parse", "integration") != head
+
+
+def test_without_verdicts_the_store_under_state_that_holds_the_ready_is_used(world):
+    """Real use 2026-11-02: `landed` needed --verdicts though `land` had it; it defaults to the verdict stores under --state."""
+    world.ready(), world.green()
+    store = world.tmp / "s" / "verdicts-lane.json"
+    store.write_text(world.store.read_text())
+    assert cli.main(["landed", world.sha, "--root", str(world.tmp), "--gh", str(world.tmp / "gh"), "--state", str(world.tmp / "s"), "--push"]) == 0
+    assert any(r["step"] == "verdict" and "verdicts-lane.json" in r["detail"] for r in rows())
+
+
+def test_the_jail_root_drops_a_local_edit_the_target_already_has_and_refuses_a_real_one(world, capsys):
+    """Real use 2026-11-02: the jail root's harness.toml held a hand edit, so the fast-forward aborted. An edit equal to what
+    lands is dropped; any other local edit refuses, never discarded."""
+    world.ready(), world.green()
+    root = world.wr / "root"
+    (root / "g").write_text("a different local g")  # the landing brings g = "1"
+    (root / "f").write_text("an edit the landing does not touch")
+    assert world.go("--push") == 1
+    assert next(r for r in rows() if r["step"] == "jail-root")["ok"] is False and "g" in capsys.readouterr().err
+    assert (root / "g").read_text() == "a different local g", "a real edit is never discarded"
+    (root / "g").write_text("1")  # what the landing brings, already there by hand
+    assert world.go("--push") == 0, "with only an edit the target has, the rerun finishes"
+    assert (root / "g").read_text() == "1" and (root / "f").read_text() == "an edit the landing does not touch"
+
+
+def test_the_worker_is_run_from_slash_so_sudo_never_inherits_an_unreadable_cwd(monkeypatch):
+    seen = {}
+
+    def run(argv, **k):
+        seen.update(k)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+    monkeypatch.setattr(landed.subprocess, "run", run)
+    landed.as_worker(types.SimpleNamespace(sudo="sudo", user="w", workroot="/wr"), "true")
+    assert seen.get("cwd") == "/"
