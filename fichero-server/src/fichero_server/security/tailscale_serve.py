@@ -163,6 +163,25 @@ def forward_state(port: int) -> str:
     return "ours" if current == wanted_target(port) else "foreign"
 
 
+def forward_conflict(port: int) -> dict[str, str] | None:
+    """A forward Fichero did not make on the tailnet ``port`` (`sharing.stale-forward-says-so`): what it goes to and the one
+    command that frees it, else None. The raw forward earlier engines made to this listener is replaced, so no conflict.
+    Not sharing, no Tailscale, or Tailscale not answering: None (`forward_state` says "unknown" for that). Never raises."""
+    if not sharing_on():
+        return None
+    cli = tailscale_cli()
+    if cli is None:
+        return None
+    try:
+        current = forward_target(serve_status(cli), port)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+    if current is None or current in (wanted_target(port), f"tcp://127.0.0.1:{port}"):
+        return None
+    kind = "--tcp" if current.startswith("tcp://") else "--https"
+    return {"holds": current, "free_with": f"{os.path.basename(cli) if cli != APP_BUNDLE_CLI else 'tailscale'} serve {kind}={port} off"}
+
+
 def remove_forward(port: int, cli: str) -> None:
     _run([cli, "serve", f"--https={port}", "off"])
 

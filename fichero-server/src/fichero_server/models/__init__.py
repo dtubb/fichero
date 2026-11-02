@@ -2072,6 +2072,8 @@ class SharingAddress(BaseModel):
     kind: Literal["tailnet", "local-name", "lan"]
     url: str
     listening: bool
+    label: str = ""
+    reason: str | None = None
 
 
 class SharingHealth(BaseModel):

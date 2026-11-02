@@ -162,6 +162,9 @@ class SharingStateResponse(BaseModel):
     # The one command to paste in Terminal when this engine cannot make the tailnet forward itself
     # (a sandboxed app cannot run the Tailscale CLI, #5317); None when nothing is missing.
     tailnet_serve_command: str | None = None
+    # A tailnet forward Fichero did not make (`sharing.stale-forward-says-so`): {"holds", "free_with"}; the generic command
+    # above is withheld while it stands, since it fails the same way.
+    tailnet_serve_conflict: dict[str, str] | None = None
     paired_device_count: int
     # Why Multi-user cannot be turned on yet (no owner password chosen), else None: the pane reads this, not a guess.
     multiuser_blocker: str | None = None
@@ -206,6 +209,7 @@ def _sharing_state(app_db: AppDatabase) -> SharingStateResponse:
     except OSError:  # no network: no address, never a failed read of the pane
         lan_ip = None
     enabled = multiuser_enabled()
+    conflict = tailscale_serve.forward_conflict(bind_host.listen_port())
     return SharingStateResponse(
         multiuser_enabled=enabled,
         multiuser_blocker=None if enabled else owner_password_gap(app_db),
@@ -213,7 +217,8 @@ def _sharing_state(app_db: AppDatabase) -> SharingStateResponse:
         lan_ip=lan_ip,
         tailnet_url=tailscale_serve.detected_tailnet_url() or None,
         tailnet_forward=tailscale_serve.forward_state(bind_host.listen_port()),
-        tailnet_serve_command=_tailnet_serve_command(),
+        tailnet_serve_command=None if conflict else _tailnet_serve_command(),
+        tailnet_serve_conflict=conflict,
         paired_device_count=sum(1 for d in app_db.list_devices() if not d.revoked),
     )
 
@@ -602,6 +607,30 @@ def sharing_state(request: Request, app_db: AppDatabase = Depends(get_app_databa
     """Read Sharing state: Multi-user, the detected tailnet address, paired device count (#5751)."""
     _owner_only(request, app_db)
     return _sharing_state(app_db)
+
+
+class AddressRowResponse(BaseModel):
+    kind: Literal["tailnet", "local-name", "lan"]
+    url: str
+    label: str
+    listening: bool
+    reason: str | None = Field(default=None, description="why this row cannot work, in one line; none when nothing is known against it")
+
+
+class AddressListResponse(BaseModel):
+    items: list[AddressRowResponse]
+    count: int
+
+
+@router.get("/addresses", response_model=AddressListResponse)
+def pair_addresses(request: Request, app_db: AppDatabase = Depends(get_app_database)) -> AddressListResponse:
+    """Every address this Mac can be reached at, in the order to try (`sharing.address-choice`): the Share sheet draws it.
+    Never a loopback address. The host cannot see client isolation, so a `.local` or IP row is "listening", never "works"."""
+    _owner_only(request, app_db)
+    from fichero_server.security.sharing_report import address_rows  # lazy: app-import budget (#3950)
+
+    rows = address_rows()
+    return AddressListResponse(items=[AddressRowResponse(**r.model_dump()) for r in rows], count=len(rows))
 
 
 @router.put("/multiuser", response_model=SharingStateResponse)
