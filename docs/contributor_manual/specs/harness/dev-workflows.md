@@ -774,6 +774,11 @@ the write path would produce.
   origin/<land branch> (or S), as the jail user, on `[check].remote` when one is set, one pytest per package; one `test` row; the
   console's Release view runs it. Test `fichero-server/tests/unit/workflows/test_check_tool.py::test_run_tests_runs_the_named_paths_in_a_scratch_tree_of_the_head`.
   Not yet: Run check on a lane's head (an external lane's `builder done` checks, reviews and lands it).
+- `dev-workflows.run.tell` [PARTIAL] (#6116; manager 2026-11-02) — `builder tell <pane> <message>`: the tracked tell (the
+  manager's tell.sh was untracked, so another machine lacked it): it waits for an unsent draft to leave the input box, types,
+  presses Enter and again while the text sits there; a message over 400 characters is written to `<state>/tells/` and the pane
+  gets `Read <path>` (a long one arrived as its last line only). The loop and `builder measure` use it unless `[loop].tell` names
+  a script. Test `fichero-builder/tests/test_tell.py`.
 - `dev-workflows.run.records-are-truth` [PROPOSED] (maintainer 2026-10-31; owner 2026-11-01: no engine) — for a worker the
   truth is its **journal** (JSON lines, one file per cluster under the Builder's state directory; `$FICHERO_HARNESS_LOG` in
   Slice 0), plus git plus the handoff file; the run log (one row per item attempt: model, provider, context cap, tokens,

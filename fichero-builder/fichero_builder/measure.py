@@ -51,9 +51,15 @@ def run(root, lane_id: str, machine: str, argv: list[str], sha: str = "") -> tup
     line = next((ln for ln in reversed(out.splitlines()) if ln.strip().startswith("{") and _json(ln)), "")
     rc, text = row(r.returncode, line or (out + r.stderr.decode(errors="replace"))[-500:], json=line)
     told = ""
-    if lane.get("pane") and (tell := doc.get("loop", {}).get("tell")):
-        t = subprocess.run([str(Path(tell).expanduser()), lane["pane"], f"MEASURE {machine} {sha[:9]} exit {rc}: {(line or text)[:600]}"], capture_output=True, text=True)
-        told = "" if t.returncode == 0 else t.stderr.strip()[-200:]
+    if lane.get("pane"):
+        note = f"MEASURE {machine} {sha[:9]} exit {rc}: {(line or text)[:600]}"
+        if tell := doc.get("loop", {}).get("tell"):
+            t = subprocess.run([str(Path(tell).expanduser()), lane["pane"], note], capture_output=True, text=True)
+            told = "" if t.returncode == 0 else t.stderr.strip()[-200:]
+        else:
+            from fichero_builder import tell as tell_mod
+            trc, tout = tell_mod.send(lane["pane"], note)
+            told = "" if trc == 0 else tout
     if told:
         journal.append("queue", lane=lane_id, step="-", state="tell-refused", detail=told)
     return rc, text

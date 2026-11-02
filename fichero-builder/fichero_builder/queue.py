@@ -637,8 +637,12 @@ def real_procs(root) -> Procs:
     loop_cfg = rules.get("loop", {})
 
     def tell(lane, text):
-        if not lane.get("pane") or not loop_cfg.get("tell"):
-            return "no registered pane or no [loop].tell"
+        if not lane.get("pane"):
+            return "no registered pane"
+        if not loop_cfg.get("tell"):  # the tracked `builder tell`
+            from fichero_builder import tell as tell_mod
+            rc, out = tell_mod.send(lane["pane"], text)
+            return "" if rc == 0 else out
         try:
             r = subprocess.run([os.path.expanduser(loop_cfg["tell"]), lane["pane"], text[:780]], capture_output=True, text=True, timeout=60)
         except (OSError, subprocess.TimeoutExpired) as e:

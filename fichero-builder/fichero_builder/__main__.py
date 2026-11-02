@@ -153,6 +153,8 @@ def main(argv=None) -> int:
     me.add_argument("--root", default=str(Path.cwd())), me.add_argument("--state"), me.add_argument("argv", nargs=argparse.REMAINDER)
     ins = sub.add_parser("install", help="copy the newest dev DMG to a [machines] test machine over ssh, install it in ~/Applications there, open it and say whether the app and its engine run")
     ins.add_argument("machine"), ins.add_argument("dmg", nargs="?", default=""), ins.add_argument("--root", default=str(Path.cwd())), ins.add_argument("--state")
+    tl = sub.add_parser("tell", help="a message into a Claude Code pane, submitted; over 400 characters it goes to a file and the pane reads it")
+    tl.add_argument("pane"), tl.add_argument("message", nargs="+"), tl.add_argument("--state")
     ts = sub.add_parser("test", help="the pinned pytest over test paths on the land branch's tip (or --head) in a scratch tree, as the jail user, local or [check].remote; one test row")
     ts.add_argument("paths", nargs="+"), ts.add_argument("--head", default=""), ts.add_argument("--root", default=str(Path.cwd())), ts.add_argument("--state")
     ln = sub.add_parser("lane", help="ticked issues as one lane: a cluster brief from them, queued as a worker lane in the jail (the console's Start as one lane)")
@@ -304,6 +306,11 @@ def main(argv=None) -> int:
         rc, out = measure.install(a.root, a.machine, a.dmg)
         print(out)
         return rc
+    if a.cmd == "tell":
+        from fichero_builder import tell
+
+        journal.STATE = Path(a.state) if a.state else journal.STATE
+        return tell.main(a)
     if a.cmd == "test":
         import subprocess
         import tomllib
