@@ -1,5 +1,6 @@
 #if os(iOS) || os(visionOS)
 import SwiftUI
+import UIKit
 
 /// Discovered-Mac list that leads first-run onboarding (#3102). Discovery only
 /// surfaces *which* Mac is on the LAN; selecting one opens the QR scanner because
@@ -11,9 +12,17 @@ struct DiscoveredMacsSection: View {
     /// Which Mac was tapped (#5918): the caller pairs with THAT Mac.
     let onSelectHost: (BonjourHostRecord) -> Void
 
+    @Environment(\.openURL) private var openURL
+
     var body: some View {
         Section {
-            if discovery.hosts.isEmpty {
+            if discovery.localNetworkDenied {
+                // Declined Local Network access: said, with the way to the setting, not an endless "Searching…".
+                Text(LocalNetworkPolicy.sentence).foregroundStyle(.secondary)
+                Button(LocalNetworkPolicy.buttonTitle) {
+                    if let settings = URL(string: UIApplication.openSettingsURLString) { openURL(settings) }
+                }
+            } else if discovery.hosts.isEmpty {
                 HStack(spacing: 10) {
                     ProgressView().controlSize(.small)
                     Text("Searching for Fichero on your network…")

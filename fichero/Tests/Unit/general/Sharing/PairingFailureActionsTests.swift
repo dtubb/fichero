@@ -22,6 +22,7 @@ struct PairingFailureActionsTests {
         for failure in PairingFailure.allCases {
             let actions = PairingFailureActions.actions(for: failure)
             #expect(actions.contains(.copyDetails), "\(failure)")
+            #expect(!actions.contains(.openSettings), "no host, no permission guess")
             #expect(actions.contains(.openTailscale) == (failure == .tailnetNameNotFound), "\(failure)")
         }
         #expect(PairingFailureActions.actions(for: nil) == [.copyDetails], "an error that is not a pairing step")
@@ -32,6 +33,12 @@ struct PairingFailureActionsTests {
         #expect(text.contains("Step 3:") && text.contains(PairingFailure.noAnswer.sentence(context)))
         #expect(text.contains("2026.10.27") && text.contains("2026.10.28") && text.contains("macbook-air-m1"))
         for word in ["token", "code ", "pin "] { #expect(!text.lowercased().contains(word), word) }
+    }
+
+    @Test func aLocalAddressThatDoesNotAnswerOffersOpenSettings() {
+        #expect(PairingFailureActions.actions(for: .noAnswer, host: "air.local") == [.tryAgain, .openSettings, .copyDetails])
+        #expect(PairingFailureActions.actions(for: .noAnswer, host: "air.tail1234.ts.net") == [.tryAgain, .copyDetails])
+        #expect(PairingFailureActions.title(.openSettings) == "Open Settings")
     }
 
     @Test func theButtonsHaveTheSpecsWords() {

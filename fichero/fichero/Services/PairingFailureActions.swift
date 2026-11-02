@@ -4,7 +4,7 @@ import Foundation
 /// `sharing.ios-tailscale-not-on-the-phone`, Step 5.2): Try again, Copy details, and Open Tailscale where the name is the tailnet's.
 /// Pure: the sheet only draws these, so the rules are tested without a window.
 enum PairingFailureActions {
-    enum Action: Hashable { case tryAgain, copyDetails, openTailscale }
+    enum Action: Hashable { case tryAgain, copyDetails, openTailscale, openSettings }
 
     /// The Tailscale app's own scheme, then the App Store page when it is not installed.
     static let tailscaleURL = "tailscale://"
@@ -22,10 +22,12 @@ enum PairingFailureActions {
     }
 
     /// Copy details is always there; Open Tailscale only where Tailscale is the cure.
-    static func actions(for failure: PairingFailure?) -> [Action] {
+    static func actions(for failure: PairingFailure?, host: String = "") -> [Action] {
         guard let failure else { return [.copyDetails] }
         var out: [Action] = canTryAgain(failure) ? [.tryAgain] : []
         if failure == .tailnetNameNotFound { out.append(.openTailscale) }
+        // A local address that does not answer reads as the missing Local Network permission (`LocalNetworkPolicy`).
+        if LocalNetworkPolicy.explains(failure, host: host) { out.append(.openSettings) }
         out.append(.copyDetails)
         return out
     }
@@ -35,6 +37,7 @@ enum PairingFailureActions {
         case .tryAgain: "Try again"
         case .copyDetails: "Copy details"
         case .openTailscale: "Open Tailscale"
+        case .openSettings: LocalNetworkPolicy.buttonTitle
         }
     }
 

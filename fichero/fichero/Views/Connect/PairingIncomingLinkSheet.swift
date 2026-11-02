@@ -50,7 +50,7 @@ struct PairingIncomingLinkSheet: View {
 
     @ViewBuilder
     private var failureButtons: some View {
-        ForEach(PairingFailureActions.actions(for: failure?.failure), id: \.self) { action in
+        ForEach(PairingFailureActions.actions(for: failure?.failure, host: failure?.context.host ?? ""), id: \.self) { action in
             Button(PairingFailureActions.title(action)) { perform(action) }
                 .buttonStyle(action == .tryAgain ? .borderedProminent : .bordered)
         }
@@ -66,6 +66,8 @@ struct PairingIncomingLinkSheet: View {
             } else if let errorMessage {
                 UIPasteboard.general.string = errorMessage
             }
+        case .openSettings:
+            if let settings = URL(string: UIApplication.openSettingsURLString) { openURL(settings) }
         case .openTailscale:
             // The app if it is installed, else its App Store page.
             if let app = URL(string: PairingFailureActions.tailscaleURL), let store = URL(string: PairingFailureActions.tailscaleStoreURL) {
@@ -98,7 +100,7 @@ struct PairingIncomingLinkSheet: View {
         } catch {
             isPairing = false
             failure = error as? PairingFailureError
-            errorMessage = error.localizedDescription
+            errorMessage = failure.map { LocalNetworkPolicy.sentence(for: $0.failure, context: $0.context) } ?? error.localizedDescription
         }
     }
 }
