@@ -21,6 +21,7 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qs, quote, urlparse
 
 import httpx
@@ -318,6 +319,57 @@ def _ask_new_password() -> str:
     return first
 
 
+ATTEMPT_SECONDS = 5.0  # per address: lookup + connect + TLS + the first byte of an unauthenticated health call
+
+
+def _label(api_url: str) -> str:
+    host = urlparse(api_url).hostname or api_url
+    return f"Tailscale ({host})" if _is_public_ca(host) else host
+
+
+def _health_probe(api_url: str, spki: str | None) -> str | None:
+    """None when the host answered `GET /api/health` within the budget (any HTTP answer counts: the Mac is there), else why not."""
+    try:
+        with _open_client(api_url, None, spki) as http:
+            http.get("/api/health", timeout=ATTEMPT_SECONDS)
+        return None
+    except httpx.TimeoutException:
+        if _is_public_ca(urlparse(api_url).hostname or ""):
+            return "no answer in 5 s: is Tailscale on this Mac?"
+        return "no answer in 5 s: the network may keep devices apart"
+    except httpx.ConnectError as exc:
+        text = f"{exc} {exc.__cause__ or ''}".lower()
+        if "certificate" in text or "ssl" in text:
+            return "its certificate was refused: ask the host for a new link"
+        if "nodename" in text or "name or service" in text or "name resolution" in text or "getaddrinfo" in text:
+            return "this Mac cannot find that name on this network"
+        return "Fichero isn't listening there: turn Sharing off and on on the host"
+    except httpx.HTTPError as exc:
+        return f"it could not be reached ({type(exc).__name__})"
+
+
+def reach(link: PairLink, *, probe: Callable[[str, str | None], str | None],
+          fetch_der: Callable[[str, int], bytes]) -> tuple[str, list[str]]:
+    """Try the link's addresses in its order, one after another (a race hides which failed and why), and stop at the first that
+    passes the trust check and answers (`sharing.client-tries-every-address`). Returns that address and the sentences to show;
+    raises with every attempt named when none answers. The code is sent only after this, to the address that answered."""
+    failed: list[tuple[str, str]] = []
+    for url in [link.api_url, *link.alt_urls][:MAX_LINK_ADDRESSES]:
+        try:
+            check_trust(url, link.spki, fetch_der=fetch_der)
+            why = probe(url, None if _is_public_ca(urlparse(url).hostname or "") else link.spki)
+        except FicheroError as exc:
+            why = str(exc)
+        if why is None:
+            notes = [f"Connected through {_label(url)}."]
+            notes += [f"The {_label(bad)} address did not answer: {reason}." for bad, reason in failed]
+            return url, notes
+        failed.append((url, why.rstrip(".")))
+    first = urlparse(link.api_url).hostname or link.api_url
+    tried = " · ".join(f"{_label(bad)}: {reason}" for bad, reason in failed)
+    raise FicheroError(f"Could not reach {first}. Tried {tried}.")
+
+
 def pair(
     link_text: str,
     *,
@@ -326,10 +378,17 @@ def pair(
     fetch_der: Callable[[str, int], bytes] | None = None,
     ask_person: Callable[[], tuple[str, str]] = _ask_person,
     ask_new_password: Callable[[], str] = _ask_new_password,
-) -> dict[str, str]:
-    """Redeem the link and store the device token. Returns the device id, name and host only, never the token."""
+    probe: Callable[[str, str | None], str | None] | None = None,
+) -> dict[str, Any]:
+    """Redeem the link and store the device token. Returns the device id, name, host and (for a link with several addresses)
+    the notes on which address answered; never the token."""
     link = parse_link(link_text)
-    check_trust(link.api_url, link.spki, fetch_der=fetch_der or served_spki_der)
+    notes: list[str] = []
+    if link.alt_urls and not uds:  # a link with several addresses: try them in turn, 5 s each, and pair at the first that answers
+        chosen, notes = reach(link, probe=probe or _health_probe, fetch_der=fetch_der or served_spki_der)
+        link = PairLink(api_url=chosen, code=link.code, spki=link.spki)
+    else:
+        check_trust(link.api_url, link.spki, fetch_der=fetch_der or served_spki_der)
     host = urlparse(link.api_url).hostname or link.api_url
     name = (device_name or f"{socket.gethostname()} (fichero CLI)").strip()
     pin = None if _is_public_ca(host) else link.spki
@@ -368,4 +427,7 @@ def pair(
         "spki": pin,
     }
     _write_store(store)
-    return {"device_id": data["device_id"], "name": name, "host": host}
+    done: dict[str, Any] = {"device_id": data["device_id"], "name": name, "host": host}
+    if notes:  # only a link with several addresses has any: which answered and why the others did not
+        done["notes"] = notes
+    return done

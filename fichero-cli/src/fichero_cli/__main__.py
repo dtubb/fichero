@@ -821,6 +821,8 @@ def devices_pair(
     except (FicheroError, OSError) as exc:
         typer.echo(f"Pairing failed: {exc}", err=True)
         raise typer.Exit(1) from exc
+    for note in done.get("notes", []):  # which address answered and why the others did not (`sharing.client-tries-every-address`)
+        typer.echo(note)
     typer.echo(f"Paired as {done['name']!r} with {done['host']} (device {done['device_id']}); token stored.")
 
 
