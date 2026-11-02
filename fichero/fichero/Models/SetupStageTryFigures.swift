@@ -1,5 +1,17 @@
 import Foundation
 
+/// One stretch of the page text the tie did not tie to a line (`wide.nomodel.untied-remainder-kept`).
+struct TieRemainder: Decodable, Equatable {
+    let segmentId: String?
+    let text: String
+    let why: String
+
+    enum CodingKeys: String, CodingKey {
+        case segmentId = "segment_id"
+        case text, why
+    }
+}
+
 /// Read's tie figures from a try (`wide.nomodel.tie-figures-on-his-pages`).
 struct SetupStageTie: Decodable, Equatable {
     struct Counts: Decodable, Equatable {
@@ -16,18 +28,7 @@ struct SetupStageTie: Decodable, Equatable {
         let draft: Bool
         /// The page text the tie did not tie to a line, kept so nothing the page reader wrote is lost
         /// (`wide.nomodel.untied-remainder-kept`); absent from an older result.
-        var remainder: [Remainder]?
-    }
-
-    struct Remainder: Decodable, Equatable {
-        let segmentId: String?
-        let text: String
-        let why: String
-
-        enum CodingKeys: String, CodingKey {
-            case segmentId = "segment_id"
-            case text, why
-        }
+        var remainder: [TieRemainder]?
     }
 
     let counts: Counts?

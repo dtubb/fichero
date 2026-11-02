@@ -42,7 +42,7 @@ struct StepResultFiguresView: View {
 
 extension StepResultFiguresView {
     /// The text kept on the page that no line took, named with the page; the engine's reason is the tooltip.
-    func remainderView(page: String, rest: [SetupStageTie.Remainder]) -> some View {
+    func remainderView(page: String, rest: [TieRemainder]) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("\(name(page)): text not tied to a line").font(.caption.weight(.medium))
             ForEach(Array(rest.enumerated()), id: \.offset) { _, part in
