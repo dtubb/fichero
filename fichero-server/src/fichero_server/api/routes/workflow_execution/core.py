@@ -25,7 +25,9 @@ from fastapi.responses import StreamingResponse
 from fichero_server.db import Database
 from fichero_server.security.revocation import end_on_revoke
 from fichero_server.api.library_header import require_library_path
-from fichero_server.api.main import get_library_database, get_library_database_for_write, input_document_ids, recipe_check, write_check
+from fichero_server.api.main import (
+    get_library_database, get_library_database_for_write, input_document_ids, read_check, recipe_check, write_check,
+)
 from fichero_server.models import Workflow
 from fichero_server.workflows.activity import get_activity_tracker
 from fichero_server.workflows.run_progress import summarize_run_state
@@ -323,7 +325,9 @@ async def stream_workflow_events(thread_id: str, http_request: Request) -> Strea
 @router.post("/dry-run", response_model=DryRunResponse)
 async def dry_run_workflow(
     request: ExecuteWorkflowRequest,
+    http_request: Request,
     db: Database = Depends(get_library_database),
+    library_path: str = Depends(require_library_path),
 ) -> DryRunResponse:
     """Test a workflow before spending a real run (`workflows.canvas.dry-run`, #4370).
 
@@ -334,6 +338,17 @@ async def dry_run_workflow(
     from fichero_server.workflows.runtime import to_workflow_def  # noqa: PLC0415
     from fichero_server.workflows.validation import SCOPE_SENTENCES, node_uses_llm, workflow_scope  # noqa: PLC0415
 
+    # The documents the inputs and the selection name must be readable by the caller, as for a real run.
+    named = input_document_ids(request.inputs)
+    if request.selection is not None:
+        from fichero_server.workflows.selection import SelectionRefused, selection_document_ids  # noqa: PLC0415
+
+        try:
+            named += selection_document_ids(db, request.selection)
+        except SelectionRefused:  # a segment that is not there: the checks below say so in words
+            pass
+    if named:
+        await read_check(http_request, library_path, db, list(dict.fromkeys(named)))
     workflow = WorkflowStore(db).get(request.workflow_id)
     if not workflow:
         from fichero_server.workflows.default_workflows import resolve_default_workflow  # noqa: PLC0415

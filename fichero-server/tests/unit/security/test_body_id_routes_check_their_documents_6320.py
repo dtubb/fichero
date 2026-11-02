@@ -106,6 +106,7 @@ def test_browser_save_into_a_denied_folder(project, callers):
 def test_running_a_workflow_or_a_batch_on_a_denied_page(project, callers):
     b1 = project.ids["b1"]
     assert _every_caller_refused(callers, "/api/workflow-execution/execute", {"workflow_id": "x", "inputs": {"selected_doc_ids": [b1]}})
+    assert _every_caller_refused(callers, "/api/workflow-execution/dry-run", {"workflow_id": "x", "inputs": {"selected_doc_ids": [b1]}})
     assert _every_caller_refused(callers, "/api/batches", {"workflow_id": "x", "items": [{"doc_id": b1}]})
 
 
