@@ -674,6 +674,12 @@ the write path would produce.
   for a running check: with the ladder held it pins its copy and keeps the older ones for the next landing to remove. A lane row
   shows its check or review's running rung and since when (from the `activity` rows); views A-D are built (tests
   `fichero-builder/tests/test_status_page.py::test_a_lock_wait_over_its_limit_is_a_row_naming_the_holder_and_the_console_shows_it`).
+  Console fixes (owner's 11:00 screenshot): the last landing and today's closes come from origin's land branch itself (its tip,
+  and the `Fixes`/`Closes` lines of today's commits), true even for a landing run by hand; a running check is the headline
+  before the last one; the lane count reads `N worker lane(s) (limit L) · M external`; a milestone whose spec an external lane
+  owns shows `owned by <lane>` and no Start; a spec's empty twin of a GitHub milestone is dropped (one row per milestone); the
+  milestones are read from GitHub again after each landing and every 15 minutes (test
+  `fichero-builder/tests/test_status_page.py::test_console_tiles_come_from_origin_an_owned_milestone_has_no_start_and_the_spec_twin_is_one_row`).
   **Stop** (manager 2026-11-02, built): pause = no new step is fed; `builder queue stop --lane L [--grace S]` = the session
   ends: the lane is paused, a live worker is told to commit what is green and end, and the loop closes the session when the
   grace is over (default 300 s) or the worker ends first; the tree is kept, a step in flight goes back to queued with a brief

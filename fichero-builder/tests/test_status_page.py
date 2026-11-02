@@ -301,3 +301,31 @@ def test_a_lock_wait_over_its_limit_is_a_row_naming_the_holder_and_the_console_s
     p.join(5)
     assert [r["state"] for r in journal.read() if r["event"] == "lock"] == ["waiting", "acquired"]
     assert console.api_status(journal.read(), [])["lock_waits"] == []
+
+
+def test_console_tiles_come_from_origin_an_owned_milestone_has_no_start_and_the_spec_twin_is_one_row(tmp_path, monkeypatch, live):
+    """Owner 11:00 screenshot: last landing '-', closed today 0, '4 of 1 lanes', Start on a spec lane-sharing owns, two rows for one milestone."""
+    from fichero_builder import milestone as ms
+    monkeypatch.setattr(console, "_git_tiles", lambda branch="integration": {"last_land_git": {"sha": "d" * 40, "ts": "2026-11-02T10:01:00", "subject": "x"},
+                                                                            "closed_today_git": [6204, 6244]})
+    st = console.api_status(journal.read(), LANES)
+    assert st["last_land_git"]["sha"].startswith("ddd") and st["closed_today_git"] == [6204, 6244]
+    assert st["lanes_note"] == "1 worker lane(s) (limit 1) · 1 external"
+    spec_dir = tmp_path / "docs" / "contributor_manual" / "specs"
+    (spec_dir / "source").mkdir(parents=True)
+    (spec_dir / "build-order.md").write_text("# Build order\n\n## In order\n\n1. `Sharing & Pairing` — x. Spec: source/sharing-two-macs.md\n2. `sharing-two-macs` — the twin\n\n## Parked\n\n- `Delta`\n")
+    (spec_dir / "source" / "sharing-two-macs.md").write_text("> Milestone: sharing\n")
+    brief = tmp_path / "brief.md"
+    brief.write_text("LANE sharing. Spec: docs/contributor_manual/specs/source/sharing-two-macs.md\n")
+    monkeypatch.setattr(console.queue, "load", lambda: [{"id": "lane-sharing", "worktree": "/w", "cursor": 0, "kind": "external",
+                                                         "steps": [{"step": "2.3", "state": "queued", "brief": str(brief)}]}])
+    gh = tmp_path / "gh"
+    gh.write_text("#!/bin/sh\necho '[{\"title\":\"Sharing & Pairing\",\"open_issues\":3,\"closed_issues\":1}]'\n")
+    gh.chmod(0o755)
+    monkeypatch.setattr(ms, "list_issues", lambda name, gh="gh": [{"number": 1, "title": "sharing Step 1.1: a", "body": "", "labels": [{"name": "step:1.1"}]}])
+    monkeypatch.setattr(ms, "build_order", lambda p: [{"number": "1.1", "title": "a", "depends_on": []}])
+    d = console.milestones(tmp_path, gh=str(gh), lanes=console.queue.load(), reads=lambda r, ls, b: ({}, "", set()), closed=lambda n: [])
+    names = [m["name"] for m in d["milestones"]]
+    assert names == ["Sharing & Pairing", "Delta"], "the spec's empty twin is dropped"
+    m = d["milestones"][0]
+    assert m["owner"] == "lane-sharing" and not m["startable"] and m["held_by"] == "owned by lane-sharing"

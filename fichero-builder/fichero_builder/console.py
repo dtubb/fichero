@@ -193,10 +193,15 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
     st["loop_on"] = bool(ticks) and now - time.mktime(time.strptime(ticks[-1]["ts"], "%Y-%m-%dT%H:%M:%S")) <= LOOP_STALE_S
     st["console"] = [r for r in rows if r.get("event") == "console"][-20:]
     st["loop_lanes"] = LOOP_LANES
+    st.update(_git_tiles())  # last landing and today's closes from origin itself: true even for a landing run by hand
+    workers = [x for x in lanes if x.get("kind") != "external" and x["cursor"] < len(x["steps"])]
+    st["lanes_note"] = f"{len(workers)} worker lane(s) (limit {LOOP_LANES}) · {sum(1 for x in lanes if x.get('kind') == 'external' and not x.get('hold'))} external"
     st["machines"] = MACHINES
     acquired = {(r.get("pid"), r.get("name")) for r in rows if r.get("event") == "lock" and r.get("state") == "acquired"}
     st["lock_waits"] = [r for r in rows if r.get("event") == "lock" and r.get("state") == "waiting" and (r.get("pid"), r.get("name")) not in acquired][-5:]
-    running = {a["lane"]: a for a in activity(rows)["running"] if a.get("lane")}
+    acts = activity(rows)["running"]
+    running = {a["lane"]: a for a in acts if a.get("lane")}
+    st["check_running"] = next(({"lane": a["lane"], "now": a["now"], "started": a["started"]} for a in acts if a["kind"] == "check"), None)
     st["order_saving"] = any(x["id"] == "build-order" and any(s["state"] != "landed" for s in x["steps"]) for x in lanes)
     by_id = {x["id"]: x for x in lanes}
     for row in st["lanes"]:
@@ -311,7 +316,7 @@ def milestones(root, gh: str = "gh", lanes: list[dict] | None = None, reads=None
         for name in dict.fromkeys(re.findall(r"`([^`]+)`", body)):
             o, c = counts.get(name, (None, None))
             m = {"name": name, "section": sec, "open": o, "closed": c, "spec": specs.get(name, ""), "steps": [], "questions": [], "issues": [],
-                 "lane": queue.slug(name) if queue.slug(name) in held else ""}
+                 "lane": queue.slug(name) if queue.slug(name) in held else "", "owner": queue.external_owner(specs.get(name, ""), name) if specs.get(name) else ""}
             if sec == "In order" and m["spec"] and o:
                 try:
                     issues = ms.list_issues(name, gh=gh)
@@ -344,9 +349,11 @@ def milestones(root, gh: str = "gh", lanes: list[dict] | None = None, reads=None
                 m["counts"] = {k: sum(1 for v in status.values() if v[0] == k) for k in RANK}
                 if not m["lane"]:  # a lane named otherwise holds it when its commits cite the milestone's issues
                     m["lane"] = next((w.split()[0] for st_, w in status.values() if st_ in RANK[1:3] and w.split()[0] in held), "")
-                m["startable"] = not m["lane"] and any(x["status"] == "open" for x in m["steps"])
-                m["held_by"] = "Lane running" if m["lane"] else ("" if m["startable"] else "Built, waiting to land" if m["counts"]["built, waiting to land"] else "")
+                m["startable"] = not m["lane"] and not m["owner"] and any(x["status"] == "open" for x in m["steps"])
+                m["held_by"] = f"owned by {m['owner']}" if m["owner"] else "Lane running" if m["lane"] else ("" if m["startable"] else "Built, waiting to land" if m["counts"]["built, waiting to land"] else "")
             out.append(m)
+    stems = {Path(m["spec"]).stem for m in out if m["spec"]}
+    out = [m for m in out if not (m["open"] is None and m["name"] in stems)]  # the spec's empty twin of a GitHub milestone: one row
     return {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "milestones": out, "gh_ok": r.returncode == 0}
 
 
@@ -488,6 +495,21 @@ def release(root, branch: str = "integration", gh: str = "gh", pr=None) -> dict:
     return {"ts": _ts(time.time()), "ahead": len(log), "commits": log[:40], "tag": tag, "prs": pr}
 
 
+_TILES: dict = {}
+
+
+def _git_tiles(branch: str = "integration") -> dict:
+    """{last_land_git: {sha, ts, subject}, closed_today_git: [n...]}: origin/<branch> itself, a minute's cache."""
+    if _TILES and time.time() - _TILES["at"] < 60:
+        return _TILES["data"]
+    tip = _git_text(str(ROOT), "log", "-1", "--format=%H%x00%cI%x00%s", f"origin/{branch}").strip().split("\x00")
+    today = _git_text(str(ROOT), "log", "--since=midnight", "--format=%x1e%H%x00%B", f"origin/{branch}")
+    data = {"last_land_git": {"sha": tip[0], "ts": tip[1][:19], "subject": tip[2][:120]} if len(tip) == 3 else None,
+            "closed_today_git": sorted({n for _s, k, n in _cited(today) if k in ("fixes", "closes")})}
+    _TILES.update(at=time.time(), data=data)
+    return data
+
+
 def _cache() -> Path:
     return journal.STATE / "console-milestones.json"
 
@@ -626,6 +648,22 @@ MACHINES: list = []  # [machines] names, read by main
 LOOP_LANES = 1  # [loop].lanes, read by main: the page starts no more lanes than this
 
 
+def _auto_refresh() -> None:
+    """Milestones from GitHub again after each landing and every 15 minutes (owner 2026-11-02: 'read 1 h ago')."""
+    seen = ""
+    while True:
+        try:
+            cache = json.loads(_cache().read_text()) if _cache().exists() else {}
+            land = next((r["ts"] for r in reversed(journal.read()) if r.get("event") == "landed" and r.get("step") == "done"), "")
+            old = not cache.get("ts") or time.time() - time.mktime(time.strptime(cache["ts"], "%Y-%m-%dT%H:%M:%S")) > 900
+            if old or (land and land != seen and land > cache.get("ts", "")):
+                seen = land
+                refresh("console (auto)").join()
+        except (OSError, ValueError):
+            pass
+        time.sleep(60)
+
+
 def server(host: str, port: int) -> http.server.ThreadingHTTPServer:
     s = http.server.ThreadingHTTPServer((host, port), Handler)
     s.daemon_threads = True
@@ -643,6 +681,7 @@ def main(a) -> int:
         MACHINES[:] = sorted(doc.get("machines", {}))
     except (OSError, ValueError):
         pass
+    threading.Thread(target=_auto_refresh, daemon=True).start()
     srv = server("127.0.0.1", a.port)
     print(f"the builder console at http://127.0.0.1:{srv.server_address[1]}/ (Ctrl-C stops)")
     try:

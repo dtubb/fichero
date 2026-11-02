@@ -209,7 +209,7 @@ function Milestones({ st }) {
       <button class="btn" onClick=${() => post("/api/refresh")}>${I.refresh} Refresh from GitHub</button>
       <span class="muted">${data.ts ? html`read <${Ago} ts=${data.ts} />` : "never read: press Refresh"}${data.gh_ok === false ? " (gh failed)" : ""}</span>
       <span class="spacer"></span>
-      <span class="muted">${running} of ${st.loop_lanes} lane(s) running</span>
+      <span class="muted">${st.lanes_note}</span>
       ${st.order_saving && html`<span class="pill blue"><span class="dot blue pulse"></span>saving the order…</span>`}
       ${changed && html`<button class="btn" onClick=${() => setOrd(null)}>Discard</button><button class="btn primary" disabled=${st.order_saving} onClick=${save}>Save order</button>`}
       ${Object.values(iss).some(Boolean) && html`<button class="btn primary" onClick=${() => { const n = prompt("Name of the new lane", "issues-" + Object.keys(iss).filter(k => iss[k])[0]); if (n) { act("start-issues", { lane: n, issues: Object.keys(iss).filter(k => iss[k]) }); setIss({}); } }}>${I.play} Start ${Object.values(iss).filter(Boolean).length} issue(s) as one lane</button>`}
@@ -317,10 +317,11 @@ function App() {
       ${(st.lock_waits || []).map(w => html`<div class="banner"><span class="dot orange pulse"></span>${w.what || "a step"} is waiting for the ${w.name} lock, held by ${w.holder} (since <${Ago} ts=${w.ts} />)</div>`)}
       ${msg && html`<div class="banner err">${msg} <button class="btn" onClick=${() => setMsg("")}>Dismiss</button></div>`}
       <div class="cards">
-        <${Card} k="Last check" v=${lc ? (lc.ok ? "Green" : "Red") : "-"} dot=${lc ? (lc.ok ? "green" : "red") : ""} sub=${html`<${Ago} ts=${lc?.ts} />`} />
+        ${st.check_running ? html`<${Card} k="Check running" v=${html`<span>${st.check_running.lane}</span>`} dot="blue" sub=${html`${st.check_running.now || "starting"} · since <${Ago} ts=${st.check_running.started} />`} />`
+          : html`<${Card} k="Last check" v=${lc ? (lc.ok ? "Green" : "Red") : "-"} dot=${lc ? (lc.ok ? "green" : "red") : ""} sub=${html`<${Ago} ts=${lc?.ts} />`} />`}
         <${Card} k="Last review" v=${lr ? (ready ? "READY" : "NOT READY") : "-"} dot=${lr ? (ready ? "green" : "red") : ""} sub=${html`<${Ago} ts=${lr?.ts} />`} />
-        <${Card} k="Last landing" v=${ll ? html`<span class="mono">${String(ll.sha).slice(0, 9)}</span>` : "-"} dot=${ll ? "green" : ""} sub=${html`<${Ago} ts=${ll?.ts} />`} />
-        <${Card} k="Closed today" v=${st.issues_closed_today.length} dot=${st.issues_closed_today.length ? "green" : ""} sub="issues" />
+        <${Card} k="Last landing" v=${st.last_land_git ? html`<span class="mono" title=${st.last_land_git.subject}>${st.last_land_git.sha.slice(0, 9)}</span>` : "-"} dot=${st.last_land_git ? "green" : ""} sub=${html`<${Ago} ts=${st.last_land_git?.ts} />`} />
+        <${Card} k="Closed today" v=${(st.closed_today_git || []).length} dot=${(st.closed_today_git || []).length ? "green" : ""} sub="issues, from integration's Fixes lines" />
         <${Card} k="Spend today" v=${"$" + st.spend_today_usd.toFixed(2)} dot="blue" sub=${st.loop_on ? html`loop on · <${Ago} ts=${st.heartbeat} />` : "loop off"} />
       </div>
       ${st.open_alerts.length > 0 && html`<h2>Alerts</h2><${Alerts} alerts=${st.open_alerts} />`}
