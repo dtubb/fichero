@@ -8,6 +8,8 @@ struct RemoteClientPairingFields: Equatable {
     /// no Fichero-held key to pin, and default trust evaluation is the check.
     let spkiPin: String?
     let libraryPath: String
+    /// The host's other addresses, in the order to try (`sharing.link-carries-every-address`); empty for an old link.
+    var altURLs: [String] = []
 }
 
 /// The person a pairing device signs in as when the host has Multi-user on.

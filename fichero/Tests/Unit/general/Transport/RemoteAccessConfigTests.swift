@@ -177,7 +177,8 @@ final class RemoteAccessConfigTests: XCTestCase {
         XCTAssertEqual(pairingFields.libraryPath, "/Users/testuser/Archive/Open.fichero")
     }
 
-    func testRemoteClientPairingFieldsRejectMissingLibraryPath() throws {
+    /// `sharing.ios-bad-library-path`: a link with no project is not refused before the network; pairing asks the host.
+    func testRemoteClientPairingFieldsAcceptAMissingLibraryPathAndAskTheHost() throws {
         let apiRoot = URL(string: "https://pairing.example.com/")!
         let code = PairingCodeRecord(
             code: "PAIR-1234",
@@ -185,9 +186,9 @@ final class RemoteAccessConfigTests: XCTestCase {
         )
         let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, from: code, spki: validSPKIPin)
 
-        XCTAssertThrowsError(try RemoteClientPairing.pairingFields(from: payload)) { error in
-            XCTAssertEqual(error as? RemoteClientPairingError, .missingLibraryPath)
-        }
+        let fields = try RemoteClientPairing.pairingFields(from: payload)
+        XCTAssertEqual(fields.libraryPath, "")
+        XCTAssertEqual(fields.altURLs, [])
     }
 
     func testRemoteClientPairingFieldsRejectMalformedInviteLink() {

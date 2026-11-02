@@ -54,7 +54,8 @@ struct PairingIncomingLinkSheet: View {
                 pairCode: fields.pairCode,
                 deviceName: RemoteClientPairing.defaultDeviceName(),
                 expectedSPKIPin: fields.spkiPin,
-                libraryPath: fields.libraryPath
+                libraryPath: fields.libraryPath,
+                altURLs: fields.altURLs
             )
             // Pairing persisted the new host; repoint the app-level client so
             // the reconnect probe targets it. Library adoption + reload fire once

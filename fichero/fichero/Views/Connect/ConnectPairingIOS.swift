@@ -331,7 +331,8 @@ private extension RemoteConnectionSetupView {
             pairCode: fields.pairCode,
             deviceName: RemoteClientPairing.defaultDeviceName(),
             expectedSPKIPin: fields.spkiPin,
-            libraryPath: fields.libraryPath
+            libraryPath: fields.libraryPath,
+            altURLs: fields.altURLs
         )
         // Repoint the app-level client at the freshly-paired host; adopt +
         // reload fire once in the ready transition (#3113), not here.

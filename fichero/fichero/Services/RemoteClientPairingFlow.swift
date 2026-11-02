@@ -92,14 +92,15 @@ enum RemoteClientPairing {
             requireSecureTransportForRemote: true
         )
         let validatedSPKIPin = try resolvedSPKIPin(payload.spki, for: validatedURL)
-        guard let libraryPath = normalizedLibraryPath(payload.libraryPath) else {
-            throw RemoteClientPairingError.missingLibraryPath
-        }
+        // A link with no project (a host with none open) is not refused here: pairing asks the host which it shares
+        // (`sharing.ios-bad-library-path`).
+        let libraryPath = normalizedLibraryPath(payload.libraryPath) ?? ""
         return RemoteClientPairingFields(
             remoteURL: validatedURL.absoluteString,
             pairCode: payload.pairCode,
             spkiPin: validatedSPKIPin,
-            libraryPath: libraryPath
+            libraryPath: libraryPath,
+            altURLs: payload.altURLs ?? []
         )
     }
 
@@ -296,6 +297,10 @@ enum RemoteClientPairing {
         }
     }
 
+    /// Pairs and persists through the ONE sequence (`PairingSequence`): the Mac and the phone both come here, so their checks are
+    /// the same, in the same order: try the link's addresses, refuse a contract this app cannot read before any code is sent,
+    /// redeem the code, keep the token (or revoke), confirm the project against the host's own list, then persist.
+    /// A link with no project asks the host which it shares (`sharing.ios-bad-library-path`).
     @MainActor
     static func pairAndPersistHost(
         remoteURL: String,
@@ -303,37 +308,38 @@ enum RemoteClientPairing {
         deviceName: String,
         expectedSPKIPin: String?,
         libraryPath: String? = nil,
-        person: PairingPerson? = nil
+        person: PairingPerson? = nil,
+        altURLs: [String] = []
     ) async throws -> URL {
-        let result = try await pairDevice(
-            remoteURL: remoteURL,
-            pairCode: pairCode,
-            deviceName: deviceName,
-            expectedSPKIPin: expectedSPKIPin,
-            person: person
-        )
+        let code = pairCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        let name = deviceName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !code.isEmpty else { throw RemoteClientPairingError.missingPairCode }
+        guard !name.isEmpty else { throw RemoteClientPairingError.missingDeviceName }
         let normalizedSPKIPin = try expectedSPKIPin.map(RemoteCertificatePinning.validatedSPKIPin)
-        // #3372: the QR/deep-link carries `libraryPath`, but that value is
-        // attacker-supplied — nothing in the exchange so far proves the Mac
-        // actually shares it with this device. Confirm it against the server's
-        // own accessible-library set (GET /api/authz/libraries) BEFORE persisting
-        // it, so a forged path can never be written to disk. The authenticated
-        // confirm call needs the device token in the Keychain, so persist the
-        // token first; if confirmation fails, clear it — never leave a
-        // half-persisted pairing behind.
-        try await storeTokenOrRevoke(result, expectedSPKIPin: normalizedSPKIPin)
-        do {
-            try await confirmLibraryAccess(
-                libraryPath: libraryPath,
-                apiRoot: result.apiRoot,
-                expectedSPKIPin: normalizedSPKIPin
-            )
-        } catch {
-            AuthTokenMiddleware.clearRemoteToken(hostString: result.apiRoot.absoluteString)
-            throw error
+        let host = LivePairingHost(spkiPin: normalizedSPKIPin, deviceName: name, person: person)
+        let link = PairingSequence.Link(
+            addresses: [remoteURL] + altURLs, code: code, libraryPath: normalizedLibraryPath(libraryPath))
+        let outcome = await PairingSequence.run(
+            link: link, host: host, ownContract: LivePairingHost.contractMatches,
+            ownVersion: ContractCompatibility.appIdentity.version)
+        switch outcome {
+        case .paired(_, let confirmedLibrary):
+            guard let exchange = host.exchange else { throw PairingStoppedError(message: PairingFailure.noAnswer.sentence()) }
+            let pin = try resolvedSPKIPin(normalizedSPKIPin, for: exchange.apiRoot)
+            try persistPairedHost(exchange, expectedSPKIPin: pin, libraryPath: confirmedLibrary)
+            return exchange.apiRoot
+        case .choose:
+            // ponytail: no picker yet; the person asks for a link from the project they want.
+            throw PairingStoppedError(message: "That Mac shares more than one project and the link did not say which. "
+                                      + "Ask for a new link from the project you want.")
+        case .failed(.personRequired, _):
+            throw RemoteClientPairingError.personRequired
+        case .failed(let failure, var context):
+            context.noun = RemoteClientPairingError.deviceNoun
+            throw PairingFailureError(failure: failure, context: context)
+        case .stopped(let message):
+            throw PairingStoppedError(message: message)
         }
-        try persistPairedHost(result, expectedSPKIPin: expectedSPKIPin, libraryPath: libraryPath)
-        return result.apiRoot
     }
 
     /// Keeps the device token, or undoes the pairing it belongs to (`sharing.failed-save-spends-nothing`).
