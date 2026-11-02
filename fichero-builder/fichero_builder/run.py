@@ -105,6 +105,10 @@ def register(name: str, worktree, handoff, model: str, window: int, tmux_session
     return p
 
 
+def reading_of(first_commit: dict | None) -> dict:
+    return first_commit or {"turns_before_first_commit": None, "tokens_before_first_commit": None}
+
+
 DONE_INSTRUCTION = "When every item is committed, end your turn with the exact line DONE <short sha of the branch head>."
 
 
@@ -153,6 +157,7 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     seen = None
     told: set[str] = set()
     state: dict = {}
+    base0, first_commit = base, None
     unsaid, nudged = 0, False  # ticks idle with the branch moved and no good DONE line (defect 2: a worker that commits and never says it)
     outstanding, sent_turn = True, -1  # feed: a step is out; and the turn it went in at, so the last step's DONE text is not read as this one's
 
@@ -170,6 +175,9 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             if key != seen:
                 seen, last_change = key, now
             state = st
+        if first_commit is None and base0 and (now_head := procs.head()) and now_head != base0:  # the reading metric: what it took to get to a first commit
+            first_commit = {"turns_before_first_commit": state.get("turns", 0), "tokens_before_first_commit": state.get("tokens", 0)}
+            journal.append("reading", task=name, generation=gen, **first_commit)
         if not procs.alive(pane):
             end = "gone"
             break
@@ -238,7 +246,7 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             procs.stop(pane)
             journal.append("cost", task=name, model=model, usd=round(watcher.cost_of(state, spend, model), 4),
                            tokens=state.get("tokens", 0), turns=state.get("turns", 0), seconds=int(now - started), end="handoff",
-                           generation=gen)
+                           generation=gen, **reading_of(first_commit))
             gen += 1
             b = Path(worktree) / f".builder-brief-{name}-{gen}.txt"
             b.write_text(successor_brief(name, gen, worktree, handoff))
@@ -247,9 +255,10 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             out(f"{name}: handoff, generation {gen} started")
             started = last_change = procs.now()
             seen, state, told, unsaid, nudged, sent_turn = None, {}, set(), 0, False, -1
+            base0, first_commit = procs.head(), None
             continue
     journal.append("cost", task=name, model=model, usd=round(watcher.cost_of(state, spend, model), 4),
                    tokens=state.get("tokens", 0), turns=state.get("turns", 0), seconds=int(procs.now() - started), end=end,
-                   generation=gen)
+                   generation=gen, **reading_of(first_commit))
     out(f"{name}: {end}")
     return end

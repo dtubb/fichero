@@ -307,3 +307,21 @@ def test_the_brief_copy_is_ignored_so_a_worker_cannot_commit_it():
 
     root = Path(run.__file__).resolve().parents[2]
     assert ".builder-brief-*" in (root / ".gitignore").read_text().splitlines(), os.fspath(root)
+
+
+def test_a_run_records_what_it_read_before_its_first_commit(root):
+    """The reading metric: turns and tokens at the first tick the worktree's HEAD has moved: a `reading` row once, and on the cost row."""
+    fake = Fake([{**HEALTHY, "turns": 3, "tokens": 50}, {**HEALTHY, "turns": 9, "tokens": 400, "moved": True}, {**HEALTHY, "turns": 12, "tokens": 900},
+                 {**HEALTHY, "turns": 12, "tokens": 900, "idle": True, "last_text": "DONE bbbb222"}])
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None) == "done"
+    rows = journal.read()
+    reading = [r for r in rows if r["event"] == "reading"]
+    assert [(r["task"], r["turns_before_first_commit"], r["tokens_before_first_commit"]) for r in reading] == [("w", 9, 400)]
+    cost = rows[-1]
+    assert cost["event"] == "cost" and cost["turns_before_first_commit"] == 9 and cost["tokens_before_first_commit"] == 400
+
+
+def test_a_run_with_no_commit_has_no_reading_figure(root):
+    fake = Fake([{**HEALTHY, "turns": 3, "tokens": 5000}])
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None) == "gone"
+    assert journal.read()[-1]["turns_before_first_commit"] is None and not [r for r in journal.read() if r["event"] == "reading"]
