@@ -84,7 +84,14 @@ def render(rows: list[dict]) -> str:
             "<style>body{font:14px system-ui;margin:16px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:2px 8px;text-align:left}</style>"
             + _table("Runs", ["name", "worktree", "model", "started", "turns", "USD", "status"], _runs(rows))
             + _table("Checks", ["at", "range", "result", "failed rung"], _checks(rows))
-            + _table("Lands", ["at", "tip", "last step", "branch", "pushed"], _lands(rows)))
+            + _table("Lands", ["at", "tip", "last step", "branch", "pushed"], _lands(rows))
+            + _table("Queue", ["item", "state", "issues", "depends on", "head", "why"], _queue()))
+
+
+def _queue() -> list[list]:
+    from fichero_builder import queue
+
+    return queue.table()
 
 
 class _Handler(http.server.BaseHTTPRequestHandler):

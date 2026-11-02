@@ -89,6 +89,10 @@ pinned_dir = "/Users/Shared/fichero-pinned"
 # Regexes over every ADDED line and commit message; any hit refuses the land (the public/private boundary).
 boundary = ['/Users/(?!Shared/)[A-Za-z0-9._-]+/', 'sk-ant-[A-Za-z0-9_-]{8,}', 'gh[ps]_[A-Za-z0-9]{20,}', 'BEGIN [A-Z ]*PRIVATE KEY']
 
+[queue]
+# `builder queue run` (dev-workflows.tool.queue): how many `builder work` processes run at once; the ladder is one at a time regardless.
+workers = 1
+
 [brief]
 # Project rules put at the top of every cluster brief (scripts/harness_brief.py); project names belong here, not in code.
 rules = """
