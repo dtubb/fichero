@@ -105,18 +105,18 @@ db_manager.close_all()
 print("registered 2 text-image docs")
 """
 
-# Tools whose canonical input is image files — presets containing any of these
-# run against the seeded JPG fixture; everything else runs against the seeded
-# text fixture. (Selection only; capability gating uses the live registry.)
-IMAGE_INPUT_TOOLS = {
-    "adaptive_binarize_images", "auto_crop_border_images", "caption",
-    "classify_script", "denoise_images", "describe", "deskew_images",
-    "contrast_images", "enhance_images", "faces", "fuzzy_clean_images", "handwriting", "layout",
-    "objects", "organize_same_documents", "prepare_images",
-    "recombine_segments", "remove_background_images", "rotate_images",
-    "scene", "segment_images", "similarity", "split_images", "split_pages", "sub_workflow",
-    "transcribe", "transcribe_review", "zoom",
-}
+
+# Presets containing an image-input tool run against the seeded JPG fixture;
+# everything else runs against the seeded text fixture. (Selection only.)
+def image_input_tools(tool_defs: dict[str, dict]) -> set[str]:
+    """Tools that take an image, read from the live registry (dev-workflows.run.loop-needs-maintainer): a vision or
+    transform tool with a `files` input port. Adding such a node never edits this pinned script. `sub_workflow`: the only
+    shipped one wraps transcribe passes (as in classify_needs)."""
+    return {"sub_workflow"} | {
+        name for name, t in tool_defs.items()
+        if t.get("category") in ("vision", "transform") and any(p.get("data_type") == "files" for p in t.get("input_ports") or [])
+    }
+
 
 # Workflows in these families must land page_content on the target document.
 TRANSCRIPTION_PREFIXES = ("Transcribe", "Capture OCR")
@@ -409,6 +409,7 @@ def main() -> int:
         for tool in (find_key(tools_payload, "tools") or find_key(tools_payload, "items") or []):
             if isinstance(tool, dict) and tool.get("name"):
                 tool_defs[tool["name"]] = tool
+        image_tools = image_input_tools(tool_defs)
 
         _, workflows_payload = http("GET", f"{base}/api/workflows", headers=headers, timeout=60)
         seeded = {w["name"]: w.get("id") for w in find_workflow_list(workflows_payload)}
@@ -444,7 +445,7 @@ def main() -> int:
 
             if name in TARGET_OVERRIDES:
                 target_docs = TARGET_OVERRIDES[name]
-            elif preset_tool_names(preset) & IMAGE_INPUT_TOOLS:
+            elif preset_tool_names(preset) & image_tools:
                 target_docs = [DOC_IMAGE]
             else:
                 target_docs = [DOC_TEXT]
