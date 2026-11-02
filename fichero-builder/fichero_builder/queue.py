@@ -81,6 +81,8 @@ def add(lane_id: str, worktree: str, step: str, brief: str, issues: list[int], w
         if lane is None:
             lane = {"id": lane_id, "worktree": os.path.abspath(worktree), "cursor": 0, "seq": 0, "feed": "", "paused": False, "steps": [], "kind": kind}
             lanes.append(lane)
+        elif lane["cursor"] >= len(lane["steps"]) and not any(s["step"] == step for s in lane["steps"]):
+            lane.update(kind=kind, worktree=os.path.abspath(worktree))  # a finished lane handed new work takes its kind and tree
         if any(s["step"] == step for s in lane["steps"]):
             return
         lane["steps"].append({"step": step, "brief": str(brief), "issues": list(issues), "waits": list(waits or []), "state": "queued",
@@ -419,14 +421,21 @@ def feed(procs: Procs, lanes_n: int, out=print) -> bool:
     took = False
     while True:
         lanes = load()
-        if sum(1 for x in lanes if x["cursor"] < len(x["steps"])) >= lanes_n:
+        busy = [x for x in lanes if x["cursor"] < len(x["steps"])]
+        # an external lane (a session of its own, or one holding a milestone) is not one of the loop's lanes, but it holds its milestone;
+        # a finished external lane (a batch landed for it) frees its milestone, so the issues left open are briefed (soak 2026-11-02)
+        if sum(1 for x in busy if x.get("kind") != "external") >= lanes_n:
             return took
-        nxt = procs.next_milestone({x["id"] for x in lanes})
+        nxt = procs.next_milestone({x["id"] for x in lanes if x in busy or x.get("kind") != "external"} | _SKIPPED)
         if not nxt:
             return took
         lane_id, worktree, steps = nxt
         for st in steps:
             add(lane_id, worktree, st["step"], st["brief"], st["issues"], waits=st.get("waits"))
+        if not any(x["id"] == lane_id and x["cursor"] < len(x["steps"]) for x in load()):  # every step it has already ran: never again this run
+            _SKIPPED.add(lane_id)
+            journal.append("queue", lane=lane_id, step="-", state="question", detail="the milestone's open issues brief only steps this lane already ran")
+            continue
         journal.append("queue", lane=lane_id, step="-", state="milestone", detail=f"taken: {len(steps)} steps")
         out(f"{lane_id}: taken from the build order, {len(steps)} steps")
         took = True
@@ -564,8 +573,10 @@ def next_in_order(root, taken: set, gh: str = "gh") -> tuple | None:
             continue
         spec_path = root / triage.SPECS / spec
         planned = milestone.plan(issues, milestone.build_order(spec_path), milestone.spec_slug(spec_path))
-        for q in planned["questions"]:
+        for q in planned["questions"]:  # the owner places them: one alert each, read in the console (soak 2026-11-02)
             journal.append("queue", lane=lane, step="-", state="question", detail=q[-300:])
+            if not any(r.get("event") == "alert" and r.get("what") == q[:300] for r in journal.read()):
+                alert(lane, "plan", q, str(spec_path), [])
         if not planned["clusters"]:
             _SKIPPED.add(lane)
             continue

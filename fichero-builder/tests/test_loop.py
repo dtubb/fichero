@@ -302,3 +302,35 @@ def test_weakened_tests_are_an_alert_with_the_test_diff_and_approve_reruns_recor
     queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
     assert seen[:2] == [(False, False), (True, False)], "approve re-ran the check recording the approval, never as a maintainer batch"
     assert steps()["1.1"]["state"] == "landed"
+
+
+def test_external_lanes_hold_their_milestone_but_are_not_the_loops_lanes_and_a_finished_lane_is_briefed_again(state, monkeypatch):
+    """Soak 2026-11-02: two external lanes filled `lanes = 1`, so the loop took nothing; a lane that landed a batch kept its
+    milestone forever, so its open issues were never briefed; re-briefing only landed steps must not loop."""
+    monkeypatch.setattr(queue, "_SKIPPED", set())
+    queue.add("lane-sharing", "/w/s", "2.3", str(state / "b1.1"), [], kind="external")
+    queue.add("dev-workflows", "/w/h", "held", str(state / "b1.1"), [], kind="external")
+    queue.add("image-enhancement", "/w/land-ie", "ie-batch2", str(state / "b1.1"), [], kind="external")
+    lanes = queue.load()
+    lanes[2]["steps"][0]["state"], lanes[2]["cursor"] = "landed", 1  # ie-batch2 landed through the chain
+    queue.save(lanes)
+    asked = []
+
+    def nxt(taken):
+        asked.append(set(taken))
+        if "image-enhancement" not in taken:
+            return "image-enhancement", "/jail/wt-image-enhancement", [{"step": "1.1", "brief": str(state / "b1.1"), "issues": [7]}]
+        return None
+    fake = Fake()
+    fake.procs.next_milestone = nxt
+    assert queue.feed(fake.procs, 1, out=lambda s: None) is True
+    assert {"lane-sharing", "dev-workflows"} <= asked[0] and "image-enhancement" not in asked[0], "external lanes hold; a finished one frees"
+    ie = next(x for x in queue.load() if x["id"] == "image-enhancement")
+    assert ie["kind"] == "worker" and ie["worktree"] == "/jail/wt-image-enhancement" and [s["step"] for s in ie["steps"]] == ["ie-batch2", "1.1"]
+    assert queue.feed(fake.procs, 1, out=lambda s: None) is False, "one worker lane busy: lanes = 1 is full"
+    lanes = queue.load()
+    lanes[2]["steps"][1]["state"], lanes[2]["cursor"] = "landed", 2
+    queue.save(lanes)
+    fake.procs.next_milestone = lambda taken: ("image-enhancement", "/jail/wt-image-enhancement", [{"step": "1.1", "brief": str(state / "b1.1"), "issues": [7]}]) if "image-enhancement" not in taken else None
+    assert queue.feed(fake.procs, 1, out=lambda s: None) is False, "a finished worker lane keeps its milestone: never a loop"
+    assert [s["step"] for s in next(x for x in queue.load() if x["id"] == "image-enhancement")["steps"]] == ["ie-batch2", "1.1"]
