@@ -72,6 +72,8 @@ def main(argv=None) -> int:
     r.add_argument("--session", default="harness")
     r.add_argument("--tick", type=float, default=30.0)
     r.add_argument("--handoff", help="the handoff file a successor reads (default <worktree>/HANDOFF.md)")
+    r.add_argument("--feed", help="the queue's lane: a folder only the owner writes; DONE ends the step, not the session; msg-<seq+1>.txt is typed into the same pane; `stop` ends it")
+    r.add_argument("--seq", type=int, default=0, help="with --feed: the first brief's message number")
     r.add_argument("--state", help="where the journal lives (default $FICHERO_BUILDER_STATE, else <[jail].workroot>/state, else the XDG state home)")
     c = sub.add_parser("check", help="run the ladder over SINCE..HEAD from the pinned copy; exit 1 if red")
     c.add_argument("--repo", help="the engine-owned repo to judge from (default [check].engine_repo of the pinned rules)")
@@ -86,7 +88,7 @@ def main(argv=None) -> int:
     ms.add_argument("--repo-dir", default=str(Path.cwd())), ms.add_argument("--out", required=True, help="where the brief files go")
     ms.add_argument("--base", help="the base sha the briefs name (default: origin/<[land].branch> in --repo-dir)")
     ms.add_argument("--gh", default="gh")
-    ms.add_argument("--enqueue", action="store_true", help="queue each step brief (id step-N.M, worktree <[jail].workroot>/wt-step-N.M, depends on the steps it waits for)")
+    ms.add_argument("--enqueue", action="store_true", help="queue each step brief in the milestone's lane (worktree <[jail].workroot>/wt-<lane>), in build order")
     ms.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
     land = sub.add_parser("land", help="the land gate after a green check row: a READY verdict for the exact range and the boundary, no second ladder; prints the push, never pushes")
     land.add_argument("--repo", help="the engine-owned repo (default [check].engine_repo of the pinned rules)")
@@ -111,10 +113,9 @@ def main(argv=None) -> int:
     tr.add_argument("--dry", action="store_true"), tr.add_argument("--gh", default="gh")
     tr.add_argument("--root", default=str(Path.cwd()), help="the checkout holding harness.toml and docs/contributor_manual/specs")
     tr.add_argument("--state", help="where the journal lives (default: the owner's journal dir)")
-    q = sub.add_parser("queue", help="the queue of briefs: no action prints it; `add` queues one; `run` is the owner-side loop (one builder work per item, then builder landed; push only with --push)")
-    q.add_argument("action", nargs="?", choices=["add", "run"])
-    q.add_argument("--id"), q.add_argument("--brief"), q.add_argument("--worktree"), q.add_argument("--base")
-    q.add_argument("--issues", type=int, nargs="*", default=[]), q.add_argument("--depends-on", nargs="*", default=[], help="queue item ids or shas")
+    q = sub.add_parser("queue", help="one long-running worker per lane, fed step by step: no action prints the steps; add; run (the owner-side loop; push only with --push); pause; resume")
+    q.add_argument("action", nargs="?", choices=["add", "run", "pause", "resume"])
+    q.add_argument("--lane"), q.add_argument("--worktree"), q.add_argument("--step"), q.add_argument("--brief"), q.add_argument("--issues", type=int, nargs="*", default=[])
     q.add_argument("--push", action="store_true"), q.add_argument("--once", action="store_true"), q.add_argument("--tick", type=float, default=30.0)
     q.add_argument("--root", default=str(Path.cwd())), q.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
     wa = sub.add_parser("watch", help="a live progress page from the journal on 127.0.0.1 (runs, checks, lands, the queue)")
@@ -172,12 +173,9 @@ def main(argv=None) -> int:
 
             journal.STATE = Path(a.state) if a.state else journal.STATE
             workroot = rules_doc.get("jail", {}).get("workroot", "")
+            lane = queue.slug(a.name)
             for c, p in zip(planned["clusters"], written):
-                try:
-                    queue.add(f"step-{c['step']}", str(p), str(Path(workroot) / f"wt-step-{c['step']}"), [i["number"] for i in c["issues"]],
-                              base=base, depends_on=[f"step-{d}" for d in c.get("waits", [])])
-                except ValueError as e:
-                    print(f"queue: {e}")
+                queue.add(lane, str(Path(workroot) / f"wt-{lane}"), c["step"], str(p), [i["number"] for i in c["issues"]], waits=c["waits"])
         for q in planned["questions"]:
             print(f"QUESTION: {q}", file=sys.stderr)
         return 0 if not planned["questions"] else 2
@@ -193,9 +191,7 @@ def main(argv=None) -> int:
     if a.cmd == "queue":
         from fichero_builder import queue
 
-        if a.action == "add" and not (a.id and a.brief and a.worktree):
-            print("REFUSED: queue add needs --id, --brief and --worktree")
-            return 1
+        journal.STATE = Path(a.state) if a.state else journal.STATE
         return queue.main(a)
     if a.cmd == "watch":
         from fichero_builder import watch
@@ -294,8 +290,8 @@ def main(argv=None) -> int:
     else:
         procs = run_mod.real_procs(Path.home(), a.worktree)
     end = run_mod.run(a.root, a.worktree, a.brief, name=a.name, model=a.model, kind=a.kind, tmux_session=a.session,
-                      tick_s=a.tick, procs=procs, handoff=a.handoff)
-    return 0 if end in ("done", "done-unsaid", "gone", "parked") else 1  # a clean end is 0; "refused" is the 1
+                      tick_s=a.tick, procs=procs, handoff=a.handoff, feed=a.feed, seq=a.seq)
+    return 0 if end in ("done", "done-unsaid", "lane-done", "gone", "parked") else 1  # a clean end is 0; "refused" is the 1
 
 
 if __name__ == "__main__":

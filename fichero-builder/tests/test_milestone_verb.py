@@ -88,7 +88,7 @@ def test_the_verb_writes_one_brief_per_cluster_and_prints_the_questions(tmp_path
     assert sorted(os.listdir(tmp_path / "out")) == ["brief-step-1.1.txt", "brief-step-1.2.txt"], "a waiting step's brief is written too (the queue runs it after)"
 
 
-def test_enqueue_queues_one_item_per_step_brief_with_its_waits_as_depends_on(tmp_path, monkeypatch):
+def test_enqueue_puts_each_step_brief_in_the_milestones_lane_in_build_order(tmp_path, monkeypatch):
     from fichero_builder import journal, queue
 
     monkeypatch.setattr(journal, "STATE", tmp_path / "s")
@@ -97,9 +97,10 @@ def test_enqueue_queues_one_item_per_step_brief_with_its_waits_as_depends_on(tmp
     gh = _fake_gh(tmp_path)
     assert cli.main(["milestone", "m1", "--spec", str(tmp_path / "spec.md"), "--repo-dir", str(tmp_path), "--out", str(tmp_path / "out"),
                      "--base", "abc1234", "--gh", gh, "--enqueue", "--state", str(tmp_path / "s")]) == 2
-    items = {i["id"]: i for i in queue.load()}
-    assert items["step-1.1"]["depends_on"] == [] and items["step-1.1"]["issues"] == [7] and items["step-1.1"]["worktree"] == "/wr/wt-step-1.1"
-    assert items["step-1.2"]["depends_on"] == ["step-1.1"] and items["step-1.2"]["brief"].endswith("brief-step-1.2.txt") and items["step-1.2"]["base"] == "abc1234"
+    lane = queue.load()[0]
+    assert lane["id"] == "m1" and lane["worktree"] == "/wr/wt-m1" and lane["cursor"] == 0
+    assert [(s["step"], s["issues"], s["waits"]) for s in lane["steps"]] == [("1.1", [7], []), ("1.2", [8], ["1.1"])]
+    assert lane["steps"][1]["brief"].endswith("brief-step-1.2.txt")
 
 
 def test_the_step_label_is_read_first_and_the_title_shape_only_for_an_issue_with_no_step_label():

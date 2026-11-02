@@ -85,7 +85,7 @@ def render(rows: list[dict]) -> str:
             + _table("Runs", ["name", "worktree", "model", "started", "turns", "USD", "status"], _runs(rows))
             + _table("Checks", ["at", "range", "result", "failed rung"], _checks(rows))
             + _table("Lands", ["at", "tip", "last step", "branch", "pushed"], _lands(rows))
-            + _table("Queue", ["item", "state", "issues", "depends on", "head", "why"], _queue()))
+            + _table("Queue", ["lane", "step", "state", "issues", "head", "why"], _queue()))
 
 
 def _queue() -> list[list]:

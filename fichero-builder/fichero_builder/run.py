@@ -127,13 +127,16 @@ def successor_brief(name: str, gen: int, worktree, handoff) -> str:
 
 
 def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = "claude", tmux_session: str = "harness",
-        tick_s: float = 30.0, procs: Procs, out=print, done=DONE, handoff=None, max_generations: int = 20) -> str:
+        tick_s: float = 30.0, procs: Procs, out=print, done=DONE, handoff=None, max_generations: int = 20, feed=None, seq: int = 0) -> str:
     """Start, then watch until the worker is done (idle, its last text ends with the brief's `DONE <sha>` line, and the
     worktree's HEAD is that sha and has moved from the start: a worker's words alone never end a run),
     parked (a cap or a provider refusal) or gone. Returns the end as a word.
     Handoff: the in-session hook tells the worker at 85 %; when the worker is then idle with HANDOFF READY in its last text,
     the loop ends it (TERM, grace, kill) and starts a successor through the same start path with a brief that names the
-    handoff file (`<worktree>/HANDOFF.md` unless given); the successor is the same name, generation plus one."""
+    handoff file (`<worktree>/HANDOFF.md` unless given); the successor is the same name, generation plus one.
+    `feed` (the queue's long-running lane, a folder only the owner writes): a good DONE ends the step, not the session: one
+    `step` row (task, seq, sha, moved) for the owner, then the worker idles until `msg-<seq+1>.txt` appears and is typed into
+    the same pane, or `stop` appears (end "lane-done")."""
     spend = watcher.load(root)
     bad = watcher.refusals(spend, kind, model)
     if bad:
@@ -150,8 +153,14 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     seen = None
     told: set[str] = set()
     state: dict = {}
-    nudged = False
-    unsaid = 0  # ticks idle with the branch moved and no DONE line (defect 2: a worker that commits and never says DONE)
+    unsaid, nudged = 0, False  # ticks idle with the branch moved and no good DONE line (defect 2: a worker that commits and never says it)
+    outstanding, sent_turn = True, -1  # feed: a step is out; and the turn it went in at, so the last step's DONE text is not read as this one's
+
+    def step_done(sha: str, moved: bool, **more) -> None:
+        nonlocal outstanding, base, unsaid, nudged
+        journal.append("step", task=name, seq=seq, sha=sha, moved=moved, **more)
+        out(f"{name}: step {seq} {'done at ' + sha[:9] if moved else 'ended with no commit'}")
+        outstanding, base, unsaid, nudged = False, sha, 0, False
     while True:
         procs.sleep(tick_s)
         now = procs.now()
@@ -180,9 +189,21 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             procs.stop(pane)
             end = "parked"
             break
-        m = done.search(state.get("last_text", "")) if state.get("idle") else None
-        head = procs.head() if state.get("idle") else ""
-        unsaid = unsaid + 1 if head and head != base and not (m and head.startswith(m.group(1))) else 0
+        if feed is not None:
+            if (Path(feed) / "stop").exists():
+                procs.stop(pane)
+                end = "lane-done"
+                break
+            nxt = Path(feed) / f"msg-{seq + 1}.txt"
+            if not outstanding and nxt.exists():
+                seq, base, sent_turn, outstanding = seq + 1, procs.head(), state.get("turns", 0), True
+                journal.append("watch", task=name, what=f"sent: message {seq}")
+                procs.tell(pane, f"Read {nxt} and do what it says; end your turn with the DONE line it names.")
+        idle = state.get("idle") and outstanding and state.get("turns", 0) > sent_turn
+        m = done.search(state.get("last_text", "")) if idle else None
+        head = procs.head() if idle else ""
+        said = bool(m and head and head.startswith(m.group(1)))
+        unsaid = unsaid + 1 if head and head != base and not said else 0
         if unsaid == 2 and not nudged:
             words = f"Your branch has commits and your turn ended without the DONE line: end your turn with the exact line DONE {head[:7]}"
             journal.append("watch", task=name, what=f"nudge: {words}")
@@ -191,12 +212,16 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             unsaid, nudged = 0, True
         elif unsaid >= 2:  # one nudge only: a reply with no line must not reset it into a nudge loop
             journal.append("watch", task=name, what=f"done-unsaid: the branch is at {head[:9]}, idle, no DONE line after a nudge")
+            if feed is not None:
+                step_done(head, True, unsaid=True)
+                continue
             procs.stop(pane)
             end = "done-unsaid"
             break
-        if m:
-            head = procs.head()
-            if head and head != base and head.startswith(m.group(1)):
+        if said and feed is not None:
+            step_done(head, head != base)
+        elif m:
+            if said and head != base:
                 procs.stop(pane)
                 end = "done"
                 break
@@ -221,7 +246,7 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             journal.append("worker", task=name, pane=pane, model=model, kind=kind, worktree=str(worktree), generation=gen)
             out(f"{name}: handoff, generation {gen} started")
             started = last_change = procs.now()
-            seen, state, told, unsaid, nudged = None, {}, set(), 0, False
+            seen, state, told, unsaid, nudged, sent_turn = None, {}, set(), 0, False, -1
             continue
     journal.append("cost", task=name, model=model, usd=round(watcher.cost_of(state, spend, model), 4),
                    tokens=state.get("tokens", 0), turns=state.get("turns", 0), seconds=int(procs.now() - started), end=end,
