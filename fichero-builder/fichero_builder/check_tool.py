@@ -256,9 +256,13 @@ def pytest_argv(root, files: list[str], cfg: Config, package: str = "") -> list[
     # so an editable install never replaces the commit under test. (`_isolated` for guards inserts before site-packages.)
     # THE LIMIT: tests run the worker's own code, so a green is never proof against a hostile worker (a test file can
     # always exit 0). The reviewer is the wall; land_tool.risky_paths makes it name the files that forge a green cheaply.
-    code = ("import sys; i = next((n for n, p in enumerate(sys.path) if p.endswith('site-packages')), len(sys.path) - 1) + 1; "
+    # a throwaway pycache prefix per rung (`-I` ignores PYTHON* env vars): pytest's assertion-rewrite cache keys on mtime
+    # seconds + size, so a same-size edit in the same second would otherwise run the PREVIOUS rung's bytecode of a test
+    # (the already-built red-on-base test flaked 1 in 3 on 2026-11-01)
+    code = ("import sys, shutil, tempfile; i = next((n for n, p in enumerate(sys.path) if p.endswith('site-packages')), len(sys.path) - 1) + 1; "
             f"sys.path[i:i] = {paths!r}\n"
-            f"import pytest; sys.exit(pytest.main({args!r}))")
+            "sys.pycache_prefix = tempfile.mkdtemp(prefix='check-pyc-')\n"
+            f"import pytest; rc = pytest.main({args!r}); shutil.rmtree(sys.pycache_prefix, ignore_errors=True); sys.exit(rc)")
     return [_py(cfg), "-I", "-c", code]
 
 
