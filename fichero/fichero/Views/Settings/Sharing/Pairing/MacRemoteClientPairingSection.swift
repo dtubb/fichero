@@ -155,28 +155,24 @@ struct MacRemoteClientPairingSection: View {
         let previousHost = engineHost
         do {
             let pairingFields = try fieldsToPair()
-            let result = try await RemoteClientPairing.pairDevice(
+            // The same sequence the phone runs (`sharing.both-clients-run-the-same-checks`): try the link's addresses, check the
+            // contract before any code is sent, pair, keep the token (or revoke), confirm the project, persist.
+            let apiRoot = try await RemoteClientPairing.pairAndPersistHost(
                 remoteURL: pairingFields.remoteURL,
                 pairCode: pairingFields.pairCode,
                 deviceName: RemoteClientPairing.defaultDeviceName(),
                 expectedSPKIPin: pairingFields.spkiPin,
-                person: PairingPerson(username: personName, password: personPassword)
-            )
-            try await RemoteClientPairing.probeRemoteHealth(at: result.apiRoot, expectedSPKIPin: pairingFields.spkiPin)
-            // A refused Keychain save revokes the device on the host and says so (`sharing.failed-save-spends-nothing`).
-            try await RemoteClientPairing.storeTokenOrRevoke(result, expectedSPKIPin: pairingFields.spkiPin)
-            try RemoteClientPairing.persistPairedHost(
-                result,
-                expectedSPKIPin: pairingFields.spkiPin,
-                libraryPath: pairingFields.libraryPath
+                libraryPath: pairingFields.libraryPath,
+                person: PairingPerson(username: personName, password: personPassword),
+                altURLs: pairingFields.altURLs
             )
             // The one procedure that changes the engine host (stop, write, repoint, start, check, roll back) is shared
             // with Settings › Engine › Advanced › Apply (#5916).
             try await engineHostSwitch().run(
-                from: previousHost, to: result.apiRoot.absoluteString,
+                from: previousHost, to: apiRoot.absoluteString,
                 notResponding: "Paired successfully, but the verified remote host is not responding now.",
                 onFailure: { _ in
-                    RemoteClientPairing.rollbackFailedHostSwitch(previousHost: previousHost, attemptedHost: result.apiRoot)
+                    RemoteClientPairing.rollbackFailedHostSwitch(previousHost: previousHost, attemptedHost: apiRoot)
                 })
         } catch {
             if error as? RemoteClientPairingError == .personRequired { needsPerson = true }
