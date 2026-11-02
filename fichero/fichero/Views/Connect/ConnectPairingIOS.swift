@@ -254,8 +254,10 @@ struct RemoteConnectionSetupView: View {
             errorMessage = error.localizedDescription
         }
     }
+}
 
-    private func handleCapturedImage(_ image: UIImage, source: CaptureSource) {
+private extension RemoteConnectionSetupView {
+    func handleCapturedImage(_ image: UIImage, source: CaptureSource) {
         pickerSource = nil
         let jpegData = image.jpegData(compressionQuality: 0.9)
         guard let data = jpegData ?? image.pngData() else {
@@ -275,7 +277,7 @@ struct RemoteConnectionSetupView: View {
         }
     }
 
-    private func handleScannedDocumentImages(_ images: [UIImage]) {
+    func handleScannedDocumentImages(_ images: [UIImage]) {
         #if canImport(VisionKit) && !os(visionOS)
         showingDocumentScanner = false
         #endif
@@ -300,9 +302,7 @@ struct RemoteConnectionSetupView: View {
             }
         }
     }
-}
 
-private extension RemoteConnectionSetupView {
     /// Manual fallback/debug path (#2350): pair from a pasted invite link or raw
     /// QR payload text. This is the ONLY pairing route on visionOS (no camera
     /// scanner) and the fallback on iPhone/iPad when the camera is unavailable.

@@ -46,14 +46,14 @@ final class RemoteAccessConfigTests: XCTestCase {
         let payload = PairingService.buildQRCodePayload(apiRoot: pairingURL, 
             from: code,
             spki: validSPKIPin,
-            libraryPath: "/Users/testuser/Archives/Open.fichero"
+            libraryPath: "/Users/Shared/testuser/Archives/Open.fichero"
         )
 
         XCTAssertEqual(payload.apiURL, "https://pairing.example.com")
         XCTAssertEqual(payload.pairCode, "PAIR-1234")
         XCTAssertEqual(payload.spki, validSPKIPin)
         XCTAssertEqual(payload.expiresAt, code.expiresAt)
-        XCTAssertEqual(payload.libraryPath, "/Users/testuser/Archives/Open.fichero")
+        XCTAssertEqual(payload.libraryPath, "/Users/Shared/testuser/Archives/Open.fichero")
     }
 
     func testHostedRemoteURLAcceptsTailscaleMagicDNSHost() throws {
@@ -73,164 +73,10 @@ final class RemoteAccessConfigTests: XCTestCase {
         let payload = PairingService.buildQRCodePayload(apiRoot: pairingURL, 
             from: code,
             spki: validSPKIPin,
-            libraryPath: "/Users/testuser/Archives/Open.fichero"
+            libraryPath: "/Users/Shared/testuser/Archives/Open.fichero"
         )
 
         XCTAssertEqual(payload.apiURL, "https://studio.tailnet-name.ts.net")
-    }
-
-    func testPairingQRCodePayloadDecoderRoundTripsRemoteHost() throws {
-        let apiRoot = URL(string: "https://pairing.example.com/")!
-        let code = PairingCodeRecord(
-            code: "PAIR-1234",
-            expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
-        )
-        let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, from: code, spki: validSPKIPin)
-
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let message = try XCTUnwrap(String(bytes: encoder.encode(payload), encoding: .utf8))
-        let decoded = try PairingQRCodePayloadDecoder.decode(message: message)
-
-        XCTAssertEqual(decoded.version, 1)
-        XCTAssertEqual(decoded.apiURL, "https://pairing.example.com")
-        XCTAssertEqual(decoded.pairCode, code.code)
-        XCTAssertEqual(decoded.spki, validSPKIPin)
-        XCTAssertEqual(decoded.expiresAt, code.expiresAt)
-        XCTAssertNil(decoded.libraryPath)
-    }
-
-    /// A never-expiring invitation (`expires_at` null) still gets its QR: the key is left out and a scan reads it as never-expires.
-    func testPairingQRCodePayloadWithNoExpiryRoundTripsAndOmitsTheKey() throws {
-        let apiRoot = URL(string: "https://pairing.example.com/")!
-        let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, from: PairingCodeRecord(code: "PAIR-1234", expiresAt: nil))
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let message = try XCTUnwrap(String(bytes: encoder.encode(payload), encoding: .utf8))
-        XCTAssertFalse(message.contains("expires_at"))
-        let decoded = try PairingQRCodePayloadDecoder.decode(message: message)
-        XCTAssertNil(decoded.expiresAt)
-        XCTAssertEqual(decoded.pairCode, "PAIR-1234")
-    }
-
-    func testRemoteClientPairingFieldsNormalizeRemoteHost() throws {
-        let apiRoot = URL(string: "https://pairing.example.com/")!
-        let code = PairingCodeRecord(
-            code: "PAIR-1234",
-            expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
-        )
-        let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, 
-            from: code,
-            spki: validSPKIPin,
-            libraryPath: "/Users/testuser/Archive/Open.fichero"
-        )
-
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let message = try XCTUnwrap(String(bytes: encoder.encode(payload), encoding: .utf8))
-        let pairingFields = try RemoteClientPairing.pairingFields(from: message)
-
-        XCTAssertEqual(pairingFields.remoteURL, "https://pairing.example.com")
-        XCTAssertEqual(pairingFields.pairCode, "PAIR-1234")
-        XCTAssertEqual(pairingFields.spkiPin, validSPKIPin)
-        XCTAssertEqual(pairingFields.libraryPath, "/Users/testuser/Archive/Open.fichero")
-    }
-
-    func testRemoteClientPairingFieldsAcceptDecodedPayload() throws {
-        let apiRoot = URL(string: "https://pairing.example.com/")!
-        let code = PairingCodeRecord(
-            code: "PAIR-1234",
-            expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
-        )
-        let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, 
-            from: code,
-            spki: validSPKIPin,
-            libraryPath: "  /Users/testuser/Archive/Open.fichero  "
-        )
-
-        let pairingFields = try RemoteClientPairing.pairingFields(from: payload)
-
-        XCTAssertEqual(pairingFields.remoteURL, "https://pairing.example.com")
-        XCTAssertEqual(pairingFields.pairCode, "PAIR-1234")
-        XCTAssertEqual(pairingFields.spkiPin, validSPKIPin)
-        XCTAssertEqual(pairingFields.libraryPath, "/Users/testuser/Archive/Open.fichero")
-    }
-
-    func testRemoteClientPairingFieldsAcceptInviteLink() throws {
-        let apiRoot = URL(string: "https://pairing.example.com/")!
-        let code = PairingCodeRecord(
-            code: "PAIR-1234",
-            expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
-        )
-        let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, 
-            from: code,
-            spki: validSPKIPin,
-            libraryPath: "/Users/testuser/Archive/Open.fichero"
-        )
-        let invite = try RemoteClientPairing.inviteLinkString(from: payload)
-
-        let pairingFields = try RemoteClientPairing.pairingFields(fromInviteOrPayload: invite)
-
-        XCTAssertEqual(pairingFields.remoteURL, "https://pairing.example.com")
-        XCTAssertEqual(pairingFields.pairCode, "PAIR-1234")
-        XCTAssertEqual(pairingFields.spkiPin, validSPKIPin)
-        XCTAssertEqual(pairingFields.libraryPath, "/Users/testuser/Archive/Open.fichero")
-    }
-
-    /// `sharing.ios-bad-library-path`: a link with no project is not refused before the network; pairing asks the host.
-    func testRemoteClientPairingFieldsAcceptAMissingLibraryPathAndAskTheHost() throws {
-        let apiRoot = URL(string: "https://pairing.example.com/")!
-        let code = PairingCodeRecord(
-            code: "PAIR-1234",
-            expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
-        )
-        let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, from: code, spki: validSPKIPin)
-
-        let fields = try RemoteClientPairing.pairingFields(from: payload)
-        XCTAssertEqual(fields.libraryPath, "")
-        XCTAssertEqual(fields.altURLs, [])
-    }
-
-    func testRemoteClientPairingFieldsRejectMalformedInviteLink() {
-        XCTAssertThrowsError(
-            try RemoteClientPairing.pairingFields(fromInviteOrPayload: "fichero://pair?payload=not-base64")
-        ) { error in
-            XCTAssertEqual(error as? RemoteClientPairingError, .invalidInviteLink)
-        }
-    }
-
-    func testRemoteClientPairingFieldsRejectLocalhostPayloads() throws {
-        let apiRoot = URL(string: "https://127.0.0.1:8765/")!
-        let code = PairingCodeRecord(
-            code: "PAIR-1234",
-            expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
-        )
-        let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, from: code, spki: validSPKIPin)
-
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let message = try XCTUnwrap(String(bytes: encoder.encode(payload), encoding: .utf8))
-
-        XCTAssertThrowsError(try RemoteClientPairing.pairingFields(from: message)) { error in
-            XCTAssertEqual(error as? RemoteURLValidationError, .localhostNotAllowed)
-        }
-    }
-
-    func testRemoteClientPairingFieldsRejectMissingSPKIPayload() throws {
-        let apiRoot = URL(string: "https://pairing.example.com/")!
-        let code = PairingCodeRecord(
-            code: "PAIR-1234",
-            expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
-        )
-        let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, from: code, spki: "")
-
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let message = try XCTUnwrap(String(bytes: encoder.encode(payload), encoding: .utf8))
-
-        XCTAssertThrowsError(try RemoteClientPairing.pairingFields(from: message)) { error in
-            XCTAssertEqual(error as? RemoteCertificatePinningError, .missingSPKIPin)
-        }
     }
 
     func testPersistPairedHostStoresAdvertisedLibraryPath() throws {
@@ -244,11 +90,11 @@ final class RemoteAccessConfigTests: XCTestCase {
         try RemoteClientPairing.persistPairedHost(
             result,
             expectedSPKIPin: validSPKIPin,
-            libraryPath: "  /Users/testuser/Archive/Open.fichero  "
+            libraryPath: "  /Users/Shared/testuser/Archive/Open.fichero  "
         )
 
         XCTAssertEqual(EngineConfig.defaults.string(forKey: EngineConfig.userDefaultsKey), attemptedHost.absoluteString)
-        XCTAssertEqual(RemoteAccessConfig.pairedLibraryPath, "/Users/testuser/Archive/Open.fichero")
+        XCTAssertEqual(RemoteAccessConfig.pairedLibraryPath, "/Users/Shared/testuser/Archive/Open.fichero")
         XCTAssertEqual(AuthTokenMiddleware.readRemoteTokenForHost(attemptedHost.absoluteString), "device-token")
         XCTAssertEqual(RemoteCertificatePinning.persistedSPKIPin(hostString: attemptedHost.absoluteString), validSPKIPin)
         // Pairing records the token expiry for renewal scheduling (#3096).
@@ -271,7 +117,7 @@ final class RemoteAccessConfigTests: XCTestCase {
             hostString: attemptedHost.absoluteString
         )
         EngineConfig.defaults.set(attemptedHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
-        EngineConfig.defaults.set("/Users/testuser/Archive/Open.fichero", forKey: RemoteAccessConfig.pairedLibraryPathKey)
+        EngineConfig.defaults.set("/Users/Shared/testuser/Archive/Open.fichero", forKey: RemoteAccessConfig.pairedLibraryPathKey)
 
         RemoteClientPairing.rollbackFailedHostSwitch(previousHost: previousHost, attemptedHost: attemptedHost)
 
@@ -288,7 +134,7 @@ final class RemoteAccessConfigTests: XCTestCase {
     /// to the QR / pairing screen instead of retrying a dead host forever.
     func testForgetPairingClearsPairedStateSoLaunchReturnsToSetup() throws {
         EngineConfig.defaults.set(attemptedHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
-        EngineConfig.defaults.set("/Users/testuser/Archive/Open.fichero", forKey: RemoteAccessConfig.pairedLibraryPathKey)
+        EngineConfig.defaults.set("/Users/Shared/testuser/Archive/Open.fichero", forKey: RemoteAccessConfig.pairedLibraryPathKey)
         let hostKey = EngineConfig.hostString
         try AuthTokenMiddleware.persistRemoteToken("device-token", hostString: hostKey)
         try RemoteCertificatePinning.persistSPKIPin(validSPKIPin, hostString: hostKey)

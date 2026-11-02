@@ -6,6 +6,8 @@ from fichero_server.security import accounts
 from tests.signed_in import signed_in_client
 from tests.unit.security.test_sharing_probe_2026_10_01 import harness  # noqa: F401
 
+# ruff: noqa: F811  -- pytest fixtures are passed by name; the parameter shadows the imported fixture on purpose
+
 
 def _people(harness, monkeypatch):
     monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)  # the persisted setting decides
