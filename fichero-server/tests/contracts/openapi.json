@@ -77117,6 +77117,32 @@
             "nullable": true,
             "title": "Where",
             "description": "where it runs in words: 'on this Mac', 'on your own machine' or 'in the cloud'; null when unknown (`activity.summary.where-and-model`, #5960)"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/StageCount"
+            },
+            "type": "array",
+            "title": "Stages",
+            "description": "the run's stages in Set Up's order with their state and pages (`activity.summary.stage-counts`, #5960); empty for a workflow run outside a recipe"
+          },
+          "seconds_left": {
+            "type": "number",
+            "nullable": true,
+            "title": "Seconds Left",
+            "description": "the running stage's time left; null until it has done a page (#5960)"
+          },
+          "eta_basis": {
+            "type": "string",
+            "nullable": true,
+            "title": "Eta Basis",
+            "description": "what `seconds_left` rests on: \"this run's pace\" (`activity.summary.eta-basis`)"
+          },
+          "cost_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Usd",
+            "description": "the run's cloud calls in dollars so far, from its stages' usage; null when unpriced (`activity.summary.cost-so-far`)"
           }
         },
         "type": "object",
@@ -96783,6 +96809,47 @@
         ],
         "title": "SparqlResponseRow",
         "description": "One SPARQL result row. Bindings keyed by query variable name."
+      },
+      "StageCount": {
+        "properties": {
+          "stage": {
+            "type": "string",
+            "title": "Stage",
+            "description": "Set Up's stage id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "state": {
+            "type": "string",
+            "title": "State",
+            "description": "done, partial, running, waiting, skipped, failed or not run"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done",
+            "default": 0
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed",
+            "default": 0
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "stage",
+          "title",
+          "state"
+        ],
+        "title": "StageCount",
+        "description": "One Set Up stage of a live block (`activity.summary.stage-counts`, #5960), so the bar is drawn from the list read."
       },
       "StageEntries": {
         "properties": {

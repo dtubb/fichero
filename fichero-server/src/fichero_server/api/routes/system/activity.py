@@ -284,6 +284,17 @@ class QueuedItemListResponse(BaseModel):
     count: int
 
 
+class StageCount(BaseModel):
+    """One Set Up stage of a live block (`activity.summary.stage-counts`, #5960), so the bar is drawn from the list read."""
+
+    stage: str = Field(description="Set Up's stage id")
+    title: str
+    state: str = Field(description="done, partial, running, waiting, skipped, failed or not run")
+    done: int = 0
+    failed: int = 0
+    total: int = 0
+
+
 class LiveBlock(BaseModel):
     """What is working right now (`activity.window.live-block`, `activity.popover.same-summary`; #5839, #5851, #5852):
     the recipe, the stage it is in and the workflow that stage runs, with the pages done, failed and left."""
@@ -304,6 +315,13 @@ class LiveBlock(BaseModel):
     where: Optional[str] = Field(None, description=(
         "where it runs in words: 'on this Mac', 'on your own machine' or 'in the cloud'; null when unknown "
         "(`activity.summary.where-and-model`, #5960)"))
+    stages: list[StageCount] = Field(default_factory=list, description=(
+        "the run's stages in Set Up's order with their state and pages (`activity.summary.stage-counts`, #5960); empty for a workflow run "
+        "outside a recipe"))
+    seconds_left: Optional[float] = Field(None, description="the running stage's time left; null until it has done a page (#5960)")
+    eta_basis: Optional[str] = Field(None, description="what `seconds_left` rests on: \"this run's pace\" (`activity.summary.eta-basis`)")
+    cost_usd: Optional[float] = Field(None, description=(
+        "the run's cloud calls in dollars so far, from its stages' usage; null when unpriced (`activity.summary.cost-so-far`)"))
 
 
 class BackgroundLine(BaseModel):
@@ -366,9 +384,14 @@ def recipe_block(job: "BackgroundJob", status: dict[str, Any], workflow_name: Op
     steps = status.get("steps") or []
     running = next((st for st in steps if st.get("state") == "running"), None) \
         or next((st for st in steps if st.get("state") in ("waiting", "paused")), None)
+    from fichero_server.recipes import live_stages
+
+    seconds_left, eta_basis = live_stages.eta(status)
     account = (running or {}).get("account")
     waiting = status.get("reason") if status.get("state") == "waiting" else status.get("waiting_for")
     return LiveBlock(
+        stages=[StageCount(**row) for row in live_stages.stage_counts(status)], seconds_left=seconds_left, eta_basis=eta_basis,
+        cost_usd=live_stages.cost_so_far(status),
         id=job.id, recipe=job.name, stage=(running or {}).get("doing"), workflow=workflow_name, state=job.state,
         reason=waiting, done=account.pages_done if account else 0, failed=account.pages_failed if account else 0,
         left=account.pages_left if account else 0, total=account.pages_total if account else 0,
