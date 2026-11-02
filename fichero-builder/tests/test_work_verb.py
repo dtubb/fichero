@@ -12,6 +12,7 @@ from fichero_builder import __main__ as cli
 from fichero_builder import journal, work
 
 REAL_AS_WORKER = work.as_worker
+REAL_DO_LAND = work.do_land
 RULES = '[land]\nbranch = "integration"\n[check]\nengine_repo = "/engine"\n[models]\nproviders = ["claude-code"]\n' \
         'builder = { provider = "claude-code", model = "sonnet" }\nreviewer = { provider = "claude-code", model = "opus" }\n'
 HEAD = "c" * 40
@@ -357,3 +358,14 @@ def test_a_failed_rebase_is_a_question_before_patches(chain, monkeypatch, capsys
     assert [c[0] for c in chain.calls] == ["run"]
     assert "conflict in f" in capsys.readouterr().out
     assert [(r["step"], r["ok"]) for r in rows()][-1] == ("rebase", False)
+
+
+def test_a_land_log_the_gate_cannot_write_is_a_question_not_a_traceback(chain, monkeypatch, capsys):
+    """The chain runs the gate in-process now: an OSError from its log at the end of the ladder must stay a question."""
+    monkeypatch.setattr(work.land_tool, "gate", lambda *a: (_ for _ in ()).throw(PermissionError("parent dir must be owned")))
+    ok, why = REAL_DO_LAND(types.SimpleNamespace(pinned="/p"), "/r", HEAD, "/v", "/l")
+    assert not ok and "parent dir must be owned" in why
+    (journal.STATE).mkdir(parents=True, exist_ok=True)
+    (journal.STATE / "land-n1.log").mkdir()
+    assert chain() == 2 and "the land log" in capsys.readouterr().out, "before the worker runs, not after"
+    assert not any(r.get("step") == "run" for r in rows())

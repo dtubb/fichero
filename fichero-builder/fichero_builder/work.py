@@ -141,7 +141,10 @@ def do_review(a, repo: str, head: str, ladder: str, verdicts: str, model: str) -
 
 def do_land(a, repo: str, head: str, verdicts: str, log: str) -> tuple[bool, str]:
     """The check step just wrote the green row for this head: the verdict and the boundary, no second ladder (land_tool.gate)."""
-    return land_tool.gate(repo, head, a.pinned, verdicts, log)
+    try:
+        return land_tool.gate(repo, head, a.pinned, verdicts, log)
+    except OSError as e:  # in-process since the ladder stopped running twice: a bad log at the end of the work is a question, not a traceback
+        return False, f"REFUSED: {e}"
 
 
 def base_of(brief: str, given: str) -> str:
@@ -203,6 +206,9 @@ def main(a) -> int:
     state = Path(journal.STATE)
     state.mkdir(parents=True, exist_ok=True)
     ladder, verdicts, log = (str(state / f"{k}-{a.name}.{e}") for k, e in (("ladder", "json"), ("verdicts", "json"), ("land", "log")))
+    if problem := land_tool.log_problem(log):  # before the worker and the ladder, not after
+        step("rules", False, problem)
+        return question(f"the land log cannot be written: {problem}")
 
     try:
         end = do_run(a, builder)
