@@ -384,3 +384,19 @@ def test_a_dirty_spec_file_it_would_edit_refuses_before_the_push_and_nothing_els
     (world.tmp / "unrelated.txt").write_text("b\n")
     assert go() == 0
     assert "[OK]" in spec.read_text() and "dirty" in other.read_text()
+
+
+def test_a_fixes_line_naming_several_issues_closes_each_and_the_done_row_names_what_stayed_open(world, capsys):
+    """Owner ruling: nothing is silently left. A row, not a close: an issue a landed commit cites with no Fixes line is named."""
+    (world.seed / "m").write_text("6")
+    _g(world.seed, "add", "m"), _g(world.seed, "commit", "-qm", "feat: m\n\nFixes #20, #21\nCloses #22 (see #30)\nPart of #23, see #31")
+    head = _g(world.seed, "rev-parse", "HEAD")
+    _g(world.engine, "fetch", "-q", str(world.seed), "+refs/heads/lane:refs/heads/work-n1")
+    land_tool.write_verdict(world.store, world.engine, "integration", head)
+    journal.append("check", head=head, since=_g(world.engine, "rev-parse", "integration"), ok=True)
+    assert cli.main(["landed", head, "--root", str(world.tmp), "--verdicts", str(world.store), "--gh", str(world.tmp / "gh"),
+                     "--state", str(world.tmp / "s"), "--push"]) == 0
+    closed = [c.split()[2] for c in world.gh_log.read_text().splitlines() if c.startswith("issue close")]
+    assert closed == ["7", "20", "21", "22"]
+    assert rows()[-1]["left_open"] == [23, 6116], "#7 has its Fixes line in the first commit; an issue only mentioned in prose is not cited"
+    assert "left open: #23, #6116" in capsys.readouterr().out

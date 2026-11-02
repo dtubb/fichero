@@ -353,12 +353,13 @@ the write path would produce.
   needs-your-test; a behaviour id on a `Behaviour: <id>` trailer line of a commit (an id the message only mentions does not count) gets its spec line's open tag set to [OK] with the commit's
   test files named when the line names none (a `spec-ok` row each; the owner commits the spec edit with the next batch; a spec
   file it would edit that has uncommitted changes refuses before the push);
-  `--no-issues` skips both. Every step is a journal row (event `landed`); a red step stops the rest with exit 1.
+  `--no-issues` skips both. A `Fixes` or `Closes` line may name several issues. The `done` row's `left_open` names every cited issue with no
+  such line, and the verb prints it: a row, not a close. Every step is a journal row (event `landed`); a red step stops the rest with exit 1.
   **Built** 2026-11-01: `fichero_builder/landed.py`. Tests:
   `fichero-builder/tests/test_landed_verb.py::test_the_happy_path_without_push_pins_and_refreshes_but_leaves_origin_alone`,
   `::test_refuses_a_sha_that_is_not_a_fast_forward_of_origin`, `::test_the_cited_issues_are_closed_or_commented_through_gh`,
   `::test_a_range_over_the_boundary_is_not_pushed`, `::test_a_journal_landed_does_not_own_or_others_can_write_refuses_before_anything`,
-  `::test_a_green_row_counts_only_for_the_range_being_landed`, `::test_issues_are_untouched_until_the_sha_is_on_origin`, `::test_the_spec_behaviour_line_a_landed_commit_names_gets_ok_with_the_test`, `::test_a_dirty_spec_file_it_would_edit_refuses_before_the_push_and_nothing_else_does`. Not yet: a run with the real jail user and the real `gh`; both are faked in every test.
+  `::test_a_green_row_counts_only_for_the_range_being_landed`, `::test_issues_are_untouched_until_the_sha_is_on_origin`, `::test_the_spec_behaviour_line_a_landed_commit_names_gets_ok_with_the_test`, `::test_a_dirty_spec_file_it_would_edit_refuses_before_the_push_and_nothing_else_does`, `::test_a_fixes_line_naming_several_issues_closes_each_and_the_done_row_names_what_stayed_open`. Not yet: a run with the real jail user and the real `gh`; both are faked in every test.
 - `dev-workflows.tool.watch` [OK] (#6116; owner 2026-11-01) — `builder watch [--port 8765] [--state DIR] [--root DIR]` is a live progress
   page: a stdlib `http.server` bound to 127.0.0.1 serving one HTML page (no JavaScript; a 5 s meta refresh) read from the
   owner's journal and the worker's under `[jail].workroot/state` (from that file, which the worker can write, only its run rows, and a line that does not parse is skipped; test `fichero-builder/tests/test_watch.py::test_a_worker_cannot_put_a_check_or_a_landing_on_the_owners_page_and_a_bad_line_is_skipped`), newest first: one table per kind and nothing else: each run (name, worktree, model, started, turns, cost USD,
@@ -406,7 +407,8 @@ the write path would produce.
   red check (each red guard named, test `fichero-builder/tests/test_work_verb.py::test_a_red_guard_is_named_in_what_goes_back_to_the_worker`), a NOT READY review or a refused land goes back into the same session as a fix brief with the findings, two
   rounds, then blocked with `<state>/question-<lane>-<step>.txt`; a DONE with no commit, a refused landing or a chain error
   blocks at once. A new session only at the worker's own 85 % handoff or when it is gone (three times on a step blocks); a
-  parked worker blocks. Pause = idle with nothing sent; resume = send the next brief, and clears a block. At most
+  parked worker blocks. After a landing the queue reads each of the step's issues from GitHub; one still open is an `issue-open` row and
+  stays on the step's line, and the lane goes on: only `builder landed` closes. Pause = idle with nothing sent; resume = send the next brief, and clears a block. At most
   `[queue].workers` lanes at a time; every transition is a journal row (event `queue`); `builder watch` shows the steps.
   **Built** 2026-11-01 against fake processes: `fichero_builder/queue.py`. Not yet: a run on the real jail user. Tests:
   `fichero-builder/tests/test_queue_verb.py::test_a_two_step_lane_lands_the_first_then_sends_the_second_into_the_same_session_and_stops_at_the_end`,
@@ -414,6 +416,7 @@ the write path would produce.
   `::test_two_fix_rounds_then_blocked_with_the_row_file_and_the_cursor_stays`,
   `::test_a_gone_worker_gets_a_new_session_on_the_same_step_and_a_parked_one_blocks`,
   `::test_pause_leaves_the_worker_idle_with_nothing_sent_and_resume_sends_the_next_brief`,
+  `::test_an_issue_of_a_landed_step_that_stayed_open_is_a_row_and_on_the_step_never_a_close`,
   `fichero-builder/tests/test_dry_run.py::test_feed_mode_keeps_the_session_and_types_the_next_brief_into_the_same_pane`,
   `fichero-builder/tests/test_milestone_verb.py::test_enqueue_puts_each_step_brief_in_the_milestones_lane_in_build_order`.
 - `dev-workflows.run.code-map` [OK] (#6340; owner 2026-11-01) — jail workers find code with jcodemunch instead of reading the

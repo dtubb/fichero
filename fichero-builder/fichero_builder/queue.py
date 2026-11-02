@@ -97,6 +97,19 @@ class Procs:
     end_of: Callable[[dict], str]                   # lane -> how its worker process ended
     stop: Callable[[dict], None]                    # end the lane's session
     sleep: Callable[[float], None] = time.sleep
+    still_open: Callable[[dict, dict], list] = lambda lane, step: []  # (lane, step) -> issues of a landed step not closed, as "#N"
+
+
+def open_of(issues: list[int], gh: str = "gh") -> list[str]:
+    """The issues GitHub does not say are closed; one it cannot read counts, and says so."""
+    out = []
+    for n in issues:
+        r = subprocess.run([gh, "issue", "view", str(n), "--json", "state", "--jq", ".state"], capture_output=True, text=True, timeout=60)
+        if r.returncode:
+            out.append(f"#{n} (could not read)")
+        elif r.stdout.strip().upper() != "CLOSED":
+            out.append(f"#{n}")
+    return out
 
 
 def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: bool, out) -> bool:
@@ -171,7 +184,10 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         rc, output = procs.landed(lane, r["head"], push)
         if rc:
             return block(s, output)
-        move(s, "landed", f"landed {r['head'][:9]}" + (" (pushed)" if push else " (not pushed)"))
+        left = procs.still_open(lane, s)  # a row, not a close: only `builder landed` closes, on a Fixes line (owner ruling)
+        move(s, "landed", f"landed {r['head'][:9]}" + (" (pushed)" if push else " (not pushed)") + (f"; still open: {', '.join(left)}" if left else ""))
+        if left:
+            journal.append("queue", lane=lane["id"], step=s["step"], state="issue-open", detail=", ".join(left))
         lane["cursor"] += 1
         store(lane)
         return True
@@ -267,7 +283,7 @@ def real_procs(root) -> Procs:
             (Path(lane["feed"]) / "stop").write_text("")
 
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
-                 landed=landed, end_of=end_of, stop=stop)
+                 landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"]))
 
 
 def main(a) -> int:
