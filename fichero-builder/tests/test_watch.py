@@ -87,3 +87,12 @@ def test_a_worker_cannot_put_a_check_or_a_landing_on_the_owners_page_and_a_bad_l
     rows = watch.rows_of(tmp_path)
     assert [r["event"] for r in rows] == ["worker", "cost"]
     assert "fffffffff" not in watch.render(rows)
+
+
+def test_each_run_shows_turns_and_tokens_before_its_first_commit_live_and_after_it_ends():
+    rows = [{"ts": "t", "event": "worker", "task": "a", "model": "m", "worktree": "/w", "generation": 1},
+            {"ts": "t", "event": "reading", "task": "a", "generation": 1, "turns_before_first_commit": 137, "tokens_before_first_commit": 9700000},
+            {"ts": "t", "event": "worker", "task": "b", "model": "m", "worktree": "/w", "generation": 1}]
+    html = watch.render(rows)
+    assert "before first commit" in html and ">137<" in html and ">9700000<" in html
+    assert html.index(">running<") < html.index(">137<"), "b has none yet, newest first"

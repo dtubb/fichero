@@ -19,7 +19,7 @@ REFRESH_S = 5
 ROOT = Path.cwd()  # ponytail: set once by main; one page, one rules file
 
 
-WORKER_ROWS = ("worker", "cost")  # what `builder run` writes to the shared state; everything else there is the worker's word
+WORKER_ROWS = ("worker", "cost", "reading")  # what `builder run` writes to the shared state; everything else there is the worker's word
 
 
 def rows_of(root) -> list[dict]:
@@ -46,14 +46,16 @@ def _runs(rows: list[dict]) -> list[list]:
     for r in rows:
         if r.get("event") == "worker":
             out.setdefault(r.get("task"), {"name": r.get("task"), "started": r.get("ts", ""), "model": r.get("model", ""),
-                                           "worktree": r.get("worktree", ""), "turns": 0, "usd": 0.0, "status": "running"})
+                                           "worktree": r.get("worktree", ""), "turns": 0, "usd": 0.0, "status": "running", "read_turns": "-", "read_tokens": "-"})
             out[r.get("task")]["status"] = "running"  # the next generation after a handoff
+        elif r.get("event") == "reading" and r.get("task") in out and out[r["task"]]["read_turns"] == "-":  # the first generation's: what the run read to start
+            out[r["task"]].update(read_turns=r.get("turns_before_first_commit"), read_tokens=r.get("tokens_before_first_commit"))
         elif r.get("event") == "cost" and r.get("task") in out:
             run = out[r["task"]]
             run["usd"] = round(run["usd"] + float(r.get("usd") or 0), 4)
             run["turns"] = r.get("turns", run["turns"])
             run["status"] = r.get("end") or run["status"]
-    return [[v["name"], v["worktree"], v["model"], v["started"], v["turns"], f"{v['usd']:.2f}", v["status"]] for v in reversed(list(out.values()))]
+    return [[v["name"], v["worktree"], v["model"], v["started"], v["turns"], f"{v['usd']:.2f}", v["read_turns"], v["read_tokens"], v["status"]] for v in reversed(list(out.values()))]
 
 
 def _checks(rows: list[dict]) -> list[list]:
@@ -82,7 +84,7 @@ def _table(title: str, heads: list[str], body: list[list]) -> str:
 def render(rows: list[dict]) -> str:
     return (f'<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="{REFRESH_S}"><title>builder watch</title>'
             "<style>body{font:14px system-ui;margin:16px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:2px 8px;text-align:left}</style>"
-            + _table("Runs", ["name", "worktree", "model", "started", "turns", "USD", "status"], _runs(rows))
+            + _table("Runs", ["name", "worktree", "model", "started", "turns", "USD", "turns before first commit", "tokens before first commit", "status"], _runs(rows))
             + _table("Checks", ["at", "range", "result", "failed rung"], _checks(rows))
             + _table("Lands", ["at", "tip", "last step", "branch", "pushed"], _lands(rows))
             + _table("Queue", ["lane", "step", "state", "issues", "head", "why"], _queue()))

@@ -422,9 +422,13 @@ the write path would produce.
   or a failed copy or index means a worker that greps, never a refusal. `[brief].rules` tells the worker to use the tools.
   Built and run 2026-11-01 as the real worker user: a full index of the repo took about two minutes and the server answered over
   MCP. Limit: the server names every worktree of a repo the same, so two lanes at once would share one index.
+  **Reading metric**: a run's first tick with the worktree's HEAD moved writes a `reading` row (turns and tokens before the
+  first commit, per generation), the cost row repeats them (none when nothing was committed) and `builder watch` shows them per run.
   Tests: `fichero-builder/tests/test_codemap.py::test_provide_copies_the_install_and_the_wrapper_runs_it_past_the_owner_only_shebang`,
   `::test_prepare_registers_only_the_copied_server_and_keeps_the_strict_config`,
-  `::test_the_worker_side_command_indexes_the_worktree_first_and_a_failed_index_does_not_stop_it`.
+  `::test_the_worker_side_command_indexes_the_worktree_first_and_a_failed_index_does_not_stop_it`,
+  `fichero-builder/tests/test_dry_run.py::test_a_run_records_what_it_read_before_its_first_commit`,
+  `fichero-builder/tests/test_watch.py::test_each_run_shows_turns_and_tokens_before_its_first_commit_live_and_after_it_ends`.
 - `dev-workflows.builder.cluster` [PARTIAL] (#6116) — one spec and its build-order issues (parser ported from
   `pipeline/plan.py`), in order, one commit per issue with its test; the brief is built by `scripts/harness_brief.py` from
   `gh api repos/{repo}/issues/N`: the body and the **title** only when the author association is owner, member or
@@ -517,6 +521,8 @@ the write path would produce.
   `launchd` job only keeps the watcher itself alive. Built 2026-11-01: the judgement (`fichero_builder/watcher.py`: caps from
   `[spend]`, a missing cap or an unknown price refuses, decisions park, handoff, alert from a session state). Not yet: the
   process that starts, reads and acts. Test: `fichero-builder/tests/test_watcher.py`.
+  The caps in `harness.toml [spend]` are owner settings (8 USD a session, 60 USD a day as of 2026-11-01 evening). Not yet decided: a
+  Sonnet worker on the 1M context variant (`[1m]` on the model name, `window = 1000000`, handoff at 0.85) where the login allows it.
 - `dev-workflows.run.records-are-truth` [PROPOSED] (maintainer 2026-10-31; owner 2026-11-01: no engine) — for a worker the
   truth is its **journal** (JSON lines, one file per cluster under the Builder's state directory; `$FICHERO_HARNESS_LOG` in
   Slice 0), plus git plus the handoff file; the run log (one row per item attempt: model, provider, context cap, tokens,

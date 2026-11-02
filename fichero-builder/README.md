@@ -41,7 +41,7 @@ issues. `scripts/harness_land.py` stays the hand-run ladder path.
 
 ## Journal rows (event → meaning)
 
-`worker` a generation started · `cost` a generation ended (end: done, done-unsaid, lane-done, handoff, parked, gone) · `step` a lane's step ended (seq, sha, moved) · `watch` a
+`worker` a generation started · `cost` a generation ended (end: done, done-unsaid, lane-done, handoff, parked, gone) · `step` a lane's step ended (seq, sha, moved) · `reading` turns and tokens before a run's first commit · `watch` a
 decision (nudge, park, alert, handoff, false done) · `work` one chain step · `check` a ladder result · `landed` one
 landing step (verdict … issues, specs, done) · `queue` a transition · `triage` one metadata change (dry rows marked) ·
 `steps` / `spec` a filed issue or brief.
