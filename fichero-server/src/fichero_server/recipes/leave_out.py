@@ -7,6 +7,7 @@ Inspector (`segment.update`, `is_furniture` false). A line is left out when it i
 * too small to be useful: far thinner than the page's median line, or a speck (`too small`),
 * off the page: its centre is outside the page's box, e.g. the black scanner bed (`off the page`); on a ruler or a colour
   card page-crop found beside the paper, `ruler` / `colour card` (`page_furniture` metadata) instead,
+* on a show-through-only verso (document metadata `show_through_only` true): every line, `show-through-only verso`,
 * damaged or bleed-through: Kraken's shape confidence is very low AND the ink contrast under it is low
   (`likely bleed-through`).
 
@@ -26,6 +27,8 @@ OFF_THE_PAGE = "off the page"
 BLEED = "likely bleed-through"
 RULER = "ruler"
 COLOUR_CARD = "colour card"
+SHOW_THROUGH = "show-through"
+SHOW_THROUGH_ONLY_VERSO = "show-through-only verso"
 #: Page-crop's names for the furniture it left out (`page_furniture` metadata), and the reason each gives a line on it.
 FURNITURE_REASONS = {"ruler": RULER, "colour card": COLOUR_CARD}
 #: A line whose thinner side is under this share of the page's median line is too small to be a line of writing.
@@ -103,7 +106,6 @@ def leave_out_pages(db: Any, documents: list[str], run_id: str,
     from fichero_server.models import Document, Segment
     from fichero_server.recipes.done import judged_key, page_finished
     from fichero_server.models.knowledge import ProvenanceKind
-    from fichero_server.workflows.tools.sources import _resolve_abs_path
 
     library = Path(db.path).parent
     account: dict[str, Any] = {"pages": 0, "left_out": 0, "why": {}, "refused": 0}
@@ -118,14 +120,16 @@ def leave_out_pages(db: Any, documents: list[str], run_id: str,
         doc = db.get(Document, doc_id)
         page_box = ((doc.metadata or {}).get("page_box") if doc is not None else None)
         furniture = (doc.metadata or {}).get("page_furniture") if doc is not None else None
+        verso_only = bool(doc is not None and (doc.metadata or {}).get("show_through_only"))
         # The rules judge every line (the median is the page's own); only a machine's, still-kept line can be marked.
         lines = [{"id": r.id, "x": r.bbox_x, "y": r.bbox_y, "w": r.bbox_w, "h": r.bbox_h, "confidence": r.confidence}
                  for r in rows if not r.is_furniture]
         # The page's image is opened only when the bleed rule has a line it could judge.
         unsure = any(ln["confidence"] is not None and ln["confidence"] < LOW_CONFIDENCE for ln in lines)
-        image = _open_image(_resolve_abs_path(doc, str(library))) if unsure and doc is not None else None
+        image = _open_image(_contrast_path(db, doc, str(library))) if unsure and not verso_only and doc is not None else None
         contrast = (lambda ln: _ink_contrast(image, ln)) if image is not None else None
-        verdicts = decide(lines, page_box=page_box, furniture=furniture, contrast_of=contrast)
+        verdicts = ({ln["id"]: SHOW_THROUGH_ONLY_VERSO for ln in lines} if verso_only
+                    else decide(lines, page_box=page_box, furniture=furniture, contrast_of=contrast))
         updates: list[dict[str, Any]] = []
         whys: dict[str, int] = {}
         for row in rows:
@@ -150,6 +154,18 @@ def leave_out_pages(db: Any, documents: list[str], run_id: str,
         for why, n in whys.items():
             account["why"][why] = account["why"].get(why, 0) + n
     return account
+
+
+def _contrast_path(db: Any, doc: Any, library: str) -> str | None:
+    """The file the ink contrast is read from: the newest `enhanced` rendition in the document's own frame (no transform,
+    so a line's fractions land on the same ink), else the page's own image."""
+    from fichero_server.models import Rendition
+    from fichero_server.workflows.tools.sources import _resolve_abs_path
+
+    enhanced = [r for r in db.query(Rendition, document_id=doc.id) if r.role == "enhanced" and r.transform is None]
+    if enhanced:
+        return max(enhanced, key=lambda r: (r.created_at, r.id)).path
+    return _resolve_abs_path(doc, library)
 
 
 def _open_image(path: str | None) -> Any | None:
