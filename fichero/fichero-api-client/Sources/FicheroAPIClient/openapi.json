@@ -60490,6 +60490,12 @@
             "title": "Estimate Usd",
             "description": "this run's estimated cloud cost; null when a model has no listed price"
           },
+          "proposed_run_cap_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Proposed Run Cap Usd",
+            "description": "the run cap Start proposes for this run (`StartRequest.run_cap_usd`): the best estimate, to the cent, no margin; null when the estimate is unknown or nothing. Written only when the person confirms the typed figure"
+          },
           "over": {
             "type": "boolean",
             "title": "Over",

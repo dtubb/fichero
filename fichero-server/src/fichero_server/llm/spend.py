@@ -392,6 +392,8 @@ def plan_line(library: str, *, estimate_usd: float | None, cloud_models: list[tu
     over_month = known and estimate_usd > remaining + 1e-9
     over_project = known and project_remaining is not None and estimate_usd > project_remaining + 1e-9
     return {"note": note, "cap_usd": cap, "spent_usd": done, "remaining_usd": remaining, "estimate_usd": estimate_usd,
+            # The run cap Start proposes: the best estimate itself, no margin (maintainer's ruling 2026-10-30); written only on confirm.
+            "proposed_run_cap_usd": round(estimate_usd, 2) if known and estimate_usd > 0 else None,
             "over": over_month or over_project, "unpriced": estimate_usd is None,
             "over_month": over_month, "over_project": over_project,
             "needed_cap_usd": needed_cap_usd(done, estimate_usd) if over_month else None,

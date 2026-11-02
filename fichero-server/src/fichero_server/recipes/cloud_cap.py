@@ -52,6 +52,9 @@ class CloudCapLine(BaseModel):
     spent_usd: float = Field(description="what its cloud calls have cost this (UTC) month, assumed prices included")
     remaining_usd: float = Field(description="what the cap leaves this month")
     estimate_usd: Optional[float] = Field(default=None, description="this run's estimated cloud cost; null when a model has no listed price")
+    proposed_run_cap_usd: Optional[float] = Field(default=None, description=(
+        "the run cap Start proposes for this run (`StartRequest.run_cap_usd`): the best estimate, to the cent, no margin; null when the "
+        "estimate is unknown or nothing. Written only when the person confirms the typed figure"))
     over: bool = Field(description="the estimate is more than the cap leaves: Start asks first")
     over_month: bool = Field(default=False, description="the estimate is more than the monthly cap leaves")
     over_project: bool = Field(default=False, description="the estimate is more than the project's total cap leaves")
