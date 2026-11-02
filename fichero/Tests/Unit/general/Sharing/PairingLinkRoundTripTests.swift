@@ -4,7 +4,7 @@ import Foundation
 import Testing
 
 /// `sharing.ios-link-opened-from-messages` (Step 5.4): what the host's `inviteLinkString` writes, the phone reads back whole,
-/// in the `fichero://` form a tap from Messages opens and in the `https://fichero.app/pair` form a universal link would carry,
+/// in the `fichero://` form a tap from Messages opens and in the `https://tubb.ca/apps/fichero/pair` form a universal link would carry,
 /// and the link stays short enough for a message not to wrap or cut it.
 struct PairingLinkRoundTripTests {
     private let alts = ["https://m.local:8765", "https://192.0.2.10:8765"]
@@ -26,7 +26,7 @@ struct PairingLinkRoundTripTests {
     @Test func theUniversalLinkFormCarriesTheSamePayload() throws {
         let link = try RemoteClientPairing.inviteLinkString(from: payload())
         let query = try #require(link.components(separatedBy: "?").last)
-        let universal = "https://fichero.app/pair?\(query)"
+        let universal = "https://tubb.ca/apps/fichero/pair?\(query)"
         let fields = try RemoteClientPairing.pairingFields(fromInviteOrPayload: universal)
         #expect(fields.altURLs == alts && fields.pairCode == "ABCD-1234")
     }

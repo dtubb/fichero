@@ -168,7 +168,7 @@ private struct FicheroSharedPlatformRoot: View {
                 appState.sessionStore.beginInviteRedemption(token: token)
                 return
             }
-            // Accepts both fichero://pair and the https://fichero.app/pair
+            // Accepts both fichero://pair and the https://tubb.ca/apps/fichero/pair
             // universal link (#3791).
             guard RemoteClientPairing.isPairingInviteLink(url) else { return }
             pendingPairURL = IdentifiableURL(url: url)

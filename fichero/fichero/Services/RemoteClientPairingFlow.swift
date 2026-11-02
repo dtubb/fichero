@@ -25,7 +25,7 @@ private struct PairingInviteLink {
     }()
 }
 
-/// The universal-link form of a pairing invite (#3791): `https://fichero.app/pair?payload=…`.
+/// The universal-link form of a pairing invite (#3791): `https://tubb.ca/apps/fichero/pair?payload=…` (moved from fichero.app, owner ruling 2026-11-02).
 /// Same `payload` query as the custom-scheme link — the domain is only a name
 /// the app claims via Associated Domains so a tapped link resolves even where the
 /// `fichero://` scheme isn't registered (e.g. Mail on a colleague's device). The
@@ -33,8 +33,8 @@ private struct PairingInviteLink {
 /// against the domain.
 private struct PairingUniversalLink {
     static let scheme = "https"
-    static let host = "fichero.app"
-    static let path = "/pair"
+    static let host = "tubb.ca"
+    static let path = "/apps/fichero/pair"
 }
 
 enum RemoteClientPairing {
@@ -169,7 +169,7 @@ enum RemoteClientPairing {
     }
 
     /// Whether `url` is a pairing invite in EITHER form — the custom
-    /// `fichero://pair` scheme or the `https://fichero.app/pair` universal link
+    /// `fichero://pair` scheme or the `https://tubb.ca/apps/fichero/pair` universal link
     /// (#3791). The app's `onOpenURL` handlers route on this so both forms reach
     /// the same pairing flow. Public within the target so `FicheroApp` can call it.
     static func isPairingInviteLink(_ url: URL) -> Bool {
