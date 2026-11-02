@@ -339,16 +339,21 @@ the write path would produce.
   an unpushed sha pins, removes and closes nothing and a `--push` rerun pushes (test `fichero-builder/tests/test_landed_verb.py::test_without_push_an_unpushed_sha_is_refused_before_anything_moves_and_a_push_rerun_finishes`); then it refreshes the engine
   repo's local branch, makes the `pinned-<sha7>` branch and worktree under `[land].pinned_dir` (absolute, else refused
   before anything moves) and removes the previous pinned pair, fast-forwards the jail root as the jail user, removes the
-  scratch worktrees the journal's work rows name for that sha, and updates the cited issues through `gh` (`Fixes`/`Closes
-  #N` closes with "landed on <branch> at <sha7>", `Part of #N` comments the same and stays open, `Already built: #N
-  <test>` comments the test and labels needs-your-test; `--no-issues` skips). Every step is a journal row (event
-  `landed`); a red step stops the rest with exit 1. **Built** 2026-11-01: `fichero_builder/landed.py`. Tests:
+  scratch worktrees the journal's work rows name for that sha, and, only once the sha is on `origin/<branch>` (a hand
+  push counts; otherwise the row says "issues untouched" and nothing is written), updates the cited issues through `gh`:
+  one comment per issue per landing naming every citing commit (sha7, subject, the test files it touches); `Fixes`/`Closes
+  #N` closes with it, `Part of #N` stays open, `Already built: #N <test>` comments the proving test and labels
+  needs-your-test; a behaviour id a commit names in backticks gets its spec line's open tag set to [OK] with the commit's
+  test files named when the line names none (a `spec-ok` row each; the owner commits the spec edit with the next batch);
+  `--no-issues` skips both. Every step is a journal row (event `landed`); a red step stops the rest with exit 1.
+  **Built** 2026-11-01: `fichero_builder/landed.py`. Tests:
   `fichero-builder/tests/test_landed_verb.py::test_the_happy_path_without_push_pins_and_refreshes_but_leaves_origin_alone`,
   `::test_refuses_a_sha_that_is_not_a_fast_forward_of_origin`, `::test_the_cited_issues_are_closed_or_commented_through_gh`,
   `::test_a_range_over_the_boundary_is_not_pushed`, `::test_a_journal_landed_does_not_own_or_others_can_write_refuses_before_anything`,
   `::test_a_green_row_counts_only_for_the_range_being_landed`. Not yet: a run with the real jail user and the real `gh`; both are faked in every test.
 - `dev-workflows.tool.watch` [OK] (#6116; owner 2026-11-01) — `builder watch [--port 8765] [--state DIR]` is a live progress
 - `dev-workflows.tool.watch` [OK] (#6116; owner 2026-11-01) — `builder watch [--port 8765] [--state DIR] [--root DIR]` is a live progress
+- `dev-workflows.tool.watch` [OK] (#6116; owner 2026-11-01) — `builder watch [--port 8765] [--state DIR]` is a live progress
   page: a stdlib `http.server` bound to 127.0.0.1 serving one HTML page (no JavaScript; a 5 s meta refresh) read from the
   owner's journal and the worker's under `[jail].workroot/state`, newest first: one table per kind and nothing else: each run (name, worktree, model, started, turns, cost USD,
   status done/parked/handoff or running), each check (range, green/red, the failed rung), each landing (tip, last step,

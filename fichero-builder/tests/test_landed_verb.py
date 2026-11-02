@@ -179,9 +179,12 @@ def test_the_verdict_store_must_be_owned_and_private(world, capsys):
 
 
 def test_the_cited_issues_are_closed_or_commented_through_gh(world):
+    """issues.harness-closes-after-integration: one comment per cited issue naming each landed commit (sha, subject, its
+    tests); Fixes/Closes closes; Already built comments the proving test and labels needs-your-test."""
     world.ready(), world.green()
-    (world.seed / "j").write_text("4")
-    _g(world.seed, "add", "j"), _g(world.seed, "commit", "-qm", "docs: j\n\nAlready built: #9 tests/test_j.py::test_j\nPart of #6116")
+    (world.seed / "tests").mkdir()
+    (world.seed / "tests" / "test_j.py").write_text("def test_j(): pass\n")
+    _g(world.seed, "add", "tests"), _g(world.seed, "commit", "-qm", "docs: j\n\nAlready built: #9 tests/test_j.py::test_j\nPart of #6116")
     second = _g(world.seed, "rev-parse", "HEAD")
     _g(world.engine, "fetch", "-q", str(world.seed), "+refs/heads/lane:refs/heads/work-n1")
     land_tool.write_verdict(world.store, world.engine, "integration", second)
@@ -190,11 +193,47 @@ def test_the_cited_issues_are_closed_or_commented_through_gh(world):
                               "--state", str(world.tmp / "s"), "--push", *x])
     assert go() == 0
     calls = world.gh_log.read_text().splitlines()
-    assert calls[0] == f"issue close 7 --comment landed on integration at {second[:7]}"
-    assert f"issue comment 6116 --body landed on integration at {second[:7]}" in calls and calls.count(f"issue comment 6116 --body landed on integration at {second[:7]}") == 2
+    first = world.sha[:7]
+    assert calls[0] == f"issue close 7 --comment landed on integration at {second[:7]}: {first} feat: g (no test file)"
+    both = [c for c in calls if c.startswith("issue comment 6116 --body ")]
+    assert len(both) == 1, "one comment per issue per landing, every citing commit in it"
+    assert f"{first} feat: g (no test file)" in both[0] and f"{second[:7]} docs: j (tests/test_j.py)" in both[0]
     assert any(c.startswith("issue comment 9 --body already built; the test that proves it: tests/test_j.py::test_j") for c in calls)
     assert "issue edit 9 --add-label needs-your-test" in calls
     assert rows()[-1]["issues"] == [7, 9, 6116]
+
+
+def test_issues_are_untouched_until_the_sha_is_on_origin(world):
+    """Never before the commit is on origin/<branch>: without --push and without a hand push, the issues step is a row
+    that says so and gh is not called; the landing still completes."""
+    world.ready(), world.green()
+    assert world.go() == 0
+    assert not world.gh_log.exists()
+    assert "not on origin/integration" in next(r["detail"] for r in rows() if r["step"] == "issues")
+    assert rows()[-1]["step"] == "done"
+
+
+def test_the_spec_behaviour_line_a_landed_commit_names_gets_ok_with_the_test(world):
+    """A commit message that names a behaviour id in backticks marks that spec line [OK] and names the commit's test file
+    when the line names none; a line already [OK] is left alone; one `spec-ok` row per line changed."""
+    spec = world.tmp / "docs" / "contributor_manual" / "specs" / "h" / "x.md"
+    spec.parent.mkdir(parents=True)
+    spec.write_text("# X\n- `x.one` [GAP] (#7) — the thing\n  continues here.\n- `x.two` [OK] (#8) — done. Tests: `t.py`\n")
+    world.ready(), world.green()
+    (world.seed / "tests").mkdir()
+    (world.seed / "tests" / "test_one.py").write_text("def test_one(): pass\n")
+    _g(world.seed, "add", "tests"), _g(world.seed, "commit", "-qm", "feat: `x.one` and `x.two` built\n\nFixes #7")
+    second = _g(world.seed, "rev-parse", "HEAD")
+    _g(world.engine, "fetch", "-q", str(world.seed), "+refs/heads/lane:refs/heads/work-n1")
+    land_tool.write_verdict(world.store, world.engine, "integration", second)
+    journal.append("check", head=second, since=_g(world.engine, "rev-parse", "integration"), ok=True)
+    assert cli.main(["landed", second, "--root", str(world.tmp), "--verdicts", str(world.store), "--gh", str(world.tmp / "gh"),
+                     "--state", str(world.tmp / "s"), "--push"]) == 0
+    text = spec.read_text()
+    assert "- `x.one` [OK] (#7) — the thing Tests: `tests/test_one.py`\n  continues here.\n" in text
+    assert "- `x.two` [OK] (#8) — done. Tests: `t.py`\n" in text
+    ok = [r for r in rows() if r["step"] == "spec-ok"]
+    assert [(r["id"], r["tests"]) for r in ok] == [("x.one", ["tests/test_one.py"])]
 
 
 def test_no_issues_skips_gh_but_the_done_row_still_names_the_issues(world):

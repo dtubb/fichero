@@ -74,16 +74,29 @@ def worktrees_of(sha: str) -> list[str]:
 
 
 ISSUE_LINES = re.compile(r"^(Fixes|Closes|Part of|Already built):?\s*#(\d+)(.*)$", re.M | re.I)
+TEST_FILE = re.compile(r"(^|/)(test_[^/]*\.py|[^/]*_test\.py|[^/]*Tests?\.swift)$")
+BEHAVIOUR_ID = re.compile(r"`([a-z][a-z0-9-]*(?:\.[a-z0-9-]+)+)`")
+OPEN_TAGS = ("[GAP]", "[PARTIAL]", "[PROPOSED]")
+SPECS = Path("docs/contributor_manual/specs")
 
 
-def cited_issues(repo, base: str, sha: str) -> list[dict]:
-    """[{kind, number, rest}] from every commit message of base..sha, oldest first: `Fixes #N` / `Closes #N` close,
-    `Part of #N` comments, `Already built: #N <test>` comments with the proving test and labels."""
+def commits_of(repo, base: str, sha: str) -> list[dict]:
+    """[{sha, subject, message, tests}] of base..sha, oldest first; tests = the test files the commit touches."""
     out = []
     for c in _git(repo, "rev-list", "--reverse", f"{base}..{sha}").stdout.split():
         msg = _git(repo, "log", "-n1", "--format=%B", c).stdout
-        for m in ISSUE_LINES.finditer(msg):
-            out.append({"kind": m.group(1).lower(), "number": int(m.group(2)), "rest": m.group(3).strip()})
+        files = _git(repo, "show", "--name-only", "--format=", c).stdout.split()
+        out.append({"sha": c, "subject": msg.strip().split("\n", 1)[0], "message": msg, "tests": [f for f in files if TEST_FILE.search(f)]})
+    return out
+
+
+def cited_issues(repo, base: str, sha: str) -> list[dict]:
+    """[{kind, number, rest, commit}] from every commit message of base..sha, oldest first: `Fixes #N` / `Closes #N` close,
+    `Part of #N` comments, `Already built: #N <test>` comments with the proving test and labels."""
+    out = []
+    for c in commits_of(repo, base, sha):
+        for m in ISSUE_LINES.finditer(c["message"]):
+            out.append({"kind": m.group(1).lower(), "number": int(m.group(2)), "rest": m.group(3).strip(), "commit": c})
     return out
 
 
@@ -96,26 +109,66 @@ def _gh(gh: str, *args) -> None:
         raise Red(f"gh {' '.join(args[:2])}: {r.stderr.strip()[-300:]}")
 
 
+def _what(c: dict) -> str:
+    return f"{c['sha'][:7]} {c['subject']} ({', '.join(c['tests']) or 'no test file'})"
+
+
 def update_issues(gh: str, cited: list[dict], branch: str, sha: str) -> list[str]:
-    """One gh call per cited issue; the lines written (for the row). `Fixes`/`Closes` close with a comment (the land
-    branch is not the default branch, so GitHub does not), `Part of` comments, `Already built` comments with the test
-    and labels the issue needs-your-test."""
+    """One comment per cited issue per landing (sha, what landed, its tests; every citing commit in it): `Fixes`/`Closes`
+    close with it (the land branch is not the default branch, so GitHub does not), `Part of` comments, `Already built`
+    comments the proving test and labels the issue needs-your-test."""
     done = []
     note = f"landed on {branch} at {sha[:7]}"
+    by_issue: dict[int, list[dict]] = {}
     for c in cited:
-        n = str(c["number"])
-        if c["kind"] in ("fixes", "closes"):
-            _gh(gh, "issue", "close", n, "--comment", note)
+        by_issue.setdefault(c["number"], []).append(c)
+    for n, cs in by_issue.items():
+        kinds = {c["kind"] for c in cs}
+        body = f"{note}: " + "; ".join(_what(c["commit"]) for c in cs)
+        if kinds & {"fixes", "closes"}:
+            _gh(gh, "issue", "close", str(n), "--comment", body)
             done.append(f"#{n} closed: {note}")
-        elif c["kind"] == "part of":
-            _gh(gh, "issue", "comment", n, "--body", note)
-            done.append(f"#{n} comment: {note}")
-        else:
-            body = f"already built; the test that proves it: {c['rest'] or '(none named)'} ({note})"
-            _gh(gh, "issue", "comment", n, "--body", body)
-            _gh(gh, "issue", "edit", n, "--add-label", "needs-your-test")
+        elif kinds == {"already built"}:
+            tests = ", ".join(c["rest"] for c in cs if c["rest"]) or "(none named)"
+            _gh(gh, "issue", "comment", str(n), "--body", f"already built; the test that proves it: {tests} ({note})")
+            _gh(gh, "issue", "edit", str(n), "--add-label", "needs-your-test")
             done.append(f"#{n} already built, labelled needs-your-test")
+        else:
+            _gh(gh, "issue", "comment", str(n), "--body", body)
+            done.append(f"#{n} comment: {note}")
     return done
+
+
+def mark_specs_ok(root, commits: list[dict]) -> list[dict]:
+    """A behaviour id a landed commit names in backticks: its spec line's open tag becomes [OK], and the commit's test
+    files are named on the line when it names none. [{file, id, tests}] of the lines changed."""
+    wanted: dict[str, list[str]] = {}
+    for c in commits:
+        for bid in BEHAVIOUR_ID.findall(c["message"]):
+            wanted.setdefault(bid, []).extend(t for t in c["tests"] if t not in wanted.get(bid, []))
+    changed = []
+    if not wanted:
+        return changed
+    for p in sorted((Path(root) / SPECS).rglob("*.md")):
+        lines = p.read_text().split("\n")
+        hit = False
+        for k, ln in enumerate(lines):
+            m = re.match(r"^- `([^`]+)` (\[[A-Z]+\])", ln)
+            if not m or m.group(1) not in wanted or m.group(2) not in OPEN_TAGS:
+                continue
+            end = k + 1
+            while end < len(lines) and lines[end].startswith("  "):
+                end += 1
+            tests = wanted[m.group(1)]
+            ln = ln.replace(m.group(2), "[OK]", 1)
+            if tests and not re.search(r"\bTests?\b|test_", "\n".join(lines[k:end])):
+                ln += " Tests: " + ", ".join(f"`{t}`" for t in tests)
+            lines[k] = ln
+            hit = True
+            changed.append({"file": p.relative_to(root).as_posix(), "id": m.group(1), "tests": tests})
+        if hit:
+            p.write_text("\n".join(lines))
+    return changed
 
 
 def main(a) -> int:
@@ -216,7 +269,17 @@ def main(a) -> int:
         cited[:] = cited_issues(repo, base, sha)
         if a.no_issues:
             return "skipped (--no-issues)"
+        if _git(repo, "merge-base", "--is-ancestor", sha, f"refs/remotes/origin/{branch}").returncode:
+            return f"not on origin/{branch}: issues untouched (push first)"
         return "; ".join(update_issues(a.gh, cited, branch, sha)) or "no issue cited"
+
+    def specs():
+        if a.no_issues or _git(repo, "merge-base", "--is-ancestor", sha, f"refs/remotes/origin/{branch}").returncode:
+            return "untouched"
+        changed = mark_specs_ok(a.root, commits_of(repo, base, sha))
+        for ch in changed:
+            journal.append("landed", sha=sha, step="spec-ok", ok=True, **ch)
+        return "; ".join(f"{ch['file']}: `{ch['id']}` [OK]" for ch in changed) or "no behaviour line named"
 
     # a rerun after a red step past the refresh: the local branch has moved, so the range is empty and only the first run's base names it
     earlier = [r for r in journal.read() if r.get("event") == "landed" and r.get("sha") == sha]
@@ -224,7 +287,7 @@ def main(a) -> int:
     pushed = any(r.get("step") == "push" and r.get("ok") and str(r.get("detail")).startswith("pushed") for r in earlier) if resume else False
     base = resume["base"] if resume else _git(repo, "merge-base", f"refs/heads/{branch}", sha).stdout.strip()  # the range: over the local branch BEFORE it is refreshed
     steps = [("verdict", verdict), ("check-row", check_row), ("fast-forward", fast_forward), ("boundary", boundary), ("push", push), ("on-origin", on_origin), ("refresh", refresh),
-             ("pinned", lambda: pin(repo, sha, pinned_dir)), ("jail-root", jail_root), ("scratch", scratch), ("issues", issues)]
+             ("pinned", lambda: pin(repo, sha, pinned_dir)), ("jail-root", jail_root), ("scratch", scratch), ("issues", issues), ("specs", specs)]
     if resume:
         steps = steps[[n for n, _ in steps].index("refresh") + 1:]
     for name, fn in steps:
