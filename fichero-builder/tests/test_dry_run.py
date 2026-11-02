@@ -164,7 +164,7 @@ def test_the_cli_refuses_without_a_cap_and_points_the_journal_at_the_state_dir(t
     (tmp_path / "harness.toml").write_text("[check]\n")
     monkeypatch.setattr(run, "real_procs", lambda home, wt: run.Procs(start=lambda *a: "%1", alive=lambda p: True, stop=lambda p: None, read=lambda: None))
     rc = cli.main(["run", "--worktree", str(tmp_path / "wt"), "--brief", str(tmp_path / "b.txt"), "--root", str(tmp_path),
-                   "--state", str(tmp_path / "state")])
+                   "--state", str(tmp_path / "state"), "--model", "sonnet"])  # no [models] here: the model is named
     assert rc == 1 and "no cap, no start" in capsys.readouterr().out
     assert journal.STATE == tmp_path / "state"
 

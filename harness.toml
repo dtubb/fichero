@@ -137,6 +137,7 @@ builder = { provider = "claude-code", model = "sonnet[1m]" }  # [spend].window i
 reviewer = { provider = "claude-code", model = "opus", context = 200000 }  # its review cap is 40% of this at 3.5 bytes a token
 spec-writer = { provider = "claude-code", model = "opus" }
 helper = { provider = "claude-code", model = "haiku" }
+manager = { provider = "claude-code", model = "haiku" }  # reads alerts and answers them (dev-workflows.run.loop-roles)
 researcher = { provider = "claude-code", model = "sonnet" }
 
 [triage.labels]

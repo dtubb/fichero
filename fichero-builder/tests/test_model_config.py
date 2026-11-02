@@ -52,3 +52,19 @@ def test_a_window_past_the_standard_one_has_a_builder_model_that_gets_it():
 
     rules = tomllib.loads((Path(models.__file__).resolve().parents[2] / "harness.toml").read_text())
     assert rules["spend"]["window"] == 1000000 and "[1m]" in rules["models"]["builder"]["model"]
+
+
+def test_the_loop_has_a_manager_role_and_no_verb_names_a_model_of_its_own(tmp_path, monkeypatch):
+    """dev-workflows.run.loop-roles: builder sonnet, reviewer opus, manager haiku, all from the rules file; `builder run`
+    with no --model takes [models].builder (it defaulted to the literal "sonnet")."""
+    cfg = models.load(pi_rpc.EXTENSION.parents[2])
+    assert "manager" in models.ROLES and models.for_role(cfg, "manager").model == "haiku"
+    from fichero_builder import __main__ as cli, run as run_mod
+
+    (tmp_path / "harness.toml").write_text('[models]\nproviders = ["claude-code"]\nbuilder = { provider = "claude-code", model = "a-local-coder" }\n')
+    seen = {}
+    monkeypatch.setattr(run_mod, "run", lambda *a, **k: seen.update(k) or "done")
+    monkeypatch.setattr(cli, "state_dir", lambda root, state: tmp_path / "s")
+    (tmp_path / "b.txt").write_text("brief")
+    cli.main(["run", "--root", str(tmp_path), "--worktree", str(tmp_path), "--brief", str(tmp_path / "b.txt"), "--name", "w"])
+    assert seen.get("model") == "a-local-coder"

@@ -598,11 +598,12 @@ the write path would produce.
   only the journal. Test (to write): `fichero-builder/tests/test_loop.py` (each stop kind gives one alert with its evidence and
   actions; each action does what it says; a stale heartbeat alerts).
   **Built** 2026-11-02 against fakes: every block in the queue is an `alert` row (id `<lane>-<step>-<n>`, what, evidence: the ladder JSON, the review text or the question file, actions); `builder alert <id> <action>` answers it (an action not offered is a refused `alert-answer` row). A block no longer labels the issues by itself: `ask-owner` does (#6343's label and comment, test `fichero-builder/tests/test_queue_verb.py::test_a_blocked_step_labels_its_issues_needs_your_decision_and_comments_the_question`). Tests `fichero-builder/tests/test_loop.py::test_every_stop_is_an_alert_with_evidence_and_actions_and_retry_lands_it`, `::test_send_back_and_ask_owner`. Not yet: the heartbeat watchdog.
-- `dev-workflows.run.loop-roles` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — the model and the worker kind are per role in `harness.toml [models]` (builder,
+- `dev-workflows.run.loop-roles` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — the model and the worker kind are per role in `harness.toml [models]` (builder,
   reviewer, manager; today sonnet, opus, haiku), the kind from the provider: an interactive Claude Code session in tmux today,
   a Pi RPC session on OpenRouter or a local server next. The loop reads only journal rows and the DONE / QUESTION protocol, so
   nothing in it assumes Claude Code; no model name is written in code. Test (to write): `fichero-builder/tests/test_loop.py`
   (a fake provider kind runs a step end to end; a role with no provider is a question).
+  **Built** 2026-11-02: the `manager` role (haiku) in `[models]`; the loop takes builder and reviewer from the roles; `builder run` with no `--model` takes `[models].builder` and a rules file without one refuses as a question. Test `fichero-builder/tests/test_model_config.py::test_the_loop_has_a_manager_role_and_no_verb_names_a_model_of_its_own`. Not yet: `scripts/harness_review.py` run by hand still falls back to `--model opus`; the Pi kind through the loop.
 - `dev-workflows.run.loop-machine-checked` [GAP] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) (the open-model trial of 2026-10-18 failed on these) — after each step the
   loop checks that the jail root and every other lane's worktree are unmoved and clean (HEAD and `git status`), and alerts
   otherwise; the policy hook refuses `git reset --hard`, `git checkout --`, `git clean -f` and `git stash` outside the worker's
