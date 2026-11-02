@@ -386,3 +386,17 @@ def test_a_worker_that_committed_and_never_said_done_goes_on_to_the_check(chain,
     monkeypatch.setattr(work, "do_run", lambda a, model: "done-unsaid")
     assert chain() == 0
     assert next(r for r in rows() if r["step"] == "run")["ok"] is True
+
+
+def test_a_range_that_already_has_ready_is_not_reviewed_again(chain, monkeypatch, capsys):
+    """Same input, same model: a queue restarted in `reviewing` must reuse the verdict, not pay for a second pass."""
+    monkeypatch.setattr(work.land_tool, "unreviewed", lambda *a: [])
+    monkeypatch.setattr(work, "do_review", lambda *a: pytest.fail("the model ran again"))
+    assert chain() == 0
+
+
+def test_a_red_guard_is_named_in_what_goes_back_to_the_worker():
+    """A guards rung's detail is in its results, so the fix brief named the rung and not the guard."""
+    r = {"rungs": [{"name": "guards", "ok": False, "results": [{"name": "check_a", "ok": True, "stderr_tail": "fine"}, {"name": "check_b", "ok": False, "stdout_tail": "b is wrong"}]}]}
+    text = work._tail(r)
+    assert "check_b" in text and "b is wrong" in text and "check_a" not in text

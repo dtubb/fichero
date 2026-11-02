@@ -74,7 +74,7 @@ def add(lane_id: str, worktree: str, step: str, brief: str, issues: list[int], w
         lanes = load()
         lane = next((x for x in lanes if x["id"] == lane_id), None)
         if lane is None:
-            lane = {"id": lane_id, "worktree": str(worktree), "cursor": 0, "seq": 0, "feed": "", "paused": False, "steps": []}
+            lane = {"id": lane_id, "worktree": os.path.abspath(worktree), "cursor": 0, "seq": 0, "feed": "", "paused": False, "steps": []}
             lanes.append(lane)
         if any(s["step"] == step for s in lane["steps"]):
             return

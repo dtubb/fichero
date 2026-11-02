@@ -250,3 +250,10 @@ def test_a_planted_inbox_cannot_turn_the_owners_chmod_or_writes_on_another_folde
     procs.stop(the_lane)
     assert private.stat().st_mode & 0o777 == 0o700 and list(private.iterdir()) == [], "nothing reached the folder the link points at"
     assert (Path(the_lane["feed"]) / "msg-4.txt").read_text() == "next"
+
+
+def test_a_relative_worktree_is_stored_absolute(state, monkeypatch):
+    """The worker's side resolves from the workroot and the owner's from its cwd: a relative path would mean two places."""
+    monkeypatch.chdir(state)
+    queue.add("m3", "rel/wt", "1.1", "/b", [1])
+    assert queue.load()[-1]["worktree"] == str(Path.cwd() / "rel" / "wt")

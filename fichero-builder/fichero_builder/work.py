@@ -185,7 +185,9 @@ def ensure_pinned(root: str, brief: str, base: str) -> str:
 def _tail(r: dict) -> str:
     """What a red rung said, for the worker's fix brief."""
     last = (r.get("rungs") or [{}])[-1]
-    return "\n".join(str(last[k]) for k in ("reason", "stdout_tail", "stderr_tail") if last.get(k))[-3000:]
+    keys = ("reason", "stdout_tail", "stderr_tail")
+    red = [f"{x.get('name')}: " + "\n".join(str(x[k]) for k in keys if x.get(k)) for x in last.get("results") or [] if not x.get("ok")]  # a guards rung
+    return "\n".join([*(str(last[k]) for k in keys if last.get(k)), *red])[-3000:]
 
 
 def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None) -> dict:
@@ -222,7 +224,10 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
         if not step("check", bool(r.get("ok")), f"failed: {r.get('failed') or '-'}"):
             return no("red", f"the check is red at {head[:9]} (failed: {r.get('failed') or '?'}); ladder in {ladder}", f"failed rung: {r.get('failed') or '?'}\n{_tail(r)}")
         stage("reviewing")
-        ok, text = do_review(a, repo, head, ladder, verdicts, reviewer)
+        if land_tool.unreviewed(repo, branch, head, verdicts):
+            ok, text = do_review(a, repo, head, ladder, verdicts, reviewer)
+        else:  # same input, same model: this exact range has its READY (a queue restarted in `reviewing` lands here)
+            ok, text = True, "READY (the verdict this range already has; no second model pass)"
         last = text.splitlines()[-1] if text else "the reviewer said nothing"
         if not step("review", ok, last):
             return no("not-ready", f"the review is not READY: {last}", text)

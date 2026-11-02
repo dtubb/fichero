@@ -129,7 +129,7 @@ def where_map(spec_path, step_title: str, repo: str, binary: str) -> list[str]:
             *(f"{f}: {', '.join(syms) or '(no symbols)'}" for f, syms in found.items())]
 
 
-def write_briefs(planned: dict, *, out, repo_dir, base: str, rules: str, fetch, cluster, spec_path=None, binary: str = "") -> list[Path]:
+def write_briefs(planned: dict, *, out, repo_dir, base: str, rules: str, fetch, cluster, spec_path=None, binary: str = "", lane: str = "") -> list[Path]:
     """One brief file per cluster, through the brief tool (`fetch` reads an issue with its comments, `cluster` builds the text);
     each carries the step's map when the spec is given."""
     out = Path(out)
@@ -138,7 +138,7 @@ def write_briefs(planned: dict, *, out, repo_dir, base: str, rules: str, fetch, 
     for c in planned["clusters"]:
         issues = [fetch(i["number"]) for i in c["issues"]]
         where = where_map(spec_path, c["title"], str(repo_dir), binary) if spec_path else []
-        text = cluster(issues, repo=str(repo_dir), branch=f"step-{c['step']}", base=base, rules=rules, where=where)
+        text = cluster(issues, repo=str(repo_dir), branch=f"lane-{lane}" if lane else f"step-{c['step']}", base="the lane's head" if lane else base, rules=rules, where=where)
         p = out / f"brief-step-{c['step']}.txt"
         p.write_text(text)
         written.append(p)
