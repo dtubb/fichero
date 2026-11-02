@@ -732,3 +732,44 @@ def test_the_green_run_is_one_pytest_per_package_so_two_tests_dirs_never_shadow_
     r = ct.green_runs(".", ["fichero-server/tests/a/test_x.py", "fichero-builder/tests/test_y.py", "fichero-server/tests/test_z.py"], (), ct.Config(), 5)
     assert seen == [["fichero-server/tests/a/test_x.py", "fichero-server/tests/test_z.py"], ["fichero-builder/tests/test_y.py"]]
     assert r["ok"] and len(r["runs"]) == 2
+
+
+def _fake_ssh(tmp_path, monkeypatch):
+    """An `ssh` that runs the remote script here (host and -o flags dropped), or fails as ssh does when `down` exists."""
+    b = tmp_path / "bin"
+    b.mkdir()
+    (b / "ssh").write_text('#!/bin/sh\nwhile [ "$1" = "-o" ]; do shift 2; done\nshift\n'
+                           f'[ -f {tmp_path}/down ] && {{ echo "ssh: connect to host imac: No route to host" >&2; exit 255; }}\nexec sh -c "$1"\n')
+    (b / "ssh").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{b}:{os.environ['PATH']}")
+
+
+def test_a_remote_runner_runs_the_engine_pytest_there_and_an_unreachable_one_alerts_and_runs_it_here(tmp_path, monkeypatch):
+    """[check].remote (manager 2026-11-02): the tree is shipped once, the same pytest runs in the copy with the remote's
+    interpreter and the rung's env, and the copy is gone at the end; unreachable = one alert row, then the run here."""
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    _fake_ssh(tmp_path, monkeypatch)
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    g, _ = _git_repo(tree)
+    (tree / "test_where.py").write_text("import os\ndef test_where():\n    assert os.environ['FICHERO_FEATURE_TIER'] == 'dev'\n"
+                                        f"    open({str(tmp_path / 'ran')!r}, 'a').write(os.path.dirname(__file__) + '\\n')\n")
+    (tmp_path / "gate").mkdir()
+    cfg = ct.Config(test_env={"FICHERO_FEATURE_TIER": "dev"}, remote=f"imac:{tmp_path / 'gate'}", remote_python=sys.executable)
+    r = ct.pytest_rung(tree, ["test_where.py"], cfg, timeout_s=120)
+    assert r["ok"] and r["remote"] == "imac", r
+    assert ct.pytest_rung(tree, ["test_where.py"], cfg, timeout_s=120)["ok"]
+    where = (tmp_path / "ran").read_text().split()
+    assert len(where) == 2 and where[0] == where[1] and where[0].startswith(str(tmp_path / "gate" / "run-")), "one copy, shipped once"
+    ct._drop_remote(cfg)
+    assert list((tmp_path / "gate").iterdir()) == [], "the copy is removed at the end"
+    (tmp_path / "down").write_text("")
+    r = ct.pytest_rung(tree, ["test_where.py"], cfg, timeout_s=120)
+    assert r["ok"] and "remote" not in r, "unreachable: the same tests ran here"
+    assert (tmp_path / "ran").read_text().split()[-1] == str(tree)
+    (a,) = [x for x in journal.read() if x["event"] == "alert"]
+    assert a["step"] == "remote" and "unreachable" in a["what"] and "No route" in a["what"]
+    assert ct.pytest_rung(tree, ["test_where.py"], cfg, timeout_s=120)["ok"]
+    assert len([x for x in journal.read() if x["event"] == "alert"]) == 1, "one alert per ladder, not one per run"
+    ct._drop_remote(cfg)

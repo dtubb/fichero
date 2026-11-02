@@ -13,6 +13,7 @@ import fnmatch
 import importlib.util
 import os
 import re
+import shlex
 import shutil
 import signal
 import subprocess
@@ -54,6 +55,8 @@ class Config:
     build: tuple = ()                   # argv of a build-only compile (never a test run), run in the scratch tree
     build_timeout_s: float = 1800
     build_lock: str = ""                # a lock file: one build at a time on the machine ("" = no lock)
+    remote: str = ""                    # "host:dir": the engine pytest runs go over ssh to that machine ("" = here); unreachable = an alert, then here
+    remote_python: str = ""             # the interpreter there ("" = <dir>/venv/bin/python)
     engine_repo: str = ""               # the engine-owned repository check and land judge from: outside every home dir, readable by the jailed user ("" = the caller names one)
 
 
@@ -85,7 +88,8 @@ def load(root) -> Config:
         pytest_config=c.get("pytest_config", d.pytest_config), pytest_plugins=tuple(c.get("pytest_plugins", d.pytest_plugins)), max_files=c.get("max_files", d.max_files),
         max_lines=c.get("max_lines", d.max_lines), build_paths=tuple(c.get("build_paths", d.build_paths)),
         build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
-        build_lock=c.get("build_lock", d.build_lock), engine_repo=c.get("engine_repo", d.engine_repo))
+        build_lock=c.get("build_lock", d.build_lock), engine_repo=c.get("engine_repo", d.engine_repo),
+        remote=c.get("remote", d.remote), remote_python=c.get("remote_python", d.remote_python))
 
 
 def rules_problems(root) -> list[str]:
@@ -212,8 +216,81 @@ def _skipped(name: str) -> dict:
             "stdout_tail": "skipped: not configured", "stderr_tail": ""}
 
 
-def _run(name, argv, root, timeout_s, cfg: Config, extra: dict | None = None, cwd=None) -> dict:
-    """run_command with a fresh scratch env, its HOME and base dirs removed afterwards (no litter per rung)."""
+_SHIPPED: dict = {}  # local tree -> its copy on [check].remote, for this ladder; removed at the end (_drop_remote)
+_DOWN: list = []  # the remote failed once in this ladder: one alert, then every run here
+
+
+def _ssh(host: str, script: str, timeout_s: float, stdin=None) -> subprocess.CompletedProcess:
+    try:
+        return subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host, script], input=stdin,
+                              capture_output=True, timeout=timeout_s)
+    except (subprocess.TimeoutExpired, OSError) as e:
+        return subprocess.CompletedProcess([], 255, b"", str(e).encode())
+
+
+def _ship(root, cfg: Config) -> str:
+    """The tree's files (tracked and the overlay's untracked ones, never .git) into a fresh dir on the remote; its absolute path."""
+    root = str(root)
+    if root in _SHIPPED:
+        return _SHIPPED[root]
+    host, _, base = cfg.remote.partition(":")
+    mk = _ssh(host, f'mkdir -p {base or "."} && cd {base or "."} && d=$(mktemp -d "$PWD/run-XXXXXX") && echo "$d"', 30)
+    rdir = mk.stdout.decode().strip()
+    if mk.returncode or not rdir.startswith("/"):
+        raise OSError(f"{host}: {(mk.stderr.decode().strip() or 'no run dir')[-200:]}")
+    names = subprocess.run(_git_argv(root, ["ls-files", "-z", "-co", "--exclude-standard"]), cwd=root, capture_output=True, env=_git_env()).stdout
+    tar = subprocess.run(["tar", "-C", root, "--null", "-T", "-", "-czf", "-"], input=names, capture_output=True)
+    up = _ssh(host, f"tar -xzf - -C {shlex.quote(rdir)}", 600, stdin=tar.stdout)
+    if tar.returncode or up.returncode:
+        _ssh(host, f"rm -rf {shlex.quote(rdir)}", 60)
+        raise OSError(f"{host}: copy failed: {(tar.stderr or up.stderr).decode().strip()[-200:]}")
+    _SHIPPED[root] = rdir
+    return rdir
+
+
+def _drop_remote(cfg: Config) -> None:
+    for rdir in _SHIPPED.values():
+        _ssh(cfg.remote.partition(":")[0], f"rm -rf {shlex.quote(rdir)}", 120)
+    _SHIPPED.clear()
+    _DOWN.clear()
+
+
+def _remote_run(name, argv, root, timeout_s, cfg: Config, extra: dict | None, cwd) -> dict | None:
+    """The same pytest command on [check].remote over the shipped tree: local paths become the copy's, the interpreter the
+    remote's, the env the rung's own keys (a fresh base dir there). None when the remote cannot be reached: one alert row,
+    and the caller runs it here (progress never waits on that machine). ponytail: the remote runs the tests unjailed as the
+    ssh user; that machine holds nothing but its gate dir."""
+    host, _, base = cfg.remote.partition(":")
+    try:
+        rdir = _ship(root, cfg)
+    except OSError as e:
+        return _remote_down(cfg, str(e))
+    py = cfg.remote_python or f"{rdir.rsplit('/', 1)[0]}/venv/bin/python"
+    sub = lambda x: str(x).replace(str(root), rdir)  # noqa: E731
+    cmd = [py if a == _py(cfg) else sub(a) for a in argv]
+    env = {k: sub(v) for k, v in _env(root, cfg, extra).items() if k not in ("HOME", "PATH", "TERM", cfg.base_path_env)}
+    kv = " ".join(shlex.quote(f"{k}={v}") for k, v in env.items())
+    bp = f'{cfg.base_path_env}="$B" ' if cfg.base_path_env else ""
+    script = (f'cd {shlex.quote(sub(cwd or root))} && B=$(mktemp -d) && env -i HOME="$HOME" PATH=/usr/bin:/bin {kv} {bp}'
+              f'{shlex.join(cmd)}; rc=$?; rm -rf "$B"; exit $rc')
+    r = run_command(name, ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host, script], root, timeout_s, None, as_jail=False)
+    if r["exit_code"] == 255:  # ssh's own failure, never pytest's
+        return _remote_down(cfg, r["stderr_tail"][-200:])
+    return {**r, "remote": host}
+
+
+def _remote_down(cfg: Config, why: str) -> None:
+    from . import queue
+    _DOWN.append(why)
+    queue.alert("check", "remote", f"the check runner {cfg.remote} is unreachable; the tests ran here: {why}", cfg.remote, [])
+    return None
+
+
+def _run(name, argv, root, timeout_s, cfg: Config, extra: dict | None = None, cwd=None, remote: bool = False) -> dict:
+    """run_command with a fresh scratch env, its HOME and base dirs removed afterwards (no litter per rung). `remote`: an
+    engine pytest run, sent to [check].remote when one is set."""
+    if remote and cfg.remote and not _DOWN and (r := _remote_run(name, argv, root, timeout_s, cfg, extra, cwd)) is not None:
+        return r
     env = _env(root, cfg, extra)
     try:
         return run_command(name, argv, cwd or root, timeout_s, env)
@@ -273,7 +350,7 @@ def pytest_rung(root, files: list[str], cfg: Config = Config(), timeout_s: float
         return run_command("pytest", [sys.executable, "-c", "import sys; sys.exit('no test files named')"], root, 5)
     # safe-path for the test run only: the cwd is not on sys.path, so a worker's pytest.py shadows nothing. The ready and
     # guard rungs run the project's own pinned scripts, which import helpers beside them (first real check, 2026-11-01).
-    return _run("pytest", pytest_argv(root, files, cfg), root, timeout_s, cfg, {"PYTHONSAFEPATH": "1"})
+    return _run("pytest", pytest_argv(root, files, cfg), root, timeout_s, cfg, {"PYTHONSAFEPATH": "1"}, remote=True)
 
 
 def whole_tests_rung(root, tests_dir: str, cfg: Config = Config(), timeout_s: float = 1800) -> dict:  # noqa: B008
@@ -282,7 +359,7 @@ def whole_tests_rung(root, tests_dir: str, cfg: Config = Config(), timeout_s: fl
     package = str(Path(tests_dir).parent)
     cwd = Path(root) / package
     argv = pytest_argv(root, [str(Path(root) / tests_dir)], cfg, package=package)
-    return _run("pytest", argv, root, timeout_s, cfg, {"PYTHONSAFEPATH": "1"}, cwd=cwd)
+    return _run("pytest", argv, root, timeout_s, cfg, {"PYTHONSAFEPATH": "1"}, cwd=cwd, remote=True)
 
 
 def green_runs(tree, files: list[str], whole: tuple, cfg: Config, timeout_s: float) -> dict:
@@ -651,6 +728,8 @@ def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_requi
         return _run_ladder(root, since, head, pinned, protected_ids, maintainer)
     finally:
         _JAIL = None
+        if _SHIPPED or _DOWN:
+            _drop_remote(load(pinned))
 
 
 def _needs_red(names: list[str], tests: list[str], cfg: Config) -> bool:
