@@ -65,11 +65,17 @@ class Procs:
     """What the loop does to the world; the tests replace each one."""
     start: Callable[[dict, str], object]            # (item, base sha) -> a handle
     poll: Callable[[object], tuple | None]          # handle -> (rc, output) once ended, None while running
-    landed: Callable[[str, bool], tuple]            # (head sha, push) -> (rc, output)
+    landed: Callable[[dict, bool], tuple]           # (item, push) -> (rc, output); the verdict store is the item's own
     origin_head: Callable[[], str]                  # the current origin/<branch> sha (after a fetch)
     on_origin: Callable[[str], bool]                # sha -> is an ancestor of origin/<branch>
     head_of: Callable[[dict], str]                  # item -> the sha `builder work` fetched for it (its fetch row)
     sleep: Callable[[float], None] = time.sleep
+
+
+def landed_argv(root, item: dict, push: bool) -> list[str]:
+    """`builder landed` for a queue item: the verdict store `builder work` wrote for it (`verdicts-<id>.json`)."""
+    return [sys.executable, "-m", "fichero_builder", "landed", item["head"], "--root", str(root), "--state", str(journal.STATE),
+            "--verdicts", str(journal.STATE / f"verdicts-{item['id']}.json")] + (["--push"] if push else [])
 
 
 def real_procs(root, repo: str, branch: str) -> Procs:
@@ -91,10 +97,8 @@ def real_procs(root, repo: str, branch: str) -> Procs:
         p.stdout.close()
         return rc, (journal.STATE / f"queue-{p.args[p.args.index('--name') + 1]}.log").read_text()[-2000:]
 
-    def landed(head, do_push):
-        r = subprocess.run([py, "-m", "fichero_builder", "landed", head, "--root", str(root), "--state", str(journal.STATE),
-                            "--verdicts", str(journal.STATE / "verdicts.json")] + (["--push"] if do_push else []),
-                           cwd=str(pkg), capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(pkg)})
+    def landed(item, do_push):
+        r = subprocess.run(landed_argv(root, item, do_push), cwd=str(pkg), capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(pkg)})
         return r.returncode, (r.stdout + r.stderr)[-2000:]
 
     def origin_head():
@@ -136,7 +140,7 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print) 
         if rc == 0:
             item["head"] = procs.head_of(item)
             move(item, "landing", item["head"])
-            lrc, lout = procs.landed(item["head"], push)
+            lrc, lout = procs.landed(item, push)
             move(item, "landed" if lrc == 0 else "blocked", lout if lrc else f"landed {item['head'][:9]}" + (" (pushed)" if push else " (not pushed)"))
         elif rc == 2:
             q = next((ln for ln in output.splitlines() if ln.startswith("QUESTION:")), "QUESTION: (the work process printed none)")
