@@ -77,6 +77,23 @@ def test_prepare_registers_only_the_copied_server_and_keeps_the_strict_config(wo
     assert "--strict-mcp-config" in argv
 
 
+def test_prepare_makes_the_workers_git_commit_as_claude(world, tmp_path, monkeypatch):
+    wt = tmp_path / "wt"
+    wt.mkdir()
+    subprocess.run(["git", "-C", str(wt), "init", "-q"], check=True)
+    monkeypatch.setenv("HOME", str(tmp_path / "h"))
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "gc"))
+    for k in start_tool.AUTHOR:
+        monkeypatch.delenv(k, raising=False)
+    codemap.provide(world.root)
+    start_tool.prepare(world.root, wt, "do it", tmp_path / "scratch")
+    (wt / "f").write_text("x")
+    subprocess.run(["git", "-C", str(wt), "add", "f"], check=True)
+    subprocess.run(["git", "-C", str(wt), "-c", "core.hooksPath=/dev/null", "commit", "-qm", "m"], check=True)
+    who = subprocess.run(["git", "-C", str(wt), "log", "-1", "--format=%an <%ae> / %cn <%ce>"], capture_output=True, text=True).stdout.strip()
+    assert who == "Claude <noreply@anthropic.com> / Claude <noreply@anthropic.com>"
+
+
 def test_the_worker_side_command_indexes_the_worktree_first_and_a_failed_index_does_not_stop_it(world):
     codemap.provide(world.root)
     a = types.SimpleNamespace(pinned=str(world.root), worktree="/wr/wt", brief="/b", root=str(world.root), name="n", kind="claude", session="s", tick=30.0)

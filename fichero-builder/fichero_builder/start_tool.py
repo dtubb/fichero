@@ -55,6 +55,9 @@ def brief_prompt(brief) -> str:
     return f"Your brief is the file {path}. Read all of it with the Read tool first (in parts if it is long), then follow it."
 
 
+AUTHOR = {f"GIT_{r}_{f}": v for r in ("AUTHOR", "COMMITTER") for f, v in (("NAME", "Claude"), ("EMAIL", "noreply@anthropic.com"))}
+
+
 def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_bin: str = "claude") -> list[str]:
     """Write settings.json, mcp.json under `scratch` and the commit-msg hook in the clone; return claude's argv."""
     root, worktree, scratch = Path(root), Path(worktree), Path(scratch)
@@ -69,6 +72,9 @@ def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_b
     # with "dubious ownership" (first real check, 2026-11-01); the worker user is the jail, so the wide allow is its own risk only
     if "*" not in subprocess.run(["git", "config", "--global", "--get-all", "safe.directory"], capture_output=True, text=True).stdout.split():
         subprocess.run(["git", "config", "--global", "--add", "safe.directory", "*"], check=True)
+    # the worker commits as Claude, never as the jail user (a host name leaked, check_agent_commits_authored_as_claude, 2026-11-02)
+    for k, v in (("user.name", AUTHOR["GIT_AUTHOR_NAME"]), ("user.email", AUTHOR["GIT_AUTHOR_EMAIL"])):
+        subprocess.run(["git", "config", "--global", k, v], check=True)
     (scratch / "mcp.json").write_text(json.dumps(codemap.mcp_config(root)))  # with --strict-mcp-config: this file is all the worker gets
     # a linked worktree's .git is a file: ask git where hooks live (the clone's shared hooks dir)
     hooks = subprocess.run(["git", "-C", str(worktree), "rev-parse", "--path-format=absolute", "--git-path", "hooks"],
