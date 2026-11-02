@@ -688,6 +688,10 @@ Swift.
    names genuinely exist in the codebase today, confirmed by grep, not a hypothetical. See also
    `workflow-node-config.md`, which owns the node-popover half of this surface.
 
+8. **Ruled** (manager, owner-delegated, 2026-11-02): **Which near-duplicate presets are pruned (#4738)?** None. Presets that differ only in config are real choices for people; they stay and are pinned by `test_preset_family_to_spec.py`. **Proposal for the owner, not acted on:** the three `analyze` presets (Modernización, Regesto, Translate to English) and the four `detect_regions` presets differ only in prompt or engine, so they look like one preset with a choice, not four; if the owner agrees, that is a UI change (a chooser) and not a deletion. No preset is removed.
+9. **Ruled** (same): **What is the one ensemble pattern for the transcribe family (#3906)?** N transcribe nodes (different readers) feeding one critical-review node that compares them, feeding one resolve node that touches only the disputed spans, using existing nodes and no new node types. It is specified here and not yet shipped as a preset; `workflows.defaults.transcribe-family-consistent-ensemble-pattern` stays [GAP] until a preset has that shape.
+10. **Ruled** (same): **Is `workflows.defaults.ensemble-workflow-validated-end-to-end` (#3905) claimed?** No. Its CER, dispute-rate and cheap-tier numbers need a run against a real model; nothing here has made one. The issue stays open.
+
 ## Sources folded in
 
 Per the manager's instruction to fold still-true design content from agent-work
