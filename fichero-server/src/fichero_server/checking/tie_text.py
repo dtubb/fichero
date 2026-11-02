@@ -242,6 +242,19 @@ def page_is_draft(scored: list[dict[str, Any]]) -> bool:
     return bool(scored) and sum(1 for s in scored if not s["tied"]) / len(scored) > DRAFT_ABOVE
 
 
+def remainder(page_text: str, scored: list[dict[str, Any]], segment_ids: list[str], *, draft: bool) -> list[dict[str, Any]]:
+    """The page text the tie did not tie to a line, kept and named so nothing the page reader wrote is lost
+    (`wide.nomodel.untied-remainder-kept`): a draft page's whole text (no line took any of it), else each stretch below the tie threshold
+    (written on its line as a doubtful reading, and listed here too) and any stretch no line was given. Each: `{segment_id, text, why}`."""
+    if draft:
+        return [{"segment_id": None, "text": page_text, "why": DRAFT}] if page_text.strip() else []
+    out = []
+    for segment_id, row in zip(segment_ids, scored):
+        if row["text"] and not row["tied"]:
+            out.append({"segment_id": segment_id, "text": row["text"], "why": DOUBTFUL})
+    return out
+
+
 def start(db: Any, request: CheckRunRequest, *, started_by: str) -> dict[str, str]:
     if request.layer != "readings":
         raise ValueError("tying the page text to its lines writes readings: layer readings")
@@ -432,11 +445,13 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
         aligned = tie_lines(reading.content, reads)
         if page_is_draft(aligned):
             counts["drafts"] += 1
-            per_page[doc.id] = {"tied": 0, "doubtful": 0, "untied": 0, "draft": True}
+            per_page[doc.id] = {"tied": 0, "doubtful": 0, "untied": 0, "draft": True,
+                                "remainder": remainder(reading.content, aligned, [r.id for r in found.lines], draft=True)}
             flagged.append({"document_id": doc.id, "flag": DRAFT,
                             "score": round(sum(s["score"] for s in aligned) / len(aligned), 3)})
             continue
-        here = per_page[doc.id] = {"tied": 0, "doubtful": 0, "untied": 0, "draft": False}
+        here = per_page[doc.id] = {"tied": 0, "doubtful": 0, "untied": 0, "draft": False,
+                                   "remainder": remainder(reading.content, aligned, [r.id for r in found.lines], draft=False)}
         for row, scored in zip(found.lines, aligned):
             if not scored["text"]:
                 counts["untied"] += 1
