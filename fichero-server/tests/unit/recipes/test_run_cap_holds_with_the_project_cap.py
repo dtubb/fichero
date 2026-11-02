@@ -71,7 +71,7 @@ def test_the_run_cap_is_changed_in_place_and_a_run_without_one_refuses(library):
     _call(library)  # 0.04 now fits
 
 
-def test_the_cap_route_changes_the_run_cap_and_refuses_when_no_run_holds_one(client, db):
+def test_the_cap_route_changes_the_run_cap_through_an_audited_undoable_action(client, db):
     from fichero_server.api.routes.system import recipes as routes
 
     library = str(routes._library(db))
@@ -79,4 +79,21 @@ def test_the_cap_route_changes_the_run_cap_and_refuses_when_no_run_holds_one(cli
     assert refused.status_code == 422 and "No run is holding a cap" in refused.text
     spend.set_run_cap(library, "job-1", 1.0)
     ok = client.put("/api/recipes/project/cloud-cap", json={"run_cap_usd": 3.0})
-    assert ok.status_code == 200 and ok.json()["run_cap_usd"] == 3.0 and ok.json()["audit_id"] is None
+    assert ok.status_code == 200 and ok.json()["run_cap_usd"] == 3.0
+    audit = ok.json()["audit_id"]
+    assert audit and ok.json()["run_cap_audit_id"] == audit
+    assert client.post(f"/api/actions/audit/{audit}/undo").status_code == 200
+    assert spend.run_cap(library)["cap_usd"] == 1.0  # the old cap is back, nothing else touched
+
+
+def test_a_mixed_request_that_would_be_refused_in_part_changes_nothing(client, db):
+    from fichero_server.api.routes.system import recipes as routes
+
+    library = str(routes._library(db))
+    spend.set_run_cap(library, "job-1", 1.0)
+    bad = client.put("/api/recipes/project/cloud-cap", json={"run_cap_usd": 3.0, "cap_usd": -1})
+    assert bad.status_code == 422
+    assert spend.run_cap(library)["cap_usd"] == 1.0  # the run cap was not half-applied
+    good = client.put("/api/recipes/project/cloud-cap", json={"run_cap_usd": 3.0, "cap_usd": 25})
+    assert good.status_code == 200 and good.json()["audit_id"] != good.json()["run_cap_audit_id"]
+    assert spend.run_cap(library)["cap_usd"] == 3.0 and good.json()["cap_usd"] == 25.0

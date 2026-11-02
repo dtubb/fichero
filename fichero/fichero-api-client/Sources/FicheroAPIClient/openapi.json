@@ -60469,14 +60469,20 @@
           },
           "audit_id": {
             "type": "string",
-            "nullable": true,
             "title": "Audit Id",
-            "description": "the audit row of the change; Undo reverses it; null when only the run cap changed (it is kept on the run, not in the setup)"
+            "description": "the audit row of the change (the setup's when a setup cap changed, else the run cap's); Undo reverses it"
+          },
+          "run_cap_audit_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Run Cap Audit Id",
+            "description": "the audit row of the run cap's change (`run.change_cap`), its own Undo; null when the run cap was not changed"
           }
         },
         "type": "object",
         "required": [
-          "cap_usd"
+          "cap_usd",
+          "audit_id"
         ],
         "title": "CloudCapChanged"
       },

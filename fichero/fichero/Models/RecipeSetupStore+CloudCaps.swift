@@ -23,14 +23,13 @@ extension RecipeSetupStore {
                 let changed = try success.body.json
                 await adoptSavedCaps()
                 await loadStartPlan(folderId: startPlanFolderId)
-                if let auditId = changed.auditId {  // none when only the run cap changed
-                    UndoableChange.register(
-                        [auditId], named: "Change Cloud Spending Cap", service: undo, steps: steps,
-                        afterEach: { [weak self] in
-                            await self?.adoptSavedCaps()
-                            await self?.loadStartPlan(folderId: self?.startPlanFolderId)
-                        })
-                }
+                UndoableChange.register(
+                    [changed.auditId] + (changed.runCapAuditId.map { $0 == changed.auditId ? [] : [$0] } ?? []),
+                    named: "Change Cloud Spending Cap", service: undo, steps: steps,
+                    afterEach: { [weak self] in
+                        await self?.adoptSavedCaps()
+                        await self?.loadStartPlan(folderId: self?.startPlanFolderId)
+                    })
                 return true
             case .unprocessableContent(let error):
                 errorMessage = (try? error.body.json)?.detail.sentence ?? "The engine refused that cap."

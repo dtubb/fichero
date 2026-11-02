@@ -35,8 +35,9 @@ class CloudCapChanged(BaseModel):
     cap_usd: float = Field(description="the project's monthly cloud cap now")
     project_cap_usd: Optional[float] = Field(default=None, description="the project's total cloud cap now; null: none")
     run_cap_usd: Optional[float] = Field(default=None, description="the run under way's cap now; null: no run holds one")
-    audit_id: Optional[str] = Field(default=None, description=(
-        "the audit row of the change; Undo reverses it; null when only the run cap changed (it is kept on the run, not in the setup)"))
+    audit_id: str = Field(description="the audit row of the change (the setup's when a setup cap changed, else the run cap's); Undo reverses it")
+    run_cap_audit_id: Optional[str] = Field(default=None, description=(
+        "the audit row of the run cap's change (`run.change_cap`), its own Undo; null when the run cap was not changed"))
 
 
 class CapFix(BaseModel):

@@ -37,26 +37,61 @@ async def change_cloud_cap(
     from fichero_server.recipes.project import read_saved_answers  # lazy: it pulls recipes.recipe, jobs and topics into the app import (#5798)
 
     library = str(_library(db))
-    if request.run_cap_usd is not None and not spend.change_run_cap(library, request.run_cap_usd):
+    asked = {key: value for key, value in ((spend.CAP_KEY, request.cap_usd), (spend.PROJECT_CAP_KEY, request.project_cap_usd))
+             if value is not None}
+    setup_changes = bool(asked) or request.clear_project_cap
+    # Everything is checked before anything is written: a request that would be refused in part changes nothing.
+    if request.run_cap_usd is not None and not spend.run_cap(library):
         raise HTTPException(status_code=422, detail="No run is holding a cap of its own, so there is none to change.")
-    audit_id = None
-    if not (request.cap_usd is None and request.project_cap_usd is None and not request.clear_project_cap):
+    answers = None
+    if setup_changes:
         answers = read_saved_answers(_library(db))
-        asked = {key: value for key, value in ((spend.CAP_KEY, request.cap_usd), (spend.PROJECT_CAP_KEY, request.project_cap_usd))
-                 if value is not None}
         try:
             # Only the caps are checked and written, over the answers as the file holds them: reading them in today's shape and
             # normalising them all wrote the defaults (`purposes: [not-sure]`, `materials: [handwriting]`) into a project that had
             # answered nothing.
             answers.update({key: normalise_answers(asked, strict=True)[key] for key in asked})
-            if request.clear_project_cap:
-                answers.pop(spend.PROJECT_CAP_KEY, None)
-            audit_id = registry.invoke(db, "project.save_setup", {"answers": answers}, ctx).audit_id
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if request.clear_project_cap:
+            answers.pop(spend.PROJECT_CAP_KEY, None)
+    audit_ids: list[str] = []
+    try:
+        if answers is not None:
+            audit_ids.append(registry.invoke(db, "project.save_setup", {"answers": answers}, ctx).audit_id)
+        if request.run_cap_usd is not None:
+            run_audit = registry.invoke(db, "run.change_cap", {"run_cap_usd": request.run_cap_usd}, ctx).audit_id
+            audit_ids.append(run_audit)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     held = spend.run_cap(library)
     return CloudCapChanged(cap_usd=spend.cap_usd(library) or 0.0, project_cap_usd=spend.project_cap_usd(library),
-                           run_cap_usd=float(held["cap_usd"]) if held else None, audit_id=audit_id)
+                           run_cap_usd=float(held["cap_usd"]) if held else None, audit_id=audit_ids[0],
+                           run_cap_audit_id=run_audit if request.run_cap_usd is not None else None)
+
+
+class RunCapParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    run_cap_usd: float = Field(ge=0, description="the cap of the run under way, in US$")
+
+
+def _invert_run_cap(before: dict | None, after: dict | None, ctx: ActionContext):
+    return ("run.change_cap", {"run_cap_usd": (before or {}).get("run_cap_usd", 0.0)})
+
+
+@registry_action("run.change_cap", RunCapParams, domains=["project"], undoable=True, invert=_invert_run_cap)
+def _action_change_run_cap(db: Database, params: RunCapParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    """Change the cap of the run under way: audited, and Undo puts the old figure back. A run holding no cap has none to change."""
+    from fichero_server.llm import spend
+
+    library = str(_library(db))
+    held = spend.run_cap(library)
+    if not held:
+        raise ValueError("No run is holding a cap of its own, so there is none to change.")
+    before, after = {"run_cap_usd": float(held["cap_usd"])}, {"run_cap_usd": params.run_cap_usd}
+    spend.change_run_cap(library, params.run_cap_usd)
+    return after, ChangeSpec(domains=["project"], target_ids=[], before=before, after=after, emit_type="project.run_cap_changed")
+
 
 # =============================================================================
 # The bake-off, slice 1: the readers (#4951, `source.try.bakeoff-is-the-same-tool`). The evaluation job run on
