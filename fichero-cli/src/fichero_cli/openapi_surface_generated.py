@@ -12531,6 +12531,17 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("addresses")
+    def pair_addresses_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Pair Addresses (GET /api/pair/addresses)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/pair/addresses"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("create-pairing-code")
     def pair_create_pairing_code_post(
         ctx: typer.Context,

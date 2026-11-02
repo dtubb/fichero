@@ -20,6 +20,7 @@ from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field
 from typing import Literal
 
+from fichero_server.security.multiuser import MultiuserOff
 from fichero_server.security import accounts
 from fichero_server.actions import ActionContext, ChangeSpec, action, registry
 from fichero_server.actions.registry import ActionRefused
@@ -300,7 +301,7 @@ def get_app_database() -> AppDatabase:
 
 def _multiuser_disabled() -> None:
     if not _use_multiuser_auth():
-        raise HTTPException(status_code=404, detail="multi-user auth is disabled")
+        raise MultiuserOff()
 
 
 def _to_public_device(device: Device, paired_by: str | None = None) -> DeviceResponse:

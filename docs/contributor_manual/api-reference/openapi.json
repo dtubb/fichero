@@ -2922,6 +2922,29 @@
         }
       }
     },
+    "/api/pair/addresses": {
+      "get": {
+        "tags": [
+          "pairing",
+          "pairing"
+        ],
+        "summary": "Pair Addresses",
+        "description": "Every address this Mac can be reached at, in the order to try (`sharing.address-choice`): the Share sheet draws it.\nNever a loopback address. The host cannot see client isolation, so a `.local` or IP row is \"listening\", never \"works\".",
+        "operationId": "pair_addresses_api_pair_addresses_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddressListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pair/multiuser": {
       "put": {
         "tags": [
@@ -50668,6 +50691,66 @@
         "title": "ActivitySummary",
         "description": "The ONE engine summary the window and the toolbar popover both read (`activity.popover.same-summary`, #5852):\nthe live blocks, the background group, and how many ended runs are folded into History."
       },
+      "AddressListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AddressRowResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "AddressListResponse"
+      },
+      "AddressRowResponse": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "tailnet",
+              "local-name",
+              "lan"
+            ],
+            "title": "Kind"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "listening": {
+            "type": "boolean",
+            "title": "Listening"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason",
+            "description": "why this row cannot work, in one line; none when nothing is known against it"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "url",
+          "label",
+          "listening"
+        ],
+        "title": "AddressRowResponse"
+      },
       "AgentNote": {
         "properties": {
           "id": {
@@ -70472,6 +70555,10 @@
           },
           "remote_backend": {
             "$ref": "#/components/schemas/RemoteBackendHealth",
+            "nullable": true
+          },
+          "sharing": {
+            "$ref": "#/components/schemas/SharingHealth",
             "nullable": true
           },
           "server_proof": {
@@ -94714,6 +94801,109 @@
         "title": "ShareResponse",
         "description": "Result of a share: the granted access + a link the recipient can open."
       },
+      "SharingAddress": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "tailnet",
+              "local-name",
+              "lan"
+            ],
+            "title": "Kind"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "listening": {
+            "type": "boolean",
+            "title": "Listening"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "url",
+          "listening"
+        ],
+        "title": "SharingAddress",
+        "description": "One address the host can be reached at, and whether something is listening on it now."
+      },
+      "SharingHealth": {
+        "properties": {
+          "on": {
+            "type": "boolean",
+            "title": "On"
+          },
+          "listeners": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Listeners"
+          },
+          "addresses": {
+            "items": {
+              "$ref": "#/components/schemas/SharingAddress"
+            },
+            "type": "array",
+            "title": "Addresses"
+          },
+          "certificate_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Certificate Names"
+          },
+          "address_changed": {
+            "type": "string",
+            "nullable": true,
+            "title": "Address Changed"
+          },
+          "tailnet_forward": {
+            "type": "string",
+            "enum": [
+              "ours",
+              "foreign",
+              "none",
+              "unknown"
+            ],
+            "title": "Tailnet Forward"
+          },
+          "multiuser": {
+            "type": "boolean",
+            "title": "Multiuser"
+          },
+          "paired_devices": {
+            "type": "integer",
+            "title": "Paired Devices"
+          }
+        },
+        "type": "object",
+        "required": [
+          "on",
+          "listeners",
+          "addresses",
+          "certificate_names",
+          "tailnet_forward",
+          "multiuser",
+          "paired_devices"
+        ],
+        "title": "SharingHealth",
+        "description": "What this engine is sharing, for `GET /api/health` (`sharing.health-reports-sharing`). No secrets."
+      },
       "SharingStateResponse": {
         "properties": {
           "multiuser_enabled": {
@@ -94751,9 +94941,22 @@
             "nullable": true,
             "title": "Tailnet Serve Command"
           },
+          "tailnet_serve_conflict": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "nullable": true,
+            "title": "Tailnet Serve Conflict"
+          },
           "paired_device_count": {
             "type": "integer",
             "title": "Paired Device Count"
+          },
+          "multiuser_blocker": {
+            "type": "string",
+            "nullable": true,
+            "title": "Multiuser Blocker"
           },
           "audit_id": {
             "type": "string",

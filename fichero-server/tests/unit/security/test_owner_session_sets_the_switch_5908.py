@@ -32,7 +32,7 @@ def test_the_start_up_key_is_refused_for_both_steps(harness, monkeypatch):
     owner, _ann = _people(harness, monkeypatch)
     app = harness.host()  # loopback plus the bootstrap token
     password = app.patch(f"/api/users/{owner.id}", json={"password": "p"})
-    assert (password.status_code, password.json()["detail"]) == (404, "multi-user auth is disabled"), "the guard's own refusal, not a routing 404"
+    assert (password.status_code, password.json()["detail"]) == (409, "multi-user auth is disabled"), "the guard's own refusal, not a routing 404"
     switch = app.put("/api/pair/multiuser", json={"enabled": True})
     assert (switch.status_code, switch.json()["detail"]) == (403, "sign in as the owner to change Multi-user")
     assert harness.app_db.get_setting("multiuser.enabled") != "true"

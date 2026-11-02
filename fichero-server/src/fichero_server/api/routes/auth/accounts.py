@@ -26,6 +26,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
 from fichero_server.security import accounts, launch_secret
+from fichero_server.security.multiuser import MULTIUSER_OFF_DETAIL, MultiuserOff
 from fichero_server.api.auth import _rate_limit_scope_from_request, _use_multiuser_auth, auth_kind_from_request
 from fichero_server.db.app import AppDatabase, get_app_db
 from fichero_server.models import _new_id as new_id
@@ -197,7 +198,7 @@ class UpdateUserRequest(BaseModel):
 
 def _multiuser_disabled() -> None:
     if not _use_multiuser_auth():
-        raise HTTPException(status_code=404, detail="multi-user auth is disabled")
+        raise MultiuserOff()
 
 
 def _to_public_user(user: AccountUser) -> UserResponse:
@@ -526,7 +527,8 @@ def logout(
 
 @auth_router.get("/me", response_model=UserResponse)
 def me(request: Request) -> UserResponse:
-    _multiuser_disabled()
+    if not _use_multiuser_auth():  # stays a 404: the app's gate reads /auth/me 404 as "no accounts, never gate"
+        raise HTTPException(status_code=404, detail=MULTIUSER_OFF_DETAIL)
 
     if getattr(request.state, "bootstrap_auth", False):
         raise HTTPException(status_code=401, detail="session required")
@@ -831,9 +833,9 @@ def update_user(
         # it can be set BEFORE the switch is turned on (`multiuser.turning-on-needs-an-owner-password`, #5908).
         # By the owner's own signed-in session, never the start-up credential (`multiuser.owner-session-sets-the-switch`).
         if getattr(request.state, "session", None) is None or not getattr(request.state.user, "is_owner", False):
-            raise HTTPException(status_code=404, detail="multi-user auth is disabled")
+            raise MultiuserOff()
         if user is None or not user.is_owner or set(body.model_fields_set) - {"password"} or body.password is None:
-            raise HTTPException(status_code=404, detail="multi-user auth is disabled")
+            raise MultiuserOff()
     _require_owner_or_bootstrap(request)
 
     if user is None:

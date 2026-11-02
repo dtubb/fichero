@@ -8642,6 +8642,16 @@
         "response_model": "PairResponse"
       },
       {
+        "method": "GET",
+        "path": "/pair/addresses",
+        "operation_id": "pair_addresses_api_pair_addresses_get",
+        "summary": "Pair Addresses",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "AddressListResponse"
+      },
+      {
         "method": "POST",
         "path": "/pair/code",
         "operation_id": "create_pairing_code_api_pair_code_post",

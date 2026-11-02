@@ -6,10 +6,22 @@ from collections.abc import Mapping
 import logging
 import os
 
+from fastapi import HTTPException
+
 logger = logging.getLogger(__name__)
 TRUE_VALUES = {"1", "true", "yes", "on"}
 FALSE_VALUES = {"0", "false", "no", "off"}
 MULTIUSER_SETTING_KEY = "multiuser.enabled"
+MULTIUSER_OFF_DETAIL = "multi-user auth is disabled"
+
+
+class MultiuserOff(HTTPException):
+    """A request that needs accounts while they are off (`sharing.multiuser-404-is-a-409-in-the-engine`): a 409, because the
+    state refuses the request, not a 404 that reads as "no such route". The handler in api/main.py adds
+    `code: "multiuser_off"` to the body so a client branches on a name."""
+
+    def __init__(self) -> None:
+        super().__init__(status_code=409, detail=MULTIUSER_OFF_DETAIL)
 
 
 def multiuser_enabled(env: Mapping[str, str] | None = None) -> bool:

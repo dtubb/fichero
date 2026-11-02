@@ -430,7 +430,7 @@ MACHINE = re.compile(r"^(POST|PUT|PATCH|DELETE) /api/(library(?=$)|local-inferen
 SPEND = re.compile(r"^POST /api/(model-comparison/(compare|compare-node)|research/tools/(web-search|browser-navigate))$")
 #: Reads a plain editor or viewer is refused on by design.
 OWNER_ONLY_GETS = {"/api/auth/invites", "/api/auth/local-clients/requests", "/api/auth/local-clients/switches", "/api/authz/members", "/api/hpc/clusters",
-                   "/api/hpc/prompts", "/api/machines", "/api/pair/invites", "/api/users"}
+                   "/api/hpc/prompts", "/api/machines", "/api/pair/addresses", "/api/pair/invites", "/api/users"}
 
 
 def _owner_only_action(ident: str) -> bool:

@@ -528,7 +528,17 @@ All under `/api/auth/local-clients`. Off until the owner turns a switch on (`mul
 - Purpose: read Sharing state (#5751). Owner only.
 - Response: `200` with `multiuser_enabled`, `tailnet_url`, `tailnet_serve_command`
   (the one command to paste when the app cannot make the tailnet forward, #5317)
-  and `paired_device_count`.
+  and `paired_device_count`, plus `multiuser_blocker` (why accounts cannot be
+  turned on yet) and `tailnet_serve_conflict` (a forward Fichero did not make, and
+  the command that frees it).
+
+`GET /api/pair/addresses`
+
+- Purpose: every address this Mac can be reached at, in the order to try: the
+  tailnet name when its forward is Fichero's own, then the `.local` name, then the
+  LAN IP (`sharing.address-choice`). Owner only. Never a loopback address.
+- Response: `200` with `{items, count}`; each item has `kind`, `url`, `label`,
+  `listening` and `reason` (one line why it cannot work, else null).
 
 `PUT /api/pair/multiuser`
 

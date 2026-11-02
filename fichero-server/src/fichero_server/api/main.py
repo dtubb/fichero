@@ -64,6 +64,7 @@ from fichero_server.models import (
     MigrationFailureResponse,
 )
 from fichero_server.db.paths import migrate_legacy_server_state
+from fichero_server.security.multiuser import MultiuserOff
 from fichero_server.security.remote_backend import build_remote_backend_status
 # The ingest allow-list lives in fichero_server.security.path_security so the SERVING
 # side can consult the same authority (#4230). Kept under the historical
@@ -1315,6 +1316,12 @@ _OUT_OF_MEMORY_SAID: set[str] = set()
 async def _handle_library_volume_not_reachable(_request: Request, exc: LibraryVolumeNotReachable):
     """The disk holding the library is gone (#6311): one typed 503 in words, not a 500 and a stack trace per request."""
     return JSONResponse({"detail": str(exc), "reason": exc.reason, "library": exc.library}, status_code=503)
+
+
+@app.exception_handler(MultiuserOff)
+async def _handle_multiuser_off(_request: Request, exc: MultiuserOff):
+    """Accounts are off: a 409 with a name to branch on (`sharing.multiuser-404-is-a-409-in-the-engine`)."""
+    return JSONResponse({"detail": exc.detail, "code": "multiuser_off"}, status_code=409)
 
 
 @app.exception_handler(UndoRefused)

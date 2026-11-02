@@ -395,7 +395,7 @@ def _report_fichero_error(ctx: typer.Context, exc: FicheroError) -> None:
 
 
 def _auth_error(ctx: typer.Context, exc: FicheroError) -> None:
-    if exc.status_code == 404 and "multi-user auth is disabled" in str(exc):
+    if exc.status_code in (404, 409) and "multi-user auth is disabled" in str(exc):  # 404 from an older engine
         typer.secho(
             "Multi-user auth is disabled on this engine.",
             fg=typer.colors.YELLOW,

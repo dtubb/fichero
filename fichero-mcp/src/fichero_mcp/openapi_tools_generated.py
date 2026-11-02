@@ -5921,6 +5921,12 @@ def fichero_pairing_pair_device(
     return _rt.call("POST", "/api/pair", json=_rt.body({"code": code, "device_name": device_name, "new_password": new_password, "password": password, "username": username}))
 
 
+def fichero_pairing_pair_addresses(
+) -> Any:
+    'Pair Addresses\n\nEvery address this Mac can be reached at, in the order to try (`sharing.address-choice`): the Share sheet draws it.\nNever a loopback address. The host cannot see client isolation, so a `.local` or IP row is "listening", never "works".\n\nRoute: GET /api/pair/addresses (toolset `pairing`; reads).'
+    return _rt.call("GET", "/api/pair/addresses")
+
+
 def fichero_pairing_create_code(
     *,
     display_name: Annotated[Optional[str], Field(description='Display Name.')] = None,
@@ -9922,6 +9928,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_notes_delete_link", "notes", "DELETE", "/api/notes/{note_id}/links/{link_id}", fichero_notes_delete_link),
     GeneratedTool("fichero_renditions_get_image_chain", "renditions", "GET", "/api/pages/{page_id}/image-chain", fichero_renditions_get_image_chain),
     GeneratedTool("fichero_pairing_pair_device", "pairing", "POST", "/api/pair", fichero_pairing_pair_device),
+    GeneratedTool("fichero_pairing_pair_addresses", "pairing", "GET", "/api/pair/addresses", fichero_pairing_pair_addresses),
     GeneratedTool("fichero_pairing_create_code", "pairing", "POST", "/api/pair/code", fichero_pairing_create_code),
     GeneratedTool("fichero_pairing_list_devices", "pairing", "GET", "/api/pair/devices", fichero_pairing_list_devices),
     GeneratedTool("fichero_pairing_renew_device_token", "pairing", "POST", "/api/pair/devices/renew", fichero_pairing_renew_device_token),
