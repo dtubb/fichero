@@ -158,6 +158,16 @@ def test_a_damaged_or_foreign_link_is_refused_in_words():
             pairing.parse_link(text)
 
 
+def test_the_universal_link_is_the_tubb_ca_form_and_the_retired_host_is_refused():
+    custom = link()
+    query = custom.split("fichero://pair", 1)[1]
+    parsed = pairing.parse_link("https://tubb.ca/apps/fichero/pair" + query)
+    assert parsed == pairing.parse_link(custom)
+    for retired in ("https://fichero.app/pair", "https://tubb.ca/pair", "https://tubb.ca/apps/fichero/other"):
+        with pytest.raises(FicheroError, match="pairing link"):
+            pairing.parse_link(retired + query)
+
+
 def test_forget_drops_only_that_hosts_token(monkeypatch):
     run(monkeypatch, Host([GOOD]), link())
     run(monkeypatch, Host([GOOD]), link(api_url=TAILNET, spki=None))

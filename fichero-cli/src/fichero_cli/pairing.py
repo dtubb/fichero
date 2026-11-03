@@ -32,7 +32,8 @@ DEVICES_PATH = _TOKEN_PATH.with_name("paired-devices.json")
 PAIR_NEXT_HEADER = "x-fichero-pair-next"  # what the host asks the person for next (api/routes/auth/pairing.py)
 NEXT_PERSON = "person-required"
 NEXT_NEW_PASSWORD = "choose-password"
-_PAIR_HOSTS = {"fichero.app"}  # the https universal link the app also accepts
+_PAIR_HOST = "tubb.ca"  # the https universal link the app also accepts (moved from fichero.app, owner ruling 2026-11-02)
+_PAIR_PATH = "/apps/fichero/pair"
 
 
 @dataclass(frozen=True)
@@ -48,7 +49,7 @@ def parse_link(text: str) -> PairLink:
     raw = "".join((text or "").split())
     url = urlparse(raw)
     is_link = (url.scheme == "fichero" and url.netloc == "pair") or (
-        url.scheme == "https" and url.hostname in _PAIR_HOSTS and url.path.rstrip("/") == "/pair"
+        url.scheme == "https" and url.hostname == _PAIR_HOST and url.path.rstrip("/") == _PAIR_PATH
     )
     payload = (parse_qs(url.query).get("payload") or [""])[0]
     if not is_link or not payload:
