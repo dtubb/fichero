@@ -25,7 +25,8 @@ private struct PairingInviteLink {
     }()
 }
 
-/// The universal-link form of a pairing invite (#3791): `https://tubb.ca/apps/fichero/pair?payload=…` (moved from fichero.app, owner ruling 2026-11-02).
+/// The universal-link form of a pairing invite (#3791): `https://tubb.ca/apps/fichero/pair?payload=…`
+/// (moved from fichero.app, owner ruling 2026-11-02).
 /// Same `payload` query as the custom-scheme link — the domain is only a name
 /// the app claims via Associated Domains so a tapped link resolves even where the
 /// `fichero://` scheme isn't registered (e.g. Mail on a colleague's device). The

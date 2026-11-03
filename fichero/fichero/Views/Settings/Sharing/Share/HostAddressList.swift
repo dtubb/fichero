@@ -16,3 +16,12 @@ struct HostAddressList: View {
         }
     }
 }
+
+#Preview("Host address list") {
+    HostAddressList(records: [
+        HostAddressRecord(url: "https://studio.local:8765", listening: true, label: nil, reason: nil),
+        HostAddressRecord(url: "https://studio.tail1234.ts.net:8765", listening: true, label: "Tailscale", reason: nil),
+        HostAddressRecord(url: "https://192.168.1.20:8765", listening: false, label: "Wi-Fi", reason: "it changed; turn Sharing off and on")
+    ])
+    .padding()
+}

@@ -74,3 +74,9 @@ struct LiveAccountsOnHost: AccountsOnSequence.Host {
         await store.load()
     }
 }
+
+#Preview("Turn on accounts") {
+    let appState = AppState()
+    TurnOnAccountsSheet(store: appState.usersStore, identityStore: appState.identityStore, done: {})
+        .environment(appState)
+}

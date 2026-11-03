@@ -8,6 +8,8 @@ enum PairingFailureActions {
 
     /// The Tailscale app's own scheme, then the App Store page when it is not installed.
     static let tailscaleURL = "tailscale://"
+    /// This app's page in iOS Settings: the value of `UIApplication.openSettingsURLString`, spelled out so a view needs no UIKit.
+    static let settingsURL = "app-settings:"
     static let tailscaleStoreURL = "https://apps.apple.com/app/tailscale/id1470499037"
 
     /// A failure a second go can mend (a name, an answer, a network); not one that needs a new link or a person's change.

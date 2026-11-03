@@ -90,3 +90,11 @@ struct SharingStageControls: View {
     }
 }
 #endif
+
+#Preview("Sharing stage notes") {
+    VStack(alignment: .leading, spacing: 12) {
+        SharingStageNote(questionKey: SharingStageModel.sharingKey)
+        SharingStageNote(questionKey: SharingStageModel.accountsKey)
+    }
+    .padding()
+}

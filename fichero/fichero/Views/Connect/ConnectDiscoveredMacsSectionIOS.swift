@@ -1,6 +1,5 @@
 #if os(iOS) || os(visionOS)
 import SwiftUI
-import UIKit
 
 /// Discovered-Mac list that leads first-run onboarding (#3102). Discovery only
 /// surfaces *which* Mac is on the LAN; selecting one opens the QR scanner because
@@ -20,7 +19,7 @@ struct DiscoveredMacsSection: View {
                 // Declined Local Network access: said, with the way to the setting, not an endless "Searching…".
                 Text(LocalNetworkPolicy.sentence).foregroundStyle(.secondary)
                 Button(LocalNetworkPolicy.buttonTitle) {
-                    if let settings = URL(string: UIApplication.openSettingsURLString) { openURL(settings) }
+                    if let settings = URL(string: PairingFailureActions.settingsURL) { openURL(settings) }
                 }
             } else if discovery.hosts.isEmpty {
                 HStack(spacing: 10) {
