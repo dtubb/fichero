@@ -76,16 +76,24 @@ def group_key(gbase: str, gtip: str) -> str:
     return hashlib.sha256(json.dumps([[k["diff_hash"], k["message_hash"]] for k in land_tool.commit_keys(a.repo, gbase, gtip)]).encode()).hexdigest()
 
 
+def suffix_key(gtip: str) -> str:
+    """The commits AFTER a group up to this head, by content. A group's READY was judged against the head tree (a finding a later
+    commit fixes is a note, not a blocker), so it is reusable only when everything after it is unchanged too: a dropped or changed
+    later commit may be exactly what that READY relied on (review 2026-11-03)."""
+    return group_key(gtip, a.head) if gtip != a.head else "end"
+
+
 if prev and not a.full and prev["head"] != a.head and not subprocess.run(
         [land_tool.GIT, "-C", a.repo, "merge-base", "--is-ancestor", prev["head"], a.head], capture_output=True).returncode:
     kept = [g for g in prev["groups"] if g["verdict"] == "READY"]
     blocking = [g for g in prev["groups"] if g["verdict"] != "READY"]
     groups = land_tool.review_groups(a.repo, prev["head"], a.head, cap)
 elif prev and not a.full and prev["head"] != a.head:  # rewritten head: the groups are made afresh; an unchanged READY content is not reviewed again
-    ready = {g["key"]: g for g in prev["groups"] if g["verdict"] == "READY" and g.get("key")}
-    kept = [{**ready[group_key(b, t)], "base": b, "tip": t} for b, t in groups if group_key(b, t) in ready]
+    ready = {g["key"]: g for g in prev["groups"] if g["verdict"] == "READY" and g.get("key") and g.get("after")}
+    reuse = {(b, t) for b, t in groups if group_key(b, t) in ready and ready[group_key(b, t)]["after"] == suffix_key(t)}
+    kept = [{**ready[group_key(b, t)], "base": b, "tip": t} for b, t in groups if (b, t) in reuse]
     blocking = [g for g in prev["groups"] if g["verdict"] != "READY"]
-    groups = [(b, t) for b, t in groups if group_key(b, t) not in ready]
+    groups = [(b, t) for b, t in groups if (b, t) not in reuse]
 def ladder_summary(path) -> str:
     """One line per rung from the check's JSON (name, ok, seconds, the red result names), never a truncated raw tail."""
     if not path:
@@ -173,7 +181,8 @@ try:
 finally:
     drop_tree()
 # a READY delta settles what blocked before; a blocked one carries it forward with its own findings
-record[base] = {"head": a.head, "groups": kept + (blocking if blocked else []) + results}
+final = [{**g, "after": suffix_key(g["tip"])} for g in kept + results]  # each group's later commits at THIS head: what a rewritten head must still match
+record[base] = {"head": a.head, "groups": final[:len(kept)] + (blocking if blocked else []) + final[len(kept):]}
 land_tool.safe_write(side, json.dumps(record, indent=1))
 if blocked:
     sys.exit(1)

@@ -199,10 +199,12 @@ def test_a_rerun_after_a_fix_reviews_only_the_new_commits_and_keeps_the_ready_gr
     assert len(v["commits"]) == 3, "one verdict for the whole range"
     g("commit", "-q", "--amend", "-m", "fix, reworded")  # a rewritten head: the old one is no longer its ancestor
     r = again()
-    assert r.returncode == 0 and (tmp_path / "calls").read_text().strip() == "4", "a rewritten head reviews only the group whose content changed"
-    p = (tmp_path / "prompt4").read_text()
-    assert "DELTA REVIEW" in p and "o" * 20000 not in p, "the unchanged group is not sent again (dev-workflows.run.review-group-key)"
+    assert r.returncode == 0 and (tmp_path / "calls").read_text().strip() == "5", "a changed later commit changes the suffix: both groups are reviewed (a READY may rely on it)"
+    assert "o" * 20000 in (tmp_path / "prompt4").read_text() or "o" * 20000 in (tmp_path / "prompt5").read_text()
     g("commit", "-q", "--amend", "--no-edit", "--date", "2020-01-01T00:00:00")  # new sha, the same diffs and messages
     r = again()
-    assert r.returncode == 0 and (tmp_path / "calls").read_text().strip() == "4", "the same content under a new sha is never reviewed again"
+    assert r.returncode == 0 and (tmp_path / "calls").read_text().strip() == "5", "the same content under a new sha is never reviewed again (dev-workflows.run.review-group-key)"
     assert any(v["commits"][-1] == g("rev-parse", "HEAD").strip() for v in json.loads(store.read_text()).values()), "and the new head still gets its verdict"
+    g("reset", "-q", "--hard", "HEAD~1")  # a dropped last commit: the head tree is one nobody reviewed
+    r = again()
+    assert (tmp_path / "calls").read_text().strip() != "5", "dropping a commit never reuses a verdict from reuse alone"
