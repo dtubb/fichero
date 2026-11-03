@@ -651,16 +651,18 @@ def restart_loop(root, tick_s: float = 30.0) -> int:
     return p.pid
 
 
-def launch_agents(root, out, *, state=None, tick_s: float = 30.0) -> list[Path]:
-    """The owner's two LaunchAgents (dev-workflows.run.loop): `builder loop` kept alive, and `builder heartbeat` every three
-    ticks. Both run as the owner from the checkout's package; logs beside the journal."""
+def launch_agents(root, out, *, state=None, tick_s: float = 30.0, port: int = 8766) -> list[Path]:
+    """The owner's three LaunchAgents (dev-workflows.run.loop, run.loop-launchd): `builder loop` and the console (`builder status`)
+    kept alive and started at login, and `builder heartbeat` every three ticks. All run as the owner from the checkout's package;
+    logs beside the journal."""
     import plistlib
 
     pkg, out = Path(__file__).resolve().parents[1], Path(out)
     logs = Path(state) if state else journal.STATE
     st = ["--state", str(state)] if state else []
     jobs = {"loop": (["loop", "--root", str(root), "--tick", f"{tick_s:g}", *st], {"KeepAlive": True, "RunAtLoad": True}),
-            "heartbeat": (["heartbeat", "--tick", f"{tick_s:g}", *st], {"StartInterval": int(3 * tick_s)})}
+            "heartbeat": (["heartbeat", "--tick", f"{tick_s:g}", *st], {"StartInterval": int(3 * tick_s)}),
+            "console": (["status", "--port", str(port), "--root", str(root), *st], {"KeepAlive": True, "RunAtLoad": True})}
     out.mkdir(parents=True, exist_ok=True)
     paths = []
     for name, (args, when) in jobs.items():
@@ -672,6 +674,63 @@ def launch_agents(root, out, *, state=None, tick_s: float = 30.0) -> list[Path]:
         paths.append(f)
     return paths
 
+
+
+def load_agents(paths, run=subprocess.run) -> list[str]:
+    """`builder launchd --load`: each agent booted out (an old copy, ignored when none) and bootstrapped into the owner's GUI
+    domain, so a reboot starts the loop and the console by themselves. One line per agent: loaded, or launchctl's own error."""
+    dom = f"gui/{os.getuid()}"
+    lines = []
+    for p in paths:
+        run(["launchctl", "bootout", f"{dom}/{Path(p).stem}"], capture_output=True, text=True)
+        r = run(["launchctl", "bootstrap", dom, str(p)], capture_output=True, text=True)
+        lines.append(f"loaded {Path(p).stem}" if r.returncode == 0 else f"FAILED {Path(p).stem}: {(r.stderr or r.stdout).strip()[-200:]}")
+    return lines
+
+
+def other_loop() -> int:
+    """The pid of a live `builder loop` other than this process named in loop.pid, else 0. A launchd loop at login and a hand-started
+    one must never tick together; a pid the reboot left behind (dead, or reused by another program) is no loop."""
+    try:
+        pid = int((journal.STATE / "loop.pid").read_text().strip())
+    except (OSError, ValueError):
+        return 0
+    if pid == os.getpid():
+        return 0
+    cmd = subprocess.run(["ps", "-p", str(pid), "-o", "command="], capture_output=True, text=True).stdout
+    return pid if "fichero_builder loop" in cmd else 0
+
+
+SHELLS = {"zsh", "bash", "sh", "fish", "login"}
+
+
+def repane(listing: str | None = None) -> list[str]:
+    """dev-workflows.run.loop-launchd: pane ids change after a reboot. An external lane whose registered pane is gone is pointed at
+    the one live pane running something other than a shell (a Claude session) in its worktree or below it; none or several = left
+    as it is. One `queue` row per move. ponytail: two dead lanes on one worktree both take its one session; a pane title match
+    if that ever picks wrong."""
+    if listing is None:
+        r = subprocess.run(["tmux", "list-panes", "-a", "-F", "#{pane_id}\t#{pane_current_command}\t#{pane_current_path}"], capture_output=True, text=True)
+        if r.returncode:
+            return []  # no tmux server yet (the loop starts at login, before any session): next tick
+        listing = r.stdout
+    panes = [ln.split("\t") for ln in listing.splitlines() if ln.count("\t") == 2]
+    live = {p[0] for p in panes}
+    moved = []
+    with journal.Lock("queue"):
+        lanes = load()
+        for x in lanes:
+            if x.get("kind") != "external" or not x.get("pane") or x["pane"] in live:
+                continue
+            wt = os.path.realpath(x["worktree"])
+            fit = [p[0] for p in panes if p[1].lstrip("-") not in SHELLS and (os.path.realpath(p[2]) + "/").startswith(wt + "/")]
+            if len(fit) == 1:
+                moved.append(f"{x['id']}: pane {x['pane']} -> {fit[0]}")
+                journal.append("queue", lane=x["id"], state="repane", detail=moved[-1])
+                x["pane"] = fit[0]
+        if moved:
+            save(lanes)
+    return moved
 
 def feed(procs: Procs, lanes_n: int, out=print) -> bool:
     """While fewer than `lanes_n` lanes have steps left, queue the next build-order milestone no lane holds. True if one was taken."""
@@ -766,6 +825,9 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
     # the loop always chains in a thread: a one-lane check inside the tick would starve the heartbeat for its whole ladder
     chains: dict | None = {"pool": ThreadPoolExecutor(max_workers=lanes_n)} if lanes_n > 1 or heartbeat else None
     while True:
+        if heartbeat:  # after a reboot the lanes' sessions come back in new panes (run.loop-launchd)
+            for m in repane():
+                out(m)
         for x in load():  # dev-workflows.run.loop-external-intake: an external lane past its thresholds is taken as if done ran
             cur = x["steps"][x["cursor"]]["state"] if x["cursor"] < len(x["steps"]) else "landed"
             if x.get("kind") == "external" and not x.get("hold") and cur in ("queued", "landed") and (sha := procs.intake(x)):

@@ -492,6 +492,21 @@ def test_the_build_rung_runs_only_for_build_paths_and_reports_red(tmp_path):  # 
     assert ct.build(tmp_path, ["fichero/App.swift"], deep)["ok"] and (tmp_path / "no" / "such" / "dir" / "b.lock").exists(), "the lock's dir is made (review 2 R2)"
 
 
+
+def test_the_build_rung_retries_once_on_a_locked_build_db_and_never_on_another_red(tmp_path, monkeypatch):  # manager 2026-11-03
+    monkeypatch.setattr(ct, "BUILD_RETRY_WAIT_S", 0)
+    msg = "error: unable to attach DB: error: accessing build database /d/XCBuildData/build.db: database is locked Possibly there are two concurrent builds running in the same filesystem location."
+    once = ("sh", "-c", f"if [ -e ran ]; then exit 0; fi; touch ran; echo '{msg}' >&2; exit 65")
+    r = ct.build(tmp_path, ["fichero/App.swift"], ct.Config(build_paths=("fichero/",), build=once))
+    assert r["ok"] and r["results"][0]["retried"], "the second run stands"
+    (tmp_path / "ran").unlink()
+    always = ("sh", "-c", f"echo '{msg}' >&2; echo x >> runs; exit 65")
+    r = ct.build(tmp_path, ["fichero/App.swift"], ct.Config(build_paths=("fichero/",), build=always))
+    assert not r["ok"] and (tmp_path / "runs").read_text().count("x") == 2, "once only"
+    other = ("sh", "-c", "echo 'error: no such module' >&2; echo y >> other; exit 65")
+    r = ct.build(tmp_path, ["fichero/App.swift"], ct.Config(build_paths=("fichero/",), build=other))
+    assert not r["ok"] and (tmp_path / "other").read_text().count("y") == 1 and "retried" not in r["results"][0], "a real red is never re-run"
+
 def test_the_build_rung_counts_a_deleted_swift_file_as_a_change(tmp_path):  # review 1 M7
     import subprocess
 

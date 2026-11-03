@@ -164,7 +164,7 @@ def test_a_stale_heartbeat_is_one_alert_per_silence_and_a_fresh_one_is_none(stat
 def test_the_launch_agents_keep_the_loop_alive_and_run_the_watchdog_every_three_ticks(state):
     import plistlib
     paths = queue.launch_agents(state, state / "la", state=state / "s", tick_s=30)
-    loop, hb = (plistlib.loads(p.read_bytes()) for p in paths)
+    loop, hb, _console = (plistlib.loads(p.read_bytes()) for p in paths)
     assert loop["KeepAlive"] is True
     assert loop["ProgramArguments"][1:4] == ["-m", "fichero_builder", "loop"] and "--state" in loop["ProgramArguments"]
     assert hb["StartInterval"] == 90 and hb["ProgramArguments"][1:4] == ["-m", "fichero_builder", "heartbeat"] and "KeepAlive" not in hb

@@ -694,6 +694,11 @@ def build_names(root, since: str, head: str) -> list[str]:
     return [f for _s, _m, f in _changes(root, since, head, "--diff-filter=AMD")]
 
 
+# manager 2026-11-03: a build rung went red once on this alone (a killed build's xcodebuild still held the jail's derived dir)
+BUILD_DB_LOCKED = re.compile(r"build\.db.*database is locked|database is locked.*two concurrent builds", re.S)
+BUILD_RETRY_WAIT_S = 30  # ponytail: one fixed wait; the other build's end is not watched
+
+
 @_heavy("xcodebuild (the build rung)")
 def build(root, changed: list[str], cfg: Config) -> dict:
     """The project's build-only compile, only when the diff touches its build paths; one at a time under the lock
@@ -709,6 +714,10 @@ def build(root, changed: list[str], cfg: Config) -> dict:
         if lock is not None:
             fcntl.flock(lock, fcntl.LOCK_EX)
         r = _run("build", list(cfg.build), root, cfg.build_timeout_s, cfg)
+        if not r["ok"] and BUILD_DB_LOCKED.search((r.get("stdout_tail") or "") + (r.get("stderr_tail") or "")):
+            journal.append("check", state="retry", rung="build", detail="XCBuildData build.db was locked by another build in the same derived dir: re-run once")
+            time.sleep(BUILD_RETRY_WAIT_S)
+            r = {**_run("build", list(cfg.build), root, cfg.build_timeout_s, cfg), "retried": True}
     finally:
         if lock is not None:
             lock.close()

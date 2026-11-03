@@ -147,8 +147,9 @@ def main(argv=None) -> int:
     hb.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
     hb.add_argument("--tick", type=float, default=30.0), hb.add_argument("--ticks", type=int, default=3)
     hb.add_argument("--restart", metavar="ROOT", help="on a new stale alert also kill the loop (loop.pid, with its children) and start `builder loop --root ROOT`, once per silence")
-    la = sub.add_parser("launchd", help="write the owner's two LaunchAgents (the loop with KeepAlive; the heartbeat watchdog every 3 ticks) and print how to load them; never loads them")
+    la = sub.add_parser("launchd", help="write the owner's three LaunchAgents (the loop and the console with KeepAlive, started at login; the heartbeat watchdog every 3 ticks); --load also loads them")
     la.add_argument("--root", default=str(Path.cwd())), la.add_argument("--state"), la.add_argument("--tick", type=float, default=30.0)
+    la.add_argument("--port", type=int, default=8766, help="the console's port"), la.add_argument("--load", action="store_true", help="launchctl bootout + bootstrap each agent")
     la.add_argument("--out", default=str(Path.home() / "Library" / "LaunchAgents"))
     al = sub.add_parser("alert", help="answer one alert row (dev-workflows.run.loop-alerts): retry | park | ask-owner, or approve | send-back for needs-maintainer")
     al.add_argument("id"), al.add_argument("action")
@@ -301,15 +302,21 @@ def main(argv=None) -> int:
     if a.cmd == "launchd":
         from fichero_builder import queue
 
-        for path in queue.launch_agents(a.root, a.out, state=a.state, tick_s=a.tick):
-            print(f"wrote {path}\nload: launchctl bootstrap gui/$(id -u) {path}")
-        return 0
+        paths = queue.launch_agents(a.root, a.out, state=a.state, tick_s=a.tick, port=a.port)
+        for path in paths:
+            print(f"wrote {path}" + ("" if a.load else f"\nload: launchctl bootstrap gui/$(id -u) {path}"))
+        lines = queue.load_agents(paths) if a.load else []
+        print("\n".join(lines)) if lines else None
+        return 1 if any(ln.startswith("FAILED") for ln in lines) else 0
     if a.cmd == "loop":
         import tomllib
 
         from fichero_builder import queue
 
         journal.STATE = Path(a.state) if a.state else journal.STATE
+        if pid := queue.other_loop():  # a launchd loop at login beside a hand-started one: never two (KeepAlive retries it)
+            print(f"REFUSED: a loop already runs (pid {pid}, loop.pid)")
+            return 1
         f = Path(a.root) / "harness.toml"
         cfg = tomllib.loads(f.read_text()).get("loop", {}) if f.is_file() else {}
         queue.ROUNDS = int(cfg.get("rounds", queue.ROUNDS))
