@@ -11,8 +11,11 @@ there would be obeyed as the owner), and only if the final line is exactly READY
 range (ordered patch-ids + messages), only when every group's is, into FILE, an owner-owned file outside the workroot. `--print` shows the prompt.
 Delta review: each group's range and verdict (and a blocking reply's text) go into FILE.groups under the base. When the last
 run's head is an ancestor of this head, its READY groups are kept and only last-head..head is reviewed, with the findings that
-blocked before named for the reviewer to check at the head. A rebased head, no record or `--full` reviews the whole range."""
+blocked before named for the reviewer to check at the head. A rewritten head (folded or rebased commits) groups the whole range afresh
+and reuses a READY for every group whose content key (a hash of its commits' diffs and messages, not their shas) is unchanged: only the
+changed groups are reviewed, so the same input is never reviewed twice. No record or `--full` reviews the whole range."""
 import argparse
+import hashlib
 import json
 import re
 import shutil
@@ -65,11 +68,24 @@ except (OSError, ValueError):
 prev = record.get(base)
 kept: list[dict] = []
 blocking: list[dict] = []
+
+
+def group_key(gbase: str, gtip: str) -> str:
+    """The content of a group: its commits' diff and message hashes in order, never their shas, so a folded or rebased commit
+    with the same change keeps the key and a changed one does not."""
+    return hashlib.sha256(json.dumps([[k["diff_hash"], k["message_hash"]] for k in land_tool.commit_keys(a.repo, gbase, gtip)]).encode()).hexdigest()
+
+
 if prev and not a.full and prev["head"] != a.head and not subprocess.run(
         [land_tool.GIT, "-C", a.repo, "merge-base", "--is-ancestor", prev["head"], a.head], capture_output=True).returncode:
     kept = [g for g in prev["groups"] if g["verdict"] == "READY"]
     blocking = [g for g in prev["groups"] if g["verdict"] != "READY"]
     groups = land_tool.review_groups(a.repo, prev["head"], a.head, cap)
+elif prev and not a.full and prev["head"] != a.head:  # rewritten head: the groups are made afresh; an unchanged READY content is not reviewed again
+    ready = {g["key"]: g for g in prev["groups"] if g["verdict"] == "READY" and g.get("key")}
+    kept = [{**ready[group_key(b, t)], "base": b, "tip": t} for b, t in groups if group_key(b, t) in ready]
+    blocking = [g for g in prev["groups"] if g["verdict"] != "READY"]
+    groups = [(b, t) for b, t in groups if group_key(b, t) not in ready]
 def ladder_summary(path) -> str:
     """One line per rung from the check's JSON (name, ok, seconds, the red result names), never a truncated raw tail."""
     if not path:
@@ -149,11 +165,11 @@ try:
         m = re.fullmatch(r"READY(?:: allow-shadow (.+))?", last)  # a risky file must be NAMED here (land_tool.risky_paths)
         if r.returncode or not m:
             blocked = True
-            results.append({"base": gbase, "tip": gtip, "verdict": "NOT READY", "findings": out[-4000:]})
+            results.append({"base": gbase, "tip": gtip, "key": group_key(gbase, gtip), "verdict": "NOT READY", "findings": out[-4000:]})
             continue
         ok = [x.strip() for x in (m.group(1) or "").split(",") if x.strip()]
         shadow += ok
-        results.append({"base": gbase, "tip": gtip, "verdict": "READY", "shadow": ok})
+        results.append({"base": gbase, "tip": gtip, "key": group_key(gbase, gtip), "verdict": "READY", "shadow": ok})
 finally:
     drop_tree()
 # a READY delta settles what blocked before; a blocked one carries it forward with its own findings
