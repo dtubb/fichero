@@ -60,6 +60,7 @@ class Config:
     max_lines: int = 1500
     max_commits: int = 100  # lane_ready_check.sh reads it from harness.toml: a hard-coded 60 had to be raised by hand in the pinned copy (2026-11-03)
     build_paths: tuple = ()             # a diff touching these (prefixes) runs the build rung; () = no build rung
+    product_paths: tuple = ()           # a landed batch touching these (prefixes) earns the post-landing dev build; () = every landing builds
     build: tuple = ()                   # argv of a build-only compile (never a test run), run in the scratch tree
     build_timeout_s: float = 1800
     build_lock: str = ""                # a lock file: one build at a time on the machine ("" = no lock)
@@ -102,7 +103,7 @@ def load(root) -> Config:
         contract_guards=tuple(c.get("contract_guards", d.contract_guards)), since_guards=dict(c.get("since_guards", {})),
         whole_tests=dict(c.get("whole_tests", {})), spec_dir=c.get("spec_dir", d.spec_dir), check_paths=tuple(c.get("check_paths", d.check_paths)), red_paths=tuple(c.get("red_paths", d.red_paths)), test_globs=tuple(c.get("test_globs", d.test_globs)),
         pytest_config=c.get("pytest_config", d.pytest_config), pytest_plugins=tuple(c.get("pytest_plugins", d.pytest_plugins)), max_files=c.get("max_files", d.max_files),
-        max_lines=c.get("max_lines", d.max_lines), max_commits=c.get("max_commits", d.max_commits), build_paths=tuple(c.get("build_paths", d.build_paths)),
+        max_lines=c.get("max_lines", d.max_lines), max_commits=c.get("max_commits", d.max_commits), build_paths=tuple(c.get("build_paths", d.build_paths)), product_paths=tuple(c.get("product_paths", d.product_paths)),
         build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
         build_lock=c.get("build_lock", d.build_lock), engine_repo=c.get("engine_repo", d.engine_repo),
         remote=c.get("remote", d.remote), remote_python=c.get("remote_python", d.remote_python),
@@ -189,7 +190,8 @@ def _jail_enter(j) -> None:
     global _JAIL
     with _JAIL_LOCK:
         _JAIL_USERS[0] += 1
-        _JAIL = j
+        if j is not None:  # a ladder with no jail must not clear the neighbour's: it runs under the jail already in force (the safe side)
+            _JAIL = j
 
 
 def _jail_exit() -> None:
@@ -251,6 +253,16 @@ def run_command(name: str, argv: list[str], cwd, timeout_s: float, env: dict | N
 
 def cancel_file(head: str) -> Path:
     return journal.STATE / f"cancel-{head[:9]}"
+
+
+def sweep_cancels(max_age_s: float = 86400) -> None:
+    """A cancel marker outlives its ladder when `builder done` wrote it after the old check had ended: drop the old ones."""
+    for p in journal.STATE.glob("cancel-*"):
+        try:
+            if time.time() - p.stat().st_mtime > max_age_s:
+                p.unlink()
+        except OSError:
+            pass
 
 
 def cancel_requested() -> bool:
@@ -991,6 +1003,7 @@ def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_requi
             raise _jailmod.JailMissing("the jail leaks: " + "; ".join(wall))
     _jail_enter(j)
     _KEY[0] = f"check {since[:9]}..{str(head)[:9]}"
+    sweep_cancels()
     ACTIVITY(kind="check", key=_KEY[0], state="start")
     ended: dict = {}
     try:
@@ -998,6 +1011,7 @@ def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_requi
         return ended
     finally:
         ACTIVITY(kind="check", key=_KEY[0], state="end", ok=bool(ended.get("ok")), failed=ended.get("failed", "?"))
+        cancel_file(str(head)).unlink(missing_ok=True)  # the superseded ladder has ended: its marker has done its work
         _jail_exit()
         if _SHIPPED or _DOWN:
             _drop_remote(load(pinned))
