@@ -789,28 +789,8 @@ def test_a_done_while_the_batch_is_landing_is_refused_and_the_landing_keeps_its_
     fake.procs.landed = landed
     queue.run(fake.procs, workers_n=1, push=True, once=True, out=lambda s: None)
     assert told and "one at a time" in told[0], "done is refused while the batch is landing"
-    assert steps()["batch-1"]["state"] == "landed" and "landing" not in steps()["batch-1"]
+    assert steps()["batch-1"]["state"] == "landed" and "settling" not in steps()["batch-1"]
 
-
-def test_a_result_whose_head_a_newer_done_replaced_after_the_result_check_is_not_landed(state, tmp_path, monkeypatch):
-    """The claim is authoritative: even when the unlocked result check passed, the under-the-lock claim refuses a step whose head moved."""
-    old, child = _two_commit_repo(tmp_path)
-    queue.add("ext", str(tmp_path / "ext"), "batch-1", str(state / "b1.1"), [], kind="external")
-    lanes = queue.load()
-    lanes[0]["steps"][0].update(state="done", head=old)
-    queue.save(lanes)
-    fake = Fake()
-    real = fake.procs.chain
-
-    def chain(lane_, step, stage):
-        r = real(lane_, step, stage)
-        assert queue.done("ext", child) == ""  # supersedes between the chain and the landing
-        monkeypatch.setattr(queue, "stored_head", lambda *a: old)  # the unlocked check is blind to it
-        return r
-    fake.procs.chain = chain
-    queue.run(fake.procs, workers_n=1, push=True, once=True, out=lambda s: None)
-    assert fake.landed_calls == [] and steps()["batch-1"]["head"] == child and steps()["batch-1"]["state"] == "done"
-    assert any(r.get("state") == "stale-result" and "not landed" in r.get("detail", "") for r in journal.read() if r["event"] == "queue")
 
 
 def test_a_done_the_land_tree_refuses_cancels_nothing_and_leaves_the_running_check(state, tmp_path, monkeypatch):
@@ -825,3 +805,39 @@ def test_a_done_the_land_tree_refuses_cancels_nothing_and_leaves_the_running_che
     assert "land tree" in queue.done("ext", child)
     assert not (journal.STATE / f"cancel-{old[:9]}").exists() and steps()["batch-1"]["head"] == old and steps()["batch-1"]["state"] == "checking"
     assert not any(r.get("state") == "superseded" for r in journal.read() if r["event"] == "queue")
+
+
+@pytest.mark.parametrize("result", [{"ok": True}, {"ok": False, "kind": "red", "why": "pytest red", "findings": "t1", "evidence": "/l.json"},
+                                    {"ok": False, "kind": "needs-maintainer", "why": "pinned", "evidence": "/l.json"}])
+@pytest.mark.parametrize("point", ["checking", "reviewing", "returned"])
+def test_a_stale_chain_writes_nothing_at_any_stage_after_a_newer_done(state, tmp_path, point, result):
+    """The race class (-92, -94, -96): a chain driven through every write it makes to the step (stage `checking`, stage `reviewing`,
+    its result: landed, blocked, a fix brief) against a `builder done` at a newer head that lands at that point. Every write is a
+    compare-and-set of (step, head) under the queue lock, so none of them touches the newer head, and nothing lands."""
+    old, child = _two_commit_repo(tmp_path)
+    queue.add("ext", str(tmp_path / "ext"), "batch-1", str(state / "b1.1"), [], kind="external")
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="done", head=old)
+    queue.save(lanes)
+    fake = Fake()
+    fired = []
+
+    def supersede():
+        fired.append(queue.done("ext", child))
+        assert fired[-1] == "", "the newer done is taken at this point"
+
+    def chain(lane_, step, stage):
+        for name in ("checking", "reviewing"):
+            stage(name)
+            if point == name:
+                supersede()
+        if point == "returned":
+            supersede()
+        return {"head": old, "why": "", "findings": "", **result}
+    fake.procs.chain = chain
+    queue.run(fake.procs, workers_n=1, push=True, once=True, out=lambda s: None)
+    s = steps()["batch-1"]
+    assert fired == [""] and fake.landed_calls == [], "the superseded head never lands"
+    assert s["head"] == child and s["state"] == "done" and "settling" not in s and "why" in s, f"the newer done stands: {s}"
+    assert not any(r["event"] == "alert" for r in journal.read()), "and a stale red raises no alert for the old head"
+

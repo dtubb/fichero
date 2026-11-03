@@ -78,11 +78,6 @@ def store(lane: dict, expect: tuple | None = None) -> bool:
         return True
 
 
-def stored_head(lane_id: str, step: str) -> str:
-    """The head the queue file holds for a step now (what `builder done` wrote), not the tick's snapshot of it."""
-    return next((st.get("head", "") for x in load() if x["id"] == lane_id for st in x["steps"] if st["step"] == step), "")
-
-
 def workers(root) -> int:
     f = Path(root) / "harness.toml"
     return int(tomllib.loads(f.read_text()).get("queue", {}).get("workers", 1)) if f.is_file() else 1
@@ -203,6 +198,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     """One pass over one lane. False when it can do nothing more without a person: finished, blocked or paused."""
     def move(s, state, detail="", only_head=None):
         s["state"], s["why"] = state, detail[-500:]
+        s.pop("settling", None)  # a final write ends the claim
         if only_head is not None and not store(lane, expect=(s["step"], only_head)):
             return  # a newer head took the step while this chain ran: its stale copy is not written, nor said
         journal.append("queue", lane=lane["id"], step=s["step"], state=state, detail=detail[-300:])
@@ -331,9 +327,6 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             return {"ok": False, "kind": "error", "why": str(e)}
     if chains is None:
         r = chain()
-        if stored_head(lane["id"], s["step"]) != h0:
-            journal.append("queue", lane=lane["id"], step=s["step"], state="stale-result", detail=f"the check of {h0[:9]} ended after a newer head superseded it: dropped")
-            return True
     elif fut is None:
         if DRAIN[0]:  # new code waits: no new chain starts, so the loop can re-exec between chains
             return True
@@ -343,16 +336,18 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     else:
         f = chains.pop(lane["id"])
         r = f.result()
-        if getattr(f, "head", s.get("head", "")) != stored_head(lane["id"], s["step"]):  # `builder done` at a newer head ended this batch: its result is dropped, the new head is checked next tick
-            journal.append("queue", lane=lane["id"], step=s["step"], state="stale-result", detail=f"the check of {f.head[:9]} ended after {s.get('head', '')[:9]} superseded it: dropped")
-            return True
+    # the ONE claim of the chain's outcome: a compare-and-set of (step, head) under the queue lock. Every write a chain makes to the step
+    # is `store(expect=...)` (the stage callbacks above, this claim); after it the step is `settling`, which `builder done` refuses, so no
+    # outcome below (landed, blocked, a fix brief) can overwrite a newer head, and no unlocked read decides anything (review -92/-94/-96).
+    if not r["ok"] or not r.get("head"):
+        s["settling"] = True
+    else:
+        s["head"], s["settling"] = r["head"], True
+    if not store(lane, expect=(s["step"], h0)):
+        journal.append("queue", lane=lane["id"], step=s["step"], state="stale-result", detail=f"the check of {h0[:9]} ended after a newer head took the step: dropped")
+        return True
     if r["ok"]:
-        s["head"], s["landing"] = r["head"], True
-        if not store(lane, expect=(s["step"], h0)):  # claim the step under the lock: a `builder done` that took it since the result check wins, and done refuses a step that is landing
-            journal.append("queue", lane=lane["id"], step=s["step"], state="stale-result", detail=f"the check of {h0[:9]} ended after a newer head took the step: not landed")
-            return True
         rc, output = procs.landed(lane, r["head"], push)
-        s.pop("landing", None)
         if rc:
             return block(s, output)
         if lane.get("kind") == "external" and s.get("land_tree"):
@@ -486,7 +481,7 @@ def done(lane_id: str, sha: str = "") -> str:
         if lane is None or lane.get("kind") != "external":
             why = f"no external lane {lane_id!r}"
         elif lane["cursor"] < len(lane["steps"]) and lane["steps"][lane["cursor"]]["state"] in IN_LADDER and not (
-                lane["steps"][lane["cursor"]]["state"] in ("checking", "reviewing") and not lane["steps"][lane["cursor"]].get("landing")
+                lane["steps"][lane["cursor"]]["state"] in ("checking", "reviewing") and not lane["steps"][lane["cursor"]].get("settling")
                 and (sha := sha or lane_head(lane["worktree"]))
                 and sha != lane["steps"][lane["cursor"]].get("head") and lane["steps"][lane["cursor"]].get("head")
                 and related(lane["worktree"], lane["steps"][lane["cursor"]]["head"], sha)):
