@@ -64,7 +64,8 @@ class Config:
     build: tuple = ()                   # argv of a build-only compile (never a test run), run in the scratch tree
     build_timeout_s: float = 1800
     build_lock: str = ""                # a lock file: one build at a time on the machine ("" = no lock)
-    remote: str = ""                    # "host:dir": the engine pytest runs go over ssh to that machine ("" = here); unreachable = an alert, then here
+    remote: str = ""                    # "host:dir": the engine pytest runs go over ssh to that machine ("" = here); unreachable = an alert, then the next in `remotes`, then here
+    remotes: tuple = ()                 # [check].remote as a LIST ("imac:~/g", "air:~/g"): tried in order; one alert per runner that is down
     remote_python: str = ""             # the interpreter there ("" = <dir>/venv/bin/python)
     guard_inputs: dict = field(default_factory=dict)  # {guard stem: [path prefixes it reads]}: its cache key (speed 5); undeclared = the whole tree
     remote_guards: bool = False         # the guards too (they call git, and the shipped tree has no .git: off by default)
@@ -106,7 +107,8 @@ def load(root) -> Config:
         max_lines=c.get("max_lines", d.max_lines), max_commits=c.get("max_commits", d.max_commits), build_paths=tuple(c.get("build_paths", d.build_paths)), product_paths=tuple(c.get("product_paths", d.product_paths)),
         build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
         build_lock=c.get("build_lock", d.build_lock), engine_repo=c.get("engine_repo", d.engine_repo),
-        remote=c.get("remote", d.remote), remote_python=c.get("remote_python", d.remote_python),
+        remote=(c["remote"][0] if c["remote"] else "") if isinstance(c.get("remote"), list) else c.get("remote", d.remote),
+        remotes=tuple(c["remote"]) if isinstance(c.get("remote"), list) else d.remotes, remote_python=c.get("remote_python", d.remote_python),
         remote_guards=c.get("remote_guards", d.remote_guards), guard_inputs=dict(c.get("guard_inputs", {})), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb),
         parallel=max(1, int(c.get("parallel", d.parallel))))
 
@@ -304,7 +306,12 @@ def _skipped(name: str) -> dict:
 
 _SHIPPED: dict = {}  # local tree -> its copy on [check].remote; removed by the ladder that shipped it at its end (_drop_remote)
 _MINE = threading.local()  # the local trees THIS thread's ladder shipped: two ladders run at once (speed 3) and one's end must not delete the other's copy
-_DOWN: list = []  # the remote failed once in this ladder: one alert, then every run here
+_DOWN: list = []  # a remote failed in this ladder (one alert per runner); with every runner down the runs are here
+_DEAD: set = set()  # the runners that failed in this ladder: not tried again until a retry finds one back
+
+
+def _runners(cfg: Config) -> tuple:
+    return cfg.remotes or ((cfg.remote,) if cfg.remote else ())
 
 
 def _ssh(host: str, script: str, timeout_s: float, stdin=None) -> subprocess.CompletedProcess:
@@ -315,15 +322,16 @@ def _ssh(host: str, script: str, timeout_s: float, stdin=None) -> subprocess.Com
         return subprocess.CompletedProcess([], 255, b"", str(e).encode())
 
 
-def _ship(root, cfg: Config) -> str:
+def _ship(root, cfg: Config, remote: str = "") -> str:
     """The tree's files (tracked and the overlay's untracked ones, never .git) into a fresh dir on the remote; its absolute path."""
+    remote = remote or cfg.remote
     root = str(root)
     if not hasattr(_MINE, "roots"):
         _MINE.roots = set()
-    _MINE.roots.add(root)
-    if root in _SHIPPED:
-        return _SHIPPED[root]
-    host, _, base = cfg.remote.partition(":")
+    _MINE.roots.add((root, remote))
+    if (root, remote) in _SHIPPED:
+        return _SHIPPED[(root, remote)]
+    host, _, base = remote.partition(":")
     free = _ssh(host, f"df -g {base or '.'} | tail -1 | awk '{{print $4}}'", 30).stdout.decode().strip()
     if free.isdigit() and int(free) < cfg.remote_min_free_gb:  # the iMac is 98% full: never fill it
         raise OSError(f"{host}: {free} GiB free, under {cfg.remote_min_free_gb:g}")
@@ -337,19 +345,20 @@ def _ship(root, cfg: Config) -> str:
     if tar.returncode or up.returncode:
         _ssh(host, f"rm -rf {shlex.quote(rdir)}", 60)
         raise OSError(f"{host}: copy failed: {(tar.stderr or up.stderr).decode().strip()[-200:]}")
-    _SHIPPED[root] = rdir
+    _SHIPPED[(root, remote)] = rdir
     return rdir
 
 
 def _drop_remote(cfg: Config) -> None:
     """Remove the remote copies THIS thread's ladder shipped, never another running ladder's (review 2026-11-02); the down flag
     is cleared when no ladder runs."""
-    for root in list(getattr(_MINE, "roots", ())):
-        if rdir := _SHIPPED.pop(root, None):
-            _ssh(cfg.remote.partition(":")[0], f"rm -rf {shlex.quote(rdir)}", 120)
+    for key in list(getattr(_MINE, "roots", ())):
+        if rdir := _SHIPPED.pop(key, None):
+            _ssh(key[1].partition(":")[0], f"rm -rf {shlex.quote(rdir)}", 120)
     _MINE.roots = set()
     if _JAIL_USERS[0] <= 0:
         _DOWN.clear()
+        _DEAD.clear()
 
 
 _LOCK_CODE = ("import fcntl, os, subprocess, sys; f = open(sys.argv[1], 'a'); fcntl.flock(f, fcntl.LOCK_EX); "
@@ -362,16 +371,17 @@ def _remote_heavy(py: str, lock: str, script: str) -> str:
     return shlex.join([py, "-c", _LOCK_CODE, lock, script])
 
 
-def _remote_run(name, argv, root, timeout_s, cfg: Config, extra: dict | None, cwd) -> dict | None:
+def _remote_run(name, argv, root, timeout_s, cfg: Config, extra: dict | None, cwd, remote: str = "") -> dict | None:
     """The same pytest command on [check].remote over the shipped tree: local paths become the copy's, the interpreter the
     remote's, the env the rung's own keys (a fresh base dir there). None when the remote cannot be reached: one alert row,
     and the caller runs it here (progress never waits on that machine). ponytail: the remote runs the tests unjailed as the
     ssh user; that machine holds nothing but its gate dir."""
-    host, _, base = cfg.remote.partition(":")
+    remote = remote or cfg.remote
+    host, _, base = remote.partition(":")
     try:
-        rdir = _ship(root, cfg)
+        rdir = _ship(root, cfg, remote)
     except OSError as e:
-        return _remote_down(cfg, str(e))
+        return _remote_down(cfg, str(e), remote)
     py = cfg.remote_python or f"{rdir.rsplit('/', 1)[0]}/venv/bin/python"
     sub = lambda x: str(x).replace(str(root), rdir)  # noqa: E731
     cmd = [py if a == _py(cfg) else sub(a) for a in argv]
@@ -383,22 +393,48 @@ def _remote_run(name, argv, root, timeout_s, cfg: Config, extra: dict | None, cw
     script = _remote_heavy(py, f"{rdir.rsplit('/', 1)[0]}/heavy.lock", script)  # the iMac's own lock
     r = run_command(name, ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host, script], root, timeout_s, None, as_jail=False)
     if r["exit_code"] == 255:  # ssh's own failure, never pytest's
-        return _remote_down(cfg, r["stderr_tail"][-200:])
+        return _remote_down(cfg, r["stderr_tail"][-200:], remote)
     return {**r, "remote": host}
 
 
-def _remote_down(cfg: Config, why: str) -> None:
+def _remote_down(cfg: Config, why: str, remote: str = "") -> None:
     from . import queue
+    remote = remote or cfg.remote
     _DOWN.append(why)
-    queue.alert("check", "remote", f"the check runner {cfg.remote} is unreachable; the tests ran here: {why}", cfg.remote, [])
+    _DEAD.add(remote)
+    left = [r for r in _runners(cfg) if r not in _DEAD]
+    queue.alert("check", "remote", f"the check runner {remote} is unreachable; " + (f"trying {left[0]}" if left else "the tests ran here") + f": {why}", remote, [])
     return None
 
 
 def _run(name, argv, root, timeout_s, cfg: Config, extra: dict | None = None, cwd=None, remote: bool = False) -> dict:
     """run_command with a fresh scratch env, its HOME and base dirs removed afterwards (no litter per rung). `remote`: an
-    engine pytest run, sent to [check].remote when one is set."""
-    if remote and cfg.remote and not _DOWN and (r := _remote_run(name, argv, root, timeout_s, cfg, extra, cwd)) is not None:
-        return r
+    engine pytest run, sent to the first reachable of [check].remote when one is set; a red that appears only because the runner
+    changed (the first choice was down, or the run fell back here) is retried ONCE on a runner it did not run on before it counts
+    (manager 2026-11-03: the iMac was off and the tests went red on the jail user's own home); nothing is told to a lane about it."""
+    if not remote:
+        return _local(name, argv, root, timeout_s, cfg, extra, cwd)
+    runners = _runners(cfg)
+    res, used = None, ""
+    for rem in runners:
+        if rem not in _DEAD and (res := _remote_run(name, argv, root, timeout_s, cfg, extra, cwd, rem)) is not None:
+            used = rem
+            break
+    if res is None:
+        res = _local(name, argv, root, timeout_s, cfg, extra, cwd)
+    if runners and not res.get("ok") and used != runners[0]:  # the first choice did not run it
+        for rem in runners:
+            if rem == used:
+                continue
+            if rem in _DEAD and _ssh(rem.partition(":")[0], "true", 15).returncode == 0:
+                _DEAD.discard(rem)  # it is back
+            if rem not in _DEAD and (again := _remote_run(name, argv, root, timeout_s, cfg, extra, cwd, rem)) is not None:
+                journal.append("runner-retry", rung=name, first=used or "here", retried=rem, ok=bool(again.get("ok")))
+                return again if again.get("ok") else res
+    return res
+
+
+def _local(name, argv, root, timeout_s, cfg: Config, extra: dict | None, cwd) -> dict:
     env = _env(root, cfg, extra)
     try:
         return run_command(name, argv, cwd or root, timeout_s, env)
@@ -506,7 +542,7 @@ def _heavy(what: str, local_only: bool = False):
         @functools.wraps(fn)
         def wrapped(*a, **k):
             cfg = next((x for x in (*a, *k.values()) if isinstance(x, Config)), None)
-            if local_only and cfg is not None and cfg.remote:
+            if local_only and cfg is not None and _runners(cfg):
                 return fn(*a, **k)
             with journal.heavy(what):
                 return fn(*a, **k)
