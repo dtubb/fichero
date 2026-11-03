@@ -224,3 +224,13 @@ def test_dropping_a_leading_group_never_writes_a_verdict_for_an_unreviewed_tree(
     r = subprocess.run([sys.executable, str(SCRIPT), root, "HEAD", "--pinned", str(tmp_path / "p"), "--verdicts", str(store)],
                        env={**os.environ, "PATH": f"{tmp_path / 'bin'}:{os.environ['PATH']}"}, capture_output=True, text=True)
     assert (tmp_path / "calls").read_text().strip() == "3", "group two is reviewed again: its leading context changed\n" + r.stdout + r.stderr
+
+
+def test_an_early_reviews_ladder_names_the_rungs_still_running_so_they_are_not_judged(tmp_path):  # reviews 199, 207 (2026-11-03)
+    import json
+
+    ladder = tmp_path / "ladder.json.partial"
+    ladder.write_text(json.dumps({"ok": None, "failed": "", "rungs": [{"name": "ready", "ok": True}, {"name": "red-on-base", "ok": True}],
+                                  "pending": ["guards", "contract-current", "build"]}))
+    r, _ = _run(tmp_path, "READY", extra=["--ladder", str(ladder), "--print"])
+    assert "STILL RUNNING beside this review: guards, contract-current, build" in r.stdout and "Do not judge them" in r.stdout

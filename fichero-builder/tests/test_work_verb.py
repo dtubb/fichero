@@ -2,6 +2,8 @@
 every step, stops with `QUESTION: <why>` (exit 2) and never pushes. The steps are faked; the order, stops and rows are real."""
 from __future__ import annotations
 
+from pathlib import Path
+
 import json
 import subprocess
 import types
@@ -539,6 +541,7 @@ def _early_chain(chain, monkeypatch, later_red: bool):
 
     def review(a, repo, head, ladder, verdicts, model, holder=None):
         chain.calls.append(("review", model, ladder.endswith(".partial")))
+        chain.pending = json.loads(Path(ladder).read_text()).get("pending") if ladder.endswith(".partial") else None
         if holder is not None:
             holder["proc"] = type("P", (), {"kill": lambda self: (killed.append(True), release.set())})()
         started.set()
@@ -565,6 +568,14 @@ def test_the_review_starts_once_red_on_base_is_green_and_its_verdict_is_used(cha
     assert chain() == 0
     assert [c[0] for c in chain.calls] == ["run", "rebase", "export", "fetch", "check", "review", "land"]
     assert chain.calls[5] == ("review", "opus", True) and not killed
+
+
+def test_the_early_review_is_told_which_rungs_still_run_beside_it(chain, monkeypatch):
+    """Reviews 199 and 207 (2026-11-03): the early review read a ladder of three rungs and answered 'no guards ran'; the partial
+    file names the rungs still to come, in the ladder's order."""
+    _early_chain(chain, monkeypatch, later_red=False)
+    assert chain() == 0
+    assert chain.pending == ["diff-bound", "guards", "contract-current", "since-guards", "build"]
 
 
 def test_a_later_red_rung_kills_the_early_review(chain, monkeypatch):

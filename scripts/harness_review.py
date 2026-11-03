@@ -114,6 +114,9 @@ def ladder_summary(path) -> str:
         red = [x["name"] for x in (g.get("results") or []) if not x.get("ok")]
         lines.append(f"- {g['name']}: ok={g.get('ok')} skipped={g.get('skipped', False)} seconds={g.get('seconds', '')} "
                      f"results={len(g.get('results') or [])} red={red or '-'} {(g.get('stderr_tail') or g.get('reason') or '')[-300:].strip()}")
+    if r.get("pending"):  # the early review (speed 2): it starts after red-on-base, beside the rest of the ladder (reviews 199, 207)
+        lines.append(f"- STILL RUNNING beside this review: {', '.join(r['pending'])}. Do not judge them or call them missing: the ladder "
+                     "drops this verdict if any of them ends red. Judge the diff, the tests and the spec.")
     return "\n".join(lines)
 
 

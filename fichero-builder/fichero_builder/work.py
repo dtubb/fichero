@@ -428,7 +428,9 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
             def on_rung(name, ok, rungs):
                 if name == "red-on-base" and ok and all(x["ok"] for x in rungs) and "fut" not in early and land_tool.unreviewed(repo, branch, head, verdicts):
                     partial = f"{ladder}.partial"
-                    Path(partial).write_text(json.dumps({"ok": None, "failed": "", "rungs": rungs}))
+                    # the rungs still to come are named, so the reviewer never reads them as missing (reviews 199 and 207, 2026-11-03)
+                    pending = [n for n in check_tool.RUNGS if n not in {x["name"] for x in rungs}]
+                    Path(partial).write_text(json.dumps({"ok": None, "failed": "", "rungs": rungs, "pending": pending}))
                     model = pick_reviewer(a, repo, branch, head, reviewer)
                     early["fut"] = _EARLY.submit(do_review, a, repo, head, partial, verdicts, model, early)
             check_tool.ON_RUNG[0] = on_rung
