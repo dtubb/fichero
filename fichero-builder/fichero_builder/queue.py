@@ -575,8 +575,11 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
             said = f"{a.get('what', '')}\n{s.get('why', '')}"
             s.update(state=again, rounds=0, restarts=0, why="")
             if action == "approve":  # manager 2026-11-02: an approve binds to this head and the tests the alert named; a new head clears it
+                # one head's approvals ACCUMULATE (manager 2026-11-03: sharing bb3 was asked about the same test three times,
+                # each approve replacing the last one's files); a new head starts empty
+                had = set(s.get("approved_tests") or ()) if s.get("approved_head") == s.get("head", "") else set()
                 s["approved_head"] = s.get("head", "")
-                s["approved_tests"] = sorted(set(re.findall(r"[\w./-]+\.(?:py|json)", said)))
+                s["approved_tests"] = sorted(had | set(re.findall(r"[\w./-]+\.(?:py|json)", said)))
             if action == "approve" and s.get("approvals"):  # every reason the alert listed (maintainer, weakened, pinned-new, red)
                 for k in s["approvals"]:
                     s[k] = True

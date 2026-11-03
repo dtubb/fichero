@@ -566,6 +566,30 @@ def test_an_approve_binds_to_its_alerts_head_and_named_tests_and_a_new_head_clea
     assert not queue._approved(steps()["1.1"], "approve_red"), "a new head clears the approve"
 
 
+def test_approves_for_one_head_accumulate_and_survive_a_restart_and_a_new_head_starts_empty(state):
+    """Defect 2026-11-03 (sharing bb3): alerts 160, 164, 167 at one head named test A, test B, then A again, because each approve
+    replaced the files the one before had named."""
+    queue.add("ext", "/w/ext", "1.1", str(state / "b1.1"), [7], kind="external")
+    assert queue.done("ext", "a" * 40) == ""
+
+    def red(test, head="a" * 40):
+        lanes = queue.load()
+        lanes[0]["steps"][0].update(state="blocked", approve_kind="red-on-base", why="")
+        queue.save(lanes)
+        aid = queue.alert("ext", "1.1", f"red-on-base at {head[:9]}: NOT RED ON BASE: {test} passes at b", "/l.json", ["approve", "send-back"])
+        assert queue.answer(aid, "approve")[0] == 0
+    red("fichero-server/tests/test_a.py")
+    red("fichero-server/tests/test_b.py")
+    s = queue.load()[0]["steps"][0]  # read back from the file, as a restarted loop reads it
+    assert s["approved_tests"] == ["fichero-server/tests/test_a.py", "fichero-server/tests/test_b.py"] and queue._approved(s, "approve_red")
+    lanes = queue.load()
+    lanes[0]["steps"][0]["state"] = "blocked"
+    queue.save(lanes)
+    assert queue.done("ext", "c" * 40) == ""
+    red("fichero-server/tests/test_c.py", "c" * 40)
+    assert steps()["1.1"]["approved_tests"] == ["fichero-server/tests/test_c.py"], "a new head keeps nothing of the old one's"
+
+
 
 
 
