@@ -71,10 +71,9 @@ def contrast_spread(path: str | None) -> int | None:
     return level(range(255, -1, -1)) - level(range(256))
 
 
-#: What each paper answer switches on. "faded" raises the contrast (built); the other two name operations that are not built
-#: (`prep.suppress-ruling`, `image.enhance.bleed-through-suppression`): the answer is kept and the plan says so, never silently.
-NOT_BUILT_YET = {"ruled": "Ruling is not taken out yet: the answer is kept for when it is.",
-                 "show-through": "Show-through is not taken out yet: the answer is kept for when it is."}
+#: What each paper answer switches on: "faded" raises the contrast, "ruled" runs ruled-lines and "show-through" runs bleed-through
+#: (`recipes/prepare_run.PAPER_STEPS`). Nothing is named that is not built.
+NOT_BUILT_YET: dict[str, str] = {}
 
 
 def runs_contrast(paper: list[str] | None) -> bool:

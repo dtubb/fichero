@@ -176,7 +176,8 @@ def test_wide_the_stamp_follows_only_the_page_operations_never_the_paper_answer_
     run_prepare(db, [doc.id], "run-1", first, paper=[], operations=["crop", "straighten"])
     assert first["page_prep"]["pages"] == 1 and first["page_prep"]["unchanged"] == 0
     signature = current_page_image(db, db.get(type(doc), doc.id)).signature
-    for paper, ops in ((["faded"], ["crop", "straighten", "clarity"]), (["ruled"], ["crop", "straighten"])):
+    # "ruled" is no longer in this loop: it now runs ruled-lines into an enhanced rendition, which is a different image (test_start_plan_prepare_step.py).
+    for paper, ops in ((["faded"], ["crop", "straighten", "clarity"]), (["unknown-answer"], ["crop", "straighten"])):
         again: dict = {}
         run_prepare(db, [doc.id], "run-2", again, paper=paper, operations=ops)
         assert again["page_prep"]["unchanged"] == 1 and again["page_prep"]["pages"] == 0, (paper, ops)

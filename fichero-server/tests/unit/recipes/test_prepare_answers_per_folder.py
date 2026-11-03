@@ -35,11 +35,11 @@ def test_no_folder_answers_plans_exactly_as_before():
     assert len(_runs(plan, "split-pages")) == 1  # an unanswered split question keeps today's behaviour
 
 
-def test_each_paper_option_is_its_own_gate_and_the_plan_says_what_is_not_built():
+def test_each_paper_option_is_its_own_gate_and_the_plan_no_longer_says_ruling_and_show_through_are_not_built():
     plan = plan_start(_recipe(PREP, LINES), stays_local=True, job_answers={"the_paper": ["ruled", "show-through"]})
     (run,) = _runs(plan, "prepare-the-image")
     assert run["paper"] == ["ruled", "show-through"]
-    assert "Ruling is not taken out yet" in run["how"] and "Show-through is not taken out yet" in run["how"]
+    assert "not taken out" not in run["how"]  # both are built now (test_start_plan_prepare_step.py runs them)
     faded = plan_start(_recipe(PREP, LINES), stays_local=True, job_answers={"the_paper": ["faded"]})
     assert "not taken out" not in _runs(faded, "prepare-the-image")[0]["how"]
 
