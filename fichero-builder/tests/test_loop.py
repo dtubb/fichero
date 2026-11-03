@@ -755,3 +755,73 @@ def test_a_stale_chain_store_waits_for_the_queue_lock_and_then_checks_the_head_u
     t.join(10)
     assert result == [False] and steps()["batch-1"]["head"] == "new" and steps()["batch-1"]["state"] == "done", "the new head stands"
     assert queue.store(queue.load()[0], expect=("batch-1", "new")) is True, "a write at the head it expects still goes through"
+
+
+def _two_commit_repo(tmp_path):
+    import subprocess as sp
+
+    def g(*a):
+        return sp.run(["git", "-c", "user.email=t@e", "-c", "user.name=t", *a], cwd=tmp_path / "ext", capture_output=True, text=True, check=True).stdout.strip()
+    (tmp_path / "ext").mkdir()
+    (tmp_path / "ext" / "a").write_text("1")
+    g("init", "-q", "-b", "main"), g("add", "a"), g("commit", "-q", "-m", "a")
+    old = g("rev-parse", "HEAD")
+    (tmp_path / "ext" / "b").write_text("2")
+    g("add", "b"), g("commit", "-q", "-m", "b")
+    return old, g("rev-parse", "HEAD")
+
+
+def test_a_done_while_the_batch_is_landing_is_refused_and_the_landing_keeps_its_step(state, tmp_path):
+    """Review 2026-11-02 (-96): a `done` accepted while `procs.landed` ran was overwritten by the landing's own move/store, losing the
+    new head. The step is claimed as landing before the landing starts and `done` refuses it until it ends."""
+    old, child = _two_commit_repo(tmp_path)
+    queue.add("ext", str(tmp_path / "ext"), "batch-1", str(state / "b1.1"), [], kind="external")
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="done", head=old)
+    queue.save(lanes)
+    fake = Fake()
+    told = []
+    orig = fake.landed
+
+    def landed(lane_, head, push):
+        told.append(queue.done("ext", child))  # the lane says DONE at a newer head while the landing runs
+        return orig(lane_, head, push)
+    fake.procs.landed = landed
+    queue.run(fake.procs, workers_n=1, push=True, once=True, out=lambda s: None)
+    assert told and "one at a time" in told[0], "done is refused while the batch is landing"
+    assert steps()["batch-1"]["state"] == "landed" and "landing" not in steps()["batch-1"]
+
+
+def test_a_result_whose_head_a_newer_done_replaced_after_the_result_check_is_not_landed(state, tmp_path, monkeypatch):
+    """The claim is authoritative: even when the unlocked result check passed, the under-the-lock claim refuses a step whose head moved."""
+    old, child = _two_commit_repo(tmp_path)
+    queue.add("ext", str(tmp_path / "ext"), "batch-1", str(state / "b1.1"), [], kind="external")
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="done", head=old)
+    queue.save(lanes)
+    fake = Fake()
+    real = fake.procs.chain
+
+    def chain(lane_, step, stage):
+        r = real(lane_, step, stage)
+        assert queue.done("ext", child) == ""  # supersedes between the chain and the landing
+        monkeypatch.setattr(queue, "stored_head", lambda *a: old)  # the unlocked check is blind to it
+        return r
+    fake.procs.chain = chain
+    queue.run(fake.procs, workers_n=1, push=True, once=True, out=lambda s: None)
+    assert fake.landed_calls == [] and steps()["batch-1"]["head"] == child and steps()["batch-1"]["state"] == "done"
+    assert any(r.get("state") == "stale-result" and "not landed" in r.get("detail", "") for r in journal.read() if r["event"] == "queue")
+
+
+def test_a_done_the_land_tree_refuses_cancels_nothing_and_leaves_the_running_check(state, tmp_path, monkeypatch):
+    """Review 2026-11-02 (-96): done wrote the cancel file and the superseded row before land_tree could refuse, so a refused done
+    still killed the running check without taking the new head."""
+    old, child = _two_commit_repo(tmp_path)
+    queue.add("ext", str(tmp_path / "ext"), "batch-1", str(state / "b1.1"), [], kind="external")
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="checking", head=old, approvals=["approve_red"])
+    queue.save(lanes)
+    monkeypatch.setattr(queue, "land_tree", lambda lane_, sha: ("", "the land tree could not be made"))
+    assert "land tree" in queue.done("ext", child)
+    assert not (journal.STATE / f"cancel-{old[:9]}").exists() and steps()["batch-1"]["head"] == old and steps()["batch-1"]["state"] == "checking"
+    assert not any(r.get("state") == "superseded" for r in journal.read() if r["event"] == "queue")

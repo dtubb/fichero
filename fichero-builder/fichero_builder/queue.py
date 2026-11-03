@@ -347,8 +347,12 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             journal.append("queue", lane=lane["id"], step=s["step"], state="stale-result", detail=f"the check of {f.head[:9]} ended after {s.get('head', '')[:9]} superseded it: dropped")
             return True
     if r["ok"]:
-        s["head"] = r["head"]
+        s["head"], s["landing"] = r["head"], True
+        if not store(lane, expect=(s["step"], h0)):  # claim the step under the lock: a `builder done` that took it since the result check wins, and done refuses a step that is landing
+            journal.append("queue", lane=lane["id"], step=s["step"], state="stale-result", detail=f"the check of {h0[:9]} ended after a newer head took the step: not landed")
+            return True
         rc, output = procs.landed(lane, r["head"], push)
+        s.pop("landing", None)
         if rc:
             return block(s, output)
         if lane.get("kind") == "external" and s.get("land_tree"):
@@ -482,7 +486,8 @@ def done(lane_id: str, sha: str = "") -> str:
         if lane is None or lane.get("kind") != "external":
             why = f"no external lane {lane_id!r}"
         elif lane["cursor"] < len(lane["steps"]) and lane["steps"][lane["cursor"]]["state"] in IN_LADDER and not (
-                lane["steps"][lane["cursor"]]["state"] in ("checking", "reviewing") and (sha := sha or lane_head(lane["worktree"]))
+                lane["steps"][lane["cursor"]]["state"] in ("checking", "reviewing") and not lane["steps"][lane["cursor"]].get("landing")
+                and (sha := sha or lane_head(lane["worktree"]))
                 and sha != lane["steps"][lane["cursor"]].get("head") and lane["steps"][lane["cursor"]].get("head")
                 and related(lane["worktree"], lane["steps"][lane["cursor"]]["head"], sha)):
             why = f"{lane_id} has a batch in the ladder: one at a time; run done again after it lands (a newer head of the same work supersedes it)"
@@ -496,7 +501,9 @@ def done(lane_id: str, sha: str = "") -> str:
                 lane["steps"].append({"step": f"batch-{n}", "brief": lane["steps"][-1]["brief"] if lane["steps"] else "", "issues": [], "waits": [],
                                       "state": "queued", "head": "", "why": "", "rounds": 0, "restarts": 0})
             s = lane["steps"][lane["cursor"]]
-            if s["state"] in ("checking", "reviewing"):  # a newer head of the same work: the old check is cancelled, its approvals and alerts end with it
+            # no tree on this machine (a lane named by hand): the old DONE, taken from the lane's worktree
+            path, why = land_tree(lane, sha) if Path(lane["worktree"]).is_dir() else ("", "")
+            if not why and s["state"] in ("checking", "reviewing"):  # a newer head of the same work: the old check is cancelled, its approvals and alerts end with it (only once the new head is taken: a refused done cancels nothing)
                 from fichero_builder import check_tool
                 old_head = s.get("head", "")
                 journal.STATE.mkdir(parents=True, exist_ok=True)
@@ -504,8 +511,6 @@ def done(lane_id: str, sha: str = "") -> str:
                 for k in APPROVALS:
                     s.pop(k, None)
                 journal.append("queue", lane=lane_id, step=s["step"], state="superseded", detail=f"{old_head[:9]} by {sha[:9]}: its check is cancelled")
-            # no tree on this machine (a lane named by hand): the old DONE, taken from the lane's worktree
-            path, why = land_tree(lane, sha) if Path(lane["worktree"]).is_dir() else ("", "")
             if not why:
                 s.update(state="done", head=sha, why=f"DONE {sha} (external)", rounds=0, restarts=0, **({"land_tree": path} if path else {}))
                 save(lanes)
