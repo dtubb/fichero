@@ -50,6 +50,8 @@ pytest_plugins = ["anyio.pytest_plugin", "_hypothesis_pytestplugin", "langsmith.
 # scratch tree, one build at a time on this machine (owner 2026-11-01). Derived data under the shared area so a
 # second build reuses it; a stale incremental build is a known failure shape: delete the folder and run again.
 build_paths = ["fichero/"]
+# A landed batch touching these (the app, the engine, the CLI, MCP) earns the post-landing dev build; a harness-only batch builds none.
+product_paths = ["fichero/", "fichero-server/src/", "fichero-cli/src/", "fichero-mcp/src/"]
 # The Dev Local scheme: a compile of the app alone (Dev Embedded's "Embed Fichero Server" phase wants a briefcase-staged
 # engine, which is the release lane's job, not a check). No signing: the worker user has no identity (review 1 M6, N7).
 # The check tree is owner-made and read-only to the worker, and Package.resolved is tracked: resolution reads it and writes

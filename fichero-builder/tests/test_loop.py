@@ -915,3 +915,25 @@ def test_the_landing_is_one_write_so_a_done_right_after_it_opens_the_next_batch_
     assert st["batch-1"]["state"] == "landed" and st["batch-1"]["head"] != child, "the landed step is untouched"
     assert st["batch-2"]["head"] == child and st["batch-2"]["state"] == "done", "the newer head is the next batch, not lost"
 
+
+
+def _landed_external(state, tmp_path, product, lane_id):
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    wt, g = _ext_repo(tmp_path)
+    queue.add(lane_id, str(wt), "batch-1", str(state / "b1.1"), [], kind="external", pane="%7")
+    assert queue.done(lane_id) == ""
+    built = []
+    fake = Fake()
+    fake.procs.touches_product = lambda lane, head: product
+    fake.procs.build = lambda lane: (built.append(lane["id"]), (0, "PASSED x.dmg"))[1]
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    return built, steps_of(lane_id)[0]
+
+
+def test_a_harness_only_landing_builds_no_app_and_a_product_landing_does(state, tmp_path):
+    """dev-workflows.run.loop-rolls-on (manager 2026-11-03): a harness batch held the heavy lock 46 min for an app nobody changed."""
+    built, s = _landed_external(state, tmp_path / "a", product=False, lane_id="lane-h")
+    assert s["state"] == "landed" and s["product"] is False and built == [], "no product path: no build"
+    assert any(r.get("state") == "build-skipped" for r in journal.read() if r["event"] == "queue")
+    built, s = _landed_external(state, tmp_path / "b", product=True, lane_id="lane-p")
+    assert s["product"] is True and built == ["lane-p"], "a product path: the dev build"

@@ -8,6 +8,7 @@ import fcntl
 import json
 import os
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -103,13 +104,55 @@ def ladder_slots_known() -> list[str]:
 HEAVY_ENV = "FICHERO_HEAVY_HELD"  # set for what `builder heavy` runs: it already holds the lock
 
 
+YIELD_POLL_S = 2  # how often a yielding job looks again for waiting checks
+
+
+def heavy_waiters() -> int:
+    """Checks waiting for the heavy lock right now: one `heavy-wait.<pid>.<thread>` file each, a dead pid's file is dropped."""
+    n = 0
+    for p in STATE.glob("heavy-wait.*"):
+        try:
+            os.kill(int(p.name.split(".")[1]), 0)
+            n += 1
+        except (ValueError, IndexError, OSError):
+            p.unlink(missing_ok=True)
+    return n
+
+
 @contextlib.contextmanager
-def heavy(what: str):
+def heavy(what: str, yields: bool = False):
     """One heavy job at a time on this machine (owner 2026-11-02): xcodebuild, the full engine suite and the guards rung take it,
     and so do check, build --dev, verify-all and `builder test` through those. A wait over Lock.WARN_S says who holds it. A
-    child of `builder heavy` already holds it and passes straight through. Quick things (ruff, swiftlint, one test file) never ask."""
+    child of `builder heavy` already holds it and passes straight through. Quick things (ruff, swiftlint, one test file) never ask.
+    A waiting job leaves a marker; a `yields` job (the post-landing dev build) takes the lock only while no marker stands, so a queued
+    check always outranks it (manager 2026-11-03: a harness-only batch's build held it 46 min while guards waited)."""
     if os.environ.get(HEAVY_ENV):
         yield
         return
-    with Lock("heavy", what=what):
+    lk = Lock("heavy", what=what)
+    if yields:
+        said = False
+        while True:
+            if not heavy_waiters():
+                try:
+                    lk = Lock("heavy", wait=False, what=what)
+                    lk.__enter__()
+                    break
+                except BlockingIOError:
+                    pass
+            if not said:
+                append("lock", state="yielding", name="heavy", what=what, pid=os.getpid(), detail="a check waits for the heavy lock: the build waits")
+                said = True
+            time.sleep(YIELD_POLL_S)
+    else:
+        marker = STATE / f"heavy-wait.{os.getpid()}.{threading.get_ident()}"
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(what)
+        try:
+            lk.__enter__()
+        finally:
+            marker.unlink(missing_ok=True)
+    try:
         yield
+    finally:
+        lk.__exit__(None, None, None)

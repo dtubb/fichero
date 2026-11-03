@@ -492,7 +492,7 @@ the write path would produce.
   `heavy.lock` in the owner's state dir (`journal.heavy`). xcodebuild (the build rung), the full engine suite (the pytest runs of a check,
   `builder test` and `verify-all` that run here) and the guards rung take it, so `builder check`, the loop's chains, `builder build --dev`,
   `builder verify-all` and `builder test` take it through them; the dev build takes it around its script. A suite sent to
-  `[check].remote` takes no local lock; the remote script runs under that machine's own `heavy.lock` in its gate dir (the remote python holds the flock while the script runs; test `::test_the_remote_wrapper_holds_the_machines_lock_while_its_script_runs_and_passes_the_exit_code`). A lane or the manager runs any other heavy command with
+  `[check].remote` takes no local lock; the remote script runs under that machine's own `heavy.lock` in its gate dir (the remote python holds the flock while the script runs; test `::test_the_remote_wrapper_holds_the_machines_lock_while_its_script_runs_and_passes_the_exit_code`). The dev build YIELDS: a check waiting for the lock leaves a `heavy-wait.<pid>.<thread>` marker, and the build takes the lock only while no marker stands, so a queued ladder always outranks it (manager 2026-11-03; test `fichero-builder/tests/test_heavy_lock.py::test_a_build_yields_to_a_waiting_check_and_a_check_outranks_it`). A lane or the manager runs any other heavy command with
   `builder heavy -- <cmd>`: it waits, says who holds the lock after 30 s (the lock's own waiting row and a line on stderr), and its child
   passes through the lock it holds (`FICHERO_HEAVY_HELD`), so a `builder test` run inside it never deadlocks. Quick things (ruff, swiftlint,
   `swiftc -parse`, one test file) never ask. Two checks at once (`[check].parallel`) therefore overlap only in their quick rungs and the
@@ -615,7 +615,7 @@ the write path would produce.
   goes on).
   **Built** against fakes: `[loop].rounds`; a red with its session gone starts a new session on the step's brief plus the findings (`fix-<lane>-<step>-<round>.txt`), never into the dead feed. Test `fichero-builder/tests/test_loop.py::test_a_red_with_no_live_session_starts_a_new_one_on_a_fix_brief_with_the_findings`. The block after the last round is an alert like every block (`queue.py` `block`, Step 2.10).
 - `dev-workflows.run.loop-rolls-on` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — when a lane's milestone has no open step left, the loop runs `builder build
-  --dev` (one row, pass or fail; a failure is an alert, the roll-on goes on) and the lane takes the first `## In order`
+  --dev` (one row, pass or fail; a failure is an alert, the roll-on goes on) - for a build-order milestone always, for an external (harness) lane only when a landed step touched `[check].product_paths` (the app, engine, CLI, MCP; recorded as `product` on the step before landing; a `build-skipped` row otherwise; test `fichero-builder/tests/test_loop.py::test_a_harness_only_landing_builds_no_app_and_a_product_landing_does`) - and the lane takes the first `## In order`
   milestone of `build-order.md` that no lane holds; up to N lanes at once, one ladder at a time on the machine. The order done
   is a row, and the loop keeps ticking for new issues. Test: `fichero-builder/tests/test_queue_verb.py::test_the_queue_rolls_on_to_the_next_build_order_milestone_when_a_lanes_steps_have_landed`,
   `::test_n_lanes_hold_n_milestones_and_their_chains_overlap_but_the_ladder_is_one_at_a_time`; (to write) the build after a

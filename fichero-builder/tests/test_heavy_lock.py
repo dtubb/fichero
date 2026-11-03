@@ -65,7 +65,7 @@ def test_the_guards_rung_the_build_rung_and_a_local_full_suite_take_it_a_remote_
 
 def test_the_dev_build_takes_the_lock(state, monkeypatch, tmp_path):
     held = []
-    monkeypatch.setattr(journal, "heavy", lambda what: __import__("contextlib").nullcontext(held.append(what)))
+    monkeypatch.setattr(journal, "heavy", lambda what, yields=False: __import__("contextlib").nullcontext(held.append(what)))
     root = tmp_path / "r"
     (root / "scripts").mkdir(parents=True)
     (root / "fichero" / "Configs").mkdir(parents=True)
@@ -93,3 +93,37 @@ def test_the_remote_wrapper_holds_the_machines_lock_while_its_script_runs_and_pa
     assert p1.wait(10) == 7 and p2.wait(10) == 0
     assert log.read_text().split() == ["a-start", "a-end", "b-start", "b-end"], "the second waited for the first"
     assert shlex.split(one)[0] == sys.executable
+
+
+def test_a_build_yields_to_a_waiting_check_and_a_check_outranks_it(state, monkeypatch):
+    import threading
+    monkeypatch.setattr(journal, "YIELD_POLL_S", 0.05)
+    order = []
+    with journal.heavy("a check running"):
+        def check():
+            with journal.heavy("the next check"):
+                order.append("check")
+
+        def build():
+            with journal.heavy("the dev build", yields=True):
+                order.append("build")
+        tc = threading.Thread(target=check)
+        tc.start()
+        for _ in range(100):  # the check is waiting: its marker stands
+            if journal.heavy_waiters():
+                break
+            threading.Event().wait(0.02)
+        assert journal.heavy_waiters() == 1
+        tb = threading.Thread(target=build)
+        tb.start()
+    tc.join(5), tb.join(5)
+    assert order == ["check", "build"], "the lock fell free with a check waiting and a build waiting: the check goes first"
+    assert not list(state.glob("heavy-wait.*")), "no marker is left behind"
+
+
+def test_a_build_with_no_check_waiting_takes_the_lock_at_once_and_a_dead_pids_marker_is_dropped(state):
+    state.mkdir()
+    (state / "heavy-wait.999999999.1").write_text("dead")
+    assert journal.heavy_waiters() == 0 and not list(state.glob("heavy-wait.*"))
+    with journal.heavy("the dev build", yields=True):
+        assert (state / "heavy.lock").read_text().endswith("the dev build")

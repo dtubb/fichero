@@ -126,6 +126,7 @@ class Procs:
     # taken lane ids -> (lane id, worktree, [{step, brief, issues, waits}]) of the next build-order milestone, or None
     next_milestone: Callable[[set], tuple | None] = lambda taken: None
     build: Callable[[dict], tuple] = lambda lane: (0, "")  # lane -> (rc, output) of the dev build after its milestone landed
+    touches_product: Callable[[dict, str], bool] = lambda lane, head: True  # (lane, head) -> does the batch about to land change app/engine product paths
     tell: Callable[[dict, str], str] = lambda lane, text: ""  # (lane, text) -> '' or why: into an external lane's registered pane
     after_land: Callable[[dict, dict, str], None] = lambda lane, step, head: None  # an external lane's batch landed: sweep its land tree
     intake: Callable[[dict], str] = lambda lane: ""  # an external lane -> the sha to take now by itself (thresholds), or ''
@@ -243,6 +244,10 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if push and lane["steps"] and not lane.get("built"):  # dev-workflows.run.loop-rolls-on: one dev build per milestone landed for real
             lane["built"] = True
             store(lane)
+            if lane.get("kind") == "external" and not any(st.get("product", True) for st in lane["steps"]):
+                # dev-workflows.run.build-only-for-product: a harness-only batch builds no app (manager 2026-11-03); a build-order milestone always does
+                journal.append("queue", lane=lane["id"], step="-", state="build-skipped", detail="no landed step touched a product path")
+                return False
 
             def build_it():
                 rc, output = procs.build(lane)
@@ -347,6 +352,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         journal.append("queue", lane=lane["id"], step=s["step"], state="stale-result", detail=f"the check of {h0[:9]} ended after a newer head took the step: dropped")
         return True
     if r["ok"]:
+        s["product"] = bool(procs.touches_product(lane, r["head"]))  # BEFORE landing: origin/integration is still the base; kept by the landing's one store
         rc, output = procs.landed(lane, r["head"], push)
         if rc:
             return block(s, output)
@@ -845,6 +851,14 @@ def real_procs(root) -> Procs:
                            cwd=str(pkg), capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(pkg)})
         return r.returncode, (r.stdout + r.stderr)[-2000:]
 
+    def touches_product(lane, head):
+        prefixes = tuple(rules.get("check", {}).get("product_paths", ()))
+        if not prefixes:
+            return True
+        r = subprocess.run([land_tool.GIT, "-C", str(repo), "diff", "--name-only", f"{land_tool.resolve_branch(repo, branch)}..{head}"],
+                           capture_output=True, text=True)
+        return r.returncode != 0 or any(f.startswith(prefixes) for f in r.stdout.split())  # unknown = build
+
     def stop(lane):
         if lane.get("feed"):
             (Path(lane["feed"]) / "stop").write_text("")
@@ -873,7 +887,7 @@ def real_procs(root) -> Procs:
 
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
-                 next_milestone=lambda taken: next_in_order(root, taken), build=build, trees=trees, tell=tell, after_land=after_land, intake=intake,
+                 next_milestone=lambda taken: next_in_order(root, taken), build=build, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake,
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "")
 
 
