@@ -816,7 +816,8 @@ def test_the_ready_check_skips_its_guard_copy_with_no_guards_because_the_guards_
         (w / "scripts" / f"check_ok{i:02}.py").write_text("pass\n")
     (w / "scripts" / "check_red.py").write_text("raise SystemExit('red guard')\n")
     env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_AUTHOR_NAME": "C", "GIT_AUTHOR_EMAIL": "noreply@anthropic.com",
-           "GIT_COMMITTER_NAME": "C", "GIT_COMMITTER_EMAIL": "noreply@anthropic.com"}
+           "GIT_COMMITTER_NAME": "C", "GIT_COMMITTER_EMAIL": "noreply@anthropic.com",
+           "FICHERO_PYTHON_BIN": sys.executable}  # the script looks for a python with tomllib on PATH: the remote runner has none there (2026-11-03, red-on-base on the iMac)
     def g(*a):
         subprocess.run(["git", "-C", str(w), *a], check=True, capture_output=True, env=env)
     g("init", "-q", "-b", "integration"), g("add", "."), g("commit", "-qm", "base #1234")
