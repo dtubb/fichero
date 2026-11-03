@@ -25,6 +25,7 @@ import sys
 import tempfile
 import threading
 import time
+import traceback
 import tomllib
 from concurrent.futures import ThreadPoolExecutor
 import types
@@ -329,8 +330,9 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     def chain() -> dict:
         try:
             return procs.chain(lane, s, stage_cb)
-        except (RuntimeError, OSError, ValueError, KeyError) as e:
-            return {"ok": False, "kind": "error", "why": str(e)}
+        except Exception as e:  # noqa: BLE001 - one lane's bug is that lane's error, never the loop's death (2026-11-03: an AttributeError killed it on every ladder)
+            journal.append("loop", state="lane-error", lane=lane["id"], step=s["step"], detail=traceback.format_exc()[-1500:])
+            return {"ok": False, "kind": "error", "why": f"{type(e).__name__}: {e}"}
     if chains is None:
         r = chain()
     elif fut is None:
@@ -725,7 +727,11 @@ def verify_when_idle(procs: Procs, chains: dict | None) -> None:
 def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, chains: dict | None = None) -> bool:
     busy = False
     for lane in load():
-        busy = tick_lane(lane, procs, handles, workers_n, push, out, chains) or busy
+        try:
+            busy = tick_lane(lane, procs, handles, workers_n, push, out, chains) or busy
+        except Exception:  # noqa: BLE001 - the same for the tick's own work on a lane: a row, and the other lanes still tick
+            journal.append("loop", state="lane-error", lane=lane["id"], detail=traceback.format_exc()[-1500:])
+            out(f"{lane['id']}: lane error (journal row lane-error); the loop goes on")
     if not busy:
         verify_when_idle(procs, chains)
     return busy
@@ -920,6 +926,7 @@ def real_procs(root) -> Procs:
     def after_land(lane, step, head):
         from fichero_builder import landed
         landed.sweep_one(root, step["land_tree"])
+        refresh_live(root, branch)
 
     def intake(lane):
         return intake_sha(lane, branch, int(loop_cfg.get("intake_commits", 8)), float(loop_cfg.get("intake_hours", 3)))
@@ -929,6 +936,28 @@ def real_procs(root) -> Procs:
                  next_milestone=lambda taken: next_in_order(root, taken), build=build, verify_all=verify_all, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake,
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "")
 
+
+def refresh_live(root, branch: str, git=None) -> str:
+    """The loop's own tree (`--root`) follows origin/<branch> after each landing, so the code it runs is never behind the rules it
+    reads (2026-11-03: a list in harness.toml landed while the loop's tree lacked the code for it, and the loop died on every ladder).
+    Only a DETACHED, clean tree moves (a person's branch checkout is never touched); the re-exec for new code follows by itself
+    at the next quiet tick. One `loop` row; the word back is what happened."""
+    git = git or [land_tool.GIT, "-C", str(root)]
+    def g(*a):
+        return subprocess.run([*git, *a], capture_output=True, text=True)
+    if g("symbolic-ref", "-q", "HEAD").returncode == 0:
+        return "on a branch: left"
+    if g("status", "--porcelain", "--untracked-files=no").stdout.strip():
+        journal.append("loop", state="live-tree-dirty", detail=f"{root} has changes: not moved to origin/{branch}")
+        return "dirty: left"
+    f = g("fetch", "-q", "origin", branch)
+    c = g("checkout", "-q", "--detach", f"origin/{branch}") if f.returncode == 0 else f
+    if c.returncode:
+        journal.append("loop", state="live-tree-refused", detail=(c.stderr or c.stdout).strip()[-300:])
+        return "refused"
+    head = g("rev-parse", "HEAD").stdout.strip()
+    journal.append("loop", state="live-tree", detail=f"{root} at origin/{branch} {head[:9]}")
+    return f"moved to {head[:9]}"
 
 def trees(paths: list) -> dict:
     """{path: "HEAD sha1-of-status"} read as the owner (the jail's trees are the worker's: safe.directory); unreadable is its own word."""

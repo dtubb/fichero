@@ -1,0 +1,77 @@
+"""dev-workflows.run.loop-survives (manager 2026-11-03): one lane's exception is that lane's error row, never the loop's
+death, and the loop's own detached tree follows origin after each landing so its code is never behind the rules it reads."""
+from __future__ import annotations
+
+import subprocess
+
+import pytest
+
+from fichero_builder import journal, queue
+from test_queue_verb import Fake, lane, run, steps
+
+
+@pytest.fixture
+def state(tmp_path, monkeypatch):
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    for n in ("1.1", "1.2"):
+        (tmp_path / f"b{n}").write_text(f"brief {n}")
+    return tmp_path
+
+
+def _rows(state_):
+    return [r for r in journal.read() if r.get("state") == "lane-error"]
+
+
+def test_a_chain_that_raises_any_exception_is_an_error_alert_and_the_loop_goes_on(state):
+    lane(state)
+    fake = Fake()
+
+    def chain(lane_, step, stage):
+        raise AttributeError("'list' object has no attribute 'partition'")
+    fake.procs.chain = chain
+    assert run(fake) == 0, "the loop returned; nothing propagated"
+    (row,) = _rows(state)
+    assert row["lane"] == "m1" and row["step"] == "1.1" and "AttributeError" in row["detail"] and "Traceback" in row["detail"]
+    (a,) = [r for r in journal.read() if r["event"] == "alert"]
+    assert "AttributeError" in a["what"] and steps()["1.1"]["state"] == "blocked"
+
+
+def test_a_lane_whose_tick_raises_is_a_row_and_the_other_lanes_still_tick(state, monkeypatch):
+    lane(state)
+    queue.add("m2", "/w/m2", "2.1", str(state / "b1.1"), [9])
+    real, seen = queue.tick_lane, []
+
+    def tick_lane(ln, *a, **k):
+        seen.append(ln["id"])
+        if ln["id"] == "m1":
+            raise TypeError("a bug in this lane's tick")
+        return real(ln, *a, **k)
+    monkeypatch.setattr(queue, "tick_lane", tick_lane)
+    fake, said = Fake(), []
+    queue.tick(fake.procs, {}, workers_n=2, push=False, out=said.append)
+    assert seen == ["m1", "m2"] and [r["lane"] for r in _rows(state)] == ["m1"] and "TypeError" in _rows(state)[0]["detail"]
+    assert any("m1: lane error" in s for s in said) and ("m2", "2.1", 0) in [(x[0], x[1], 0) for x in fake.starts], "m2 started"
+
+
+def _git(cwd, *a):
+    return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
+
+
+def test_the_loops_detached_clean_tree_follows_origin_and_a_branch_or_a_dirty_tree_is_left(state):
+    origin, seed, live = state / "origin.git", state / "seed", state / "live"
+    _git(state, "init", "-q", "--bare", "-b", "integration", str(origin))
+    _git(state, "clone", "-q", str(origin), str(seed))
+    (seed / "f").write_text("1\n")
+    _git(seed, "add", "f"), _git(seed, "commit", "-qm", "one"), _git(seed, "push", "-q", "origin", "HEAD:integration")
+    _git(state, "clone", "-q", str(origin), str(live))
+    _git(live, "checkout", "-q", "--detach")
+    (seed / "f").write_text("2\n")
+    _git(seed, "commit", "-qam", "two"), _git(seed, "push", "-q", "origin", "HEAD:integration")
+    new = _git(seed, "rev-parse", "HEAD")
+    git = ["git", "-C", str(live)]
+    assert queue.refresh_live(live, "integration", git=git) == f"moved to {new[:9]}" and _git(live, "rev-parse", "HEAD") == new
+    assert [r["state"] for r in journal.read() if r["event"] == "loop"] == ["live-tree"]
+    (live / "f").write_text("local\n")
+    assert queue.refresh_live(live, "integration", git=git) == "dirty: left"
+    _git(live, "checkout", "-q", "--", "f"), _git(live, "checkout", "-q", "-b", "mine")
+    assert queue.refresh_live(live, "integration", git=git) == "on a branch: left"
