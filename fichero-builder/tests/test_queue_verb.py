@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from fichero_builder import __main__ as cli
-from fichero_builder import journal, queue, watch
+from fichero_builder import journal, queue
 
 
 class Fake:
@@ -209,12 +209,10 @@ def test_add_merges_steps_into_a_lane_and_keeps_their_state_and_the_verb_refuses
     assert queue.load()[1]["steps"][0]["issues"] == [3]
 
 
-def test_the_bare_verb_and_the_watch_page_show_each_step(state, capsys):
+def test_the_bare_verb_shows_each_step(state, capsys):
     lane(state)
     assert cli.main(["queue", "--state", str(state / "s")]) == 0
     assert capsys.readouterr().out.startswith("m1\t1.1\tqueued\t#7\t")
-    html = watch.render(journal.read())
-    assert "m1" in html and ">queued<" in html and "#8" in html and "1.1" in html
 
 
 def test_the_workers_cap_comes_from_the_rules_file_and_defaults_to_one(state, tmp_path):

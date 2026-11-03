@@ -29,7 +29,6 @@ pinned copy of the rules (`pinned-<sha7>`, made by `builder landed`) judges ever
 | `landed.py` | after a verdict: push (`--push` only), refresh, pin, jail root, scratch, issues, spec [OK] | `main`, `update_issues`, `mark_specs_ok` | `test_landed_verb.py` |
 | `queue.py` | one long-running worker per lane, fed step by step: check, review, land, next brief into the same session | `add`, `run`, `tick_lane`, `Procs` | `test_queue_verb.py` |
 | `triage.py` | GitHub metadata by the rulings: labels, needs-spec, milestones, assignees, the build-order file | `Triage`, `first_open`, `build_order` | `test_triage_verb.py` |
-| `watch.py` | the live page from both journals: runs, checks, lands, the queue | `render`, `rows_of`, `server` | `test_watch.py` |
 | `codemap.py` | jcodemunch where the jail worker can run it; the search behind a step's Where list | `provide`, `mcp_config`, `index_prefix`, `search` | `test_codemap.py` |
 | `build.py` | the dev DMG through the project's own script; a full release is refused | `main` | `test_build_verb.py` |
 | `journal.py`, `models.py` | the append-only JSONL journal and its locks; one model per role | `append`, `read`, `Lock`, `for_role` | `test_journal.py`, `test_model_config.py` |

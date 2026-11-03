@@ -7,7 +7,7 @@ import os
 import pytest
 
 from fichero_builder import __main__ as cli
-from fichero_builder import journal, queue, watch
+from fichero_builder import console, journal, queue
 from test_queue_verb import Fake, lane, steps
 
 
@@ -581,7 +581,7 @@ def test_a_new_head_or_a_landing_answers_the_steps_open_alerts_superseded_and_ne
     assert queue.done("ext", "c" * 40) == ""
     answers = {r["id"]: r for r in journal.read() if r["event"] == "alert-answer"}
     assert set(answers) == set(old) and all(r["action"] == "superseded" and r["ok"] for r in answers.values())
-    assert [a["id"] for a in watch.status(journal.read(), queue.load())["open_alerts"]] == [other], "only this step's alerts closed"
+    assert [a["id"] for a in console.status(journal.read(), queue.load())["open_alerts"]] == [other], "only this step's alerts closed"
     assert steps()["1.1"]["state"] == "done", "the live step was not parked"
     late = queue.alert("ext", "1.1", "red at the new head", "/l.json", ["retry"])
     assert queue.close_alerts("ext", "1.1", "the step landed") == [late]

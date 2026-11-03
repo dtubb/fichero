@@ -17,15 +17,58 @@ import subprocess
 import sys
 import threading
 import time
+import tomllib
 from pathlib import Path
 
-from fichero_builder import journal, queue, watch
+from fichero_builder import journal, queue
 
 ROOT = Path.cwd()  # set by main: the checkout whose harness.toml the verbs read
 TOKEN = secrets.token_urlsafe(24)
 PAGE = Path(__file__).with_name("console.html")
 PKG = Path(__file__).resolve().parents[1]
 LOOPBACK = ("127.0.0.1", "localhost", "[::1]")
+
+WORKER_ROWS = ("worker", "cost", "reading")  # what `builder run` writes to the shared state; everything else there is the worker's word
+
+
+def rows_of(root) -> list[dict]:
+    """The owner's journal (checks, landings) and the worker's under the shared state (runs), by time. From the shared file, which
+    the worker can write, only run rows are read, so a worker cannot put a check or a landing on the console; a line that does not
+    parse is skipped. A page of one file alone shows half of this."""
+    rows = journal.read()
+    f = Path(root) / "harness.toml"
+    workroot = tomllib.loads(f.read_text()).get("jail", {}).get("workroot") if f.is_file() else None
+    shared = Path(workroot) / "state" / "journal.jsonl" if workroot else None
+    if shared and shared.is_file() and shared.resolve() != journal.path().resolve():
+        for ln in shared.read_text(errors="replace").splitlines():
+            try:
+                r = json.loads(ln)
+            except ValueError:
+                continue
+            if isinstance(r, dict) and r.get("event") in WORKER_ROWS:
+                rows.append(r)
+    return sorted(rows, key=lambda r: r.get("ts", ""))
+
+
+def status(rows: list[dict], lanes: list[dict], today: str | None = None) -> dict:
+    """dev-workflows.run.loop-status: what `builder status` and `/status.json` show, from journal rows and the queue only."""
+    today = today or time.strftime("%Y-%m-%d")
+    on = [r for r in rows if str(r.get("ts", "")).startswith(today)]
+    answered = {r.get("id") for r in rows if r.get("event") == "alert-answer" and r.get("ok")}
+    checks = [r for r in rows if r.get("event") == "check"]
+    lands = [r for r in rows if r.get("event") == "landed" and r.get("step") == "done"]
+    return {
+        "lanes": [{"lane": x["id"], "kind": x.get("kind", "worker"), "paused": bool(x.get("paused")), "done": x["cursor"] >= len(x["steps"]),
+                   **({"step": x["steps"][x["cursor"]]["step"], "state": x["steps"][x["cursor"]]["state"]} if x["cursor"] < len(x["steps"]) else {"step": "-", "state": "done"})}
+                  for x in lanes],
+        "last_check": {k: checks[-1].get(k) for k in ("ts", "since", "head", "ok", "failed")} if checks else None,
+        "last_land": {k: lands[-1].get(k) for k in ("ts", "sha", "branch", "pushed")} if lands else None,
+        "issues_closed_today": sorted({n for r in on if r.get("event") == "landed" and r.get("step") == "done"
+                                       for n in r.get("issues", []) if n not in r.get("left_open", [])}),
+        "spend_today_usd": round(sum(float(r.get("usd") or 0) for r in on if r.get("event") == "cost"), 2),
+        "open_alerts": [{k: r.get(k) for k in ("id", "ts", "lane", "step", "what", "actions")}
+                        for r in rows if r.get("event") == "alert" and r.get("id") not in answered],
+    }
 
 
 def _builder(*args: str) -> list[str]:
@@ -185,10 +228,10 @@ LOOP_STALE_S = 3 * 30  # three ticks: no tick row since = the loop is off
 
 
 def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, commit=_last_commit) -> dict:
-    """watch.status plus the last review, the heartbeat, and per lane: its steps, the step now (id + title), elapsed since it
+    """status() plus the last review, the heartbeat, and per lane: its steps, the step now (id + title), elapsed since it
     was sent, the worker's spend and turns, its last commit, and the lane's last row."""
     now = now or time.time()
-    st = watch.status(rows, lanes)
+    st = status(rows, lanes)
     reviews = [r for r in rows if r.get("event") == "landed" and r.get("step") == "verdict"]
     ticks = [r for r in rows if r.get("event") == "loop" and r.get("state") == "tick"]
     st["last_review"] = {k: reviews[-1].get(k) for k in ("ts", "sha", "ok", "detail")} if reviews else None
@@ -371,7 +414,6 @@ def milestones(root, gh: str = "gh", lanes: list[dict] | None = None, reads=None
     counts = {m["title"]: (m["open_issues"], m["closed_issues"]) for m in json.loads(r.stdout or "[]")} if r.returncode == 0 else {}
     held = {x["id"]: x for x in (lanes if lanes is not None else queue.load())}
     try:
-        import tomllib
         branch = tomllib.loads((Path(root) / "harness.toml").read_text()).get("land", {}).get("branch", "integration")
     except (OSError, ValueError):
         branch = "integration"
@@ -437,7 +479,6 @@ def _ts(t: float) -> str:
 def worktrees(root, git=_git_text) -> dict:
     """Every worktree of the owner's checkout and of the jail root: branch, last commit, dirty, landed (HEAD on origin/<land
     branch>), the sweep's grace deadline, and whether Clean up is offered (landed, clean, not a main tree, no lane in it)."""
-    import tomllib
     from fichero_builder import landed
     doc = tomllib.loads((Path(root) / "harness.toml").read_text())
     branch, grace = doc.get("land", {}).get("branch", "integration"), float(doc.get("land", {}).get("worktree_grace_hours", 36))
@@ -631,7 +672,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             return self.wfile.write(b)
         if path in ("/api/status", "/status.json"):
-            return _json(self, 200, api_status(watch.rows_of(ROOT), queue.load()))
+            return _json(self, 200, api_status(rows_of(ROOT), queue.load()))
         if path == "/api/milestones":
             try:
                 return _json(self, 200, json.loads(_cache().read_text()))
@@ -750,7 +791,6 @@ def main(a) -> int:
     global LOOP_LANES
     ROOT = Path(a.root)
     try:
-        import tomllib
         doc = tomllib.loads((ROOT / "harness.toml").read_text())
         LOOP_LANES = int(doc.get("loop", {}).get("lanes", 1))
         MACHINES[:] = sorted(doc.get("machines", {}))

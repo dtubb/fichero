@@ -178,10 +178,6 @@ def main(argv=None) -> int:
     cs = sub.add_parser("status", help="the owner's console on 127.0.0.1: lanes live, alerts with their actions, Build, loop start/stop; /api/status, /api/events, POST /api/action onto the existing verbs")
     cs.add_argument("--port", type=int, default=8766), cs.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
     cs.add_argument("--root", default=str(Path.cwd()), help="the checkout whose harness.toml the verbs read")
-    wa = sub.add_parser("watch", help="a read-only progress page from the journal on 127.0.0.1 (status: lanes, last check and landing, issues closed and spend today, open alerts; runs, checks, lands, the queue); /status.json for the app")
-    wa.add_argument("--port", type=int, default=8765)
-    wa.add_argument("--state", help="where the owner's journal lives (default: the owner's journal dir)")
-    wa.add_argument("--root", default=str(Path.cwd()), help="the checkout whose harness.toml names the worker's shared state, read too")
     w = sub.add_parser("work", help="run, patches, fetch, check, review, land as one process; stops with QUESTION: (exit 2), never pushes")
     w.add_argument("--brief", required=True), w.add_argument("--worktree", required=True), w.add_argument("--name", required=True)
     w.add_argument("--kind", default="claude", choices=["claude"])
@@ -391,10 +387,6 @@ def main(argv=None) -> int:
         from fichero_builder import console
 
         return console.main(a)
-    if a.cmd == "watch":
-        from fichero_builder import watch
-
-        return watch.main(a)
     if a.cmd == "landed":
         from fichero_builder import landed
 

@@ -375,14 +375,6 @@ the write path would produce.
   `::test_refuses_a_sha_that_is_not_a_fast_forward_of_origin`, `::test_the_cited_issues_are_closed_or_commented_through_gh`,
   `::test_a_range_over_the_boundary_is_not_pushed`, `::test_a_journal_landed_does_not_own_or_others_can_write_refuses_before_anything`,
   `::test_a_green_row_counts_only_for_the_range_being_landed`, `::test_issues_are_untouched_until_the_sha_is_on_origin`, `::test_the_spec_behaviour_line_a_landed_commit_names_gets_ok_with_the_test`, `::test_a_dirty_spec_file_it_would_edit_refuses_before_the_push_and_nothing_else_does`, `::test_a_fixes_line_naming_several_issues_closes_each_and_the_done_row_names_what_stayed_open`. Not yet: a run with the real jail user and the real `gh`; both are faked in every test.
-- `dev-workflows.tool.watch` [OK] (#6116; owner 2026-11-01) — `builder watch [--port 8765] [--state DIR] [--root DIR]` is a live progress
-  page: a stdlib `http.server` bound to 127.0.0.1 serving one HTML page (no JavaScript; a 5 s meta refresh) read from the
-  owner's journal and the worker's under `[jail].workroot/state` (from that file, which the worker can write, only its run rows, and a line that does not parse is skipped; test `fichero-builder/tests/test_watch.py::test_a_worker_cannot_put_a_check_or_a_landing_on_the_owners_page_and_a_bad_line_is_skipped`), newest first: one table per kind and nothing else: each run (name, worktree, model, started, turns, cost USD,
-  status done/parked/handoff or running), each check (range, green/red, the failed rung), each landing (tip, last step,
-  branch, pushed). A naive page by design: the SwiftUI Builder app replaces it later and reads the same journal.
-  Tests: `fichero-builder/tests/test_watch.py::test_the_page_shows_every_run_check_and_land_newest_first_with_status_and_cost`,
-  `::test_watch_serves_the_journal_page_on_the_loopback_only`, `::test_the_page_reads_the_owners_journal_and_the_workers_shared_one`,
-  `::test_a_run_that_handed_off_shows_running_once_its_next_generation_starts`.
 - `dev-workflows.tool.triage` [OK] (#6336; owner 2026-11-01) — `builder triage [--labels] [--specs] [--milestones]
   [--assignees] [--order] [--dry]` cleans the repo's GitHub metadata deterministically and changes it directly (owner
   ruling: no proposals file, no manual approval) by the rules of `harness/issues-and-labels.md`; every change is one journal
@@ -424,7 +416,7 @@ the write path would produce.
   blocks at once. A new session only at the worker's own handoff (`[spend].handoff_tokens`, an absolute token count) or when it is gone (three times on a step blocks); a
   parked worker blocks. After a landing the queue reads each of the step's issues from GitHub; one still open is an `issue-open` row and
   stays on the step's line, and the lane goes on: only `builder landed` closes; `gh` failing or timing out here counts as unread, never a traceback (test `fichero-builder/tests/test_queue_verb.py::test_a_gh_that_times_out_or_is_missing_counts_as_unread_and_the_lane_goes_on`). Without `--push` a step stops there: `builder landed` refuses a sha origin lacks, so the step blocks until a person pushes. Pause = idle with nothing sent; resume = send the next brief, and clears a block. At most
-  `[queue].workers` lanes at a time; every transition is a journal row (event `queue`); `builder watch` shows the steps.
+  `[queue].workers` lanes at a time; every transition is a journal row (event `queue`); the console (`builder status`) shows the steps.
   **Built** 2026-11-01 against fake processes: `fichero_builder/queue.py`. Not yet: a run on the real jail user. Tests:
   `fichero-builder/tests/test_queue_verb.py::test_a_two_step_lane_lands_the_first_then_sends_the_second_into_the_same_session_and_stops_at_the_end`,
   `::test_a_red_check_goes_back_as_a_fix_brief_into_the_same_session_before_the_cursor_moves`,
@@ -455,12 +447,11 @@ the write path would produce.
   Built and run 2026-11-01 as the real worker user: a full index of the repo took about two minutes and the server answered over
   MCP. Limit: the server names every worktree of a repo the same, so two lanes at once would share one index.
   **Reading metric**: a run's first tick with the worktree's HEAD moved writes a `reading` row (turns and tokens before the
-  first commit, per generation), the cost row repeats them (none when nothing was committed) and `builder watch` shows them per run.
+  first commit, per generation), the cost row repeats them (none when nothing was committed); both stay in the journal (the old `builder watch` page that showed them per run is gone, owner 2026-11-03).
   Tests: `fichero-builder/tests/test_codemap.py::test_provide_copies_the_install_and_the_wrapper_runs_it_past_the_owner_only_shebang`,
   `::test_prepare_registers_only_the_copied_server_and_keeps_the_strict_config`,
   `::test_the_worker_side_command_indexes_the_worktree_first_and_a_failed_index_does_not_stop_it`,
-  `fichero-builder/tests/test_dry_run.py::test_a_run_records_what_it_read_before_its_first_commit`,
-  `fichero-builder/tests/test_watch.py::test_each_run_shows_turns_and_tokens_before_its_first_commit_live_and_after_it_ends`.
+  `fichero-builder/tests/test_dry_run.py::test_a_run_records_what_it_read_before_its_first_commit`.
 - `dev-workflows.tool.build` [PARTIAL] (#6344; owner 2026-11-02) — `builder build --dev` is the owner's dev DMG as one command, so nobody
   re-derives the procedure. It runs the project's own `scripts/build-release-dmg.sh` from `--root` and rewrites none of it: the dev
   tier, the current `MARKETING_VERSION` so the script's auto-stamp leaves the tree alone, the running venv first on `PATH` for the
@@ -651,9 +642,9 @@ the write path would produce.
   lanes, each lane's step and state, the last check and landing, issues closed today, spend today, open alerts; the same as
   JSON at `/status.json` for the app. Test (to write): `fichero-builder/tests/test_status_page.py` (a journal of fixed rows gives
   that page and that JSON).
-  **Built** 2026-11-02: `builder status` is `builder watch` (one page, one server): a Status, Today and Open alerts table on top of the runs, checks, lands and queue; `/status.json` serves the same dict (lanes with step and state, last check, last landing, issues closed today = `done` rows' issues less `left_open`, spend today = today's `cost` rows, open alerts = alerts with no answer that took). Tests `fichero-builder/tests/test_status_page.py::test_a_journal_of_fixed_rows_gives_that_status_and_that_page`, `::test_status_json_is_served_on_the_loopback`, `::test_the_status_verb_is_the_watch_page`.
+  **Built** 2026-11-02, the page retired 2026-11-03 (owner: only the console stays): `console.status` gives one dict (lanes with step and state, last check, last landing, issues closed today = `done` rows' issues less `left_open`, spend today = today's `cost` rows, open alerts = alerts with no answer that took). and `GET /api/status` serves it with the console's additions below; `console.rows_of` reads the owner's journal and only the run rows of the worker's shared one under `[jail].workroot/state`, skipping a line that does not parse, so a worker cannot put a check or a landing there. Tests `fichero-builder/tests/test_status_page.py::test_a_journal_of_fixed_rows_gives_that_status`, `::test_the_status_verb_serves_the_console`, `::test_the_console_reads_the_owners_journal_and_the_workers_shared_one`, `::test_a_worker_cannot_put_a_check_or_a_landing_in_the_owners_rows_and_a_bad_line_is_skipped`.
   **Console** (owner order 2026-11-02, APPROVED by the manager): `builder status` is an interactive console, the owner's main view;
-  `builder watch` keeps the read-only page. A stdlib server on 127.0.0.1 (a Tailscale bind behind a token later):
+  the old read-only `builder watch` page (8765) is deleted (owner 2026-11-03). A stdlib server on 127.0.0.1 (a Tailscale bind behind a token later):
   `GET /api/status` is the JSON above plus the last review and the heartbeat (the last `loop` tick); `GET /api/events` is a
   server-sent-events tail of the journal. Actions are `POST /api/action` calls onto the existing verbs and nothing else (a lane's
   pause and resume, loop start and stop through `launchctl` on the `local.builder.loop` agent, `alert <id> <action>`,
@@ -1121,8 +1112,8 @@ Steps a long-running builder can take from the heading. `Depends on` defaults to
 - Size: M
 
 #### Step 2.4 — one command after a verdict, no hand edits, two lanes in turn (owner 2026-11-01)
-- Behaviours: `dev-workflows.tool.landed`, `dev-workflows.tool.watch` (the pinned copy, the rebase step, the no-second-ladder land and the rules in the brief are Built sentences under `tool.work`, `tool.milestone` and `tool.check`, whose steps they stay in)
-- Tests: fichero-builder/tests/test_landed_verb.py, fichero-builder/tests/test_watch.py, fichero-builder/tests/test_work_verb.py, fichero-builder/tests/test_main.py, fichero-server/tests/unit/workflows/test_brief_tool.py
+- Behaviours: `dev-workflows.tool.landed` (the pinned copy, the rebase step, the no-second-ladder land and the rules in the brief are Built sentences under `tool.work`, `tool.milestone` and `tool.check`, whose steps they stay in)
+- Tests: fichero-builder/tests/test_landed_verb.py, fichero-builder/tests/test_work_verb.py, fichero-builder/tests/test_main.py, fichero-server/tests/unit/workflows/test_brief_tool.py
 - Depends on: 2.3
 - Size: M
 
@@ -1140,7 +1131,7 @@ Steps a long-running builder can take from the heading. `Depends on` defaults to
 
 #### Step 2.7 — the code map for jail workers, briefs that carry it, the reading metric (owner 2026-11-01)
 - Behaviours: `dev-workflows.run.code-map`, `dev-workflows.run.heavy-lock`
-- Tests: fichero-builder/tests/test_codemap.py, fichero-builder/tests/test_milestone_verb.py, fichero-builder/tests/test_dry_run.py, fichero-builder/tests/test_watch.py, fichero-builder/tests/test_heavy_lock.py
+- Tests: fichero-builder/tests/test_codemap.py, fichero-builder/tests/test_milestone_verb.py, fichero-builder/tests/test_dry_run.py, fichero-builder/tests/test_heavy_lock.py
 - Depends on: 2.6
 - Size: M
 
@@ -1240,7 +1231,6 @@ Every behaviour names its test above, written in its step; each `security.*` and
 | `dev-workflows.tool.spec` | 2.3 |
 | `dev-workflows.tool.steps` | 2.3 |
 | `dev-workflows.tool.landed` | 2.4 |
-| `dev-workflows.tool.watch` | 2.4 |
 | `dev-workflows.tool.triage` | 2.5 |
 | `dev-workflows.tool.queue` | 2.6 |
 | `dev-workflows.run.code-map` | 2.7 |

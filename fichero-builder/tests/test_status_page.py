@@ -1,5 +1,5 @@
-"""dev-workflows.run.loop-status: `builder status` (= `builder watch`) shows lanes, the last check and landing, issues closed
-today, spend today and open alerts, from the journal and the queue only; the same as JSON at /status.json."""
+"""dev-workflows.run.loop-status: `builder status` (the console) shows lanes, the last check and landing, issues closed
+today, spend today and open alerts, from the journal and the queue only; the same as JSON at /api/status."""
 from __future__ import annotations
 
 import json
@@ -13,7 +13,7 @@ import urllib.request
 import pytest
 
 from fichero_builder import __main__ as cli
-from fichero_builder import console, journal, watch
+from fichero_builder import console, journal
 
 DAY = "2026-11-02"
 ROWS = [
@@ -38,8 +38,8 @@ LANES = [
 ]
 
 
-def test_a_journal_of_fixed_rows_gives_that_status_and_that_page():
-    st = watch.status(ROWS, LANES, today=DAY)
+def test_a_journal_of_fixed_rows_gives_that_status():
+    st = console.status(ROWS, LANES, today=DAY)
     assert st["lanes"] == [{"lane": "a", "kind": "worker", "paused": False, "done": False, "step": "s1", "state": "running"},
                            {"lane": "b", "kind": "external", "paused": True, "done": True, "step": "-", "state": "done"}]
     assert st["last_check"]["head"] == "b" * 40 and st["last_check"]["ok"] is True
@@ -47,27 +47,52 @@ def test_a_journal_of_fixed_rows_gives_that_status_and_that_page():
     assert st["issues_closed_today"] == [7], "yesterday's #1 and the left-open #8 are not closed today"
     assert st["spend_today_usd"] == 1.75, "yesterday's cost is not today's"
     assert [a["id"] for a in st["open_alerts"]] == ["b-s2-2"], "an alert stays open until an answer that took"
-    page = watch.render(ROWS, LANES)
-    assert "Open alerts" in page and "b-s2-2" in page and "a question" in page and "(paused)" in page
 
 
-def test_status_json_is_served_on_the_loopback(tmp_path, monkeypatch):
-    monkeypatch.setattr(journal, "STATE", tmp_path)
-    (tmp_path / "journal.jsonl").write_text("".join(json.dumps(r) + "\n" for r in ROWS))
-    monkeypatch.setattr(watch, "_lanes", lambda: LANES)
-    srv = watch.server("127.0.0.1", 0)
-    threading.Thread(target=srv.handle_request, daemon=True).start()
-    resp = urllib.request.urlopen(f"http://127.0.0.1:{srv.server_address[1]}/status.json", timeout=5)
-    assert resp.headers["Content-Type"] == "application/json"
-    st = json.loads(resp.read())
-    assert [x["lane"] for x in st["lanes"]] == ["a", "b"] and [a["id"] for a in st["open_alerts"]] == ["b-s2-2"]
-
-
-def test_the_status_verb_serves_the_console_and_watch_keeps_the_page(monkeypatch, tmp_path):
+def test_the_status_verb_serves_the_console(monkeypatch, tmp_path):
     seen = {}
     monkeypatch.setattr(console, "server", lambda host, port: (seen.update(host=host, port=port), _Stub())[1])
     assert cli.main(["status", "--port", "9998", "--state", str(tmp_path)]) == 0
     assert seen == {"host": "127.0.0.1", "port": 9998}
+
+
+RUN_ROWS = [
+    {"ts": "2026-11-01T10:00:00", "event": "worker", "task": "lane-a", "model": "sonnet", "worktree": "/w/a", "generation": 1},
+    {"ts": "2026-11-01T10:20:00", "event": "cost", "task": "lane-a", "usd": 1.25, "turns": 40, "end": "done"},
+    {"ts": "2026-11-01T10:30:00", "event": "check", "repo": "/e", "since": "a" * 40, "head": "b" * 40, "ok": False, "failed": "pytest"},
+    {"ts": "2026-11-01T10:40:00", "event": "landed", "sha": "c" * 40, "step": "verdict", "ok": True, "detail": "READY"},
+    {"ts": "2026-11-01T10:41:00", "event": "landed", "sha": "c" * 40, "step": "done", "ok": True, "detail": "landed", "branch": "integration", "pushed": False},
+    {"ts": "2026-11-01T10:50:00", "event": "worker", "task": "lane-b", "model": "sonnet", "worktree": "/w/b", "generation": 1},
+]
+
+
+def test_the_console_reads_the_owners_journal_and_the_workers_shared_one(tmp_path, monkeypatch):
+    """`builder run` writes runs under the shared state; check and landed rows stay in the owner's, so a worker cannot forge them."""
+    owner, wr = tmp_path / "owner", tmp_path / "wr"
+    owner.mkdir(), (wr / "state").mkdir(parents=True)
+    (tmp_path / "harness.toml").write_text(f'[jail]\nuser = "w"\nworkroot = "{wr}"\n')
+    (owner / "journal.jsonl").write_text("".join(json.dumps(r) + "\n" for r in RUN_ROWS[2:5]))
+    (wr / "state" / "journal.jsonl").write_text("".join(json.dumps(r) + "\n" for r in RUN_ROWS[:2]))
+    monkeypatch.setattr(journal, "STATE", owner)
+    assert [r["event"] for r in console.rows_of(tmp_path)] == ["worker", "cost", "check", "landed", "landed"], "runs from one file, checks and lands from the other, by time"
+    monkeypatch.setattr(journal, "STATE", wr / "state")
+    assert len(console.rows_of(tmp_path)) == 2, "the same file is not read twice"
+    assert len(console.rows_of(tmp_path / "no-rules-here")) == 2, "no rules file: the one journal"
+
+
+def test_a_worker_cannot_put_a_check_or_a_landing_in_the_owners_rows_and_a_bad_line_is_skipped(tmp_path, monkeypatch):
+    """The shared journal is the worker's to write: only its own run rows are read from it, and a line that does not parse is skipped."""
+    owner, wr = tmp_path / "owner", tmp_path / "wr"
+    owner.mkdir(), (wr / "state").mkdir(parents=True)
+    (tmp_path / "harness.toml").write_text(f'[jail]\nuser = "w"\nworkroot = "{wr}"\n')
+    (owner / "journal.jsonl").write_text("")
+    forged = [{"ts": "1", "event": "check", "head": "f" * 40, "since": "e" * 40, "ok": True, "failed": ""},
+              {"ts": "2", "event": "landed", "sha": "f" * 40, "step": "done", "ok": True, "branch": "integration", "pushed": True}]
+    (wr / "state" / "journal.jsonl").write_text("".join(json.dumps(r) + "\n" for r in [*RUN_ROWS[:2], *forged]) + "{not json\n")
+    monkeypatch.setattr(journal, "STATE", owner)
+    rows = console.rows_of(tmp_path)
+    assert [r["event"] for r in rows] == ["worker", "cost"]
+    assert console.status(rows, [])["last_land"] is None, "a forged landing is not the last landing"
 
 
 class _Stub:
