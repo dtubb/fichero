@@ -480,6 +480,8 @@ def done(lane_id: str, sha: str = "") -> str:
         s = None
         if lane is None or lane.get("kind") != "external":
             why = f"no external lane {lane_id!r}"
+        elif lane["cursor"] < len(lane["steps"]) and lane["steps"][lane["cursor"]].get("settling"):  # a chain's outcome is being written, whatever state the chain left the step in (it may return before its first stage)
+            why = f"{lane_id} has a batch settling its outcome: one at a time; run done again once it is written"
         elif lane["cursor"] < len(lane["steps"]) and lane["steps"][lane["cursor"]]["state"] in IN_LADDER and not (
                 lane["steps"][lane["cursor"]]["state"] in ("checking", "reviewing") and not lane["steps"][lane["cursor"]].get("settling")
                 and (sha := sha or lane_head(lane["worktree"]))
@@ -507,6 +509,7 @@ def done(lane_id: str, sha: str = "") -> str:
                     s.pop(k, None)
                 journal.append("queue", lane=lane_id, step=s["step"], state="superseded", detail=f"{old_head[:9]} by {sha[:9]}: its check is cancelled")
             if not why:
+                s.pop("settling", None)
                 s.update(state="done", head=sha, why=f"DONE {sha} (external)", rounds=0, restarts=0, **({"land_tree": path} if path else {}))
                 save(lanes)
     journal.append("queue", lane=lane_id, step=s["step"] if not why else "-", state="done" if not why else "done-refused", detail=why or sha)

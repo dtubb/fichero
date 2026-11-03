@@ -841,3 +841,37 @@ def test_a_stale_chain_writes_nothing_at_any_stage_after_a_newer_done(state, tmp
     assert s["head"] == child and s["state"] == "done" and "settling" not in s and "why" in s, f"the newer done stands: {s}"
     assert not any(r["event"] == "alert" for r in journal.read()), "and a stale red raises no alert for the old head"
 
+
+@pytest.mark.parametrize("staged", [True, False])
+@pytest.mark.parametrize("result", [{"ok": True}, {"ok": False, "kind": "red", "why": "pytest red", "findings": "t1", "evidence": "/l.json"}])
+def test_a_done_right_after_the_outcome_claim_is_refused_whatever_state_the_chain_left_the_step_in(state, tmp_path, monkeypatch, staged, result):
+    """Review 2026-11-02 (-99): a chain that returns before its first stage (a rebase error, no patches, a failed fetch, an exception)
+    leaves the step `done`; `settling` was refused only for checking/reviewing, so a done right after the claim took the new head and
+    the outcome's own write put the old one back. `done` refuses a settling step in any state."""
+    old, child = _two_commit_repo(tmp_path)
+    queue.add("ext", str(tmp_path / "ext"), "batch-1", str(state / "b1.1"), [], kind="external")
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="done", head=old)
+    queue.save(lanes)
+    fake = Fake()
+    real_chain = fake.procs.chain
+
+    def chain(lane_, step, stage):
+        if staged:
+            return real_chain(lane_, step, stage) if result["ok"] else {"head": old, "why": "", "findings": "", **result}
+        return {"head": old, "why": "", "findings": "", **result}  # returns before its first stage
+    fake.procs.chain = chain
+    fired = []
+    orig_store = queue.store
+
+    def store(lane_, expect=None):
+        ok = orig_store(lane_, expect=expect)
+        if expect and ok and any(x.get("settling") for x in lane_["steps"]) and not fired:
+            fired.append(queue.done("ext", child))  # the lane says DONE right after the claim was won
+        return ok
+    monkeypatch.setattr(queue, "store", store)
+    queue.run(fake.procs, workers_n=1, push=True, once=True, out=lambda s: None)
+    assert fired and "one at a time" in fired[0], fired
+    s = steps()["batch-1"]
+    assert s["head"] != child and "settling" not in s, f"the outcome's own write stands, nothing lost to a refused done: {s}"
+
