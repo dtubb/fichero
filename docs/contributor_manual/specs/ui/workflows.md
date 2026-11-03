@@ -1,11 +1,12 @@
 # Workflows — Design Spec (#4705 sibling; workflow surface)
 
 > Milestone: workflows
-> Manual: TBD — a section explaining: a workflow is a saved recipe of steps a user
+> Manual: docs/contributor_manual/guide/08-workflows-activity-and-curation.md (the contributor page; the user-manual section is still
+> to write — a section explaining: a workflow is a saved recipe of steps a user
 > can run over selected files/folders/search results; the built-in ("Default
 > Workflows") ones are locked and Duplicate-to-Edit makes an editable copy; the
 > workflow bar lets a user build and run a short chain of verbs without opening the
-> canvas at all; every run has a live output log and a history of past runs.
+> canvas at all; every run has a live output log and a history of past runs).
 
 > Design-led (Testing Constitution). The creative director owns the intent below;
 > tests enforce it; code makes them pass. **Status: APPROVED 2026-11-02 by the manager (owner-delegated); build order as written.**
