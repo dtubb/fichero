@@ -361,6 +361,81 @@ def test_a_big_diff_is_not_truncated_by_the_output_tail(tmp_path):
     assert not r["ok"] and "45 files" in r["stderr_tail"]
 
 
+
+def _sha(tmp_path):
+    return subprocess.run(["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True).stdout.strip()
+
+
+def test_an_unknown_auto_rule_refuses_the_rules_file(tmp_path):  # speed batch 1 (manager 2026-11-03): each rule named
+    (tmp_path / "harness.toml").write_text('[check]\nauto = ["red-on-base-trim-only", "approve-everything"]\n')
+    with pytest.raises(ValueError, match="approve-everything"):
+        ct.load(tmp_path)
+    (tmp_path / "harness.toml").write_text('[check]\nauto = ["red-on-base-trim-only", "weakened-tests-of-a-deleted-module"]\n')
+    assert ct.load(tmp_path).auto == ("red-on-base-trim-only", "weakened-tests-of-a-deleted-module")
+
+
+def test_a_test_file_that_only_loses_checks_or_renames_a_test_is_trim_only_and_any_new_check_is_not(tmp_path):
+    g, _ = _git_repo(tmp_path)
+    (tmp_path / "test_q.py").write_text("def test_a_and_the_page():\n    x = 1\n    assert x\n    assert page(x)\n")
+    g("add", "."), g("commit", "-qm", "t")
+    base = _sha(tmp_path)
+    (tmp_path / "test_q.py").write_text("def test_a():\n    x = 1\n    assert x\n")  # renamed, one assert gone
+    g("commit", "-qam", "trim")
+    assert ct.trim_only(tmp_path, base, "HEAD", "test_q.py")
+    (tmp_path / "test_q.py").write_text("def test_a():\n    x = 1\n    assert x == 1\n")  # an edited assert is a new check
+    g("commit", "-qam", "edit")
+    assert not ct.trim_only(tmp_path, base, "HEAD", "test_q.py")
+    g("reset", "-q", "--hard", base)
+    (tmp_path / "test_q.py").write_text("def test_a_and_the_page():\n    x = 1\n    assert x\n    assert page(x)\ndef test_b():\n    pass\n")
+    g("commit", "-qam", "new test")
+    assert not ct.trim_only(tmp_path, base, "HEAD", "test_q.py"), "a new test function is not a trim"
+    (tmp_path / "test_new.py").write_text("def test_n():\n    pass\n")
+    g("add", "."), g("commit", "-qm", "new file")
+    assert not ct.trim_only(tmp_path, base, "HEAD", "test_new.py"), "a new file is never trim-only"
+
+
+def test_a_weakened_test_is_excused_only_when_every_lost_check_used_a_module_the_diff_deletes(tmp_path):
+    g, _ = _git_repo(tmp_path)
+    (tmp_path / "watch.py").write_text("def render(r):\n    return r\n")
+    (tmp_path / "test_watch.py").write_text("import watch\ndef test_page():\n    assert watch.render(1)\n")
+    (tmp_path / "test_page.py").write_text("import watch, mod\ndef test_both():\n    assert mod.VALUE\n    page = watch.render(2)\n    assert page\n"
+                                         "def test_mod():\n    assert mod.VALUE\n")
+    g("add", "."), g("commit", "-qm", "t")
+    base = _sha(tmp_path)
+    cfg = ct.Config()
+    g("rm", "-q", "watch.py", "test_watch.py")
+    (tmp_path / "test_page.py").write_text("import mod\ndef test_both():\n    assert mod.VALUE\ndef test_mod():\n    assert mod.VALUE\n")
+    g("commit", "-qam", "the watch page is deleted (owner)")
+    gone = ct.deleted_modules(tmp_path, base, "HEAD", cfg)
+    assert gone == {"watch"}
+    assert ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_watch.py", gone), "a deleted test of the deleted module"
+    assert ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", gone), "its cut asserts were in a test that used watch"
+    (tmp_path / "test_page.py").write_text("import mod\ndef test_both():\n    assert mod.VALUE\n")  # test_mod gone too: it never used watch
+    g("commit", "-qam", "and more")
+    assert not ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", gone)
+    assert not ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", set()), "nothing deleted: nothing excused"
+
+
+def test_the_auto_rules_are_off_unless_named_and_each_decision_is_a_journal_row(tmp_path, monkeypatch):
+    """Wired: the weakened check of the ladder and the red-on-base loop skip only what a named rule excuses, with an `auto` row."""
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    g, _ = _git_repo(tmp_path)
+    (tmp_path / "test_q.py").write_text("def test_a():\n    assert 1\n    assert 2\n")
+    g("add", "."), g("commit", "-qm", "t")
+    base = _sha(tmp_path)
+    (tmp_path / "test_q.py").write_text("def test_a():\n    assert 1\n")
+    g("commit", "-qam", "trim")
+    ran = []
+    monkeypatch.setattr(ct, "pytest_rung", lambda root, files, cfg, t: (ran.append(files), {"ok": True})[1])
+    monkeypatch.setattr(ct, "green_runs", lambda *a, **k: {"name": "green", "ok": True, "stdout_tail": ""})
+    off = ct.red_on_base(tmp_path, base, "HEAD", ["test_q.py"], ct.Config())
+    assert ran == [["test_q.py"]] and not off["ok"] and "NOT RED ON BASE" in off["stderr_tail"], "off: the old refusal"
+    ran.clear()
+    on = ct.red_on_base(tmp_path, base, "HEAD", ["test_q.py"], ct.Config(auto=("red-on-base-trim-only",)))
+    assert ran == [] and on["ok"], "on: no red owed, the green run still runs"
+    assert [(r["rule"], r["file"]) for r in journal.read() if r["event"] == "auto"] == [("red-on-base-trim-only", "test_q.py")]
+
 def test_a_worker_cannot_weaken_its_own_tests(tmp_path):
     """A test function removed, fewer asserts, or more skips in an existing test file: needs-maintainer."""
     work, g, base, pinned = _project(tmp_path)

@@ -54,6 +54,7 @@ class Config:
     red_paths: tuple = ()               # a diff touching these (prefixes) needs a failing-on-base test; () = any file
     whole_tests: dict = field(default_factory=dict)  # {path prefix: tests dir}: a diff under the prefix runs that dir WHOLE in the green run
     test_globs: tuple = ("test_*.py", "*_test.py")
+    auto: tuple = ()                    # rule classes the ladder decides by itself, each named here (AUTO_RULES) and journalled as an `auto` row
     pytest_config: str = ""             # the pinned pytest config file (relative to the tree), passed as `-c`; "" = pytest's own search
     pytest_plugins: tuple = ()          # plugins loaded by -p; autoload is OFF, so a dist-info entry point in the tree loads nothing
     max_files: int = 25
@@ -110,7 +111,23 @@ def load(root) -> Config:
         remote=(c["remote"][0] if c["remote"] else "") if isinstance(c.get("remote"), list) else c.get("remote", d.remote),
         remotes=tuple(c["remote"]) if isinstance(c.get("remote"), list) else d.remotes, remote_python=c.get("remote_python", d.remote_python),
         remote_guards=c.get("remote_guards", d.remote_guards), guard_inputs=dict(c.get("guard_inputs", {})), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb),
-        parallel=max(1, int(c.get("parallel", d.parallel))))
+        parallel=max(1, int(c.get("parallel", d.parallel))), auto=_auto_rules(c.get("auto", ())))
+
+
+# speed batch 1 (manager 2026-11-03): narrow rule classes the ladder resolves without a person, each opted in by name in
+# [check].auto and journalled with that name, so the manager audits instead of approving
+AUTO_RULES = {
+    "red-on-base-trim-only": "a changed test file whose diff adds no assert and no new test function (a renamed one is a rename) "
+                             "owes no red on base: it can only have lost checks, and it still runs green on head",
+    "weakened-tests-of-a-deleted-module": "a weakened or deleted test whose every removed check names a module this diff deletes "
+                                          "(test_<m>.py deleted with <m>.py, or a removed assert that calls <m>.) is not refused",
+}
+
+
+def _auto_rules(names) -> tuple:
+    if unknown := sorted(set(names) - set(AUTO_RULES)):
+        raise ValueError(f"harness.toml [check].auto: unknown rules {unknown} (known: {sorted(AUTO_RULES)})")
+    return tuple(names)
 
 
 KNOWN_TABLES = {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines"}
@@ -830,6 +847,55 @@ def data_only(root, since: str, head: str, f: str) -> bool:
     return bool(old) and old == new
 
 
+CHECK_LINE = re.compile(r"\bassert\b|\braises\(|\bfail\(")
+TEST_DEF = re.compile(r"^\s*(?:async )?def test_\w+")
+
+
+def trim_only(root, since: str, head: str, f: str) -> bool:
+    """`red-on-base-trim-only`: a test file on base whose diff adds no check line (assert, raises, fail) and no new test
+    function (as many `def test_` added as removed: a rename) can only have lost checks, so it proves nothing on base either way."""
+    if not _git(root, "cat-file", "-e", f"{since}:{f}")["ok"]:
+        return False  # a new file is never trim-only
+    diff = _lines(root, "diff", "--no-ext-diff", "--unified=0", f"{since}...{head}", "--", f)  # diff.external= is off: a patch needs --no-ext-diff
+    if diff is None:
+        return False  # unreadable: fail closed, the red stays owed
+    added = [ln[1:] for ln in diff if ln.startswith("+") and not ln.startswith("+++")]
+    removed = [ln[1:] for ln in diff if ln.startswith("-") and not ln.startswith("---")]
+    return (not any(CHECK_LINE.search(a) for a in added)
+            and sum(bool(TEST_DEF.match(a)) for a in added) <= sum(bool(TEST_DEF.match(r)) for r in removed))
+
+
+def deleted_modules(root, since: str, head: str, cfg: Config) -> set[str]:
+    """The module names (file stems) of non-test Python files this diff deletes."""
+    return {Path(f).stem for _s, _m, f in _changes(root, since, head, "--diff-filter=D")
+            if f.endswith(".py") and not any(fnmatch.fnmatch(Path(f).name, g) for g in cfg.test_globs)}
+
+
+def _test_funcs(text: str) -> dict:
+    """{test name: (assert count, names the body uses)} of a test file's source; {} when it does not parse."""
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return {}
+    out = {}
+    for n in ast.walk(tree):
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name.startswith("test_"):
+            used = {x.id for x in ast.walk(n) if isinstance(x, ast.Name)}
+            out[n.name] = (sum(isinstance(x, ast.Assert) for x in ast.walk(n)), used)
+    return out
+
+
+def weakened_by_a_deleted_module(root, since: str, head: str, f: str, gone: set[str]) -> bool:
+    """`weakened-tests-of-a-deleted-module`: every test function the diff removes from `f`, or whose asserts it cuts, used a
+    module the same diff deletes (its old body names it); a deleted `f` counts when each of its tests did. Any other loss refuses."""
+    if not gone:
+        return False
+    old = _test_funcs("\n".join(_lines(root, "show", f"{since}:{f}") or []))
+    new = _test_funcs("\n".join(_lines(root, "show", f"{head}:{f}") or [])) if _git(root, "cat-file", "-e", f"{head}:{f}")["ok"] else {}
+    lost = [name for name, (asserts, _u) in old.items() if name not in new or new[name][0] < asserts]
+    return bool(lost) and all(old[name][1] & gone for name in lost)
+
+
 def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Config(), timeout_s: float = 600,  # noqa: B008
                 head_tree=None, also_green: tuple = (), approve_red: bool | tuple = False) -> dict:
     """The failing run: each changed test file, copied onto a scratch tree at `since`, must FAIL there on its
@@ -859,6 +925,10 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
             if f not in have and data_only(root, since, head, f):
                 data_skipped.add(f)
                 continue  # its tests are base's own; it runs in the green run
+            if f not in have and "red-on-base-trim-only" in cfg.auto and trim_only(root, since, head, f):
+                journal.append("auto", rule="red-on-base-trim-only", head=sha, file=f, detail="adds no check and no new test: no red owed; it runs green on head")
+                data_skipped.add(f)  # like data-only: a source change still owes a red from some other test
+                continue
             r = pytest_rung(base, [f], cfg, timeout_s)
             if f in have and not r["ok"] and (x := red(f"{f} says Already built but fails on base at {since[:9]}: it owes a red like any test")):
                 return x
@@ -1131,7 +1201,12 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
         new = [b for b in bad if b.endswith(": a new file under a pinned path (only a new guard may be added there)")]
         if new:
             noted, bad = (noted + "; " if noted else "") + "approved new pinned files: " + "; ".join(new), [b for b in bad if b not in new]
-    if weak := weakened_tests(root, since, head, cfg):
+    if (weak := weakened_tests(root, since, head, cfg)) and "weakened-tests-of-a-deleted-module" in cfg.auto:
+        gone = deleted_modules(root, since, head, cfg)
+        for f in [w for w in weak if weakened_by_a_deleted_module(root, since, head, w, gone)]:
+            journal.append("auto", rule="weakened-tests-of-a-deleted-module", head=head, file=f, detail=f"its lost checks used {', '.join(sorted(gone))}, deleted by this diff")
+            weak.remove(f)
+    if weak:
         if approve_weakened:  # the manager answered the alert with approve (an owner ruling renamed or dropped them): recorded, not refused
             noted = (noted + "; " if noted else "") + f"approved weakened tests: {', '.join(weak[:5])}"
         else:
