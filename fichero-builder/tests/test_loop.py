@@ -695,3 +695,37 @@ def test_a_draining_loop_starts_no_new_chain_so_it_can_re_exec_between_chains(st
     finally:
         queue.DRAIN[0] = False
         chains["pool"].shutdown()
+
+
+def test_an_old_chains_stage_callback_never_writes_its_stale_step_over_a_newer_done(state, tmp_path):
+    """Review 2026-11-02 (-92): `builder done` at a newer head between the old ladder's end and its `reviewing` stage was overwritten by
+    the old chain's copy of the step (old head, cleared approvals), so the superseded head could still land."""
+    import subprocess as sp
+
+    def g(*a):
+        return sp.run(["git", "-c", "user.email=t@e", "-c", "user.name=t", *a], cwd=repo, capture_output=True, text=True, check=True).stdout.strip()
+    repo = tmp_path / "ext"
+    repo.mkdir()
+    (repo / "a").write_text("1")
+    g("init", "-q", "-b", "main"), g("add", "a"), g("commit", "-q", "-m", "a")
+    old = g("rev-parse", "HEAD")
+    (repo / "b").write_text("2")
+    g("add", "b"), g("commit", "-q", "-m", "b")
+    child = g("rev-parse", "HEAD")
+    queue.add("ext", str(repo), "batch-1", str(state / "b1.1"), [], kind="external")
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="done", head=old)
+    queue.save(lanes)
+    fake = Fake()
+
+    def chain(lane_, step, stage):
+        stage("checking")
+        assert queue.done("ext", child) == "", "done at the newer head lands between the ladder and the review"
+        stage("reviewing")  # the old chain's callback, with its stale copy of the step
+        return {"ok": True, "head": old, "why": "", "findings": ""}
+    fake.procs.chain = chain
+    queue.run(fake.procs, workers_n=1, push=True, once=True, out=lambda s: None)
+    assert fake.landed_calls == [], "the superseded head never lands"
+    s = steps()["batch-1"]
+    assert s["head"] == child and s["state"] == "done", "the newer done stands, untouched by the old chain"
+    assert any(r.get("state") == "stale-result" for r in journal.read() if r["event"] == "queue")

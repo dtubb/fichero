@@ -73,6 +73,11 @@ def store(lane: dict) -> None:
         save([lane if x["id"] == lane["id"] else x for x in lanes])
 
 
+def stored_head(lane_id: str, step: str) -> str:
+    """The head the queue file holds for a step now (what `builder done` wrote), not the tick's snapshot of it."""
+    return next((st.get("head", "") for x in load() if x["id"] == lane_id for st in x["steps"] if st["step"] == step), "")
+
+
 def workers(root) -> int:
     f = Path(root) / "harness.toml"
     return int(tomllib.loads(f.read_text()).get("queue", {}).get("workers", 1)) if f.is_file() else 1
@@ -306,13 +311,22 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         lane["paused"] = True  # manager 2026-11-02: a paused lane is never checked; its DONE head waits for `queue resume`
         return False
 
+    h0 = s.get("head", "")
+
+    def stage_cb(stage: str) -> None:
+        if stored_head(lane["id"], s["step"]) == h0:  # a `builder done` at a newer head took the step: this old chain must not write its stale copy back over it
+            move(s, stage, "")
+
     def chain() -> dict:
         try:
-            return procs.chain(lane, s, lambda stage: move(s, stage, ""))
+            return procs.chain(lane, s, stage_cb)
         except (RuntimeError, OSError, ValueError, KeyError) as e:
             return {"ok": False, "kind": "error", "why": str(e)}
     if chains is None:
         r = chain()
+        if stored_head(lane["id"], s["step"]) != h0:
+            journal.append("queue", lane=lane["id"], step=s["step"], state="stale-result", detail=f"the check of {h0[:9]} ended after a newer head superseded it: dropped")
+            return True
     elif fut is None:
         if DRAIN[0]:  # new code waits: no new chain starts, so the loop can re-exec between chains
             return True
@@ -322,7 +336,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     else:
         f = chains.pop(lane["id"])
         r = f.result()
-        if getattr(f, "head", s.get("head", "")) != s.get("head", ""):  # `builder done` at a newer head ended this batch: its result is dropped, the new head is checked next tick
+        if getattr(f, "head", s.get("head", "")) != stored_head(lane["id"], s["step"]):  # `builder done` at a newer head ended this batch: its result is dropped, the new head is checked next tick
             journal.append("queue", lane=lane["id"], step=s["step"], state="stale-result", detail=f"the check of {f.head[:9]} ended after {s.get('head', '')[:9]} superseded it: dropped")
             return True
     if r["ok"]:
