@@ -137,6 +137,7 @@ def main(argv=None) -> int:
     dn = sub.add_parser("done", help="an external lane's DONE (dev-workflows.run.loop-external-lane): its step at <sha> goes to the check, review and landing")
     dn.add_argument("lane"), dn.add_argument("sha", nargs="?", default=""), dn.add_argument("--sha", dest="sha_opt", default="")
     dn.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
+    dn.add_argument("--no-presubmit", action="store_true", help="skip the lane's ready check with guards (the manager's call, e.g. a known-red guard)")
     cl = sub.add_parser("check-lane", help="the console's Run check (owner 2026-11-02): the pinned ladder over a lane's HEAD now, beside the loop; lands nothing")
     cl.add_argument("lane"), cl.add_argument("--root", default="."), cl.add_argument("--state", help="where the queue and the journal live")
     va = sub.add_parser("verify-all", help="everything on a checkout's HEAD verified before a dev DMG: every guard, the full engine suite (on [check].remote), the app build; one `verify` row; --build makes the dev DMG only after a green verdict")
@@ -284,6 +285,13 @@ def main(argv=None) -> int:
         from fichero_builder import queue
 
         journal.STATE = Path(a.state) if a.state else journal.STATE
+        if not a.no_presubmit:  # speed batch 2: the guards' reds die in the lane, before a ladder is spent
+            ok, said = queue.presubmit(a.lane, a.sha_opt or a.sha)
+            if not ok:
+                print(f"REFUSED: the presubmit ([check].ready with its guards) is red; fix it, then done again:\n{said[-3000:]}")
+                return 1
+            if said.startswith("presubmit skipped"):
+                print(said)
         why = queue.done(a.lane, a.sha_opt or a.sha)
         paused = not why and any(x["id"] == a.lane and x.get("paused") for x in queue.load())
         print(f"REFUSED: {why}" if why else f"{a.lane}: DONE at {(a.sha_opt or a.sha or 'its HEAD')[:12]}, snapshot in land-{a.lane}; "

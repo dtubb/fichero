@@ -1005,6 +1005,38 @@ def real_procs(root) -> Procs:
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "")
 
 
+PRESUBMIT_TIMEOUT_S = 1200
+
+
+def presubmit(lane_id: str, sha: str) -> tuple[bool, str]:
+    """`builder done`'s shift-left gate (speed batch 2, manager 2026-11-03): the lane's own ready check, `[check].ready` of the
+    lane's harness.toml run WITH its guards (`--no-guards` dropped: every fast guard, the spec guards among them, the lint ratchet,
+    the git checks) in the lane's worktree, so a red a guard would find stops here, in minutes, not after a whole ladder. It runs only when the worktree
+    is clean and at `sha` (the files the guards read are the tree's); otherwise it says so and lets the done through.
+    (ok, what it said); one `presubmit` journal row."""
+    lane = next((x for x in load() if x["id"] == lane_id), None)
+    wt = Path(lane["worktree"]) if lane else None
+    f = wt / "harness.toml" if wt else None
+    ready = [x for x in tomllib.loads(f.read_text()).get("check", {}).get("ready", []) if x != "--no-guards"] if f and f.is_file() else []
+    if not ready or not (wt / ready[0]).is_file():
+        return True, "presubmit skipped: the lane's tree has no [check].ready script"
+    g = ["git", "-c", "safe.directory=*", "-C", str(wt)]
+    head = subprocess.run(g + ["rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    want = subprocess.run(g + ["rev-parse", "--verify", "-q", f"{sha or 'HEAD'}^{{commit}}"], capture_output=True, text=True).stdout.strip()
+    dirty = subprocess.run(g + ["status", "--porcelain", "--untracked-files=no"], capture_output=True, text=True).stdout.strip()
+    if not want or head != want or dirty:
+        why = f"presubmit skipped: {wt} is {'dirty' if dirty else 'not at ' + (sha or 'HEAD')[:12]}"
+        journal.append("presubmit", lane=lane_id, head=sha, state="skipped", detail=why)
+        return True, why
+    try:
+        r = subprocess.run(["bash", *ready], cwd=str(wt), capture_output=True, text=True,
+                           timeout=PRESUBMIT_TIMEOUT_S, env={**os.environ, "FICHERO_PYTHON_BIN": sys.executable})
+        ok, said = r.returncode == 0, (r.stdout + r.stderr).strip()
+    except subprocess.TimeoutExpired:
+        ok, said = False, f"presubmit timed out after {PRESUBMIT_TIMEOUT_S} s"
+    journal.append("presubmit", lane=lane_id, head=head, state="green" if ok else "red", detail=said[-1500:])
+    return ok, said
+
 def refresh_live(root, branch: str, git=None) -> str:
     """The loop's own tree (`--root`) follows origin/<branch> after each landing, so the code it runs is never behind the rules it
     reads (2026-11-03: a list in harness.toml landed while the loop's tree lacked the code for it, and the loop died on every ladder).
