@@ -245,7 +245,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             lane["built"] = True
             store(lane)
             if lane.get("kind") == "external" and not any(st.get("product", True) for st in lane["steps"]):
-                # dev-workflows.run.build-only-for-product: a harness-only batch builds no app (manager 2026-11-03); a build-order milestone always does
+                # dev-workflows.run.loop-rolls-on: a harness-only batch builds no app (manager 2026-11-03); a build-order milestone always does
                 journal.append("queue", lane=lane["id"], step="-", state="build-skipped", detail="no landed step touched a product path")
                 return False
 
