@@ -436,7 +436,23 @@ def _remote_run(name, argv, root, timeout_s, cfg: Config, extra: dict | None, cw
     r = run_command(name, ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host, script], root, timeout_s, None, as_jail=False)
     if r["exit_code"] == 255:  # ssh's own failure, never pytest's
         return _remote_down(cfg, r["stderr_tail"][-200:], remote)
+    _remote_back(remote)
     return {**r, "remote": host}
+
+
+def _outages() -> Path:
+    return journal.STATE / "runners-down.json"
+
+
+def _remote_back(remote: str) -> None:
+    """A runner that answered again ends its outage: the outage's alert is answered `runner back` and the next outage alerts anew."""
+    with journal.Lock("runners"):
+        down = json.loads(_outages().read_text()) if _outages().is_file() else {}
+        if remote not in down:
+            return
+        aid = down.pop(remote).get("alert", "")
+        _outages().write_text(json.dumps(down))
+    journal.append("alert-answer", id=aid, action="runner-back", ok=True, detail=f"{remote} answered again")
 
 
 def _remote_down(cfg: Config, why: str, remote: str = "") -> None:
@@ -448,7 +464,17 @@ def _remote_down(cfg: Config, why: str, remote: str = "") -> None:
     if remote in _ALERTED:
         return None
     _ALERTED.add(remote)
-    queue.alert("check", "remote", f"the check runner {remote} is unreachable; " + (f"trying {left[0]}" if left else "the tests ran here") + f": {why}", remote, [])
+    # one alert per OUTAGE, not per ladder (speed batch 4, manager 2026-11-03: 40 alerts in a day while the iMac was off); the
+    # outage is kept in the state dir across ladders and ends when the runner answers (_remote_back)
+    with journal.Lock("runners"):
+        down = json.loads(_outages().read_text()) if _outages().is_file() else {}
+        if remote in down:
+            return None
+        aid = queue.alert("check", "remote", f"the check runner {remote} is unreachable; " + (f"trying {left[0]}" if left else "the tests ran here")
+                          + f"; one alert for this outage, answered when it is back: {why}", remote, [])
+        down[remote] = {"since": time.strftime("%Y-%m-%dT%H:%M:%S"), "alert": aid}
+        _outages().parent.mkdir(parents=True, exist_ok=True)
+        _outages().write_text(json.dumps(down))
     return None
 
 

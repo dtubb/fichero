@@ -77,3 +77,20 @@ def test_a_red_after_a_runner_change_is_retried_once_on_the_runner_that_is_back_
     assert res["ok"] is True and res["remote"] == "imac:~/g" and ran == ["air:~/g", "imac:~/g"]
     row = next(r for r in journal.read() if r["event"] == "runner-retry")
     assert row["first"] == "air:~/g" and row["retried"] == "imac:~/g" and row["ok"] is True
+
+
+def test_one_alert_per_outage_across_ladders_and_the_runner_back_answers_it(world, tmp_path):
+    """speed batch 4 (manager 2026-11-03): 40 'unreachable' alerts in a day, one per ladder, while the iMac was off."""
+    ran, alerts, state = world
+    state["down"] = {"imac:~/g"}
+    for _ladder in range(3):  # each ladder starts with clean per-ladder sets, as _jail_exit leaves them
+        check_tool._DOWN.clear(), check_tool._DEAD.clear(), check_tool._ALERTED.clear()
+        check_tool._run("pytest", ["x"], tmp_path, 5, CFG, remote=True)
+    assert len(alerts) == 1, "one alert for the whole outage"
+    check_tool._remote_back("imac:~/g")
+    assert [(r["id"], r["action"]) for r in journal.read() if r["event"] == "alert-answer"] == [("a1", "runner-back")]
+    check_tool._remote_back("imac:~/g")
+    assert len([r for r in journal.read() if r["event"] == "alert-answer"]) == 1, "back twice is one answer"
+    check_tool._DOWN.clear(), check_tool._DEAD.clear(), check_tool._ALERTED.clear()
+    check_tool._run("pytest", ["x"], tmp_path, 5, CFG, remote=True)
+    assert len(alerts) == 2, "the next outage alerts anew"
