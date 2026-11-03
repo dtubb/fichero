@@ -71,11 +71,14 @@ class Jail:
         """`argv` as the jailed user: clean environment (only `env`), HOME the user's own, optional cwd."""
         env = {**(env or {}), "PATH": _path_with_git((env or {}).get("PATH", ""))}  # a real git first, never the xcrun shim
         e = [f"{k}={v}" for k, v in env.items() if k != "HOME"]
+        home = env.get("HOME", "")
+        if not (self.workroot and home.startswith(self.workroot.rstrip("/") + "/")):
+            home = ""  # only a scratch dir inside the workroot may be HOME; anything else is the user's own
         inner = ["/bin/sh", "-c", _CD_EXEC, "sh", str(cwd) if cwd is not None else "/", *argv]  # never inherit the owner's cwd: the jail user cannot read it
         if self.is_self():
-            return ["/usr/bin/env", "-i", f"HOME={os.environ.get('HOME', '')}", *e, *inner]
+            return ["/usr/bin/env", "-i", f"HOME={home or os.environ.get('HOME', '')}", *e, *inner]
         # sudo -H sets the user's own HOME; env -i then drops everything else the caller had
-        return [self.sudo, "-n", "-u", self.user, "-H", "/bin/sh", "-c", 'exec /usr/bin/env -i HOME="$HOME" "$@"', "sh", *e, *inner]
+        return [self.sudo, "-n", "-u", self.user, "-H", "/bin/sh", "-c", 'h=$1; shift; exec /usr/bin/env -i HOME="${h:-$HOME}" "$@"', "sh", home, *e, *inner]
 
     def mkdtemp(self, prefix: str) -> str:
         """A scratch dir the jailed user can write: under the workroot, mode 0777 (public data only lives here)."""
