@@ -119,7 +119,8 @@ def test_the_line_readers_page_context_is_cut_from_the_working_rendition_not_the
     monkeypatch.setattr(llm, "vision", model)
     asyncio.run(line_reader.read_lines(str(page), geometry, LLMConfig(provider="openrouter", model="x"), granularity="page",
                                        page_context=True, working_image=str(working)))
-    import base64, io
+    import base64
+    import io
 
     sent = Image.open(io.BytesIO(base64.b64decode(seen[0].split(",", 1)[1])))
     assert sent.size == (40, 30)  # the working rendition's size, not the 400x300 page
