@@ -92,3 +92,34 @@ def test_force_renders_again(db, renders):
     storage.ensure_display(doc, package_path=db.path.parent, db=db)
     storage.ensure_display(doc, force=True, package_path=db.path.parent, db=db)
     assert len(renders) == 2
+
+
+def test_the_line_readers_page_context_is_cut_from_the_working_rendition_not_the_full_page(monkeypatch, tmp_path):
+    import asyncio
+
+    from fichero_server import llm
+    from fichero_server.llm import LLMConfig, line_reader
+    from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryLevel, OCRGeometryResult
+
+    page = tmp_path / "page.png"
+    Image.new("RGB", (400, 300), (255, 255, 255)).save(page)
+    working = tmp_path / "working.png"
+    Image.new("RGB", (40, 30), (10, 20, 30)).save(working)
+    box = OCRGeometryBox(text="", bbox=[0.0, 0.0, 0.5, 0.1], level=OCRGeometryLevel.LINE, provider="kraken", model="m",
+                         source="working-pass",
+                         metadata={"segment_id": "s0", "polygon_px": [[0, 0], [100, 0], [100, 20], [0, 20]],
+                                   "baseline_px": [[0, 15], [100, 15]], "pixel_frame": {"width": 400, "height": 300}})
+    geometry = OCRGeometryResult(text="", provider="kraken", model="m", boxes=[box], source="working-pass", metadata={})
+    seen: list[str] = []
+
+    async def model(images, prompt, config, **_):
+        seen.append(images[0])  # the page picture rides first
+        return '["x"]'
+
+    monkeypatch.setattr(llm, "vision", model)
+    asyncio.run(line_reader.read_lines(str(page), geometry, LLMConfig(provider="openrouter", model="x"), granularity="page",
+                                       page_context=True, working_image=str(working)))
+    import base64, io
+
+    sent = Image.open(io.BytesIO(base64.b64decode(seen[0].split(",", 1)[1])))
+    assert sent.size == (40, 30)  # the working rendition's size, not the 400x300 page

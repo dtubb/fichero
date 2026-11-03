@@ -193,13 +193,16 @@ def _request_groups(found: list[OCRGeometryBox], granularity: str | None, per_ca
 async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, language: str | None = None,
                      apple: bool = False, granularity: str | None = None,
                      page_context: bool | None = None, page_image: Any = None,
-                     fragments: str = "") -> OCRGeometryResult:
+                     fragments: str = "", working_image: str | None = None) -> OCRGeometryResult:
     """Kraken's lines (`segment_to_geometry`) with each one's text read by `config`'s vision model, or, with
     `apple`, by Apple Vision on each line's own picture (one line a call: its answer IS the reading, not a JSON
     array, and it is not checked for loops, as only a generative model loops).
 
     `page_image` (`media/current_image.PageImage`): the lines are measured on the page's photograph and `image_path` is the page's
-    current image (edits applied); each line's outline is carried onto it before it is cut, so the crop is the line as edited."""
+    current image (edits applied); each line's outline is carried onto it before it is cut, so the crop is the line as edited.
+
+    `working_image` (the page's stored working rendition, `db/storage.ensure_display`): when given, the page picture that rides
+    beside a batch (`page_context`) is cut from it and the full page is not resized again (`image.enhance.working-rendition-once`)."""
     from fichero_server.llm import LLMConfig, vision
 
     if apple:
@@ -221,7 +224,13 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
     # Off unless asked (2026-10-24, measured): the page beside the lines made a batch answer out of order and cost twice as much
     # (one line a call), and the lines were read as well without it (`source.recipe.cloud-reads-lines-per-page`).
     context = False if page_context is None else (page_context and not apple)
-    page_uri = _page_context_uri(page) if context and crops else None
+    page_uri = None
+    if context and crops:
+        if working_image:
+            with Image.open(working_image) as working:
+                page_uri = _page_context_uri(working)
+        else:
+            page_uri = _page_context_uri(page)
     gate = asyncio.Semaphore(CONCURRENT_CALLS)
 
     async def ask(indices: list[int], with_page: bool = True, reask: bool = False) -> list[str | None] | None:
