@@ -833,12 +833,16 @@ class _PerThread(threading.local):
 ON_RUNG = _PerThread(None)  # (name, ok, rungs so far) after each rung: the chain starts the review early (speed 2)
 ACTIVITY = _no_activity  # `builder check` and the chain set this to a journal writer (console view A); tests write nowhere
 _KEY = _PerThread("")  # the running ladder's key, for its rung rows
+REUSE = _PerThread(None)  # {rung name: its green row} from the SAME head, base and pinned copy: an approve resumes there, it does not start over
 
 
 def ladder(rungs: list) -> dict:
     """Run (name, callable) rungs in order and stop at the first red, so the worker gets one failure at a time."""
     out = []
     for name, fn in rungs:
+        if (prior := (REUSE[0] or {}).get(name)) is not None:  # green before the approve, for this exact head: not run again (dev-workflows.run.loop-needs-maintainer)
+            out.append({**prior, "name": name, "cached": True})
+            continue
         ACTIVITY(kind="check", key=_KEY[0], state="rung-start", rung=name)
         r = {"name": name, **fn()}
         ACTIVITY(kind="check", key=_KEY[0], state="rung", rung=name, ok=bool(r.get("ok")), seconds=r.get("seconds"))

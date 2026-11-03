@@ -473,3 +473,37 @@ def test_the_watchdog_refuses_with_no_loop_pid_and_starts_no_second_loop(state, 
     monkeypatch.setattr(queue.subprocess, "Popen", lambda *a, **k: spawned.append(a) or None)
     assert queue.restart_loop("/root", 30.0) == 0 and not spawned
     assert any(r.get("event") == "loop" and r.get("state") == "restart-refused" for r in journal.read())
+
+
+def test_a_ladder_cancelled_by_a_newer_head_ends_without_an_alert_a_tell_or_a_finding(state):
+    """Manager 2026-11-03 (sharing 31c10f84a cancelled by the resubmit still raised alert -118 and a findings tell): resubmit mid-ladder."""
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    fake = Fake()
+    told = []
+    fake.procs.tell = lambda lane, text: told.append(text) or ""
+    inside, release = threading.Event(), threading.Event()
+
+    def chain(lane, step, stage):
+        stage("checking"), inside.set(), release.wait(10)
+        return {"ok": False, "kind": "red", "why": "cancelled: superseded by a newer head", "findings": "guards: cancelled", "head": "old000000"}
+    fake.procs.chain = chain
+    queue.add("ext", "/w/ext", "batch-1", str(state / "b1.1"), [], kind="external", pane="%7")
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="done", head="old000000")
+    queue.save(lanes)
+    with ThreadPoolExecutor(1) as pool:
+        chains = {"pool": pool}
+        queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
+        assert inside.wait(5)
+        lanes = queue.load()  # `builder done` at the newer head, mid-guards
+        lanes[0]["steps"][0].update(state="done", head="new000000")
+        queue.save(lanes)
+        release.set()
+        chains["ext"].result(5)
+        queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
+    assert not [r for r in journal.read() if r["event"] == "alert"], "no alert row for the cancelled ladder"
+    assert told == [], "and nothing is told to the lane"
+    assert any(r.get("state") == "stale-result" for r in journal.read() if r["event"] == "queue")
+    s = queue.load()[0]["steps"][0]
+    assert s["head"] == "new000000" and s["state"] == "done", "the newer head is untouched"

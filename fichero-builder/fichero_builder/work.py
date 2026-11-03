@@ -182,6 +182,23 @@ def blocking(text: str, last: str) -> str:
     return last
 
 
+def green_before_approve(ladder: str, since: str, head: str, pinned) -> dict:
+    """An approve resumes the SAME batch at the rung it excused (manager 2026-11-02): the rungs green in the last ladder file, for this
+    head, this base and this pinned copy, stand and only the red rung and those after it run. Any difference = {} (start over)."""
+    try:
+        prev = json.loads(Path(ladder).read_text())
+    except (OSError, ValueError):
+        return {}
+    if prev.get("ok") or (prev.get("head"), prev.get("since"), prev.get("pinned")) != (head, since, str(pinned)):
+        return {}
+    green = {}
+    for row in prev.get("rungs") or []:
+        if not row.get("ok"):
+            break
+        green[row["name"]] = row
+    return green
+
+
 def do_check(a, repo: str, branch: str, head: str, ladder: str) -> dict:
     """The ladder over <branch>..head; the range is the same refusal `builder check` has, `since` is a sha, not a name."""
     since = land_tool.resolve_branch(repo, branch)
@@ -195,9 +212,15 @@ def do_check(a, repo: str, branch: str, head: str, ladder: str) -> dict:
     check_tool.ACTIVITY = _activity
     check_tool.GUARD_CACHE[0] = journal.STATE / "guard-cache.json"  # speed 5
     pin_new = bool(getattr(a, "approve_pinned_new", False))  # the manager approved a new file under a pinned path
-    r = check_tool.ladder_over(repo, since, head, a.pinned, getattr(a, "ids", []), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok,
-                               approve_pinned_new=pin_new, guard_data=tuple(getattr(a, "guard_data", ()) or ()))
-    Path(ladder).write_text(json.dumps(r, indent=1))
+    guard_data = tuple(getattr(a, "guard_data", ()) or ())
+    approved = maintainer or approve or bool(red_ok) or pin_new or bool(guard_data)
+    check_tool.REUSE[0] = green_before_approve(ladder, since, head, a.pinned) if approved else None
+    try:
+        r = check_tool.ladder_over(repo, since, head, a.pinned, getattr(a, "ids", []), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok,
+                                   approve_pinned_new=pin_new, guard_data=guard_data)
+    finally:
+        check_tool.REUSE[0] = None
+    Path(ladder).write_text(json.dumps({**r, "head": head, "since": since, "pinned": str(a.pinned)}, indent=1))
     journal.append("check", repo=str(repo), since=since, head=head, ok=bool(r.get("ok")), failed=r.get("failed", ""), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok)
     return r
 

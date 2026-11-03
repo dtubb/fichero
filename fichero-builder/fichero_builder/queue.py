@@ -341,6 +341,9 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     else:
         f = chains.pop(lane["id"])
         r = f.result()
+        if (ran := getattr(f, "head", h0)) != h0:  # the chain ran on an OLDER head: a `builder done` at a newer one cancelled it. It ends silently: no alert, no tell, no finding (manager 2026-11-03)
+            journal.append("queue", lane=lane["id"], step=s["step"], state="stale-result", detail=f"the check of {ran[:9]} was cancelled by {h0[:9]}: dropped without a word")
+            return True
     # the ONE claim of the chain's outcome: a compare-and-set of (step, head) under the queue lock. Every write a chain makes to the step
     # is `store(expect=...)` (the stage callbacks above, this claim); after it the step is `settling`, which `builder done` refuses, so no
     # outcome below (landed, blocked, a fix brief) can overwrite a newer head, and no unlocked read decides anything (review -92/-94/-96).
