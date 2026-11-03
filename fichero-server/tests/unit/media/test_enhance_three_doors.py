@@ -213,6 +213,18 @@ def test_the_contrast_node_is_registered_with_its_config_from_the_params_model()
     assert config["profile"]["enum"] == ["handwritten", "typescript"]
 
 
+@pytest.mark.parametrize("tool, step", [
+    ("stain_flatten_images", "stain-flatten"), ("ruled_lines_images", "ruled-lines"), ("bleed_through_images", "bleed-through"),
+])
+def test_the_stain_ruling_and_bleed_nodes_have_their_config_from_the_params_model(tool, step):
+    from fichero_server.media.enhance import STEPS as registry
+    from fichero_server.workflows.registry import get_tool_def
+
+    config = get_tool_def(tool).config_schema
+    for key, field in registry[step].params.model_fields.items():
+        assert key in config and config[key].get("default") == field.default
+
+
 def test_the_contrast_node_runs_the_contrast_step_and_writes_an_enhanced_rendition(db, monkeypatch):
     import asyncio
 
@@ -260,6 +272,9 @@ def test_page_crop_run_finds_the_page_through_the_one_function(db, monkeypatch, 
     ("RotateOperationRequest", "rotate"),
     ("ContrastOperationRequest", "contrast"),
     ("StraightenOperationRequest", "deskew"),
+    ("StainFlattenOperationRequest", "stain_flatten"),
+    ("RuledLinesOperationRequest", "ruled_lines"),
+    ("BleedThroughOperationRequest", "bleed_through"),
 ])
 def test_the_editor_request_schema_is_the_params_model_plus_the_page(request_name, step):
     from fichero_server.api.routes.ingest import image_editing
