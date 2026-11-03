@@ -36,6 +36,7 @@ from typing import Callable
 from fichero_builder import check_tool, codemap, jail, journal, land_tool, models, work
 
 ROUNDS, RESTARTS = 2, 2
+AUTO_SEND_BACKS = 3  # an external lane's red check is sent back by the loop this many times a batch, then it is an alert
 FIX = ("Step {step}: the {kind} did not pass. Fix it on this branch with new commit(s), under the same rules.\n\n{findings}\n\n"
        "When it is committed, end your turn with the exact line DONE <short sha of the branch head>.\n")
 
@@ -210,18 +211,28 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if only_head is None:
             store(lane)
 
-    def block(s, why, actions=ACTIONS, evidence=""):
+    def findings_to_lane(s, why, evidence, q, state="told"):
+        n = sum(1 for p in journal.STATE.glob(f"findings-{lane['id']}-*.txt")) + 1
+        f = journal.STATE / f"findings-{lane['id']}-{n}.txt"
+        f.write_text(f"{lane['id']} batch {s['step']} at {s.get('head', '')[:9]}: {why}\n\nEvidence: {evidence or q}\n")
+        err = procs.tell(lane, f"FINDINGS for {lane['id']} at {s.get('head', '')[:9]}: {why.splitlines()[0][:300]} (full: {f}). "
+                               f"Fix on your branch (a conflict: rebase onto origin/integration), then run: {done_cmd(lane['id'])}")
+        journal.append("queue", lane=lane["id"], step=s["step"], state=state if not err else "tell-refused", detail=err or str(f))
+
+    def block(s, why, actions=ACTIONS, evidence="", auto_send_back=False):
         q = journal.STATE / f"question-{lane['id']}-{s['step']}.txt"
         q.write_text(f"QUESTION: {why}\n")
+        if auto_send_back:
+            s["auto_sb"] = s.get("auto_sb", 0) + 1  # before the move, which stores it
         move(s, "blocked", why)
+        if auto_send_back:  # a red the manager would only send back: the lane gets the findings, no alert (manager 2026-11-03)
+            findings_to_lane(s, why, evidence, q, state="auto-send-back")
+            journal.append("queue", lane=lane["id"], step=s["step"], state="auto-send-back",
+                           detail=f"sent back automatically ({s['auto_sb']} of {AUTO_SEND_BACKS}): {why.splitlines()[0][:200]}")
+            return False
         alert(lane["id"], s["step"], why, evidence or str(q), list(actions))
         if lane.get("kind") == "external" and s.get("land_tree"):  # the lane fixes it on its branch: tell it where the findings are
-            n = sum(1 for p in journal.STATE.glob(f"findings-{lane['id']}-*.txt")) + 1
-            f = journal.STATE / f"findings-{lane['id']}-{n}.txt"
-            f.write_text(f"{lane['id']} batch {s['step']} at {s.get('head', '')[:9]}: {why}\n\nEvidence: {evidence or q}\n")
-            err = procs.tell(lane, f"FINDINGS for {lane['id']} at {s.get('head', '')[:9]}: {why.splitlines()[0][:300]} (full: {f}). "
-                                   f"Fix on your branch (a conflict: rebase onto origin/integration), then run: {done_cmd(lane['id'])}")
-            journal.append("queue", lane=lane["id"], step=s["step"], state="told" if not err else "tell-refused", detail=err or str(f))
+            findings_to_lane(s, why, evidence, q)
         return False
 
     h = handles.get(lane["id"])
@@ -399,7 +410,9 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         return True
     # an external lane fixes its own reds: send-back (findings to its pane, its next done re-takes); park keeps the lane too
     acts = ("send-back", "retry", "park") if lane.get("kind") == "external" else ACTIONS
-    return block(s, f"{r['why']}\n{r.get('findings', '')}".strip(), acts, evidence=r.get("evidence", ""))
+    auto = (lane.get("kind") == "external" and bool(s.get("land_tree")) and r.get("kind") in ("red", "not-ready", "refused")
+            and s.get("auto_sb", 0) < AUTO_SEND_BACKS)  # the cap spent, the alert comes as before
+    return block(s, f"{r['why']}\n{r.get('findings', '')}".strip(), acts, evidence=r.get("evidence", ""), auto_send_back=auto)
 
 
 ACTIONS = ("retry", "park", "ask-owner")

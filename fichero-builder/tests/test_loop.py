@@ -962,3 +962,23 @@ def test_an_external_lanes_landing_builds_no_app_product_or_not(state, tmp_path)
     assert any(r.get("state") == "build-skipped" for r in journal.read() if r["event"] == "queue")
     built, s = _landed_external(state, tmp_path / "b", product=True, lane_id="lane-p")
     assert s["product"] is True and built == [], "a product path: the dev build waits for the milestone's end or `builder build --dev`"
+
+
+def test_an_external_lanes_red_is_sent_back_by_the_loop_three_times_a_batch_then_it_is_an_alert(state, tmp_path):
+    """dev-workflows.run.loop-alerts (manager 2026-11-03): a red the manager would only send back goes to the lane's pane with no
+    alert: one `auto-send-back` row says what was done; the fourth red in the batch is the alert as before; approve-kind refusals never."""
+    wt, g = _ext_repo(tmp_path)
+    queue.add("lane-x", str(wt), "batch-1", str(state / "b1.1"), [], kind="external", pane="%7")
+    told = []
+    fake = Fake(chains={"batch-1": [{"ok": False, "kind": "red", "why": "ruff on the changed Python", "findings": "x.py:1 F401"}] * 4})
+    fake.procs.tell = lambda lane, text: told.append(text) or ""
+    for i in range(4):
+        assert queue.done("lane-x") == ""
+        queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+        assert steps_of("lane-x")[0]["state"] == "blocked"
+        assert len(_alerts()) == (1 if i == 3 else 0), f"round {i + 1}"
+        (wt / f"fix{i}").write_text("x")
+        g(wt, "add", "."), g(wt, "commit", "-qm", f"fix {i} (Step 1.2)")
+    rows = [r["detail"] for r in journal.read() if r.get("state") == "auto-send-back" and "automatically" in r.get("detail", "")]
+    assert [d.split(":")[0] for d in rows] == [f"sent back automatically ({n} of 3)" for n in (1, 2, 3)]
+    assert len(told) == 4 and all("FINDINGS" in t for t in told)
