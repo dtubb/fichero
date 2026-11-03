@@ -713,7 +713,10 @@ def repane(listing: str | None = None) -> list[str]:
     as it is. One `queue` row per move. ponytail: two dead lanes on one worktree both take its one session; a pane title match
     if that ever picks wrong."""
     if listing is None:
-        r = subprocess.run(["tmux", "list-panes", "-a", "-F", "#{pane_id}\t#{pane_current_command}\t#{pane_current_path}"], capture_output=True, text=True)
+        try:
+            r = subprocess.run(["tmux", "list-panes", "-a", "-F", "#{pane_id}\t#{pane_current_command}\t#{pane_current_path}"], capture_output=True, text=True)
+        except OSError:
+            return []  # no tmux on this PATH (the jail running the tests, a launchd PATH without it): nothing to re-point
         if r.returncode:
             return []  # no tmux server yet (the loop starts at login, before any session): next tick
         listing = r.stdout

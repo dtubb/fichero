@@ -74,3 +74,10 @@ def test_a_dead_pane_is_pointed_at_the_one_claude_session_in_the_lanes_worktree(
     assert {x["id"]: x["pane"] for x in queue.load()} == {"a": "%5", "b": "%2", "c": "%7", "w": "%3"}
     assert [r["detail"] for r in journal.read() if r.get("state") == "repane"] == ["a: pane %1 -> %5"]
     assert queue.repane(listing) == [], "a live pane is never moved again"
+
+
+def test_no_tmux_on_the_path_is_nothing_to_re_point_never_an_error(state, monkeypatch):
+    """The ladder runs these tests as the jail user, whose PATH has no tmux (L's red-on-base, 2026-11-03)."""
+    monkeypatch.setenv("PATH", str(state))
+    queue.save([{"id": "a", "kind": "external", "pane": "%1", "worktree": str(state), "cursor": 0, "steps": []}])
+    assert queue.repane() == [] and queue.load()[0]["pane"] == "%1"
