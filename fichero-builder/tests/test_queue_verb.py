@@ -507,3 +507,44 @@ def test_a_ladder_cancelled_by_a_newer_head_ends_without_an_alert_a_tell_or_a_fi
     assert any(r.get("state") == "stale-result" for r in journal.read() if r["event"] == "queue")
     s = queue.load()[0]["steps"][0]
     assert s["head"] == "new000000" and s["state"] == "done", "the newer head is untouched"
+
+
+def test_a_product_landing_earns_one_verify_all_once_every_lane_is_idle_and_a_harness_only_landing_earns_none(state):
+    """dev-workflows.run.verify-after-landing (manager 2026-11-03): one verify-all after a product landing, never pushing, red = an alert."""
+    for product, want in ((True, ["run"]), (False, [])):
+        fake = Fake()
+        ran = []
+        fake.procs.touches_product = lambda lane, head, p=product: p
+        fake.procs.verify_all = lambda: (ran.append("run"), (1, "NOT VERIFIED abc") if product else (0, ""))[1]
+        queue.add(f"l{product}", "/w/x", "1.1", str(state / "b1.1"), [])
+        assert queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None) == 0
+        assert ran == want, f"product={product}"
+    assert [r["state"] for r in journal.read() if r["event"] == "queue" and r["state"] in ("verified", "verify-failed")] == ["verify-failed"]
+    assert [r["step"] for r in journal.read() if r["event"] == "alert"] == ["verify"], "a red verify-all is an alert"
+    assert not (journal.STATE / queue.VERIFY_PENDING).exists(), "the marker is consumed: once per landing"
+
+
+def test_verify_all_runs_when_the_milestone_is_complete_not_after_every_product_landing(state):
+    """owner 2026-11-03: a worker lane's first of two steps landing earns nothing; its last earns one. External lanes: the manual verb."""
+    fake = Fake()
+    ran = []
+    fake.procs.touches_product = lambda lane, head: True
+    fake.procs.verify_all = lambda: (ran.append(1), (0, "VERIFIED"))[1]
+    queue.add("l", "/w/x", "1.1", str(state / "b1.1"), [])
+    queue.add("l", "/w/x", "1.2", str(state / "b1.2"), [], waits=["1.1"])
+    queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None)
+    assert ran == [] and [x["state"] for x in queue.load()[0]["steps"]].count("landed") <= 1
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert ran == [1] and [x["state"] for x in queue.load()[0]["steps"]] == ["landed", "landed"]
+
+
+def test_verify_all_waits_while_a_lane_is_busy_and_never_runs_for_an_unpushed_landing(state):
+    fake = Fake()
+    ran = []
+    fake.procs.verify_all = lambda: (ran.append(1), (0, "VERIFIED"))[1]
+    queue.add("l", "/w/x", "1.1", str(state / "b1.1"), [])
+    queue.run(fake.procs, workers_n=1, push=False, out=lambda s: None)
+    assert ran == [] and not (journal.STATE / queue.VERIFY_PENDING).exists(), "push=False: nothing landed for real"
+    (journal.STATE / queue.VERIFY_PENDING).write_text("abc")
+    queue.add("busy", "/w/y", "1.1", str(state / "b1.1"), [])
+    assert queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None) is True and ran == [], "a lane with work left: not yet"

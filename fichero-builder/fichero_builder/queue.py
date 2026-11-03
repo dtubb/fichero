@@ -126,6 +126,7 @@ class Procs:
     # taken lane ids -> (lane id, worktree, [{step, brief, issues, waits}]) of the next build-order milestone, or None
     next_milestone: Callable[[set], tuple | None] = lambda taken: None
     build: Callable[[dict], tuple] = lambda lane: (0, "")  # lane -> (rc, output) of the dev build after its milestone landed
+    verify_all: Callable[[], tuple] = lambda: (0, "")  # () -> (rc, output) of `builder verify-all` over the loop's checkout
     touches_product: Callable[[dict, str], bool] = lambda lane, head: True  # (lane, head) -> does the batch about to land change app/engine product paths
     tell: Callable[[dict, str], str] = lambda lane, text: ""  # (lane, text) -> '' or why: into an external lane's registered pane
     after_land: Callable[[dict, dict, str], None] = lambda lane, step, head: None  # an external lane's batch landed: sweep its land tree
@@ -367,6 +368,9 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         close_alerts(lane["id"], s["step"], f"the step landed at {r['head'][:9]}")
         lane["cursor"] += 1  # ONE write ends the landing: the step is landed and the cursor is past it in the same store, so no `builder done` can run between the two
         move(s, "landed", f"landed {r['head'][:9]}" + (" (pushed)" if push else " (not pushed)") + (f"; still open: {', '.join(left)}" if left else ""))
+        if push and lane.get("kind") != "external" and lane["cursor"] >= len(lane["steps"]) and any(x.get("product") for x in lane["steps"]):
+            # dev-workflows.run.verify-after-landing (owner 2026-11-03): a MILESTONE's last step landed (a worker lane has no step left) and some step touched the product: ONE verify-all once every lane is idle
+            (journal.STATE / VERIFY_PENDING).write_text(r["head"])
         if left:
             journal.append("queue", lane=lane["id"], step=s["step"], state="issue-open", detail=", ".join(left))
         return True
@@ -693,10 +697,37 @@ def feed(procs: Procs, lanes_n: int, out=print) -> bool:
         took = True
 
 
+VERIFY_PENDING = "verify-pending"  # a product landing's head, waiting for every lane to go idle
+
+
+def verify_when_idle(procs: Procs, chains: dict | None) -> None:
+    """dev-workflows.run.verify-after-landing (owner 2026-11-03): after a worker lane's MILESTONE is complete (its last step landed, some step product), once no lane is busy and no build runs, `builder verify-all`
+    runs once over the loop's checkout: one `verify` row and its activity rows, an alert when red; it never pushes and takes the heavy lock."""
+    marker = journal.STATE / VERIFY_PENDING
+    if not marker.is_file() or any(t.is_alive() for t in BUILDS):
+        return
+    head = marker.read_text().strip()
+    marker.unlink(missing_ok=True)
+
+    def run_it():
+        rc, output = procs.verify_all()
+        journal.append("queue", lane="-", step="-", state="verified" if rc == 0 else "verify-failed", detail=f"{head[:9]}: {output[-300:]}")
+        if rc:
+            alert("-", "verify", f"verify-all after the landing of {head[:9]} is red: {(output.strip().splitlines() or [''])[-1]}", str(journal.STATE), [])
+    if chains is None:
+        run_it()
+    else:
+        t = threading.Thread(target=run_it, name="verify-all", daemon=True)
+        BUILDS.append(t)
+        t.start()
+
+
 def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, chains: dict | None = None) -> bool:
     busy = False
     for lane in load():
         busy = tick_lane(lane, procs, handles, workers_n, push, out, chains) or busy
+    if not busy:
+        verify_when_idle(procs, chains)
     return busy
 
 
@@ -862,6 +893,11 @@ def real_procs(root) -> Procs:
                            capture_output=True, text=True)
         return r.returncode != 0 or any(f.startswith(prefixes) for f in r.stdout.split())  # unknown = build
 
+    def verify_all():
+        r = subprocess.run([sys.executable, "-m", "fichero_builder", "verify-all", "--root", str(root), "--state", str(journal.STATE)],
+                           cwd=str(pkg), capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(pkg)})
+        return r.returncode, (r.stdout + r.stderr)[-2000:]
+
     def stop(lane):
         if lane.get("feed"):
             (Path(lane["feed"]) / "stop").write_text("")
@@ -890,7 +926,7 @@ def real_procs(root) -> Procs:
 
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
-                 next_milestone=lambda taken: next_in_order(root, taken), build=build, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake,
+                 next_milestone=lambda taken: next_in_order(root, taken), build=build, verify_all=verify_all, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake,
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "")
 
 
