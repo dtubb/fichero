@@ -16,6 +16,9 @@ def _repo(tmp_path, name, base_text):
     def g(*a):
         subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=tmp_path, check=True, capture_output=True)
     g("init", "-q", "-b", "main")
+    # the repo's own rules: with no ruff.toml ruff's built-in set applies, which ruff 0.16 widened (I001), so the owner's
+    # 0.16.6 and the jail's 0.15.8 disagreed on this test (red on base 2026-11-03); the real ratchet always runs under it
+    shutil.copy(Path(__file__).resolve().parents[2] / "ruff.toml", tmp_path / "ruff.toml")
     (tmp_path / name).write_text(base_text)
     g("add", "."), g("commit", "-qm", "base")
     return subprocess.run(["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True).stdout.strip()
