@@ -39,9 +39,10 @@ def test_each_paper_option_is_its_own_gate_and_the_plan_no_longer_says_ruling_an
     plan = plan_start(_recipe(PREP, LINES), stays_local=True, job_answers={"the_paper": ["ruled", "show-through"]})
     (run,) = _runs(plan, "prepare-the-image")
     assert run["paper"] == ["ruled", "show-through"]
-    assert "not taken out" not in run["how"]  # both are built now (test_start_plan_prepare_step.py runs them)
+    # Both are built now: the plan names the steps they run (red on base: no `paper_steps`), and the run is test_start_plan_prepare_step.py.
+    assert run["paper_steps"] == ["ruled-lines", "bleed-through"] and "not taken out" not in run["how"]
     faded = plan_start(_recipe(PREP, LINES), stays_local=True, job_answers={"the_paper": ["faded"]})
-    assert "not taken out" not in _runs(faded, "prepare-the-image")[0]["how"]
+    assert "not taken out" not in _runs(faded, "prepare-the-image")[0]["how"] and _runs(faded, "prepare-the-image")[0]["paper_steps"] == []
 
 
 def test_the_contrast_step_runs_only_for_faded_or_no_answer():
