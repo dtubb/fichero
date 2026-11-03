@@ -252,7 +252,8 @@ def test_each_issue_and_step_has_one_status_from_git_and_gh_and_start_is_offered
                           log(("c" * 40, "Fixes #4"), ("d" * 40, "Closes #5")), {"d" * 40})
     assert st[1] == ("in progress", "lane-a aaaaaaaaa") and st[2] == ("built, waiting to land", "lane-a bbbbbbbbb")
     assert st[3] == ("open", "") and st[4] == ("released", "ccccccccc") and st[5] == ("landed", "ddddddddd")
-    assert [r for r in console.RANK] == ["open", "in progress", "built, waiting to land", "landed", "released"], "lowest first: a step takes the lowest"
+    assert [r for r in console.RANK] == ["open", "in progress", "built, waiting to land", "done, not landed yet", "landed", "released"], "lowest first: a step takes the lowest"
+    assert console.statuses(set(), {6}, {}, log(("c" * 40, "Fixes #4")), set())[6] == ("done, not landed yet", ""), "closed, but no Fixes commit on origin/integration: not landed"
 
 
 def test_worktrees_lists_each_tree_and_clean_up_sweeps_only_a_landed_clean_one_with_a_patch(tmp_path, monkeypatch):
@@ -428,3 +429,24 @@ def test_a_held_external_lane_reads_held_even_when_its_tree_has_fresh_commits(tm
     now = time.time()
     st = console.api_status([], lanes, now=now, commit=lambda wt: ("abc fix (1 minute ago)", int(now - 60)))
     assert [x["state"] for x in st["lanes"]] == ["held", "working"]
+
+
+def test_a_step_is_landed_on_the_console_only_when_its_head_is_on_origin_integration(tmp_path):
+    """Owner 2026-11-03: 'landed' counts showed lane-done. A queue step in state landed shows landed only when its head is an ancestor of
+    origin/integration; else `done, not landed yet`, and the lane keeps both counts."""
+    import subprocess
+
+    def g(*a):
+        return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "-C", str(tmp_path), *a], check=True, capture_output=True, text=True).stdout.strip()
+    g("init", "-q", "-b", "main")
+    (tmp_path / "a").write_text("1"), g("add", "."), g("commit", "-qm", "base")
+    on = g("rev-parse", "HEAD")
+    (tmp_path / "a").write_text("2"), g("commit", "-qam", "unpushed")
+    off = g("rev-parse", "HEAD")
+    g("update-ref", "refs/remotes/origin/integration", on)
+    lane = {"id": "l", "worktree": str(tmp_path), "steps": [{"step": "1", "state": "landed", "head": on, "issues": [], "why": ""},
+                                                          {"step": "2", "state": "landed", "head": off, "issues": [], "why": ""},
+                                                          {"step": "3", "state": "queued", "head": "", "issues": [], "why": ""}]}
+    got = [(s["step"], s["state"]) for s in console.steps_on_origin(lane, on)]
+    assert got == [("1", "landed"), ("2", "done, not landed yet"), ("3", "queued")]
+    assert [s["state"] for s in console.steps_on_origin(lane, "f" * 40)][:2] == ["landed", "done, not landed yet"], "an unknown tip falls back to the tree's own origin ref"

@@ -288,10 +288,13 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
             base, tip = str(a.get("key", "")).partition(" ")[2].split("..")[0], (st.get("last_land_git") or {}).get("sha", "")
             if a["kind"] == "check" and base and tip and not tip.startswith(base):  # another batch landed under it (manager 2026-11-02)
                 row["activity"]["base_moved"] = True
+        shown = steps_on_origin(x, (st.get("last_land_git") or {}).get("sha", ""))
+        if row["state"] == "landed" and shown and shown[-1]["state"] != "landed":
+            row["state"] = NOT_LANDED  # the lane is through its steps; the last one is not on origin/integration
         row.update(
             worktree=x["worktree"], title=_title(cur["brief"]) if cur else "", brief_text=_head(cur["brief"]) if cur else "",
             commit_ts=time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(ct)) if ct else "",
-            steps=[{"step": s["step"], "state": s["state"], "issues": s["issues"], "why": s["why"][:300]} for s in x["steps"]],
+            steps=shown, landed_n=sum(1 for s in shown if s["state"] == "landed"), not_landed_n=sum(1 for s in shown if s["state"] == NOT_LANDED),
             elapsed_s=int(now - started) if started else None,
             usd=round(sum(float(r.get("usd") or 0) for r in cost), 2), turns=cost[-1].get("turns") if cost else None,
             tokens=cost[-1].get("tokens") if cost else None,
@@ -361,7 +364,8 @@ def lane_usage(lanes: list[dict], day: str = "", base: Path | None = None, price
 
 
 SECTIONS = ("In order", "Then", "Parked")  # Then: an older file; the owner's list is In order + Parked
-RANK = ("open", "in progress", "built, waiting to land", "landed", "released")
+NOT_LANDED = "done, not landed yet"  # closed or finished, but its commit is not on origin/<land branch> (owner 2026-11-03: 'landed' means on origin/integration only)
+RANK = ("open", "in progress", "built, waiting to land", NOT_LANDED, "landed", "released")
 
 
 def _cited(log: str) -> list[tuple[str, str, int]]:
@@ -376,7 +380,8 @@ def _cited(log: str) -> list[tuple[str, str, int]]:
 
 def statuses(open_ns: set, closed_ns: set, branches: dict, landing_log: str, unreleased: set) -> dict:
     """{issue: (status, where)}. `branches`: {lane: its unlanded log text}; `landing_log`: the land branch's log;
-    `unreleased`: the land branch's shas not on main. A closed issue is landed, released when its Fixes commit is on main."""
+    `unreleased`: the land branch's shas not on main. A closed issue is landed only when its Fixes commit is in the land branch's log (else
+    "done, not landed yet"), released when that commit is on main."""
     landing = {n: sha for sha, kind, n in _cited(landing_log) if kind in ("fixes", "closes")}
     built: dict = {}
     for lane, log in branches.items():
@@ -389,7 +394,36 @@ def statuses(open_ns: set, closed_ns: set, branches: dict, landing_log: str, unr
         out[n] = built.get(n, ("open", ""))
     for n in closed_ns:
         sha = landing.get(n, "")
-        out[n] = ("released" if sha and sha not in unreleased else "landed", sha[:9])
+        out[n] = (NOT_LANDED if not sha else "released" if sha not in unreleased else "landed", sha[:9])  # landed = its Fixes commit is in the land branch's log
+    return out
+
+
+_ON_ORIGIN: dict = {}  # (worktree, head, tip) -> bool
+
+
+def on_origin(worktree: str, head: str, tip: str) -> bool:
+    """`head` is an ancestor of origin/<land branch> (`tip` is its sha, the cache key): the only meaning of 'landed' on the console."""
+    if not head or not tip:
+        return False
+    key = (worktree, head, tip)
+    if key not in _ON_ORIGIN:
+        g = ["git", "-c", "safe.directory=*", "-C", worktree, "merge-base", "--is-ancestor", head]
+        r = subprocess.run([*g, tip], capture_output=True)
+        if r.returncode == 128:  # the tip is unknown in that tree (its own clone): its own origin ref, as fresh as its last fetch
+            r = subprocess.run([*g, "origin/integration"], capture_output=True)
+        _ON_ORIGIN[key] = r.returncode == 0
+    return _ON_ORIGIN[key]
+
+
+def steps_on_origin(lane: dict, tip: str) -> list[dict]:
+    """The lane's steps for the console: a step whose queue state is `landed` shows `landed` only when its head is on origin/integration,
+    else `done, not landed yet` (a not-pushed run, or origin not fetched); the rest keep their state."""
+    out = []
+    for s in lane["steps"]:
+        state = s["state"]
+        if state == "landed" and not on_origin(lane["worktree"], s.get("head", ""), tip):
+            state = NOT_LANDED
+        out.append({"step": s["step"], "state": state, "issues": s["issues"], "why": s["why"][:300]})
     return out
 
 
@@ -465,6 +499,8 @@ def milestones(root, gh: str = "gh", lanes: list[dict] | None = None, reads=None
                              else "question" if live.get(st["number"]) == "blocked" else "next" if st["number"] == nxt else "waiting")
                     ns = [i["number"] for i in all_steps[st["number"]]["issues"]] if st["number"] in all_steps else []
                     low = min((status[n][0] for n in ns), key=RANK.index, default="")
+                    if state == "done" and low and RANK.index(low) < RANK.index("landed"):
+                        state = NOT_LANDED  # the lane finished it; its commit is not on origin/integration yet
                     m["steps"].append({"step": st["number"], "title": st["title"], "state": state, "status": low,
                                        "issues": [i["number"] for i in c["issues"]] if c else []})
                 m["questions"] = planned["questions"]

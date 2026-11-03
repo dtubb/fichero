@@ -110,7 +110,7 @@ const Ago = ({ ts }) => ts ? html`<span title=${ts}>${rel(ts)}</span>` : html`<s
 const dur = s => s == null ? "-" : s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)} min` : `${Math.floor(s / 3600)} h ${Math.floor(s % 3600 / 60)} min`;
 
 const PILL = { working: ["green", true], running: ["green", true], sent: ["green", true], checking: ["blue", true], reviewing: ["blue", true],
-  done: ["blue", false], landed: ["green", false], queued: ["", false], idle: ["", false], blocked: ["red", false], paused: ["orange", false] };
+  done: ["blue", false], "done, not landed yet": ["orange", false], landed: ["green", false], queued: ["", false], idle: ["", false], blocked: ["red", false], paused: ["orange", false] };
 function Pill({ state, paused }) {
   const s = paused && !["landed", "done"].includes(state) ? "paused" : state;
   const [c, pulse] = PILL[s] || ["", false];
@@ -131,7 +131,7 @@ function Lanes({ lanes }) {
       <tr class="row">
         <td class="tri" onClick=${() => setOpen({ ...open, [l.lane]: !open[l.lane] })}>${open[l.lane] ? "▾" : "▸"}</td>
         <td><b>${l.lane}</b>${l.kind === "external" ? html` <span class="muted">external${l.waiting != null ? ` · ${l.waiting} commits waiting` : ""}</span>` : ""}</td>
-        <td><span class="mono">${l.step}</span>${l.progress?.n ? html` · <b>${l.progress.i ?? "?"}/${l.progress.n}</b> in ${l.progress.milestone}` : ""}<div class="muted">${l.title}</div></td>
+        <td><span class="mono">${l.step}</span>${l.progress?.n ? html` · step <b>${l.progress.i ?? "?"}</b> of ${l.progress.n} in ${l.progress.milestone}` : ""}${l.landed_n || l.not_landed_n ? html` <span class="muted">· <b>${l.landed_n}</b> landed on integration${l.not_landed_n ? html`, <b>${l.not_landed_n}</b> done, not landed yet` : ""}</span>` : ""}<div class="muted">${l.title}</div></td>
         <td><${Pill} state=${l.state} paused=${l.paused} /></td>
         <td>${l.activity ? html`<span class="pill blue"><span class="dot blue pulse"></span>${l.activity.kind}${l.activity.now ? ": " + l.activity.now : ""}</span> <span class="muted">since <${Ago} ts=${l.activity.started} />, ${l.activity.done} rung(s) done</span>${l.activity.base_moved && html` <span class="pill orange">base moved; will rebase</span>`}` : l.doing}<div class="muted">${l.last_commit && html`<span class="mono">${l.last_commit.split(" ")[0]}</span> ${l.last_commit.split(" ").slice(1).join(" ").replace(/ \([^)]*\)$/, "")} · <${Ago} ts=${l.commit_ts} />`}</div></td>
         <td>${dur(l.elapsed_s)}</td><td>${l.turns ?? "-"}</td><td>${l.tokens ?? "-"}</td><td>${l.usd.toFixed(2)}</td>
@@ -166,8 +166,8 @@ function Resolved({ alerts }) {
     <table><tbody>${alerts.map(a => html`<tr><td class="mono">${a.id}</td><td>${a.what}</td><td class="muted">${a.answer} <${Ago} ts=${a.answered} /></td></tr>`)}</tbody></table></details>`;
 }
 
-const STATUS_DOT = { open: "", "in progress": "blue", "built, waiting to land": "orange", landed: "green", released: "green" };
-const STATUS_COLOR = { landed: "green", released: "green", "built, waiting to land": "orange", "in progress": "accent" };
+const STATUS_DOT = { open: "", "in progress": "blue", "built, waiting to land": "orange", "done, not landed yet": "orange", landed: "green", released: "green" };
+const STATUS_COLOR = { landed: "green", released: "green", "built, waiting to land": "orange", "done, not landed yet": "orange", "in progress": "accent" };
 function Milestones({ st }) {
   const [data, setData] = useState(null);
   const [open, setOpen] = useState({});
