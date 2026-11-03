@@ -854,12 +854,10 @@ def test_a_done_right_after_the_outcome_claim_is_refused_whatever_state_the_chai
     lanes[0]["steps"][0].update(state="done", head=old)
     queue.save(lanes)
     fake = Fake()
-    real_chain = fake.procs.chain
-
     def chain(lane_, step, stage):
         if staged:
-            return real_chain(lane_, step, stage) if result["ok"] else {"head": old, "why": "", "findings": "", **result}
-        return {"head": old, "why": "", "findings": "", **result}  # returns before its first stage
+            stage("checking"), stage("reviewing")
+        return {"head": old, "why": "", "findings": "", **result}  # unstaged: returns before its first stage
     fake.procs.chain = chain
     fired = []
     orig_store = queue.store
@@ -874,4 +872,29 @@ def test_a_done_right_after_the_outcome_claim_is_refused_whatever_state_the_chai
     assert fired and "one at a time" in fired[0], fired
     s = steps()["batch-1"]
     assert s["head"] != child and "settling" not in s, f"the outcome's own write stands, nothing lost to a refused done: {s}"
+
+
+def test_the_landing_is_one_write_so_a_done_right_after_it_opens_the_next_batch_and_loses_nothing(state, tmp_path, monkeypatch):
+    """Review 2026-11-02 (-101): the landed path wrote the step as landed, then advanced the cursor in a second store; a `builder done`
+    between them reused the landed step and the second write put the old head back over it. One store ends the landing."""
+    old, child = _two_commit_repo(tmp_path)
+    queue.add("ext", str(tmp_path / "ext"), "batch-1", str(state / "b1.1"), [], kind="external")
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="done", head=old)
+    queue.save(lanes)
+    fake = Fake()
+    fired = []
+    orig_store = queue.store
+
+    def store(lane_, expect=None):
+        ok = orig_store(lane_, expect=expect)
+        if not fired and any(x["state"] == "landed" for x in lane_["steps"]):
+            fired.append(queue.done("ext", child))  # the lane says DONE the moment the landed write is in
+        return ok
+    monkeypatch.setattr(queue, "store", store)
+    queue.run(fake.procs, workers_n=1, push=True, once=True, out=lambda s: None)
+    assert fired == [""], fired
+    st = steps()
+    assert st["batch-1"]["state"] == "landed" and st["batch-1"]["head"] != child, "the landed step is untouched"
+    assert st["batch-2"]["head"] == child and st["batch-2"]["state"] == "done", "the newer head is the next batch, not lost"
 

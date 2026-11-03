@@ -356,11 +356,10 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             procs.after_land(lane, s, r["head"])
         left = procs.still_open(lane, s)  # a row, not a close: only `builder landed` closes, on a Fixes line (owner ruling)
         close_alerts(lane["id"], s["step"], f"the step landed at {r['head'][:9]}")
+        lane["cursor"] += 1  # ONE write ends the landing: the step is landed and the cursor is past it in the same store, so no `builder done` can run between the two
         move(s, "landed", f"landed {r['head'][:9]}" + (" (pushed)" if push else " (not pushed)") + (f"; still open: {', '.join(left)}" if left else ""))
         if left:
             journal.append("queue", lane=lane["id"], step=s["step"], state="issue-open", detail=", ".join(left))
-        lane["cursor"] += 1
-        store(lane)
         return True
     if r.get("kind") in ("needs-maintainer", "weakened-tests", "red-on-base", "pinned-new"):  # a pinned check or a test changed on purpose: the manager's call
         s["approve_kind"] = r["kind"]
