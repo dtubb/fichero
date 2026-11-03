@@ -51,16 +51,20 @@ def test_builder_heavy_runs_the_command_under_the_lock_and_its_children_pass_thr
             del os.environ[journal.HEAVY_ENV]
 
 
-def test_the_guards_rung_the_build_rung_and_a_local_full_suite_take_it_a_remote_suite_does_not(state, monkeypatch, tmp_path):
-    seen = []
+def test_the_build_rung_and_a_local_full_suite_take_it_the_guards_and_a_remote_suite_do_not(state, monkeypatch, tmp_path):
+    """speed batch 3 (manager 2026-11-03): the guards rung has its own `guards` lock, never the heavy one."""
+    seen, own = [], []
     monkeypatch.setattr(journal, "heavy", lambda what: __import__("contextlib").nullcontext(seen.append(what)))
+    real_lock = journal.Lock
+    monkeypatch.setattr(journal, "Lock", lambda name="journal", **k: (own.append(name) if name == "guards" else None, real_lock(name, **k))[1])
     monkeypatch.setattr(check_tool, "_run", lambda *a, **k: {"ok": True, "exit_code": 0, "timed_out": False, "stdout_tail": "", "stderr_tail": "", "seconds": 0})
     monkeypatch.setattr(check_tool, "pytest_rung", lambda *a, **k: {"ok": True, "argv": [], "exit_code": 0, "seconds": 0, "stdout_tail": "", "stderr_tail": ""})
     check_tool.guards(tmp_path, check_tool.Config(guard_glob="ci/x_*.py", min_guards=0))
     check_tool.build(tmp_path, ["fichero/x"], check_tool.Config(build=("true",), build_paths=("fichero/",)))
     check_tool.green_runs(tmp_path, ["fichero-server/tests"], (), check_tool.Config(), 5)
     check_tool.green_runs(tmp_path, ["fichero-server/tests"], (), check_tool.Config(remote="imac:~/g"), 5)
-    assert seen == ["the guards rung", "xcodebuild (the build rung)", "the full engine suite"], "the remote suite took no local lock"
+    assert seen == ["xcodebuild (the build rung)", "the full engine suite"], "the guards and the remote suite took no heavy lock"
+    assert own == ["guards"], "the guards rung took its own lock"
 
 
 def test_the_dev_build_takes_the_lock(state, monkeypatch, tmp_path):
@@ -127,3 +131,17 @@ def test_a_build_with_no_check_waiting_takes_the_lock_at_once_and_a_dead_pids_ma
     assert journal.heavy_waiters() == 0 and not list(state.glob("heavy-wait.*"))
     with journal.heavy("the dev build", yields=True):
         assert (state / "heavy.lock").read_text().endswith("the dev build")
+
+
+def test_the_guards_rung_runs_while_a_dev_build_holds_the_heavy_lock(state, tmp_path):
+    """speed batch 3: the guards waited 65 min behind a dev build on 2026-11-03; now they never wait on the heavy lock."""
+    import threading
+    (tmp_path / "ci").mkdir()
+    (tmp_path / "ci" / "x_ok.py").write_text("pass\n")
+    out = {}
+    with journal.heavy("a dev build"):
+        t = threading.Thread(target=lambda: out.update(r=check_tool.guards(tmp_path, check_tool.Config(guard_glob="ci/x_*.py", min_guards=1))))
+        t.start()
+        t.join(30)
+        assert not t.is_alive(), "the guards rung waited on the heavy lock"
+    assert out["r"]["ok"] and [x["name"] for x in out["r"]["results"]] == ["x_ok"]

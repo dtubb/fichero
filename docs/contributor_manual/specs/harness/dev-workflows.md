@@ -481,8 +481,8 @@ the write path would produce.
   `::test_two_overlapping_ladders_keep_the_jail_until_the_last_one_ends`.
 - `dev-workflows.run.heavy-lock` [PARTIAL] (#6116; owner order via the manager 2026-11-02) — one heavy job at a time per machine: a flock
   `heavy.lock` in the owner's state dir (`journal.heavy`). xcodebuild (the build rung), the full engine suite (the pytest runs of a check,
-  `builder test` and `verify-all` that run here) and the guards rung take it, so `builder check`, the loop's chains, `builder build --dev`,
-  `builder verify-all` and `builder test` take it through them; the dev build takes it around its script. A suite sent to
+  `builder test` and `verify-all` that run here) take it, so `builder check`, the loop's chains, `builder build --dev`,
+  `builder verify-all` and `builder test` take it through them; the dev build takes it around its script. The guards rung takes its OWN `guards.lock` (one guards rung at a time), never the heavy lock: it waited 65 min behind a dev build on 2026-11-03 (speed batch 3, manager; test `fichero-builder/tests/test_heavy_lock.py::test_the_guards_rung_runs_while_a_dev_build_holds_the_heavy_lock`). A suite sent to
   `[check].remote` takes no local lock; the remote script runs under that machine's own `heavy.lock` in its gate dir (the remote python holds the flock while the script runs; test `::test_the_remote_wrapper_holds_the_machines_lock_while_its_script_runs_and_passes_the_exit_code`). The dev build YIELDS: a check waiting for the lock leaves a `heavy-wait.<pid>.<thread>` marker, and the build takes the lock only while no marker stands, so a queued ladder always outranks it (manager 2026-11-03; test `fichero-builder/tests/test_heavy_lock.py::test_a_build_yields_to_a_waiting_check_and_a_check_outranks_it`). When a MILESTONE is complete (owner 2026-11-03: not after every product landing: a worker lane's last step landed, pushed for real, and some step of it touched `[check].product_paths`; an external lane has no milestone end the loop can see, so its run is the manual verb) the loop runs `builder verify-all` ONCE when every lane is idle and no build runs (a `verify-pending` marker, consumed when it starts): the `verify` row and its activity rows are the journal and console record, a red result is an `alert` on step `verify`, nothing is pushed (tests `fichero-builder/tests/test_queue_verb.py::test_a_product_landing_earns_one_verify_all_once_every_lane_is_idle_and_a_harness_only_landing_earns_none`, `::test_verify_all_waits_while_a_lane_is_busy_and_never_runs_for_an_unpushed_landing`). A lane or the manager runs any other heavy command with
   `builder heavy -- <cmd>`: it waits, says who holds the lock after 30 s (the lock's own waiting row and a line on stderr), and its child
   passes through the lock it holds (`FICHERO_HEAVY_HELD`), so a `builder test` run inside it never deadlocks. Quick things (ruff, swiftlint,
@@ -490,7 +490,7 @@ the write path would produce.
   remote runs. **Built** 2026-11-02: `journal.heavy`, `check_tool._heavy`, `builder heavy`. Not yet: a real wait on the iMac.
   Tests: `fichero-builder/tests/test_heavy_lock.py::test_a_second_heavy_job_waits_and_a_wait_over_the_limit_names_the_holder`,
   `::test_builder_heavy_runs_the_command_under_the_lock_and_its_children_pass_through`,
-  `::test_the_guards_rung_the_build_rung_and_a_local_full_suite_take_it_a_remote_suite_does_not`, `::test_the_dev_build_takes_the_lock`.
+  `::test_the_build_rung_and_a_local_full_suite_take_it_the_guards_and_a_remote_suite_do_not`, `::test_the_dev_build_takes_the_lock`.
 - `dev-workflows.builder.cluster` [PARTIAL] (#6116) — one spec and its build-order issues (parser ported from
   `pipeline/plan.py`), in order, one commit per issue with its test; the brief is built by `scripts/harness_brief.py` from
   `gh api repos/{repo}/issues/N`: the body and the **title** only when the author association is owner, member or

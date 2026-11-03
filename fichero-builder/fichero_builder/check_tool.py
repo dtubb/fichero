@@ -625,8 +625,14 @@ def _isolated(script: Path, root: Path, cfg: Config) -> list[str]:
     return [_py(cfg), "-I", "-c", code]
 
 
-@_heavy("the guards rung")
 def guards(root, cfg: Config) -> dict:
+    """The guards rung under its OWN lock (speed batch 3, manager 2026-11-03): one guards rung at a time, but never behind the
+    machine's heavy lock, where it waited 65 min for a dev build; the guards are light (about 4 min of one core)."""
+    with journal.Lock("guards", what="the guards rung"):
+        return _guards(root, cfg)
+
+
+def _guards(root, cfg: Config) -> dict:
     """Every guard script matching the project's glob and not in its skip list. Fewer than `min_guards` found =
     blind = not green."""
     root = Path(root)
