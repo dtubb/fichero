@@ -334,6 +334,7 @@ the write path would produce.
   `[models]` as a worker whose brief is the spec template, the issue and the spec guards' rules; the result is one spec
   file under `spec_dir` on a branch with `> **Status: PROPOSED**`; the guards run on it; the owner approves by editing
   the status line, and nothing in the spec is built before that. **Built** (2026-11-01): `builder spec --issue N --out FILE [--gh gh]` writes the brief (the spec template, the issue through the brief tool, the guards' rules in words, the instruction to write ONE spec with `> **Status: PROPOSED**`) and prints the `[models].spec-writer` model; it does not start the worker, `builder run` does (the spec's first wording said the verb starts it; the verb stays a brief writer so one start path exists). A missing role model is a `QUESTION:` (exit 2). The steps verb refuses a PROPOSED spec. Test: `fichero-builder/tests/test_spec_verb.py::test_the_brief_names_the_template_the_issue_the_guards_and_the_proposed_status`.
+- `dev-workflows.tool.file` [PARTIAL] (#6116) (owner 2026-11-03) — `builder file --milestone M --title T --body-file F [--label L ...] [--gh gh] [--dry-run]` creates the milestone if the repo lacks it and files one issue under it, or edits the issue in that milestone with the exact same title instead of filing another; missing labels are created first; every write is a `file` journal row; `--dry-run` writes nothing and prints what it would do and the body; it never pushes; an empty milestone, title or body, or a failing `gh`, is `REFUSED` (exit 1). Test: `fichero-builder/tests/test_file_verb.py::test_a_second_run_edits_the_issue_and_a_dry_run_writes_nothing`.
 - `dev-workflows.tool.steps` [PARTIAL] (#6116) (owner 2026-11-01) — `builder steps <spec>` reads an APPROVED spec's build order
   and files one issue per step under the spec's milestone (`gh`): the step's title, behaviours, tests, size and
   `Depends on` as issue links in the body; a second run updates the step's issue rather than filing another (the body
@@ -1114,8 +1115,8 @@ Steps a long-running builder can take from the heading. `Depends on` defaults to
 - Size: S
 
 #### Step 2.3 — the chain as verbs: `builder milestone`, `builder spec`, `builder steps` (owner 2026-11-01)
-- Behaviours: `dev-workflows.tool.milestone`, `dev-workflows.tool.work`, `dev-workflows.tool.spec`, `dev-workflows.tool.steps`
-- Tests: fichero-builder/tests/test_milestone_verb.py, fichero-builder/tests/test_work_verb.py, fichero-builder/tests/test_spec_verb.py, fichero-builder/tests/test_steps_verb.py
+- Behaviours: `dev-workflows.tool.milestone`, `dev-workflows.tool.work`, `dev-workflows.tool.spec`, `dev-workflows.tool.steps`, `dev-workflows.tool.file`
+- Tests: fichero-builder/tests/test_milestone_verb.py, fichero-builder/tests/test_work_verb.py, fichero-builder/tests/test_spec_verb.py, fichero-builder/tests/test_steps_verb.py, fichero-builder/tests/test_file_verb.py
 - Depends on: 2.1
 - Size: M
 
@@ -1250,6 +1251,7 @@ Every behaviour names its test above, written in its step; each `security.*` and
 | `dev-workflows.tool.work` | 2.3 |
 | `dev-workflows.tool.spec` | 2.3 |
 | `dev-workflows.tool.steps` | 2.3 |
+| `dev-workflows.tool.file` | 2.3 |
 | `dev-workflows.tool.landed` | 2.4 |
 | `dev-workflows.tool.triage` | 2.5 |
 | `dev-workflows.tool.queue` | 2.6 |

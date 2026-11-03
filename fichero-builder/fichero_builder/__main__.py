@@ -207,6 +207,10 @@ def main(argv=None) -> int:
     st = sub.add_parser("steps", help="file one issue per build-order step of an APPROVED spec under its milestone; a second run updates")
     st.add_argument("--spec", required=True), st.add_argument("--gh", default="gh"), st.add_argument("--dry-run", action="store_true")
     st.add_argument("--state", help="where the journal lives (default: the owner's journal dir)")
+    fl = sub.add_parser("file", help="a milestone and one issue under it from a brief (created if absent, edited by exact title otherwise); --dry-run writes nothing; never pushes")
+    fl.add_argument("--milestone", required=True), fl.add_argument("--title", required=True), fl.add_argument("--body-file", required=True)
+    fl.add_argument("--label", action="append", default=[]), fl.add_argument("--gh", default="gh"), fl.add_argument("--dry-run", action="store_true")
+    fl.add_argument("--state", help="where the journal lives (default: the owner's journal dir)")
     sp = sub.add_parser("spec", help="write the spec-writer's brief for an issue to FILE; starts no worker")
     sp.add_argument("--issue", type=int, required=True), sp.add_argument("--out", required=True), sp.add_argument("--gh", default="gh")
     sp.add_argument("--root", default=str(Path.cwd()), help="the checkout holding harness.toml and the spec template")
@@ -464,6 +468,15 @@ def main(argv=None) -> int:
     if a.cmd == "steps":
         try:
             steps.run(a.spec, gh=a.gh, dry_run=a.dry_run)
+        except (steps.Refused, OSError, ValueError) as e:
+            print(f"REFUSED: {e}", file=sys.stderr)
+            return 1
+        return 0
+    if a.cmd == "file":
+        from fichero_builder import file_tool
+
+        try:
+            file_tool.run(milestone=a.milestone, title=a.title, body=Path(a.body_file).read_text(), labels=a.label, gh=a.gh, dry_run=a.dry_run)
         except (steps.Refused, OSError, ValueError) as e:
             print(f"REFUSED: {e}", file=sys.stderr)
             return 1
