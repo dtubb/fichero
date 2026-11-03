@@ -521,6 +521,22 @@ def test_the_build_rung_retries_once_on_a_locked_build_db_and_never_on_another_r
     r = ct.build(tmp_path, ["fichero/App.swift"], ct.Config(build_paths=("fichero/",), build=other))
     assert not r["ok"] and (tmp_path / "other").read_text().count("y") == 1 and "retried" not in r["results"][0], "a real red is never re-run"
 
+
+def test_a_red_build_keeps_every_error_line_and_the_whole_log_whatever_follows_them(tmp_path, monkeypatch):  # manager 2026-11-03 (bb3 -185)
+    from fichero_builder import journal, work
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    noisy = ("sh", "-c", "echo '/w/fichero/A.swift:12:5: error: cannot find X in scope'; echo '/w/fichero/B.swift:3:1: error: missing return';"
+             " i=0; while [ $i -lt 400 ]; do echo \"note: a long line of build noise number $i that pushes everything out of a tail\"; i=$((i+1)); done;"
+             " echo '** BUILD FAILED **' >&2; exit 65")
+    r = ct.build(tmp_path, ["fichero/App.swift"], ct.Config(build_paths=("fichero/",), build=noisy))
+    res = r["results"][0]
+    assert not r["ok"] and "A.swift:12:5: error" not in res["stdout_tail"], "the tail alone lost them"
+    assert res["errors"].splitlines() == ["/w/fichero/A.swift:12:5: error: cannot find X in scope", "/w/fichero/B.swift:3:1: error: missing return", "** BUILD FAILED **"]
+    log = Path(res["log"])
+    assert log.parent == tmp_path / "s" / "build-logs" and "number 399" in log.read_text() and "A.swift:12:5" in log.read_text()
+    said = work._tail({"rungs": [{"name": "build", "ok": False, **r}]})
+    assert "A.swift:12:5: error" in said and str(log) in said, "the finding names the errors and the log"
+
 def test_the_build_rung_counts_a_deleted_swift_file_as_a_change(tmp_path):  # review 1 M7
     import subprocess
 

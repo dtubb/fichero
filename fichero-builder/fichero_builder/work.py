@@ -284,7 +284,7 @@ def ensure_pinned(root: str, brief: str, base: str) -> str:
 def _tail(r: dict) -> str:
     """What a red rung said, for the worker's fix brief."""
     last = (r.get("rungs") or [{}])[-1]
-    keys = ("reason", "stdout_tail", "stderr_tail")
+    keys = ("reason", "stdout_tail", "stderr_tail", "errors", "log")  # errors and the log path LAST: the 3000-character cut keeps the end
     red = [f"{x.get('name')}: " + "\n".join(str(x[k]) for k in keys if x.get(k)) for x in last.get("results") or [] if not x.get("ok")]  # a guards rung
     return "\n".join([*(str(last[k]) for k in keys if last.get(k)), *red])[-3000:]
 

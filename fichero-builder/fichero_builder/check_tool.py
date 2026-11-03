@@ -214,7 +214,7 @@ def _mkdtemp(prefix: str, readable: bool = False) -> str:
     return d
 
 
-def run_command(name: str, argv: list[str], cwd, timeout_s: float, env: dict | None = None, as_jail: bool = True) -> dict:
+def run_command(name: str, argv: list[str], cwd, timeout_s: float, env: dict | None = None, as_jail: bool = True, log=None) -> dict:
     """Run argv (own process group, killed whole on timeout) and return the typed result. While a ladder runs under a
     jail, everything but the engine's own git steps runs as the jailed user."""
     if _JAIL is not None and as_jail:
@@ -248,9 +248,27 @@ def run_command(name: str, argv: list[str], cwd, timeout_s: float, env: dict | N
                 if cancelled:
                     err = "cancelled: superseded by a newer head\n" + (err or "")
                 break
-    return {"name": name, "argv": list(argv), "exit_code": code, "ok": code == 0 and not timed_out,
-            "timed_out": timed_out, "seconds": round(time.time() - t, 1),
-            "stdout_tail": tail(out), "stderr_tail": tail(err)}
+    res = {"name": name, "argv": list(argv), "exit_code": code, "ok": code == 0 and not timed_out,
+           "timed_out": timed_out, "seconds": round(time.time() - t, 1),
+           "stdout_tail": tail(out), "stderr_tail": tail(err)}
+    if log:  # the whole output on disk and every `error:` line in the row: a 3 KB tail lost xcodebuild's errors (manager 2026-11-03)
+        Path(log).parent.mkdir(parents=True, exist_ok=True)
+        Path(log).write_text(f"$ {' '.join(map(str, argv))}\n{out or ''}\n--- stderr ---\n{err or ''}")
+        res.update(log=str(log), errors=error_lines(f"{out or ''}\n{err or ''}"))
+    return res
+
+
+ERROR_LINE = re.compile(r"\berror:|\*\* BUILD FAILED \*\*|Killed: 9|Terminated|Segmentation fault|out of memory", re.I)
+
+
+def error_lines(text: str, cap: int = 60) -> str:
+    """Each distinct line naming an error (`path:line:col: error: ...`, BUILD FAILED, a kill or an OOM), in order, up to `cap`."""
+    seen, out = set(), []
+    for ln in text.splitlines():
+        ln = ln.strip()[:400]
+        if ERROR_LINE.search(ln) and ln not in seen:
+            seen.add(ln), out.append(ln)
+    return "\n".join(out[:cap]) + (f"\n... {len(out) - cap} more in the log" if len(out) > cap else "")
 
 
 def cancel_file(head: str) -> Path:
@@ -412,13 +430,13 @@ def _remote_down(cfg: Config, why: str, remote: str = "") -> None:
     return None
 
 
-def _run(name, argv, root, timeout_s, cfg: Config, extra: dict | None = None, cwd=None, remote: bool = False) -> dict:
+def _run(name, argv, root, timeout_s, cfg: Config, extra: dict | None = None, cwd=None, remote: bool = False, log=None) -> dict:
     """run_command with a fresh scratch env, its HOME and base dirs removed afterwards (no litter per rung). `remote`: an
     engine pytest run, sent to the first reachable of [check].remote when one is set; a red that appears only because the runner
     changed (the first choice was down, or the run fell back here) is retried ONCE on a runner it did not run on before it counts
     (manager 2026-11-03: the iMac was off and the tests went red on the jail user's own home); nothing is told to a lane about it."""
     if not remote:
-        return _local(name, argv, root, timeout_s, cfg, extra, cwd)
+        return _local(name, argv, root, timeout_s, cfg, extra, cwd, log)
     runners = _runners(cfg)
     res, used = None, ""
     for rem in runners:
@@ -439,10 +457,10 @@ def _run(name, argv, root, timeout_s, cfg: Config, extra: dict | None = None, cw
     return res
 
 
-def _local(name, argv, root, timeout_s, cfg: Config, extra: dict | None, cwd) -> dict:
+def _local(name, argv, root, timeout_s, cfg: Config, extra: dict | None, cwd, log=None) -> dict:
     env = _env(root, cfg, extra)
     try:
-        return run_command(name, argv, cwd or root, timeout_s, env)
+        return run_command(name, argv, cwd or root, timeout_s, env, log=log)
     finally:
         for d in (env["HOME"], env.get(cfg.base_path_env or "")):
             if d:
@@ -716,11 +734,12 @@ def build(root, changed: list[str], cfg: Config) -> dict:
     try:
         if lock is not None:
             fcntl.flock(lock, fcntl.LOCK_EX)
-        r = _run("build", list(cfg.build), root, cfg.build_timeout_s, cfg)
-        if not r["ok"] and BUILD_DB_LOCKED.search((r.get("stdout_tail") or "") + (r.get("stderr_tail") or "")):
+        log = journal.STATE / "build-logs" / f"build-{time.strftime('%Y%m%d-%H%M%S')}.log"  # ponytail: never rotated (a few MB a build); prune by age if the dir grows
+        r = _run("build", list(cfg.build), root, cfg.build_timeout_s, cfg, log=log)
+        if not r["ok"] and BUILD_DB_LOCKED.search((r.get("stdout_tail") or "") + (r.get("stderr_tail") or "") + (r.get("errors") or "")):
             journal.append("check", state="retry", rung="build", detail="XCBuildData build.db was locked by another build in the same derived dir: re-run once")
             time.sleep(BUILD_RETRY_WAIT_S)
-            r = {**_run("build", list(cfg.build), root, cfg.build_timeout_s, cfg), "retried": True}
+            r = {**_run("build", list(cfg.build), root, cfg.build_timeout_s, cfg, log=log.with_suffix(".retry.log")), "retried": True}
     finally:
         if lock is not None:
             lock.close()
