@@ -308,6 +308,7 @@ _SHIPPED: dict = {}  # local tree -> its copy on [check].remote; removed by the 
 _MINE = threading.local()  # the local trees THIS thread's ladder shipped: two ladders run at once (speed 3) and one's end must not delete the other's copy
 _DOWN: list = []  # a remote failed in this ladder (one alert per runner); with every runner down the runs are here
 _DEAD: set = set()  # the runners that failed in this ladder: not tried again until a retry finds one back
+_ALERTED: set = set()  # the runners already alerted in this ladder: one alert each, even when a retry finds one back and it fails again
 
 
 def _runners(cfg: Config) -> tuple:
@@ -359,6 +360,7 @@ def _drop_remote(cfg: Config) -> None:
     if _JAIL_USERS[0] <= 0:
         _DOWN.clear()
         _DEAD.clear()
+        _ALERTED.clear()
 
 
 _LOCK_CODE = ("import fcntl, os, subprocess, sys; f = open(sys.argv[1], 'a'); fcntl.flock(f, fcntl.LOCK_EX); "
@@ -403,6 +405,9 @@ def _remote_down(cfg: Config, why: str, remote: str = "") -> None:
     _DOWN.append(why)
     _DEAD.add(remote)
     left = [r for r in _runners(cfg) if r not in _DEAD]
+    if remote in _ALERTED:
+        return None
+    _ALERTED.add(remote)
     queue.alert("check", "remote", f"the check runner {remote} is unreachable; " + (f"trying {left[0]}" if left else "the tests ran here") + f": {why}", remote, [])
     return None
 

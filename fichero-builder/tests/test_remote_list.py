@@ -16,7 +16,7 @@ RED = {"name": "pytest", "ok": False, "exit_code": 1}
 @pytest.fixture
 def world(tmp_path, monkeypatch):
     monkeypatch.setattr(journal, "STATE", tmp_path / "s")
-    check_tool._DOWN.clear(), check_tool._DEAD.clear()
+    check_tool._DOWN.clear(), check_tool._DEAD.clear(), check_tool._ALERTED.clear()
     ran, alerts = [], []
     state = {"down": set(), "local": GREEN, "back": set(), "remote_res": {}}
 
@@ -66,6 +66,7 @@ def test_a_red_after_a_runner_change_is_retried_once_on_the_runner_that_is_back_
     state["down"] = {"imac:~/g", "air:~/g"}
     res = check_tool._run("pytest", ["x"], tmp_path, 5, CFG, remote=True)
     assert res["ok"] is False, "both down: the local red stands (nothing to compare with)"
+    assert len(alerts) == 2, "one alert per runner; the retry pass finds imac 'back' (ssh true) and its run fails again: no second alert"
     state["down"] = {"imac:~/g"}
     check_tool._DEAD.clear()
     state["remote_res"] = {"air:~/g": RED}  # the Air runs it red; the iMac is back
