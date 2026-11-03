@@ -369,7 +369,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         lane["cursor"] += 1  # ONE write ends the landing: the step is landed and the cursor is past it in the same store, so no `builder done` can run between the two
         move(s, "landed", f"landed {r['head'][:9]}" + (" (pushed)" if push else " (not pushed)") + (f"; still open: {', '.join(left)}" if left else ""))
         if push and lane.get("kind") != "external" and lane["cursor"] >= len(lane["steps"]) and any(x.get("product") for x in lane["steps"]):
-            # dev-workflows.run.verify-after-landing (owner 2026-11-03): a MILESTONE's last step landed (a worker lane has no step left) and some step touched the product: ONE verify-all once every lane is idle
+            # dev-workflows.run.verify-all (owner 2026-11-03): a MILESTONE's last step landed (a worker lane has no step left) and some step touched the product: ONE verify-all once every lane is idle
             (journal.STATE / VERIFY_PENDING).write_text(r["head"])
         if left:
             journal.append("queue", lane=lane["id"], step=s["step"], state="issue-open", detail=", ".join(left))
@@ -701,7 +701,7 @@ VERIFY_PENDING = "verify-pending"  # a product landing's head, waiting for every
 
 
 def verify_when_idle(procs: Procs, chains: dict | None) -> None:
-    """dev-workflows.run.verify-after-landing (owner 2026-11-03): after a worker lane's MILESTONE is complete (its last step landed, some step product), once no lane is busy and no build runs, `builder verify-all`
+    """dev-workflows.run.verify-all (owner 2026-11-03): after a worker lane's MILESTONE is complete (its last step landed, some step product), once no lane is busy and no build runs, `builder verify-all`
     runs once over the loop's checkout: one `verify` row and its activity rows, an alert when red; it never pushes and takes the heavy lock."""
     marker = journal.STATE / VERIFY_PENDING
     if not marker.is_file() or any(t.is_alive() for t in BUILDS):

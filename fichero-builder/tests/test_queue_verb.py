@@ -510,7 +510,7 @@ def test_a_ladder_cancelled_by_a_newer_head_ends_without_an_alert_a_tell_or_a_fi
 
 
 def test_a_product_landing_earns_one_verify_all_once_every_lane_is_idle_and_a_harness_only_landing_earns_none(state):
-    """dev-workflows.run.verify-after-landing (manager 2026-11-03): one verify-all after a product landing, never pushing, red = an alert."""
+    """dev-workflows.run.verify-all (manager 2026-11-03): one verify-all after a product landing, never pushing, red = an alert."""
     for product, want in ((True, ["run"]), (False, [])):
         fake = Fake()
         ran = []
