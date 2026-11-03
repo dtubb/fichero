@@ -80,7 +80,8 @@ extension WorkflowStore {
                     acceptedInputs: workflow.acceptedInputs ?? ["documents"],
                     createdAt: Date(),  // Backend doesn't return these yet
                     updatedAt: Date(),
-                    requiresVision: workflow.requiresVision
+                    requiresVision: workflow.requiresVision,
+                    visionIsUnknown: workflow.visionIsUnknown
                 )
             }
             isConnected = true

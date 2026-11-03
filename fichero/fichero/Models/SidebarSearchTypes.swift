@@ -193,7 +193,8 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         acceptedInputs: [String] = ["documents"],
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
-        requiresVision: Bool = false
+        requiresVision: Bool = false,
+        visionIsUnknown: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -211,6 +212,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.requiresVision = requiresVision
+        self.visionIsUnknown = visionIsUnknown
     }
 
     /// Display name with the trust label appended (never stored in `name`).

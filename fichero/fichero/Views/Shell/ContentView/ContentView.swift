@@ -357,10 +357,10 @@ struct ContentView: View {
     }
 
     /// #4882 HOLE 1, 2026-09-19: `WorkflowSidebarItem`'s synthesized
-    /// `Equatable` covers ALL 15 stored fields (name, description,
+    /// `Equatable` covers ALL 16 stored fields (name, description,
     /// nodeCount, edgeCount, isEnabled, folderPath, sortOrder, isSystem,
     /// isUntested, isDirectlyRunnable, acceptsModelOverride, acceptedInputs,
-    /// createdAt, updatedAt, requiresVision — besides `id`), so
+    /// createdAt, updatedAt, requiresVision, visionIsUnknown — besides `id`), so
     /// `activeWorkflowItem` can change on a SAME-id rename/nodeCount bump/
     /// `updatedAt` refresh from `workflowStore.workflows` — the Library
     /// path derives its item from that live list, so any store refresh can

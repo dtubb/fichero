@@ -43,7 +43,8 @@ extension WorkflowStore {
                 updatedAt: Date(),
                 // An edit can change which tools the workflow uses, so this
                 // is taken from the fresh response, not the old row.
-                requiresVision: response.requiresVision
+                requiresVision: response.requiresVision,
+                visionIsUnknown: response.visionIsUnknown
             )
 
             // Update existing or add new
@@ -84,7 +85,8 @@ extension WorkflowStore {
                 updatedAt: Date(),
                 // An edit can change which tools the workflow uses, so this
                 // is taken from the fresh response, not the old row.
-                requiresVision: response.requiresVision
+                requiresVision: response.requiresVision,
+                visionIsUnknown: response.visionIsUnknown
             )
 
             // Update in local array
@@ -134,7 +136,8 @@ extension WorkflowStore {
                 acceptsModelOverride: old.canOverrideModel,
                 createdAt: old.createdAt,
                 updatedAt: Date(),
-                requiresVision: old.requiresVision
+                requiresVision: old.requiresVision,
+                visionIsUnknown: old.visionIsUnknown
             )
         }
     }

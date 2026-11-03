@@ -33,7 +33,8 @@ extension WorkflowStore {
                 acceptsModelOverride: response.acceptsModelOverride ?? true,
                 createdAt: Date(),
                 updatedAt: Date(),
-                requiresVision: response.requiresVision
+                requiresVision: response.requiresVision,
+                visionIsUnknown: response.visionIsUnknown
             )
 
             // Add to local array
