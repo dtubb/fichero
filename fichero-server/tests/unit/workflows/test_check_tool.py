@@ -416,6 +416,30 @@ def test_a_weakened_test_is_excused_only_when_every_lost_check_used_a_module_the
     assert not ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", set()), "nothing deleted: nothing excused"
 
 
+
+def test_the_deleted_module_rule_refuses_an_added_skip_a_helper_assert_cut_and_a_bare_name_match(tmp_path):  # review -63
+    g, _ = _git_repo(tmp_path)
+    (tmp_path / "watch.py").write_text("def render(r):\n    return r\n")
+    (tmp_path / "test_page.py").write_text("import watch, mod\ndef _check(x):\n    assert x\ndef test_both():\n    assert mod.VALUE\n"
+                                         "    assert watch.render(2)\ndef test_other():\n    _check(mod.VALUE)\n")
+    (tmp_path / "test_local.py").write_text("import mod\ndef test_x():\n    watch = mod.VALUE\n    assert watch\n    assert mod\n")
+    g("add", "."), g("commit", "-qm", "t")
+    base = _sha(tmp_path)
+    g("rm", "-q", "watch.py")
+    cut = "import mod\ndef _check(x):\n    assert x\ndef test_both():\n    assert mod.VALUE\ndef test_other():\n    _check(mod.VALUE)\n"
+    (tmp_path / "test_page.py").write_text("import pytest\npytestmark = pytest.mark.skip\n" + cut)
+    g("commit", "-qam", "drop watch and skip the file")
+    gone = {"watch"}
+    assert not ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", gone), "an added skip is refused"
+    (tmp_path / "test_page.py").write_text(cut.replace("    assert x\n", "    pass\n"))
+    g("commit", "-qam", "and hollow the helper")
+    assert not ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", gone), "an assert cut in a shared helper is refused"
+    (tmp_path / "test_page.py").write_text(cut)
+    (tmp_path / "test_local.py").write_text("import mod\ndef test_x():\n    watch = mod.VALUE\n    assert mod\n")
+    g("commit", "-qam", "the honest cut, and a local variable named like the module")
+    assert ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", gone), "only the watch assert went: excused"
+    assert not ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_local.py", gone), "a local `watch` is not the module"
+
 def test_the_auto_rules_are_off_unless_named_and_each_decision_is_a_journal_row(tmp_path, monkeypatch):
     """Wired: the weakened check of the ladder and the red-on-base loop skip only what a named rule excuses, with an `auto` row."""
     from fichero_builder import journal

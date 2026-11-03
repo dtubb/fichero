@@ -1019,6 +1019,7 @@ def presubmit(lane_id: str, sha: str) -> tuple[bool, str]:
     f = wt / "harness.toml" if wt else None
     ready = [x for x in tomllib.loads(f.read_text()).get("check", {}).get("ready", []) if x != "--no-guards"] if f and f.is_file() else []
     if not ready or not (wt / ready[0]).is_file():
+        journal.append("presubmit", lane=lane_id, head=sha, state="skipped", detail="no [check].ready script in the lane's tree")
         return True, "presubmit skipped: the lane's tree has no [check].ready script"
     g = ["git", "-c", "safe.directory=*", "-C", str(wt)]
     head = subprocess.run(g + ["rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()

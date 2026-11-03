@@ -119,8 +119,9 @@ def load(root) -> Config:
 AUTO_RULES = {
     "red-on-base-trim-only": "a changed test file whose diff adds no assert and no new test function (a renamed one is a rename) "
                              "owes no red on base: it can only have lost checks, and it still runs green on head",
-    "weakened-tests-of-a-deleted-module": "a weakened or deleted test whose every removed check names a module this diff deletes "
-                                          "(test_<m>.py deleted with <m>.py, or a removed assert that calls <m>.) is not refused",
+    "weakened-tests-of-a-deleted-module": "a weakened or deleted test file is not refused when every test function the diff removes "
+                                          "or cuts asserts from called a module this diff deletes (`m.<attr>`, m imported by the file), "
+                                          "no skip or xfail is added and no assert is cut anywhere else in the file",
 }
 
 
@@ -877,18 +878,20 @@ def deleted_modules(root, since: str, head: str, cfg: Config) -> set[str]:
             if f.endswith(".py") and not any(fnmatch.fnmatch(Path(f).name, g) for g in cfg.test_globs)}
 
 
-def _test_funcs(text: str) -> dict:
-    """{test name: (assert count, names the body uses)} of a test file's source; {} when it does not parse."""
+def _test_funcs(text: str) -> tuple[dict, int, set]:
+    """({test name: (assert count, modules it calls through `m.<attr>`)}, the file's whole assert count, the module names the file
+    imports) of a test file's source; ({}, 0, set()) when it does not parse."""
     try:
         tree = ast.parse(text)
     except SyntaxError:
-        return {}
+        return {}, 0, set()
+    imported = {(a.asname or a.name).split(".")[0] for n in ast.walk(tree) if isinstance(n, (ast.Import, ast.ImportFrom)) for a in n.names}
     out = {}
     for n in ast.walk(tree):
         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name.startswith("test_"):
-            used = {x.id for x in ast.walk(n) if isinstance(x, ast.Name)}
+            used = {x.value.id for x in ast.walk(n) if isinstance(x, ast.Attribute) and isinstance(x.value, ast.Name) and x.value.id in imported}
             out[n.name] = (sum(isinstance(x, ast.Assert) for x in ast.walk(n)), used)
-    return out
+    return out, sum(isinstance(x, ast.Assert) for x in ast.walk(tree)), imported
 
 
 def weakened_by_a_deleted_module(root, since: str, head: str, f: str, gone: set[str]) -> bool:
@@ -896,9 +899,16 @@ def weakened_by_a_deleted_module(root, since: str, head: str, f: str, gone: set[
     module the same diff deletes (its old body names it); a deleted `f` counts when each of its tests did. Any other loss refuses."""
     if not gone:
         return False
-    old = _test_funcs("\n".join(_lines(root, "show", f"{since}:{f}") or []))
-    new = _test_funcs("\n".join(_lines(root, "show", f"{head}:{f}") or [])) if _git(root, "cat-file", "-e", f"{head}:{f}")["ok"] else {}
+    before = "\n".join(_lines(root, "show", f"{since}:{f}") or [])
+    alive = _git(root, "cat-file", "-e", f"{head}:{f}")["ok"]
+    after = "\n".join(_lines(root, "show", f"{head}:{f}") or []) if alive else ""
+    if alive and len(re.findall(SKIP_LINE, after)) > len(re.findall(SKIP_LINE, before)):
+        return False  # an added skip or xfail is never a deleted module's loss (review -63)
+    (old, old_total, _imp), (new, new_total, _imp2) = _test_funcs(before), _test_funcs(after)
     lost = [name for name, (asserts, _u) in old.items() if name not in new or new[name][0] < asserts]
+    explained = sum(old[n][0] - (new[n][0] if n in new else 0) for n in lost)
+    if old_total - new_total > explained:
+        return False  # an assert cut outside the excused tests (a shared helper) refuses (review -63)
     return bool(lost) and all(old[name][1] & gone for name in lost)
 
 
