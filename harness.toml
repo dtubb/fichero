@@ -41,8 +41,9 @@ spec_dir = "docs/contributor_manual/specs"
 test_globs = ["test_*.py", "*_test.py"]
 # pytest runs with plugin autoload OFF, the pinned config, and only these plugins (module names in the worker venv).
 pytest_config = "fichero-server/pyproject.toml"
-# manager 2026-11-02 (the Pro is CPU-bound): the engine pytest runs go to the M4 iMac (its venv synced by `builder machines sync
-# imac`); unreachable or under 5 GiB free = an alert and the run here; the build rung and the guards (git) stay on the Pro
+# manager 2026-11-02 (the Pro is CPU-bound): the engine pytest runs go to the M4 iMac, then the M1 Air (added 2026-11-03; each venv
+# synced by `builder machines sync`); a runner unreachable or under 5 GiB free = an alert and the next, then the run here; the build
+# rung and the guards (git) stay on the Pro
 remote = ["imac:~/fichero-gate", "air:~/fichero-gate"]
 pytest_plugins = ["anyio.pytest_plugin", "_hypothesis_pytestplugin", "langsmith.pytest_plugin", "pytest_timeout", "pytest_asyncio.plugin"]
 

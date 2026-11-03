@@ -721,7 +721,7 @@ the write path would produce.
   `builder machines sync <name>` (manager 2026-11-02): the test plugins (pytest, anyio, hypothesis, langsmith, pytest-timeout,
   pytest-asyncio) and their dependencies, at the exact versions of the jail's venv, installed into the machine's gate venv (uv
   when it has no pip), after the disk floor; one `machines` row. Proven on the iMac (33 pins; a remote check then ran 16 tests
-  there in 8 s), and `[check].remote = "imac:~/fichero-gate"` is on for the pytest rungs.
+  there in 8 s), and `[check].remote = ["imac:~/fichero-gate", "air:~/fichero-gate"]` is on for the pytest rungs (the iMac, then the M1 Air, then here: `run.remote-list`; the Air added 2026-11-03, owner: plugged in and usable).
   Speed 1 (manager 2026-11-02): every rung's time is in its `activity` row; the console's Activity view gives each rung its
   median time, and a running rung reads `usually <median>` (test
   `fichero-builder/tests/test_status_page.py::test_activity_gives_each_rung_its_usual_time_and_a_running_rung_reads_it`).
