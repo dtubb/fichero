@@ -1102,8 +1102,8 @@ Steps a long-running builder can take from the heading. `Depends on` defaults to
 ### Stage 2 — check, review, land, in that order
 
 #### Step 2.1 — `builder check` then `builder review` with a shell and a throwaway checkout, then `builder land`; the size rule ignores generated files
-- Behaviours: `dev-workflows.tool.check`, `dev-workflows.security.grants`, `dev-workflows.worker.two-capability-sets`
-- Tests: fichero-builder/tests/test_check.py, fichero-builder/tests/test_review_with_a_shell.py, fichero-builder/tests/test_land_order.py
+- Behaviours: `dev-workflows.tool.check`, `dev-workflows.security.grants`, `dev-workflows.worker.two-capability-sets`, `dev-workflows.run.jail-home`
+- Tests: fichero-builder/tests/test_check.py, fichero-builder/tests/test_review_with_a_shell.py, fichero-builder/tests/test_land_order.py, fichero-builder/tests/test_jail_home.py
 - Size: M
 
 #### Step 2.2 — a week on real issues under Claude Code; the TSV compared with Slice 0
@@ -1223,6 +1223,7 @@ Every behaviour names its test above, written in its step; each `security.*` and
 | `dev-workflows.run.review-and-land` | 0.1 |
 | `dev-workflows.run.worker-start-stop` | 1.1 |
 | `dev-workflows.tool.check` | 1.1 |
+| `dev-workflows.run.jail-home` | 2.1 |
 | `dev-workflows.tool.milestone` | 2.3 |
 | `dev-workflows.tool.work` | 2.3 |
 | `dev-workflows.tool.spec` | 2.3 |
