@@ -13,6 +13,7 @@ import difflib
 import fcntl
 import fnmatch
 import functools
+import hashlib
 import importlib.util
 import json
 import os
@@ -65,6 +66,7 @@ class Config:
     build: tuple = ()                   # argv of a build-only compile (never a test run), run in the scratch tree
     build_timeout_s: float = 1800
     build_lock: str = ""                # a lock file: one build at a time on the machine ("" = no lock)
+    build_tree: str = ""                # a STABLE worktree path the build runs in, so xcodebuild is incremental ("" = the scratch tree)
     remote: str = ""                    # "host:dir": the engine pytest runs go over ssh to that machine ("" = here); unreachable = an alert, then the next in `remotes`, then here
     remotes: tuple = ()                 # [check].remote as a LIST ("imac:~/g", "air:~/g"): tried in order; one alert per runner that is down
     remote_python: str = ""             # the interpreter there ("" = <dir>/venv/bin/python)
@@ -107,7 +109,7 @@ def load(root) -> Config:
         pytest_config=c.get("pytest_config", d.pytest_config), pytest_plugins=tuple(c.get("pytest_plugins", d.pytest_plugins)), max_files=c.get("max_files", d.max_files),
         max_lines=c.get("max_lines", d.max_lines), max_commits=c.get("max_commits", d.max_commits), build_paths=tuple(c.get("build_paths", d.build_paths)), product_paths=tuple(c.get("product_paths", d.product_paths)),
         build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
-        build_lock=c.get("build_lock", d.build_lock), engine_repo=c.get("engine_repo", d.engine_repo),
+        build_lock=c.get("build_lock", d.build_lock), build_tree=c.get("build_tree", d.build_tree), engine_repo=c.get("engine_repo", d.engine_repo),
         remote=(c["remote"][0] if c["remote"] else "") if isinstance(c.get("remote"), list) else c.get("remote", d.remote),
         remotes=tuple(c["remote"]) if isinstance(c.get("remote"), list) else d.remotes, remote_python=c.get("remote_python", d.remote_python),
         remote_guards=c.get("remote_guards", d.remote_guards), guard_inputs=dict(c.get("guard_inputs", {})), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb),
@@ -788,17 +790,107 @@ def build(root, changed: list[str], cfg: Config) -> dict:
     try:
         if lock is not None:
             fcntl.flock(lock, fcntl.LOCK_EX)
+        src = _stable_build_tree(root, cfg) if cfg.build_tree else str(root)
+        key = _build_key(src, cfg)
+        if key and (hit := _build_results().get(key)):  # the same fichero/ tree, command and Xcode built green before: reused
+            journal.append("check", state="build-reused", rung="build", detail=f"green at {hit.get('head', '?')[:9]} {hit.get('ts', '')}: {key[:12]}")
+            return {"ok": True, "skipped": False, "results": [{"name": "build", "ok": True, "exit_code": 0, "timed_out": False, "seconds": 0,
+                                                               "stdout_tail": f"reused: the same build key built green at {hit.get('head', '?')[:9]}", "stderr_tail": "", "reused": key}]}
         log = journal.STATE / "build-logs" / f"build-{time.strftime('%Y%m%d-%H%M%S')}-{time.time_ns() % 10**9:09d}.log"  # only a red build writes it; ponytail: never rotated, prune by age if the dir grows
-        r = _run("build", list(cfg.build), root, cfg.build_timeout_s, cfg, log=log)
+        r = _run("build", list(cfg.build), src, cfg.build_timeout_s, cfg, log=log)
         if not r["ok"] and BUILD_DB_LOCKED.search((r.get("stdout_tail") or "") + (r.get("stderr_tail") or "") + (r.get("errors") or "")):
             journal.append("check", state="retry", rung="build", detail="XCBuildData build.db was locked by another build in the same derived dir: re-run once")
             time.sleep(BUILD_RETRY_WAIT_S)
-            r = {**_run("build", list(cfg.build), root, cfg.build_timeout_s, cfg, log=log.with_suffix(".retry.log")), "retried": True}
+            r = {**_run("build", list(cfg.build), src, cfg.build_timeout_s, cfg, log=log.with_suffix(".retry.log")), "retried": True}
+        if not r["ok"] and not r.get("timed_out") and cfg.build_tree and (dd := _derived_dir(cfg)):
+            # an incremental red can be stale build state, not the code (memory: a stale incremental build): once more from a
+            # clean derived dir, and the second result stands (manager 2026-11-03)
+            journal.append("check", state="retry", rung="build", detail=f"an incremental build was red: {dd} cleared, built once more from clean")
+            _clear_dir(dd)
+            r = {**_run("build", list(cfg.build), src, cfg.build_timeout_s, cfg, log=log.with_suffix(".clean.log")), "retried": "clean"}
+        if r["ok"] and key:
+            _build_result_put(key, (_lines(src, "rev-parse", "HEAD") or [""])[0])
     finally:
         if lock is not None:
             lock.close()
     return {"ok": r["ok"], "skipped": False, "results": [r]}
 
+
+
+def _stable_build_tree(root, cfg: Config) -> str:
+    """`[check].build_tree`: ONE worktree of the engine repo at a fixed path (the jail's workroot), checked out at the scratch
+    tree's head and cleaned, so xcodebuild's records (absolute paths) match the last build and it compiles only what changed
+    (2026-11-03: every ladder built in a new path, median 8.5 min for any change). Only the build rung and build-check use it,
+    under the build and heavy locks; never the owner's own Xcode derived data."""
+    sha = (_lines(root, "rev-parse", "HEAD") or [""])[0]
+    common = (_lines(root, "rev-parse", "--path-format=absolute", "--git-common-dir") or [""])[0]
+    repo = str(Path(common).parent) if common.endswith("/.git") else common
+    tree = Path(cfg.build_tree)
+    if not (tree / ".git").exists():
+        tree.parent.mkdir(parents=True, exist_ok=True)
+        _git(repo, "worktree", "prune")
+        r = _git(repo, "-c", "core.hooksPath=/dev/null", "worktree", "add", "--detach", "-q", str(tree), sha)
+        if not r["ok"]:
+            raise RuntimeError(f"build tree failed: {r['stderr_tail']}")
+        os.chmod(tree, 0o755)
+    else:
+        for args in (("-c", "core.hooksPath=/dev/null", "checkout", "-q", "--detach", "-f", sha), ("clean", "-fdxq")):
+            r = _git(str(tree), *args)
+            if not r["ok"]:
+                raise RuntimeError(f"build tree {' '.join(args[-3:])} failed: {r['stderr_tail']}")
+    return str(tree)
+
+
+def _derived_dir(cfg: Config) -> str:
+    """The build's `-derivedDataPath`, only when it lies under the build tree's own parent (the jail's workroot): never a path
+    the owner's Xcode or app uses, never one a clear could reach outside the workroot. '' = no clean retry."""
+    b = list(cfg.build)
+    d = b[b.index("-derivedDataPath") + 1] if "-derivedDataPath" in b[:-1] else ""
+    if not d or not cfg.build_tree:
+        return ""
+    root = Path(cfg.build_tree).resolve().parent
+    return d if Path(d).resolve().is_relative_to(root) and Path(d).resolve() != root else ""
+
+
+def _clear_dir(d: str) -> None:
+    """The derived dir's contents removed, as the jail user who wrote them (the dir itself stays)."""
+    run_command("clean-derived", ["/bin/sh", "-c", f'rm -rf "{d}"/* "{d}"/.[!.]* 2>/dev/null; true'], "/", 600)
+
+
+_XCODE: list = []
+
+
+def _build_key(tree, cfg: Config) -> str:
+    """What a build reads: the tree hash of each [check].build_paths dir, the build command, and the Xcode version. A harness
+    change never reuses a Swift result across a different tree hash; '' = no key (nothing is reused)."""
+    trees = [(_lines(tree, "rev-parse", f"HEAD:{p.rstrip('/')}") or [""])[0] for p in cfg.build_paths]
+    if not all(trees):
+        return ""
+    if not _XCODE:
+        try:
+            _XCODE.append(subprocess.run(["xcodebuild", "-version"], capture_output=True, text=True, timeout=60).stdout.strip())
+        except (OSError, subprocess.TimeoutExpired):
+            _XCODE.append("")
+    return hashlib.sha256(json.dumps([trees, list(cfg.build), _XCODE[0]]).encode()).hexdigest()
+
+
+def _build_results() -> dict:
+    f = journal.STATE / "build-results.json"
+    try:
+        return json.loads(f.read_text()) if f.is_file() else {}
+    except ValueError:
+        return {}
+
+
+def _build_result_put(key: str, head: str) -> None:
+    """A GREEN build's key, owner-side (a red never counts from the cache: it always builds). Kept to the last 200."""
+    with journal.Lock("build-results"):
+        d = _build_results()
+        d[key] = {"head": head, "ts": time.strftime("%Y-%m-%dT%H:%M:%S")}
+        f = journal.STATE / "build-results.json"
+        tmp = f.with_suffix(".tmp")
+        tmp.write_text(json.dumps(dict(list(d.items())[-200:])))
+        tmp.replace(f)
 
 def _git_argv(root, args) -> list[str]:
     """git with hooks, fsmonitor, every filter driver and external diff the repo's own config names switched off

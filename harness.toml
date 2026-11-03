@@ -65,6 +65,9 @@ build = ["xcodebuild", "-project", "fichero/fichero.xcodeproj", "-scheme", "Fich
 build_timeout_s = 3600
 # Only the owner's process takes this lock, so it lives in the owner's own state dir (~ expands), not the shared area.
 build_lock = "~/.local/state/fichero-builder/build.lock"
+# one STABLE tree for the build rung (and build-check), so xcodebuild is incremental (manager 2026-11-03: every ladder built
+# in a new path, median 8.5 min); the jail user's workroot, beside its own derived dir, never the owner's Xcode data
+build_tree = "/Users/Shared/fichero-worker/build-tree"
 # The engine-owned repository check and land judge from: outside every home dir, owner-owned, world-readable (the jailed
 # user reads its objects and the scratch worktrees made from it). Set up once: git clone --no-checkout <owner repo> here;
 # chmod -R a+rX; a local `integration` branch; fetch landing branches into it by ref.

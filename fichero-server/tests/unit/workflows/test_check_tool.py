@@ -210,6 +210,7 @@ def test_contract_current_is_skipped_unless_engine_source_changed(tmp_path):
 # --- diff bound, failing run (red on base), the ladder (dev-workflows.tool.check) ---
 
 import subprocess  # noqa: E402
+import tempfile  # noqa: E402
 
 
 def _git_repo(tmp_path):
@@ -688,6 +689,63 @@ def test_a_red_build_keeps_every_error_line_and_the_whole_log_whatever_follows_t
     assert "A.swift:12:5: error" in said and str(log) in said, "the finding names the errors and the log"
     g = ct.build(tmp_path, ["fichero/App.swift"], ct.Config(build_paths=("fichero/",), build=("true",)))
     assert g["ok"] and "log" not in g["results"][0] and len(list((tmp_path / "s" / "build-logs").iterdir())) == 1, "a green build writes no log"
+
+
+def _build_world(tmp_path, monkeypatch):
+    """An engine repo with fichero/, a workroot holding the stable build tree and the derived dir, and a fake xcodebuild."""
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    monkeypatch.setattr(ct, "_XCODE", ["Xcode 26.1"])
+    repo, wr = tmp_path / "repo", tmp_path / "wr"
+    repo.mkdir(), (wr / "derived").mkdir(parents=True)
+    g = lambda *a: subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=repo, check=True, capture_output=True)  # noqa: E731
+    g("init", "-q", "-b", "main")
+    (repo / "fichero").mkdir()
+    (repo / "fichero" / "App.swift").write_text("let a = 1\n")
+    (repo / "harness.toml").write_text("[check]\n")
+    g("add", "."), g("commit", "-qm", "base")
+    log = tmp_path / "builds.log"
+    script = f'echo "$PWD" >> {log}; [ -e {wr}/derived/stale ] && {{ echo "error: stale module" >&2; exit 65; }}; [ -e fichero/RED ] && {{ echo "error: no X" >&2; exit 65; }}; exit 0'
+    cfg = ct.Config(build_paths=("fichero/",), build=("sh", "-c", script, "_", "-derivedDataPath", str(wr / "derived")), build_tree=str(wr / "build-tree"))
+
+    def scratch():  # a NEW path per ladder, as today
+        d = tempfile.mkdtemp(dir=tmp_path)
+        subprocess.run(["git", "-C", str(repo), "worktree", "add", "--detach", "-q", d, "HEAD"], check=True, capture_output=True)
+        return d
+    return repo, wr, g, log, cfg, scratch
+
+
+def test_the_build_runs_in_one_stable_tree_and_a_green_key_is_reused_for_the_same_fichero_tree(tmp_path, monkeypatch):  # manager 2026-11-03
+    repo, wr, g, log, cfg, scratch = _build_world(tmp_path, monkeypatch)
+    r = ct.build(scratch(), ["fichero/App.swift"], cfg)
+    assert r["ok"] and log.read_text().split() == [str((wr / "build-tree").resolve())], "built in the stable tree, not the scratch one"
+    r = ct.build(scratch(), ["fichero/App.swift"], cfg)
+    assert r["ok"] and r["results"][0]["reused"] and len(log.read_text().split()) == 1, "same fichero/ tree: reused, not built"
+    (repo / "harness.toml").write_text("[check]\nx = 1\n")
+    g("commit", "-qam", "a harness-only change")
+    assert ct.build(scratch(), ["fichero/App.swift"], cfg)["results"][0].get("reused"), "a change outside fichero/ keeps the key"
+    (repo / "fichero" / "App.swift").write_text("let a = 2\n")
+    g("commit", "-qam", "swift")
+    r = ct.build(scratch(), ["fichero/App.swift"], cfg)
+    assert r["ok"] and not r["results"][0].get("reused") and len(log.read_text().split()) == 2, "a new fichero/ tree builds"
+    monkeypatch.setattr(ct, "_XCODE", ["Xcode 27.0"])
+    assert not ct.build(scratch(), ["fichero/App.swift"], cfg)["results"][0].get("reused"), "another Xcode never reuses"
+
+
+def test_an_incremental_red_is_built_once_more_from_a_clean_derived_dir_and_a_red_is_never_cached(tmp_path, monkeypatch):
+    repo, wr, g, log, cfg, scratch = _build_world(tmp_path, monkeypatch)
+    (wr / "derived" / "stale").write_text("x")  # stale build state: red until the derived dir is cleared
+    r = ct.build(scratch(), ["fichero/App.swift"], cfg)
+    assert r["ok"] and r["results"][0]["retried"] == "clean" and not (wr / "derived" / "stale").exists(), "the clean build stands"
+    (repo / "fichero" / "RED").write_text("x")
+    g("add", "."), g("commit", "-qm", "a real compile error")
+    n = len(log.read_text().split())
+    r = ct.build(scratch(), ["fichero/App.swift"], cfg)
+    assert not r["ok"] and r["results"][0]["retried"] == "clean" and len(log.read_text().split()) == n + 2, "a real red: red twice"
+    r = ct.build(scratch(), ["fichero/App.swift"], cfg)
+    assert not r["ok"] and not r["results"][0].get("reused"), "a red is never reused"
+    outside = ct.Config(build_paths=("fichero/",), build=("true", "-derivedDataPath", str(tmp_path / "elsewhere")), build_tree=str(wr / "build-tree"))
+    assert ct._derived_dir(outside) == "", "a derived dir outside the workroot is never cleared"
 
 def test_the_build_rung_counts_a_deleted_swift_file_as_a_change(tmp_path):  # review 1 M7
     import subprocess
