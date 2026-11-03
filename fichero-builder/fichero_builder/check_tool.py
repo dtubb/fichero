@@ -280,6 +280,10 @@ def _env(root, cfg: Config, extra: dict | None = None) -> dict:
     env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"  # review 4 B6: only [check].pytest_plugins load, never a tree's entry points
     env["RUFF_NO_CACHE"] = "true"                 # the scratch tree is owner-made and read-only to the jailed user: no caches in it
     env["HOME"] = _mkdtemp("check-home-")  # jailed: a scratch dir in the workroot, which `Jail.argv` passes as HOME: the jail user's REAL home (its Library/Application Support/Fichero) is never a test's, so the real-state guard (#5530) has nothing to trip on (2026-11-03)
+    if _JAIL is not None:  # the jail user's real ~/.gitconfig is not read any more (H, 2026-11-03): its trust of the owner-made check trees, and a committer for scratch commits, come from here
+        gc = Path(env["HOME"]) / ".gitconfig"
+        gc.write_text("[user]\n\tname = Claude\n\temail = noreply@anthropic.com\n[safe]\n\tdirectory = *\n")
+        gc.chmod(0o644)
     if cfg.base_path_env:
         env[cfg.base_path_env] = _mkdtemp("check-base-")
     if cfg.python_path:

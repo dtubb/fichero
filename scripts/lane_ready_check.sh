@@ -48,8 +48,8 @@ PYEOF
 
 check() {  # check <rev> -> prints FAIL lines, returns count
   local rev=$1 base fails=0 n
-  base=$(git merge-base origin/integration "$rev")
-  n=$(git rev-list --count "$base..$rev")
+  base=$(git merge-base origin/integration "$rev" 2>&1) || { echo "FAIL: git could not find the merge base with origin/integration: $(echo "$base" | head -2 | tr '\n' ' ')"; return 1; }
+  n=$(git rev-list --count "$base..$rev" 2>&1) || { echo "FAIL: git could not count the commits ahead of origin/integration: $(echo "$n" | head -2 | tr '\n' ' ')"; return 1; }
   # 1. on current integration history: a branch from the pre-rewrite history is thousands ahead
   # the cap is [check].max_commits of the harness.toml in the tree (the pinned copy's under the ladder: a worker cannot raise it); default 100
   local cap
