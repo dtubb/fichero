@@ -83,14 +83,21 @@ def suffix_key(gtip: str) -> str:
     return group_key(gtip, a.head) if gtip != a.head else "end"
 
 
+def prefix_key(gbase: str) -> str:
+    """The commits BEFORE a group, by content: with the suffix key, a reused READY means the whole range is the one that was judged
+    (a dropped or changed LEADING group leaves every later group's own key and suffix unchanged; review 2026-11-03)."""
+    return group_key(base, gbase) if gbase != base else "start"
+
+
 if prev and not a.full and prev["head"] != a.head and not subprocess.run(
         [land_tool.GIT, "-C", a.repo, "merge-base", "--is-ancestor", prev["head"], a.head], capture_output=True).returncode:
     kept = [g for g in prev["groups"] if g["verdict"] == "READY"]
     blocking = [g for g in prev["groups"] if g["verdict"] != "READY"]
     groups = land_tool.review_groups(a.repo, prev["head"], a.head, cap)
 elif prev and not a.full and prev["head"] != a.head:  # rewritten head: the groups are made afresh; an unchanged READY content is not reviewed again
-    ready = {g["key"]: g for g in prev["groups"] if g["verdict"] == "READY" and g.get("key") and g.get("after")}
-    reuse = {(b, t) for b, t in groups if group_key(b, t) in ready and ready[group_key(b, t)]["after"] == suffix_key(t)}
+    ready = {g["key"]: g for g in prev["groups"] if g["verdict"] == "READY" and g.get("key") and g.get("after") and g.get("before")}
+    reuse = {(b, t) for b, t in groups if group_key(b, t) in ready
+             and (ready[group_key(b, t)]["before"], ready[group_key(b, t)]["after"]) == (prefix_key(b), suffix_key(t))}
     kept = [{**ready[group_key(b, t)], "base": b, "tip": t} for b, t in groups if (b, t) in reuse]
     blocking = [g for g in prev["groups"] if g["verdict"] != "READY"]
     groups = [(b, t) for b, t in groups if (b, t) not in reuse]
@@ -181,7 +188,7 @@ try:
 finally:
     drop_tree()
 # a READY delta settles what blocked before; a blocked one carries it forward with its own findings
-final = [{**g, "after": suffix_key(g["tip"])} for g in kept + results]  # each group's later commits at THIS head: what a rewritten head must still match
+final = [{**g, "before": prefix_key(g["base"]), "after": suffix_key(g["tip"])} for g in kept + results]  # each group's later commits at THIS head: what a rewritten head must still match
 record[base] = {"head": a.head, "groups": final[:len(kept)] + (blocking if blocked else []) + final[len(kept):]}
 land_tool.safe_write(side, json.dumps(record, indent=1))
 if blocked:

@@ -208,3 +208,19 @@ def test_a_rerun_after_a_fix_reviews_only_the_new_commits_and_keeps_the_ready_gr
     g("reset", "-q", "--hard", "HEAD~1")  # a dropped last commit: the head tree is one nobody reviewed
     r = again()
     assert (tmp_path / "calls").read_text().strip() != "5", "dropping a commit never reuses a verdict from reuse alone"
+
+
+def test_dropping_a_leading_group_never_writes_a_verdict_for_an_unreviewed_tree(tmp_path):
+    """Review 2026-11-03: drop group one; group two's own key and suffix are unchanged, but the tree is one nobody reviewed."""
+    r, store = _split_run(tmp_path, ["READY", "READY", "READY", "READY"])
+    assert r.returncode == 0 and (tmp_path / "calls").read_text().strip() == "2"
+    root = str(tmp_path / "r")
+
+    def g(*a):
+        return subprocess.run(["git", "-C", root, "-c", "user.name=t", "-c", "user.email=t@t", *a], check=True, capture_output=True, text=True).stdout
+    two = g("rev-parse", "HEAD").strip()
+    g("reset", "-q", "--hard", "landbr")
+    g("cherry-pick", two)  # the same commit two, without one
+    r = subprocess.run([sys.executable, str(SCRIPT), root, "HEAD", "--pinned", str(tmp_path / "p"), "--verdicts", str(store)],
+                       env={**os.environ, "PATH": f"{tmp_path / 'bin'}:{os.environ['PATH']}"}, capture_output=True, text=True)
+    assert (tmp_path / "calls").read_text().strip() == "3", "group two is reviewed again: its leading context changed\n" + r.stdout + r.stderr
