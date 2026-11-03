@@ -45,8 +45,12 @@ enum PairingFailure: CaseIterable, Equatable, Error {
         }
     }
 
-    // swiftlint:disable:next cyclomatic_complexity
     func sentence(_ context: Context = Context()) -> String {
+        networkSentence(context) ?? certificateSentence(context) ?? accountSentence(context) ?? ""
+    }
+
+    /// The sentences for a link that is wrong, or a host this device cannot reach.
+    private func networkSentence(_ context: Context) -> String? {
         let host = context.host
         switch self {
         case .invalidLink:
@@ -65,6 +69,15 @@ enum PairingFailure: CaseIterable, Equatable, Error {
             return "\(host) is on, but Fichero isn't listening there: turn Sharing off and on."
         case .offline:
             return "This \(context.noun) isn't connected to a network."
+        default:
+            return nil
+        }
+    }
+
+    /// The sentences for a security key or address the link and the host disagree on.
+    private func certificateSentence(_ context: Context) -> String? {
+        let host = context.host
+        switch self {
         case .certificatePin:
             return "\(host) showed a different security key than the link. This may be a different Mac with the same name. "
                 + "Scan or paste a new link from \(host)."
@@ -73,6 +86,15 @@ enum PairingFailure: CaseIterable, Equatable, Error {
                 + "Turn Sharing off and on on \(host) so it makes a new one."
         case .tailnetByNumber:
             return "Tailscale addresses work by name, not by number. Ask for a new link."
+        default:
+            return nil
+        }
+    }
+
+    /// The sentences for a pairing the host answered but refused, or a library it no longer holds.
+    private func accountSentence(_ context: Context) -> String? {
+        let host = context.host
+        switch self {
         case .codeUsedOrExpired:
             return "That code was used or has expired (codes last 10 minutes). Make a new one on \(host)."
         case .tooManyTries:
@@ -87,6 +109,8 @@ enum PairingFailure: CaseIterable, Equatable, Error {
             return "\(host) stopped sharing. Ask them to turn Sharing on again."
         case .deviceForgotten:
             return "\(host) no longer knows this \(context.noun). Ask for a new link."
+        default:
+            return nil
         }
     }
 
