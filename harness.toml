@@ -43,7 +43,7 @@ test_globs = ["test_*.py", "*_test.py"]
 pytest_config = "fichero-server/pyproject.toml"
 # manager 2026-11-02 (the Pro is CPU-bound): the engine pytest runs go to the M4 iMac (its venv synced by `builder machines sync
 # imac`); unreachable or under 5 GiB free = an alert and the run here; the build rung and the guards (git) stay on the Pro
-remote = "imac:~/fichero-gate"
+remote = ["imac:~/fichero-gate", "air:~/fichero-gate"]
 pytest_plugins = ["anyio.pytest_plugin", "_hypothesis_pytestplugin", "langsmith.pytest_plugin", "pytest_timeout", "pytest_asyncio.plugin"]
 
 # A diff under build_paths compiles the app (build only, never a test run: a test run quits the owner's app) in the
