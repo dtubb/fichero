@@ -159,12 +159,21 @@ def _repo(tmp_path, monkeypatch):
     return e, g("rev-parse", "HEAD")
 
 
+def _own_engine(rules: str, engine) -> str:
+    """The real harness.toml with [check].engine_repo pointing at the test's own repo: the real path (/Users/Shared/fichero-engine)
+    exists on the owner's machine only, and the remote runner has none (2026-11-03: red-on-base on the iMac)."""
+    import re
+
+    return re.sub(r'^engine_repo = .*$', f'engine_repo = "{engine}"', rules, flags=re.M)
+
+
 def test_land_refuses_a_green_row_that_does_not_cover_the_range(tmp_path, monkeypatch, capsys):
     """Review of range 1: `builder land` matched head and ok only; a row over head~1..head then landed the whole range."""
     e, head = _repo(tmp_path, monkeypatch)
     import re
 
     real = (cli.Path(__file__).resolve().parents[2] / "harness.toml").read_text()
+    real = _own_engine(real, e)
     (tmp_path / "harness.toml").write_text(re.sub(r'^branch = .*$', 'branch = "integration"', real, flags=re.M))
     monkeypatch.setattr(journal, "STATE", tmp_path / "s")
     journal.append("check", head=head, since=head, ok=True)
@@ -177,6 +186,7 @@ def test_land_refuses_a_journal_others_can_write(tmp_path, monkeypatch, capsys):
     import re
 
     real = (cli.Path(__file__).resolve().parents[2] / "harness.toml").read_text()
+    real = _own_engine(real, e)
     (tmp_path / "harness.toml").write_text(re.sub(r'^branch = .*$', 'branch = "integration"', real, flags=re.M))
     monkeypatch.setattr(journal, "STATE", tmp_path / "s")
     journal.append("check", head=head, ok=True)
@@ -193,6 +203,7 @@ def test_land_with_a_green_check_row_runs_the_verdict_and_boundary_only_never_th
     import re
 
     real = (cli.Path(__file__).resolve().parents[2] / "harness.toml").read_text()  # a rules file the gate accepts, its boundary kept
+    real = _own_engine(real, e)
     (tmp_path / "harness.toml").write_text(re.sub(r'^branch = .*$', 'branch = "integration"', real, flags=re.M))
     monkeypatch.setattr(journal, "STATE", tmp_path / "s")
     base = subprocess_rev(e, "integration")
@@ -239,6 +250,7 @@ def test_a_land_branch_that_does_not_resolve_is_a_row_in_the_log(tmp_path, monke
     import re
 
     real = (cli.Path(__file__).resolve().parents[2] / "harness.toml").read_text()
+    real = _own_engine(real, e)
     (tmp_path / "harness.toml").write_text(re.sub(r'^branch = .*$', 'branch = "no-such-branch"', real, flags=re.M))
     ok, out = land_tool.gate(str(e), head, tmp_path, tmp_path / "v", tmp_path / "l")
     assert not ok and "REFUSED" in out and "no-such-branch" in (tmp_path / "l").read_text()
