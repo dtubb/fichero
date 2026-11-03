@@ -38,6 +38,12 @@ struct PairingSequenceTests {
         #expect(several == .choose(url: local, libraries: ["/L1", "/L2"]))
     }
 
+    @Test func aChoiceLeavesNoRedeemedTokenBehind() async {
+        let host = FakeHost(libraries: ["/L1", "/L2"])
+        _ = await run(link(library: nil), host: host)
+        #expect(await host.log.last == "discard m.local")  // the token the library call needed is cleared on both sides
+    }
+
     @Test func aNamedLibraryTheHostDoesNotGiveIsRefusedInWords() async {
         let result = await run(link(library: "/Other"), host: FakeHost(libraries: ["/L1"]))
         guard case .failed(.libraryNotGiven, _) = result else { Issue.record("\(result)"); return }

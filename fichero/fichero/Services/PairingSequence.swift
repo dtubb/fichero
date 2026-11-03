@@ -34,7 +34,8 @@ enum PairingSequence {
         /// Something else stopped it, already in words (a thrown error that carries its own sentence, e.g. the Keychain refusal).
         case stopped(message: String)
         case paired(url: String, libraryPath: String)
-        /// The link named no library and the host has several: the person picks one, nothing is persisted yet.
+        /// The link named no library and the host has several: the person picks one. The pairing is already discarded (the redeemed
+        /// token cleared on both sides), so nothing is left behind whatever the caller does next.
         case choose(url: String, libraries: [String])
         case failed(PairingFailure, context: PairingFailure.Context)
     }
@@ -69,7 +70,9 @@ enum PairingSequence {
                 await host.discardPairing(at: url)
                 return .failed(.libraryNotGiven, context: context)
             case 1: return .paired(url: url, libraryPath: libraries[0])
-            default: return .choose(url: url, libraries: libraries)
+            default:
+                await host.discardPairing(at: url)
+                return .choose(url: url, libraries: libraries)
             }
         } catch let failure as PairingFailure {
             await host.discardPairing(at: url)
