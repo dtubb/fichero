@@ -141,6 +141,7 @@ struct WorkflowResponse: Codable {
         directRunnable: Bool?,
         acceptsModelOverride: Bool?,
         requiresVision: Bool = false,
+        visionIsUnknown: Bool = false,
         nodeCount: Int? = nil,
         acceptedInputs: [String]? = nil
     ) {
@@ -158,6 +159,7 @@ struct WorkflowResponse: Codable {
         self.directRunnable = directRunnable
         self.acceptsModelOverride = acceptsModelOverride
         self.requiresVision = requiresVision
+        self.visionIsUnknown = visionIsUnknown
         self.nodeCount = nodeCount
         self.acceptedInputs = acceptedInputs
     }

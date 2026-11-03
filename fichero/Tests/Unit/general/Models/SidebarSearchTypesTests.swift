@@ -206,6 +206,16 @@ final class SidebarSearchTypesTests: XCTestCase {
         XCTAssertFalse(oldEngine.requiresVision || oldEngine.visionIsUnknown)
     }
 
+    /// The service path that builds the live list: the generated client's encoded response has no null, so a key that is not a
+    /// boolean is the engine saying it could not tell (`workflows.requires-vision-unknown`).
+    @MainActor
+    func testTheServiceReadsAMissingOrNullVisionRequirementAsUnknown() {
+        XCTAssertTrue(WorkflowService.visionIsUnknown(inEncoded: [:]))
+        XCTAssertTrue(WorkflowService.visionIsUnknown(inEncoded: ["requires_vision": NSNull()]))
+        XCTAssertFalse(WorkflowService.visionIsUnknown(inEncoded: ["requires_vision": true]))
+        XCTAssertFalse(WorkflowService.visionIsUnknown(inEncoded: ["requires_vision": false]))
+    }
+
     func testWorkflowSidebarItemHashable() {
         // Sidebar List(selection:) requires Hashable to dedupe selection
         // diffs. Two items with the same id + identical createdAt /

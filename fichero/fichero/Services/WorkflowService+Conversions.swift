@@ -154,6 +154,7 @@ extension WorkflowService {
             directRunnable: derived.directRunnable,
             acceptsModelOverride: derived.acceptsModelOverride,
             requiresVision: derived.requiresVision,
+            visionIsUnknown: derived.visionIsUnknown,
             nodeCount: derived.nodeCount,
             acceptedInputs: derived.acceptedInputs
         )
@@ -171,12 +172,21 @@ extension WorkflowService {
         // Not permissive-by-default in the same sense: `false` here means "do
         // not filter the model menu", which is the permissive outcome.
         var requiresVision = false
+        // The engine answered null (or left the key out) for `requires_vision`: it could not tell
+        // (`workflows.requires-vision-unknown`). `requiresVision` stays false so the model menu filters nothing.
+        var visionIsUnknown = false
         // Counted server-side so a summary list can omit the graphs entirely
         // (#Phase 0). `nil` means the server did not say — the caller then
         // falls back to measuring whatever nodes it did receive, which is
         // exactly right for an older engine that still sends them.
         var nodeCount: Int?
         var acceptedInputs: [String]?
+    }
+
+    /// The generated client drops a null optional when it encodes, so null and an absent key look the same here; every engine that
+    /// has served `requires_vision` since #3804 sends the key, so a key that is not a boolean means the engine could not tell.
+    static func visionIsUnknown(inEncoded dict: [String: Any]) -> Bool {
+        !(dict["requires_vision"] is Bool)
     }
 
     private static func derivedFlags(
@@ -192,6 +202,7 @@ extension WorkflowService {
             directRunnable: (dict["direct_runnable"] as? Bool) ?? true,
             acceptsModelOverride: (dict["accepts_model_override"] as? Bool) ?? true,
             requiresVision: (dict["requires_vision"] as? Bool) ?? false,
+            visionIsUnknown: visionIsUnknown(inEncoded: dict),
             nodeCount: dict["node_count"] as? Int,
             acceptedInputs: dict["accepted_inputs"] as? [String]
         )
