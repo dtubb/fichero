@@ -415,8 +415,15 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
         return edited
     if name == "fuzzy_clean":
         return apply_fuzzy_clean(image, despeckle_radius=int(params.get("despeckle_radius", 3)), background_clean=bool(params.get("background_clean", True)))
-    if name == "denoise":
-        return apply_fuzzy_clean(image, despeckle_radius=int(params.get("radius", 3)), background_clean=False)
+    if name in {"denoise", "binarise"}:
+        from fichero_server.media.enhance import STEPS
+
+        spec = STEPS[name]
+        # A stored row is applied as saved; a denoise row from before specks has none and removes none.
+        given = {k: v for k, v in params.items() if k in spec.params.model_fields}
+        if name == "denoise":
+            given.setdefault("speck", 0)
+        return spec.run(image, spec.params.model_construct(**given))[0]
     if name == "adaptive_binarize":
         gray = image.convert("L")
         # ImageStat, not sum(gray.getdata()): Pillow 12.3 deprecates getdata

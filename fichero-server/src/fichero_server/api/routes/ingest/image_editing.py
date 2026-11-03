@@ -30,6 +30,7 @@ from fichero_server.db import Database
 from fichero_server.media.enhance import deskew as deskew_step, rotate as rotate_step
 from fichero_server.media.enhance import bleed_through as bleed_through_step, ruled_lines as ruled_lines_step
 from fichero_server.media.enhance import stain_flatten as stain_flatten_step
+from fichero_server.media.enhance import binarise as binarise_step, denoise as denoise_step
 from fichero_server.models import DocType, Document, FileType, ImageEditChain
 from fichero_server.models.anchors import NodeRegion, RegionConfidence
 from fichero_server.split_carry import carry_readings_over
@@ -117,8 +118,11 @@ class BleedThroughOperationRequest(bleed_through_step.Params):
     page: int = Field(1, ge=1)
 
 
-class DenoiseOperationRequest(BaseModel):
-    radius: int = Field(3, ge=3, le=5)
+class DenoiseOperationRequest(denoise_step.Params):
+    page: int = Field(1, ge=1)
+
+
+class BinariseOperationRequest(binarise_step.Params):
     page: int = Field(1, ge=1)
 
 
@@ -130,6 +134,7 @@ _OPERATION_MODELS = {
     "sharpen": FactorOperationRequest, "fuzzy_clean": FuzzyCleanOperationRequest,
     "denoise": DenoiseOperationRequest, "stain_flatten": StainFlattenOperationRequest,
     "ruled_lines": RuledLinesOperationRequest, "bleed_through": BleedThroughOperationRequest,
+    "binarise": BinariseOperationRequest,
     "square": SquareOperationRequest, "mark_blank": MarkBlankOperationRequest,
 }
 _PARAMETERLESS_OPERATIONS = {"flip_horizontal", "flip_vertical", "auto_levels", "grayscale", "auto_crop_border", "adaptive_binarize"}
@@ -206,7 +211,7 @@ class BatchImageApplyRequest(BaseModel):
     folder_id: str
     operation: Literal[
         "crop", "split", "rotate", "straighten", "flip_horizontal", "flip_vertical", "brightness", "contrast", "sharpen",
-        "auto_levels", "enhance", "fuzzy_clean", "denoise", "adaptive_binarize", "grayscale", "remove_background",
+        "auto_levels", "enhance", "fuzzy_clean", "denoise", "adaptive_binarize", "binarise", "grayscale", "remove_background",
         "auto_crop_border", "square",
     ]
     bbox: tuple[int, int, int, int] | None = None

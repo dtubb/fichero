@@ -3892,7 +3892,7 @@ def fichero_images_batch_apply_operation(
     bbox: Annotated[Optional[list[Any]], Field(description='Bbox.')] = None,
     bboxes: Annotated[Optional[list[Any]], Field(description='Bboxes.')] = None,
     folder_id: Annotated[str, Field(description='Folder Id.')],
-    operation: Annotated[str, Field(description='Operation. One of: crop, split, rotate, straighten, flip_horizontal, flip_vertical, brightness, contrast, sharpen, auto_levels, enhance, fuzzy_clean, denoise, adaptive_binarize, grayscale, remove_background, auto_crop_border, square.')],
+    operation: Annotated[str, Field(description='Operation. One of: crop, split, rotate, straighten, flip_horizontal, flip_vertical, brightness, contrast, sharpen, auto_levels, enhance, fuzzy_clean, denoise, adaptive_binarize, binarise, grayscale, remove_background, auto_crop_border, square.')],
     params: Annotated[Optional[dict[str, Any]], Field(description="the step's settings, for an operation that adds a chain step.")] = None,
 ) -> Any:
     "Batch Apply Image Operation\n\nApply one reversible image operation to every image under a folder: `crop` and `split` make child documents; any\nother operation adds a step to each page's edit chain, stamped with this batch's id. `?preview=3` returns the first,\nmiddle and last page before and after and writes nothing.\n\nRoute: POST /api/images/batch-apply (toolset `images`; changes data, as the agent account when one exists)."

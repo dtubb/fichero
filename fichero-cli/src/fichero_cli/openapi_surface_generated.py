@@ -8237,7 +8237,7 @@ def register_generated_openapi_commands(
         bbox: Optional[str] = typer.Option(None, '--bbox', help='Bbox. JSON.'),
         bboxes: Optional[str] = typer.Option(None, '--bboxes', help='Bboxes. JSON.'),
         folder_id: str = typer.Option(..., '--folder-id', help='Folder Id.'),
-        operation: str = typer.Option(..., '--operation', help='Operation. One of: crop, split, rotate, straighten, flip_horizontal, flip_vertical, brightness, contrast, sharpen, auto_levels, enhance, fuzzy_clean, denoise, adaptive_binarize, grayscale, remove_background, auto_crop_border, square.'),
+        operation: str = typer.Option(..., '--operation', help='Operation. One of: crop, split, rotate, straighten, flip_horizontal, flip_vertical, brightness, contrast, sharpen, auto_levels, enhance, fuzzy_clean, denoise, adaptive_binarize, binarise, grayscale, remove_background, auto_crop_border, square.'),
         params: Optional[str] = typer.Option(None, '--params', help="the step's settings, for an operation that adds a chain step. JSON."),
     ) -> None:
         """Batch Apply Image Operation (POST /api/images/batch-apply)."""
@@ -8256,7 +8256,7 @@ def register_generated_openapi_commands(
                 "bbox": {'prefixItems': [{'type': 'integer'}, {'type': 'integer'}, {'type': 'integer'}, {'type': 'integer'}], 'type': 'array', 'maxItems': 4, 'minItems': 4, 'nullable': True, 'title': 'Bbox', 'x-cli-required': False},
                 "bboxes": {'items': {'prefixItems': [{'type': 'integer'}, {'type': 'integer'}, {'type': 'integer'}, {'type': 'integer'}], 'type': 'array', 'maxItems': 4, 'minItems': 4}, 'type': 'array', 'nullable': True, 'title': 'Bboxes', 'x-cli-required': False},
                 "folder_id": {'type': 'string', 'title': 'Folder Id', 'x-cli-required': True},
-                "operation": {'type': 'string', 'enum': ['crop', 'split', 'rotate', 'straighten', 'flip_horizontal', 'flip_vertical', 'brightness', 'contrast', 'sharpen', 'auto_levels', 'enhance', 'fuzzy_clean', 'denoise', 'adaptive_binarize', 'grayscale', 'remove_background', 'auto_crop_border', 'square'], 'title': 'Operation', 'x-cli-required': True},
+                "operation": {'type': 'string', 'enum': ['crop', 'split', 'rotate', 'straighten', 'flip_horizontal', 'flip_vertical', 'brightness', 'contrast', 'sharpen', 'auto_levels', 'enhance', 'fuzzy_clean', 'denoise', 'adaptive_binarize', 'binarise', 'grayscale', 'remove_background', 'auto_crop_border', 'square'], 'title': 'Operation', 'x-cli-required': True},
                 "params": {'additionalProperties': True, 'type': 'object', 'title': 'Params', 'description': "the step's settings, for an operation that adds a chain step", 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)

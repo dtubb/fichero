@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from fichero_server.models import DocType, Document, FileType
 
-STEPS = ["page_crop", "deskew", "rotate", "split", "contrast", "yellowing", "sharpen", "stain_flatten", "ruled_lines", "bleed_through"]
+STEPS = ["page_crop", "deskew", "rotate", "split", "contrast", "yellowing", "sharpen", "stain_flatten", "ruled_lines", "bleed_through", "denoise", "binarise"]
 SRC = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
 
 
@@ -68,7 +68,7 @@ def test_a_step_is_one_module_with_run_taking_image_and_params_and_returning_ima
 def test_the_registry_names_every_step_with_its_params_model():
     from fichero_server.media import enhance
 
-    assert set(enhance.STEPS) == {"page-crop", "deskew", "rotate", "split", "contrast", "yellowing", "sharpen", "stain-flatten", "ruled-lines", "bleed-through"}
+    assert set(enhance.STEPS) == {"page-crop", "deskew", "rotate", "split", "contrast", "yellowing", "sharpen", "stain-flatten", "ruled-lines", "bleed-through", "denoise", "binarise"}
     for name, spec in enhance.STEPS.items():
         assert issubclass(spec.params, BaseModel) and callable(spec.run)
 

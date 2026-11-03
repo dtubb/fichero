@@ -55156,6 +55156,7 @@
               "fuzzy_clean",
               "denoise",
               "adaptive_binarize",
+              "binarise",
               "grayscale",
               "remove_background",
               "auto_crop_border",

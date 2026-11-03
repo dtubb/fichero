@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-A tool is one step: it reads something, does one job, and emits a result. Workflows are tools wired together. Each page below says what the tool reads and emits, every option it takes, and — for tools that ask a model — the exact words it sends. There are 132 of them.
+A tool is one step: it reads something, does one job, and emits a result. Workflows are tools wired together. Each page below says what the tool reads and emits, every option it takes, and — for tools that ask a model — the exact words it sends. There are 133 of them.
 
 ## Agent
 
@@ -126,6 +126,7 @@ A tool is one step: it reads something, does one job, and emits a result. Workfl
 | [Aggregate](tools/aggregate.md) | Combine upstream fan-out results into a single payload. | no |
 | [Auto Crop Scan Borders](tools/auto_crop_border_images.md) | Detect and crop dark scan margins locally. | no |
 | [Auto Deskew Images](tools/deskew_images.md) | Detect and straighten skewed scans locally. | no |
+| [Binarise](tools/binarise_images.md) | Black and white by Otsu or an adaptive threshold, written as a separate binarised rendition, without modifying source files. | no |
 | [Consistency Check](tools/consistency-check.md) | Flag deterministic numeral, name, and formula inconsistencies. | no |
 | [Contrast Images](tools/contrast_images.md) | Even out the light on a page with local contrast (CLAHE on the lightness channel), without modifying source files. | no |
 | [Denoise Images](tools/denoise_images.md) | Locally denoise selected scans without modifying sources. | no |

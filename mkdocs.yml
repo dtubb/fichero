@@ -205,6 +205,7 @@ nav:
               - Artifacts Source: reference_manual/tool_references/tools/artifacts_source.md
               - Auto Crop Scan Borders: reference_manual/tool_references/tools/auto_crop_border_images.md
               - Auto Deskew Images: reference_manual/tool_references/tools/deskew_images.md
+              - Binarise: reference_manual/tool_references/tools/binarise_images.md
               - Book Structure: reference_manual/tool_references/tools/book_structure.md
               - Browser Navigate: reference_manual/tool_references/tools/research_browser_navigate.md
               - CLI Agent: reference_manual/tool_references/tools/cli_agent.md

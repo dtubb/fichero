@@ -83,7 +83,7 @@ def step_image_file(step: str, file_path: str | Path, output_dir: str | Path, *,
 
 
 def _register(tool: str, step: str, op: str, display: str, description: str, icon: str, sort_order: int,
-              versos: bool = False) -> None:
+              versos: bool = False, role: str = "enhanced") -> None:
     fields = list(STEPS[step].params.model_fields)
 
     async def node(inputs: dict[str, Any], state: State, llm_config: LLMConfig) -> dict[str, Any]:
@@ -103,7 +103,7 @@ def _register(tool: str, step: str, op: str, display: str, description: str, ico
         ]
         image_edit_operations = append_image_edit_operations(
             inputs, state, lambda _doc: {"op": op, "page": int(inputs.get("page", 1)), "params": _chosen(step, given)})
-        rendition_report = persist_workflow_renditions(inputs, state, role="enhanced", results=results)
+        rendition_report = persist_workflow_renditions(inputs, state, role=role, results=results)
         output_files = [path for result in results for path in result.get("outputs", [])]
         no_effect = describe_no_effect(files, output_files, rendition_report)
         if no_effect:
@@ -143,3 +143,6 @@ _register("ruled_lines_images", "ruled-lines", "ruled_lines", "Quiet Ruled Lines
 _register("bleed_through_images", "bleed-through", "bleed_through", "Suppress Show-Through",
           "Push the faint mirrored writing of the other side to paper and keep the ink; method b also reads the verso, without modifying source files.",
           "doc.on.doc", 30, versos=True)
+_register("binarise_images", "binarise", "binarise", "Binarise",
+          "Black and white by Otsu or an adaptive threshold, written as a separate binarised rendition, without modifying source files.",
+          "circle.lefthalf.filled", 32, role="binarised")
