@@ -179,6 +179,33 @@ final class SidebarSearchTypesTests: XCTestCase {
         XCTAssertEqual(json?["is_system"] as? Bool, true)
     }
 
+    /// `workflows.requires-vision-unknown`: the engine's null is "may need a vision model", true and false stay what they were,
+    /// and an old engine's missing key is a plain false (the model submenu stays unfiltered).
+    func testWorkflowSidebarItemReadsAnUnknownVisionRequirement() throws {
+        func decode(_ visionField: String) throws -> WorkflowSidebarItem {
+            let json = Data("""
+            {
+                "id": "wf-1", "name": "Catalogue", "node_count": 1, "edge_count": 0, "is_enabled": true,
+                "folder_path": "/", "sort_order": 0, "is_system": false, "untested": false\(visionField),
+                "created_at": "2026-05-11T08:00:00Z", "updated_at": "2026-05-11T08:30:00Z"
+            }
+            """.utf8)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            return try decoder.decode(WorkflowSidebarItem.self, from: json)
+        }
+        let unknown = try decode(", \"requires_vision\": null")
+        XCTAssertTrue(unknown.visionIsUnknown)
+        XCTAssertFalse(unknown.requiresVision)
+        let needs = try decode(", \"requires_vision\": true")
+        XCTAssertTrue(needs.requiresVision)
+        XCTAssertFalse(needs.visionIsUnknown)
+        let text = try decode(", \"requires_vision\": false")
+        XCTAssertFalse(text.requiresVision || text.visionIsUnknown)
+        let oldEngine = try decode("")
+        XCTAssertFalse(oldEngine.requiresVision || oldEngine.visionIsUnknown)
+    }
+
     func testWorkflowSidebarItemHashable() {
         // Sidebar List(selection:) requires Hashable to dedupe selection
         // diffs. Two items with the same id + identical createdAt /

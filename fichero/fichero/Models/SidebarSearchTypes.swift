@@ -127,6 +127,9 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
     /// the enforcement point, so `false` (old server, absent key) fails OPEN
     /// to an unfiltered menu — never harden this into a client-side gate.
     var requiresVision: Bool = false
+    /// The engine answered null: it could not tell, so the row reads "may need a vision model" (`workflows.requires-vision-unknown`).
+    /// `requiresVision` stays false, so the model submenu still filters nothing out.
+    var visionIsUnknown: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -168,6 +171,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         isDirectlyRunnable = try container.decodeIfPresent(Bool.self, forKey: .isDirectlyRunnable)
         acceptsModelOverride = try container.decodeIfPresent(Bool.self, forKey: .acceptsModelOverride)
         requiresVision = try container.decodeIfPresent(Bool.self, forKey: .requiresVision) ?? false
+        visionIsUnknown = (try? container.decodeNil(forKey: .requiresVision)) ?? false
         acceptedInputs = try container.decodeIfPresent([String].self, forKey: .acceptedInputs) ?? ["documents"]
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
