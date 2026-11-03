@@ -729,3 +729,29 @@ def test_an_old_chains_stage_callback_never_writes_its_stale_step_over_a_newer_d
     s = steps()["batch-1"]
     assert s["head"] == child and s["state"] == "done", "the newer done stands, untouched by the old chain"
     assert any(r.get("state") == "stale-result" for r in journal.read() if r["event"] == "queue")
+
+
+def test_a_stale_chain_store_waits_for_the_queue_lock_and_then_checks_the_head_under_it(state, tmp_path):
+    """Review 2026-11-02 (-94): the head check ran before the lock was taken; `builder done` holds the lock through its git work and
+    saves last, so a check made first passed and the stale step was written over the new head. The check is inside `store`."""
+    import threading
+    import time
+
+    queue.add("ext", "/w/ext", "batch-1", str(state / "b1.1"), [], kind="external")
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="done", head="old")
+    queue.save(lanes)
+    stale = queue.load()[0]
+    stale["steps"][0].update(state="reviewing")
+    result = []
+    with journal.Lock("queue"):  # `done` is mid-way through its git work
+        t = threading.Thread(target=lambda: result.append(queue.store(stale, expect=("batch-1", "old"))))
+        t.start()
+        time.sleep(0.3)
+        assert not result, "the stale write is waiting on the lock, its pre-lock check would have passed"
+        lanes = queue.load()
+        lanes[0]["steps"][0].update(state="done", head="new")  # `done` saves the new head last
+        queue.save(lanes)
+    t.join(10)
+    assert result == [False] and steps()["batch-1"]["head"] == "new" and steps()["batch-1"]["state"] == "done", "the new head stands"
+    assert queue.store(queue.load()[0], expect=("batch-1", "new")) is True, "a write at the head it expects still goes through"

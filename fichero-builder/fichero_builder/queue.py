@@ -58,11 +58,15 @@ def save(lanes: list[dict]) -> None:
     tmp.replace(path())
 
 
-def store(lane: dict) -> None:
-    """This lane's row back in the file; a step added or a pause set while the chain ran is kept."""
+def store(lane: dict, expect: tuple | None = None) -> bool:
+    """This lane's row back in the file; a step added or a pause set while the chain ran is kept. `expect` = (step, head): the
+    write happens only if the file's step still holds that head, checked UNDER the queue lock (a `builder done` at a newer head
+    holds that lock through its git work and saves last: a check made before taking the lock would pass and then overwrite it)."""
     with journal.Lock("queue"):
         lanes = load()
         fresh = next((x for x in lanes if x["id"] == lane["id"]), None)
+        if expect and fresh and next((st.get("head", "") for st in fresh["steps"] if st["step"] == expect[0]), "") != expect[1]:
+            return False
         if fresh:
             lane["paused"] = fresh["paused"]
             for k in ("pane", "hold", "maintainer"):  # set from outside while the tick held its copy (manager 2026-11-02: %537 was lost)
@@ -71,6 +75,7 @@ def store(lane: dict) -> None:
             have = {s["step"] for s in lane["steps"]}
             lane["steps"] += [s for s in fresh["steps"] if s["step"] not in have]
         save([lane if x["id"] == lane["id"] else x for x in lanes])
+        return True
 
 
 def stored_head(lane_id: str, step: str) -> str:
@@ -196,11 +201,14 @@ def open_of(issues: list[int], gh: str = "gh", cwd=None) -> list[str]:
 
 def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: bool, out, chains: dict | None = None) -> bool:
     """One pass over one lane. False when it can do nothing more without a person: finished, blocked or paused."""
-    def move(s, state, detail=""):
+    def move(s, state, detail="", only_head=None):
         s["state"], s["why"] = state, detail[-500:]
+        if only_head is not None and not store(lane, expect=(s["step"], only_head)):
+            return  # a newer head took the step while this chain ran: its stale copy is not written, nor said
         journal.append("queue", lane=lane["id"], step=s["step"], state=state, detail=detail[-300:])
         out(f"{lane['id']} {s['step']}: {state}" + (f" ({detail.strip().splitlines()[-1][:120]})" if detail.strip() else ""))
-        store(lane)
+        if only_head is None:
+            store(lane)
 
     def block(s, why, actions=ACTIONS, evidence=""):
         q = journal.STATE / f"question-{lane['id']}-{s['step']}.txt"
@@ -314,8 +322,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     h0 = s.get("head", "")
 
     def stage_cb(stage: str) -> None:
-        if stored_head(lane["id"], s["step"]) == h0:  # a `builder done` at a newer head took the step: this old chain must not write its stale copy back over it
-            move(s, stage, "")
+        move(s, stage, "", only_head=h0)  # a `builder done` at a newer head took the step: this old chain must not write its stale copy back over it
 
     def chain() -> dict:
         try:
