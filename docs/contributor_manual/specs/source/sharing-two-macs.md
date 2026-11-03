@@ -185,7 +185,7 @@ An **address** here is one `https://<name>:<port>` the host can be reached at. T
 - `sharing.certificate-names-every-address` — **[PARTIAL]** (→ #5049, umbrella; file its own issue when taken) (C3) the host certificate's SAN holds every non-public-CA address the link can carry: the `.local` name, the LAN IP, `127.0.0.1`, `localhost` (today: the name, `127.0.0.1`, `localhost`; the LAN IP rides `FICHERO_LAN_HOST` into `subject_alt_hosts` only on `--prepare-local-access`). When the LAN IP changes (DHCP) the certificate is made again (the folder name hashes URL + SANs, so a changed SAN set is a new folder and a new pin) **and the person is told the old links are void** (the pin changed). Today every new folder gets a **new** EC key (`_generate_material`, `remote_access_tls.py:244`), so any SAN change voids every link and every paired device's stored pin. The pin follows the SPKI (key), so re-using the key across a SAN change keeps links valid: preferred — one key per Mac (`Remote Access/key.pem`), a certificate re-issued per SAN set (open question 5). *Test:* `fichero-server/tests/unit/security/test_remote_access_tls.py` (exists) + `test_certificate_keeps_its_key_when_a_name_is_added_to_spec.py` (exists): two `prepare_remote_access_tls` calls with a grown SAN list return the same `spki_pin`.
 - `sharing.trust-rule-is-one-function` — **[PARTIAL]** (→ #5049, umbrella; file its own issue when taken) which addresses need a pin is decided in **two** places today: `RemoteCertificatePinning.usesPublicCertificateAuthority(host:)` (`RemoteCertificatePinning.swift:71-76`; the Swift mint and client sides share it through `advertisableSPKIPin`/`resolvedSPKIPin`, `RemoteClientPairingFlow.swift:131-160`) and the CLI's `_is_public_ca` (`fichero_cli/pairing.py:60`). Both say: `.ts.net` → system trust, no pin; anything else → the link's pin, enforced by SPKI after the hostname policy (`validateServerTrust`, `:231-250`), and a pinned host whose certificate does not name the address is refused. The rule is written once as a table of (host → rule) that both a pytest and a Swift test read, so the two cannot drift. *Test:* `test_trust_rule_table_to_spec.py` (exists) over the CLI and `RemoteCertificatePinningTests.swift` (exists; add the table cases: `x.ts.net`, `x.local`, `192.168.1.2`, `100.64.0.1`, `localhost` refused).
 - `sharing.stale-forward-says-so` — **[PARTIAL]** (→ #5049, umbrella; file its own issue when taken) (C6) when `tailscale serve` for the sharing port is held by a forward Fichero did not make (a raw TCP forward, another service), the engine refuses (correct, `tailscale_serve.ensure_forward`, `:120-124`; its own old raw forward is the one it replaces, `:118-119`) and the Sharing pane and the address list say it in one line with the command that frees it: "Port 8765 on your tailnet already goes to localhost:8000, not to Fichero. Run `tailscale serve --tcp=8765 off`, then turn Sharing off and on." Today the pane offers the generic `tailscale serve --bg --https=8765 …` line instead (`_tailnet_serve_command`, `pairing.py:169-188`), which fails the same way. The engine reports the conflict in `GET /api/pair/addresses` (`reason`) and `GET /api/pair/sharing` (new field `tailnet_serve_conflict: {"holds": "tcp://localhost:8000", "free_with": "tailscale serve --tcp=8765 off"}`; `tailnet_serve_command` becomes None while a conflict stands). *Test:* `fichero-server/tests/unit/security/test_tailscale_serve.py` (exists) + `test_tailnet_conflict_is_reported_to_spec.py` (exists): a fake `serve status` naming a foreign target → `ensure_forward` raises, `_sharing_state` carries `tailnet_serve_conflict` and no `tailnet_serve_command`.
-- `sharing.health-reports-sharing` — **[PARTIAL]** (→ #5049, umbrella; file its own issue when taken) (C7; answers the lead's question 2: `remote_backend.enabled=false` is the *ssh-loopback/ACENET env* status, not sharing, not client state) `GET /api/health` gains a `sharing` block next to `remote_backend`: `{on, listeners: ["127.0.0.1:8765","131.202.228.243:8765"], addresses: [{kind,url,listening}], certificate_names: [...], tailnet_forward: "ours"|"foreign"|"none", multiuser: bool, paired_devices: n}`; no secrets; `remote_backend` is renamed in the docs "ssh-loopback status" and its `enabled=false` no longer reads as "sharing off". Testers and the Add Device sheet read this instead of guessing. *Not built; adds a response field: OpenAPI regen, held.* *Test:* `test_health_reports_sharing_to_spec.py` (exists).
+- `sharing.health-reports-sharing` — **[PARTIAL]** (→ #5049, umbrella; file its own issue when taken) (C7; answers the lead's question 2: `remote_backend.enabled=false` is the *ssh-loopback/ACENET env* status, not sharing, not client state) `GET /api/health` gains a `sharing` block next to `remote_backend`: `{on, listeners: ["127.0.0.1:8765","131.202.228.243:8765"], addresses: [{kind,url,listening}], certificate_names: [...], tailnet_forward: "ours"|"foreign"|"none", multiuser: bool, paired_devices: n}`; no secrets; `remote_backend` is renamed in the docs "ssh-loopback status" and its `enabled=false` no longer reads as "sharing off". Testers and the Add Device sheet read this instead of guessing. *Built: the response carries a `sharing` block.* *Test:* `test_health_reports_sharing_to_spec.py` (exists).
 - `sharing.version-mismatch-says-which-side` — **[PARTIAL]** (→ #5049) (C5; `RemoteClientPairingError.contractMismatch` exists, `#5047`) the refusal names both versions and which Mac is older; and the **host's** Add Device sheet shows its own version beside the link so the person sees "Fichero 2026.10.28" before the guest tries. Health already carries `backend_version` and `contract`; shown nowhere on the host. *Test:* `PairingFailureWordsTests` (the version case), above.
 - `sharing.pair-answers-in-words` — **[OK]** `POST /api/pair` with a bad code answers `401 {"detail":"invalid or expired pairing code"}` (seen live on the Air over the tailnet, 2026-10-30); `422` for a malformed body is the framework's field list (the app reads it as such: `sharing.pair-code-refusals-in-words`).
 - `sharing.listener-is-lan-only-not-wildcard` — **[OK]** (seen 2026-10-30 on the Air, the Pro, the M4: `lsof` shows `127.0.0.1:8765` plus one LAN address; never `*`). Binding the LAN address, not `0.0.0.0`, means an address-change (DHCP renewal, Wi-Fi ↔ Ethernet) leaves the listener on a dead IP: `sharing.listener-follows-the-network` **[PARTIAL]** (→ #5049, umbrella; file its own issue when taken) the engine notices (or the app tells it) when the Mac's primary address changes, rebinds and re-makes the link's address list; until then the Sharing pane says "This Mac's network address changed. Turn Sharing off and on." *Test:* `test_listener_rebinds_when_the_address_changes_to_spec.py` (not yet written; fake `primary_lan_ip`).
@@ -200,7 +200,7 @@ How it is enabled (code read): Multi-user is **default OFF** (`security/multiuse
 
 - `sharing.multiuser-off-says-so` — **[GAP]** (→ #5049, umbrella; file its own issue when taken) with Multi-user off, the Sharing pane (Accounts row and the `+` / Create Account sheet) says it in one sentence and offers the next step instead of letting a create fail: "Accounts are off. Turn on accounts so other people can have their own sign-in." with **Turn on accounts…**, which (1) asks the owner to choose a password if none was chosen (the engine's `owner_password_gap` is read from `GET /api/pair/sharing` → a new field `multiuser_blocker`, else the app guesses), (2) calls the owner password `PATCH`, (3) `PUT /api/pair/multiuser`, (4) re-reads state and then enables Create Account. The Create Account button is **disabled with the reason beside it** while off ("turn on accounts first"), so the 404 cannot be reached by the UI. If the owner has no key (an owner from before keys): the same button runs `migrate-owner` first (UDS + launch secret, the app holds it) and says "Setting up your sign-in key…". *Test:* `MultiuserOffPaneTests.swift` (not yet written): off → Create disabled with the sentence; the on-sequence calls password, then the switch, then reload; a 409 password-gap becomes the password prompt, not an error. Engine: `fichero-server/tests/unit/security/test_owner_session_sets_the_switch_5908.py` (exists) pins the order.
 - `sharing.undocumented-never-reaches-the-person` — **[PARTIAL]** (→ #5049, umbrella; file its own issue when taken) no generated-client `.undocumented(statusCode:payload)` value, and no `"\(response)"` interpolation of a response enum, is ever shown. `UsersStore.error(from:)` (`UsersStore.swift:165`: `UsersStoreError(message: "\(response)")`) is the one found; the rule is global: one function `PersonFacingError.message(for: statusCode, detail: String?, context:)` maps (a) the engine's `detail` string when the body is the framework's `{"detail": "..."}` (`EngineErrorDetail.message(from:)` already reads it and is used by `PairingTypes`), (b) otherwise by status: 401 "Sign in again.", 403 "You don't have permission to do that.", **404 "That isn't available on this Mac right now."** + the context's fix, 409 the engine's words, 422 the field list, 429 "Too many tries, wait a minute.", 5xx "Fichero's server had a problem; try again, and if it keeps happening quit and reopen Fichero." For Create Account's 404 with `multi-user auth is disabled` the context says "Accounts are off. Turn on accounts first." (`sharing.multiuser-off-says-so`). A guard `scripts/check_swift_transport.py` rule (the file's rules 1-4 guard sessions, WKWebView, http and SSE; this is a new rule): a Swift file that interpolates a `response`/`undocumented` value into a string shown to the person fails the check; the 387 `.undocumented` sites in `fichero/fichero` (grep 2026-10-31, tests excluded) are listed, not rewritten at once, but each new one uses the function. *Test:* `PersonFacingErrorTests.swift` (exists): no mapped sentence contains "undocumented", "statusCode", "content-length" or "HTTPBody"; the 404 multi-user body maps to the accounts-off sentence; an unknown status maps to the generic line; plus `fichero-server/tests/unit/scripts/test_check_swift_transport.py` for the new rule.
-- `sharing.multiuser-404-is-a-409-in-the-engine` — **[PARTIAL]** (engine done; `/api/auth/me` stays 404 because the app's gate reads it as "no accounts") (→ #5049, umbrella; file its own issue when taken) the engine answers a *correct, understood* state with **404** `multi-user auth is disabled` (`accounts.py:200`, `828-830`, `pairing.py:280`). A 404 says "no such thing" and is why a generic client reads it as "route missing". Proposed: **409** with the same `detail` (the state refuses the request, as every other refusal in this module is a 409) and a `code: "multiuser_off"` key in the body so clients branch on a name. This is a contract change (new status on several routes, OpenAPI regen, held; and every test that pins 404 changes), so it is **listed, not built here**. The app does not wait for it (`sharing.undocumented-never-reaches-the-person` handles 404 either way).
+- `sharing.multiuser-404-is-a-409-in-the-engine` — **[PARTIAL]** (engine done; `/api/auth/me` stays 404 because the app's gate reads it as "no accounts") (→ #5049, umbrella; file its own issue when taken) the engine answers a *correct, understood* state with **404** `multi-user auth is disabled` (`accounts.py:200`, `828-830`, `pairing.py:280`). A 404 says "no such thing" and is why a generic client reads it as "route missing". Proposed: **409** with the same `detail` (the state refuses the request, as every other refusal in this module is a 409) and a `code: "multiuser_off"` key in the body so clients branch on a name. This is a contract change (new status on several routes, OpenAPI regen, held; and every test that pins 404 changes), so it is **built in the engine** (the app's wording of it waits on the Mac pane). The app does not wait for it (`sharing.undocumented-never-reaches-the-person` handles 404 either way).
 - `sharing.multiuser-needs-sharing-for-anyone-else` — **[GAP]** (→ #5049, umbrella; file its own issue when taken) Multi-user on with Sharing off is valid (accounts on this Mac only); the pane says so ("Other people can sign in only on this Mac until Sharing is on").
 
 ## 6. Set Up asks about sharing and accounts
@@ -691,30 +691,30 @@ One contract regen for the stage, in Step 1.6, so the 404 question (open questio
 
 #### Step 1.1 — one key per Mac, a certificate naming every address, the `.local` name is the Bonjour name; open question 5 first (#2603)
 - Behaviours: `sharing.certificate-names-every-address`, `sharing.host-name-is-the-bonjour-name`
-- Tests: fichero-server/tests/unit/security/test_remote_access_tls.py, test_certificate_keeps_its_key_when_a_name_is_added_to_spec (not yet written), RemoteAccessConfigTests (not yet written)
+- Tests: fichero-server/tests/unit/security/test_remote_access_tls.py, test_certificate_keeps_its_key_when_a_name_is_added_to_spec (exists), RemoteAccessConfigTests (not yet written)
 - Depends on: 0.5
 - Size: M
 
 #### Step 1.2 — the trust rule as one table both clients read
 - Behaviours: `sharing.trust-rule-is-one-function`
-- Tests: test_trust_rule_table_to_spec (not yet written), fichero/Tests/Unit/general/Transport/RemoteCertificatePinningTests.swift
+- Tests: test_trust_rule_table_to_spec (exists), fichero/Tests/Unit/general/Transport/RemoteCertificatePinningTests.swift
 - Depends on: 0.5
 - Size: S
 
 #### Step 1.3 — `GET /api/pair/addresses`, and a forward Fichero did not make is reported with the command that frees it (#5320)
 - Behaviours: `sharing.stale-forward-says-so`
-- Tests: fichero-server/tests/unit/security/test_tailscale_serve.py, test_tailnet_conflict_is_reported_to_spec (not yet written), test_pair_addresses_to_spec (not yet written)
+- Tests: fichero-server/tests/unit/security/test_tailscale_serve.py, test_tailnet_conflict_is_reported_to_spec (exists), test_pair_addresses_to_spec (exists)
 - Depends on: 1.1
 - Size: M
 
 #### Step 1.4 — the `sharing` block in health, and `multiuser_blocker` in the sharing state
 - Behaviours: `sharing.health-reports-sharing`
-- Tests: test_health_reports_sharing_to_spec (not yet written)
+- Tests: test_health_reports_sharing_to_spec (exists)
 - Size: S
 
 #### Step 1.5 — the listener follows the network; a stale server holding the port gets a sentence
 - Behaviours: `sharing.listener-follows-the-network`, `sharing.stale-server-holding-the-port`
-- Tests: test_listener_rebinds_when_the_address_changes_to_spec (not yet written), test_port_in_use_message_to_spec (not yet written)
+- Tests: test_listener_rebinds_when_the_address_changes_to_spec (exists), test_port_in_use_message_to_spec (exists)
 - Depends on: 1.3
 - Size: M
 
@@ -726,7 +726,7 @@ One contract regen for the stage, in Step 1.6, so the 404 question (open questio
 
 #### Step 1.7 — the link carries every address, within the QR's size
 - Behaviours: `sharing.link-carries-every-address`, `sharing.ios-qr-payload-size`
-- Tests: test_pair_payload_carries_every_address_to_spec (not yet written), PairingPayloadTests (not yet written), PairingQRSizeTests (not yet written)
+- Tests: test_pair_payload_carries_every_address_to_spec (exists), PairingPayloadTests (not yet written), PairingQRSizeTests (not yet written)
 - Depends on: 1.2, 1.6
 - Size: M
 
@@ -734,7 +734,7 @@ One contract regen for the stage, in Step 1.6, so the 404 question (open questio
 
 #### Step 2.1 — the failure table: every step's sentence, the versions named, a forgotten device told so
 - Behaviours: `sharing.failure-names-the-step`, `sharing.version-mismatch-says-which-side`, `sharing.token-expired-or-rotated`, `sharing.ios-certificate-name`
-- Tests: PairingFailureWordsTests (not yet written), test_cli_pair_words_match_the_spec (not yet written), fichero-server/tests/integration/test_device_pairing_e2e.py
+- Tests: PairingFailureWordsTests (not yet written), test_cli_pair_words_match_the_spec (exists), fichero-server/tests/integration/test_device_pairing_e2e.py
 - Depends on: 0.5
 - Size: M
 
@@ -746,20 +746,20 @@ One contract regen for the stage, in Step 1.6, so the 404 question (open questio
 
 #### Step 2.3 — the client tries every address in turn, 5 seconds each, in Swift and the CLI
 - Behaviours: `sharing.client-tries-every-address`, `sharing.ios-link-has-one-address`
-- Tests: PairingAddressTryTests (not yet written), test_two_macs_names_and_addresses_to_spec (not yet written)
+- Tests: PairingAddressTryTests (not yet written), test_two_macs_names_and_addresses_to_spec (exists)
 - Depends on: 1.7, 2.1
 - Size: M
 
 #### Step 2.4 — one pairing sequence for Mac and phone; a link with no library lists the host's (#3273)
 - Behaviours: `sharing.both-clients-run-the-same-checks`, `sharing.ios-bad-library-path`
-- Tests: PairingSequenceTests (not yet written), test_two_macs_names_and_addresses_to_spec (not yet written)
+- Tests: PairingSequenceTests (not yet written), test_two_macs_names_and_addresses_to_spec (exists)
 - Size: M
 
 ### Stage 3 — the Mac panes
 
 #### Step 3.1 — the sheet draws the engine's address list, with each row's reason; open questions 1 and 6 first
 - Behaviours: `sharing.address-choice`, `sharing.tailnet-down-says-so`
-- Tests: test_pair_addresses_to_spec (not yet written), fichero/Tests/Unit/general/Sharing/AddressChoiceModelTests.swift, fichero/Tests/UI/mac/SharingPaneUITests.swift
+- Tests: test_pair_addresses_to_spec (exists), fichero/Tests/Unit/general/Sharing/AddressChoiceModelTests.swift, fichero/Tests/UI/mac/SharingPaneUITests.swift
 - Depends on: 1.6, 2.1
 - Size: M
 
