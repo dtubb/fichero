@@ -605,6 +605,9 @@ def guards(root, cfg: Config) -> dict:
             results.append({**cache[key], "name": s.stem, "argv": [str(s)], "seconds": 0, "cached": True})
             continue
         r = _run(s.stem, _isolated(s, root, cfg), root, cfg.guard_timeout_s, cfg, remote=cfg.remote_guards)
+        if r.get("timed_out"):  # a load flake (manager 2026-11-03: a guard printed all-ok, then hit the timeout at load 35): once more
+            journal.append("check", state="retry", rung="guards", detail=f"{s.stem} timed out after {cfg.guard_timeout_s:g} s: re-run once")
+            r = {**_run(s.stem, _isolated(s, root, cfg), root, cfg.guard_timeout_s, cfg, remote=cfg.remote_guards), "retried": True}
         r["argv"] = [str(s)]
         results.append(r)
         if key and r["ok"]:  # only a green is kept: a red always runs again

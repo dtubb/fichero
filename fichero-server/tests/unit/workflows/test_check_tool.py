@@ -100,6 +100,20 @@ def _repo(tmp_path, n_guards, bodies=None):
     return tmp_path
 
 
+
+def test_a_guard_that_times_out_is_re_run_once_and_a_plain_red_never_is(tmp_path):  # manager 2026-11-03: load 35, ok then timeout
+    log = tmp_path / "runs.log"
+    once = f"import os, time\nopen({str(log)!r}, 'a').write('g0\\n')\nif not os.path.exists({str(tmp_path / 'slow')!r} + '.done'):\n    open({str(tmp_path / 'slow')!r} + '.done', 'w').close(); time.sleep(5)\n"
+    hang = f"import time\nopen({str(log)!r}, 'a').write('g1\\n')\ntime.sleep(5)\n"
+    red = f"open({str(log)!r}, 'a').write('g2\\n')\nraise SystemExit(1)\n"
+    root = _repo(tmp_path, 3, {0: once, 1: hang, 2: red})
+    r = ct.guards(root, ct.Config(guard_glob="scripts/check_*.py", guard_timeout_s=1))
+    by = {x["name"]: x for x in r["results"]}
+    assert by["check_g0"]["ok"] and by["check_g0"]["retried"], "slow once, green the second time: the second result stands"
+    assert not by["check_g1"]["ok"] and by["check_g1"]["timed_out"] and by["check_g1"]["retried"], "a real hang stays red"
+    assert not by["check_g2"]["ok"] and "retried" not in by["check_g2"]
+    assert sorted(log.read_text().split()) == ["g0", "g0", "g1", "g1", "g2"], "each timed-out guard ran twice, the plain red once"
+
 def test_guards_refuse_when_too_few_are_found(tmp_path):
     root = _repo(tmp_path, 3)
     r = ct.guards(root, ct.Config(guard_glob="scripts/check_*.py", min_guards=20))
