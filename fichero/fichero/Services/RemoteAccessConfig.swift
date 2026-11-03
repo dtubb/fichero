@@ -65,7 +65,7 @@ enum RemoteAccessConfig {
     ///
     /// The name is the Mac's LocalHostName, which is what mDNS publishes (`sharing.host-name-is-the-bonjour-name`), never
     /// `ProcessInfo.hostName`, the DNS/directory name that no other Mac resolves. It is a seam so a test names the Mac.
-    static var localHostName: () -> String? = {
+    nonisolated(unsafe) static var localHostName: () -> String? = {
         SCDynamicStoreCopyLocalHostName(nil) as String?
     }
 
