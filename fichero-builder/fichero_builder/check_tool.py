@@ -11,6 +11,7 @@ from __future__ import annotations
 import ast
 import difflib
 import fcntl
+import collections
 import fnmatch
 import functools
 import importlib.util
@@ -878,20 +879,26 @@ def deleted_modules(root, since: str, head: str, cfg: Config) -> set[str]:
             if f.endswith(".py") and not any(fnmatch.fnmatch(Path(f).name, g) for g in cfg.test_globs)}
 
 
-def _test_funcs(text: str) -> tuple[dict, int, set]:
-    """({test name: (assert count, modules it calls through `m.<attr>`)}, the file's whole assert count, the module names the file
-    imports) of a test file's source; ({}, 0, set()) when it does not parse."""
+def _test_funcs(text: str) -> tuple[dict, dict, set]:
+    """({test name: (assert count, modules it calls through `m.<attr>`)}, {every other scope: its own assert count} (each non-test
+    function by name, `<module>` for asserts outside any function), the module names the file imports) of a test file's
+    source; ({}, {}, set()) when it does not parse. Counted per scope, never as a file total (review -65)."""
     try:
         tree = ast.parse(text)
     except SyntaxError:
-        return {}, 0, set()
+        return {}, {}, set()
     imported = {(a.asname or a.name).split(".")[0] for n in ast.walk(tree) if isinstance(n, (ast.Import, ast.ImportFrom)) for a in n.names}
-    out = {}
-    for n in ast.walk(tree):
-        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name.startswith("test_"):
+    funcs = [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+    own = lambda fn: sum(isinstance(x, ast.Assert) for x in ast.walk(fn))  # noqa: E731
+    out, other = {}, {}
+    for n in funcs:
+        if n.name.startswith("test_"):
             used = {x.value.id for x in ast.walk(n) if isinstance(x, ast.Attribute) and isinstance(x.value, ast.Name) and x.value.id in imported}
-            out[n.name] = (sum(isinstance(x, ast.Assert) for x in ast.walk(n)), used)
-    return out, sum(isinstance(x, ast.Assert) for x in ast.walk(tree)), imported
+            out[n.name] = (own(n), used)
+        else:
+            other[n.name] = other.get(n.name, 0) + own(n)
+    other["<module>"] = sum(isinstance(x, ast.Assert) for x in ast.walk(tree)) - sum(own(n) for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)))
+    return out, other, imported
 
 
 def weakened_by_a_deleted_module(root, since: str, head: str, f: str, gone: set[str]) -> bool:
@@ -902,13 +909,13 @@ def weakened_by_a_deleted_module(root, since: str, head: str, f: str, gone: set[
     before = "\n".join(_lines(root, "show", f"{since}:{f}") or [])
     alive = _git(root, "cat-file", "-e", f"{head}:{f}")["ok"]
     after = "\n".join(_lines(root, "show", f"{head}:{f}") or []) if alive else ""
-    if alive and len(re.findall(SKIP_LINE, after)) > len(re.findall(SKIP_LINE, before)):
-        return False  # an added skip or xfail is never a deleted module's loss (review -63)
-    (old, old_total, _imp), (new, new_total, _imp2) = _test_funcs(before), _test_funcs(after)
+    skips = lambda t: collections.Counter(re.sub(r"\s+", " ", m.group(0).strip()) for m in re.finditer(SKIP_LINE, t))  # noqa: E731
+    if alive and skips(after) - skips(before):  # per marker kind: one removed never pays for another added
+        return False  # a skip or xfail new to the file is never a deleted module's loss, whatever else moved (reviews -63, -65)
+    (old, old_other, _imp), (new, new_other, _imp2) = _test_funcs(before), _test_funcs(after)
+    if alive and any(new_other.get(k, 0) < v for k, v in old_other.items()):
+        return False  # an assert cut in a helper or at module level refuses, even with one added elsewhere (review -65)
     lost = [name for name, (asserts, _u) in old.items() if name not in new or new[name][0] < asserts]
-    explained = sum(old[n][0] - (new[n][0] if n in new else 0) for n in lost)
-    if old_total - new_total > explained:
-        return False  # an assert cut outside the excused tests (a shared helper) refuses (review -63)
     return bool(lost) and all(old[name][1] & gone for name in lost)
 
 
