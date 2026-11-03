@@ -57,6 +57,7 @@ class Config:
     pytest_plugins: tuple = ()          # plugins loaded by -p; autoload is OFF, so a dist-info entry point in the tree loads nothing
     max_files: int = 25
     max_lines: int = 1500
+    max_commits: int = 100  # lane_ready_check.sh reads it from harness.toml: a hard-coded 60 had to be raised by hand in the pinned copy (2026-11-03)
     build_paths: tuple = ()             # a diff touching these (prefixes) runs the build rung; () = no build rung
     build: tuple = ()                   # argv of a build-only compile (never a test run), run in the scratch tree
     build_timeout_s: float = 1800
@@ -100,7 +101,7 @@ def load(root) -> Config:
         contract_guards=tuple(c.get("contract_guards", d.contract_guards)), since_guards=dict(c.get("since_guards", {})),
         whole_tests=dict(c.get("whole_tests", {})), spec_dir=c.get("spec_dir", d.spec_dir), check_paths=tuple(c.get("check_paths", d.check_paths)), red_paths=tuple(c.get("red_paths", d.red_paths)), test_globs=tuple(c.get("test_globs", d.test_globs)),
         pytest_config=c.get("pytest_config", d.pytest_config), pytest_plugins=tuple(c.get("pytest_plugins", d.pytest_plugins)), max_files=c.get("max_files", d.max_files),
-        max_lines=c.get("max_lines", d.max_lines), build_paths=tuple(c.get("build_paths", d.build_paths)),
+        max_lines=c.get("max_lines", d.max_lines), max_commits=c.get("max_commits", d.max_commits), build_paths=tuple(c.get("build_paths", d.build_paths)),
         build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
         build_lock=c.get("build_lock", d.build_lock), engine_repo=c.get("engine_repo", d.engine_repo),
         remote=c.get("remote", d.remote), remote_python=c.get("remote_python", d.remote_python),

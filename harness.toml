@@ -8,6 +8,7 @@ python_path = ["fichero-server/src", "fichero-cli/src", "fichero-mcp/src", "fich
 base_path_env = "FICHERO_BASE_PATH"
 ready = ["scripts/lane_ready_check.sh", "--no-guards", "HEAD"]  # the guards rung runs every guard from the pinned copy
 base_ref = "origin/integration"
+max_commits = 100  # the most commits a lane may be ahead of origin/integration (lane_ready_check.sh reads it; the pinned copy's value judges)
 guard_glob = "scripts/check_*.py"
 guard_timeout_s = 60
 min_guards = 20

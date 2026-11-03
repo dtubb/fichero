@@ -124,6 +124,36 @@ def test_fichero_is_the_first_project_in_its_own_harness_toml():
     assert {"check_coverage_ratchet", "check_docs_paths", "check_hang_ratchet"} <= cfg.guard_skip and len(cfg.guard_skip) == 15
     assert cfg.min_guards == 20 and cfg.guard_glob == "scripts/check_*.py" and cfg.ready == ("scripts/lane_ready_check.sh", "--no-guards", "HEAD")
     assert ct.load(REPO / "no-such-dir") == ct.Config()  # no harness.toml = no project rules, nothing hardcoded
+    assert cfg.max_commits == 100 == ct.Config().max_commits
+
+
+def test_the_ready_checks_commit_cap_is_max_commits_from_the_trees_harness_toml_default_100(tmp_path):
+    """2026-11-03: the cap was a hard-coded 60 in the pinned script, raised to 100 by hand when a reviewed batch passed it. It is
+    [check].max_commits of the harness.toml in the tree (the pinned copy's under the ladder), default 100."""
+    import shutil
+
+    repo = Path(__file__).resolve().parents[4]
+    w = tmp_path / "w"
+    (w / "scripts").mkdir(parents=True)
+    shutil.copy(repo / "scripts" / "lane_ready_check.sh", w / "scripts" / "lane_ready_check.sh")
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_AUTHOR_NAME": "C", "GIT_AUTHOR_EMAIL": "noreply@anthropic.com",
+           "GIT_COMMITTER_NAME": "C", "GIT_COMMITTER_EMAIL": "noreply@anthropic.com", "FICHERO_PYTHON_BIN": sys.executable}
+
+    def g(*a):
+        subprocess.run(["git", "-C", str(w), *a], check=True, capture_output=True, env=env)
+    g("init", "-q", "-b", "integration"), g("add", "."), g("commit", "-qm", "base #1234")
+    g("update-ref", "refs/remotes/origin/integration", "HEAD")
+    for i in range(3):
+        (w / f"n{i}.txt").write_text("x\n")
+        g("add", "."), g("commit", "-qm", f"docs: note {i} #1234")
+
+    def ready(toml):
+        (w / "harness.toml").write_text(toml)
+        return subprocess.run(["bash", "scripts/lane_ready_check.sh", "--no-guards", "HEAD"], cwd=w, capture_output=True, text=True, env=env).stdout
+    assert "3 commits ahead of origin/integration (cap 2)" in ready("[land]\nbranch = \"integration\"\n[check]\nmax_commits = 2  # a note\n")
+    assert "commits ahead" not in ready("[check]\nmax_commits = 3\n"), "at the cap is fine"
+    assert "commits ahead" not in ready("[check]\nready = []\n"), "no value: the default 100"
+    assert "(cap 2)" in ready("[other]\nmax_commits = 99\n[check]\nmax_commits = 2\n") and "commits ahead" not in ready("[other]\nmax_commits = 1\n"), "only the [check] table counts"
 
 
 def test_the_build_rung_never_resolves_packages_so_a_read_only_check_tree_builds():

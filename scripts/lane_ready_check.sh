@@ -51,8 +51,11 @@ check() {  # check <rev> -> prints FAIL lines, returns count
   base=$(git merge-base origin/integration "$rev")
   n=$(git rev-list --count "$base..$rev")
   # 1. on current integration history: a branch from the pre-rewrite history is thousands ahead
-  # ponytail: 60 is a guess at the largest honest lane; raise it if a real lane trips it
-  [ "$n" -le 60 ] || { echo "FAIL: $n commits ahead of origin/integration; rebase onto it"; fails=$((fails+1)); }
+  # the cap is [check].max_commits of the harness.toml in the tree (the pinned copy's under the ladder: a worker cannot raise it); default 100
+  local cap
+  cap=$(awk '/^\[/{s=($0=="[check]")} s && /^max_commits[[:space:]]*=/{sub(/^[^=]*=/,""); sub(/#.*/,""); gsub(/[^0-9]/,""); print; exit}' harness.toml 2>/dev/null)
+  [ -n "$cap" ] || cap=100
+  [ "$n" -le "$cap" ] || { echo "FAIL: $n commits ahead of origin/integration (cap $cap); rebase onto it"; fails=$((fails+1)); }
   [ "$n" -gt 0 ] || { echo "FAIL: nothing to check: no commits ahead of origin/integration"; fails=$((fails+1)); }
   # 2. no private manuscripts in the tree
   if git ls-tree -r --name-only "$rev" -- "docs/user_manual/002 documents" "docs/user_manual/010 Prototypes" | grep -q .; then
