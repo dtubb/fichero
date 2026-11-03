@@ -251,10 +251,14 @@ def run_command(name: str, argv: list[str], cwd, timeout_s: float, env: dict | N
     res = {"name": name, "argv": list(argv), "exit_code": code, "ok": code == 0 and not timed_out,
            "timed_out": timed_out, "seconds": round(time.time() - t, 1),
            "stdout_tail": tail(out), "stderr_tail": tail(err)}
-    if log:  # the whole output on disk and every `error:` line in the row: a 3 KB tail lost xcodebuild's errors (manager 2026-11-03)
-        Path(log).parent.mkdir(parents=True, exist_ok=True)
-        Path(log).write_text(f"$ {' '.join(map(str, argv))}\n{out or ''}\n--- stderr ---\n{err or ''}")
-        res.update(log=str(log), errors=error_lines(f"{out or ''}\n{err or ''}"))
+    if log and not res["ok"]:  # a red one: every `error:` line in the row and the whole output on disk (a 3 KB tail lost xcodebuild's errors, manager 2026-11-03)
+        res["errors"] = error_lines(f"{out or ''}\n{err or ''}")
+        try:
+            Path(log).parent.mkdir(parents=True, exist_ok=True)
+            Path(log).write_text(f"$ {' '.join(map(str, argv))}\n{out or ''}\n--- stderr ---\n{err or ''}")
+            res["log"] = str(log)
+        except OSError as e:  # the rung's result stands; only the file is missing
+            res["log"] = f"not written: {e}"
     return res
 
 
@@ -734,7 +738,7 @@ def build(root, changed: list[str], cfg: Config) -> dict:
     try:
         if lock is not None:
             fcntl.flock(lock, fcntl.LOCK_EX)
-        log = journal.STATE / "build-logs" / f"build-{time.strftime('%Y%m%d-%H%M%S')}.log"  # ponytail: never rotated (a few MB a build); prune by age if the dir grows
+        log = journal.STATE / "build-logs" / f"build-{time.strftime('%Y%m%d-%H%M%S')}-{time.time_ns() % 10**9:09d}.log"  # only a red build writes it; ponytail: never rotated, prune by age if the dir grows
         r = _run("build", list(cfg.build), root, cfg.build_timeout_s, cfg, log=log)
         if not r["ok"] and BUILD_DB_LOCKED.search((r.get("stdout_tail") or "") + (r.get("stderr_tail") or "") + (r.get("errors") or "")):
             journal.append("check", state="retry", rung="build", detail="XCBuildData build.db was locked by another build in the same derived dir: re-run once")

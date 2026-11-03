@@ -494,7 +494,8 @@ def test_red_on_base_applies_only_to_the_paths_the_rules_file_names(tmp_path):
     assert r["failed"] == "red-on-base" and "needs a test" in r["rungs"][-1]["stderr_tail"]
 
 
-def test_the_build_rung_runs_only_for_build_paths_and_reports_red(tmp_path):  # owner 2026-11-01: a build-only Swift rung
+def test_the_build_rung_runs_only_for_build_paths_and_reports_red(tmp_path, monkeypatch):  # owner 2026-11-01: a build-only Swift rung
+    monkeypatch.setattr(ct.journal, "STATE", tmp_path / "s")  # a red build writes its log there: never the owner's
     cfg = ct.Config(build_paths=("fichero/",), build=("sh", "-c", "echo built > built.txt; exit 1"), build_lock=str(tmp_path / "b.lock"))
     assert ct.build(tmp_path, ["fichero-server/src/x.py"], cfg)["skipped"], "no Swift touched: no build"
     assert ct.build(tmp_path, ["fichero/App.swift"], ct.Config())["skipped"], "no build configured: no build"
@@ -509,6 +510,7 @@ def test_the_build_rung_runs_only_for_build_paths_and_reports_red(tmp_path):  # 
 
 def test_the_build_rung_retries_once_on_a_locked_build_db_and_never_on_another_red(tmp_path, monkeypatch):  # manager 2026-11-03
     monkeypatch.setattr(ct, "BUILD_RETRY_WAIT_S", 0)
+    monkeypatch.setattr(ct.journal, "STATE", tmp_path / "s")  # never the owner's
     msg = "error: unable to attach DB: error: accessing build database /d/XCBuildData/build.db: database is locked Possibly there are two concurrent builds running in the same filesystem location."
     once = ("sh", "-c", f"if [ -e ran ]; then exit 0; fi; touch ran; echo '{msg}' >&2; exit 65")
     r = ct.build(tmp_path, ["fichero/App.swift"], ct.Config(build_paths=("fichero/",), build=once))
@@ -536,6 +538,8 @@ def test_a_red_build_keeps_every_error_line_and_the_whole_log_whatever_follows_t
     assert log.parent == tmp_path / "s" / "build-logs" and "number 399" in log.read_text() and "A.swift:12:5" in log.read_text()
     said = work._tail({"rungs": [{"name": "build", "ok": False, **r}]})
     assert "A.swift:12:5: error" in said and str(log) in said, "the finding names the errors and the log"
+    g = ct.build(tmp_path, ["fichero/App.swift"], ct.Config(build_paths=("fichero/",), build=("true",)))
+    assert g["ok"] and "log" not in g["results"][0] and len(list((tmp_path / "s" / "build-logs").iterdir())) == 1, "a green build writes no log"
 
 def test_the_build_rung_counts_a_deleted_swift_file_as_a_change(tmp_path):  # review 1 M7
     import subprocess
