@@ -547,3 +547,13 @@ dendritic remodeling."""
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_use_ai_refinement_is_not_an_option_of_the_tool():
+    """#5921: the option was removed (it called a function that never existed); the tool offers no config key at all."""
+    from fichero_server.workflows import registry
+
+    tool = registry.get_tool_def("text_reflow")
+    assert tool is not None
+    assert "use_ai_refinement" not in (tool.config_schema or {})
+    assert not tool.uses_llm
