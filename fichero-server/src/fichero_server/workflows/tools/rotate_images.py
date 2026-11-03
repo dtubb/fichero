@@ -153,6 +153,7 @@ def rotate_image_file(
                 "auto_orient": auto_orient,
                 "rotation_degrees": rotation,
             },
+            "steps": [{"step": "rotate", "params": {"rotation_degrees": rotation, "angle": angle, "expand": expand, "auto_orient": auto_orient}, "card": {"method": "pil-rotate", "model_id": None}}],
             "error": None,
         }
     except Exception as exc:

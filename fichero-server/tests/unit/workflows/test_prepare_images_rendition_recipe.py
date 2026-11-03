@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 from PIL import Image
 
 from fichero_server.models import DocType, Document, FileType, Rendition
@@ -125,3 +126,29 @@ def test_reverting_a_prepared_image_removes_that_rendition_and_nothing_else(db, 
     assert not stored.exists() and source.is_file() and _sha(source) == checksum
     (chain,) = db.query(ImageEditChain, document_id=doc.id)
     assert chain.operations == [{"op": "rotate", "page": 1, "params": {"angle": 90}}]
+
+
+@pytest.mark.parametrize("module, config, step, params", [
+    ("rotate_images", {"rotation_degrees": 90}, "rotate", {"rotation_degrees": 90, "angle": None, "expand": True, "auto_orient": True}),
+    ("enhance_images", {"contrast": 1.5, "sharpness": 1.0, "denoise": False}, "enhance", {"contrast": 1.5, "sharpness": 1.0, "denoise": False}),
+    ("fuzzy_clean_images", {"despeckle_radius": 3}, "fuzzy-clean", {"despeckle_radius": 3, "background_clean": True}),
+    ("remove_background_images", {"method": "threshold", "threshold": 28}, "remove-background", {"method": "threshold", "threshold": 28}),
+])
+def test_every_image_node_rendition_records_its_step_settings_and_the_batch(db, tmp_path, module, config, step, params):
+    import asyncio
+    import importlib
+
+    node = importlib.import_module(f"fichero_server.workflows.tools.{module}")
+    source = tmp_path / "page.png"
+    _faded(source, "PNG")
+    checksum = _sha(source)
+    doc = _doc(db, source)
+    state = {"library_path": str(db.path.parent), "run_id": "run-8", "batch_id": "batch-3"}
+    out = asyncio.run(getattr(node, module)(
+        {"files": [str(source)], "documents": [{"id": doc.id}], "output_format": "png", **config}, state, None))
+    assert out["error"] is None, out
+    (row,) = db.query(Rendition, document_id=doc.id)
+    assert (row.producer_run_id, row.producer_batch_id) == ("run-8", "batch-3")
+    assert [s["step"] for s in row.steps] == [step]
+    assert row.steps[0]["params"] == params and set(row.steps[0]["card"]) == {"method", "model_id"}
+    assert _sha(source) == checksum

@@ -164,6 +164,7 @@ def remove_background_image_file(
                 "method": method,
                 "threshold": threshold,
             },
+            "steps": [{"step": "remove-background", "params": {"method": method, "threshold": threshold}, "card": {"method": method, "model_id": None}}],
             "error": None,
         }
     except Exception as exc:

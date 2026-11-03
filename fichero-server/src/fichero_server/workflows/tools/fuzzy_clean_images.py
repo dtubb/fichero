@@ -142,6 +142,7 @@ def fuzzy_clean_image_file(
                 "despeckle_radius": radius,
                 "background_clean": background_clean,
             },
+            "steps": [{"step": "fuzzy-clean", "params": {"despeckle_radius": radius, "background_clean": background_clean}, "card": {"method": "fuzzy-clean", "model_id": None}}],
             "error": None,
         }
     except Exception as exc:

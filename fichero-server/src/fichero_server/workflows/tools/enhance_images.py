@@ -152,6 +152,7 @@ def enhance_image_file(
                 "sharpness": sharpness,
                 "denoise": denoise,
             },
+            "steps": [{"step": "enhance", "params": {"contrast": contrast, "sharpness": sharpness, "denoise": denoise}, "card": {"method": "pil-enhance", "model_id": None}}],
             "error": None,
         }
     except Exception as exc:
