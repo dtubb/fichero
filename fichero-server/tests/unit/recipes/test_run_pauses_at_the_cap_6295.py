@@ -88,9 +88,12 @@ def test_a_run_paused_at_the_cap_says_so_in_its_status_for_the_apps_offer(db, ca
 
 def test_stop_here_ends_a_run_paused_at_the_cap_and_keeps_what_is_done(db, caps):
     recipe, _child = _parked(db, caps)
+    library = str(runner._library(db))
+    spend.set_run_cap(library, recipe, 1.0)  # the run's own cap, held while it waits paused at it
     assert runner.request_cancel(db, recipe) == "cancelled"
     row = jobs.read_job(db, recipe)
     assert row["state"] == "cancelled" and json.loads(row["detail"])["steps"] == CHECKPOINT["steps"]
+    assert spend.run_cap(library) is None, "Stop here leaves no run cap holding the later runs' cloud calls"
 
 
 def test_a_real_batch_paused_at_the_cap_on_page_two_resumes_on_a_raise_and_reads_page_two_only(db, jobs_run_by_the_test, caps, resumed,

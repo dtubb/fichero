@@ -205,7 +205,7 @@ struct CloudCapChangeView: View {
                 CloudCapFields(store: store, line: line, undo: undo)
                 Text(RecipeCloudCapRow.words(line)).font(.caption).foregroundStyle(.secondary)
                 CloudCapOffers(store: store, line: line, undo: undo)
-                Text("Raising a cap does not resume a paused run: use its Resume.").font(.caption).foregroundStyle(.secondary)
+                Text("Raising a cap carries on a run it paused.").font(.caption).foregroundStyle(.secondary)
             } else {
                 ProgressView().controlSize(.small)
             }

@@ -620,6 +620,7 @@ def request_cancel(db: Any, job_id: str) -> str:
     if state in ("waiting", "paused"):
         child = jobs.running_child(db, job_id)  # a recipe parked on a paused step run stops that run too
         jobs.cancel_waiting(db, job_id)
+        _drop_the_run_cap(db, job_id)  # a run paused at its cap keeps the cap while it waits: ended off the lane, `_run` never clears it
         if child is not None:
             jobs.pass_stopper(job_id, child)
             try:
@@ -1277,6 +1278,13 @@ class RunEnded(RuntimeError):
     """The run's own end in words ("Done with failures: ...", "Stopped: ..."): said as it is, never wrapped (#6298)."""
 
 
+def _drop_the_run_cap(db: Any, job_id: str) -> None:
+    try:
+        spend.clear_run_cap(str(_library(db)), job_id)
+    except Exception:  # noqa: BLE001 -- a stale cap file must not replace the run's own result
+        logger.exception("run %s: its run cap could not be cleared", job_id)
+
+
 def _hold_the_run_cap(db: Any, job_id: str) -> None:
     """Hold the run's own cap (`designer.budget.run-cap`) from its start: a queued run that is cancelled before it starts leaves none
     behind. A run coming back after a pause keeps the cap it had (it may have been changed since), and its baseline."""
@@ -1299,11 +1307,8 @@ def _run(db: Any, job_id: str) -> dict[str, Any]:
         raise RuntimeError("The run stopped on an error in Fichero. What it finished is kept, and Start carries on from there; "
                            "the log has the detail.") from exc
     finally:  # stopped, failed, paused or done: a page saved before Search got to it is embedded after all (#6126)
-        try:
-            if not deferred:
-                spend.clear_run_cap(str(_library(db)), job_id)
-        except Exception:  # noqa: BLE001 -- a stale cap file must not replace the run's own result
-            logger.exception("run %s: its run cap could not be cleared", job_id)
+        if not deferred:
+            _drop_the_run_cap(db, job_id)
         try:
             end_search_watch(db, job_id, (jobs.read_job(db, job_id) or {}).get("started_by") or "owner")
         except Exception:  # noqa: BLE001 -- never replace the run's own result or error with a queueing failure
