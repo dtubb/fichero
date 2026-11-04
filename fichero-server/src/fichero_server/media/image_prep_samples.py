@@ -1,8 +1,7 @@
-#!/usr/bin/env python
-"""By hand, not a test: the CLAHE enhance against the legacy tool's own output on the owner's typed pages
+"""By hand, not a test or a guard: the CLAHE enhance against the legacy tool's own output on the owner's typed pages
 (`image.enhance.contrast-clahe`, #6190). The pages are archive material and are never committed.
 
-    FICHERO_IMAGE_PREP_SAMPLES=<folder> PYTHONPATH=fichero-server/src python scripts/image_prep_samples_compare.py
+    FICHERO_IMAGE_PREP_SAMPLES=<folder> PYTHONPATH=fichero-server/src python -m fichero_server.media.image_prep_samples
 
 The folder holds, for each page, `<name>.before.<ext>` (the legacy crop) and `<name>.reference.<ext>` (the legacy enhanced file), and
 optionally `<name>.profile` containing `handwritten` or `typescript` (default handwritten). Exit 0 when every page's mean absolute
