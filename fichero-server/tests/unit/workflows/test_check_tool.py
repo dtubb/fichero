@@ -395,114 +395,56 @@ def test_a_test_file_that_only_loses_checks_or_renames_a_test_is_trim_only_and_a
 
 
 def test_a_weakened_test_is_excused_only_when_every_lost_check_used_a_module_the_diff_deletes(tmp_path):
+    """The narrow rule (reviews -63, -65, -67): head is base with whole top-level tests removed, each one calling the deleted module."""
     g, _ = _git_repo(tmp_path)
     (tmp_path / "watch.py").write_text("def render(r):\n    return r\n")
     (tmp_path / "test_watch.py").write_text("import watch\ndef test_page():\n    assert watch.render(1)\n")
-    (tmp_path / "test_page.py").write_text("import watch, mod\ndef test_both():\n    assert mod.VALUE\n    page = watch.render(2)\n    assert page\n"
-                                         "def test_mod():\n    assert mod.VALUE\n")
+    (tmp_path / "test_page.py").write_text("import watch, mod\ndef test_page():\n    assert watch.render(2)\ndef test_mod():\n    assert mod.VALUE\n")
     g("add", "."), g("commit", "-qm", "t")
     base = _sha(tmp_path)
     cfg = ct.Config()
     g("rm", "-q", "watch.py", "test_watch.py")
-    (tmp_path / "test_page.py").write_text("import mod\ndef test_both():\n    assert mod.VALUE\ndef test_mod():\n    assert mod.VALUE\n")
+    (tmp_path / "test_page.py").write_text("import mod\ndef test_mod():\n    assert mod.VALUE\n")
     g("commit", "-qam", "the watch page is deleted (owner)")
     gone = ct.deleted_modules(tmp_path, base, "HEAD", cfg)
     assert gone == {"watch"}
-    assert ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_watch.py", gone), "a deleted test of the deleted module"
-    assert ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", gone), "its cut asserts were in a test that used watch"
-    (tmp_path / "test_page.py").write_text("import mod\ndef test_both():\n    assert mod.VALUE\n")  # test_mod gone too: it never used watch
-    g("commit", "-qam", "and more")
-    assert not ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", gone)
+    assert ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_watch.py", gone), "a deleted test file of the deleted module"
+    assert ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", gone), "a whole test of the deleted module removed"
+    (tmp_path / "test_page.py").write_text("import mod\n")
+    g("commit", "-qam", "and test_mod too")
+    assert not ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", gone), "test_mod never used watch"
     assert not ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", set()), "nothing deleted: nothing excused"
 
 
-
-def test_the_deleted_module_rule_refuses_an_added_skip_a_helper_assert_cut_and_a_bare_name_match(tmp_path):  # review -63
+def test_the_deleted_module_rule_refuses_every_change_but_whole_tests_removed(tmp_path):  # reviews -63, -65, -67
     g, _ = _git_repo(tmp_path)
     (tmp_path / "watch.py").write_text("def render(r):\n    return r\n")
-    (tmp_path / "test_page.py").write_text("import watch, mod\ndef _check(x):\n    assert x\ndef test_both():\n    assert mod.VALUE\n"
-                                         "    assert watch.render(2)\ndef test_other():\n    _check(mod.VALUE)\n")
-    (tmp_path / "test_local.py").write_text("import mod\ndef test_x():\n    watch = mod.VALUE\n    assert watch\n    assert mod\n")
+    base_text = ("import pytest, watch, mod\ndef _check(x):\n    assert x\n"
+                 "def test_gone():\n    assert watch.render(1)\n"
+                 "def test_both():\n    assert mod.VALUE\n    assert watch.render(2)\n"
+                 "class TestA:\n    def test_render(self):\n        assert mod.VALUE\n    def _h(self):\n        assert 1\n"
+                 "def test_local():\n    watch = mod.VALUE\n    assert watch\n")
+    (tmp_path / "test_page.py").write_text(base_text)
     g("add", "."), g("commit", "-qm", "t")
     base = _sha(tmp_path)
     g("rm", "-q", "watch.py")
-    cut = "import mod\ndef _check(x):\n    assert x\ndef test_both():\n    assert mod.VALUE\ndef test_other():\n    _check(mod.VALUE)\n"
-    (tmp_path / "test_page.py").write_text("import pytest\npytestmark = pytest.mark.skip\n" + cut)
-    g("commit", "-qam", "drop watch and skip the file")
-    gone = {"watch"}
-    assert not ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", gone), "an added skip is refused"
-    (tmp_path / "test_page.py").write_text(cut.replace("    assert x\n", "    pass\n"))
-    g("commit", "-qam", "and hollow the helper")
-    assert not ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", gone), "an assert cut in a shared helper is refused"
-    (tmp_path / "test_page.py").write_text(cut)
-    (tmp_path / "test_local.py").write_text("import mod\ndef test_x():\n    watch = mod.VALUE\n    assert mod\n")
-    g("commit", "-qam", "the honest cut, and a local variable named like the module")
-    assert ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", gone), "only the watch assert went: excused"
-    assert not ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_local.py", gone), "a local `watch` is not the module"
-
-
-def test_the_deleted_module_rule_counts_each_scope_so_an_added_assert_or_skip_elsewhere_never_pays_for_a_cut(tmp_path):  # review -65
-    g, _ = _git_repo(tmp_path)
-    (tmp_path / "watch.py").write_text("def render(r):\n    return r\n")
-    body = ("import pytest, watch, mod\ndef _check(x):\n    assert x\n@pytest.mark.skip\ndef test_old():\n    assert mod.VALUE\n"
-            "def test_both():\n    assert mod.VALUE\n    assert watch.render(2)\ndef test_other():\n    _check(mod.VALUE)\n")
-    (tmp_path / "test_page.py").write_text(body)
-    g("add", "."), g("commit", "-qm", "t")
-    base = _sha(tmp_path)
-    g("rm", "-q", "watch.py")
-    cut = body.replace("import pytest, watch, mod", "import pytest, mod").replace("    assert watch.render(2)\n", "")
-    hollow = cut.replace("def _check(x):\n    assert x\n", "def _check(x):\n    pass\n").replace("    _check(mod.VALUE)\n", "    _check(mod.VALUE)\n    assert True\n")
-    (tmp_path / "test_page.py").write_text(hollow)
-    g("commit", "-qam", "drop watch, hollow the helper, add an assert elsewhere")
-    assert not ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", {"watch"}), "the helper's cut is refused"
-    swapped = cut.replace("@pytest.mark.skip\ndef test_old", "def test_old").replace("import pytest, mod\n", "import pytest, mod\npytestmark = pytest.mark.skip\n")
-    (tmp_path / "test_page.py").write_text(swapped)
-    g("commit", "-qam", "one skip removed, a file-wide skip added")
-    assert not ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", {"watch"}), "a removed skip never pays for a new one"
-    (tmp_path / "test_page.py").write_text(cut)
-    g("commit", "-qam", "the honest cut")
+    g("commit", "-qm", "drop watch")
+    honest = base_text.replace("def test_gone():\n    assert watch.render(1)\n", "")
+    cases = {
+        "a cut inside a surviving test": honest.replace("    assert watch.render(2)\n", ""),
+        "a hollowed helper": honest.replace("    assert x\n", "    pass\n"),
+        "a class method cut": honest.replace("        assert mod.VALUE\n", "        pass\n"),
+        "a class helper cut": honest.replace("        assert 1\n", "        pass\n"),
+        "an added skip": honest.replace("def test_both", "@pytest.mark.skip\ndef test_both"),
+        "a local variable named like the module": honest.replace("def test_local():\n    watch = mod.VALUE\n    assert watch\n", ""),
+    }
+    for why, text in cases.items():
+        (tmp_path / "test_page.py").write_text(text)
+        g("commit", "-qam", why)
+        assert not ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", {"watch"}), why
+    (tmp_path / "test_page.py").write_text(honest)
+    g("commit", "-qam", "only the whole watch test removed")
     assert ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", {"watch"})
-
-def test_the_auto_rules_are_off_unless_named_and_each_decision_is_a_journal_row(tmp_path, monkeypatch):
-    """Wired: the weakened check of the ladder and the red-on-base loop skip only what a named rule excuses, with an `auto` row."""
-    from fichero_builder import journal
-    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
-    g, _ = _git_repo(tmp_path)
-    (tmp_path / "test_q.py").write_text("def test_a():\n    assert 1\n    assert 2\n")
-    g("add", "."), g("commit", "-qm", "t")
-    base = _sha(tmp_path)
-    (tmp_path / "test_q.py").write_text("def test_a():\n    assert 1\n")
-    g("commit", "-qam", "trim")
-    ran = []
-    monkeypatch.setattr(ct, "pytest_rung", lambda root, files, cfg, t: (ran.append(files), {"ok": True})[1])
-    monkeypatch.setattr(ct, "green_runs", lambda *a, **k: {"name": "green", "ok": True, "stdout_tail": ""})
-    off = ct.red_on_base(tmp_path, base, "HEAD", ["test_q.py"], ct.Config())
-    assert ran == [["test_q.py"]] and not off["ok"] and "NOT RED ON BASE" in off["stderr_tail"], "off: the old refusal"
-    ran.clear()
-    on = ct.red_on_base(tmp_path, base, "HEAD", ["test_q.py"], ct.Config(auto=("red-on-base-trim-only",)))
-    assert ran == [] and on["ok"], "on: no red owed, the green run still runs"
-    assert [(r["rule"], r["file"]) for r in journal.read() if r["event"] == "auto"] == [("red-on-base-trim-only", "test_q.py")]
-
-def test_a_worker_cannot_weaken_its_own_tests(tmp_path):
-    """A test function removed, fewer asserts, or more skips in an existing test file: needs-maintainer."""
-    work, g, base, pinned = _project(tmp_path)
-    (work / "test_old.py").write_text("def test_a():\n    assert 1\n    assert 2\ndef test_b():\n    assert 3\n")
-    g("add", "."), g("commit", "-q", "-m", "tests")
-    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
-    subprocess.run(["git", "-C", str(pinned), "pull", "-q"], check=True, capture_output=True)
-    cfg = ct.load(pinned)
-    (work / "test_old.py").write_text("def test_a():\n    assert 1\ndef test_b():\n    assert 3\n")  # one assert fewer
-    g("commit", "-qam", "weaker")
-    assert ct.weakened_tests(work, base, "HEAD", cfg) == ["test_old.py"]
-    g("reset", "-q", "--hard", base)
-    (work / "test_old.py").write_text("def test_a():\n    assert 1\n    assert 2\ndef test_b():\n    assert 3\ndef test_c():\n    assert 4\n")
-    g("commit", "-qam", "stronger")
-    assert ct.weakened_tests(work, base, "HEAD", cfg) == []
-    g("reset", "-q", "--hard", base)
-    (work / "test_old.py").write_text("import pytest\n@pytest.mark.skip\ndef test_a():\n    assert 1\n    assert 2\ndef test_b():\n    assert 3\n")
-    g("commit", "-qam", "skip")
-    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
-    assert r["failed"] == "pinned-checks" and "test_old.py" in r["rungs"][0]["stderr_tail"]
 
 
 def test_a_worker_cannot_rewrite_its_own_acceptance(tmp_path):

@@ -11,7 +11,6 @@ from __future__ import annotations
 import ast
 import difflib
 import fcntl
-import collections
 import fnmatch
 import functools
 import importlib.util
@@ -120,9 +119,9 @@ def load(root) -> Config:
 AUTO_RULES = {
     "red-on-base-trim-only": "a changed test file whose diff adds no assert and no new test function (a renamed one is a rename) "
                              "owes no red on base: it can only have lost checks, and it still runs green on head",
-    "weakened-tests-of-a-deleted-module": "a weakened or deleted test file is not refused when every test function the diff removes "
-                                          "or cuts asserts from called a module this diff deletes (`m.<attr>`, m imported by the file), "
-                                          "no skip or xfail is added and no assert is cut anywhere else in the file",
+    "weakened-tests-of-a-deleted-module": "a changed test file whose head is its base with whole top-level tests removed, each of which "
+                                          "called a module this diff deletes (`m.<attr>`, m imported), or a deleted test file whose every "
+                                          "test called one, is not refused; anything else is",
 }
 
 
@@ -879,44 +878,33 @@ def deleted_modules(root, since: str, head: str, cfg: Config) -> set[str]:
             if f.endswith(".py") and not any(fnmatch.fnmatch(Path(f).name, g) for g in cfg.test_globs)}
 
 
-def _test_funcs(text: str) -> tuple[dict, dict, set]:
-    """({test name: (assert count, modules it calls through `m.<attr>`)}, {every other scope: its own assert count} (each non-test
-    function by name, `<module>` for asserts outside any function), the module names the file imports) of a test file's
-    source; ({}, {}, set()) when it does not parse. Counted per scope, never as a file total (review -65)."""
-    try:
-        tree = ast.parse(text)
-    except SyntaxError:
-        return {}, {}, set()
-    imported = {(a.asname or a.name).split(".")[0] for n in ast.walk(tree) if isinstance(n, (ast.Import, ast.ImportFrom)) for a in n.names}
-    funcs = [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
-    own = lambda fn: sum(isinstance(x, ast.Assert) for x in ast.walk(fn))  # noqa: E731
-    out, other = {}, {}
-    for n in funcs:
-        if n.name.startswith("test_"):
-            used = {x.value.id for x in ast.walk(n) if isinstance(x, ast.Attribute) and isinstance(x.value, ast.Name) and x.value.id in imported}
-            out[n.name] = (own(n), used)
-        else:
-            other[n.name] = other.get(n.name, 0) + own(n)
-    other["<module>"] = sum(isinstance(x, ast.Assert) for x in ast.walk(tree)) - sum(own(n) for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)))
-    return out, other, imported
+def _uses(fn, imported: set) -> set:
+    """The imported modules a function calls through `m.<attr>` (a local variable named like a module is not the module)."""
+    return {x.value.id for x in ast.walk(fn) if isinstance(x, ast.Attribute) and isinstance(x.value, ast.Name) and x.value.id in imported}
 
 
 def weakened_by_a_deleted_module(root, since: str, head: str, f: str, gone: set[str]) -> bool:
-    """`weakened-tests-of-a-deleted-module`: every test function the diff removes from `f`, or whose asserts it cuts, used a
-    module the same diff deletes (its old body names it); a deleted `f` counts when each of its tests did. Any other loss refuses."""
+    """`weakened-tests-of-a-deleted-module`, kept narrow on purpose (reviews -63, -65, -67: every counting rule had a way round it):
+    a changed test file is excused only when its head IS its base with whole top-level test functions removed, each of which called
+    a module this diff deletes (imports may change); a deleted test file only when every test in it called one. A cut inside a
+    surviving test, any change to a class, a helper or a marker, or anything else: refused as before, for the manager."""
     if not gone:
         return False
-    before = "\n".join(_lines(root, "show", f"{since}:{f}") or [])
-    alive = _git(root, "cat-file", "-e", f"{head}:{f}")["ok"]
-    after = "\n".join(_lines(root, "show", f"{head}:{f}") or []) if alive else ""
-    skips = lambda t: collections.Counter(re.sub(r"\s+", " ", m.group(0).strip()) for m in re.finditer(SKIP_LINE, t))  # noqa: E731
-    if alive and skips(after) - skips(before):  # per marker kind: one removed never pays for another added
-        return False  # a skip or xfail new to the file is never a deleted module's loss, whatever else moved (reviews -63, -65)
-    (old, old_other, _imp), (new, new_other, _imp2) = _test_funcs(before), _test_funcs(after)
-    if alive and any(new_other.get(k, 0) < v for k, v in old_other.items()):
-        return False  # an assert cut in a helper or at module level refuses, even with one added elsewhere (review -65)
-    lost = [name for name, (asserts, _u) in old.items() if name not in new or new[name][0] < asserts]
-    return bool(lost) and all(old[name][1] & gone for name in lost)
+    try:
+        old = ast.parse("\n".join(_lines(root, "show", f"{since}:{f}") or []))
+        alive = _git(root, "cat-file", "-e", f"{head}:{f}")["ok"]
+        new = ast.parse("\n".join(_lines(root, "show", f"{head}:{f}") or [])) if alive else None
+    except SyntaxError:
+        return False
+    imported = {(a.asname or a.name).split(".")[0] for n in ast.walk(old) if isinstance(n, (ast.Import, ast.ImportFrom)) for a in n.names}
+    if new is None:
+        tests = [n for n in ast.walk(old) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name.startswith("test_")]
+        return bool(tests) and all(_uses(n, imported) & gone for n in tests)
+    is_test = lambda n: isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name.startswith("test_")  # noqa: E731
+    kept = {n.name for n in new.body if is_test(n)}
+    removed = [n for n in old.body if is_test(n) and n.name not in kept]
+    body = lambda tree, drop=(): [ast.dump(n) for n in tree.body if not isinstance(n, (ast.Import, ast.ImportFrom)) and n not in drop]  # noqa: E731
+    return bool(removed) and all(_uses(n, imported) & gone for n in removed) and body(new) == body(old, removed)
 
 
 def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Config(), timeout_s: float = 600,  # noqa: B008
