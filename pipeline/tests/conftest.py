@@ -199,7 +199,7 @@ class FakeCoder:
         else:  # a test that passes on the base proves nothing (a different file each attempt, so each commits)
             (wt / "tests" / f"test_{n}.py").write_text(f"# attempt {mine}\ndef test_trivial():\n    assert True\n")
         git(wt, "add", ".")
-        git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", f"fix ({self.keyword} #{n})")
+        git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", f"fix ({self.keyword} #{n})" + "\n\nDirected-By: the maintainer")
         self.turns += 1
 
     def status(self, session_dir):

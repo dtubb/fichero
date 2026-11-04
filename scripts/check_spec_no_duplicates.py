@@ -14,6 +14,8 @@ import pathlib
 import re
 import sys
 
+from _scan_files import scan_rglob
+
 BULLET = re.compile(r"^- `([a-z0-9][\w.-]+)`\s+(?:—\s+)?\**\[")  # "- `id` [TAG]" and "- `id` — **[TAG]**"
 PREFIX = 150
 # Debt found when this guard landed (2026-11-04): ids defined twice in specs other lanes own. Reported, not failed; each is
@@ -35,7 +37,10 @@ def problems(root: pathlib.Path, known: set = KNOWN) -> tuple[list[str], list[st
     """(failures, known debt still present)."""
     out, debt, seen = [], [], set()
     specs = root / "docs/contributor_manual/specs"
-    for f in sorted(specs.rglob("*.md")):
+    files = sorted(scan_rglob(specs, "*.md"))  # a missing specs dir raises: never a clean read of nothing
+    if not files:
+        return [f"no spec files under {specs}"], []
+    for f in files:
         rel = f.relative_to(specs).as_posix()
         ids: dict[str, int] = {}
         starts: dict[str, int] = {}

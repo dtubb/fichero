@@ -73,7 +73,7 @@ def test_tag_flip_is_allowed_but_an_acceptance_rewrite_is_red(scratch, issues, f
         spec = fc.cwd / "specs" / "s.md"
         spec.write_text(spec.read_text().replace("[MISSING]", "[OK] (#1001)"))
         git(fc.cwd, "add", ".")
-        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "flip (Fixes #1001)")
+        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "flip (Fixes #1001)" + "\n\nDirected-By: the maintainer")
 
     fc._tell = tell_and_flip
     assert core.start([1001])["items"]["1001"] == "checked"
@@ -86,7 +86,7 @@ def test_start_takes_a_base_for_a_bootstrap_step(scratch, issues, fake_coder):
     git(repo, "checkout", "-qb", "runner-branch")
     (repo / "RUNNER").write_text("here\n")
     git(repo, "add", ".")
-    git(repo, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "runner (Fixes #1001)")
+    git(repo, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "runner (Fixes #1001)" + "\n\nDirected-By: the maintainer")
     git(repo, "checkout", "-q", "integration")
     out = core.start([1001], task="boot", base="runner-branch")
     wt = scratch["repo"] / ".worktrees" / "pipeline" / "boot"
@@ -229,7 +229,7 @@ def test_new_commit_voids_the_verdict(scratch, issues, fake_coder):
     wt = scratch["repo"] / ".worktrees" / "pipeline" / "issues-1001"
     (wt / "note.txt").write_text("more")
     git(wt, "add", ".")
-    git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "more (Fixes #1001)")
+    git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "more (Fixes #1001)" + "\n\nDirected-By: the maintainer")
     out = core.verdict(1001, it["sha"], "READY", by="reviewer")
     assert out["state"] == "checked" and "has not passed a check" in out["note"]
     head = git(wt, "rev-parse", "HEAD")
@@ -242,7 +242,7 @@ def test_new_commit_voids_the_verdict(scratch, issues, fake_coder):
 def _break(wt, msg="break (Fixes #1001)"):
     (wt / "src" / "mod.py").write_text("def base():\n    return 0\n\n\ndef f1001():\n    return 2\n")
     git(wt, "add", ".")
-    git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", msg)
+    git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", msg + "\n\nDirected-By: the maintainer")
 
 
 def test_a_red_check_demotes_checked_and_ready_does_not_bind(scratch, issues, fake_coder):
@@ -277,7 +277,7 @@ def test_retry_takes_no_flags_and_reuses_the_start_arguments(scratch, issues, fa
     git(repo, "checkout", "-qb", "runner-branch")
     (repo / "RUNNER").write_text("here\n")
     git(repo, "add", ".")
-    git(repo, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "runner (Fixes #1001)")
+    git(repo, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "runner (Fixes #1001)" + "\n\nDirected-By: the maintainer")
     git(repo, "checkout", "-q", "integration")
     f = tmp_path / "issue.json"
     f.write_text(json.dumps(dict(issues[1001])))
@@ -307,7 +307,7 @@ def test_a_retry_is_measured_from_the_items_first_start(scratch, issues, fake_co
         test = fc.cwd / "tests" / "test_1001.py"
         test.write_text(test.read_text().replace("from src.mod import f1001", "from src.mod import f1001  # tidy"))
         git(fc.cwd, "add", ".")
-        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "lint (Fixes #1001)")
+        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "lint (Fixes #1001)" + "\n\nDirected-By: the maintainer")
         fc.turns += 1
 
     fc._tell = lint_fix_on_retry
@@ -340,7 +340,7 @@ def test_rewriting_own_acceptance_in_the_spec_needs_maintainer(scratch, issues, 
         spec = fc.cwd / "specs" / "s.md"
         spec.write_text(spec.read_text().replace("Test: tests/test_1.py", "Test: none needed"))
         git(fc.cwd, "add", ".")
-        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "spec (Fixes #1001)")
+        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "spec (Fixes #1001)" + "\n\nDirected-By: the maintainer")
 
     fc._tell = tell_and_edit_spec
     assert core.start([1001])["items"]["1001"] == "needs-maintainer"
@@ -356,7 +356,7 @@ def _spec_edit_coder(fake_coder, old, new):
         spec = fc.cwd / "specs" / "s.md"
         spec.write_text(spec.read_text().replace(old, new))
         git(fc.cwd, "add", ".")
-        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "spec (Fixes #1001)")
+        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "spec (Fixes #1001)" + "\n\nDirected-By: the maintainer")
 
     fc._tell = tell_and_edit_spec
 
@@ -402,7 +402,7 @@ def test_a_commit_landing_mid_check_is_red(scratch, issues, fake_coder, monkeypa
         r = real(*a, **k)
         (wt / "late.txt").write_text("late")
         git(wt, "add", ".")
-        git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "late (Fixes #1001)")
+        git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "late (Fixes #1001)" + "\n\nDirected-By: the maintainer")
         return r
 
     monkeypatch.setattr(core.checks, "run_all", run_all_and_commit)
@@ -615,7 +615,7 @@ def test_approve_checks_records_the_files_and_sends_the_findings(scratch, issues
         real(window, text)
         (fc.cwd / "scripts" / "check_no_bad.py").write_text("print('ok, but changed')\n")
         git(fc.cwd, "add", ".")
-        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "guard (Fixes #1001)")
+        git(fc.cwd, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "guard (Fixes #1001)" + "\n\nDirected-By: the maintainer")
 
     fc._tell = tell_and_touch_a_guard
     assert core.start([1001])["items"]["1001"] == "needs-maintainer"
