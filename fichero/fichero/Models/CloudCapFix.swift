@@ -31,10 +31,21 @@ struct CloudCapFix: Equatable {
             reason = nil
             return
         }
-        monthly = line.overMonth == true ? line.neededCapUsd.map { Raise(usd: $0, title: "Raise the monthly cap to \(Self.usd($0))") } : nil
-        project = line.overProject == true
-            ? line.neededProjectCapUsd.map { Raise(usd: $0, title: "Raise the project cap to \(Self.usd($0))") } : nil
-        firstPages = line.fewerPages
+        // The typed fixes are the engine's (`cloud_cap.fixes`: the cap that refuses, the amount that fits, the first pages that fit); an
+        // older engine that serves none is read from the line's own figures.
+        if let fixes = line.fixes {
+            monthly = fixes.first { $0.kind == .raiseCap && $0.cap == .monthly }?.raiseToUsd
+                .map { Raise(usd: $0, title: "Raise the monthly cap to \(Self.usd($0))") }
+            project = fixes.first { $0.kind == .raiseCap && $0.cap == .project }?.raiseToUsd
+                .map { Raise(usd: $0, title: "Raise the project cap to \(Self.usd($0))") }
+            firstPages = fixes.first { $0.kind == .runFewerPages }?.pagesThatFit
+        } else {
+            monthly = line.overMonth == true
+                ? line.neededCapUsd.map { Raise(usd: $0, title: "Raise the monthly cap to \(Self.usd($0))") } : nil
+            project = line.overProject == true
+                ? line.neededProjectCapUsd.map { Raise(usd: $0, title: "Raise the project cap to \(Self.usd($0))") } : nil
+            firstPages = line.fewerPages
+        }
         var parts: [String] = []
         if line.overMonth == true {
             parts.append("the monthly cap (\(Self.usd(line.capUsd))) leaves \(Self.usd(line.remainingUsd))")

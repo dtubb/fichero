@@ -27,7 +27,7 @@ struct RecipeReadyFields: View {
                     // A Start refused while the plan is over a cap offers its fixes here, where the error is (#6295): the plan's
                     // `cloud_cap.over` decides, not the words of the error.
                     if let cap = store.startPlan?.cloudCap, CloudCapFix.isOver(cap) {
-                        CloudCapOffers(store: store, line: cap, undo: project?.actionsService)
+                        CloudCapOffers(store: store, line: cap, undo: project?.actionsService, project: project)
                     }
                 }
             }

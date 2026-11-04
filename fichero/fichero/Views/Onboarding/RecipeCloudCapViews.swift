@@ -9,6 +9,8 @@ struct RecipeCloudCapRow: View {
     let line: Components.Schemas.CloudCapLine
     /// The project's service, so a change is one undo step in the window (`undo.window.*`); nil without a project.
     var undo: (any UndoSetEngine)?
+    /// The project whose model finder "Change the model" opens; nil without a project.
+    var project: LibraryManager.LibraryReference?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -25,7 +27,7 @@ struct RecipeCloudCapRow: View {
             if let note = line.note {  // e.g. a model with no listed price is run at an assumed one (#6259)
                 Text(note).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
-            CloudCapOffers(store: store, line: line, undo: undo)
+            CloudCapOffers(store: store, line: line, undo: undo, project: project)
         }
         .accessibilityIdentifier("setup.cloudCapRow")
     }
@@ -142,7 +144,10 @@ struct CloudCapOffers: View {
     @Bindable var store: RecipeSetupStore
     let line: Components.Schemas.CloudCapLine
     var undo: (any UndoSetEngine)?
+    /// The project whose model finder "Change the model" opens; nil without a project (the button is not offered).
+    var project: LibraryManager.LibraryReference?
     @Environment(WindowSteps.self) private var steps: WindowSteps?
+    @State private var findingFor: RecipeStepsView.FinderStep?
 
     var body: some View {
         let fix = CloudCapFix(line)
@@ -167,12 +172,30 @@ struct CloudCapOffers: View {
                             .help("The first \(count) pages in the order Finder shows them")
                             .accessibilityIdentifier("setup.runFirstPages")
                     }
+                    if let step = changeModelStep {
+                        Button("Change the model for \(store.title(ofJob: step.job))") { findingFor = step }
+                            .help("Open the model finder for this step: the cheaper models first, with their cost a page")
+                            .accessibilityIdentifier("setup.changeModelForCap")
+                    }
+                }
+            }
+            .sheet(item: $findingFor) { step in
+                if let project {
+                    ModelFinderSheet(project: project, setup: store, step: step) { findingFor = nil }
                 }
             }
         } else if store.runFirstPages != nil {
             Button("Run every page again") { Task { await store.limitRun(toFirst: nil) } }
                 .accessibilityIdentifier("setup.runEveryPage")
         }
+    }
+
+    /// The step the engine's `change-model` fix names (the dearest step's job), when its finder can open here: a project, a plan step
+    /// of that job, and a job whose model a person can choose.
+    private var changeModelStep: RecipeStepsView.FinderStep? {
+        guard project != nil, let job = BudgetBlock(line).changeModelStep, store.offersFinder(job),
+              let step = store.recipe?.steps.first(where: { $0.job == job }) else { return nil }
+        return RecipeStepsView.FinderStep(id: step.id, job: job)
     }
 }
 

@@ -236,7 +236,7 @@ struct RecipeStartFields: View {
                 Text("For the pages already here: \(plan.estimate.pages) pages · \(Self.cost(plan.estimate.totalCostUsd))")
                     .font(.headline)
                 // The project's cloud cap beside the estimate, set here (`ai.where.cloud-spend-cap`).
-                if let cap = plan.cloudCap { RecipeCloudCapRow(store: store, line: cap, undo: project?.actionsService) }
+                if let cap = plan.cloudCap { RecipeCloudCapRow(store: store, line: cap, undo: project?.actionsService, project: project) }
                 // What Start changed in the saved recipe to fit kept choices (a page reader added the page step, a stale
                 // choice dropped): said once, never a refusal (`source.recipe.page-reader-is-an-add-on`, #6259).
                 ForEach(plan.notes ?? [], id: \.self) { note in
