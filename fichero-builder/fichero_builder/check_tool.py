@@ -904,7 +904,13 @@ def weakened_by_a_deleted_module(root, since: str, head: str, f: str, gone: set[
     kept = {n.name for n in new.body if is_test(n)}
     removed = [n for n in old.body if is_test(n) and n.name not in kept]
     body = lambda tree, drop=(): [ast.dump(n) for n in tree.body if not isinstance(n, (ast.Import, ast.ImportFrom)) and n not in drop]  # noqa: E731
-    return bool(removed) and all(_uses(n, imported) & gone for n in removed) and body(new) == body(old, removed)
+
+    def names(tree) -> set:  # every imported name with what it is bound to: an `import mod` swapped for a mock is a change (review -70)
+        return {(type(n).__name__, getattr(n, "module", None) or "", a.name, a.asname or "") for n in tree.body
+                if isinstance(n, (ast.Import, ast.ImportFrom)) for a in n.names}
+    dropped = {x for x in names(old) - names(new) if (x[3] or x[2]).split(".")[0] in gone}  # only the deleted module's own import may go
+    imports_ok = names(new) == names(old) - dropped
+    return bool(removed) and imports_ok and all(_uses(n, imported) & gone for n in removed) and body(new) == body(old, removed)
 
 
 def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Config(), timeout_s: float = 600,  # noqa: B008

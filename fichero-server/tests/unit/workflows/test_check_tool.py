@@ -437,6 +437,7 @@ def test_the_deleted_module_rule_refuses_every_change_but_whole_tests_removed(tm
         "a class helper cut": honest.replace("        assert 1\n", "        pass\n"),
         "an added skip": honest.replace("def test_both", "@pytest.mark.skip\ndef test_both"),
         "a local variable named like the module": honest.replace("def test_local():\n    watch = mod.VALUE\n    assert watch\n", ""),
+        "an import swapped for a mock": honest.replace("import pytest, watch, mod", "import pytest, watch\nimport unittest.mock as mod"),
     }
     for why, text in cases.items():
         (tmp_path / "test_page.py").write_text(text)
@@ -446,6 +447,47 @@ def test_the_deleted_module_rule_refuses_every_change_but_whole_tests_removed(tm
     g("commit", "-qam", "only the whole watch test removed")
     assert ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", {"watch"})
 
+
+def test_the_auto_rules_are_off_unless_named_and_each_decision_is_a_journal_row(tmp_path, monkeypatch):
+    """Wired: the weakened check of the ladder and the red-on-base loop skip only what a named rule excuses, with an `auto` row."""
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    g, _ = _git_repo(tmp_path)
+    (tmp_path / "test_q.py").write_text("def test_a():\n    assert 1\n    assert 2\n")
+    g("add", "."), g("commit", "-qm", "t")
+    base = _sha(tmp_path)
+    (tmp_path / "test_q.py").write_text("def test_a():\n    assert 1\n")
+    g("commit", "-qam", "trim")
+    ran = []
+    monkeypatch.setattr(ct, "pytest_rung", lambda root, files, cfg, t: (ran.append(files), {"ok": True})[1])
+    monkeypatch.setattr(ct, "green_runs", lambda *a, **k: {"name": "green", "ok": True, "stdout_tail": ""})
+    off = ct.red_on_base(tmp_path, base, "HEAD", ["test_q.py"], ct.Config())
+    assert ran == [["test_q.py"]] and not off["ok"] and "NOT RED ON BASE" in off["stderr_tail"], "off: the old refusal"
+    ran.clear()
+    on = ct.red_on_base(tmp_path, base, "HEAD", ["test_q.py"], ct.Config(auto=("red-on-base-trim-only",)))
+    assert ran == [] and on["ok"], "on: no red owed, the green run still runs"
+    assert [(r["rule"], r["file"]) for r in journal.read() if r["event"] == "auto"] == [("red-on-base-trim-only", "test_q.py")]
+
+
+def test_the_ladder_excuses_a_deleted_modules_tests_only_when_the_rule_is_named_and_says_so_in_a_row(tmp_path, monkeypatch):  # review -70
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    for auto, refused in (("", True), ('auto = ["weakened-tests-of-a-deleted-module"]\n', False)):
+        root = tmp_path / ("on" if auto else "off")
+        root.mkdir()
+        work, g, _base, pinned = _project(root, check_extra=auto)
+        (work / "watch.py").write_text("def render(r):\n    return r\n")
+        (work / "test_page.py").write_text("import watch\ndef test_page():\n    assert watch.render(1)\ndef test_other():\n    assert 1\n")
+        g("add", "."), g("commit", "-qm", "the page")
+        base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+        subprocess.run(["git", "-C", str(pinned), "pull", "-q"], check=True, capture_output=True)
+        g("rm", "-q", "watch.py")
+        (work / "test_page.py").write_text("def test_other():\n    assert 1\n")
+        g("commit", "-qam", "the page is deleted (owner)")
+        r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+        said = "\n".join(x.get("stderr_tail", "") for x in r["rungs"])
+        assert ("weakens existing tests" in said) is refused, auto or "off"
+    assert [(x["rule"], x["file"]) for x in journal.read() if x["event"] == "auto"] == [("weakened-tests-of-a-deleted-module", "test_page.py")]
 
 def test_a_worker_cannot_weaken_its_own_tests(tmp_path):
     """A test function removed, fewer asserts, or more skips in an existing test file: needs-maintainer."""
