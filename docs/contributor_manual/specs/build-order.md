@@ -45,6 +45,7 @@
 35. `ui-testing-strategy` — testing and release
 36. `ui-test-harness` — testing and release
 37. `release-and-versioning` — testing and release
+38. `cloud-permission-and-spend` — caps in Settings, images to the cloud, a refusal with a way through. Spec: ai/cloud-permission-and-spend.md
 
 ## Parked
 
