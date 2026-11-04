@@ -15,6 +15,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from _scan_files import scan_rglob
 from PIL import Image
 from pydantic import BaseModel
 
@@ -303,7 +304,7 @@ def test_the_split_node_config_comes_from_the_params_model():
 #: The step code and the nodes that call it. `importers/legacy_10_archive.py` reads an old archive's `assets/<stage>/`
 #: folders on purpose (it is the importer of that archive, not an enhancement step) and is outside this list.
 STEP_FILES = (
-    [p for p in (SRC / "media").rglob("*.py")]
+    list(scan_rglob(SRC / "media", "*.py"))
     + [SRC / "workflows" / "tools" / n for n in (
         "rotate_images.py", "deskew_images.py", "split_pages.py", "split_images.py", "enhance_images.py",
         "prepare_images.py", "auto_crop_border_images.py", "remove_background_images.py", "denoise_images.py",
@@ -314,7 +315,7 @@ STEP_FILES = (
 
 def test_no_engine_module_imports_fichero_archive():
     offenders = []
-    for path in SRC.rglob("*.py"):
+    for path in scan_rglob(SRC, "*.py"):
         for node in ast.walk(ast.parse(path.read_text())):
             names = [a.name for a in node.names] if isinstance(node, ast.Import) else (
                 [node.module or ""] if isinstance(node, ast.ImportFrom) else [])

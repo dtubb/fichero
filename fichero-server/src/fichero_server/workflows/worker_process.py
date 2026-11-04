@@ -25,6 +25,7 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
+from fichero_server.db import worker_addresses
 from fichero_server.execution import jobs
 
 KIND = "worker"
@@ -234,25 +235,14 @@ class StaleWorker(Exception):
     """A tell addressed to a worker generation that is not the task's current one (or to a task with none)."""
 
 
-_ADDR_DDL = ("CREATE TABLE IF NOT EXISTS worker_addresses (task TEXT PRIMARY KEY, generation INTEGER NOT NULL, "
-             "job_id TEXT NOT NULL, kind TEXT NOT NULL, pane TEXT NOT NULL, session_dir TEXT NOT NULL)")
-
-
 def _set_address(db: Any, task: str, job_id: str, kind: str, pane: str, session_dir: Any) -> None:
     """(dev-workflows.run.worker-address) Rewrite the task's address to this generation; no `task` = untracked."""
-    if not task:
-        return
-    db.execute(_ADDR_DDL)
-    prev = db.execute_fetchone("SELECT generation FROM worker_addresses WHERE task = ?", [task])
-    gen = (prev[0] if prev else 0) + 1
-    db.execute("DELETE FROM worker_addresses WHERE task = ?", [task])
-    db.execute("INSERT INTO worker_addresses VALUES (?, ?, ?, ?, ?, ?)", [task, gen, job_id, kind, pane, str(session_dir)])
+    if task:
+        worker_addresses.set_address(db, task, job_id, kind, pane, str(session_dir))
 
 
 def address(db: Any, task: str) -> dict[str, Any] | None:
-    db.execute(_ADDR_DDL)
-    r = db.execute_fetchone("SELECT generation, job_id, kind, pane, session_dir FROM worker_addresses WHERE task = ?", [task])
-    return dict(zip(("generation", "job_id", "kind", "pane", "session_dir"), r)) if r else None
+    return worker_addresses.address(db, task)
 
 
 def tell(db: Any, task: str, generation: int, text: str) -> None:

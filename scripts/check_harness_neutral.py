@@ -32,7 +32,9 @@ def violations(path) -> list[str]:
 
 
 def main() -> int:
-    bad = [v for f in FILES if (ROOT / f).is_file() for v in violations(ROOT / f)]
+    # a listed file that is gone FAILS: skipping it read an empty tree as neutral (#4382; a moved module silently left the scan)
+    bad = [f"{f}: listed harness file not found; fix FILES" for f in FILES if not (ROOT / f).is_file()]
+    bad += [v for f in FILES if (ROOT / f).is_file() for v in violations(ROOT / f)]
     print("\n".join(bad) or f"ok: {len(FILES)} harness files are project-neutral")
     return 1 if bad else 0
 

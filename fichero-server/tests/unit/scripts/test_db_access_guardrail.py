@@ -88,6 +88,12 @@ ALLOWLIST: frozenset[str] = frozenset(
         # The `jobs` table's own store (#5353): every statement on it lives here, behind typed
         # helpers (`read_job`, `save_detail`, `cancel_waiting`, ...) that the job kinds call.
         "execution/jobs.py",
+        # The harness worker address table (2026-11-04): the SQL moved here FROM workflows/worker_process.py, behind
+        # typed functions -- the persistence entry point the rule asks for.
+        "db/worker_addresses.py",
+        # A one-time data repair (2ef7805fb9, 2026-10-31): migration-class code, run once as a background job with a done
+        # mark, the same exemption a migrations/ path has.
+        "maintenance/image_marker_repair.py",
         # The synced folders' own store (#4952): which folders a project is tied to, and the
         # checksum of every file Fichero wrote there.
         "sync_folder.py",

@@ -14,11 +14,10 @@ MOST_ROWS = 2000
 def per_page(db: Any, job: str, provider: str, model: str) -> tuple[float, int] | None:
     """`(median dollars a page, pages)` over the pages whose `job` rows booked priced calls of this provider and model; None when none did.
     A page with several rows (a retry, a review pass each) counts once, the rows summed."""
+    from fichero_server.execution.jobs import finished_details
     from fichero_server.llm.usage import aggregate_usage
 
-    rows = db.execute_fetchall(
-        "SELECT subject, detail FROM jobs WHERE kind = ? AND state = 'done' AND detail IS NOT NULL ORDER BY finished_at DESC LIMIT ?",
-        [job, MOST_ROWS])
+    rows = finished_details(db, job, MOST_ROWS)
     by_page: dict[str, list[dict[str, Any]]] = {}
     for subject, detail in rows:
         try:

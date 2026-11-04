@@ -273,6 +273,13 @@ _SLIPS = (
 )
 
 
+def finished_details(db: "Database", kind: str, limit: int) -> list[tuple[Any, Any]]:
+    """`(subject, detail)` of the latest `limit` finished jobs of `kind` that carry a detail, newest first (the booked-cost read)."""
+    return db.execute_fetchall(
+        "SELECT subject, detail FROM jobs WHERE kind = ? AND state = 'done' AND detail IS NOT NULL ORDER BY finished_at DESC LIMIT ?",
+        [kind, limit])
+
+
 def failed_reason(kind: str, exc: BaseException) -> str:
     """A failed job's reason in words (#6212, `recipes-run.engine.failure-in-words`), never `str(exc)` alone."""
     from fichero_server.core.failure_text import failure_text

@@ -18,7 +18,7 @@ from _scan_files import scan_rglob
 
 BULLET = re.compile(r"^- `([a-z0-9][\w.-]+)`\s+(?:—\s+)?\**\[")  # "- `id` [TAG]" and "- `id` — **[TAG]**"
 PREFIX = 150
-# Debt found when this guard landed (2026-11-04): ids defined twice in specs other lanes own. Reported, not failed; each is
+# Debt found when this guard landed (2026-11-04, groom issue #6353): ids defined twice in specs other lanes own. Reported, not failed; each is
 # for the manager's groom batch (which copy holds the owner's acceptance text is a ruling, not a guess). The list only shrinks:
 # an entry that is no longer duplicated FAILS until it is removed here, and nothing is ever added.
 KNOWN = {
