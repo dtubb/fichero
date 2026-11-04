@@ -953,6 +953,9 @@ def _render_and_append(
     derived = _apply_operation(base, op)
     op["derived_path"] = _write_derived_image(document_id, page, derived)
     op["created_at"] = utc_now().isoformat()
+    # The recipe on the row, as a rendition's `steps` row has it: the operation, its settings (`params`), the card, and for a
+    # batch the `batch_id` (`prep.derived-image-records-its-recipe`).
+    op.setdefault("card", {"method": str((op.get("params") or {}).get("method") or op.get("op")), "model_id": None})
     return _append_operation(db, document_id, op)
 
 
@@ -1004,6 +1007,9 @@ def straighten_image_impl(
     }
     op["derived_path"] = _write_derived_image(document_id, page, derived)
     op["created_at"] = utc_now().isoformat()
+    # The recipe on the row, as a rendition's `steps` row has it: the operation, its settings (`params`), the card, and for a
+    # batch the `batch_id` (`prep.derived-image-records-its-recipe`).
+    op.setdefault("card", {"method": str((op.get("params") or {}).get("method") or op.get("op")), "model_id": None})
     return _append_operation(db, document_id, op)
 
 

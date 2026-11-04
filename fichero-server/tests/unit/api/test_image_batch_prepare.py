@@ -172,3 +172,16 @@ def test_deleting_one_pages_step_leaves_the_rest_of_the_batch(db, client, batch_
     registry.invoke(db, "image.undo_batch_page", {"document_id": docs[1].id, "batch_id": batch_id}, _ctx(db.path.parent))
     assert _ops(db, docs[1].id) == []
     assert all(_ops(db, d.id)[0]["batch_id"] == batch_id for d in (docs[0], docs[2]))
+
+
+def test_an_editor_step_and_a_batch_step_record_the_operation_its_settings_the_card_and_the_batch(db, client, batch_manager):  # noqa: F811
+    folder, docs = _folder(db, 2)
+    batch_id = _apply(client, folder, "enhance", params={"method": "clahe", "profile": "typescript"}).json()["batch_id"]
+    (batch_step,) = _ops(db, docs[0].id)
+    assert batch_step["card"] == {"method": "clahe", "model_id": None} and batch_step["batch_id"] == batch_id
+    assert batch_step["params"] == {"method": "clahe", "profile": "typescript"}
+    got = client.post(f"/api/images/{docs[1].id}/operations/rotate", json={"angle": 90})
+    assert got.status_code == 200, got.text
+    editor_step = _ops(db, docs[1].id)[-1]
+    assert editor_step["card"] == {"method": "rotate", "model_id": None} and editor_step["params"]["angle"] == 90
+    assert "batch_id" not in editor_step
