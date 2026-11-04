@@ -680,3 +680,48 @@ def test_a_guard_data_stop_the_added_routes_rule_clears_runs_the_ladder_again_wi
     monkeypatch.setattr(work.check_tool, "known_gaps_added_only", lambda *a: "removes ['GET /x']")
     seen.clear()
     assert chain() != 0 and seen == [()], "anything else still stops for the manager"
+
+
+BAKE = "import hashlib, pathlib; pathlib.Path('ident.txt').write_text(hashlib.sha256(pathlib.Path('contract.json').read_bytes()).hexdigest() + chr(10))"
+
+
+def _generated_world(scratch):
+    (scratch.tmp / "pin" / "harness.toml").write_text(
+        f'[jail]\nuser = "wuser"\nworkroot = "{scratch.tmp}/wr"\n[check]\npython = "/py/python"\ngenerated = ["ident.txt"]\n'
+        f'rebake = ["python3", "-c", "{BAKE}"]\nrebake_issue = "#4705"\n')
+
+    def bake(w, contract):
+        (w / "contract.json").write_text(contract)
+        subprocess.run(["python3", "-c", BAKE], cwd=w, check=True)
+    lines = "\n".join(f"line {i}" for i in range(20)) + "\n"
+    bake(scratch.engine, lines)
+    _g(scratch.engine, "add", "."), _g(scratch.engine, "commit", "-qm", "the contract")
+    _g(scratch.wt, "pull", "-q")
+    bake(scratch.wt, lines.replace("line 2\n", "line 2 mine\n"))
+    _g(scratch.wt, "commit", "-qam", "mine: a route\n\nDirected-By: the maintainer\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>")
+    bake(scratch.engine, lines.replace("line 17\n", "line 17 theirs\n"))
+    _g(scratch.engine, "commit", "-qam", "theirs: another route")
+    return bake
+
+
+def test_a_rebase_whose_only_conflict_is_the_generated_identity_re_bakes_it_and_goes_on(scratch):
+    """Manager 2026-11-04 (alerts 290, 291, 308): every landing made the other lanes conflict only on the contract identity."""
+    _generated_world(scratch)
+    assert work.do_rebase(scratch.a, "integration") == ""
+    import hashlib
+    contract = (scratch.wt / "contract.json").read_text()
+    assert "line 2 mine" in contract and "line 17 theirs" in contract, "the sources merged"
+    assert (scratch.wt / "ident.txt").read_text().strip() == hashlib.sha256(contract.encode()).hexdigest(), "the identity is of the merged contract"
+    assert subprocess.run(["git", "-C", str(scratch.wt), "merge-base", "--is-ancestor", _g(scratch.engine, "rev-parse", "HEAD"), "HEAD"]).returncode == 0, "on top of origin"
+    assert "mine: a route" in _g(scratch.wt, "log", "--format=%s", "-3"), "the lane's commit kept, with its message"
+    assert _g(scratch.wt, "status", "--porcelain") == "" and not (scratch.wt / ".git" / "rebase-merge").exists()
+    rows = [r for r in journal.read() if r["event"] == "rebake"]
+    assert rows and rows[0]["files"] == ["ident.txt"] and rows[0]["lane"] == "n1"
+
+
+def test_a_rebase_with_any_other_conflict_beside_the_identity_is_aborted_as_before(scratch):
+    _generated_world(scratch)
+    (scratch.wt / "f").write_text("mine"), _g(scratch.wt, "commit", "-qam", "mine f")
+    (scratch.engine / "f").write_text("theirs"), _g(scratch.engine, "commit", "-qam", "theirs f")
+    why = work.do_rebase(scratch.a, "integration")
+    assert "could not finish" in why and not (scratch.wt / ".git" / "rebase-merge").exists()

@@ -68,6 +68,9 @@ class Config:
     build_lock: str = ""                # a lock file: one build at a time on the machine ("" = no lock)
     build_tree: str = ""                # a STABLE worktree path the build runs in, so xcodebuild is incremental ("" = the scratch tree)
     routes_file: str = ""               # an OpenAPI JSON at head whose paths are the engine's routes (the guard-data-added-routes rule)
+    generated: tuple = ()               # generated files a rebase may re-bake itself (the contract identity): never hand-merged
+    rebake: tuple = ()                  # argv run in the worktree to re-bake them from the merged sources ("{python}" = [check].python)
+    rebake_issue: str = ""              # the issue a re-bake commit cites, e.g. "#4705"
     remote: str = ""                    # "host:dir": the engine pytest runs go over ssh to that machine ("" = here); unreachable = an alert, then the next in `remotes`, then here
     remotes: tuple = ()                 # [check].remote as a LIST ("imac:~/g", "air:~/g"): tried in order; one alert per runner that is down
     remote_python: str = ""             # the interpreter there ("" = <dir>/venv/bin/python)
@@ -110,7 +113,7 @@ def load(root) -> Config:
         pytest_config=c.get("pytest_config", d.pytest_config), pytest_plugins=tuple(c.get("pytest_plugins", d.pytest_plugins)), max_files=c.get("max_files", d.max_files),
         max_lines=c.get("max_lines", d.max_lines), max_commits=c.get("max_commits", d.max_commits), build_paths=tuple(c.get("build_paths", d.build_paths)), product_paths=tuple(c.get("product_paths", d.product_paths)),
         build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
-        build_lock=c.get("build_lock", d.build_lock), build_tree=c.get("build_tree", d.build_tree), routes_file=c.get("routes_file", d.routes_file), engine_repo=c.get("engine_repo", d.engine_repo),
+        build_lock=c.get("build_lock", d.build_lock), build_tree=c.get("build_tree", d.build_tree), routes_file=c.get("routes_file", d.routes_file), generated=tuple(c.get("generated", d.generated)), rebake=tuple(c.get("rebake", d.rebake)), rebake_issue=c.get("rebake_issue", d.rebake_issue), engine_repo=c.get("engine_repo", d.engine_repo),
         remote=(c["remote"][0] if c["remote"] else "") if isinstance(c.get("remote"), list) else c.get("remote", d.remote),
         remotes=tuple(c["remote"]) if isinstance(c.get("remote"), list) else d.remotes, remote_python=c.get("remote_python", d.remote_python),
         remote_guards=c.get("remote_guards", d.remote_guards), guard_inputs=dict(c.get("guard_inputs", {})), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb),

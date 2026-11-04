@@ -119,13 +119,46 @@ def do_run(a, model: str) -> str:
 
 def do_rebase(a, branch: str) -> str:
     """As the worker: fetch origin and rebase the worktree onto origin/<branch>, so a lane that lands after another is judged
-    on the range that will land. '' = done; otherwise why (the rebase aborted, never resolved here)."""
+    on the range that will land. '' = done; otherwise why (the rebase aborted, never resolved here).
+    The one conflict it resolves itself (manager 2026-11-04: every landing made the other lanes' batches conflict ONLY on the generated
+    contract identity, redone by hand): when every conflicted path is one of `[check].generated`, upstream's copy is taken and
+    `[check].rebake` re-bakes it from the merged sources, then the rebase goes on; any other conflict aborts as before. After such a
+    rebase the identity is re-baked once more at HEAD and, if that changed it, committed citing `[check].rebake_issue` with the
+    lane's own trailers. One `rebake` journal row each."""
     q, g, wt = shlex.quote, shlex.quote(jail_git()), shlex.quote(str(a.worktree))
     r = as_worker(a, f"{g} -C {wt} fetch -q origin && {g} -C {wt} rebase -q origin/{q(branch)}")
     if r.returncode == 0:
         return ""
-    as_worker(a, f"{g} -C {wt} rebase --abort")
-    return f"rebase onto origin/{branch} could not finish (conflict left to a person): {(r.stderr or r.stdout).strip()[-300:]}"
+    cfg = check_tool.load(a.pinned)
+    gen = set(cfg.generated)
+    bake = " ".join(q(cfg.python if x == "{python}" else x) for x in cfg.rebake)
+    rebaked = 0
+    for _ in range(100):  # one round per replayed commit that conflicts
+        if r.returncode == 0:
+            break
+        conflicted = set(as_worker(a, f"{g} -C {wt} diff --name-only --diff-filter=U").stdout.split())
+        if not conflicted or not gen or not bake or not conflicted <= gen:
+            break
+        paths = " ".join(q(p) for p in sorted(conflicted))
+        fix = as_worker(a, f"cd {wt} && {g} checkout --ours -- {paths} && {bake} && {g} add -- {' '.join(q(p) for p in sorted(gen))}")
+        if fix.returncode:
+            break
+        rebaked += 1
+        journal.append("rebake", lane=a.name, branch=branch, files=sorted(conflicted), detail="upstream's generated files taken and re-baked")
+        r = as_worker(a, f"cd {wt} && GIT_EDITOR=true {g} rebase --continue")
+        if r.returncode and not as_worker(a, f"{g} -C {wt} diff --name-only --diff-filter=U").stdout.strip():
+            r = as_worker(a, f"cd {wt} && {g} rebase --skip")  # the commit held nothing but the generated files: empty now
+    if r.returncode:
+        as_worker(a, f"{g} -C {wt} rebase --abort")
+        return f"rebase onto origin/{branch} could not finish (conflict left to a person): {(r.stderr or r.stdout).strip()[-300:]}"
+    if rebaked:
+        trailers = "\n".join(ln for ln in as_worker(a, f"{g} -C {wt} log -1 --format=%B").stdout.splitlines()
+                              if ln.startswith(("Directed-By:", "Co-Authored-By:")))
+        msg = f"chore(contract): re-bake the generated contract identity after the rebase onto origin/{branch} ({cfg.rebake_issue or 'generated files'})"
+        as_worker(a, f"cd {wt} && {bake} && {g} add -- {' '.join(q(p) for p in sorted(gen))} && "
+                     f"({g} diff --cached --quiet || {g} commit -q -m {q(msg)} -m {q(trailers or 'Directed-By: the maintainer')})")
+        journal.append("rebake", lane=a.name, branch=branch, files=sorted(gen), detail=f"{rebaked} conflict(s) re-baked; HEAD checked")
+    return ""
 
 
 def do_export(a, branch: str) -> int:
