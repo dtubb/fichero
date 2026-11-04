@@ -365,16 +365,18 @@ the write path would produce.
   test `fichero-builder/tests/test_landed_verb.py::test_keep_worktree_leaves_a_lanes_worktree_for_its_open_session`), and, only once the sha is on `origin/<branch>` (the on-origin step has held it to that), updates the cited issues through `gh`:
   one comment per issue per landing naming every citing commit (sha7, subject, the test files it touches); `Fixes`/`Closes
   #N` closes with it, `Part of #N` stays open, `Already built: #N <test>` comments the proving test and labels
-  needs-your-test; a behaviour id on a `Behaviour: <id>` trailer line of a commit (an id the message only mentions does not count) gets its spec line's open tag set to [OK] with the commit's
-  test files named when the line names none (a `spec-ok` row each; the owner commits the spec edit with the next batch; a spec
-  file it would edit that has uncommitted changes refuses before the push);
+  needs-your-test; a behaviour id on a `Behaviour: <id>` trailer line of a commit (an id the message only mentions does not count) is proposed [OK] with the commit's
+  test files (manager 2026-11-04: never written into the loop's checkout, which a landing twice left dirty so refresh_live stopped
+  following origin): one `spec-ok-proposed` row each, naming the lane (`--lane`), the landing sha, the file, the id and the tests, which the
+  lane folds into its next batch; `builder auto` lists every proposal whose line still has an open tag; a spec
+  file it would propose for that has uncommitted changes still refuses before the push;
   `--no-issues` skips both. A `Fixes` or `Closes` line may name several issues. The `done` row's `left_open` names every cited issue with no
   such line, and the verb prints it: a row, not a close. Every step is a journal row (event `landed`); a red step stops the rest with exit 1.
   **Built** 2026-11-01: `fichero_builder/landed.py`. Tests:
   `fichero-builder/tests/test_landed_verb.py::test_the_happy_path_without_push_pins_and_refreshes_but_leaves_origin_alone`,
   `::test_refuses_a_sha_that_is_not_a_fast_forward_of_origin`, `::test_the_cited_issues_are_closed_or_commented_through_gh`,
   `::test_a_range_over_the_boundary_is_not_pushed`, `::test_a_journal_landed_does_not_own_or_others_can_write_refuses_before_anything`,
-  `::test_a_green_row_counts_only_for_the_range_being_landed`, `::test_issues_are_untouched_until_the_sha_is_on_origin`, `::test_the_spec_behaviour_line_a_landed_commit_names_gets_ok_with_the_test`, `::test_a_dirty_spec_file_it_would_edit_refuses_before_the_push_and_nothing_else_does`, `::test_a_fixes_line_naming_several_issues_closes_each_and_the_done_row_names_what_stayed_open`. Not yet: a run with the real jail user and the real `gh`; both are faked in every test.
+  `::test_a_green_row_counts_only_for_the_range_being_landed`, `::test_issues_are_untouched_until_the_sha_is_on_origin`, `::test_the_spec_behaviour_line_a_landed_commit_names_is_proposed_ok_never_written`, `::test_a_dirty_spec_file_it_would_edit_refuses_before_the_push_and_nothing_else_does`, `::test_a_fixes_line_naming_several_issues_closes_each_and_the_done_row_names_what_stayed_open`. Not yet: a run with the real jail user and the real `gh`; both are faked in every test.
 - `dev-workflows.tool.triage` [OK] (#6336; owner 2026-11-01) — `builder triage [--labels] [--specs] [--milestones]
   [--assignees] [--order] [--dry]` cleans the repo's GitHub metadata deterministically and changes it directly (owner
   ruling: no proposals file, no manual approval) by the rules of `harness/issues-and-labels.md`; every change is one journal

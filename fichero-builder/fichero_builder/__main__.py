@@ -108,6 +108,7 @@ def main(argv=None) -> int:
     ld.add_argument("--push", action="store_true", help="push sha to origin/<branch> first; nothing else ever sets this")
     ld.add_argument("--no-issues", action="store_true", help="leave the cited issues alone")
     ld.add_argument("--keep-worktree", action="store_true", help="leave the worktree the work rows name: the queue's session is still open in it")
+    ld.add_argument("--lane", default="", help="the lane the landing is for: named on its spec-ok-proposed rows")
     ld.add_argument("--state", help="where the owner's journal lives (default: the owner's journal dir)")
     tr = sub.add_parser("triage", help="clean up the repo's GitHub metadata directly by the rules in harness.toml [triage]; --dry reads only")
     tr.add_argument("--labels", action="store_true", help="the closed label set only (step, type, priority, phase, needs-*, status:blocked); any other label is reported, never deleted, and its issues get what [triage.labels] maps it to")
@@ -177,6 +178,7 @@ def main(argv=None) -> int:
     od.add_argument("--file", required=True), od.add_argument("--root", default=str(Path.cwd())), od.add_argument("--state")
     au = sub.add_parser("auto", help="the day's auto decisions (the manager's audit): every `auto` journal row by rule, with head, file and why")
     au.add_argument("--day", default="", help="YYYY-MM-DD (default: today)"), au.add_argument("--state")
+    au.add_argument("--root", default=str(Path(__file__).resolve().parents[2]), help="the checkout whose specs say what is folded")
     ss = sub.add_parser("sweep-scratch", help="the ladders' old scratch dirs in the jail's workroot: --list writes the list (deletes nothing), --delete FILE removes exactly those, each re-checked")
     g = ss.add_mutually_exclusive_group(required=True)
     g.add_argument("--list", action="store_true"), g.add_argument("--delete", metavar="FILE")
@@ -412,6 +414,11 @@ def main(argv=None) -> int:
             print(f"\n{rule}: {len(rs)}")
             for r in rs:
                 print(f"  {r.get('ts', '')[11:19]} {str(r.get('head', ''))[:9]} {r.get('file', '')}: {r.get('detail', '')}")
+        from fichero_builder import landed
+        open_ = landed.unfolded_proposals(a.root, journal.read())
+        print(f"\nspec-ok proposals not folded yet (any day): {len(open_)}")
+        for r in open_:
+            print(f"  {r.get('lane') or '?'} {str(r.get('sha', ''))[:9]} {r['file']}: `{r['id']}` [OK]" + (f" Tests: {', '.join(r.get('tests') or [])}" if r.get("tests") else ""))
         return 0
     if a.cmd == "sweep-scratch":
         from fichero_builder import scratch

@@ -239,9 +239,10 @@ def test_issues_are_untouched_until_the_sha_is_on_origin(world):
     assert rows()[-1]["step"] == "on-origin" and "not on origin/integration" in rows()[-1]["detail"]
 
 
-def test_the_spec_behaviour_line_a_landed_commit_names_gets_ok_with_the_test(world):
-    """A commit whose `Behaviour: <id>` trailer names a behaviour marks that spec line [OK] and names the commit's test file
-    when the line names none; a line already [OK] is left alone; one `spec-ok` row per line changed."""
+def test_the_spec_behaviour_line_a_landed_commit_names_is_proposed_ok_never_written(world):
+    """A commit whose `Behaviour: <id>` trailer names a behaviour proposes that spec line [OK] with the commit's test file: one
+    `spec-ok-proposed` row (lane, sha, id, tests) per line; the loop's checkout is never written (manager 2026-11-04: the flips left
+    it dirty twice and refresh_live stopped following origin); a line already [OK] proposes nothing."""
     spec = world.tmp / "docs" / "contributor_manual" / "specs" / "h" / "x.md"
     spec.parent.mkdir(parents=True)
     spec.write_text("# X\n- `x.one` [GAP] (#7) — the thing\n  continues here.\n- `x.two` [OK] (#8) — done. Tests: `t.py`\n- `x.three` [GAP] (#9) — another\n")
@@ -255,14 +256,19 @@ def test_the_spec_behaviour_line_a_landed_commit_names_gets_ok_with_the_test(wor
     _g(world.engine, "fetch", "-q", str(world.seed), "+refs/heads/lane:refs/heads/work-n1")
     land_tool.write_verdict(world.store, world.engine, "integration", second)
     journal.append("check", head=second, since=_g(world.engine, "rev-parse", "integration"), ok=True)
+    before = spec.read_text()
     assert cli.main(["landed", second, "--root", str(world.tmp), "--verdicts", str(world.store), "--gh", str(world.tmp / "gh"),
-                     "--state", str(world.tmp / "s"), "--push"]) == 0
+                     "--state", str(world.tmp / "s"), "--push", "--lane", "lane-x"]) == 0
     text = spec.read_text()
-    assert "- `x.one` [OK] (#7) — the thing Tests: `tests/test_one.py`\n  continues here.\n" in text
+    assert text == before and "- `x.one` [GAP] (#7)" in text, "the loop's checkout is never written"
     assert "- `x.two` [OK] (#8) — done. Tests: `t.py`\n" in text
-    ok = [r for r in rows() if r["step"] == "spec-ok"]
-    assert [(r["id"], r["tests"]) for r in ok] == [("x.one", ["tests/test_one.py"])]
+    ok = [r for r in journal.read() if r["event"] == "spec-ok-proposed"]
+    assert [(r["id"], r["tests"], r["lane"], r["sha"]) for r in ok] == [("x.one", ["tests/test_one.py"], "lane-x", second)]
     assert "- `x.three` [GAP]" in text, "an id a message only mentions in passing is not marked"
+    from fichero_builder import landed
+    assert [r["id"] for r in landed.unfolded_proposals(world.tmp, journal.read())] == ["x.one"], "not folded yet"
+    spec.write_text(text.replace("- `x.one` [GAP]", "- `x.one` [OK]"))
+    assert landed.unfolded_proposals(world.tmp, journal.read()) == [], "a batch folded it in"
 
 
 def test_no_issues_skips_gh_but_the_done_row_still_names_the_issues(world):
@@ -413,7 +419,7 @@ def test_a_dirty_spec_file_it_would_edit_refuses_before_the_push_and_nothing_els
     other.write_text("- `y.one` [GAP] (#8) — dirty, and not named\n")
     (world.tmp / "unrelated.txt").write_text("b\n")
     assert go() == 0
-    assert "[OK]" in spec.read_text() and "dirty" in other.read_text()
+    assert "[OK]" not in spec.read_text() and "dirty" in other.read_text(), "proposed, never written (manager 2026-11-04)"
 
 
 def test_a_fixes_line_naming_several_issues_closes_each_and_the_done_row_names_what_stayed_open(world, capsys):

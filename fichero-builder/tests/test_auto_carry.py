@@ -64,3 +64,14 @@ def test_the_days_auto_decisions_are_one_list_by_rule(repo, capsys):
     assert cli.main(["auto", "--state", str(journal.STATE)]) == 0
     out = capsys.readouterr().out
     assert "2 auto decision(s)" in out and "red-on-base-trim-only: 1" in out and "approval-carry-same-file-diffs: 1" in out and "bbbbbbbbb t_test.py" in out
+
+
+def test_builder_auto_lists_the_spec_ok_proposals_no_batch_has_folded_in(repo, capsys):
+    spec = repo / "docs" / "s.md"
+    spec.parent.mkdir()
+    spec.write_text("- `a.one` [GAP] — x\n- `a.two` [OK] — y\n")
+    journal.append("spec-ok-proposed", lane="lane-x", sha="c" * 40, file="docs/s.md", id="a.one", tests=["t.py"])
+    journal.append("spec-ok-proposed", lane="lane-x", sha="c" * 40, file="docs/s.md", id="a.two", tests=[])
+    assert cli.main(["auto", "--state", str(journal.STATE), "--root", str(repo)]) == 0
+    out = capsys.readouterr().out
+    assert "spec-ok proposals not folded yet (any day): 1" in out and "lane-x ccccccccc docs/s.md: `a.one` [OK] Tests: t.py" in out

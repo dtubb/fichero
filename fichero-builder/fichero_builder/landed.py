@@ -206,6 +206,20 @@ def update_issues(gh: str, cited: list[dict], branch: str, sha: str) -> list[str
     return done
 
 
+
+def unfolded_proposals(root, rows: list[dict]) -> list[dict]:
+    """The `spec-ok-proposed` rows whose spec line in `root` still has an open tag: the flips no batch has folded in yet."""
+    out, seen = [], set()
+    for r in rows:
+        if r.get("event") != "spec-ok-proposed" or (r.get("file"), r.get("id")) in seen:
+            continue
+        seen.add((r.get("file"), r.get("id")))
+        f = Path(root) / str(r.get("file", ""))
+        m = re.search(r"(?m)^- `" + re.escape(str(r.get("id", ""))) + r"` (\[[A-Z]+\])", f.read_text()) if f.is_file() else None
+        if m and m.group(1) in OPEN_TAGS:
+            out.append(r)
+    return out
+
 def mark_specs_ok(root, commits: list[dict], write: bool = True) -> list[dict]:
     """A behaviour id on a landed commit's `Behaviour: <id>` trailer line: its spec line's open tag becomes [OK], and the commit's test
     files are named on the line when it names none. [{file, id, tests}] of the lines changed (`write=False`: would change)."""
@@ -380,12 +394,14 @@ def main(a) -> int:
         return "; ".join(update_issues(a.gh, cited, branch, sha)) or "no issue cited"
 
     def specs():
+        # manager 2026-11-04: never a write into the loop's root (twice its tree was left dirty with [OK] flips origin had not taken,
+        # and refresh_live then refused to follow origin); each flip is a `spec-ok-proposed` row the lane folds into its next batch
         if a.no_issues:
             return "untouched"
-        changed = mark_specs_ok(a.root, commits_of(repo, base, sha))
+        changed = mark_specs_ok(a.root, commits_of(repo, base, sha), write=False)
         for ch in changed:
-            journal.append("landed", sha=sha, step="spec-ok", ok=True, **ch)
-        return "; ".join(f"{ch['file']}: `{ch['id']}` [OK]" for ch in changed) or "no behaviour line named"
+            journal.append("spec-ok-proposed", lane=getattr(a, "lane", "") or "", sha=sha, **ch)
+        return ("proposed, not written (the lane folds them in): " + "; ".join(f"{ch['file']}: `{ch['id']}` [OK]" for ch in changed)) if changed else "no behaviour line named"
 
     # a rerun after a red step past the refresh: the local branch has moved, so the range is empty and only the first run's base names it
     earlier = [r for r in journal.read() if r.get("event") == "landed" and r.get("sha") == sha]
