@@ -843,7 +843,7 @@ its basis, and it learns from the project's booked costs (`designer.budget.estim
   measured, with no margin multiplier, the maintainer's ruling, 2026-10-30) and written only when the person confirms the typed figure
   (`designer.path.caps-proposed-not-written`). *Test:*
   `test_run_cap_holds_with_the_project_cap.py` (a run cap below the project's
-  remaining refuses at the run cap; the project cap still refuses first when lower).
+  remaining refuses at the run cap; the project cap still refuses first when lower). Built (engine, 2026-11-04): `StartRequest.run_cap_usd` is kept on the run's row; the cap is held from the moment `_run` starts the run (not while it waits in the queue, so a run cancelled before it starts leaves none) and cleared at its end unless it is deferred, which keeps the cap as changed and its baseline: `test_run_cap_is_held_from_the_run_start.py`.
 - `designer.budget.refusal-offers-the-fix` [PARTIAL] (#6295) — a Start refused for the cap says, in plain words,
   which cap refused (the project cap or the monthly cap), what the estimate is, what that cap leaves, and which step costs most; and the refusal carries typed fixes
   the app shows as buttons in the Budget block, each one press, with **both** cap fields editable in place on the
@@ -858,7 +858,7 @@ its basis, and it learns from the project's booked costs (`designer.budget.estim
   *Test:* `test_cap_refusal_offers_the_fix_6295.py` (each fix is served with
   its figure; the refusal names which cap refused; raising to N clears the refusal; the fewer-pages count fits what is left,
   and the Start it makes names the first N pages in Finder order as `documents`, nothing more),
-  `BudgetRefusalFixTests.swift` (the three buttons from a served refusal). Found partly built 2026-11-02 (#6295): the cap line serves `needed_cap_usd`, `needed_project_cap_usd`, `fewer_pages` and the refusal's own sentence naming which cap refused. Left: the typed `refusal.fixes[]` (kind, step, raise_to_usd, pages_that_fit), the dearest step, and Change the model.
+  `BudgetRefusalFixTests.swift` (the three buttons from a served refusal). Built (engine, 2026-11-04): the refusal carries typed `fixes[]` (`CapFix`: kind, step, `raise_to_usd`, `pages_that_fit`) and the dearest step: `test_cap_refusal_offers_the_fix_6295.py`. Found partly built 2026-11-02 (#6295): the cap line serves `needed_cap_usd`, `needed_project_cap_usd`, `fewer_pages` and the refusal's own sentence naming which cap refused. Left: the typed `refusal.fixes[]` (kind, step, raise_to_usd, pages_that_fit), the dearest step, and Change the model.
 - `designer.budget.change-is-audited-and-undoable` [PARTIAL] (#6295) — raising or lowering either cap, from the
   field or from a fix button, is one audited action, `project.set_budget` (project, which cap, from, to, who,
   when), undoable through Edit › Undo, the same write permission as any change to the project; it reuses
@@ -1403,7 +1403,7 @@ Engine before app in every step; the Budget steps first because #6295 and #6294 
 
 #### Step 18.2 — The run cap, the audited cap action, the refusal's fixes (#6295)
 - Behaviours: `designer.budget.run-cap`, `designer.budget.change-is-audited-and-undoable`, `designer.budget.refusal-offers-the-fix`
-- Tests: fichero-server/tests/unit/llm/test_run_cap_holds_with_the_project_cap.py, fichero-server/tests/unit/recipes/test_set_budget_is_audited_and_undoable.py, fichero-server/tests/unit/recipes/test_cap_refusal_offers_the_fix_6295.py
+- Tests: fichero-server/tests/unit/recipes/test_run_cap_holds_with_the_project_cap.py, fichero-server/tests/unit/recipes/test_set_budget_is_audited_and_undoable.py, fichero-server/tests/unit/recipes/test_cap_refusal_offers_the_fix_6295.py
 - Depends on: 18.1
 - Size: M
 

@@ -146,9 +146,7 @@ def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, start
                                            " on one folder" if folder_id else "")
     job_id = jobs.enqueue_remote(db, KIND, f"recipe:{uuid.uuid4()}", target="this-mac", detail=json.dumps(detail),
                                  reason=words, started_by=started_by)
-    if run_cap_usd is not None:  # the run's own cap (`designer.budget.run-cap`): held with the project's, until the run ends
-        spend.set_run_cap(str(_library(db)), job_id, run_cap_usd)
-    return job_id
+    return job_id  # its run cap (`run_cap_usd` in the detail) is held from the moment `_run` starts it, not while it waits
 
 
 def _recipe_title(db: Any) -> str | None:
@@ -1279,9 +1277,19 @@ class RunEnded(RuntimeError):
     """The run's own end in words ("Done with failures: ...", "Stopped: ..."): said as it is, never wrapped (#6298)."""
 
 
+def _hold_the_run_cap(db: Any, job_id: str) -> None:
+    """Hold the run's own cap (`designer.budget.run-cap`) from its start: a queued run that is cancelled before it starts leaves none
+    behind. A run coming back after a pause keeps the cap it had (it may have been changed since), and its baseline."""
+    cap = json.loads((jobs.read_job(db, job_id) or {}).get("detail") or "{}").get("run_cap_usd")
+    library = str(_library(db))
+    if cap is not None and (spend.run_cap(library) or {}).get("job_id") != job_id:
+        spend.set_run_cap(library, job_id, cap)
+
+
 def _run(db: Any, job_id: str) -> dict[str, Any]:
     deferred = False
     try:
+        _hold_the_run_cap(db, job_id)
         return _run_the_plan(db, job_id)
     except (RunEnded, *_RUN_CONTROL) as exc:
         deferred = isinstance(exc, (jobs.JobDeferred, ParkedOnStepRun, WorkflowPaused))  # it comes back: its run cap stays
