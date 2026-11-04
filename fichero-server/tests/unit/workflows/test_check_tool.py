@@ -449,6 +449,30 @@ def test_the_deleted_module_rule_refuses_every_change_but_whole_tests_removed(tm
     assert ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", {"watch"})
 
 
+def test_a_known_gaps_list_that_only_adds_engine_routes_with_an_issue_resolves_itself_and_anything_else_stops(tmp_path):
+    import json
+    g, _ = _git_repo(tmp_path)
+    (tmp_path / "scripts").mkdir()
+    gaps, api = tmp_path / "scripts" / "check_x_known_gaps.json", tmp_path / "openapi.json"
+    gaps.write_text(json.dumps({"GET /api/a": "the app view is not built (#1)"}))
+    api.write_text(json.dumps({"paths": {"/api/a": {"get": {}}, "/api/b": {"post": {}}, "/api/c": {"get": {}}}}))
+    g("add", "."), g("commit", "-qm", "base")
+    base = _sha(tmp_path)
+    cfg = ct.Config(routes_file="openapi.json")
+    f = "scripts/check_x_known_gaps.json"
+
+    def head(d):
+        gaps.write_text(json.dumps(d))
+        g("commit", "-qam", "gaps")
+        return ct.known_gaps_added_only(tmp_path, base, "HEAD", f, cfg)
+    assert head({"GET /api/a": "the app view is not built (#1)", "POST /api/b": "engine first (#6346)"}) == ""
+    assert "removes" in head({"POST /api/b": "engine first (#6346)"})
+    assert "changes the text" in head({"GET /api/a": "built later (#1)"})
+    assert "not a route" in head({"GET /api/a": "the app view is not built (#1)", "GET /api/nowhere": "x (#2)"})
+    assert "no issue" in head({"GET /api/a": "the app view is not built (#1)", "GET /api/c": "no reason given"})
+    assert head({"GET /api/a": "the app view is not built (#1)", "GET /api/c": "Step 2.1 builds the view"}) == ""
+    assert "known-gaps" in ct.known_gaps_added_only(tmp_path, base, "HEAD", "openapi.json", cfg)
+
 def test_the_auto_rules_are_off_unless_named_and_each_decision_is_a_journal_row(tmp_path, monkeypatch):
     """Wired: the weakened check of the ladder and the red-on-base loop skip only what a named rule excuses, with an `auto` row."""
     from fichero_builder import journal

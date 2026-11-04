@@ -651,3 +651,24 @@ def test_the_alert_names_the_group_that_blocked_not_the_files_last_line():
     assert work.blocking(text, "READY") == "[group 2 of 3: b..c] NOT READY: a send-back never reaches a live session"
     assert work.blocking("body\nNOT READY: x", "NOT READY: x") == "NOT READY: x"
     assert work.blocking("nothing structured", "nothing structured") == "nothing structured"
+
+
+def test_a_guard_data_stop_the_added_routes_rule_clears_runs_the_ladder_again_with_heads_copy(chain, monkeypatch):
+    """dev-workflows.run.auto-rules (guard-data-added-routes, manager 2026-11-03): no alert, one `auto` row, the ladder again with
+    head's copy of exactly the data files under the pinned guards."""
+    (chain.tmp / "harness.toml").write_text(RULES.replace('[check]\n', '[check]\ncheck_paths = ["scripts/"]\nauto = ["guard-data-added-routes"]\nroutes_file = "api.json"\n'))
+    monkeypatch.setattr(work, "r_since", lambda repo, branch: "b" * 40)
+    monkeypatch.setattr(work, "_git", lambda repo, *args: types.SimpleNamespace(stdout="scripts/check_x_known_gaps.json\n", returncode=0))
+    monkeypatch.setattr(work.check_tool, "known_gaps_added_only", lambda *a: "")
+    seen = []
+
+    def check(a, repo, since, head, ladder):
+        seen.append(tuple(getattr(a, "guard_data", ())))
+        return {"ok": bool(seen[-1]), "failed": "" if seen[-1] else "guards", "rungs": []}
+    monkeypatch.setattr(work, "do_check", check)
+    assert chain() == 0
+    assert seen == [(), ("scripts/check_x_known_gaps.json",)]
+    assert [(r["rule"], r["file"]) for r in journal.read() if r["event"] == "auto"] == [("guard-data-added-routes", "scripts/check_x_known_gaps.json")]
+    monkeypatch.setattr(work.check_tool, "known_gaps_added_only", lambda *a: "removes ['GET /x']")
+    seen.clear()
+    assert chain() != 0 and seen == [()], "anything else still stops for the manager"

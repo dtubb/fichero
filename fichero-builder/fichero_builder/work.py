@@ -468,6 +468,11 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                     # OLD list, so a batch that changes the list can never pass. The manager's approve, by file name, lays head's copy over it.
                     cfg_now = check_tool.load(a.pinned)
                     data = [f for f in files if f.endswith(".json") and f.startswith(tuple(cfg_now.check_paths))]
+                    if data and "guard-data-added-routes" in cfg_now.auto and not any(check_tool.known_gaps_added_only(repo, since_now, head, f, cfg_now) for f in data):
+                        for f in data:  # speed: the rule decides; head's copy of exactly these files under the pinned guards, then the ladder again
+                            journal.append("auto", rule="guard-data-added-routes", head=head, file=f, detail="only added entries: engine routes with an issue or step")
+                        a.guard_data = tuple(data)
+                        continue
                     if data:
                         diff = state / f"guard-data-{a.name}.diff"
                         diff.write_text(_git(repo, "diff", since_now, head, "--", *data).stdout)

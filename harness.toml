@@ -40,7 +40,8 @@ whole_tests = { "fichero-builder/fichero_builder/" = "fichero-builder/tests" }
 spec_dir = "docs/contributor_manual/specs"
 test_globs = ["test_*.py", "*_test.py"]
 # speed batch 1 (manager 2026-11-03): rule classes the ladder decides by itself, each an `auto` journal row the manager audits
-auto = ["red-on-base-trim-only", "weakened-tests-of-a-deleted-module"]
+auto = ["red-on-base-trim-only", "weakened-tests-of-a-deleted-module", "approval-carry-same-file-diffs", "guard-data-added-routes"]
+routes_file = "fichero-server/tests/contracts/openapi.json"  # the engine's routes at head (guard-data-added-routes)
 # pytest runs with plugin autoload OFF, the pinned config, and only these plugins (module names in the worker venv).
 pytest_config = "fichero-server/pyproject.toml"
 # manager 2026-11-02 (the Pro is CPU-bound): the engine pytest runs go to the M4 iMac, then the M1 Air (added 2026-11-03; each venv

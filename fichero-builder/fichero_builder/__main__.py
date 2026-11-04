@@ -175,6 +175,8 @@ def main(argv=None) -> int:
     ln.add_argument("--gh", default="gh"), ln.add_argument("--state")
     od = sub.add_parser("order", help="the owner's build order (JSON {order, parked}) as one commit on branch build-order, queued as a tiny batch the loop lands")
     od.add_argument("--file", required=True), od.add_argument("--root", default=str(Path.cwd())), od.add_argument("--state")
+    au = sub.add_parser("auto", help="the day's auto decisions (the manager's audit): every `auto` journal row by rule, with head, file and why")
+    au.add_argument("--day", default="", help="YYYY-MM-DD (default: today)"), au.add_argument("--state")
     ss = sub.add_parser("sweep-scratch", help="the ladders' old scratch dirs in the jail's workroot: --list writes the list (deletes nothing), --delete FILE removes exactly those, each re-checked")
     g = ss.add_mutually_exclusive_group(required=True)
     g.add_argument("--list", action="store_true"), g.add_argument("--delete", metavar="FILE")
@@ -395,6 +397,22 @@ def main(argv=None) -> int:
 
         journal.STATE = Path(a.state) if a.state else journal.STATE
         return order.main(a)
+    if a.cmd == "auto":
+        import collections
+        import time as _t
+
+        journal.STATE = Path(a.state) if a.state else journal.STATE
+        day = a.day or _t.strftime("%Y-%m-%d")
+        rows = [r for r in journal.read() if r.get("event") == "auto" and str(r.get("ts", "")).startswith(day)]
+        by = collections.defaultdict(list)
+        for r in rows:
+            by[r.get("rule", "?")].append(r)
+        print(f"{len(rows)} auto decision(s) on {day}" + ("" if rows else ": none"))
+        for rule, rs in sorted(by.items()):
+            print(f"\n{rule}: {len(rs)}")
+            for r in rs:
+                print(f"  {r.get('ts', '')[11:19]} {str(r.get('head', ''))[:9]} {r.get('file', '')}: {r.get('detail', '')}")
+        return 0
     if a.cmd == "sweep-scratch":
         from fichero_builder import scratch
 

@@ -892,6 +892,39 @@ def check_head(root, lane_id: str, w=None) -> tuple[int, str]:
     return (0, f"{lane_id} at {head[:9]}: GREEN") if r.get("ok") else (1, f"{lane_id} at {head[:9]}: RED at {r.get('failed') or '?'}")
 
 
+
+CARRYABLE = {"approve_red", "approve_weakened", "approve_guard_data"}  # approvals bound to the files they named; never maintainer or pinned-new
+
+
+def carry_approvals(step: dict, repo: str, base_ref: str, auto) -> bool:
+    """`approval-carry-same-file-diffs`: the step's approve, given on an older head, holds at its new head when each file the approve
+    named has the same diff from its base at both heads (one patch-id): commits only added elsewhere, or a rebase whose range-diff of
+    those files is empty. A named file whose diff changed, an approval kind not bound to files, or no named file: no carry.
+    True when it carried (one `auto` row; the step's approved_head moves)."""
+    old, new, named = step.get("approved_head", ""), step.get("head", ""), list(step.get("approved_tests") or [])
+    flags = {k for k in (*CARRYABLE, "approve_pinned_new", "maintainer") if step.get(k)}
+    if "approval-carry-same-file-diffs" not in auto or not old or not new or old == new or not named or not flags or flags - CARRYABLE:
+        return False
+
+    def pid(head: str, f: str) -> str | None:
+        g = ["git", "-c", "safe.directory=*", "-C", repo]
+        base = subprocess.run(g + ["merge-base", base_ref, head], capture_output=True, text=True).stdout.strip()
+        if not base:
+            return None
+        d = subprocess.run(g + ["diff", "--no-ext-diff", base, head, "--", f], capture_output=True)
+        if d.returncode:
+            return None
+        if not d.stdout:
+            return ""
+        return subprocess.run(["git", "patch-id", "--stable"], input=d.stdout, capture_output=True).stdout.decode().split(" ")[0]
+    for f in named:
+        a, b = pid(old, f), pid(new, f)
+        if a is None or a != b:
+            return False
+    step["approved_head"] = new
+    journal.append("auto", rule="approval-carry-same-file-diffs", head=new, file=", ".join(named), detail=f"the approve given at {old[:9]} holds: the same diff of each named file")
+    return True
+
 def _approved(step: dict | None, key: str) -> bool:
     """An approve counts only for the head it was given on (defect 2026-11-02: alert -36's approve_red excused a later head)."""
     # a worker lane's step has no head until a chain is green: its approve is recorded with head "" and holds while it still has none
@@ -945,6 +978,7 @@ def real_procs(root) -> Procs:
                      and r.get("seq") == lane["seq"]), None)
 
     def chain(lane, step, stage):
+        carry_approvals(step, repo, land_tool.resolve_branch(repo, branch) or branch, tuple(rules.get("check", {}).get("auto", ())))
         a = ns(lane, step)
         a.pinned = work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))
         a.repin = lambda: work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))

@@ -67,6 +67,7 @@ class Config:
     build_timeout_s: float = 1800
     build_lock: str = ""                # a lock file: one build at a time on the machine ("" = no lock)
     build_tree: str = ""                # a STABLE worktree path the build runs in, so xcodebuild is incremental ("" = the scratch tree)
+    routes_file: str = ""               # an OpenAPI JSON at head whose paths are the engine's routes (the guard-data-added-routes rule)
     remote: str = ""                    # "host:dir": the engine pytest runs go over ssh to that machine ("" = here); unreachable = an alert, then the next in `remotes`, then here
     remotes: tuple = ()                 # [check].remote as a LIST ("imac:~/g", "air:~/g"): tried in order; one alert per runner that is down
     remote_python: str = ""             # the interpreter there ("" = <dir>/venv/bin/python)
@@ -109,7 +110,7 @@ def load(root) -> Config:
         pytest_config=c.get("pytest_config", d.pytest_config), pytest_plugins=tuple(c.get("pytest_plugins", d.pytest_plugins)), max_files=c.get("max_files", d.max_files),
         max_lines=c.get("max_lines", d.max_lines), max_commits=c.get("max_commits", d.max_commits), build_paths=tuple(c.get("build_paths", d.build_paths)), product_paths=tuple(c.get("product_paths", d.product_paths)),
         build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
-        build_lock=c.get("build_lock", d.build_lock), build_tree=c.get("build_tree", d.build_tree), engine_repo=c.get("engine_repo", d.engine_repo),
+        build_lock=c.get("build_lock", d.build_lock), build_tree=c.get("build_tree", d.build_tree), routes_file=c.get("routes_file", d.routes_file), engine_repo=c.get("engine_repo", d.engine_repo),
         remote=(c["remote"][0] if c["remote"] else "") if isinstance(c.get("remote"), list) else c.get("remote", d.remote),
         remotes=tuple(c["remote"]) if isinstance(c.get("remote"), list) else d.remotes, remote_python=c.get("remote_python", d.remote_python),
         remote_guards=c.get("remote_guards", d.remote_guards), guard_inputs=dict(c.get("guard_inputs", {})), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb),
@@ -124,6 +125,12 @@ AUTO_RULES = {
     "weakened-tests-of-a-deleted-module": "a changed test file whose head is its base with whole top-level tests removed, each of which "
                                           "called a module this diff deletes (`m.<attr>`, m imported), or a deleted test file whose every "
                                           "test called one, is not refused; anything else is",
+    "approval-carry-same-file-diffs": "an approve (red-on-base, weakened tests, guard data) carries to the step's new head when each file it "
+                                      "named has the same diff from its base (patch-id) at both heads: commits only added elsewhere, or a rebase "
+                                      "whose range-diff of those files is empty; any other approval kind never carries",
+    "guard-data-added-routes": "a guard-data stop on a *_known_gaps.json keyed by routes resolves itself when the batch only ADDS entries "
+                               "(no key removed, no existing text changed), each added key is a route in [check].routes_file at head, and "
+                               "each added reason names an issue (#N) or a step",
 }
 
 
@@ -816,6 +823,37 @@ def build(root, changed: list[str], cfg: Config) -> dict:
     return {"ok": r["ok"], "skipped": False, "results": [r]}
 
 
+
+
+ROUTE_KEY = re.compile(r"^(GET|POST|PUT|PATCH|DELETE) (/\S*)$")
+REASON_REF = re.compile(r"#\d+|\b[Ss]tep \d")
+
+
+def known_gaps_added_only(repo, since: str, head: str, f: str, cfg: Config) -> str:
+    """`guard-data-added-routes`: '' when `f` (a *_known_gaps.json of route keys) only gains entries whose key is a route in
+    `[check].routes_file` at head and whose reason names an issue or a step; otherwise why not (the stop stays the manager's)."""
+    if not f.endswith("_known_gaps.json") or not cfg.routes_file:
+        return "not a known-gaps file, or no [check].routes_file"
+    try:
+        old = json.loads("\n".join(_lines(repo, "show", f"{since}:{f}") or ["x"]))
+        new = json.loads("\n".join(_lines(repo, "show", f"{head}:{f}") or ["x"]))
+        api = json.loads("\n".join(_lines(repo, "show", f"{head}:{cfg.routes_file}") or ["x"]))
+    except ValueError:
+        return "a file did not read as JSON at one of the heads"
+    if not (isinstance(old, dict) and isinstance(new, dict)) or any(not ROUTE_KEY.match(k) for k in old):
+        return "not a dict keyed by routes"
+    if removed := [k for k in old if k not in new]:
+        return f"removes {removed[:3]}"
+    if edited := [k for k in old if new[k] != old[k]]:
+        return f"changes the text of {edited[:3]}"
+    routes = {(m.upper(), p) for p, ops in (api.get("paths") or {}).items() for m in (ops or {})}
+    for k in [k for k in new if k not in old]:
+        m = ROUTE_KEY.match(k)
+        if not m or (m.group(1), m.group(2)) not in routes:
+            return f"{k!r} is not a route of the engine at head"
+        if not isinstance(new[k], str) or not REASON_REF.search(new[k]):
+            return f"{k!r} gives no issue (#N) or step in its reason"
+    return ""
 
 def _stable_build_tree(root, cfg: Config) -> str:
     """`[check].build_tree`: ONE worktree of the engine repo at a fixed path (the jail's workroot), checked out at the scratch
