@@ -8481,7 +8481,9 @@ def register_generated_openapi_commands(
         auto_levels: Optional[bool] = typer.Option(None, '--auto-levels/--no-auto-levels', help='Auto Levels. Default: false.'),
         brightness: Optional[float] = typer.Option(None, '--brightness', help='Brightness. Default: 1.0.'),
         contrast: Optional[float] = typer.Option(None, '--contrast', help='Contrast. Default: 1.0.'),
+        method: Optional[str] = typer.Option(None, '--method', help='clahe runs local contrast, the yellow cast, then the unsharp mask. Default: "pil".'),
         page: Optional[int] = typer.Option(None, '--page', help='Page. Default: 1.'),
+        profile: Optional[str] = typer.Option(None, '--profile', help='The CLAHE settings for the kind of writing. Default: "handwritten".'),
         sharpen: Optional[float] = typer.Option(None, '--sharpen', help='Sharpen. Default: 1.0.'),
     ) -> None:
         """Enhance Image (POST /api/images/{document_id}/operations/enhance)."""
@@ -8492,13 +8494,17 @@ def register_generated_openapi_commands(
                 "auto_levels": auto_levels,
                 "brightness": brightness,
                 "contrast": contrast,
+                "method": method,
                 "page": page,
+                "profile": profile,
                 "sharpen": sharpen,
             }, {
                 "auto_levels": {'type': 'boolean', 'title': 'Auto Levels', 'default': False, 'x-cli-required': False},
                 "brightness": {'type': 'number', 'minimum': 0.0, 'title': 'Brightness', 'default': 1.0, 'x-cli-required': False},
                 "contrast": {'type': 'number', 'minimum': 0.0, 'title': 'Contrast', 'default': 1.0, 'x-cli-required': False},
+                "method": {'type': 'string', 'pattern': '^(pil|clahe)$', 'title': 'Method', 'description': 'clahe runs local contrast, the yellow cast, then the unsharp mask.', 'default': 'pil', 'x-cli-required': False},
                 "page": {'type': 'integer', 'minimum': 1.0, 'title': 'Page', 'default': 1, 'x-cli-required': False},
+                "profile": {'type': 'string', 'pattern': '^(handwritten|typescript)$', 'title': 'Profile', 'description': 'The CLAHE settings for the kind of writing.', 'default': 'handwritten', 'x-cli-required': False},
                 "sharpen": {'type': 'number', 'minimum': 0.0, 'title': 'Sharpen', 'default': 1.0, 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)

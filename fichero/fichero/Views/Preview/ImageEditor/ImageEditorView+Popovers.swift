@@ -6,9 +6,18 @@ extension ImageEditorView {
     var enhancePopover: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Enhance").font(.headline)
-            enhanceSlider("Brightness", value: $brightness)
-            enhanceSlider("Contrast", value: $contrast)
-            enhanceSlider("Sharpen", value: $sharpen)
+            Toggle("Local contrast (faded writing)", isOn: $localContrast)
+            if localContrast {
+                Picker("Writing", selection: $localContrastTypescript) {
+                    Text("Handwritten").tag(false)
+                    Text("Typescript").tag(true)
+                }
+                .pickerStyle(.segmented)
+            } else {
+                enhanceSlider("Brightness", value: $brightness)
+                enhanceSlider("Contrast", value: $contrast)
+                enhanceSlider("Sharpen", value: $sharpen)
+            }
             HStack {
                 Button("Auto Levels") {
                     enhanceCommitted = true
@@ -23,7 +32,9 @@ extension ImageEditorView {
                             brightness: brightness,
                             contrast: contrast,
                             sharpen: sharpen,
-                            autoLevels: false
+                            autoLevels: false,
+                            method: localContrast ? "clahe" : "pil",
+                            profile: localContrastTypescript ? "typescript" : "handwritten"
                         )
                     }
                     resetEnhanceSliders()
@@ -112,5 +123,7 @@ extension ImageEditorView {
         brightness = 1.0
         contrast = 1.0
         sharpen = 1.0
+        localContrast = false
+        localContrastTypescript = false
     }
 }

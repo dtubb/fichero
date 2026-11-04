@@ -66632,6 +66632,20 @@
             "title": "Auto Levels",
             "default": false
           },
+          "method": {
+            "type": "string",
+            "pattern": "^(pil|clahe)$",
+            "title": "Method",
+            "description": "clahe runs local contrast, the yellow cast, then the unsharp mask.",
+            "default": "pil"
+          },
+          "profile": {
+            "type": "string",
+            "pattern": "^(handwritten|typescript)$",
+            "title": "Profile",
+            "description": "The CLAHE settings for the kind of writing.",
+            "default": "handwritten"
+          },
           "page": {
             "type": "integer",
             "minimum": 1.0,

@@ -156,3 +156,20 @@ def test_a_saved_clahe_enhance_row_previews_through_the_route(client, db):
 
     shown = Image.open(io.BytesIO(got.content))
     assert abs(_b_mean(shown) - _b_mean(_tinted(12))) > 1, "the preview is the enhanced page, not the source"
+
+
+def test_the_enhance_route_takes_a_clahe_method_and_profile_and_a_plain_request_is_stored_as_before(client, db):
+    from fichero_server.models import Document, FileType
+
+    path = db.path.parent / "files" / "faded.png"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _faded_page().save(path)
+    doc = Document(name="faded.png", path=str(path), file_type=FileType.image)
+    db.save(doc)
+    plain = client.post(f"/api/images/{doc.id}/operations/enhance", json={"contrast": 1.2})
+    assert plain.status_code == 200, plain.text
+    assert "method" not in plain.json()["operations"][-1]["params"]
+    got = client.post(f"/api/images/{doc.id}/operations/enhance", json={"method": "clahe", "profile": "typescript"})
+    assert got.status_code == 200, got.text
+    assert got.json()["operations"][-1]["params"]["method"] == "clahe" and got.json()["operations"][-1]["params"]["profile"] == "typescript"
+    assert client.post(f"/api/images/{doc.id}/operations/enhance", json={"method": "magic"}).status_code == 422

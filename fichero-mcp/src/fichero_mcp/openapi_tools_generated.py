@@ -4009,11 +4009,13 @@ def fichero_images_enhance(
     auto_levels: Annotated[Optional[bool], Field(description='Auto Levels. Default: false.')] = None,
     brightness: Annotated[Optional[float], Field(description='Brightness. Default: 1.0.')] = None,
     contrast: Annotated[Optional[float], Field(description='Contrast. Default: 1.0.')] = None,
+    method: Annotated[Optional[str], Field(description='clahe runs local contrast, the yellow cast, then the unsharp mask. Default: "pil".')] = None,
     page: Annotated[Optional[int], Field(description='Page. Default: 1.')] = None,
+    profile: Annotated[Optional[str], Field(description='The CLAHE settings for the kind of writing. Default: "handwritten".')] = None,
     sharpen: Annotated[Optional[float], Field(description='Sharpen. Default: 1.0.')] = None,
 ) -> Any:
     'Enhance Image\n\nRoute: POST /api/images/{document_id}/operations/enhance (toolset `images`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", f"/api/images/{document_id}/operations/enhance", json=_rt.body({"auto_levels": auto_levels, "brightness": brightness, "contrast": contrast, "page": page, "sharpen": sharpen}))
+    return _rt.call("POST", f"/api/images/{document_id}/operations/enhance", json=_rt.body({"auto_levels": auto_levels, "brightness": brightness, "contrast": contrast, "method": method, "page": page, "profile": profile, "sharpen": sharpen}))
 
 
 def fichero_images_remove_background(

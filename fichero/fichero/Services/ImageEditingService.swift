@@ -296,13 +296,15 @@ final class ImageEditingService {
     /// Uses the generated `/api/images/{document_id}/operations/enhance` operation.
     @discardableResult
     func enhance(documentId: String, brightness: Double = 1.0, contrast: Double = 1.0,
-                 sharpen: Double = 1.0, autoLevels: Bool = false, page: Int = 1) async throws -> ImageEditChain {
+                 sharpen: Double = 1.0, autoLevels: Bool = false, method: String = "pil",
+                 profile: String = "handwritten", page: Int = 1) async throws -> ImageEditChain {
         isLoading = true; defer { isLoading = false }
         let response = try await client.api
             .enhanceImageApiImagesDocumentIdOperationsEnhancePost(
                 path: .init(documentId: documentId),
                 body: .json(.init(brightness: brightness, contrast: contrast,
-                                  sharpen: sharpen, autoLevels: autoLevels, page: page)))
+                                  sharpen: sharpen, autoLevels: autoLevels, method: method,
+                                  profile: profile, page: page)))
             .ok.body.json
         return try Self.chain(from: response)
     }

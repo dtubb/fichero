@@ -274,7 +274,8 @@ final class ImageEditorModel {
         }
     }
 
-    func enhance(brightness: Double, contrast: Double, sharpen: Double, autoLevels: Bool) async {
+    func enhance(brightness: Double, contrast: Double, sharpen: Double, autoLevels: Bool,
+                 method: String = "pil", profile: String = "handwritten") async {
         await runOp { service in
             try await service.enhance(
                 documentId: self.documentId,
@@ -282,6 +283,8 @@ final class ImageEditorModel {
                 contrast: contrast,
                 sharpen: sharpen,
                 autoLevels: autoLevels,
+                method: method,
+                profile: profile,
                 page: self.page
             )
         }
