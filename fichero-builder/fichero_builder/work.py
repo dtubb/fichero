@@ -56,7 +56,7 @@ def as_worker(a, script: str) -> subprocess.CompletedProcess:
     if owner_tree(a):
         return subprocess.run(["sh", "-c", script], capture_output=True, text=True, cwd=str(a.worktree))
     return subprocess.run([j.sudo, "-n", "-H", "-u", j.user, "sh", "-c", f"cd {shlex.quote(j.workroot)} && {script}"],
-                          capture_output=True, text=True)
+                          capture_output=True, text=True, cwd=j.workroot or "/")  # never the caller's cwd: the jail user cannot read it (2026-11-04: getcwd)
 
 
 def _shared_rows(a) -> list[dict]:

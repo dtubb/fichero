@@ -682,7 +682,7 @@ def launch_agents(root, out, *, state=None, tick_s: float = 30.0, port: int = 87
         label = f"local.builder.{name}"
         f = out / f"{label}.plist"
         f.write_bytes(plistlib.dumps({"Label": label, "ProgramArguments": [sys.executable, "-m", "fichero_builder", *args],
-                                      "WorkingDirectory": str(pkg), "EnvironmentVariables": {"PYTHONPATH": str(pkg), "PATH": os.environ.get("PATH", "")},
+                                      "WorkingDirectory": str(logs), "EnvironmentVariables": {"PYTHONPATH": str(pkg), "PATH": os.environ.get("PATH", "")},
                                       "StandardOutPath": str(logs / f"{name}.log"), "StandardErrorPath": str(logs / f"{name}.log"), **when}))
         paths.append(f)
     return paths
@@ -799,9 +799,16 @@ def verify_when_idle(procs: Procs, chains: dict | None) -> None:
         t.start()
 
 
+ONLY: list = [()]  # [loop].only: the lanes the loop ticks; () = every lane in the queue (tests); the verb sets it (manager 2026-11-04)
+
+
+def _ours(lane: dict) -> bool:
+    return not ONLY[0] or lane["id"] in ONLY[0]
+
+
 def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, chains: dict | None = None) -> bool:
     busy = False
-    for lane in load():
+    for lane in filter(_ours, load()):
         try:
             busy = tick_lane(lane, procs, handles, workers_n, push, out, chains) or busy
         except Exception:  # noqa: BLE001 - the same for the tick's own work on a lane: a row, and the other lanes still tick
@@ -830,7 +837,7 @@ def reexec() -> None:  # the tests replace this
 
 
 def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: float = 30.0, once: bool = False, forever: bool = False,
-        heartbeat: bool = False, out=print) -> int:
+        heartbeat: bool = False, out=print, feed_milestones: bool = True) -> int:
     """Ticks until nothing can move without a person; `forever` (the verb) keeps ticking so a blocked or paused lane keeps its
     session and a resume from another shell is picked up. Each tick first takes build-order milestones up to `lanes_n`."""
     handles: dict = {}
@@ -847,12 +854,12 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
         if heartbeat:  # after a reboot the lanes' sessions come back in new panes (run.loop-launchd)
             for m in repane():
                 out(m)
-        for x in load():  # dev-workflows.run.loop-external-intake: an external lane past its thresholds is taken as if done ran
+        for x in filter(_ours, load()):  # dev-workflows.run.loop-external-intake: an external lane past its thresholds is taken as if done ran
             cur = x["steps"][x["cursor"]]["state"] if x["cursor"] < len(x["steps"]) else "landed"
             if x.get("kind") == "external" and not x.get("hold") and cur in ("queued", "landed") and (sha := procs.intake(x)):
                 why = done(x["id"], sha)
                 out(f"{x['id']}: intake at {sha[:9]}" + (f" refused: {why}" if why else ""))
-        took = feed(procs, lanes_n, out)
+        took = feed(procs, lanes_n, out) if feed_milestones else False  # the verb: only when [loop].feed_milestones (manager 2026-11-04)
         busy = tick(procs, handles, workers_n=workers_n, push=push, out=out, chains=chains) or took
         if heartbeat:  # dev-workflows.run.loop: a watchdog reads the gap between these
             journal.append("loop", state="tick", lanes=[f"{x['id']} {x['cursor']}/{len(x['steps'])}" for x in load()], busy=busy)

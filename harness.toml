@@ -115,6 +115,10 @@ pinned_dir = "/Users/Shared/fichero-pinned"
 boundary = ['/Users/(?!Shared/)[A-Za-z0-9._-]+/', 'sk-ant-[A-Za-z0-9_-]{8,}', 'gh[ps]_[A-Za-z0-9]{20,}', 'BEGIN [A-Z ]*PRIVATE KEY']
 
 [loop]
+# manager 2026-11-04 (alerts 315, 316): the lanes the loop ticks, named; a lane not here (an old milestone lane in queue.json) never starts.
+# Build-order milestones are taken only with feed_milestones = true: a lane is queued on purpose.
+only = ["lane-sharing", "lane-onboard", "lane-ie", "harness-gen3", "harness-unblock", "dev-workflows"]
+feed_milestones = false
 # dev-workflows.run.loop-external-intake: an external lane is taken by itself at this many commits past the land branch, or when
 # its oldest unlanded commit is this old, if its HEAD is a finished step; findings and LANDED go to its pane through `tell`
 intake_commits = 8
