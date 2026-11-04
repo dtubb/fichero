@@ -873,14 +873,40 @@ def trim_only(root, since: str, head: str, f: str) -> bool:
 
 
 def deleted_modules(root, since: str, head: str, cfg: Config) -> set[str]:
-    """The module names (file stems) of non-test Python files this diff deletes."""
-    return {Path(f).stem for _s, _m, f in _changes(root, since, head, "--diff-filter=D")
-            if f.endswith(".py") and not any(fnmatch.fnmatch(Path(f).name, g) for g in cfg.test_globs)}
+    """The DOTTED module paths of non-test Python files this diff deletes: repo-relative and relative to each [check].python_path
+    root (`fichero-builder/fichero_builder/watch.py` is `fichero_builder.watch`), never a bare file name (review -72: a deleted
+    `api/routes/ai/models.py` must not excuse tests of `fichero_builder.models`)."""
+    out = set()
+    for _s, _m, f in _changes(root, since, head, "--diff-filter=D"):
+        if not f.endswith(".py") or any(fnmatch.fnmatch(Path(f).name, g) for g in cfg.test_globs):
+            continue
+        out.add(f[:-3].replace("/", "."))
+        for r in cfg.python_path:
+            if f.startswith(r.rstrip("/") + "/"):
+                out.add(f[len(r.rstrip("/")) + 1:-3].replace("/", "."))
+    return out
 
 
-def _uses(fn, imported: set) -> set:
-    """The imported modules a function calls through `m.<attr>` (a local variable named like a module is not the module)."""
-    return {x.value.id for x in ast.walk(fn) if isinstance(x, ast.Attribute) and isinstance(x.value, ast.Name) and x.value.id in imported}
+def _bindings(tree) -> dict:
+    """{name the file binds: the full dotted module it is}, for `import m`, `import a.b as m`, `from a.b import m [as y]`; a relative
+    import or `import a.b` (which binds only `a`) maps to no module, so it never matches a deleted one."""
+    out = {}
+    for n in tree.body:
+        if isinstance(n, ast.Import):
+            for a in n.names:
+                if a.asname:
+                    out[a.asname] = a.name
+                elif "." not in a.name:
+                    out[a.name] = a.name
+        elif isinstance(n, ast.ImportFrom) and not n.level and n.module:
+            for a in n.names:
+                out[a.asname or a.name] = f"{n.module}.{a.name}"
+    return out
+
+
+def _uses(fn, bound: dict) -> set:
+    """The full dotted modules a function calls through `m.<attr>` (a local variable named like a module is not the module)."""
+    return {bound[x.value.id] for x in ast.walk(fn) if isinstance(x, ast.Attribute) and isinstance(x.value, ast.Name) and x.value.id in bound}
 
 
 def weakened_by_a_deleted_module(root, since: str, head: str, f: str, gone: set[str]) -> bool:
@@ -896,7 +922,7 @@ def weakened_by_a_deleted_module(root, since: str, head: str, f: str, gone: set[
         new = ast.parse("\n".join(_lines(root, "show", f"{head}:{f}") or [])) if alive else None
     except SyntaxError:
         return False
-    imported = {(a.asname or a.name).split(".")[0] for n in ast.walk(old) if isinstance(n, (ast.Import, ast.ImportFrom)) for a in n.names}
+    imported = _bindings(old)
     if new is None:
         tests = [n for n in ast.walk(old) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name.startswith("test_")]
         return bool(tests) and all(_uses(n, imported) & gone for n in tests)
@@ -908,7 +934,7 @@ def weakened_by_a_deleted_module(root, since: str, head: str, f: str, gone: set[
     def names(tree) -> set:  # every imported name with what it is bound to: an `import mod` swapped for a mock is a change (review -70)
         return {(type(n).__name__, getattr(n, "module", None) or "", a.name, a.asname or "") for n in tree.body
                 if isinstance(n, (ast.Import, ast.ImportFrom)) for a in n.names}
-    dropped = {x for x in names(old) - names(new) if (x[3] or x[2]).split(".")[0] in gone}  # only the deleted module's own import may go
+    dropped = {x for x in names(old) - names(new) if (f"{x[1]}.{x[2]}" if x[0] == "ImportFrom" else x[2]) in gone}  # only the deleted module's own import may go
     imports_ok = names(new) == names(old) - dropped
     return bool(removed) and imports_ok and all(_uses(n, imported) & gone for n in removed) and body(new) == body(old, removed)
 

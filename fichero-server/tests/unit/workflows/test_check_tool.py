@@ -469,6 +469,26 @@ def test_the_auto_rules_are_off_unless_named_and_each_decision_is_a_journal_row(
     assert [(r["rule"], r["file"]) for r in journal.read() if r["event"] == "auto"] == [("red-on-base-trim-only", "test_q.py")]
 
 
+
+def test_the_deleted_module_rule_matches_the_full_module_path_never_a_same_named_one(tmp_path):  # review -72
+    g, _ = _git_repo(tmp_path)
+    for pkg in ("src/pkg_a", "src/pkg_b"):
+        (tmp_path / pkg).mkdir(parents=True)
+        (tmp_path / pkg / "__init__.py").write_text("")
+        (tmp_path / pkg / "models.py").write_text("X = 1\n")
+    (tmp_path / "test_b.py").write_text("from pkg_b import models\ndef test_gone():\n    assert models.X\ndef test_kept():\n    assert 1\n")
+    (tmp_path / "test_a.py").write_text("from pkg_a import models as m\ndef test_gone():\n    assert m.X\ndef test_kept():\n    assert 1\n")
+    g("add", "."), g("commit", "-qm", "t")
+    base = _sha(tmp_path)
+    g("rm", "-q", "src/pkg_a/models.py")
+    for f in ("test_a.py", "test_b.py"):
+        (tmp_path / f).write_text("def test_kept():\n    assert 1\n")
+    g("commit", "-qam", "pkg_a.models is deleted")
+    gone = ct.deleted_modules(tmp_path, base, "HEAD", ct.Config(python_path=("src",)))
+    assert gone == {"src.pkg_a.models", "pkg_a.models"}, "dotted paths, never the bare name"
+    assert ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_a.py", gone), "its tests called pkg_a.models"
+    assert not ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_b.py", gone), "pkg_b.models is still there"
+
 def test_the_ladder_excuses_a_deleted_modules_tests_only_when_the_rule_is_named_and_says_so_in_a_row(tmp_path, monkeypatch):  # review -70
     from fichero_builder import journal
     monkeypatch.setattr(journal, "STATE", tmp_path / "s")
