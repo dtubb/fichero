@@ -16790,7 +16790,7 @@
           "recipes"
         ],
         "summary": "Allow Cloud",
-        "description": "The one click on a refused cloud call (`ai.where.one-egress-gate`, #5368): say yes, for this project, to cloud\nmodels. An audited action (who, when, which project), undoable, and reversible in Set Up (the same `cloud_allowed`\nanswer). Nothing else in the project's setup changes.",
+        "description": "The one click on a refused cloud call (`ai.where.one-egress-gate`, #5368): say yes, for this project, to cloud\nmodels. An audited action (who, when, which project), undoable, and reversible in Set Up (the same `cloud_allowed`\nanswer). Nothing else in the project's setup changes. `allowed: false` says no, for this project, whatever the app's\nswitch says (`ai.cloud.project-overrides-the-default`, #6348): the same action sets yes or no.",
         "operationId": "allow_cloud_api_recipes_project_allow_cloud_post",
         "parameters": [
           {
@@ -16814,6 +16814,17 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AllowCloudRequest",
+                "nullable": true,
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -51994,6 +52005,18 @@
           "items"
         ],
         "title": "AllographListResponse"
+      },
+      "AllowCloudRequest": {
+        "properties": {
+          "allowed": {
+            "type": "boolean",
+            "title": "Allowed",
+            "description": "yes (the default) or no to pages going to a cloud model, for this project, over the app's switch",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "AllowCloudRequest"
       },
       "AllowCloudResult": {
         "properties": {

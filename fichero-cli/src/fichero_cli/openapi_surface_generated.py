@@ -14073,12 +14073,18 @@ def register_generated_openapi_commands(
     @target_app.command("allow-cloud")
     def recipes_allow_cloud_post(
         ctx: typer.Context,
+        allowed: Optional[bool] = typer.Option(None, '--allowed/--no-allowed', help="yes (the default) or no to pages going to a cloud model, for this project, over the app's switch. Default: true."),
     ) -> None:
         """Allow Cloud (POST /api/recipes/project/allow-cloud)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/recipes/project/allow-cloud"
             params = None
-            return client.request("POST", endpoint_path, params=params)
+            payload = _build_json_payload({
+                "allowed": allowed,
+            }, {
+                "allowed": {'type': 'boolean', 'title': 'Allowed', 'description': "yes (the default) or no to pages going to a cloud model, for this project, over the app's switch", 'default': True, 'x-cli-required': False},
+            }, required=False)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("what-runs-by-itself")

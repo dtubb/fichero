@@ -9764,7 +9764,7 @@
         "summary": "Allow Cloud",
         "path_params": [],
         "query_params": [],
-        "request_model": null,
+        "request_model": "AllowCloudRequest",
         "response_model": "AllowCloudResult"
       },
       {

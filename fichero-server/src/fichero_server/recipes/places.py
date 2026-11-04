@@ -75,8 +75,11 @@ def project_says_cloud(answers: dict[str, Any] | None) -> bool:
 
 def may_leave_to(answers: dict[str, Any] | None, place: str) -> bool:
     """Whether a project's pages may go to `place`: the project said so (or has not said and the app has) AND the app
-    allows the place. Read where pages would actually leave, never at read time, so no save can narrow a project's stored
-    answer."""
+    allows the place. The cloud is the exception (`ai.cloud.project-overrides-the-default`, #6348): there the app's switch is
+    a default and the project's own answer wins, yes or no; the other places stay capped by the app. Read where pages would
+    actually leave, never at read time, so no save can narrow a project's stored answer."""
+    if place == "cloud":
+        return project_says_cloud(answers)
     return project_says_cloud(answers) and allows(place)
 
 

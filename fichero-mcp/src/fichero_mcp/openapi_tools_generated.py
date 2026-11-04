@@ -6672,9 +6672,11 @@ def fichero_recipes_save_project_setup(
 
 
 def fichero_recipes_allow_cloud(
+    *,
+    allowed: Annotated[Optional[bool], Field(description="yes (the default) or no to pages going to a cloud model, for this project, over the app's switch. Default: true.")] = None,
 ) -> Any:
-    "Allow Cloud\n\nThe one click on a refused cloud call (`ai.where.one-egress-gate`, #5368): say yes, for this project, to cloud\nmodels. An audited action (who, when, which project), undoable, and reversible in Set Up (the same `cloud_allowed`\nanswer). Nothing else in the project's setup changes.\n\nRoute: POST /api/recipes/project/allow-cloud (toolset `recipes`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/recipes/project/allow-cloud")
+    "Allow Cloud\n\nThe one click on a refused cloud call (`ai.where.one-egress-gate`, #5368): say yes, for this project, to cloud\nmodels. An audited action (who, when, which project), undoable, and reversible in Set Up (the same `cloud_allowed`\nanswer). Nothing else in the project's setup changes. `allowed: false` says no, for this project, whatever the app's\nswitch says (`ai.cloud.project-overrides-the-default`, #6348): the same action sets yes or no.\n\nRoute: POST /api/recipes/project/allow-cloud (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/recipes/project/allow-cloud", json=_rt.body({"allowed": allowed}))
 
 
 def fichero_recipes_what_runs_by_itself(

@@ -2145,19 +2145,26 @@ class AllowCloudResult(BaseModel):
     cloud_allowed: bool
 
 
+class AllowCloudRequest(BaseModel):
+    allowed: bool = Field(default=True, description="yes (the default) or no to pages going to a cloud model, for this project, over the app's switch")
+
+
 @router.post("/project/allow-cloud", response_model=AllowCloudResult)
 async def allow_cloud(
+    body: Optional[AllowCloudRequest] = None,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> AllowCloudResult:
     """The one click on a refused cloud call (`ai.where.one-egress-gate`, #5368): say yes, for this project, to cloud
     models. An audited action (who, when, which project), undoable, and reversible in Set Up (the same `cloud_allowed`
-    answer). Nothing else in the project's setup changes."""
-    result = registry.invoke(db, "project.allow_cloud", {}, ctx)
+    answer). Nothing else in the project's setup changes. `allowed: false` says no, for this project, whatever the app's
+    switch says (`ai.cloud.project-overrides-the-default`, #6348): the same action sets yes or no."""
+    result = registry.invoke(db, "project.allow_cloud", {"allowed": body.allowed} if body else {}, ctx)
     return AllowCloudResult(**result.result)
 
 
 class AllowCloudParams(BaseModel):
+    allowed: bool = Field(default=True, description="yes (the default) or no to pages going to a cloud model, for this project, over the app's switch")
     restore: Optional[dict] = Field(default=None, description="an undo restores the setup as it was")
 
 
@@ -2170,10 +2177,10 @@ def _action_allow_cloud(db: Database, params: AllowCloudParams, ctx: ActionConte
     library = _library(db)
     before = read_project_setup(library)
     answers = dict(before.get("answers") or {})
-    answers["cloud_allowed"] = True
+    answers["cloud_allowed"] = params.allowed
     write_project_setup(library, answers, before.get("recipe"))
     after = read_project_setup(library)
-    return ({"project": library.stem, "cloud_allowed": True},
+    return ({"project": library.stem, "cloud_allowed": params.allowed},
             ChangeSpec(domains=["project"], target_ids=[], before=before, after=after, emit_type="project.setup_saved"))
 
 

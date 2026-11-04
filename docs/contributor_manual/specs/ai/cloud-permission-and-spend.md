@@ -59,7 +59,7 @@ Status tags are as of 2026-11-04 (A: the engine half of its first three lines is
   switch and `places.inherits_cloud()` for a project with no answer. Not built: the words saying it is a default a
   project may change, and the count of projects that answered for themselves. Tests:
   `fichero/Tests/Unit/general/Views/Settings/CloudAccessSectionTests.swift`.
-- `ai.cloud.project-overrides-the-default` [GAP] (#6348, #6022 place 1) — a project's `cloud_allowed` answer wins
+- `ai.cloud.project-overrides-the-default` [PARTIAL] (#6348, #6022 place 1; engine built: `may_leave_to` for the cloud, `project.allow_cloud` with `allowed`; the Set Up question reads the same `cloud_allowed` answer but is uncompiled, Step 2.2) — a project's `cloud_allowed` answer wins
   over the app switch in both directions: `places.project_says_cloud` returns the project's own answer when it has one
   (today a project may only be stricter); the existing audited `project.allow_cloud` takes `allowed: bool` so one action
   sets yes or no (undoable, Set Up's question shows the same answer). Tests:
