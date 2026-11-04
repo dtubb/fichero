@@ -14524,6 +14524,18 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("stage-try-price")
+    def recipes_stage_try_price_get(
+        ctx: typer.Context,
+        stage: str = typer.Argument(..., help='Stage'),
+    ) -> None:
+        """Stage Try Price (GET /api/recipes/stages/{stage}/try-price)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/recipes/stages/{stage}/try-price"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("suggestions")
     def recipes_suggestions_get(
         ctx: typer.Context,

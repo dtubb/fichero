@@ -18,6 +18,8 @@ final class SetupStageTryStore {
     private(set) var result: SetupStageTryResult?
     /// A try that would use the cloud says its cost first, in the engine's words; the person's yes runs it.
     private(set) var costQuestion: String?
+    /// What a try would cost, read before the button is pressed (`SetupStageTryStore+Price.swift`); nil until read.
+    var price: Components.Schemas.TryPrice?
     /// A try the engine refused, in its words.
     private(set) var refusal: String?
     private(set) var isTrying = false

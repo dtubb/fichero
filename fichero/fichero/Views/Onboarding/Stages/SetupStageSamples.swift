@@ -56,7 +56,7 @@ struct SetupStageSamples: View {
                     .id(first.id)
             }
             HStack(alignment: .firstTextBaseline) {
-                Button("Compare on These Pages") { compare() }
+                Button(SetupStageTryStore.compareTitle(price: store.price)) { compare() }
                     .disabled(store.isTrying || store.samples.isEmpty || store.result?.isUnderWay == true)
                 if store.isTrying || store.result?.isUnderWay == true { ProgressView().controlSize(.small) }
                 if let words = store.result?.underWayWords {
@@ -89,7 +89,7 @@ struct SetupStageSamples: View {
                     wideSetUp: FeatureManager.shared.isWideSetUpEnabled))
             }
         }
-        .task { await store.load(); await store.follow() }
+        .task { await store.load(); await store.loadPrice(); await store.follow() }
         .sheet(item: $comparing) { page in compareWindow(page) }
     }
 

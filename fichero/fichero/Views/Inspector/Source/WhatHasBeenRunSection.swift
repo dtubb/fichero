@@ -15,12 +15,16 @@ struct WhatHasBeenRunInspectorSection: View {
     }
 
     var body: some View {
-        if let store {
-            WhatHasBeenRunSection(
-                entries: store.history(documentId: document.id),
-                failure: store.failures[document.id]
-            )
-            .task(id: document.id) { await store.load(documentIds: [document.id]) }
+        VStack(alignment: .leading, spacing: 16) {
+            if let store {
+                WhatHasBeenRunSection(
+                    entries: store.history(documentId: document.id),
+                    failure: store.failures[document.id]
+                )
+                .task(id: document.id) { await store.load(documentIds: [document.id]) }
+            }
+            // A try's readings on this page, labelled as a try's (`wide.try.shown-outside-set-up`).
+            InspectorTriesSection(pageId: document.id)
         }
     }
 }

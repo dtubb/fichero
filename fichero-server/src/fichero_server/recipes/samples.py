@@ -291,6 +291,27 @@ def _stage_plan(db: Any, stage: Any, setup: dict[str, Any], page_count: int) -> 
     return plan
 
 
+def _runnable_candidates(db: Any, stage: Any, recipe: dict[str, Any], setup: dict[str, Any], ids: list[str],
+                         candidates: list[str] | None) -> tuple:
+    """What a try would run: the stage's main step, what the candidate limit left out, each candidate with its plan, and the
+    ones that can run. ValueError, in words, for a stage with nothing to read, an unknown model or nothing runnable."""
+    if "read" in stage.needs and not _any_reading(db, ids):
+        raise ValueError(f"These pages have no reading yet: {stage.title} needs Read. Try Read on them, or Start, "
+                         "first.")
+    step = _main_step(recipe, stage)
+    left_out: list[Any] = []
+    cards = _cards_for(setup, step, candidates, left_out) if step is not None else []
+    if candidates and len(cards) < len(set(candidates)):
+        known = {c.id for c in cards}
+        raise ValueError("Fichero does not know the model " + ", ".join(c for c in candidates if c not in known))
+    tried = [(card, _stage_plan(db, stage, _with_card(setup, step, card), len(ids))) for card in cards] \
+        or [(None, _stage_plan(db, stage, setup, len(ids)))]
+    runnable = [(card, plan) for card, plan in tried if not plan["refusals"]]
+    if not runnable:
+        raise ValueError(f"{stage.title} cannot run yet: " + "; ".join(tried[0][1]["refusals"]))
+    return step, left_out, tried, runnable
+
+
 def start_try(db: Any, stage_id: str, setup: dict[str, Any], *, page_ids: list[str] | None, cost_ok: bool,
               started_by: str, run_evaluation=None, candidates: list[str] | None = None) -> dict[str, Any]:
     """Try a stage on the samples, comparing its main step's candidates side by side
@@ -335,20 +356,7 @@ def start_try(db: Any, stage_id: str, setup: dict[str, Any], *, page_ids: list[s
         result.update(bakeoff=record["id"], job_id=record["job_id"], how="the comparison of candidates on these pages")
         _write(library, stage_id, result)
         return result
-    if "read" in stage.needs and not _any_reading(db, ids):
-        raise ValueError(f"These pages have no reading yet: {stage.title} needs Read. Try Read on them, or Start, "
-                         "first.")
-    step = _main_step(recipe, stage)
-    left_out: list[Any] = []
-    cards = _cards_for(setup, step, candidates, left_out) if step is not None else []
-    if candidates and len(cards) < len(set(candidates)):
-        known = {c.id for c in cards}
-        raise ValueError("Fichero does not know the model " + ", ".join(c for c in candidates if c not in known))
-    tried = [(card, _stage_plan(db, stage, _with_card(setup, step, card), len(ids))) for card in cards] \
-        or [(None, _stage_plan(db, stage, setup, len(ids)))]
-    runnable = [(card, plan) for card, plan in tried if not plan["refusals"]]
-    if not runnable:
-        raise ValueError(f"{stage.title} cannot run yet: " + "; ".join(tried[0][1]["refusals"]))
+    step, left_out, tried, runnable = _runnable_candidates(db, stage, recipe, setup, ids, candidates)
     clouded = [plan for _, plan in runnable if not _local(plan)]
     if clouded and not cost_ok:
         costs = [plan["estimate"]["total_cost_usd"] for plan in clouded]
@@ -1286,3 +1294,32 @@ def publish_progress(library: Path, stage_id: str, card_id: str | None, progress
 def finished_progress(state: str, made: list[dict[str, Any]], total: int, stage_id: str) -> dict[str, Any]:
     """A run's last progress: how it ended and how many pages have a result."""
     return progress_of(made, total, stage_id, state)
+
+
+def try_price(db: Any, stage_id: str, setup: dict[str, Any], page_ids: list[str] | None = None) -> dict[str, Any]:
+    """What a Try of the stage on its samples would cost, before it is pressed (`wide.try.paid-with-the-price-on-the-button`, #5806):
+    `{pages, cloud, cost_usd}`. `cloud` is whether a candidate leaves this Mac (the try then asks for a yes); `cost_usd` is the sum of
+    their estimates, None when one is not known. Reads and writes nothing; a stage that cannot be tried, or that the comparison of
+    candidates tries, says no cloud (it asks no cost)."""
+    from fichero_server.recipes.stages import TRIED_BY_THE_BAKEOFF, get_stage, sampleable
+
+    stage = get_stage(stage_id)
+    if stage is None:
+        raise LookupError(f"Set Up has no stage {stage_id!r}")
+    ids = page_ids or [p["id"] for p in chosen(db, stage_id)["pages"]]
+    free = {"pages": len(ids), "cloud": False, "cost_usd": None}
+    recipe = setup["recipe"] or {}
+    if not ids or not sampleable(stage) or not {str(s.get("job")) for s in recipe.get("steps") or []} & set(stage.jobs):
+        return free
+    if stage_id in TRIED_BY_THE_BAKEOFF and _bakeoff_ready(db, ids):
+        return free
+    try:
+        _step, _left, _tried, runnable = _runnable_candidates(db, stage, recipe, setup, ids, None)
+    except ValueError:
+        return free
+    clouded = [plan for _, plan in runnable if not _local(plan)]
+    if not clouded:
+        return free
+    costs = [plan["estimate"]["total_cost_usd"] for plan in clouded]
+    return {"pages": len(ids), "cloud": True,
+            "cost_usd": sum(costs) if all(isinstance(c, (int, float)) for c in costs) else None}

@@ -15912,6 +15912,49 @@
         }
       }
     },
+    "/api/recipes/stages/{stage}/try-price": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Stage Try Price",
+        "description": "The price of a Try of the stage on its samples, read and written nowhere: the app puts it on the button (\"Compare on These\nPages, about $0.12\"). A stage with nothing to pay says `cloud` false.",
+        "operationId": "stage_try_price_api_recipes_stages__stage__try_price_get",
+        "parameters": [
+          {
+            "name": "stage",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Stage"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TryPrice"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/hands": {
       "get": {
         "tags": [
@@ -103067,6 +103110,33 @@
           "readings"
         ],
         "title": "TryOnPage"
+      },
+      "TryPrice": {
+        "properties": {
+          "pages": {
+            "type": "integer",
+            "title": "Pages",
+            "description": "the sample pages it would run on"
+          },
+          "cloud": {
+            "type": "boolean",
+            "title": "Cloud",
+            "description": "a candidate leaves this Mac: the try asks for a yes to the cost"
+          },
+          "cost_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Usd",
+            "description": "their estimates added up; none when one is not known or nothing is paid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pages",
+          "cloud"
+        ],
+        "title": "TryPrice",
+        "description": "What pressing Compare on These Pages would cost, before it is pressed (`wide.try.paid-with-the-price-on-the-button`, #5806)."
       },
       "TryReading": {
         "properties": {

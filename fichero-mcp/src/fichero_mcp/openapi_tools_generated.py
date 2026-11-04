@@ -6902,6 +6902,14 @@ def fichero_recipes_try_stage(
     return _rt.call("POST", f"/api/recipes/stages/{stage}/try", json=_rt.body({"candidates": candidates, "cost_ok": cost_ok, "page_ids": page_ids}))
 
 
+def fichero_recipes_stage_try_price(
+    *,
+    stage: Annotated[str, Field(description='Stage')],
+) -> Any:
+    'Stage Try Price\n\nThe price of a Try of the stage on its samples, read and written nowhere: the app puts it on the button ("Compare on These\nPages, about $0.12"). A stage with nothing to pay says `cloud` false.\n\nRoute: GET /api/recipes/stages/{stage}/try-price (toolset `recipes`; reads).'
+    return _rt.call("GET", f"/api/recipes/stages/{stage}/try-price")
+
+
 def fichero_recipes_suggestions(
 ) -> Any:
     "Suggestions\n\nThe one list of what the project's answers and sample suggest, each with its reason (`wide.suggest.one-list-from-the-engine`).\nThe app draws it and reasons about none of it. Reads, writes nothing.\n\nRoute: GET /api/recipes/suggestions (toolset `recipes`; reads)."
@@ -10107,6 +10115,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_list_stages", "recipes", "GET", "/api/recipes/stages", fichero_recipes_list_stages),
     GeneratedTool("fichero_recipes_stage_try_result", "recipes", "GET", "/api/recipes/stages/{stage}/try", fichero_recipes_stage_try_result),
     GeneratedTool("fichero_recipes_try_stage", "recipes", "POST", "/api/recipes/stages/{stage}/try", fichero_recipes_try_stage),
+    GeneratedTool("fichero_recipes_stage_try_price", "recipes", "GET", "/api/recipes/stages/{stage}/try-price", fichero_recipes_stage_try_price),
     GeneratedTool("fichero_recipes_suggestions", "recipes", "GET", "/api/recipes/suggestions", fichero_recipes_suggestions),
     GeneratedTool("fichero_recipes_tries_on_page", "recipes", "GET", "/api/recipes/tries/page/{page_id}", fichero_recipes_tries_on_page),
     GeneratedTool("fichero_references_list", "references", "GET", "/api/references", fichero_references_list),

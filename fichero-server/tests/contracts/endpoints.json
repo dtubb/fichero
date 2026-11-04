@@ -10110,6 +10110,18 @@
       },
       {
         "method": "GET",
+        "path": "/recipes/stages/{stage}/try-price",
+        "operation_id": "stage_try_price_api_recipes_stages__stage__try_price_get",
+        "summary": "Stage Try Price",
+        "path_params": [
+          "stage"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "TryPrice"
+      },
+      {
+        "method": "GET",
         "path": "/recipes/suggestions",
         "operation_id": "suggestions_api_recipes_suggestions_get",
         "summary": "Suggestions",

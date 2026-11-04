@@ -191,3 +191,29 @@ def test_a_cloud_candidate_says_its_cost_and_runs_only_with_the_yes(client, db, 
     refused = client.post("/api/recipes/stages/names/try", json={})
     assert refused.status_code == 402 and "$0.05" in refused.json()["detail"], refused.text
     assert client.post("/api/recipes/stages/names/try", json={"cost_ok": True}).status_code == 200
+
+
+def test_the_price_of_a_try_is_read_before_the_button_is_pressed(client, db, tmp_path, monkeypatch):
+    """`wide.try.paid-with-the-price-on-the-button` (#5806): the cost the 402 would say is served first, from the same plan, and nothing
+    is queued or written by reading it."""
+    _pages(db, tmp_path)
+    _set_up(client, ["find-names-tag-words"])
+    plan = {"refusals": [], "estimate": {"total_cost_usd": 0.05},
+            "runs": [{"steps": ["find-names-tag-words"], "card": "workflow", "runs_on": "cloud:openai",
+                      "model_override": "gpt-x", "workflow": "W"}],
+            "workflows": [{"steps": ["find-names-tag-words"], "model_override": "gpt-x", "runs_on": "cloud:openai", "workflow": "W"}]}
+    monkeypatch.setattr(samples, "_stage_plan", lambda db, stage, setup, n: plan)
+    price = client.get("/api/recipes/stages/names/try-price")
+    assert price.status_code == 200, price.text
+    assert price.json()["cloud"] is True and price.json()["cost_usd"] == pytest.approx(0.05) and price.json()["pages"] >= 1
+    assert client.get("/api/recipes/stages/names/try").json().get("job_id") is None, "reading the price starts no try"
+
+    local = {**plan, "runs": [{**plan["runs"][0], "runs_on": "this-mac"}],
+             "workflows": [{**plan["workflows"][0], "runs_on": "this-mac"}], "estimate": {"total_cost_usd": 0.0}}
+    monkeypatch.setattr(samples, "_stage_plan", lambda db, stage, setup, n: local)
+    free = client.get("/api/recipes/stages/names/try-price").json()
+    assert free["cloud"] is False and free["cost_usd"] is None
+
+
+def test_the_price_of_a_stage_that_does_not_exist_is_not_found(client):
+    assert client.get("/api/recipes/stages/no-such-stage/try-price").status_code == 404

@@ -776,6 +776,26 @@ async def try_stage(stage: str, body: Optional[TryStageRequest] = None,
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
+class TryPrice(BaseModel):
+    """What pressing Compare on These Pages would cost, before it is pressed (`wide.try.paid-with-the-price-on-the-button`, #5806)."""
+
+    pages: int = Field(description="the sample pages it would run on")
+    cloud: bool = Field(description="a candidate leaves this Mac: the try asks for a yes to the cost")
+    cost_usd: Optional[float] = Field(default=None, description="their estimates added up; none when one is not known or nothing is paid")
+
+
+@router.get("/stages/{stage}/try-price", response_model=TryPrice)
+async def stage_try_price(stage: str, db: Database = Depends(get_library_database)) -> dict[str, Any]:
+    """The price of a Try of the stage on its samples, read and written nowhere: the app puts it on the button ("Compare on These
+    Pages, about $0.12"). A stage with nothing to pay says `cloud` false."""
+    from fichero_server.recipes import samples
+
+    try:
+        return await asyncio.to_thread(samples.try_price, db, stage, read_project_setup(_library(db)))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.get("/stages/{stage}/try", response_model=StageTryResult)
 async def stage_try_result(stage: str, db: Database = Depends(get_library_database)) -> dict[str, Any]:
     """The stage's sample result, as its last try left it (the bake-off's table for Read and Find Lines); 404 when
