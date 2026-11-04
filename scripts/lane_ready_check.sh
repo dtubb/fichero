@@ -64,6 +64,8 @@ check() {  # check <rev> -> prints FAIL lines, returns count
   while IFS=$'\t' read -r sha email subj; do
     [ "$email" = "noreply@anthropic.com" ] || { echo "FAIL: $sha author is $email, not the agent"; fails=$((fails+1)); }
     git log -1 --format=%B "$sha" | grep -qE '#[0-9]{3,5}' || { echo "FAIL: $sha cites no issue: $subj"; fails=$((fails+1)); }
+    # review rounds 2026-11-03/04: the trailer was missing twice and each cost a whole ladder; caught here in a second
+    git log -1 --format=%B "$sha" | grep -qx 'Directed-By: the maintainer' || { echo "FAIL: $sha has no 'Directed-By: the maintainer' trailer: $subj"; fails=$((fails+1)); }
   done < <(git log --format=$'%h\t%ae\t%s' "$base..$rev")
   # 4. lint the changed files
   local py sw
@@ -95,7 +97,7 @@ if [ "${1:-}" = "--self-test" ]; then
   tmp=$(echo "no issue here" | GIT_AUTHOR_EMAIL=someone@example.com GIT_COMMITTER_EMAIL=someone@example.com \
         git commit-tree "$(git rev-parse origin/integration^{tree})" -p origin/integration)
   out=$(check "$tmp")
-  for want in "not the agent" "cites no issue"; do
+  for want in "not the agent" "cites no issue" "Directed-By: the maintainer"; do
     echo "$out" | grep -q "$want" || { echo "self-test FAIL: '$want' not caught"; exit 1; }; done
   # a scratch commit that breaks check_folder_organization (a new Swift dumping-ground folder) must be NOT READY
   wt=$(mktemp -d); git worktree add -q --detach "$wt" origin/integration || { echo "self-test FAIL: no scratch tree"; exit 1; }

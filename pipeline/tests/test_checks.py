@@ -8,6 +8,9 @@ from pipeline import checks, config
 from pipeline.tests.conftest import git
 
 
+TRAILER = "\n\nDirected-By: the maintainer"  # lane_ready_check.sh refuses an agent commit without it
+
+
 def lane(scratch, name, files, author="noreply@anthropic.com", msg="work (Fixes #1001)"):
     wt = scratch["tmp"] / name
     subprocess.run(["git", "worktree", "add", "-q", "-b", name, wt, "origin/integration"], cwd=scratch["repo"], check=True)
@@ -15,7 +18,7 @@ def lane(scratch, name, files, author="noreply@anthropic.com", msg="work (Fixes 
         (wt / path).parent.mkdir(parents=True, exist_ok=True)
         (wt / path).write_text(text)
     git(wt, "add", ".")
-    git(wt, "-c", "user.name=Claude", "-c", f"user.email={author}", "commit", "-qm", msg)
+    git(wt, "-c", "user.name=Claude", "-c", f"user.email={author}", "commit", "-qm", msg + TRAILER)
     return wt
 
 
@@ -161,7 +164,7 @@ def test_red_on_base_is_measured_at_the_items_start_not_the_branch_base(scratch)
     since = git(wt, "rev-parse", "HEAD")
     (wt / "tests" / "test_2.py").write_text("from src.mod import f1\n\ndef test_again():\n    assert f1() == 1\n")
     git(wt, "add", ".")
-    git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "two (Fixes #1002)")
+    git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "two (Fixes #1002)" + TRAILER)
     r = {x["name"]: x for x in checks.run_all(wt, scratch["cfg"], since=since)}
     assert not r["red-on-base"]["ok"] and f"passes at {since[:9]}" in r["red-on-base"]["text"]
 
@@ -192,7 +195,7 @@ def test_a_new_guard_may_be_added_but_no_check_changed(scratch):
     # the coder keeps editing ITS OWN new guard over a second commit: not a pinned check, so allowed (retry proof 2026-10-25)
     (wt / "scripts" / "check_new_thing.py").write_text("import sys\nprint('v2')\nsys.exit(0)\n")
     git(wt, "add", ".")
-    git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "guard v2 (Fixes #1001)")
+    git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "guard v2 (Fixes #1001)" + TRAILER)
     assert checks.run_all(wt, scratch["cfg"])[0]["ok"]
 
 
@@ -232,6 +235,15 @@ def test_ready_check_fails_a_wrong_author_and_no_issue(scratch):
     assert r["name"] == "ready" and not r["ok"] and "not the agent" in r["text"] and "cites no issue" in r["text"]
 
 
+def test_ready_check_fails_an_agent_commit_with_no_directed_by_trailer(scratch):
+    """dev-workflows.run.presubmit-lints (review rounds 2026-11-03/04): the missing trailer cost two ladders; the ready check names it."""
+    wt = lane(scratch, "trailer", REAL_FIX)
+    git(wt, "commit", "-q", "--amend", "-m", "work (Fixes #1001)")
+    r = checks.run_all(wt, scratch["cfg"])[1]
+    assert r["name"] == "ready" and not r["ok"] and "no 'Directed-By: the maintainer' trailer" in r["text"]
+    assert "cites no issue" not in r["text"] and "not the agent" not in r["text"]
+
+
 def test_an_approved_check_change_runs_the_coders_copy_not_the_pinned_one(scratch):
     """approve-checks: the maintainer OKs the change; the coder's guard is what runs, and a red guard still fails."""
     wt = lane(scratch, "guarded", {**REAL_FIX, "scripts/check_no_bad.py": "import sys\nprint('stricter')\nsys.exit(1)\n"})
@@ -258,7 +270,7 @@ def test_an_approval_is_for_that_content_a_later_edit_is_red_again(scratch):
     assert checks.run_all(wt, scratch["cfg"], approved=pin)[0]["ok"]
     (wt / f).write_text("import sys\nprint('edited after approval')\nsys.exit(0)\n")
     git(wt, "add", ".")
-    git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "edit the guard again")
+    git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "edit the guard again" + TRAILER)
     r = checks.run_all(wt, scratch["cfg"], approved=pin)[0]
     assert r["name"] == "pinned-checks" and not r["ok"] and f in r["text"]
 
@@ -313,7 +325,7 @@ def test_deleting_or_weakening_a_base_test_or_editing_a_guard_needs_maintainer(s
         assert not r["ok"] and "needs-maintainer" in r["text"], name
     wt = lane(scratch, "gone", {"src/x.py": "X = 1\n"})
     git(wt, "rm", "-q", "tests/test_base.py")
-    git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "rm (Fixes #1001)")
+    git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-qm", "rm (Fixes #1001)" + TRAILER)
     assert not checks.run_all(wt, profile_cfg(scratch))[0]["ok"]
     wt = lane(scratch, "guard", {"scripts/check_no_bad.py": "raise SystemExit(0)\n"})
     assert not checks.run_all(wt, profile_cfg(scratch))[0]["ok"]
