@@ -60723,10 +60723,10 @@
             "title": "Daily Remaining Usd",
             "description": "what the daily cap leaves today, not below 0; null: no daily cap"
           },
-          "needed_daily_cap_usd": {
+          "needed_day_cap_usd": {
             "type": "number",
             "nullable": true,
-            "title": "Needed Daily Cap Usd",
+            "title": "Needed Day Cap Usd",
             "description": "when `over_day`: the daily cap under which this run's estimate fits (spent today plus the estimate, to the cent)"
           },
           "needed_cap_usd": {

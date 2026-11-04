@@ -38,11 +38,11 @@ Status tags are as of 2026-11-04 (nothing in A, C or D is built; B's three OK li
   for a project with no `cloud_spend_cap_usd` answer, in place of the constant `DEFAULT_CAP_USD`. Tests:
   `fichero-server/tests/unit/llm/test_app_cloud_caps_6346.py`,
   `fichero/Tests/Unit/general/Views/Settings/CloudCapsSettingsTests.swift`.
-- `ai.cloud.daily-cap` [PARTIAL] (#6347; engine built: the ledger, the hold, the plan line and the route; the Set Up field and the typed refusal's words are Steps 1.2 and 3.1) — the ledger (`recipe/cloud-spend.json`) keeps a `day` and `day_usd` beside the
+- `ai.cloud.daily-cap` [PARTIAL] (#6347; engine built: the ledger, the hold, the plan line, the project's route and the refusal words, also pinned by `fichero-server/tests/unit/recipes/test_daily_cap_paths_6347.py`; the Set Up field and the typed refusal are Steps 1.2 and 3.1) — the ledger (`recipe/cloud-spend.json`) keeps a `day` and `day_usd` beside the
   month; a daily cap (the app's `cloud_daily_cap_usd`, or the project's `cloud_daily_cap_usd` answer, normalised like
   the monthly one: 0 is a cap, below 0 refused, empty is none) is a third ceiling in `_past_a_cap`, `_cap_stop` and
-  `plan_line` (`over_day`, `needed_daily_cap_usd`), named in words when it refuses ("capped at $N a day, of which $M is
-  spent today"). Tests: `fichero-server/tests/unit/recipes/test_daily_cap_paths_6347.py` (the route, validation, refusal words, fix, pages that fit, a raise), `fichero-server/tests/unit/llm/test_daily_cloud_cap_6347.py` (a day rolls over; the daily cap
+  `plan_line` (`over_day`, `needed_day_cap_usd`), named in words when it refuses ("capped at $N a day, of which $M is
+  spent today"). Tests: `fichero-server/tests/unit/llm/test_daily_cloud_cap_6347.py` (a day rolls over; the daily cap
   refuses first when lower; a run cap, a daily cap and a monthly cap all hold through the one hold).
 - `ai.cloud.caps-are-one-audited-action` [PARTIAL] (#6346; built: the audited `app.set_cloud_cap` row and `PUT`/`GET /api/ai/cloud-caps`, a project's daily answer on `PUT /api/recipes/project/cloud-cap`; NOT built: Undo, by decision 10; the route test sets the cap back to its `from` figure instead; `project.set_budget` is the existing `project.save_setup` behind that route) — the app caps are set through one audited action,
   `app.set_cloud_cap` (which cap, from, to; undoable), route `PUT /api/ai/cloud-caps` with `GET` beside it, so MCP and

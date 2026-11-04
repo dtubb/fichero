@@ -54,7 +54,7 @@ def test_normalise_checks_the_daily_answer_and_drops_an_empty_one():
 
 
 def test_an_over_day_plan_offers_to_raise_the_daily_cap():
-    line = {"over": True, "over_day": True, "needed_daily_cap_usd": 2.25, "fewer_pages": None}
+    line = {"over": True, "over_day": True, "needed_day_cap_usd": 2.25, "fewer_pages": None}
     _, fixes = cloud_cap.fixes_for(line, EST)
     assert fixes[0] == {"kind": "raise-cap", "cap": "daily", "raise_to_usd": 3.0}
     assert cloud_cap.CapFix(**fixes[0]).cap == "daily"

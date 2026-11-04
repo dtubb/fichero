@@ -387,7 +387,7 @@ def _cap_stop(library: str, worst: float, why: str) -> dict:
     return {"words": f"Paused at the cloud spend cap: a call could cost up to ${worst:.2f} and {why}",
             "caps": caps_now(library),
             "needed_cap_usd": needed_cap_usd(booked, worst) if cap is not None and booked + worst > cap + 1e-9 else None,
-            "needed_daily_cap_usd": (needed_cap_usd(today, worst)
+            "needed_day_cap_usd": (needed_cap_usd(today, worst)
                                      if day_cap is not None and today + worst > day_cap + 1e-9 else None),
             "needed_project_cap_usd": (needed_cap_usd(total, worst)
                                        if project_cap is not None and total + worst > project_cap + 1e-9 else None)}
@@ -490,7 +490,7 @@ def plan_line(library: str, *, estimate_usd: float | None, cloud_models: list[tu
             "over": over_month or over_project or over_day, "unpriced": estimate_usd is None,
             "over_month": over_month, "over_project": over_project, "over_day": over_day,
             "daily_cap_usd": day_cap, "daily_spent_usd": today, "daily_remaining_usd": day_remaining,
-            "needed_daily_cap_usd": needed_cap_usd(today, estimate_usd) if over_day else None,
+            "needed_day_cap_usd": needed_cap_usd(today, estimate_usd) if over_day else None,
             "needed_cap_usd": needed_cap_usd(done, estimate_usd) if over_month else None,
             "project_cap_usd": project_cap, "project_spent_usd": total, "project_remaining_usd": project_remaining,
             "refusal": None,

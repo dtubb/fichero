@@ -75,7 +75,7 @@ class CloudCapLine(BaseModel):
     daily_cap_usd: Optional[float] = Field(default=None, description="the cap for a (UTC) day that holds (the project's answer, else the app's); null: none")
     daily_spent_usd: float = Field(default=0.0, description="what its cloud calls have cost today (UTC)")
     daily_remaining_usd: Optional[float] = Field(default=None, description="what the daily cap leaves today, not below 0; null: no daily cap")
-    needed_daily_cap_usd: Optional[float] = Field(default=None, description=(
+    needed_day_cap_usd: Optional[float] = Field(default=None, description=(
         "when `over_day`: the daily cap under which this run's estimate fits (spent today plus the estimate, to the cent)"))
     needed_cap_usd: Optional[float] = Field(default=None, description=(
         "when `over_month`: the monthly cap under which this run's estimate fits (what is booked this month plus the estimate, "
@@ -120,7 +120,7 @@ def fixes_for(line: dict[str, Any], estimate: dict[str, Any]) -> tuple[Optional[
     fixes: list[dict[str, Any]] = []
     for cap, needed in (("monthly", line.get("needed_cap_usd") if line.get("over_month") else None),
                         ("project", line.get("needed_project_cap_usd") if line.get("over_project") else None),
-                        ("daily", line.get("needed_daily_cap_usd") if line.get("over_day") else None)):
+                        ("daily", line.get("needed_day_cap_usd") if line.get("over_day") else None)):
         if needed is not None:
             fixes.append({"kind": "raise-cap", "cap": cap, "raise_to_usd": float(math.ceil(needed))})
     if dearest is not None:
@@ -168,7 +168,7 @@ def cap_refusals(plan: dict) -> None:
                     f"in all). Raise the project cap to US${line['needed_project_cap_usd']:,.2f}")
     if line.get("over_day"):
         said.append(f"more than the US${line['daily_remaining_usd']:,.2f} your daily cap leaves today (cap US${line['daily_cap_usd']:,.2f} "
-                    f"a day). Raise the daily cap to US${line['needed_daily_cap_usd']:,.2f}")
+                    f"a day). Raise the daily cap to US${line['needed_day_cap_usd']:,.2f}")
     fewer = f", or run the first {line['fewer_pages']} pages" if line.get("fewer_pages") else ", or run fewer pages"
     line["refusal"] = ", ".join(said[:1]) + ": " + "; and ".join(said[1:]) + f"{fewer}, or choose a cheaper model."
     plan["refusals"] = [*plan["refusals"], line["refusal"]]

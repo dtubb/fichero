@@ -66,14 +66,14 @@ def test_the_plan_line_names_the_day(tmp_path):
     spend._book(lib, 0.25)
     line = spend.plan_line(lib, estimate_usd=2.0)
     assert line["over_day"] and line["over"] and not line["over_month"]
-    assert line["daily_remaining_usd"] == pytest.approx(0.75) and line["needed_daily_cap_usd"] == pytest.approx(2.25)
+    assert line["daily_remaining_usd"] == pytest.approx(0.75) and line["needed_day_cap_usd"] == pytest.approx(2.25)
 
 
 def test_the_cap_stop_carries_the_daily_figure(tmp_path):
     lib = _project(tmp_path, "cloud_daily_cap_usd: 1\n")
     spend._book(lib, 0.9)
     stop = spend._cap_stop(lib, 0.2, "x")
-    assert stop["needed_daily_cap_usd"] == pytest.approx(1.1) and stop["caps"]["day"] == 1.0
+    assert stop["needed_day_cap_usd"] == pytest.approx(1.1) and stop["caps"]["day"] == 1.0
 
 
 def test_a_run_cap_a_daily_cap_and_a_monthly_cap_all_hold_through_the_one_hold(tmp_path):
