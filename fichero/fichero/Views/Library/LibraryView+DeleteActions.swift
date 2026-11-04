@@ -86,6 +86,12 @@ extension LibraryView {
             : [document]
     }
 
+    /// The engine answers 404 for a document that is already in the Trash: the delete the person asked for has happened (#6235).
+    nonisolated static func isAlreadyDeleted(_ error: Error) -> Bool {
+        if case APIError.httpError(404, _) = error { return true }
+        return false
+    }
+
     /// Perform the actual deletion after confirmation
     func performDeleteSelected() async {
         guard let library = libraryManager.getLibrary(id: windowState.libraryId) else { return }
@@ -108,6 +114,8 @@ extension LibraryView {
                     params: DocumentDeleteActionParams(docId: doc.id)
                 )
                 written.append(result.auditId)
+            } catch where Self.isAlreadyDeleted(error) {
+                continue  // already in the Trash (a second Delete of the same row): done, not an error (#6235)
             } catch {
                 ErrorService.shared.reportError(
                     ErrorModel.fileSystemError(
