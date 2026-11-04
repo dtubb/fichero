@@ -83,14 +83,33 @@ def test_an_old_adaptive_binarize_row_still_re_renders_to_its_old_pixels():
     assert apply_operation(image, {"op": "adaptive_binarize"}).tobytes() == old.tobytes()
 
 
-def test_an_old_denoise_row_has_no_specks_removed_and_a_new_one_does():
-    from fichero_server.media.image_ops import apply_operation
+def test_an_old_denoise_row_re_renders_to_its_old_pixels_and_a_new_one_removes_specks():
+    from fichero_server.media.image_ops import apply_fuzzy_clean, apply_operation
 
+    image = _page(noise=0.01)
+    old = apply_fuzzy_clean(image, despeckle_radius=5, background_clean=False)
+    assert apply_operation(image, {"op": "denoise", "params": {"radius": 5}}).tobytes() == old.tobytes()
     arr = np.full((100, 100, 3), 235, "uint8")
     arr[40:44, 40:44] = 20
-    image = Image.fromarray(arr)
-    assert np.asarray(apply_operation(image, {"op": "denoise", "params": {"radius": 3}}))[41, 41].max() < 60
-    assert np.asarray(apply_operation(image, {"op": "denoise", "params": {"radius": 3, "speck": 5}}))[41, 41].min() > 200
+    assert np.asarray(apply_operation(Image.fromarray(arr), {"op": "denoise", "params": {"radius": 3, "speck": 5}}))[41, 41].min() > 200
+
+
+def test_without_opencv_denoise_still_runs_the_pil_median(monkeypatch):
+    import builtins
+
+    real = builtins.__import__
+
+    def no_cv2(name, *a, **k):
+        if name == "cv2":
+            raise ImportError(name)
+        return real(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", no_cv2)
+    image = _page(noise=0.01)
+    out, account = denoise.run(image, denoise.Params(radius=3, speck=5))
+    from PIL import ImageFilter
+
+    assert out.tobytes() == image.convert("RGB").filter(ImageFilter.MedianFilter(size=3)).tobytes() and account["specks_removed"] is None
 
 
 def _document(db, image, name):

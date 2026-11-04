@@ -21,8 +21,11 @@ def run(image: Image.Image, params: Params) -> tuple[Image.Image, dict[str, Any]
     try:
         import cv2
         import numpy as np
-    except ImportError:  # OpenCV is bundled; without it the page is returned as it was
-        return image, account
+    except ImportError:  # OpenCV is bundled; without it the PIL median runs and no specks are removed
+        from PIL import ImageFilter
+
+        account["specks_removed"] = None
+        return image.convert("RGB").filter(ImageFilter.MedianFilter(size=size)), account
     alpha = image.getchannel("A") if image.mode in {"RGBA", "LA"} else None
     rgb = cv2.medianBlur(np.asarray(image.convert("RGB")), size)
     if params.speck:
