@@ -154,3 +154,29 @@ async def test_a_tool_with_no_documents_and_full_documents_run_as_before(library
     full = _full(db, 2)
     await _node("clean_text", tool)({**base, "documents": full})
     assert seen[1][1] == full
+
+
+@pytest.mark.asyncio
+async def test_the_parallel_fan_out_branch_hydrates_its_one_page_and_leaves_ref_aware_tools_alone(library):
+    """`_make_parallel_node_function` builds its inputs itself: a page reference becomes the full page for the call."""
+    from fichero_server.workflows.builder import _make_parallel_node_function
+
+    path, db = library
+    seen = {}
+
+    async def reader(inputs, state, llm_config):
+        seen[inputs.get("__tool", "t")] = [d.get("page_content") for d in inputs["documents"]]
+        return {"text": "ok"}
+
+    ref = slim_documents(_full(db, 1))[0]
+    state = {"outputs": {}, "completed_nodes": [], "task_id": "r", "library_path": path, "parallel_file": "files/p0.jpg",
+             "parallel_document": ref, "parallel_index": 0, "parallel_total": 1}
+    for tool in ("clean_text", "date_extract"):
+        async def tool_fn(inputs, state, llm_config, _tool=tool):
+            seen[_tool] = inputs["documents"]
+            return {"text": "ok"}
+
+        node = NodeDef(id=tool, tool=tool, label=tool, config={})
+        await _make_parallel_node_function(node, tool_fn, LLM, workflow_config={})(dict(state))
+    assert seen["clean_text"][0]["page_content"].startswith("0:")
+    assert seen["date_extract"] == [ref]

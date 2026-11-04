@@ -576,12 +576,12 @@ Engine only.
 Swift, after the Stage 1-3 regeneration. Pure types are verified with a standalone `swiftc` script; the landing check builds the rest.
 
 #### Step 4.1 — The run menu names the scope before anything runs (#4397)
-- Behaviours: `workflows.bar.scope-uses-the-real-primary-selection`, `workflows.bar.click-appends-not-runs`, `workflows.bar.step-popover-run-glance`, `workflows.bar.labels-toggle-persists`
+- Behaviours: `workflows.bar.scope-uses-the-real-primary-selection`, `workflows.bar.click-appends-not-runs`
 - Tests: fichero/Tests/Unit/general/Models/WorkflowRunScopeTests.swift (exists)
 - Size: S
 
 #### Step 4.2 — Pause, Resume and Stop show their state at once (#4402)
-- Behaviours: `workflows.run.controls-are-fire-and-forget`, `workflows.run.source-tools-excluded-from-file-columns`
+- Behaviours: `workflows.run.controls-are-fire-and-forget`, `workflows.bar.step-popover-run-glance`, `workflows.bar.labels-toggle-persists`, `workflows.run.source-tools-excluded-from-file-columns`
 - Tests: fichero/Tests/Unit/general/Workflow/WorkflowRunControlsTests.swift (not yet written)
 - Size: S
 
