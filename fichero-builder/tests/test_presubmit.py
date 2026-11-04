@@ -81,3 +81,13 @@ def test_the_pinned_copy_is_the_live_loops_checkout_never_the_code_done_runs_fro
     _git(lane, "add", "."), _git(lane, "commit", "-qm", "red")
     ok, said = queue.presubmit("ext", _git(lane, "rev-parse", "HEAD"))
     assert not ok and "check_spec_build_order_shape" in said, "the live root's pinned script judged it"
+
+
+
+def test_live_rules_newer_than_this_code_are_a_skip_said_never_a_traceback(lane, tmp_path, capsys):
+    """Review -92: a landing adds a [check] key; a lane whose code predates it runs `builder done`: skipped and said, no ValueError."""
+    (tmp_path / "pinned" / "harness.toml").write_text(RULES + 'a_key_from_the_future = 1\n')
+    sha = _git(lane, "rev-parse", "HEAD")
+    ok, said = queue.presubmit("ext", sha)
+    assert ok and said.startswith("presubmit skipped") and "a_key_from_the_future" in said
+    assert cli.main(["done", "ext", sha, "--state", str(journal.STATE)]) == 0, "the done goes through; the ladder judges it with the current code"

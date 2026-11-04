@@ -110,3 +110,14 @@ def test_the_loop_retries_rules_blocked_steps_when_it_starts(state, monkeypatch)
     (state / "s").mkdir(parents=True, exist_ok=True)
     queue.run(Fake().procs, workers_n=1, push=False, once=True, heartbeat=True, out=lambda s: None)
     assert called == [True], "a heartbeat loop (the verb, a re-exec included) retries them at its start"
+
+
+
+def test_the_loop_records_its_own_checkout_as_the_live_root_when_it_starts(state, monkeypatch):
+    """Review -92: presubmit's pinned copy is <state>/live-root; the loop writes it at its start."""
+    monkeypatch.setattr(queue, "retry_rules_blocked", lambda out=print: [])
+    (state / "s").mkdir(parents=True, exist_ok=True)
+    procs = Fake().procs
+    procs.root = str(state)
+    queue.run(procs, workers_n=1, push=False, once=True, heartbeat=True, out=lambda s: None)
+    assert (journal.STATE / "live-root").read_text().strip() == str(state.resolve())

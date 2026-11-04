@@ -1132,9 +1132,14 @@ def presubmit(lane_id: str, sha: str, pinned=None) -> tuple[bool, str]:
     if not want:
         journal.append("presubmit", lane=lane_id, head=sha, state="skipped", detail=f"{sha[:12]} is not in the lane's repo")
         return True, f"presubmit skipped: {sha[:12]} is not in the lane's repo"
+    try:
+        cfg = check_tool.load(pinned)
+    except (ValueError, OSError) as e:  # the live loop's rules are newer than this code (a new key) or unreadable: said, never a traceback
+        journal.append("presubmit", lane=lane_id, head=want, state="skipped", detail=f"the live rules could not be read by this code: {e}"[-300:])
+        return True, f"presubmit skipped: the live rules could not be read by this code (update it): {e}"
     tree = None
     try:
-        tree = check_tool._scratch_tree(wt, want, pinned, check_tool.load(pinned))
+        tree = check_tool._scratch_tree(wt, want, pinned, cfg)
         r = subprocess.run(["bash", *ready], cwd=tree, capture_output=True, text=True,
                            timeout=PRESUBMIT_TIMEOUT_S, env={**os.environ, "FICHERO_PYTHON_BIN": sys.executable})
         ok, said = r.returncode == 0, (r.stdout + r.stderr).strip()
