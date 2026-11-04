@@ -33,18 +33,18 @@ Status tags are as of 2026-11-04 (nothing in A, C or D is built; B's three OK li
 
 ### A. Caps in Settings (#6346, #6347)
 
-- `ai.cloud.monthly-cap-in-settings` [GAP] (#6346) — Settings > AI > Cloud has "This Mac a month, at most", an app
+- `ai.cloud.monthly-cap-in-settings` [PARTIAL] (#6346; engine built, the Settings field is Step 1.2, uncompiled) — Settings > AI > Cloud has "This Mac a month, at most", an app
   setting (`cloud_monthly_cap_usd` in the app DB, beside `models_may_run`), default US$10; `spend.cap_usd()` reads it
   for a project with no `cloud_spend_cap_usd` answer, in place of the constant `DEFAULT_CAP_USD`. Tests:
   `fichero-server/tests/unit/llm/test_app_cloud_caps_6346.py`,
   `fichero/Tests/Unit/general/Views/Settings/CloudCapsSettingsTests.swift`.
-- `ai.cloud.daily-cap` [GAP] (#6347) — the ledger (`recipe/cloud-spend.json`) keeps a `day` and `day_usd` beside the
+- `ai.cloud.daily-cap` [PARTIAL] (#6347; engine built: the ledger, the hold, the plan line and the route; the Set Up field and the typed refusal's words are Steps 1.2 and 3.1) — the ledger (`recipe/cloud-spend.json`) keeps a `day` and `day_usd` beside the
   month; a daily cap (the app's `cloud_daily_cap_usd`, or the project's `cloud_daily_cap_usd` answer, normalised like
   the monthly one: 0 is a cap, below 0 refused, empty is none) is a third ceiling in `_past_a_cap`, `_cap_stop` and
   `plan_line` (`over_day`, `needed_day_cap_usd`), named in words when it refuses ("capped at $N a day, of which $M is
   spent today"). Tests: `fichero-server/tests/unit/llm/test_daily_cloud_cap_6347.py` (a day rolls over; the daily cap
   refuses first when lower; a run cap, a daily cap and a monthly cap all hold through the one hold).
-- `ai.cloud.caps-are-one-audited-action` [GAP] (#6346) — the app caps are set through one audited action,
+- `ai.cloud.caps-are-one-audited-action` [PARTIAL] (#6346; built: the audited `app.set_cloud_cap` row and route, a project's daily answer on `PUT /api/recipes/project/cloud-cap`; Undo is the same call with the `from` figure, as `PUT /api/recipes/places` has it, not a registry undo) — the app caps are set through one audited action,
   `app.set_cloud_cap` (which cap, from, to; undoable), route `PUT /api/ai/cloud-caps` with `GET` beside it, so MCP and
   the CLI get it from the regen; a project's daily answer rides on the existing `project.set_budget`. Tests:
   `fichero-server/tests/unit/api/test_cloud_caps_route_6346.py` (set, read back, undo, below 0 refused).

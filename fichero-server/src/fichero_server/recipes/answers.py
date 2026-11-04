@@ -103,6 +103,12 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
         cap = out["cloud_spend_cap_usd"]
         if isinstance(cap, bool) or not isinstance(cap, (int, float)) or cap < 0:
             problems.append("The cloud spending cap is a number of dollars, 0 or more.")
+    if out.get("cloud_daily_cap_usd") is not None:  # null/empty: no daily answer of its own
+        cap = out["cloud_daily_cap_usd"]
+        if isinstance(cap, bool) or not isinstance(cap, (int, float)) or cap < 0:
+            problems.append("The daily cloud spending cap is a number of dollars, 0 or more.")
+    elif "cloud_daily_cap_usd" in out:
+        del out["cloud_daily_cap_usd"]
     if "cloud_project_cap_usd" in out:
         cap = out["cloud_project_cap_usd"]
         if isinstance(cap, bool) or not isinstance(cap, (int, float)) or cap < 0:

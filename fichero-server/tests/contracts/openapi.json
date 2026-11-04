@@ -30724,6 +30724,68 @@
         }
       }
     },
+    "/api/ai/cloud-caps": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Get Cloud Caps",
+        "description": "The app-wide monthly and daily cloud caps a project with no cap of its own is held to.",
+        "operationId": "get_cloud_caps_api_ai_cloud_caps_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudCaps"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Put Cloud Cap",
+        "description": "Set or clear one app-wide cap (`app.set_cloud_cap`, audited first: no audit row, no change). Owner only: it decides what\nevery project that has no cap of its own may spend.",
+        "operationId": "put_cloud_cap_api_ai_cloud_caps_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudCapSetting"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudCapsChanged"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/registries/epistemic-statuses": {
       "get": {
         "tags": [
@@ -57156,7 +57218,8 @@
             "type": "string",
             "enum": [
               "monthly",
-              "project"
+              "project",
+              "daily"
             ],
             "nullable": true,
             "title": "Cap",
@@ -60521,6 +60584,19 @@
             "description": "remove the project's total cap (no such limit)",
             "default": false
           },
+          "daily_cap_usd": {
+            "type": "number",
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Daily Cap Usd",
+            "description": "the most the project's cloud calls may cost in a (UTC) day, in US$ (0 is a cap; `answers.cloud_daily_cap_usd`); left out: unchanged"
+          },
+          "clear_daily_cap": {
+            "type": "boolean",
+            "title": "Clear Daily Cap",
+            "description": "remove the project's own daily cap (the app's, if any, applies)",
+            "default": false
+          },
           "run_cap_usd": {
             "type": "number",
             "minimum": 0.0,
@@ -60545,6 +60621,12 @@
             "nullable": true,
             "title": "Project Cap Usd",
             "description": "the project's total cloud cap now; null: none"
+          },
+          "daily_cap_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Daily Cap Usd",
+            "description": "the cloud cap for a day that holds for the project now (its own, else the app's); null: none"
           },
           "run_cap_usd": {
             "type": "number",
@@ -60616,6 +60698,36 @@
             "title": "Over Project",
             "description": "the estimate is more than the project's total cap leaves",
             "default": false
+          },
+          "over_day": {
+            "type": "boolean",
+            "title": "Over Day",
+            "description": "the estimate is more than the daily cap leaves today",
+            "default": false
+          },
+          "daily_cap_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Daily Cap Usd",
+            "description": "the cap for a (UTC) day that holds (the project's answer, else the app's); null: none"
+          },
+          "daily_spent_usd": {
+            "type": "number",
+            "title": "Daily Spent Usd",
+            "description": "what its cloud calls have cost today (UTC)",
+            "default": 0.0
+          },
+          "daily_remaining_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Daily Remaining Usd",
+            "description": "what the daily cap leaves today, not below 0; null: no daily cap"
+          },
+          "needed_daily_cap_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Needed Daily Cap Usd",
+            "description": "when `over_day`: the daily cap under which this run's estimate fits (spent today plus the estimate, to the cent)"
           },
           "needed_cap_usd": {
             "type": "number",
@@ -60721,6 +60833,78 @@
         ],
         "title": "CloudCapLine",
         "description": "The project's cloud spend cap against this run's estimate (`ai.where.cloud-spend-cap`, #5943, #5987)."
+      },
+      "CloudCapSetting": {
+        "properties": {
+          "which": {
+            "type": "string",
+            "enum": [
+              "monthly",
+              "daily"
+            ],
+            "title": "Which",
+            "description": "which app-wide cap"
+          },
+          "cap_usd": {
+            "type": "number",
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Cap Usd",
+            "description": "the cap in US$ (0 is a cap: nothing is sent); null clears it (monthly returns to 10, daily to none)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "which"
+        ],
+        "title": "CloudCapSetting"
+      },
+      "CloudCaps": {
+        "properties": {
+          "monthly_cap_usd": {
+            "type": "number",
+            "title": "Monthly Cap Usd",
+            "description": "what a project with no cap of its own may spend on cloud calls a (UTC) month, US$; 10 until set"
+          },
+          "daily_cap_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Daily Cap Usd",
+            "description": "what it may spend a (UTC) day; null: no daily cap"
+          }
+        },
+        "type": "object",
+        "required": [
+          "monthly_cap_usd"
+        ],
+        "title": "CloudCaps"
+      },
+      "CloudCapsChanged": {
+        "properties": {
+          "monthly_cap_usd": {
+            "type": "number",
+            "title": "Monthly Cap Usd",
+            "description": "what a project with no cap of its own may spend on cloud calls a (UTC) month, US$; 10 until set"
+          },
+          "daily_cap_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Daily Cap Usd",
+            "description": "what it may spend a (UTC) day; null: no daily cap"
+          },
+          "audit_id": {
+            "type": "string",
+            "title": "Audit Id",
+            "description": "the audit row of the change; setting the cap back to its `from` figure undoes it"
+          }
+        },
+        "type": "object",
+        "required": [
+          "monthly_cap_usd",
+          "audit_id"
+        ],
+        "title": "CloudCapsChanged"
       },
       "CloudOffer": {
         "properties": {

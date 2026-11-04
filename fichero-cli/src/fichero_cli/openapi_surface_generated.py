@@ -1122,6 +1122,43 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('ai')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for ai endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='ai')
+        existing_apps['ai'] = target_app
+
+    @target_app.command("get-cloud-caps")
+    def ai_get_cloud_caps_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Get Cloud Caps (GET /api/ai/cloud-caps)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/ai/cloud-caps"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("put-cloud-cap")
+    def ai_put_cloud_cap_put(
+        ctx: typer.Context,
+        cap_usd: Optional[float] = typer.Option(None, '--cap-usd', help='the cap in US$ (0 is a cap: nothing is sent); null clears it (monthly returns to 10, daily to none)'),
+        which: str = typer.Option(..., '--which', help='which app-wide cap. One of: monthly, daily.'),
+    ) -> None:
+        """Put Cloud Cap (PUT /api/ai/cloud-caps)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/ai/cloud-caps"
+            params = None
+            payload = _build_json_payload({
+                "cap_usd": cap_usd,
+                "which": which,
+            }, {
+                "cap_usd": {'type': 'number', 'minimum': 0.0, 'nullable': True, 'title': 'Cap Usd', 'description': 'the cap in US$ (0 is a cap: nothing is sent); null clears it (monthly returns to 10, daily to none)', 'x-cli-required': False},
+                "which": {'type': 'string', 'enum': ['monthly', 'daily'], 'title': 'Which', 'description': 'which app-wide cap', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('annotations')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for annotations endpoints.', no_args_is_help=True)
@@ -14135,7 +14172,9 @@ def register_generated_openapi_commands(
     def recipes_change_cloud_cap_put(
         ctx: typer.Context,
         cap_usd: Optional[float] = typer.Option(None, '--cap-usd', help="the most the project's cloud calls may cost a month, in US$ (0 is a cap); left out: unchanged."),
+        clear_daily_cap: Optional[bool] = typer.Option(None, '--clear-daily-cap/--no-clear-daily-cap', help="remove the project's own daily cap (the app's, if any, applies) Default: false."),
         clear_project_cap: Optional[bool] = typer.Option(None, '--clear-project-cap/--no-clear-project-cap', help="remove the project's total cap (no such limit) Default: false."),
+        daily_cap_usd: Optional[float] = typer.Option(None, '--daily-cap-usd', help="the most the project's cloud calls may cost in a (UTC) day, in US$ (0 is a cap; `answers.cloud_daily_cap_usd`); left out: unchanged."),
         project_cap_usd: Optional[float] = typer.Option(None, '--project-cap-usd', help='the most the project may spend on cloud calls in all, across months (`answers.cloud_project_cap_usd`); left out: unchanged.'),
         run_cap_usd: Optional[float] = typer.Option(None, '--run-cap-usd', help='the cap of the run under way (`StartRequest.run_cap_usd`), changed in place: a run paused at it carries on when this is higher (`designer.budget.fix-during-the-run`); refused when no run holds a cap; left out: unchanged.'),
     ) -> None:
@@ -14145,12 +14184,16 @@ def register_generated_openapi_commands(
             params = None
             payload = _build_json_payload({
                 "cap_usd": cap_usd,
+                "clear_daily_cap": clear_daily_cap,
                 "clear_project_cap": clear_project_cap,
+                "daily_cap_usd": daily_cap_usd,
                 "project_cap_usd": project_cap_usd,
                 "run_cap_usd": run_cap_usd,
             }, {
                 "cap_usd": {'type': 'number', 'minimum': 0.0, 'nullable': True, 'title': 'Cap Usd', 'description': "the most the project's cloud calls may cost a month, in US$ (0 is a cap); left out: unchanged", 'x-cli-required': False},
+                "clear_daily_cap": {'type': 'boolean', 'title': 'Clear Daily Cap', 'description': "remove the project's own daily cap (the app's, if any, applies)", 'default': False, 'x-cli-required': False},
                 "clear_project_cap": {'type': 'boolean', 'title': 'Clear Project Cap', 'description': "remove the project's total cap (no such limit)", 'default': False, 'x-cli-required': False},
+                "daily_cap_usd": {'type': 'number', 'minimum': 0.0, 'nullable': True, 'title': 'Daily Cap Usd', 'description': "the most the project's cloud calls may cost in a (UTC) day, in US$ (0 is a cap; `answers.cloud_daily_cap_usd`); left out: unchanged", 'x-cli-required': False},
                 "project_cap_usd": {'type': 'number', 'minimum': 0.0, 'nullable': True, 'title': 'Project Cap Usd', 'description': 'the most the project may spend on cloud calls in all, across months (`answers.cloud_project_cap_usd`); left out: unchanged', 'x-cli-required': False},
                 "run_cap_usd": {'type': 'number', 'minimum': 0.0, 'nullable': True, 'title': 'Run Cap Usd', 'description': 'the cap of the run under way (`StartRequest.run_cap_usd`), changed in place: a run paused at it carries on when this is higher (`designer.budget.fix-during-the-run`); refused when no run holds a cap; left out: unchanged', 'x-cli-required': False},
             }, required=True)

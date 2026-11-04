@@ -867,6 +867,28 @@
         "response_model": "AgentWriteRecordResponse"
       }
     ],
+    "ai": [
+      {
+        "method": "GET",
+        "path": "/ai/cloud-caps",
+        "operation_id": "get_cloud_caps_api_ai_cloud_caps_get",
+        "summary": "Get Cloud Caps",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "CloudCaps"
+      },
+      {
+        "method": "PUT",
+        "path": "/ai/cloud-caps",
+        "operation_id": "put_cloud_cap_api_ai_cloud_caps_put",
+        "summary": "Put Cloud Cap",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CloudCapSetting",
+        "response_model": "CloudCapsChanged"
+      }
+    ],
     "annotations": [
       {
         "method": "GET",

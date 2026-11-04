@@ -29,6 +29,11 @@ CAP_KEY = "cloud_spend_cap_usd"
 PROJECT_CAP_KEY = "cloud_project_cap_usd"
 #: The cap of a project that has not set one (owner's ruling 2026-10-20: every project has a cap).
 DEFAULT_CAP_USD = 10.0
+#: The daily cap: a project answer, else the app's setting; no default (none is no limit).
+DAILY_CAP_KEY = "cloud_daily_cap_usd"
+#: The app-wide caps (app DB settings, `ai.cloud.monthly-cap-in-settings`): defaults for a project with no answer of its own.
+APP_MONTHLY_KEY = "cloud_monthly_cap_usd"
+APP_DAILY_KEY = "cloud_daily_cap_usd"
 #: What one call to a model with no listed price is held at, and booked at when it reports no priced usage.
 UNPRICED_CALL_USD = 0.50
 LEDGER = "cloud-spend.json"
@@ -116,19 +121,57 @@ def _recipe_dir(library: str) -> Path:
 
 
 def cap_usd(library: str | None) -> float | None:
-    """The project's monthly cloud cap: its Set Up answer, else US$10. None only for a call under no project (the egress gate
-    refuses a cloud call there before it reaches the cap)."""
+    """The project's monthly cloud cap: its Set Up answer, else the app's setting, else US$10. None only for a call under no
+    project (the egress gate refuses a cloud call there before it reaches the cap)."""
     if not library:
         return None
+    own = _answer_cap(library, CAP_KEY)
+    if own is not None:
+        return own
+    app = app_cap_usd(APP_MONTHLY_KEY)
+    return DEFAULT_CAP_USD if app is None else app
+
+
+def _valid_cap(cap) -> float | None:
+    ok = isinstance(cap, (int, float)) and not isinstance(cap, bool) and cap >= 0
+    return float(cap) if ok else None
+
+
+def _answer_cap(library: str, key: str) -> float | None:
+    """A cap the project's Set Up answered, or None (no setup, no answer, or a malformed one)."""
     try:
         import yaml
 
         answers = yaml.safe_load((_recipe_dir(library) / "setup.yaml").read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001 -- no setup, the default cap
-        return DEFAULT_CAP_USD
-    cap = answers.get(CAP_KEY) if isinstance(answers, dict) else None
-    ok = isinstance(cap, (int, float)) and not isinstance(cap, bool) and cap >= 0
-    return float(cap) if ok else DEFAULT_CAP_USD
+    except Exception:  # noqa: BLE001 -- no setup: no answer
+        return None
+    return _valid_cap(answers.get(key)) if isinstance(answers, dict) else None
+
+
+def app_cap_usd(key: str) -> float | None:
+    """An app-wide cap (`APP_MONTHLY_KEY`, `APP_DAILY_KEY`) from the app database; None: not set (or unreadable)."""
+    from fichero_server.db.app import get_app_db
+
+    try:
+        raw = get_app_db().get_setting(key)
+        return _valid_cap(json.loads(raw)) if raw else None
+    except Exception:  # noqa: BLE001 -- unreadable: as if not set
+        return None
+
+
+def set_app_cap_usd(key: str, cap: float | None) -> None:
+    """Set (or clear, with None) an app-wide cap."""
+    from fichero_server.db.app import get_app_db
+
+    get_app_db().set_setting(key, json.dumps(cap) if cap is not None else "")
+
+
+def daily_cap_usd(library: str | None) -> float | None:
+    """The most the project may spend on cloud calls in a (UTC) day: its answer, else the app's; None: no daily limit."""
+    if not library:
+        return None
+    own = _answer_cap(library, DAILY_CAP_KEY)
+    return own if own is not None else app_cap_usd(APP_DAILY_KEY)
 
 
 def project_cap_usd(library: str | None) -> float | None:
@@ -148,9 +191,10 @@ def project_cap_usd(library: str | None) -> float | None:
 
 
 def caps_now(library: str) -> dict[str, float | None]:
-    """The three caps as they stand: monthly, project (None: no limit) and the run's (None: none)."""
+    """The caps as they stand: monthly, daily (None: no limit), project (None: no limit) and the run's (None: none)."""
     run = run_cap(library)
-    return {"month": cap_usd(library), "project": project_cap_usd(library), "run": float(run["cap_usd"]) if run else None}
+    return {"month": cap_usd(library), "day": daily_cap_usd(library), "project": project_cap_usd(library),
+            "run": float(run["cap_usd"]) if run else None}
 
 
 def raised_since(library: str, held: dict[str, float | None]) -> bool:
@@ -205,10 +249,12 @@ def clear_run_cap(library: str, job_id: str) -> None:
 def _past_a_cap(library: str, reserved: float, worst: float) -> str | None:
     """Why `worst` more, beside what is booked and `reserved`, does not fit the monthly cap or the project's total cap, in words
     naming that cap; None when it fits both. Called with the lock held."""
-    cap, project_cap = cap_usd(library), project_cap_usd(library)
-    booked, total = booked_usd(library), total_booked_usd(library)
+    cap, project_cap, day_cap = cap_usd(library), project_cap_usd(library), daily_cap_usd(library)
+    booked, total, today = booked_usd(library), total_booked_usd(library), daily_booked_usd(library)
     if cap is not None and booked + reserved + worst > cap + 1e-9:
         return f"this project's cloud spend is capped at ${cap:.2f} a month, of which ${booked:.2f} is spent this month"
+    if day_cap is not None and today + reserved + worst > day_cap + 1e-9:
+        return f"this project's cloud spend is capped at ${day_cap:.2f} a day, of which ${today:.2f} is spent today"
     if project_cap is not None and total + reserved + worst > project_cap + 1e-9:
         return f"this project's cloud spend is capped at ${project_cap:.2f} in all, of which ${total:.2f} is spent"
     if (run := run_cap(library)) and total - float(run.get("from_usd", 0.0)) + reserved + worst > float(run["cap_usd"]) + 1e-9:
@@ -227,6 +273,16 @@ def booked_usd(library: str, now: datetime | None = None) -> float:
     except (OSError, ValueError):
         return 0.0
     return float(data.get("usd", 0.0)) if data.get("month") == _month(now) else 0.0
+
+
+def _day(now: datetime | None = None) -> str:
+    return (now or datetime.now(timezone.utc)).strftime("%Y-%m-%d")
+
+
+def daily_booked_usd(library: str, now: datetime | None = None) -> float:
+    """What cloud calls have been booked today (UTC)."""
+    data = _ledger(library, now)
+    return float(data.get("day_usd", 0.0)) if data.get("day") == _day(now) else 0.0
 
 
 def total_booked_usd(library: str) -> float:
@@ -262,6 +318,7 @@ def _book(library: str, usd: float, now: datetime | None = None, *, assumed_pric
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps({"month": _month(now), "usd": round(float(data.get("usd", 0.0)) + usd, 6),
+                               "day": _day(now), "day_usd": round(daily_booked_usd(library, now) + usd, 6),
                                "total_usd": round(total_booked_usd(library) + usd, 6),
                                "assumed_calls": calls, "assumed_usd": round(assumed_usd, 6)}), encoding="utf-8")
     os.replace(tmp, path)
@@ -325,11 +382,13 @@ def _ask_run_to_pause() -> str | None:
 
 def _cap_stop(library: str, worst: float, why: str) -> dict:
     """The words and the caps that would have let a refused call of `worst` through, each only for the cap it was over."""
-    cap, project_cap = cap_usd(library), project_cap_usd(library)
-    booked, total = booked_usd(library), total_booked_usd(library)
+    cap, project_cap, day_cap = cap_usd(library), project_cap_usd(library), daily_cap_usd(library)
+    booked, total, today = booked_usd(library), total_booked_usd(library), daily_booked_usd(library)
     return {"words": f"Paused at the cloud spend cap: a call could cost up to ${worst:.2f} and {why}",
             "caps": caps_now(library),
             "needed_cap_usd": needed_cap_usd(booked, worst) if cap is not None and booked + worst > cap + 1e-9 else None,
+            "needed_daily_cap_usd": (needed_cap_usd(today, worst)
+                                     if day_cap is not None and today + worst > day_cap + 1e-9 else None),
             "needed_project_cap_usd": (needed_cap_usd(total, worst)
                                        if project_cap is not None and total + worst > project_cap + 1e-9 else None)}
 
@@ -413,6 +472,8 @@ def plan_line(library: str, *, estimate_usd: float | None, cloud_models: list[tu
     remaining = max(0.0, cap - done)
     project_cap, total = project_cap_usd(library), total_booked_usd(library)
     project_remaining = None if project_cap is None else max(0.0, project_cap - total)
+    day_cap, today = daily_cap_usd(library), daily_booked_usd(library)
+    day_remaining = None if day_cap is None else max(0.0, day_cap - today)
     accepted = accepted_models(library)
     to_accept = sorted({model_key(provider, model) for provider, model in cloud_models or []
                         if not has_listed_price(provider, model) and model_key(provider, model) not in accepted})
@@ -422,11 +483,14 @@ def plan_line(library: str, *, estimate_usd: float | None, cloud_models: list[tu
     known = estimate_usd is not None
     over_month = known and estimate_usd > remaining + 1e-9
     over_project = known and project_remaining is not None and estimate_usd > project_remaining + 1e-9
+    over_day = known and day_remaining is not None and estimate_usd > day_remaining + 1e-9
     return {"note": note, "cap_usd": cap, "spent_usd": done, "remaining_usd": remaining, "estimate_usd": estimate_usd,
             # The run cap Start proposes: the best estimate itself, no margin (maintainer's ruling 2026-10-30); written only on confirm.
             "proposed_run_cap_usd": round(estimate_usd, 2) if known and estimate_usd > 0 else None,
-            "over": over_month or over_project, "unpriced": estimate_usd is None,
-            "over_month": over_month, "over_project": over_project,
+            "over": over_month or over_project or over_day, "unpriced": estimate_usd is None,
+            "over_month": over_month, "over_project": over_project, "over_day": over_day,
+            "daily_cap_usd": day_cap, "daily_spent_usd": today, "daily_remaining_usd": day_remaining,
+            "needed_daily_cap_usd": needed_cap_usd(today, estimate_usd) if over_day else None,
             "needed_cap_usd": needed_cap_usd(done, estimate_usd) if over_month else None,
             "project_cap_usd": project_cap, "project_spent_usd": total, "project_remaining_usd": project_remaining,
             "refusal": None,

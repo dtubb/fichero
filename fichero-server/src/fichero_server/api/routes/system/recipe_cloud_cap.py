@@ -37,9 +37,10 @@ async def change_cloud_cap(
     from fichero_server.recipes.project import read_saved_answers  # lazy: it pulls recipes.recipe, jobs and topics into the app import (#5798)
 
     library = str(_library(db))
-    asked = {key: value for key, value in ((spend.CAP_KEY, request.cap_usd), (spend.PROJECT_CAP_KEY, request.project_cap_usd))
+    asked = {key: value for key, value in ((spend.CAP_KEY, request.cap_usd), (spend.PROJECT_CAP_KEY, request.project_cap_usd),
+                                 (spend.DAILY_CAP_KEY, request.daily_cap_usd))
              if value is not None}
-    setup_changes = bool(asked) or request.clear_project_cap
+    setup_changes = bool(asked) or request.clear_project_cap or request.clear_daily_cap
     # Everything is checked before anything is written: a request that would be refused in part changes nothing.
     if request.run_cap_usd is not None and not spend.run_cap(library):
         raise HTTPException(status_code=422, detail="No run is holding a cap of its own, so there is none to change.")
@@ -55,6 +56,8 @@ async def change_cloud_cap(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         if request.clear_project_cap:
             answers.pop(spend.PROJECT_CAP_KEY, None)
+        if request.clear_daily_cap:
+            answers.pop(spend.DAILY_CAP_KEY, None)
     audit_ids: list[str] = []
     try:
         if answers is not None:
@@ -69,6 +72,7 @@ async def change_cloud_cap(
     runner.resume_capped_runs(db)  # a run paused at a cap now raised goes on, by the one Resume
     held = spend.run_cap(library)
     return CloudCapChanged(cap_usd=spend.cap_usd(library) or 0.0, project_cap_usd=spend.project_cap_usd(library),
+                           daily_cap_usd=spend.daily_cap_usd(library),
                            run_cap_usd=float(held["cap_usd"]) if held else None, audit_id=audit_ids[0],
                            run_cap_audit_id=run_audit if request.run_cap_usd is not None else None)
 

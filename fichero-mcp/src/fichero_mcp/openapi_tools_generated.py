@@ -506,6 +506,21 @@ def fichero_orchestration_get_agent_write_record(
     return _rt.call("GET", f"/api/agents/write/audit/{record_id}")
 
 
+def fichero_ai_get_cloud_caps(
+) -> Any:
+    'Get Cloud Caps\n\nThe app-wide monthly and daily cloud caps a project with no cap of its own is held to.\n\nRoute: GET /api/ai/cloud-caps (toolset `ai`; reads).'
+    return _rt.call("GET", "/api/ai/cloud-caps")
+
+
+def fichero_ai_put_cloud_cap(
+    *,
+    cap_usd: Annotated[Optional[float], Field(description='the cap in US$ (0 is a cap: nothing is sent); null clears it (monthly returns to 10, daily to none)')] = None,
+    which: Annotated[str, Field(description='which app-wide cap. One of: monthly, daily.')],
+) -> Any:
+    'Put Cloud Cap\n\nSet or clear one app-wide cap (`app.set_cloud_cap`, audited first: no audit row, no change). Owner only: it decides what\nevery project that has no cap of its own may spend.\n\nRoute: PUT /api/ai/cloud-caps (toolset `ai`; changes data, as the agent account when one exists).'
+    return _rt.call("PUT", "/api/ai/cloud-caps", json=_rt.body({"cap_usd": cap_usd, "which": which}))
+
+
 def fichero_annotations_list(
     *,
     document_id: Annotated[Optional[str], Field(description='Document Id')] = None,
@@ -6709,12 +6724,14 @@ def fichero_recipes_use_bakeoff_choice(
 def fichero_recipes_change_cloud_cap(
     *,
     cap_usd: Annotated[Optional[float], Field(description="the most the project's cloud calls may cost a month, in US$ (0 is a cap); left out: unchanged.")] = None,
+    clear_daily_cap: Annotated[Optional[bool], Field(description="remove the project's own daily cap (the app's, if any, applies) Default: false.")] = None,
     clear_project_cap: Annotated[Optional[bool], Field(description="remove the project's total cap (no such limit) Default: false.")] = None,
+    daily_cap_usd: Annotated[Optional[float], Field(description="the most the project's cloud calls may cost in a (UTC) day, in US$ (0 is a cap; `answers.cloud_daily_cap_usd`); left out: unchanged.")] = None,
     project_cap_usd: Annotated[Optional[float], Field(description='the most the project may spend on cloud calls in all, across months (`answers.cloud_project_cap_usd`); left out: unchanged.')] = None,
     run_cap_usd: Annotated[Optional[float], Field(description='the cap of the run under way (`StartRequest.run_cap_usd`), changed in place: a run paused at it carries on when this is higher (`designer.budget.fix-during-the-run`); refused when no run holds a cap; left out: unchanged.')] = None,
 ) -> Any:
     'Change Cloud Cap\n\nSet the project\'s monthly cloud cap (`answers.cloud_spend_cap_usd`) and/or its total cap\n(`answers.cloud_project_cap_usd`), and nothing else in its setup: Set Up\'s "Raise the cap to N" (#6295). One\n`project.save_setup`, so audited and undoable as one step; the answer names the audit row.\n\nRoute: PUT /api/recipes/project/cloud-cap (toolset `recipes`; changes data, as the agent account when one exists).'
-    return _rt.call("PUT", "/api/recipes/project/cloud-cap", json=_rt.body({"cap_usd": cap_usd, "clear_project_cap": clear_project_cap, "project_cap_usd": project_cap_usd, "run_cap_usd": run_cap_usd}))
+    return _rt.call("PUT", "/api/recipes/project/cloud-cap", json=_rt.body({"cap_usd": cap_usd, "clear_daily_cap": clear_daily_cap, "clear_project_cap": clear_project_cap, "daily_cap_usd": daily_cap_usd, "project_cap_usd": project_cap_usd, "run_cap_usd": run_cap_usd}))
 
 
 def fichero_recipes_change_project_layers(
@@ -9473,6 +9490,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_orchestration_approve_agent_write", "orchestration", "POST", "/api/agents/write/approve", fichero_orchestration_approve_agent_write),
     GeneratedTool("fichero_orchestration_get_agent_write_audit", "orchestration", "GET", "/api/agents/write/audit", fichero_orchestration_get_agent_write_audit),
     GeneratedTool("fichero_orchestration_get_agent_write_record", "orchestration", "GET", "/api/agents/write/audit/{record_id}", fichero_orchestration_get_agent_write_record),
+    GeneratedTool("fichero_ai_get_cloud_caps", "ai", "GET", "/api/ai/cloud-caps", fichero_ai_get_cloud_caps),
+    GeneratedTool("fichero_ai_put_cloud_cap", "ai", "PUT", "/api/ai/cloud-caps", fichero_ai_put_cloud_cap),
     GeneratedTool("fichero_annotations_list", "annotations", "GET", "/api/annotations", fichero_annotations_list),
     GeneratedTool("fichero_annotations_create", "annotations", "POST", "/api/annotations", fichero_annotations_create),
     GeneratedTool("fichero_annotations_crop_ephemeral", "annotations", "POST", "/api/annotations/crop", fichero_annotations_crop_ephemeral),
@@ -10389,4 +10408,4 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_views_document", "views", "GET", "/view/document/{doc_id}", fichero_views_document),
     GeneratedTool("fichero_views_global_kg", "views", "GET", "/view/kg/global", fichero_views_global_kg),
 )
-TAGS: tuple[str, ...] = ("actions", "activity", "agent-memory", "annotations", "artifacts", "auth", "authz", "batches", "bibliography", "bookmarks", "campaigns", "canvas", "chains", "chat", "check", "citation-rendering", "citation-usages", "citations", "claim-curation", "claim-links", "claims", "classifications", "content-representations", "conversion", "documents", "editorial", "engine", "entities", "evaluation", "export", "find-documents", "folders", "fonts", "formats", "georeference", "hands", "hpc", "iiif", "images", "ingest", "integrations", "knowledge-graph", "letterforms", "library", "library-items", "library-links", "library-sync", "links", "local-inference", "local-models", "locations", "machines", "mcp", "mcp-servers", "migrations", "model-comparison", "models", "multilingual", "notes", "orchestration", "pairing", "projects", "providers", "reading-at-scale", "reading-orders", "recipes", "references", "registries", "renditions", "research", "rights", "sandbox", "schedules", "search", "search-explanation", "segments", "settings", "signs", "source-settings", "sources", "storage", "sync-folders", "tasks", "topics", "training", "triggers", "users", "views", "workers", "workflow-execution", "workflows",)
+TAGS: tuple[str, ...] = ("actions", "activity", "agent-memory", "ai", "annotations", "artifacts", "auth", "authz", "batches", "bibliography", "bookmarks", "campaigns", "canvas", "chains", "chat", "check", "citation-rendering", "citation-usages", "citations", "claim-curation", "claim-links", "claims", "classifications", "content-representations", "conversion", "documents", "editorial", "engine", "entities", "evaluation", "export", "find-documents", "folders", "fonts", "formats", "georeference", "hands", "hpc", "iiif", "images", "ingest", "integrations", "knowledge-graph", "letterforms", "library", "library-items", "library-links", "library-sync", "links", "local-inference", "local-models", "locations", "machines", "mcp", "mcp-servers", "migrations", "model-comparison", "models", "multilingual", "notes", "orchestration", "pairing", "projects", "providers", "reading-at-scale", "reading-orders", "recipes", "references", "registries", "renditions", "research", "rights", "sandbox", "schedules", "search", "search-explanation", "segments", "settings", "signs", "source-settings", "sources", "storage", "sync-folders", "tasks", "topics", "training", "triggers", "users", "views", "workers", "workflow-execution", "workflows",)

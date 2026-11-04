@@ -18,14 +18,20 @@ class CloudCapChange(BaseModel):
         "the most the project may spend on cloud calls in all, across months (`answers.cloud_project_cap_usd`); "
         "left out: unchanged"))
     clear_project_cap: bool = Field(default=False, description="remove the project's total cap (no such limit)")
+    daily_cap_usd: Optional[float] = Field(default=None, ge=0, description=(
+        "the most the project's cloud calls may cost in a (UTC) day, in US$ (0 is a cap; `answers.cloud_daily_cap_usd`); left out: unchanged"))
+    clear_daily_cap: bool = Field(default=False, description="remove the project's own daily cap (the app's, if any, applies)")
     run_cap_usd: Optional[float] = Field(default=None, ge=0, description=(
         "the cap of the run under way (`StartRequest.run_cap_usd`), changed in place: a run paused at it carries on when this is higher "
         "(`designer.budget.fix-during-the-run`); refused when no run holds a cap; left out: unchanged"))
 
     @model_validator(mode="after")
     def _says_something(self) -> "CloudCapChange":
-        if self.cap_usd is None and self.project_cap_usd is None and not self.clear_project_cap and self.run_cap_usd is None:
-            raise ValueError("send the monthly cap, the project cap, the run cap, or clear_project_cap")
+        if (self.cap_usd is None and self.project_cap_usd is None and not self.clear_project_cap and self.run_cap_usd is None
+                and self.daily_cap_usd is None and not self.clear_daily_cap):
+            raise ValueError("send the monthly cap, the daily cap, the project cap, the run cap, or a clear")
+        if self.daily_cap_usd is not None and self.clear_daily_cap:
+            raise ValueError("a daily cap is set or cleared, not both")
         if self.project_cap_usd is not None and self.clear_project_cap:
             raise ValueError("a project cap is set or cleared, not both")
         return self
@@ -34,6 +40,7 @@ class CloudCapChange(BaseModel):
 class CloudCapChanged(BaseModel):
     cap_usd: float = Field(description="the project's monthly cloud cap now")
     project_cap_usd: Optional[float] = Field(default=None, description="the project's total cloud cap now; null: none")
+    daily_cap_usd: Optional[float] = Field(default=None, description="the cloud cap for a day that holds for the project now (its own, else the app's); null: none")
     run_cap_usd: Optional[float] = Field(default=None, description="the run under way's cap now; null: no run holds one")
     audit_id: str = Field(description="the audit row of the change (the setup's when a setup cap changed, else the run cap's); Undo reverses it")
     run_cap_audit_id: Optional[str] = Field(default=None, description=(
@@ -47,7 +54,7 @@ class CapFix(BaseModel):
     step: Optional[str] = Field(default=None, description="`change-model`: the dearest step's workflow, whose finder opens")
     raise_to_usd: Optional[float] = Field(default=None, description=(
         "`raise-cap`: the cap under which the run fits (the estimate rounded up to the dollar, over what is spent), for the cap that refuses"))
-    cap: Optional[Literal["monthly", "project"]] = Field(default=None, description="`raise-cap`: the cap that is refusing")
+    cap: Optional[Literal["monthly", "project", "daily"]] = Field(default=None, description="`raise-cap`: the cap that is refusing")
     pages_that_fit: Optional[int] = Field(default=None, description="`run-fewer-pages`: the first N pages (Finder order) that fit what the caps leave")
 
 
@@ -64,6 +71,12 @@ class CloudCapLine(BaseModel):
     over: bool = Field(description="the estimate is more than the cap leaves: Start asks first")
     over_month: bool = Field(default=False, description="the estimate is more than the monthly cap leaves")
     over_project: bool = Field(default=False, description="the estimate is more than the project's total cap leaves")
+    over_day: bool = Field(default=False, description="the estimate is more than the daily cap leaves today")
+    daily_cap_usd: Optional[float] = Field(default=None, description="the cap for a (UTC) day that holds (the project's answer, else the app's); null: none")
+    daily_spent_usd: float = Field(default=0.0, description="what its cloud calls have cost today (UTC)")
+    daily_remaining_usd: Optional[float] = Field(default=None, description="what the daily cap leaves today, not below 0; null: no daily cap")
+    needed_daily_cap_usd: Optional[float] = Field(default=None, description=(
+        "when `over_day`: the daily cap under which this run's estimate fits (spent today plus the estimate, to the cent)"))
     needed_cap_usd: Optional[float] = Field(default=None, description=(
         "when `over_month`: the monthly cap under which this run's estimate fits (what is booked this month plus the estimate, "
         "to the cent, no margin); Set Up offers it as \"Raise the cap to N\" (#6295); null otherwise"))
@@ -106,7 +119,8 @@ def fixes_for(line: dict[str, Any], estimate: dict[str, Any]) -> tuple[Optional[
     dearest = max(priced, key=lambda r: r["cost_usd"], default=None)
     fixes: list[dict[str, Any]] = []
     for cap, needed in (("monthly", line.get("needed_cap_usd") if line.get("over_month") else None),
-                        ("project", line.get("needed_project_cap_usd") if line.get("over_project") else None)):
+                        ("project", line.get("needed_project_cap_usd") if line.get("over_project") else None),
+                        ("daily", line.get("needed_daily_cap_usd") if line.get("over_day") else None)):
         if needed is not None:
             fixes.append({"kind": "raise-cap", "cap": cap, "raise_to_usd": float(math.ceil(needed))})
     if dearest is not None:
@@ -152,6 +166,9 @@ def cap_refusals(plan: dict) -> None:
     if line["over_project"]:
         said.append(f"more than the US${line['project_remaining_usd']:,.2f} your project's total cap leaves (cap US${line['project_cap_usd']:,.2f} "
                     f"in all). Raise the project cap to US${line['needed_project_cap_usd']:,.2f}")
+    if line.get("over_day"):
+        said.append(f"more than the US${line['daily_remaining_usd']:,.2f} your daily cap leaves today (cap US${line['daily_cap_usd']:,.2f} "
+                    f"a day). Raise the daily cap to US${line['needed_daily_cap_usd']:,.2f}")
     fewer = f", or run the first {line['fewer_pages']} pages" if line.get("fewer_pages") else ", or run fewer pages"
     line["refusal"] = ", ".join(said[:1]) + ": " + "; and ".join(said[1:]) + f"{fewer}, or choose a cheaper model."
     plan["refusals"] = [*plan["refusals"], line["refusal"]]
@@ -165,6 +182,8 @@ def first_pages_that_fit(db: Any, plan: dict[str, Any], line: dict[str, Any], pa
     left = [line["remaining_usd"]]
     if line["project_remaining_usd"] is not None:
         left.append(line["project_remaining_usd"])
+    if line.get("daily_remaining_usd") is not None:
+        left.append(line["daily_remaining_usd"])
     room = min(left)
     def fits(count: int) -> bool:
         cost = price(set(first_pages_of(db, count, memo)))["total_cost_usd"]
