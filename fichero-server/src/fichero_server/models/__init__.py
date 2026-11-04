@@ -1277,7 +1277,6 @@ class Workflow(BaseModel):
             raise ValueError('config.scope must be "per_file" or "once_per_folder"')
         return v
 
-
     # LLM configuration
     provider: str = ""
     model: str = ""

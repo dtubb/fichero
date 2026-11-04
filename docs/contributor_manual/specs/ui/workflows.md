@@ -473,7 +473,7 @@ Engine only, one pytest per step. Each step flips its tags only with its test gr
 
 #### Step 1.1 — Declared scope on every workflow (#4397)
 - Behaviours: `workflows.defaults.scope-contract-undeclared`, `workflows.defaults.declared-scope`
-- Tests: fichero-server/tests/unit/workflows/test_declared_scope_to_spec.py (not yet written)
+- Tests: fichero-server/tests/unit/workflows/test_declared_scope_to_spec.py (exists)
 - Size: S
 
 #### Step 1.2 — A run's id and step name reach its artifacts (#4312)
@@ -573,7 +573,7 @@ Swift, after the Stage 1-3 regeneration. Pure types are verified with a standalo
 
 #### Step 4.1 — The run menu names the scope before anything runs (#4397)
 - Behaviours: `workflows.bar.scope-uses-the-real-primary-selection`, `workflows.bar.click-appends-not-runs`
-- Tests: fichero/Tests/Unit/general/Workflow/WorkflowRunScopeTests.swift (not yet written)
+- Tests: fichero/Tests/Unit/general/Workflow/WorkflowRunScopeTests.swift (exists)
 - Size: S
 
 #### Step 4.2 — Pause, Resume and Stop show their state at once (#4402)
