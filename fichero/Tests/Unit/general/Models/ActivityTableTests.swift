@@ -1105,6 +1105,19 @@ final class ActivityTableTests: XCTestCase {
                        "the throttle's own reason wins over a waiting job's")
     }
 
+    func testActivityPopoverSummary_pagingIsShownOnlyWhileItHappensAndTintedAsAProblem() {
+        // `recipes-run.memory.hold-when-paging` (#6075): the engine says the Mac is writing memory out; the row says so.
+        let paging = ActivityPopoverSummary(
+            jobs: [], paused: false,
+            machine: .init(memoryPressure: .warn, onBattery: false, inUse: false, whyWait: nil, paging: true)).macReadings
+        XCTAssertEqual(paging.map(\.id), ["memory", "paging", "power", "person"])
+        XCTAssertEqual(paging.filter(\.isProblem).map(\.id), ["memory", "paging"])
+        let calm = ActivityPopoverSummary(
+            jobs: [], paused: false,
+            machine: .init(memoryPressure: .warn, onBattery: false, inUse: false, whyWait: nil, paging: false)).macReadings
+        XCTAssertFalse(calm.map(\.id).contains("paging"), "static swap and a calm Mac show nothing")
+    }
+
     func testActivityPopoverSummary_aReadingIsTintedOnlyWhenItIsAProblem() {
         // WHY (#5635): the row is read at a glance, so only a reading that holds work back for the
         // Mac's sake (memory, heat) is coloured; battery and the person at the Mac are states.

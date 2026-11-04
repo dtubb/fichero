@@ -30,6 +30,8 @@ def mac(monkeypatch):
     # An embedder an earlier test left in the process cache is not this test's: the models held are pinned in
     # test_models_held_6129.py; here the list is only checked for its shape.
     monkeypatch.setattr(throttle, "_models_held", lambda: [])
+    state["paging"] = False
+    monkeypatch.setattr(throttle, "paging_now_on_this_mac", lambda: state["paging"])
     return state
 
 
@@ -51,7 +53,14 @@ def test_activity_popover_summary__the_jobs_route_carries_the_macs_state_with_it
         "in_use": False,
         "why_wait": None,
         "models_held": [],  # nothing loaded in this engine (#6129)
+        "paging": False,  # the Mac is not writing memory out (#6075)
     }
+
+
+def test_the_jobs_route_says_when_the_mac_is_paging_now(client, mac):
+    """`paging` is the throttle's own reading (`paging_now_on_this_mac`), the one that holds heavy work and limits Kraken to a page."""
+    mac["paging"] = True
+    assert _machine(client)["paging"] is True
 
 
 @pytest.mark.parametrize("change,field,shown", [

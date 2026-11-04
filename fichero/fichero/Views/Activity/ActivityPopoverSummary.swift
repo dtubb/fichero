@@ -316,6 +316,13 @@ struct ActivityPopoverSummary: Equatable {
                 help: "Heat: " + (heat == .nominal ? "normal" : value.lowercased()),
                 isProblem: heat == .serious || heat == .critical))
         }
+        // Shown only while it happens: the Mac is writing memory out, so new heavy work is held and Kraken reads one page at a time.
+        if machine.paging == true {
+            readings.append(MacReading(
+                id: "paging", symbol: "arrow.up.doc", value: "Paging",
+                help: "This Mac is writing memory to disk, so heavy work waits and Kraken reads one page at a time",
+                isProblem: true))
+        }
         readings.append(machine.onBattery == true
             ? MacReading(id: "power", symbol: "battery.50percent", value: "Battery", help: "On battery")
             : MacReading(id: "power", symbol: "powerplug", value: "Power", help: "On power"))

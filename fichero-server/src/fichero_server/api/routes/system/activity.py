@@ -245,6 +245,8 @@ class MachineState(BaseModel):
     why_wait: Optional[str] = None
     # The models the engine itself holds in memory now, with what each takes (#6129): what it could hand back when memory is tight.
     models_held: list[HeldModel] = Field(default_factory=list)
+    # This Mac is writing memory to disk NOW (pages written out or swap grown over the last minute): `recipes-run.memory.hold-when-paging`.
+    paging: bool = False
 
 
 def _run_finished_at(status: str, completed_at: Any) -> Optional[datetime]:

@@ -78768,6 +78768,11 @@
             },
             "type": "array",
             "title": "Models Held"
+          },
+          "paging": {
+            "type": "boolean",
+            "title": "Paging",
+            "default": false
           }
         },
         "type": "object",

@@ -416,7 +416,7 @@ replaces the Kraken figure before #6212 is coded.
   owns it) new heavy work is held, and Kraken reads one page at a time, while this Mac is paging NOW under
   memory pressure at warn or above (pageouts or swap grown by 64 MB within the last minute); static swap
   never holds. Built and pinned by `fichero-server/tests/unit/jobs/test_kraken_holds_under_swap_and_pressure_6075.py`;
-  left: the owner's check that the Test 13 run finishes on the 16 GB Mac, and the popover's paging line.
+  the popover's paging line is built (Swift unrun); left: the owner's check that the Test 13 run finishes on the 16 GB Mac.
 - `recipes-run.memory.pages-at-once-bounded` — **[PARTIAL]** (#5931, #5929) the pages a step reads at once
   are the Mac's performance cores held down by memory, never below 1, gated at 2 until the exit-time MPS
   crash (#5929) closes; one for every automatic run and one whoever asked while the Mac is paging
