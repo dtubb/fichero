@@ -134,6 +134,7 @@ class Procs:
     intake: Callable[[dict], str] = lambda lane: ""  # an external lane -> the sha to take now by itself (thresholds), or ''
     trees: Callable[[list], dict] = lambda paths: {}  # paths -> {path: "HEAD status-hash"}: what a step must leave unmoved (run.loop-machine-checked)
     jail_root: str = ""
+    root: str = ""  # the loop's checkout (its harness.toml): the rules warnings at start and the scratch sweep read it
 
 
 QUIET = ("queued", "blocked", "landed")  # a step state in which the lane's own worker is not moving its tree
@@ -799,6 +800,9 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
             out(f"{lane['id']}: lane error (journal row lane-error); the loop goes on")
     if not busy:
         verify_when_idle(procs, chains)
+        if getattr(procs, "root", ""):  # housekeeping at a quiet tick: the ladders' old scratch dirs (run.scratch-sweep)
+            from fichero_builder import scratch
+            scratch.when_idle(procs.root)
     return busy
 
 
@@ -1002,7 +1006,7 @@ def real_procs(root) -> Procs:
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
                  next_milestone=lambda taken: next_in_order(root, taken), build=build, verify_all=verify_all, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake,
-                 jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "")
+                 jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "", root=str(root))
 
 
 PRESUBMIT_TIMEOUT_S = 1200

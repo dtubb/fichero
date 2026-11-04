@@ -175,6 +175,10 @@ def main(argv=None) -> int:
     ln.add_argument("--gh", default="gh"), ln.add_argument("--state")
     od = sub.add_parser("order", help="the owner's build order (JSON {order, parked}) as one commit on branch build-order, queued as a tiny batch the loop lands")
     od.add_argument("--file", required=True), od.add_argument("--root", default=str(Path.cwd())), od.add_argument("--state")
+    ss = sub.add_parser("sweep-scratch", help="the ladders' old scratch dirs in the jail's workroot: --list writes the list (deletes nothing), --delete FILE removes exactly those, each re-checked")
+    g = ss.add_mutually_exclusive_group(required=True)
+    g.add_argument("--list", action="store_true"), g.add_argument("--delete", metavar="FILE")
+    ss.add_argument("--retain-h", type=float, default=6.0), ss.add_argument("--root", default=str(Path.cwd())), ss.add_argument("--state")
     sw = sub.add_parser("sweep", help="clean up one landed worktree through the landing's sweep: a patch first, git worktree remove, never rm; a jail tree as the worker")
     sw.add_argument("--worktree", required=True), sw.add_argument("--root", default=str(Path.cwd())), sw.add_argument("--state")
     cs = sub.add_parser("status", help="the owner's console on 127.0.0.1: lanes live, alerts with their actions, Build, loop start/stop; /api/status, /api/events, POST /api/action onto the existing verbs")
@@ -391,6 +395,11 @@ def main(argv=None) -> int:
 
         journal.STATE = Path(a.state) if a.state else journal.STATE
         return order.main(a)
+    if a.cmd == "sweep-scratch":
+        from fichero_builder import scratch
+
+        journal.STATE = Path(a.state) if a.state else journal.STATE
+        return scratch.main(a)
     if a.cmd == "sweep":
         from fichero_builder import landed
 
