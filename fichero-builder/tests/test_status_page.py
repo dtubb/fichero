@@ -183,10 +183,14 @@ def test_events_stream_each_new_journal_row(live):
     url, _ = live
     resp = urllib.request.urlopen(url + "/api/events", timeout=5)
     journal.append("queue", lane="a", step="s1", state="checking", detail="")
-    line = b""
-    while not line.startswith(b"data: "):
+    # the stream is every new row: an earlier test's action thread may still write a `console` row here first (seen on the slower
+    # remote runner, 2026-11-04), so read on to this test's own row, never take the first
+    row = {}
+    for _ in range(50):
         line = resp.readline()
-    assert json.loads(line[6:])["state"] == "checking"
+        if line.startswith(b"data: ") and (row := json.loads(line[6:])).get("event") == "queue":
+            break
+    assert row.get("state") == "checking"
     resp.close()
 
 
