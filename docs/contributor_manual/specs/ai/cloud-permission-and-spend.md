@@ -29,7 +29,7 @@ Decisions (details under "Decisions I made"):
 
 ## Behaviours
 
-Status tags are as of 2026-11-04 (nothing in A, C or D is built; B's three OK lines and two PARTIAL are as named). Tests are files that must exist when the line is built.
+Status tags are as of 2026-11-04 (A: the engine half of its first three lines is built, three PARTIAL, the Swift half is Step 1.2; nothing in C or D is built; B's three OK lines and two PARTIAL are as named). Tests are files that must exist when the line is built.
 
 ### A. Caps in Settings (#6346, #6347)
 
