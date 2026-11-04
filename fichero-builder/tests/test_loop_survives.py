@@ -70,8 +70,39 @@ def test_the_loops_detached_clean_tree_follows_origin_and_a_branch_or_a_dirty_tr
     new = _git(seed, "rev-parse", "HEAD")
     git = ["git", "-C", str(live)]
     assert queue.refresh_live(live, "integration", git=git) == f"moved to {new[:9]}" and _git(live, "rev-parse", "HEAD") == new
+    assert queue.DRAIN[0] is True, "no chain starts on the old code before the re-exec (2026-11-04)"
+    queue.DRAIN[0] = False
     assert [r["state"] for r in journal.read() if r["event"] == "loop"] == ["live-tree"]
     (live / "f").write_text("local\n")
     assert queue.refresh_live(live, "integration", git=git) == "dirty: left"
     _git(live, "checkout", "-q", "--", "f"), _git(live, "checkout", "-q", "-b", "mine")
     assert queue.refresh_live(live, "integration", git=git) == "on a branch: left"
+
+
+
+def test_a_step_blocked_by_rules_newer_than_its_code_is_retried_once_when_the_loop_starts_current(state):
+    """Manager 2026-11-04 (10:16-10:50): three chains started on the old code after a landing added harness.toml keys, blocked on
+    'unknown keys', and stayed blocked after the re-exec until a person retried them."""
+    queue.add("ext", "/w/ext", "b1", str(state / "b1.1"), [7], kind="external")
+    queue.add("w1", "/w/w1", "1.1", str(state / "b1.1"), [8])
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="blocked", head="a" * 40, why="ValueError: harness.toml [check]: unknown keys ['generated']")
+    lanes[1]["steps"][0].update(state="blocked", why="red at pytest")
+    queue.save(lanes)
+    assert queue.retry_rules_blocked(lambda s: None) == ["ext"]
+    rows = [r for r in journal.read() if r["event"] == "queue" and r.get("state") == "rules-retry"]
+    assert [r["lane"] for r in rows] == ["ext"], "only the rules-newer block, never a real red"
+    assert queue.load()[0]["steps"][0]["state"] == "done" and queue.load()[1]["steps"][0]["state"] == "blocked"
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="blocked", why="the check could not run: rules file refused: harness.toml: unknown keys")
+    queue.save(lanes)
+    assert queue.retry_rules_blocked(lambda s: None) == [], "once per head: a second block on the same head stays"
+
+
+
+def test_the_loop_retries_rules_blocked_steps_when_it_starts(state, monkeypatch):
+    called = []
+    monkeypatch.setattr(queue, "retry_rules_blocked", lambda out=print: called.append(True) or [])
+    (state / "s").mkdir(parents=True, exist_ok=True)
+    queue.run(Fake().procs, workers_n=1, push=False, once=True, heartbeat=True, out=lambda s: None)
+    assert called == [True], "a heartbeat loop (the verb, a re-exec included) retries them at its start"

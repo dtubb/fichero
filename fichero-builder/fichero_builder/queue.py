@@ -841,6 +841,7 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
     """Ticks until nothing can move without a person; `forever` (the verb) keeps ticking so a blocked or paused lane keeps its
     session and a resume from another shell is picked up. Each tick first takes build-order milestones up to `lanes_n`."""
     handles: dict = {}
+    DRAIN[0] = False  # a fresh process (a re-exec included) runs the code on disk
     mark = code_mark()
     if heartbeat:
         journal.STATE.mkdir(parents=True, exist_ok=True)
@@ -850,6 +851,8 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
             journal.append("rules", state="warning", detail=w)
     # the loop always chains in a thread: a one-lane check inside the tick would starve the heartbeat for its whole ladder
     chains: dict | None = {"pool": ThreadPoolExecutor(max_workers=lanes_n)} if lanes_n > 1 or heartbeat else None
+    if heartbeat:  # this process is the current code: a step the old code blocked on newer rules goes again
+        retry_rules_blocked(out)
     while True:
         if heartbeat:  # after a reboot the lanes' sessions come back in new panes (run.loop-launchd)
             for m in repane():
@@ -874,6 +877,31 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
             mark = code_mark()  # a test's reexec returns
         procs.sleep(tick_s)
 
+
+
+RULES_NEWER = re.compile(r"unknown keys|rules file refused|cannot run the loop")
+
+
+def retry_rules_blocked(out=print) -> list[str]:
+    """At the loop's start (a re-exec onto new code included): a step that blocked because the rules file was newer than the code
+    that read it (`unknown keys`, `rules file refused`) is retried once per head, with a row, so a harness landing that adds a key
+    never leaves the lanes blocked (manager 2026-11-04: 35 min, 10:16-10:50)."""
+    done_ = []
+    with journal.Lock("queue"):
+        lanes = load()
+        for x in lanes:
+            if x["cursor"] >= len(x["steps"]):
+                continue
+            st = x["steps"][x["cursor"]]
+            if st.get("state") == "blocked" and RULES_NEWER.search(st.get("why", "")) and st.get("rules_retry") != st.get("head", ""):
+                st.update(state="done" if x.get("kind") == "external" and st.get("head") else "queued", why="", rules_retry=st.get("head", ""))
+                journal.append("queue", lane=x["id"], step=st["step"], state="rules-retry", detail="blocked by rules newer than the code that read them: retried once on the current code")
+                done_.append(x["id"])
+        if done_:
+            save(lanes)
+    for d in done_:
+        out(f"{d}: retried (rules newer than the old code)")
+    return done_
 
 def table() -> list[list[str]]:
     return [[x["id"], s["step"], s["state"], ", ".join(f"#{n}" for n in s["issues"]), s["head"][:9] or "-", s["why"].strip().replace("\n", " ")[:200]]
@@ -1130,6 +1158,7 @@ def refresh_live(root, branch: str, git=None) -> str:
         journal.append("loop", state="live-tree-refused", detail=(c.stderr or c.stdout).strip()[-300:])
         return "refused"
     head = g("rev-parse", "HEAD").stdout.strip()
+    DRAIN[0] = True  # the code on disk is newer than this process: no chain starts on the old code before the re-exec (2026-11-04)
     journal.append("loop", state="live-tree", detail=f"{root} at origin/{branch} {head[:9]}")
     return f"moved to {head[:9]}"
 
