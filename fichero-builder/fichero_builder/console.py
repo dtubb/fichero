@@ -289,7 +289,7 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
             if a["kind"] == "check" and base and tip and not tip.startswith(base):  # another batch landed under it (manager 2026-11-02)
                 row["activity"]["base_moved"] = True
         shown = steps_on_origin(x, (st.get("last_land_git") or {}).get("sha", ""))
-        if row["state"] == "landed" and shown and shown[-1]["state"] != "landed":
+        if row["state"] == "done" and shown and shown[-1]["state"] != "landed":  # a lane through its steps reads `done` (review 96)
             row["state"] = NOT_LANDED  # the lane is through its steps; the last one is not on origin/integration
         row.update(
             worktree=x["worktree"], title=_title(cur["brief"]) if cur else "", brief_text=_head(cur["brief"]) if cur else "",
@@ -415,6 +415,16 @@ def on_origin(worktree: str, head: str, tip: str) -> bool:
     return _ON_ORIGIN[key]
 
 
+def step_state(finished: bool, live: str | None, is_next: bool, low: str) -> str:
+    """A milestone step's state on the console: `finished` = no open issue left in it; `live` = its queue step's state; `low` = the
+    lowest status of its issues. A finished step whose issues are not all landed is `done, not landed yet` (owner 2026-11-03)."""
+    state = ("done" if finished else "running" if live not in (None, "queued", "landed", "blocked")
+             else "question" if live == "blocked" else "next" if is_next else "waiting")
+    if state == "done" and low and RANK.index(low) < RANK.index("landed"):
+        return NOT_LANDED  # the lane finished it; its commit is not on origin/integration yet
+    return state
+
+
 def steps_on_origin(lane: dict, tip: str) -> list[dict]:
     """The lane's steps for the console: a step whose queue state is `landed` shows `landed` only when its head is on origin/integration,
     else `done, not landed yet` (a not-pushed run, or origin not fetched); the rest keep their state."""
@@ -495,12 +505,9 @@ def milestones(root, gh: str = "gh", lanes: list[dict] | None = None, reads=None
                 all_steps = {c["step"]: c for c in every["clusters"]}
                 for st in order:
                     c = open_steps.get(st["number"])
-                    state = ("done" if c is None else "running" if live.get(st["number"]) not in (None, "queued", "landed", "blocked")
-                             else "question" if live.get(st["number"]) == "blocked" else "next" if st["number"] == nxt else "waiting")
                     ns = [i["number"] for i in all_steps[st["number"]]["issues"]] if st["number"] in all_steps else []
                     low = min((status[n][0] for n in ns), key=RANK.index, default="")
-                    if state == "done" and low and RANK.index(low) < RANK.index("landed"):
-                        state = NOT_LANDED  # the lane finished it; its commit is not on origin/integration yet
+                    state = step_state(c is None, live.get(st["number"]), st["number"] == nxt, low)
                     m["steps"].append({"step": st["number"], "title": st["title"], "state": state, "status": low,
                                        "issues": [i["number"] for i in c["issues"]] if c else []})
                 m["questions"] = planned["questions"]

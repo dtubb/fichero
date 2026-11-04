@@ -450,3 +450,35 @@ def test_a_step_is_landed_on_the_console_only_when_its_head_is_on_origin_integra
     got = [(s["step"], s["state"]) for s in console.steps_on_origin(lane, on)]
     assert got == [("1", "landed"), ("2", "done, not landed yet"), ("3", "queued")]
     assert [s["state"] for s in console.steps_on_origin(lane, "f" * 40)][:2] == ["landed", "done, not landed yet"], "an unknown tip falls back to the tree's own origin ref"
+
+
+
+def test_a_finished_milestone_step_whose_issues_are_not_landed_reads_done_not_landed_yet():
+    """Owner 2026-11-03 (review 96): the Milestones page showed a step `done` while its issues were closed but not on origin/integration."""
+    assert console.step_state(True, None, False, "built, waiting to land") == "done, not landed yet"
+    assert console.step_state(True, None, False, "done, not landed yet") == "done, not landed yet"
+    assert console.step_state(True, None, False, "landed") == "done" and console.step_state(True, None, False, "") == "done"
+    assert console.step_state(False, "checking", False, "open") == "running" and console.step_state(False, "blocked", False, "") == "question"
+    assert console.step_state(False, None, True, "open") == "next" and console.step_state(False, "queued", False, "") == "waiting"
+
+
+def test_a_lane_through_its_steps_reads_done_not_landed_yet_until_its_last_step_is_on_origin(tmp_path, monkeypatch):
+    """Review 96: a finished lane's row state is `done` (never `landed`), so the not-landed override keys on `done`."""
+    import subprocess
+
+    def g(*a):
+        return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "-C", str(tmp_path), *a], check=True, capture_output=True, text=True).stdout.strip()
+    g("init", "-q", "-b", "main")
+    (tmp_path / "a").write_text("1"), g("add", "."), g("commit", "-qm", "base")
+    on = g("rev-parse", "HEAD")
+    (tmp_path / "a").write_text("2"), g("commit", "-qam", "unpushed")
+    off = g("rev-parse", "HEAD")
+    g("update-ref", "refs/remotes/origin/integration", on)
+    monkeypatch.setattr(console, "_git_tiles", lambda: {"last_land_git": {"sha": on, "ts": "", "subject": ""}, "closed_today_git": []})
+    brief = tmp_path / "b.md"
+    brief.write_text("LANE x\n")
+    def lane(head):
+        return [{"id": "x", "worktree": str(tmp_path), "cursor": 1, "paused": False, "steps": [
+            {"step": "1", "state": "landed", "head": head, "issues": [], "why": "", "brief": str(brief)}]}]
+    assert console.api_status([], lane(off))["lanes"][0]["state"] == "done, not landed yet"
+    assert console.api_status([], lane(on))["lanes"][0]["state"] == "done"
