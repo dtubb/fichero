@@ -505,5 +505,6 @@
   "POST /api/workers": "dev-only worker control (dev tier): starting or stopping a worker process or sending it a line is not a library change and has no inverse",
   "POST /api/workers/tell": "dev-only worker control (dev tier): starting or stopping a worker process or sending it a line is not a library change and has no inverse",
   "POST /api/workers/{job_id}/stop": "dev-only worker control (dev tier): starting or stopping a worker process or sending it a line is not a library change and has no inverse",
-  "POST /api/workflow-execution/dry-run": "a dry run changes nothing: it only asks the checks /execute makes and answers the problems in words (Step 2.3, #4370)"
+  "POST /api/workflow-execution/dry-run": "a dry run changes nothing: it only asks the checks /execute makes and answers the problems in words (Step 2.3, #4370)",
+  "PUT /api/ai/cloud-caps": "not undoable by design (app.set_cloud_cap, audited in the account chain like recipes.set_places; spec A decision 10): an app setting does not go on the undo stack; setting the cap back to the audit row's `from` figure undoes it"
 }

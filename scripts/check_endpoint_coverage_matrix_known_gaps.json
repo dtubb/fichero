@@ -305,5 +305,7 @@
   "POST /api/workers": "dev-only worker control (dev tier, FICHERO_DEV_WORKERS=1): reached through the CLI/harness scripts, never from the app; no store by design",
   "POST /api/workers/tell": "dev-only worker control (dev tier, FICHERO_DEV_WORKERS=1): reached through the CLI/harness scripts, never from the app; no store by design",
   "POST /api/workers/{job_id}/stop": "dev-only worker control (dev tier, FICHERO_DEV_WORKERS=1): reached through the CLI/harness scripts, never from the app; no store by design",
-  "POST /api/workflow-execution/dry-run": "the dry run of a run's checks (Step 2.3, #4370): engine first, reached through the generated CLI and MCP; the editor's Test button that calls it is Step 4.6, not built"
+  "POST /api/workflow-execution/dry-run": "the dry run of a run's checks (Step 2.3, #4370): engine first, reached through the generated CLI and MCP; the editor's Test button that calls it is Step 4.6, not built",
+  "GET /api/ai/cloud-caps": "the app-wide cloud caps (ai.cloud.monthly-cap-in-settings, Step 1.1 engine): the Settings field that reads and sets them is Step 1.2 (Swift, waits for lane-onboard's Budget block); until then the CLI reaches them",
+  "PUT /api/ai/cloud-caps": "the app-wide cloud caps (ai.cloud.monthly-cap-in-settings, Step 1.1 engine): the Settings field that reads and sets them is Step 1.2 (Swift, waits for lane-onboard's Budget block); until then the CLI reaches them"
 }

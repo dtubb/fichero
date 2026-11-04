@@ -39,6 +39,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/library_header.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/main.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/ai/__init__.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/ai/cloud_caps.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/ai/hpc.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/ai/local_inference.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/ai/local_models.py
