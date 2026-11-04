@@ -39,7 +39,7 @@ def verify(root, cfg=None, *, jail_required: bool = True) -> dict:
     parts: dict = {}
 
     def part(name: str, fn) -> None:
-        journal.append("activity", kind="verify", key=key, state="rung-start", rung=name)
+        journal.append("activity", kind="verify", key=key, state="rung-start", rung=name, load=check_tool._load())
         t = time.time()
         try:
             r = fn()
@@ -49,7 +49,8 @@ def verify(root, cfg=None, *, jail_required: bool = True) -> dict:
         except (RuntimeError, OSError, ValueError) as e:
             ok, detail = False, str(e)[-300:]
         parts[name] = {"ok": ok, "seconds": int(time.time() - t), "detail": detail}
-        journal.append("activity", kind="verify", key=key, state="rung", rung=name, ok=ok, seconds=parts[name]["seconds"])
+        journal.append("activity", kind="verify", key=key, state="rung", rung=name, ok=ok, seconds=parts[name]["seconds"],
+                       wall_s=round(time.time() - t, 1), load=check_tool._load())
 
     def build_alone():  # only while no check runs: every ladder slot held
         with contextlib.ExitStack() as held:

@@ -1188,6 +1188,14 @@ _KEY = _PerThread("")  # the running ladder's key, for its rung rows
 REUSE = _PerThread(None)  # {rung name: its green row} from the SAME head, base and pinned copy: an approve resumes there, it does not start over
 
 
+
+def _load() -> float | None:
+    """The 1-minute load average, rounded; None where the OS has none."""
+    try:
+        return round(os.getloadavg()[0], 1)
+    except OSError:
+        return None
+
 def ladder(rungs: list) -> dict:
     """Run (name, callable) rungs in order and stop at the first red, so the worker gets one failure at a time."""
     out = []
@@ -1195,9 +1203,13 @@ def ladder(rungs: list) -> dict:
         if (prior := (REUSE[0] or {}).get(name)) is not None:  # green before the approve, for this exact head: not run again (dev-workflows.run.loop-needs-maintainer)
             out.append({**prior, "name": name, "cached": True})
             continue
-        ACTIVITY(kind="check", key=_KEY[0], state="rung-start", rung=name)
+        ACTIVITY(kind="check", key=_KEY[0], state="rung-start", rung=name, load=_load())
+        t0 = time.time()
         r = {"name": name, **fn()}
-        ACTIVITY(kind="check", key=_KEY[0], state="rung", rung=name, ok=bool(r.get("ok")), seconds=r.get("seconds"))
+        # every rung row: its own wall time and the machine's load at its start and end (manager 2026-11-04: the ladder-time report
+        # had no load and no wall time for the multi-result rungs)
+        ACTIVITY(kind="check", key=_KEY[0], state="rung", rung=name, ok=bool(r.get("ok")), seconds=r.get("seconds"),
+                 wall_s=round(time.time() - t0, 1), load=_load())
         out.append(r)
         if ON_RUNG[0]:
             ON_RUNG[0](name, bool(r.get("ok")), out)

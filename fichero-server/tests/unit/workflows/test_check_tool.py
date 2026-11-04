@@ -257,6 +257,17 @@ def test_check_tool_runs_the_ladder(tmp_path):
     assert ct.ladder(rungs[:1])["ok"] is True
 
 
+
+def test_every_rung_row_carries_wall_time_and_load(monkeypatch):
+    """dev-workflows.tool.check: each rung row records its own wall time and the load average, also for rungs with no `seconds`."""
+    rows = []
+    monkeypatch.setattr(ct, "ACTIVITY", lambda **kw: rows.append(kw))
+    monkeypatch.setattr(ct.os, "getloadavg", lambda: (7.25, 0, 0))
+    ct.ladder([("guards", lambda: {"ok": True, "results": []})])
+    start, end = [r for r in rows if r.get("rung") == "guards"]
+    assert start["state"] == "rung-start" and start["load"] == 7.2
+    assert end["state"] == "rung" and end["seconds"] is None and end["load"] == 7.2 and end["wall_s"] >= 0
+
 def _project(tmp_path, extra="", check_extra=""):
     """A throwaway project: its own harness.toml, one good guard, one skipped bad guard; plus a pinned clone of it."""
     work = tmp_path / "work"
