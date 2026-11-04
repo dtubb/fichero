@@ -453,6 +453,7 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
   resident size against the machine's memory before it starts; built for this Mac
   (`compute.memory.too-big-refused-up-front`); naming where it does fit (another Mac, Hugging Face, a
   cluster, a provider) is not built.
+- `training.start.names-the-place-before-any-check` — **[OK]** (#6004) starting a training job names where it will run before it refuses a project or checks that the pages may go there, so a project whose pages may not leave gets the refusal in words, not an `UnboundLocalError` (`fichero-server/tests/unit/training/test_start_names_the_place_before_the_projects_check.py`).
 - `training.fit.restricted-trains-never-released` — **[OK]** (#5539) restricted data trains and the model
   is never publishable wherever it is copied. Built:
   `fichero-server/src/fichero_server/training/project_models.py` `make_global`; tested in
