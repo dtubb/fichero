@@ -80,6 +80,10 @@ class EnhanceOperationRequest(BaseModel):
     auto_levels: bool = False
     method: str = Field("pil", pattern="^(pil|clahe)$", description="clahe runs local contrast, the yellow cast, then the unsharp mask.")
     profile: str = Field("handwritten", pattern="^(handwritten|typescript)$", description="The CLAHE settings for the kind of writing.")
+    clip: float | None = Field(None, ge=1.0, le=4.0, description="clahe: contrast limit; empty is the profile's.")
+    tile: int | None = Field(None, ge=4, le=16, description="clahe: tiles per side; empty is the profile's.")
+    gain: float | None = Field(None, ge=0.8, le=1.4, description="clahe: lightness multiplier; empty is the profile's.")
+    lift: float | None = Field(None, ge=-20.0, le=20.0, description="clahe: lightness offset; empty is the profile's.")
     page: int = Field(1, ge=1)
 
 
@@ -1029,7 +1033,9 @@ def enhance_image_impl(
             "sharpen": request.sharpen,
             "auto_levels": request.auto_levels,
             # a clahe row names its method and profile; a plain row stays as rows have always been
-            **({"method": "clahe", "profile": request.profile} if request.method == "clahe" else {}),
+            **({"method": "clahe", "profile": request.profile,
+                **{k: getattr(request, k) for k in ("clip", "tile", "gain", "lift") if getattr(request, k) is not None}}
+               if request.method == "clahe" else {}),
         },
     }
     return _render_and_append(db, document_id, source_path, op, page)

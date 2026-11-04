@@ -173,3 +173,24 @@ def test_the_enhance_route_takes_a_clahe_method_and_profile_and_a_plain_request_
     assert got.status_code == 200, got.text
     assert got.json()["operations"][-1]["params"]["method"] == "clahe" and got.json()["operations"][-1]["params"]["profile"] == "typescript"
     assert client.post(f"/api/images/{doc.id}/operations/enhance", json={"method": "magic"}).status_code == 422
+
+
+def test_the_enhance_route_stores_clip_tile_gain_and_lift_and_the_row_renders_with_them(client, db):
+    from fichero_server.media.image_ops import apply_operation
+    from fichero_server.models import Document, FileType
+
+    path = db.path.parent / "files" / "faded2.png"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    page = _faded_page()
+    page.save(path)
+    doc = Document(name="faded2.png", path=str(path), file_type=FileType.image)
+    db.save(doc)
+    got = client.post(f"/api/images/{doc.id}/operations/enhance",
+                      json={"method": "clahe", "clip": 3.5, "tile": 4, "gain": 1.3, "lift": 12.0})
+    assert got.status_code == 200, got.text
+    stored = got.json()["operations"][-1]["params"]
+    assert (stored["clip"], stored["tile"], stored["gain"], stored["lift"]) == (3.5, 4, 1.3, 12.0)
+    plain = apply_operation(page, {"op": "enhance", "params": {"method": "clahe", "profile": "handwritten"}})
+    tuned = apply_operation(page, {"op": "enhance", "params": stored})
+    assert tuned.tobytes() != plain.tobytes(), "the four settings reach the pixels"
+    assert client.post(f"/api/images/{doc.id}/operations/enhance", json={"method": "clahe", "clip": 9}).status_code == 422

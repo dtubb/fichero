@@ -47,6 +47,12 @@ struct ImageEditorView: View {
     /// Local contrast (CLAHE, `image.enhance.contrast-clahe`): the engine runs contrast, yellow cast and sharpen by the profile.
     @State var localContrast = false
     @State var localContrastTypescript = false
+    /// Fine-tune the four CLAHE settings; off, the profile's own values are used (they are not sent).
+    @State var localContrastFineTune = false
+    @State var claheClip: Double = 2.2
+    @State var claheTile: Double = 8
+    @State var claheGain: Double = 1.1
+    @State var claheLift: Double = -5
     @State var showEnhancePopover = false
     /// True once Apply/Auto-Levels kicked off a commit, so dismissing the popover
     /// doesn't discard the live frame the server render is about to replace (#3673).

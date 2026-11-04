@@ -403,7 +403,8 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
         from fichero_server.media.enhance import contrast, sharpen, yellowing
 
         # The legacy `DocumentEnhancer.enhance`: CLAHE on L, the yellow cast, then the unsharp mask.
-        edited = contrast.run(image, contrast.Params(profile=params.get("profile", "handwritten")))[0]
+        given = {k: params[k] for k in ("clip", "tile", "gain", "lift") if params.get(k) is not None}
+        edited = contrast.run(image, contrast.Params(profile=params.get("profile", "handwritten"), **given))[0]
         edited = yellowing.run(edited, yellowing.Params())[0]
         return sharpen.run(edited, sharpen.Params())[0]
     if name == "enhance":

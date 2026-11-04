@@ -66646,6 +66646,38 @@
             "description": "The CLAHE settings for the kind of writing.",
             "default": "handwritten"
           },
+          "clip": {
+            "type": "number",
+            "maximum": 4.0,
+            "minimum": 1.0,
+            "nullable": true,
+            "title": "Clip",
+            "description": "clahe: contrast limit; empty is the profile's."
+          },
+          "tile": {
+            "type": "integer",
+            "maximum": 16.0,
+            "minimum": 4.0,
+            "nullable": true,
+            "title": "Tile",
+            "description": "clahe: tiles per side; empty is the profile's."
+          },
+          "gain": {
+            "type": "number",
+            "maximum": 1.4,
+            "minimum": 0.8,
+            "nullable": true,
+            "title": "Gain",
+            "description": "clahe: lightness multiplier; empty is the profile's."
+          },
+          "lift": {
+            "type": "number",
+            "maximum": 20.0,
+            "minimum": -20.0,
+            "nullable": true,
+            "title": "Lift",
+            "description": "clahe: lightness offset; empty is the profile's."
+          },
           "page": {
             "type": "integer",
             "minimum": 1.0,

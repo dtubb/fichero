@@ -8480,11 +8480,15 @@ def register_generated_openapi_commands(
         document_id: str = typer.Argument(..., help='Document Id'),
         auto_levels: Optional[bool] = typer.Option(None, '--auto-levels/--no-auto-levels', help='Auto Levels. Default: false.'),
         brightness: Optional[float] = typer.Option(None, '--brightness', help='Brightness. Default: 1.0.'),
+        clip: Optional[float] = typer.Option(None, '--clip', help="clahe: contrast limit; empty is the profile's."),
         contrast: Optional[float] = typer.Option(None, '--contrast', help='Contrast. Default: 1.0.'),
+        gain: Optional[float] = typer.Option(None, '--gain', help="clahe: lightness multiplier; empty is the profile's."),
+        lift: Optional[float] = typer.Option(None, '--lift', help="clahe: lightness offset; empty is the profile's."),
         method: Optional[str] = typer.Option(None, '--method', help='clahe runs local contrast, the yellow cast, then the unsharp mask. Default: "pil".'),
         page: Optional[int] = typer.Option(None, '--page', help='Page. Default: 1.'),
         profile: Optional[str] = typer.Option(None, '--profile', help='The CLAHE settings for the kind of writing. Default: "handwritten".'),
         sharpen: Optional[float] = typer.Option(None, '--sharpen', help='Sharpen. Default: 1.0.'),
+        tile: Optional[int] = typer.Option(None, '--tile', help="clahe: tiles per side; empty is the profile's."),
     ) -> None:
         """Enhance Image (POST /api/images/{document_id}/operations/enhance)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8493,19 +8497,27 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "auto_levels": auto_levels,
                 "brightness": brightness,
+                "clip": clip,
                 "contrast": contrast,
+                "gain": gain,
+                "lift": lift,
                 "method": method,
                 "page": page,
                 "profile": profile,
                 "sharpen": sharpen,
+                "tile": tile,
             }, {
                 "auto_levels": {'type': 'boolean', 'title': 'Auto Levels', 'default': False, 'x-cli-required': False},
                 "brightness": {'type': 'number', 'minimum': 0.0, 'title': 'Brightness', 'default': 1.0, 'x-cli-required': False},
+                "clip": {'type': 'number', 'maximum': 4.0, 'minimum': 1.0, 'nullable': True, 'title': 'Clip', 'description': "clahe: contrast limit; empty is the profile's.", 'x-cli-required': False},
                 "contrast": {'type': 'number', 'minimum': 0.0, 'title': 'Contrast', 'default': 1.0, 'x-cli-required': False},
+                "gain": {'type': 'number', 'maximum': 1.4, 'minimum': 0.8, 'nullable': True, 'title': 'Gain', 'description': "clahe: lightness multiplier; empty is the profile's.", 'x-cli-required': False},
+                "lift": {'type': 'number', 'maximum': 20.0, 'minimum': -20.0, 'nullable': True, 'title': 'Lift', 'description': "clahe: lightness offset; empty is the profile's.", 'x-cli-required': False},
                 "method": {'type': 'string', 'pattern': '^(pil|clahe)$', 'title': 'Method', 'description': 'clahe runs local contrast, the yellow cast, then the unsharp mask.', 'default': 'pil', 'x-cli-required': False},
                 "page": {'type': 'integer', 'minimum': 1.0, 'title': 'Page', 'default': 1, 'x-cli-required': False},
                 "profile": {'type': 'string', 'pattern': '^(handwritten|typescript)$', 'title': 'Profile', 'description': 'The CLAHE settings for the kind of writing.', 'default': 'handwritten', 'x-cli-required': False},
                 "sharpen": {'type': 'number', 'minimum': 0.0, 'title': 'Sharpen', 'default': 1.0, 'x-cli-required': False},
+                "tile": {'type': 'integer', 'maximum': 16.0, 'minimum': 4.0, 'nullable': True, 'title': 'Tile', 'description': "clahe: tiles per side; empty is the profile's.", 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
