@@ -241,3 +241,6 @@ Out of this cluster from #6031: reader tiers, HTR-United hidden, `RecipeCard` re
 8. **CLI exit code 3** for a cloud refusal, distinct from 1 (any error), so a script can tell a refusal from a failure.
 9. **Settings control ids** `settings.ai.cloudAllowed` (exists) and `settings.ai.cloudCaps` (new) are what
    `open-settings` deep-links to.
+10. **The app caps are audited, not on the undo stack, same as places** (manager ruling 2026-11-04, delegated by the owner):
+    `app.set_cloud_cap` writes its audit row in the account chain and a person undoes it by setting the cap back to the
+    row's `from` figure, as `PUT /api/recipes/places` does. Undo for app-chain audits is a later line, not this release.
