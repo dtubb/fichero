@@ -74,3 +74,17 @@ def test_the_cap_stop_carries_the_daily_figure(tmp_path):
     spend._book(lib, 0.9)
     stop = spend._cap_stop(lib, 0.2, "x")
     assert stop["needed_daily_cap_usd"] == pytest.approx(1.1) and stop["caps"]["day"] == 1.0
+
+
+def test_a_run_cap_a_daily_cap_and_a_monthly_cap_all_hold_through_the_one_hold(tmp_path):
+    lib = _project(tmp_path, "cloud_spend_cap_usd: 100\ncloud_daily_cap_usd: 50\n")
+    with spend._LOCK:
+        assert spend._past_a_cap(lib, 0.0, 1.0) is None
+    spend.set_run_cap(lib, "run-1", 2.0)
+    with spend._LOCK:
+        assert spend._past_a_cap(lib, 0.0, 1.0) is None
+        assert "this run's cloud spend is capped at $2.00" in spend._past_a_cap(lib, 0.0, 3.0)
+    spend.clear_run_cap(lib, "run-1")
+    spend._book(lib, 49.5)
+    with spend._LOCK:
+        assert "a day" in spend._past_a_cap(lib, 0.0, 1.0)  # the day refuses first; the month ($100) still has room
