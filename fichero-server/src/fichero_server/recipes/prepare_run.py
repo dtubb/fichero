@@ -91,6 +91,12 @@ def run_prepare(db: Any, documents: list[str], parent: str,
                                        operations=page_ops, signature={"operations": sorted(page_ops)})  # only what changes THESE operations
     if prepare_operations.CLARITY in ops:  # raises only the faded pages: it looks at each and leaves the clear ones
         step["prepared"] = prepare_pages(db, documents, parent, stop=lambda: _stop_asked(parent))
+    if "show-through" in (paper or []):  # a page that is only the one before seen through (`image.enhance.show-through-only-verso`)
+        from fichero_server.media import show_through_only
+
+        order = {i: n for n, i in enumerate(db.unit_of_work_ids())}
+        step["show_through_only"] = show_through_only.mark_pages(
+            db, sorted(documents, key=lambda i: order.get(i, len(order))), stop=lambda: _stop_asked(parent))
     if PAPER_STEPS.keys() & set(paper or []):  # ruled paper, writing that shows through (`image.enhance.onboarding-step`)
         step["paper_steps"] = run_paper_steps(db, documents, parent, paper, stop=lambda: _stop_asked(parent))
     if _stop_asked(parent):  # stopped before its next page (#5609): the account counts the pages it looked at

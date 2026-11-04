@@ -120,7 +120,8 @@ def leave_out_pages(db: Any, documents: list[str], run_id: str,
         doc = db.get(Document, doc_id)
         page_box = ((doc.metadata or {}).get("page_box") if doc is not None else None)
         furniture = (doc.metadata or {}).get("page_furniture") if doc is not None else None
-        verso_only = bool(doc is not None and (doc.metadata or {}).get("show_through_only"))
+        verso_only = bool(doc is not None and (doc.metadata or {}).get("show_through_only")
+                          and not (doc.metadata or {}).get("show_through_included"))  # one click includes the page
         # The rules judge every line (the median is the page's own); only a machine's, still-kept line can be marked.
         lines = [{"id": r.id, "x": r.bbox_x, "y": r.bbox_y, "w": r.bbox_w, "h": r.bbox_h, "confidence": r.confidence}
                  for r in rows if not r.is_furniture]

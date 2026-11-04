@@ -491,3 +491,46 @@ def _action_rotate(
         params.document_id, before_ops, [dict(op) for op in chain.operations], domains=["image", "document"])
     spec.before = {**(spec.before or {}), **state}
     return _chain_result(chain), spec
+
+
+class ShowThroughOnlyParams(BaseModel):
+    """Params for image.include_show_through_only and image.clear_show_through_only."""
+
+    document_id: str
+    included: bool = Field(True, description="include: true reads the page, false leaves it out again")
+
+
+def _show_through_change(db: Database, document_id: str, new_meta: dict) -> tuple[dict, ChangeSpec]:
+    doc = _get_or_404_document(db, document_id)
+    before = dict(doc.metadata or {})
+    db.save(doc.model_copy(update={"metadata": new_meta}))
+    return {"document_id": document_id, "page_kind": new_meta.get("page_kind"),
+            "included": bool(new_meta.get("show_through_included"))}, ChangeSpec(
+        domains=["image", "document"], target_ids=[document_id], before={"metadata": before}, after={"metadata": new_meta},
+        emit_type=IMAGE_EDIT_EMIT_TYPE, document_ids=[document_id])
+
+
+@action("image.include_show_through_only", ShowThroughOnlyParams, domains=["image", "document"],
+        undoable=False)  # the same action with included false puts it back
+def _action_include_show_through_only(db: Database, params: ShowThroughOnlyParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    """One click: a show-through-only verso is read (or, with `included` false, left out again). The mark stays."""
+    from fichero_server.media import show_through_only
+
+    doc = _get_or_404_document(db, params.document_id)
+    if (doc.metadata or {}).get("page_kind") != show_through_only.KIND:
+        raise HTTPException(422, "that page is not marked show-through-only")
+    return _show_through_change(db, params.document_id, show_through_only.include(doc.metadata, params.included))
+
+
+class ClearShowThroughOnlyParams(BaseModel):
+    document_id: str
+
+
+@action("image.clear_show_through_only", ClearShowThroughOnlyParams, domains=["image", "document"],
+        undoable=False)  # the page stays judged, so a run does not mark it again
+def _action_clear_show_through_only(db: Database, params: ClearShowThroughOnlyParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    """Remove the mark; the page is read like any other. It is not judged again (`show_through_checked` stays)."""
+    from fichero_server.media import show_through_only
+
+    doc = _get_or_404_document(db, params.document_id)
+    return _show_through_change(db, params.document_id, show_through_only.clear(doc.metadata))
