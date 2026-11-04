@@ -247,9 +247,11 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if push and lane["steps"] and not lane.get("built"):  # dev-workflows.run.loop-rolls-on: one dev build per milestone landed for real
             lane["built"] = True
             store(lane)
-            if lane.get("kind") == "external" and not any(st.get("product", True) for st in lane["steps"]):
-                # dev-workflows.run.loop-rolls-on: a harness-only batch builds no app (manager 2026-11-03); a build-order milestone always does
-                journal.append("queue", lane=lane["id"], step="-", state="build-skipped", detail="no landed step touched a product path")
+            if lane.get("kind") == "external":
+                # owner 2026-11-03: a dev build only at a milestone's end or by hand, never per landing (a post-landing build held the heavy
+                # lock 54 min while checks waited); an external lane's batches have no milestone end the loop can see
+                journal.append("queue", lane=lane["id"], step="-", state="build-skipped",
+                               detail="an external lane's batch landed: the dev build waits for the milestone's end or `builder build --dev`")
                 return False
 
             def build_it():

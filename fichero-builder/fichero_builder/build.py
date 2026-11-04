@@ -52,8 +52,14 @@ def main(a) -> int:
     started = time.time()
     journal.append("activity", kind="build", key=f"build {sha[:9]}", state="start")
     print(f"building the dev DMG of {sha[:9]}{' with uncommitted changes' if dirty else ''}; log {log}", flush=True)
-    with log.open("w") as f, journal.heavy("the dev build", yields=True):
-        rc = subprocess.run([str(script)], cwd=str(root), env=env, stdout=f, stderr=subprocess.STDOUT).returncode
+    with log.open("w") as f:
+        # owner 2026-11-03: the heavy lock only for the compile (a dev build held it 54 min through codesign and the DMG while checks
+        # waited); the script stops after its app build, then packages that app with --skip-app-build, outside the lock
+        with journal.heavy("the dev build", yields=True):
+            rc = subprocess.run([str(script)], cwd=str(root), env={**env, "FICHERO_DMG_STOP_AFTER_APP_BUILD": "1"}, stdout=f, stderr=subprocess.STDOUT).returncode
+        if rc == 0:
+            f.flush()
+            rc = subprocess.run([str(script), "--skip-app-build"], cwd=str(root), env=env, stdout=f, stderr=subprocess.STDOUT).returncode
     fresh = dmg.is_file() and dmg.stat().st_mtime >= started - 1
     ok = rc == 0 and fresh
     journal.append("activity", kind="build", key=f"build {sha[:9]}", state="end", ok=ok)

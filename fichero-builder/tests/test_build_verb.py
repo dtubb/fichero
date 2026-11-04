@@ -52,7 +52,7 @@ def test_dev_runs_the_projects_script_for_the_dev_tier_without_a_stamp_or_notari
     assert go(root, "--dev") == 0
     dmg = root / "build" / "releases" / "Fichero-dev.dmg"
     seen = json.loads((dmg.parent / "Fichero-dev.dmg.seen").read_text())
-    assert seen["argv"] == [], "no --notarize-app: a local test build never waits on Apple"
+    assert seen["argv"] == ["--skip-app-build"], "no --notarize-app: a local test build never waits on Apple; packaging reuses the app just built"
     assert seen["env"]["FICHERO_RELEASE_TIER"] == "dev" and seen["env"]["FICHERO_DMG_PATH"] == str(dmg)
     assert seen["env"]["FICHERO_RELEASE_VERSION"] == "2026.11.1", "the current version: the script's auto-stamp would edit the tree"
     assert seen["env"]["PATH"].split(os.pathsep)[0] == os.path.dirname(sys.executable), "the engine preflight's bare python3 finds the venv"
@@ -106,3 +106,24 @@ def test_a_script_that_cannot_be_run_is_a_refusal_never_a_traceback(root, capsys
     (root / "scripts" / "build-release-dmg.sh").chmod(0o644)
     assert go(root, "--dev") == 1
     assert "not executable" in capsys.readouterr().out and not row()
+
+
+def test_the_heavy_lock_is_held_only_for_the_app_build_and_packaging_runs_outside_it(root, monkeypatch):
+    """owner 2026-11-03: a dev build held the heavy lock 54 min through codesign and the DMG while checks waited."""
+    import contextlib
+    log = root.parent / "phases.log"
+    @contextlib.contextmanager
+    def heavy(what, yields=False):
+        log.open("a").write("lock-on\n")
+        yield
+        log.open("a").write("lock-off\n")
+    monkeypatch.setattr(journal, "heavy", heavy)
+    script = root / "scripts" / "build-release-dmg.sh"
+    script.write_text(f"""#!{sys.executable}
+import os, sys
+open("{log}", "a").write(f"{{sys.argv[1:]}} stop={{os.environ.get('FICHERO_DMG_STOP_AFTER_APP_BUILD')}}\\n")
+if "--skip-app-build" in sys.argv:
+    open(os.environ["FICHERO_DMG_PATH"], "w").write("dmg")
+""")
+    assert go(root, "--dev") == 0
+    assert log.read_text().splitlines() == ["lock-on", "[] stop=1", "lock-off", "['--skip-app-build'] stop=None"], "compile locked, packaging not"

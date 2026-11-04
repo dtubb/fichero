@@ -954,10 +954,11 @@ def _landed_external(state, tmp_path, product, lane_id):
     return built, steps_of(lane_id)[0]
 
 
-def test_a_harness_only_landing_builds_no_app_and_a_product_landing_does(state, tmp_path):
-    """dev-workflows.run.loop-rolls-on (manager 2026-11-03): a harness batch held the heavy lock 46 min for an app nobody changed."""
+def test_an_external_lanes_landing_builds_no_app_product_or_not(state, tmp_path):
+    """dev-workflows.run.loop-rolls-on (manager 2026-11-03): a harness batch held the heavy lock 46 min for an app nobody changed; then the
+    owner ruled a dev build only at a milestone's end or by hand, so a product batch of an external lane builds nothing either."""
     built, s = _landed_external(state, tmp_path / "a", product=False, lane_id="lane-h")
     assert s["state"] == "landed" and s["product"] is False and built == [], "no product path: no build"
     assert any(r.get("state") == "build-skipped" for r in journal.read() if r["event"] == "queue")
     built, s = _landed_external(state, tmp_path / "b", product=True, lane_id="lane-p")
-    assert s["product"] is True and built == ["lane-p"], "a product path: the dev build"
+    assert s["product"] is True and built == [], "a product path: the dev build waits for the milestone's end or `builder build --dev`"
