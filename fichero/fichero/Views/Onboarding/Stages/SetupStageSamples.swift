@@ -115,6 +115,16 @@ struct SetupStageSamples: View {
         }
     }
 
+    /// Compare, at two models and not at one: the one door to the compare view from a stage page (`wide.compare.one-view-from-the-pager`).
+    @ViewBuilder
+    private func compareDoor(_ result: SetupStageTryResult, models: Int) -> some View {
+        if FeatureManager.shared.isWideSetUpEnabled, StageCompareDoor.showsCompare(candidates: models),
+           let first = (result.pages ?? store.samples.map(\.id)).first {
+            Button("Compare") { comparing = ComparedPage(id: first) }
+                .accessibilityIdentifier("setup.stage.compare")
+        }
+    }
+
     @ViewBuilder
     private func resultView(_ result: SetupStageTryResult) -> some View {
         if let error = result.failure {
@@ -127,6 +137,7 @@ struct SetupStageSamples: View {
         }
         // Each model beside the others on each page (#6034).
         let compared = (result.candidates ?? []).filter { !($0.perPage ?? []).isEmpty }
+        compareDoor(result, models: compared.count)
         if compared.count > 1 {
             // First the candidates side by side on each page, the picture with each one's lines and its reading
             // (#6034), counts under each; the page's name opens it larger in the compare window (#6047, #5856).
@@ -173,6 +184,12 @@ struct SetupStageSamples: View {
 
 /// The page the compare window is open on.
 struct ComparedPage: Identifiable { let id: String }
+
+/// When a stage page offers Compare (`wide.compare.one-view-from-the-pager`): with two or more candidates that read pages, never with one.
+/// The Inspector's Compare Readers opens the same `CompareReadersView` over the same store, so there is one view, two doors.
+enum StageCompareDoor {
+    nonisolated static func showsCompare(candidates: Int) -> Bool { candidates >= 2 }
+}
 
 #Preview("Samples before a try") {
     SetupStageSamples(store: SetupStageTryStore(client: FicheroClient(libraryPath: nil), stageId: "names"))

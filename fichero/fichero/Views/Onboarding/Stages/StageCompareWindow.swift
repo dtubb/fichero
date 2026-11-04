@@ -49,6 +49,10 @@ struct StageCompareColumns: View {
     var useThis: ((StageCandidate) -> Void)?
     var pictureWidth: ClosedRange<CGFloat> = 240...420
 
+    /// The caption of counts under a model's name goes in the wide Set Up: the picture and the model's own lines say it
+    /// (`wide.compare.replaces-the-captions-and-the-animation`).
+    nonisolated static func showsCountCaption(wide: Bool) -> Bool { !wide }
+
     var body: some View {
         ScrollView(.horizontal) {
             HStack(alignment: .top, spacing: 12) {
@@ -62,7 +66,8 @@ struct StageCompareColumns: View {
         let page = candidate.perPage?.first { $0.id == pageId }
         VStack(alignment: .leading, spacing: 6) {
             Text(candidate.title).font(.callout.weight(.medium))
-            if let counts = page.flatMap({ SetupStageTryResult.countWords($0.segments ?? [:]) }) {
+            if Self.showsCountCaption(wide: FeatureManager.shared.isWideSetUpEnabled),
+               let counts = page.flatMap({ SetupStageTryResult.countWords($0.segments ?? [:]) }) {
                 Text(counts).font(.caption).foregroundStyle(.secondary)
             }
             LibraryImageView(documentId: pageId, imageType: .display)
