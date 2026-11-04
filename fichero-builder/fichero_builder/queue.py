@@ -1070,37 +1070,46 @@ def real_procs(root) -> Procs:
 
 
 PRESUBMIT_TIMEOUT_S = 1200
+PRESUBMIT_ROOT: list = [None]  # the pinned checkout presubmit judges with; None = the builder's own (tests set it)
 
 
-def presubmit(lane_id: str, sha: str) -> tuple[bool, str]:
-    """`builder done`'s shift-left gate (speed batch 2, manager 2026-11-03): the lane's own ready check, `[check].ready` of the
-    lane's harness.toml run WITH its guards (`--no-guards` dropped: every fast guard, the spec guards among them, the lint ratchet,
-    the git checks) in the lane's worktree, so a red a guard would find stops here, in minutes, not after a whole ladder. It runs only when the worktree
-    is clean and at `sha` (the files the guards read are the tree's); otherwise it says so and lets the done through.
-    (ok, what it said); one `presubmit` journal row."""
+def presubmit(lane_id: str, sha: str, pinned=None) -> tuple[bool, str]:
+    """`builder done`'s shift-left gate (speed batch 2, manager 2026-11-03): the ready check WITH its guards (`--no-guards` dropped:
+    every fast guard, the spec guards among them, the lint ratchet, the git checks) over the lane's `sha`, so a red a guard would find
+    stops here, in minutes, not after a whole ladder. The script and the guards are the PINNED ones (manager 2026-11-04: a lane that
+    edits its own ready script must not pass its own presubmit): a scratch tree of `sha` from the lane's repo with the owner's check
+    files laid over it (`check_tool._scratch_tree`, as the ladder does), `pinned` = the builder's own checkout. Still unjailed with the
+    caller's environment: the lane's code under test runs there. (ok, what it said); one `presubmit` journal row."""
+    from fichero_builder import check_tool
+    pinned = Path(pinned or PRESUBMIT_ROOT[0] or Path(__file__).resolve().parents[2])
     lane = next((x for x in load() if x["id"] == lane_id), None)
     wt = Path(lane["worktree"]) if lane else None
-    f = wt / "harness.toml" if wt else None
-    ready = [x for x in tomllib.loads(f.read_text()).get("check", {}).get("ready", []) if x != "--no-guards"] if f and f.is_file() else []
-    if not ready or not (wt / ready[0]).is_file():
-        journal.append("presubmit", lane=lane_id, head=sha, state="skipped", detail="no [check].ready script in the lane's tree")
-        return True, "presubmit skipped: the lane's tree has no [check].ready script"
+    f = pinned / "harness.toml"
+    ready = [x for x in tomllib.loads(f.read_text()).get("check", {}).get("ready", []) if x != "--no-guards"] if f.is_file() else []
+    if not ready or wt is None or not (wt / ".git").exists():
+        journal.append("presubmit", lane=lane_id, head=sha, state="skipped", detail="no pinned [check].ready, or no lane worktree")
+        return True, "presubmit skipped: no pinned [check].ready, or no lane worktree"
     g = ["git", "-c", "safe.directory=*", "-C", str(wt)]
-    head = subprocess.run(g + ["rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
     want = subprocess.run(g + ["rev-parse", "--verify", "-q", f"{sha or 'HEAD'}^{{commit}}"], capture_output=True, text=True).stdout.strip()
-    dirty = subprocess.run(g + ["status", "--porcelain", "--untracked-files=no"], capture_output=True, text=True).stdout.strip()
-    if not want or head != want or dirty:
-        why = f"presubmit skipped: {wt} is {'dirty' if dirty else 'not at ' + (sha or 'HEAD')[:12]}"
-        journal.append("presubmit", lane=lane_id, head=sha, state="skipped", detail=why)
-        return True, why
+    if not want:
+        journal.append("presubmit", lane=lane_id, head=sha, state="skipped", detail=f"{sha[:12]} is not in the lane's repo")
+        return True, f"presubmit skipped: {sha[:12]} is not in the lane's repo"
+    tree = None
     try:
-        r = subprocess.run(["bash", *ready], cwd=str(wt), capture_output=True, text=True,
+        tree = check_tool._scratch_tree(wt, want, pinned, check_tool.load(pinned))
+        r = subprocess.run(["bash", *ready], cwd=tree, capture_output=True, text=True,
                            timeout=PRESUBMIT_TIMEOUT_S, env={**os.environ, "FICHERO_PYTHON_BIN": sys.executable})
         ok, said = r.returncode == 0, (r.stdout + r.stderr).strip()
     except subprocess.TimeoutExpired:
         ok, said = False, f"presubmit timed out after {PRESUBMIT_TIMEOUT_S} s"
-    journal.append("presubmit", lane=lane_id, head=head, state="green" if ok else "red", detail=said[-1500:])
+    except RuntimeError as e:
+        ok, said = True, f"presubmit skipped: {e}"
+    finally:
+        if tree:
+            subprocess.run(g + ["worktree", "remove", "--force", tree], capture_output=True)
+    journal.append("presubmit", lane=lane_id, head=want, state="green" if ok and not said.startswith("presubmit skipped") else "skipped" if ok else "red", detail=said[-1500:])
     return ok, said
+
 
 def refresh_live(root, branch: str, git=None) -> str:
     """The loop's own tree (`--root`) follows origin/<branch> after each landing, so the code it runs is never behind the rules it
