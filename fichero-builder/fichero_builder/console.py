@@ -50,6 +50,20 @@ def rows_of(root) -> list[dict]:
     return sorted(rows, key=lambda r: r.get("ts", ""))
 
 
+RESOLVED_DAYS = 7
+
+
+def _resolved(rows: list[dict], today: str) -> list[dict]:
+    """Answered alerts of the last RESOLVED_DAYS days, newest first, with how they ended: the console's collapsed list (owner 2026-11-04)."""
+    cut = time.strftime("%Y-%m-%d", time.localtime(time.mktime(time.strptime(today, "%Y-%m-%d")) - RESOLVED_DAYS * 86400))
+    how = {}
+    for r in rows:
+        if r.get("event") == "alert-answer" and r.get("ok"):
+            how[r.get("id")] = (r.get("action"), r.get("ts", ""))
+    out = [{**{k: r.get(k) for k in ("id", "ts", "lane", "step", "what")}, "answer": how[r["id"]][0], "answered": how[r["id"]][1]}
+           for r in rows if r.get("event") == "alert" and r.get("id") in how and str(r.get("ts", ""))[:10] >= cut]
+    return list(reversed(out))[:100]
+
 def status(rows: list[dict], lanes: list[dict], today: str | None = None) -> dict:
     """dev-workflows.run.loop-status: what `builder status` and `/status.json` show, from journal rows and the queue only."""
     today = today or time.strftime("%Y-%m-%d")
@@ -68,6 +82,7 @@ def status(rows: list[dict], lanes: list[dict], today: str | None = None) -> dic
         "spend_today_usd": round(sum(float(r.get("usd") or 0) for r in on if r.get("event") == "cost"), 2),
         "open_alerts": [{k: r.get(k) for k in ("id", "ts", "lane", "step", "what", "actions")}
                         for r in rows if r.get("event") == "alert" and r.get("id") not in answered],
+        "resolved_alerts": _resolved(rows, today),
     }
 
 

@@ -558,6 +558,9 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
     """The manager's one verb: retry or approve re-run the step, send-back gives it to a new session with the finding,
     park leaves it, ask-owner puts it on GitHub for the owner. An action the alert does not offer is refused, with a row."""
     a = next((r for r in reversed(journal.read()) if r.get("event") == "alert" and r.get("id") == alert_id), None)
+    if a is not None and action == "dismiss":  # owner 2026-11-04: an alert never hangs around; dismiss answers it and changes nothing else
+        journal.append("alert-answer", id=alert_id, action="dismiss", ok=True, detail="dismissed from the console")
+        return 0, f"{alert_id}: dismissed"
     if a is None or (action not in a.get("actions", []) and not (action == "park" and not a.get("actions"))):  # a no-action alert may be parked
         why = f"no alert {alert_id!r}" if a is None else f"{action!r} is not one of {a['actions']}"
         journal.append("alert-answer", id=alert_id, action=action, ok=False, detail=why)
@@ -619,6 +622,10 @@ def heartbeat_check(tick_s: float = 30.0, ticks: int = 3, now: float | None = No
     last = time.mktime(time.strptime(rows[i]["ts"], "%Y-%m-%dT%H:%M:%S")) if i >= 0 else None
     age = (now or time.time()) - last if last is not None else None
     if age is not None and age <= ticks * tick_s:
+        answered = {r.get("id") for r in rows if r.get("event") == "alert-answer" and r.get("ok")}
+        for r in rows[:i]:  # the silence ended: its alert is answered, so it never hangs around (owner 2026-11-04)
+            if r.get("event") == "alert" and r.get("step") == "heartbeat" and r.get("id") not in answered:
+                journal.append("alert-answer", id=r["id"], action="loop-back", ok=True, detail="the loop ticks again")
         return None
     if any(r.get("event") == "alert" and r.get("step") == "heartbeat" for r in rows[i + 1:]):
         return None  # already said for this silence

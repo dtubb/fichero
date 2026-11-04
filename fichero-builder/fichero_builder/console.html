@@ -156,8 +156,14 @@ function Alerts({ alerts }) {
   return html`<div class="alerts">${alerts.map(a => html`<div class="alert">
     <div><b class="mono">${a.id}</b> <span class="muted"><${Ago} ts=${a.ts} /></span></div>
     <div class="what">${a.what}</div>
-    <div class="actions" style="justify-content:flex-start">${(a.actions || []).map(x => html`<button class="btn" onClick=${() => act("alert", { id: a.id, action: x })}>${x}</button>`)}</div>
+    <div class="actions" style="justify-content:flex-start">${(a.actions || []).map(x => html`<button class="btn" onClick=${() => act("alert", { id: a.id, action: x })}>${x}</button>`)}
+      <button class="btn" title="answer it without acting: it moves to Resolved" onClick=${() => act("alert", { id: a.id, action: "dismiss" })}>Dismiss</button></div>
   </div>`)}</div>`;
+}
+
+function Resolved({ alerts }) {
+  return html`<details><summary class="muted">Resolved (last 7 days): ${alerts.length}</summary>
+    <table><tbody>${alerts.map(a => html`<tr><td class="mono">${a.id}</td><td>${a.what}</td><td class="muted">${a.answer} <${Ago} ts=${a.answered} /></td></tr>`)}</tbody></table></details>`;
 }
 
 const STATUS_DOT = { open: "", "in progress": "blue", "built, waiting to land": "orange", landed: "green", released: "green" };
@@ -332,6 +338,7 @@ function App() {
           <div class="k muted">API-equivalent $: on Max, not billed</div></div>`}
       </div>
       ${st.open_alerts.length > 0 && html`<h2>Alerts</h2><${Alerts} alerts=${st.open_alerts} />`}
+      ${(st.resolved_alerts || []).length > 0 && html`<${Resolved} alerts=${st.resolved_alerts} />`}
       ${{ milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, issues: Issues, release: Release }[tab]
         ? html`<${{ milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, issues: Issues, release: Release }[tab]} st=${st} />`
         : html`<h2>Lanes</h2><${Lanes} lanes=${st.lanes} />`}
