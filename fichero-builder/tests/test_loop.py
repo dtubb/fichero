@@ -979,6 +979,7 @@ def test_an_external_lanes_red_is_sent_back_by_the_loop_three_times_a_batch_then
         assert len(_alerts()) == (1 if i == 3 else 0), f"round {i + 1}"
         (wt / f"fix{i}").write_text("x")
         g(wt, "add", "."), g(wt, "commit", "-qm", f"fix {i} (Step 1.2)")
-    rows = [r["detail"] for r in journal.read() if r.get("state") == "auto-send-back" and "automatically" in r.get("detail", "")]
-    assert [d.split(":")[0] for d in rows] == [f"sent back automatically ({n} of 3)" for n in (1, 2, 3)]
+    rows = [r["detail"] for r in journal.read() if r.get("state") == "auto-send-back"]
+    assert [d.split(":")[0] for d in rows] == [f"sent back automatically ({n} of 3)" for n in (1, 2, 3)], "one row per send-back (review 361)"
+    assert all("findings in " in d and "findings-lane-x-" in d for d in rows), "the row names the findings file"
     assert len(told) == 4 and all("FINDINGS" in t for t in told)

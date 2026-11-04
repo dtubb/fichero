@@ -211,13 +211,13 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if only_head is None:
             store(lane)
 
-    def findings_to_lane(s, why, evidence, q, state="told"):
+    def findings_to_lane(s, why, evidence, q, state="told", note=""):
         n = sum(1 for p in journal.STATE.glob(f"findings-{lane['id']}-*.txt")) + 1
         f = journal.STATE / f"findings-{lane['id']}-{n}.txt"
         f.write_text(f"{lane['id']} batch {s['step']} at {s.get('head', '')[:9]}: {why}\n\nEvidence: {evidence or q}\n")
         err = procs.tell(lane, f"FINDINGS for {lane['id']} at {s.get('head', '')[:9]}: {why.splitlines()[0][:300]} (full: {f}). "
                                f"Fix on your branch (a conflict: rebase onto origin/integration), then run: {done_cmd(lane['id'])}")
-        journal.append("queue", lane=lane["id"], step=s["step"], state=state if not err else "tell-refused", detail=err or str(f))
+        journal.append("queue", lane=lane["id"], step=s["step"], state=state if not err else "tell-refused", detail=err or note + str(f))
 
     def block(s, why, actions=ACTIONS, evidence="", auto_send_back=False):
         q = journal.STATE / f"question-{lane['id']}-{s['step']}.txt"
@@ -226,9 +226,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             s["auto_sb"] = s.get("auto_sb", 0) + 1  # before the move, which stores it
         move(s, "blocked", why)
         if auto_send_back:  # a red the manager would only send back: the lane gets the findings, no alert (manager 2026-11-03)
-            findings_to_lane(s, why, evidence, q, state="auto-send-back")
-            journal.append("queue", lane=lane["id"], step=s["step"], state="auto-send-back",
-                           detail=f"sent back automatically ({s['auto_sb']} of {AUTO_SEND_BACKS}): {why.splitlines()[0][:200]}")
+            findings_to_lane(s, why, evidence, q, state="auto-send-back",  # ONE row: the count, the reason and the findings file (review 361)
+                             note=f"sent back automatically ({s['auto_sb']} of {AUTO_SEND_BACKS}): {why.splitlines()[0][:200]}; findings in ")
             return False
         alert(lane["id"], s["step"], why, evidence or str(q), list(actions))
         if lane.get("kind") == "external" and s.get("land_tree"):  # the lane fixes it on its branch: tell it where the findings are
