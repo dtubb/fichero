@@ -1310,19 +1310,23 @@ def _scratch_tree(root, head: str, pinned, cfg: Config, overlay: bool = True, da
     r = _git(root, "-c", "core.hooksPath=/dev/null", "worktree", "add", "--detach", "-q", tree, sha)  # no repo hook runs as the owner
     if not r["ok"]:
         raise RuntimeError(f"scratch tree failed: {r['stderr_tail']}")
-    for f in (_lines(pinned, "ls-files") or []) if overlay else []:
-        if f.startswith(cfg.check_paths):
-            if f in data_from_head and f.endswith(".json"):
-                continue
-            src, dest = Path(pinned) / f, Path(tree) / f
-            if src.is_symlink():
-                raise RuntimeError(f"pinned file {f} is a symlink: refused")
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            if not dest.parent.resolve().is_relative_to(Path(tree).resolve()):
-                raise RuntimeError(f"{f} resolves outside the scratch tree: refused")
-            dest.unlink(missing_ok=True)  # never write through a worker-committed symlink (review 4 H1)
-            dest.write_bytes(src.read_bytes())
-            dest.chmod(src.stat().st_mode)
+    try:
+        for f in (_lines(pinned, "ls-files") or []) if overlay else []:
+            if f.startswith(cfg.check_paths):
+                if f in data_from_head and f.endswith(".json"):
+                    continue
+                src, dest = Path(pinned) / f, Path(tree) / f
+                if src.is_symlink():
+                    raise RuntimeError(f"pinned file {f} is a symlink: refused")
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                if not dest.parent.resolve().is_relative_to(Path(tree).resolve()):
+                    raise RuntimeError(f"{f} resolves outside the scratch tree: refused")
+                dest.unlink(missing_ok=True)  # never write through a worker-committed symlink (review 4 H1)
+                dest.write_bytes(src.read_bytes())
+                dest.chmod(src.stat().st_mode)
+    except (RuntimeError, OSError):
+        _git(root, "worktree", "remove", "--force", tree)  # a refusal leaves no half-made worktree behind (review -89)
+        raise
     return tree
 
 

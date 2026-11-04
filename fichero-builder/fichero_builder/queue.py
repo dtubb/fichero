@@ -853,6 +853,8 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
     chains: dict | None = {"pool": ThreadPoolExecutor(max_workers=lanes_n)} if lanes_n > 1 or heartbeat else None
     if heartbeat:  # this process is the current code: a step the old code blocked on newer rules goes again
         retry_rules_blocked(out)
+        if getattr(procs, "root", ""):  # presubmit judges with the live loop's checkout, whoever runs `builder done`
+            (journal.STATE / "live-root").write_text(str(Path(procs.root).resolve()) + "\n")
     while True:
         if heartbeat:  # after a reboot the lanes' sessions come back in new panes (run.loop-launchd)
             for m in repane():
@@ -879,7 +881,7 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
 
 
 
-RULES_NEWER = re.compile(r"unknown keys|rules file refused|cannot run the loop")
+RULES_NEWER = re.compile(r"unknown keys|rules file refused")
 
 
 def retry_rules_blocked(out=print) -> list[str]:
@@ -979,6 +981,13 @@ def carry_approvals(step: dict, repo: str, base_ref: str, auto) -> bool:
     journal.append("auto", rule="approval-carry-same-file-diffs", head=new, file=", ".join(named), detail=f"the approve given at {old[:9]} holds: the same diff of each named file")
     return True
 
+def carry_in_lane(step: dict, lane: dict, branch: str, auto) -> bool:
+    """The chain's carry, in the lane's own repo (its land tree, else its worktree) against its origin/<branch>: that repo holds both
+    heads; the engine repo gets the new head only when the chain fetches it, after the carry (2026-11-04: carry-declined 'its diff could
+    not be read at one head', twice)."""
+    return carry_approvals(step, step.get("land_tree") or lane["worktree"], f"origin/{branch}", auto)
+
+
 def _approved(step: dict | None, key: str) -> bool:
     """An approve counts only for the head it was given on (defect 2026-11-02: alert -36's approve_red excused a later head)."""
     # a worker lane's step has no head until a chain is green: its approve is recorded with head "" and holds while it still has none
@@ -1032,9 +1041,7 @@ def real_procs(root) -> Procs:
                      and r.get("seq") == lane["seq"]), None)
 
     def chain(lane, step, stage):
-        # the lane's own repo (its land tree) holds both heads; the engine repo gets the new one only when the chain fetches it, after
-        # this (2026-11-04: carry-declined 'its diff could not be read at one head', twice)
-        carry_approvals(step, step.get("land_tree") or lane["worktree"], f"origin/{branch}", tuple(rules.get("check", {}).get("auto", ())))
+        carry_in_lane(step, lane, branch, tuple(rules.get("check", {}).get("auto", ())))
         a = ns(lane, step)
         a.pinned = work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))
         a.repin = lambda: work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))
@@ -1111,7 +1118,8 @@ def presubmit(lane_id: str, sha: str, pinned=None) -> tuple[bool, str]:
     files laid over it (`check_tool._scratch_tree`, as the ladder does), `pinned` = the builder's own checkout. Still unjailed with the
     caller's environment: the lane's code under test runs there. (ok, what it said); one `presubmit` journal row."""
     from fichero_builder import check_tool
-    pinned = Path(pinned or PRESUBMIT_ROOT[0] or Path(__file__).resolve().parents[2])
+    live = journal.STATE / "live-root"  # the running loop's own checkout, written at its start: never the code `done` was run from (review -89)
+    pinned = Path(pinned or PRESUBMIT_ROOT[0] or (live.read_text().strip() if live.is_file() else "") or "/nonexistent")
     lane = next((x for x in load() if x["id"] == lane_id), None)
     wt = Path(lane["worktree"]) if lane else None
     f = pinned / "harness.toml"
@@ -1132,8 +1140,8 @@ def presubmit(lane_id: str, sha: str, pinned=None) -> tuple[bool, str]:
         ok, said = r.returncode == 0, (r.stdout + r.stderr).strip()
     except subprocess.TimeoutExpired:
         ok, said = False, f"presubmit timed out after {PRESUBMIT_TIMEOUT_S} s"
-    except RuntimeError as e:
-        ok, said = True, f"presubmit skipped: {e}"
+    except RuntimeError as e:  # the scratch tree refused the lane's tree (a symlink out, ...): the ladder would too (review -89)
+        ok, said = False, f"presubmit refused: {e}"
     finally:
         if tree:
             subprocess.run(g + ["worktree", "remove", "--force", tree], capture_output=True)

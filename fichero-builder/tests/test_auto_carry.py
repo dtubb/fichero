@@ -88,3 +88,15 @@ def test_an_older_approve_that_does_not_carry_says_why_in_a_row(repo):
     assert rows == ["t_test.py: its diff changed", "the rule is not in [check].auto"]
     assert not queue.carry_approvals(_step(h2, h2, approve_red=True), str(repo), "integration", AUTO), "same head: nothing to carry, no row"
     assert len([r for r in journal.read() if r["event"] == "carry-declined"]) == 2
+
+
+def test_the_chain_carries_in_the_lanes_land_tree_not_a_repo_that_lacks_the_new_head(repo):
+    """Review -89: the chain's carry reads the lane's own repo (the land tree), which holds both heads, against its origin/<branch>."""
+    h1 = _g(repo, "rev-parse", "HEAD")
+    (repo / "src.py").write_text("x = 2\n")
+    _g(repo, "commit", "-qam", "added elsewhere")
+    h2 = _g(repo, "rev-parse", "HEAD")
+    _g(repo, "update-ref", "refs/remotes/origin/integration", "integration")
+    step = {**_step(h2, h1, approve_red=True), "land_tree": str(repo)}
+    assert queue.carry_in_lane(step, {"worktree": "/nonexistent"}, "integration", AUTO), "the land tree wins over the lane's worktree"
+    assert step["approved_head"] == h2

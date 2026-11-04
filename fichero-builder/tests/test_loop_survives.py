@@ -97,6 +97,10 @@ def test_a_step_blocked_by_rules_newer_than_its_code_is_retried_once_when_the_lo
     lanes[0]["steps"][0].update(state="blocked", why="the check could not run: rules file refused: harness.toml: unknown keys")
     queue.save(lanes)
     assert queue.retry_rules_blocked(lambda s: None) == [], "once per head: a second block on the same head stays"
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="blocked", head="b" * 40, why="REFUSED: the rules file cannot run the loop: x")
+    queue.save(lanes)
+    assert queue.retry_rules_blocked(lambda s: None) == [], "only the two spec'd reasons (review -89)"
 
 
 

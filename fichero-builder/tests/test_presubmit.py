@@ -54,3 +54,30 @@ def test_a_lane_that_edits_its_own_ready_script_is_judged_by_the_pinned_one_and_
     assert not ok and "check_spec_build_order_shape" in said, "the pinned script judged the lane's tree"
     assert len(_git(lane, "worktree", "list").splitlines()) == 1, "the scratch tree is removed from the lane's repo"
     assert cli.main(["done", "ext", red, "--no-presubmit", "--state", str(journal.STATE)]) == 0, "the manager's skip"
+
+
+
+def test_a_scratch_tree_refusal_refuses_the_done_and_leaves_no_worktree(lane, tmp_path):
+    """Review -89: a lane tree the overlay refuses (a check dir that is a symlink out) refuses, as the ladder would; nothing is left."""
+    import os
+    (lane / "scripts" / "lane_ready_check.sh").unlink()
+    os.rmdir(lane / "scripts") if not any((lane / "scripts").iterdir()) else None
+    (tmp_path / "elsewhere").mkdir()
+    os.symlink(tmp_path / "elsewhere", lane / "scripts")
+    _git(lane, "add", "-A"), _git(lane, "commit", "-qm", "scripts is a link out")
+    ok, said = queue.presubmit("ext", _git(lane, "rev-parse", "HEAD"))
+    assert not ok and said.startswith("presubmit refused") and "outside the scratch tree" in said
+    assert len(_git(lane, "worktree", "list").splitlines()) == 1, "the half-made scratch tree is removed"
+
+
+def test_the_pinned_copy_is_the_live_loops_checkout_never_the_code_done_runs_from(lane, tmp_path, monkeypatch):
+    """Review -89: with no override, presubmit reads <state>/live-root (written by the running loop); none = nothing to judge with."""
+    monkeypatch.setattr(queue, "PRESUBMIT_ROOT", [None])
+    sha = _git(lane, "rev-parse", "HEAD")
+    assert queue.presubmit("ext", sha)[1].startswith("presubmit skipped"), "no live root recorded: skipped and said"
+    journal.STATE.mkdir(parents=True, exist_ok=True)
+    (journal.STATE / "live-root").write_text(str(tmp_path / "pinned") + "\n")
+    (lane / "RED").write_text("x")
+    _git(lane, "add", "."), _git(lane, "commit", "-qm", "red")
+    ok, said = queue.presubmit("ext", _git(lane, "rev-parse", "HEAD"))
+    assert not ok and "check_spec_build_order_shape" in said, "the live root's pinned script judged it"
