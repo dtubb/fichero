@@ -96,4 +96,4 @@ def include(meta: dict[str, Any], included: bool) -> dict[str, Any]:
 def clear(meta: dict[str, Any]) -> dict[str, Any]:
     """The metadata without the mark (the page is judged again only if `show_through_checked` is dropped by the caller)."""
     return {k: v for k, v in (meta or {}).items()
-            if k not in {"page_kind", "show_through_only", "show_through_of", "show_through_score", "show_through_included"}}
+            if k not in {"page_kind", "show_through_only", "show_through_of", "show_through_score", "show_through_included", "show_through_brought_back"}}

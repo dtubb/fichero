@@ -109,11 +109,34 @@ def test_one_click_includes_the_verso_in_reading_and_back_and_clearing_the_mark_
 
     _invoke(db, tmp_path, "image.include_show_through_only", document_id=page.id, included=True)
     assert db.get(Document, page.id).metadata["show_through_included"] is True
+    lines = [r for r in db.query(Segment, document_id=page.id) if r.kind == "line"]
+    assert lines and not any(r.is_furniture for r in lines), "one click brings the left-out lines back"
+    leave_out.leave_out_pages(db, [page.id], "run-3")  # a later Leave Out run does not take them out again
+    assert not any(r.is_furniture for r in db.query(Segment, document_id=page.id) if r.kind == "line")
     _invoke(db, tmp_path, "image.include_show_through_only", document_id=page.id, included=False)
     assert db.get(Document, page.id).metadata["show_through_included"] is False
+    lines = [r for r in db.query(Segment, document_id=page.id) if r.kind == "line"]
+    assert all(r.is_furniture and r.metadata["left_out"]["why"] == leave_out.SHOW_THROUGH_ONLY_VERSO for r in lines), "and one click puts them out again"
 
     _invoke(db, tmp_path, "image.clear_show_through_only", document_id=verso.id)
     meta = db.get(Document, verso.id).metadata
     assert "page_kind" not in meta and "show_through_only" not in meta and meta["show_through_checked"] is True
     with pytest.raises(Exception):
         _invoke(db, tmp_path, "image.include_show_through_only", document_id=verso.id)
+
+
+def test_a_page_included_before_leave_out_runs_is_not_left_out_and_one_not_included_is(db, tmp_path):
+    """Red without the `show_through_included` check in Leave Out: the included page's lines would all be left out."""
+    from fichero_server.models import Segment
+    from fichero_server.recipes import leave_out
+    from tests.unit.recipes.test_leave_out_reads_page_box import _faint_line_page
+
+    kept, _ = _faint_line_page(db, tmp_path, enhanced_dark=True)
+    kept.metadata = {"page_kind": "show-through-only", "show_through_only": True, "show_through_included": True}
+    db.save(kept)
+    out, _ = _faint_line_page(db, tmp_path, enhanced_dark=True)
+    out.metadata = {"page_kind": "show-through-only", "show_through_only": True}
+    db.save(out)
+    leave_out.leave_out_pages(db, [kept.id, out.id], "run-1")
+    assert not any(r.is_furniture for r in db.query(Segment, document_id=kept.id) if r.kind == "line")
+    assert all(r.is_furniture for r in db.query(Segment, document_id=out.id) if r.kind == "line")

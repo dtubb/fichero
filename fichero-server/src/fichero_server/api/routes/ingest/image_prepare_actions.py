@@ -519,7 +519,26 @@ def _action_include_show_through_only(db: Database, params: ShowThroughOnlyParam
     doc = _get_or_404_document(db, params.document_id)
     if (doc.metadata or {}).get("page_kind") != show_through_only.KIND:
         raise HTTPException(422, "that page is not marked show-through-only")
-    return _show_through_change(db, params.document_id, show_through_only.include(doc.metadata, params.included))
+    meta = show_through_only.include(doc.metadata, params.included)
+    # Lines Leave Out already left out for this reason come back (and go out again when the page is left out again): the
+    # ids brought back are kept on the page so only those return.
+    from fichero_server.actions.registry import registry
+    from fichero_server.models import Segment
+    from fichero_server.recipes.leave_out import SHOW_THROUGH_ONLY_VERSO
+    import fichero_server.api.routes.document.segments  # noqa: F401  (registers the segment actions)
+
+    rows = [r for r in db.query(Segment, document_id=params.document_id) if r.kind == "line" and r.deleted_at is None]
+    if params.included:
+        move = [r for r in rows if r.is_furniture and (r.metadata or {}).get("left_out", {}).get("why") == SHOW_THROUGH_ONLY_VERSO]
+        updates = [{"segment_id": r.id, "expected_version": r.version, "is_furniture": False} for r in move]
+        meta["show_through_brought_back"] = [r.id for r in move]
+    else:
+        back = set(meta.pop("show_through_brought_back", None) or [])
+        updates = [{"segment_id": r.id, "expected_version": r.version, "is_furniture": True,
+                    "left_out_reason": SHOW_THROUGH_ONLY_VERSO} for r in rows if r.id in back and not r.is_furniture]
+    if updates:
+        registry.invoke(db, "segment.update_many", {"updates": updates}, ctx)
+    return _show_through_change(db, params.document_id, meta)
 
 
 class ClearShowThroughOnlyParams(BaseModel):
