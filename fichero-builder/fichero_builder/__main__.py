@@ -302,8 +302,8 @@ def main(argv=None) -> int:
             if not ok:
                 print(f"REFUSED: the presubmit ([check].ready with its guards) is red; fix it, then done again:\n{said[-3000:]}")
                 return 1
-            if said.startswith("presubmit skipped"):
-                print(said)
+            if said.startswith(("presubmit skipped", "presubmit green but")):
+                print(said.splitlines()[0])
         why = queue.done(a.lane, a.sha_opt or a.sha)
         paused = not why and any(x["id"] == a.lane and x.get("paused") for x in queue.load())
         print(f"REFUSED: {why}" if why else f"{a.lane}: DONE at {(a.sha_opt or a.sha or 'its HEAD')[:12]}, snapshot in land-{a.lane}; "

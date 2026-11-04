@@ -91,3 +91,31 @@ def test_live_rules_newer_than_this_code_are_a_skip_said_never_a_traceback(lane,
     ok, said = queue.presubmit("ext", sha)
     assert ok and said.startswith("presubmit skipped") and "a_key_from_the_future" in said
     assert cli.main(["done", "ext", sha, "--state", str(journal.STATE)]) == 0, "the done goes through; the ladder judges it with the current code"
+
+
+GUARD = "#!/bin/bash\ngrep -q '\"/new\"' scripts/known_gaps.json || { [ -e NEWROUTE ] && { echo 'FAIL: check_route_gaps: /new not listed'; exit 1; }; }\necho READY\n"
+
+
+def test_a_batch_whose_red_is_only_its_own_guard_data_passes_with_the_line_and_any_other_red_still_refuses(lane, tmp_path, capsys):
+    """Manager 2026-11-04: a new route with its known-gaps entry is red under the PINNED data by design; presubmit runs again with
+    head's copy of exactly the data files the batch changed, passes and says the guard-data approve is needed. Another red refuses."""
+    pinned = tmp_path / "pinned"
+    for d in (pinned, lane):
+        (d / "scripts" / "lane_ready_check.sh").write_text(GUARD)
+        (d / "scripts" / "known_gaps.json").write_text('["/old"]\n')
+        _git(d, "add", "."), _git(d, "commit", "-qm", "guard + data")
+    _git(lane, "update-ref", "refs/remotes/origin/integration", "HEAD")
+    (lane / "NEWROUTE").write_text("x")
+    (lane / "scripts" / "known_gaps.json").write_text('["/old", "/new"]\n')
+    _git(lane, "add", "."), _git(lane, "commit", "-qm", "a route and its gap entry")
+    assert cli.main(["done", "ext", _git(lane, "rev-parse", "HEAD"), "--state", str(journal.STATE)]) == 0
+    assert "would need the guard-data approve for scripts/known_gaps.json" in capsys.readouterr().out
+    assert [r["state"] for r in journal.read() if r["event"] == "presubmit"] == ["guard-data"]
+    (lane / "RED").write_text("x")
+    (lane / "scripts" / "lane_ready_check.sh").write_text(GUARD.replace("echo READY", "[ -e RED ] && { echo 'FAIL: other'; exit 1; }\necho READY"))
+    (pinned / "scripts" / "lane_ready_check.sh").write_text(GUARD.replace("echo READY", "[ -e RED ] && { echo 'FAIL: other'; exit 1; }\necho READY"))
+    _git(pinned, "add", "."), _git(pinned, "commit", "-qm", "pinned guard also checks RED")
+    _git(lane, "add", "."), _git(lane, "commit", "-qm", "and another red")
+    ok, said = queue.presubmit("ext", _git(lane, "rev-parse", "HEAD"))
+    assert not ok and "would need the guard-data approve" not in said, "a red the data does not explain is still a refusal"
+    assert journal.read()[-1]["event"] == "presubmit" and journal.read()[-1]["state"] == "red"

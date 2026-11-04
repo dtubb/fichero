@@ -1137,20 +1137,31 @@ def presubmit(lane_id: str, sha: str, pinned=None) -> tuple[bool, str]:
     except (ValueError, OSError) as e:  # the live loop's rules are newer than this code (a new key) or unreadable: said, never a traceback
         journal.append("presubmit", lane=lane_id, head=want, state="skipped", detail=f"the live rules could not be read by this code: {e}"[-300:])
         return True, f"presubmit skipped: the live rules could not be read by this code (update it): {e}"
-    tree = None
-    try:
-        tree = check_tool._scratch_tree(wt, want, pinned, cfg)
-        r = subprocess.run(["bash", *ready], cwd=tree, capture_output=True, text=True,
-                           timeout=PRESUBMIT_TIMEOUT_S, env={**os.environ, "FICHERO_PYTHON_BIN": sys.executable})
-        ok, said = r.returncode == 0, (r.stdout + r.stderr).strip()
-    except subprocess.TimeoutExpired:
-        ok, said = False, f"presubmit timed out after {PRESUBMIT_TIMEOUT_S} s"
-    except RuntimeError as e:  # the scratch tree refused the lane's tree (a symlink out, ...): the ladder would too (review -89)
-        ok, said = False, f"presubmit refused: {e}"
-    finally:
-        if tree:
-            subprocess.run(g + ["worktree", "remove", "--force", tree], capture_output=True)
-    journal.append("presubmit", lane=lane_id, head=want, state="green" if ok and not said.startswith("presubmit skipped") else "skipped" if ok else "red", detail=said[-1500:])
+    def run(data: tuple = ()) -> tuple[bool, str]:
+        tree = None
+        try:
+            tree = check_tool._scratch_tree(wt, want, pinned, cfg, data_from_head=data)
+            r = subprocess.run(["bash", *ready], cwd=tree, capture_output=True, text=True,
+                               timeout=PRESUBMIT_TIMEOUT_S, env={**os.environ, "FICHERO_PYTHON_BIN": sys.executable})
+            return r.returncode == 0, (r.stdout + r.stderr).strip()
+        except subprocess.TimeoutExpired:
+            return False, f"presubmit timed out after {PRESUBMIT_TIMEOUT_S} s"
+        except RuntimeError as e:  # the scratch tree refused the lane's tree (a symlink out, ...): the ladder would too (review -89)
+            return False, f"presubmit refused: {e}"
+        finally:
+            if tree:
+                subprocess.run(g + ["worktree", "remove", "--force", tree], capture_output=True)
+    ok, said = run()
+    if not ok and not said.startswith(("presubmit refused", "presubmit timed out")):
+        # a batch that changes guard DATA (a known-gaps entry for a new route) is red under the pinned copy by design: run again with
+        # head's copy of exactly those files, as the ladder's guard-data approve does. Green then = the data was the only cause: the done
+        # goes through and the ladder raises the approve (manager 2026-11-04); any other red stays a refusal.
+        base = subprocess.run(g + ["merge-base", want, "origin/integration"], capture_output=True, text=True).stdout.strip()
+        files = subprocess.run(g + ["diff", "--no-ext-diff", "--name-only", base, want], capture_output=True, text=True).stdout.split() if base else []
+        data = tuple(f for f in files if f.endswith(".json") and f.startswith(tuple(cfg.check_paths)))
+        if data and run(data)[0]:
+            ok, said = True, f"presubmit green but would need the guard-data approve for {', '.join(data)} (red under the pinned copy):\n{said}"
+    journal.append("presubmit", lane=lane_id, head=want, state=("guard-data" if said.startswith("presubmit green but") else "green") if ok and not said.startswith("presubmit skipped") else "skipped" if ok else "red", detail=said[-1500:])
     return ok, said
 
 
