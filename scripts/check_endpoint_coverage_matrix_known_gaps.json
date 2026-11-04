@@ -305,5 +305,5 @@
   "POST /api/workers": "dev-only worker control (dev tier, FICHERO_DEV_WORKERS=1): reached through the CLI/harness scripts, never from the app; no store by design",
   "POST /api/workers/tell": "dev-only worker control (dev tier, FICHERO_DEV_WORKERS=1): reached through the CLI/harness scripts, never from the app; no store by design",
   "POST /api/workers/{job_id}/stop": "dev-only worker control (dev tier, FICHERO_DEV_WORKERS=1): reached through the CLI/harness scripts, never from the app; no store by design",
-  "GET /api/pair/addresses": "the addresses the host can be reached at, in the engine's order (sharing Step 2.4): reached from the CLI's pairing (fichero_cli/pairing.py); the app reads the same list through the pairing link it already holds, so no Swift call yet"
+  "POST /api/workflow-execution/dry-run": "the dry run of a run's checks (Step 2.3, #4370): engine first, reached through the generated CLI and MCP; the editor's Test button that calls it is Step 4.6, not built"
 }

@@ -17,7 +17,7 @@ PRESETS = Path(__file__).resolve().parents[3] / "src/fichero_server/resources/de
 KNOWN_SHARED_TOPOLOGY = {
     ("convert", "files"): 3,
     ("detect_regions", "files"): 4,
-    ("files", "table_extract"): 2,
+    ("consistency-check", "files", "table_extract"): 2,  # Extract Table and Accounts to CSV: both end in the consistency check (Step 3.3)
     ("analyze", "files"): 3,
     ("files", "transcribe"): 11,
 }

@@ -671,8 +671,6 @@ $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/tran
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/transcribe_review_pipeline.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/transcribe_typescript.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/translate.json
-$(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/translate_deepl.json
-$(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/translate_review.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/translate_reviewed_transcription.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/work_out_dates.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/Junicode-Regular.otf
@@ -787,6 +785,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/circuit_breaker.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/completion.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/curation_guard.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/default_workflows.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/document_refs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/executor.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/file_watcher.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/human_review.py
