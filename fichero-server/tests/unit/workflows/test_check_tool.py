@@ -447,6 +447,28 @@ def test_the_deleted_module_rule_refuses_every_change_but_whole_tests_removed(tm
     assert ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", {"watch"})
 
 
+def test_a_worker_cannot_weaken_its_own_tests(tmp_path):
+    """A test function removed, fewer asserts, or more skips in an existing test file: needs-maintainer."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "test_old.py").write_text("def test_a():\n    assert 1\n    assert 2\ndef test_b():\n    assert 3\n")
+    g("add", "."), g("commit", "-q", "-m", "tests")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+    subprocess.run(["git", "-C", str(pinned), "pull", "-q"], check=True, capture_output=True)
+    cfg = ct.load(pinned)
+    (work / "test_old.py").write_text("def test_a():\n    assert 1\ndef test_b():\n    assert 3\n")  # one assert fewer
+    g("commit", "-qam", "weaker")
+    assert ct.weakened_tests(work, base, "HEAD", cfg) == ["test_old.py"]
+    g("reset", "-q", "--hard", base)
+    (work / "test_old.py").write_text("def test_a():\n    assert 1\n    assert 2\ndef test_b():\n    assert 3\ndef test_c():\n    assert 4\n")
+    g("commit", "-qam", "stronger")
+    assert ct.weakened_tests(work, base, "HEAD", cfg) == []
+    g("reset", "-q", "--hard", base)
+    (work / "test_old.py").write_text("import pytest\n@pytest.mark.skip\ndef test_a():\n    assert 1\n    assert 2\ndef test_b():\n    assert 3\n")
+    g("commit", "-qam", "skip")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert r["failed"] == "pinned-checks" and "test_old.py" in r["rungs"][0]["stderr_tail"]
+
+
 def test_a_worker_cannot_rewrite_its_own_acceptance(tmp_path):
     """The item's own spec bullet may flip its status tag or gain (#N); any other change is needs-maintainer."""
     work, g, base0, pinned = _project(tmp_path)
