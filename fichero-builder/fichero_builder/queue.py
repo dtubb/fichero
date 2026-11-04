@@ -1032,7 +1032,9 @@ def real_procs(root) -> Procs:
                      and r.get("seq") == lane["seq"]), None)
 
     def chain(lane, step, stage):
-        carry_approvals(step, repo, land_tool.resolve_branch(repo, branch) or branch, tuple(rules.get("check", {}).get("auto", ())))
+        # the lane's own repo (its land tree) holds both heads; the engine repo gets the new one only when the chain fetches it, after
+        # this (2026-11-04: carry-declined 'its diff could not be read at one head', twice)
+        carry_approvals(step, step.get("land_tree") or lane["worktree"], f"origin/{branch}", tuple(rules.get("check", {}).get("auto", ())))
         a = ns(lane, step)
         a.pinned = work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))
         a.repin = lambda: work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))
