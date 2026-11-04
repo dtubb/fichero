@@ -541,7 +541,9 @@ def _early_chain(chain, monkeypatch, later_red: bool):
 
     def review(a, repo, head, ladder, verdicts, model, holder=None):
         chain.calls.append(("review", model, ladder.endswith(".partial")))
-        chain.pending = json.loads(Path(ladder).read_text()).get("pending") if ladder.endswith(".partial") else None
+        part = json.loads(Path(ladder).read_text()) if ladder.endswith(".partial") else {}
+        chain.pending = part.get("pending")
+        chain.guard_results = [len(r.get("results") or []) for r in part.get("rungs", []) if r["name"] == "guards"]
         if holder is not None:
             holder["proc"] = type("P", (), {"kill": lambda self: (killed.append(True), release.set())})()
         started.set()
@@ -551,6 +553,11 @@ def _early_chain(chain, monkeypatch, later_red: bool):
     def check(a, repo, since, head, ladder):
         chain.calls.append(("check", since, head))
         work.check_tool.ON_RUNG[0]("red-on-base", True, [{"name": "ready", "ok": True}, {"name": "red-on-base", "ok": True}])
+        assert not (Path(ladder).parent / (Path(ladder).name + ".partial")).exists(), "not after red-on-base: no guard has run yet (reviews 199, 207, 263, 275)"
+        cheap = [{"name": n, "ok": True} for n in ("ready", "diff-bound", "red-on-base")] + [
+            {"name": "guards", "ok": True, "results": [{"name": "check_a", "ok": True}, {"name": "check_b", "ok": True}]},
+            {"name": "contract-current", "ok": True}, {"name": "since-guards", "ok": True}]
+        work.check_tool.ON_RUNG[0]("since-guards", True, cheap)
         assert started.wait(5), "the review started beside the ladder, before the check ended"
         if not later_red:
             release.set()
@@ -575,7 +582,8 @@ def test_the_early_review_is_told_which_rungs_still_run_beside_it(chain, monkeyp
     file names the rungs still to come, in the ladder's order."""
     _early_chain(chain, monkeypatch, later_red=False)
     assert chain() == 0
-    assert chain.pending == ["diff-bound", "guards", "contract-current", "since-guards", "build"]
+    assert chain.pending == ["build"], "only the build runs beside the review"
+    assert chain.guard_results == [2], "the reviewer reads every guard's result (the partial is written after since-guards)"
 
 
 def test_a_later_red_rung_kills_the_early_review(chain, monkeypatch):

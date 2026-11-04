@@ -385,6 +385,9 @@ def pick_reviewer(a, repo: str, branch: str, head: str, full: str) -> str:
     return full if any(n.startswith(tuple(getattr(a, "opus_paths", OPUS_PATHS))) for n in names) else fast
 
 
+EARLY_AFTER = "since-guards"  # the rung after which the review starts: the last before the build (check_tool.RUNGS)
+
+
 def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None) -> dict:
     """Rebase, patches, fetch, check, review, land gate: one journal row each; {ok, head, out} or {ok: False, kind, why,
     findings}. kind red / not-ready / refused can go back to the worker; error needs a person. `stage` hears checking, reviewing."""
@@ -423,10 +426,12 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
             if getattr(a, "repin", None):  # another lane's landing may have removed the copy this one started from; the lock keeps it from here on
                 a.pinned = a.repin()
             stage("checking")
-            early: dict = {}  # speed 2: the review starts once ready and red-on-base are green, beside the rest of the ladder
+            early: dict = {}  # speed 2: the review starts once every cheap rung is green, beside the build
 
             def on_rung(name, ok, rungs):
-                if name == "red-on-base" and ok and all(x["ok"] for x in rungs) and "fut" not in early and land_tool.unreviewed(repo, branch, head, verdicts):
+                # after the last rung before the build (manager 2026-11-04: reviews 199, 207, 263, 275 started after red-on-base, read a
+                # ladder with no guard results, and answered 'no guards ran'): the reviewer sees every guard's result; only the build runs beside it
+                if name == EARLY_AFTER and ok and all(x["ok"] for x in rungs) and "fut" not in early and land_tool.unreviewed(repo, branch, head, verdicts):
                     partial = f"{ladder}.partial"
                     # the rungs still to come are named, so the reviewer never reads them as missing (reviews 199 and 207, 2026-11-03)
                     pending = [n for n in check_tool.RUNGS if n not in {x["name"] for x in rungs}]
