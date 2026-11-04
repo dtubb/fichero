@@ -296,7 +296,32 @@ class Triage:
             self.counts["milestones unordered"] += 1
 
 
+GH_REASON = {"not-planned": "not planned", "completed": "completed", "duplicate": "duplicate"}
+
+
+def close(gh: str, n: int, reason: str, as_: str, approved: bool, dry: bool) -> str:
+    """`builder triage --close N --reason ...` (manager 2026-11-04: #6025 was closed by hand, there being no harness way to close an
+    issue as not reproducible or not planned): the one close outside a landing. Refused without --owner-approved or a reason; the
+    comment is the reason word for word, and the close is one `triage` row."""
+    if not approved:
+        raise Refused("a close outside a landing needs --owner-approved (an issue otherwise closes only through a landed Fixes line)")
+    if not reason.strip():
+        raise Refused("--reason is required: it is the issue's comment")
+    body = f"{reason.strip()}\n\nClosed as {as_} through `builder triage --close` (owner-approved)."
+    if not dry:
+        _gh(gh, "issue", "close", str(n), "--reason", GH_REASON[as_], "--comment", body)
+    journal.append("triage", what="close", dry=dry, issue=n, close_as=as_, reason=reason.strip())
+    return f"#{n} {'would close' if dry else 'closed'} as {as_}"
+
+
 def main(a) -> int:
+    if getattr(a, "close", None):
+        try:
+            print(("DRY: " if a.dry else "") + close(a.gh, a.close, a.reason, a.close_as, a.owner_approved, a.dry))
+            return 0
+        except Refused as e:
+            print(f"REFUSED: {e}")
+            return 1
     t = Triage(a.root, a.gh, a.dry)
     try:
         if a.labels:
