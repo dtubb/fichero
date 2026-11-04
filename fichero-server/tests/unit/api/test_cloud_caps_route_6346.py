@@ -5,13 +5,13 @@ from tests.signed_in import signed_in_client
 from tests.unit.security.test_sharing_probe_2026_10_01 import _multiuser_on, harness  # noqa: F401
 
 
-def _owner(harness, monkeypatch):
+def _owner(harness, monkeypatch):  # noqa: F811
     users = _multiuser_on(harness, monkeypatch)
     return harness.client(), signed_in_client(harness, users["owner"]).headers
 
 
 
-def test_default_then_set_read_back_audited_and_undone(harness, monkeypatch):
+def test_default_then_set_read_back_audited_and_undone(harness, monkeypatch):  # noqa: F811
     client, h = _owner(harness, monkeypatch)
     first = client.get("/api/ai/cloud-caps", headers=h)
     assert first.status_code == 200, first.text
@@ -33,7 +33,7 @@ def test_default_then_set_read_back_audited_and_undone(harness, monkeypatch):
     assert client.get("/api/ai/cloud-caps", headers=h).json() == {"monthly_cap_usd": 10.0, "daily_cap_usd": None}
 
 
-def test_below_zero_is_refused_and_nothing_changes(harness, monkeypatch):
+def test_below_zero_is_refused_and_nothing_changes(harness, monkeypatch):  # noqa: F811
     client, h = _owner(harness, monkeypatch)
     assert client.put("/api/ai/cloud-caps", json={"which": "monthly", "cap_usd": -1}, headers=h).status_code == 422
     assert client.get("/api/ai/cloud-caps", headers=h).json()["monthly_cap_usd"] == 10.0
