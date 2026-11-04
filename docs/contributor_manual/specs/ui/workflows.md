@@ -573,7 +573,7 @@ Swift, after the Stage 1-3 regeneration. Pure types are verified with a standalo
 
 #### Step 4.1 — The run menu names the scope before anything runs (#4397)
 - Behaviours: `workflows.bar.scope-uses-the-real-primary-selection`, `workflows.bar.click-appends-not-runs`
-- Tests: fichero/Tests/Unit/general/Workflow/WorkflowRunScopeTests.swift (exists)
+- Tests: fichero/Tests/Unit/general/Models/WorkflowRunScopeTests.swift (exists)
 - Size: S
 
 #### Step 4.2 — Pause, Resume and Stop show their state at once (#4402)
