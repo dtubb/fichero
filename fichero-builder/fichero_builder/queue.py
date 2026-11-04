@@ -919,8 +919,18 @@ def carry_approvals(step: dict, repo: str, base_ref: str, auto) -> bool:
     True when it carried (one `auto` row; the step's approved_head moves)."""
     old, new, named = step.get("approved_head", ""), step.get("head", ""), list(step.get("approved_tests") or [])
     flags = {k for k in (*CARRYABLE, "approve_pinned_new", "maintainer") if step.get(k)}
-    if "approval-carry-same-file-diffs" not in auto or not old or not new or old == new or not named or not flags or flags - CARRYABLE:
+    if not old or not new or old == new or not flags:
+        return False  # nothing to carry
+
+    def declined(why: str) -> bool:  # an older approve that does not carry says why (2026-11-04: a miss left no trace)
+        journal.append("carry-declined", step=step.get("step", ""), head=new, approved_head=old, detail=why)
         return False
+    if "approval-carry-same-file-diffs" not in auto:
+        return declined("the rule is not in [check].auto")
+    if not named:
+        return declined("the approve named no file")
+    if flags - CARRYABLE:
+        return declined(f"an approval kind that never carries: {sorted(flags - CARRYABLE)}")
 
     def pid(head: str, f: str) -> str | None:
         g = ["git", "-c", "safe.directory=*", "-C", repo]
@@ -936,7 +946,7 @@ def carry_approvals(step: dict, repo: str, base_ref: str, auto) -> bool:
     for f in named:
         a, b = pid(old, f), pid(new, f)
         if a is None or a != b:
-            return False
+            return declined(f"{f}: " + ("its diff could not be read at one head" if a is None or b is None else "its diff changed"))
     step["approved_head"] = new
     journal.append("auto", rule="approval-carry-same-file-diffs", head=new, file=", ".join(named), detail=f"the approve given at {old[:9]} holds: the same diff of each named file")
     return True

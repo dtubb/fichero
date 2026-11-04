@@ -75,3 +75,16 @@ def test_builder_auto_lists_the_spec_ok_proposals_no_batch_has_folded_in(repo, c
     assert cli.main(["auto", "--state", str(journal.STATE), "--root", str(repo)]) == 0
     out = capsys.readouterr().out
     assert "spec-ok proposals not folded yet (any day): 1" in out and "lane-x ccccccccc docs/s.md: `a.one` [OK] Tests: t.py" in out
+
+
+def test_an_older_approve_that_does_not_carry_says_why_in_a_row(repo):
+    h1 = _g(repo, "rev-parse", "HEAD")
+    (repo / "t_test.py").write_text("def test_a():\n    pass\n")
+    _g(repo, "commit", "-qam", "the named file changed")
+    h2 = _g(repo, "rev-parse", "HEAD")
+    assert not queue.carry_approvals(_step(h2, h1, approve_red=True), str(repo), "integration", AUTO)
+    assert not queue.carry_approvals(_step(h2, h1, approve_red=True), str(repo), "integration", ())
+    rows = [r["detail"] for r in journal.read() if r["event"] == "carry-declined"]
+    assert rows == ["t_test.py: its diff changed", "the rule is not in [check].auto"]
+    assert not queue.carry_approvals(_step(h2, h2, approve_red=True), str(repo), "integration", AUTO), "same head: nothing to carry, no row"
+    assert len([r for r in journal.read() if r["event"] == "carry-declined"]) == 2
