@@ -119,3 +119,38 @@ async def test_a_reference_aware_tool_gets_the_references_untouched(library):
     await _node("date_extract", dates)({"outputs": {}, "completed_nodes": [], "task_id": "r",
                                         "library_path": path, "documents": refs})
     assert seen["docs"] == refs
+
+
+@pytest.mark.asyncio
+async def test_documents_passed_as_an_input_are_hydrated_too(library):
+    """The other caller shape: a tool that reads `inputs["documents"]` (config or `$.nodes.*.documents`), not state."""
+    path, db = library
+    seen = {}
+
+    async def reader(inputs, state, llm_config):
+        seen["texts"] = [d["page_content"] for d in inputs["documents"]]
+        return {"text": "ok"}
+
+    refs = slim_documents(_full(db, 3))
+    node = _make_node_function(NodeDef(id="n", tool="clean_text", label="n", config={"documents": refs}), reader, LLM,
+                               workflow_config={}, incoming_edges=[])
+    await node({"outputs": {}, "completed_nodes": [], "task_id": "r", "library_path": path})
+    assert [t[:2] for t in seen["texts"]] == ["0:", "1:", "2:"]
+
+
+@pytest.mark.asyncio
+async def test_a_tool_with_no_documents_and_full_documents_run_as_before(library):
+    """Callers that never held references see no change: no documents key, or already-full documents."""
+    path, db = library
+    seen = []
+
+    async def tool(inputs, state, llm_config):
+        seen.append((inputs.get("documents"), state.get("documents")))
+        return {"text": "ok"}
+
+    base = {"outputs": {}, "completed_nodes": [], "task_id": "r", "library_path": path}
+    await _node("clean_text", tool)(dict(base))
+    assert seen[0] == (None, None)
+    full = _full(db, 2)
+    await _node("clean_text", tool)({**base, "documents": full})
+    assert seen[1][1] == full

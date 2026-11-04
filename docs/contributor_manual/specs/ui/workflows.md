@@ -515,12 +515,12 @@ Engine only, one pytest per step. Each step flips its tags only with its test gr
 Engine only; the served shapes land with one OpenAPI regeneration at the end of the stage.
 
 #### Step 2.1 — A read-only trace of what a run did (#4312)
-- Behaviours: `workflows.run.trace-view`
+- Behaviours: `workflows.run.trace-view`, `workflows.run.output-log-live`
 - Tests: fichero-server/tests/unit/workflows/test_run_steps.py, fichero-server/tests/unit/workflows/test_run_step_failure_legibility.py
 - Size: M
 
-#### Step 2.2 — Cost per node, beside the run's total (#4343)
-- Behaviours: `workflows.run.cost-tracking-per-node`
+#### Step 2.2 — Cost per node and per workflow, and the estimate up front (#4343, #1818)
+- Behaviours: `workflows.run.cost-tracking-per-node`, `workflows.canvas.cost-estimate-up-front`, `workflows.canvas.cost-chip-counts-vision-and-unpriced`
 - Tests: fichero-server/tests/unit/workflows/test_cost_per_node_to_spec.py
 - Size: M
 
@@ -580,8 +580,8 @@ Swift, after the Stage 1-3 regeneration. Pure types are verified with a standalo
 - Tests: fichero/Tests/Unit/general/Models/WorkflowRunScopeTests.swift (exists)
 - Size: S
 
-#### Step 4.2 — Pause, Resume and Stop show their state at once; the output log is pinned (#4402, #4797)
-- Behaviours: `workflows.run.controls-are-fire-and-forget`, `workflows.run.output-log-live`, `workflows.run.source-tools-excluded-from-file-columns`
+#### Step 4.2 — Pause, Resume and Stop show their state at once (#4402)
+- Behaviours: `workflows.run.controls-are-fire-and-forget`, `workflows.run.source-tools-excluded-from-file-columns`
 - Tests: fichero/Tests/Unit/general/Workflow/WorkflowRunControlsTests.swift (not yet written)
 - Size: S
 
@@ -593,11 +593,6 @@ Swift, after the Stage 1-3 regeneration. Pure types are verified with a standalo
 #### Step 4.4 — The app shows a run's trace, read-only (#4312)
 - Behaviours: `workflows.run.trace-view-in-the-app`
 - Tests: fichero/Tests/Unit/general/Workflow/WorkflowRunTraceTests.swift (not yet written)
-- Size: M
-
-#### Step 4.5 — The editor shows the cost estimate, and its chip counts vision and unpriced (#1818, #5742)
-- Behaviours: `workflows.canvas.cost-estimate-up-front`, `workflows.canvas.cost-chip-counts-vision-and-unpriced`
-- Tests: fichero/Tests/Unit/general/Workflow/WorkflowCostChipTests.swift (not yet written)
 - Size: M
 
 #### Step 4.6 — The editor's Test button shows what a dry run found (#4370)
