@@ -565,6 +565,7 @@ nav:
           - Embedded Local Models Plan: contributor_manual/design/embedded-local-models-plan.md
           - iOS / iPad Engine Embedding Feasibility: contributor_manual/design/ios-ipad-embedding-plan.md
           - SwiftUI App Structure & Naming (Reorg Plan): contributor_manual/design/swiftui-app-reorg.md
+          - Workflow Source Node Memory: contributor_manual/design/workflow-source-node-memory.md
       - Release:
           - Release Lane Runbook: contributor_manual/release/release-lane.md
           - Sparkle Release Setup: contributor_manual/release/sparkle-release.md
