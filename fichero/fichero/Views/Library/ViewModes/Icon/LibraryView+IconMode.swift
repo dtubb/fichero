@@ -393,9 +393,16 @@ extension LibraryView {
                         pinchBaseScale = newPinchMax
                     }
                 }
+                .onChange(of: geometry.size.height) { _, newHeight in
+                    gridIsFilmstrip = Self.iconIsFilmstrip(paneHeight: newHeight, scale: iconViewScale)
+                }
+                .onChange(of: iconViewScale) { _, newScale in
+                    gridIsFilmstrip = Self.iconIsFilmstrip(paneHeight: geometry.size.height, scale: newScale)
+                }
                 .onAppear {
                     let clampedMin = Self.iconGridItemBounds(scale: iconViewScale, paneWidth: geometry.size.width).min
                     gridColumnCount = Self.iconColumnCount(paneWidth: geometry.size.width, itemMin: clampedMin)
+                    gridIsFilmstrip = Self.iconIsFilmstrip(paneHeight: geometry.size.height, scale: iconViewScale)
 
                     // Restored-from-launch selection scroll (#808). On launch
                     // the previous selection is restored but the LazyVGrid

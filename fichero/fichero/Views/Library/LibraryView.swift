@@ -386,6 +386,9 @@ struct LibraryView: View {
 
     // Grid column count for arrow key navigation (updated by GeometryReader in iconsView)
     @State var gridColumnCount: Int = 4
+    /// True while the Icon view is a one-row filmstrip (a short pane): Up and Down then step one tile, not a row of columns
+    /// (`source.items.icon-filmstrip-when-short`, #6086). Set from the pane's height by `iconsView`.
+    @State var gridIsFilmstrip = false
 
     // Zoom scale for the icon view (persisted per-app)
     @AppStorage("library.iconViewScale") var iconViewScale: Double = 1.0

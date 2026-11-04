@@ -114,3 +114,28 @@ final class LibraryHeaderFooterCollapseAgreementTests: XCTestCase {
         XCTAssertTrue(source.contains("kgContentFilterPopoverButton"))
     }
 }
+
+/// #6086: arrow-key Up/Down in the Icon filmstrip (one row) step one tile, not the pane-width column count.
+final class IconFilmstripArrowStepTests: XCTestCase {
+    func testAGridStepsARowOfColumns() {
+        XCTAssertEqual(LibraryView.verticalStep(isIcon: true, columns: 5, filmstrip: false), 5)
+    }
+
+    func testAFilmstripStepsOneTile() {
+        XCTAssertEqual(LibraryView.verticalStep(isIcon: true, columns: 5, filmstrip: true), 1)
+    }
+
+    func testAListStepsOneRowWhateverTheColumns() {
+        XCTAssertEqual(LibraryView.verticalStep(isIcon: false, columns: 5, filmstrip: false), 1)
+    }
+
+    func testAZeroColumnCountNeverStepsZero() {
+        XCTAssertEqual(LibraryView.verticalStep(isIcon: true, columns: 0, filmstrip: false), 1)
+    }
+
+    func testAShortPaneIsTheFilmstripTheArrowsFollow() {
+        // The same height rule `iconsView` feeds into `gridIsFilmstrip`.
+        XCTAssertTrue(LibraryView.iconIsFilmstrip(paneHeight: 180, scale: 1.0))
+        XCTAssertFalse(LibraryView.iconIsFilmstrip(paneHeight: 900, scale: 1.0))
+    }
+}

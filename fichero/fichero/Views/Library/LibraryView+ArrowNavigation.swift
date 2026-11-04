@@ -176,10 +176,17 @@ extension LibraryView {
             .map { ids[$0] }
     }
 
+    /// How far Up and Down move: a row of columns in the Icon grid, one tile in a list and in a filmstrip (one row, so a "row"
+    /// is a tile; stepping by the pane-width column count there jumped past the neighbour, #6086).
+    nonisolated static func verticalStep(isIcon: Bool, columns: Int, filmstrip: Bool) -> Int {
+        isIcon && !filmstrip ? max(columns, 1) : 1
+    }
+
     private func stepSize(for direction: ArrowDirection) -> Int {
+        let vertical = Self.verticalStep(isIcon: displayMode == .icon, columns: gridColumnCount, filmstrip: gridIsFilmstrip)
         switch direction {
-        case .upDir:  return displayMode == .icon ? -gridColumnCount : -1
-        case .down:   return displayMode == .icon ?  gridColumnCount :  1
+        case .upDir:  return -vertical
+        case .down:   return vertical
         case .left:   return -1
         case .right:  return  1
         case .pageUp: return -pageStepSize()
