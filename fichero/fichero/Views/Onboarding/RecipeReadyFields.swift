@@ -39,6 +39,7 @@ struct RecipeReadyFields: View {
                         .font(.callout).foregroundStyle(.secondary)
                 }
             }
+            RecipeDefaultsWhyView(store: store)
             ForEach(sections, id: \.title) { section in
                 Section {
                     sectionContent(section)
@@ -61,6 +62,8 @@ struct RecipeReadyFields: View {
         .task(id: store.recipe) {
             guard store.recipe != nil, await store.save() else { return }
             await store.loadStartPlan()
+            await store.loadChainRisk()
+            await store.loadDefaultsWhy()
         }
     }
 
@@ -78,6 +81,7 @@ struct RecipeReadyFields: View {
                 RecipeStepsView(store: store, recipe: recipe, onFix: onFix, finder: project, onlyStepId: stepId)
                 if let step = recipe.steps.first(where: { $0.id == stepId }) {
                     RecipeStepRunLine(store: store, step: step)
+                    RecipeStepChainLine(store: store, stepId: step.id)
                 }
             }
         case .runsByItself:

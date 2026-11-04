@@ -70,12 +70,15 @@ struct ActivityDetailsFailedPages: View {
     let details: ActivityDetails
     /// The run's ONE Read-them-again for these pages (`activity.window.open-a-run`); nil: the row offers nothing to read again.
     var readAgain: ActivityRunMenuTarget?
+    /// Where every failed page is read on request, past the account's first ten; nil: only those are shown.
+    var store: ActivityStore?
 
     var body: some View {
+        let rows = store?.failedPageLists[details.jobId] ?? details.failedPages
         VStack(alignment: .leading, spacing: 4) {
             Text(details.failedCount == 1 ? "1 page failed" : "\(details.failedCount) pages failed")
                 .font(.headline)
-            ForEach(details.failedPages) { page in
+            ForEach(rows) { page in
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(page.title).font(.body.weight(.medium))
                     Text(page.reason)
@@ -84,10 +87,16 @@ struct ActivityDetailsFailedPages: View {
                 }
                 .font(.callout)
             }
-            if details.failedCount > details.failedPages.count {
-                Text("and \(details.failedCount - details.failedPages.count) more")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+            if details.failedCount > rows.count {
+                let more = details.failedCount - rows.count
+                if let store {
+                    Button("Show the \(more) more") { Task { await store.loadFailedPages(jobId: details.jobId) } }
+                        .buttonStyle(.link)
+                        .controlSize(.small)
+                        .accessibilityIdentifier("activity.details.failedPages.showAll")
+                } else {
+                    Text("and \(more) more").font(.callout).foregroundStyle(.secondary)
+                }
             }
             if let readAgain, readAgain.readAgainLabel != nil {
                 Button("Read them again") { readAgain.readAgain() }

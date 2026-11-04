@@ -68,6 +68,9 @@ final class RecipeSetupStore {
     var how = HowAnswers()
     var howQuestions: Components.Schemas.HowQuestions?
     var whatYouHave: String?
+    /// Why the answers chose the defaults they did, and what feeds each step of the plan (Ready's two engine reads, `ReadyReads.swift`).
+    var defaultsWhy: [DefaultWhy] = []
+    var chainRisk: [String: Components.Schemas.ChainLine] = [:]
     /// The person picked what matters most themselves: the engine's pre-fill no longer follows the places.
     var howMattersByHand = false
     /// Scripts setup put in because a chosen language is usually written in them (#5626), each with the languages

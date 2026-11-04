@@ -73,7 +73,7 @@ struct ActivityDetailsView: View {
                 stagesSection(details)
                 pageGridSection(details)
                 if !details.failedPages.isEmpty {
-                    ActivityDetailsFailedPages(details: details, readAgain: runTarget(details))
+                    ActivityDetailsFailedPages(details: details, readAgain: runTarget(details), store: store)
                 }
                 // The failed-pages section carries Read Again when it has the button; the actions row says it otherwise.
                 ActivityDetailsActions(
