@@ -70,3 +70,4 @@ def test_a_deferred_run_keeps_its_cap_as_changed_and_its_baseline_when_it_comes_
     runner._run(db, job)
     assert (calls[1]["cap_usd"], calls[1]["from_usd"]) == (5.0, baseline), "the raised cap and the baseline carry over"
     assert spend.run_cap(library) is None
+
