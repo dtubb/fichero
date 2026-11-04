@@ -28,6 +28,15 @@ def _definition(path: Path) -> WorkflowDef:
     return WorkflowDef.model_validate({k: raw[k] for k in ("name", "description", "nodes", "edges") if k in raw})
 
 
+def test_the_retired_translate_presets_are_not_shipped_and_translate_double_checks():
+    """Step 3.3 (#4705): one Translate, which cross-checks by default; the two presets it replaced are no longer shipped, so no
+    preset is proven twice for the same job (the old names still resolve to Translate: `test_translate_and_extraction_checks_to_spec`)."""
+    names = {p.stem for p in PRESETS}
+    assert not names & {"translate_review", "translate_deepl"}, sorted(names & {"translate_review", "translate_deepl"})
+    tools = [n.tool for n in _definition(PRESET_DIR / "translate.json").nodes]
+    assert tools[-1] == "text_translate_review" and "text_translate" in tools, tools
+
+
 def test_preset_discovery_is_not_blind():
     assert len(PRESETS) > 40, f"found {len(PRESETS)} shipped presets"
 
