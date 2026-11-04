@@ -206,8 +206,8 @@ final class SidebarSearchTypesTests: XCTestCase {
         XCTAssertFalse(oldEngine.requiresVision || oldEngine.visionIsUnknown)
     }
 
-    /// The service path that builds the live list: the generated client's encoded response has no null, so a key that is not a
-    /// boolean is the engine saying it could not tell (`workflows.requires-vision-unknown`).
+    /// The service path that builds the live list: missing and null are the same there (the generated client drops a null), and both
+    /// mean unknown; the decoders' missing-is-false is pinned beside it by `testWorkflowSidebarItemReadsAnUnknownVisionRequirement`.
     @MainActor
     func testTheServiceReadsAMissingOrNullVisionRequirementAsUnknown() {
         XCTAssertTrue(WorkflowService.visionIsUnknown(inEncoded: [:]))

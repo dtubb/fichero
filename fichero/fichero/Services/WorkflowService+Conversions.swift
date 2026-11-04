@@ -183,8 +183,9 @@ extension WorkflowService {
         var acceptedInputs: [String]?
     }
 
-    /// The generated client drops a null optional when it encodes, so null and an absent key look the same here; every engine that
-    /// has served `requires_vision` since #3804 sends the key, so a key that is not a boolean means the engine could not tell.
+    /// THE RULE on the service path: a missing or null `requires_vision` is unknown. The generated client drops a null optional when it
+    /// encodes, so the two cannot be told apart here; an app and its engine always share a contract identity, so an engine that never
+    /// sent the key does not reach this path. (The decoders read a missing key as false, for old persisted sidebar caches only.)
     static func visionIsUnknown(inEncoded dict: [String: Any]) -> Bool {
         !(dict["requires_vision"] is Bool)
     }
