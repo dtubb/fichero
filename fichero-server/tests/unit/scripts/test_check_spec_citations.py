@@ -78,3 +78,20 @@ def test_the_debt_only_goes_down(tmp_path):
 def test_a_missing_specs_dir_is_never_a_clean_read(tmp_path):
     with pytest.raises(FileNotFoundError):
         _mod.check(tmp_path)
+
+
+def test_a_not_yet_elsewhere_naming_a_behaviour_the_batch_builds_fails_but_its_own_remaining_part_and_other_verbs_do_not(tmp_path):
+    """Manager 2026-11-05 (review 105): batch-27 built `builder build-check` while another bullet of the same spec still said "Not yet:
+    `builder build-check` from a lane". A batch's bullet names its id and the builder verb it opens with; a Not yet / Not built sentence
+    naming either elsewhere in that spec fails. Its own bullet may still say what is left of it."""
+    root = _repo(tmp_path, {"missing_file": 1, "missing_name": 0})
+    stale = "- `x.incremental` [PARTIAL] (#1) builds in one tree. Not yet: `builder build-check` from a lane (the next batch).\n"
+    other = "- `x.other` [PARTIAL] (#1) something. Not yet: `builder land --dry` and `x.unrelated`.\n"
+    (root / SPECS / "x.md").write_text(OLD + stale + other)
+    _git(root, "commit", "-qam", "base specs")
+    _git(root, "update-ref", "refs/remotes/origin/integration", "HEAD")
+    fails = _touch(root, stale + other + "- `x.check` [PARTIAL] (#2) — `builder build-check <lane>` compiles a lane; test "
+                   "`tests/test_real.py::test_it_works`. Not built: a `builder build-check --watch` mode.\n")
+    assert any(":2: says 'Not yet: `builder build-check` from a lane" in f and "line 4 builds" in f for f in fails), fails
+    assert not any(":3:" in f for f in fails), "another verb and another id are not this batch's behaviour"
+    assert not any(":4:" in f for f in fails), "the bullet's own Not built names what is left of it"

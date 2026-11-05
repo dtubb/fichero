@@ -33,6 +33,9 @@ PATH = re.compile(r"(?<![\w/.<*-])((?:[\w.-]+/)+[\w.-]+\.(?:py|swift))((?:::\w+)
 NAME = re.compile(r"(?<![\w.:/])::(\w+)")
 BULLET = re.compile(r"^- `[a-z0-9][\w.-]+`")
 STALE = re.compile(r"\[GAP\]|not yet written|\(to write\)")
+NOT_YET = re.compile(r"\bNot (?:yet|built)\b:?\**[^.]*")  # a "Not yet ..." / "Not built ..." sentence, to its full stop
+OWN_VERB = re.compile(r"^- `[a-z0-9][\w.-]+`[^—]*—\s*`builder ([a-z][\w-]*)")  # the verb a bullet's opening clause is about
+ID = re.compile(r"^- `([a-z0-9][\w.-]+)`")
 OK_TAG = re.compile(r"^- `[a-z0-9][\w.-]+`\s+(?:—\s+)?\**\[OK\]")  # the status tag right after the id
 QUOTED = re.compile(r"`[^`]*`|\"[^\"]*\"")  # quoted or backticked text names a status, it does not claim one
 
@@ -169,6 +172,16 @@ def check(root: pathlib.Path) -> tuple[list[str], list[str]]:
                 fails += [f"{rel}:{n + 1}: {m}" for m in misses(tree, lines[n])]
                 if s := stale(tree, lines[n]):
                     fails.append(f"{rel}:{n + 1}: {s}")
+            # 5 (manager 2026-11-05, review 105): the behaviour this bullet is, or the builder verb it opens with, is no longer
+            # "Not yet" anywhere else in the same spec (its own bullet may say what is still left of it)
+            names = [f"`{m.group(1)}`"] if (m := ID.match(lines[a])) else []
+            names += [f"`builder {v.group(1)}" for v in [OWN_VERB.match(lines[a])] if v]
+            for n2, other in enumerate(lines):
+                if a <= n2 < b:
+                    continue
+                for sent in NOT_YET.findall(other):
+                    if hit := next((x for x in names if x in sent), None):
+                        fails.append(f"{rel}:{n2 + 1}: says {sent.strip()[:80]!r} about {hit.strip('`')}, which this batch's bullet at line {a + 1} builds: say what is built")
             body = "\n".join(lines[a:b])
             if OK_TAG.search(lines[a]) and not any(is_test(p) and tree.file(p) for p, _ in citations(body)):
                 fails.append(f"{rel}:{a + 1}: tagged [OK] but cites no test file that exists")

@@ -354,7 +354,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if running := [k for k, f in chains.items() if k not in ("pool", lane["id"]) and not f.done()]:
             if len(running) >= chains["pool"]._max_workers:  # the pool queues it with no word: say so (2026-11-05: batch-25 waited 40 min unseen)
                 journal.append("queue", lane=lane["id"], step=s["step"], state="waiting-for-worker",
-                               detail=f"waiting for a chain worker ({len(running)} running: {', '.join(sorted(running))}; [loop].lanes = {chains['pool']._max_workers})")
+                               detail=f"waiting for a chain worker ({len(running)} ahead of it, running or queued: {', '.join(sorted(running))}; [loop].lanes = {chains['pool']._max_workers})")
         chains[lane["id"]] = chains["pool"].submit(chain)
         chains[lane["id"]].head = s.get("head", "")
         return True

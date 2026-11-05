@@ -738,7 +738,7 @@ def test_a_chain_waiting_for_the_pools_one_worker_says_so_and_a_free_pool_says_n
         chains = {"pool": pool, "lane-ie": blocker}
         queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
         (row,) = [r for r in journal.read() if r.get("state") == "waiting-for-worker"]
-        assert row["lane"] == "ext" and row["detail"] == "waiting for a chain worker (1 running: lane-ie; [loop].lanes = 1)"
+        assert row["lane"] == "ext" and row["detail"] == "waiting for a chain worker (1 ahead of it, running or queued: lane-ie; [loop].lanes = 1)"
         assert "ext" in chains, "it is still submitted: it runs when the worker frees"
     finally:  # every thread joined: a chain left running writes into the NEXT test's queue (batch-26's ladder red)
         release.set()
