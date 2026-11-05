@@ -848,6 +848,22 @@ def _display_key(doc: "Document", chain_ns: int, pdf_page: int | None) -> str | 
     return f"{doc.checksum}:{max(settings.display_size)}:{chain_ns}:{'' if pdf_page is None else pdf_page}"
 
 
+def made_display(doc: "Document", package_path: Path | None = None, db: "Database | None" = None) -> Path | None:
+    """The working rendition when it has already been made for this content and edit chain, else None. Never renders and never opens
+    the source (`image.enhance.working-rendition-once`, #6200): a reader that wants the reduced page asks here and falls back to
+    the page it holds when there is none."""
+    path = _display_path(doc.id, package_path)
+    pdf_hint = resolve_pdf_render_source(doc, db=db, library_root=package_path)
+    _, chain_ns = edit_chain_operations(doc, db, page=(pdf_hint[1] + 1) if pdf_hint else 1)
+    key = _display_key(doc, chain_ns, pdf_hint[1] if pdf_hint else None)
+    if key is None or not path.exists():
+        return None
+    try:
+        return path if _display_key_path(path).read_text() == key else None
+    except OSError:
+        return None
+
+
 def ensure_display(
     doc: "Document",
     force: bool = False,

@@ -141,3 +141,22 @@ def test_a_page_with_no_working_rendition_yet_still_gets_its_thumbnail_from_the_
     doc, path = _doc(db)
     thumb = storage.ensure_thumbnail(doc, package_path=db.path.parent, db=db)
     assert thumb is not None and renders == [path]
+
+
+def test_made_display_names_the_rendition_only_when_it_was_made_for_this_content_and_never_renders(db, renders):
+    doc, _ = _doc(db)
+    assert storage.made_display(doc, package_path=db.path.parent, db=db) is None and renders == [], "nothing made, nothing rendered"
+    made = storage.ensure_display(doc, package_path=db.path.parent, db=db)
+    renders.clear()
+    assert storage.made_display(doc, package_path=db.path.parent, db=db) == made and renders == []
+
+
+def test_the_line_readers_working_image_is_the_made_rendition_and_none_before_it_is_made(db):
+    from fichero_server.workflows.tools.vision_base import _working_rendition_of
+
+    doc, _ = _doc(db)
+    library = str(db.path.parent)
+    assert _working_rendition_of(library, doc.id) is None
+    made = storage.ensure_display(doc, package_path=db.path.parent, db=db)
+    assert _working_rendition_of(library, doc.id) == str(made)
+    assert _working_rendition_of(library, None) is None

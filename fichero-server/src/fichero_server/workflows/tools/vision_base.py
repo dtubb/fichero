@@ -3845,6 +3845,24 @@ def _substitute_region_crops(
     return substituted
 
 
+def _working_rendition_of(library_path: str, doc_id: str | None) -> str | None:
+    """The page's stored working rendition, when it is made for this content (`db/storage.made_display`): the line reader cuts the page
+    picture that rides beside a batch from it, so the full page is not decoded again (`image.enhance.working-rendition-once`). None
+    when there is none or on any failure: the page is read as before."""
+    if not library_path or not doc_id:
+        return None
+    try:
+        from fichero_server.db import db_manager, storage
+        from fichero_server.models import Document
+
+        db = db_manager.get_database(library_path)
+        doc = db.get(Document, doc_id)
+        made = storage.made_display(doc, package_path=Path(library_path), db=db) if doc is not None else None
+        return str(made) if made else None
+    except Exception:  # noqa: BLE001 -- a reader without the rendition reads the page itself
+        return None
+
+
 def _current_page_image_of(library_path: str, doc_id: str) -> Any:
     """The page's current image (`media/current_image.current_page_image`), or None for a node with no image file of its own
     (a PDF page, a page by reference) and for a region node, which is read on its own crop. A failure to find it is the
@@ -4956,6 +4974,7 @@ async def process_vision(
                             effective_config, language=language,
                             **({"apple": True} if lines_read_by == "apple" else {}),
                             granularity=read_granularity, page_image=_lines_on, fragments=fragment_text,
+                            working_image=_working_rendition_of(library_path, doc_id_for_file),
                         )
                         return _wl.whole_page(_dbm.get_database(library_path), whole, read, effective_config.model)
                     from fichero_server.llm import kraken_runtime as _kr
@@ -5084,6 +5103,7 @@ async def process_vision(
                                 image_path, result, effective_config, language=language,
                                 **({"apple": True} if lines_read_by == "apple" else {}),
                                 granularity=read_granularity, fragments=fragment_text,
+                                working_image=_working_rendition_of(library_path, doc_id_for_file),
                             )
                     if _found_lines is None and _page_image is not None and image_path == _page_image.path:
                         # Found (and read) on the page's current image: its lines are carried back to the photograph, the
