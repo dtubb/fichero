@@ -71,5 +71,8 @@ struct ImageEditDirectToolsTests {
         #expect(untouched.profile == "handwritten")
         #expect(EnhanceChoice(localContrast: false, typescript: false).method == "pil")
         #expect(EnhanceChoice(localContrast: true, typescript: true).profile == "typescript")
+        var turnedOff = EnhanceChoice(localContrast: false, typescript: true)
+        turnedOff.reset()  // what the popover does after every Apply
+        #expect(turnedOff.method == "clahe" && turnedOff.profile == "handwritten")
     }
 }

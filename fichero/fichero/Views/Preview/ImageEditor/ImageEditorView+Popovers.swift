@@ -163,8 +163,10 @@ extension ImageEditorView {
         brightness = 1.0
         contrast = 1.0
         sharpen = 1.0
-        localContrast = false
-        localContrastTypescript = false
+        var choice = enhanceChoice
+        choice.reset()  // back to the default (local contrast on), so the next untouched Apply is a clahe row again
+        localContrast = choice.localContrast
+        localContrastTypescript = choice.typescript
         localContrastFineTune = false
         resetClaheValues()
     }
