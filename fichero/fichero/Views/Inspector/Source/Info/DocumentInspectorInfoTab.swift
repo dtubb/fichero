@@ -206,6 +206,12 @@ extension DocumentInspectorInfoTab {
             ) {
                 Text(document.updatedAt, format: .dateTime)
                     .foregroundStyle(.secondary)
+                if let editor = documentStore.remoteEditors[document.id] {
+                    Text(editor.words)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("inspector.editedBy")
+                }
             }
         }
     }

@@ -220,6 +220,8 @@ final class DocumentStore {
     /// wholesale-reloaded on a single event.
     @ObservationIgnored
     var pendingPatchIds: Set<String> = []
+    /// Who last changed each document from another Mac, from the change stream's `person` and `device` (#5735).
+    var remoteEditors: [String: RemoteEditor] = [:]
 
     /// In-flight page-content saves, keyed by document id. These are
     /// STORE-OWNED unstructured tasks so a view re-render / blur that cancels

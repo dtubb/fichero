@@ -30,6 +30,10 @@ extension DocumentStore: ObservableDomainStore {
     func apply(_ event: ChangeEvent) {
         let ids = Set(event.documentIds)
         guard !ids.isEmpty else { return }
+        if event.verb == "updated" || event.verb == "created",
+           let editor = RemoteEditor(person: event.person, device: event.device) {
+            for id in ids { remoteEditors[id] = editor }
+        }
         switch event.verb {
         case "deleted":
             removeDocuments(ids: ids)
