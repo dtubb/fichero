@@ -108,6 +108,8 @@ final class RecipeSetupStore {
     var cloudSpendCapUsd: Double?
     /// The most the project may spend on cloud calls in all; nil is no such limit (`answers.cloud_project_cap_usd`, #6295).
     var cloudProjectCapUsd: Double?
+    /// The most the project may spend on cloud calls in a day; nil follows the app's (`answers.cloud_daily_cap_usd`, #6347).
+    var cloudDailyCapUsd: Double?
     /// Whether working copies may stay on the cluster; nil follows pages-may-leave (`source.onboard.copies-may-stay-on-cluster`).
     var copiesMayStay: Bool?
     /// The three settings as the engine holds them (`GET /api/recipes/stages`): what the fields show when unanswered.
@@ -538,7 +540,7 @@ final class RecipeSetupStore {
                            jobAnswersByFolder: jobAnswersByFolder, removedJobs: removedJobs,
                            period: period, hands: hands, place: place,
                            hfSpendCapUsd: spendCapUsd, cloudSpendCapUsd: cloudSpendCapUsd,
-                           cloudProjectCapUsd: cloudProjectCapUsd,
+                           cloudProjectCapUsd: cloudProjectCapUsd, cloudDailyCapUsd: cloudDailyCapUsd,
                            copiesMayStayOnCluster: copiesMayStay, condition: conditions,
                            how: how.isEmpty ? nil : how)
     }
@@ -613,6 +615,7 @@ final class RecipeSetupStore {
         spendCapUsd = saved.hfSpendCapUsd
         cloudSpendCapUsd = saved.cloudSpendCapUsd
         cloudProjectCapUsd = saved.cloudProjectCapUsd
+        cloudDailyCapUsd = saved.cloudDailyCapUsd
         copiesMayStay = saved.copiesMayStayOnCluster
     }
 

@@ -48,7 +48,7 @@ Status tags are as of 2026-11-04 (A: the engine half of its first three lines is
   `app.set_cloud_cap` (which cap, from, to; undoable), route `PUT /api/ai/cloud-caps` with `GET` beside it, so MCP and
   the CLI get it from the regen; a project's daily answer rides on the existing `project.set_budget`. Tests:
   `fichero-server/tests/unit/api/test_cloud_caps_route_6346.py` (set, read back, undo, below 0 refused).
-- `ai.cloud.set-up-shows-the-defaults` [GAP] (#6346) — Set Up's Budget block (`designer.budget.beside-the-estimate`)
+- `ai.cloud.set-up-shows-the-defaults` [PARTIAL] (#6346; built, uncompiled: the daily field with the app's daily cap as its greyed prompt, `cloud_daily_cap_usd` in the answers, and a line naming the app's figures while the project has no answer; the monthly field still shows the held figure, not a greyed one) — Set Up's Budget block (`designer.budget.beside-the-estimate`)
   shows the app's figure greyed as the default when the project has no answer, and a daily field beside the monthly
   one. Tests: `fichero/Tests/Unit/general/Models/MoneyAndPlaceAnswersTests.swift` (extended).
 

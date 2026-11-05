@@ -53,16 +53,21 @@ struct CloudCapFields: View {
     @FocusState private var focus: Field?
     @State private var monthly: Double?
     @State private var project: Double?
+    @State private var daily: Double?
     /// The change last sent and not yet confirmed by a new plan line (`shouldSend`).
     @State private var sent: Change?
     /// The field's width grows with the person's text size (Dynamic Type), so "$1,000.00" is never cut off at a larger size.
     @ScaledMetric(relativeTo: .callout) private var fieldWidth: CGFloat = CloudCapFields.baseFieldWidth
-    private enum Field { case monthly, project }
+    private enum Field { case monthly, project, daily }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             row("Cloud spend a month, at most", value: $monthly, prompt: "10", field: .monthly, id: "setup.cloudCap")
             row("Cloud spend in all, at most", value: $project, prompt: "No limit", field: .project, id: "setup.cloudProjectCap")
+            row("Cloud spend a day, at most", value: $daily, prompt: Self.dailyPrompt(line), field: .daily, id: "setup.cloudDailyCap")
+            if let words = Self.defaultWords(ownMonthly: store.cloudSpendCapUsd, ownDaily: store.cloudDailyCapUsd, line: line) {
+                Text(words).font(.caption).foregroundStyle(.secondary)  // the app's figure, greyed, until the project answers
+            }
         }
         .onAppear(perform: showSaved)
         .onChange(of: line) { _, _ in
@@ -88,6 +93,7 @@ struct CloudCapFields: View {
     private func showSaved() {
         monthly = line.capUsd
         project = line.projectCapUsd
+        daily = store.cloudDailyCapUsd
     }
 
     private func save() async {
@@ -95,10 +101,11 @@ struct CloudCapFields: View {
         // the person is told, instead of the field staying empty while the cap is still what it was.
         let emptied = Self.emptiedMonthlyWords(monthly)
         if emptied != nil { monthly = line.capUsd }
-        let change = Self.change(monthly: monthly, project: project, line: line)
+        let change = Self.change(monthly: monthly, project: project, line: line, daily: daily, heldDaily: store.cloudDailyCapUsd)
         if Self.shouldSend(change, after: sent) {
             sent = change  // Return and leaving the field both save, before the plan has come back: the second is the same change
             if await store.changeCloudCaps(monthlyUsd: change.monthly, projectUsd: change.project, clearProjectCap: change.clear,
+                                           dailyUsd: change.daily, clearDailyCap: change.clearDaily,
                                            undo: undo, steps: steps) == false {
                 sent = nil
                 showSaved()
@@ -111,7 +118,8 @@ struct CloudCapFields: View {
     /// saves from one edit (Return, then the field losing focus) read the same stale line, so they sent the same change twice: two
     /// audit rows and two undo steps. Pure, for the tests.
     nonisolated static func shouldSend(_ change: Change, after sent: Change?) -> Bool {
-        (change.monthly != nil || change.project != nil || change.clear) && change != sent
+        (change.monthly != nil || change.project != nil || change.clear || change.daily != nil || change.clearDaily)
+            && change != sent
     }
 
     /// What to tell the person who emptied the monthly field; nil when it holds an amount. Pure, for the tests.
@@ -124,16 +132,38 @@ struct CloudCapFields: View {
 
     /// What differs from the engine's line: the monthly cap if it moved, the project cap if it moved, or cleared when emptied.
     /// Pure, for the tests.
-    nonisolated static func change(monthly: Double?, project: Double?, line: Components.Schemas.CloudCapLine) -> Change {
+    nonisolated static func change(
+        monthly: Double?, project: Double?, line: Components.Schemas.CloudCapLine,
+        daily: Double? = nil, heldDaily: Double? = nil
+    ) -> Change {
         Change(monthly: monthly.flatMap { $0 == line.capUsd ? nil : $0 },
                project: project.flatMap { $0 == line.projectCapUsd ? nil : $0 },
-               clear: project == nil && line.projectCapUsd != nil)
+               clear: project == nil && line.projectCapUsd != nil,
+               daily: daily.flatMap { $0 == heldDaily ? nil : $0 },
+               clearDaily: daily == nil && heldDaily != nil)
+    }
+
+    /// The daily field's greyed prompt: the daily cap that holds when the project has none of its own (the app's), else no limit.
+    nonisolated static func dailyPrompt(_ line: Components.Schemas.CloudCapLine) -> String {
+        line.dailyCapUsd.map { $0.formatted(.currency(code: "USD")) } ?? "No limit"
+    }
+
+    /// The app's figures, said while the project has no answer of its own (`ai.cloud.set-up-shows-the-defaults`); nil when it
+    /// has answered both. Pure, for the tests.
+    nonisolated static func defaultWords(ownMonthly: Double?, ownDaily: Double?, line: Components.Schemas.CloudCapLine) -> String? {
+        func usd(_ value: Double) -> String { value.formatted(.currency(code: "USD")) }
+        var parts: [String] = []
+        if ownMonthly == nil { parts.append("a month, as Settings: \(usd(line.capUsd))") }
+        if ownDaily == nil { parts.append("a day, as Settings: \(line.dailyCapUsd.map(usd) ?? "no limit")") }
+        return parts.isEmpty ? nil : parts.joined(separator: "; ")
     }
 
     struct Change: Equatable {
         let monthly: Double?
         let project: Double?
         let clear: Bool
+        var daily: Double?
+        var clearDaily = false
     }
 }
 

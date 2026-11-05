@@ -11,13 +11,15 @@ extension RecipeSetupStore {
     @discardableResult
     func changeCloudCaps(
         monthlyUsd: Double? = nil, projectUsd: Double? = nil, clearProjectCap: Bool = false,
+        dailyUsd: Double? = nil, clearDailyCap: Bool = false,
         undo: (any UndoSetEngine)? = nil, steps: WindowSteps? = nil
     ) async -> Bool {
-        guard monthlyUsd != nil || projectUsd != nil || clearProjectCap else { return false }
+        guard monthlyUsd != nil || projectUsd != nil || clearProjectCap || dailyUsd != nil || clearDailyCap else { return false }
         errorMessage = nil  // a field edit too: an earlier "Start is refused…" is not about the cap just set
         do {
             let body = Components.Schemas.CloudCapChange(
-                capUsd: monthlyUsd, projectCapUsd: projectUsd, clearProjectCap: clearProjectCap ? true : nil)
+                capUsd: monthlyUsd, projectCapUsd: projectUsd, clearProjectCap: clearProjectCap ? true : nil,
+                dailyCapUsd: dailyUsd, clearDailyCap: clearDailyCap ? true : nil)
             switch try await client.api.changeCloudCapApiRecipesProjectCloudCapPut(body: .json(body)) {
             case .ok(let success):
                 let changed = try success.body.json
@@ -67,5 +69,6 @@ extension RecipeSetupStore {
         let caps = try? JSONDecoder().decode(RecipeSetupAnswers.self, from: data)
         cloudSpendCapUsd = caps?.cloudSpendCapUsd
         cloudProjectCapUsd = caps?.cloudProjectCapUsd
+        cloudDailyCapUsd = caps?.cloudDailyCapUsd
     }
 }

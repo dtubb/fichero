@@ -114,6 +114,8 @@ struct RecipeSetupAnswers: Codable, Equatable {
     var cloudSpendCapUsd: Double?
     /// The most the project may spend on cloud calls in all, across months; nil is no such limit (`answers.cloud_project_cap_usd`, #6295).
     var cloudProjectCapUsd: Double?
+    /// The most the project's cloud calls may cost in a day; nil follows the app's daily cap (`answers.cloud_daily_cap_usd`, #6347).
+    var cloudDailyCapUsd: Double?
     /// Whether working copies may stay on a cluster for re-runs; nil follows pages-may-leave (`answers.copies_may_stay_on_cluster`).
     var copiesMayStayOnCluster: Bool?
 
@@ -134,12 +136,13 @@ struct RecipeSetupAnswers: Codable, Equatable {
          jobAnswersByFolder: [String: [String: StageAnswer]]? = nil, removedJobs: [String]? = nil,
          period: String? = nil, hands: [String]? = nil, place: String? = nil,
          hfSpendCapUsd: Double? = nil, cloudSpendCapUsd: Double? = nil, cloudProjectCapUsd: Double? = nil,
-         copiesMayStayOnCluster: Bool? = nil, condition: [String]? = nil, how: HowAnswers? = nil) {
+         cloudDailyCapUsd: Double? = nil, copiesMayStayOnCluster: Bool? = nil, condition: [String]? = nil, how: HowAnswers? = nil) {
         self.condition = condition
         self.how = how
         self.hfSpendCapUsd = hfSpendCapUsd
         self.cloudSpendCapUsd = cloudSpendCapUsd
         self.cloudProjectCapUsd = cloudProjectCapUsd
+        self.cloudDailyCapUsd = cloudDailyCapUsd
         self.copiesMayStayOnCluster = copiesMayStayOnCluster
         self.period = period
         self.hands = hands
@@ -167,6 +170,7 @@ struct RecipeSetupAnswers: Codable, Equatable {
         case hfSpendCapUsd = "hf_spend_cap_usd"
         case cloudSpendCapUsd = "cloud_spend_cap_usd"
         case cloudProjectCapUsd = "cloud_project_cap_usd"
+        case cloudDailyCapUsd = "cloud_daily_cap_usd"
         case copiesMayStayOnCluster = "copies_may_stay_on_cluster"
         case cloudAllowed = "cloud_allowed"
         case ingestMode = "ingest_mode"
