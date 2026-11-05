@@ -3505,6 +3505,9 @@ class RecipeRunStatus(BaseModel):
         "month plus the call's worst case, to the cent, no margin); the plan cannot say it, its estimate may fit (#6295)"))
     stopped_needs_project_cap_usd: Optional[float] = Field(default=None, description=(
         "when `stopped_at_cap` at the project's total cap: the total cap under which the refused call would have been sent"))
+    once_words: Optional[str] = Field(default=None, description=(
+        "the run's one-run overrides in words for its Activity row (\"Cloud allowed for this run\", \"Ran past the cap by your say\"); "
+        "null when it was given none (`ai.cloud.one-run-overrides`)"))
     stopped_refusal: Optional[CloudRefusal] = Field(default=None, description=(
         "when `stopped_at_cap`: the typed refusal (`ai.cloud.one-typed-refusal`) with its fixes as buttons: raise the cap it names, "
         "run past it once, open Settings"))

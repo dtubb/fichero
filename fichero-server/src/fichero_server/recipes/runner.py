@@ -2088,7 +2088,15 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
             "folder_steps": folder_steps(detail), "stopped_at_cap": bool(capped),
             "stopped_needs_cap_usd": (capped or {}).get("needed_cap_usd"),
             "stopped_needs_project_cap_usd": (capped or {}).get("needed_project_cap_usd"),
-            "stopped_refusal": (capped or {}).get("refusal")}
+            "stopped_refusal": (capped or {}).get("refusal"), "once_words": once_words(detail)}
+
+
+def once_words(detail: dict[str, Any]) -> str | None:
+    """Activity's words for a run given a one-run override (`ai.cloud.one-run-overrides`, #6349): what the person said yes to for
+    this run alone; None when it asked for none."""
+    said = [words for key, words in (("allow_cloud_once", "Cloud allowed for this run"),
+                                     ("over_cap_once", "Ran past the cap by your say")) if detail.get(key)]
+    return "; ".join(said) or None
 
 
 def started_plan(db: Any, job_id: str) -> dict[str, Any]:

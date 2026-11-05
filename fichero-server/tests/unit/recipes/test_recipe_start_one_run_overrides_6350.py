@@ -49,3 +49,10 @@ def test_a_run_that_asked_for_none_holds_none(monkeypatch):
     monkeypatch.setattr(runner.jobs, "read_job", lambda db, job_id: {"detail": "{}"})
     runner._hold_the_run_overrides(None, "job-1")
     assert run_overrides.for_run("job-1") == {}
+
+
+def test_activity_says_what_the_run_was_given():
+    assert runner.once_words({}) is None
+    assert runner.once_words({"allow_cloud_once": True}) == "Cloud allowed for this run"
+    assert runner.once_words({"allow_cloud_once": True, "over_cap_once": True}) == (
+        "Cloud allowed for this run; Ran past the cap by your say")

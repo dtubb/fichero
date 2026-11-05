@@ -101,7 +101,7 @@ Status tags are as of 2026-11-04 (A: the engine half of its first three lines is
   execution stream sends one `refused` event carrying the refusal so the app need not read a sentence. Tests:
   `fichero-server/tests/unit/api/test_execute_refusal_is_typed_6349.py`,
   `fichero-server/tests/unit/workflows/test_paused_at_cap_event_6349.py`.
-- `ai.cloud.one-run-overrides` [PARTIAL] (#6349, #6350; Step 3.1b built: the two flags on the execute and resume requests, `llm/run_overrides.py` read by the gate and the hold, the spend still booked; the recipe Start's two flags are built too (`tests/unit/recipes/test_recipe_start_one_run_overrides_6350.py`); not built: the Activity row's words) — the execute request (and a recipe Start) take
+- `ai.cloud.one-run-overrides` [PARTIAL] (#6349, #6350; Step 3.1b built: the two flags on the execute and resume requests, `llm/run_overrides.py` read by the gate and the hold, the spend still booked; the recipe Start's two flags are built too (`tests/unit/recipes/test_recipe_start_one_run_overrides_6350.py`); the run status serves the Activity words as `once_words`; not built: the app showing them on the row) — the execute request (and a recipe Start) take
   `allow_cloud_once: bool` and `over_cap_once: bool`; both are kept on the run row (like `run_cap_usd`), read by the
   gate and the hold for calls of that run only, written to no project or app setting, and shown on the run's Activity
   row ("cloud allowed for this run" / "ran past the cap by your say"); spend is still booked. Resume after a pause at
