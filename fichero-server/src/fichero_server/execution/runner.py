@@ -467,7 +467,7 @@ def _is_internal_langchain_node(name: str) -> bool:
     return name.startswith(_INTERNAL_LANGCHAIN_NAME_PREFIXES)
 
 
-def _typed_failure(exc: BaseException | None) -> dict[str, str] | None:
+def _typed_failure(exc: BaseException | None) -> dict[str, Any] | None:
     """A failure's category from the exception the runtime raised, never from its message
     (`runtime.errors-are-typed`, #5353): memory, unavailable in this build, a model that is not here,
     egress refused, quota. None for an exception with no type of its own (the message words decide then)."""
@@ -484,9 +484,20 @@ def _typed_failure(exc: BaseException | None) -> dict[str, str] | None:
     if isinstance(exc, ProviderQuotaError):
         return {"category": "quota", "message": "Provider quota or rate limit reached.",
                 "action": "Top up account or switch provider/model."}
+    from fichero_server.llm.spend import CloudSpendRefusedError
+
+    if isinstance(exc, CloudSpendRefusedError):  # a cap refused the call (`ai.cloud.one-typed-refusal`): the fixes ride along
+        out: dict[str, Any] = {"category": "spend_refused", "message": "A cloud spend cap refused this call.",
+                               "action": "Raise the cap, or run past it once."}
+        if exc.refusal is not None:
+            out["refusal"] = exc.refusal.model_dump()
+        return out
     if isinstance(exc, LocalOnlyViolationError):
-        return {"category": "egress_refused", "message": "This project keeps its pages on this Mac.",
-                "action": "Allow cloud models for the project (one click, recorded), or choose a model on this Mac."}
+        out = {"category": "egress_refused", "message": "This project keeps its pages on this Mac.",
+               "action": "Allow cloud models for the project (one click, recorded), or choose a model on this Mac."}
+        if getattr(exc, "refusal", None) is not None:
+            out["refusal"] = exc.refusal.model_dump()
+        return out
     if isinstance(exc, (MemoryShortError, LocalModelMemoryUnavailableError)):
         return {"category": "memory", "message": "This Mac does not have the memory for this model now.",
                 "action": "Close other work, or choose a smaller model."}
@@ -499,7 +510,7 @@ def _typed_failure(exc: BaseException | None) -> dict[str, str] | None:
     return None
 
 
-def _classify_provider_error(error_text: str, exc: BaseException | None = None) -> dict[str, str]:
+def _classify_provider_error(error_text: str, exc: BaseException | None = None) -> dict[str, Any]:
     """Classify provider-facing failures into stable UI categories (#732). The exception's own type decides
     first (`_typed_failure`); its message words only when it has none."""
     typed = _typed_failure(exc)

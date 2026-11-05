@@ -2074,7 +2074,8 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
             "folders_done": detail.get("folders_done"), "folders_total": detail.get("folders_total"),
             "folder_steps": folder_steps(detail), "stopped_at_cap": bool(capped),
             "stopped_needs_cap_usd": (capped or {}).get("needed_cap_usd"),
-            "stopped_needs_project_cap_usd": (capped or {}).get("needed_project_cap_usd")}
+            "stopped_needs_project_cap_usd": (capped or {}).get("needed_project_cap_usd"),
+            "stopped_refusal": (capped or {}).get("refusal")}
 
 
 def started_plan(db: Any, job_id: str) -> dict[str, Any]:

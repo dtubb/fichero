@@ -35475,6 +35475,16 @@
               }
             }
           },
+          "400": {
+            "description": "the run is refused at the door; for a cloud refusal `detail` carries `message` and the typed `refusal` with its fixes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudRefusalDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -60977,6 +60987,127 @@
         ],
         "title": "CloudOffer",
         "description": "What one step would send to a cloud model, for the egress question (`source.onboard.egress-asked-once`)."
+      },
+      "CloudRefusal": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "cap-monthly",
+              "cap-daily",
+              "cap-project",
+              "cap-run",
+              "images"
+            ],
+            "title": "Kind",
+            "description": "which rule refused"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "app",
+              "project"
+            ],
+            "title": "Scope",
+            "description": "whose setting is refusing: the app's default or this project's own"
+          },
+          "project": {
+            "type": "string",
+            "nullable": true,
+            "title": "Project",
+            "description": "the project's name; null when no project is open"
+          },
+          "cap_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cap Usd",
+            "description": "a cap kind: the cap"
+          },
+          "spent_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Spent Usd",
+            "description": "a cap kind: what is booked against it"
+          },
+          "estimate_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Estimate Usd",
+            "description": "this call's worst case, or the run's estimate"
+          },
+          "words": {
+            "type": "string",
+            "title": "Words",
+            "description": "what happened, in a sentence, naming the figures"
+          },
+          "fixes": {
+            "items": {
+              "$ref": "#/components/schemas/CloudRefusalFix"
+            },
+            "type": "array",
+            "title": "Fixes",
+            "description": "the buttons, in the order to offer them"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "scope",
+          "words"
+        ],
+        "title": "CloudRefusal"
+      },
+      "CloudRefusalDetail": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "refusal": {
+            "$ref": "#/components/schemas/CloudRefusal",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "CloudRefusalDetail",
+        "description": "The `detail` of a 400 that is a cloud refusal."
+      },
+      "CloudRefusalFix": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "raise-to",
+              "allow-everywhere",
+              "allow-project",
+              "allow-once",
+              "over-cap-once",
+              "open-settings"
+            ],
+            "title": "Kind",
+            "description": "`raise-to`: raise the cap this refusal names to `usd` (an app cap raises the app setting, a project's its own); `allow-everywhere`: images only, set the APP default (the audited places action); `allow-project`: say yes for this project (`project.allow_cloud`); `allow-once` / `over-cap-once`: this run only; `open-settings`: open `control`"
+          },
+          "usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Usd",
+            "description": "`raise-to`: the cap, to the cent, that lets the refused call or run through"
+          },
+          "control": {
+            "type": "string",
+            "nullable": true,
+            "title": "Control",
+            "description": "`open-settings`: the control's id (`settings.ai.cloudAllowed`, `settings.ai.cloudCaps`)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "CloudRefusalFix"
       },
       "ColumnAnnotation": {
         "properties": {
@@ -88202,6 +88333,11 @@
             "nullable": true,
             "title": "Stopped Needs Project Cap Usd",
             "description": "when `stopped_at_cap` at the project's total cap: the total cap under which the refused call would have been sent"
+          },
+          "stopped_refusal": {
+            "$ref": "#/components/schemas/CloudRefusal",
+            "nullable": true,
+            "description": "when `stopped_at_cap`: the typed refusal (`ai.cloud.one-typed-refusal`) with its fixes as buttons: raise the cap it names, run past it once, open Settings"
           },
           "pages_at_once": {
             "type": "integer",

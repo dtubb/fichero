@@ -87,7 +87,7 @@ Status tags are as of 2026-11-04 (A: the engine half of its first three lines is
 
 ### C. A refusal is an alert with a way through (#6349, #6028, #6022, #6350)
 
-- `ai.cloud.one-typed-refusal` [GAP] (#6349, #6350) — every refusal for money or images is one served shape,
+- `ai.cloud.one-typed-refusal` [PARTIAL] (#6349, #6350; Step 3.1a built: `llm/refusal.py`, on both errors, the execute 400's `detail.refusal`, a paused run's `stopped_refusal` and a page failure's `refusal`; the `allow-everywhere` and `allow-project` buttons act through the existing actions, app side is Step 3.2) — every refusal for money or images is one served shape,
   `CloudRefusal`: `kind` (`cap-monthly` · `cap-daily` · `cap-project` · `cap-run` · `images`), `scope` (`app` ·
   `project`), `project`, `cap_usd`, `spent_usd`, `estimate_usd` (this call's worst case, or the run's estimate),
   `words`, and `fixes[]` (`raise-to` with `usd`, aimed at the scope the refusal names, so an app cap raises the app setting; `allow-everywhere`, for `images` only: sets the APP default through the audited places action; `allow-project`; `allow-once`; `over-cap-once`; `open-settings`
@@ -96,7 +96,7 @@ Status tags are as of 2026-11-04 (A: the engine half of its first three lines is
   and `EgressRefusedError` as a field, on the validation 400 as `detail.refusal`, on a run's paused-at-cap status
   (`spend.stopped_at_cap`) and on the per-page failure (category `egress_refused` gains `spend_refused`). Tests:
   `fichero-server/tests/unit/llm/test_cloud_refusal_shape_6349.py` (each kind, each fix including `allow-everywhere`, the words name the figure).
-- `ai.cloud.hand-run-refused-before-it-starts` [GAP] (#6349, #6028) — a hand run (`POST
+- `ai.cloud.hand-run-refused-before-it-starts` [PARTIAL] (#6349, #6028; Step 3.1a built the typed 400; the one `refused` stream event is Step 3.1b) — a hand run (`POST
   /api/workflow-execution/execute`) refused at validation for images answers the typed refusal, not prose alone; a run
   whose first cloud call would not fit a cap is refused at that call and paused (built: `_STOPPED_AT_CAP`), and the
   execution stream sends one `refused` event carrying the refusal so the app need not read a sentence. Tests:

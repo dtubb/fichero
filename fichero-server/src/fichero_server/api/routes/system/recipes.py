@@ -23,6 +23,7 @@ from fichero_server.api.auth import action_context
 from fichero_server.api.routes.auth.accounts import _require_owner_or_bootstrap
 from fichero_server.api.library_header import optional_library_path, require_library_path
 from fichero_server.llm.local_model_facts import GIB
+from fichero_server.llm.refusal import CloudRefusal
 from fichero_server.api.main import get_library_database, get_library_database_for_write, readable_rows
 # Imported, never redefined: one schema component for every route's refusal sentence (#5094).
 from fichero_server.api.routes.document.format_import import ErrorDetail as _ErrorDetail
@@ -3484,6 +3485,9 @@ class RecipeRunStatus(BaseModel):
         "month plus the call's worst case, to the cent, no margin); the plan cannot say it, its estimate may fit (#6295)"))
     stopped_needs_project_cap_usd: Optional[float] = Field(default=None, description=(
         "when `stopped_at_cap` at the project's total cap: the total cap under which the refused call would have been sent"))
+    stopped_refusal: Optional[CloudRefusal] = Field(default=None, description=(
+        "when `stopped_at_cap`: the typed refusal (`ai.cloud.one-typed-refusal`) with its fixes as buttons: raise the cap it names, "
+        "run past it once, open Settings"))
     pages_at_once: Optional[int] = Field(default=None, description=(
         "how many pages the run reads at once now, from the gate (recipes-run.memory.gate-shown); null when not running"))
     pages_at_once_reason: Optional[str] = Field(default=None, description=(

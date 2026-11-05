@@ -54,7 +54,12 @@ class RefusedForTheRun(RuntimeError):
 
 
 class CloudSpendRefusedError(RefusedForTheRun):
-    """A cloud call refused because its worst case does not fit the project's cap. Nothing was sent."""
+    """A cloud call refused because its worst case does not fit the project's cap. Nothing was sent. `refusal` is the typed
+    refusal (`llm.refusal.CloudRefusal`, `ai.cloud.one-typed-refusal`) a client offers its fixes from."""
+
+    def __init__(self, message: str, refusal=None):
+        super().__init__(message)
+        self.refusal = refusal
 
 
 class CloudModelUnpriced(RefusedForTheRun):
@@ -246,20 +251,43 @@ def clear_run_cap(library: str, job_id: str) -> None:
         (_recipe_dir(library) / RUN_CAP).unlink(missing_ok=True)
 
 
-def _past_a_cap(library: str, reserved: float, worst: float) -> str | None:
-    """Why `worst` more, beside what is booked and `reserved`, does not fit the monthly cap or the project's total cap, in words
-    naming that cap; None when it fits both. Called with the lock held."""
+def _over_cap(library: str, reserved: float, worst: float) -> dict | None:
+    """The first cap `worst` more, beside what is booked and `reserved`, does not fit: `{kind, scope, cap_usd, spent_usd, words}`
+    naming that cap; None when it fits them all. Called with the lock held."""
     cap, project_cap, day_cap = cap_usd(library), project_cap_usd(library), daily_cap_usd(library)
     booked, total, today = booked_usd(library), total_booked_usd(library), daily_booked_usd(library)
     if cap is not None and booked + reserved + worst > cap + 1e-9:
-        return f"this project's cloud spend is capped at ${cap:.2f} a month, of which ${booked:.2f} is spent this month"
+        return {"kind": "cap-monthly", "scope": "project" if _answer_cap(library, CAP_KEY) is not None else "app",
+                "cap_usd": cap, "spent_usd": booked,
+                "words": f"this project's cloud spend is capped at ${cap:.2f} a month, of which ${booked:.2f} is spent this month"}
     if day_cap is not None and today + reserved + worst > day_cap + 1e-9:
-        return f"this project's cloud spend is capped at ${day_cap:.2f} a day, of which ${today:.2f} is spent today"
+        return {"kind": "cap-daily", "scope": "project" if _answer_cap(library, DAILY_CAP_KEY) is not None else "app",
+                "cap_usd": day_cap, "spent_usd": today,
+                "words": f"this project's cloud spend is capped at ${day_cap:.2f} a day, of which ${today:.2f} is spent today"}
     if project_cap is not None and total + reserved + worst > project_cap + 1e-9:
-        return f"this project's cloud spend is capped at ${project_cap:.2f} in all, of which ${total:.2f} is spent"
+        return {"kind": "cap-project", "scope": "project", "cap_usd": project_cap, "spent_usd": total,
+                "words": f"this project's cloud spend is capped at ${project_cap:.2f} in all, of which ${total:.2f} is spent"}
     if (run := run_cap(library)) and total - float(run.get("from_usd", 0.0)) + reserved + worst > float(run["cap_usd"]) + 1e-9:
-        return f"this run's cloud spend is capped at ${float(run['cap_usd']):.2f}, of which ${total - float(run.get('from_usd', 0.0)):.2f} is spent"
+        spent = total - float(run.get("from_usd", 0.0))
+        return {"kind": "cap-run", "scope": "project", "cap_usd": float(run["cap_usd"]), "spent_usd": spent,
+                "words": f"this run's cloud spend is capped at ${float(run['cap_usd']):.2f}, of which ${spent:.2f} is spent"}
     return None
+
+
+def _past_a_cap(library: str, reserved: float, worst: float) -> str | None:
+    """Why `worst` more, beside what is booked and `reserved`, does not fit a cap, in words naming that cap; None when it fits
+    them all. Called with the lock held."""
+    over = _over_cap(library, reserved, worst)
+    return over["words"] if over else None
+
+
+def cap_refusal(library: str, worst: float, over: dict):
+    """The typed refusal (`llm.refusal.CloudRefusal`) of a call of `worst` that `_over_cap` refused."""
+    from fichero_server.llm.refusal import for_cap
+
+    return for_cap(kind=over["kind"], scope=over["scope"], project=Path(library).stem, cap_usd=over["cap_usd"],
+                   spent_usd=over["spent_usd"], estimate_usd=worst,
+                   words=f"This call could cost up to ${worst:.2f} and {over['words']}.")
 
 
 def _month(now: datetime | None = None) -> str:
@@ -415,14 +443,15 @@ async def holding(config, library: str | None, *, input_tokens: int | None = Non
     while True:
         with _LOCK:
             reserved = _RESERVED.get(library, 0.0)
-            if why := _past_a_cap(library, 0.0, worst):
+            if over := _over_cap(library, 0.0, worst):
+                why, refusal = over["words"], cap_refusal(library, worst, over)
                 paused = _ask_run_to_pause()
                 if paused:
-                    _STOPPED_AT_CAP[paused] = _cap_stop(library, worst, why)
+                    _STOPPED_AT_CAP[paused] = {**_cap_stop(library, worst, why), "refusal": refusal.model_dump()}
                 raise CloudSpendRefusedError(
                     f"This call could cost up to ${worst:.2f} and {why}, so it was not sent"
                     + (" and the run is pausing" if paused else "")
-                    + ". Raise the cap in the project's Set Up to go on.")
+                    + ". Raise the cap in the project's Set Up to go on.", refusal)
             if not _past_a_cap(library, reserved, worst):
                 _RESERVED[library] = reserved + worst
                 if _STOPPED_AT_CAP:
@@ -538,10 +567,10 @@ def reserve_batch(library: str, provider: str, model: str, *, requests: int, max
     worst = batch_worst_usd(provider, model, max_tokens=max_tokens) * max(1, requests)
     with _LOCK:
         reserved = _RESERVED.get(library, 0.0)
-        if why := _past_a_cap(library, reserved, worst):
+        if over := _over_cap(library, reserved, worst):
             raise CloudSpendRefusedError(
-                f"This batch of {requests} could cost up to ${worst:.2f} (${reserved:.2f} more is held for calls out) and {why}, "
-                "so it was not sent. Raise the cap in the project's Set Up, or send fewer pages.")
+                f"This batch of {requests} could cost up to ${worst:.2f} (${reserved:.2f} more is held for calls out) and {over['words']}, "
+                "so it was not sent. Raise the cap in the project's Set Up, or send fewer pages.", cap_refusal(library, worst, over))
         _RESERVED[library] = reserved + worst
     return worst
 

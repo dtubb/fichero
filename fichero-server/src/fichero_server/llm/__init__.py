@@ -789,6 +789,7 @@ class EgressRefusedError(LocalOnlyViolationError):
         self.project = project
         model_label = f"/{model}" if model else ""
         from fichero_server.llm.egress import project_name
+        from fichero_server.llm.refusal import for_images
 
         name = project_name(project)
         who = f"The project {name} keeps its pages on this Mac" if name else "No project is open for this call, and a call outside a project is not sent"
@@ -796,6 +797,8 @@ class EgressRefusedError(LocalOnlyViolationError):
             f"{who}, so the {kind} call to {provider}{model_label} was not sent (nothing left this Mac). "
             "Allow cloud models for the project (one click, recorded), or say yes in its Set Up, or choose a model that runs on this Mac.",
         )
+        #: the typed refusal (`ai.cloud.one-typed-refusal`): its fixes are buttons, served here and computed by no client
+        self.refusal = for_images(project=name, words=self.args[0])
 
 
 class LLMBatchItemError(RuntimeError):

@@ -28,6 +28,7 @@ from fichero_server.api.library_header import require_library_path
 from fichero_server.api.main import (
     get_library_database, get_library_database_for_write, input_document_ids, read_check, recipe_check, write_check,
 )
+from fichero_server.llm.refusal import CloudRefusalDetail
 from fichero_server.models import Workflow
 from fichero_server.workflows.activity import get_activity_tracker
 from fichero_server.workflows.run_progress import summarize_run_state
@@ -366,7 +367,8 @@ async def dry_run_workflow(
     )
 
 
-@router.post("/execute", status_code=202)
+@router.post("/execute", status_code=202, responses={400: {"model": CloudRefusalDetail, "description": (
+    "the run is refused at the door; for a cloud refusal `detail` carries `message` and the typed `refusal` with its fixes")}})
 async def execute_workflow(
     request: ExecuteWorkflowRequest,
     http_request: Request,
@@ -427,7 +429,16 @@ async def execute_workflow(
                 detail=f"Workflow not found in this library: {request.workflow_id}",
             )
 
-        _validate_workflow_for_execution(workflow, request, db)
+        from fichero_server.llm import EgressRefusedError  # noqa: PLC0415
+        from fichero_server.llm.spend import CloudSpendRefusedError  # noqa: PLC0415
+
+        try:
+            _validate_workflow_for_execution(workflow, request, db)
+        except (EgressRefusedError, CloudSpendRefusedError) as refused:
+            # A cloud refusal at the door (`ai.cloud.hand-run-refused-before-it-starts`): the words AND the typed refusal, so a
+            # client offers the fixes as buttons and reads no sentence. `detail` is an object the app's error reader already takes.
+            raise HTTPException(status_code=400, detail={"message": str(refused),
+                                                         "refusal": refused.refusal.model_dump() if refused.refusal else None}) from refused
 
         await recipe_check(http_request, library_path, db, workflow)  # ... and so does the recipe (#6325)
 
