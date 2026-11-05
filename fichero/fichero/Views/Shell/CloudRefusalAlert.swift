@@ -1,8 +1,10 @@
 import FicheroAPIClient
 import SwiftUI
 
-/// The alert a refused hand run raises (`ai.cloud.alert-on-hand-run-paths`, #6349): the engine's words, then a button for each
-/// fix it offers. After a button that changes a setting the run is sent again; a once button sends it again with that override.
+/// The alert a refused hand run raises (`ai.cloud.alert-on-hand-run-paths`, #6349): the engine's words, then a
+/// button for each
+/// fix it offers. After a button that changes a setting the run is sent again; a once button sends it again
+/// with that override.
 struct CloudRefusalAlert: ViewModifier {
     @Environment(WorkflowExecutionObserver.self) private var observer
     @Environment(AppState.self) private var appState

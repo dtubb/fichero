@@ -228,7 +228,6 @@ extension ContentView {
     /// (transcribe, then clean up, then catalogue) — 2026-08-28.
     @MainActor
     @discardableResult
-    // swiftlint:disable:next function_body_length
     func awaitWorkflowExecution(
         workflowId: String,
         workflowName: String,
@@ -270,23 +269,14 @@ extension ContentView {
         // Optimistic insert (#944): show the Activity row immediately, then replace
         // the placeholder thread ID once the POST returns.
         // If the POST fails, the row stays visible and is marked failed.
-        executionObserver.startExecution(
-            workflowId: workflowId,
-            name: workflowName,
-            threadId: executionThreadId
-        )
+        executionObserver.startExecution(workflowId: workflowId, name: workflowName, threadId: executionThreadId)
 
         var streamCompleted = false
         // Assembled in one tested place so the framing line and the
         // compare-group stamp cannot drift between call sites.
         let inputs = WorkflowRunInputs.build(
-            docIds: docIds,
-            userContext: userContextOverride ?? workflowUserContext,
-            artifactTypeHint: artifactTypeHint,
-            artifactStepNameHint: artifactStepNameHint,
-            compareGroup: compareGroup,
-            expandFolders: expandFolders
-        )
+            docIds: docIds, userContext: userContextOverride ?? workflowUserContext, artifactTypeHint: artifactTypeHint,
+            artifactStepNameHint: artifactStepNameHint, compareGroup: compareGroup, expandFolders: expandFolders)
         do {
                 let response = try await workflowStreamService.execute(
                     workflowId: workflowId,
@@ -298,8 +288,7 @@ extension ContentView {
                     // they ARE the scope — nothing for the server to expand,
                     // and nothing left for this client to get wrong (#4414).
                     selection: WorkflowRunScope.documents(docIds),
-                    allowCloudOnce: allowCloudOnce,
-                    overCapOnce: overCapOnce,
+                    allowCloudOnce: allowCloudOnce, overCapOnce: overCapOnce,
                     onAccepted: { acceptedResponse in
                         promoteAcceptedRun(acceptedResponse, executionThreadId: &executionThreadId)
                         onThreadId?(executionThreadId)
@@ -327,15 +316,13 @@ extension ContentView {
         } catch {
             failWorkflowStart(threadId: executionThreadId, error: error) { once in
                 // The same run again, with the person's answer (`ai.cloud.alert-on-hand-run-paths`).
-                Task { @MainActor in
-                    await awaitWorkflowExecution(
+                Task { @MainActor in await awaitWorkflowExecution(
                         workflowId: workflowId, workflowName: workflowName, docIds: docIds,
                         providerOverride: providerOverride, modelOverride: modelOverride,
                         userContextOverride: userContextOverride, artifactTypeHint: artifactTypeHint,
                         artifactStepNameHint: artifactStepNameHint, compareGroup: compareGroup,
                         expandFolders: expandFolders, onThreadId: onThreadId,
-                        allowCloudOnce: once.allowCloud, overCapOnce: once.overCap)
-                }
+                        allowCloudOnce: once.allowCloud, overCapOnce: once.overCap) }
             }
         }
         return executionThreadId
@@ -391,7 +378,9 @@ extension ContentView {
     /// A run that never started: mark the optimistic Activity row failed and
     /// clear any processing state it would have owned.
     @MainActor
-    private func failWorkflowStart(threadId: String, error: Error, resend: @escaping (CloudRefusalPrompt.Once) -> Void) {
+    private func failWorkflowStart(
+        threadId: String, error: Error, resend: @escaping (CloudRefusalPrompt.Once) -> Void
+    ) {
         importProgress = nil
         if let failure = error as? WorkflowExecutionError, case .cloudRefused(let refusal) = failure {
             // Not a failure to explain in the banner: the alert says what was refused and offers the way through.

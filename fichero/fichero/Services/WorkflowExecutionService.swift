@@ -153,9 +153,9 @@ class WorkflowExecutionService {
             interruptAfter: interruptAfter,
             providerOverride: (providerOverride?.isEmpty == false) ? providerOverride : nil,
             modelOverride: (modelOverride?.isEmpty == false) ? modelOverride : nil,
-            selection: selection,
             allowCloudOnce: allowCloudOnce ? true : nil,
-            overCapOnce: overCapOnce ? true : nil
+            overCapOnce: overCapOnce ? true : nil,
+            selection: selection
         )
 
         isExecuting = true
@@ -186,8 +186,8 @@ class WorkflowExecutionService {
                 streamUrl: payload.streamUrl
             )
         case .badRequest(let refused):
-            // A run refused at the door: for a cloud refusal the engine's words (`detail.message`) and the typed refusal with its
-            // fixes (`detail.refusal`, `ai.cloud.hand-run-refused-before-it-starts`); the alert that offers the fixes is `CloudRefusalAlert`.
+            // A run refused at the door: for a cloud refusal the engine's words (`detail.message`) and the typed
+            // refusal with its fixes (`detail.refusal`); `CloudRefusalAlert` offers them.
             let detail = (try? refused.body.json)?.detail
             logger.error("Execute workflow refused: 400")
             if let refusal = detail?.refusal { throw WorkflowExecutionError.cloudRefused(refusal) }

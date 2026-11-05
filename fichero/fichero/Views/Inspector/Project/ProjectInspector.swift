@@ -79,7 +79,8 @@ struct ProjectInspector: View {
                         get: { recipeStore.cloudAllowed },
                         set: { allowed in Task { await recipeStore.allowCloud(allowed: allowed) } }))
                         .accessibilityIdentifier("inspector.project.cloudAllowed")
-                    Text(ProjectCloudSwitch.state(answered: recipeStore.cloudAnswered, allowed: recipeStore.cloudAllowed).words)
+                    Text(ProjectCloudSwitch.state(
+                        answered: recipeStore.cloudAnswered, allowed: recipeStore.cloudAllowed).words)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

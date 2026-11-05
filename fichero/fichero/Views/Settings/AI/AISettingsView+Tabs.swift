@@ -340,7 +340,7 @@ struct CloudAccessSection: View {
                     Text(message).font(.caption).foregroundStyle(.red)
                 }
             }
-            Text("The default for every project. A project can answer for itself in its Inspector or in Set Up, and its answer wins either way.")
+            Text("The default for every project. A project can answer for itself, in its Inspector or in Set Up.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
