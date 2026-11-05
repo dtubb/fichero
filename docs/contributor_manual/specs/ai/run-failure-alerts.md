@@ -169,24 +169,24 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
 
 ### B. The bug report
 
-- `run.fail.bug-report-route` [GAP] (#6354) — `POST /api/activity/jobs/{id}/bug-report` builds and answers the report
+- `run.fail.bug-report-route` [OK] (#6354) — `POST /api/activity/jobs/{id}/bug-report` builds and answers the report
   for a failed run: `{title, body, attachments: [{name, text}]}` where `title` is "<kind>: <words' first sentence>",
   `body` is plain text and `attachments` are `run.json` (the fields in C) and `log.txt` (the run's Problems log lines,
   `activity.log.problems-first`, redacted). A run that is not failed answers 409 in words. Tests:
-  `fichero-server/tests/unit/api/test_bug_report_route_6354`.
-- `run.fail.bug-report-contents` [GAP] (#6354) — the report carries: the app version, build and tier, the engine version,
+  `fichero-server/tests/unit/api/test_bug_report_route_6354.py`.
+- `run.fail.bug-report-contents` [PARTIAL] (#6354; built: the failure, the traceback of an `unexpected` failure, the workflow's and the step's names, the provider's and model's display names, pages done and total, start, end, duration, the Problems lines, the engine version and tier, macOS and the Mac model; not built: the app's version and build, which the app adds, and where it ran, in `activity.summary.where-and-model`'s words) — the report carries: the app version, build and tier, the engine version,
   macOS and the Mac model, the failure (kind, words, `exception_type`, `detail`), the redacted traceback of an
   `unexpected` failure (from the engine log, by run id), the workflow's name and the step's, the provider's and model's
   display names, where it ran (`activity.summary.where-and-model`'s words), pages done and total, the run's start and
-  end, its duration, and the run's Problems lines. Tests: `fichero-server/tests/unit/api/test_bug_report_route_6354`
+  end, its duration, and the run's Problems lines. Tests: `fichero-server/tests/unit/api/test_bug_report_route_6354.py`
   (every named field present for a stubbed `unexpected` run).
-- `run.fail.bug-report-excludes-the-private` [GAP] (#6354) — the report never carries: a file path (every `/…/` run is
+- `run.fail.bug-report-excludes-the-private` [PARTIAL] (#6354; built: paths, keys, bearer headers, key-shaped values, document and page ids by their names, and a long quoted string in an error message, through `llm/failure.redact`; not built: a person's name from the account chain, a page's text that an error message carries unquoted, and the real engine-log fixtures held to more than their timestamps surviving) — the report never carries: a file path (every `/…/` run is
   replaced by `<path>`, the home folder by `~`, before anything else), a library or project path, a page's text or a
   model's answer, a prompt, a key, token or bearer header (anything matching a key shape or the words `key`, `token`,
   `secret`, `password`, `authorization` with a value), a person's name from the account chain, or a document id. The
   redaction is one function (`llm/failure.redact`) used by `detail`, the traceback and the log lines, and it is tested
   against the real log fixtures in `tests/fixtures/engine_logs/`. Tests:
-  `fichero-server/tests/unit/api/test_bug_report_is_redacted_6354` (a traceback with a home path, an API key in a
+  `fichero-server/tests/unit/api/test_bug_report_is_redacted_6354.py` (a traceback with a home path, an API key in a
   URL, a bearer header and a page's text in an exception message: none of them in the report; the fixtures' lines).
 - `run.fail.bug-report-destination` [GAP] (#6354; question 2) — where the report goes once built: ruled by the owner.
   Until then the app offers Save Bug Report… (a file the person attaches by hand) and the route is the one source.
