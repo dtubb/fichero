@@ -33,7 +33,7 @@ Status tags are as of 2026-11-04 (A: the engine half of its first three lines is
 
 ### A. Caps in Settings (#6346, #6347)
 
-- `ai.cloud.monthly-cap-in-settings` [PARTIAL] (#6346; engine built, the Settings field is Step 1.2, uncompiled) — Settings > AI > Cloud has "This Mac a month, at most", an app
+- `ai.cloud.monthly-cap-in-settings` [PARTIAL] (#6346; engine built; Step 1.2 built the Settings fields (`CloudCapsSection`, `CloudCapsStore`), uncompiled until the build rung) — Settings > AI > Cloud has "This Mac a month, at most", an app
   setting (`cloud_monthly_cap_usd` in the app DB, beside `models_may_run`), default US$10; `spend.cap_usd()` reads it
   for a project with no `cloud_spend_cap_usd` answer, in place of the constant `DEFAULT_CAP_USD`. Tests:
   `fichero-server/tests/unit/llm/test_app_cloud_caps_6346.py`,

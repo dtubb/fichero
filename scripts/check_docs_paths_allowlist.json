@@ -39,7 +39,6 @@
     "fichero/Tests/Unit/general/Views/CloudRefusalAlertTests.swift": "Test file the approved spec ai/cloud-permission-and-spend.md names for a step not built yet (#6346-#6350, #6097-#6099); the step that builds it writes it.",
     "fichero/Tests/Unit/general/Views/ProjectCloudSwitchTests.swift": "Test file the approved spec ai/cloud-permission-and-spend.md names for a step not built yet (#6346-#6350, #6097-#6099); the step that builds it writes it.",
     "fichero/Tests/Unit/general/Views/Settings/CloudAccessSectionTests.swift": "Test file the approved spec ai/cloud-permission-and-spend.md names for a step not built yet (#6346-#6350, #6097-#6099); the step that builds it writes it.",
-    "fichero/Tests/Unit/general/Views/Settings/CloudCapsSettingsTests.swift": "Test file the approved spec ai/cloud-permission-and-spend.md names for a step not built yet (#6346-#6350, #6097-#6099); the step that builds it writes it.",
     "agent-work/": "Gitignored working notes: reconnaissance, reviews and morning files. A spec or build note citing one is recording WHERE ITS REASONING CAME FROM, which is provenance rather than navigation, and deleting the citation would lose that. The standing rule this does not excuse: a spec may not keep its SUBSTANCE in an agent-work note — if the reasoning matters to a reader it moves into the spec, because nobody outside this machine can open the note."
   },
   "known_absent_paths": [
