@@ -67172,6 +67172,30 @@
             "type": "array",
             "title": "Moved"
           },
+          "notes": {
+            "type": "integer",
+            "title": "Notes",
+            "description": "Notes whose every linked document is in the Trash; they go with it",
+            "default": 0
+          },
+          "stored_files": {
+            "type": "integer",
+            "title": "Stored Files",
+            "description": "The library's own stored files (copied-in originals, derived images) that will be removed",
+            "default": 0
+          },
+          "stored_bytes": {
+            "type": "integer",
+            "title": "Stored Bytes",
+            "description": "Their total size in bytes",
+            "default": 0
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "description": "What else goes, in words with the counts; empty when nothing else does",
+            "default": ""
+          },
           "sentence": {
             "type": "string",
             "title": "Sentence",
@@ -67211,6 +67235,30 @@
             "type": "array",
             "title": "Moved"
           },
+          "notes": {
+            "type": "integer",
+            "title": "Notes",
+            "description": "Notes whose every linked document is in the Trash; they go with it",
+            "default": 0
+          },
+          "stored_files": {
+            "type": "integer",
+            "title": "Stored Files",
+            "description": "The library's own stored files (copied-in originals, derived images) that will be removed",
+            "default": 0
+          },
+          "stored_bytes": {
+            "type": "integer",
+            "title": "Stored Bytes",
+            "description": "Their total size in bytes",
+            "default": 0
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "description": "What else goes, in words with the counts; empty when nothing else does",
+            "default": ""
+          },
           "sentence": {
             "type": "string",
             "title": "Sentence",
@@ -67226,6 +67274,21 @@
           "entities_pruned": {
             "type": "integer",
             "title": "Entities Pruned",
+            "default": 0
+          },
+          "files_removed": {
+            "type": "integer",
+            "title": "Files Removed",
+            "default": 0
+          },
+          "bytes_freed": {
+            "type": "integer",
+            "title": "Bytes Freed",
+            "default": 0
+          },
+          "notes_removed": {
+            "type": "integer",
+            "title": "Notes Removed",
             "default": 0
           }
         },
