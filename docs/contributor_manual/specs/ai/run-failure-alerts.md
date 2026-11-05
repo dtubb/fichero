@@ -239,13 +239,13 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
 
 ### E. CLI and MCP
 
-- `run.fail.cli-says-the-fix` [GAP] (#6354) — `fichero workflow run --wait`, `fichero workflow status` and
+- `run.fail.cli-says-the-fix` [PARTIAL] (#6354; built: `fichero workflow run --wait` and `fichero workflow status` print a failed run's words, `Fix:` and each action as its command, the bug report first for a bug in Fichero, no traceback, exit 1 from `run --wait`; the commands are the generated ones, `fichero activity-api retry-job`, `fichero activity-api post-job-bug-report` and `fichero providers set-api-key`; not built: `fichero activity jobs` saying it (the generated `fichero activity-api get-jobs` prints `failure` in its JSON), the `bug-report <id> --out <file>` command as named, and exit 1 from `workflow status`) — `fichero workflow run --wait`, `fichero workflow status` and
   `fichero activity jobs` print a failed run's `words`, then `Fix: <fix>`, then each action as the command that does it
   (`fichero workflow retry <id>`, `fichero ai providers set-key <provider>` or the regen's name, `fichero activity
   bug-report <id> --out <file>`); exit 1 for a failure, 3 for a cloud refusal as built; an `unexpected` failure says
   "a bug in Fichero" and the bug-report command first; never a traceback. Tests:
   `fichero-cli/tests/test_cli_run_failure_words_6354`.
-- `run.fail.mcp-says-the-fix` [GAP] (#6354) — `fichero_workflow_status` and `fichero_activity_jobs` return `failure`
+- `run.fail.mcp-says-the-fix` [PARTIAL] (#6354; built: a failed run's `failure` reaches the caller intact in the status and jobs answers, and an error `detail` carrying it names the tool for each action, the bug report first for a bug in Fichero; not built: `fichero_workflow_run` with `wait`, which the tool does not have, so no engine error carries `detail.failure` today) — `fichero_workflow_status` and `fichero_activity_jobs` return `failure`
   intact; `fichero_workflow_run` with `wait` returns it on a failed run as `EngineError` with `detail.failure`, the
   message naming the tool for each action (`fichero_workflow_retry`, `fichero_activity_bug_report` from the regen).
   Tests: `fichero-server/tests/unit/mcp/test_mcp_run_failure_6354`.
