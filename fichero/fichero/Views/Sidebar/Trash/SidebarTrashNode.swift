@@ -69,3 +69,16 @@ struct SidebarTrashChildRow: View {
             .accessibilityHint("In the Trash. \(entry.whereAndWhenText)")
     }
 }
+
+#Preview("Trash folder: open, with a long tail") {
+    let library = LibraryPreviewFixtures.library
+    let entries = (0..<3).map {
+        TrashEntry(id: "d\($0)", name: "Letters \($0)", isFolder: $0 == 0, fromWhere: "Box 3", why: "Deleted by ana")
+    }
+    return List {
+        SidebarTrashNode(store: TrashStore(client: library.ficheroClient, entries: entries), libraryId: library.id)
+        SidebarTrashChildRow(entry: entries[1], onOpen: {}, onPutBack: {})
+    }
+    .listStyle(.sidebar)
+    .frame(width: 260, height: 220)
+}
