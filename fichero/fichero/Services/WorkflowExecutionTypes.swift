@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 
 // MARK: - Workflow Execution
@@ -121,6 +122,9 @@ enum ExecutionStatus: String, Codable {
 enum WorkflowExecutionError: LocalizedError, Equatable {
     case invalidResponse
     case serverError(Int, String)
+    /// A hand run refused before it started for a cloud rule (`ai.cloud.hand-run-refused-before-it-starts`): the engine's typed
+    /// refusal, with the fixes the alert offers (`ai.cloud.alert-on-hand-run-paths`).
+    case cloudRefused(Components.Schemas.CloudRefusal)
     /// The engine answered a pause/cancel with a `status` this build does not
     /// know (#4402). Loud on purpose — see `controlOutcome(fromRawStatus:)`.
     case unrecognizedControlStatus(String)
@@ -131,6 +135,8 @@ enum WorkflowExecutionError: LocalizedError, Equatable {
             return "Invalid response from server"
         case let .serverError(code, message):
             return "Server error (\(code)): \(message)"
+        case let .cloudRefused(refusal):
+            return refusal.words
         case let .unrecognizedControlStatus(raw):
             return "The engine answered with an unrecognized run status: '\(raw)'"
         }

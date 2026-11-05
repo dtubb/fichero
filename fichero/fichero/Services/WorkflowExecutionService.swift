@@ -138,7 +138,9 @@ class WorkflowExecutionService {
         interruptAfter: [String] = [],
         providerOverride: String? = nil,
         modelOverride: String? = nil,
-        selection: Components.Schemas.WorkflowSelection? = nil
+        selection: Components.Schemas.WorkflowSelection? = nil,
+        allowCloudOnce: Bool = false,
+        overCapOnce: Bool = false
     ) async throws -> ExecuteAcceptedResponse {
         let inputsPayload = Components.Schemas.ExecuteWorkflowRequest.InputsPayload(
             additionalProperties: try objectContainer(fromJSON: inputs)
@@ -151,7 +153,9 @@ class WorkflowExecutionService {
             interruptAfter: interruptAfter,
             providerOverride: (providerOverride?.isEmpty == false) ? providerOverride : nil,
             modelOverride: (modelOverride?.isEmpty == false) ? modelOverride : nil,
-            selection: selection
+            selection: selection,
+            allowCloudOnce: allowCloudOnce ? true : nil,
+            overCapOnce: overCapOnce ? true : nil
         )
 
         isExecuting = true
@@ -183,9 +187,11 @@ class WorkflowExecutionService {
             )
         case .badRequest(let refused):
             // A run refused at the door: for a cloud refusal the engine's words (`detail.message`) and the typed refusal with its
-            // fixes (`detail.refusal`, `ai.cloud.hand-run-refused-before-it-starts`); the alert that offers the fixes is Step 3.2.
-            let message = (try? refused.body.json)?.detail.message
+            // fixes (`detail.refusal`, `ai.cloud.hand-run-refused-before-it-starts`); the alert that offers the fixes is `CloudRefusalAlert`.
+            let detail = (try? refused.body.json)?.detail
             logger.error("Execute workflow refused: 400")
+            if let refusal = detail?.refusal { throw WorkflowExecutionError.cloudRefused(refusal) }
+            let message = detail?.message
             throw WorkflowExecutionError.serverError(400, message ?? "Execute workflow was refused")
         case .unprocessableContent:
             logger.error("Execute workflow failed: validation error")

@@ -228,6 +228,7 @@ extension ContentView {
     /// (transcribe, then clean up, then catalogue) — 2026-08-28.
     @MainActor
     @discardableResult
+    // swiftlint:disable:next function_body_length
     func awaitWorkflowExecution(
         workflowId: String,
         workflowName: String,
@@ -260,7 +261,10 @@ extension ContentView {
         /// Called with the SERVER's thread id as soon as the run is accepted,
         /// so a caller can watch a run it is still awaiting — the chain rail
         /// uses it to make a running step clickable (2026-08-28).
-        onThreadId: ((String) -> Void)? = nil
+        onThreadId: ((String) -> Void)? = nil,
+        /// This run only (`ai.cloud.one-run-overrides`), set when the refusal alert is answered with a once button.
+        allowCloudOnce: Bool = false,
+        overCapOnce: Bool = false
     ) async -> String {
         var executionThreadId = "pending:\(UUID().uuidString)"
         // Optimistic insert (#944): show the Activity row immediately, then replace
@@ -294,6 +298,8 @@ extension ContentView {
                     // they ARE the scope — nothing for the server to expand,
                     // and nothing left for this client to get wrong (#4414).
                     selection: WorkflowRunScope.documents(docIds),
+                    allowCloudOnce: allowCloudOnce,
+                    overCapOnce: overCapOnce,
                     onAccepted: { acceptedResponse in
                         promoteAcceptedRun(acceptedResponse, executionThreadId: &executionThreadId)
                         onThreadId?(executionThreadId)
@@ -319,7 +325,18 @@ extension ContentView {
                     streamCompleted: { streamCompleted }
                 )
         } catch {
-            failWorkflowStart(threadId: executionThreadId, error: error)
+            failWorkflowStart(threadId: executionThreadId, error: error) { once in
+                // The same run again, with the person's answer (`ai.cloud.alert-on-hand-run-paths`).
+                Task { @MainActor in
+                    await awaitWorkflowExecution(
+                        workflowId: workflowId, workflowName: workflowName, docIds: docIds,
+                        providerOverride: providerOverride, modelOverride: modelOverride,
+                        userContextOverride: userContextOverride, artifactTypeHint: artifactTypeHint,
+                        artifactStepNameHint: artifactStepNameHint, compareGroup: compareGroup,
+                        expandFolders: expandFolders, onThreadId: onThreadId,
+                        allowCloudOnce: once.allowCloud, overCapOnce: once.overCap)
+                }
+            }
         }
         return executionThreadId
     }
@@ -374,9 +391,14 @@ extension ContentView {
     /// A run that never started: mark the optimistic Activity row failed and
     /// clear any processing state it would have owned.
     @MainActor
-    private func failWorkflowStart(threadId: String, error: Error) {
+    private func failWorkflowStart(threadId: String, error: Error, resend: @escaping (CloudRefusalPrompt.Once) -> Void) {
         importProgress = nil
-        importError = "Workflow failed to start: \(error.localizedDescription)"
+        if let failure = error as? WorkflowExecutionError, case .cloudRefused(let refusal) = failure {
+            // Not a failure to explain in the banner: the alert says what was refused and offers the way through.
+            executionObserver.cloudRefusal = CloudRefusalPrompt(refusal: refusal, resend: resend)
+        } else {
+            importError = "Workflow failed to start: \(error.localizedDescription)"
+        }
         workflowLogger.error("executeWorkflowViaSSE failed: \(error.localizedDescription)")
         executionObserver.endExecution(threadId: threadId, status: .failed)
         documentStore.flushPendingFanoutCompletions(status: .failed)

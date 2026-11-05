@@ -91,6 +91,9 @@ class WorkflowStreamService {
         /// Forwarded verbatim; see `executeAccepted` for why `inputs` still
         /// carries the ids too.
         selection: Components.Schemas.WorkflowSelection? = nil,
+        /// This run only (`ai.cloud.one-run-overrides`): the refusal alert's "Allow this once" and "Run past the cap this once".
+        allowCloudOnce: Bool = false,
+        overCapOnce: Bool = false,
         onAccepted: ((ExecuteAcceptedResponse) -> Void)? = nil,
         onEvent: ((WorkflowStreamEvent) -> Void)? = nil,
         // #4457: `subscribe()` has always forwarded this to `startStream`;
@@ -122,7 +125,9 @@ class WorkflowStreamService {
             inputs: inputs,
             providerOverride: providerOverride,
             modelOverride: modelOverride,
-            selection: selection
+            selection: selection,
+            allowCloudOnce: allowCloudOnce,
+            overCapOnce: overCapOnce
         )
 
         currentThreadId = acceptedResponse.threadId

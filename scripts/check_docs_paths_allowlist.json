@@ -36,8 +36,6 @@
     "fichero-server/tests/unit/remote_read/test_scale_out_batches_6233.py": "to write: pins activity.lane.scale-out-batches-and-result-files (#6233), proposed 2026-10-27; Step 1.13",
     "fichero-server/tests/unit/knowledge/test_spacy_threads_one_pipeline_each_5956.py": "to write: pins activity.lane.spacy-threads-one-pipeline-each (#5956), proposed 2026-10-27; Step 1.10",
     "fichero-server/tests/unit/importers/test_opencv_threads_one_page_a_task_6192.py": "to write: pins activity.lane.opencv-threads-one-page-a-task (#6192), proposed 2026-10-27; Step 1.12",
-    "fichero/Tests/Unit/general/Views/CloudRefusalAlertTests.swift": "Test file the approved spec ai/cloud-permission-and-spend.md names for a step not built yet (#6346-#6350, #6097-#6099); the step that builds it writes it.",
-    "fichero/Tests/Unit/general/Views/ProjectCloudSwitchTests.swift": "Test file the approved spec ai/cloud-permission-and-spend.md names for a step not built yet (#6346-#6350, #6097-#6099); the step that builds it writes it.",
     "fichero/Tests/Unit/general/Views/Settings/CloudAccessSectionTests.swift": "Test file the approved spec ai/cloud-permission-and-spend.md names for a step not built yet (#6346-#6350, #6097-#6099); the step that builds it writes it.",
     "agent-work/": "Gitignored working notes: reconnaissance, reviews and morning files. A spec or build note citing one is recording WHERE ITS REASONING CAME FROM, which is provenance rather than navigation, and deleting the citation would lose that. The standing rule this does not excuse: a spec may not keep its SUBSTANCE in an agent-work note — if the reasoning matters to a reader it moves into the spec, because nobody outside this machine can open the note."
   },

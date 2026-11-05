@@ -107,7 +107,7 @@ Status tags are as of 2026-11-04 (A: the engine half of its first three lines is
   row ("cloud allowed for this run" / "ran past the cap by your say"); spend is still booked. Resume after a pause at
   the cap accepts the same two flags. Tests: `fichero-server/tests/unit/llm/test_one_run_overrides_6349.py` (the next
   run is refused again; the ledger still books; the row says so).
-- `ai.cloud.alert-on-hand-run-paths` [GAP] (#6349, #6028, #6022) — the context menu, the workflow bar and the runner
+- `ai.cloud.alert-on-hand-run-paths` [PARTIAL] (#6349, #6028, #6022; built, uncompiled: `CloudRefusalAlert` on a refused hand run from the context menu, the workflow bar and the selection runner, with the images buttons and the once overrides; not built: the audited "Raise the cap to $N" (it opens the caps in Settings), resuming a run paused at a cap) — the context menu, the workflow bar and the runner
   show one `CloudRefusalAlert` built from the served refusal: its words, then the fixes as buttons: for a cap "Raise the
   cap to $N" (the audited action for the scope the refusal names), "Run past the cap this once", "Open Settings…"; for
   images "Allow for all projects" (the audited places action: the app default), "Allow for this project"
