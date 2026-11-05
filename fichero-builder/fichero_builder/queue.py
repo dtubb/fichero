@@ -955,6 +955,51 @@ def check_head(root, lane_id: str, w=None) -> tuple[int, str]:
 
 
 
+
+def build_head(root, lane_id: str, w=None) -> tuple[int, str]:
+    """`builder build-check` (design batch ii, manager 2026-11-04): the app's build rung over a lane's HEAD before its `done`, so a
+    compile error reaches the lane's pane in minutes, not after a queue and a ladder. The HEAD is fetched into the engine repo as
+    `check-lane` does, the pinned check files are laid over a scratch tree of it, and `check_tool.build` runs it exactly as the
+    ladder's rung: jailed, in the stable build tree, under the build and heavy locks, a green key stored, so the ladder's own build
+    rung reuses it for the same `fichero/` tree. Nothing lands; one `build-check` row."""
+    w = w or work
+    rules = tomllib.loads((Path(root) / "harness.toml").read_text())
+    repo, branch = rules["check"]["engine_repo"], rules["land"]["branch"]
+    lane = next((x for x in load() if x["id"] == lane_id), None)
+    if lane is None:
+        return 1, f"REFUSED: no lane {lane_id!r}"
+    a = types.SimpleNamespace(worktree=lane["worktree"], name=f"{lane_id}-check", external=lane.get("kind") == "external", root=str(root),
+                              maintainer=bool(lane.get("maintainer")), ids=[], repo=repo)
+    a.pinned = w.ensure_pinned(str(root), "", w.r_since(repo, branch))
+    head = w.do_fetch(a, repo, branch)
+    if not head:
+        return 1, f"REFUSED: could not fetch {lane_id}'s HEAD into {repo}"
+    cfg = check_tool.load(a.pinned)
+    if not cfg.build:
+        return 0, f"{lane_id} at {head[:9]}: no [check].build configured, nothing to compile"
+    j = jail.load(a.pinned)
+    if j is not None:
+        j.require()
+    check_tool._jail_enter(j)
+    check_tool._KEY[0] = f"build-check {head[:9]}"
+    tree = None
+    try:
+        tree = check_tool._scratch_tree(repo, head, a.pinned, cfg)
+        r = check_tool.build(tree, list(cfg.build_paths), cfg)  # the build paths themselves as the change: it always compiles
+    finally:
+        check_tool._jail_exit()
+        if tree:
+            check_tool._git(repo, "worktree", "remove", "--force", tree)
+    res = (r.get("results") or [{}])[0]
+    journal.append("build-check", lane=lane_id, head=head, ok=bool(r["ok"]), seconds=res.get("seconds"), reused=bool(res.get("reused")),
+                   log=res.get("log", ""))
+    if r["ok"]:
+        how = "reused a green build of the same tree" if res.get("reused") else f"built in {res.get('seconds', '?')} s"
+        return 0, f"{lane_id} at {head[:9]}: BUILD GREEN ({how}); the ladder's build rung will reuse it"
+    errors = (res.get("errors") or res.get("stderr_tail") or res.get("stdout_tail") or "").strip()
+    return 1, f"{lane_id} at {head[:9]}: BUILD RED{' (timed out)' if res.get('timed_out') else ''}\n{errors[-4000:]}\nlog: {res.get('log', '-')}"
+
+
 CARRYABLE = {"approve_red", "approve_weakened", "approve_guard_data"}  # approvals bound to the files they named; never maintainer or pinned-new
 
 
