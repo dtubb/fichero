@@ -137,6 +137,7 @@ extension ImageEditorView {
             }
 
             applyToFolderButton
+            cleanupToFolderMenu
 
             if marqueeSelection != nil && compareMode == .single {
                 Divider().frame(height: 20)

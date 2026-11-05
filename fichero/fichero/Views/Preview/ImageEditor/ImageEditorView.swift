@@ -70,6 +70,8 @@ struct ImageEditorView: View {
     @State var pageCorners: PageCorners?
     /// "Apply to the rest of this folder": the sheet with three previews (`prep.check.apply-correction-to-the-folder`).
     @State var showBatchPrepare = false
+    /// The cleanup step chosen for the whole folder; non-nil shows the batch sheet.
+    @State var cleanupBatchStep: CleanupStep?
     @State var compareMode: CompareMode = .single
     @State var compareSplit: CGFloat = 0.5
     /// Canvas zoom for the COMPARE modes (Daniel, 2026-09-01: the editor had
@@ -136,6 +138,17 @@ struct ImageEditorView: View {
                     folderId: folderId, sourceDocumentId: activeDocument.id, correction: correction,
                     documents: siblingEditableDocs,
                     onApplied: { ids in ids.forEach { storageService.invalidateImageCache(for: $0) } })
+            }
+        }
+        .sheet(item: $cleanupBatchStep) { step in
+            if let folderId = activeDocument.parentId {
+                ImageCleanupBatchSheet(
+                    model: ImageCleanupBatchModel(
+                        folderId: folderId, step: step,
+                        pages: siblingEditableDocs.map { CleanupPageRef(id: $0.id, name: $0.name) },
+                        service: ImageCleanupBatchService(apiClient: apiClient)),
+                    undoPage: { id, batchId in await undoCleanupPage(id, batchId: batchId) },
+                    onChanged: { siblingEditableDocs.forEach { storageService.invalidateImageCache(for: $0.id) } })
             }
         }
         .task(id: document.id) {
