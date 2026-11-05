@@ -126,3 +126,10 @@ def visible_document_ids(db: Any, document_ids: Iterable[str], trashed: set[str]
     document_ids = list(document_ids)
     trashed = trashed_document_ids(db) if trashed is None else trashed
     return [i for i in document_ids if i not in trashed] if trashed else document_ids
+
+
+def hidden_note_ids(db: Any, notes: Iterable[Any], trashed: set[str] | None = None) -> set[str]:
+    """The ids of the notes `visible_notes` leaves out: every document they link is in the Trash."""
+    notes = list(notes)
+    shown = {n.id for n in visible_notes(db, notes, trashed)}
+    return {n.id for n in notes if n.id not in shown}

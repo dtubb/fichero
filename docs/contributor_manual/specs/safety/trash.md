@@ -222,7 +222,7 @@ This is the Trash the app already promises in its delete dialog and does not hav
 
 ### D. Emptying
 
-- `safety.trash.empty-says-what-will-go` — **[GAP]** (#5243) Empty Trash and Delete Permanently first show what
+- `safety.trash.empty-says-what-will-go` — **[PARTIAL]** (#5243) (built: the preview `GET /api/documents/trash/empty` carries `notes`, `stored_files`, `stored_bytes` and a `detail` sentence, "It also removes 2 stored files (4.2 MB) and 1 note.", and the app's confirm shows it above the moved-items sentences, `TrashStoreTests.theEmptyQuestionNamesWhatElseGoes`; the numbers are what then goes, `fichero-server/tests/unit/api/test_empty_trash_removes_only_its_own_files_5243.py`; not built: pages and annotations counted apart from documents) Empty Trash and Delete Permanently first show what
   will be destroyed, in numbers: documents, pages, statements and notes that rest only on them,
   and stored files with their total size, in words with the count ("Delete 37 items for good?
   This cannot be undone."). The button says "Delete Permanently". *Test:* the sheet's numbers
@@ -242,7 +242,7 @@ This is the Trash the app already promises in its delete dialog and does not hav
   snapshot cannot be made. *Test:* empty a Trash of 50 items: one record row, one snapshot.
   Built: `POST /api/documents/trash/empty` (`document.empty_trash`), pinned by `fichero-server/tests/unit/api/test_trash.py`
   (`test_empty_is_one_recorded_step_after_one_snapshot`, `test_no_snapshot_no_empty`).
-- `safety.trash.empty-removes-everything-and-only-that` — **[GAP]** (#5243) emptying removes the rows, the
+- `safety.trash.empty-removes-everything-and-only-that` — **[PARTIAL]** (#5243; manager ruling 2026-11-05, inside the owner's "deleted for good") (built: Empty Trash also removes the trashed documents' own stored files, the copied-in originals under the library's `files/` and the derived images under `storage/thumbnails/`, and the notes whose every linked document is trashed; read before the purge and carried out after it, so the confirm's numbers are what goes; never a linked original outside the library, a path that escapes it by `..` or a symlink, nor a file a live document also uses; `fichero-server/tests/unit/api/test_empty_trash_removes_only_its_own_files_5243.py`; not built: the audit row keeping a note per file removed, and a two-source statement kept with a stated absence) emptying removes the rows, the
   dependants that rest only on them, the search entries, the derived images, **and the stored
   original files** (today nothing ever removes those). A stored file shared by a live document
   is kept. A statement that rests on other sources too is kept, and says its evidence from the

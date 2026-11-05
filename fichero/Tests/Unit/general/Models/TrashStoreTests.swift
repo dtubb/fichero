@@ -239,4 +239,14 @@ struct TrashStoreTests {
         #expect(SidebarProjectNode.order.last == .trash)
         #expect(Set(SidebarProjectNode.order) == Set(SidebarProjectNode.allCases), "every node is drawn")
     }
+
+    @Test("Empty Trash's confirm says what else goes, then that it cannot be undone")
+    func theEmptyQuestionNamesWhatElseGoes() {
+        let withFiles = EmptyTrashQuestion(
+            question: "Delete 3 items for good? This cannot be undone.", movedSentences: ["1 of these was moved to Istmina."],
+            itemCount: 3, detail: "It also removes 2 stored files (4.2 MB) and 1 note.")
+        #expect(withFiles.message == "It also removes 2 stored files (4.2 MB) and 1 note.\n\n1 of these was moved to Istmina.\n\nThis cannot be undone.")
+        let plain = EmptyTrashQuestion(question: "q", movedSentences: [], itemCount: 1)
+        #expect(plain.message == "This cannot be undone.")
+    }
 }
