@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from fichero_server.core.timeutil import ensure_utc, utc_now
 import logging
 import os
+from pathlib import Path
 import secrets
 import threading
 import sys
@@ -715,6 +716,33 @@ def detected_tailnet(
     return TailnetOfferResponse(tailnet_url=tailscale_serve.detected_tailnet_url() or None)
 
 
+def _register_link_library(package: str) -> None:
+    """Put the project a link was minted for on this Mac's known-library list if it is not there. Best effort: a registry
+    that cannot be written never fails a pairing that already succeeded."""
+    from fichero_server.api.routes.library.registry import get_global_database  # lazy: routes import each other
+    from fichero_server.models import KnownLibrary
+
+    try:
+        registry = get_global_database()
+        if not registry.query(KnownLibrary, path=package):
+            registry.save(KnownLibrary(path=package, name=Path(package).name))
+    except Exception:  # noqa: BLE001 -- see the docstring
+        logger.warning("Could not register %s for a paired device", package, exc_info=True)
+
+
+def _library_a_link_is_for(request: Request, body: PairCodeRequest) -> str | None:
+    """The project a plain pairing link is minted for (the one named, else the one open in the request), as the registry
+    spells it, or None when it names no package on this Mac. A link minted for a project must reach it
+    (`sharing.link-grants-its-project`, #6359): the redeem puts it on this Mac's known-library list."""
+    from fichero_server.security import authz
+
+    named = (body.library or request.headers.get("x-fichero-library-path") or "").strip()
+    package = authz.normalize_library_path(named) if named else None
+    if package is None or not os.path.isfile(os.path.join(package, "fichero.duckdb")):
+        return None
+    return package
+
+
 @router.post("/code", response_model=PairCodeResponse)
 def create_pairing_code(
     request: Request,
@@ -794,7 +822,7 @@ def create_pairing_code(
         new_person=new_name is not None,
         display_name=(body.display_name or "").strip(),
         role=granted_role or "",
-        library=library_path,
+        library=library_path or _library_a_link_is_for(request, body),
         folder_id=folder_id,
         never_expires=body.never_expires and person_name is not None,
         minted_by=(_current_session_user(request).username if _current_session_user(request) else "host app"),  # "host app": a code naming no person
@@ -986,6 +1014,15 @@ def pair_device(
         app_db.set_device_route(device.id, "tailnet" if _has_proxy_origin_headers(request) else "lan")
         record.used = True
         _PAIRING_CODES.pop(code, None)
+        if record.library:
+            # The host's list of what a device may open names the project the link was minted for, even when it was never
+            # put in the registry (a project the app made on first run): else the guest is told it was not given it.
+            _register_link_library(record.library)
+            owner = app_db.get_user(user_id)
+            if owner is not None and owner.is_owner and app_db.get_library_role(owner.id, record.library) is None:
+                # The owner owns the project they minted a link for: a device that is theirs must reach it, whether or not
+                # the project ever had a roles row (one the app made on first run did not).
+                app_db.set_library_role(user_id=owner.id, library_path=record.library, role="owner")
         if record.person:
             _record_device_audit(
                 action_name="device.pair_for_person",

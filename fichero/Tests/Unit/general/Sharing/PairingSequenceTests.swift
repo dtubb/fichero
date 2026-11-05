@@ -23,6 +23,19 @@ struct PairingSequenceTests {
         #expect(await host.log == ["health m.local", "pair m.local", "authz/libraries m.local"])
     }
 
+    @Test func aHostThatSpellsTheSamePackageAnotherWayStillGivesIt() async {
+        // Decomposed "é" in the host's list, precomposed in the link: the same package.
+        let decomposed = "/Users/Shared/a/Cafe\u{301}.fichero"
+        let precomposed = "/Users/Shared/a/Caf\u{e9}.fichero"
+        let result = await run(link(library: precomposed), host: FakeHost(libraries: [decomposed]))
+        #expect(result == .paired(url: local, libraryPath: decomposed), "the host's spelling is what it accepts")
+    }
+
+    @Test func aProjectTheHostDoesNotListIsStillNotGiven() async {
+        let result = await run(link(), host: FakeHost(libraries: ["/Users/Shared/a/Other.fichero"]))
+        guard case .failed(.libraryNotGiven, _) = result else { Issue.record("expected libraryNotGiven: \(result)"); return }
+    }
+
     @Test func aContractMismatchStopsBeforeTheCodeIsSent() async {
         let host = FakeHost(contract: "c2", version: "2026.10.27")
         let result = await run(link(), host: host)

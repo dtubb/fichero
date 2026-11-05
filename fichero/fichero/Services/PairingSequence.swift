@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 /// A Mac and a phone pair through ONE sequence (`sharing.both-clients-run-the-same-checks`, `sharing.ios-bad-library-path`):
 /// try the link's addresses (health, which also reads the contract) → refuse a contract this app cannot read, before any code is
@@ -6,6 +7,17 @@ import Foundation
 /// and let the person choose (never "missing library" before the network). The two entry points differ only in what they do with
 /// the result (the Mac switches its engine host, the phone stores the host), so they cannot drift.
 enum PairingSequence {
+    private static let log = Logger(subsystem: "app.fichero.fichero", category: "PairingSequence")
+
+    /// Whether two library paths name the same package: NFC and standardized, so a host that lists the path in another
+    /// spelling (decomposed accents, a symlinked prefix) is still the project the link named.
+    static func samePath(_ a: String, _ b: String) -> Bool {
+        func key(_ path: String) -> String {
+            URL(fileURLWithPath: path.precomposedStringWithCanonicalMapping).standardizedFileURL.resolvingSymlinksInPath().path
+        }
+        return key(a) == key(b)
+    }
+
     struct Link: Equatable {
         var addresses: [String]
         var code: String
@@ -62,11 +74,15 @@ enum PairingSequence {
             let libraries = try await host.libraries(at: url)
             if let named = link.libraryPath {
                 if libraries.contains(named) { return .paired(url: url, libraryPath: named) }
+                // The host may list the same package in another spelling: use its spelling, which is what it will accept.
+                if let same = libraries.first(where: { samePath($0, named) }) { return .paired(url: url, libraryPath: same) }
+                log.error("Host gave no access to the linked project. Link: \(named, privacy: .public). Host list: \(libraries.joined(separator: " | "), privacy: .public)")
                 await host.discardPairing(at: url)
                 return .failed(.libraryNotGiven, context: context)
             }
             switch libraries.count {
             case 0:
+                log.error("Host listed no project for this device and the link named none")
                 await host.discardPairing(at: url)
                 return .failed(.libraryNotGiven, context: context)
             case 1: return .paired(url: url, libraryPath: libraries[0])
