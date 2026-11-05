@@ -462,7 +462,7 @@ def _resolve_thumbnail_cache_candidate(
     _ops, chain_ns = edit_chain_operations(
         doc, db, page=(pdf_render[1] + 1) if pdf_render else 1
     )
-    source_mtime_ns, _from_display = _thumbnail_identity(
+    source_mtime_ns, from_display = _thumbnail_identity(
         doc, source_path, chain_ns, pdf_render[1] if pdf_render else None, package_path
     )
     cache_path = _thumbnail_cache_path(doc.id, size, source_mtime_ns, package_path)
@@ -470,7 +470,9 @@ def _resolve_thumbnail_cache_candidate(
     if cache_path.exists():
         return cache_path, alias_path, source, source_mtime_ns
 
-    if alias_path.exists() and alias_path.stat().st_mtime_ns >= source_mtime_ns:
+    # The alias is adopted only against a modified-time identity: a rendition key is a number, not a time, and an alias made
+    # for the earlier content would pass it.
+    if not from_display and alias_path.exists() and alias_path.stat().st_mtime_ns >= source_mtime_ns:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             os.replace(alias_path, cache_path)

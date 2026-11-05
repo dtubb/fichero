@@ -77,3 +77,18 @@ def test_a_stale_key_makes_the_thumbnail_again(db, made):
     second = storage.ensure_thumbnail(doc, db=db)
     assert second != first
     assert path in decoded
+
+
+def test_a_thumbnail_made_for_earlier_content_is_not_adopted_when_the_rendition_is_made_again(db, made):
+    from fichero_server.db import storage
+
+    doc, path, decoded = made
+    first = storage.ensure_thumbnail(doc, db=db)
+    doc.metadata = {"checksum": "c2"}  # the content changed and its rendition is made again under the new key
+    db.save(doc)
+    os.utime(path, ns=(path.stat().st_atime_ns, path.stat().st_mtime_ns + 60_000_000_000))
+    storage.ensure_display(doc, db=db)
+    decoded.clear()
+    second = storage.ensure_thumbnail(doc, db=db)
+    assert second != first
+    assert decoded, "the old thumbnail was served instead of being cut from the new rendition"
