@@ -87,3 +87,16 @@ def test_the_volume_is_counted_from_the_project_when_not_given(client, db):
     r = client.get("/api/recipes/routes", params={"teacher": GEMINI, "local_reader": KRAKEN})
     assert r.status_code == 200, r.text
     assert r.json()["pages"] == 3  # two PDF pages and one photo; folder, deleted file, workflow are not pages
+
+
+def test_the_route_serves_the_three_routes_over_http_and_refuses_a_bad_volume(client, db):
+    """`GET /api/recipes/routes`: the same three routes through the API, the project's own page count when none is given."""
+    _finished(db, KRAKEN, [25], 5)
+    ok = client.get("/api/recipes/routes", params={"teacher": GEMINI, "local_reader": KRAKEN, "pages": 1000, "sample_pages": 300})
+    assert ok.status_code == 200, ok.text
+    assert [r["id"] for r in ok.json()["routes"]] == ["cloud", "this-mac", "distil"] and ok.json()["pages"] == 1000
+    assert ok.json()["routes"][0]["cost_usd"]["basis"] == "estimate"
+    own = client.get("/api/recipes/routes", params={"teacher": GEMINI, "local_reader": KRAKEN})
+    assert own.status_code == 200 and own.json()["pages"] >= 0
+    assert client.get("/api/recipes/routes", params={"teacher": GEMINI, "local_reader": KRAKEN, "pages": -1}).status_code == 422
+    assert client.get("/api/recipes/routes", params={"teacher": GEMINI}).status_code == 422, "both models are asked for"
