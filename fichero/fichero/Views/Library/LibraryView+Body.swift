@@ -146,6 +146,7 @@ extension LibraryView {
                 VStack(spacing: 0) {
                     HiddenPagesLine(documents: documents, store: documentStore)
                     BlankProposalsLine(documents: documents, store: documentStore)
+                    ShowThroughOnlyLine(documents: documents, store: documentStore)
                 }
             }
             // Originals that moved, said above the rows, and Locate Originals (#5672).

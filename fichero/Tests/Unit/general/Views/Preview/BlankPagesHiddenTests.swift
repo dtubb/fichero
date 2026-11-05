@@ -1,5 +1,5 @@
-import Foundation
 @testable import Fichero
+import Foundation
 import Testing
 
 /// Blank pages the run hid: out of the rows, one "N hidden" line, Unhide (`prep.blank-pages-hidden-in-the-item-view`).
@@ -78,5 +78,41 @@ struct BlankPagesHiddenTests {
         #expect(HiddenPages.hidden(in: store.currentDocuments).count == 1)
         await HiddenPages.settle(store, id: hidden.id, fallback: HiddenPages.unhidden(hidden), fetch: { _ in [] })
         #expect(HiddenPages.hidden(in: store.currentDocuments).isEmpty)
+    }
+
+    // MARK: - Show-through-only versos (`image.enhance.show-through-only-verso`, #6197)
+
+    private func verso(_ name: String, of recto: String, included: Bool? = nil) -> Document {
+        var metadata: [String: AnyCodable] = ["page_kind": AnyCodable("show-through-only"), "show_through_of": AnyCodable(recto)]
+        if let included { metadata["show_through_included"] = AnyCodable(included) }
+        return Document(name: name, metadata: metadata)
+    }
+
+    @Test("a page marked show-through-only is listed with the recto's name; a plain page is not")
+    func showThroughPagesAreListedWithTheirRecto() {
+        let recto = Document(id: "r1", name: "IMG_0006")
+        let marked = verso("IMG_0007", of: "r1")
+        let docs = [recto, marked]
+        #expect(ShowThroughOnly.marked(in: docs).map(\.name) == ["IMG_0007"])
+        #expect(ShowThroughOnly.words(marked, in: docs) == "show-through of IMG_0006")
+        #expect(ShowThroughOnly.words(marked, in: [marked]) == "show-through of r1")
+        #expect(ShowThroughOnly.line(2) == "2 show-through")
+    }
+
+    @Test("Include and Leave Out flip the page's state and the page stays in the list")
+    func includeAndLeaveOutAreReversibleAndKeepThePage() {
+        let page = verso("IMG_0007", of: "r1")
+        #expect(ShowThroughOnly.isIncluded(page) == false)
+        let included = ShowThroughOnly.changed(page, included: true)
+        #expect(ShowThroughOnly.isIncluded(included) && ShowThroughOnly.isMarked(included))
+        let leftOut = ShowThroughOnly.changed(included, included: false)
+        #expect(ShowThroughOnly.isIncluded(leftOut) == false && ShowThroughOnly.marked(in: [leftOut]).count == 1)
+    }
+
+    @Test("the include action goes by the engine's parameter names")
+    func includeRequestUsesTheActionsParameterNames() throws {
+        let sent = try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(ImageIncludeShowThroughRequest(documentId: "d1", included: false))) as? [String: Any]
+        #expect(sent?["document_id"] as? String == "d1" && sent?["included"] as? Bool == false)
     }
 }

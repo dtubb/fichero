@@ -72,3 +72,11 @@ struct ImageMarkBlankRequest: Encodable, Equatable {
 
     enum CodingKeys: String, CodingKey { case documentId = "document_id", blank, page }
 }
+
+/// `image.include_show_through_only`: a page that is only the one before seen through is read (`included` true) or left out again.
+struct ImageIncludeShowThroughRequest: Encodable, Equatable {
+    let documentId: String
+    let included: Bool
+
+    enum CodingKeys: String, CodingKey { case documentId = "document_id", included }
+}
