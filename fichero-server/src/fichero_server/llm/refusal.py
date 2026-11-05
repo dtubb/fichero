@@ -41,6 +41,12 @@ class CloudRefusalDetail(BaseModel):
     refusal: Optional[CloudRefusal] = None
 
 
+class CloudRefusalError(BaseModel):
+    """The body of a 400 that is a cloud refusal: FastAPI's `{"detail": ...}` with the typed refusal inside."""
+
+    detail: CloudRefusalDetail
+
+
 def for_cap(*, kind: str, scope: str, project: str | None, cap_usd: float, spent_usd: float, estimate_usd: float, words: str) -> CloudRefusal:
     """A cap refusal and its fixes: raise the cap it names, run past it once, or open the caps in Settings."""
     from fichero_server.llm.spend import needed_cap_usd

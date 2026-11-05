@@ -181,6 +181,12 @@ class WorkflowExecutionService {
                 status: (payload.status ?? .accepted).rawValue,
                 streamUrl: payload.streamUrl
             )
+        case .badRequest(let refused):
+            // A run refused at the door: for a cloud refusal the engine's words (`detail.message`) and the typed refusal with its
+            // fixes (`detail.refusal`, `ai.cloud.hand-run-refused-before-it-starts`); the alert that offers the fixes is Step 3.2.
+            let message = (try? refused.body.json)?.detail.message
+            logger.error("Execute workflow refused: 400")
+            throw WorkflowExecutionError.serverError(400, message ?? "Execute workflow was refused")
         case .unprocessableContent:
             logger.error("Execute workflow failed: validation error")
             throw WorkflowExecutionError.serverError(422, "Validation error")

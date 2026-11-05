@@ -28,7 +28,7 @@ from fichero_server.api.library_header import require_library_path
 from fichero_server.api.main import (
     get_library_database, get_library_database_for_write, input_document_ids, read_check, recipe_check, write_check,
 )
-from fichero_server.llm.refusal import CloudRefusalDetail
+from fichero_server.llm.refusal import CloudRefusalError
 from fichero_server.models import Workflow
 from fichero_server.workflows.activity import get_activity_tracker
 from fichero_server.workflows.run_progress import summarize_run_state
@@ -367,7 +367,7 @@ async def dry_run_workflow(
     )
 
 
-@router.post("/execute", status_code=202, responses={400: {"model": CloudRefusalDetail, "description": (
+@router.post("/execute", status_code=202, responses={400: {"model": CloudRefusalError, "description": (
     "the run is refused at the door; for a cloud refusal `detail` carries `message` and the typed `refusal` with its fixes")}})
 async def execute_workflow(
     request: ExecuteWorkflowRequest,
