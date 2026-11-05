@@ -11,6 +11,7 @@ func sidebarTrashDropRoots(_ droppedIds: [String], parentOf: (String) -> String?
         var cursor = parentOf(id)
         var hops = 0
         while let ancestor = cursor, hops < 256 {
+            if ancestor == id { break }  // a parent cycle back to the row itself: it is not its own ancestor
             if going.contains(ancestor) { return false }
             cursor = parentOf(ancestor)
             hops += 1
