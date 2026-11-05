@@ -193,10 +193,11 @@ def test_a_test_of_a_top_level_package_imports_it_from_the_tree_root_under_the_j
 
 
 def test_pytest_runs_named_files_with_the_fixed_env(tmp_path):
-    (tmp_path / "test_a.py").write_text("import os\ndef test_a():\n    assert os.environ['FICHERO_FEATURE_TIER'] == 'dev'\n    assert os.environ['OMP_NUM_THREADS'] == '2'\n    assert os.environ['PYTHONSAFEPATH'] == '1'\n    assert os.environ['RUFF_NO_CACHE'] == 'true'\n")
+    (tmp_path / "test_a.py").write_text("import os\ndef test_a():\n    assert os.environ['FICHERO_FEATURE_TIER'] == 'dev'\n    assert os.environ['OMP_NUM_THREADS'] == '2'\n    assert 'PYTHONSAFEPATH' not in os.environ\n    assert os.environ['RUFF_NO_CACHE'] == 'true'\n")
     cfg = ct.Config(test_env={"FICHERO_FEATURE_TIER": "dev", "OMP_NUM_THREADS": "2"})
     r = ct.pytest_rung(tmp_path, ["test_a.py"], cfg, timeout_s=120)
     assert r["ok"], r
+    assert "-I" in r["argv"], "safe path is python -I (it implies -P), never an env var a test's children inherit (2026-11-05)"
 
 
 def test_pytest_with_no_files_is_red(tmp_path):
@@ -836,8 +837,8 @@ def test_the_build_rung_counts_a_deleted_swift_file_as_a_change(tmp_path):  # re
 
 
 def test_the_ready_rung_lets_the_projects_scripts_import_their_siblings(tmp_path):  # first real check, 2026-11-01
-    """The ladder's PYTHONSAFEPATH is for pytest; a readiness script runs guard scripts by plain python, and those import
-    helpers beside them, which safe-path forbids."""
+    """The ladder's safe path (`python -I`) is for pytest alone; a readiness script runs guard scripts by plain python, and those
+    import helpers beside them, which safe path forbids."""
     (tmp_path / "scripts").mkdir()
     (tmp_path / "scripts" / "_helper.py").write_text("OK = True\n")
     (tmp_path / "scripts" / "guard.py").write_text("from _helper import OK\nassert OK\n")
