@@ -1000,6 +1000,7 @@ the write path would produce.
   shell guard: it runs a two-issue cluster through brief, build, check, review, land and close on a scratch remote from
   its rules file alone, and the cluster lands green. Test:
   `fichero-server/tests/unit/workflows/test_second_project.py::test_unrelated_repo_runs_a_cluster_from_its_rules_file_alone`.
+  Built: (2026-11-04, review 97) a harness file the guard lists that is not in the tree FAILS the guard, named, instead of being skipped, so a moved or empty tree never reads as neutral (#4382; test `fichero-server/tests/unit/workflows/test_harness_neutral.py::test_a_listed_harness_file_that_is_gone_fails_the_guard`).
 - `dev-workflows.run.local-parity` [PROPOSED] (maintainer 2026-10-31) — the harness runs on a local model server with the same
   **enforced** guardrails, and the ones that are not carried are said. Carried whole: the user boundary, the rules file,
   the hook scripts (through each kind's adapter; unknown tool names refused), `check`, `land`, the verdict store, the
