@@ -52,6 +52,7 @@ from fichero_server.models import (
     RelatedDocumentsResponse,
 )
 from fichero_server.security.path_security import validate_stored_document_path
+from fichero_server.security import authz
 from fichero_server.core.perf import perf_span
 from fichero_server.db.storage import auto_snapshot_before_risky_operation
 from fichero_server.db.storage_snapshots import SnapshotRefused
@@ -4516,7 +4517,12 @@ def _action_empty_trash(
     db: Database, params: DocumentEmptyTrashParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     """Empty Trash: everything in this project's Trash, removed for good in one recorded step.
-    A snapshot first; no snapshot, nothing removed (#5070's rule, once for the whole Trash)."""
+    A snapshot first; no snapshot, nothing removed (#5070's rule, once for the whole Trash).
+
+    Only the library's owner empties it when accounts are on (`safety.trash.who-may-empty`, manager ruling 2026-11-05);
+    in a personal library, or for the owner's own key, the caller is the owner."""
+    if not ctx.is_bootstrap and authz.multiuser_enabled():
+        authz.require_owner(ctx.actor, ctx.library_path)
     if ctx.library_path:
         try:
             auto_snapshot_before_risky_operation(ctx.library_path, reason="Before emptying the Trash")

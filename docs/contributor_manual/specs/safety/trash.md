@@ -266,9 +266,9 @@ This is the Trash the app already promises in its delete dialog and does not hav
   a trashed thing, and to Put Back: a restriction on a document reaches it in the Trash too. A
   viewer can look and cannot put back. *Test:* deny a viewer on a folder; trash a document in
   it; the viewer's Trash does not list it.
-- `safety.trash.who-may-put-back` — **[GAP]** (#5243) anyone who may edit the place a thing came from may put it
+- `safety.trash.who-may-put-back` — **[PARTIAL]** (#5243; manager ruling 2026-11-05: whoever could delete the item may put it back) (built: Put Back needs the same write access as the delete, so an editor puts back what they or another deleted, `fichero-server/tests/unit/security/test_only_the_owner_empties_the_trash_5243.py`; not built: a test that the record names both people) anyone who may edit the place a thing came from may put it
   back, whoever deleted it. *Test:* A deletes, B puts back; the record names both.
-- `safety.trash.who-may-empty` — **[GAP]** (#5243) a person may permanently delete what **they** sent to the
+- `safety.trash.who-may-empty` — **[PARTIAL]** (#5243; manager ruling 2026-11-05: Empty Trash is the library owner's alone when accounts are on; in a personal library the caller is the owner) (built: `document.empty_trash` refuses anyone but the library's owner with accounts on, the owner's own key and a personal library passing, `fichero-server/tests/unit/security/test_only_the_owner_empties_the_trash_5243.py`; not built: an editor permanently deleting what they alone sent to the Trash, and an AI agent's account refused) a person may permanently delete what **they** sent to the
   Trash. Only the library's owner may empty everything. An AI agent's account may send things
   to the Trash and may never empty or delete permanently. *Data:* who deleted is already
   stored and is now consulted. *Test:* editor B cannot permanently delete A's trashed
