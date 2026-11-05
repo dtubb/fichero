@@ -125,11 +125,20 @@ struct PairedDeviceRecord: Codable, Identifiable {
     let revoked: Bool
     /// The paired device that minted this one; revoking that device revokes this one too (#5351).
     var pairedByDeviceId: String?
+    /// The person signed in on this device, by name (#5738); nil from an older engine.
+    var username: String?
+
+    /// How the host's Inspector names it: "<person> on <device>", or just the device name when no person is known.
+    var inspectorLabel: String {
+        guard let username, !username.isEmpty else { return name }
+        return "\(username) on \(name)"
+    }
 
     enum CodingKeys: String, CodingKey {
         case id
         case name
         case pairedByDeviceId = "paired_by_device_id"
+        case username
         case userId = "user_id"
         case createdAt = "created_at"
         case lastSeen = "last_seen"
@@ -278,7 +287,8 @@ final class PairingService {
                     lastSeen: device.lastSeen,
                     expiresAt: device.expiresAt,
                     revoked: device.revoked,
-                    pairedByDeviceId: device.pairedByDeviceId
+                    pairedByDeviceId: device.pairedByDeviceId,
+                    username: device.username
                 )
             }
         case .undocumented(let statusCode, _):

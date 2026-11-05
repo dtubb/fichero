@@ -18,4 +18,18 @@ struct HostSharedMarkTests {
     @Test func aGuestsRemoteProjectIsNotTheHostsMark() {
         #expect(!SharedMark.showsOnHost(hostingEnabled: true, isLocal: false))
     }
+
+    @Test func aDeviceInTheInspectorReadsPersonOnDevice() {
+        let named = PairedDeviceRecord(
+            id: "d1", name: "Alice's Mac", userId: "u1", createdAt: .distantPast, lastSeen: .distantPast,
+            expiresAt: .distantFuture, revoked: false, username: "alice")
+        #expect(named.inspectorLabel == "alice on Alice's Mac")
+    }
+
+    @Test func aDeviceFromAnOlderEngineKeepsItsNameAlone() {
+        let unnamed = PairedDeviceRecord(
+            id: "d2", name: "Old iPad", userId: "u1", createdAt: .distantPast, lastSeen: .distantPast,
+            expiresAt: .distantFuture, revoked: false)
+        #expect(unnamed.inspectorLabel == "Old iPad")
+    }
 }
