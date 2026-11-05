@@ -808,7 +808,20 @@ def ensure_thumbnail(
         perf["cache_state"] = "regenerated" if force else "miss"
         perf["source_mtime_ns"] = source_mtime_ns
 
-        if pdf_render:
+        # The working rendition, when it is made for this content and edit chain, is the source of every reduced view: the thumbnail
+        # is cut from it without opening the original (`image.enhance.working-rendition-once`, #6200).
+        display = _display_path(doc.id, package_path)
+        display_key = _display_key(doc, chain_ns, pdf_render[1] if pdf_render else None)
+        made_for_this = False
+        if display_key is not None and display.exists():
+            try:
+                made_for_this = _display_key_path(display).read_text() == display_key
+            except OSError:
+                pass
+
+        if made_for_this:
+            result = _generate_image(display, cache_path, settings.thumb_size)
+        elif pdf_render:
             pdf_path, page_index = pdf_render
             result = _generate_pdf_image(
                 pdf_path, page_index, cache_path, settings.thumb_size, operations

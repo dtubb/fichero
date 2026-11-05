@@ -124,3 +124,20 @@ def test_the_line_readers_page_context_is_cut_from_the_working_rendition_not_the
 
     sent = Image.open(io.BytesIO(base64.b64decode(seen[0].split(",", 1)[1])))
     assert sent.size == (40, 30)  # the working rendition's size, not the 400x300 page
+
+
+def test_the_thumbnail_is_cut_from_the_working_rendition_not_the_original(db, renders):
+    doc, path = _doc(db)
+    display = storage.ensure_display(doc, package_path=db.path.parent, db=db)
+    assert display is not None and renders == [path]
+
+    thumb = storage.ensure_thumbnail(doc, package_path=db.path.parent, db=db)
+
+    assert thumb is not None and thumb.is_file()
+    assert renders == [path, display], "the thumbnail read the display image, not the 3000 px original"
+
+
+def test_a_page_with_no_working_rendition_yet_still_gets_its_thumbnail_from_the_original(db, renders):
+    doc, path = _doc(db)
+    thumb = storage.ensure_thumbnail(doc, package_path=db.path.parent, db=db)
+    assert thumb is not None and renders == [path]
