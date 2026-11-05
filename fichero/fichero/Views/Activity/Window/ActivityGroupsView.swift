@@ -138,8 +138,8 @@ struct ActivityGroupsView: View {
 
     /// The state's words, then the counts and the time left; a waiting row says what it waits for and never ticks.
     private func subtitle(_ row: ActivityMonitorRow) -> String {
-        if !row.phase.isLive { return row.endedLine }
-        return [row.stateText, row.progressText].filter { !$0.isEmpty }.joined(separator: " · ")
+        if !row.phase.isLive { return [row.endedLine, row.remoteStarter].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ") }
+        return [row.stateText, row.progressText, row.remoteStarter ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
     private func label(_ button: ActivityMonitorRow.OneButton) -> String {

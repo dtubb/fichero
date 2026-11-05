@@ -94,6 +94,16 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     /// When it ended: the engine's finished time if it sent one, else the failure time, else start plus duration; nil
     /// when none is known (DONE TODAY then lists it rather than lose it; `activity.window.done-today`).
     var ended: Date?
+    /// Who started the run, as the engine said it ("maya on Maya's Mac"); only a run another Mac's person started names
+    /// them in the list (`sharing.sync.remote-run-live-in-activity`, #5732).
+    var startedBy: String?
+
+    /// The starter for the row's second line: a person on a device or a client for a person; nothing for the host's
+    /// own runs, a schedule, a trigger or an automatic start (those read in the details).
+    var remoteStarter: String? {
+        guard let startedBy, startedBy.contains(" on ") || startedBy.contains(" for ") else { return nil }
+        return "Started by \(startedBy)"
+    }
 
     // MARK: - Waiting looks like waiting (#5839)
 
