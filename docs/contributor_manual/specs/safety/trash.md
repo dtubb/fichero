@@ -122,7 +122,7 @@ This is the Trash the app already promises in its delete dialog and does not hav
   conversations is the same recorded Trash action as any folder. The unrecorded hard delete is
   removed. *Test:* delete such a folder with contents; all of it is in the Trash under one
   step; Put Back returns all of it.
-- `safety.trash.one-delete-path` — **[GAP]** (#5243) the sidebar, the Library pane, the menu, the keyboard
+- `safety.trash.one-delete-path` — **[PARTIAL]** (#5243) (built for the app's document deletes: the sidebar, the Library pane and Shortcuts send one `DocumentDeleteActionParams` to `document.delete`, and the document store's two unrecorded deletes are removed, pinned by `fichero-server/tests/unit/test_one_delete_path_to_the_trash_5243.py`; not built: the other kinds' deletes, the command line and agents) the sidebar, the Library pane, the menu, the keyboard
   (Command-Delete), Shortcuts, the command line and agents all call the same action for a kind.
   *Test:* the availability leg finds one call site per kind.
 

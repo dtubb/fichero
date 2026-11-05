@@ -54,62 +54,6 @@ extension DocumentStore {
         return folder
     }
 
-    /// Delete a document.
-    /// The backend handles cascade deletion of all descendants.
-    ///
-    /// Optimistic update (#705): remove from local state first so the row
-    /// disappears immediately, then call the backend. On failure, reload
-    /// from the backend to restore truth. Without this, the row lingered
-    /// visibly while awaiting the HTTP round-trip.
-    func deleteDocument(_ document: Document) async throws {
-        let snapshot = collections
-        let previousSelection = selectedCollection
-
-        let descendantIds = collectDescendantIds(of: document.id, in: snapshot)
-        let idsToRemove = descendantIds.union([document.id])
-        collections = collections.filter { !idsToRemove.contains($0.id) }
-        if selectedCollection.map({ idsToRemove.contains($0.id) }) == true {
-            selectedCollection = nil
-        }
-        publish(.documentDeleted(document))
-
-        do {
-            try await documentService.deleteDocument(document.id)
-        } catch {
-            collections = snapshot
-            selectedCollection = previousSelection
-            publish(.documentsUpdated(collections))
-            throw error
-        }
-
-        await loadCollections()
-
-        if selectedCollection == nil, let first = OpeningSelection.collectionToOpen(in: collections) {
-            await selectCollection(first)
-        }
-    }
-
-    /// Returns the ID of every descendant of `rootId` in the given collection list.
-    private func collectDescendantIds(of rootId: String, in list: [Document]) -> Set<String> {
-        var result: Set<String> = []
-        var frontier: [String] = [rootId]
-        while let current = frontier.popLast() {
-            for doc in list where doc.parentId == current {
-                if result.insert(doc.id).inserted {
-                    frontier.append(doc.id)
-                }
-            }
-        }
-        return result
-    }
-
-    /// Delete document by ID (for non-document items like searches, chats, workflows)
-    func deleteDocumentById(_ id: String) async throws {
-        try await documentService.deleteDocument(id)
-        // Refresh from backend
-        await loadCollections()
-    }
-
     /// Rename a document.
     func renameDocument(_ document: Document, to newName: String) async throws -> Document {
         let updated = try await documentService.updateDocument(document.id, name: newName)

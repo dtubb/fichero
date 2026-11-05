@@ -14,14 +14,6 @@ enum SidebarDeleteError: LocalizedError {
     }
 }
 
-private struct DocumentDeleteActionParams: Encodable {
-    let docId: String
-
-    enum CodingKeys: String, CodingKey {
-        case docId = "doc_id"
-    }
-}
-
 // MARK: - Import/Delete/Rename Extension
 
 extension SidebarView {

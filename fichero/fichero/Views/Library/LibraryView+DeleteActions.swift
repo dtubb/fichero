@@ -1,13 +1,5 @@
 import SwiftUI
 
-private struct DocumentDeleteActionParams: Encodable {
-    let docId: String
-
-    enum CodingKeys: String, CodingKey {
-        case docId = "doc_id"
-    }
-}
-
 // MARK: - Delete Actions
 
 extension LibraryView {
