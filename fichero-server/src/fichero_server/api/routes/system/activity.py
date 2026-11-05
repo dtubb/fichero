@@ -12,6 +12,7 @@ Routes require the X-Fichero-Library-Path header.
 """
 
 import asyncio
+import os
 import functools
 import re
 import json
@@ -48,6 +49,7 @@ from fichero_server.workflows.activity import (
     get_activity_tracker,
 )
 from fichero_server.models import ActivityListResponse
+from fichero_server.api.routes.system.bug_report import BugReport
 from fichero_server.llm.failure import RunFailure
 from fichero_server.workflows.run_account import RunAccount
 from fichero_server.recipes.run_view import RecipeRunStep, RecipeRunSummary, StepTiming
@@ -1413,6 +1415,29 @@ async def get_job_log(
     if level == "problems":
         lines = problem_lines(lines)
     return JobLog(job_id=job_id, lines=lines[-_JOB_LOG_LIMIT:])
+
+
+@router.post("/jobs/{job_id}/bug-report", response_model=BugReport)
+async def post_job_bug_report(job_id: str, db: Database = Depends(get_library_database)) -> BugReport:
+    """The bug report for a failed workflow run (`run.fail.bug-report-route`, #6354): a title, a plain-text body and two attachments
+    (`run.json`, `log.txt`), built here so the app, the CLI and an agent send the same one, with what is private taken out
+    (`llm/failure.redact`). Builds and answers; sends nothing. 404 when the project has no such run, 409 (in words) when the run
+    did not fail."""
+    from fichero_server.api.routes.system import bug_report
+    from fichero_server.core import engine_log
+
+    run = await get_activity_tracker(str(db.path)).store.get_workflow_run(job_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"no workflow run {job_id!r} in this project")
+    if run.status != "failed" or not run.failure:
+        raise HTTPException(status_code=409, detail="This run did not fail, so there is nothing to report. A bug report is for a run that stopped.")
+    problems = await get_job_log(job_id, "person", "problems", db)
+    path = os.environ.get("FICHERO_ENGINE_LOG_PATH", "").strip()
+    trace = None
+    if run.failure.get("kind") == "unexpected" and path:
+        trace = await asyncio.to_thread(engine_log.traceback_for_run, Path(path), job_id)
+    return bug_report.build_report(run, [f"{x.timestamp} {x.level} {x.message}" for x in problems.lines], traceback=trace,
+                                   env=await asyncio.to_thread(bug_report.environment))
 
 
 @router.put("/jobs/paused", response_model=BackgroundPauseResponse)

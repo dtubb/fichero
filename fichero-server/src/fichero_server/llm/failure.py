@@ -55,12 +55,15 @@ _PATH = re.compile(r"(?<![\w:])(?:~|<path>)?(?:/[^/\s'\"<>()\[\],;]+){2,}/?")
 _BEARER = re.compile(r"(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]{6,}")
 _KEY_SHAPE = re.compile(r"\b(?:sk|pk|rk|hf|gsk|xox[abp]|ghp|AIza)[-_A-Za-z0-9]{12,}")
 _SECRET_WORD = re.compile(r"(?i)\b(api[_-]?key|key|token|secret|password|passwd|authorization)(\s*[:=]\s*|\s+)[^\s,;&'\"]{4,}")
+_ID_VALUE = re.compile(r"(?i)\b(document[_-]?id|doc[_-]?id|page[_-]?id)(\s*[:=]\s*)[^\s,;&'\"]+")
+_LONG_QUOTED = re.compile(r"(['\"])[^'\"\n]{40,}\1")  # a long quoted string in an error is a page's text or a model's answer
 _URL_SECRET = re.compile(r"(?i)([?&](?:api[_-]?key|key|token|access_token|secret|sig|signature)=)[^&\s'\"]+")
 
 
 def redact(text: str) -> str:
     """Text with what is private taken out: the home folder becomes `~`, every other `/…/` path `<path>`, a bearer header, a key
-    shape and a `key=`/`token:` value `<redacted>`. Order matters: the home folder is named before paths are generalised."""
+    shape, a `key=`/`token:` value and a document or page id `<redacted>`, and a long quoted string (a page's text or a model's
+    answer carried in an error message) `<text>`. Order matters: the home folder is named before paths are generalised."""
     if not text:
         return ""
     out = _HOME.sub("~", text)
@@ -68,6 +71,8 @@ def redact(text: str) -> str:
     out = _BEARER.sub(lambda m: f"{m.group(1)} <redacted>", out)
     out = _URL_SECRET.sub(lambda m: f"{m.group(1)}<redacted>", out)
     out = _SECRET_WORD.sub(lambda m: f"{m.group(1)}{m.group(2)}<redacted>", out)
+    out = _ID_VALUE.sub(lambda m: f"{m.group(1)}{m.group(2)}<redacted>", out)
+    out = _LONG_QUOTED.sub(lambda m: f"{m.group(1)}<text>{m.group(1)}", out)
     return _KEY_SHAPE.sub("<redacted>", out)
 
 

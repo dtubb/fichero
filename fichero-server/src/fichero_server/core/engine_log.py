@@ -197,3 +197,28 @@ def start_watch(log: Path, max_bytes: int = DEFAULT_MAX_BYTES, keep: int = DEFAU
                 logger.warning("could not rotate %s", log, exc_info=True)
 
     threading.Thread(target=watch, name="engine-log-rotation", daemon=True).start()
+
+
+_RECORD = re.compile(r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d{3} - ")  # the first line of a record (`LogFormat.STANDARD`)
+
+
+def traceback_for_run(log: Path, run_id: str, *, tail_bytes: int = 4 * 1024 * 1024) -> str | None:
+    """The newest ERROR record of the engine log that names a run (`(run <id>)`, written once by the runner when a run dies of
+    something it did not expect), whole: its first line and the traceback under it. Reads the last `tail_bytes` of `log` and of
+    its newest rotated file; None when the log holds no such record or cannot be read."""
+    needle = f"(run {run_id})"
+    for path in (log, log.with_name(f"{log.name}.1")):
+        try:
+            with path.open("rb") as f:
+                f.seek(0, os.SEEK_END)
+                f.seek(max(0, f.tell() - tail_bytes))
+                lines = f.read().decode("utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        for i in range(len(lines) - 1, -1, -1):
+            if _RECORD.match(lines[i]) and " - ERROR - " in lines[i] and needle in lines[i]:
+                end = i + 1
+                while end < len(lines) and not _RECORD.match(lines[end]):
+                    end += 1
+                return "\n".join(lines[i:end])
+    return None
