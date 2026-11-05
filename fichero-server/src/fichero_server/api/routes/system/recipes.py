@@ -945,18 +945,28 @@ class RoutesResponse(BaseModel):
 
 @router.get("/routes", response_model=RoutesResponse, response_model_by_alias=True)
 async def routes_for_volume(
-    teacher: str,
-    local_reader: str,
+    teacher: Optional[str] = None,
+    local_reader: Optional[str] = None,
     pages: Optional[int] = None,
     sample_pages: int = 300,
     db: Database = Depends(get_library_database),
 ) -> RoutesResponse:
     """What can we do with this many pages? The cloud, this-Mac and distil routes side by side,
     each figure marked measured, estimate or unknown (`source.onboard.routes-for-the-volume`).
-    `pages` defaults to the project's own count."""
+    `pages` defaults to the project's own count; `teacher` and `local_reader` default to the models the project's plan reads with
+    (a cloud one and one on this Mac), and a route whose model the plan has none of says its figures are unknown."""
+    from fichero_server.recipes import runner
+    from fichero_server.recipes.routes import default_models
     from fichero_server.recipes.routes import routes_for_volume as plan
     from fichero_server.recipes.start import count_pages
 
+    if teacher is None or local_reader is None:
+        try:
+            planned = default_models(await asyncio.to_thread(runner._plan, db))
+        except Exception:  # noqa: BLE001 -- no saved recipe yet: the routes name no model and their figures are unknown
+            planned = ("", "")
+        teacher = planned[0] if teacher is None else teacher
+        local_reader = planned[1] if local_reader is None else local_reader
     n = pages if pages is not None else count_pages(db)
     if n < 0 or sample_pages < 1:
         raise HTTPException(status_code=422, detail="pages must be 0 or more and sample_pages at least 1")

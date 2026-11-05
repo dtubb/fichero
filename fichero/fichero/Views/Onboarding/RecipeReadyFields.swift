@@ -40,6 +40,7 @@ struct RecipeReadyFields: View {
                 }
             }
             RecipeDefaultsWhyView(store: store)
+            RecipeRoutesView(store: store)
             ForEach(sections, id: \.title) { section in
                 Section {
                     sectionContent(section)
@@ -64,6 +65,7 @@ struct RecipeReadyFields: View {
             await store.loadStartPlan()
             await store.loadChainRisk()
             await store.loadDefaultsWhy()
+            await store.loadRoutes()
         }
     }
 

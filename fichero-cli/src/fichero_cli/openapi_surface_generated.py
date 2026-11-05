@@ -14462,10 +14462,10 @@ def register_generated_openapi_commands(
     @target_app.command("routes-for-volume")
     def recipes_routes_for_volume_get(
         ctx: typer.Context,
-        local_reader: str = typer.Option(..., '--local-reader', help='Local Reader.'),
+        local_reader: Optional[str] = typer.Option(None, '--local-reader', help='Local Reader.'),
         pages: Optional[int] = typer.Option(None, '--pages', help='Pages.'),
         sample_pages: Optional[int] = typer.Option(None, '--sample-pages', help='Sample Pages.'),
-        teacher: str = typer.Option(..., '--teacher', help='Teacher.'),
+        teacher: Optional[str] = typer.Option(None, '--teacher', help='Teacher.'),
     ) -> None:
         """Routes For Volume (GET /api/recipes/routes)."""
         def op_call(client: FicheroClient) -> Any:

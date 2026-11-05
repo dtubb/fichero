@@ -6862,12 +6862,12 @@ def fichero_recipes_questions(
 
 def fichero_recipes_routes_for_volume(
     *,
-    local_reader: Annotated[str, Field(description='Local Reader')],
+    local_reader: Annotated[Optional[str], Field(description='Local Reader')] = None,
     pages: Annotated[Optional[int], Field(description='Pages')] = None,
     sample_pages: Annotated[Optional[int], Field(description='Sample Pages')] = None,
-    teacher: Annotated[str, Field(description='Teacher')],
+    teacher: Annotated[Optional[str], Field(description='Teacher')] = None,
 ) -> Any:
-    "Routes For Volume\n\nWhat can we do with this many pages? The cloud, this-Mac and distil routes side by side,\neach figure marked measured, estimate or unknown (`source.onboard.routes-for-the-volume`).\n`pages` defaults to the project's own count.\n\nRoute: GET /api/recipes/routes (toolset `recipes`; reads)."
+    "Routes For Volume\n\nWhat can we do with this many pages? The cloud, this-Mac and distil routes side by side,\neach figure marked measured, estimate or unknown (`source.onboard.routes-for-the-volume`).\n`pages` defaults to the project's own count; `teacher` and `local_reader` default to the models the project's plan reads with\n(a cloud one and one on this Mac), and a route whose model the plan has none of says its figures are unknown.\n\nRoute: GET /api/recipes/routes (toolset `recipes`; reads)."
     return _rt.call("GET", "/api/recipes/routes", params={"local_reader": local_reader, "pages": pages, "sample_pages": sample_pages, "teacher": teacher})
 
 

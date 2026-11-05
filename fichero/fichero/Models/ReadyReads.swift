@@ -56,3 +56,20 @@ extension RecipeSetupStore {
         }
     }
 }
+
+extension RecipeSetupStore {
+    /// Ask the engine what could be done with this many pages (`GET /api/recipes/routes`): the cloud, this-Mac and distil routes side by
+    /// side. The engine takes the models the plan already reads with; nothing is chosen here.
+    func loadRoutes() async {
+        do {
+            switch try await client.api.routesForVolumeApiRecipesRoutesGet(query: .init()) {
+            case .ok(let success):
+                routes = try success.body.json.routes.map(RouteWords.init)
+            default:
+                break
+            }
+        } catch {
+            if error.isCancellationError { return }
+        }
+    }
+}

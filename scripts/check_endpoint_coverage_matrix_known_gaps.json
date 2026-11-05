@@ -3,7 +3,6 @@
   "POST /api/sync-folders/duplicates/remove": "the duplicate repair (sync.remove_duplicates, #5495): engine first, reached through the generated CLI and MCP; the app's view of it is not built",
   "GET /api/iiif/iiif/lines/{document_id}": "served to IIIF viewers through a manifest's canvas annotations, not called by the app (#5326)",
   "POST /api/training/kraken/here": "training on this Mac (#5397): engine, CLI and MCP (fichero_train_kraken_here) first; the app's Train a Reader sheet is not built yet",
-  "GET /api/recipes/routes": "engine half of setup's routes for the volume; the app's Ready step shows them next (#4951)",
   "GET /api/settings/compute": "the Settings pane for compute priority and device is not built yet; read by Kraken now and by the job model next",
   "PUT /api/settings/compute": "the Settings pane for compute priority and device is not built yet; set from the CLI or MCP meanwhile",
   "PUT /api/activity/jobs/paused": "engine and CLI only: Pause Background Work has no Mac control yet; the Activity window's toolbar gets it (#5355)",

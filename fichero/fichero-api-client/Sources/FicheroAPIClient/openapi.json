@@ -16107,24 +16107,26 @@
           "recipes"
         ],
         "summary": "Routes For Volume",
-        "description": "What can we do with this many pages? The cloud, this-Mac and distil routes side by side,\neach figure marked measured, estimate or unknown (`source.onboard.routes-for-the-volume`).\n`pages` defaults to the project's own count.",
+        "description": "What can we do with this many pages? The cloud, this-Mac and distil routes side by side,\neach figure marked measured, estimate or unknown (`source.onboard.routes-for-the-volume`).\n`pages` defaults to the project's own count; `teacher` and `local_reader` default to the models the project's plan reads with\n(a cloud one and one on this Mac), and a route whose model the plan has none of says its figures are unknown.",
         "operationId": "routes_for_volume_api_recipes_routes_get",
         "parameters": [
           {
             "name": "teacher",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string",
+              "nullable": true,
               "title": "Teacher"
             }
           },
           {
             "name": "local_reader",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string",
+              "nullable": true,
               "title": "Local Reader"
             }
           },

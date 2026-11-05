@@ -10027,7 +10027,7 @@
         "query_params": [
           {
             "name": "local_reader",
-            "required": true,
+            "required": false,
             "type": "string"
           },
           {
@@ -10042,7 +10042,7 @@
           },
           {
             "name": "teacher",
-            "required": true,
+            "required": false,
             "type": "string"
           }
         ],
