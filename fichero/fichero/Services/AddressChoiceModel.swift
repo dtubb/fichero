@@ -78,22 +78,7 @@ enum AddressChoiceModel {
         guard let sharing, let sharingHost = sharing.host else { return rows }
         let port = sharing.port ?? 8765
         if sharingHost.lowercased().hasSuffix(".ts.net") {
-            // A `.ts.net` sharer: its own address IS the Tailscale address and works whatever detection says (review M2),
-            // unless the engine says no forward of Fichero's reaches it: then the link would name an address that times
-            // out, so the row is greyed with why, and the Mac's LAN address is offered instead (the 2026-11-05 Pro: a saved
-            // tailnet name with no `:8765` forward).
-            let blocked: String? = switch tailnetForward {
-            case "foreign": heldReason(tailnetConflict, port: port)
-            case "none": tailscaleNotPublished
-            default: nil
-            }
-            rows.append(AddressRow(choice: .tailscale, url: sharing, title: "Tailscale", reach: tailscaleReach, disabledReason: blocked))
-            if blocked != nil, let lan = lanIP?.trimmingCharacters(in: .whitespacesAndNewlines), !lan.isEmpty,
-               let lanURL = URL(string: "https://\(lan):\(port)") {
-                rows.insert(AddressRow(choice: .thisNetwork, url: lanURL, title: "This network", reach: thisNetworkReach,
-                                       disabledReason: nil), at: 0)
-            }
-            return rows
+            return tailnetSharerRows(sharing, port: port, forward: tailnetForward, conflict: tailnetConflict, lanIP: lanIP)
         }
         rows.append(AddressRow(choice: .thisNetwork, url: sharing, title: "This network", reach: thisNetworkReach, disabledReason: nil))
         let tail = (tailnetURL ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -116,6 +101,26 @@ enum AddressChoiceModel {
             // networks. "unknown" means the engine could not ask Tailscale, not that Tailscale is off.
             let reason = tailnetForward == "unknown" ? tailscaleUnchecked : tailscaleOff
             rows.append(AddressRow(choice: .tailscale, url: nil, title: "Tailscale", reach: tailscaleReach, disabledReason: reason))
+        }
+        return rows
+    }
+
+    /// The rows for a sharer whose own address is `.ts.net`: its address is the Tailscale row and works whatever detection
+    /// says (review M2), unless the engine says no forward of Fichero's reaches the port. Then the link would name an
+    /// address that times out, so the row is greyed with why and the Mac's LAN address is offered instead (the 2026-11-05
+    /// Pro: a saved tailnet name with no `:8765` forward, #6358).
+    private static func tailnetSharerRows(_ sharing: URL, port: Int, forward: String?, conflict: TailnetServeConflict?,
+                                          lanIP: String?) -> [AddressRow] {
+        let blocked: String? = switch forward {
+        case "foreign": heldReason(conflict, port: port)
+        case "none": tailscaleNotPublished
+        default: nil
+        }
+        var rows = [AddressRow(choice: .tailscale, url: sharing, title: "Tailscale", reach: tailscaleReach, disabledReason: blocked)]
+        if blocked != nil, let lan = lanIP?.trimmingCharacters(in: .whitespacesAndNewlines), !lan.isEmpty,
+           let lanURL = URL(string: "https://\(lan):\(port)") {
+            rows.insert(AddressRow(choice: .thisNetwork, url: lanURL, title: "This network", reach: thisNetworkReach,
+                                   disabledReason: nil), at: 0)
         }
         return rows
     }
