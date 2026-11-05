@@ -234,14 +234,17 @@ def test_diff_bound_trips_on_too_many_files_or_lines(tmp_path):
     assert not ct.diff_bound(tmp_path, base, "HEAD", ct.Config(max_files=5, max_lines=10))["ok"]
 
 
+# four real pytest runs in scratch trees: 214 s alone, past the suite's 300 s at load ~13 (manager 2026-11-04: the machine runs
+# 20-40 overnight and during verify-all), so the bound is the work's, not the suite's
+@pytest.mark.timeout(1800)
 def test_red_on_base_needs_a_test_that_fails_on_base_and_passes_on_head(tmp_path):
     g, base = _git_repo(tmp_path)
     (tmp_path / "mod.py").write_text("VALUE = 2\n")
     (tmp_path / "test_mod.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 2\n")
     (tmp_path / "test_proves_nothing.py").write_text("def test_t():\n    assert True\n")
     g("add", "."), g("commit", "-q", "-m", "change")
-    assert ct.red_on_base(tmp_path, base, "HEAD", ["test_mod.py"], timeout_s=120)["ok"]
-    r = ct.red_on_base(tmp_path, base, "HEAD", ["test_proves_nothing.py"], timeout_s=120)
+    assert ct.red_on_base(tmp_path, base, "HEAD", ["test_mod.py"], timeout_s=900)["ok"]
+    r = ct.red_on_base(tmp_path, base, "HEAD", ["test_proves_nothing.py"], timeout_s=900)
     assert not r["ok"] and "NOT RED ON BASE" in r["stderr_tail"]
     assert not ct.red_on_base(tmp_path, base, "HEAD", [], timeout_s=5)["ok"]
 

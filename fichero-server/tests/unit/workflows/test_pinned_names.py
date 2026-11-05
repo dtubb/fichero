@@ -67,15 +67,21 @@ def test_the_overlay_never_writes_through_a_symlink(tmp_path):
     assert (ct.Path(tree) / "ci" / "new.py").read_text() == "pinned bytes\n" and not (ct.Path(tree) / "ci" / "new.py").is_symlink()
 
 
-def test_pytest_runs_with_pinned_config_no_autoload_and_safe_path(tmp_path):
+def test_pytest_runs_with_pinned_config_no_autoload_and_safe_path(tmp_path, monkeypatch):
     (tmp_path / "pytest.py").write_text("raise SystemExit(0)  # a shadow that would exit 0\n")
     (tmp_path / "test_a.py").write_text("def test_a():\n    assert 1 == 2\n")
     cfg = ct.Config(pytest_plugins=("pytest_timeout",))
     argv = ct.pytest_argv(tmp_path, ["test_a.py"], cfg)
     assert "-c" not in argv or True
     assert "pytest_timeout" in argv[-1] and "-I" in argv  # the args ride inside the -I -c program
-    env = ct._env(tmp_path, cfg, {})
-    assert env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] == "1" and env["PYTHONSAFEPATH"] == "1"
+    assert ct._env(tmp_path, cfg, {})["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] == "1"
+    # safe-path rides on the pytest rungs only (the guards import helpers beside them, e593fc4932): read what the rung passes
+    seen = []
+    real = ct._run
+    monkeypatch.setattr(ct, "_run", lambda *a, **k: seen.append(a[5]) or {"ok": True})
+    ct.pytest_rung(tmp_path, ["test_a.py"], cfg, timeout_s=60)
+    assert seen == [{"PYTHONSAFEPATH": "1"}]
+    monkeypatch.setattr(ct, "_run", real)
     assert not ct.pytest_rung(tmp_path, ["test_a.py"], cfg, timeout_s=60)["ok"]  # the shadow pytest.py did not win
 
 

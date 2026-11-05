@@ -208,7 +208,7 @@ class TestReceiversHandleTheConvertedValue:
         this fails naming the file."""
         from pathlib import Path
 
-        roots = Path("fichero-server/src/fichero_server/workflows/tools")
+        roots = Path(__file__).resolve().parents[3] / "src/fichero_server/workflows/tools"  # not the cwd: pytest runs from fichero-server/ too
         for base in ["vision_base.py", "audio_base.py", "video_base.py"]:
             text = (roots / base).read_text(encoding="utf-8")
             assert "isinstance(files, str)" in text, (

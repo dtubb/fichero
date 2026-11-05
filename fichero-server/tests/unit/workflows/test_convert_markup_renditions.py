@@ -159,7 +159,7 @@ class TestConvertRenditionArtifacts:
         assert len(arts) == 1
         art = arts[0]
         # Typed for the preview renderer + provenance fields.
-        assert art.data == {"target_format": "svg", "image_read": "original"}  # the reading is stamped with the image it was made from (#6296)
+        assert art.data == {"target_format": "svg", "image_read": "original", "image_kind": "original"}  # stamped with the image it was made from and its kind (#6296, 4e65831560)
         assert art.provider == "openai" and art.model == "gpt-4o"
         assert art.run_id == "run-1"
         # Renderable: fence gone, scripts gone, well-formed XML.
@@ -187,7 +187,7 @@ class TestConvertRenditionArtifacts:
         assert not result.get("error")
         arts = db.query(Artifact, document_id=doc.id, artifact_type="conversion")
         assert len(arts) == 1
-        assert arts[0].data == {"target_format": "markdown", "image_read": "original"}  # the reading is stamped with the image it was made from (#6296)
+        assert arts[0].data == {"target_format": "markdown", "image_read": "original", "image_kind": "original"}  # stamped with the image it was made from and its kind (#6296, 4e65831560)
         assert arts[0].content == "# Deed of Sale\n\nBody text."
 
     @pytest.mark.asyncio
@@ -213,7 +213,7 @@ class TestConvertRenditionArtifacts:
         assert not result.get("error")
         arts = db.query(Artifact, document_id=doc.id, artifact_type="conversion")
         assert len(arts) == 1
-        assert arts[0].data == {"target_format": "html", "image_read": "original"}  # the reading is stamped with the image it was made from (#6296)
+        assert arts[0].data == {"target_format": "html", "image_read": "original", "image_kind": "original"}  # stamped with the image it was made from and its kind (#6296, 4e65831560)
         assert "<script" not in arts[0].content.lower()
         assert "onload" not in arts[0].content.lower()
         assert "<h1>Deed</h1>" in arts[0].content
