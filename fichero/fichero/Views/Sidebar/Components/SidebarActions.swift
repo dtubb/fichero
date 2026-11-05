@@ -179,6 +179,22 @@ extension SidebarView {
         deleteState.inheritedSelectionId = nil
     }
 
+    /// Items dropped on a project's Trash row go there as one undoable step, like a multi-select Delete. Only this project's
+    /// own documents are taken: a row from another project, or one that is not a document, is left where it is.
+    func moveDroppedToTrash(_ droppedIds: [String], libraryId: UUID) {
+        guard let store = libraryManager.getLibrary(id: libraryId)?.documentStore else { return }
+        let known = Dictionary(
+            (store.collections + store.childrenCache.values.joined()).map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first })
+        let roots = sidebarTrashDropRoots(droppedIds, parentOf: { known[$0]?.parentId })
+        let documents = roots.compactMap { known[$0] }
+        guard !documents.isEmpty else {
+            DragDropLog.refused("sidebar-trash", reason: "none of \(droppedIds.count) dropped id(s) is a document of this project")
+            return
+        }
+        Task { await performDeleteBatch(documents, libraryId: libraryId) }
+    }
+
     /// One library's documents as one step named by how many went ("Move 3 Items to Trash").
     private func performDeleteBatch(_ documents: [Document], libraryId: UUID) async {
         guard let library = libraryManager.getLibrary(id: libraryId) else {

@@ -26,6 +26,9 @@ struct SidebarTrashRow: View {
     let store: TrashStore
     let libraryId: UUID
     var isSelected = false
+    /// A drag of library items dropped on the row (`safety.trash.drop-to-trash`); nil leaves the row a plain target-less row.
+    var onDropIds: (([String]) -> Void)?
+    @State private var isDropTargeted = false
 
     var body: some View {
         // A plain row, no chevron (Daniel, 2026-10-11), drawn as a top-level file row is: the outline keeps the
@@ -33,8 +36,15 @@ struct SidebarTrashRow: View {
         // beside a 16-point icon at the folder rows' spacing (`SidebarNodeLabel`). The Label it was had a wider
         // icon slot, which pushed its name right.
         SidebarNodeLabel(name: Self.name, systemImage: Self.systemImage(isEmpty: store.isEmpty))
-            .sidebarDropHighlight(false, selected: isSelected)
+            .sidebarDropHighlight(isDropTargeted, selected: isSelected)
             .tag(SidebarDestination.trash(libraryId: libraryId))
+            .onDrop(
+                of: SidebarItemRow.dropTypes,
+                delegate: LibraryItemDropDelegate(
+                    acceptedTypes: SidebarItemRow.dropTypes, isTargeted: $isDropTargeted,
+                    surface: "sidebar-trash", onDropProviders: { handleDrop($0) }
+                )
+            )
         .listRowInsets(SidebarRowMetrics.insets(.libraryItem))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Self.name)

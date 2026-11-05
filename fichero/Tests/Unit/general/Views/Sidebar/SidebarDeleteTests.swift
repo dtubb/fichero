@@ -100,4 +100,18 @@ extension SidebarDeleteTests {
         let batches = sidebarDeleteBatches([doc("c", parent: "p", in: library)], parentOf: { parents[$0] })
         #expect(batches.documents.flatMap { $0.documents.map(\.id) } == ["c"])
     }
+
+    // MARK: - safety.trash.drop-to-trash (#5243)
+
+    @Test func aDropOnTheTrashTakesDocumentsOnlyAndLeavesAFolderChildToTheFolder() {
+        let parents = ["child": "folder", "folder": "root"]
+        let roots = sidebarTrashDropRoots(
+            ["doc:folder", "doc:child", "search:s1", "doc:other"], parentOf: { parents[$0] })
+        #expect(roots == ["folder", "other"])
+    }
+
+    @Test func aDropOnTheTrashSurvivesAParentCycleWithoutHanging() {
+        let parents = ["a": "b", "b": "a"]
+        #expect(sidebarTrashDropRoots(["doc:a"], parentOf: { parents[$0] }) == ["a"])
+    }
 }

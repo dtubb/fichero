@@ -217,7 +217,8 @@ extension SidebarView {
                                         selection: selectionState.selectedDestinations)
                 case .trash:
                     SidebarTrashRow(store: library.trashStore, libraryId: libraryId,
-                                    isSelected: selectionState.selectedDestinations.contains(.trash(libraryId: libraryId)))
+                                    isSelected: selectionState.selectedDestinations.contains(.trash(libraryId: libraryId)),
+                                    onDropIds: { moveDroppedToTrash($0, libraryId: libraryId) })
                 }
             }
         }
