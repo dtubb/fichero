@@ -525,7 +525,19 @@ def _classify_provider_error(error_text: str, exc: BaseException | None = None) 
     first (`_typed_failure`); its message words only when it has none."""
     typed = _typed_failure(exc)
     if typed is not None:
-        return typed
+        return _with_kind(typed, exc, error_text)
+    return _with_kind(_classify_by_words(error_text), exc, error_text)
+
+
+def _with_kind(category: dict[str, Any], exc: BaseException | None, error_text: str) -> dict[str, Any]:
+    """The legacy category, plus the `kind` the one table (`llm/failure.classify`) gives the same failure, so a page's reason
+    and the run's agree."""
+    from fichero_server.llm.failure import classify
+
+    return {**category, "kind": classify(exc, error_text or "").kind}
+
+
+def _classify_by_words(error_text: str) -> dict[str, Any]:
     text = (error_text or "").lower()
 
     # Before any provider category: failures that are about the FILES, not
@@ -2802,7 +2814,7 @@ async def _run_workflow_body(
         await _finalize_documents("failed", error=str(e)[:500])
 
     except Exception as e:
-        logger.exception(f"Background workflow error for {workflow_id}")
+        logger.exception("Background workflow error for %s (run %s)", workflow_id, thread_id)
         state["status"] = "failed"
         state["error"] = str(e)
 

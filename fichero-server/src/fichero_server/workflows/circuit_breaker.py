@@ -72,6 +72,9 @@ def _provider_name(provider: str) -> str:
     return (info.name if info else None) or key.capitalize() or "The provider"
 
 
+provider_display = _provider_name  # the name a person reads (`llm/failure.py`)
+
+
 class ProviderRateLimitedError(RuntimeError):
     """A provider that cannot answer is failed fast, without calling it, so a long run does not burn the rest of its calls
     against it. The subclasses keep the CAUSE (`ai.where.dead-provider-says-why`, ## 950): this class is the rate limit
