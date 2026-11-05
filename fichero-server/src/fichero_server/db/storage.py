@@ -32,9 +32,9 @@ import base64
 import logging
 import os
 import shutil
-import zlib
 import tempfile
 import threading
+import zlib
 from concurrent.futures import ThreadPoolExecutor, Future
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
