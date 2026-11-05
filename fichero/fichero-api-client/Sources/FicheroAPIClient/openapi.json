@@ -59532,6 +59532,17 @@
           "count": {
             "type": "integer",
             "title": "Count"
+          },
+          "sources_in_trash": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Sources In Trash",
+            "description": "For each listed statement that rests on a live source AND one in the Trash, the ids of its sources in the Trash. Empty for a statement with none in the Trash. Read when listing, never stored (`safety.trash.dependants-go-with-their-source`)."
           }
         },
         "type": "object",
