@@ -12,6 +12,8 @@ from enum import Enum
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from fichero_server.actions.registry import ActionContext, registry
+from fichero_server.api.auth import action_context
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.models import Conversation, DocType, Document, SavedSearch, Workflow
@@ -32,6 +34,15 @@ class EntityType(str, Enum):
     workflow = "workflow"
     search = "search"
     conversation = "conversation"
+
+
+#: Each kind's audited delete: its action name and the parameter that names the item. Deleting through it writes the audit row
+#: and the inverse a folder delete used to skip (`safety.trash.no-hard-delete-by-folder`, #5243).
+_DELETE_ACTION = {
+    EntityType.workflow: ("workflow.delete", "workflow_id"),
+    EntityType.search: ("savedsearch.delete", "search_id"),
+    EntityType.conversation: ("conversation.delete", "conversation_id"),
+}
 
 
 def _get_model_for_entity(entity_type: EntityType):
@@ -393,6 +404,7 @@ def delete_folder(
     folder_path: str,
     delete_contents: bool = False,
     db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
 ) -> FolderDeleteResponse:
     """Delete a folder (optionally with contents).
 
@@ -408,9 +420,10 @@ def delete_folder(
     items = db.query(model, folder_path=folder_path)
 
     if delete_contents:
-        # Delete all items in folder
+        # Each item goes through its kind's audited delete: a record and an undo for every one, not a bare row delete.
+        action, param = _DELETE_ACTION[entity_type]
         for item in items:
-            db.delete(item)
+            registry.invoke(db, action, {param: item.id}, ctx)
         return FolderDeleteResponse(deleted_count=len(items), moved_to_root=0)
     else:
         # Move items to parent folder

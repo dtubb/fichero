@@ -118,7 +118,7 @@ This is the Trash the app already promises in its delete dialog and does not hav
   *Existing data:* runs already marked deleted appear in the Trash on first open. *Test:*
   delete a run; the activity window no longer lists it; the Trash does; Put Back returns it
   with every event.
-- `safety.trash.no-hard-delete-by-folder` — **[GAP]** (#5243) deleting a folder of workflows, searches or
+- `safety.trash.no-hard-delete-by-folder` — **[PARTIAL]** (#5243) (built: `DELETE /api/folders/{kind}/folders?delete_contents=true` deletes each workflow, search and chat through its kind's audited action, so every item has a record and an undo, pinned by `fichero-server/tests/unit/api/test_folder_delete_is_a_recorded_step_5243.py`; not built: the items going to the Trash as one step that Put Back returns whole, since those kinds are not soft-deleted yet) deleting a folder of workflows, searches or
   conversations is the same recorded Trash action as any folder. The unrecorded hard delete is
   removed. *Test:* delete such a folder with contents; all of it is in the Trash under one
   step; Put Back returns all of it.
