@@ -271,6 +271,8 @@ class DeviceResponse(BaseModel):
     id: str
     name: str
     user_id: str
+    #: The signed-in person's name, filled by the device list only (the host's Inspector reads "<person> on <device>", #5738).
+    username: str | None = None
     created_at: datetime
     last_seen: datetime
     expires_at: datetime
@@ -1060,7 +1062,11 @@ def list_devices(
     if not user.is_owner:
         devices = [device for device in devices if device.user_id == user.id]
     paired_by = app_db.device_paired_by()
-    items = [_to_public_device(device, paired_by.get(device.id)) for device in devices]
+    names = {account.id: account.username for account in app_db.list_users()}
+    items = [
+        _to_public_device(device, paired_by.get(device.id)).model_copy(update={"username": names.get(device.user_id)})
+        for device in devices
+    ]
     return DeviceListResponse(items=items, count=len(items))
 
 
