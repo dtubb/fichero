@@ -340,7 +340,7 @@ struct CloudAccessSection: View {
                     Text(message).font(.caption).foregroundStyle(.red)
                 }
             }
-            Text("Off: no project's pages leave this Mac. On: each project still asks in Set Up.")
+            Text("The default for every project. A project can answer for itself in its Inspector or in Set Up, and its answer wins either way.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

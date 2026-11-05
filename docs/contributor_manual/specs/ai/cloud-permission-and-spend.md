@@ -54,10 +54,9 @@ Status tags are as of 2026-11-04 (A: the engine half of its first three lines is
 
 ### B. Images to the cloud (#6348, #6022, #6037, #6031)
 
-- `ai.cloud.images-default-in-settings` [PARTIAL] (#6348) — the Settings > AI "Allow cloud AI services" switch
+- `ai.cloud.images-default-in-settings` [PARTIAL] (#6348; the words built, uncompiled) — the Settings > AI "Allow cloud AI services" switch
   (`CloudAccessSection`, `PUT /api/recipes/places`) is the app-wide default for whether pages may leave. Built: the
-  switch and `places.inherits_cloud()` for a project with no answer. Not built: the words saying it is a default a
-  project may change, and the count of projects that answered for themselves. Tests:
+  switch and `places.inherits_cloud()` for a project with no answer. Not built: the count of projects that answered for themselves. Tests:
   `fichero/Tests/Unit/general/Views/Settings/CloudAccessSectionTests.swift`.
 - `ai.cloud.project-overrides-the-default` [PARTIAL] (#6348, #6022 place 1; engine built: `may_leave_to` for the cloud, `project.allow_cloud` with `allowed`, and the call-time gate (`llm._enforce_local_only_provider`) now judges the cloud by the project's answer, not by the app's places answer; the Set Up question reads the same `cloud_allowed` answer but is uncompiled, Step 2.2) — a project's `cloud_allowed` answer wins
   over the app switch in both directions: `places.project_says_cloud` returns the project's own answer when it has one
@@ -66,7 +65,7 @@ Status tags are as of 2026-11-04 (A: the engine half of its first three lines is
   `fichero-server/tests/unit/recipes/test_project_cloud_override_6348.py` (app off + project yes sends; app on +
   project no refuses; no answer inherits; the gate `egress.project_allows_leaving` agrees),
   `fichero-server/tests/unit/recipes/test_places_cap_projects_5828.py` (updated: the cap stays for every place but cloud).
-- `ai.cloud.switch-in-the-project` [GAP] (#6022 place 1) — the project's Inspector and the Project menu show "Allow
+- `ai.cloud.switch-in-the-project` [PARTIAL] (#6022 place 1; built, uncompiled: the Inspector's Cloud section with `ProjectCloudSwitch` words; not built: the Project menu item) — the project's Inspector and the Project menu show "Allow
   cloud AI services for this project" (on, off, or "as Settings: on/off"), calling the action above. Tests:
   `fichero/Tests/Unit/general/Views/ProjectCloudSwitchTests.swift` (three states from a served answer).
 - `ai.cloud.switch-in-settings` [OK] (#6022 place 2, #6031) — the Settings switch sets the places answer

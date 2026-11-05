@@ -72,6 +72,18 @@ struct ProjectInspector: View {
                 }
                 Button("Set Up…") { (libraryManager ?? LibraryManager.shared).requestSetUp(for: library.id) }
             }
+            // `ai.cloud.switch-in-the-project` (#6022 place 1): on, off, or the app's Settings answer.
+            if let recipeStore {
+                Section("Cloud") {
+                    Toggle("Allow cloud AI services for this project", isOn: Binding(
+                        get: { recipeStore.cloudAllowed },
+                        set: { allowed in Task { await recipeStore.allowCloud(allowed: allowed) } }))
+                        .accessibilityIdentifier("inspector.project.cloudAllowed")
+                    Text(ProjectCloudSwitch.state(answered: recipeStore.cloudAnswered, allowed: recipeStore.cloudAllowed).words)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
             // The model finder (#5611, `source.find.app-finder-three-hosts`): readers for the
             // project's scripts and languages, read only when opened.
             if let recipeStore {

@@ -298,6 +298,16 @@ struct SetupRoundTwoTests {
         #expect(RoundTwoURLProtocol.bodies["POST /api/recipes/assemble"]?["cloud_allowed"] as? Bool == true)
     }
 
+    /// WHY (#6348): the Inspector's switch says no as well as yes; a no must reach the engine as `cloud_allowed: false`.
+    @Test("the project's switch can say no and the recipe is proposed again with it")
+    func allowCloudFalse() async {
+        let store = makeStore { _ in (200, Self.recipeWithProblemJSON) }
+        store.languages = ["es"]
+        store.scripts = ["Latn"]
+        await store.allowCloud(allowed: false)
+        #expect(RoundTwoURLProtocol.bodies["POST /api/recipes/assemble"]?["cloud_allowed"] as? Bool == false)
+    }
+
     // MARK: source.onboard.no-disclosure (#5481)
 
     /// WHY (#5481): setup has no More, Advanced or other disclosure; what a step needs to say is

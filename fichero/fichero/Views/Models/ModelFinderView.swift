@@ -54,7 +54,7 @@ struct ModelFinderView: View {
                             await step.setup.allowCloud()
                             if let query = store.query {
                                 var allowed = query
-                                allowed.cloudAllowed = true
+                                allowed.cloudAllowed = step.setup.cloudAllowed   // the saved answer, not a flag set here (#6037)
                                 await store.load(allowed)
                             }
                         }

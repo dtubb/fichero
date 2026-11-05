@@ -857,10 +857,11 @@ extension RecipeSetupStore {
         return false
     }
 
-    /// A step problem's `allow-cloud` fix: the person says pages may leave this Mac, and the
-    /// recipe is proposed again with that answer.
-    func allowCloud() async {
-        cloudChoice = true
+    /// A step problem's `allow-cloud` fix, and the Inspector's switch: the person says pages may (or, `allowed: false`,
+    /// may not) leave this Mac for this project, over the app's switch (`ai.cloud.project-overrides-the-default`, #6348),
+    /// and the recipe is proposed again with that answer.
+    func allowCloud(allowed: Bool = true) async {
+        cloudChoice = allowed
         // Saved before anything reads it: the finder asks the engine, which counts the project's saved yes; unsaved, a
         // cloud row still needed permission until the finder was opened again (owner 2026-10-24).
         _ = await save()
