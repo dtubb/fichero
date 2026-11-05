@@ -52,6 +52,10 @@ extension UsersContent {
                 }
             }
 
+            if let matrix = store.accessMatrix {
+                Section("Access across libraries") { AccessMatrixView(matrix: matrix) }
+            }
+
             rolesSection
         }
         .formStyle(.grouped)

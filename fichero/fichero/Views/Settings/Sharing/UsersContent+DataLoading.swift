@@ -10,6 +10,7 @@ extension UsersContent {
         // Pending invites are owner-only; a non-owner probe just returns empty.
         if store.currentUser?.isOwner == true {
             await store.loadInvites()
+            await store.loadAccessMatrix()
         }
         syncAddMemberDefaults()
     }

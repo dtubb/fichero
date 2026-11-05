@@ -27,6 +27,10 @@ final class UsersStore {
     /// Pending (unredeemed, unexpired) account invites, owner-only (#3157).
     private(set) var invites: [Components.Schemas.InviteResponse] = []
 
+    /// Every person's access across every known library (`GET /api/authz/access-matrix`, owner-only; #2083). Nil until
+    /// read, and after a non-owner's refusal.
+    private(set) var accessMatrix: Components.Schemas.AccessMatrixResponse?
+
     private let client: FicheroClient
     private let log = Logger(subsystem: "app.fichero.fichero", category: "UsersStore")
 
@@ -68,6 +72,22 @@ final class UsersStore {
             if error.isCancellationError { return }   // superseded — not a failure
             loadError = error.localizedDescription
             log.error("Failed to load users: \(error.localizedDescription)")
+        }
+    }
+
+    /// Read the access matrix. A refusal (the caller is not an owner) leaves it nil: the screen then shows nothing, not an error.
+    func loadAccessMatrix() async {
+        do {
+            let response = try await client.api.accessMatrixApiAuthzAccessMatrixGet(.init())
+            if case .ok(let ok) = response {
+                accessMatrix = try ok.body.json
+            } else {
+                accessMatrix = nil
+            }
+        } catch {
+            if error.isCancellationError { return }
+            accessMatrix = nil
+            log.error("Failed to load the access matrix: \(error.localizedDescription)")
         }
     }
 
