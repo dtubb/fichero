@@ -2074,6 +2074,17 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='authz')
         existing_apps['authz'] = target_app
 
+    @target_app.command("access-matrix")
+    def authz_access_matrix_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Access Matrix (GET /api/authz/access-matrix)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/authz/access-matrix"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("list-accessible-libraries")
     def authz_list_accessible_libraries_get(
         ctx: typer.Context,

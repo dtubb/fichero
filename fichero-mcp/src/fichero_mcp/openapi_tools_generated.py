@@ -940,6 +940,12 @@ def fichero_auth_sign_in(
     return _rt.call("POST", "/api/auth/sign-in", json=_rt.body({"client_id": client_id, "nonce": nonce, "signature": signature}))
 
 
+def fichero_authz_access_matrix(
+) -> Any:
+    'Access Matrix\n\nEvery person\'s access across every known library, for Settings > Sharing > Accounts (#2083).\n\nOwner-only when multi-user is on. A person with no role on a library has a null cell: that is "no access", the\nwords the screen shows, and it is the same answer the library list and a write give them.\n\nRoute: GET /api/authz/access-matrix (toolset `authz`; reads).'
+    return _rt.call("GET", "/api/authz/access-matrix")
+
+
 def fichero_authz_list_accessible_libraries(
 ) -> Any:
     'List Accessible Libraries\n\nReturn the known libraries visible to the current credential.\n\nRoute: GET /api/authz/libraries (toolset `authz`; reads).'
@@ -9551,6 +9557,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_auth_list_sessions", "auth", "GET", "/api/auth/sessions", fichero_auth_list_sessions),
     GeneratedTool("fichero_auth_revoke_session", "auth", "POST", "/api/auth/sessions/{session_id}/revoke", fichero_auth_revoke_session),
     GeneratedTool("fichero_auth_sign_in", "auth", "POST", "/api/auth/sign-in", fichero_auth_sign_in),
+    GeneratedTool("fichero_authz_access_matrix", "authz", "GET", "/api/authz/access-matrix", fichero_authz_access_matrix),
     GeneratedTool("fichero_authz_list_accessible_libraries", "authz", "GET", "/api/authz/libraries", fichero_authz_list_accessible_libraries),
     GeneratedTool("fichero_authz_get_library_snapshot", "authz", "GET", "/api/authz/library", fichero_authz_get_library_snapshot),
     GeneratedTool("fichero_authz_revoke_library_member_role", "authz", "DELETE", "/api/authz/members", fichero_authz_revoke_library_member_role),

@@ -1871,6 +1871,29 @@
         }
       }
     },
+    "/api/authz/access-matrix": {
+      "get": {
+        "tags": [
+          "authz",
+          "authz"
+        ],
+        "summary": "Access Matrix",
+        "description": "Every person's access across every known library, for Settings > Sharing > Accounts (#2083).\n\nOwner-only when multi-user is on. A person with no role on a library has a null cell: that is \"no access\", the\nwords the screen shows, and it is the same answer the library list and a write give them.",
+        "operationId": "access_matrix_api_authz_access_matrix_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessMatrixResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/authz/library": {
       "get": {
         "tags": [
@@ -50766,6 +50789,107 @@
           "accepted"
         ],
         "title": "AcceptedUnpriced"
+      },
+      "AccessMatrixCell": {
+        "properties": {
+          "library_path": {
+            "type": "string",
+            "title": "Library Path"
+          },
+          "role": {
+            "type": "string",
+            "nullable": true,
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "library_path"
+        ],
+        "title": "AccessMatrixCell"
+      },
+      "AccessMatrixLibrary": {
+        "properties": {
+          "library_path": {
+            "type": "string",
+            "title": "Library Path"
+          },
+          "library_name": {
+            "type": "string",
+            "title": "Library Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "library_path",
+          "library_name"
+        ],
+        "title": "AccessMatrixLibrary"
+      },
+      "AccessMatrixPerson": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "is_owner_account": {
+            "type": "boolean",
+            "title": "Is Owner Account"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          },
+          "access": {
+            "items": {
+              "$ref": "#/components/schemas/AccessMatrixCell"
+            },
+            "type": "array",
+            "title": "Access"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "username",
+          "display_name",
+          "is_owner_account",
+          "active",
+          "access"
+        ],
+        "title": "AccessMatrixPerson"
+      },
+      "AccessMatrixResponse": {
+        "properties": {
+          "libraries": {
+            "items": {
+              "$ref": "#/components/schemas/AccessMatrixLibrary"
+            },
+            "type": "array",
+            "title": "Libraries"
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/AccessMatrixPerson"
+            },
+            "type": "array",
+            "title": "People"
+          }
+        },
+        "type": "object",
+        "required": [
+          "libraries",
+          "people"
+        ],
+        "title": "AccessMatrixResponse"
       },
       "AccessibleLibrary": {
         "properties": {

@@ -1436,6 +1436,16 @@
     "authz": [
       {
         "method": "GET",
+        "path": "/authz/access-matrix",
+        "operation_id": "access_matrix_api_authz_access_matrix_get",
+        "summary": "Access Matrix",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "AccessMatrixResponse"
+      },
+      {
+        "method": "GET",
         "path": "/authz/libraries",
         "operation_id": "list_accessible_libraries_api_authz_libraries_get",
         "summary": "List Accessible Libraries",
