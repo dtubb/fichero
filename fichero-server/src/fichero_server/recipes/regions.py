@@ -104,10 +104,15 @@ def shift_payload(payload: dict[str, Any], left: int, top: int, width: int, heig
                       for ln in payload.get("lines") or []]}
 
 
+#: The pages a run reads whole as well, to measure what the page box saves (`prep.page.kraken-time-saved-is-reported`).
+SAMPLE_PAGES = 5
+
+
 def find_regions(db: Any, documents: list[str], run_id: str, model: str,
                  stop: Callable[[], bool] | None = None, provider: str = "yolo",
                  say: Callable[[str], None] | None = None, person: bool | None = None,
-                 created: list[str] | None = None, progress: bool = True, measure_whole: bool = False) -> dict[str, int]:
+                 created: list[str] | None = None, progress: bool = True, measure_whole: bool = False,
+                 measure_pages: int | None = None) -> dict[str, int]:
     """Each page image's regions found and saved, by Kraken's segmenter (`provider="kraken"`) or a YOLO model; the
     account: `pages` read, `regions` found, `no_image` (a PDF's page or a text file: nothing to look at), and `renditions_passed_over` (only when above 0: newer renditions that could
     not be read or followed, so the page was read on an older image or the photograph). `stop` is
@@ -194,7 +199,7 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
             box = page_box_on(on_current, photo_box)
             with tempfile.TemporaryDirectory() as scratch:
                 cut = page_crop(path, box, scratch)
-                if cut and measure_whole:  # the read the cut replaces, kept out of the page's saved geometry
+                if cut and (measure_whole or (measure_pages and account["pages"] < measure_pages)):  # the read the cut replaces, kept out of the page's saved geometry
                     whole_started = time.monotonic()
                     whole_geometry, _ = _find_on(db, doc, path, width, height, provider, model, run_id, library, page_index, None)
                     if on_current is not None:
@@ -233,6 +238,17 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
     if say is not None and progress and documents and not (stop is not None and stop()):
         say(f"Finding regions: {len(documents)} of {len(documents)} pages")
     return account
+
+
+def saved_by_the_page_box(account: dict[str, Any]) -> str | None:
+    """The run summary's sentence (`prep.page.kraken-time-saved-is-reported`): the lines and seconds a page no longer costs because
+    the page box cut it, per page, measured on the pages that were read whole too; None when nothing was measured."""
+    pages = int(account.get("cropped") or 0)
+    if not pages or "whole_seconds" not in account:
+        return None
+    lines = round(account.get("whole_lines_outside", 0) / pages)
+    seconds = (account["whole_seconds"] - account.get("seconds", 0.0)) / pages
+    return f"{lines} lines and {max(seconds, 0.0):.1f} seconds per page saved by the page box"
 
 
 def _lines_by_page_box(found_geometry: Any, box: list[float]) -> tuple[int, int]:

@@ -789,12 +789,17 @@ def _run_regions(db: Any, card: dict[str, Any], documents: list[str], parent: st
     many pages and regions, and pages with no image."""
     from fichero_server.recipes.regions import find_regions
 
+    from fichero_server.recipes.regions import SAMPLE_PAGES
+
+    measure = SAMPLE_PAGES if card.get("measure_whole") else None  # a ruler or a card beside the page
     step["regions_found"] = find_regions(db, documents, parent, card["model"], stop=lambda: _stop_asked(parent),
-                                         provider=card.get("provider") or "yolo",
+                                         provider=card.get("provider") or "yolo", measure_pages=measure,
                                          say=lambda words: jobs.say(db, parent, words))
     if _stop_asked(parent):
         return None, "cancelled", "Stopped by you"
-    return None, "done", None
+    from fichero_server.recipes.regions import saved_by_the_page_box
+
+    return None, "done", saved_by_the_page_box(step["regions_found"])
 
 
 def _run_table(db: Any, card: dict[str, Any], documents: list[str], parent: str,

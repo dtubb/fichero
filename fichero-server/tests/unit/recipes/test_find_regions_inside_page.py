@@ -10,11 +10,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from PIL import Image
+from tests.unit.recipes.test_installed_model_first_to_spec import mac  # noqa: F401  (fixture)
 
 from fichero_server.llm import kraken_runtime
 from fichero_server.models import DocType, Document, FileType
 
 W, H = 1000, 800
+REGIONS = {"id": "regions", "job": "find-regions", "model": {"kraken": "blla", "kraken_version": "bundled"}}
 BOX = [0.3, 0.1, 0.6, 0.8]  # x, y, w, h fractions: the paper, right of the ruler
 
 
@@ -504,3 +506,79 @@ def test_without_the_ask_the_whole_frame_is_not_read_and_no_before_figures_are_r
 
     assert seen == [(600, 640)] and not [k for k in account if k.startswith("whole_")]
     assert account["seconds_per_page"] == account["seconds"] and account["lines_outside"] == 0
+
+
+def _stub_ruler_card_and_border(seen):
+    """The whole frame holds a ruler strip down the left, a colour-card band along the top and a dark border; the page's crop holds
+    only the page's own line (`image.enhance.furniture-lines-never-found`, #6189)."""
+    def segment(path, **_):
+        with Image.open(path) as image:
+            w, h = image.size
+        seen.append((w, h))
+        # the page's own line: in the whole frame it sits on the paper (inside the box), in the crop at the crop's top left
+        text = ([[320, 100], [880, 100], [880, 140], [320, 140]] if w == W else [[20, 20], [w - 20, 20], [w - 20, 60], [20, 60]])
+        lines = [{"id": "text", "regions": [], "polygon": text, "baseline": [text[0], text[1]]}]
+        if w == W:
+            lines += [{"id": "ruler", "regions": [], "polygon": [[30, 0], [90, 0], [90, h], [30, h]], "baseline": [[60, 0], [60, h]]},
+                      {"id": "card", "regions": [], "polygon": [[300, 5], [900, 5], [900, 70], [300, 70]], "baseline": [[300, 40], [900, 40]]},
+                      {"id": "border", "regions": [], "polygon": [[0, 0], [W, 0], [W, 4], [0, 4]], "baseline": [[0, 2], [W, 2]]}]
+        return {"width": w, "height": h, "regions": [], "lines": lines}
+    return segment
+
+
+def test_the_ruler_the_card_and_the_border_yield_no_line_inside_the_page_box_and_the_saving_is_counted(db, tmp_path, monkeypatch):
+    from fichero_server.recipes.regions import find_regions
+
+    seen: list = []
+    monkeypatch.setattr(kraken_runtime, "segment_lines", _stub_ruler_card_and_border(seen))
+    page = _page(db, tmp_path, BOX)
+
+    account = find_regions(db, [page.id], "run-1", "blla", provider="kraken", measure_whole=True)
+
+    lines = _lines(db, page)
+    assert len(lines) == 1 and all(BOX[0] <= x and x + w <= BOX[0] + BOX[2] + 1e-6 and BOX[1] <= y and y + h <= BOX[1] + BOX[3] + 1e-6
+                                   for x, y, w, h in lines), "every line found lies inside the page box"
+    assert (account["lines_inside"], account["lines_outside"]) == (1, 0)
+    assert (account["whole_lines_inside"], account["whole_lines_outside"]) == (1, 3), "the box saved the ruler, the card and the border"
+
+
+def test_the_same_frame_with_no_page_box_yields_the_ruler_the_card_and_the_border(db, tmp_path, monkeypatch):
+    from fichero_server.recipes.regions import find_regions
+
+    monkeypatch.setattr(kraken_runtime, "segment_lines", _stub_ruler_card_and_border([]))
+    page = _page(db, tmp_path, None)
+
+    find_regions(db, [page.id], "run-1", "blla", provider="kraken")
+
+    assert len(_lines(db, page)) == 4
+
+
+def test_a_run_measures_the_saving_on_the_sample_pages_only_and_says_it_in_words(db, tmp_path, monkeypatch):
+    from fichero_server.recipes.regions import SAMPLE_PAGES, find_regions, saved_by_the_page_box
+
+    seen: list = []
+    monkeypatch.setattr(kraken_runtime, "segment_lines", _stub_ruler_card_and_border(seen))
+    pages = [_page(db, tmp_path / f"p{i}", BOX) if (tmp_path / f"p{i}").mkdir() is None else None for i in range(SAMPLE_PAGES + 2)]
+
+    account = find_regions(db, [p.id for p in pages], "run-1", "blla", provider="kraken", measure_pages=SAMPLE_PAGES)
+
+    assert seen.count((W, H)) == SAMPLE_PAGES, "the whole frame was read on the sample pages only"
+    assert account["cropped"] == SAMPLE_PAGES + 2 and account["whole_lines_outside"] == 3 * SAMPLE_PAGES
+    said = saved_by_the_page_box(account)
+    assert said is not None and said.startswith("2 lines and ") and said.endswith(" seconds per page saved by the page box"), said
+
+
+def test_a_run_that_measured_nothing_says_nothing():
+    from fichero_server.recipes.regions import saved_by_the_page_box
+
+    assert saved_by_the_page_box({"cropped": 3, "seconds": 1.0}) is None
+
+
+def test_a_ruler_or_a_card_beside_the_page_has_the_regions_step_measure(mac):  # noqa: F811 -- fixture
+    from fichero_server.recipes.start import plan_start
+    for beside, measured in (("ruler", True), ("colour-card", True), ("nothing", False), ("dark-mount", False)):
+        recipe = {"fichero_recipe": 1, "id": "t/regions", "version": "0.1.0", "title": "t", "steps": [REGIONS]}
+        plan = plan_start(recipe, stays_local=True, job_answers={"beside_the_page": beside})
+        regions = [run for run in plan["runs"] if run.get("job") == "find-regions"]
+        assert len(regions) == 1, (beside, plan["runs"], plan["skipped"])
+        assert bool(regions[0].get("measure_whole")) is measured, beside

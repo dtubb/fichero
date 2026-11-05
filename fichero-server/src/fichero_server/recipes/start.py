@@ -570,6 +570,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         if (answer and setting not in settings and given not in (None, "")
                 and (given != [] or answer in _EMPTY_IS_AN_ANSWER)):
             settings[setting] = given
+        if job == "find-regions" and (job_answers or {}).get("beside_the_page") in ("ruler", "colour-card"):
+            settings.setdefault("measure_whole", True)  # a ruler or a card beside the page: the run measures what the page box saves
         bar = (job_answers or {}).get(CERTAINTY_BAR_ANSWER) if job == "correct" else None
         has_bar = bar not in (None, "", WHOLE_PAGE) or settings.get("only_below_confidence") not in (None, "")
         if has_bar and settings.get("review_mode") not in (None, "", "in-turn"):
@@ -606,6 +608,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             continue
         if job in OTHER_CARDS:
             entry: dict[str, Any] = {"steps": [sid], "job": job, "card": OTHER_CARDS[job], "runs_on": runs_on}
+            if job == "find-regions" and settings.get("measure_whole"):
+                entry["measure_whole"] = True  # the run measures what the page box saves, on the sample pages
             if job == "prepare-the-image":  # the optional operations the paper answer switches on
                 entry["paper"] = list(settings.get("paper") or [])
                 entry["how"] = prepare_how(entry["paper"])
