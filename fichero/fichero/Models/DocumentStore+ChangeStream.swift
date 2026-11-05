@@ -30,10 +30,7 @@ extension DocumentStore: ObservableDomainStore {
     func apply(_ event: ChangeEvent) {
         let ids = Set(event.documentIds)
         guard !ids.isEmpty else { return }
-        if event.verb == "updated" || event.verb == "created",
-           let editor = RemoteEditor(person: event.person, device: event.device) {
-            for id in ids { remoteEditors[id] = editor }
-        }
+        noteEditors(of: event, ids: ids)
         switch event.verb {
         case "deleted":
             removeDocuments(ids: ids)
@@ -49,6 +46,20 @@ extension DocumentStore: ObservableDomainStore {
             reloadDebouncer.schedule { [weak self] in
                 await self?.flushPendingPatches()
             }
+        default:
+            break
+        }
+    }
+
+    /// Keep who last changed each document from another Mac (#5735): a change naming a person sets it, a later change
+    /// that names none (the host's own edit) clears it, and a delete drops it, so the Info tab never shows a stale name.
+    private func noteEditors(of event: ChangeEvent, ids: Set<String>) {
+        switch event.verb {
+        case "updated", "created":
+            let editor = RemoteEditor(person: event.person, device: event.device)
+            for id in ids { remoteEditors[id] = editor }
+        case "deleted":
+            for id in ids { remoteEditors[id] = nil }
         default:
             break
         }
