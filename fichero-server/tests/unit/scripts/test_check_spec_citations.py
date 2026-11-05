@@ -95,3 +95,15 @@ def test_a_not_yet_elsewhere_naming_a_behaviour_the_batch_builds_fails_but_its_o
     assert any(":2: says 'Not yet: `builder build-check` from a lane" in f and "line 4 builds" in f for f in fails), fails
     assert not any(":3:" in f for f in fails), "another verb and another id are not this batch's behaviour"
     assert not any(":4:" in f for f in fails), "the bullet's own Not built names what is left of it"
+
+
+
+def test_a_not_yet_naming_the_touched_bullets_id_fails_though_ids_hold_dots(tmp_path):
+    """Review 108: the sentence ended at the first dot, and every id has dots, so a Not yet naming the batch's id never fired."""
+    root = _repo(tmp_path, {"missing_file": 1, "missing_name": 0})
+    stale = "- `x.elsewhere` [PARTIAL] (#1) it rolls on. Not yet: `x.check.lane` from a lane, and a second thing.\n"
+    (root / SPECS / "x.md").write_text(OLD + stale)
+    _git(root, "commit", "-qam", "base specs")
+    _git(root, "update-ref", "refs/remotes/origin/integration", "HEAD")
+    fails = _touch(root, stale + "- `x.check.lane` [PARTIAL] (#2) a lane compiles first; test `tests/test_real.py::test_it_works`.\n")
+    assert any(":2: says 'Not yet: `x.check.lane` from a lane" in f and "about x.check.lane" in f for f in fails), fails

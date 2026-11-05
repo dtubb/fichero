@@ -33,7 +33,7 @@ PATH = re.compile(r"(?<![\w/.<*-])((?:[\w.-]+/)+[\w.-]+\.(?:py|swift))((?:::\w+)
 NAME = re.compile(r"(?<![\w.:/])::(\w+)")
 BULLET = re.compile(r"^- `[a-z0-9][\w.-]+`")
 STALE = re.compile(r"\[GAP\]|not yet written|\(to write\)")
-NOT_YET = re.compile(r"\bNot (?:yet|built)\b:?\**[^.]*")  # a "Not yet ..." / "Not built ..." sentence, to its full stop
+NOT_YET = re.compile(r"\bNot (?:yet|built)\b:?\**.*?(?:\.(?=\s|$)|$)")  # to its full stop: a dot then a space or the end (ids hold dots, review 108)
 OWN_VERB = re.compile(r"^- `[a-z0-9][\w.-]+`[^—]*—\s*`builder ([a-z][\w-]*)")  # the verb a bullet's opening clause is about
 ID = re.compile(r"^- `([a-z0-9][\w.-]+)`")
 OK_TAG = re.compile(r"^- `[a-z0-9][\w.-]+`\s+(?:—\s+)?\**\[OK\]")  # the status tag right after the id
