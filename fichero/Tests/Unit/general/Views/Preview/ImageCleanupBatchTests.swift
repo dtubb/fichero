@@ -14,7 +14,7 @@ import Testing
 @MainActor
 struct ImageCleanupBatchTests {
     /// A stub engine that counts what the sheet asks of it.
-    final class Engine: ImageCleanupBatching, @unchecked Sendable {
+    @MainActor final class Engine: ImageCleanupBatching {
         var previews = 0, applies = 0, undos: [String] = []
         func preview(folderId: String, step: CleanupStep) async throws -> CleanupPreview {
             previews += 1

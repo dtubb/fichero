@@ -39,7 +39,7 @@ struct CleanupPreview: Equatable {
 }
 
 /// What the sheet needs from the engine: one preview, one apply, one undo.
-protocol ImageCleanupBatching {
+@MainActor protocol ImageCleanupBatching {
     func preview(folderId: String, step: CleanupStep) async throws -> CleanupPreview
     func apply(folderId: String, step: CleanupStep) async throws -> String
     func undo(batchId: String) async throws

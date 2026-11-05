@@ -124,7 +124,7 @@ extension ImageEditorView {
     }
 }
 
-private struct PreviewCleanupService: ImageCleanupBatching {
+@MainActor private struct PreviewCleanupService: ImageCleanupBatching {
     func preview(folderId: String, step: CleanupStep) async throws -> CleanupPreview { CleanupPreview(pages: 12, samples: []) }
     func apply(folderId: String, step: CleanupStep) async throws -> String { "batch" }
     func undo(batchId: String) async throws {}
