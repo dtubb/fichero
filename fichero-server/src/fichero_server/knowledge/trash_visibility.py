@@ -91,3 +91,38 @@ def claims_resting_on(db: Any, doc_ids: set[str]) -> list[Any]:
     if not doc_ids:
         return []
     return [claim for claim in db.query(KnowledgeClaim) if claim_sources(claim) & doc_ids]
+
+
+def _rests_only_on_trash(anchors: Iterable[str | None], trashed: set[str]) -> bool:
+    """True when something names at least one document and every one it names is in the Trash."""
+    named = {anchor for anchor in anchors if anchor}
+    return bool(named) and named <= trashed
+
+
+def visible_annotations(db: Any, rows: Iterable[Any], trashed: set[str] | None = None) -> list[Any]:
+    """Annotations anchored only to trashed documents are out of view with them (`safety.trash.dependants-go-with-their-source`)."""
+    rows = list(rows)
+    trashed = trashed_document_ids(db) if trashed is None else trashed
+    if not trashed:
+        return rows
+    return [r for r in rows if not _rests_only_on_trash((r.document_id, r.page_id, r.folder_id), trashed)]
+
+
+def visible_notes(db: Any, rows: Iterable[Any], trashed: set[str] | None = None) -> list[Any]:
+    """Notes whose every linked document is trashed are out of view with them; a note that also links a live
+    document, or links none, stays."""
+    rows = list(rows)
+    trashed = trashed_document_ids(db) if trashed is None else trashed
+    if not trashed:
+        return rows
+    return [
+        r for r in rows
+        if not _rests_only_on_trash((*(r.linked_document_ids or []), r.page_id, r.folder_id), trashed)
+    ]
+
+
+def visible_document_ids(db: Any, document_ids: Iterable[str], trashed: set[str] | None = None) -> list[str]:
+    """A scope of documents without the trashed ones, in the order given."""
+    document_ids = list(document_ids)
+    trashed = trashed_document_ids(db) if trashed is None else trashed
+    return [i for i in document_ids if i not in trashed] if trashed else document_ids

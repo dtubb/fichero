@@ -506,6 +506,9 @@ async def list_segments_in_scope(
     # (`parent_id`; `document_ids` is a list), so a scope is never trusted. Every document in
     # it is checked the way a single-document read is, and the ones this caller may not read
     # are withheld -- and COUNTED, so a shorter list is never a silent one.
+    from fichero_server.knowledge.trash_visibility import visible_document_ids  # noqa: PLC0415
+
+    scope = visible_document_ids(db, scope)  # a trashed document's segments are out of view with it
     readable = readable_documents(request, x_fichero_library_path, scope)
     withheld = len(scope) - len(readable)
     scope = readable

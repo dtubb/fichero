@@ -288,7 +288,9 @@ async def list_annotations(
     min_rating: int | None = Query(default=None, ge=1, le=5),
     db: Database = Depends(get_library_database),
 ) -> AnnotationListResponse:
-    rows = db.query(Annotation)
+    from fichero_server.knowledge.trash_visibility import visible_annotations  # noqa: PLC0415
+
+    rows = visible_annotations(db, db.query(Annotation))  # out of view with a trashed document
     if document_id is not None:
         rows = [
             r

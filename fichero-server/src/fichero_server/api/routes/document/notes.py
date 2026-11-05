@@ -188,7 +188,9 @@ async def list_notes(
     q: str | None = Query(default=None, description="full-text body search"),
     db: Database = Depends(get_library_database),
 ) -> NoteListResponse:
-    rows = db.query(Note)
+    from fichero_server.knowledge.trash_visibility import visible_notes  # noqa: PLC0415
+
+    rows = visible_notes(db, db.query(Note))  # out of view with a trashed document
     if kind is not None:
         rows = [r for r in rows if r.kind == kind]
     if tag is not None:
