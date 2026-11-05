@@ -589,9 +589,10 @@ def pytest_rung(root, files: list[str], cfg: Config = Config(), timeout_s: float
     """Named test files only (the env gives a fresh base path, so a run never opens real data)."""
     if not files:
         return run_command("pytest", [sys.executable, "-c", "import sys; sys.exit('no test files named')"], root, 5)
-    # safe-path for the test run only: the cwd is not on sys.path, so a worker's pytest.py shadows nothing. The ready and
-    # guard rungs run the project's own pinned scripts, which import helpers beside them (first real check, 2026-11-01).
-    return _run("pytest", pytest_argv(root, files, cfg), root, timeout_s, cfg, {"PYTHONSAFEPATH": "1"}, remote=True)
+    # safe path comes from `python -I` in pytest_argv (it implies -P): the cwd is not on sys.path, so a worker's pytest.py shadows
+    # nothing. NOT a PYTHONSAFEPATH env var: `-I` ignores it for pytest, and every child a test starts inherited it, so a guard
+    # script a test runs lost its own dir from sys.path (2026-11-05: test_guardrails_scan_floor red in every safe-path rung)
+    return _run("pytest", pytest_argv(root, files, cfg), root, timeout_s, cfg, None, remote=True)
 
 
 def whole_tests_rung(root, tests_dir: str, cfg: Config = Config(), timeout_s: float = 1800) -> dict:  # noqa: B008
@@ -600,7 +601,7 @@ def whole_tests_rung(root, tests_dir: str, cfg: Config = Config(), timeout_s: fl
     package = str(Path(tests_dir).parent)
     cwd = Path(root) / package
     argv = pytest_argv(root, [str(Path(root) / tests_dir)], cfg, package=package)
-    return _run("pytest", argv, root, timeout_s, cfg, {"PYTHONSAFEPATH": "1"}, cwd=cwd, remote=True)
+    return _run("pytest", argv, root, timeout_s, cfg, None, cwd=cwd, remote=True)  # safe path from -I, as pytest_rung
 
 
 LOAD_FLAKE = re.compile(r"TransactionException: .*Cannot CHECKPOINT|OSError|_path_stat|Too many open files")

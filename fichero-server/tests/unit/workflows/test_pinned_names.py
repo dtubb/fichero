@@ -75,14 +75,28 @@ def test_pytest_runs_with_pinned_config_no_autoload_and_safe_path(tmp_path, monk
     assert "-c" not in argv or True
     assert "pytest_timeout" in argv[-1] and "-I" in argv  # the args ride inside the -I -c program
     assert ct._env(tmp_path, cfg, {})["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] == "1"
-    # safe-path rides on the pytest rungs only (the guards import helpers beside them, e593fc4932): read what the rung passes
+    # safe path is `-I` (it implies -P), never a PYTHONSAFEPATH env var a test's children would inherit (2026-11-05)
     seen = []
     real = ct._run
     monkeypatch.setattr(ct, "_run", lambda *a, **k: seen.append(a[5]) or {"ok": True})
     ct.pytest_rung(tmp_path, ["test_a.py"], cfg, timeout_s=60)
-    assert seen == [{"PYTHONSAFEPATH": "1"}]
+    assert seen == [None], "the rung adds no env var"
     monkeypatch.setattr(ct, "_run", real)
-    assert not ct.pytest_rung(tmp_path, ["test_a.py"], cfg, timeout_s=60)["ok"]  # the shadow pytest.py did not win
+    assert not ct.pytest_rung(tmp_path, ["test_a.py"], cfg, timeout_s=60)["ok"]  # the shadow pytest.py did not win: -I keeps the cwd off sys.path
+
+
+def test_a_guard_script_a_test_starts_still_imports_the_helper_beside_it(tmp_path):
+    """2026-11-05: the pytest rung set PYTHONSAFEPATH=1, every child a test started inherited it, and a guard script run by a test lost
+    its own dir from sys.path (`No module named _check_floor`, test_guardrails_scan_floor red in every safe-path rung)."""
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "_helper.py").write_text("OK = 0\n")
+    (tmp_path / "scripts" / "check_x.py").write_text("import sys\nfrom _helper import OK\nsys.exit(OK)\n")
+    (tmp_path / "test_guard.py").write_text(
+        "import subprocess, sys\nfrom pathlib import Path\n\ndef test_the_guard_runs():\n"
+        "    r = subprocess.run([sys.executable, str(Path(__file__).parent / 'scripts' / 'check_x.py')], capture_output=True, text=True)\n"
+        "    assert r.returncode == 0, r.stderr\n")
+    r = ct.pytest_rung(tmp_path, ["test_guard.py"], ct.Config(), timeout_s=120)
+    assert r["ok"], r.get("stdout_tail", "")[-800:]
 
 
 def test_a_rung_leaves_no_scratch_home_or_base_behind(tmp_path, monkeypatch):
