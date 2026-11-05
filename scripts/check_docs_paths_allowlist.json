@@ -15,6 +15,7 @@
     "fichero/Tests/Unit/general/Models/UpdateChannelTests.swift": "The test the DRAFT spec release-channels-and-feature-tiers.md (#5299) plans for the Update channel rule; it lands with the build once the spec is ruled.",
     "fichero-server/tests/unit/api/test_reader_edit_keeps_word_boxes.py": "A test the DRAFT spec editable-reader.md (#5289) plans; it lands with the build once the spec is ruled.",
     "fichero-server/tests/unit/api/test_reader_edits_any_reading.py": "A test the DRAFT spec editable-reader.md (#5289) plans; it lands with the build once the spec is ruled.",
+    "scripts/measure_page_crop.py": "planned by the image-enhancement spec Stage 4 (#6187, #6189): the by-hand page-crop measurement; written with step 4.1",
     "scripts/check_undo_one_path.py": "planned guardrail named by the undo-everywhere spec (#5658); written with undo slice 2",
     "fichero-server/tests/unit/transfer/test_transfer_between_engines.py": "planned in a later slice of the transfer spec (#5657): named by the spec before it is built",
     "fichero-server/tests/unit/transfer/test_transfer_cuts.py": "planned in a later slice of the transfer spec (#5657): named by the spec before it is built",
