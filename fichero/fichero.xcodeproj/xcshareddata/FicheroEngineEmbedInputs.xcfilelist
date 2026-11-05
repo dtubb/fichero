@@ -96,6 +96,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/sources.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/templates.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/transfer.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/trash.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/trash_storage.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/typed_links.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/view.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/entity/__init__.py
