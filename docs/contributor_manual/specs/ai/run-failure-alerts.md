@@ -144,24 +144,24 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   `fichero-server/tests/unit/llm/test_run_failure_kinds_6354.py` (each row of the table from its exception; a 401
   under `httpx` words is `key-refused`; a bare `RuntimeError("boom")` is `unexpected` with `exception_type` `RuntimeError`;
   no answer is ever `unknown`; the words name the provider's display name, never the breaker's internals).
-- `run.fail.run-carries-its-failure` [GAP] (#6354) — when a run ends `failed` the runner stores `failure` (the
+- `run.fail.run-carries-its-failure` [PARTIAL] (#6354; built: the row, the status route, the jobs list, the stream and a recipe run's failed stage, a retry clearing it; not built: a stub provider raising each kind with the row, the status route and the jobs list compared end to end) — when a run ends `failed` the runner stores `failure` (the
   `RunFailure`, JSON) on the run row beside `error` (the words stay `error`, so nothing that reads `reason` changes);
   `GET /api/workflow-execution/threads/{id}/status` serves `failure`; `GET /api/activity/jobs` serves it on the failed
   `BackgroundJob` (`failure: RunFailure | None`); a recipe run whose step's run failed carries that run's `failure`
   with `step` filled, its `reason` stays `outcome_why`'s words. A run paused at a cap or by the images rule carries the
   `cap-refused`/`images-refused` failure with its `refusal`, state `paused`. A run paused by a person or by shutdown
   carries none. An OpenAPI regen. Tests:
-  `fichero-server/tests/unit/workflows/test_run_carries_its_failure_6354` (a stub provider that raises each kind;
+  `fichero-server/tests/unit/workflows/test_run_carries_its_failure_6354.py` (a stub provider that raises each kind;
   the row, the status route and the jobs list agree; a paused-by-person run has `failure: null`),
-  `fichero-server/tests/unit/recipes/test_recipe_run_carries_step_failure_6354`.
-- `run.fail.one-failure-per-attempt` [GAP] (#6354) — the retry layer's own retries (`llm/retry.py`, `page_retry`) and a
+  `fichero-server/tests/unit/recipes/test_recipe_run_carries_step_failure_6354.py`.
+- `run.fail.one-failure-per-attempt` [PARTIAL] (#6354; built: only the run's end writes a failure, a retried run gets a new one with its own `failed_at`; not built: a test that three failing calls leave one failure) — the retry layer's own retries (`llm/retry.py`, `page_retry`) and a
   page's failure write no `failure`; only the run's end does, once; a run retried through Retry / Read them again that
   fails again gets a new `failure` and a new `failed_at`, so the attempt is told apart by `id@failed_at`
-  (`activity.jobs.failed-at`). Tests: `fichero-server/tests/unit/workflows/test_run_carries_its_failure_6354`
+  (`activity.jobs.failed-at`). Tests: `fichero-server/tests/unit/workflows/test_run_carries_its_failure_6354.py`
   (three calls fail, one `failure`; a retried run has two attempts, each with its own `failed_at`).
-- `run.fail.failed-stream-event` [GAP] (#6354) — the execution stream's `workflow_failed` event (and `systemic_error`)
+- `run.fail.failed-stream-event` [PARTIAL] (#6354; built: the `error` and `systemic_error` events and the `complete` event of a run whose every file failed carry `failure`; the runner has no event named `workflow_failed`) — the execution stream's `workflow_failed` event (and `systemic_error`)
   carries `failure`, so a client on the stream need not poll; the `refused` event stays for the cap pause as built.
-  Tests: `fichero-server/tests/unit/workflows/test_failed_event_carries_failure_6354`.
+  Tests: `fichero-server/tests/unit/workflows/test_failed_event_carries_failure_6354.py`.
 - `run.fail.unexpected-is-logged-whole` [OK] (#6354) — an
   `unexpected` failure writes the full traceback to the engine log at ERROR, once, with the run id, so the bug report
   can quote it; the served `detail` is the exception's first line only. Tests:
