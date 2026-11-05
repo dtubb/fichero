@@ -261,6 +261,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/db/activity_records.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/app.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/busy_evidence.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/dataset_query.py
+$(SRCROOT)/../fichero-server/src/fichero_server/db/document_paths.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/document_tree.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/embed_process.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/embedding_choice.py

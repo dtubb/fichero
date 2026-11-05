@@ -65,7 +65,9 @@ def plan_trash_storage(db: Any) -> TrashStoragePlan:
         return plan
     live: set[Path] = set()
     mine: set[Path] = set()
-    for doc_id, path_value, deleted_at in db.execute_fetchall("SELECT id, path, deleted_at FROM documents") or []:
+    from fichero_server.db.document_paths import id_path_deleted  # noqa: PLC0415
+
+    for doc_id, path_value, deleted_at in id_path_deleted(db):
         owned = _owned_original(path_value, root)
         if owned is None:
             continue

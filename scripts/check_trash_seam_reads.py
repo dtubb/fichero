@@ -22,6 +22,7 @@ import sys
 from pathlib import Path
 
 from _check_floor import require_scan_floor
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parents[1]
 ROUTES = ROOT / "fichero-server/src/fichero_server/api/routes"
@@ -57,7 +58,7 @@ def scan(routes: Path = ROUTES) -> tuple[int, dict[str, list[str]]]:
     """(GET handlers examined, {route file::function: kinds read without the seam})."""
     examined = 0
     found: dict[str, list[str]] = {}
-    for path in sorted(routes.rglob("*.py")):
+    for path in sorted(scan_rglob(routes, "*.py")):
         source = path.read_text(encoding="utf-8")
         try:
             tree = ast.parse(source)

@@ -91,6 +91,9 @@ ALLOWLIST: frozenset[str] = frozenset(
         # The harness worker address table (2026-11-04): the SQL moved here FROM workflows/worker_process.py, behind
         # typed functions -- the persistence entry point the rule asks for.
         "db/worker_addresses.py",
+        # Empty Trash's storage plan (2026-11-05): the SQL moved here FROM api/routes/document/trash_storage.py, behind a typed
+        # function -- the persistence entry point the rule asks for.
+        "db/document_paths.py",
         # A one-time data repair (2ef7805fb9, 2026-10-31): migration-class code, run once as a background job with a done
         # mark, the same exemption a migrations/ path has.
         "maintenance/image_marker_repair.py",
