@@ -689,7 +689,7 @@ The engine slices E1-E3 and the Swift slices S1, S2, M1, M2, M3 are on integrati
 
 One contract regen for the stage, in Step 1.6, so the 404 question (open question 4) never forces a regen of its own. The §8.1 headless file starts here and gains a case with each step that has one.
 
-#### Step 1.1 — one key per Mac, a certificate naming every address, the `.local` name is the Bonjour name; open question 5 first (#2603)
+#### Step 1.1 — one key per Mac, a certificate naming every address, the `.local` name is the Bonjour name; open question 5 first (#2603, #5311)
 - Behaviours: `sharing.certificate-names-every-address`, `sharing.host-name-is-the-bonjour-name`
 - Tests: fichero-server/tests/unit/security/test_remote_access_tls.py, test_certificate_keeps_its_key_when_a_name_is_added_to_spec (exists), RemoteAccessConfigTests (exists)
 - Depends on: 0.5
@@ -707,12 +707,12 @@ One contract regen for the stage, in Step 1.6, so the 404 question (open questio
 - Depends on: 1.1
 - Size: M
 
-#### Step 1.4 — the `sharing` block in health, and `multiuser_blocker` in the sharing state
+#### Step 1.4 — the `sharing` block in health, and `multiuser_blocker` in the sharing state (#5751)
 - Behaviours: `sharing.health-reports-sharing`
 - Tests: test_health_reports_sharing_to_spec (exists)
 - Size: S
 
-#### Step 1.5 — the listener follows the network; a stale server holding the port gets a sentence
+#### Step 1.5 — the listener follows the network; a stale server holding the port gets a sentence (#5736)
 - Behaviours: `sharing.listener-follows-the-network`, `sharing.stale-server-holding-the-port`
 - Tests: test_listener_rebinds_when_the_address_changes_to_spec (exists), test_port_in_use_message_to_spec (exists)
 - Depends on: 1.3
@@ -732,7 +732,7 @@ One contract regen for the stage, in Step 1.6, so the 404 question (open questio
 
 ### Stage 2 — one table of words, one client sequence
 
-#### Step 2.1 — the failure table: every step's sentence, the versions named, a forgotten device told so
+#### Step 2.1 — the failure table: every step's sentence, the versions named, a forgotten device told so (#3335)
 - Behaviours: `sharing.failure-names-the-step`, `sharing.version-mismatch-says-which-side`, `sharing.token-expired-or-rotated`, `sharing.ios-certificate-name`
 - Tests: PairingFailureWordsTests (exists), test_cli_pair_words_match_the_spec (exists), fichero-server/tests/integration/test_device_pairing_e2e.py
 - Depends on: 0.5
@@ -744,13 +744,13 @@ One contract regen for the stage, in Step 1.6, so the 404 question (open questio
 - Depends on: 0.5
 - Size: S
 
-#### Step 2.3 — the client tries every address in turn, 5 seconds each, in Swift and the CLI
+#### Step 2.3 — the client tries every address in turn, 5 seconds each, in Swift and the CLI (#4224)
 - Behaviours: `sharing.client-tries-every-address`, `sharing.ios-link-has-one-address`
 - Tests: PairingAddressTryTests (exists), test_two_macs_names_and_addresses_to_spec (exists)
 - Depends on: 1.7, 2.1
 - Size: M
 
-#### Step 2.4 — one pairing sequence for Mac and phone; a link with no library lists the host's (#3273)
+#### Step 2.4 — one pairing sequence for Mac and phone; a link with no library lists the host's (#3273, #5734)
 - Behaviours: `sharing.both-clients-run-the-same-checks`, `sharing.ios-bad-library-path`
 - Tests: PairingSequenceTests (exists), test_two_macs_names_and_addresses_to_spec (exists)
 - Size: M
@@ -768,7 +768,7 @@ One contract regen for the stage, in Step 1.6, so the 404 question (open questio
 - Tests: a model test of the sheet's firewall sentence (not yet written; §4 names none)
 - Size: S
 
-#### Step 3.3 — accounts off says so and offers the way on; accounts without sharing says what it means (#5908)
+#### Step 3.3 — accounts off says so and offers the way on; accounts without sharing says what it means (#5908, #5319)
 - Behaviours: `sharing.multiuser-off-says-so`, `sharing.multiuser-needs-sharing-for-anyone-else`
 - Tests: MultiuserOffPaneTests (not yet written), fichero-server/tests/unit/security/test_owner_session_sets_the_switch_5908.py
 - Depends on: 1.6, 2.2
@@ -782,7 +782,7 @@ One contract regen for the stage, in Step 1.6, so the 404 question (open questio
 - Depends on: 0.5
 - Size: S
 
-#### Step 4.2 — the sharing question on the page, with the same controls as Settings
+#### Step 4.2 — the sharing question on the page, with the same controls as Settings (#2054, #5731)
 - Behaviours: `sharing.setup-asks-sharing`, `sharing.setup-answers-change-later`
 - Tests: SharingStageTests (exists)
 - Depends on: 3.1, 4.1
@@ -802,7 +802,7 @@ One contract regen for the stage, in Step 1.6, so the 404 question (open questio
 - Depends on: 0.4
 - Size: M
 
-#### Step 5.2 — the phone's sheet says the step, with Try again, Copy details and Open Tailscale
+#### Step 5.2 — the phone's sheet says the step, with Try again, Copy details and Open Tailscale (#5317)
 - Behaviours: `sharing.ios-says-which-step`, `sharing.ios-tailscale-not-on-the-phone`
 - Tests: PairingFailureWordsTests (exists)
 - Depends on: 2.4
