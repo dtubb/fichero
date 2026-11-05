@@ -25,6 +25,13 @@ struct DocumentStaleResolutionTests {
         #expect(store.versionForNextTextSave("d", seen: opened) == Date(timeIntervalSince1970: 300))
     }
 
+    @Test func aRenameOnThisMacAfterASaveMovesTheEditorsCopyOnAndIsNotAStaleRefusal() {
+        let store = DocumentStore(apiClient: APIClient())
+        store.pageContentVersions["d"] = Date(timeIntervalSince1970: 200)
+        let afterRename = Date(timeIntervalSince1970: 400)
+        #expect(store.versionForNextTextSave("d", seen: afterRename) == afterRename)
+    }
+
     @Test func aRefusalForOneDocumentDoesNotUnguardAnother() {
         let store = DocumentStore(apiClient: APIClient())
         let opened = Date(timeIntervalSince1970: 100)

@@ -83,11 +83,14 @@ extension DocumentStore {
         }
     }
 
-    /// The version the next text save sends (#5348): the one the last save saw, else the editor's copy; none after a
+    /// The version the next text save sends (#5348): the newer of the last save's and the editor's copy; none after a
     /// refusal, because then the save is the person's choice to replace the other Mac's text.
     func versionForNextTextSave(_ id: String, seen: Date) -> Date? {
         if pageContentReplacing.remove(id) != nil { return nil }
-        return pageContentVersions[id] ?? seen
+        // The newer of the two: a save of this text moves the version on, and a rename or metadata edit on this Mac
+        // moves the editor's own copy on, so neither is read as another Mac's change.
+        guard let saved = pageContentVersions[id] else { return seen }
+        return max(saved, seen)
     }
 
     func textSaveWasRefused(_ id: String) {
