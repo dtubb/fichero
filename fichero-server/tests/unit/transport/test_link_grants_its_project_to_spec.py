@@ -38,3 +38,20 @@ def test_a_device_paired_by_a_link_for_a_project_is_given_that_project(harness, 
     paired = harness.pair(harness.client(), code_headers=minter.headers)
 
     assert path in _device_libraries(harness, paired)
+
+
+def test_a_project_with_a_space_and_an_accent_in_its_path_is_found_through_the_encoded_header(tmp_path):
+    """The app sends the library path percent-encoded ("Isthima GHG" reached the engine as Isthima%20GHG)."""
+    from types import SimpleNamespace
+    from urllib.parse import quote
+
+    from starlette.datastructures import Headers
+
+    from fichero_server.api.routes.auth.pairing import PairCodeRequest, _library_a_link_is_for
+
+    package = tmp_path / "Isthima GHG \u00e9.fichero"
+    package.mkdir()
+    (package / "fichero.duckdb").write_bytes(b"")
+    request = SimpleNamespace(headers=Headers({"x-fichero-library-path": quote(str(package), safe="/")}))
+    found = _library_a_link_is_for(request, PairCodeRequest())
+    assert found is not None and found.endswith("Isthima GHG \u00e9.fichero")

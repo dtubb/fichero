@@ -736,7 +736,9 @@ def _library_a_link_is_for(request: Request, body: PairCodeRequest) -> str | Non
     (`sharing.link-grants-its-project`, #6359): the redeem puts it on this Mac's known-library list."""
     from fichero_server.security import authz
 
-    named = (body.library or request.headers.get("x-fichero-library-path") or "").strip()
+    from fichero_server.api.library_header import optional_library_path  # the header is percent-encoded: a space or accent
+
+    named = (body.library or optional_library_path(request) or "").strip()
     package = authz.normalize_library_path(named) if named else None
     if package is None or not os.path.isfile(os.path.join(package, "fichero.duckdb")):
         return None
@@ -768,7 +770,9 @@ def create_pairing_code(
         from fichero_server.security import authz
 
         # The library is the one the owner named, else the one open in the request (X-Fichero-Library-Path).
-        library = body.library or request.headers.get("x-fichero-library-path") or None
+        from fichero_server.api.library_header import optional_library_path
+
+        library = body.library or optional_library_path(request) or None
         if library is not None:
             try:
                 authz.require_owner(_current_session_user(request), library)  # only the library's owner grants on it
