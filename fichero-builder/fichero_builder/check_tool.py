@@ -787,6 +787,9 @@ def build_names(root, since: str, head: str) -> list[str]:
 
 # manager 2026-11-03: a build rung went red once on this alone (a killed build's xcodebuild still held the jail's derived dir)
 BUILD_DB_LOCKED = re.compile(r"build\.db.*database is locked|database is locked.*two concurrent builds", re.S)
+# 2026-11-05: four red builds in a night were all real source errors (`X.swift:157:13: error: ...`), and each clean retry rebuilt from
+# nothing for 6 to 9 min only to say the same, leaving the next build cold too. A red naming a Swift source error is the code's: no retry.
+SOURCE_ERROR = re.compile(r"\.swift:\d+:\d+: error: ")
 BUILD_RETRY_WAIT_S = 30  # ponytail: one fixed wait; the other build's end is not watched
 
 
@@ -816,7 +819,7 @@ def build(root, changed: list[str], cfg: Config) -> dict:
             journal.append("check", state="retry", rung="build", detail="XCBuildData build.db was locked by another build in the same derived dir: re-run once")
             time.sleep(BUILD_RETRY_WAIT_S)
             r = {**_run("build", list(cfg.build), src, cfg.build_timeout_s, cfg, log=log.with_suffix(".retry.log")), "retried": True}
-        if not r["ok"] and not r.get("timed_out") and cfg.build_tree and (dd := _derived_dir(cfg)):
+        if not r["ok"] and not r.get("timed_out") and cfg.build_tree and (dd := _derived_dir(cfg)) and not SOURCE_ERROR.search(r.get("errors") or ""):
             # an incremental red can be stale build state, not the code (memory: a stale incremental build): once more from a
             # clean derived dir, and the second result stands (manager 2026-11-03)
             journal.append("check", state="retry", rung="build", detail=f"an incremental build was red: {dd} cleared, built once more from clean")

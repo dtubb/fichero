@@ -779,7 +779,7 @@ def _build_world(tmp_path, monkeypatch):
     (repo / "harness.toml").write_text("[check]\n")
     g("add", "."), g("commit", "-qm", "base")
     log = tmp_path / "builds.log"
-    script = f'echo "$PWD" >> {log}; [ -e {wr}/derived/stale ] && {{ echo "error: stale module" >&2; exit 65; }}; [ -e fichero/RED ] && {{ echo "error: no X" >&2; exit 65; }}; exit 0'
+    script = f'echo "$PWD" >> {log}; [ -e {wr}/derived/stale ] && {{ echo "error: stale module" >&2; exit 65; }}; [ -e fichero/RED ] && {{ echo "error: no X" >&2; exit 65; }}; [ -e fichero/SRCERR ] && {{ echo "$PWD/fichero/App.swift:1:5: error: cannot find x in scope" >&2; exit 65; }}; exit 0'
     cfg = ct.Config(build_paths=("fichero/",), build=("sh", "-c", script, "_", "-derivedDataPath", str(wr / "derived")), build_tree=str(wr / "build-tree"))
 
     def scratch():  # a NEW path per ladder, as today
@@ -818,6 +818,14 @@ def test_an_incremental_red_is_built_once_more_from_a_clean_derived_dir_and_a_re
     assert not r["ok"] and r["results"][0]["retried"] == "clean" and len(log.read_text().split()) == n + 2, "a real red: red twice"
     r = ct.build(scratch(), ["fichero/App.swift"], cfg)
     assert not r["ok"] and not r["results"][0].get("reused"), "a red is never reused"
+    (repo / "fichero" / "RED").unlink()
+    (repo / "fichero" / "SRCERR").write_text("x")
+    g("add", "-A"), g("commit", "-qm", "a Swift source error")
+    (wr / "derived" / "warm").write_text("x")
+    n = len(log.read_text().split())
+    r = ct.build(scratch(), ["fichero/App.swift"], cfg)
+    assert not r["ok"] and "retried" not in r["results"][0] and len(log.read_text().split()) == n + 1, "a source error: built once, no clean retry"
+    assert "App.swift:1:5: error: cannot find x in scope" in r["results"][0]["errors"] and (wr / "derived" / "warm").exists(), "the derived dir stays warm"
     outside = ct.Config(build_paths=("fichero/",), build=("true", "-derivedDataPath", str(tmp_path / "elsewhere")), build_tree=str(wr / "build-tree"))
     assert ct._derived_dir(outside) == "", "a derived dir outside the workroot is never cleared"
 
