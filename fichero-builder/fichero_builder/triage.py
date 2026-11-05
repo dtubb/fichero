@@ -314,12 +314,34 @@ def close(gh: str, n: int, reason: str, as_: str, approved: bool, dry: bool) -> 
     return f"#{n} {'would close' if dry else 'closed'} as {as_}"
 
 
+def move(gh: str, n: int, to: str, reason: str, dry: bool) -> str:
+    """`builder triage --move N --to MILESTONE --reason ...` (manager 2026-11-05: #4917 and #5759 belong in other milestones, and the only
+    harness verbs were a bulk re-milestone by spec and a close): one issue to the named milestone, which must exist; the reason is the
+    issue's comment word for word; one `triage` row. Never a close."""
+    if not reason.strip():
+        raise Refused("--reason is required: it is the issue's comment")
+    if not to.strip():
+        raise Refused("--to names the milestone the issue moves to")
+    if not dry:
+        _gh(gh, "issue", "edit", str(n), "--milestone", to)
+        _gh(gh, "issue", "comment", str(n), "--body", f"{reason.strip()}\n\nMoved to milestone {to} through `builder triage --move`.")
+    journal.append("triage", what="move", dry=dry, issue=n, milestone=to, reason=reason.strip())
+    return f"#{n} {'would move' if dry else 'moved'} to {to}"
+
+
 def main(a) -> int:
     if getattr(a, "close", None):
         try:
             print(("DRY: " if a.dry else "") + close(a.gh, a.close, a.reason, a.close_as, a.owner_approved, a.dry))
             return 0
         except Refused as e:
+            print(f"REFUSED: {e}")
+            return 1
+    if getattr(a, "move", None):
+        try:
+            print(("DRY: " if a.dry else "") + move(a.gh, a.move, a.to or "", a.reason or "", a.dry))
+            return 0
+        except (Refused, RuntimeError) as e:
             print(f"REFUSED: {e}")
             return 1
     t = Triage(a.root, a.gh, a.dry)

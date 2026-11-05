@@ -116,6 +116,8 @@ def main(argv=None) -> int:
     tr.add_argument("--milestones", action="store_true", help="an issue goes to the milestone of the spec that cites it and loses its spec:* hint; a spec-less bug to Next release; empty milestones close; a spec-less milestone gets a write-the-spec issue")
     tr.add_argument("--assignees", action="store_true", help="the gh login on needs-your-decision / needs-your-test only; other assignees cleared")
     tr.add_argument("--order", action="store_true", help="read specs/build-order.md and print proposed lines for milestones it lacks; never writes it")
+    tr.add_argument("--move", type=int, metavar="N", help="move issue N to the milestone --to, with --reason as its comment; never a close")
+    tr.add_argument("--to", metavar="MILESTONE", help="the milestone --move moves the issue to (it must exist)")
     tr.add_argument("--close", type=int, metavar="N", help="close issue N as --as (not-planned default) with --reason as its comment; only with --owner-approved")
     tr.add_argument("--reason", default="", help="why the issue closes: its comment, word for word")
     tr.add_argument("--as", dest="close_as", choices=["not-planned", "completed", "duplicate"], default="not-planned")
