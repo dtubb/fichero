@@ -61,4 +61,15 @@ struct ImageEditDirectToolsTests {
         #expect(PageRegionSummary(pageRegion: nil) == nil)
         #expect(PageRegionSummary(pageRegion: ["box": [0, 0, 0, 1]]) == nil)
     }
+
+    // MARK: - Auto Enhance by default (`image.enhance.editor-enhance-is-the-new-step`, #6190)
+
+    @Test("the Enhance popover asks for the ported local-contrast cleanup, handwritten, until a person turns it off")
+    func enhanceDefaultsToLocalContrast() {
+        let untouched = EnhanceChoice()
+        #expect(untouched.method == "clahe")
+        #expect(untouched.profile == "handwritten")
+        #expect(EnhanceChoice(localContrast: false, typescript: false).method == "pil")
+        #expect(EnhanceChoice(localContrast: true, typescript: true).profile == "typescript")
+    }
 }

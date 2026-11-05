@@ -45,8 +45,8 @@ struct ImageEditorView: View {
     @State var contrast: Double = 1.0
     @State var sharpen: Double = 1.0
     /// Local contrast (CLAHE, `image.enhance.contrast-clahe`): the engine runs contrast, yellow cast and sharpen by the profile.
-    @State var localContrast = false
-    @State var localContrastTypescript = false
+    @State var localContrast = EnhanceChoice().localContrast
+    @State var localContrastTypescript = EnhanceChoice().typescript
     /// Fine-tune the four CLAHE settings; off, the profile's own values are used (they are not sent).
     @State var localContrastFineTune = false
     @State var claheClip: Double = 2.2

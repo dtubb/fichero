@@ -3,6 +3,10 @@ import SwiftUI
 extension ImageEditorView {
     // MARK: - Enhance popover
 
+    private var enhanceChoice: EnhanceChoice {
+        EnhanceChoice(localContrast: localContrast, typescript: localContrastTypescript)
+    }
+
     var enhancePopover: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Enhance").font(.headline)
@@ -41,8 +45,8 @@ extension ImageEditorView {
                             contrast: contrast,
                             sharpen: sharpen,
                             autoLevels: false,
-                            method: localContrast ? "clahe" : "pil",
-                            profile: localContrastTypescript ? "typescript" : "handwritten",
+                            method: enhanceChoice.method,
+                            profile: enhanceChoice.profile,
                             clip: fineTuned ? claheClip : nil,
                             tile: fineTuned ? Int(claheTile.rounded()) : nil,
                             gain: fineTuned ? claheGain : nil,
