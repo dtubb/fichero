@@ -732,15 +732,17 @@ def test_a_chain_waiting_for_the_pools_one_worker_says_so_and_a_free_pool_says_n
     fake = Fake(chains={})
     assert cli.main(["done", "ext", "abc123", "--state", str(journal.STATE)]) == 0
     pool = queue.ThreadPoolExecutor(max_workers=1)
-    blocker = pool.submit(__import__("threading").Event().wait, 5)
+    release = __import__("threading").Event()
+    blocker = pool.submit(release.wait, 5)
     try:
         chains = {"pool": pool, "lane-ie": blocker}
         queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
         (row,) = [r for r in journal.read() if r.get("state") == "waiting-for-worker"]
         assert row["lane"] == "ext" and row["detail"] == "waiting for a chain worker (1 running: lane-ie; [loop].lanes = 1)"
         assert "ext" in chains, "it is still submitted: it runs when the worker frees"
-    finally:
-        pool.shutdown(wait=False, cancel_futures=True)
+    finally:  # every thread joined: a chain left running writes into the NEXT test's queue (batch-26's ladder red)
+        release.set()
+        pool.shutdown(wait=True, cancel_futures=True)
     queue.add("ext2", "/w/ext2", "1.1", str(state / "b2.1"), [8], kind="external")
     assert cli.main(["done", "ext2", "abc124", "--state", str(journal.STATE)]) == 0
     free = queue.ThreadPoolExecutor(max_workers=3)  # ext is submitted again in this tick too: 2 running, 3 workers
@@ -748,7 +750,7 @@ def test_a_chain_waiting_for_the_pools_one_worker_says_so_and_a_free_pool_says_n
         queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains={"pool": free, "x": Future()})
         assert [r["lane"] for r in journal.read() if r.get("state") == "waiting-for-worker"] == ["ext"], "a free worker: no row"
     finally:
-        free.shutdown(wait=False, cancel_futures=True)
+        free.shutdown(wait=True)
 
 def test_a_draining_loop_starts_no_new_chain_so_it_can_re_exec_between_chains(state):
     """Soak 2026-11-02: new code waits; while DRAIN is set no chain starts, and clearing it lets the same step run."""
