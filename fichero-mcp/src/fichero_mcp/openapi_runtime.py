@@ -59,7 +59,29 @@ def _detail(exc: FicheroError) -> Any:
         parsed = json.loads(body)
     except ValueError:
         return body
-    return parsed.get("detail", parsed) if isinstance(parsed, dict) else parsed
+    return _with_ways_through(parsed.get("detail", parsed)) if isinstance(parsed, dict) else parsed
+
+
+def _with_ways_through(detail: Any) -> Any:
+    """A cloud refusal's `detail` (`{message, refusal}`) keeps `refusal` intact and its message names the tool's own arguments that
+    go through (`ai.cloud.mcp-refuses-in-words`, #6350): `allow_cloud_once`, `over_cap_once`, and the tools that set the caps and the yes."""
+    refusal = detail.get("refusal") if isinstance(detail, dict) else None
+    if not isinstance(refusal, dict):
+        return detail
+    kinds = {f.get("kind") for f in refusal.get("fixes") or []}
+    ways = []
+    if "allow-once" in kinds:
+        ways.append("call fichero_workflow_run again with allow_cloud_once=true (this run only, nothing is saved)")
+    if "over-cap-once" in kinds:
+        ways.append("call fichero_workflow_run again with over_cap_once=true (this run only; the spend is still booked)")
+    if "raise-to" in kinds:
+        ways.append("raise the cap with fichero_ai_put_cloud_cap (the app's) or fichero_recipes_change_cloud_cap (the project's)")
+    if "allow-project" in kinds:
+        ways.append("allow cloud for the project with fichero_recipes_allow_cloud")
+    if "allow-everywhere" in kinds:
+        ways.append("allow cloud for every project with fichero_recipes_put_places")
+    message = str(detail.get("message") or refusal.get("words") or "A cloud rule refused this call.")
+    return {**detail, "message": message + (" Ways through: " + "; ".join(ways) + "." if ways else "")}
 
 
 def call(method: str, path: str, *, params: dict | None = None, json: Any = None, files: Any = None) -> Any:

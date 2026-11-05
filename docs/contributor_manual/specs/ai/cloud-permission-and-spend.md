@@ -123,11 +123,11 @@ Status tags are as of 2026-11-04 (A: the engine half of its first three lines is
   that has not answered for itself; no `project.allow_cloud` row is written. Tests:
   `fichero-server/tests/unit/llm/test_cloud_refusal_shape_6349.py` (the fix names the places action),
   `fichero/Tests/Unit/general/Views/CloudRefusalAlertTests.swift` (the button sets the app default, no project answer).
-- `ai.cloud.cli-refuses-in-words` [GAP] (#6350) — `fichero workflow run` and a recipe start print the refusal's words,
+- `ai.cloud.cli-refuses-in-words` [PARTIAL] (#6350; Step 3.3 built `fichero workflow run`: the words, the figures, each way through as a command or flag, exit 3; a recipe start's refusals are the plan's, not a 400, and are not built) — `fichero workflow run` and a recipe start print the refusal's words,
   the figures, and the route: the flags `--allow-cloud-once` and `--over-cap-once`, the commands that set the caps and
   the project's yes (from the regen), and the Settings control; exit code 3, never a traceback. Tests:
   `fichero-cli/tests/test_cli_cloud_refusal_6350.py`.
-- `ai.cloud.mcp-refuses-in-words` [GAP] (#6350) — `fichero_workflow_run` and the recipe start tool return
+- `ai.cloud.mcp-refuses-in-words` [PARTIAL] (#6350; Step 3.3 built `fichero_workflow_run`: `detail.refusal` intact and the message naming `allow_cloud_once`, `over_cap_once` and the tools; the recipe start tool's flags are not built) — `fichero_workflow_run` and the recipe start tool return
   `EngineError` with `detail.refusal` intact and the tool's own arguments `allow_cloud_once`, `over_cap_once` named in
   the words; the cap and allow actions are tools from the regen. Tests:
   `fichero-server/tests/unit/mcp/test_mcp_cloud_refusal_6350.py`.

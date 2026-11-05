@@ -22,6 +22,7 @@ from typing import Any, Callable, Optional
 import typer
 
 from fichero_cli import FicheroClient, FicheroError
+from fichero_cli.client import CloudRefusedError
 from fichero_cli import client as client_module
 from fichero_cli.openapi_surface_generated import register_generated_openapi_commands
 from fichero_cli.formatters import render
@@ -2640,6 +2641,10 @@ def workflow_run(
         "openrouter/google/gemini-3-flash-preview), or a trained model's id as the app shows it "
         "(fichero-trained/<name>): the same choice as the app's Run menu.",
     ),
+    allow_cloud_once: bool = typer.Option(
+        False, "--allow-cloud-once", help="Let this run's calls go to a cloud model although the project keeps its pages here; saved nowhere."),
+    over_cap_once: bool = typer.Option(
+        False, "--over-cap-once", help="Let this run's calls go past a cloud spend cap; the spend is still booked, saved nowhere."),
 ) -> None:
     """Run a workflow on one document or several (one run over the selection, as the Run menu does)."""
     provider_override = model_override = None
@@ -2660,6 +2665,7 @@ def workflow_run(
             result = client.run_workflow(
                 workflow_id, {"selected_doc_ids": list(dict.fromkeys(doc_ids))},
                 provider_override=provider_override, model_override=model_override,
+                **({"allow_cloud_once": True} if allow_cloud_once else {}), **({"over_cap_once": True} if over_cap_once else {}),
             )
             # run_workflow now returns a typed ExecuteAcceptedResponse; the
             # FakeClient still hands back a raw dict, so handle both.
@@ -2676,6 +2682,11 @@ def workflow_run(
                     timeout_seconds=timeout,
                     fallback_workflow_id=workflow_id,
                 )
+    except CloudRefusedError as exc:  # a cap or the images rule: the words, the figures, the way through (`ai.cloud.cli-refuses-in-words`)
+        from fichero_cli import cloud_refusal
+
+        typer.secho(cloud_refusal.words(exc.refusal), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=cloud_refusal.EXIT_CODE) from exc
     except FicheroError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
