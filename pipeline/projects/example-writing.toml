@@ -24,7 +24,6 @@ residue = "residue"
 maintainer = "dtubb"
 allowed_authors = ["dtubb"]
 agent_email = "noreply@anthropic.com"
-commit_trailer = "Co-Authored-By: Claude <noreply@anthropic.com>"
 
 [[ladder]]
 name = "word-count"

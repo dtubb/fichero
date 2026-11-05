@@ -623,8 +623,8 @@ instead of opening a duplicate — the same reuse-don't-duplicate discipline we 
 
 **Each agent is the AUTHOR of its own commits — NOT a `Co-Authored-By` trailer on a
 human-authored commit.** The agent doing the work is the git *author* (Claude →
-`Claude <noreply@anthropic.com>`; another model → that model's name); the human who directed it is
-credited by a `Directed-By:` trailer, not by owning the authorship. This is what makes
+`Claude <noreply@anthropic.com>`, whatever model wrote it: the authorship checks accept no other, and the model is named in `Written-By:`); the human who directed it is
+not credited in the commit at all. The commit carries ONE trailer, `Written-By: <model>`, naming who wrote the code (owner 2026-11-05; older commits carry `Directed-By: the maintainer`). This is what makes
 `git log --author=Claude` and GitHub's contributor view cleanly separate agent work from the
 maintainer's own edits — a `Co-Authored-By` line does not (it leaves the human as author). Every agent worktree
 carries `user.name Claude` / `user.email noreply@anthropic.com` in its `--worktree` config, set at creation (the
@@ -635,7 +635,7 @@ commit made anywhere else:
 git -c user.name="Claude" -c user.email="noreply@anthropic.com" \
   commit -m "docs: fix faq models (#1234)
 
-Directed-By: the maintainer"
+Written-By: Claude Opus 5.5"
 ```
 
 ---

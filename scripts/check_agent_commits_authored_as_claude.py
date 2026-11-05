@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_RANGE = "origin/integration..HEAD"
 CLAUDE = "Claude <noreply@anthropic.com>"
 # `Directed-By:` at the start of a line, or a `Co-Authored-By:` naming Claude (not a human co-author)
-AGENT_TRAILER = re.compile(r"^(?:Directed-By:|Co-Authored-By:\s*Claude\b)", re.IGNORECASE | re.MULTILINE)
+AGENT_TRAILER = re.compile(r"^(?:Written-By:|Directed-By:|Co-Authored-By:\s*Claude\b)", re.IGNORECASE | re.MULTILINE)  # Written-By: owner 2026-11-05
 _SEP, _END = "\x1f", "\x1e"
 
 

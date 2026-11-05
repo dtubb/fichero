@@ -27,7 +27,6 @@ residue = "residue"
 maintainer = "dtubb"
 allowed_authors = ["dtubb", "github-actions[bot]", "app/github-actions"]
 agent_email = "noreply@anthropic.com"
-commit_trailer = "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 # The check ladder (pipeline.quick-checks-per-item). Each rung is an existing script, run from the pinned checkout
 # with the worktree as cwd. {worktree} and {files} are filled in by the runner.

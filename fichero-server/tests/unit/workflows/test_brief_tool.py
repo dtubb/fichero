@@ -150,7 +150,7 @@ def test_the_projects_standing_worker_rules_are_in_harness_toml_so_no_brief_need
     import tomllib
 
     rules = tomllib.loads((Path(__file__).resolve().parents[4] / "harness.toml").read_text())["brief"]["rules"]
-    for must in ("--basetemp", "PYTHONPATH=src", "never xcodebuild", "Directed-By: the maintainer", "author Claude", "This step owes", "Behaviour: <id>"):
+    for must in ("--basetemp", "PYTHONPATH=src", "never xcodebuild", "Written-By: <the model that wrote it>", "author Claude", "This step owes", "Behaviour: <id>"):
         assert must in rules, must
     assert "#N" not in rules, "filled with every number of a step, a line like `Part of #N` told the worker to cite all of them on every commit"
 

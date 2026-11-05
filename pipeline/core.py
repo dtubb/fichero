@@ -390,7 +390,7 @@ def brief_rules() -> list[str]:
              f"4. Do not change or delete anything under {', '.join(cfg()['repo']['check_paths'])}: those are the checks you are judged by (adding a new guard is fine).",
              "5. Never change your own acceptance: the text of the spec lines for your behaviour ids and the build order's "
              "Behaviours/Tests lines stay as they are (flipping the [TAG] to [OK] or [PARTIAL] is fine). If they are wrong, call `pipeline_ask`.",
-             f"6. Commit your own work, once per issue: `git commit --author='Claude <{g['agent_email']}>' -m '<what> (<keyword> #<n>)' -m 'Directed-By: the maintainer' -m '{g['commit_trailer']}'`, "
+             f"6. Commit your own work, once per issue: `git commit --author='Claude <{g['agent_email']}>' -m '<what> (<keyword> #<n>)' -m 'Written-By: Claude'`, "
              "the issue line below says which. Uncommitted work counts as nothing.",
              "7. When committed, call the pipeline MCP tool `done` (shown to you as `pipeline_done`) with the task named below. "
              "Use `pipeline_ask` for a question (the maintainer answers), `pipeline_report` for progress.",
@@ -1019,7 +1019,7 @@ def _writeup(task, key, iss, wt, window, session_dir, worker) -> dict:
         spec.write_text(spec.read_text().rstrip("\n") + "\n" + line + "\n")
         checks.git(wt, "add", "--", str(spec))
         checks.git(wt, "-c", "user.name=Claude", "-c", f"user.email={cfg()['github']['agent_email']}", "commit", "-qm",
-                   f"spec: proposed [GAP] line for {parts['id']} (write-up of #{n})\n\nDirected-By: the maintainer")
+                   f"spec: proposed [GAP] line for {parts['id']} (write-up of #{n})\n\nWritten-By: Claude")
     journal.append("writeup", issue=n, key=key, task=task, parts=parts, spec=rel)
     return parts
 

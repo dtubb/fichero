@@ -94,7 +94,9 @@ rules = [
   { re = '\bkillall\b', reason = "killall by pattern kills other agents' processes" },
   { re = '\bls\b[^|;&]*(&&|;|\|)[^|;&]*\brm\s+-\w*[rR]', reason = "an ls and an rm -r in one command wiped a directory once; list, then delete as separate steps" },
 ]
-required_trailers = ["Directed-By: the maintainer", "Co-Authored-By: "]
+required_trailers = []
+# owner 2026-11-05: ONE trailer naming who wrote the code; the old Directed-By passes on commits made before the ruling
+trailer_one_of = ["Written-By: ", "Directed-By: the maintainer"]
 
 # Workers and the ladder run as this second macOS user; a missing user REFUSES (no fallback to the owner's user).
 # Owner set-up, once: sysadminctl -addUser fichero-worker (no admin); sudoers line `<owner> ALL=(fichero-worker) NOPASSWD: ALL`;
@@ -138,7 +140,7 @@ workers = 1
 [brief]
 # Project rules put at the top of every cluster brief (scripts/harness_brief.py); project names belong here, not in code.
 rules = """
-Python is [check].python in harness.toml, run from fichero-server with PYTHONPATH=src for engine tests, from fichero-builder with PYTHONPATH=. for Builder tests. Every commit: author Claude, message ends with its issue line ("This step owes" below says which) + trailers "Directed-By: the maintainer" and Co-Authored-By. A spec-line commit is separate if a behaviour is in the spec. No local paths or names in commits.
+Python is [check].python in harness.toml, run from fichero-server with PYTHONPATH=src for engine tests, from fichero-builder with PYTHONPATH=. for Builder tests. Every commit: author Claude, message ends with its issue line ("This step owes" below says which) + ONE trailer, "Written-By: <the model that wrote it>" (owner 2026-11-05). A spec-line commit is separate if a behaviour is in the spec. No local paths or names in commits.
 LOAD: the machine is loaded. One pytest at a time, each with its own --basetemp under [jail].workroot/bt-<name> and GIT_CONFIG_GLOBAL set to a scratch file, named files only (the ones you touch and the readers of what you change), OMP_NUM_THREADS=2; never a directory or the full suite; never xcodebuild.
 RULES (earlier clusters were sent back for these):
 - No reassuring prose (docstring, comment, commit message, spec line) without a test that proves it. State only what the code does.

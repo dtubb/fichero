@@ -62,4 +62,9 @@ def check(event: dict[str, Any], cfg: dict[str, Any], *, worktree: Path, scratch
 
 
 def commit_msg_problems(msg: str, cfg: dict[str, Any]) -> list[str]:
-    return [f"the commit message lacks the trailer {t!r}" for t in cfg.get("required_trailers", []) if t not in msg]
+    """Every `required_trailers` entry, and at least one of `trailer_one_of` (owner 2026-11-05: ONE trailer, `Written-By: <model>`; the old
+    `Directed-By: the maintainer` still passes on commits made before that ruling)."""
+    out = [f"the commit message lacks the trailer {t!r}" for t in cfg.get("required_trailers", []) if t not in msg]
+    if (one := cfg.get("trailer_one_of", [])) and not any(t in msg for t in one):
+        out.append(f"the commit message lacks a trailer: one of {one}")
+    return out

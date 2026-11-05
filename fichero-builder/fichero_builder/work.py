@@ -160,10 +160,10 @@ def do_rebase(a, branch: str) -> str:
         return f"rebase onto origin/{branch} could not finish (conflict left to a person): {(r.stderr or r.stdout).strip()[-300:]}"
     if rebaked:
         trailers = "\n".join(ln for ln in as_worker(a, f"{g} -C {wt} log -1 --format=%B").stdout.splitlines()
-                              if ln.startswith(("Directed-By:", "Co-Authored-By:")))
+                              if ln.startswith(("Written-By:", "Directed-By:", "Co-Authored-By:")))
         msg = f"chore(contract): re-bake the generated contract identity after the rebase onto origin/{branch} ({cfg.rebake_issue or 'generated files'})"
         as_worker(a, f"cd {wt} && {bake} && {g} add -- {' '.join(q(p) for p in sorted(gen))} && "
-                     f"({g} diff --cached --quiet || {g} commit -q -m {q(msg)} -m {q(trailers or 'Directed-By: the maintainer')})")
+                     f"({g} diff --cached --quiet || {g} commit -q -m {q(msg)} -m {q(trailers or 'Written-By: Claude')})")
         journal.append("rebake", lane=a.name, branch=branch, files=sorted(gen), detail=f"{rebaked} conflict(s) re-baked; HEAD checked")
     return ""
 

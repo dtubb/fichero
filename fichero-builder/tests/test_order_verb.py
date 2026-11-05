@@ -53,7 +53,7 @@ def test_save_commits_on_the_build_order_branch_queues_a_tiny_batch_and_refuses_
     assert g(wt, "rev-parse", "--abbrev-ref", "HEAD") == "build-order"
     assert "1. `beta` — second" in (wt / order.FILE).read_text()
     msg = g(wt, "log", "-1", "--format=%B")
-    assert msg.startswith("docs(build-order): owner reorders: beta, alpha, gamma") and "Directed-By: the maintainer" in msg and "Co-Authored-By: Claude" in msg
+    assert msg.startswith("docs(build-order): owner reorders: beta, alpha, gamma") and "Written-By: Claude" in msg and "Directed-By" not in msg  # one trailer (owner 2026-11-05)
     (lane,) = [x for x in queue.load() if x["id"] == "build-order"]
     assert lane["kind"] == "external" and lane["steps"][0]["state"] == "done" and lane["steps"][0]["head"] == g(wt, "rev-parse", "HEAD")
     assert order.pending()

@@ -64,9 +64,11 @@ def test_a_write_outside_the_worktree_and_scratch_is_refused(cfg, tmp_path):
 
 
 def test_commit_msg_needs_the_trailers(cfg):
-    ok = "fix: x\n\nDirected-By: the maintainer\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n"
-    assert ph.commit_msg_problems(ok, cfg) == []
-    assert any("Directed-By" in p for p in ph.commit_msg_problems("fix: x\n", cfg))
+    """Owner 2026-11-05: ONE trailer, `Written-By: <model>`; the old `Directed-By` still passes on commits made before the ruling."""
+    assert ph.commit_msg_problems("fix: x\n\nWritten-By: Qwen3 Coder\n", cfg) == []
+    old = "fix: x\n\nDirected-By: the maintainer\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n"
+    assert ph.commit_msg_problems(old, cfg) == []
+    assert any("one of" in p and "Written-By" in p for p in ph.commit_msg_problems("fix: x\n", cfg))
 
 
 def test_the_hook_script_speaks_claude_code_exit_2(tmp_path):

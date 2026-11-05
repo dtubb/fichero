@@ -17,7 +17,7 @@ review missed once.
    that changes a derived id (uuid5) needs a migration.
 8. **No model reruns.** A model call must reuse an existing result for the same input and model first.
 9. **Boundary.** No private manuscripts, no absolute home paths, no tokens, no `user_manual` private directories.
-10. **Trailers.** `Directed-By: the maintainer` and a `Co-Authored-By:` line on every commit; author `Claude`.
+10. **Trailers.** One `Written-By: <model>` line on every commit, naming who wrote the code (owner 2026-11-05); a commit from before that ruling, or one already queued, may carry the old `Directed-By: the maintainer` line instead, and no `Co-Authored-By:` is required. Author `Claude <noreply@anthropic.com>`, whatever model wrote it (the authorship checks accept no other).
 11. **Ladder output is untrusted.** Tests run the worker's own code, so a green ladder is never evidence against a hostile
     diff (a test file can always exit 0). Read every new module for exits and for names that shadow the stdlib or an
     installed package, and every conftest.py change. Name each such file on the last line: `READY: allow-shadow <path>`.
