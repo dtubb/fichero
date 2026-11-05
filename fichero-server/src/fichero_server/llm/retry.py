@@ -18,7 +18,18 @@ T = TypeVar("T")
 #: How long a provider that cannot answer this run (no credit, a refused key) is failed fast for, process-wide.
 DEAD_FOR_SECONDS = 30.0
 _DEAD: dict[str, tuple[float, str]] = {}  # provider -> (monotonic time until which it is failed fast, why); no lock: a dict set is atomic
+#: How long past its 30 s a provider's mark of no credit or a refused key still tells a PLAN (`dead_marks`): the person who topped up
+#: or fixed the key then replans; a call that succeeds clears the mark at once.
+PLAN_MEMORY_SECONDS = 900.0
 _SPENT: dict[str, int] = {}  # provider -> calls in a row whose retries were spent; K of them fail the provider fast
+
+
+def dead_marks() -> dict[str, tuple[str, float]]:
+    """Read-only: each provider marked dead and recently enough for a plan to heed (`ai.cloud.plan-knows-a-dead-key`, #6097), as
+    `provider -> (cause, seconds since it was marked)`; the cause is `quota` (no credit), `key` (a refused key) or `rate-limit`."""
+    now = time.monotonic()
+    return {p: (why, round(now - (until - DEAD_FOR_SECONDS), 1)) for p, (until, why) in dict(_DEAD).items()
+            if now < until + PLAN_MEMORY_SECONDS}
 
 
 async def resilient(make_coro: Callable[[], Awaitable[T]], config) -> T:
@@ -50,4 +61,5 @@ async def resilient(make_coro: Callable[[], Awaitable[T]], config) -> T:
                 _DEAD[provider] = (time.monotonic() + DEAD_FOR_SECONDS, "rate-limit")
         raise
     _SPENT.pop(provider, None)
+    _DEAD.pop(provider, None)  # it answered: whatever marked it dead is over
     return result

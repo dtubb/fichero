@@ -134,17 +134,17 @@ Status tags are as of 2026-11-04 (A: the engine half of its first three lines is
 
 ### D. The plan knows before Start (#6097, #6098, #6099, #6031)
 
-- `ai.cloud.plan-knows-a-dead-key` [GAP] (#6097) — the Start plan reads the provider dead marks (`llm/retry._DEAD`
+- `ai.cloud.plan-knows-a-dead-key` [OK] (#6097; Step 4.1) — the Start plan reads the provider dead marks (`llm/retry._DEAD`
   with `fatal_cause`) and skips a step whose provider is out of credit or has a refused key, with that cause's words
   (`ai.where.dead-provider-says-why`) and the fix `choose-model`; a rate limit ranks the provider down, not out; the
   mark outlives its 30 s for the plan's purpose (kept with its time, read-only). Tests:
   `fichero-server/tests/unit/recipes/test_plan_knows_dead_key_6097.py`.
-- `ai.cloud.plan-checks-the-capability` [GAP] (#6098) — a step's row must have the capability its job needs
+- `ai.cloud.plan-checks-the-capability` [OK] (#6098; Step 4.1) — a step's row must have the capability its job needs
   (`start._capability`, `llm._model_has_capability`); a row that lacks it is skipped at plan time with the validation's
   words and `choose-model`, so no Read fails at validation for it. Built beside it: remote reader cards inherit their
   provider's vision (`test_remote_reader_cards_inherit_vision.py`, #6031). Tests:
   `fichero-server/tests/unit/recipes/test_plan_checks_capability_6098.py`.
-- `ai.cloud.no-model-names-the-missing-row` [GAP] (#6099) — when a key is set for a provider with no provider row,
+- `ai.cloud.no-model-names-the-missing-row` [OK] (#6099; Step 4.1) — when a key is set for a provider with no provider row,
   the "no model" line says so and names the place: "a key is set for <provider> but Settings > AI > Providers has no
   row for it; add the row". Extends `provider_without_key`'s neighbour in `recipes/start.py`. Tests:
   `fichero-server/tests/unit/recipes/test_no_model_names_the_row_6099.py`.

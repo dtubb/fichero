@@ -360,6 +360,61 @@ def provider_without_key(step: dict) -> str | None:
     return info.name
 
 
+def _pin_provider(step: dict) -> str | None:
+    """The provider type (lower case, as the retry layer marks it) of a step's cloud pin, or None."""
+    pin = step.get("model") or {}
+    if "cloud" not in pin:
+        return None
+    from fichero_server.llm.providers import get_provider_info
+
+    info = get_provider_info(str(pin["cloud"]).strip().lower())
+    return info.type.value.lower() if info is not None else str(pin["cloud"]).strip().lower()
+
+
+def dead_provider(step: dict) -> str | None:
+    """Why a step's cloud provider cannot answer now, in the words of the cause it died of, or None (`ai.cloud.plan-knows-a-dead-key`,
+    #6097): no credit or a refused key skip the step at plan time; a rate limit only ranks the provider down, never out."""
+    provider = _pin_provider(step)
+    if provider is None:
+        return None
+    from fichero_server.llm.retry import dead_marks
+    from fichero_server.workflows.circuit_breaker import provider_stopped_error
+
+    mark = dead_marks().get(provider)
+    return str(provider_stopped_error(provider, mark[0])) if mark and mark[0] in ("quota", "key") else None
+
+
+def capability_gap(step: dict, job: str) -> str | None:
+    """Why the model a step's cloud pin names cannot do what its job needs (it reads the page image, or text alone), or None when it
+    can or the engine does not know (`ai.cloud.plan-checks-the-capability`, #6098)."""
+    pin = step.get("model") or {}
+    provider, model = _pin_provider(step), str(pin.get("model") or "")
+    if provider is None or not model:
+        return None
+    from fichero_server.llm import _model_has_capability
+
+    needed = "text" if job in _TEXT_ONLY_JOBS else "vision"
+    if _model_has_capability(provider, model, needed) is False:
+        return f"{model} cannot {'read page images' if needed == 'vision' else 'work on text'}, which this step needs; choose another model"
+    return None
+
+
+def keyed_provider_without_row() -> list[str]:
+    """Providers a key is set for in this Mac's keychain or environment but Settings > AI > Providers has no row for
+    (`ai.cloud.no-model-names-the-missing-row`, #6099), by name."""
+    from fichero_server.llm import get_api_key
+    from fichero_server.llm.providers import get_cloud_providers
+
+    try:
+        from fichero_server.db.app import get_app_db
+
+        rows = {str(getattr(getattr(r, "provider_type", ""), "value", getattr(r, "provider_type", ""))).lower()
+                for r in get_app_db().list_providers()}
+    except Exception:  # noqa: BLE001 -- no list to compare: say nothing rather than guess
+        return []
+    return [p.name for p in get_cloud_providers() if p.api_key_env and p.type.value.lower() not in rows and get_api_key(p.type.value)]
+
+
 def _automatic_skip(step: dict, automatic: dict | None) -> tuple[str, str] | None:
     """(why, fix) when What runs by itself (`answers.automatic`) leaves this step to a run by hand (#5478)."""
     if not isinstance(automatic, dict):
@@ -454,6 +509,9 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             # Said as setup says it: the problem's sentence, naming the nearest readers, never the refused
             # cards' ids (`source.onboard.nothing-fits-names-nearest`, #5593).
             said = (step.get("problem") or {}).get("sentence") or step.get("gap") or "none is named"
+            if unrowed := keyed_provider_without_row():  # a key is set but no row carries its models (#6099)
+                said += (f"; a key is set for {', '.join(unrowed)} but Settings > AI > Providers has no row for "
+                         f"{'it' if len(unrowed) == 1 else 'them'}; add the row")
             skip(sid, f"{label} has no model: {said}", "choose-model")
             needs_a_model.append(step)
             continue
@@ -463,6 +521,12 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         if _uses_cloud(step) and (gone := _retired_pick(step)):
             # A saved pick of a model its provider no longer serves (#6096) says so here, never fails every page.
             skip(sid, f"{label}: {gone}", "choose-model")
+            continue
+        if _uses_cloud(step) and (dead := dead_provider(step)):
+            skip(sid, f"{label}: {dead}", "choose-model")  # no credit or a refused key: the plan says so before any page is sent (#6097)
+            continue
+        if _uses_cloud(step) and (gap := capability_gap(step, job)):
+            skip(sid, f"{label}: {gap}", "choose-model")  # the model lacks what the job needs (#6098)
             continue
         if (keyless := provider_without_key(step)) is not None:
             # The next LOCAL candidate in the step's chain takes its place, and the plan says so
