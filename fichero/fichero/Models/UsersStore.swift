@@ -79,8 +79,8 @@ final class UsersStore {
     func loadAccessMatrix() async {
         do {
             let response = try await client.api.accessMatrixApiAuthzAccessMatrixGet(.init())
-            if case .ok(let ok) = response {
-                accessMatrix = try ok.body.json
+            if case .ok(let okResponse) = response {
+                accessMatrix = try okResponse.body.json
             } else {
                 accessMatrix = nil
             }
