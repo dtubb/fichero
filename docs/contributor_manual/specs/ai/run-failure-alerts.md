@@ -135,15 +135,13 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
 
 ### A. The engine: one failure, on the run
 
-- `run.fail.kinds-table` [PARTIAL] (#6354; built: `_typed_failure` and `_classify_provider_error` with today's categories
-  and `{category, message, action}`; not built: the kinds above, the served model, `unexpected` in place of `unknown`,
-  the provider and model names in the words) — `llm/failure` holds `RunFailure` (`kind`, `words`, `fix`, `actions[]`
+- `run.fail.kinds-table` [PARTIAL] (#6354; built: the kinds, the served model, `classify`, `redact`, the provider and model names in the words, `unexpected` for what the table does not name, and the kind beside the page's legacy category; not built: `_typed_failure` and `_classify_provider_error` answering from the table, so the per-page `error_category`/`error_hint`/`error_action` still come from their own code) — `llm/failure` holds `RunFailure` (`kind`, `words`, `fix`, `actions[]`
   of `{kind, control?, usd?, retry_after_seconds?}`, `provider`, `model`, `step`, `pages_done`, `pages_total`,
   `exception_type`, `detail` (the error's first line, redacted as in C), `refusal: CloudRefusal | None`) and one function
   `classify(exc, text, *, step, provider, model, done, total) -> RunFailure` that is the table above. `_typed_failure` and
   `_classify_provider_error` call it (the per-page `error_category`/`error_hint`/`error_action` stay as they are, now
   from the same table, so a page's reason and the run's agree). Tests:
-  `fichero-server/tests/unit/llm/test_run_failure_kinds_6354` (each row of the table from its exception; a 401
+  `fichero-server/tests/unit/llm/test_run_failure_kinds_6354.py` (each row of the table from its exception; a 401
   under `httpx` words is `key-refused`; a bare `RuntimeError("boom")` is `unexpected` with `exception_type` `RuntimeError`;
   no answer is ever `unknown`; the words name the provider's display name, never the breaker's internals).
 - `run.fail.run-carries-its-failure` [GAP] (#6354) — when a run ends `failed` the runner stores `failure` (the
@@ -164,10 +162,10 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
 - `run.fail.failed-stream-event` [GAP] (#6354) — the execution stream's `workflow_failed` event (and `systemic_error`)
   carries `failure`, so a client on the stream need not poll; the `refused` event stays for the cap pause as built.
   Tests: `fichero-server/tests/unit/workflows/test_failed_event_carries_failure_6354`.
-- `run.fail.unexpected-is-logged-whole` [PARTIAL] (#6354; built: `logger.exception` on the runner's catch-all) — an
+- `run.fail.unexpected-is-logged-whole` [OK] (#6354) — an
   `unexpected` failure writes the full traceback to the engine log at ERROR, once, with the run id, so the bug report
   can quote it; the served `detail` is the exception's first line only. Tests:
-  `fichero-server/tests/unit/workflows/test_run_carries_its_failure_6354` (`caplog`: one ERROR with the run id).
+  `fichero-server/tests/unit/workflows/test_run_carries_its_failure_6354.py` (`caplog`: one ERROR with the run id).
 
 ### B. The bug report
 
@@ -259,7 +257,7 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
 #### Step 1.1 — The kinds table and the served model (#6354)
 - Behaviours: `run.fail.kinds-table`, `run.fail.unexpected-is-logged-whole`
 - Files: a new `llm/failure` (`RunFailure`, `classify`, `redact`), `execution/runner.py` (`_typed_failure` and `_classify_provider_error` call it), `workflows/circuit_breaker.py` (export `provider_display`)
-- Tests: fichero-server/tests/unit/llm/test_run_failure_kinds_6354
+- Tests: fichero-server/tests/unit/llm/test_run_failure_kinds_6354.py
 - Size: M
 
 #### Step 1.2 — The run carries its failure; the stream says it (#6354)
