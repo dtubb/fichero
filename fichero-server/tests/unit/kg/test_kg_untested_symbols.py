@@ -60,6 +60,10 @@ class _FakeDatabase:
     def knowledge_table_signature(self, table: str) -> tuple[int, Any]:
         return self._signatures[table]
 
+    def execute_fetchall(self, _sql: str) -> list[Any]:
+        """The Trash lookup the graph cache now makes (`safety.trash.every-read-leaves-it-out`): nothing is in the Trash."""
+        return []
+
     def query(self, model: Any) -> list[Any]:
         self.queries += 1
         key = getattr(model, "__name__", str(model))

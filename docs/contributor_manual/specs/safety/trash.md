@@ -153,8 +153,8 @@ This is the Trash the app already promises in its delete dialog and does not hav
   out when reading; statements and entities are left out of the claims list, the entities list,
   the graph's neighbourhood and the knowledge search, back on Put Back, pruned on Empty Trash
   (`fichero-server/tests/unit/api/test_trash.py`, `TestKnowledgeGoesWithItsSource`); document search already leaves trashed pages
-  out. *Not built:* segments, artifacts, annotations and notes; the mark on a two-source
-  statement; the other graph reads (`knowledge/graph.py`); the cascade still removes a
+  out; the full-library graphs (`build_full_graph`, `build_full_cooccurrence`, about eighteen endpoints) leave a trashed page's knowledge out too, their cache keyed on the Trash (`fichero-server/tests/unit/api/test_trash_full_graph_leaves_it_out_5406.py`). *Not built:* segments, artifacts, annotations and notes; the mark on a two-source
+  statement; the graph reads beyond the full-library graphs; the cascade still removes a
   two-source statement on purge.
 - `safety.trash.curated-work-is-never-hidden-silently` — **[GAP]** (#5243) when a delete will take
   person-curated statements or notes out of view, the short notice after the delete says how
