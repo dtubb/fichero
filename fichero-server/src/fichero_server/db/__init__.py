@@ -3917,10 +3917,14 @@ class Database(DatabaseEmbeddingMixin):
         artifact_type: str | None = None,
         run_id: str | None = None,
         step_name: str | None = None,
+        hide_trashed: bool = False,
         limit: int,
         offset: int = 0,
     ) -> tuple[list["Artifact"], int]:
         """One DB-side page of artifacts plus the total match count (#4319).
+
+        ``hide_trashed`` leaves out the artifacts of a document in the Trash, in the same WHERE as the count and the page, so
+        paging and ``total`` stay true (`safety.trash.dependants-go-with-their-source`).
 
         Replaces the listing route's full-scan + Python-sort + slice: the
         WHERE, ORDER BY, LIMIT and OFFSET all run in DuckDB, so a large
@@ -3950,6 +3954,10 @@ class Database(DatabaseEmbeddingMixin):
             if value is not None:
                 clauses.append(f"{column} = ${column}")
                 params[column] = value
+        if hide_trashed:
+            clauses.append(
+                "(document_id IS NULL OR document_id NOT IN (SELECT id FROM documents WHERE deleted_at IS NOT NULL))"
+            )
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
 
         total_row = self._execute(

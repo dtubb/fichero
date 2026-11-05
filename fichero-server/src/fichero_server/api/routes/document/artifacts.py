@@ -495,6 +495,7 @@ async def list_all_artifacts(
         artifact_type=artifact_type or None,
         run_id=run_id or None,
         step_name=step_name or None,
+        hide_trashed=True,  # a trashed document's artifacts are out of view with it
         limit=limit,
         offset=offset,
     )
