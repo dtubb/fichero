@@ -50,6 +50,8 @@ def configure(read: ClientFactory, write: ClientFactory) -> None:
 
 def _detail(exc: FicheroError) -> Any:
     """The engine's ``detail`` from a FicheroError's ``"<METHOD> <path> -> <status>: <body>"``."""
+    if getattr(exc, "refusal", None) is not None and isinstance(getattr(exc, "detail", None), dict):
+        return _with_ways_through(exc.detail)  # a cloud refusal (`fichero_cli.client.CloudRefusedError`): the typed refusal, intact
     text = str(exc)
     marker = f"-> {exc.status_code}: "
     if exc.status_code is None or marker not in text:

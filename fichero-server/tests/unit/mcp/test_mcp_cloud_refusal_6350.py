@@ -31,10 +31,19 @@ def test_other_details_are_left_alone():
     assert _with_ways_through({"message": "x"}) == {"message": "x"}
 
 
-def test_the_engine_error_carries_it_as_json():
-    from fichero_cli import FicheroError
+def test_a_real_cloud_refusal_reaches_the_tool_as_an_engine_error_with_the_refusal_intact():
+    import httpx
+    from fichero_cli.client import FicheroClient
 
-    exc = FicheroError("POST /api/workflow-execution/execute -> 400: " + json.dumps({"detail": CAP}), status_code=400)
-    detail = openapi_runtime._detail(exc)
-    err = EngineError(400, detail, "POST /api/workflow-execution/execute")
-    assert json.loads(str(err))["detail"]["refusal"]["kind"] == "cap-monthly" and "over_cap_once" in json.loads(str(err))["detail"]["message"]
+    body = {"detail": CAP}
+    factory = lambda: FicheroClient(base_url="http://engine.test", token="t",  # noqa: E731
+                                    transport=httpx.MockTransport(lambda request: httpx.Response(400, json=body)))
+    openapi_runtime.configure(factory, factory)
+    try:
+        openapi_runtime.call("POST", "/api/workflow-execution/execute", json={})
+    except EngineError as err:
+        said = json.loads(str(err))
+        assert said["status"] == 400 and said["detail"]["refusal"] == CAP["refusal"]
+        assert "over_cap_once=true" in said["detail"]["message"]
+    else:
+        raise AssertionError("the refusal did not reach the tool")

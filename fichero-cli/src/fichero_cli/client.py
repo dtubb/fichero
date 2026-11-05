@@ -137,16 +137,6 @@ def _is_loopback_base_url(base_url: str | None) -> bool | None:
         return False
 
 
-class CloudRefusedError(RuntimeError):
-    """A run was refused by a cloud rule (a cap, or the images switch) and the engine served the typed refusal, so a caller can
-    print its words and the way through (`cloud_refusal.words`). `refusal` is the engine's `detail.refusal`."""
-
-    def __init__(self, message: str, refusal: dict, *, status_code: int = 400) -> None:
-        super().__init__(message)
-        self.refusal = refusal
-        self.status_code = status_code
-
-
 class FicheroError(RuntimeError):
     """The backend was unreachable or returned a non-2xx response.
 
@@ -159,6 +149,16 @@ class FicheroError(RuntimeError):
     def __init__(self, message: str, *, status_code: int | None = None) -> None:
         super().__init__(message)
         self.status_code = status_code
+
+
+class CloudRefusedError(FicheroError):
+    """A run was refused by a cloud rule (a cap, or the images switch) and the engine served the typed refusal, so a caller can
+    print its words and the way through (`cloud_refusal.words`). `refusal` is the engine's `detail.refusal`."""
+
+    def __init__(self, message: str, refusal: dict, *, status_code: int = 400, detail: Any = None) -> None:
+        super().__init__(message, status_code=status_code)
+        self.refusal = refusal
+        self.detail = detail  # the 400's whole `detail` (`{message, refusal}`), for a caller that passes it on (the MCP)
 
 
 def _cloud_refusal_of(response: Any) -> dict | None:
@@ -734,7 +734,8 @@ class FicheroClient:
         if response.status_code == 400:
             refusal = _cloud_refusal_of(response)
             if refusal is not None:
-                raise CloudRefusedError(refusal.get("words") or "A cloud rule refused this call.", refusal)
+                raise CloudRefusedError(refusal.get("words") or "A cloud rule refused this call.", refusal,
+                                        detail=response.json().get("detail"))
         if response.status_code >= 400:
             raise FicheroError(
                 f"{method} {path} -> {response.status_code}: {response.text}",

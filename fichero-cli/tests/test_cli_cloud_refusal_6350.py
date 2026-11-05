@@ -67,3 +67,33 @@ def test_the_flags_are_sent(monkeypatch):
     result = _run(monkeypatch, client, "--allow-cloud-once", "--over-cap-once")
     assert result.exit_code == 0, result.output
     assert client.sent == {"provider_override": None, "model_override": None, "allow_cloud_once": True, "over_cap_once": True}
+
+
+def _refusing_client():
+    import httpx
+
+    from fichero_cli.client import FicheroClient
+
+    body = {"detail": {"message": "capped", "refusal": CAP}}
+    return FicheroClient(base_url="http://engine.test", token="t",
+                         transport=httpx.MockTransport(lambda request: httpx.Response(400, json=body)))
+
+
+def test_the_real_client_raises_a_fichero_error_subclass_that_keeps_the_refusal():
+    from fichero_cli.client import FicheroError
+
+    with _refusing_client() as client:
+        try:
+            client.request("GET", "/api/auth/me")
+        except FicheroError as exc:
+            assert isinstance(exc, CloudRefusedError) and exc.status_code == 400
+            assert exc.refusal["kind"] == "cap-monthly" and exc.detail["refusal"] == CAP
+        else:
+            raise AssertionError("a cloud refusal was not raised")
+
+
+def test_a_command_that_is_not_a_run_prints_the_words_not_a_traceback(monkeypatch):
+    monkeypatch.setattr(cli, "_client", lambda ctx: _refusing_client())
+    result = CliRunner().invoke(cli.app, ["auth", "whoami"])
+    assert result.exit_code != 0 and "Traceback" not in result.output
+    assert "capped at $10.00 a month" in result.output
