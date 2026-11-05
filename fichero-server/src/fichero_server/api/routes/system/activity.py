@@ -48,6 +48,7 @@ from fichero_server.workflows.activity import (
     get_activity_tracker,
 )
 from fichero_server.models import ActivityListResponse
+from fichero_server.llm.failure import RunFailure
 from fichero_server.workflows.run_account import RunAccount
 from fichero_server.recipes.run_view import RecipeRunStep, RecipeRunSummary, StepTiming
 
@@ -186,6 +187,10 @@ class BackgroundJob(BaseModel):
     # beside it, shown at the top; "earlier" is a run that is stopped, interrupted, failed or old, folded below.
     # The list is already in this order.
     group: Literal["live", "earlier"] = "live"
+    # Why a failed workflow run failed, what to do, and the buttons for it (`run.fail.run-carries-its-failure`, #6354): the engine's
+    # one table, beside `reason`'s words (which are unchanged). Null for a row that has not failed or a failure from an engine
+    # before this.
+    failure: Optional[RunFailure] = None
 
 
 #: A row in one of these states has ended: stopped, interrupted, failed or done.
@@ -910,6 +915,7 @@ async def list_background_jobs(
                     # A run without its end time still lists, with its reason: never vanish over a timestamp.
                     failed_at=_utc(getattr(run, "completed_at", None)) if status == "failed" else None,
                     finished_at=_run_finished_at(status, getattr(run, "completed_at", None)),
+                    failure=run.failure if status == "failed" else None,
                 )
             )
     except Exception as exc:  # never let the jobs list fail over the workflow half

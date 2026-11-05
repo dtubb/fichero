@@ -54581,6 +54581,10 @@
             ],
             "title": "Group",
             "default": "live"
+          },
+          "failure": {
+            "$ref": "#/components/schemas/RunFailure",
+            "nullable": true
           }
         },
         "type": "object",
@@ -69653,6 +69657,10 @@
             "nullable": true,
             "title": "Error"
           },
+          "failure": {
+            "$ref": "#/components/schemas/RunFailure",
+            "nullable": true
+          },
           "progress": {
             "$ref": "#/components/schemas/RunProgress",
             "nullable": true
@@ -69882,6 +69890,50 @@
         ],
         "title": "FailedPage",
         "description": "A page a step lost, and why."
+      },
+      "FailureAction": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "retry",
+              "resume",
+              "open-settings",
+              "choose-model",
+              "report-bug",
+              "reconnect",
+              "raise-to",
+              "allow-everywhere",
+              "allow-project",
+              "allow-once",
+              "over-cap-once"
+            ],
+            "title": "Kind"
+          },
+          "control": {
+            "type": "string",
+            "nullable": true,
+            "title": "Control",
+            "description": "`open-settings`: the control's id"
+          },
+          "usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Usd",
+            "description": "a refusal's `raise-to`: the cap that lets the run through"
+          },
+          "retry_after_seconds": {
+            "type": "number",
+            "nullable": true,
+            "title": "Retry After Seconds",
+            "description": "`retry`: how long the provider asked to wait"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "FailureAction"
       },
       "FeatureListResponse": {
         "properties": {
@@ -88554,6 +88606,11 @@
             "title": "Failed Pages",
             "description": "a partial step: the pages it lost, each with why (`activity.run.step-honest-about-lost-pages`); null otherwise"
           },
+          "failure": {
+            "$ref": "#/components/schemas/RunFailure",
+            "nullable": true,
+            "description": "a failed workflow stage: why its run failed, what to do and the buttons for it, the run's own `failure` with `step` filled (`run.fail.run-carries-its-failure`, #6354); `why` keeps its words; null for any other stage"
+          },
           "account": {
             "$ref": "#/components/schemas/RunAccount",
             "nullable": true,
@@ -92116,6 +92173,96 @@
           "comparable"
         ],
         "title": "RunComparisonResponse"
+      },
+      "RunFailure": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "no-credit",
+              "key-refused",
+              "rate-limited",
+              "cap-refused",
+              "images-refused",
+              "model-error",
+              "model-missing",
+              "runtime-unavailable",
+              "memory",
+              "network",
+              "files-unavailable",
+              "unexpected"
+            ],
+            "title": "Kind"
+          },
+          "words": {
+            "type": "string",
+            "title": "Words",
+            "description": "what happened, naming the provider and model by display name"
+          },
+          "fix": {
+            "type": "string",
+            "title": "Fix",
+            "description": "what to do about it"
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/FailureAction"
+            },
+            "type": "array",
+            "title": "Actions",
+            "description": "the buttons, in the order to offer them"
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
+          "step": {
+            "type": "string",
+            "nullable": true,
+            "title": "Step"
+          },
+          "pages_done": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Pages Done"
+          },
+          "pages_total": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Pages Total"
+          },
+          "exception_type": {
+            "type": "string",
+            "nullable": true,
+            "title": "Exception Type",
+            "description": "the exception's class name; never its message"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "description": "the error's first line, redacted",
+            "default": ""
+          },
+          "refusal": {
+            "$ref": "#/components/schemas/CloudRefusal",
+            "nullable": true,
+            "description": "`cap-refused` and `images-refused`: the typed refusal"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "words",
+          "fix"
+        ],
+        "title": "RunFailure",
+        "description": "Why a run did not finish, what to do, and the buttons for it. One shape for the row, the status route, the jobs list,\nthe stream and the bug report."
       },
       "RunHistoryEntry": {
         "properties": {

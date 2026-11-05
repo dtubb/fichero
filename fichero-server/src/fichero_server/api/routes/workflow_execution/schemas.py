@@ -11,6 +11,7 @@ from fichero_server.workflows.run_account import RunAccount
 from fichero_server.workflows.run_progress import RunProgress
 from fichero_server.workflows.run_status import RunStatus
 from fichero_server.workflows.selection import SelectionKind, WorkflowSelection
+from fichero_server.llm.failure import RunFailure
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +138,9 @@ class ExecutionStatusResponse(BaseModel):
     # caller asks for `view=summary`; `progress` says how far the run has got either way.
     current_state: dict[str, Any] | None = None
     error: str | None = None
+    # Why a failed run failed, what to do, and the buttons for it (`run.fail.run-carries-its-failure`, #6354): the engine's one
+    # table (`llm/failure.py`), beside `error`'s words. Also on a run paused at a cap or by the images rule. Null for any other run.
+    failure: RunFailure | None = None
     progress: RunProgress | None = None
     # The run's account (#5555): pages done, failed and left, each failure's reason, what it waits for,
     # the estimate, its peak memory, interrupted, and the offer to read the pages it did not do. Activity

@@ -466,8 +466,11 @@ class ActivityStore:
         completed_at: Optional[datetime] = None,
         run_usage: Optional[dict] = None,
         partial: Optional[str] = None,
+        failure: Optional[dict] = None,
     ) -> None:
         """Update an existing workflow run record.
+
+        ``failure`` (`RunFailure`, `llm/failure.py`) is why a run that ended failed did, kept beside its ``error`` words.
 
         ``partial`` ("Partial: 4 of 6 pages read") rides on the run's job row as its reason when it completed with pages failed (#5937).
 
@@ -480,11 +483,14 @@ class ActivityStore:
         from fichero_server.workflows.run_account import closed_mid_run
 
         if closed_mid_run(thread_id):
-            status = error = completed_at = None
+            status = error = completed_at = failure = None
 
+        if failure is None and status in ("running", "completed", "paused", "cancelled"):
+            failure = {}  # the run is not failed now: a retry that fails again writes a new one (`run.fail.one-failure-per-attempt`)
         await asyncio.to_thread(records.update_run, self.db, thread_id, {
             "status": status, "execution_log": execution_log, "progress_timeline": progress_timeline,
-            "duration_ms": duration_ms, "error": error, "completed_at": completed_at, "run_usage": run_usage})
+            "duration_ms": duration_ms, "error": error, "completed_at": completed_at, "run_usage": run_usage,
+            "failure": failure})
         if status is not None:  # the run's job row follows (#5353)
             from fichero_server.execution import jobs
 
@@ -533,6 +539,7 @@ class ActivityStore:
             run_usage=_obj(row[15]),
             # None for a legacy run or one whose model could not be priced at start (not the same as free).
             estimated_cost=row[16] if len(row) > 16 else None,
+            failure=_obj(row[17]) if len(row) > 17 else None,
         )
 
     async def get_workflow_run(self, thread_id: str) -> Optional[WorkflowRun]:

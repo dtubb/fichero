@@ -26,13 +26,13 @@ _SWEEPABLE_SQL = ", ".join(f"'{s}'" for s in SWEEPABLE_STATUSES)
 #: Every column of a run, in the order `run_row` reads them.
 RUN_COLUMNS = ("id", "workflow_id", "workflow_name", "python_code", "execution_log", "status", "started_at",
                "completed_at", "duration_ms", "error", "workflow_snapshot", "node_name_map", "progress_timeline",
-               "diagram_mermaid", "resolved_scope", "run_usage", "estimated_cost")
+               "diagram_mermaid", "resolved_scope", "run_usage", "estimated_cost", "failure")
 #: A run as a list shows it (#5645): no code, log, snapshot, node map or diagram, whose size grows with the run, so a
 #: poll of 50 runs every few seconds reads 50 small rows whatever the logs weigh. Its progress timeline stays: the run
 #: account (Activity's progress) reads it.
 LIST_COLUMNS = ("id", "workflow_id", "workflow_name", "NULL", "NULL", "status", "started_at", "completed_at",
                 "duration_ms", "error", "NULL", "NULL", "progress_timeline", "NULL", "resolved_scope", "run_usage",
-                "estimated_cost")
+                "estimated_cost", "failure")
 EVENT_COLUMNS = ("id", "type", "level", "timestamp", "message", "workflow_id", "batch_id", "thread_id", "node_id",
                  "metadata", "duration_ms", "error")
 
@@ -133,8 +133,14 @@ def upsert_run(db: Any, *, thread_id: str, workflow_id: str, workflow_name: str,
 def update_run(db: Any, thread_id: str, fields: dict[str, Any]) -> None:
     """Set the given columns of one run (a None value is not given, as before); a log given replaces its lines."""
     log = fields.get("execution_log")
-    given = {k: (json.dumps(v) if k in ("progress_timeline", "run_usage") else v)
-             for k, v in fields.items() if v is not None and k != "execution_log"}
+    given: dict[str, Any] = {}
+    for k, v in fields.items():
+        if v is None or k == "execution_log":
+            continue
+        if k == "failure":  # an empty one clears it: a run that goes on (a retry) is not failed any more
+            given[k] = json.dumps(v) if v else None
+        else:
+            given[k] = json.dumps(v) if k in ("progress_timeline", "run_usage") else v
     if given:
         db.execute(f"UPDATE {RUNS} SET {', '.join(f'{k} = ?' for k in given)} WHERE id = ?",
                    [*given.values(), thread_id])

@@ -52,6 +52,7 @@ class WorkflowRunRecord(BaseModel):
     resolved_scope: Optional[dict[str, Any]] = None
     run_usage: Optional[dict[str, Any]] = None
     estimated_cost: Optional[float] = None
+    failure: Optional[dict[str, Any]] = Field(default=None, description="Why a failed run failed: a `RunFailure` (`llm/failure.py`), written once when the run ends failed.")
 
 
 class WorkflowRunLogLine(BaseModel):

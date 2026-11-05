@@ -789,6 +789,7 @@ async def get_thread_status(
         else:
             status = "completed"
 
+        failure = run.failure if run is not None and status in ("failed", "paused") else None
         account = None
         if run is not None:
             # The run's account (#5555), the one Activity shows: read from what was just read here.
@@ -805,6 +806,7 @@ async def get_thread_status(
             checkpoint_id=checkpoint_tuple.checkpoint["id"],
             current_state=None if view == "summary" else _sanitize_for_json(current_state),
             error=workflow_error,
+            failure=failure,
             progress=summarize_run_state(current_state, checkpoint_tuple.pending_writes),
             account=account,
         )

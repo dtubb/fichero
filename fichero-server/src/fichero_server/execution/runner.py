@@ -537,6 +537,19 @@ def _with_kind(category: dict[str, Any], exc: BaseException | None, error_text: 
     return {**category, "kind": classify(exc, error_text or "").kind}
 
 
+def _run_failure(exc: BaseException | None, text: str, workflow: Any, *, done: int | None = None, total: int | None = None) -> dict[str, Any]:
+    """The failure a run that ended failed carries (`llm/failure.classify`), as the JSON the run row, the status route, the jobs
+    list and the stream serve. Never raises: a run's end must not fail over its explanation."""
+    from fichero_server.llm.failure import classify
+
+    try:
+        return classify(exc, text, step=getattr(workflow, "name", None), provider=getattr(workflow, "provider", None),
+                        model=getattr(workflow, "model", None), done=done, total=total).model_dump(mode="json")
+    except Exception:  # noqa: BLE001
+        logger.exception("could not classify the run's failure")
+        return {}
+
+
 def _classify_by_words(error_text: str) -> dict[str, Any]:
     text = (error_text or "").lower()
 
@@ -1560,6 +1573,11 @@ async def _run_workflow_body(
         )
         if refused := refused_event(thread_id, workflow_id):  # paused at a cap: the typed refusal, so the app need not read a sentence
             event_queue.put(refused)
+        paused_failure = None
+        if refused is not None:
+            from fichero_server.llm.failure import from_refusal
+
+            paused_failure = from_refusal(refused.data, step=workflow.name).model_dump(mode="json")
         activity_tracker.workflow_paused(
             workflow_id=workflow_id,
             thread_id=thread_id,
@@ -1572,6 +1590,7 @@ async def _run_workflow_body(
             execution_log=execution_log_lines.text(),
             progress_timeline=progress_timeline,
             run_usage=_run_usage_record(),
+            failure=paused_failure,
         )
 
     peak_memory.start()
@@ -2695,8 +2714,10 @@ async def _run_workflow_body(
             complete_data["empty_output_reason"] = completion_metadata.get(
                 "empty_output_reason", ""
             )
+        _failure = _run_failure(None, _empty_reason, workflow) if _all_files_failed else None
         if _all_files_failed:
             complete_data["error"] = _empty_reason
+            complete_data["failure"] = _failure
         event_queue.put(
             SSEEvent(
                 event="complete",
@@ -2718,6 +2739,7 @@ async def _run_workflow_body(
             completed_at=datetime.now(timezone.utc),
             run_usage=_run_usage_record(),
             partial=None if _all_files_failed else partial_words(final_state),
+            failure=_failure,
         )
 
     except WorkflowCancelled:
@@ -2765,6 +2787,7 @@ async def _run_workflow_body(
 
         # #2612: surface the underlying provider/auth/quota message in Activity.
         failure_message, failure_cls = _systemic_failure_message(e)
+        run_failure = _run_failure(e, str(e), workflow, done=max(e.total_count - e.error_count, 0), total=e.total_count)
 
         # Log activity: workflow failed (systemic error)
         activity_tracker.workflow_failed(
@@ -2793,6 +2816,7 @@ async def _run_workflow_body(
                     "error_category": failure_cls["category"],
                     "error_message": failure_cls["message"],
                     "error_action": failure_cls["action"],
+                    "failure": run_failure,
                 },
             )
         )
@@ -2809,6 +2833,7 @@ async def _run_workflow_body(
             error=failure_message,
             completed_at=datetime.now(timezone.utc),
             run_usage=_run_usage_record(),
+            failure=run_failure,
         )
         # #4315: failed runs revert their processing documents to pending.
         await _finalize_documents("failed", error=str(e)[:500])
@@ -2824,6 +2849,7 @@ async def _run_workflow_body(
         ).total_seconds() * 1000
 
         await log_execution(f"ERROR: {str(e)}")
+        run_failure = _run_failure(e, str(e), workflow)
 
         # Log activity: workflow failed
         activity_tracker.workflow_failed(
@@ -2845,6 +2871,7 @@ async def _run_workflow_body(
                 data={
                     "error": str(e),
                     "error_category": _classify_provider_error(str(e), e)["category"],
+                    "failure": run_failure,
                 },
             )
         )
@@ -2862,6 +2889,7 @@ async def _run_workflow_body(
             error=str(e),
             completed_at=datetime.now(timezone.utc),
             run_usage=_run_usage_record(),
+            failure=run_failure,
         )
         # #4315: failed runs revert their processing documents to pending.
         await _finalize_documents("failed", error=str(e)[:500])

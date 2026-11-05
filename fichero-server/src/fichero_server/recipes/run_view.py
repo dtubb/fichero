@@ -22,6 +22,7 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
+from fichero_server.llm.failure import RunFailure
 from fichero_server.workflows.run_account import PageFailure, RunAccount
 
 logger = logging.getLogger(__name__)
@@ -232,6 +233,9 @@ class RecipeRunStep(BaseModel):
         "so a stage that runs on fewer pages than the project has says why (`source.recipe.done-is-not-redone`); null when not counted"))
     failed_pages: Optional[list[FailedPage]] = Field(default=None, description=(
         "a partial step: the pages it lost, each with why (`activity.run.step-honest-about-lost-pages`); null otherwise"))
+    failure: Optional[RunFailure] = Field(default=None, description=(
+        "a failed workflow stage: why its run failed, what to do and the buttons for it, the run's own `failure` with `step` filled "
+        "(`run.fail.run-carries-its-failure`, #6354); `why` keeps its words; null for any other stage"))
     account: Optional[RunAccount] = Field(default=None, description=(
         "a workflow stage's run account (#5555): its pages done, failed and left, the time left and what its "
         "pages wait for; null for a stage that has not started or is not a workflow run"))
@@ -291,6 +295,17 @@ def offer_words(job: str | None, label: str) -> str:
     return f"{verb} {label[len('Read '):]}" if verb and label.startswith("Read ") else label
 
 
+async def _step_failure(db: Any, step: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """A failed workflow stage's run `failure`, named for the stage (`step` filled from the card's title); None for any other stage."""
+    if step.get("state") != "failed" or step.get("card") != "workflow" or not step.get("child_id"):
+        return None
+    from fichero_server.workflows.activity import get_activity_tracker
+
+    run = await get_activity_tracker(str(db.path)).store.get_workflow_run(step["child_id"])
+    failure = getattr(run, "failure", None)
+    return {**failure, "step": step.get("title") or failure.get("step")} if failure else None
+
+
 async def with_accounts(db: Any, status: dict[str, Any]) -> dict[str, Any]:
     """The run's status with each started workflow stage's account, and `waiting_for` and
     `estimate_seconds_left` for the run: what it waits for now, and the running stage's time left."""
@@ -300,6 +315,7 @@ async def with_accounts(db: Any, status: dict[str, Any]) -> dict[str, Any]:
     running = None
     for step in status["steps"]:
         step["account"] = None
+        step["failure"] = await _step_failure(db, step)
         if step.get("child_id") in timings:
             step["timing"] = timings[step["child_id"]]
         if step.get("card") == "workflow" and step.get("child_id"):
