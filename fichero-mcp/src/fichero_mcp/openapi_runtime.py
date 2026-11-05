@@ -67,6 +67,8 @@ def _detail(exc: FicheroError) -> Any:
 def _with_ways_through(detail: Any) -> Any:
     """A cloud refusal's `detail` (`{message, refusal}`) keeps `refusal` intact and its message names the tool's own arguments that
     go through (`ai.cloud.mcp-refuses-in-words`, #6350): `allow_cloud_once`, `over_cap_once`, and the tools that set the caps and the yes."""
+    if isinstance(detail, dict) and isinstance(detail.get("failure"), dict):
+        return _with_failure_ways(detail)
     refusal = detail.get("refusal") if isinstance(detail, dict) else None
     if not isinstance(refusal, dict):
         return detail
@@ -84,6 +86,29 @@ def _with_ways_through(detail: Any) -> Any:
         ways.append("allow cloud for every project with fichero_recipes_put_places")
     message = str(detail.get("message") or refusal.get("words") or "A cloud rule refused this call.")
     return {**detail, "message": message + (" Ways through: " + "; ".join(ways) + "." if ways else "")}
+
+
+_FAILURE_TOOLS = {
+    "retry": "call fichero_activity_retry_job with this run's id",
+    "resume": "call fichero_activity_retry_job with this run's id",
+    "choose-model": "call fichero_workflow_run again with provider_override and model_override naming another model",
+    "open-settings": "give the provider a new key with fichero_providers_set_api_key, or change it in the app (Settings > AI)",
+    "report-bug": "call fichero_activity_post_job_bug_report with this run's id for a report that leaves out what is private",
+    "reconnect": "reconnect the folder in the app, then run it again",
+}
+
+
+def _with_failure_ways(detail: dict) -> dict:
+    """A failed run's `detail` (`{message, failure}`) keeps `failure` intact and its message names the tool that does each action
+    (`run.fail.mcp-says-the-fix`, #6354); the bug report first for a bug in Fichero."""
+    failure = detail["failure"]
+    actions = list(failure.get("actions") or [])
+    if failure.get("kind") == "unexpected":
+        actions.sort(key=lambda a: a.get("kind") != "report-bug")
+    ways = list(dict.fromkeys(_FAILURE_TOOLS[a["kind"]] for a in actions if a.get("kind") in _FAILURE_TOOLS))
+    message = str(detail.get("message") or failure.get("words") or "The run stopped.")
+    fix = f" Fix: {failure['fix']}" if failure.get("fix") else ""
+    return {**detail, "message": message + fix + (" Ways on: " + "; ".join(ways) + "." if ways else "")}
 
 
 def call(method: str, path: str, *, params: dict | None = None, json: Any = None, files: Any = None) -> Any:

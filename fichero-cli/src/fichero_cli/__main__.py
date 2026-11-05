@@ -21,6 +21,7 @@ from typing import Any, Callable, Optional
 
 import typer
 
+from fichero_cli import run_failure
 from fichero_cli import FicheroClient, FicheroError
 from fichero_cli.client import CloudRefusedError
 from fichero_cli import client as client_module
@@ -2696,6 +2697,9 @@ def workflow_run(
         # Strip LangGraph implementation details from human output (#1081).
         # `--json` keeps the raw payload for diagnostics.
         typer.echo(render(_scrub_langgraph_internals(result)))
+    if wait and (failure := run_failure.of(result)):  # a run that failed: the words, the fix and the commands, exit 1
+        typer.secho(run_failure.words(failure, str(thread_id)), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=run_failure.EXIT_CODE)
 
 
 @app.command("activity-stream")
@@ -4248,8 +4252,15 @@ def workflow_status(
     ctx: typer.Context,
     thread_id: str = typer.Argument(..., help="Thread ID to inspect."),
 ) -> None:
-    """Show the current status of a workflow execution thread."""
-    _invoke(ctx, lambda c: c.execution_status(thread_id))
+    """Show the current status of a workflow execution thread. A run that failed also says why, the fix and the commands."""
+    try:
+        with _client(ctx) as client:
+            status = client.execution_status(thread_id)
+    except FicheroError as exc:
+        _report_fichero_error(ctx, exc)
+    typer.echo(render(status, as_json=ctx.obj["json"]))
+    if failure := run_failure.of(status):
+        typer.secho(run_failure.words(failure, thread_id), fg=typer.colors.RED, err=True)
 
 
 @workflow_app.command("stop")
