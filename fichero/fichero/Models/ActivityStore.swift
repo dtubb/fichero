@@ -168,17 +168,17 @@ final class ActivityStore: ChangeEventConsumer {
     /// A recipe run's folders done of its folders in all (`activity.run.progress-per-folder`, #5540), keyed
     /// by the run's id: read from its status each time its tree is read, one key patched, only when changed.
     var recipeRunFolders: [String: RecipeRunFolders] = [:]
-    /// Which recipe steps are done on each folder (`activity.run.folder-steps-done`, #5642), keyed by the folder's id:
-    /// read from the same status as the run's folders, a folder patched only when its count changed.
+    /// Which recipe steps are done on each folder (`activity.run.folder-steps-done`, #5642), by folder id, from the run's status.
     /// ponytail: one dictionary, so a patch re-reads every folder row's mark; a store per folder if that shows.
     var recipeFolderSteps: [String: RecipeFolderSteps] = [:]
     /// How many pages a running recipe run reads at once and why (`recipes-run.memory.gate-shown`, #6217), keyed by the
     /// run's id: read from the same status as its folders; removed when the status no longer says.
     var recipeRunPagesAtOnce: [String: RecipeRunPagesAtOnce] = [:]
-    /// A recipe run a step of which was paused at a cloud spend cap (#6295), keyed by the run's id: the engine's
-    /// `stopped_at_cap`, `reason` and the caps that let the refused call through, from the same status; removed when it goes on.
-    /// The run strip offers the caps' change by it.
+    /// A recipe run a step of which was paused at a cloud spend cap (#6295), by run id: the engine's `stopped_at_cap`, `reason`
+    /// and the caps that let the refused call through, from the same status; removed when it goes on. The strip offers the change.
     var recipeRunStoppedAtCap: [String: CloudCapFix.Stop] = [:]
+    /// What a recipe run was given for this run alone, in the engine's words (`once_words`), by run id.
+    var recipeRunOnceWords: [String: String] = [:]
     /// The recipe run the project window's strip shows (#5576, #5577): the
     /// project's running recipe run, seen on the jobs poll, and once it ends,
     /// that run until the person puts it away. Its words are its tree's

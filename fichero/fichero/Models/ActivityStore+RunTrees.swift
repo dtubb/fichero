@@ -51,6 +51,7 @@ extension ActivityStore {
             if recipeRunPagesAtOnce[jobId] != atOnce { recipeRunPagesAtOnce[jobId] = atOnce }
             let capped = CloudCapFix.Stop(status)
             if recipeRunStoppedAtCap[jobId] != capped { recipeRunStoppedAtCap[jobId] = capped }
+            if recipeRunOnceWords[jobId] != status.onceWords { recipeRunOnceWords[jobId] = status.onceWords }
             for (folder, steps) in RecipeFolderSteps.byFolder(status) where recipeFolderSteps[folder] != steps {
                 recipeFolderSteps[folder] = steps
             }

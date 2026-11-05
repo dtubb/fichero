@@ -542,4 +542,13 @@ final class ProjectRunStripStateTests: XCTestCase {
         XCTAssertFalse(ProjectRunStrip(jobId: "r1", node: nil, job: nil).spins, "nothing read yet: waiting, still")
         XCTAssertFalse(ProjectRunStrip(jobId: "r1", node: try Self.node(state: "done"), job: nil).spins)
     }
+
+    /// `ai.cloud.one-run-overrides` (#6349): what the run was given for this run alone is said beside its line, and nothing is added
+    /// when it was given none.
+    func testStrip_saysWhatTheRunWasGivenForThisRunAlone() {
+        var strip = ProjectRunStrip(jobId: "r1", isLive: true, title: "Read", detail: "3 done")
+        XCTAssertEqual(strip.shownDetail, "3 done")
+        strip.onceWords = "Cloud allowed for this run"
+        XCTAssertEqual(strip.shownDetail, "3 done · Cloud allowed for this run")
+    }
 }

@@ -29,6 +29,11 @@ struct ProjectRunStrip: Equatable {
     /// Set when a step of the run was paused at a cloud spend cap, as the engine says it (`stopped_at_cap`, #6295): the strip offers
     /// the caps' change by it, says its words in place of the run's own line, and the popover offers the caps it names.
     var stoppedAtCap: CloudCapFix.Stop?
+    /// What the run was given for this run alone, in the engine's words (`once_words`): said beside the run's line.
+    var onceWords: String?
+
+    /// The line under the title: the run's own, then what it was given for this run alone.
+    var shownDetail: String { [detail, onceWords].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ") }
     /// A spinner only while the run works now: a paused, waiting or stalled run is live but still
     /// (`activity.spinner-reflects-process-liveness`, #4346).
     var spins: Bool { isLive && state == "running" }
@@ -41,6 +46,7 @@ struct ProjectRunStrip: Equatable {
                   job: store.backgroundJobs.first { $0.id == jobId },
                   folders: store.recipeRunFolders[jobId], pagesAtOnce: store.recipeRunPagesAtOnce[jobId])
         stoppedAtCap = store.recipeRunStoppedAtCap[jobId]
+        onceWords = store.recipeRunOnceWords[jobId]
     }
 
     /// Preview seam: the words given.
@@ -297,12 +303,12 @@ struct ProjectRunStripRow: View {
                     .foregroundStyle(strip.failed.isEmpty ? Color.secondary : Color.orange)
             }
             Text(strip.title).font(.callout.weight(.semibold))
-            Text(failure ?? strip.stoppedAtCap?.words ?? strip.detail)
+            Text(failure ?? strip.stoppedAtCap?.words ?? strip.shownDetail)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .help(failure ?? strip.stoppedAtCap?.words ?? strip.detail)
+                .help(failure ?? strip.stoppedAtCap?.words ?? strip.shownDetail)
             Spacer(minLength: 8)
             ForEach(strip.failed) { stage in
                 if let offer = stage.offer {
