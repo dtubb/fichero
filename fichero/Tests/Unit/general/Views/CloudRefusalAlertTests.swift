@@ -31,7 +31,9 @@ struct CloudRefusalAlertTests {
          "fixes":[{"kind":"raise-to","usd":12.5},{"kind":"over-cap-once"},
                   {"kind":"open-settings","control":"settings.ai.cloudCaps"}]}
         """)
-        #expect(shown.choices.map(\.action) == [.openSettings, .runAgain(.init(overCap: true)), .openSettings])
+        #expect(shown.choices.map(\.action) == [
+            .raiseCap(.capMonthly, .app, usd: 12.5), .runAgain(.init(overCap: true)), .openSettings])
+        #expect(shown.choices.first?.title.hasPrefix("Raise the cap to ") == true)
     }
 
     @Test("a refusal's words are the error's words")

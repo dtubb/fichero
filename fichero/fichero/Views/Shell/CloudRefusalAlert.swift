@@ -34,11 +34,13 @@ struct CloudRefusalAlert: ViewModifier {
             await places.set(.cloud, allowed: true)
             prompt.resend(.init())
         case .allowProject:
-            let body = Components.Schemas.AllowCloudRequest(allowed: true)
-            _ = try? await appState.ficheroClient.api.allowCloudApiRecipesProjectAllowCloudPost(body: .json(body))
+            await CloudRefusalActions.allowProject(client: appState.ficheroClient)
             prompt.resend(.init())
         case .runAgain(let once):
             prompt.resend(once)
+        case .raiseCap(let kind, let scope, let usd):
+            let raised = await CloudRefusalActions.raise(kind, scope: scope, usd: usd, client: appState.ficheroClient)
+            if raised { prompt.resend(.init()) }
         case .openSettings:
             appState.openSettings(tab: .aiModels)
         }

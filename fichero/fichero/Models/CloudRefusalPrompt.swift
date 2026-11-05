@@ -19,6 +19,8 @@ struct CloudRefusalPrompt: Identifiable {
         case allowProject      // `POST /api/recipes/project/allow-cloud`
         case runAgain(Once)    // this run only
         case openSettings
+        /// The cap the refusal names, raised to `usd` (the audited action for its scope), then the run goes again.
+        case raiseCap(Components.Schemas.CloudRefusal.KindPayload, Components.Schemas.CloudRefusal.ScopePayload, usd: Double)
     }
 
     struct Choice: Identifiable, Equatable {
@@ -32,8 +34,8 @@ struct CloudRefusalPrompt: Identifiable {
     /// Runs the refused run again with the once overrides; set by the run that was refused.
     let resend: (Once) -> Void
 
-    /// The buttons in the engine's order. A raise-to fix opens the caps in Settings: the figure it names is
-    /// shown in its words.
+    /// The buttons in the engine's order. A raise-to fix raises the cap it names to the engine's
+    /// figure (no figure: the caps in Settings); the figure is shown in its words.
     var choices: [Choice] {
         let fixes = refusal.fixes ?? []
         return fixes.enumerated().map { index, fix in
@@ -43,7 +45,13 @@ struct CloudRefusalPrompt: Identifiable {
             case .allowOnce: Choice(id: index, title: "Allow this once", action: .runAgain(Once(allowCloud: true)))
             case .overCapOnce:
                 Choice(id: index, title: "Run past the cap this once", action: .runAgain(Once(overCap: true)))
-            case .raiseTo: Choice(id: index, title: "Raise the cap…", action: .openSettings)
+            case .raiseTo:
+                if let usd = fix.usd {
+                    Choice(id: index, title: "Raise the cap to \(usd.formatted(.currency(code: "USD")))",
+                           action: .raiseCap(refusal.kind, refusal.scope, usd: usd))
+                } else {
+                    Choice(id: index, title: "Raise the cap…", action: .openSettings)
+                }
             case .openSettings: Choice(id: index, title: "Open Settings…", action: .openSettings)
             }
         }
