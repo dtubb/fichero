@@ -392,14 +392,6 @@ func persistPageContent(
     let id = document.id
     let seen = document.updatedAt
     return await documentStore.savePageContent(documentId: id) {
-        // Read the version inside the task: an earlier save of this document has finished by now (#5348).
-        let expected = await documentStore.versionForNextTextSave(id, seen: seen)
-        do {
-            return try await documentService.updateDocument(id, pageContent: content, expectedUpdatedAt: expected)
-        } catch DocumentServiceError.stale {
-            PlatformPasteboard.writeString(content)
-            await documentStore.textSaveWasRefused(id)
-            throw DocumentServiceError.stale
-        }
+        try await documentStore.updateText(id, content: content, seen: seen, service: documentService)
     }
 }

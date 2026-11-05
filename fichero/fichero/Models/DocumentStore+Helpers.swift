@@ -94,6 +94,19 @@ extension DocumentStore {
         pageContentReplacing.insert(id)
     }
 
+    /// One text save (#5348). The version is read here, inside the store's save task, after any earlier save of this
+    /// document has finished. A refusal copies the person's text to the clipboard so it is never lost.
+    func updateText(_ id: String, content: String, seen: Date, service: DocumentService) async throws -> Document {
+        let expected = versionForNextTextSave(id, seen: seen)
+        do {
+            return try await service.updateDocument(id, pageContent: content, expectedUpdatedAt: expected)
+        } catch DocumentServiceError.stale {
+            PlatformPasteboard.writeString(content)
+            textSaveWasRefused(id)
+            throw DocumentServiceError.stale
+        }
+    }
+
     /// Persist a document's `page_content` via a STORE-OWNED task that runs to
     /// completion regardless of view lifecycle.
     ///
