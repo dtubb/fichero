@@ -1047,12 +1047,19 @@ def timeout_only(root, since: str, head: str, f: str) -> bool:
     diff = _lines(root, "diff", "--no-ext-diff", "--unified=0", f"{since}...{head}", "--", f)
     if diff is None:
         return False  # unreadable: fail closed
-    added = [ln[1:] for ln in diff if ln.startswith("+") and not ln.startswith("+++")]
-    removed = [ln[1:] for ln in diff if ln.startswith("-") and not ln.startswith("---")]
+    # per hunk, in order, indentation kept (review 106: sorted and stripped, a moved or re-indented assert read as timeout-only)
+    hunks: list[tuple[list[str], list[str]]] = []
+    for ln in diff:
+        if ln.startswith("@@"):
+            hunks.append(([], []))
+        elif hunks and ln.startswith("-") and not ln.startswith("---"):
+            hunks[-1][0].append(ln[1:])
+        elif hunks and ln.startswith("+") and not ln.startswith("+++"):
+            hunks[-1][1].append(ln[1:])
 
     def norm(lines):
-        return sorted(TIMEOUT_NUM.sub(r"\1N", ln).strip() for ln in lines if not (COMMENT_LINE.match(ln) or TIMEOUT_LINE.match(ln)))
-    return bool(added or removed) and norm(added) == norm(removed)
+        return [TIMEOUT_NUM.sub(r"\1N", ln).rstrip() for ln in lines if not (COMMENT_LINE.match(ln) or TIMEOUT_LINE.match(ln))]
+    return bool(hunks) and all(norm(old) == norm(new) for old, new in hunks)
 
 
 def deleted_modules(root, since: str, head: str, cfg: Config) -> set[str]:

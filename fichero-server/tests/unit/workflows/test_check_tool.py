@@ -407,6 +407,19 @@ def test_a_test_file_whose_diff_touches_only_timeouts_or_comments_is_timeout_onl
     (tmp_path / "test_q.py").write_text(body + "    assert done()\n")
     g("commit", "-qam", "an added line")
     assert not ct.timeout_only(tmp_path, base, "HEAD", "test_q.py")
+    two = "import pytest\n\ndef test_a():\n    x = 1\n    assert x\n\n\ndef test_b():\n    y = 2\n"
+    (tmp_path / "test_m.py").write_text(two)
+    g("add", "."), g("commit", "-qm", "two tests")
+    mbase = _sha(tmp_path)
+    (tmp_path / "test_m.py").write_text(two.replace("    assert x\n", "") + "    assert x\n")  # the check moves to test_b
+    g("commit", "-qam", "move an assert")
+    assert not ct.timeout_only(tmp_path, mbase, "HEAD", "test_m.py"), "a moved assert is not a timeout change (review 106)"
+    (tmp_path / "test_m.py").write_text(two.replace("    assert x\n", "    if x:\n        assert x\n"))
+    g("commit", "-qam", "re-indent it under an if")
+    assert not ct.timeout_only(tmp_path, mbase, "HEAD", "test_m.py"), "a re-indented assert is not a timeout change"
+    (tmp_path / "test_m.py").write_text(two.replace("    x = 1\n    assert x\n", "    assert x\n    x = 1\n"))
+    g("commit", "-qam", "reorder: the assert before its setup")
+    assert not ct.timeout_only(tmp_path, mbase, "HEAD", "test_m.py"), "reordered lines are not a timeout change"
     (tmp_path / "test_new.py").write_text("@pytest.mark.timeout(5)\ndef test_n():\n    pass\n")
     g("add", "."), g("commit", "-qm", "new file")
     assert not ct.timeout_only(tmp_path, base, "HEAD", "test_new.py"), "a new file is never timeout-only"
