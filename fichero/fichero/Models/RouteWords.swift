@@ -16,7 +16,7 @@ struct RouteWords: Identifiable, Equatable {
         title = route.title
         cost = Self.figure(route.costUsd, label: "Cost") { $0.formatted(.currency(code: "USD")) }
         time = Self.figure(route.timeSeconds, label: "Time") { seconds in
-            Duration.seconds(seconds).formatted(.units(allowed: [.days, .hours, .minutes], width: .abbreviated, maxUnitCount: 2))
+            Duration.seconds(seconds).formatted(.units(allowed: [.days, .hours, .minutes], width: .abbreviated, maximumUnitCount: 2))
         }
         accuracy = Self.figure(route.accuracyCer, label: "Error rate") { $0.formatted(.percent.precision(.fractionLength(1))) }
         leavesThisMac = route.leavesThisMac
