@@ -31,6 +31,9 @@ def test_a_device_paired_by_a_link_for_a_project_is_given_that_project(harness, 
 
     users = _multiuser_on(harness, monkeypatch)
     owner = users["owner"]
+    # The project the app made on first run: no roles row for the owner either (`_multiuser_on` gives one; take it away).
+    harness.app_db.delete_library_role(owner.id, path)
+    assert harness.app_db.get_library_role(owner.id, path) is None
     minter = signed_in_client(harness, owner)
     paired = harness.pair(harness.client(), code_headers=minter.headers)
 
