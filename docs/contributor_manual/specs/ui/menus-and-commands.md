@@ -229,9 +229,10 @@ Behaviours (slice 1):
   as Inspector › Recipe › Set Up…) and **Start** ⇧⌘↩ (`FocusedStartRecipeButton`, the same
   `RecipeSetupStore.start` call setup's Start makes; a plan not read yet is read on the press; a plan
   that cannot start opens Set Up… so its steps say why; a kept Start lands on the run in Activity, as
-  setup's does). Each is disabled with its reason under it when there is no project, or when the plan
+  setup's does). **Allow Cloud AI Services for This Project** follows them (`FocusedCloudSwitchButton`, a toggle
+  for the key window's project: `RecipeSetupStore.allowCloud(allowed:)`, the Inspector's switch, #6022). Each is disabled with its reason under it when there is no project, or when the plan
   refuses (the refusal is the reason); pinned by
-  `MenuTerminologyBoundaryTests.testProjectMenuDeclaresTheStageSectionsInRecipeOrder`,
+  `fichero/Tests/Unit/general/App/MenuTerminologyBoundaryTests.swift` (`testProjectMenuDeclaresTheStageSectionsInRecipeOrder`),
   `testStartSaysWhyItCannotAct`, and `MenuShortcutUniquenessTests.projectMenuChordsAreUnique`.
 - `menus.project.stage-sections` — **[PARTIAL]** (#5652) **Built 2026-10-10 (app), not yet seen:** the
   stages are `ProjectMenuStage` in recipe order, each a titled `Section`: **Read** › Reading ▸ › Run the

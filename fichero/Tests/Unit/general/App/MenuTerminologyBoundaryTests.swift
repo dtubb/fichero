@@ -73,6 +73,10 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
         let stages = try XCTUnwrap(body.range(of: "ForEach(ProjectMenuStage.allCases)"))
         XCTAssertLessThan(setUp.lowerBound, start.lowerBound)
         XCTAssertLessThan(start.lowerBound, stages.lowerBound)
+        // The project's cloud switch follows Start (`ai.cloud.switch-in-the-project`, #6022).
+        let cloud = try XCTUnwrap(body.range(of: "FocusedCloudSwitchButton()"), "the Project menu lacks the cloud switch")
+        XCTAssertLessThan(start.lowerBound, cloud.lowerBound)
+        XCTAssertLessThan(cloud.lowerBound, stages.lowerBound)
 
         // Each built stage is a titled Section holding its verbs; Workflows ▸ and Chat ▸ moved here.
         XCTAssertTrue(body.contains(
