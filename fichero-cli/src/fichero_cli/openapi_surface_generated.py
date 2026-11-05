@@ -19141,6 +19141,7 @@ def register_generated_openapi_commands(
     @target_app.command("dry-run")
     def workflow_execution_dry_run_post(
         ctx: typer.Context,
+        allow_cloud_once: Optional[bool] = typer.Option(None, '--allow-cloud-once/--no-allow-cloud-once', help="Let THIS run's calls go to a cloud model although the project keeps its pages on this Mac; written to no setting, ended with the run (`ai.cloud.one-run-overrides`) Default: false."),
         checkpoint_ns: Optional[str] = typer.Option(None, '--checkpoint-ns', help='Checkpoint namespace, for a sub-workflow. Default: "".'),
         force_new: Optional[bool] = typer.Option(None, '--force-new/--no-force-new', help='Force New. Default: false.'),
         force_recompute: Optional[bool] = typer.Option(None, '--force-recompute/--no-force-recompute', help='Run it again for real: bypass every cache. Default: false.'),
@@ -19148,6 +19149,7 @@ def register_generated_openapi_commands(
         interrupt_after: Optional[list[str]] = typer.Option(None, '--interrupt-after', help='Interrupt After. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         interrupt_before: Optional[list[str]] = typer.Option(None, '--interrupt-before', help='Interrupt Before. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         model_override: Optional[str] = typer.Option(None, '--model-override', help='Run every step with this model.'),
+        over_cap_once: Optional[bool] = typer.Option(None, '--over-cap-once/--no-over-cap-once', help="Let THIS run's calls go past a cloud spend cap; the spend is still booked, so the next refusal counts it; written to no setting, ended with the run (`ai.cloud.one-run-overrides`) Default: false."),
         provider_override: Optional[str] = typer.Option(None, '--provider-override', help='Run every step on this provider.'),
         selection: Optional[str] = typer.Option(None, '--selection', help='The declared scope of a run. Validation is the whole point: this is the first place in the system that can say "that request does not describe a coherent selection" and refuse, rather than running and discovering the scope was wrong from its effects on real archival data. JSON.'),
         skip_cache: Optional[bool] = typer.Option(None, '--skip-cache/--no-skip-cache', help='Skip Cache. Default: false.'),
@@ -19159,6 +19161,7 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/workflow-execution/dry-run"
             params = None
             payload = _build_json_payload({
+                "allow_cloud_once": allow_cloud_once,
                 "checkpoint_ns": checkpoint_ns,
                 "force_new": force_new,
                 "force_recompute": force_recompute,
@@ -19166,12 +19169,14 @@ def register_generated_openapi_commands(
                 "interrupt_after": interrupt_after,
                 "interrupt_before": interrupt_before,
                 "model_override": model_override,
+                "over_cap_once": over_cap_once,
                 "provider_override": provider_override,
                 "selection": selection,
                 "skip_cache": skip_cache,
                 "thread_id": thread_id,
                 "workflow_id": workflow_id,
             }, {
+                "allow_cloud_once": {'type': 'boolean', 'title': 'Allow Cloud Once', 'description': "Let THIS run's calls go to a cloud model although the project keeps its pages on this Mac; written to no setting, ended with the run (`ai.cloud.one-run-overrides`)", 'default': False, 'x-cli-required': False},
                 "checkpoint_ns": {'type': 'string', 'title': 'Checkpoint Ns', 'description': 'Checkpoint namespace, for a sub-workflow.', 'default': '', 'x-cli-required': False},
                 "force_new": {'type': 'boolean', 'title': 'Force New', 'default': False, 'x-cli-required': False},
                 "force_recompute": {'type': 'boolean', 'title': 'Force Recompute', 'description': 'Run it again for real: bypass every cache.', 'default': False, 'x-cli-required': False},
@@ -19179,6 +19184,7 @@ def register_generated_openapi_commands(
                 "interrupt_after": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Interrupt After', 'x-cli-required': False},
                 "interrupt_before": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Interrupt Before', 'x-cli-required': False},
                 "model_override": {'type': 'string', 'nullable': True, 'title': 'Model Override', 'description': 'Run every step with this model.', 'x-cli-required': False},
+                "over_cap_once": {'type': 'boolean', 'title': 'Over Cap Once', 'description': "Let THIS run's calls go past a cloud spend cap; the spend is still booked, so the next refusal counts it; written to no setting, ended with the run (`ai.cloud.one-run-overrides`)", 'default': False, 'x-cli-required': False},
                 "provider_override": {'type': 'string', 'nullable': True, 'title': 'Provider Override', 'description': 'Run every step on this provider.', 'x-cli-required': False},
                 "selection": {'properties': {'kind': {'$ref': '#/components/schemas/SelectionKind'}, 'ids': {'items': {'type': 'string'}, 'type': 'array', 'title': 'Ids'}}, 'type': 'object', 'required': ['kind'], 'title': 'WorkflowSelection', 'description': 'The declared scope of a run.\n\nValidation is the whole point: this is the first place in the system that\ncan say "that request does not describe a coherent selection" and refuse,\nrather than running and discovering the scope was wrong from its effects\non real archival data.', 'x-cli-required': False},
                 "skip_cache": {'type': 'boolean', 'title': 'Skip Cache', 'default': False, 'x-cli-required': False},
@@ -19191,6 +19197,7 @@ def register_generated_openapi_commands(
     @target_app.command("execute")
     def workflow_execution_execute_post(
         ctx: typer.Context,
+        allow_cloud_once: Optional[bool] = typer.Option(None, '--allow-cloud-once/--no-allow-cloud-once', help="Let THIS run's calls go to a cloud model although the project keeps its pages on this Mac; written to no setting, ended with the run (`ai.cloud.one-run-overrides`) Default: false."),
         checkpoint_ns: Optional[str] = typer.Option(None, '--checkpoint-ns', help='Checkpoint namespace, for a sub-workflow. Default: "".'),
         force_new: Optional[bool] = typer.Option(None, '--force-new/--no-force-new', help='Force New. Default: false.'),
         force_recompute: Optional[bool] = typer.Option(None, '--force-recompute/--no-force-recompute', help='Run it again for real: bypass every cache. Default: false.'),
@@ -19198,6 +19205,7 @@ def register_generated_openapi_commands(
         interrupt_after: Optional[list[str]] = typer.Option(None, '--interrupt-after', help='Interrupt After. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         interrupt_before: Optional[list[str]] = typer.Option(None, '--interrupt-before', help='Interrupt Before. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         model_override: Optional[str] = typer.Option(None, '--model-override', help='Run every step with this model.'),
+        over_cap_once: Optional[bool] = typer.Option(None, '--over-cap-once/--no-over-cap-once', help="Let THIS run's calls go past a cloud spend cap; the spend is still booked, so the next refusal counts it; written to no setting, ended with the run (`ai.cloud.one-run-overrides`) Default: false."),
         provider_override: Optional[str] = typer.Option(None, '--provider-override', help='Run every step on this provider.'),
         selection: Optional[str] = typer.Option(None, '--selection', help='The declared scope of a run. Validation is the whole point: this is the first place in the system that can say "that request does not describe a coherent selection" and refuse, rather than running and discovering the scope was wrong from its effects on real archival data. JSON.'),
         skip_cache: Optional[bool] = typer.Option(None, '--skip-cache/--no-skip-cache', help='Skip Cache. Default: false.'),
@@ -19209,6 +19217,7 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/workflow-execution/execute"
             params = None
             payload = _build_json_payload({
+                "allow_cloud_once": allow_cloud_once,
                 "checkpoint_ns": checkpoint_ns,
                 "force_new": force_new,
                 "force_recompute": force_recompute,
@@ -19216,12 +19225,14 @@ def register_generated_openapi_commands(
                 "interrupt_after": interrupt_after,
                 "interrupt_before": interrupt_before,
                 "model_override": model_override,
+                "over_cap_once": over_cap_once,
                 "provider_override": provider_override,
                 "selection": selection,
                 "skip_cache": skip_cache,
                 "thread_id": thread_id,
                 "workflow_id": workflow_id,
             }, {
+                "allow_cloud_once": {'type': 'boolean', 'title': 'Allow Cloud Once', 'description': "Let THIS run's calls go to a cloud model although the project keeps its pages on this Mac; written to no setting, ended with the run (`ai.cloud.one-run-overrides`)", 'default': False, 'x-cli-required': False},
                 "checkpoint_ns": {'type': 'string', 'title': 'Checkpoint Ns', 'description': 'Checkpoint namespace, for a sub-workflow.', 'default': '', 'x-cli-required': False},
                 "force_new": {'type': 'boolean', 'title': 'Force New', 'default': False, 'x-cli-required': False},
                 "force_recompute": {'type': 'boolean', 'title': 'Force Recompute', 'description': 'Run it again for real: bypass every cache.', 'default': False, 'x-cli-required': False},
@@ -19229,6 +19240,7 @@ def register_generated_openapi_commands(
                 "interrupt_after": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Interrupt After', 'x-cli-required': False},
                 "interrupt_before": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Interrupt Before', 'x-cli-required': False},
                 "model_override": {'type': 'string', 'nullable': True, 'title': 'Model Override', 'description': 'Run every step with this model.', 'x-cli-required': False},
+                "over_cap_once": {'type': 'boolean', 'title': 'Over Cap Once', 'description': "Let THIS run's calls go past a cloud spend cap; the spend is still booked, so the next refusal counts it; written to no setting, ended with the run (`ai.cloud.one-run-overrides`)", 'default': False, 'x-cli-required': False},
                 "provider_override": {'type': 'string', 'nullable': True, 'title': 'Provider Override', 'description': 'Run every step on this provider.', 'x-cli-required': False},
                 "selection": {'properties': {'kind': {'$ref': '#/components/schemas/SelectionKind'}, 'ids': {'items': {'type': 'string'}, 'type': 'array', 'title': 'Ids'}}, 'type': 'object', 'required': ['kind'], 'title': 'WorkflowSelection', 'description': 'The declared scope of a run.\n\nValidation is the whole point: this is the first place in the system that\ncan say "that request does not describe a coherent selection" and refuse,\nrather than running and discovering the scope was wrong from its effects\non real archival data.', 'x-cli-required': False},
                 "skip_cache": {'type': 'boolean', 'title': 'Skip Cache', 'default': False, 'x-cli-required': False},
@@ -19399,19 +19411,25 @@ def register_generated_openapi_commands(
     def workflow_execution_resume_post(
         ctx: typer.Context,
         thread_id: str = typer.Argument(..., help='Thread Id'),
+        allow_cloud_once: Optional[bool] = typer.Option(None, '--allow-cloud-once/--no-allow-cloud-once', help="Let this resumed run's calls go to a cloud model once (`ai.cloud.one-run-overrides`). Default: false."),
         answer: Optional[str] = typer.Option(None, '--answer', help='The answer to the question the run paused on.'),
         inputs: Optional[str] = typer.Option(None, '--inputs', help='New inputs for the paused run. JSON.'),
+        over_cap_once: Optional[bool] = typer.Option(None, '--over-cap-once/--no-over-cap-once', help="Let this resumed run's calls go past a cloud spend cap once (`ai.cloud.one-run-overrides`). Default: false."),
     ) -> None:
         """Resume Workflow (POST /api/workflow-execution/threads/{thread_id}/resume)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/workflow-execution/threads/{thread_id}/resume"
             params = None
             payload = _build_json_payload({
+                "allow_cloud_once": allow_cloud_once,
                 "answer": answer,
                 "inputs": inputs,
+                "over_cap_once": over_cap_once,
             }, {
+                "allow_cloud_once": {'type': 'boolean', 'title': 'Allow Cloud Once', 'description': "Let this resumed run's calls go to a cloud model once (`ai.cloud.one-run-overrides`).", 'default': False, 'x-cli-required': False},
                 "answer": {'nullable': True, 'title': 'Answer', 'description': 'The answer to the question the run paused on.', 'x-cli-required': False},
                 "inputs": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Inputs', 'description': 'New inputs for the paused run.', 'x-cli-required': False},
+                "over_cap_once": {'type': 'boolean', 'title': 'Over Cap Once', 'description': "Let this resumed run's calls go past a cloud spend cap once (`ai.cloud.one-run-overrides`).", 'default': False, 'x-cli-required': False},
             }, required=False)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)

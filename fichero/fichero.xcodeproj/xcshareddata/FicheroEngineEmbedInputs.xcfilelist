@@ -417,6 +417,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/llm/re_ask_lines.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/read_guard.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/refusal.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/retry.py
+$(SRCROOT)/../fichero-server/src/fichero_server/llm/run_overrides.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/script_coverage.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/spend.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/trocr_runtime.py

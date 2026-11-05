@@ -59,7 +59,7 @@ Status tags are as of 2026-11-04 (A: the engine half of its first three lines is
   switch and `places.inherits_cloud()` for a project with no answer. Not built: the words saying it is a default a
   project may change, and the count of projects that answered for themselves. Tests:
   `fichero/Tests/Unit/general/Views/Settings/CloudAccessSectionTests.swift`.
-- `ai.cloud.project-overrides-the-default` [PARTIAL] (#6348, #6022 place 1; engine built: `may_leave_to` for the cloud, `project.allow_cloud` with `allowed`; the Set Up question reads the same `cloud_allowed` answer but is uncompiled, Step 2.2) — a project's `cloud_allowed` answer wins
+- `ai.cloud.project-overrides-the-default` [PARTIAL] (#6348, #6022 place 1; engine built: `may_leave_to` for the cloud, `project.allow_cloud` with `allowed`, and the call-time gate (`llm._enforce_local_only_provider`) now judges the cloud by the project's answer, not by the app's places answer; the Set Up question reads the same `cloud_allowed` answer but is uncompiled, Step 2.2) — a project's `cloud_allowed` answer wins
   over the app switch in both directions: `places.project_says_cloud` returns the project's own answer when it has one
   (today a project may only be stricter); the existing audited `project.allow_cloud` takes `allowed: bool` so one action
   sets yes or no (undoable, Set Up's question shows the same answer). Tests:
@@ -102,7 +102,7 @@ Status tags are as of 2026-11-04 (A: the engine half of its first three lines is
   execution stream sends one `refused` event carrying the refusal so the app need not read a sentence. Tests:
   `fichero-server/tests/unit/api/test_execute_refusal_is_typed_6349.py`,
   `fichero-server/tests/unit/workflows/test_paused_at_cap_event_6349.py`.
-- `ai.cloud.one-run-overrides` [GAP] (#6349, #6350) — the execute request (and a recipe Start) take
+- `ai.cloud.one-run-overrides` [PARTIAL] (#6349, #6350; Step 3.1b built: the two flags on the execute and resume requests, `llm/run_overrides.py` read by the gate and the hold, the spend still booked; not built: the recipe Start's flags and the Activity row's words) — the execute request (and a recipe Start) take
   `allow_cloud_once: bool` and `over_cap_once: bool`; both are kept on the run row (like `run_cap_usd`), read by the
   gate and the hold for calls of that run only, written to no project or app setting, and shown on the run's Activity
   row ("cloud allowed for this run" / "ran past the cap by your say"); spend is still booked. Resume after a pause at

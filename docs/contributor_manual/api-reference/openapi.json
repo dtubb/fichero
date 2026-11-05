@@ -69494,6 +69494,18 @@
             "title": "Model Override",
             "description": "Run every step with this model."
           },
+          "allow_cloud_once": {
+            "type": "boolean",
+            "title": "Allow Cloud Once",
+            "description": "Let THIS run's calls go to a cloud model although the project keeps its pages on this Mac; written to no setting, ended with the run (`ai.cloud.one-run-overrides`)",
+            "default": false
+          },
+          "over_cap_once": {
+            "type": "boolean",
+            "title": "Over Cap Once",
+            "description": "Let THIS run's calls go past a cloud spend cap; the spend is still booked, so the next refusal counts it; written to no setting, ended with the run (`ai.cloud.one-run-overrides`)",
+            "default": false
+          },
           "selection": {
             "$ref": "#/components/schemas/WorkflowSelection",
             "nullable": true,
@@ -91176,6 +91188,18 @@
             "nullable": true,
             "title": "Answer",
             "description": "The answer to the question the run paused on."
+          },
+          "allow_cloud_once": {
+            "type": "boolean",
+            "title": "Allow Cloud Once",
+            "description": "Let this resumed run's calls go to a cloud model once (`ai.cloud.one-run-overrides`).",
+            "default": false
+          },
+          "over_cap_once": {
+            "type": "boolean",
+            "title": "Over Cap Once",
+            "description": "Let this resumed run's calls go past a cloud spend cap once (`ai.cloud.one-run-overrides`).",
+            "default": false
           }
         },
         "type": "object",

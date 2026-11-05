@@ -659,6 +659,8 @@ async def resume_workflow(
             thread_id=thread_id,
             provider_override=started_with.get("provider_override"),
             model_override=started_with.get("model_override"),
+            allow_cloud_once=bool(request and request.allow_cloud_once),
+            over_cap_once=bool(request and request.over_cap_once),
         )
 
         def _resume_workflow_thread() -> None:

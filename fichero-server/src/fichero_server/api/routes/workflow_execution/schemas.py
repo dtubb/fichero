@@ -52,6 +52,12 @@ class ExecuteWorkflowRequest(BaseModel):
     force_recompute: bool = Field(default=False, description='Run it again for real: bypass every cache.')
     provider_override: str | None = Field(default=None, description='Run every step on this provider.')  # Optional run-level provider override
     model_override: str | None = Field(default=None, description='Run every step with this model.')  # Optional run-level model override
+    allow_cloud_once: bool = Field(default=False, description=(
+        "Let THIS run's calls go to a cloud model although the project keeps its pages on this Mac; written to no setting, ended with "
+        "the run (`ai.cloud.one-run-overrides`)"))
+    over_cap_once: bool = Field(default=False, description=(
+        "Let THIS run's calls go past a cloud spend cap; the spend is still booked, so the next refusal counts it; written to no "
+        "setting, ended with the run (`ai.cloud.one-run-overrides`)"))
 
     # What the user pointed at (#4397/#4396). Before this there was NO schema
     # for the selection at all — `selected_doc_ids` rode untyped inside
@@ -147,6 +153,8 @@ class ResumeWorkflowRequest(BaseModel):
     # Command(resume=answer) so the value is delivered back to the interrupt()
     # call — a plain inputs dict would NOT reach it.
     answer: Any | None = Field(default=None, description='The answer to the question the run paused on.')
+    allow_cloud_once: bool = Field(default=False, description="Let this resumed run's calls go to a cloud model once (`ai.cloud.one-run-overrides`).")
+    over_cap_once: bool = Field(default=False, description="Let this resumed run's calls go past a cloud spend cap once (`ai.cloud.one-run-overrides`).")
 
 
 class CancelWorkflowRequest(BaseModel):

@@ -1209,10 +1209,16 @@ async def _run_workflow_in_background(
 ) -> None:
     """Run a workflow in the background (see `_run_workflow_body`), every model call it makes for this project: the gate reads
     the project's own rule (`ai.where.egress-at-every-call`, #5368). The workflow bar, a recipe, a schedule and MCP all run here."""
+    from fichero_server.llm import run_overrides  # noqa: PLC0415
     from fichero_server.recipes.places import bound_project  # noqa: PLC0415
 
-    with bound_project(db.path.parent if hasattr(db, "path") else None):
-        await _run_workflow_body(thread_id, workflow, request, db, resume_input=resume_input, is_resume=is_resume)
+    # "Allow cloud once" / "run past the cap once": this run's calls only, kept nowhere else, gone when the run ends or pauses.
+    run_overrides.set_for_run(thread_id, allow_cloud=request.allow_cloud_once, over_cap=request.over_cap_once)
+    try:
+        with bound_project(db.path.parent if hasattr(db, "path") else None):
+            await _run_workflow_body(thread_id, workflow, request, db, resume_input=resume_input, is_resume=is_resume)
+    finally:
+        run_overrides.clear(thread_id)
 
 
 async def _run_workflow_body(

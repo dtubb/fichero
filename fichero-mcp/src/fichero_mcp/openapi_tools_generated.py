@@ -9036,6 +9036,7 @@ def fichero_workflow_execution_compare_runs(
 
 def fichero_workflow_execution_dry_run(
     *,
+    allow_cloud_once: Annotated[Optional[bool], Field(description="Let THIS run's calls go to a cloud model although the project keeps its pages on this Mac; written to no setting, ended with the run (`ai.cloud.one-run-overrides`) Default: false.")] = None,
     checkpoint_ns: Annotated[Optional[str], Field(description='Checkpoint namespace, for a sub-workflow. Default: "".')] = None,
     force_new: Annotated[Optional[bool], Field(description='Force New. Default: false.')] = None,
     force_recompute: Annotated[Optional[bool], Field(description='Run it again for real: bypass every cache. Default: false.')] = None,
@@ -9043,6 +9044,7 @@ def fichero_workflow_execution_dry_run(
     interrupt_after: Annotated[Optional[list[Any]], Field(description='Interrupt After.')] = None,
     interrupt_before: Annotated[Optional[list[Any]], Field(description='Interrupt Before.')] = None,
     model_override: Annotated[Optional[str], Field(description='Run every step with this model.')] = None,
+    over_cap_once: Annotated[Optional[bool], Field(description="Let THIS run's calls go past a cloud spend cap; the spend is still booked, so the next refusal counts it; written to no setting, ended with the run (`ai.cloud.one-run-overrides`) Default: false.")] = None,
     provider_override: Annotated[Optional[str], Field(description='Run every step on this provider.')] = None,
     selection: Annotated[Optional[dict[str, Any]], Field(description='The declared scope of a run. Validation is the whole point: this is the first place in the system that can say "that request does not describe a coherent selection" and refuse, rather than running and discovering the scope was wrong from its effects on real archival data.')] = None,
     skip_cache: Annotated[Optional[bool], Field(description='Skip Cache. Default: false.')] = None,
@@ -9050,11 +9052,12 @@ def fichero_workflow_execution_dry_run(
     workflow_id: Annotated[str, Field(description='The workflow to run.')],
 ) -> Any:
     'Dry Run Workflow\n\nTest a workflow before spending a real run (`workflows.canvas.dry-run`, #4370).\n\nAsks the same checks `/execute` makes (connections, models, privacy policy, run eligibility, the graph building) and\nanswers every problem in words, with the steps the run would take and which of them call a model. It starts no run,\ncalls no model, and writes nothing.\n\nRoute: POST /api/workflow-execution/dry-run (toolset `workflow-execution`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/workflow-execution/dry-run", json=_rt.body({"checkpoint_ns": checkpoint_ns, "force_new": force_new, "force_recompute": force_recompute, "inputs": inputs, "interrupt_after": interrupt_after, "interrupt_before": interrupt_before, "model_override": model_override, "provider_override": provider_override, "selection": selection, "skip_cache": skip_cache, "thread_id": thread_id, "workflow_id": workflow_id}))
+    return _rt.call("POST", "/api/workflow-execution/dry-run", json=_rt.body({"allow_cloud_once": allow_cloud_once, "checkpoint_ns": checkpoint_ns, "force_new": force_new, "force_recompute": force_recompute, "inputs": inputs, "interrupt_after": interrupt_after, "interrupt_before": interrupt_before, "model_override": model_override, "over_cap_once": over_cap_once, "provider_override": provider_override, "selection": selection, "skip_cache": skip_cache, "thread_id": thread_id, "workflow_id": workflow_id}))
 
 
 def fichero_workflow_execution_execute(
     *,
+    allow_cloud_once: Annotated[Optional[bool], Field(description="Let THIS run's calls go to a cloud model although the project keeps its pages on this Mac; written to no setting, ended with the run (`ai.cloud.one-run-overrides`) Default: false.")] = None,
     checkpoint_ns: Annotated[Optional[str], Field(description='Checkpoint namespace, for a sub-workflow. Default: "".')] = None,
     force_new: Annotated[Optional[bool], Field(description='Force New. Default: false.')] = None,
     force_recompute: Annotated[Optional[bool], Field(description='Run it again for real: bypass every cache. Default: false.')] = None,
@@ -9062,6 +9065,7 @@ def fichero_workflow_execution_execute(
     interrupt_after: Annotated[Optional[list[Any]], Field(description='Interrupt After.')] = None,
     interrupt_before: Annotated[Optional[list[Any]], Field(description='Interrupt Before.')] = None,
     model_override: Annotated[Optional[str], Field(description='Run every step with this model.')] = None,
+    over_cap_once: Annotated[Optional[bool], Field(description="Let THIS run's calls go past a cloud spend cap; the spend is still booked, so the next refusal counts it; written to no setting, ended with the run (`ai.cloud.one-run-overrides`) Default: false.")] = None,
     provider_override: Annotated[Optional[str], Field(description='Run every step on this provider.')] = None,
     selection: Annotated[Optional[dict[str, Any]], Field(description='The declared scope of a run. Validation is the whole point: this is the first place in the system that can say "that request does not describe a coherent selection" and refuse, rather than running and discovering the scope was wrong from its effects on real archival data.')] = None,
     skip_cache: Annotated[Optional[bool], Field(description='Skip Cache. Default: false.')] = None,
@@ -9069,7 +9073,7 @@ def fichero_workflow_execution_execute(
     workflow_id: Annotated[str, Field(description='The workflow to run.')],
 ) -> Any:
     'Execute Workflow\n\nExecute a workflow (non-blocking).\n\nThis endpoint starts workflow execution in the background and returns\nimmediately with a 202 Accepted response. Use the stream_url to\nsubscribe to real-time progress events via SSE.\n\nFlow:\n1. POST /execute → 202 Accepted with thread_id and stream_url\n2. GET /stream/{thread_id} → SSE stream with progress events\n3. Events: start, node_begin, node_end, parallel_complete, complete, error\n\nArgs:\n    request: Execution parameters including workflow_id and inputs\n\nReturns:\n    202 Accepted with thread_id and stream_url for SSE subscription\n\nRaises:\n    404: Workflow not found\n\nRoute: POST /api/workflow-execution/execute (toolset `workflow-execution`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/workflow-execution/execute", json=_rt.body({"checkpoint_ns": checkpoint_ns, "force_new": force_new, "force_recompute": force_recompute, "inputs": inputs, "interrupt_after": interrupt_after, "interrupt_before": interrupt_before, "model_override": model_override, "provider_override": provider_override, "selection": selection, "skip_cache": skip_cache, "thread_id": thread_id, "workflow_id": workflow_id}))
+    return _rt.call("POST", "/api/workflow-execution/execute", json=_rt.body({"allow_cloud_once": allow_cloud_once, "checkpoint_ns": checkpoint_ns, "force_new": force_new, "force_recompute": force_recompute, "inputs": inputs, "interrupt_after": interrupt_after, "interrupt_before": interrupt_before, "model_override": model_override, "over_cap_once": over_cap_once, "provider_override": provider_override, "selection": selection, "skip_cache": skip_cache, "thread_id": thread_id, "workflow_id": workflow_id}))
 
 
 def fichero_workflow_execution_list_runs_route(
@@ -9168,11 +9172,13 @@ def fichero_workflow_execution_read_pages_again(
 def fichero_workflow_execution_resume(
     *,
     thread_id: Annotated[str, Field(description='Thread Id')],
+    allow_cloud_once: Annotated[Optional[bool], Field(description="Let this resumed run's calls go to a cloud model once (`ai.cloud.one-run-overrides`). Default: false.")] = None,
     answer: Annotated[Optional[Any], Field(description='The answer to the question the run paused on.')] = None,
     inputs: Annotated[Optional[dict[str, Any]], Field(description='New inputs for the paused run.')] = None,
+    over_cap_once: Annotated[Optional[bool], Field(description="Let this resumed run's calls go past a cloud spend cap once (`ai.cloud.one-run-overrides`). Default: false.")] = None,
 ) -> Any:
     'Resume Workflow\n\nResume a paused workflow from checkpoint (non-blocking, #4317).\n\nContinues execution from the last checkpoint, optionally with new inputs\nor an interrupt() answer. The run is dispatched to the SAME dedicated\nworker-thread path as ``/execute`` — it streams SSE via\n``GET /stream/{thread_id}``, honors pause/cancel, and hits the document\ncompletion boundary — instead of blocking the FastAPI event loop with a\nsynchronous ``ainvoke`` that emitted no events and force-wrote\n``completed``.\n\nArgs:\n    thread_id: Thread ID from original execution\n    request: Optional new inputs / interrupt answer\n\nReturns:\n    Execution status with status="running" once dispatched\n\nRaises:\n    404: Thread not found\n    500: Resume error\n\nRoute: POST /api/workflow-execution/threads/{thread_id}/resume (toolset `workflow-execution`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", f"/api/workflow-execution/threads/{thread_id}/resume", json=_rt.body({"answer": answer, "inputs": inputs}))
+    return _rt.call("POST", f"/api/workflow-execution/threads/{thread_id}/resume", json=_rt.body({"allow_cloud_once": allow_cloud_once, "answer": answer, "inputs": inputs, "over_cap_once": over_cap_once}))
 
 
 def fichero_workflow_execution_get_run(

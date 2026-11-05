@@ -427,6 +427,7 @@ async def holding(config, library: str | None, *, input_tokens: int | None = Non
     release it and book the cost. Waits while the cap is reachable only because of calls in flight; refuses (and asks a
     run to pause) when the booked spend plus this call's worst case does not fit. A call under no library and a call that
     costs nothing (on this Mac) pass. A batch holds `calls` worst cases at once, like the calls it is."""
+    from fichero_server.llm import run_overrides
     from fichero_server.llm.usage import provider_is_free
 
     cap = cap_usd(library)
@@ -443,7 +444,10 @@ async def holding(config, library: str | None, *, input_tokens: int | None = Non
     while True:
         with _LOCK:
             reserved = _RESERVED.get(library, 0.0)
-            if over := _over_cap(library, 0.0, worst):
+            over = _over_cap(library, 0.0, worst)
+            if over and run_overrides.over_cap():  # "run past the cap once": this run goes on, and the spend is still booked
+                over = None
+            if over:
                 why, refusal = over["words"], cap_refusal(library, worst, over)
                 paused = _ask_run_to_pause()
                 if paused:
@@ -452,7 +456,7 @@ async def holding(config, library: str | None, *, input_tokens: int | None = Non
                     f"This call could cost up to ${worst:.2f} and {why}, so it was not sent"
                     + (" and the run is pausing" if paused else "")
                     + ". Raise the cap in the project's Set Up to go on.", refusal)
-            if not _past_a_cap(library, reserved, worst):
+            if run_overrides.over_cap() or not _past_a_cap(library, reserved, worst):
                 _RESERVED[library] = reserved + worst
                 if _STOPPED_AT_CAP:
                     from fichero_server.workflows.node_context import get_current_node

@@ -37,7 +37,6 @@
     "fichero-server/tests/unit/knowledge/test_spacy_threads_one_pipeline_each_5956.py": "to write: pins activity.lane.spacy-threads-one-pipeline-each (#5956), proposed 2026-10-27; Step 1.10",
     "fichero-server/tests/unit/importers/test_opencv_threads_one_page_a_task_6192.py": "to write: pins activity.lane.opencv-threads-one-page-a-task (#6192), proposed 2026-10-27; Step 1.12",
     "fichero-cli/tests/test_cli_cloud_refusal_6350.py": "Test file the approved spec ai/cloud-permission-and-spend.md names for a step not built yet (#6346-#6350, #6097-#6099); the step that builds it writes it.",
-    "fichero-server/tests/unit/llm/test_one_run_overrides_6349.py": "Test file the approved spec ai/cloud-permission-and-spend.md names for a step not built yet (#6346-#6350, #6097-#6099); the step that builds it writes it.",
     "fichero-server/tests/unit/mcp/test_mcp_cloud_refusal_6350.py": "Test file the approved spec ai/cloud-permission-and-spend.md names for a step not built yet (#6346-#6350, #6097-#6099); the step that builds it writes it.",
     "fichero-server/tests/unit/recipes/test_no_model_names_the_row_6099.py": "Test file the approved spec ai/cloud-permission-and-spend.md names for a step not built yet (#6346-#6350, #6097-#6099); the step that builds it writes it.",
     "fichero-server/tests/unit/recipes/test_plan_checks_capability_6098.py": "Test file the approved spec ai/cloud-permission-and-spend.md names for a step not built yet (#6346-#6350, #6097-#6099); the step that builds it writes it.",
