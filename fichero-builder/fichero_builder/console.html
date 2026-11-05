@@ -152,6 +152,19 @@ function Lanes({ lanes }) {
     `)}</tbody></table></div>`;
 }
 
+function DevBuilds() {  // owner 2026-11-05: Install works for the test Macs, not this one; download, show or open the DMG here
+  const [b, setB] = useState(null);
+  useEffect(() => { fetch("/api/builds").then(r => r.json()).then(setB).catch(() => setB({ builds: [] })); }, []);
+  if (!b) return html`<p class="muted">reading the builds ...</p>`;
+  if (!b.builds.length) return html`<p class="muted">no dev DMG is on disk</p>`;
+  return html`<table><tbody>${b.builds.map(x => html`<tr>
+    <td class="mono">${x.name}</td><td>${(x.bytes / 1e9).toFixed(2)} GB</td><td>built <${Ago} ts=${x.built} /></td>
+    <td>${x.dirty ? html`<span class="pill orange">with uncommitted changes</span>` : ""}</td>
+    <td><a class="btn" href=${"/download/" + x.sha} download=${x.name}>Download</a>
+      <button class="btn" onClick=${() => act("reveal-build", { sha: x.sha })}>Show in Finder</button>
+      <button class="btn" onClick=${() => act("open-build", { sha: x.sha })}>Open on this Mac</button></td></tr>`)}</tbody></table>`;
+}
+
 function Alerts({ alerts }) {
   return html`<div class="alerts">${alerts.map(a => html`<div class="alert">
     <div><b class="mono">${a.id}</b> <span class="muted"><${Ago} ts=${a.ts} /></span></div>
@@ -296,6 +309,8 @@ function Release({ st }) {
     <h2>Install the newest dev build on a test machine</h2>
     <div class="actions" style="justify-content:flex-start">${(st.machines || []).map(m => html`<button class="btn" onClick=${() => confirm(`Install the newest dev DMG on ${m}?`) && act("install", { machine: m })}>Install on ${m}</button>`)}</div>
     ${[...st.console].reverse().filter(r => r.verb === "install").slice(0, 1).map(r => html`<pre>${r.state} ${r.detail || ""}</pre>`)}
+    <h2>Dev builds on this Mac</h2>
+    <${DevBuilds} />
     <div class="wrap"><table><tbody>${(d.commits || []).map(c => html`<tr><td class="mono">${c.split(" ")[0]}</td><td>${c.split(" ").slice(1).join(" ")}</td></tr>`)}</tbody></table></div>`;
 }
 

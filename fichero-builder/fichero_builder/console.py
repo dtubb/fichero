@@ -116,6 +116,9 @@ VERBS = {
     "test": (("paths",), lambda a: _builder("test", "--root", str(ROOT), *_st(), *(a["paths"] if isinstance(a["paths"], list) else a["paths"].split()))),
     "check-lane": (("lane",), lambda a: _builder("check-lane", a["lane"], "--root", str(ROOT), *_st())),
     "install": (("machine",), lambda a: _builder("install", a["machine"], "--root", str(ROOT), *_st())),
+    # owner 2026-11-05: Install works for the test Macs but not this one; the DMG on this Mac shown in Finder, or opened (mounted)
+    "reveal-build": (("sha",), lambda a: ["/usr/bin/open", "-R", _build_path(a["sha"])]),
+    "open-build": (("sha",), lambda a: ["/usr/bin/open", _build_path(a["sha"])]),
     "order": (("file",), lambda a: _builder("order", "--file", a["file"], "--root", str(ROOT), *_st())),
     "sweep": (("worktree",), lambda a: _builder("sweep", "--worktree", a["worktree"], "--root", str(ROOT), *_st())),
     "queue-add": (("lane", "worktree", "step", "brief", "issues", "kind"),
@@ -123,6 +126,28 @@ VERBS = {
                                      "--kind", a.get("kind") or "worker", *_st(), "--issues", *a.get("issues", []))),
 }
 OPTIONAL = {"issues", "kind"}
+
+
+def dev_builds(rows: list[dict]) -> list[dict]:
+    """The dev DMGs still on disk, newest first, from the journal's green `build` rows: a path the next build overwrote keeps only its
+    newest row (owner 2026-11-05: a Download link per dev build, with its size and build time)."""
+    seen, out = set(), []
+    for r in reversed(rows):
+        p = r.get("dmg") if r.get("event") == "build" and r.get("ok") else None
+        if not p or p in seen or not Path(p).is_file():
+            continue
+        seen.add(p)
+        out.append({"sha": str(r.get("sha", ""))[:9], "path": p, "name": f"Fichero-dev-{str(r.get('sha', ''))[:9]}.dmg",
+                    "bytes": Path(p).stat().st_size, "built": r.get("ts", ""), "dirty": bool(r.get("dirty"))})
+    return out
+
+
+def _build_path(sha: str) -> str:
+    """The DMG a dev build of `sha` left, from the journal only: never a path a request names."""
+    hit = next((b for b in dev_builds(journal.read()) if sha and b["sha"] == sha[:9]), None)
+    if hit is None:
+        raise ValueError(f"no dev build of {sha!r} is on disk")
+    return hit["path"]
 
 
 def argv_for(verb: str, args: dict) -> list[str]:
@@ -751,9 +776,32 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return _json(self, 200, {"ts": None, "ahead": None, "commits": [], "tag": "", "prs": []})
         if path == "/api/worktrees":
             return _json(self, 200, worktrees_cached(ROOT))
+        if path == "/api/builds":
+            return _json(self, 200, {"builds": dev_builds(journal.read())})
+        if path.startswith("/download/"):
+            return self._download(path.rsplit("/", 1)[-1])
         if path == "/api/events":
             return self._events()
         return _json(self, 404, {"error": "not found"})
+
+    def _download(self, sha: str):
+        """One dev DMG, streamed: only a path a green `build` row names (owner 2026-11-05: download the build on this Mac)."""
+        try:
+            f = Path(_build_path(sha))
+        except ValueError as e:
+            return _json(self, 404, {"error": str(e)})
+        self.send_response(200)
+        self.send_header("Content-Type", "application/x-apple-diskimage")
+        self.send_header("Content-Length", str(f.stat().st_size))
+        self.send_header("Content-Disposition", f'attachment; filename="Fichero-dev-{sha[:9]}.dmg"')
+        self.end_headers()
+        with f.open("rb") as src:
+            while chunk := src.read(1 << 20):
+                try:
+                    self.wfile.write(chunk)
+                except (BrokenPipeError, ConnectionResetError):
+                    return None
+        return None
 
     def _events(self):
         """Each new journal line as one SSE `data:` event; a comment line every 15 s keeps the stream open."""

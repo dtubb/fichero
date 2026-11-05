@@ -482,3 +482,31 @@ def test_a_lane_through_its_steps_reads_done_not_landed_yet_until_its_last_step_
             {"step": "1", "state": "landed", "head": head, "issues": [], "why": "", "brief": str(brief)}]}]
     assert console.api_status([], lane(off))["lanes"][0]["state"] == "done, not landed yet"
     assert console.api_status([], lane(on))["lanes"][0]["state"] == "done"
+
+
+def test_the_console_lists_the_dev_builds_on_disk_and_downloads_one_only_by_a_build_rows_sha(tmp_path, monkeypatch):
+    """Owner 2026-11-05: Install works for the test Macs but not this one. /api/builds lists the dev DMGs a green `build` row names that are
+    still on disk, newest per path; /download/<sha> streams one; a sha no row names is a 404, never a path from the request."""
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    dmg, gone = tmp_path / "Fichero-dev.dmg", tmp_path / "old.dmg"
+    dmg.write_bytes(b"dmg-bytes" * 1000)
+    for sha, path, ok in (("a" * 40, dmg, True), ("b" * 40, dmg, True), ("c" * 40, gone, True), ("d" * 40, dmg, False)):
+        journal.append("build", sha=sha, dmg=str(path), ok=ok, dirty=sha.startswith("b"))
+    builds = console.dev_builds(journal.read())
+    assert [(b["sha"], b["bytes"], b["dirty"]) for b in builds] == [("b" * 9, 9000, True)], "the newest green row per path on disk"
+    monkeypatch.setattr(console, "ROOT", tmp_path)
+    srv = console.server("127.0.0.1", 0)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{srv.server_address[1]}"
+    try:
+        assert json.loads(urllib.request.urlopen(url + "/api/builds", timeout=5).read())["builds"][0]["name"] == "Fichero-dev-bbbbbbbbb.dmg"
+        r = urllib.request.urlopen(url + "/download/" + "b" * 9, timeout=5)
+        assert r.read() == b"dmg-bytes" * 1000 and 'filename="Fichero-dev-bbbbbbbbb.dmg"' in r.headers["Content-Disposition"]
+        for bad in ("a" * 9, "..%2F..%2Fetc%2Fpasswd"):
+            with pytest.raises(urllib.error.HTTPError) as e:
+                urllib.request.urlopen(url + "/download/" + bad, timeout=5)
+            assert e.value.code == 404, "an overwritten build, or a path, is never served"
+    finally:
+        srv.shutdown()
+    assert console.argv_for("reveal-build", {"sha": "b" * 9}) == ["/usr/bin/open", "-R", str(dmg)]
+    assert console.argv_for("open-build", {"sha": "b" * 9}) == ["/usr/bin/open", str(dmg)]
