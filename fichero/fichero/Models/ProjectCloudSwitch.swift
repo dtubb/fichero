@@ -9,6 +9,9 @@ enum ProjectCloudSwitch: Equatable {
     case refused
     case asSettings(Bool)
 
+    /// The switch's one label, in the Inspector and in the Project menu (`menus.context-matches-bar`).
+    static let title = "Allow cloud AI services for this project"
+
     static func state(answered: Bool, allowed: Bool) -> ProjectCloudSwitch {
         answered ? (allowed ? .allowed : .refused) : .asSettings(allowed)
     }

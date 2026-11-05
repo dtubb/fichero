@@ -65,7 +65,7 @@ Status tags are as of 2026-11-04 (A: the engine half of its first three lines is
   `fichero-server/tests/unit/recipes/test_project_cloud_override_6348.py` (app off + project yes sends; app on +
   project no refuses; no answer inherits; the gate `egress.project_allows_leaving` agrees),
   `fichero-server/tests/unit/recipes/test_places_cap_projects_5828.py` (updated: the cap stays for every place but cloud).
-- `ai.cloud.switch-in-the-project` [PARTIAL] (#6022 place 1; built, uncompiled: the Inspector's Cloud section with `ProjectCloudSwitch` words; not built: the Project menu item) — the project's Inspector and the Project menu show "Allow
+- `ai.cloud.switch-in-the-project` [PARTIAL] (#6022 place 1; built, uncompiled: the Inspector's Cloud section with `ProjectCloudSwitch` words, and the Project menu's "Allow Cloud AI Services for This Project" toggle (`FocusedCloudSwitchButton`); the "as Settings" state is shown only in the Inspector) — the project's Inspector and the Project menu show "Allow
   cloud AI services for this project" (on, off, or "as Settings: on/off"), calling the action above. Tests:
   `fichero/Tests/Unit/general/Views/ProjectCloudSwitchTests.swift` (three states from a served answer).
 - `ai.cloud.switch-in-settings` [OK] (#6022 place 2, #6031) — the Settings switch sets the places answer

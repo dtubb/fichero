@@ -83,6 +83,22 @@ struct FocusedSetUpButton: View {
     }
 }
 
+// MARK: - Cloud
+
+/// the project switch for the key window's project (`ai.cloud.switch-in-the-project`, #6022 place 1): the
+/// same switch as the Inspector's Cloud section, one audited action (`RecipeSetupStore.allowCloud(allowed:)`).
+struct FocusedCloudSwitchButton: View {
+    @FocusedValue(\.projectMenu) private var target
+
+    var body: some View {
+        let store = target?.library?.recipeSetupStore
+        Toggle(ProjectCloudSwitch.title, isOn: Binding(
+            get: { store?.cloudAllowed ?? false },
+            set: { allowed in if let store { Task { await store.allowCloud(allowed: allowed) } } }))
+            .disabled(store == nil)
+    }
+}
+
 // MARK: - Start
 
 /// Start (⇧⌘↩): the first yes for the key window's project — the same call setup's Start makes

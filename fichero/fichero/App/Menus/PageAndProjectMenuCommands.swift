@@ -52,6 +52,7 @@ struct PageAndProjectMenuCommands: Commands {
         CommandMenu("Project") {
             FocusedSetUpButton()
             FocusedStartRecipeButton()
+            FocusedCloudSwitchButton()
             // The key window's project's document types: its row's own item (#5652).
             FocusedEditDocumentTypesButton()
 

@@ -17,4 +17,9 @@ struct ProjectCloudSwitchTests {
         #expect(state.words == "As Settings: on.")
         #expect(ProjectCloudSwitch.state(answered: false, allowed: false).words == "As Settings: off.")
     }
+
+    @Test("the Inspector and the Project menu share one label")
+    func oneLabel() {
+        #expect(ProjectCloudSwitch.title == "Allow cloud AI services for this project")
+    }
 }

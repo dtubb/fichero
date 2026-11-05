@@ -75,7 +75,7 @@ struct ProjectInspector: View {
             // `ai.cloud.switch-in-the-project` (#6022 place 1): on, off, or the app's Settings answer.
             if let recipeStore {
                 Section("Cloud") {
-                    Toggle("Allow cloud AI services for this project", isOn: Binding(
+                    Toggle(ProjectCloudSwitch.title, isOn: Binding(
                         get: { recipeStore.cloudAllowed },
                         set: { allowed in Task { await recipeStore.allowCloud(allowed: allowed) } }))
                         .accessibilityIdentifier("inspector.project.cloudAllowed")
