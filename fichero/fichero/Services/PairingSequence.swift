@@ -88,7 +88,8 @@ enum PairingSequence {
             if libraries.contains(named) { return .paired(url: url, libraryPath: named) }
             // The host may list the same package in another spelling: use its spelling, which is what it will accept.
             if let same = libraries.first(where: { samePath($0, named) }) { return .paired(url: url, libraryPath: same) }
-            log.error("Host gave no access to the linked project. Link: \(named, privacy: .public). Host list: \(libraries.joined(separator: " | "), privacy: .public)")
+            let listed = libraries.joined(separator: " | ")
+            log.error("Host gave no access to the linked project. Link: \(named, privacy: .public). Host list: \(listed, privacy: .public)")
             await host.discardPairing(at: url)
             return .failed(.libraryNotGiven, context: context)
         }
