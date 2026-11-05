@@ -28,9 +28,16 @@ def _git(repo, *args) -> subprocess.CompletedProcess:
 
 
 def _jail(a):
+    rules = Path(a.pinned) / "harness.toml"
+    if not rules.is_file() and getattr(a, "repin", None):
+        # another lane's landing removes every older pinned copy while no ladder slot is held, and the rebase runs before the slot
+        # (batch-25, 2026-11-05 00:50: the copy went 6 s before this read): pin again from the current base
+        a.pinned = a.repin()
+        rules = Path(a.pinned) / "harness.toml"
     j = jail.load(a.pinned)
     if j is None or not j.user or not j.workroot:
-        raise jail.JailMissing("no [jail] user and workroot in the rules file: the worker side of the chain has nowhere to run")
+        why = "is missing" if not rules.is_file() else "has no [jail] user and workroot"
+        raise jail.JailMissing(f"{rules} {why}: the worker side of the chain has nowhere to run")
     return j
 
 

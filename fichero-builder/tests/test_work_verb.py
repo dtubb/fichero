@@ -725,3 +725,21 @@ def test_a_rebase_with_any_other_conflict_beside_the_identity_is_aborted_as_befo
     (scratch.engine / "f").write_text("theirs"), _g(scratch.engine, "commit", "-qam", "theirs f")
     why = work.do_rebase(scratch.a, "integration")
     assert "could not finish" in why and not (scratch.wt / ".git" / "rebase-merge").exists()
+
+
+def test_a_pinned_copy_removed_before_the_rebase_is_pinned_again_and_the_error_names_the_file_it_read(tmp_path):
+    """batch-25, 2026-11-05 00:50: another lane's landing removed the older pinned copies while this chain held no ladder slot, and the
+    rebase read [jail] from the gone copy. `_jail` pins again from the current base; with no way to, it names the file it read."""
+    import types
+
+    gone, fresh = tmp_path / "pinned-aaaaaaa", tmp_path / "pinned-bbbbbbb"
+    fresh.mkdir()
+    (fresh / "harness.toml").write_text('[jail]\nuser = "fichero-worker"\nworkroot = "/Users/Shared/fichero-worker"\n')
+    a = types.SimpleNamespace(pinned=str(gone), repin=lambda: str(fresh))
+    assert work._jail(a).user == "fichero-worker" and a.pinned == str(fresh)
+    with pytest.raises(work.jail.JailMissing, match=f"{gone}/harness.toml is missing"):
+        work._jail(types.SimpleNamespace(pinned=str(gone)))
+    (gone).mkdir()
+    (gone / "harness.toml").write_text("[check]\n")
+    with pytest.raises(work.jail.JailMissing, match="harness.toml has no \\[jail\\] user and workroot"):
+        work._jail(types.SimpleNamespace(pinned=str(gone)))
