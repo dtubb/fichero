@@ -232,13 +232,18 @@ class WorkflowExecutionService {
     // MARK: - Resume Workflow
 
     /// Resume a paused workflow
-    func resumeWorkflow(threadId: String, inputs: [String: Any]? = nil) async throws -> ExecutionThread {
+    func resumeWorkflow(
+        threadId: String, inputs: [String: Any]? = nil, allowCloudOnce: Bool = false, overCapOnce: Bool = false
+    ) async throws -> ExecutionThread {
         let body: Operations.ResumeWorkflowApiWorkflowExecutionThreadsThreadIdResumePost.Input.Body?
-        if let inputs = inputs {
-            let inputsPayload = Components.Schemas.ResumeWorkflowRequest.InputsPayload(
-                additionalProperties: try objectContainer(fromJSON: inputs)
-            )
-            body = .json(.init(inputs: inputsPayload))
+        if inputs != nil || allowCloudOnce || overCapOnce {
+            // This resumed run only (`ai.cloud.one-run-overrides`); written to no setting.
+            let inputsPayload = try inputs.map {
+                Components.Schemas.ResumeWorkflowRequest.InputsPayload(
+                    additionalProperties: try objectContainer(fromJSON: $0))
+            }
+            body = .json(.init(
+                inputs: inputsPayload, allowCloudOnce: allowCloudOnce ? true : nil, overCapOnce: overCapOnce ? true : nil))
         } else {
             body = nil
         }

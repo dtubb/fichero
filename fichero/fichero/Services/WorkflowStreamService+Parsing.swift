@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 import OSLog
 
@@ -18,6 +19,11 @@ extension WorkflowStreamService {
             switch eventData.event {
             case "start", "node_begin", "node_end", "complete", "pause", "cancelled", "error", "log":
                 return parseLifecycleEvent(eventData)
+            case "refused":
+                // The typed refusal rides in `data` (`execution.runner.refused_event`).
+                let refusal = (try? JSONEncoder().encode(eventData.data))
+                    .flatMap { try? JSONDecoder().decode(Components.Schemas.CloudRefusal.self, from: $0) }
+                return refusal.map { .refused(threadId: eventData.threadId, refusal: $0) }
             case "parallel_start", "file_start", "file_complete", "file_error", "parallel_complete", "systemic_error":
                 return parseFileEvent(eventData)
             default:

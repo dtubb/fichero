@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 import OSLog
 
@@ -24,6 +25,8 @@ enum WorkflowStreamEvent: Equatable {
     case error(threadId: String, error: String)
     case systemicError(threadId: String, error: String, errorCount: Int, totalCount: Int)
     case log(threadId: String, line: String)
+    /// A run paused at a cloud spend cap, with the engine's typed refusal (`ai.cloud.hand-run-refused-before-it-starts`).
+    case refused(threadId: String, refusal: Components.Schemas.CloudRefusal)
 
     // Equatable for testing - simplified comparison
     // Exhaustive switch over every case of this enum, one comparison per case;
@@ -63,6 +66,8 @@ enum WorkflowStreamEvent: Equatable {
             return lhsThread == rhsThread
         case (.log(let lhsThread, let lhsLine), .log(let rhsThread, let rhsLine)):
             return lhsThread == rhsThread && lhsLine == rhsLine
+        case (.refused(let lhsThread, let lhsRefusal), .refused(let rhsThread, let rhsRefusal)):
+            return lhsThread == rhsThread && lhsRefusal == rhsRefusal
         default:
             return false
         }

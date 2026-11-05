@@ -435,8 +435,23 @@ extension ContentView {
         documentStore: DocumentStore?
     ) -> Bool {
         executionObserver.handleEvent(event, forThreadId: threadId)
+        if case .refused(let runId, let refusal) = event { offerToResume(runId, after: refusal) }
         updateDocumentStatusFromEvent(event, documentStore: documentStore)
         return event.isTerminal
+    }
+
+    /// A run paused at a cap: the same alert as a refused start, and an answer resumes this run with it
+    /// (`ai.cloud.alert-on-hand-run-paths`), not a new one.
+    private func offerToResume(_ runId: String, after refusal: Components.Schemas.CloudRefusal) {
+        let observer = executionObserver
+        let service = workflowStreamService
+        observer.cloudRefusal = CloudRefusalPrompt(refusal: refusal) { once in
+            Task { @MainActor in
+                try? await service.resumeWorkflow(
+                    threadId: runId, allowCloudOnce: once.allowCloud, overCapOnce: once.overCap,
+                    onEvent: { observer.handleEvent($0, forThreadId: runId) })
+            }
+        }
     }
 
     private func workflowFinalStatus(forThreadId threadId: String) -> WorkflowStatus {
