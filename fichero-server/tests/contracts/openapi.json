@@ -64280,6 +64280,11 @@
             "type": "string",
             "title": "User Id"
           },
+          "username": {
+            "type": "string",
+            "nullable": true,
+            "title": "Username"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
