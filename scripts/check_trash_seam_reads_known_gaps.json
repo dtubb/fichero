@@ -1,10 +1,6 @@
 {
   "ai/multilingual.py::get_claims_by_language": "reads KnowledgeClaim without the Trash seam, so a trashed document's rows still show here (#5406)",
   "ai/multilingual.py::get_entities_by_language": "reads KnowledgeEntity without the Trash seam, so a trashed document's rows still show here (#5406)",
-  "claim/curation.py::get_curated_queue": "reads KnowledgeClaim without the Trash seam, so a trashed document's rows still show here (#5406)",
-  "claim/curation.py::get_rejected_queue": "reads KnowledgeClaim without the Trash seam, so a trashed document's rows still show here (#5406)",
-  "claim/curation.py::get_shortlisted_queue": "reads KnowledgeClaim without the Trash seam, so a trashed document's rows still show here (#5406)",
-  "claim/curation.py::get_unreviewed_queue": "reads KnowledgeClaim without the Trash seam, so a trashed document's rows still show here (#5406)",
   "document/artifacts.py::list_artifact_types": "reads Artifact without the Trash seam, so a trashed document's rows still show here (#5406)",
   "document/artifacts.py::list_document_artifacts": "reads Artifact without the Trash seam, so a trashed document's rows still show here (#5406)",
   "document/documents.py::list_document_geo": "reads KnowledgeClaim without the Trash seam, so a trashed document's rows still show here (#5406)",

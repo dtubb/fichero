@@ -19,6 +19,7 @@ from fichero_server.api.auth import action_context
 from fichero_server.api.main import whole_library_reader_only, get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.knowledge._common import is_trivial_claim
+from fichero_server.knowledge.trash_visibility import visible_claims
 from fichero_server.models.knowledge import (
     ClaimCurationState,
     ClaimMergeAudit,
@@ -1171,7 +1172,7 @@ async def get_unreviewed_queue(
     db: Database = Depends(get_library_database),
 ) -> QueueListResponse:
     """Get unreviewed claims queue."""
-    claims = db.all(KnowledgeClaim)
+    claims = visible_claims(db, db.all(KnowledgeClaim))
     unreviewed = [
         c for c in claims if c.curation_state == ClaimCurationState.unreviewed
     ]
@@ -1228,7 +1229,7 @@ async def get_shortlisted_queue(
     db: Database = Depends(get_library_database),
 ) -> QueueListResponse:
     """Get shortlisted claims queue."""
-    claims = db.all(KnowledgeClaim)
+    claims = visible_claims(db, db.all(KnowledgeClaim))
     shortlisted = [
         c for c in claims if c.curation_state == ClaimCurationState.shortlisted
     ]
@@ -1285,7 +1286,7 @@ async def get_curated_queue(
     db: Database = Depends(get_library_database),
 ) -> QueueListResponse:
     """Get curated claims queue."""
-    claims = db.all(KnowledgeClaim)
+    claims = visible_claims(db, db.all(KnowledgeClaim))
     curated = [c for c in claims if c.curation_state == ClaimCurationState.curated]
 
     # Apply filters
@@ -1338,7 +1339,7 @@ async def get_rejected_queue(
     db: Database = Depends(get_library_database),
 ) -> QueueListResponse:
     """Get rejected claims queue."""
-    claims = db.all(KnowledgeClaim)
+    claims = visible_claims(db, db.all(KnowledgeClaim))
     rejected = [c for c in claims if c.curation_state == ClaimCurationState.rejected]
 
     # Apply filters
