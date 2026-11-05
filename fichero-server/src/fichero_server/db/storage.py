@@ -32,6 +32,7 @@ import base64
 import logging
 import os
 import shutil
+import zlib
 import tempfile
 import threading
 from concurrent.futures import ThreadPoolExecutor, Future
@@ -417,6 +418,22 @@ def _remove_stale_thumbnail_variants(
             logger.debug("Failed to remove stale thumbnail cache %s: %s", candidate, exc)
 
 
+def _thumbnail_identity(doc: "Document", source_path: Path, chain_ns: int, pdf_page: int | None,
+                        package_path: Path | None) -> tuple[int, bool]:
+    """What the thumbnail is keyed on, and whether the working rendition is its source. Cut from a rendition made for this
+    content and chain, it is keyed like the rendition (a number from the same key), so a file whose modified time moved
+    still hits; otherwise the source's modified time or the chain's version, as before (`image.enhance.working-rendition-once`)."""
+    display = _display_path(doc.id, package_path)
+    key = _display_key(doc, chain_ns, pdf_page)
+    if key is not None and display.exists():
+        try:
+            if _display_key_path(display).read_text() == key:
+                return zlib.crc32(key.encode()), True
+        except OSError:
+            pass
+    return max(_source_mtime_ns(source_path), chain_ns), False
+
+
 def _resolve_thumbnail_cache_candidate(
     doc: "Document",
     package_path: Path | None = None,
@@ -445,7 +462,9 @@ def _resolve_thumbnail_cache_candidate(
     _ops, chain_ns = edit_chain_operations(
         doc, db, page=(pdf_render[1] + 1) if pdf_render else 1
     )
-    source_mtime_ns = max(_source_mtime_ns(source_path), chain_ns)
+    source_mtime_ns, _from_display = _thumbnail_identity(
+        doc, source_path, chain_ns, pdf_render[1] if pdf_render else None, package_path
+    )
     cache_path = _thumbnail_cache_path(doc.id, size, source_mtime_ns, package_path)
 
     if cache_path.exists():
@@ -803,21 +822,13 @@ def ensure_thumbnail(
         operations, chain_ns = edit_chain_operations(
             doc, db, page=(pdf_render[1] + 1) if pdf_render else 1
         )
-        source_mtime_ns = max(_source_mtime_ns(source_path), chain_ns)
+        source_mtime_ns, made_for_this = _thumbnail_identity(
+            doc, source_path, chain_ns, pdf_render[1] if pdf_render else None, package_path
+        )
         cache_path = _thumbnail_cache_path(doc.id, settings.thumb_size, source_mtime_ns, package_path)
         perf["cache_state"] = "regenerated" if force else "miss"
         perf["source_mtime_ns"] = source_mtime_ns
-
-        # The working rendition, when it is made for this content and edit chain, is the source of every reduced view: the thumbnail
-        # is cut from it without opening the original (`image.enhance.working-rendition-once`, #6200).
         display = _display_path(doc.id, package_path)
-        display_key = _display_key(doc, chain_ns, pdf_render[1] if pdf_render else None)
-        made_for_this = False
-        if display_key is not None and display.exists():
-            try:
-                made_for_this = _display_key_path(display).read_text() == display_key
-            except OSError:
-                pass
 
         if made_for_this:
             result = _generate_image(display, cache_path, settings.thumb_size)
