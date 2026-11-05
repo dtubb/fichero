@@ -95,7 +95,7 @@ Status tags are as of 2026-11-04 (A: the engine half of its first three lines is
   and `EgressRefusedError` as a field, on the validation 400 as `detail.refusal`, on a run's paused-at-cap status
   (`spend.stopped_at_cap`) and on the per-page failure (category `egress_refused` gains `spend_refused`). Tests:
   `fichero-server/tests/unit/llm/test_cloud_refusal_shape_6349.py` (each kind, each fix including `allow-everywhere`, the words name the figure).
-- `ai.cloud.hand-run-refused-before-it-starts` [PARTIAL] (#6349, #6028; Step 3.1a built the typed 400; the one `refused` stream event is Step 3.1b) — a hand run (`POST
+- `ai.cloud.hand-run-refused-before-it-starts` [PARTIAL] (#6349, #6028; Step 3.1a built the typed 400; the one `refused` stream event is built (`execution.runner.refused_event`, sent as the run pauses at a cap); the app does not yet listen for it) — a hand run (`POST
   /api/workflow-execution/execute`) refused at validation for images answers the typed refusal, not prose alone; a run
   whose first cloud call would not fit a cap is refused at that call and paused (built: `_STOPPED_AT_CAP`), and the
   execution stream sends one `refused` event carrying the refusal so the app need not read a sentence. Tests:

@@ -158,6 +158,16 @@ _RUNNING_WORKFLOWS_LIMIT = 100
 _EXITED_WORKFLOW_STATUSES = {"completed", "failed", "cancelled"}
 
 
+def refused_event(thread_id: str, workflow_id: str) -> Any:
+    """The single `refused` stream event of a run paused at a cloud spend cap (`ai.cloud.hand-run-refused-before-it-starts`, #6349):
+    `data` is the typed refusal (words, figures, fixes) the engine kept when it asked the run to pause; None for any other pause."""
+    from fichero_server.api.routes.workflow_execution.schemas import SSEEvent  # noqa: PLC0415
+    from fichero_server.llm import spend  # noqa: PLC0415
+
+    refusal = (spend.stopped_at_cap([thread_id]) or {}).get("refusal")
+    return SSEEvent(event="refused", thread_id=thread_id, workflow_id=workflow_id, data=refusal) if refusal else None
+
+
 class WorkflowEventHub:
     """Fan-out pub/sub for a single workflow thread's SSE events (#2546).
 
@@ -1536,6 +1546,8 @@ async def _run_workflow_body(
                 data={"reason": reason, **({"review": review} if review else {})},
             )
         )
+        if refused := refused_event(thread_id, workflow_id):  # paused at a cap: the typed refusal, so the app need not read a sentence
+            event_queue.put(refused)
         activity_tracker.workflow_paused(
             workflow_id=workflow_id,
             thread_id=thread_id,

@@ -44,3 +44,13 @@ def test_the_paused_run_status_carries_the_typed_refusal(db, tmp_path):
     assert status["stopped_at_cap"] is True
     assert status["stopped_refusal"]["kind"] == "cap-monthly"
     assert [f["kind"] for f in status["stopped_refusal"]["fixes"]] == ["raise-to", "over-cap-once", "open-settings"]
+
+
+def test_a_run_paused_at_a_cap_sends_one_refused_event_with_the_refusal():
+    from fichero_server.execution.runner import refused_event
+
+    spend._STOPPED_AT_CAP["thread-capped"] = {"words": "Paused", "refusal": {"kind": "cap-monthly", "fixes": [{"kind": "over-cap-once"}]}}
+    event = refused_event("thread-capped", "wf")
+    assert event.event == "refused" and event.thread_id == "thread-capped" and event.workflow_id == "wf"
+    assert event.data["kind"] == "cap-monthly" and event.data["fixes"][0]["kind"] == "over-cap-once"
+    assert refused_event("thread-other", "wf") is None, "any other pause sends none"
