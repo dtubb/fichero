@@ -9,11 +9,13 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from _scan_files import scan_rglob
+
 APP = Path(__file__).resolve().parents[3] / "fichero" / "fichero"
 
 
 def _swift() -> dict[Path, str]:
-    return {p: p.read_text(encoding="utf-8") for p in APP.rglob("*.swift")}
+    return {p: p.read_text(encoding="utf-8") for p in scan_rglob(APP, "*.swift")}
 
 
 def test_document_delete_has_one_parameter_type_in_the_app():
