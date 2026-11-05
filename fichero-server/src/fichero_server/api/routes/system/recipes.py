@@ -2939,6 +2939,8 @@ class StartParams(BaseModel):
                                        "Finder order alone (#6295); never with `folder_id` or `documents`")
     steps: list[str] = Field(default_factory=list, description="run these steps alone (`wide.output.run-this-step`)")
     run_cap_usd: Optional[float] = Field(default=None, ge=0, description="the most this run's cloud calls may cost (`designer.budget.run-cap`)")
+    allow_cloud_once: bool = Field(default=False, description="let THIS run's calls go to a cloud model although the project keeps its pages on this Mac (`ai.cloud.one-run-overrides`)")
+    over_cap_once: bool = Field(default=False, description="let THIS run's calls go past a cloud spend cap, the spend still booked (`ai.cloud.one-run-overrides`)")
 
 
 class StartRequest(BaseModel):
@@ -2966,6 +2968,11 @@ class StartRequest(BaseModel):
         "cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: "
         "counted at an assumed price and listed apart, and recorded in the project by the one accept action "
         "(`ai.where.accept-unpriced-cloud-model`)"))
+    allow_cloud_once: bool = Field(default=False, description=(
+        "let THIS run's calls go to a cloud model although the project keeps its pages on this Mac; kept on the run, written to no "
+        "setting, ended with the run (`ai.cloud.one-run-overrides`)"))
+    over_cap_once: bool = Field(default=False, description=(
+        "let THIS run's calls go past a cloud spend cap; the spend is still booked (`ai.cloud.one-run-overrides`)"))
 
 
 #: Start's refusal for a project with nothing in it, declared as its 422 sentence (#5813, ruled 2026-10-19).
@@ -3043,6 +3050,8 @@ async def start_project(
                                                   "first_pages": request.first_pages if request else None,
                                                   "steps": request.steps if request else [],
                                                   "run_cap_usd": request.run_cap_usd if request else None,
+                                                  "allow_cloud_once": bool(request and request.allow_cloud_once),
+                                                  "over_cap_once": bool(request and request.over_cap_once),
                                                   "clusters": clusters}, ctx)
             finally:
                 _PLAN_READS.reset(token)
@@ -3369,7 +3378,8 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
             "pages": plan["estimate"]["pages"],
             "job_id": runner.enqueue(db, plan, documents=first_pages_of(db, params.first_pages, _PLAN_READS.get()) if params.first_pages else params.documents,
                                      first_pages=params.first_pages, started_by=started_by_for(ctx), redo=params.redo,
-                                     folder_id=params.folder_id, plan_reads=_PLAN_READS.get(), run_cap_usd=params.run_cap_usd),
+                                     folder_id=params.folder_id, plan_reads=_PLAN_READS.get(), run_cap_usd=params.run_cap_usd,
+                                     allow_cloud_once=params.allow_cloud_once, over_cap_once=params.over_cap_once),
             "folder_id": params.folder_id,
         }
         # Start runs what an added layer proposed (source.onboard.add-layer): the proposal is done with.

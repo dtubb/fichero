@@ -47,7 +47,7 @@ from typing import Any, NamedTuple
 
 from fichero_server.db import document_tree
 from fichero_server.execution import jobs
-from fichero_server.llm import spend
+from fichero_server.llm import run_overrides, spend
 from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused
 from fichero_server.recipes.assemble import PURPOSES, TOOL_PURPOSES
 
@@ -129,7 +129,7 @@ def _plan(db: Any) -> dict[str, Any]:
 
 def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, started_by: str,
             redo: list[str] | None = None, folder_id: str | None = None, first_pages: int | None = None, plan_reads: dict | None = None,
-            run_cap_usd: float | None = None) -> str:
+            run_cap_usd: float | None = None, allow_cloud_once: bool = False, over_cap_once: bool = False) -> str:
     """Queue one run of the plan; `documents` None is all the project's material, or with `folder_id` that
     folder's (`source.recipe.folder-scoped-start`); `redo` names the steps to run again on pages that already have
     their output (`source.recipe.done-is-not-redone`). The downloads the plan found under way are kept on the run,
@@ -140,7 +140,9 @@ def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, start
               "folder_id": folder_id, "awaited": awaited,
               # Its name and page count in Activity (#5615), as they were when it was queued.
               "title": _recipe_title(db), "pages": _pages_counted(db, documents, plan_reads),
-              **({"run_cap_usd": run_cap_usd} if run_cap_usd is not None else {})}
+              **({"run_cap_usd": run_cap_usd} if run_cap_usd is not None else {}),
+              # This run only (`ai.cloud.one-run-overrides`): kept on the run's row, read by `_run`, ended with the run.
+              **({"allow_cloud_once": True} if allow_cloud_once else {}), **({"over_cap_once": True} if over_cap_once else {})}
     words = "Waiting to run the recipe" + (f" on the first {len(documents)} pages" if first_pages else
                                            f" on {len(documents)} new pages" if documents is not None else
                                            " on one folder" if folder_id else "")
@@ -341,9 +343,11 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
         workflow = workflow.model_copy(deep=True)
         for node in workflow.nodes:
             node["config"] = {**(node.get("config") or {}), **(card["tool_config"].get(node.get("tool")) or {})}
+    once = run_overrides.for_run(parent)  # the recipe's own "once" answers, given to this step's run
     request = ExecuteWorkflowRequest(workflow_id=workflow.id, inputs={"selected_doc_ids": documents},
                                      thread_id=thread_id, provider_override=card["provider_override"],
-                                     model_override=card["model_override"], skip_cache=True)
+                                     model_override=card["model_override"], skip_cache=True,
+                                     allow_cloud_once=once.get("allow_cloud", False), over_cap_once=once.get("over_cap", False))
     # Pages a live run of the same reader already reads are joined, not read beside (#5848): the step reads the rest
     # itself and then waits for that run, so a resume and a Retry, or two Starts, never read a page twice.
     reader = reader_key(workflow, request)
@@ -1294,9 +1298,17 @@ def _hold_the_run_cap(db: Any, job_id: str) -> None:
         spend.set_run_cap(library, job_id, cap)
 
 
+def _hold_the_run_overrides(db: Any, job_id: str) -> None:
+    """The run's "allow cloud once" / "run past the cap once" (`ai.cloud.one-run-overrides`), from its row: the calls the recipe makes
+    itself carry its id; each step workflow it starts is given the same two answers (`_run_workflow`)."""
+    detail = json.loads((jobs.read_job(db, job_id) or {}).get("detail") or "{}")
+    run_overrides.set_for_run(job_id, allow_cloud=bool(detail.get("allow_cloud_once")), over_cap=bool(detail.get("over_cap_once")))
+
+
 def _run(db: Any, job_id: str) -> dict[str, Any]:
     deferred = False
     try:
+        _hold_the_run_overrides(db, job_id)
         _hold_the_run_cap(db, job_id)
         return _run_the_plan(db, job_id)
     except (RunEnded, *_RUN_CONTROL) as exc:
@@ -1309,6 +1321,7 @@ def _run(db: Any, job_id: str) -> dict[str, Any]:
     finally:  # stopped, failed, paused or done: a page saved before Search got to it is embedded after all (#6126)
         if not deferred:
             _drop_the_run_cap(db, job_id)
+            run_overrides.clear(job_id)
         try:
             end_search_watch(db, job_id, (jobs.read_job(db, job_id) or {}).get("started_by") or "owner")
         except Exception:  # noqa: BLE001 -- never replace the run's own result or error with a queueing failure

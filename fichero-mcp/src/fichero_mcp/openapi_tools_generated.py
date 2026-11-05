@@ -6788,15 +6788,17 @@ def fichero_recipes_get_start_plan(
 def fichero_recipes_start_project(
     *,
     accept_unpriced: Annotated[Optional[list[Any]], Field(description="cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`)")] = None,
+    allow_cloud_once: Annotated[Optional[bool], Field(description="let THIS run's calls go to a cloud model although the project keeps its pages on this Mac; kept on the run, written to no setting, ended with the run (`ai.cloud.one-run-overrides`) Default: false.")] = None,
     documents: Annotated[Optional[list[Any]], Field(description="run the recipe on these pages alone, as a finished run's `missed.documents` names them (source.recipe.run-again-on-what-was-missed, #6170); never with `folder_id`.")] = None,
     first_pages: Annotated[Optional[int], Field(description='run the recipe on the first N pages of the project in Finder order alone ("run fewer pages", #6295); never with `folder_id` or `documents`.')] = None,
     folder_id: Annotated[Optional[str], Field(description='run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project.')] = None,
+    over_cap_once: Annotated[Optional[bool], Field(description="let THIS run's calls go past a cloud spend cap; the spend is still booked (`ai.cloud.one-run-overrides`) Default: false.")] = None,
     redo: Annotated[Optional[list[Any]], Field(description='step ids to run again on pages that already have their output; the others run only on pages that do not.')] = None,
     run_cap_usd: Annotated[Optional[float], Field(description="the most this run's cloud calls may cost, held beside the project's caps, the lowest deciding (`designer.budget.run-cap`, #6295); kept on the run's row; null: the project's caps alone.")] = None,
     steps: Annotated[Optional[list[Any]], Field(description="run these steps alone over the whole project (one stage's Run this step, `wide.output.run-this-step`); empty: the whole recipe.")] = None,
 ) -> Any:
     "Start Project\n\nThe first yes: record that the person pressed Start, on which recipe version (audited,\nundoable), and run the recipe over the project's material as one `run-a-recipe` job\n(`source.recipe.start-runs-the-steps`): its runnable steps in order, the skipped ones named with why.\nRefused with 422 while the plan has refusals (a recipe that fails the check, or nothing to run).\nWith `folder_id`, the run covers that folder's live pages alone, and a folder not in the project, or one\nwith no pages, is refused with 422 (`source.recipe.folder-scoped-start`).\nThe response is the plan as started: its `runs` and `workflows` are the run's, as `started.workflows` is.\n\nRoute: POST /api/recipes/project/start (toolset `recipes`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/recipes/project/start", json=_rt.body({"accept_unpriced": accept_unpriced, "documents": documents, "first_pages": first_pages, "folder_id": folder_id, "redo": redo, "run_cap_usd": run_cap_usd, "steps": steps}))
+    return _rt.call("POST", "/api/recipes/project/start", json=_rt.body({"accept_unpriced": accept_unpriced, "allow_cloud_once": allow_cloud_once, "documents": documents, "first_pages": first_pages, "folder_id": folder_id, "over_cap_once": over_cap_once, "redo": redo, "run_cap_usd": run_cap_usd, "steps": steps}))
 
 
 def fichero_recipes_use_installed_instead(

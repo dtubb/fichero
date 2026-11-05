@@ -101,7 +101,7 @@ Status tags are as of 2026-11-04 (A: the engine half of its first three lines is
   execution stream sends one `refused` event carrying the refusal so the app need not read a sentence. Tests:
   `fichero-server/tests/unit/api/test_execute_refusal_is_typed_6349.py`,
   `fichero-server/tests/unit/workflows/test_paused_at_cap_event_6349.py`.
-- `ai.cloud.one-run-overrides` [PARTIAL] (#6349, #6350; Step 3.1b built: the two flags on the execute and resume requests, `llm/run_overrides.py` read by the gate and the hold, the spend still booked; not built: the recipe Start's flags and the Activity row's words) — the execute request (and a recipe Start) take
+- `ai.cloud.one-run-overrides` [PARTIAL] (#6349, #6350; Step 3.1b built: the two flags on the execute and resume requests, `llm/run_overrides.py` read by the gate and the hold, the spend still booked; the recipe Start's two flags are built too (`tests/unit/recipes/test_recipe_start_one_run_overrides_6350.py`); not built: the Activity row's words) — the execute request (and a recipe Start) take
   `allow_cloud_once: bool` and `over_cap_once: bool`; both are kept on the run row (like `run_cap_usd`), read by the
   gate and the hold for calls of that run only, written to no project or app setting, and shown on the run's Activity
   row ("cloud allowed for this run" / "ran past the cap by your say"); spend is still booked. Resume after a pause at
@@ -122,11 +122,11 @@ Status tags are as of 2026-11-04 (A: the engine half of its first three lines is
   that has not answered for itself; no `project.allow_cloud` row is written. Tests:
   `fichero-server/tests/unit/llm/test_cloud_refusal_shape_6349.py` (the fix names the places action),
   `fichero/Tests/Unit/general/Views/CloudRefusalAlertTests.swift` (the button sets the app default, no project answer).
-- `ai.cloud.cli-refuses-in-words` [PARTIAL] (#6350; Step 3.3 built `fichero workflow run`: the words, the figures, each way through as a command or flag, exit 3; a recipe start's refusals are the plan's, not a 400, and are not built) — `fichero workflow run` and a recipe start print the refusal's words,
+- `ai.cloud.cli-refuses-in-words` [PARTIAL] (#6350; Step 3.3 built `fichero workflow run`: the words, the figures, each way through as a command or flag, exit 3; a recipe start takes the same two flags from the regen; a start's refusals are the plan's, not a 400, and are not built) — `fichero workflow run` and a recipe start print the refusal's words,
   the figures, and the route: the flags `--allow-cloud-once` and `--over-cap-once`, the commands that set the caps and
   the project's yes (from the regen), and the Settings control; exit code 3, never a traceback. Tests:
   `fichero-cli/tests/test_cli_cloud_refusal_6350.py`.
-- `ai.cloud.mcp-refuses-in-words` [PARTIAL] (#6350; Step 3.3 built `fichero_workflow_run`: `detail.refusal` intact and the message naming `allow_cloud_once`, `over_cap_once` and the tools; the recipe start tool's flags are not built) — `fichero_workflow_run` and the recipe start tool return
+- `ai.cloud.mcp-refuses-in-words` [PARTIAL] (#6350; Step 3.3 built `fichero_workflow_run`: `detail.refusal` intact and the message naming `allow_cloud_once`, `over_cap_once` and the tools; the recipe start tool takes `allow_cloud_once` and `over_cap_once` from the regen; a start's refusals are the plan's and not yet typed) — `fichero_workflow_run` and the recipe start tool return
   `EngineError` with `detail.refusal` intact and the tool's own arguments `allow_cloud_once`, `over_cap_once` named in
   the words; the cap and allow actions are tools from the regen. Tests:
   `fichero-server/tests/unit/mcp/test_mcp_cloud_refusal_6350.py`.

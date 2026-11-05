@@ -98924,6 +98924,18 @@
             "type": "array",
             "title": "Accept Unpriced",
             "description": "cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`)"
+          },
+          "allow_cloud_once": {
+            "type": "boolean",
+            "title": "Allow Cloud Once",
+            "description": "let THIS run's calls go to a cloud model although the project keeps its pages on this Mac; kept on the run, written to no setting, ended with the run (`ai.cloud.one-run-overrides`)",
+            "default": false
+          },
+          "over_cap_once": {
+            "type": "boolean",
+            "title": "Over Cap Once",
+            "description": "let THIS run's calls go past a cloud spend cap; the spend is still booked (`ai.cloud.one-run-overrides`)",
+            "default": false
           }
         },
         "additionalProperties": false,

@@ -14299,9 +14299,11 @@ def register_generated_openapi_commands(
     def recipes_start_project_post(
         ctx: typer.Context,
         accept_unpriced: Optional[list[str]] = typer.Option(None, '--accept-unpriced', help="cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`) A list: repeat the flag, or give the values comma-separated, or as JSON."),
+        allow_cloud_once: Optional[bool] = typer.Option(None, '--allow-cloud-once/--no-allow-cloud-once', help="let THIS run's calls go to a cloud model although the project keeps its pages on this Mac; kept on the run, written to no setting, ended with the run (`ai.cloud.one-run-overrides`) Default: false."),
         documents: Optional[list[str]] = typer.Option(None, '--documents', help="run the recipe on these pages alone, as a finished run's `missed.documents` names them (source.recipe.run-again-on-what-was-missed, #6170); never with `folder_id`. A list: repeat the flag, or give the values comma-separated, or as JSON."),
         first_pages: Optional[int] = typer.Option(None, '--first-pages', help='run the recipe on the first N pages of the project in Finder order alone ("run fewer pages", #6295); never with `folder_id` or `documents`.'),
         folder_id: Optional[str] = typer.Option(None, '--folder-id', help='run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project.'),
+        over_cap_once: Optional[bool] = typer.Option(None, '--over-cap-once/--no-over-cap-once', help="let THIS run's calls go past a cloud spend cap; the spend is still booked (`ai.cloud.one-run-overrides`) Default: false."),
         redo: Optional[list[str]] = typer.Option(None, '--redo', help='step ids to run again on pages that already have their output; the others run only on pages that do not. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         run_cap_usd: Optional[float] = typer.Option(None, '--run-cap-usd', help="the most this run's cloud calls may cost, held beside the project's caps, the lowest deciding (`designer.budget.run-cap`, #6295); kept on the run's row; null: the project's caps alone."),
         steps: Optional[list[str]] = typer.Option(None, '--steps', help="run these steps alone over the whole project (one stage's Run this step, `wide.output.run-this-step`); empty: the whole recipe. A list: repeat the flag, or give the values comma-separated, or as JSON."),
@@ -14312,17 +14314,21 @@ def register_generated_openapi_commands(
             params = None
             payload = _build_json_payload({
                 "accept_unpriced": accept_unpriced,
+                "allow_cloud_once": allow_cloud_once,
                 "documents": documents,
                 "first_pages": first_pages,
                 "folder_id": folder_id,
+                "over_cap_once": over_cap_once,
                 "redo": redo,
                 "run_cap_usd": run_cap_usd,
                 "steps": steps,
             }, {
                 "accept_unpriced": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Accept Unpriced', 'description': "cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`)", 'x-cli-required': False},
+                "allow_cloud_once": {'type': 'boolean', 'title': 'Allow Cloud Once', 'description': "let THIS run's calls go to a cloud model although the project keeps its pages on this Mac; kept on the run, written to no setting, ended with the run (`ai.cloud.one-run-overrides`)", 'default': False, 'x-cli-required': False},
                 "documents": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Documents', 'description': "run the recipe on these pages alone, as a finished run's `missed.documents` names them (source.recipe.run-again-on-what-was-missed, #6170); never with `folder_id`", 'x-cli-required': False},
                 "first_pages": {'type': 'integer', 'minimum': 1.0, 'nullable': True, 'title': 'First Pages', 'description': 'run the recipe on the first N pages of the project in Finder order alone ("run fewer pages", #6295); never with `folder_id` or `documents`', 'x-cli-required': False},
                 "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'description': 'run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project', 'x-cli-required': False},
+                "over_cap_once": {'type': 'boolean', 'title': 'Over Cap Once', 'description': "let THIS run's calls go past a cloud spend cap; the spend is still booked (`ai.cloud.one-run-overrides`)", 'default': False, 'x-cli-required': False},
                 "redo": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Redo', 'description': 'step ids to run again on pages that already have their output; the others run only on pages that do not', 'x-cli-required': False},
                 "run_cap_usd": {'type': 'number', 'minimum': 0.0, 'nullable': True, 'title': 'Run Cap Usd', 'description': "the most this run's cloud calls may cost, held beside the project's caps, the lowest deciding (`designer.budget.run-cap`, #6295); kept on the run's row; null: the project's caps alone", 'x-cli-required': False},
                 "steps": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Steps', 'description': "run these steps alone over the whole project (one stage's Run this step, `wide.output.run-this-step`); empty: the whole recipe", 'x-cli-required': False},
