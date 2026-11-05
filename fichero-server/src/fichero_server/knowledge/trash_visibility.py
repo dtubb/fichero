@@ -133,3 +133,16 @@ def hidden_note_ids(db: Any, notes: Iterable[Any], trashed: set[str] | None = No
     notes = list(notes)
     shown = {n.id for n in visible_notes(db, notes, trashed)}
     return {n.id for n in notes if n.id not in shown}
+
+
+def sources_in_trash(db: Any, claims: Iterable[Any], trashed: set[str] | None = None) -> dict[str, list[str]]:
+    """For each listed statement with a source in the Trash (and, being listed, one still live): claim id -> those sources."""
+    trashed = trashed_document_ids(db) if trashed is None else trashed
+    if not trashed:
+        return {}
+    marked = {}
+    for claim in claims:
+        gone = sorted(claim_sources(claim) & trashed)
+        if gone:
+            marked[claim.id] = gone
+    return marked

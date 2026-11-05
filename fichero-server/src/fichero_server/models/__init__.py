@@ -2567,6 +2567,14 @@ class ClaimListResponse(BaseModel):
 
     items: list[KnowledgeClaim]
     count: int
+    sources_in_trash: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description=(
+            "For each listed statement that rests on a live source AND one in the Trash, the ids of its sources in the "
+            "Trash. Empty for a statement with none in the Trash. Read when listing, never stored "
+            "(`safety.trash.dependants-go-with-their-source`)."
+        ),
+    )
 
 
 class ClaimLinkListResponse(BaseModel):

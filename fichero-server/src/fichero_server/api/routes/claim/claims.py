@@ -1325,7 +1325,9 @@ async def list_claims(
     may_read = document_reader(request, optional_library_path(request))
     if may_read is not None:  # a claim resting on a page this caller may not read is left out (#6320)
         items = [c for c in items if not c.source_document_id or may_read(c.source_document_id)]
-    return ClaimListResponse(items=items, count=len(items))
+    from fichero_server.knowledge.trash_visibility import sources_in_trash
+
+    return ClaimListResponse(items=items, count=len(items), sources_in_trash=sources_in_trash(db, items))
 
 
 # =============================================================================
