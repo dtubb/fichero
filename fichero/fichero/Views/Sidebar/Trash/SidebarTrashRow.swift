@@ -28,14 +28,28 @@ struct SidebarTrashRow: View {
     var isSelected = false
     /// A drag of library items dropped on the row (`safety.trash.drop-to-trash`); nil leaves the row a plain target-less row.
     var onDropIds: (([String]) -> Void)?
+    /// The chevron that opens what is in the Trash beneath the row (`SidebarTrashNode`); nil while it holds nothing.
+    var isExpanded: Binding<Bool>?
     @State private var isDropTargeted = false
 
     var body: some View {
-        // A plain row, no chevron (Daniel, 2026-10-11), drawn as a top-level file row is: the outline keeps the
-        // chevrons' strip for every row at a level, so the name lines up with Sources and Workflows when it sits
-        // beside a 16-point icon at the folder rows' spacing (`SidebarNodeLabel`). The Label it was had a wider
-        // icon slot, which pushed its name right.
-        SidebarNodeLabel(name: Self.name, systemImage: Self.systemImage(isEmpty: store.isEmpty))
+        // The name sits as a top-level file row's does (Daniel, 2026-10-11: beside a 16-point icon at the folder rows'
+        // spacing, `SidebarNodeLabel`). Since the owner design of 2026-11-05 (the Trash is a plain folder) a chevron at the
+        // row's trailing edge opens what is in it, which leaves the name where it was; the leading strip is not touched.
+        HStack(spacing: 0) {
+            SidebarNodeLabel(name: Self.name, systemImage: Self.systemImage(isEmpty: store.isEmpty))
+            if let isExpanded {
+                Button {
+                    isExpanded.wrappedValue.toggle()
+                } label: {
+                    Image(systemName: isExpanded.wrappedValue ? "chevron.down" : "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isExpanded.wrappedValue ? "Hide what is in the Trash" : "Show what is in the Trash")
+            }
+        }
             .sidebarDropHighlight(isDropTargeted, selected: isSelected)
             .tag(SidebarDestination.trash(libraryId: libraryId))
             .onDrop(

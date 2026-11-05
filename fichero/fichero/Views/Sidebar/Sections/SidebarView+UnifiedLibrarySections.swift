@@ -216,9 +216,10 @@ extension SidebarView {
                     SidebarModelsNode(store: library.trainedModelsStore, libraryId: libraryId,
                                         selection: selectionState.selectedDestinations)
                 case .trash:
-                    SidebarTrashRow(store: library.trashStore, libraryId: libraryId,
-                                    isSelected: selectionState.selectedDestinations.contains(.trash(libraryId: libraryId)),
-                                    onDropIds: { moveDroppedToTrash($0, libraryId: libraryId) })
+                    SidebarTrashNode(store: library.trashStore, libraryId: libraryId,
+                                     isSelected: selectionState.selectedDestinations.contains(.trash(libraryId: libraryId)),
+                                     onDropIds: { moveDroppedToTrash($0, libraryId: libraryId) },
+                                     onOpen: { selectionState.selectedDestinations = [.trash(libraryId: libraryId)] })
                 }
             }
         }
