@@ -590,7 +590,7 @@ the write path would produce.
   `[models].builder` is plain `sonnet` (owner 2026-11-02: every turn under 200k, handoffs often, cheap and reliable), because a lane takes its model from the role (test `fichero-builder/tests/test_model_config.py::test_a_window_past_the_standard_one_has_a_builder_model_that_gets_it`).
 - `dev-workflows.run.loop` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) (owner 2026-11-02: the harness keeps going with nobody watching; a stage that waits on a
   person is a defect) — `builder loop` runs indefinitely: `builder queue run --lanes N --push` ticking forever, one `loop` heartbeat
-  row a tick. It runs as the owner (a LaunchAgent with KeepAlive), because check rows, verdicts, the push and `gh` are the owner's
+  row a tick. Each lane's chain runs in a pool of `[loop].lanes` workers (`--lanes`, default 1: one chain at a time, whatever `[check].parallel` says); a chain submitted while every worker is busy writes one `waiting-for-worker` queue row naming the lanes running, so the wait shows on the console's lane row instead of a silent `done` (2026-11-05: batch-25 waited 40 min unseen; test `fichero-builder/tests/test_loop.py::test_a_chain_waiting_for_the_pools_one_worker_says_so_and_a_free_pool_says_nothing`). It runs as the owner (a LaunchAgent with KeepAlive), because check rows, verdicts, the push and `gh` are the owner's
   and a worker never holds them; workers stay the jail user. Killed and restarted, it resumes every lane from `queue.json` and the
   journal, never repeating a landed step. Every stage transition is deterministic code; a model is called only to code (the
   builder), to review (the reviewer) or to fix findings (the builder). Test (to write): `fichero-builder/tests/test_loop.py`

@@ -723,6 +723,33 @@ def test_send_back_on_an_external_lane_tells_its_pane_the_done_command_and_says_
     assert [r["state"] for r in journal.read() if r["event"] == "queue" and r.get("state") in ("told", "tell-refused")] == ["told", "tell-refused"]
 
 
+
+def test_a_chain_waiting_for_the_pools_one_worker_says_so_and_a_free_pool_says_nothing(state):
+    """2026-11-05: batch-25 waited 40 min for the loop's one chain worker ([loop].lanes = 1) with no row; now one `waiting-for-worker`
+    row names the lanes running, so the console's lane row shows it. A free worker writes no row."""
+    from concurrent.futures import Future
+    queue.add("ext", "/w/ext", "1.1", str(state / "b1.1"), [7], kind="external")
+    fake = Fake(chains={})
+    assert cli.main(["done", "ext", "abc123", "--state", str(journal.STATE)]) == 0
+    pool = queue.ThreadPoolExecutor(max_workers=1)
+    blocker = pool.submit(__import__("threading").Event().wait, 5)
+    try:
+        chains = {"pool": pool, "lane-ie": blocker}
+        queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
+        (row,) = [r for r in journal.read() if r.get("state") == "waiting-for-worker"]
+        assert row["lane"] == "ext" and row["detail"] == "waiting for a chain worker (1 running: lane-ie; [loop].lanes = 1)"
+        assert "ext" in chains, "it is still submitted: it runs when the worker frees"
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+    queue.add("ext2", "/w/ext2", "1.1", str(state / "b2.1"), [8], kind="external")
+    assert cli.main(["done", "ext2", "abc124", "--state", str(journal.STATE)]) == 0
+    free = queue.ThreadPoolExecutor(max_workers=3)  # ext is submitted again in this tick too: 2 running, 3 workers
+    try:
+        queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains={"pool": free, "x": Future()})
+        assert [r["lane"] for r in journal.read() if r.get("state") == "waiting-for-worker"] == ["ext"], "a free worker: no row"
+    finally:
+        free.shutdown(wait=False, cancel_futures=True)
+
 def test_a_draining_loop_starts_no_new_chain_so_it_can_re_exec_between_chains(state):
     """Soak 2026-11-02: new code waits; while DRAIN is set no chain starts, and clearing it lets the same step run."""
     queue.add("ext", "/w/ext", "1.1", str(state / "b1.1"), [7], kind="external")
