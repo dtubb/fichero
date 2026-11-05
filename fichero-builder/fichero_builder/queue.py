@@ -578,13 +578,26 @@ def alert(lane_id: str, step: str, why: str, evidence: str, actions: list[str]) 
     return aid
 
 
+def _alert_kind(r: dict) -> tuple:
+    """What makes two alerts the same alert for Dismiss: lane, step, and the text before its first `;`, its numbers masked."""
+    return (r.get("lane"), r.get("step"), re.sub(r"\d+", "N", str(r.get("what", "")).split(";")[0]).strip())
+
+
 def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, str]:
     """The manager's one verb: retry or approve re-run the step, send-back gives it to a new session with the finding,
     park leaves it, ask-owner puts it on GitHub for the owner. An action the alert does not offer is refused, with a row."""
-    a = next((r for r in reversed(journal.read()) if r.get("event") == "alert" and r.get("id") == alert_id), None)
+    rows = journal.read()
+    a = next((r for r in reversed(rows) if r.get("event") == "alert" and r.get("id") == alert_id), None)
     if a is not None and action == "dismiss":  # owner 2026-11-04: an alert never hangs around; dismiss answers it and changes nothing else
+        # owner 2026-11-05: Dismiss "did nothing": 75 identical runner alerts were open, and each click only showed the next one. It
+        # answers every open alert of the same kind (lane, step, and the text before its first `;` with the numbers masked)
+        answered = {r.get("id") for r in rows if r.get("event") == "alert-answer" and r.get("ok")}
+        same = [r["id"] for r in rows if r.get("event") == "alert" and r.get("id") not in answered and r.get("id") != alert_id
+                and _alert_kind(r) == _alert_kind(a)]
         journal.append("alert-answer", id=alert_id, action="dismiss", ok=True, detail="dismissed from the console")
-        return 0, f"{alert_id}: dismissed"
+        for other in dict.fromkeys(same):
+            journal.append("alert-answer", id=other, action="dismiss", ok=True, detail=f"dismissed with {alert_id}: the same alert")
+        return 0, f"{alert_id}: dismissed" + (f", with {len(set(same))} open alert(s) of the same kind" if same else "")
     if a is None or (action not in a.get("actions", []) and not (action == "park" and not a.get("actions"))):  # a no-action alert may be parked
         why = f"no alert {alert_id!r}" if a is None else f"{action!r} is not one of {a['actions']}"
         journal.append("alert-answer", id=alert_id, action=action, ok=False, detail=why)

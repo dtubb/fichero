@@ -52,3 +52,31 @@ def test_the_console_lists_open_alerts_and_the_last_seven_days_resolved_newest_f
     st = console.status(rows, [], today=day)
     assert [a["id"] for a in st["open_alerts"]] == ["x-3"]
     assert [(a["id"], a["answer"]) for a in st["resolved_alerts"]] == [("x-4", "dismiss"), ("x-2", "runner-back")], "7 days, newest first"
+
+
+def test_dismiss_through_the_console_clears_every_open_alert_of_the_same_kind_and_no_other(state, monkeypatch):
+    """Owner 2026-11-05: Dismiss "did nothing": 75 identical runner alerts were open, and each click only showed the next. End to end through
+    the console's own /api/action and the real `builder alert` it runs: one Dismiss answers every open alert of that kind; another kind stays."""
+    import json
+    import threading
+    import urllib.request
+    monkeypatch.setattr(console, "ROOT", state)
+    ids = [queue.alert("check", "remote", f"the check runner imac:~/fichero-gate is unreachable; trying air: ssh port {22 + n}", "imac", [])
+           for n in range(3)]
+    other = queue.alert("check", "remote", "the check runner air:~/fichero-gate is unreachable; the tests ran here", "air", [])
+    srv = console.server("127.0.0.1", 0)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{srv.server_address[1]}"
+    try:
+        req = urllib.request.Request(url + "/api/action", data=json.dumps({"verb": "alert", "args": {"id": ids[1], "action": "dismiss"}}).encode(),
+                                     method="POST", headers={"Content-Type": "application/json", "X-Builder-Token": console.TOKEN})
+        assert json.loads(urllib.request.urlopen(req, timeout=60).read())["ok"]
+        for _ in range(300):  # the verb runs in the console's thread: wait for it, as a person's refresh does
+            st = json.loads(urllib.request.urlopen(url + "/api/status", timeout=10).read())
+            if len(st["open_alerts"]) <= 1:
+                break
+            time.sleep(0.1)
+        assert [a["id"] for a in st["open_alerts"]] == [other], "every imac alert answered by one click; the Air's stays"
+    finally:
+        srv.shutdown()
+    assert sorted(i for i, act in _answers() if act == "dismiss") == sorted(ids)
