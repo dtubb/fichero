@@ -229,6 +229,12 @@ final class DocumentStore {
     /// reach it.
     @ObservationIgnored
     var pageContentSaveTasks: [String: Task<String?, Never>] = [:]
+    /// The `updatedAt` each document's text save last saw (#5348): sent as `expectedUpdatedAt`, so a save over another
+    /// Mac's newer text is refused. Absent until the first save (then the editor's copy).
+    var pageContentVersions: [String: Date] = [:]
+    /// Documents whose last text save was refused as stale (#5348): the next save is the person's choice to replace
+    /// the other Mac's text, so it sends no version.
+    var pageContentReplacing: Set<String> = []
 
     /// Document ids this device just wrote, with the time of the write. Used to
     /// drop the change-stream ECHO of our own save so a self-echoed

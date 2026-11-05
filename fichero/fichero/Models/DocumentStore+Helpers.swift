@@ -83,6 +83,17 @@ extension DocumentStore {
         }
     }
 
+    /// The version the next text save sends (#5348): the one the last save saw, else the editor's copy; none after a
+    /// refusal, because then the save is the person's choice to replace the other Mac's text.
+    func versionForNextTextSave(_ id: String, seen: Date) -> Date? {
+        if pageContentReplacing.remove(id) != nil { return nil }
+        return pageContentVersions[id] ?? seen
+    }
+
+    func textSaveWasRefused(_ id: String) {
+        pageContentReplacing.insert(id)
+    }
+
     /// Persist a document's `page_content` via a STORE-OWNED task that runs to
     /// completion regardless of view lifecycle.
     ///
@@ -125,6 +136,7 @@ extension DocumentStore {
             self?.markOwnWrite(documentId)
             do {
                 let updated = try await save()
+                self?.pageContentVersions[documentId] = updated.updatedAt
                 self?.refreshLocalContent(updated)
                 return nil
             } catch {
