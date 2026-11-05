@@ -474,6 +474,18 @@
       },
       {
         "method": "POST",
+        "path": "/activity/jobs/{job_id}/bug-report",
+        "operation_id": "post_job_bug_report_api_activity_jobs__job_id__bug_report_post",
+        "summary": "Post Job Bug Report",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "BugReport"
+      },
+      {
+        "method": "POST",
         "path": "/activity/jobs/{job_id}/cancel",
         "operation_id": "cancel_job_api_activity_jobs__job_id__cancel_post",
         "summary": "Cancel Job",

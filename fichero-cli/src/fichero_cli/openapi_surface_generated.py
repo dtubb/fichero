@@ -715,6 +715,18 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("post-job-bug-report")
+    def activity_post_job_bug_report_post(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help='Job Id'),
+    ) -> None:
+        """Post Job Bug Report (POST /api/activity/jobs/{job_id}/bug-report)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/activity/jobs/{job_id}/bug-report"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("cancel-job")
     def activity_cancel_job_post(
         ctx: typer.Context,

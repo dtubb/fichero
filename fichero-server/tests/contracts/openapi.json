@@ -690,6 +690,50 @@
         }
       }
     },
+    "/api/activity/jobs/{job_id}/bug-report": {
+      "post": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Post Job Bug Report",
+        "description": "The bug report for a failed workflow run (`run.fail.bug-report-route`, #6354): a title, a plain-text body and two attachments\n(`run.json`, `log.txt`), built here so the app, the CLI and an agent send the same one, with what is private taken out\n(`llm/failure.redact`). Builds and answers; sends nothing. 404 when the project has no such run, 409 (in words) when the run\ndid not fail.",
+        "operationId": "post_job_bug_report_api_activity_jobs__job_id__bug_report_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BugReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/activity/jobs/paused": {
       "put": {
         "tags": [
@@ -56439,6 +56483,53 @@
           "success"
         ],
         "title": "BrowserSaveResponse"
+      },
+      "BugReport": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"<kind>: <the words' first sentence>\""
+          },
+          "body": {
+            "type": "string",
+            "title": "Body",
+            "description": "plain text: what stopped, where, and on what; nothing private (`llm/failure.redact`)"
+          },
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/BugReportAttachment"
+            },
+            "type": "array",
+            "title": "Attachments"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "body",
+          "attachments"
+        ],
+        "title": "BugReport"
+      },
+      "BugReportAttachment": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "`run.json` (the run's fields) or `log.txt` (its Problems lines)"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "text"
+        ],
+        "title": "BugReportAttachment"
       },
       "BuiltInStep": {
         "properties": {

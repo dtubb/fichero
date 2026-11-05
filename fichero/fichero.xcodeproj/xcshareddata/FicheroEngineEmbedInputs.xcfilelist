@@ -177,6 +177,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/activity.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/activity_pages.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/agent_memory.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/bookmarks.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/bug_report.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/changes.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/chat.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/conversion.py

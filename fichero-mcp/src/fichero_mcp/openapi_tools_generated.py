@@ -303,6 +303,14 @@ def fichero_activity_get_job_tree(
     return _rt.call("GET", f"/api/activity/jobs/{job_id}", params={"depth": depth})
 
 
+def fichero_activity_post_job_bug_report(
+    *,
+    job_id: Annotated[str, Field(description='Job Id')],
+) -> Any:
+    'Post Job Bug Report\n\nThe bug report for a failed workflow run (`run.fail.bug-report-route`, #6354): a title, a plain-text body and two attachments\n(`run.json`, `log.txt`), built here so the app, the CLI and an agent send the same one, with what is private taken out\n(`llm/failure.redact`). Builds and answers; sends nothing. 404 when the project has no such run, 409 (in words) when the run\ndid not fail.\n\nRoute: POST /api/activity/jobs/{job_id}/bug-report (toolset `activity`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/activity/jobs/{job_id}/bug-report")
+
+
 def fichero_activity_cancel_job(
     *,
     job_id: Annotated[str, Field(description='Job Id')],
@@ -9480,6 +9488,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_activity_set_background_mode", "activity", "PUT", "/api/activity/jobs/mode", fichero_activity_set_background_mode),
     GeneratedTool("fichero_activity_set_background_paused", "activity", "PUT", "/api/activity/jobs/paused", fichero_activity_set_background_paused),
     GeneratedTool("fichero_activity_get_job_tree", "activity", "GET", "/api/activity/jobs/{job_id}", fichero_activity_get_job_tree),
+    GeneratedTool("fichero_activity_post_job_bug_report", "activity", "POST", "/api/activity/jobs/{job_id}/bug-report", fichero_activity_post_job_bug_report),
     GeneratedTool("fichero_activity_cancel_job", "activity", "POST", "/api/activity/jobs/{job_id}/cancel", fichero_activity_cancel_job),
     GeneratedTool("fichero_activity_get_run_failed_pages", "activity", "GET", "/api/activity/jobs/{job_id}/failed-pages", fichero_activity_get_run_failed_pages),
     GeneratedTool("fichero_activity_get_job_log", "activity", "GET", "/api/activity/jobs/{job_id}/log", fichero_activity_get_job_log),
