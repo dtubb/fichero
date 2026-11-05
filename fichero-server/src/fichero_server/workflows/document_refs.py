@@ -26,8 +26,13 @@ def is_ref(doc: Any) -> bool:
 
 
 def slim_documents(documents: list[Any]) -> list[Any]:
-    """The documents as references; anything that is not a full document dict passes through."""
-    return [{k: d.get(k) for k in REF_FIELDS} if isinstance(d, dict) and "page_content" in d else d for d in documents]
+    """The documents as references; anything that is not a full document dict passes through. A SEGMENT's work unit (it carries
+    `segment_target`) stays whole: a reference would hydrate back into the whole page and lose the segment, so its read landed
+    nowhere (`source.extract.run-on-any-level`, 3 tests went red); its text is the segment's, small."""
+    from fichero_server.workflows.selection import SEGMENT_TARGET_KEY  # noqa: PLC0415
+
+    return [{k: d.get(k) for k in REF_FIELDS} if isinstance(d, dict) and "page_content" in d and SEGMENT_TARGET_KEY not in d else d
+            for d in documents]
 
 
 def _hydrate_one(db: Any, doc: Any) -> Any:
@@ -44,6 +49,10 @@ def hydrate_documents(documents: list[Any], library_path: str | None) -> list[An
     if not library_path or not any(is_ref(d) for d in documents or []):
         return documents
     from fichero_server.db import db_manager  # noqa: PLC0415
+    from fichero_server.db.manager import LibraryNotFoundError  # noqa: PLC0415
 
-    db = db_manager.get_database(library_path)
+    try:
+        db = db_manager.get_database(library_path)
+    except LibraryNotFoundError:  # no library at that path: the references stay, as the docstring says (17 workflow tests went red)
+        return documents
     return [_hydrate_one(db, d) for d in documents]
