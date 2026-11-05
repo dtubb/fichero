@@ -100,6 +100,9 @@ extension DisplayAttributesStrip {
             .sorted()
     }
 
+    /// The page's `page_region`, when it has one (`image.enhance.page-region-shown-in-the-app`).
+    var pageRegion: PageRegionSummary? { PageRegionSummary(pageRegion: document.metadata["page_region"]?.value) }
+
     /// The ordered rows to render: visible fixed attributes, then the
     /// knowledge-graph summaries, artifact types, and metadata keys the user
     /// has switched on. Every source is opt-in past the fixed attributes, so
@@ -120,7 +123,8 @@ extension DisplayAttributesStrip {
             .filter { shownArtifactTypes.contains($0) }
             .map { StripRow.artifact($0) }
         result += availableMetadataKeys
-            .filter { shownMetadataKeys.contains($0) }
+            // The page the engine found is a fact about the page, shown without being switched on (#6187).
+            .filter { shownMetadataKeys.contains($0) || ($0 == "page_region" && pageRegion != nil) }
             .map { StripRow.metadata($0) }
         return result
     }

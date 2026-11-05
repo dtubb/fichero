@@ -54,7 +54,8 @@ extension DisplayAttributesStrip {
 
     /// Title-case a raw metadata key (e.g. "File_Size" → "File Size").
     func metadataLabel(for key: String) -> String {
-        key.replacingOccurrences(of: "_", with: " ")
+        if key == "page_region" { return "Page" }
+        return key.replacingOccurrences(of: "_", with: " ")
             .split(separator: " ")
             .map { $0.prefix(1).uppercased() + $0.dropFirst() }
             .joined(separator: " ")
@@ -65,6 +66,7 @@ extension DisplayAttributesStrip {
     /// the meaningful bit reads cleanly in a one-line row (#1246).
     func metadataValue(for key: String) -> String {
         guard let raw = document.metadata[key]?.value else { return "—" }
+        if key == "page_region", let region = PageRegionSummary(pageRegion: raw) { return region.words }
         let lower = key.lowercased()
         if lower.contains("size") || lower.contains("bytes") {
             if let intVal = raw as? Int {

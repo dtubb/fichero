@@ -142,6 +142,14 @@ extension ImageEditorView {
                 }
             }
 
+            // The page the engine found, outlined at rest (`image.enhance.page-region-shown-in-the-app`); the handles replace it.
+            if compareMode == .single, pageCorners == nil, let size = model.preview?.pixelSize,
+               let region = PageRegionSummary(pageRegion: activeDocument.metadata["page_region"]?.value) {
+                GeometryReader { geo in
+                    PageRegionOutline(region: region, fittedRect: ImageFit.fittedRect(imagePixelSize: size, in: geo.size))
+                }
+            }
+
             // Busy overlay for any in-flight edit/load, in every compare mode
             // (#1532). Translucent so the last image stays visible mid-op; the
             // labelled spinner makes clear a potentially-slow op (remove-bg,
