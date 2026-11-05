@@ -160,3 +160,40 @@ def test_the_line_readers_working_image_is_the_made_rendition_and_none_before_it
     made = storage.ensure_display(doc, package_path=db.path.parent, db=db)
     assert _working_rendition_of(library, doc.id) == str(made)
     assert _working_rendition_of(library, None) is None
+
+
+def test_a_pyramidal_tiff_is_fitted_from_its_reduced_level_not_the_full_frame(tmp_path):
+    """The 6000 px frame is white and its 3000 px reduced level is black: the fit reads the reduced level."""
+    from PIL import Image
+
+    from fichero_server.db import storage
+
+    import PIL.TiffImagePlugin as T
+
+    src = tmp_path / "pyramid.tif"
+    full = Image.new("L", (6000, 4000), 255)
+    level = Image.new("L", (3000, 2000), 0)
+    flag = T.ImageFileDirectory_v2()
+    flag[254] = 1  # NewSubfileType bit 0: reduced-resolution
+    level.encoderinfo = {"tiffinfo": flag}
+    full.save(src, save_all=True, append_images=[level])
+    out = tmp_path / "out.jpg"
+    assert storage._generate_image(src, out, (2200, 2200)) == out
+    with Image.open(out) as got:
+        assert got.size[0] == 2200
+        assert got.getpixel((100, 100)) < 30
+
+
+def test_a_second_page_of_a_scan_is_not_taken_for_a_reduced_level(tmp_path):
+    from PIL import Image
+
+    from fichero_server.db import storage
+
+    src = tmp_path / "two_pages.tif"
+    Image.new("L", (6000, 4000), 255).save(
+        src, save_all=True, append_images=[Image.new("L", (3000, 2000), 0)]
+    )
+    out = tmp_path / "out.jpg"
+    storage._generate_image(src, out, (2200, 2200))
+    with Image.open(out) as got:
+        assert got.getpixel((100, 100)) > 225

@@ -1010,6 +1010,29 @@ def _generate_pdf_image(
 _folders_said: set[str] = set()
 
 
+def _seek_reduced_level(img, size: tuple[int, int]) -> None:
+    """Move a pyramidal TIFF to the smallest reduced level still at least as big as the fitted box (#6200).
+
+    Only frames flagged reduced-resolution (NewSubfileType bit 0) count, so the next page of a multi-page scan is
+    never mistaken for a smaller copy. JPEG already decodes reduced through `thumbnail`'s draft.
+    """
+    if getattr(img, "format", None) != "TIFF" or getattr(img, "n_frames", 1) < 2:
+        return
+    w0, h0 = img.size
+    scale = min(size[0] / w0, size[1] / h0)
+    if scale >= 1:
+        return
+    need_w, need_h = w0 * scale, h0 * scale
+    best = 0
+    for i in range(1, img.n_frames):
+        img.seek(i)
+        reduced = bool(img.tag_v2.get(254, 0) & 1)
+        w, h = img.size
+        if reduced and w < w0 and w >= need_w and h >= need_h:
+            best = i
+    img.seek(best)
+
+
 def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | None:
     """Generate a resized image.
 
@@ -1059,6 +1082,7 @@ def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | N
             # Shrink first, then turn upright (#6193): `thumbnail` decodes a JPEG reduced (draft) and the EXIF turn
             # then copies the small image, never a second full-resolution one. A quarter turn can leave the small
             # image past the box, so it is fitted once more (cheap at this size; Pillow 12 already turns a TIFF at load).
+            _seek_reduced_level(img, size)
             img.thumbnail(size, Image.Resampling.LANCZOS)
             if ImageOps:
                 img = ImageOps.exif_transpose(img)
