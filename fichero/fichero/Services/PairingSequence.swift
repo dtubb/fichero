@@ -11,11 +11,11 @@ enum PairingSequence {
 
     /// Whether two library paths name the same package: NFC and standardized, so a host that lists the path in another
     /// spelling (decomposed accents, a symlinked prefix) is still the project the link named.
-    static func samePath(_ a: String, _ b: String) -> Bool {
+    static func samePath(_ first: String, _ second: String) -> Bool {
         func key(_ path: String) -> String {
             URL(fileURLWithPath: path.precomposedStringWithCanonicalMapping).standardizedFileURL.resolvingSymlinksInPath().path
         }
-        return key(a) == key(b)
+        return key(first) == key(second)
     }
 
     struct Link: Equatable {
@@ -71,31 +71,36 @@ enum PairingSequence {
         }
         do {
             try await host.pair(at: url, code: link.code)
-            let libraries = try await host.libraries(at: url)
-            if let named = link.libraryPath {
-                if libraries.contains(named) { return .paired(url: url, libraryPath: named) }
-                // The host may list the same package in another spelling: use its spelling, which is what it will accept.
-                if let same = libraries.first(where: { samePath($0, named) }) { return .paired(url: url, libraryPath: same) }
-                log.error("Host gave no access to the linked project. Link: \(named, privacy: .public). Host list: \(libraries.joined(separator: " | "), privacy: .public)")
-                await host.discardPairing(at: url)
-                return .failed(.libraryNotGiven, context: context)
-            }
-            switch libraries.count {
-            case 0:
-                log.error("Host listed no project for this device and the link named none")
-                await host.discardPairing(at: url)
-                return .failed(.libraryNotGiven, context: context)
-            case 1: return .paired(url: url, libraryPath: libraries[0])
-            default:
-                await host.discardPairing(at: url)
-                return .choose(url: url, libraries: libraries)
-            }
+            return try await confirmLibrary(link: link, host: host, url: url, context: context)
         } catch let failure as PairingFailure {
             await host.discardPairing(at: url)
             return .failed(failure, context: context)
         } catch {
             await host.discardPairing(at: url)
             return .stopped(message: (error as? LocalizedError)?.errorDescription ?? "Fichero couldn't do that. Try again.")
+        }
+    }
+
+    /// After the code is redeemed: the library the link named (in the host's spelling), the only one, or the person's choice.
+    private static func confirmLibrary(link: Link, host: some Host, url: String, context: PairingFailure.Context) async throws -> Result {
+        let libraries = try await host.libraries(at: url)
+        if let named = link.libraryPath {
+            if libraries.contains(named) { return .paired(url: url, libraryPath: named) }
+            // The host may list the same package in another spelling: use its spelling, which is what it will accept.
+            if let same = libraries.first(where: { samePath($0, named) }) { return .paired(url: url, libraryPath: same) }
+            log.error("Host gave no access to the linked project. Link: \(named, privacy: .public). Host list: \(libraries.joined(separator: " | "), privacy: .public)")
+            await host.discardPairing(at: url)
+            return .failed(.libraryNotGiven, context: context)
+        }
+        switch libraries.count {
+        case 0:
+            log.error("Host listed no project for this device and the link named none")
+            await host.discardPairing(at: url)
+            return .failed(.libraryNotGiven, context: context)
+        case 1: return .paired(url: url, libraryPath: libraries[0])
+        default:
+            await host.discardPairing(at: url)
+            return .choose(url: url, libraries: libraries)
         }
     }
 
