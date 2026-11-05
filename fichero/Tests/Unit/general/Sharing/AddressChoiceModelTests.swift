@@ -97,6 +97,27 @@ struct AddressChoiceModelTests {
         #expect(rows[0].url?.port == 8765)
     }
 
+    @Test("a .ts.net sharer with no forward of Fichero's is greyed with why, and the link names the LAN address instead")
+    func tailnetSharerWithoutAForwardFallsBackToTheLan() {
+        let rows = AddressChoiceModel.rows(
+            sharingAddress: "https://m.tail1234.ts.net:8765", tailnetURL: "https://m.tail1234.ts.net",
+            tailnetForward: "none", lanIP: "131.202.228.242")
+        #expect(rows.map(\.choice) == [.thisNetwork, .tailscale])
+        #expect(rows[1].disabledReason == AddressChoiceModel.tailscaleNotPublished)
+        #expect(AddressChoiceModel.root(for: .tailscale, rows: rows)?.absoluteString == "https://131.202.228.242:8765",
+                "a greyed row is never the link, even when chosen")
+    }
+
+    @Test("a .ts.net sharer with no forward and no LAN address has no link at all, and says why")
+    func tailnetSharerWithoutAForwardOrALanHasNoLink() {
+        let rows = AddressChoiceModel.rows(
+            sharingAddress: "https://m.tail1234.ts.net:8765", tailnetURL: nil, tailnetForward: "foreign",
+            tailnetConflict: TailnetServeConflict(holds: "http://127.0.0.1:5006", freeWith: "tailscale serve --https=8765 off"))
+        #expect(rows.count == 1 && !rows[0].isEnabled)
+        #expect(rows[0].disabledReason?.contains("tailscale serve --https=8765 off") == true)
+        #expect(AddressChoiceModel.root(for: nil, rows: rows) == nil)
+    }
+
     @Test("the pin follows the row: none for Tailscale, the pin for This network")
     func pinFollowsTheRow() {
         let rows = AddressChoiceModel.rows(sharingAddress: local, tailnetURL: tail, tailnetForward: "ours")

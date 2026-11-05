@@ -72,14 +72,27 @@ enum AddressChoiceModel {
     /// link named before); `tailnetURL` the detected `.ts.net` origin (no port); `tailnetForward` "ours" | "foreign" | "none"
     /// (nil for an engine from before the field: treated as "ours" when a tailnet address exists, the old behaviour).
     static func rows(sharingAddress: String, tailnetURL: String?, tailnetForward: String?,
-                     tailnetConflict: TailnetServeConflict? = nil) -> [AddressRow] {
+                     tailnetConflict: TailnetServeConflict? = nil, lanIP: String? = nil) -> [AddressRow] {
         var rows: [AddressRow] = []
         let sharing = URL(string: sharingAddress.trimmingCharacters(in: .whitespacesAndNewlines))
         guard let sharing, let sharingHost = sharing.host else { return rows }
         let port = sharing.port ?? 8765
         if sharingHost.lowercased().hasSuffix(".ts.net") {
-            // A `.ts.net` sharer: its own address IS the Tailscale address and works whatever detection says (review M2).
-            rows.append(AddressRow(choice: .tailscale, url: sharing, title: "Tailscale", reach: tailscaleReach, disabledReason: nil))
+            // A `.ts.net` sharer: its own address IS the Tailscale address and works whatever detection says (review M2),
+            // unless the engine says no forward of Fichero's reaches it: then the link would name an address that times
+            // out, so the row is greyed with why, and the Mac's LAN address is offered instead (the 2026-11-05 Pro: a saved
+            // tailnet name with no `:8765` forward).
+            let blocked: String? = switch tailnetForward {
+            case "foreign": heldReason(tailnetConflict, port: port)
+            case "none": tailscaleNotPublished
+            default: nil
+            }
+            rows.append(AddressRow(choice: .tailscale, url: sharing, title: "Tailscale", reach: tailscaleReach, disabledReason: blocked))
+            if blocked != nil, let lan = lanIP?.trimmingCharacters(in: .whitespacesAndNewlines), !lan.isEmpty,
+               let lanURL = URL(string: "https://\(lan):\(port)") {
+                rows.insert(AddressRow(choice: .thisNetwork, url: lanURL, title: "This network", reach: thisNetworkReach,
+                                       disabledReason: nil), at: 0)
+            }
             return rows
         }
         rows.append(AddressRow(choice: .thisNetwork, url: sharing, title: "This network", reach: thisNetworkReach, disabledReason: nil))

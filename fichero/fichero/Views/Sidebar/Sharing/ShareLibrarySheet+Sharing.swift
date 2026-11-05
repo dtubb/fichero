@@ -125,13 +125,16 @@ extension ShareLibrarySheet {
     /// The rows the engine's state allows; the sharing address alone when the state is not loaded.
     var addressRows: [AddressRow] {
         AddressChoiceModel.rows(
-            sharingAddress: publicBaseURL, tailnetURL: sharingState?.tailnetURL, tailnetForward: sharingState?.tailnetForward)
+            sharingAddress: publicBaseURL, tailnetURL: sharingState?.tailnetURL, tailnetForward: sharingState?.tailnetForward,
+            lanIP: sharingState?.lanIP)
     }
 
     var pairingLink: String? {
         guard let pairingCode,
+              // The saved address is the fallback only when there are no rows at all; rows that are all greyed mean no link,
+              // never a link to the address the engine said cannot work.
               let reachableURL = AddressChoiceModel.root(for: addressChoice, rows: addressRows)
-                ?? (try? validatedHostedRemoteURL(from: publicBaseURL))
+                ?? (addressRows.isEmpty ? (try? validatedHostedRemoteURL(from: publicBaseURL)) : nil)
         else { return nil }
         let advertisedPin: String?
         switch RemoteClientPairing.invitePin(spkiPin, for: reachableURL) {

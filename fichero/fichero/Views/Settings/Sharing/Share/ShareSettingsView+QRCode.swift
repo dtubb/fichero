@@ -24,7 +24,7 @@ extension ShareSettingsView {
     /// service: minting a payload sends nothing, so it must not construct a
     /// client that would follow the app's own transport (#4224).
     var advertisedPairingRoot: URL? {
-        AddressChoiceModel.root(for: addressChoice, rows: addressRows) ?? validatedPublicURL
+        AddressChoiceModel.root(for: addressChoice, rows: addressRows) ?? (addressRows.isEmpty ? validatedPublicURL : nil)
     }
 
     /// The addresses the sheet offers (`sharing.share-sheet-offers-both-addresses`): the sharing address and the tailnet
@@ -33,7 +33,8 @@ extension ShareSettingsView {
         AddressChoiceModel.rows(sharingAddress: publicBaseURL,
                                 tailnetURL: sharingState?.tailnetURL ?? detectedTailnetURL,
                                 tailnetForward: sharingState?.tailnetForward,
-                                tailnetConflict: sharingState?.tailnetServeConflict)
+                                tailnetConflict: sharingState?.tailnetServeConflict,
+                                lanIP: sharingState?.lanIP)
     }
 
     /// The link for one row (its own Copy), built from the same code as the QR.
