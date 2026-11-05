@@ -130,7 +130,7 @@ This is the Trash the app already promises in its delete dialog and does not hav
 
 ### B. Out of the way while it is there
 
-- `safety.trash.every-read-leaves-it-out` — **[GAP]** (#5406, #5243) a thing in the Trash appears in no list, count,
+- `safety.trash.every-read-leaves-it-out` — **[PARTIAL]** (#5406, #5243) (built: the claims, entities, notes, annotations, segments, artifacts and the full graphs leave a trashed document's rows out through `knowledge/trash_visibility.py`; the guardrail `scripts/check_trash_seam_reads.py` refuses a new API GET handler that reads one of those kinds without the seam, pinned by `fichero-server/tests/unit/scripts/test_check_trash_seam_reads_5406.py`; not built: the 30 handlers seeded in `scripts/check_trash_seam_reads_known_gaps.json` still leak, each to close and delete from the file, and the kinds beyond GET handlers, exports and datasets) a thing in the Trash appears in no list, count,
   search, graph, dataset, chat context or export. Reads go through one seam that leaves trashed
   rows out unless the caller asks for the Trash by name. *Why a seam:* the defect found twice
   already (→ #4960, and documents in exports) is a mark that is written and not read. *Data:*

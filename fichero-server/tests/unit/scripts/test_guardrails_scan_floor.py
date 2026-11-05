@@ -80,6 +80,11 @@ FLOORED_CHECKS: dict[str, dict] = {
             "check_action_surface_matrix_known_gaps.json",
         ],
     },
+    "check_trash_seam_reads.py": {
+        "dirs": ["fichero-server/src/fichero_server/api/routes"],
+        "files": {},
+        "extra_scripts": ["check_trash_seam_reads_known_gaps.json"],
+    },
     "check_appkit_imports.py": {
         "dirs": ["fichero/fichero"],
         "files": {},
