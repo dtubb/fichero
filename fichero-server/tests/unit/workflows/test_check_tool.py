@@ -389,6 +389,28 @@ def test_an_unknown_auto_rule_refuses_the_rules_file(tmp_path):  # speed batch 1
     assert ct.load(tmp_path).auto == ("red-on-base-trim-only", "weakened-tests-of-a-deleted-module")
 
 
+
+def test_a_test_file_whose_diff_touches_only_timeouts_or_comments_is_timeout_only_and_any_other_line_is_not(tmp_path):
+    """Manager 2026-11-05 (`red-on-base-timeout-only`): batch-25 raised one test's time bound and red-on-base stopped twice for it."""
+    g, _ = _git_repo(tmp_path)
+    body = "import pytest\n\ndef test_slow(tmp_path):\n    assert run(tmp_path, timeout_s=120)\n"
+    (tmp_path / "test_q.py").write_text(body)
+    g("add", "."), g("commit", "-qm", "t")
+    base = _sha(tmp_path)
+    (tmp_path / "test_q.py").write_text(body.replace("def test_slow", "# load 13 to 40 overnight\n@pytest.mark.timeout(1800)\ndef test_slow")
+                                        .replace("timeout_s=120", "timeout_s=900"))
+    g("commit", "-qam", "bound")
+    assert ct.timeout_only(tmp_path, base, "HEAD", "test_q.py"), "a number, a mark and a comment"
+    (tmp_path / "test_q.py").write_text(body.replace("timeout_s=120", "timeout_s=900").replace("assert run(", "assert not run("))
+    g("commit", "-qam", "and a changed assert")
+    assert not ct.timeout_only(tmp_path, base, "HEAD", "test_q.py"), "any other changed line keeps the red"
+    (tmp_path / "test_q.py").write_text(body + "    assert done()\n")
+    g("commit", "-qam", "an added line")
+    assert not ct.timeout_only(tmp_path, base, "HEAD", "test_q.py")
+    (tmp_path / "test_new.py").write_text("@pytest.mark.timeout(5)\ndef test_n():\n    pass\n")
+    g("add", "."), g("commit", "-qm", "new file")
+    assert not ct.timeout_only(tmp_path, base, "HEAD", "test_new.py"), "a new file is never timeout-only"
+
 def test_a_test_file_that_only_loses_checks_or_renames_a_test_is_trim_only_and_any_new_check_is_not(tmp_path):
     g, _ = _git_repo(tmp_path)
     (tmp_path / "test_q.py").write_text("def test_a_and_the_page():\n    x = 1\n    assert x\n    assert page(x)\n")

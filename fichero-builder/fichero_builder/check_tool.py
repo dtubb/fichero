@@ -123,6 +123,9 @@ def load(root) -> Config:
 # speed batch 1 (manager 2026-11-03): narrow rule classes the ladder resolves without a person, each opted in by name in
 # [check].auto and journalled with that name, so the manager audits instead of approving
 AUTO_RULES = {
+    "red-on-base-timeout-only": "a changed test file whose diff touches ONLY timeout numbers (`timeout...=N`, `pytest.mark.timeout(N)`), "
+                                "whole `pytest.mark.timeout` lines or comments owes no red on base: a time bound proves nothing there; any "
+                                "other changed line keeps the red owed (manager 2026-11-05)",
     "red-on-base-trim-only": "a changed test file whose diff adds no assert and no new test function (a renamed one is a rename) "
                              "owes no red on base: it can only have lost checks, and it still runs green on head",
     "weakened-tests-of-a-deleted-module": "a changed test file whose head is its base with whole top-level tests removed, each of which "
@@ -1031,6 +1034,27 @@ def trim_only(root, since: str, head: str, f: str) -> bool:
             and sum(bool(TEST_DEF.match(a)) for a in added) <= sum(bool(TEST_DEF.match(r)) for r in removed))
 
 
+TIMEOUT_NUM = re.compile(r"(\btimeout\w*\s*=\s*|\.timeout\(\s*)\d+(?:\.\d+)?")
+TIMEOUT_LINE = re.compile(r"^\s*@pytest\.mark\.timeout\([^)]*\)\s*(#.*)?$")
+COMMENT_LINE = re.compile(r"^\s*(#.*)?$")
+
+
+def timeout_only(root, since: str, head: str, f: str) -> bool:
+    """`red-on-base-timeout-only`: a test file on base whose every changed line is a comment, a whole `@pytest.mark.timeout(...)` line,
+    or the same line with only its timeout numbers changed. Anything else (a new assert, a call, a changed argument) keeps the red."""
+    if not _git(root, "cat-file", "-e", f"{since}:{f}")["ok"]:
+        return False  # a new file is never timeout-only
+    diff = _lines(root, "diff", "--no-ext-diff", "--unified=0", f"{since}...{head}", "--", f)
+    if diff is None:
+        return False  # unreadable: fail closed
+    added = [ln[1:] for ln in diff if ln.startswith("+") and not ln.startswith("+++")]
+    removed = [ln[1:] for ln in diff if ln.startswith("-") and not ln.startswith("---")]
+
+    def norm(lines):
+        return sorted(TIMEOUT_NUM.sub(r"\1N", ln).strip() for ln in lines if not (COMMENT_LINE.match(ln) or TIMEOUT_LINE.match(ln)))
+    return bool(added or removed) and norm(added) == norm(removed)
+
+
 def deleted_modules(root, since: str, head: str, cfg: Config) -> set[str]:
     """The DOTTED module paths of non-test Python files this diff deletes: repo-relative and relative to each [check].python_path
     root (`fichero-builder/fichero_builder/watch.py` is `fichero_builder.watch`), never a bare file name (review -72: a deleted
@@ -1130,6 +1154,10 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
             if f not in have and "red-on-base-trim-only" in cfg.auto and trim_only(root, since, head, f):
                 journal.append("auto", rule="red-on-base-trim-only", head=sha, file=f, detail="adds no check and no new test: no red owed; it runs green on head")
                 data_skipped.add(f)  # like data-only: a source change still owes a red from some other test
+                continue
+            if f not in have and "red-on-base-timeout-only" in cfg.auto and timeout_only(root, since, head, f):
+                journal.append("auto", rule="red-on-base-timeout-only", head=sha, file=f, detail="only timeout numbers, timeout marks or comments changed: no red owed; it runs green on head")
+                data_skipped.add(f)
                 continue
             r = pytest_rung(base, [f], cfg, timeout_s)
             if f in have and not r["ok"] and (x := red(f"{f} says Already built but fails on base at {since[:9]}: it owes a red like any test")):
