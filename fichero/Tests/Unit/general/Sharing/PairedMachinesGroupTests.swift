@@ -10,6 +10,7 @@
 import Foundation
 import Testing
 
+@MainActor
 struct PairedMachinesGroupTests {
     private func freshDefaults() -> UserDefaults {
         let name = "PairedMachinesGroupTests.\(UUID().uuidString)"
