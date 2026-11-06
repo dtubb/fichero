@@ -683,6 +683,8 @@ def _reset_first_registry_200_signal(app: FastAPI) -> None:
     than one) each get their own — see the module comment above."""
     app.state.first_registry_200_signal = asyncio.Event()
     app.state.last_request_at = time.monotonic()
+    app.state.starting = []
+    app.state.app_db_ready = None
 
 
 def _mark_first_registry_200(app: FastAPI) -> None:
@@ -1013,11 +1015,27 @@ async def lifespan(app: FastAPI):
     # since a slow first DB open was one of #4690's original suspects for
     # where the ~23s figure could be hiding. Both are already exception-safe
     # internally (never raise), so this cannot fail startup.
-    _api_stamp("app db open + provider seed/collapse start")
-    _seed_builtin_providers()
-    _collapse_duplicate_providers()
-    _api_stamp("app db open + provider seed/collapse complete")
-    _gate_multiuser_env()
+    # The app database opens, the built-in providers are seeded and Multi-user is gated AFTER the socket answers
+    # (`engine.launch.health-answers-before-the-rest`, #6371): health says `starting: ["app-db"]` meanwhile, and every
+    # other request waits for it (`_wait_for_the_app_database`), so no client can read an unseeded database (the SF9 race).
+    app.state.starting = ["app-db"]
+    app.state.app_db_ready = asyncio.Event()
+
+    def _open_app_db() -> None:
+        _api_stamp("app db open + provider seed/collapse start")
+        _seed_builtin_providers()
+        _collapse_duplicate_providers()
+        _api_stamp("app db open + provider seed/collapse complete")
+        _gate_multiuser_env()
+
+    async def _app_db_task() -> None:
+        try:
+            await asyncio.get_running_loop().run_in_executor(None, _open_app_db)
+        finally:  # a failed seed must not hold every request: the seed never raises, but the gate is released regardless
+            app.state.starting = [name for name in app.state.starting if name != "app-db"]
+            app.state.app_db_ready.set()
+
+    app_db_started = asyncio.create_task(_app_db_task())
 
     # Pairing codes are process-local; warn if a non-standard launcher exposes
     # a detectable multi-worker configuration.
@@ -1166,7 +1184,7 @@ async def lifespan(app: FastAPI):
         await _teardown(
             app, parent_watcher=parent_watcher, periodic_snapshot_task=periodic_snapshot_task,
             bonjour_started=bonjour_started, tailnet_forward=tailnet_forward,
-            mcp_tools_started=mcp_tools_started, warm_started=warm_started)
+            mcp_tools_started=mcp_tools_started, warm_started=warm_started, app_db_started=app_db_started)
 
 
 async def _step(what: str, step) -> None:
@@ -1181,7 +1199,7 @@ async def _step(what: str, step) -> None:
 
 
 async def _teardown(app: FastAPI, *, parent_watcher, periodic_snapshot_task, bonjour_started, tailnet_forward,
-                    mcp_tools_started, warm_started) -> None:
+                    mcp_tools_started, warm_started, app_db_started=None) -> None:
     """The lifespan's shutdown, in the order a normal quit has always had: live runs paused and streams closed, the projects
     checkpointed and closed (first, straight after the last thing that writes to them), then the network and local-model steps."""
     from fichero_server.api.change_stream import signal_sse_shutdown
@@ -1220,6 +1238,8 @@ async def _teardown(app: FastAPI, *, parent_watcher, periodic_snapshot_task, bon
     logger.info("Fichero API shutting down: closing projects")
     from fichero_server.db.app import checkpoint_app_db
 
+    if app_db_started is not None:
+        await _step("let the app database finish opening", lambda: app_db_started)  # a seed mid-write is not closed under
     await _step("checkpoint the projects", db_manager.checkpoint_all)  # first, fast: stopping runs below can outlast the app's wait
     await _step("checkpoint the app database", checkpoint_app_db)
     await _step("close the projects", db_manager.close_all)
@@ -1493,6 +1513,18 @@ async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     return response
+
+
+@app.middleware("http")
+async def _wait_for_the_app_database(request: Request, call_next):
+    """Every request but health waits until the app database is open and seeded (`engine.launch.health-answers-before-the-rest`).
+
+    Health answers at once with `starting` naming what is pending; a caller that is not health gets its answer a moment later
+    rather than a half-seeded database. The gate is an `Event` on `app.state`, absent (None) outside a running lifespan."""
+    ready = getattr(request.app.state, "app_db_ready", None)
+    if ready is not None and not ready.is_set() and request.scope.get("path") != "/api/health":
+        await ready.wait()
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -2213,10 +2245,13 @@ async def health_check(
     if x_fichero_library_path and db_manager.is_open(x_fichero_library_path):
         from starlette.concurrency import run_in_threadpool
 
-        return await run_in_threadpool(
+        answer = await run_in_threadpool(
             _health_sync, request, x_fichero_library_path, x_fichero_client_nonce, nonce
         )
-    return _health_sync(request, x_fichero_library_path, x_fichero_client_nonce, nonce)
+    else:
+        answer = _health_sync(request, x_fichero_library_path, x_fichero_client_nonce, nonce)
+    answer.starting = list(getattr(request.app.state, "starting", []))  # what is still opening, from memory (`engine.launch.health-answers-before-the-rest`)
+    return answer
 
 
 def _health_sync(

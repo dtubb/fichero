@@ -72080,6 +72080,13 @@
             "type": "array",
             "title": "Missing Dependencies"
           },
+          "starting": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Starting"
+          },
           "device_token_migration_error": {
             "type": "string",
             "nullable": true,

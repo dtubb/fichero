@@ -2132,6 +2132,9 @@ class HealthResponse(BaseModel):
     #: Packages the engine imports by name for a feature (lxml for PAGE/ALTO/TEI) that are not
     #: installed; empty when all are present (#5384).
     missing_dependencies: list[str] = Field(default_factory=list)
+    #: What the engine is still doing after it began answering, emptied as each piece finishes: `app-db` while the app database
+    #: is opening and the built-in providers are seeded (`engine.launch.health-answers-before-the-rest`, #6371). Empty once ready.
+    starting: list[str] = Field(default_factory=list)
     #: Error type name when moving old device tokens to the new clients table failed at open (#5799). The old
     #: tokens still work and the move is retried at the next open; None when nothing is pending. A warning only.
     device_token_migration_error: str | None = None

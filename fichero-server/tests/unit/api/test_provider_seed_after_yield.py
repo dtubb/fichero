@@ -1,33 +1,18 @@
-"""Pin #4690/SF9: provider seed/collapse must run BEFORE lifespan yields.
+"""The app database opens and the built-in providers are seeded AFTER the socket answers, and no other request sees it half-done
+(`engine.launch.health-answers-before-the-rest`, #6371; replaces the SF9 pin that seed/collapse ran before the yield).
 
-History (filename kept for continuity, behaviour flipped 2026-09-18 — SF9):
-#4690 originally moved `_seed_builtin_providers()` / `_collapse_duplicate_providers()`
-OFF the pre-yield path onto the post-bind warm-up executor, to get two blocking
-DuckDB round trips off the critical path to "health can answer". That measured
-~147ms — negligible — and it opened a real cross-commit race: `loadProviders()`
-at `markReady()` (Swift, `AppState+Readiness.swift`) is fire-and-forget and can
-call `GET /api/providers` before this seed lands on a FRESH install (empty
-app.duckdb, no rows yet), reading `[]` and latching
-`isFirstLaunchProviderSetup = true` (`AppState+Providers.swift`) permanently
-for the session — a user who will have a provider a moment later sees
-first-launch setup. SF9 reverted the move: the negligible cost is worth
-removing the race STRUCTURALLY (seed/collapse complete before the socket can
-even answer, so no client request can ever race them) rather than adding a
-second readiness signal for a ~147ms saving.
-
-This test pins the CURRENT (reverted) behaviour: seed/collapse run
-SYNCHRONOUSLY in the lifespan coroutine, in order, and have ALREADY completed
-by the time `async with lifespan(app):` hands control to its body — no
-threading/event trickery needed here (unlike the embeddings-prewarm test),
-because there is no longer a background thread race to synchronize with; a
-regression back to the post-yield executor would show up as `calls == []` (or
-partial) at the assertion point below, since Python's single-threaded
-coroutine execution means everything before `yield` in the generator body has
-unconditionally run by the time `__aenter__` returns.
+History: #4690 moved the seed off the pre-yield path to get health answering sooner; SF9 (2026-09-18) moved it back because
+`loadProviders()` at the app's `markReady()` could read an unseeded database and latch first-launch setup. The race is now closed
+by a gate, not by ordering: health answers at once with `starting: ["app-db"]`, and every other request waits for the seed
+(`_wait_for_the_app_database`), so the SF9 failure cannot return.
 """
 
 from __future__ import annotations
 
+import asyncio
+import threading
+
+import httpx
 import pytest
 
 from fichero_server.api import main as api_main
@@ -37,19 +22,34 @@ from fichero_server.api import main as api_main
 # suite (the "thread" method dumps every stack; the repo default "signal" cannot interrupt a blocked executor join).
 @pytest.mark.timeout(60, method="thread")
 @pytest.mark.asyncio
-async def test_provider_seed_and_collapse_run_before_yield(monkeypatch) -> None:
+async def test_health_answers_while_the_seed_is_pending_and_other_requests_wait_for_it(monkeypatch) -> None:
     calls: list[str] = []
+    release = threading.Event()
 
-    monkeypatch.setattr(api_main, "_seed_builtin_providers", lambda: calls.append("seed"))
+    def blocked_seed() -> None:
+        release.wait(30)
+        calls.append("seed")
+
+    monkeypatch.setattr(api_main, "_seed_builtin_providers", blocked_seed)
     monkeypatch.setattr(api_main, "_collapse_duplicate_providers", lambda: calls.append("collapse"))
-    # Avoid the real (slow, network-fetching) embeddings warm-up; unrelated
-    # to what this test pins (it's already deferred past readiness, #4690).
 
-    async with api_main.lifespan(api_main.app):
-        assert calls == ["seed", "collapse"], (
-            f"expected seed+collapse to have ALREADY completed before yield, got {calls!r} — "
-            "if this is [] or partial, seed/collapse moved back to the post-yield warm-up "
-            "executor, reintroducing the SF9 loadProviders()/isFirstLaunchProviderSetup race"
-        )
-    # Unaffected by shutdown — still exactly these two, in order.
+    from fichero_server.api.auth import initialize_token
+
+    headers = {"Authorization": f"Bearer {initialize_token()}"}
+    transport = httpx.ASGITransport(app=api_main.app)
+    async with api_main.lifespan(api_main.app), httpx.AsyncClient(
+        transport=transport, base_url="http://test", headers=headers
+    ) as client:
+        health = (await client.get("/api/health")).json()
+        assert health["starting"] == ["app-db"], health
+        assert calls == [], "health answered before the seed finished"
+
+        other = asyncio.create_task(client.get("/api/registry"))
+        await asyncio.sleep(0.5)
+        assert not other.done(), "a non-health request ran against an unseeded database"
+
+        release.set()
+        await other
+        assert calls == ["seed", "collapse"]
+        assert (await client.get("/api/health")).json()["starting"] == []
     assert calls == ["seed", "collapse"]
