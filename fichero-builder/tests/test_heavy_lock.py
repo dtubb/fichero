@@ -145,3 +145,18 @@ def test_the_guards_rung_runs_while_a_dev_build_holds_the_heavy_lock(state, tmp_
         t.join(30)
         assert not t.is_alive(), "the guards rung waited on the heavy lock"
     assert out["r"]["ok"] and [x["name"] for x in out["r"]["results"]] == ["x_ok"]
+
+
+
+def test_a_manual_hold_is_a_live_builder_heavy_holder_and_a_dead_one_is_none(tmp_path, monkeypatch):
+    """Owner 2026-11-06: the loop asks whether the person holds the heavy lock (`builder heavy -- ...`); a check's own hold or a dead pid is not."""
+    import os
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path)
+    assert journal.manual_hold() == ""
+    (tmp_path / "heavy.lock").write_text(f"{os.getpid()} heavy: sleep 86400")
+    assert journal.manual_hold().endswith("heavy: sleep 86400")
+    (tmp_path / "heavy.lock").write_text(f"{os.getpid()} xcodebuild (the build rung)")
+    assert journal.manual_hold() == "", "a rung's own hold is not the person's"
+    (tmp_path / "heavy.lock").write_text("999999 heavy: sleep 86400")
+    assert journal.manual_hold() == "", "a dead holder is no hold"

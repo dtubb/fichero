@@ -1414,3 +1414,23 @@ def test_two_overlapping_ladders_keep_the_jail_until_the_last_one_ends():
     assert ct._JAIL is j
     ct._jail_exit()
     assert ct._JAIL is None
+
+
+def test_a_batch_that_touches_no_build_path_skips_the_build_without_ever_taking_the_heavy_lock(monkeypatch):
+    """2026-11-06: build() took the heavy lock before it saw the batch built nothing, so a docs-only or harness batch waited hours on the
+    owner's Xcode hold. The skip is decided first; only a real compile takes the lock."""
+    import contextlib
+
+    from fichero_builder import journal
+    taken = []
+
+    @contextlib.contextmanager
+    def heavy(what, yields=False):
+        taken.append(what)
+        yield
+    monkeypatch.setattr(journal, "heavy", heavy)
+    cfg = ct.Config(build=("true",), build_paths=("fichero/",))
+    r = ct.build("/nowhere", ["README.md", "fichero-builder/fichero_builder/queue.py"], cfg)
+    assert r == {"ok": True, "skipped": True, "results": []} and taken == [], "no build path: no lock, no wait"
+    monkeypatch.setattr(ct, "_build_locked", ct._heavy("xcodebuild (the build rung)")(lambda root, changed, cfg: {"ok": True, "skipped": False, "results": []}))
+    assert ct.build("/nowhere", ["fichero/App.swift"], cfg)["skipped"] is False and taken == ["xcodebuild (the build rung)"], "a Swift change takes it"

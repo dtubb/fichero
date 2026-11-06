@@ -107,6 +107,25 @@ HEAVY_ENV = "FICHERO_HEAVY_HELD"  # set for what `builder heavy` runs: it alread
 YIELD_POLL_S = 2  # how often a yielding job looks again for waiting checks
 
 
+def manual_hold() -> str:
+    """The person's hold on this machine's heavy lock, or "": the lock file names a `builder heavy` command (`<pid> heavy: ...`) whose pid
+    still runs (owner 2026-11-06: an Xcode hold while the owner tests; a dead holder is no hold)."""
+    try:
+        text = (STATE / "heavy.lock").read_text().strip()
+    except OSError:
+        return ""
+    pid, _, what = text.partition(" ")
+    if not what.startswith("heavy: ") or not pid.isdigit():
+        return ""
+    try:
+        os.kill(int(pid), 0)
+    except ProcessLookupError:
+        return ""
+    except PermissionError:
+        pass  # alive, another user's: still a hold
+    return text
+
+
 def heavy_waiters() -> int:
     """Checks waiting for the heavy lock right now: one `heavy-wait.<pid>.<thread>` file each, a dead pid's file is dropped."""
     n = 0

@@ -351,6 +351,14 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     elif fut is None:
         if DRAIN[0]:  # new code waits: no new chain starts, so the loop can re-exec between chains
             return True
+        if (hold := journal.manual_hold()) and touches_build(lane, s, getattr(procs, "root", None)):
+            # owner 2026-11-06: a held Xcode build rung sat on the only chain worker for an hour; a batch that would build waits HERE,
+            # holding no worker, one `held` row per head, and starts by itself once the person's hold ends
+            if lane.get("held_head") != s.get("head"):
+                lane["held_head"] = s.get("head")
+                journal.append("queue", lane=lane["id"], step=s["step"], state="held", detail=f"waits for the heavy-lock hold ({hold[:80]}): its batch builds Swift")
+                store(lane)
+            return True
         if running := [k for k, f in chains.items() if k not in ("pool", lane["id"]) and not f.done()]:
             if len(running) >= chains["pool"]._max_workers:  # the pool queues it with no word: say so (2026-11-05: batch-25 waited 40 min unseen)
                 journal.append("queue", lane=lane["id"], step=s["step"], state="waiting-for-worker",
@@ -998,6 +1006,23 @@ def build_head(root, lane_id: str, w=None) -> tuple[int, str]:
         return 0, f"{lane_id} at {head[:9]}: BUILD GREEN ({how}); the ladder's build rung will reuse it"
     errors = (res.get("errors") or res.get("stderr_tail") or res.get("stdout_tail") or "").strip()
     return 1, f"{lane_id} at {head[:9]}: BUILD RED{' (timed out)' if res.get('timed_out') else ''}\n{errors[-4000:]}\nlog: {res.get('log', '-')}"
+
+
+
+def touches_build(lane: dict, step: dict, root) -> bool:
+    """The step's batch changes a `[check].build_paths` file (a Swift build would run). Unknown (no head, no root, git fails): False."""
+    if not root or not step.get("head"):
+        return False
+    try:
+        rules = tomllib.loads((Path(root) / "harness.toml").read_text())
+    except (OSError, ValueError):
+        return False
+    paths = tuple(rules.get("check", {}).get("build_paths", ()))
+    branch = rules.get("land", {}).get("branch", "integration")
+    tree = step.get("land_tree") or lane.get("worktree", "")
+    r = subprocess.run(["git", "-c", "safe.directory=*", "-C", str(tree), "diff", "--no-ext-diff", "--name-only", f"origin/{branch}...{step['head']}"],
+                       capture_output=True, text=True)
+    return bool(paths) and r.returncode == 0 and any(f.startswith(paths) for f in r.stdout.split())
 
 
 CARRYABLE = {"approve_red", "approve_weakened", "approve_guard_data"}  # approvals bound to the files they named; never maintainer or pinned-new

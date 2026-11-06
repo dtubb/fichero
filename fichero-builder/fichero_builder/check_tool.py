@@ -793,12 +793,17 @@ SOURCE_ERROR = re.compile(r"\.swift:\d+:\d+: error: ")
 BUILD_RETRY_WAIT_S = 30  # ponytail: one fixed wait; the other build's end is not watched
 
 
-@_heavy("xcodebuild (the build rung)")
 def build(root, changed: list[str], cfg: Config) -> dict:
     """The project's build-only compile, only when the diff touches its build paths; one at a time under the lock
-    (owner 2026-11-01: a Swift change nobody compiled reached the land gate; builds stay serial on this machine)."""
+    (owner 2026-11-01: a Swift change nobody compiled reached the land gate; builds stay serial on this machine). The skip is decided
+    BEFORE the heavy lock (2026-11-06: a docs-only or harness batch waited hours on the owner's Xcode hold just to learn it builds nothing)."""
     if not cfg.build or not any(f.startswith(cfg.build_paths) for f in changed):
         return {"ok": True, "skipped": True, "results": []}
+    return _build_locked(root, changed, cfg)
+
+
+@_heavy("xcodebuild (the build rung)")
+def _build_locked(root, changed: list[str], cfg: Config) -> dict:
     lock = None
     if cfg.build_lock:  # ~ = the owner's own state dir (review 1 N3); the owner's process takes it, the build itself runs jailed
         lp = Path(os.path.expanduser(cfg.build_lock))

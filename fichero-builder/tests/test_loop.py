@@ -752,6 +752,29 @@ def test_a_chain_waiting_for_the_pools_one_worker_says_so_and_a_free_pool_says_n
     finally:
         free.shutdown(wait=True)
 
+
+def test_a_batch_that_builds_swift_waits_for_a_manual_hold_without_taking_a_worker_and_starts_once_it_ends(state, monkeypatch):
+    """Owner 2026-11-06: under the owner's Xcode hold a Swift batch's build rung sat on the only chain worker for an hour and nothing else
+    moved. Such a batch now waits before it takes a worker, with one `held` row per head, and starts by itself once the hold ends."""
+    queue.add("ext", "/w/ext", "1.1", str(state / "b1.1"), [7], kind="external")
+    fake = Fake(chains={})
+    assert cli.main(["done", "ext", "abc123", "--state", str(journal.STATE)]) == 0
+    hold = ["4242 heavy: sleep 86400"]
+    monkeypatch.setattr(queue.journal, "manual_hold", lambda: hold[0])
+    monkeypatch.setattr(queue, "touches_build", lambda lane, step, root: True)
+    pool = queue.ThreadPoolExecutor(max_workers=1)
+    try:
+        chains = {"pool": pool}
+        for _ in range(2):
+            queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
+        assert set(chains) == {"pool"}, "no worker taken while the hold stands"
+        assert [r["detail"][:29] for r in journal.read() if r.get("state") == "held"] == ["waits for the heavy-lock hold"], "one row per head"
+        hold[0] = ""
+        queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
+        assert "ext" in chains, "the hold ended: it starts by itself"
+    finally:
+        pool.shutdown(wait=True, cancel_futures=True)
+
 def test_a_draining_loop_starts_no_new_chain_so_it_can_re_exec_between_chains(state):
     """Soak 2026-11-02: new code waits; while DRAIN is set no chain starts, and clearing it lets the same step run."""
     queue.add("ext", "/w/ext", "1.1", str(state / "b1.1"), [7], kind="external")
