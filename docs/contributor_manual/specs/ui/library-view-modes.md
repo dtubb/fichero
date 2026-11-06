@@ -548,6 +548,30 @@ homeless until a map-view UI spec exists (#5128).
 - `library.canvas.a-board-remembers-its-camera` — **[OK]** (572719bca) a board opens fitted to the pane
   with margin; coming back to a folder returns to the centre and zoom the person left it at (kept per
   Mac, not in the library).
+- `library.canvas.zoom-out-stops-near-fit` — **[GAP]** (#6368; owner 2026-11-06, two screenshots) on
+  every 2D canvas pane (the Library's Canvas mode and the folder canvas in a Preview pane, one canvas,
+  `library.canvas.one-canvas-everywhere`) zooming out stops a little past fit-to-content: the minimum
+  zoom is the scale at which every card just fits the pane (the pose `CanvasCameraFit.fit` computes
+  for the board's cards and this pane's size, the same fit the board opens with) times about 0.9, so
+  the content fills most of the pane with a thin rim of empty space and never shrinks to a cluster in
+  the middle; a pinch, ⌘-scroll or Zoom Out past it does nothing (the scale clamps there, the camera
+  stays); the minimum follows the pane, so making the pane smaller or larger, adding or removing a
+  card or arranging the board re-derives it (and a camera already past the new minimum is brought to
+  it, the one case a camera moves unasked, `library.canvas.cards-move-only-when-asked` kept for the
+  cards); zooming IN is unchanged (the floor `setOrthoScale` clamps to today, 0.1). An empty board, or
+  one whose cards' shapes are not yet known, uses a floor of one grid cell filling the pane's height
+  (`CanvasGridPlacement.cellHeight`, the same basis `focusZoom` uses), never today's constant of 200
+  scene units. Today `setOrthoScale` clamps to a fixed 0.1…200 (`CanvasOrtho2DRenderer.swift:261`)
+  and knows nothing of the board or the pane, which is the defect. Acceptance: with a board of 12
+  cards fitted in a 1000×700 pane, zooming out by any amount leaves the ortho scale at the fit pose's
+  scale divided by 0.9 and every card visible; shrinking the pane to 500×350 raises the minimum to that
+  pane's fit and a camera past it moves to it; with no cards the minimum is the one-cell floor and a
+  pinch out does not change it; zooming in from the fit still reaches 0.1. *Decided here:* 0.9 of the
+  fit (about 10 % of empty rim), the owner's own figure; the 3D canvas keeps `CanvasZoomRange` (its
+  far limit is already span × 1.6) and is not changed here. Test (to write):
+  `CanvasZoomFloorTests.swift` in fichero/Tests/Unit/general/Views/Library/ (the pure clamp from a
+  fit pose and a pane size; the empty-board floor; the renderer re-clamps on resize), beside
+  `CanvasZoomKeepsTheCardsTests.swift`.
 - `library.canvas.group-into-one-node` — **[PARTIAL]** (#5303) selecting images and choosing Edit ▸
   Group (no chord yet: ⌥⌘G, Keynote's and Freeform's, is the Preview markup Line tool today) makes ONE group node that holds them in
   order, in the place of the first, as a letter holds its pages; Edit ▸ Ungroup returns each to
@@ -791,6 +815,16 @@ parent's field; `WorkspaceLayoutDefaults.rememberedPaneList` round-trips it.
 
 - test (to write): `PreviewFolderViewPerPaneTests.swift` in fichero/Tests/Unit/general/Views/Shell/ (Swift Testing, the pure rules above; no app)
 - test (to write): `PreviewFolderViewPerPaneUITests.swift` in fichero/Tests/UI/general/Shell/ (XCUITest, subclass `FicheroUISessionTests`: split the Preview, pick Table in one pane and Canvas in the other, select a folder, read both panes; relaunch; both keep their view)
+
+#### Step 1.2 — canvas zoom-out stops a little past fit-to-content, per pane, following the pane's size (#6368)
+- Behaviours: `library.canvas.zoom-out-stops-near-fit`
+- Tests: CanvasZoomFloorTests.swift (not yet written), fichero/Tests/Unit/general/Views/Library/CanvasZoomKeepsTheCardsTests.swift
+- Depends on: 1.1
+- Size: S
+
+Order: the pure rule (minimum ortho scale from a fit pose, a pane size and the 0.9 margin; the one-cell floor) with its test red then green; then `setOrthoScale` clamps to it and the resize and board-change paths re-derive it. Depends on 1.1 only in order (the owner wants both in the next dev build; 1.1 adds the Preview panes this applies to), not in code.
+
+- test (to write): `CanvasZoomFloorTests.swift` in fichero/Tests/Unit/general/Views/Library/
 
 ## Cross-references — rulings honored, not restated here
 
