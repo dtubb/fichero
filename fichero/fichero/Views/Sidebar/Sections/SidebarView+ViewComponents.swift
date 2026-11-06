@@ -86,6 +86,8 @@ extension SidebarView {
                     }
                 } header: {
                     Text(machine.name)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                 }
             }
             if SharedLibraryChooserView.showsHowToPair(libraryManager.pairedMachines) {

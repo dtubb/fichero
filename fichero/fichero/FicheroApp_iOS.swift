@@ -175,6 +175,7 @@ private struct FicheroSharedPlatformRoot: View {
                 IOSConnectionRecoveryBar { await reconnectToConfiguredHost() }
             }
         }
+        .background { Color.clear.sheet(isPresented: $showingChooser) { NavigationStack { chooser } } }
         .onOpenURL { url in
             // Account invite link (#3157): route to the redeem gate. The token
             // is a secret query param, so it is never logged.
@@ -187,7 +188,6 @@ private struct FicheroSharedPlatformRoot: View {
             guard RemoteClientPairing.isPairingInviteLink(url) else { return }
             pendingPairURL = IdentifiableURL(url: url)
         }
-        .sheet(isPresented: $showingChooser) { NavigationStack { chooser } }
         .sheet(item: $pendingPairURL) { wrapper in
             PairingIncomingLinkSheet(url: wrapper.url) {
                 await reconnectToConfiguredHost()
