@@ -241,8 +241,10 @@ nonisolated struct ProjectRowMenuOffers: Equatable {
     let close: Bool
     let delete: Bool
 
+    /// Share… is offered in every mode (#6373, owner 2026-11-06): with Multi-user off the sheet makes a link for this
+    /// project (no person); `multiuser` stays a named input so a later rule is written here and tested.
     static func forProject(isAlwaysThere: Bool, multiuser: Bool) -> Self {
-        Self(rename: !isAlwaysThere, share: multiuser && !isAlwaysThere, close: !isAlwaysThere, delete: !isAlwaysThere)
+        Self(rename: !isAlwaysThere, share: !isAlwaysThere, close: !isAlwaysThere, delete: !isAlwaysThere)
     }
 }
 

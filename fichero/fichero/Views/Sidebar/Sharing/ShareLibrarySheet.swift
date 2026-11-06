@@ -80,11 +80,14 @@ struct ShareLibrarySheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                shareSection
-                if didShare {
+                if Self.sharesWithPeople(multiuser: EngineConfig.multiuserEnabled, folder: folder != nil) {
+                    shareSection
+                    if didShare { shareLinkSection }
+                    membersSection
+                } else {
+                    noAccountsSection
                     shareLinkSection
                 }
-                membersSection
             }
             .formStyle(.grouped)
             .navigationTitle(folder.map { "Share \"\($0.name)\"" } ?? "Share Project")

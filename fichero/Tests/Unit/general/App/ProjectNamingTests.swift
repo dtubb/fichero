@@ -73,7 +73,7 @@ final class ProjectNamingTests: XCTestCase {
 
         let other = ProjectRowMenuOffers.forProject(isAlwaysThere: false, multiuser: true)
         XCTAssertEqual(other, ProjectRowMenuOffers(rename: true, share: true, close: true, delete: true))
-        XCTAssertFalse(ProjectRowMenuOffers.forProject(isAlwaysThere: false, multiuser: false).share)
+        XCTAssertTrue(ProjectRowMenuOffers.forProject(isAlwaysThere: false, multiuser: false).share)  // every mode (#6373)
     }
 
     // MARK: - The sidebar's two parts

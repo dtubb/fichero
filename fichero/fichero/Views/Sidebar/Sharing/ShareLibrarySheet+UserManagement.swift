@@ -22,6 +22,9 @@ extension ShareLibrarySheet {
         await loadMembers()
         // The addresses the link can carry (`sharing.share-sheet-offers-both-addresses`); a failure leaves the one address.
         await readSharingState()
+        if !Self.sharesWithPeople(multiuser: EngineConfig.multiuserEnabled, folder: folder != nil) {
+            await mintPairingCodeIfPossible()
+        }
     }
 
     /// Reads the addresses the link can carry, asking a few more times while the forward reads `none` or nothing came back:
