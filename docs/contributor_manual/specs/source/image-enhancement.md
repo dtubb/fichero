@@ -453,6 +453,19 @@ waits on a sample ships its synthetic test first and keeps the line `[PARTIAL]` 
 - Waits on: sample 4 (a real recto/verso pair) for the threshold
 - Size: S
 
+#### Step 4.7 — The enhancement controls reach the Source pane without edit mode (#6362)
+- Side: app, and the engine's Prepare check worklist
+- Behaviours: `image.enhance.editor-enhance-is-the-new-step`, `image.enhance.batch-preview-undo`, `image.enhance.show-through-only-verso`
+- Why: today the Enhance popover, "Clean up the folder" and "Apply to the rest of this folder" live only in `ImageEditorView`'s toolbar, which the Source pane shows only in edit mode; the show-through Include / Leave Out lives only in the Library pane's line above the rows.
+- Acceptance (app, to build):
+  1. With the Source pane showing an image page and edit mode off, its bottom toolbar offers *Enhance* (Auto Enhance, the clahe default of Step 4.3, applied to this page with one click and undone by the window's Undo) and, when the page sits in a folder, *Clean up the folder*, which opens the same `ImageCleanupBatchSheet` as the editor's menu; a test builds the toolbar's item list for a page in a folder, a loose page and a PDF page and finds the two items on the first, only *Enhance* on the second and neither on the third.
+  2. With a show-through-only page in the Source pane, the pane says "show-through of <recto's name>" beside the page, with the one button *Include* (or *Leave Out* once included), running `image.include_show_through_only`; the Inspector's Edits facet shows the same sentence and button for that page.
+  3. The Prepare Images check list names a show-through-only page as a row ("show-through of <name>, left out") with *Include* and *Leave out*, the same action; the engine's `prepare_check` worklist carries such pages, and a test pins that a marked page is in the list and an included one is not.
+  4. No new request type: every control calls the existing audited action or batch-apply route.
+- Tests: a Swift test file for the toolbar's item list beside the editor's direct-tool tests (named when written), fichero-server/tests/unit/recipes/test_prepare_check_worklist.py
+- Depends on: 4.3, 4.5, 4.6
+- Size: M
+
 ## Rulings
 
 - 2026-10-26 (owner): two steps, prep (pixels, renditions) and Leave Out (decisions); order prep → find
