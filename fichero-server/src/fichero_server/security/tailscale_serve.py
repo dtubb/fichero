@@ -24,8 +24,6 @@ from urllib.parse import urlparse
 from fichero_server.security.bind_host import listen_port
 
 TAILNET_URL_ENV = "FICHERO_TAILNET_URL"
-#: "app" when the Mac app made the forward itself (t55): a sandboxed engine cannot run the CLI to see it.
-FORWARD_BY_ENV = "FICHERO_TAILNET_FORWARD"
 PUBLIC_BASE_URL_ENV = "FICHERO_PUBLIC_BASE_URL"
 # The Mac app's own binary is the CLI; `/usr/local/bin/tailscale` exists only after the
 # person chose "Install CLI" from Tailscale's menu, so it cannot be relied on.
@@ -145,12 +143,6 @@ def sharing_on(env: Mapping[str, str] | None = None) -> bool:
     return bool(host) and host not in ("127.0.0.1", "localhost", "::1")
 
 
-def forward_made_by_app(env: Mapping[str, str] | None = None) -> bool:
-    """The app made the tailnet forward and told this engine so (t55)."""
-    source = env if env is not None else os.environ
-    return (source.get(FORWARD_BY_ENV) or "").strip() == "app" and bool(tailnet_url(source))
-
-
 def forward_state(port: int) -> str:
     """What holds the tailnet ``port`` now, for `GET /api/pair/sharing` (`sharing.state-names-every-address`):
     "ours" (this engine's loopback TLS listener), "foreign" (something Fichero did not make), "none" (free, Tailscale not
@@ -165,7 +157,7 @@ def forward_state(port: int) -> str:
     try:
         current = forward_target(serve_status(cli), port)
     except (OSError, ValueError, subprocess.SubprocessError):
-        return "ours" if forward_made_by_app() else "unknown"
+        return "unknown"
     if current is None:
         return "none"
     return "ours" if current == wanted_target(port) else "foreign"
@@ -206,9 +198,6 @@ def start_for_engine(env: Mapping[str, str] | None = None, *, log) -> tuple[str,
     # start_fichero_server.sh's with a sharing address (#5320). A certificate alone is not sharing: an engine nobody
     # shared is never published on the tailnet, and Tailscale is not even asked (review 2026-10-31, H).
     if not (source.get("FICHERO_TLS_CERTFILE") or "").strip() or not sharing_on(source):
-        return None
-    if forward_made_by_app(source):
-        log.info("Sharing over Tailscale: the app made the forward to %s; the engine leaves it alone", tailnet_url(source))
         return None
     cli = tailscale_cli()
     # A `.ts.net` sharing address (or FICHERO_TAILNET_URL) asks for the forward outright; otherwise a Mac that

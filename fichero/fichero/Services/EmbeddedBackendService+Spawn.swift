@@ -354,7 +354,6 @@ extension EmbeddedBackendService {
         environment["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
         if RemoteAccessConfig.hostingEnabled {
             environment["FICHERO_TCP_TLS_ALSO"] = "1"
-            environment.merge(TailnetForwardMaker.engineEnvironment) { _, app in app }  // t55
             if let host = RemoteAccessConfig.lanListenerHost(publicHost: RemoteAccessConfig.publicBaseURL?.host) {
                 environment["FICHERO_LAN_HOST"] = host
             }

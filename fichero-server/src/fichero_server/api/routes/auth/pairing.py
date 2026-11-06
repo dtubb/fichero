@@ -805,9 +805,12 @@ def create_pairing_code(
             held = app_db.get_library_role(invited.id, library_path)
             granted_role = held.role if held else None
     from fichero_server.api.transport_diagnostics import network_listener_gap, tcp_listeners
+    from fichero_server.security import bind_host, tailscale_serve
 
-    # A link never names an address nothing listens on (`sharing.link-names-a-listener`).
-    if gap := network_listener_gap(os.environ.get("FICHERO_PUBLIC_BASE_URL") or "", tcp_listeners()):
+    # A link never names an address nothing listens on (`sharing.link-names-a-listener`); a live Tailscale forward to
+    # the loopback listener is somewhere to listen (t58).
+    forward = tailscale_serve.forward_state(bind_host.listen_port()) == "ours"
+    if gap := network_listener_gap(os.environ.get("FICHERO_PUBLIC_BASE_URL") or "", tcp_listeners(), tailnet_forward=forward):
         raise HTTPException(status_code=409, detail=gap)
     now = utc_now()
     _prune_pairing_codes(now)

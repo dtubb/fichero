@@ -47,7 +47,7 @@ def _facts():
     lan_host = (os.environ.get("FICHERO_LAN_HOST") or "").strip()
     on = tailscale_serve.sharing_on()
     forward = _kept("forward", lambda: tailscale_serve.forward_state(port))
-    tailnet = _kept("tailnet", lambda: tailscale_serve.tailnet_url() or tailscale_serve.detected_tailnet_url() or "") if on else ""
+    tailnet = _kept("tailnet", lambda: tailscale_serve.detected_tailnet_url() or "") if on else ""
     listeners = [f"127.0.0.1:{port}"] + ([f"{lan_host}:{port}"] if lan_host else [])
     return port, lan_host, on, forward, tailnet, listeners
 

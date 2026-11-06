@@ -146,14 +146,19 @@ def tcp_listeners() -> list[str] | None:
     return None if _BOUND_TCP is None else list(_BOUND_TCP)
 
 
-def network_listener_gap(public_base_url: str, bound: list[str] | None) -> str | None:
+def network_listener_gap(public_base_url: str, bound: list[str] | None, *, tailnet_forward: bool = False) -> str | None:
     """Why a pairing link for `public_base_url` would name an address nothing listens on, in words, else None
-    (`sharing.link-names-a-listener`). A `.ts.net` address is served by Tailscale to the loopback port, so loopback is
-    enough there; anything else needs a non-loopback listener. An engine that recorded nothing is not judged."""
+    (`sharing.link-names-a-listener`). A `.ts.net` address, or any address while Fichero's own Tailscale forward is live
+    (`tailnet_forward`, t58: the link then names the tailnet first), is served by Tailscale to the loopback port, so the
+    loopback listener is enough; anything else needs a non-loopback listener. An engine that recorded nothing is not
+    judged."""
     from urllib.parse import urlparse
 
     host = (urlparse(public_base_url).hostname or "").lower() if public_base_url else ""
-    if not host or bound is None or host.endswith(".ts.net"):
+    if not host or bound is None:
+        return None
+    loopback = any(a.startswith("127.") or a in ("::1", "localhost") for a in bound)
+    if (host.endswith(".ts.net") or tailnet_forward) and loopback:
         return None
     if any(not (a.startswith("127.") or a in ("::1", "localhost")) for a in bound):
         return None

@@ -19,10 +19,6 @@ enum SharingAddressFollower {
 
     /// Lets a health check that sees the change restart the local engine.
     static func install(appState: AppState, backendService: EmbeddedBackendService) {
-        #if os(macOS)
-        // The forward lives in Tailscale across restarts; look again at launch in case it was removed (t55).
-        if RemoteAccessConfig.hostingEnabled { Task { await TailnetForwardMaker.ensure() } }
-        #endif
         appState.onSharingAddressChanged = {
             guard shouldRestart(changed: true, engineIsLocal: EngineConfig.engineIsLocal, now: Date(),
                                 last: lastRestart, restarting: restarting) else { return }
