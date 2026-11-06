@@ -19,6 +19,8 @@ enum PairingFailure: CaseIterable, Equatable, Error {
     case personRequired
     case versionMismatch
     case libraryNotGiven
+    /// The host's list for this device is empty: nothing is shared on it yet (t63, #6366).
+    case hostSharesNothing
     case hostStopped
     case deviceForgotten
 
@@ -40,7 +42,7 @@ enum PairingFailure: CaseIterable, Equatable, Error {
         case .codeUsedOrExpired, .tooManyTries: return 6
         case .personRequired: return 7
         case .versionMismatch: return 8
-        case .libraryNotGiven: return 9
+        case .libraryNotGiven, .hostSharesNothing: return 9
         case .hostStopped, .deviceForgotten: return 10
         }
     }
@@ -105,6 +107,9 @@ enum PairingFailure: CaseIterable, Equatable, Error {
             return Self.versionSentence(context)
         case .libraryNotGiven:
             return "\(host) didn't give this device that project. Ask for a new link."
+        case .hostSharesNothing:
+            return "\(host) hasn't shared any project yet. On \(host), right-click a project and choose Share…, "
+                + "then use that link."
         case .hostStopped:
             return "\(host) stopped sharing. Ask them to turn Sharing on again."
         case .deviceForgotten:

@@ -18,7 +18,7 @@ enum PairingFailureActions {
         case .invalidLink, .olderLink, .codeUsedOrExpired, .personRequired, .versionMismatch, .deviceForgotten, .certificatePin:
             return false
         case .nameNotFound, .tailnetNameNotFound, .noAnswer, .refused, .offline, .certificateName, .tailnetByNumber,
-             .tooManyTries, .libraryNotGiven, .hostStopped:
+             .tooManyTries, .libraryNotGiven, .hostSharesNothing, .hostStopped:
             return true
         }
     }

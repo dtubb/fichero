@@ -57,6 +57,14 @@ struct PairingSequenceTests {
         #expect(await host.log.last == "discard m.local")  // the token the library call needed is cleared on both sides
     }
 
+    @Test func aHostThatSharesNothingSaysSoNotThatThisProjectWasNotGiven() async {  // t63
+        let named = await run(link(), host: FakeHost(libraries: []))
+        guard case .failed(.hostSharesNothing, _) = named else { Issue.record("\(named)"); return }
+        let unnamed = await run(link(library: nil), host: FakeHost(libraries: []))
+        guard case .failed(.hostSharesNothing, _) = unnamed else { Issue.record("\(unnamed)"); return }
+        #expect(PairingFailure.hostSharesNothing.sentence(.init(host: "pro")).contains("hasn't shared any project yet"))
+    }
+
     @Test func aNamedLibraryTheHostDoesNotGiveIsRefusedInWords() async {
         let result = await run(link(library: "/Other"), host: FakeHost(libraries: ["/L1"]))
         guard case .failed(.libraryNotGiven, _) = result else { Issue.record("\(result)"); return }

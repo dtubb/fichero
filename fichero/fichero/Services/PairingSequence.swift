@@ -84,6 +84,11 @@ enum PairingSequence {
     /// After the code is redeemed: the library the link named (in the host's spelling), the only one, or the person's choice.
     private static func confirmLibrary(link: Link, host: some Host, url: String, context: PairingFailure.Context) async throws -> Result {
         let libraries = try await host.libraries(at: url)
+        if libraries.isEmpty {  // nothing shared on the host is its own failure, with its own fix (t63)
+            log.error("Host listed no project for this device. Link: \(link.libraryPath ?? "none", privacy: .public)")
+            await host.discardPairing(at: url)
+            return .failed(.hostSharesNothing, context: context)
+        }
         if let named = link.libraryPath {
             if libraries.contains(named) { return .paired(url: url, libraryPath: named) }
             // The host may list the same package in another spelling: use its spelling, which is what it will accept.
@@ -94,10 +99,6 @@ enum PairingSequence {
             return .failed(.libraryNotGiven, context: context)
         }
         switch libraries.count {
-        case 0:
-            log.error("Host listed no project for this device and the link named none")
-            await host.discardPairing(at: url)
-            return .failed(.libraryNotGiven, context: context)
         case 1: return .paired(url: url, libraryPath: libraries[0])
         default:
             await host.discardPairing(at: url)

@@ -112,7 +112,8 @@ extension ShareLibrarySheet {
     func mintPairingCodeIfPossible() async {
         guard shareLinkUnavailableReason == nil else { return }
         do {
-            pairingCode = try await PairingService(apiRoot: EngineConfig.host).createPairingCode()
+            pairingCode = try await PairingService(apiRoot: EngineConfig.host)
+                .createPairingCode(library: library.url.path)
         } catch {
             shareError = error.localizedDescription
         }
