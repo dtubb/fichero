@@ -88,6 +88,12 @@ struct PaneList: Codable, Sendable, Hashable {
         PaneList(nodes.map { $0.changingLibraryLayout(id, to: layout) })
     }
 
+    /// Change the leaf `id`'s Preview folder view (`library.preview.folder-view-persists-per-pane`).
+    /// `nil` clears it. Every other pane is untouched.
+    func changingLeafPreviewFolderView(_ id: UUID, to view: String?) -> PaneList {
+        PaneList(nodes.map { $0.changingPreviewFolderView(id, to: view) })
+    }
+
     /// The `PaneConfig` of the leaf with `id`, nested splits included — `nil` if no leaf has that
     /// id. Slice E (#4965): the View menu reads a focused leaf's CURRENT `libraryLayout` through
     /// this, so its checkmark reflects the pane's own explicit choice, not the window default.

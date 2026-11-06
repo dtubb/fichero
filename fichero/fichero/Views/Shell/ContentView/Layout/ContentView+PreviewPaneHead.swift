@@ -58,7 +58,8 @@ extension ContentView {
     }
 
     /// Explicitly typed (the reader's type-checker rule applied here).
-    var previewSelector: PaneKindSelector<PreviewLens> {
+    /// `selectionIsFolder` dims the "Show folder as" section while the pane is not showing a folder.
+    func previewSelector(selectionIsFolder: Bool) -> PaneKindSelector<PreviewLens> {
         PaneKindSelector(
             kindTitle: SourcePane.name,
             kindIcon: ToolbarSymbols.previewPane,
@@ -66,6 +67,7 @@ extension ContentView {
             lenses: PreviewLens.allCases,
             lensTitle: { (lens: PreviewLens) in lens.title },
             lensIcon: { (lens: PreviewLens) in lens.icon },
+            extraLensMenu: { AnyView(PreviewFolderViewMenuSection(selectionIsFolder: selectionIsFolder)) },
             lens: previewLensBinding
         )
     }
@@ -113,6 +115,7 @@ extension ContentView {
             if !crumbs.isEmpty { crumbs.removeLast() }
             crumbs.append(.multiSelection(count: browserSelection.count))
         }
+        let selectionIsFolder = browserSelection.count <= 1 && shown?.docType == .folder
         // Tools slot retired 2026-08-30: the markup row graduated to the
         // WINDOW-level annotation bar (below the toolbar, above the workflow
         // bar) — annotation is not a preview-pane feature.
@@ -130,7 +133,7 @@ extension ContentView {
             },
             selector: {
                 PreviewHeadSelectorGroup(
-                    selector: self.previewSelector,
+                    selector: self.previewSelector(selectionIsFolder: selectionIsFolder),
                     chrome: self.previewChrome,
                     onUpToParent: parentCrumb.flatMap { (parent: PaneCrumb) -> (() -> Void)? in
                         guard parent.isNavigable, browserSelection.count <= 1 else { return nil }

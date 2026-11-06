@@ -265,6 +265,19 @@ extension ContentView {
                     PreviewLayerDefaults(image: config.previewImage, wordBoxes: config.previewWordBoxes)
                 ))
             }
+            // The Preview pane's own folder view (`library.preview.folder-view-per-pane`): the stored
+            // choice in, and the head menu's write-back out, both for THIS leaf only.
+            if kind == .preview {
+                leaf = AnyView(leaf
+                    .environment(\.panePreviewFolderView, config.previewFolderView)
+                    .environment(
+                        \.panePreviewFolderViewSwitcher,
+                        PanePreviewFolderViewSwitcher(slotId: "pane-\(keyPath)-\(kind.rawValue)") { view in
+                            activePaneList = activePaneList.changingLeafPreviewFolderView(id, to: view.rawValue)
+                            paneListDidChange()
+                        }
+                    ))
+            }
             // Every leaf knows its own id, so its options are its own (#5280).
             leaf = AnyView(leaf.environment(\.paneLeafId, id))
             if let closeLeaf {

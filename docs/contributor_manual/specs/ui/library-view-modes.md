@@ -199,7 +199,7 @@ Surfaces: `ViewDisplayMode` (`App/ViewDisplayMode.swift`), `LibraryView
   `fichero/Tests/Unit/general/Models/DocumentStoreAndSidebarTypesTests.swift`, suite
   `DocumentStoreAndSidebarTypesTests`).
 
-- `library.preview.folder-view-per-pane` — **[GAP]** (#6365; owner 2026-11-06) each Preview pane
+- `library.preview.folder-view-per-pane` — **[PARTIAL]** (#6365; owner 2026-11-06; built, not yet compiled or run) each Preview pane
   chooses how it shows a selected folder: **Canvas**, **List** or **Table**. The choice belongs
   to the pane, not the window: two Preview panes side by side can show the same folder one as a
   table and one as its canvas, and choosing in one changes nothing in the other. Acceptance: with
@@ -209,7 +209,7 @@ Surfaces: `ViewDisplayMode` (`App/ViewDisplayMode.swift`), `LibraryView
   `.list`/`.table`) and the folder canvas (`FolderContentsPreview`), scoped to the folder, so
   there is one row renderer and one canvas, not a second copy (`library.canvas.one-canvas-
   everywhere`); Icons is not offered because the owner named three and it is a one-line add later.
-- `library.preview.folder-view-picker-in-the-head` — **[GAP]** (#6365) the picker sits in the
+- `library.preview.folder-view-picker-in-the-head` — **[PARTIAL]** (#6365; built, not yet compiled or run) the picker sits in the
   Preview pane head's existing selector menu (`PaneKindSelector`, `ContentView+PreviewPaneHead.swift:61`),
   as a section titled "Show folder as" under the Preview/Edit lens, with the three views in the
   order Canvas, List, Table; it moves with the rest of that menu into the pane menu's View ▸ when
@@ -219,7 +219,7 @@ Surfaces: `ViewDisplayMode` (`App/ViewDisplayMode.swift`), `LibraryView
   chrome, following the 2026-10-04 ruling that there is too much window chrome
   (`panes-workspaces.md` §G). a11y ids: `previewHeadFolderView` (the menu),
   `previewHeadFolderView.canvas` / `.list` / `.table` (its entries).
-- `library.preview.folder-view-defaults` — **[GAP]** (#6365) a pane that has never been given a
+- `library.preview.folder-view-defaults` — **[PARTIAL]** (#6365; built, not yet compiled or run) a pane that has never been given a
   choice opens a folder as a **Table**, the default #6172 ruled (owner 2026-10-26); a file, a page
   or a multiple selection is shown as today (the document canvas, the PDF, the stack) whatever
   the pane's folder view is, and the picker is shown dimmed while the selection is not a folder.
@@ -228,7 +228,7 @@ Surfaces: `ViewDisplayMode` (`App/ViewDisplayMode.swift`), `LibraryView
   *Decided here:* Table, not Canvas, because the owner already ruled the first open in #6172 and
   #6365 asks only that the canvas stop being forced; the canvas's saved layout is untouched by
   the choice (`library.canvas.a-folder-previews-as-its-canvas`).
-- `library.preview.folder-view-persists-per-pane` — **[GAP]** (#6365) the choice is stored on
+- `library.preview.folder-view-persists-per-pane` — **[PARTIAL]** (#6365; built, not yet compiled or run) the choice is stored on
   the pane in the pane list (`PaneConfig`, a new `previewFolderView` raw string beside
   `libraryLayout`, `Models/PaneList.swift:81`) and reaches the pane through an environment key
   the same way `paneLibraryLayout` does (`ContentView+PaneSpecs.swift:248-252`); so it is
@@ -241,7 +241,7 @@ Surfaces: `ViewDisplayMode` (`App/ViewDisplayMode.swift`), `LibraryView
   canvas. *Decided here:* the pane list, not `@SceneStorage` or a per-folder record, because
   it is the one place every other per-pane choice already lives and is already remembered
   (`panes-workspaces.md`, `activePaneList` is the only source of pane state).
-- `library.preview.folder-view-cannot-show-says-so` — **[GAP]** (#6365) when the pane's chosen
+- `library.preview.folder-view-cannot-show-says-so` — **[PARTIAL]** (#6365; built, not yet compiled or run) when the pane's chosen
   view cannot draw the selection it falls back and says so, never a blank pane and never a
   silently rewritten choice: an empty folder shows the Library's empty-folder state in every
   view; a folder whose canvas has not loaded shows the canvas's own waiting state
@@ -807,7 +807,7 @@ resolved and moved; the other three's status is corrected below.
 
 #### Step 1.1 — each Preview pane chooses its folder view: Canvas, List or Table, remembered per pane (#6365)
 - Behaviours: `library.preview.folder-view-per-pane`, `library.preview.folder-view-picker-in-the-head`, `library.preview.folder-view-defaults`, `library.preview.folder-view-persists-per-pane`, `library.preview.folder-view-cannot-show-says-so`
-- Tests: PreviewFolderViewPerPaneTests.swift (not yet written), PreviewFolderViewPerPaneUITests.swift (not yet written)
+- Tests: PreviewFolderViewPerPaneTests.swift, PreviewFolderViewPerPaneUITests.swift
 - Size: M
 
 Also closes #6172 (`library.preview.folder-opens-as-table-then-last-view`), whose default this step
@@ -820,8 +820,8 @@ switcher does (`PaneList.changingLeafKind`); then the UI test. Pure rules a unit
 app: default = Table when the field is nil; a file selection ignores the field; a split copies the
 parent's field; `WorkspaceLayoutDefaults.rememberedPaneList` round-trips it.
 
-- test (to write): `PreviewFolderViewPerPaneTests.swift` in fichero/Tests/Unit/general/Views/Shell/ (Swift Testing, the pure rules above; no app)
-- test (to write): `PreviewFolderViewPerPaneUITests.swift` in fichero/Tests/UI/general/Shell/ (XCUITest, subclass `FicheroUISessionTests`: split the Preview, pick Table in one pane and Canvas in the other, select a folder, read both panes; relaunch; both keep their view)
+- test: `PreviewFolderViewPerPaneTests.swift` in fichero/Tests/Unit/general/Views/Shell/ (Swift Testing, the pure rules above; no app)
+- test: `PreviewFolderViewPerPaneUITests.swift` in fichero/Tests/UI/general/Shell/ (XCUITest, subclass `FicheroUISessionTests`: split the Preview, pick Table in one pane and Canvas in the other, select a folder, read both panes; relaunch; both keep their view)
 
 #### Step 1.2 — canvas zoom-out stops a little past fit-to-content, per pane, following the pane's size (#6368)
 - Behaviours: `library.canvas.zoom-out-stops-near-fit`
@@ -881,7 +881,7 @@ Order: the pure rule (minimum ortho scale from a fit pose, a pane size and the 0
 - `library.table.outline-cached-not-per-render` **[GAP]** (#5255): in Table mode the outline rows, the dated and undated groups and the arrow-key row order are rebuilt only when the folder's documents, the expanded set or the sort change, never on a click, so a 100,000-item folder stays as quick to click as a 144-page one.
 - `library.listing.slim-rows-paged-by-cursor` **[GAP]** (#5260): a folder listing in the sidebar, the Library views and the dataset views fetches small rows (name, kind, parent, dates, child count, status, thumbnail), a screen at a time by cursor as it scrolls; a document's metadata, runs and text come only when it is selected. A 100,000-item folder shows its first screen in under 100 ms.
 - `library.canvas.sidebar-click-promotes-the-folder` — **[PARTIAL]** (#5300, owner bug 2026-10-24; cause from reading, not seen on a screen; Swift, uncompiled) A click on a folder (or group) in the sidebar makes that folder the Preview's subject, so its Preview is its canvas, even when an item inside it was open before the click. The load's guard that keeps a focus on or inside the container (a search-hit or claim-source reveal sets the matched page during the load, #1463) now keeps only a focus set AFTER the click (`SidebarContainerSelection.keepsFocus`); a stale one from earlier is replaced. Pinned by `LayoutModeTests`. **[GAP]** (#6094) clicking the folder that is already the sidebar's current one changes neither the selected id nor the view mode, so no handler runs and an open item stays in the Preview; needs a re-click hook in the sidebar (not built).
-- `library.preview.folder-opens-as-table-then-last-view` — **[BROKEN]** (#6172; owner bug 2026-10-26) a folder shown in the Preview (from a click in the time list or the sidebar, `library.canvas.sidebar-click-promotes-the-folder`) opens as a TABLE the first time, not as its canvas. The Preview then remembers the view the person last chose for folders (table, canvas, list, ...) and opens the next folder in it, so changing it once sticks; a person who prefers the canvas keeps it. It is one remembered choice for the Preview's folders, not one per folder (the canvas's saved layout stays per folder, `library.canvas.a-folder-previews-as-its-canvas`). Today it is always the canvas. *Test:* `FolderPreviewViewModeTests.swift` (not yet written; folded into Step 1.1's `PreviewFolderViewPerPaneTests.swift`: no saved choice opens the table; a chosen view is reopened for the next folder; the canvas layout is untouched).
+- `library.preview.folder-opens-as-table-then-last-view` — **[PARTIAL]** (#6172; owner bug 2026-10-26; built in Step 1.1, not yet compiled or run) a folder shown in the Preview (from a click in the time list or the sidebar, `library.canvas.sidebar-click-promotes-the-folder`) opens as a TABLE the first time, not as its canvas. The Preview then remembers the view the person last chose for folders (table, canvas, list, ...) and opens the next folder in it, so changing it once sticks; a person who prefers the canvas keeps it. It is one remembered choice for the Preview's folders, not one per folder (the canvas's saved layout stays per folder, `library.canvas.a-folder-previews-as-its-canvas`). Today it is always the canvas. *Test:* `FolderPreviewViewModeTests.swift` (not yet written; folded into Step 1.1's `PreviewFolderViewPerPaneTests.swift`: no saved choice opens the table; a chosen view is reopened for the next folder; the canvas layout is untouched).
   - **Note 2026-11-06 (#6365 supersedes the "one remembered choice" sentence):** the owner now
     wants the choice per Preview PANE, remembered with the pane, so that panes side by side can
     show one folder as a list, a table and the canvas at once. The first-open default (Table) and

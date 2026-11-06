@@ -283,7 +283,8 @@ struct EditorView: View {
             QuickLookDownloadView(document: doc)
         case .folderContents(let folderId):
             // A group previews here too, as its pages on its own board (#5570).
-            FolderContentsPreview(folderId: folderId, onNavigateToDocument: onNavigateToDocument)
+            // A plain folder shows in THIS pane's chosen view; a group is always its pages on its board.
+            FolderViewPreview(folderId: folderId, usesPaneView: doc.docType == .folder, onNavigateToDocument: onNavigateToDocument)
         case .glyph(let systemImage, let title):
             GlyphPreviewPlaceholder(systemImage: systemImage, title: title)
         case .entrySource:
