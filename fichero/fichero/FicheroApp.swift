@@ -380,6 +380,10 @@ struct FicheroApp: App {
         // place the environment action is readable; the action itself outlives
         // the window that provided it.
         .onAppear { appDelegate.openMainWindow = { openWindow(id: "main") } }
+        .onAppear {
+            SharedLibraryOpener.install(
+                appState: appState, backendService: backendService, libraryManager: libraryManager)
+        }
         .frame(minWidth: 640, minHeight: 700)
         // ★ EVERY FRAME PERFECT (#3615): the semantic surface color is the BASE
         // layer under the whole window, so the BackendConnectionView → LibraryWindow
@@ -387,14 +391,6 @@ struct FicheroApp: App {
         // read as the app surface, never a bare system-white flash. Matches
         // BackendConnectionView's own fill so the swap is seamless.
         .background(Color(platformColor: .windowBackgroundColor))
-    }
-
-    /// The connect sheet shows at an Option launch and when File ▸ Connect to Library… asks (#6360).
-    private var connectSheetBinding: Binding<Bool> {
-        Binding(
-            get: { showRemoteConnectionChooser || libraryManager.connectToLibraryRequested },
-            set: { if !$0 { showRemoteConnectionChooser = false; libraryManager.connectToLibraryRequested = false } }
-        )
     }
 
     var body: some Scene {
@@ -406,7 +402,8 @@ struct FicheroApp: App {
                 // #2381: Option-at-launch surfaces the remote-host connection
                 // chooser over the main window. A normal launch never sets this,
                 // so the embedded local engine path is unchanged.
-                .sheet(isPresented: connectSheetBinding) {
+                .sheet(isPresented: SharedLibraryOpener.connectSheet(
+                    libraryManager, optionLaunch: $showRemoteConnectionChooser)) {
                     RemoteConnectionChooserSheet(
                         appState: appState,
                         backendService: backendService,

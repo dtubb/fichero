@@ -80,6 +80,8 @@ class LibraryManager {
     var pairedMachines: [PairedMachine] = PairedMachineStore.load()
     /// File ▸ Connect to Library… and the machine rows set this; the app's window shows the connect sheet.
     var connectToLibraryRequested = false
+    /// Set by the app's window: opens a shared library by switching to its host (`SharedLibraryOpener`).
+    var openSharedLibrary: (@MainActor (PairedMachine, String) async -> Void)?
 
     /// The project `createProject(at:)` made last. The sidebar selects its row when this changes
     /// (`create.project.appears-and-is-selected`, #5430).

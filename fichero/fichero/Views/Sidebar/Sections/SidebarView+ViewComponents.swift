@@ -75,7 +75,11 @@ extension SidebarView {
                 ForEach(libraryManager.pairedMachines) { machine in
                     ForEach(machine.libraries, id: \.self) { path in
                         SharedLibraryRowView(machine: machine.name, library: path) {
-                            libraryManager.connectToLibraryRequested = true
+                            guard let open = libraryManager.openSharedLibrary else {
+                                libraryManager.connectToLibraryRequested = true
+                                return
+                            }
+                            Task { await open(machine, path) }
                         }
                     }
                 }
