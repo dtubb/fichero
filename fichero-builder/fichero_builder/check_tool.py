@@ -1320,8 +1320,14 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
             r = pytest_rung(base, [f], cfg, timeout_s)
             if f in have and not r["ok"] and (x := red(f"{f} says Already built but fails on base at {since[:9]}: it owes a red like any test")):
                 return x
-            if f not in have and r["ok"] and (x := red(f"NOT RED ON BASE: {f} passes at {since[:9]}, so it proves nothing")):
-                return x
+            if f not in have and r["ok"]:
+                # 2026-11-06 (lane-sharing batch-27): a NOT RED that did not reproduce, and nothing said where or how the base ran: the
+                # refusal names the runner, the base tree and pytest's last lines, and one `red-on-base-base` row keeps the whole tail
+                where = r.get("remote") or "here"
+                tail = " | ".join(ln.strip() for ln in (r.get("stdout_tail") or "").splitlines() if ln.strip())[-300:]
+                journal.append("red-on-base-base", head=sha, since=since, file=f, runner=where, tree=base, stdout_tail=(r.get("stdout_tail") or "")[-3000:])
+                if x := red(f"NOT RED ON BASE: {f} passes at {since[:9]}, so it proves nothing (base ran on {where}, tree {base}: {tail})"):
+                    return x
         changed = _lines(root, "diff", "--name-only", f"{since}...{head}") or []
         source = [n for n in changed if not any(fnmatch.fnmatch(Path(n).name, g) for g in cfg.test_globs) and (not cfg.red_paths or n.startswith(cfg.red_paths))]
         if source and files and set(files) <= have | data_skipped and (x := red(

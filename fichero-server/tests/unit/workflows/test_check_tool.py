@@ -15,6 +15,14 @@ REPO = Path(__file__).resolve().parents[4]
 KEYS = {"name", "argv", "exit_code", "ok", "timed_out", "seconds", "stdout_tail", "stderr_tail"}
 
 
+@pytest.fixture(autouse=True)
+def _own_journal(tmp_path_factory, monkeypatch):
+    """Every test here writes its rows (an activity row, a red-on-base evidence row) into its own tmp journal, never the owner's, and
+    outside tmp_path, which many tests here use as the git repo under test."""
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path_factory.mktemp("journal-state"))
+
+
 def test_a_green_command_is_a_typed_result(tmp_path):
     r = ct.run_command("hello", [sys.executable, "-c", "print('hi')"], tmp_path, 20)
     assert set(r) == KEYS and r["ok"] and r["exit_code"] == 0 and r["stdout_tail"] == "hi" and not r["timed_out"]
@@ -239,6 +247,7 @@ def test_diff_bound_trips_on_too_many_files_or_lines(tmp_path):
 # 20-40 overnight and during verify-all), so the bound is the work's, not the suite's
 @pytest.mark.timeout(1800)
 def test_red_on_base_needs_a_test_that_fails_on_base_and_passes_on_head(tmp_path):
+    from fichero_builder import journal
     g, base = _git_repo(tmp_path)
     (tmp_path / "mod.py").write_text("VALUE = 2\n")
     (tmp_path / "test_mod.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 2\n")
@@ -247,6 +256,9 @@ def test_red_on_base_needs_a_test_that_fails_on_base_and_passes_on_head(tmp_path
     assert ct.red_on_base(tmp_path, base, "HEAD", ["test_mod.py"], timeout_s=900)["ok"]
     r = ct.red_on_base(tmp_path, base, "HEAD", ["test_proves_nothing.py"], timeout_s=900)
     assert not r["ok"] and "NOT RED ON BASE" in r["stderr_tail"]
+    assert "base ran on here, tree " in r["stderr_tail"] and "1 passed" in r["stderr_tail"], "where and how the base ran (2026-11-06)"
+    (row,) = [x for x in journal.read() if x["event"] == "red-on-base-base"]
+    assert row["file"] == "test_proves_nothing.py" and row["runner"] == "here" and "1 passed" in row["stdout_tail"]
     assert not ct.red_on_base(tmp_path, base, "HEAD", [], timeout_s=5)["ok"]
 
 
