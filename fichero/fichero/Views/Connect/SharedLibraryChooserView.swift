@@ -11,7 +11,7 @@ struct SharedLibraryChooserView: View {
             ForEach(machines) { machine in
                 Section(machine.name) {
                     ForEach(machine.libraries, id: \.self) { path in
-                        SharedLibraryRowView(machine: machine.name, library: path) { onOpen(machine, path) }
+                        SharedLibraryRowView(machine: "", library: path) { onOpen(machine, path) }
                     }
                 }
             }

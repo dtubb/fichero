@@ -10,7 +10,7 @@ struct SharedLibraryRowView: View {
         Button(action: onOpen) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(URL(fileURLWithPath: library).lastPathComponent).lineLimit(1).truncationMode(.middle)
-                Text(machine).font(.caption).foregroundStyle(.secondary)
+                if !machine.isEmpty { Text(machine).font(.caption).foregroundStyle(.secondary) }
             }
         }
         .buttonStyle(.plain)
