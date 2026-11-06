@@ -110,6 +110,13 @@ Surfaces: `ViewDisplayMode` (`App/ViewDisplayMode.swift`), `LibraryView
   `SelectAllVisibleSurfaceTests` (four cases spanning dataset filtering and the 3D board's
   cap), `LibraryMenuParityTests.selectAllHasOneOwner` (`"⌘A has one owner — canvas
   defers to the menu command (M1 resolved)"`).
+- `ui.select-all.never-the-sidebar` — **[OK]** (#6364) ⌘A never selects the whole sidebar. Over the item list, the reader, the
+  preview and the inspector it works as before (`library.chrome.select-all-follows-the-visible-surface`); with the sidebar
+  focused the chord is taken and does nothing, so it is neither a selection nor left to fall through to the system's own list,
+  which would select every row. Typing in a sidebar rename still gives ⌘A to the caret. This replaces the ruling of 2026-08-23
+  that ⌘A over the sidebar selects the current library's visible rows: the sidebar publishes no select-all any more. Pinned:
+  `fichero/Tests/Unit/general/App/SelectAllRoutingPolicyTests.swift::sidebarIsIgnored`,
+  `fichero/Tests/Unit/general/Views/Library/SelectAllVisibleSurfaceTests.swift::sidebarNeverSelectsItsRows`.
 - `library.input.keyboard-grammar-is-explicit-per-mode` — **[OK]** the row-ordinal keyboard
   grammar (arrows, type-ahead, Return-to-open, Space-to-preview) is serviced by the ordered
   modes (icon/list/table/columns) and deliberately NOT by the spatial modes (canvas/space),
