@@ -53,6 +53,11 @@ logger = logging.getLogger(__name__)
 _LAUNCH_EPOCH = time.monotonic()
 
 
+#: How long uvicorn keeps an idle connection open: four of the app's five-second health probes, so a pooled connection is not
+#: closed between two probes (`engine.health.probe-survives-a-closed-keep-alive`, #6372). uvicorn's own default is 5 s.
+KEEP_ALIVE_SECONDS = 20
+
+
 def _stamp(label: str) -> None:
     """One line on the engine's launch timeline, in ms since module import."""
     logger.info("engine-launch: %s @ %.0fms", label, (time.monotonic() - _LAUNCH_EPOCH) * 1000)
@@ -483,6 +488,7 @@ def _main(argv: list[str] | None = None):
         uds_kwargs = dict(
             app=uds_app,
             workers=1,
+            timeout_keep_alive=KEEP_ALIVE_SECONDS,
             log_level="info",
             loop="asyncio",
             ws="websockets-sansio",
@@ -528,6 +534,7 @@ def _main(argv: list[str] | None = None):
                 tcp_kwargs = dict(
                     app="fichero_server.api.tcp_transport:app",
                     workers=1,
+                    timeout_keep_alive=KEEP_ALIVE_SECONDS,
                     log_level="info",
                     loop="asyncio",
                     ws="websockets-sansio",
@@ -585,6 +592,7 @@ def _main(argv: list[str] | None = None):
         host=bind_host,
         port=port,
         workers=1,
+        timeout_keep_alive=KEEP_ALIVE_SECONDS,
         log_level="info",
         # Python 3.14 + uvloop can crash in asyncgen finalization paths.
         # Keep runtime stable by using the stdlib asyncio loop.
