@@ -75,7 +75,8 @@ class Config:
     remotes: tuple = ()                 # [check].remote as a LIST ("imac:~/g", "air:~/g"): tried in order; one alert per runner that is down
     remote_python: str = ""             # the interpreter there ("" = <dir>/venv/bin/python)
     guard_inputs: dict = field(default_factory=dict)  # {guard stem: [path prefixes it reads]}: its cache key (speed 5); undeclared = the whole tree
-    remote_guards: bool = False         # the guards too (they call git, and the shipped tree has no .git: off by default)
+    remote_guards: bool | str = False   # the guards too (they call git, and the shipped tree has no .git: off by default); "auto": a guard
+                                        # that names git, subprocess, swiftlint or xcodebuild stays here, the rest go to the runners
     remote_min_free_gb: float = 5       # less free on the remote = unreachable (an alert, the run here)
     parallel: int = 2                   # ladders at once (speed 3), never two whose batches share a file; 1 = one at a time
     engine_repo: str = ""               # the engine-owned repository check and land judge from: outside every home dir, readable by the jailed user ("" = the caller names one)
@@ -687,21 +688,95 @@ def _guards(root, cfg: Config) -> dict:
                 "results": []}
     results = []
     cache = _guard_cache_load()
+    keys = {s: _guard_key(root, s, cfg) if GUARD_CACHE[0] else "" for s in found}
+    away = [s for s in found if not (keys[s] and keys[s] in cache) and _guard_away(s, cfg)]
+    there = _remote_guard_batch(away, root, cfg) if away else None  # ONE ssh for all of them; None = no runner: they run here
     for s in found:
-        key = _guard_key(root, s, cfg) if GUARD_CACHE[0] else ""
+        key = keys[s]
         if key and key in cache:  # the same guard, the same inputs, the same tools: its green is reused (speed 5)
             results.append({**cache[key], "name": s.stem, "argv": [str(s)], "seconds": 0, "cached": True})
             continue
-        r = _run(s.stem, _isolated(s, root, cfg), root, cfg.guard_timeout_s, cfg, remote=cfg.remote_guards)
+        r = (there or {}).get(s.stem) or _run(s.stem, _isolated(s, root, cfg), root, cfg.guard_timeout_s, cfg)
+        if not r["ok"] and r.get("remote"):  # a red over there may be the runner's (no .git, no tool): it counts only if red here
+            journal.append("check", state="retry", rung="guards", detail=f"{s.stem} red on {r['remote']}: re-run here before it counts")
+            r = {**_run(s.stem, _isolated(s, root, cfg), root, cfg.guard_timeout_s, cfg), "rerun_here": True}
         if r.get("timed_out"):  # a load flake (manager 2026-11-03: a guard printed all-ok, then hit the timeout at load 35): once more
             journal.append("check", state="retry", rung="guards", detail=f"{s.stem} timed out after {cfg.guard_timeout_s:g} s: re-run once")
-            r = {**_run(s.stem, _isolated(s, root, cfg), root, cfg.guard_timeout_s, cfg, remote=cfg.remote_guards), "retried": True}
+            r = {**_run(s.stem, _isolated(s, root, cfg), root, cfg.guard_timeout_s, cfg), "retried": True}
         r["argv"] = [str(s)]
         results.append(r)
         if key and r["ok"]:  # only a green is kept: a red always runs again
             cache[key] = {k: r[k] for k in ("exit_code", "ok", "timed_out", "stdout_tail", "stderr_tail")}
     _guard_cache_save(cache)
     return {"ok": all(r["ok"] for r in results), "reason": "", "results": results}
+
+
+_HERE_ONLY = re.compile(r"\b(subprocess|git|swiftlint|xcodebuild)\b")
+
+
+def _guard_away(script: Path, cfg: Config) -> bool:
+    """Whether this guard runs on a [check].remote runner (manager 2026-11-06: the Pro, where the owner's Xcode runs, sat at load 30 to
+    57 under the ladders). `remote_guards = "auto"`: only a guard that needs nothing the shipped tree lacks (it names no git, subprocess,
+    swiftlint or xcodebuild) goes; true sends every guard, false none.
+    ponytail: a name match, not an analysis; a guard that needs the Pro and is sent anyway is caught by the re-run here on a red."""
+    if cfg.remote_guards == "auto":
+        try:
+            return not _HERE_ONLY.search(script.read_text(errors="replace"))
+        except OSError:
+            return False
+    return bool(cfg.remote_guards)
+
+
+_GUARD_DRIVER = """
+import json, os, shutil, subprocess, sys, tempfile, time
+p = json.load(sys.stdin)
+out = {}
+for name, argv in p["jobs"]:
+    b = tempfile.mkdtemp()
+    env = {"HOME": os.environ["HOME"], "PATH": "/usr/bin:/bin", **p["env"], **({p["bp"]: b} if p["bp"] else {})}
+    t = time.time()
+    try:
+        c = subprocess.run(argv, cwd=p["cwd"], env=env, capture_output=True, text=True, timeout=p["timeout"])
+        rc, o, e, to = c.returncode, c.stdout, c.stderr, False
+    except subprocess.TimeoutExpired as x:
+        rc, o, e, to = -9, str(x.stdout or ""), str(x.stderr or ""), True
+    shutil.rmtree(b, ignore_errors=True)
+    out[name] = {"exit_code": rc, "ok": rc == 0 and not to, "timed_out": to, "seconds": round(time.time() - t, 1),
+                 "stdout_tail": o[-4000:], "stderr_tail": e[-4000:]}
+print(json.dumps(out))
+"""
+
+
+def _remote_guard_batch(scripts: list, root, cfg: Config) -> dict | None:
+    """{guard name: result} for `scripts`, all run in ONE ssh on the first reachable [check].remote over the shipped tree, each with
+    its own timeout and base dir, under no heavy lock there (guards are light; behind a pytest run they would time out). None when no
+    runner is reachable: the caller runs them here."""
+    for rem in _runners(cfg):
+        if rem in _DEAD:
+            continue
+        host = rem.partition(":")[0]
+        try:
+            rdir = _ship(root, cfg, rem)
+        except OSError as e:
+            _remote_down(cfg, str(e), rem)
+            continue
+        py = cfg.remote_python or f"{rdir.rsplit('/', 1)[0]}/venv/bin/python"
+        sub = lambda x: str(x).replace(str(root), rdir)  # noqa: E731
+        jobs = [[s.stem, [py if a == _py(cfg) else sub(a) for a in _isolated(s, root, cfg)]] for s in scripts]
+        env = {k: sub(v) for k, v in _env(root, cfg).items() if k not in ("HOME", "PATH", "TERM", cfg.base_path_env)}
+        payload = json.dumps({"jobs": jobs, "env": env, "cwd": rdir, "timeout": cfg.guard_timeout_s, "bp": cfg.base_path_env})
+        r = _ssh(host, f"{shlex.quote(py)} -I -c {shlex.quote(_GUARD_DRIVER)}", cfg.guard_timeout_s * len(jobs) + 60, payload.encode())
+        try:
+            out = json.loads(r.stdout.decode().strip().splitlines()[-1]) if r.returncode == 0 else None
+        except (ValueError, IndexError):
+            out = None
+        if out is None:
+            _remote_down(cfg, f"guard batch: exit {r.returncode}: {r.stderr.decode(errors='replace')[-200:]}", rem)
+            continue
+        _remote_back(rem)
+        journal.append("check", state="remote-guards", rung="guards", runner=host, guards=len(jobs))
+        return {n: {**out[n], "name": n, "argv": a, "remote": host} for n, a in jobs if n in out}
+    return None
 
 
 GUARD_CACHE: list = [None]  # the cache file, set by the chain and `builder check`; None (tests) = no cache

@@ -1434,3 +1434,44 @@ def test_a_batch_that_touches_no_build_path_skips_the_build_without_ever_taking_
     assert r == {"ok": True, "skipped": True, "results": []} and taken == [], "no build path: no lock, no wait"
     monkeypatch.setattr(ct, "_build_locked", ct._heavy("xcodebuild (the build rung)")(lambda root, changed, cfg: {"ok": True, "skipped": False, "results": []}))
     assert ct.build("/nowhere", ["fichero/App.swift"], cfg)["skipped"] is False and taken == ["xcodebuild (the build rung)"], "a Swift change takes it"
+
+
+def test_auto_remote_guards_go_in_one_batch_a_git_guard_stays_here_and_a_remote_red_counts_only_if_red_here(tmp_path, monkeypatch):
+    """manager 2026-11-06: the Pro sat at load 30 to 57 under the ladders while the owner's Xcode ran: guards go to the runners."""
+    monkeypatch.setattr(ct.journal, "STATE", tmp_path / "journal")  # never the live ladder's guards lock
+    (tmp_path / "journal").mkdir()
+    root = _repo(tmp_path, 22, {0: "import subprocess\n", 1: "pass\n", 2: "raise SystemExit(1)\n"})
+    sent = []
+
+    def batch(scripts, r, cfg):
+        sent.append(sorted(s.stem for s in scripts))
+        return {s.stem: {"name": s.stem, "exit_code": int(s.stem in ("check_g1", "check_g2")), "ok": s.stem not in ("check_g1", "check_g2"),
+                         "timed_out": False, "stdout_tail": "", "stderr_tail": "no .git here", "remote": "imac"} for s in scripts}
+    monkeypatch.setattr(ct, "_remote_guard_batch", batch)
+    r = ct.guards(root, ct.Config(guard_glob="scripts/check_*.py", min_guards=20, remote_guards="auto", remotes=("imac:~/g",)))
+    by = {x["name"]: x for x in r["results"]}
+    assert len(sent) == 1 and "check_g0" not in sent[0] and len(sent[0]) == 21, "one batch; the guard that names subprocess stays here"
+    assert "remote" not in by["check_g0"] and by["check_g0"]["ok"]
+    assert by["check_g1"]["ok"] and by["check_g1"]["rerun_here"], "red only over there (the runner's): green here, so green"
+    assert not by["check_g2"]["ok"] and by["check_g2"]["rerun_here"], "red there and here: a real red"
+    monkeypatch.setattr(ct, "_remote_guard_batch", lambda *a: None)
+    r = ct.guards(root, ct.Config(guard_glob="scripts/check_*.py", min_guards=20, remote_guards="auto", remotes=("imac:~/g",)))
+    assert len(r["results"]) == 22 and not any(x.get("remote") for x in r["results"]), "no runner: every guard runs here"
+
+
+def test_the_remote_guard_batch_runs_every_guard_with_its_own_timeout_in_one_call_and_reports_each(tmp_path, monkeypatch):
+    """The batch driver itself, its ssh replaced by a local shell: one call, a result per guard, a hang cut at the guard timeout."""
+    root = _repo(tmp_path, 3, {1: "raise SystemExit(3)\n", 2: "import time\ntime.sleep(5)\n"})
+    calls = []
+
+    def ssh(host, script, timeout_s, stdin=None):
+        calls.append(host)
+        return subprocess.run(["/bin/sh", "-c", script], input=stdin, capture_output=True, timeout=timeout_s)
+    monkeypatch.setattr(ct, "_ssh", ssh)
+    monkeypatch.setattr(ct, "_ship", lambda r, cfg, rem="": str(r))
+    cfg = ct.Config(guard_glob="scripts/check_*.py", guard_timeout_s=1, remotes=("imac:~/g",), remote_python=sys.executable)
+    out = ct._remote_guard_batch(sorted((root / "scripts").glob("check_*.py")), root, cfg)
+    assert calls == ["imac"], "one ssh for the whole batch"
+    assert out["check_g0"]["ok"] and out["check_g0"]["remote"] == "imac"
+    assert out["check_g1"]["exit_code"] == 3 and not out["check_g1"]["ok"]
+    assert out["check_g2"]["timed_out"] and not out["check_g2"]["ok"], "a hang is cut at the guard's own timeout"
