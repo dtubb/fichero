@@ -225,7 +225,8 @@ final class PairingService {
                                       auditId: body.auditId, publicBaseURL: body.publicBaseUrl, lanIP: body.lanIp,
                                       tailnetForward: body.tailnetForward?.rawValue,  // optional in the schema: a default is not `required`
                                       multiuserBlocker: body.multiuserBlocker,
-                                      tailnetServeConflict: TailnetServeConflict(body.tailnetServeConflict?.additionalProperties))
+                                      tailnetServeConflict: TailnetServeConflict(body.tailnetServeConflict?.additionalProperties),
+                                      sharedLibraryCount: body.sharedLibraryCount)
         case .undocumented(let statusCode, _):
             throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
         }

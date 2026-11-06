@@ -50,8 +50,9 @@ struct ShareSettingsView: View {
     @State var selectedDevices = Set<String>()
     @State var confirmRemoveSelected = false
     /// The one sheet this pane presents: two `.sheet(isPresented:)` on the same view race, and only one shows reliably.
-    enum ActiveSheet: Identifiable {
-        case addDevice, connect
+    enum ActiveSheet: Identifiable, Hashable {
+        case addDevice, connect, whichProjects
+        case project(UUID)
         var id: Self { self }
     }
     @State var activeSheet: ActiveSheet?
@@ -93,6 +94,8 @@ struct ShareSettingsView: View {
                 }
             }
 
+            nothingSharedSection
+
             if SharingPaneText.showsDevices(isOn: hostingEnabled, engineIsLocal: EngineConfig.engineIsLocal) {
                 devicesSection
             }
@@ -114,6 +117,13 @@ struct ShareSettingsView: View {
             switch sheet {
             case .addDevice: addDeviceSheet
             case .connect: connectSheet
+            case .whichProjects: whichProjectsSheet
+            case .project(let id):
+                Group {
+                    if let library = libraryManager.getLibrary(id: id) {
+                        ShareLibrarySheet(library: library, usersStore: appState.usersStore)
+                    }
+                }
             }
         }
         // A tapped invite link opens the Connect sheet with the link filled in (`sharing.settings.connect-sheet`).

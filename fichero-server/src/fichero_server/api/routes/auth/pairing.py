@@ -168,6 +168,9 @@ class SharingStateResponse(BaseModel):
     # above is withheld while it stands, since it fails the same way.
     tailnet_serve_conflict: dict[str, str] | None = None
     paired_device_count: int
+    # How many of this Mac's projects someone can open (`sharing.host.asks-which-projects-when-nothing-is-shared`, #6366):
+    # 0 makes the app ask which projects to share.
+    shared_library_count: int = 0
     # Why Multi-user cannot be turned on yet (no owner password chosen), else None: the pane reads this, not a guess.
     multiuser_blocker: str | None = None
     # The audit row of a change this answer follows (PUT /multiuser): what ⌘Z takes back.
@@ -200,6 +203,21 @@ def _tailnet_serve_command() -> str | None:
     return shlex.join([cli or "tailscale", "serve", "--bg", f"--https={port}", want])
 
 
+def _shared_library_count(app_db: AppDatabase, *, multiuser: bool) -> int:
+    """The projects at least one person other than the owner holds a role on; with no accounts, a paired device reaches
+    this Mac's known projects, so they count once a device is paired (#6366). Each project once."""
+    shared = set()
+    for user in app_db.list_users():
+        if not user.is_owner and user.active:
+            shared.update(role.library_path for role in app_db.list_library_roles_for_user(user.id))
+    if not multiuser and any(not device.revoked for device in app_db.list_devices()):
+        from fichero_server.api.routes.library.registry import get_global_database  # lazy: routes import each other
+        from fichero_server.models import KnownLibrary
+
+        shared.update(row.path for row in get_global_database().query(KnownLibrary))
+    return len(shared)
+
+
 def _sharing_state(app_db: AppDatabase) -> SharingStateResponse:
     from fichero_server.security import tailscale_serve  # lazy: app-import budget (#3950)
     from fichero_server.security.multiuser import multiuser_enabled, owner_password_gap
@@ -222,6 +240,7 @@ def _sharing_state(app_db: AppDatabase) -> SharingStateResponse:
         tailnet_serve_command=None if conflict else _tailnet_serve_command(),
         tailnet_serve_conflict=conflict,
         paired_device_count=sum(1 for d in app_db.list_devices() if not d.revoked),
+        shared_library_count=_shared_library_count(app_db, multiuser=enabled),
     )
 
 

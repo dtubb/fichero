@@ -106,6 +106,10 @@ extension ShareSettingsView {
         }
         // The engine answers `none` until Sharing is on and makes the forward after readiness: re-read, or the row stays stale (review N1).
         await refreshSharingState()
+        // Sharing on with nothing shared asks which projects (#6366).
+        if hostingEnabled, ShareWhichProjectsModel.opens(sharedCount: sharingState?.sharedLibraryCount) {
+            activeSheet = .whichProjects
+        }
     }
 
     /// The engine process now running, by health's `engine_pid`; nil until health has answered once. Not

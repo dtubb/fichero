@@ -22,4 +22,6 @@ struct SharingStateRecord: Equatable {
     var multiuserBlocker: String?
     /// A tailnet forward Fichero did not make, with the command that frees it (`tailnet_serve_conflict`).
     var tailnetServeConflict: TailnetServeConflict?
+    /// How many projects someone can open (`shared_library_count`, #6366); 0 asks which to share; nil from an older engine.
+    var sharedLibraryCount: Int?
 }
