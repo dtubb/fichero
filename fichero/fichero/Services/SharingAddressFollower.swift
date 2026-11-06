@@ -10,6 +10,12 @@ enum SharingAddressFollower {
     static let minimumGap: TimeInterval = 60
     private static var lastRestart: Date?
     private static var restarting = false
+    /// One restart per change (t73): set after a restart, cleared when health stops saying "changed". A restart that
+    /// did not cure it is not repeated every minute.
+    private static var restartedForThisChange = false
+
+    /// Health no longer says the address changed: the next change may restart again.
+    static func clear() { restartedForThisChange = false }
 
     static func shouldRestart(changed: Bool, engineIsLocal: Bool, now: Date, last: Date?, restarting: Bool) -> Bool {
         guard changed, engineIsLocal, !restarting else { return false }
@@ -20,8 +26,10 @@ enum SharingAddressFollower {
     /// Lets a health check that sees the change restart the local engine.
     static func install(appState: AppState, backendService: EmbeddedBackendService) {
         appState.onSharingAddressChanged = {
-            guard shouldRestart(changed: true, engineIsLocal: EngineConfig.engineIsLocal, now: Date(),
+            guard !restartedForThisChange,
+                  shouldRestart(changed: true, engineIsLocal: EngineConfig.engineIsLocal, now: Date(),
                                 last: lastRestart, restarting: restarting) else { return }
+            restartedForThisChange = true
             restarting = true
             lastRestart = Date()
             defer { restarting = false }

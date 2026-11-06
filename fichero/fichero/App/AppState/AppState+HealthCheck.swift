@@ -160,7 +160,8 @@ extension AppState {
 extension AppState {
     /// The listener follows the network (t52): a local engine that says the Mac's address changed is restarted once.
     func followSharingAddress(changed: Bool) {
-        guard changed, EngineConfig.engineIsLocal, let follow = onSharingAddressChanged else { return }
+        guard changed else { SharingAddressFollower.clear(); return }
+        guard EngineConfig.engineIsLocal, let follow = onSharingAddressChanged else { return }
         Task { await follow() }
     }
 }

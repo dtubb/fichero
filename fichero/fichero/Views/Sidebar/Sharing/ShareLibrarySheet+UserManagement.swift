@@ -38,6 +38,7 @@ extension ShareLibrarySheet {
                 if Task.isCancelled { return }
             }
             if let state = try? await PairingService(apiRoot: EngineConfig.host).sharingState() { sharingState = state }
+            loadSPKIPin()  // the pin lands after a restart; "still minting" must not stay forever (t73)
             if !PairingCardRefresh.readsForwardAgain(stateLoaded: sharingState != nil, forward: sharingState?.tailnetForward) { return }
         }
     }

@@ -41,3 +41,17 @@ def test_a_loopback_only_engine_has_nothing_to_follow(two_macs, monkeypatch):
         monkeypatch.delenv(name, raising=False)
     _quiet_network(monkeypatch, lan="192.0.2.77")
     assert _health(two_macs).json()["sharing"]["address_changed"] is None
+
+
+def test_the_lan_name_is_compared_by_the_address_it_bound(two_macs, monkeypatch):
+    """t73 (live on the Air, 2026-11-06): the app names the LAN slot `macbook-air-m1.local`; comparing that name with
+    the IP said "changed" on every health check, and the app restarted its engine every minute (no listener, no pin)."""
+    from fichero_server.api import transport_diagnostics as td
+
+    monkeypatch.setenv("FICHERO_TCP_TLS_ALSO", "1")
+    monkeypatch.setenv("FICHERO_LAN_HOST", "macbook-air-m1.local")
+    _quiet_network(monkeypatch, lan="192.0.2.10")
+    monkeypatch.setattr(td, "_BOUND_TCP", ["127.0.0.1", "192.0.2.10"])
+    assert _health(two_macs).json()["sharing"]["address_changed"] is None
+    monkeypatch.setattr(td, "_BOUND_TCP", ["127.0.0.1", "192.0.2.99"])
+    assert _health(two_macs).json()["sharing"]["address_changed"] is not None

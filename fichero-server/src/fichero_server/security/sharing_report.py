@@ -72,6 +72,7 @@ def address_rows(facts=None) -> list:
     """Every address this Mac can be reached at, in the order to try (`sharing.address-choice`): the tailnet name when its
     forward is Fichero's own, then the `.local` name, then the LAN IP; a tailnet row that cannot work goes last with why.
     Never loopback. The host cannot see client isolation, so a `.local` or IP row says "listening", never "works"."""
+    from fichero_server.api.transport_diagnostics import tcp_listeners
     from fichero_server.models import SharingAddress
     from fichero_server.security import bind_host
 
@@ -99,7 +100,8 @@ def address_rows(facts=None) -> list:
             kind="local-name" if local else "lan", url=public, listening=bool(lan_host),
             label=f"This network, {public_host}: works only on the same network, when it lets Macs find each other"))
     if lan_ip:
-        first.append(SharingAddress(kind="lan", url=f"https://{lan_ip}:{port}", listening=lan_host == lan_ip,
+        bound = tcp_listeners() or []  # the addresses really bound, not the name asked for (t73)
+        first.append(SharingAddress(kind="lan", url=f"https://{lan_ip}:{port}", listening=lan_host == lan_ip or lan_ip in bound,
                                     label=f"This network, {lan_ip}: works only on the same network"))
     rows, seen = [], set()
     for row in first + last:
@@ -118,15 +120,27 @@ def address_changed(lan_host: str) -> str | None:
     bound, else None. Not asked when the Mac has no network now: that is offline, not a change.
     ponytail: reports the change and does not rebind the live socket; the person turns Sharing off and on. Rebind in place
     if that proves too much to ask."""
+    import ipaddress
+
+    from fichero_server.api.transport_diagnostics import tcp_listeners
     from fichero_server.security import bind_host
 
     if not lan_host:
         return None
+    # Compare with the ADDRESS bound, never the name asked for (t73): the app names the LAN slot by its `.local` name, and
+    # a name never equals an IP, so every health check said "changed" and the app restarted its engine every minute.
+    bound = [a for a in (tcp_listeners() or []) if not (a.startswith("127.") or a in ("::1", "localhost"))]
+    if not bound:
+        try:
+            ipaddress.ip_address(lan_host)
+        except ValueError:
+            return None  # a name, and nothing recorded as bound: nothing to compare
+        bound = [lan_host]
     try:
         now = bind_host.primary_lan_ip()
     except OSError:
         return None
-    return ADDRESS_CHANGED if now and now != lan_host else None
+    return ADDRESS_CHANGED if now and now not in bound else None
 
 
 def sharing_report(app_db):
