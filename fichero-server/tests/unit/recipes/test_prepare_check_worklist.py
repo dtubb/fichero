@@ -161,3 +161,20 @@ def test_the_route_and_the_count(db, tmp_path, monkeypatch, client):
     assert got.status_code == 200, got.text
     body = got.json()
     assert body["count"] == 1 and body["proposed"] == 1 and body["items"][0]["id"] == page.id
+
+
+def test_a_show_through_only_page_is_listed_with_its_recto_until_it_is_included(db, tmp_path):
+    from fichero_server.recipes.prepare_check import worklist
+
+    recto = _page(db, tmp_path, "recto.png", _graph_paper(ink=True))
+    verso = _page(db, tmp_path, "verso.png", _graph_paper(ink=False))
+    verso.metadata = {"page_kind": "show-through-only", "show_through_of": recto.id, "show_through_only": True}
+    db.save(verso)
+
+    (item,) = [i for i in worklist(db) if i["id"] == verso.id]
+    assert item["kinds"] == ["show_through"] and item["words"] == ["show-through of recto.png, left out"] and not item["sample"]
+
+    registry.invoke(db, "image.include_show_through_only", {"document_id": verso.id, "included": True}, _ctx(tmp_path))
+    assert verso.id not in [i["id"] for i in worklist(db)], "an included page leaves the list"
+    registry.invoke(db, "image.include_show_through_only", {"document_id": verso.id, "included": False}, _ctx(tmp_path))
+    assert verso.id not in [i["id"] for i in worklist(db)], "a person's Leave out answers it too"

@@ -10,7 +10,12 @@ enum PrepareCheck {
     static func words(_ item: Components.Schemas.PrepareCheckItem) -> String { item.words.joined(separator: "; ") }
 
     /// Accept leaves the page as it is: one answer per proposal open on it (a sample page has none, so Accept is a no-op).
-    static func acceptKinds(_ item: Components.Schemas.PrepareCheckItem) -> [String] { item.kinds }
+    static func acceptKinds(_ item: Components.Schemas.PrepareCheckItem) -> [String] { item.kinds.filter { $0 != showThrough } }
+
+    /// A page that is only the one before seen through: its answer is Include or Leave out (`image.include_show_through_only`).
+    static let showThrough = "show_through"
+
+    static func isShowThrough(_ item: Components.Schemas.PrepareCheckItem) -> Bool { item.kinds.contains(showThrough) }
 
     /// Hiding as blank is offered where the run was unsure of blank, or on a sample page (a person may hide any page).
     static func canMarkBlank(_ item: Components.Schemas.PrepareCheckItem) -> Bool {
@@ -53,7 +58,15 @@ struct PrepareImagesCheckList: View {
             HStack {
                 Text(item.name).font(.callout).lineLimit(1)
                 Spacer()
-                if !item.kinds.isEmpty {
+                if PrepareCheck.isShowThrough(item) {
+                    Button("Include") { Task { await includeShowThrough(item, included: true) } }
+                        .controlSize(.small)
+                        .accessibilityIdentifier("prepareImages.check.include")
+                    Button("Leave out") { Task { await includeShowThrough(item, included: false) } }
+                        .controlSize(.small)
+                        .accessibilityIdentifier("prepareImages.check.leaveOut")
+                }
+                if !PrepareCheck.acceptKinds(item).isEmpty {
                     Button("Accept") { Task { await accept(item) } }
                         .controlSize(.small)
                         .accessibilityIdentifier("prepareImages.check.accept")
@@ -76,6 +89,12 @@ struct PrepareImagesCheckList: View {
         for kind in PrepareCheck.acceptKinds(item) {
             await answer("image.accept_proposal", ImageAcceptProposalRequest(documentId: item.id, kind: kind), "Accept Page")
         }
+    }
+
+    private func includeShowThrough(_ item: Components.Schemas.PrepareCheckItem, included: Bool) async {
+        await answer(
+            "image.include_show_through_only", ImageIncludeShowThroughRequest(documentId: item.id, included: included),
+            included ? "Include Page" : "Leave Page Out")
     }
 
     private func markBlank(_ item: Components.Schemas.PrepareCheckItem) async {

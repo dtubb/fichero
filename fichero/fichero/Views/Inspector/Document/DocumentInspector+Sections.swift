@@ -127,8 +127,16 @@ private struct DocumentInspectorImageEditsTab: View {
     @Environment(StorageService.self) private var storageService
     @State private var model = ImageEditorModel()
 
+    @Environment(DocumentStore.self) private var documentStore
+    @State private var showThroughFailure: String?
+
     var body: some View {
         VStack(spacing: 0) {
+            if ShowThroughOnly.isMarked(document) {
+                ShowThroughPageRow(
+                    page: document, documents: documentStore.currentDocuments, store: documentStore, failure: $showThroughFailure)
+                    .padding(10)
+            }
             if model.isBusy {
                 ProgressView()
                     .controlSize(.small)

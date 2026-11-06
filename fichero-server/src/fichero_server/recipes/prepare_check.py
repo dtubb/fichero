@@ -12,6 +12,8 @@ from typing import Any
 
 SAMPLE_EVERY = 20
 KINDS = ("page_box", "turn", "blank")
+#: A page that is only the one before seen through, left out of reading until a person includes it (`image.enhance.show-through-only-verso`).
+SHOW_THROUGH = "show_through"
 _DEFAULT_WORDS = {
     "page_box": "the page edge was not found with confidence: the box is a proposal",
     "turn": "the lines do not agree which way the page runs",
@@ -38,6 +40,11 @@ def worklist(db: Any) -> list[dict[str, Any]]:
     for page_id in db.unit_of_work_ids():
         row = rows.get(page_id)
         if row is None:
+            continue
+        if row[4] == "show-through-only" and row[5] is None:  # left out by default until a person includes it or says leave out
+            recto = rows.get(row[6])
+            proposed.append({"id": page_id, "name": row[1], "kinds": [SHOW_THROUGH], "sample": False,
+                             "words": [f"show-through of {recto[1] if recto else 'the page before'}, left out"]})
             continue
         proposals = json.loads(row[2]) if row[2] else {}
         kinds = [k for k in KINDS if proposals.get(k)]

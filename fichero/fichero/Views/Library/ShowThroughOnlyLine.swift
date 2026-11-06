@@ -38,8 +38,6 @@ struct ShowThroughOnlyLine: View {
     let documents: [Document]
     let store: DocumentStore
 
-    @Environment(ActionStore.self) private var actionStore: ActionStore?
-    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
     @State private var expanded = false
     @State private var failure: String?
 
@@ -58,18 +56,7 @@ struct ShowThroughOnlyLine: View {
                 .accessibilityIdentifier("library.showThroughOnly")
                 if expanded {
                     ForEach(marked) { page in
-                        let included = ShowThroughOnly.isIncluded(page)
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(page.name).font(.callout).lineLimit(1)
-                                Text(ShowThroughOnly.words(page, in: documents)).font(.caption).foregroundStyle(.secondary)
-                            }
-                            .opacity(included ? 1 : 0.5)
-                            Spacer()
-                            Button(included ? "Leave Out" : "Include") { Task { await set(page, included: !included) } }
-                                .controlSize(.small)
-                                .accessibilityIdentifier(included ? "library.showThrough.leaveOut" : "library.showThrough.include")
-                        }
+                        ShowThroughPageRow(page: page, documents: documents, store: store, failure: $failure)
                     }
                 }
                 if let failure { Text(failure).font(.caption).foregroundStyle(.red) }
@@ -79,8 +66,35 @@ struct ShowThroughOnlyLine: View {
             .background(.bar)
         }
     }
+}
 
-    private func set(_ page: Document, included: Bool) async {
+/// One marked page: its name, "show-through of <name>" dimmed until it is included, and the one button (Include / Leave Out). The
+/// same row in the Library line, the Source pane and the Inspector's Edits facet (`image.enhance.show-through-only-verso`, #6362).
+struct ShowThroughPageRow: View {
+    let page: Document
+    let documents: [Document]
+    let store: DocumentStore
+    @Binding var failure: String?
+
+    @Environment(ActionStore.self) private var actionStore: ActionStore?
+    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
+
+    var body: some View {
+        let included = ShowThroughOnly.isIncluded(page)
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(page.name).font(.callout).lineLimit(1)
+                Text(ShowThroughOnly.words(page, in: documents)).font(.caption).foregroundStyle(.secondary)
+            }
+            .opacity(included ? 1 : 0.5)
+            Spacer()
+            Button(included ? "Leave Out" : "Include") { Task { await set(included: !included) } }
+                .controlSize(.small)
+                .accessibilityIdentifier(included ? "library.showThrough.leaveOut" : "library.showThrough.include")
+        }
+    }
+
+    private func set(included: Bool) async {
         guard let actionsService = actionStore?.actionsService else { return }
         do {
             var first = true

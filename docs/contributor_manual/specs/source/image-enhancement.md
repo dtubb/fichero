@@ -455,6 +455,7 @@ waits on a sample ships its synthetic test first and keeps the line `[PARTIAL]` 
 
 #### Step 4.7 — The enhancement controls reach the Source pane without edit mode (#6362)
 - Side: app, and the engine's Prepare check worklist
+- Built (app unrun, engine tested, 2026-11-06): `SourcePaneImageControls` over the Source pane while it only shows the page (Enhance is the audited `image.enhance`, Clean up the folder opens `ImageCleanupBatchSheet`, a show-through page shows `ShowThroughPageRow`); the Inspector's Edits facet shows the same row; the Prepare Images check list carries show-through rows with Include / Leave out (`test_a_show_through_only_page_is_listed_with_its_recto_until_a_person_includes_it_or_says_leave_out`). Sentence 1's toolbar sits as an overlay on the pane, not inside the shared reader bar.
 - Behaviours: `image.enhance.editor-enhance-is-the-new-step`, `image.enhance.batch-preview-undo`, `image.enhance.show-through-only-verso`
 - Why: today the Enhance popover, "Clean up the folder" and "Apply to the rest of this folder" live only in `ImageEditorView`'s toolbar, which the Source pane shows only in edit mode; the show-through Include / Leave Out lives only in the Library pane's line above the rows.
 - Acceptance (app, to build):
@@ -462,7 +463,7 @@ waits on a sample ships its synthetic test first and keeps the line `[PARTIAL]` 
   2. With a show-through-only page in the Source pane, the pane says "show-through of <recto's name>" beside the page, with the one button *Include* (or *Leave Out* once included), running `image.include_show_through_only`; the Inspector's Edits facet shows the same sentence and button for that page.
   3. The Prepare Images check list names a show-through-only page as a row ("show-through of <name>, left out") with *Include* and *Leave out*, the same action; the engine's `prepare_check` worklist carries such pages, and a test pins that a marked page is in the list and an included one is not.
   4. No new request type: every control calls the existing audited action or batch-apply route.
-- Tests: a Swift test file for the toolbar's item list beside the editor's direct-tool tests (named when written), fichero-server/tests/unit/recipes/test_prepare_check_worklist.py
+- Tests: fichero/Tests/Unit/general/Views/Preview/SourcePaneImageActionsTests.swift, fichero-server/tests/unit/recipes/test_prepare_check_worklist.py
 - Depends on: 4.3, 4.5, 4.6
 - Size: M
 
