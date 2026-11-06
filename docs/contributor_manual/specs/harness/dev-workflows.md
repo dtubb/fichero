@@ -668,7 +668,7 @@ the write path would produce.
   **Built** 2026-11-02 against fakes: a step snaps the jail root and every quiet lane's worktree (no live session of its own, step queued, blocked or landed) as `HEAD status-hash` before its worker starts; at the worker's DONE a changed one is one `alert` row naming each tree (no actions; the step goes on: the stray write was not in its tree). A landing meanwhile (`landed` row `jail-root`) excuses the jail root. The policy hook (both kinds: Pi's extension calls the same `check`) refuses `git -C`/`--work-tree`/`--git-dir` at another tree with `reset --hard`, `checkout --`, `clean -f` or `stash`, and a shell redirect or `tee` to an absolute path outside the worktree and scratch path. Tests `fichero-builder/tests/test_loop.py::test_a_step_that_moves_another_lanes_tree_or_the_jail_root_alerts`, `::test_a_landing_meanwhile_excuses_the_jail_root_and_a_busy_lane_is_not_checked`, `fichero-server/tests/unit/workflows/test_policy_hook.py::test_each_forbidden_command_is_refused_with_a_reason` (six new cases), `::test_ordinary_commands_pass`. Not yet: a lane with a live session is skipped, so a write there is seen only when it is quiet.
 - `dev-workflows.run.loop-status` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — `builder status`: a read-only page on 127.0.0.1 (stdlib HTTP, journal only):
   lanes, each lane's step and state, the last check and landing, issues closed today, spend today, open alerts; the same as
-  JSON at `/status.json` for the app. Test (to write): `fichero-builder/tests/test_status_page.py` (a journal of fixed rows gives
+  JSON at `/status.json` for the app. Test: `fichero-builder/tests/test_status_page.py` (a journal of fixed rows gives
   that page and that JSON).
   **Built** 2026-11-02, the page retired 2026-11-03 (owner: only the console stays): `console.status` gives one dict (lanes with step and state, last check, last landing, issues closed today = `done` rows' issues less `left_open`, spend today = today's `cost` rows, open alerts = alerts with no answer that took). and `GET /api/status` serves it with the console's additions below; `console.rows_of` reads the owner's journal and only the run rows of the worker's shared one under `[jail].workroot/state`, skipping a line that does not parse, so a worker cannot put a check or a landing there. Tests `fichero-builder/tests/test_status_page.py::test_a_journal_of_fixed_rows_gives_that_status`, `::test_the_status_verb_serves_the_console`, `::test_the_console_reads_the_owners_journal_and_the_workers_shared_one`, `::test_a_worker_cannot_put_a_check_or_a_landing_in_the_owners_rows_and_a_bad_line_is_skipped`.
   **Console** (owner order 2026-11-02, APPROVED by the manager): `builder status` is an interactive console, the owner's main view;
@@ -680,7 +680,7 @@ the write path would produce.
   row naming who did it, the verb and its exit. A POST must carry the token the page was served with and a loopback Host, so
   another site in the owner's browser cannot drive it. The page is one static `console.html` with Preact and htm from a pinned
   CDN ESM URL, no npm and no build step: a lanes table with each lane's steps under a disclosure, alert cards with their action
-  buttons, a Build button. Test (to write): `fichero-builder/tests/test_status_page.py` (the API and each action against a fake
+  buttons, a Build button. Test: `fichero-builder/tests/test_status_page.py` (the API and each action against a fake
   journal and a fake verb runner; a missing token, a foreign Host and an unlisted verb refused with a row).
   Owner additions (2026-11-02): the page updates itself from `/api/events` with no reload; each lane shows its current step
   (id and the brief's title), what it is doing now (its last row and the worktree's last commit), elapsed time, turns, tokens
@@ -878,6 +878,7 @@ the write path would produce.
   (the harness, land and jail paths: fichero-builder/, scripts/harness_*, scripts/lane_ready_check.sh, harness.toml), and for a
   worker lane's last step of its milestone (one opus pass per milestone); the review's `activity` row names the model. Test
   `fichero-builder/tests/test_work_verb.py::test_the_review_model_is_sonnet_unless_the_range_touches_harness_paths_or_it_is_the_milestones_last_step`.
+  Built 2026-11-06 (owner, t28: a lane's half-done fast reviews cost it whole rounds): `[models].opus_lanes` names lanes whose every batch gets the full reviewer, whatever paths it touches; lane-sharing is the first (test `fichero-builder/tests/test_queue_verb.py::test_a_lane_named_in_opus_lanes_gets_the_full_reviewer_and_others_the_fast_one`).
 - Soak fixes 2026-11-02 (manager): a milestone whose spec an external lane's brief names is never planned (`owned` row: the loop
   planned Sharing while lane-sharing worked it); a planned milestone's unplaced issues are ONE alert listing them (was one per
   issue) with park; an alert with no actions, or whose lane is gone, can be parked; retry or approve on an external lane's step

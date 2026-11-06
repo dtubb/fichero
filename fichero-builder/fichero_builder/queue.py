@@ -1091,6 +1091,7 @@ def real_procs(root) -> Procs:
     builder, reviewer = models.for_role(mdl, "builder").model, models.for_role(mdl, "reviewer").model
     reviewer_fast = models.for_role(mdl, "reviewer_fast").model if "reviewer_fast" in mdl else reviewer
     opus_paths = tuple(mdl.get("reviewer_paths") or work.OPUS_PATHS)
+    opus_lanes = set(mdl.get("opus_lanes") or ())  # owner 2026-11-06: a lane whose rounds cost more than its review minutes gets the full reviewer
     pkg = Path(__file__).resolve().parents[1]
 
     def ns(lane: dict, step: dict | None = None) -> types.SimpleNamespace:
@@ -1102,7 +1103,7 @@ def real_procs(root) -> Procs:
                                      external=lane.get("kind") == "external", approve_red=_approved(step, "approve_red") and (tuple(f for f in step.get("approved_tests") or () if f.endswith(".py")) or True),
                                      approve_pinned_new=_approved(step, "approve_pinned_new"),
                                      guard_data=tuple(f for f in (step or {}).get("approved_tests", ()) if f.endswith(".json")) if _approved(step, "approve_guard_data") else (),
-                                     reviewer_fast=reviewer_fast, opus_paths=opus_paths,
+                                     reviewer_fast=reviewer if lane["id"] in opus_lanes else reviewer_fast, opus_paths=opus_paths,
                                      last_step=bool(step) and lane.get("kind") != "external" and bool(lane.get("steps")) and step is lane["steps"][-1])
 
     def start(lane, step):

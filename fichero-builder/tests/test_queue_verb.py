@@ -547,3 +547,20 @@ def test_verify_all_waits_while_a_lane_is_busy_and_never_runs_for_an_unpushed_la
     (journal.STATE / queue.VERIFY_PENDING).write_text("abc")
     queue.add("busy", "/w/y", "1.1", str(state / "b1.1"), [])
     assert queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None) is True and ran == [], "a lane with work left: not yet"
+
+
+def test_a_lane_named_in_opus_lanes_gets_the_full_reviewer_and_others_the_fast_one(state, monkeypatch):
+    """Owner 2026-11-06 (t28): [models].opus_lanes; a named lane's batches always get the full reviewer, any other the fast one."""
+    (state / "harness.toml").write_text('[check]\nengine_repo = "/e"\n[land]\nbranch = "integration"\n'
+                                        '[models]\nproviders = ["claude-code"]\nbuilder = { provider = "claude-code", model = "sonnet" }\n'
+                                        'reviewer = { provider = "claude-code", model = "opus" }\nreviewer_fast = { provider = "claude-code", model = "sonnet" }\n'
+                                        'opus_lanes = ["lane-sharing"]\n')
+    seen = {}
+    monkeypatch.setattr(queue, "carry_in_lane", lambda *a, **k: False)
+    monkeypatch.setattr(queue.work, "ensure_pinned", lambda *a, **k: "/p")
+    monkeypatch.setattr(queue.land_tool, "resolve_branch", lambda repo, branch: "b" * 40)
+    monkeypatch.setattr(queue.work, "after_run", lambda a, repo, branch, reviewer, stage=None: seen.setdefault(a.name, a.reviewer_fast) and {"ok": True})
+    procs = queue.real_procs(state)
+    for lane in ("lane-sharing", "lane-ie"):
+        procs.chain({"id": lane, "worktree": "/w", "kind": "external"}, {"step": "b1", "brief": "/b", "issues": []}, lambda s: None)
+    assert seen == {"lane-sharing": "opus", "lane-ie": "sonnet"}
