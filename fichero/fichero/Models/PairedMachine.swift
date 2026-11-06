@@ -1,0 +1,41 @@
+import Foundation
+
+/// A Mac this device has paired with, and the libraries it gave this device (`sharing.guest.machines-group`, #6360).
+struct PairedMachine: Identifiable, Equatable, Codable {
+    /// The host's API address; one row per host.
+    let id: String
+    let name: String
+    var libraries: [String]
+
+    /// The host's name as a person reads it: the address without scheme or port.
+    static func displayName(forAPIRoot url: URL) -> String { url.host ?? url.absoluteString }
+}
+
+/// Kept on this device so the list is still there after a relaunch. A record that cannot be read is no rows.
+enum PairedMachineStore {
+    static let key = "fichero.pairedMachines"
+
+    static func load(from defaults: UserDefaults = .standard) -> [PairedMachine] {
+        guard let data = defaults.data(forKey: key) else { return [] }
+        return (try? JSONDecoder().decode([PairedMachine].self, from: data)) ?? []
+    }
+
+    static func save(_ rows: [PairedMachine], to defaults: UserDefaults = .standard) {
+        if rows.isEmpty {
+            defaults.removeObject(forKey: key)
+        } else if let data = try? JSONEncoder().encode(rows) {
+            defaults.set(data, forKey: key)
+        }
+    }
+
+    /// Adds or updates the host's row, keeping the libraries it already gave this device.
+    static func record(apiRoot: URL, library: String?, in defaults: UserDefaults = .standard) {
+        var rows = load(from: defaults)
+        let id = apiRoot.absoluteString
+        var libraries = rows.first { $0.id == id }?.libraries ?? []
+        if let library, !libraries.contains(library) { libraries.append(library) }
+        let row = PairedMachine(id: id, name: PairedMachine.displayName(forAPIRoot: apiRoot), libraries: libraries)
+        if let index = rows.firstIndex(where: { $0.id == id }) { rows[index] = row } else { rows.append(row) }
+        save(rows, to: defaults)
+    }
+}

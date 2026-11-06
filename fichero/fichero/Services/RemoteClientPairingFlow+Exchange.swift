@@ -134,6 +134,7 @@ extension RemoteClientPairing {
             guard let exchange = host.exchange else { throw PairingStoppedError(message: PairingFailure.noAnswer.sentence()) }
             let pin = try resolvedSPKIPin(normalizedSPKIPin, for: exchange.apiRoot)
             try persistPairedHost(exchange, expectedSPKIPin: pin, libraryPath: confirmedLibrary)
+            PairedMachineStore.record(apiRoot: exchange.apiRoot, library: confirmedLibrary)
             return exchange.apiRoot
         case .choose:
             // ponytail: no picker yet; the person asks for a link from the project they want.

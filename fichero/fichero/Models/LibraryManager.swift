@@ -76,6 +76,11 @@ class LibraryManager {
         didSet { HostGoneRowStore.save(hostGoneRows) }
     }
 
+    /// The Macs this device has paired with (`sharing.guest.machines-group`, #6360); kept by `PairedMachineStore`.
+    var pairedMachines: [PairedMachine] = PairedMachineStore.load()
+    /// File ▸ Connect to Library… and the machine rows set this; the app's window shows the connect sheet.
+    var connectToLibraryRequested = false
+
     /// The project `createProject(at:)` made last. The sidebar selects its row when this changes
     /// (`create.project.appears-and-is-selected`, #5430).
     var createdProjectId: UUID?

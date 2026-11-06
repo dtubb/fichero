@@ -71,6 +71,14 @@ extension SidebarView {
                         .accessibilityIdentifier(SidebarAccessibilityID.projectsHeading)
                 }
             }
+            Section {
+                ForEach(libraryManager.pairedMachines) { machine in
+                    PairedMachineRowView(machine: machine) { libraryManager.connectToLibraryRequested = true }
+                }
+                if libraryManager.pairedMachines.isEmpty { PairedMachinesEmptyView() }
+            } header: {
+                Text("Paired Macs")
+            }
             // App-level destinations pinned once at the bottom, not repeated
             // under every library (#1456).
             pinnedGlobalNavigationRows()

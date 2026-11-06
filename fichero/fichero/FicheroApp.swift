@@ -389,6 +389,14 @@ struct FicheroApp: App {
         .background(Color(platformColor: .windowBackgroundColor))
     }
 
+    /// The connect sheet shows at an Option launch and when File ▸ Connect to Library… asks (#6360).
+    private var connectSheetBinding: Binding<Bool> {
+        Binding(
+            get: { showRemoteConnectionChooser || libraryManager.connectToLibraryRequested },
+            set: { if !$0 { showRemoteConnectionChooser = false; libraryManager.connectToLibraryRequested = false } }
+        )
+    }
+
     var body: some Scene {
         WindowGroup("Fichero", id: "main") {
             libraryWindowRoot(seed: nil)
@@ -398,7 +406,7 @@ struct FicheroApp: App {
                 // #2381: Option-at-launch surfaces the remote-host connection
                 // chooser over the main window. A normal launch never sets this,
                 // so the embedded local engine path is unchanged.
-                .sheet(isPresented: $showRemoteConnectionChooser) {
+                .sheet(isPresented: connectSheetBinding) {
                     RemoteConnectionChooserSheet(
                         appState: appState,
                         backendService: backendService,
