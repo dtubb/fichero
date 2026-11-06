@@ -81,6 +81,7 @@ extension AppState {
                     // failing to decode bodies later (design ruling 1).
                     return
                 }
+                followSharingAddress(changed: health.sharing?.addressChanged != nil)
                 documentCount = health.activeLibraries ?? 0
                 backendVersion = health.backendVersion
                 // Feeds the About box "Built on" list live dep versions (seam in AppState).
@@ -153,5 +154,13 @@ extension AppState {
         case .releaseEmbedded, .configuredRemote, .iosCompanion, .inert:
             return "Cannot connect to the Fichero server. The server didn't come up; try restarting the app."
         }
+    }
+}
+
+extension AppState {
+    /// The listener follows the network (t52): a local engine that says the Mac's address changed is restarted once.
+    func followSharingAddress(changed: Bool) {
+        guard changed, EngineConfig.engineIsLocal, let follow = onSharingAddressChanged else { return }
+        Task { await follow() }
     }
 }

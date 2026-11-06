@@ -383,6 +383,7 @@ struct FicheroApp: App {
         .onAppear {
             SharedLibraryOpener.install(
                 appState: appState, backendService: backendService, libraryManager: libraryManager)
+            SharingAddressFollower.install(appState: appState, backendService: backendService)
         }
         .frame(minWidth: 640, minHeight: 700)
         // ★ EVERY FRAME PERFECT (#3615): the semantic surface color is the BASE

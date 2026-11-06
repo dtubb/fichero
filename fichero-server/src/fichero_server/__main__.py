@@ -9,6 +9,7 @@ defaults to production behavior otherwise.
 from __future__ import annotations
 
 import argparse
+import errno
 import logging
 import os
 import pathlib
@@ -71,6 +72,61 @@ def _listener_hosts(bind_host: str, app_db=None) -> list[str]:  # noqa: ARG001 -
     if lan_host is None or lan_host == bind_host:
         return [bind_host]
     return [bind_host, lan_host]
+
+
+def _slot_address(host: str, bind_host: str, port: int) -> str | None:
+    """The address to bind for one listener slot. Inside the sandbox the machine's own Bonjour name resolves to
+    LOOPBACK, so a bind-by-name collided with our own first socket (EADDRINUSE, 2026-08-27): a LAN slot that resolves to
+    nothing or to loopback gets the real interface IP instead."""
+    try:
+        addr = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)[0][4][0]
+    except socket.gaierror:
+        addr = None
+    if host != bind_host and (addr is None or addr.startswith("127.")):
+        try:
+            return _primary_lan_ip()
+        except OSError as exc:
+            logger.error("Sharing LAN listener skipped: %s unusable and the LAN IP could not be determined (%s).", host, exc)
+            return None
+    if addr is None:
+        logger.error("Sharing listener skipped: %s does not resolve.", host)
+    return addr
+
+
+def _bind_sharing_listeners(hosts: list[str], bind_host: str, port: int, *, bind=None, retries: int = 4,
+                            wait: float = 0.5) -> list[socket.socket]:
+    """Bind each Sharing listener slot ON ITS OWN (t52, live 2026-11-06): one slot that fails never drops the others, so
+    a LAN address the Mac no longer has leaves the loopback port up for Tailscale, the CLI and MCP. A port still held
+    by the engine this one replaces (a Sharing toggle restarts it) is tried again for ~2 s; a LAN address the Mac no
+    longer has is replaced by the address it has now, so the listener follows the network."""
+    bind = bind or _bind_listener_socket
+    sockets: list[socket.socket] = []
+    for host in hosts:
+        addr = _slot_address(host, bind_host, port)
+        for attempt in range(retries + 1):
+            if addr is None or addr in {s.getsockname()[0] for s in sockets}:
+                break
+            try:
+                sockets.append(bind(addr, port))
+                logger.info("Sharing listener: bound %s (%s):%d", addr, host, port)
+                break
+            except OSError as exc:
+                if exc.errno == errno.EADDRNOTAVAIL and host != bind_host:
+                    try:
+                        current = _primary_lan_ip()
+                    except OSError:
+                        current = None
+                    if current and current != addr:
+                        logger.info("Sharing listener: %s is no longer this Mac's address; binding %s", addr, current)
+                        addr = current
+                        continue
+                if exc.errno == errno.EADDRINUSE and attempt < retries:
+                    time.sleep(wait)
+                    continue
+                logger.error("Sharing listener could NOT bind %s (%s):%d (%s); the other listeners stay up.",
+                             addr, host, port, exc)
+                break
+    return sockets
 
 
 def _port_held_line(bind_host: str, port: int) -> str | None:
@@ -464,62 +520,7 @@ def _main(argv: list[str] | None = None):
             tcp_hosts = _listener_hosts(tcp_bind_host, _app_db_for_listener())
             # 8765 is the product port; a dev or test engine may choose another (#5895).
             tcp_port = listen_port()
-            tcp_sockets = []
-            try:
-                for h in tcp_hosts:
-                    # Resolve to an ADDRESS first: inside the sandbox the
-                    # machine's own Bonjour name resolves to LOOPBACK, so a
-                    # bind-by-name collided with our own first socket
-                    # (EADDRINUSE, named-host log 2026-08-27 18:55). A LAN
-                    # slot that resolves to nothing or to loopback gets the
-                    # real interface IP instead.
-                    try:
-                        addr = socket.getaddrinfo(
-                            h, tcp_port, socket.AF_INET, socket.SOCK_STREAM
-                        )[0][4][0]
-                    except socket.gaierror:
-                        addr = None
-                    is_lan_slot = h != tcp_bind_host
-                    if is_lan_slot and (addr is None or addr.startswith("127.")):
-                        try:
-                            addr = _primary_lan_ip()
-                        except OSError as exc:
-                            logger.error(
-                                "Sharing LAN listener skipped: %s unusable and "
-                                "the LAN IP could not be determined (%s).",
-                                h,
-                                exc,
-                            )
-                            continue
-                    if addr is None:
-                        logger.error("Sharing listener skipped: %s does not resolve.", h)
-                        continue
-                    bound = {s.getsockname()[0] for s in tcp_sockets}
-                    if addr in bound:
-                        logger.info(
-                            "Sharing listener: %s resolves to %s, already bound; skipping.",
-                            h,
-                            addr,
-                        )
-                        continue
-                    logger.info("Sharing listener: binding %s (%s):%d", addr, h, tcp_port)
-                    tcp_sockets.append(_bind_listener_socket(addr, tcp_port))
-            except OSError as exc:
-                # The app must not lose its engine because a stale process
-                # holds 8765 — keep UDS, but say exactly what is broken. And
-                # CLOSE anything already bound: a leaked listening socket
-                # accepts connections no server will ever answer.
-                for sock in tcp_sockets:
-                    sock.close()
-                tcp_sockets = []
-                logger.error(
-                    "Sharing listener could NOT bind %s:%d (%s) — running "
-                    "UDS-only; Sharing, CLI and MCP are UNAVAILABLE until the "
-                    "port is free and the engine restarts.",
-                    tcp_bind_host,
-                    tcp_port,
-                    exc,
-                )
+            tcp_sockets = _bind_sharing_listeners(tcp_hosts, tcp_bind_host, tcp_port)
             from fichero_server.api.transport_diagnostics import note_tcp_listeners
 
             note_tcp_listeners([s.getsockname()[0] for s in tcp_sockets])  # what a pairing link may name (#5736)

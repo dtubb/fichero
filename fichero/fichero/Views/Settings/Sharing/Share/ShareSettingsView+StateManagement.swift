@@ -85,6 +85,8 @@ extension ShareSettingsView {
             return
         }
 
+        // Tailscale first, so the engine starts knowing its tailnet address (t55).
+        if hostingEnabled { await TailnetForwardMaker.ensure() }
         backendService.stop()
         do {
             try await backendService.start()

@@ -60,6 +60,8 @@ class AppState {
     /// Alias of `backendDiagnosis` — both used to hold the same message; the
     /// single `engine.diagnosis` now backs them (connection view reads either).
     var backendError: String? { engine.diagnosis }
+    /// Restarts the local engine when health says the Mac's address changed under Sharing (`SharingAddressFollower`).
+    @ObservationIgnored var onSharingAddressChanged: (@MainActor () async -> Void)?
     var documentCount: Int = 0  // Note: Now tracks active libraries count in multi-library architecture
     var backendVersion: String?
     // Fed live from the engine's HealthResponse.dependencies (9ace36a03, exposed
