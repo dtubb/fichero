@@ -506,12 +506,20 @@ def _show_through_change(db: Database, document_id: str, new_meta: dict) -> tupl
     db.save(doc.model_copy(update={"metadata": new_meta}))
     return {"document_id": document_id, "page_kind": new_meta.get("page_kind"),
             "included": bool(new_meta.get("show_through_included"))}, ChangeSpec(
-        domains=["image", "document"], target_ids=[document_id], before={"metadata": before}, after={"metadata": new_meta},
+        domains=["image", "document"], target_ids=[document_id], before={"document_id": document_id, "metadata": before}, after={"document_id": document_id, "metadata": new_meta},
         emit_type=IMAGE_EDIT_EMIT_TYPE, document_ids=[document_id])
 
 
+def _invert_include_show_through(before: dict | None, after: dict | None, ctx: ActionContext) -> tuple[str, dict] | None:
+    """Undo of Include or Leave out: the same action with the page's earlier answer, which also puts the lines back as they were."""
+    if not before or not before.get("document_id"):
+        return None
+    previous = bool((before.get("metadata") or {}).get("show_through_included"))
+    return "image.include_show_through_only", {"document_id": before["document_id"], "included": previous}
+
+
 @action("image.include_show_through_only", ShowThroughOnlyParams, domains=["image", "document"],
-        undoable=False)  # the same action with included false puts it back
+        undoable=True, invert=_invert_include_show_through)
 def _action_include_show_through_only(db: Database, params: ShowThroughOnlyParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     """One click: a show-through-only verso is read (or, with `included` false, left out again). The mark stays."""
     from fichero_server.media import show_through_only

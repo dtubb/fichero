@@ -140,3 +140,38 @@ def test_a_page_included_before_leave_out_runs_is_not_left_out_and_one_not_inclu
     leave_out.leave_out_pages(db, [kept.id, out.id], "run-1")
     assert not any(r.is_furniture for r in db.query(Segment, document_id=kept.id) if r.kind == "line")
     assert all(r.is_furniture for r in db.query(Segment, document_id=out.id) if r.kind == "line")
+
+
+def test_undo_puts_back_an_include_and_a_leave_out_with_the_lines_as_they_were(db, tmp_path):
+    """The owner's sentence: "Undo puts it back" (`image.enhance.show-through-only-verso`, #6197)."""
+    from fichero_server.actions.registry import ActionContext
+    from fichero_server.actions.undo import undo_set
+    from fichero_server.models import Segment
+    from fichero_server.recipes import leave_out
+    from fichero_server.recipes.runner import _run_prepare
+    from tests.unit.recipes.test_leave_out_reads_page_box import _faint_line_page
+
+    recto, verso = _docs(db, tmp_path)
+    _run_prepare(db, [recto.id, verso.id], "run-1", {}, paper=["show-through"], operations=[])
+    page, _ = _faint_line_page(db, tmp_path, enhanced_dark=True)
+    page.metadata = {**db.get(Document, verso.id).metadata}
+    db.save(page)
+    leave_out.leave_out_pages(db, [page.id], "run-2")
+
+    def left_out():
+        return [r.is_furniture for r in db.query(Segment, document_id=page.id) if r.kind == "line"]
+
+    ctx = ActionContext(actor="person", library_path=str(tmp_path), is_bootstrap=True)
+    assert left_out() and all(left_out())
+    included = _invoke(db, tmp_path, "image.include_show_through_only", document_id=page.id, included=True)
+    assert not any(left_out())
+    undo_set(db, [included.audit_id], ctx)
+    assert all(left_out()), "undo of Include leaves the lines out again"
+    assert not db.get(Document, page.id).metadata.get("show_through_included")
+
+    _invoke(db, tmp_path, "image.include_show_through_only", document_id=page.id, included=True)
+    left = _invoke(db, tmp_path, "image.include_show_through_only", document_id=page.id, included=False)
+    assert all(left_out())
+    undo_set(db, [left.audit_id], ctx)
+    assert not any(left_out()), "undo of Leave Out brings them back"
+    assert db.get(Document, page.id).metadata["show_through_included"] is True
