@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
+import types
 
 import httpx
 import pytest
@@ -33,23 +34,26 @@ async def test_health_answers_while_the_seed_is_pending_and_other_requests_wait_
     monkeypatch.setattr(api_main, "_seed_builtin_providers", blocked_seed)
     monkeypatch.setattr(api_main, "_collapse_duplicate_providers", lambda: calls.append("collapse"))
 
-    from fichero_server.api.auth import initialize_token
-
-    headers = {"Authorization": f"Bearer {initialize_token()}"}
     transport = httpx.ASGITransport(app=api_main.app)
-    async with api_main.lifespan(api_main.app), httpx.AsyncClient(
-        transport=transport, base_url="http://test", headers=headers
-    ) as client:
+    async with api_main.lifespan(api_main.app), httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         health = (await client.get("/api/health")).json()
         assert health["starting"] == ["app-db"], health
         assert calls == [], "health answered before the seed finished"
 
-        other = asyncio.create_task(client.get("/api/registry"))
+        # The gate is a middleware behind authentication; drive it with the request a signed-in caller would make.
+        reached = []
+
+        async def next_handler(_request):
+            reached.append("route")
+            return "answer"
+
+        request = types.SimpleNamespace(app=api_main.app, scope={"path": "/api/registry"})
+        other = asyncio.create_task(api_main._wait_for_the_app_database(request, next_handler))
         await asyncio.sleep(0.5)
-        assert not other.done(), "a non-health request ran against an unseeded database"
+        assert not other.done() and reached == [], "a non-health request ran against an unseeded database"
 
         release.set()
-        await other
+        assert await other == "answer"
         assert calls == ["seed", "collapse"]
         assert (await client.get("/api/health")).json()["starting"] == []
     assert calls == ["seed", "collapse"]
