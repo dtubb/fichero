@@ -73,11 +73,15 @@ extension SidebarView {
             }
             Section {
                 ForEach(libraryManager.pairedMachines) { machine in
-                    PairedMachineRowView(machine: machine) { libraryManager.connectToLibraryRequested = true }
+                    ForEach(machine.libraries, id: \.self) { path in
+                        SharedLibraryRowView(machine: machine.name, library: path) {
+                            libraryManager.connectToLibraryRequested = true
+                        }
+                    }
                 }
                 if libraryManager.pairedMachines.isEmpty { PairedMachinesEmptyView() }
             } header: {
-                Text("Paired Macs")
+                Text("Shared Libraries")
             }
             // App-level destinations pinned once at the bottom, not repeated
             // under every library (#1456).

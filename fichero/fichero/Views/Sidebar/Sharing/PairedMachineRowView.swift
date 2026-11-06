@@ -1,17 +1,16 @@
 import SwiftUI
 
-/// One paired Mac in the sidebar with the libraries it gave this device; choosing it opens Connect to Library.
-struct PairedMachineRowView: View {
-    let machine: PairedMachine
+/// One library a paired Mac shared with this person, labelled by that Mac; choosing it opens Connect to Library.
+struct SharedLibraryRowView: View {
+    let machine: String
+    let library: String
     let onOpen: () -> Void
 
     var body: some View {
         Button(action: onOpen) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(machine.name).lineLimit(1).truncationMode(.middle)
-                ForEach(machine.libraries, id: \.self) { path in
-                    Text(URL(fileURLWithPath: path).lastPathComponent).font(.caption).foregroundStyle(.secondary)
-                }
+                Text(URL(fileURLWithPath: library).lastPathComponent).lineLimit(1).truncationMode(.middle)
+                Text(machine).font(.caption).foregroundStyle(.secondary)
             }
         }
         .buttonStyle(.plain)
@@ -29,10 +28,9 @@ struct PairedMachinesEmptyView: View {
 }
 
 #if DEBUG
-#Preview("Paired Machine Row") {
+#Preview("Shared Library Row") {
     VStack {
-        PairedMachineRowView(machine: PairedMachine(id: "https://studio.local:8765", name: "studio.local",
-                                                    libraries: ["/Volumes/Archive/Isthima GHG"]), onOpen: {})
+        SharedLibraryRowView(machine: "studio.local", library: "/Volumes/Archive/Isthima GHG", onOpen: {})
         PairedMachinesEmptyView()
     }
     .frame(width: 260).padding()
