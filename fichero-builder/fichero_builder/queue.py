@@ -357,7 +357,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             if lane.get("held_head") != s.get("head"):
                 lane["held_head"] = s.get("head")
                 journal.append("queue", lane=lane["id"], step=s["step"], state="held", detail=f"waits for the heavy-lock hold ({hold[:80]}): its batch builds Swift")
-                store(lane)
+                store(lane, expect=(s["step"], s.get("head", "")))  # review 116: a newer `builder done` saved meanwhile wins
             return True
         if running := [k for k, f in chains.items() if k not in ("pool", lane["id"]) and not f.done()]:
             if len(running) >= chains["pool"]._max_workers:  # the pool queues it with no word: say so (2026-11-05: batch-25 waited 40 min unseen)
@@ -1010,8 +1010,9 @@ def build_head(root, lane_id: str, w=None) -> tuple[int, str]:
 
 
 def touches_build(lane: dict, step: dict, root) -> bool:
-    """The step's batch changes a `[check].build_paths` file (a Swift build would run). Unknown (no head, no root, git fails): False."""
-    if not root or not step.get("head"):
+    """The step's batch changes a `[check].build_paths` file (a Swift build would run). The batch is the step's head, or, on a worker
+    lane whose step has no head until a chain is green, the lane worktree's HEAD (review 116). Unknown (no root, git fails): False."""
+    if not root:
         return False
     try:
         rules = tomllib.loads((Path(root) / "harness.toml").read_text())
@@ -1020,7 +1021,7 @@ def touches_build(lane: dict, step: dict, root) -> bool:
     paths = tuple(rules.get("check", {}).get("build_paths", ()))
     branch = rules.get("land", {}).get("branch", "integration")
     tree = step.get("land_tree") or lane.get("worktree", "")
-    r = subprocess.run(["git", "-c", "safe.directory=*", "-C", str(tree), "diff", "--no-ext-diff", "--name-only", f"origin/{branch}...{step['head']}"],
+    r = subprocess.run(["git", "-c", "safe.directory=*", "-C", str(tree), "diff", "--no-ext-diff", "--name-only", f"origin/{branch}...{step.get('head') or 'HEAD'}"],
                        capture_output=True, text=True)
     return bool(paths) and r.returncode == 0 and any(f.startswith(paths) for f in r.stdout.split())
 

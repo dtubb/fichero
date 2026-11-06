@@ -1035,3 +1035,33 @@ def test_an_external_lanes_red_is_sent_back_by_the_loop_three_times_a_batch_then
     assert [d.split(":")[0] for d in rows] == [f"sent back automatically ({n} of 3)" for n in (1, 2, 3)], "one row per send-back (review 361)"
     assert all("findings in " in d and "findings-lane-x-" in d for d in rows), "the row names the findings file"
     assert len(told) == 4 and all("FINDINGS" in t for t in told)
+
+
+def test_touches_build_reads_the_build_paths_and_diffs_the_batch_and_a_worker_lane_with_no_head_uses_its_worktree(tmp_path):
+    """review 116: the hold decision itself, on real git: a Swift file in the batch is a build, a docs-only batch is not, and a
+    worker lane's step (no head until a chain is green) is judged by its worktree's HEAD."""
+    import subprocess
+
+    def git(cwd, *a):
+        return subprocess.run(["git", "-C", str(cwd), *a], capture_output=True, text=True, check=True).stdout.strip()
+    origin, wt = tmp_path / "origin.git", tmp_path / "wt"
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "integration", str(origin)], check=True)
+    subprocess.run(["git", "clone", "-q", str(origin), str(wt)], check=True, capture_output=True)
+    git(wt, "config", "user.email", "t@t"), git(wt, "config", "user.name", "t")
+    (wt / "README.md").write_text("x\n")
+    git(wt, "add", "-A"), git(wt, "commit", "-qm", "base"), git(wt, "push", "-q", "origin", "HEAD:integration")
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / "harness.toml").write_text('[check]\nbuild_paths = ["fichero/"]\n[land]\nbranch = "integration"\n')
+    (wt / "docs.md").write_text("d\n")
+    git(wt, "add", "-A"), git(wt, "commit", "-qm", "docs")
+    docs = git(wt, "rev-parse", "HEAD")
+    (wt / "fichero").mkdir()
+    (wt / "fichero" / "A.swift").write_text("let a = 1\n")
+    git(wt, "add", "-A"), git(wt, "commit", "-qm", "swift")
+    swift = git(wt, "rev-parse", "HEAD")
+    ln = {"id": "l", "worktree": str(wt)}
+    assert queue.touches_build(ln, {"head": swift}, root) is True
+    assert queue.touches_build(ln, {"head": docs}, root) is False, "a docs-only batch never waits on the hold"
+    assert queue.touches_build(ln, {"head": ""}, root) is True, "a worker lane's step with no head: its worktree HEAD (the Swift commit)"
+    assert queue.touches_build(ln, {"head": swift}, None) is False, "no root: unknown, never held"
