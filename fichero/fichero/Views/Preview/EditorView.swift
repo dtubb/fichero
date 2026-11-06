@@ -266,9 +266,7 @@ struct EditorView: View {
                 onNavigateToDocument: supportsFolderNav ? onNavigateToDocument : nil,
                 isEditing: isImageEditable ? editModeBinding : nil
             )
-            .overlay(alignment: .topTrailing) {
-                if isImageEditable { SourcePaneImageControls(document: doc) }
-            }
+            .sourcePaneImageControls(doc, enabled: isImageEditable)
         case .imageEditor:
             ImageEditorView(
                 document: doc,

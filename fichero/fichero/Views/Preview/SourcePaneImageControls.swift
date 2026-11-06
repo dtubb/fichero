@@ -72,6 +72,15 @@ struct SourcePaneImageControls: View {
     }
 }
 
+extension View {
+    /// The enhancement controls over the Source pane's page, for an image page only.
+    func sourcePaneImageControls(_ document: Document, enabled: Bool) -> some View {
+        overlay(alignment: .topTrailing) {
+            if enabled { SourcePaneImageControls(document: document) }
+        }
+    }
+}
+
 #Preview("Source pane enhancement controls") {
     SourcePaneImageControls(document: Document(parentId: "folder", fileType: .image, name: "IMG_0007"))
         .environment(APIClient())
