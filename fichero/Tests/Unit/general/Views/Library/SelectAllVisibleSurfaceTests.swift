@@ -222,24 +222,20 @@ struct SelectAllVisibleSurfaceTests {
                 "the preview claims ⌘A with no image shown")
     }
 
-    @Test("the sidebar selects the CURRENT library's visible rows, never across libraries")
-    func sidebarSelectsOneLibrary() throws {
-        // Daniel's ruling. Several libraries open at once is the normal state,
-        // and a chord reaching all of them would select things the user cannot
-        // see and did not open.
-        let sections = try code(at: "Views/Sidebar/Sections/SidebarView+UnifiedLibrarySections.swift")
-        #expect(sections.contains("var currentLibraryVisibleDestinations: [SidebarDestination]"))
-        #expect(sections.contains("libraryManager.currentLibraryId"))
-        // VISIBLE has two halves: the group is expanded, and the rows are the
-        // ones the view actually renders.
-        #expect(sections.contains("sidebarState.isLibraryExpanded(libraryId)"))
-        #expect(sections.contains("flattenedLibraryItems(libraryId: libraryId, buckets: buckets)"))
-
+    @Test("the sidebar publishes no select-all and ⌘A over it is taken and ignored (#6364)")
+    func sidebarNeverSelectsItsRows() throws {
+        // The owner's ruling of 2026-11-05 replaces the one of 2026-08-23: Select All must never select the whole sidebar.
+        // The sidebar no longer publishes a select-all action, and the button's sidebar branch holds focus alone as enough
+        // to take the chord, so the key equivalent does not fall through to the system list either.
         let components = try code(at: "Views/Sidebar/Sections/SidebarView+ViewComponents.swift")
-        #expect(components.contains("\\.sidebarSelectAll"))
-        // Through the same commit seam a click uses, so a select-all cannot
-        // bypass the resilience filter and primary derivation.
-        #expect(components.contains("applySidebarSelectionProposal(Set(currentLibraryVisibleDestinations))"))
+        #expect(!components.contains("sidebarSelectAll"))
+        let sections = try code(at: "Views/Sidebar/Sections/SidebarView+UnifiedLibrarySections.swift")
+        #expect(!sections.contains("currentLibraryVisibleDestinations"))
+        let button = try code(at: "App/Menus/FocusedCommands/FocusedCommandButtons+SelectAll.swift")
+        #expect(!button.contains("sidebarSelectAll"))
+        let branch = try #require(button.components(separatedBy: "case .sidebar:").last?.components(separatedBy: "case .preview:").first)
+        #expect(branch.contains("return .sidebar"))
+        #expect(button.contains("case .sidebarIgnored:"))
     }
 
     // MARK: - #4851/#4794: the Entities and Claims tables answer too

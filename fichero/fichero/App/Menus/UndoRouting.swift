@@ -142,9 +142,9 @@ enum SelectAllRoute: Equatable {
     case libraryRows
     /// A selectable list in the inspector holds focus — select its rows.
     case inspectorList
-    /// The sidebar holds focus — select the CURRENT library's visible rows
-    /// (Daniel, 2026-08-23: never across libraries).
-    case sidebarRows
+    /// The sidebar holds focus — ⌘A is taken and does nothing: it never selects the sidebar's rows, and it is not left to
+    /// fall through to the system, whose list would select them all (`ui.select-all.never-the-sidebar`, #6364).
+    case sidebarIgnored
     /// The preview holds focus over an image — select the WHOLE image, which
     /// is what the marquee's unit rect means.
     case previewImage
@@ -163,7 +163,8 @@ enum SelectAllRoute: Equatable {
 enum SelectAllSurface: Equatable {
     case libraryRows
     case inspectorList
-    case sidebarRows
+    /// The sidebar holds focus. It has no rows to select: ⌘A over it is ignored (`ui.select-all.never-the-sidebar`, #6364).
+    case sidebar
     case previewImage
 }
 
@@ -185,7 +186,7 @@ enum SelectAllRoutingPolicy {
         switch focusedSurface {
         case .libraryRows: return .libraryRows
         case .inspectorList: return .inspectorList
-        case .sidebarRows: return .sidebarRows
+        case .sidebar: return .sidebarIgnored
         case .previewImage: return .previewImage
         case nil: return .none
         }

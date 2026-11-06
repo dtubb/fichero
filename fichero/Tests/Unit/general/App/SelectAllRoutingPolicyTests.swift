@@ -56,8 +56,8 @@ struct SelectAllRoutingPolicyTests {
             isTextEditing: true, focusedSurface: .inspectorList, expected: .focusedTextEditor
         ),
         Row(
-            rule: "a focused sidebar selects the current library's visible rows",
-            isTextEditing: false, focusedSurface: .sidebarRows, expected: .sidebarRows
+            rule: "a focused sidebar is taken and ignored: never its rows, and never left to the system's list (#6364)",
+            isTextEditing: false, focusedSurface: .sidebar, expected: .sidebarIgnored
         ),
         Row(
             rule: "a focused preview over an image selects the whole image",
@@ -65,7 +65,7 @@ struct SelectAllRoutingPolicyTests {
         ),
         Row(
             rule: "renaming in the sidebar still gives ⌘A to the caret",
-            isTextEditing: true, focusedSurface: .sidebarRows, expected: .focusedTextEditor
+            isTextEditing: true, focusedSurface: .sidebar, expected: .focusedTextEditor
         ),
     ]
 
@@ -86,7 +86,7 @@ struct SelectAllRoutingPolicyTests {
     /// an empty typing undo stack.
     @Test("a focused text editor is never overridden by the library")
     func textEditingIsNeverOverridden() {
-        for surface: SelectAllSurface? in [.libraryRows, .inspectorList, .sidebarRows, .previewImage, nil] {
+        for surface: SelectAllSurface? in [.libraryRows, .inspectorList, .sidebar, .previewImage, nil] {
             #expect(
                 SelectAllRoutingPolicy.route(
                     isTextEditing: true,
@@ -146,5 +146,15 @@ struct SelectAllRoutingPolicyTests {
             modifiers: [.shift]
         )
         #expect(narrowed.selection == ["a", "b"])
+    }
+
+    /// `ui.select-all.never-the-sidebar` (#6364): ⌘A never selects the whole sidebar. The route over a focused sidebar is not `.none`
+    /// (which would let the system's own list select all its rows) and is not any rows route: it is the one that does nothing.
+    @Test("a focused sidebar's ⌘A is ignored, not declined and not a selection")
+    func sidebarIsIgnored() {
+        let route = SelectAllRoutingPolicy.route(isTextEditing: false, focusedSurface: .sidebar)
+        #expect(route == .sidebarIgnored)
+        #expect(route != .none)
+        #expect(!([.libraryRows, .inspectorList, .previewImage] as [SelectAllRoute]).contains(route))
     }
 }

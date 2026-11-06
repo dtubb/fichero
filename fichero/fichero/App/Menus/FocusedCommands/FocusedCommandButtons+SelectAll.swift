@@ -24,7 +24,6 @@ struct SelectAllButton: View {
     @FocusedValue(\.librarySelectAll) private var librarySelectAll
     @FocusedValue(\.inspectorSelectAll) private var inspectorSelectAll
     @FocusedValue(\.focusedPaneKind) private var focusedPane
-    @FocusedValue(\.sidebarSelectAll) private var sidebarSelectAll
     @FocusedValue(\.previewSelectAll) private var previewSelectAll
 
     var body: some View {
@@ -56,7 +55,9 @@ struct SelectAllButton: View {
         case .inspector:
             return inspectorSelectAll?.isEnabled == true ? .inspectorList : nil
         case .sidebar:
-            return sidebarSelectAll?.isEnabled == true ? .sidebarRows : nil
+            // Focus alone is enough here: the sidebar is never selected whole (#6364), so the chord is taken and ignored
+            // rather than declined, which would let the system's own select-all take the sidebar's rows.
+            return .sidebar
         case .preview:
             return previewSelectAll?.isEnabled == true ? .previewImage : nil
         case .reading:
@@ -91,8 +92,8 @@ struct SelectAllButton: View {
             librarySelectAll?.run()
         case .inspectorList:
             inspectorSelectAll?.run()
-        case .sidebarRows:
-            sidebarSelectAll?.run()
+        case .sidebarIgnored:
+            return
         case .previewImage:
             previewSelectAll?.run()
         }

@@ -86,18 +86,6 @@ extension SidebarView {
         }
         // File's and Project's project verbs when the window shows the always-there project (#5652).
         .focusedSceneValue(\.projectVerbs, windowAlwaysThereProjectVerbs)
-        // ⌘A over the sidebar selects the CURRENT library's visible rows
-        // (Daniel, 2026-08-23) — published, never key-handled here, because
-        // `SelectAllButton` owns the chord and asks which pane has focus.
-        // Through the same commit seam a click uses, so a select-all cannot
-        // bypass the resilience filter and primary derivation.
-        .focusedSceneValue(
-            \.sidebarSelectAll,
-            FocusedLibraryAction(
-                isEnabled: !currentLibraryVisibleDestinations.isEmpty,
-                run: { applySidebarSelectionProposal(Set(currentLibraryVisibleDestinations)) }
-            )
-        )
         // NO .tint on this List. #4371 tinted the selection to the grey fill;
         // on the current SDK that tint did not hold for the FOCUSED
         // (emphasized) selection, which rendered the saturated accent platter

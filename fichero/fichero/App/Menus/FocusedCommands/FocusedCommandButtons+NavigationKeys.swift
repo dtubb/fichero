@@ -136,11 +136,6 @@ extension FocusedValues {
         set { self[InspectorSelectAllKey.self] = newValue }
     }
 
-    var sidebarSelectAll: SidebarSelectAllKey.Value? {
-        get { self[SidebarSelectAllKey.self] }
-        set { self[SidebarSelectAllKey.self] = newValue }
-    }
-
     var previewSelectAll: PreviewSelectAllKey.Value? {
         get { self[PreviewSelectAllKey.self] }
         set { self[PreviewSelectAllKey.self] = newValue }
