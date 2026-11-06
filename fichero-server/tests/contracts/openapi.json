@@ -96816,6 +96816,11 @@
             "type": "integer",
             "title": "Paired Device Count"
           },
+          "shared_library_count": {
+            "type": "integer",
+            "title": "Shared Library Count",
+            "default": 0
+          },
           "multiuser_blocker": {
             "type": "string",
             "nullable": true,
