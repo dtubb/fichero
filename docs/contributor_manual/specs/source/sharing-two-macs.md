@@ -690,6 +690,35 @@ Owner rulings 2026-11-05: the accounts and people issues stay in this milestone;
 - `sharing.guest.connect-to-library` — **[GAP]** (→ #6360) app. File › Connect to Library… (Finder's Connect to Server in shape) takes a pair link or an address and a code, pairs, and adds that Mac to the same list the sidebar group reads, with the libraries it gave this device; a link that names a project opens it. There is one list behind the menu item and the group, and Settings › Sharing › Connect to Another Mac… (`ConnectSheetModel`) is the same sheet. *Built:* the Connect to Another Mac sheet in Settings (`sharing.settings.connect-sheet`) pairs from a link or address; File › Connect to Library… (#6360) opens that sheet. *Not built:* opening the project the link names, and what pairing does after it succeeds beyond replacing the one paired host. *Tests:* none yet. Not built: `ConnectToLibraryTests.swift`.
 - `sharing.guest.empty-state-says-how-to-pair` — **[PARTIAL]** (→ #6360) app. With no paired Mac the group is not hidden: it reads "No Macs yet. On the other Mac, turn on Sharing and copy a pairing link, then choose File › Connect to Library…". *Built (#6360):* the sentence in the empty group. *Not built:* a live look at it. *Tests:* `PairedMachinesGroupTests.swift`.
 - `sharing.guest.library-pinned-to-its-host` — **[GAP]** (→ #6360, #2866) app. A shared library opens beside the Mac's own projects and each library dials its own host: the local project keeps the embedded engine, the shared one the paired Mac, in the same window set, so choosing one in the paired-machines group does not switch the whole app away from the local ones. *Built:* nothing; `LibraryManager.LibraryReference.host` reads the one app-wide host. *Tests:* none yet. Not built: `LibraryPinnedToHostTests.swift`.
+- `sharing.ios.shared-library-chooser` — **[GAP]** (→ #5396, #5734, #3371) app, iPhone and iPad. After pairing, the phone or tablet shows a list of only the libraries shared with the signed-in person (the same `PairedMachineStore` the Mac's Shared Libraries section reads, from the host's `GET /api/authz/libraries` for that person or this device), each labelled by its host Mac; tapping one opens it through the same host switch the Mac row uses. With none yet, the list says how to pair (the empty-state sentence, with "Connect" in place of the File menu). *Built:* the phone's pairing screen (`RemoteConnectionSetupView` in `ConnectPairingIOS.swift`: nearby Macs, QR scan, typed entry) calls the shared `RemoteClientPairing.pairAndPersistHost`, which records the host in `PairedMachineStore` (#6360). *Not built:* the list on iPhone and iPad, tap-to-open. *Tests:* none yet. Not built: `SharedLibraryChooserIOSTests.swift`.
+- `sharing.ios.no-empty-detail` — **[GAP]** (→ #5396) app, iPhone and iPad. The phone never lands on an empty detail view or the Mac's split layout squeezed onto a phone: on iPhone the chooser is the root and a library pushes on top of it (back returns to the chooser); on iPad the chooser is the sidebar and the detail shows the chosen library, or the chooser's one sentence when none is chosen. *Built:* nothing. *Tests:* none yet. Not built: `SharedLibraryChooserIOSTests.swift`.
+- `sharing.alerts.one-alert-per-failure` — **[GAP]** (→ #6361) app, Mac, iPhone and iPad. Every pairing or sharing failure the app can show is ONE native alert from the run-failure alert component (`RunFailureAlert`, `specs/ai/run-failure-alerts.md` Step 2.1): the title says what happened, the message says why in plain words and then the fix, and a button acts on the fix where one exists, then "Copy Details" and "OK". No raw error text (`error.localizedDescription`, an OSStatus, an HTTP code) reaches the person. The cases and their buttons:
+
+  | Case (`PairingFailure` or source) | What happened (title) | Why, then the fix (message: today's `sentence`) | Fix button |
+  |---|---|---|---|
+  | `invalidLink` | This isn't a pairing link | not a Fichero link; copy it again from Sharing on the other Mac | Paste Link Again |
+  | `olderLink` | This link is for an older Fichero | the link's format changed; ask for a new link | — |
+  | `nameNotFound` | Can't find <host> | the name is not on this network; use the Tailscale address or the same Wi-Fi | Open Tailscale |
+  | `tailnetNameNotFound` | Can't find <host> | Tailscale isn't running on this device; start it | Open Tailscale |
+  | `noAnswer` (timeout) | <host> didn't answer | Fichero is not open there, Sharing is off, or the network keeps devices apart | Try Again |
+  | `refused` | <host> isn't listening | Fichero is on but not sharing; turn Sharing off and on there | Try Again |
+  | `offline` | No network | this device has no connection | Open Network Settings |
+  | `certificatePin` (pin mismatch) | A different Mac answered | its security key is not the link's; scan or paste a new link | Paste Link Again |
+  | `certificateName` | <host>'s certificate doesn't match | turn Sharing off and on there so it makes a new one | Try Again |
+  | `tailnetByNumber` | Tailscale needs the name | the link used a number; ask for a new link | — |
+  | `codeUsedOrExpired` (link expired) | That code has expired | codes last 10 minutes or are used once; make a new one | Paste Link Again |
+  | `tooManyTries` | Too many tries | wait a minute | Try Again (after the wait) |
+  | `personRequired` | Sign in to <host> | this library uses accounts | Sign In… (focuses the name field) |
+  | `versionMismatch` | Fichero versions don't match | names both versions and which Mac is older | Check for Updates… |
+  | `libraryNotGiven` | <host> didn't share that project with you | the link was for another project or person; ask for a new link | — |
+  | `hostStopped` (`SharingStopped`) | <host> stopped sharing | ask them to turn Sharing on; the row stays greyed (`sharing.marks.off-greys-row`) | — |
+  | `deviceForgotten` (revoked token) | <host> no longer knows this device | the owner removed it; pair again | Paste Link Again |
+  | missing `:8765` tailnet forward (#6358) | <host>'s Tailscale address isn't set up | the host saved a Tailscale name but has no forward to Fichero; on the host, turn Sharing off and on | Copy Details |
+  | host unreachable after a Shared Libraries row (`SharedLibraryOpener`, `EngineHostSwitch` not responding) | <host> isn't responding | it is off, asleep, or Sharing is off; the app went back to this Mac's projects | Try Again |
+  | the Keychain refused the token (`tokenNotSaved`, `sharing.failed-save-spends-nothing`) | This device couldn't keep its key | the pairing was undone on the host; pair again | Try Again |
+
+  *Built:* each `PairingFailure` has its sentence (`PairingFailure.sentence`) and its actions (`PairingFailureActions`: Try again, Copy details, Open Tailscale, Open Settings), shown as a `Label` line in the connect sheet (`MacRemoteClientPairingSection`, `clientPairingError`). *Not built:* the alert; the titles; the fix buttons Paste Link Again, Sign In…, Check for Updates…; the forward and host-switch cases as `PairingFailure`s. Found while writing this: `LibraryManager.sharingStoppedNotice` (Sharing stopped, and a failed Shared Libraries open) is set but no view shows it. *Tests:* none yet. Not built: `SharingFailureAlertTests.swift`.
+- `sharing.alerts.no-bottom-strip` — **[GAP]** (→ #6361) app. The raw error lines go: the connect sheet's error `Label`, the connection view's failure text for a paired host, and any text set from `error.localizedDescription` for a sharing failure. Each becomes the alert above. *Built:* nothing. *Tests:* none yet. Not built: `SharingFailureAlertTests.swift`.
 
 ## Build order
 
@@ -957,6 +986,21 @@ Acceptance (the owner's, 2026-11-06): when sharing is allowed but no project is 
 - test (to write): `test_sharing_state_counts_shared_libraries.py` in fichero-server/tests/unit/api/ (zero grants → 0; one person-role on one of two libraries → 1; a library given to a paired device → counted once)
 - test (to write): `ShareWhichProjectsDialogTests.swift` in fichero/Tests/Unit/general/Sharing/ (the model: opens only when the count is 0; rows from the libraries list; Share's payloads per check and person; Not Now sends nothing; a 403 keeps the checks)
 - test (to write): `ShareWhichProjectsUITests.swift` in fichero/Tests/UI/mac/ (XCUITest beside `SharingPaneUITests.swift`: switch on with nothing shared → the sheet; check one project, Share; the pane no longer shows the button; switch on again → no sheet)
+#### Step 8.7 — iPhone and iPad choose a shared library from a list of only theirs (#5396, #5734, #3371)
+- Behaviours: `sharing.ios.shared-library-chooser`, `sharing.ios.no-empty-detail`
+- Tests: SharedLibraryChooserIOSTests.swift (not yet written)
+- Depends on: 8.5
+- Size: M
+
+Acceptance (the owner's, 2026-11-06): on iPhone or iPad, the person pairs with a Mac and chooses which library to show from a list of only the libraries shared with them; it opens. The stopgap of 8.5 holds here too: opening switches the app to that Mac.
+
+#### Step 8.8 — every pairing and sharing failure is a native alert with its fix (#6361)
+- Behaviours: `sharing.alerts.one-alert-per-failure`, `sharing.alerts.no-bottom-strip`
+- Tests: SharingFailureAlertTests.swift (not yet written)
+- Depends on: 8.7
+- Size: M
+
+Acceptance (the owner's, 2026-11-06): no sharing or pairing error appears as raw text at the bottom of the window; each is an alert saying what happened, why, and the fix, with a button where there is one. One alert component serves runs and sharing (`specs/ai/run-failure-alerts.md` Step 2.1); if that step has not landed when this is built, this step builds the component and 2.1 reuses it.
 
 ## Open questions: decided, defaulted, or for the owner
 
