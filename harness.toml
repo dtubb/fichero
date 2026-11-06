@@ -54,6 +54,7 @@ pytest_config = "fichero-server/pyproject.toml"
 # synced by `builder machines sync`); a runner unreachable or under 5 GiB free = an alert and the next, then the run here; the build
 # rung and the guards (git) stay on the Pro
 remote = ["imac:~/fichero-gate", "air:~/fichero-gate"]
+remote_min_free_gb = 6  # manager 2026-11-06: a runner under 6 GiB free is skipped
 pytest_plugins = ["anyio.pytest_plugin", "_hypothesis_pytestplugin", "langsmith.pytest_plugin", "pytest_timeout", "pytest_asyncio.plugin"]
 
 # A diff under build_paths compiles the app (build only, never a test run: a test run quits the owner's app) in the
@@ -119,7 +120,9 @@ boundary = ['/Users/(?!Shared/)[A-Za-z0-9._-]+/', 'sk-ant-[A-Za-z0-9_-]{8,}', 'g
 [loop]
 # manager 2026-11-04 (alerts 315, 316): the lanes the loop ticks, named; a lane not here (an old milestone lane in queue.json) never starts.
 # Build-order milestones are taken only with feed_milestones = true: a lane is queued on purpose.
-only = ["lane-sharing", "lane-onboard", "lane-ie", "harness-gen3", "harness-unblock", "dev-workflows"]
+only = ["lane-sharing", "lane-onboard", "lane-ie", "harness-gen3", "harness-unblock", "dev-workflows", "spec-writer"]  # spec-writer: a Fable session writing specs (2026-11-06)
+# owner 2026-11-06: two lanes' chains at once (the pool was one worker, so [check].parallel = 2 was never used)
+lanes = 2
 feed_milestones = false
 # dev-workflows.run.loop-external-intake: an external lane is taken by itself at this many commits past the land branch, or when
 # its oldest unlanded commit is this old, if its HEAD is a finished step; findings and LANDED go to its pane through `tell`
