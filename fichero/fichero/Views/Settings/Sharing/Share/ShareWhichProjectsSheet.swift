@@ -127,3 +127,15 @@ struct ShareWhichProjectsSheet: View {
         dismiss()
     }
 }
+
+#if DEBUG
+#Preview("Which projects, no accounts") {
+    let marshall = LibraryManager.LibraryReference(
+        url: URL(fileURLWithPath: "/tmp/Marshall Diaries.fichero"), document: FicheroDocument(),
+        displayName: "Marshall Diaries")
+    let istmina = LibraryManager.LibraryReference(
+        url: URL(fileURLWithPath: "/tmp/Istmina.fichero"), document: FicheroDocument(), displayName: "Istmina")
+    return ShareWhichProjectsSheet(libraries: [marshall, istmina], multiuser: false,
+                                   usersStore: AppState().usersStore, onLink: { _ in })
+}
+#endif
