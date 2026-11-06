@@ -104,6 +104,19 @@ private struct FicheroSharedPlatformRoot: View {
     let executionObserver: WorkflowExecutionObserver
 
     @State private var pendingPairURL: IdentifiableURL?
+    @State private var showingChooser = false
+
+    /// Only the libraries shared with this person; choosing one opens it (`sharing.ios.shared-library-chooser`).
+    private var chooser: some View {
+        SharedLibraryChooserView(machines: libraryManager.pairedMachines) { machine, path in
+            showingChooser = false
+            Task {
+                await SharedLibraryOpener.openOnDevice(
+                    hostRoot: machine.id, libraryPath: path, appState: appState, libraryManager: libraryManager,
+                    reconnect: { await reconnectToConfiguredHost() })
+            }
+        }
+    }
 
     private var activeLibrary: LibraryManager.LibraryReference? {
         LibraryWorkspaceSelection.activeLibrary(
@@ -139,12 +152,13 @@ private struct FicheroSharedPlatformRoot: View {
                     )
                         .environment(windowState)
                         .environment(library.apiClient)
+                        .toolbar {
+                            ToolbarItem(placement: .navigation) {
+                                Button("Libraries", systemImage: "books.vertical") { showingChooser = true }
+                            }
+                        }
                 } else {
-                    ContentUnavailableView(
-                        "Project Unavailable",
-                        systemImage: "externaldrive.badge.exclamationmark",
-                        description: Text("Fichero could not load the project.")
-                    )
+                    NavigationStack { chooser }
                 }
             }
         )
@@ -173,6 +187,7 @@ private struct FicheroSharedPlatformRoot: View {
             guard RemoteClientPairing.isPairingInviteLink(url) else { return }
             pendingPairURL = IdentifiableURL(url: url)
         }
+        .sheet(isPresented: $showingChooser) { NavigationStack { chooser } }
         .sheet(item: $pendingPairURL) { wrapper in
             PairingIncomingLinkSheet(url: wrapper.url) {
                 await reconnectToConfiguredHost()

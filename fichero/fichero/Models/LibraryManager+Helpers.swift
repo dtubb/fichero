@@ -254,6 +254,7 @@ extension LibraryManager {
     /// entries are recents/known libraries, not the set currently open for
     /// remote use.
     func adoptPairedRemoteLibrary() {
+        pairedMachines = PairedMachineStore.load()
         guard EngineConfig.requiresExternalBackendConnection else { return }
         let path = RemoteAccessConfig.pairedLibraryPath
         guard !path.isEmpty else { return }

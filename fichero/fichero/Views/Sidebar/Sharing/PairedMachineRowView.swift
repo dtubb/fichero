@@ -20,7 +20,12 @@ struct SharedLibraryRowView: View {
 
 /// The group's empty state: how to pair (`sharing.guest.empty-state-says-how-to-pair`).
 struct PairedMachinesEmptyView: View {
-    static let sentence = "No Macs yet. On the other Mac, turn on Sharing and copy a pairing link, then choose File › Connect to Library…"
+    #if os(macOS)
+    static let sentence = "No Macs yet. On the other Mac, turn on Sharing and copy a pairing link, "
+        + "then choose File › Connect to Library…"
+    #else
+    static let sentence = "No Macs yet. On the Mac, turn on Sharing and show its pairing code, then choose Connect."
+    #endif
 
     var body: some View {
         Text(Self.sentence).font(.caption).foregroundStyle(.secondary)

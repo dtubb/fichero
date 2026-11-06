@@ -41,4 +41,21 @@ enum SharedLibraryOpener {
             get: { optionLaunch.wrappedValue || libraryManager.connectToLibraryRequested },
             set: { if !$0 { optionLaunch.wrappedValue = false; libraryManager.connectToLibraryRequested = false } })
     }
+
+    /// iPhone and iPad (`sharing.ios.shared-library-chooser`): no local engine to stop, so the host and library are
+    /// written and the phone's one connect path (`reconnect`) dials them.
+    static func openOnDevice(
+        hostRoot: String, libraryPath: String, appState: AppState, libraryManager: LibraryManager,
+        reconnect: () async -> Void
+    ) async {
+        guard let apiRoot = URL(string: hostRoot) else { return }
+        EngineConfig.storeHost(hostRoot)
+        EngineConfig.defaults.set(libraryPath, forKey: RemoteAccessConfig.pairedLibraryPathKey)
+        PairedHostEndpointStore.clear()
+        PairedHostEndpointStore.record(apiRoot)
+        appState.reconfigureGeneratedClientsForCurrentHost()
+        libraryManager.reconfigureGeneratedClientsForCurrentHost()
+        libraryManager.adoptPairedRemoteLibrary()
+        await reconnect()
+    }
 }
