@@ -1069,6 +1069,55 @@ def pair_device(
             claimed_here.claimed = False  # a refusal spends nothing: the code is good for the next try
 
 
+class SignInDeviceRequest(BaseModel):
+    """A person signs a device in with no code (`sharing.people.sign-in-without-a-code`): sent once over the pinned TLS
+    connection, never stored or logged."""
+
+    device_name: str = Field(min_length=1)
+    username: str = Field(min_length=1)
+    password: str
+
+
+@router.post("/sign-in", response_model=PairResponse)
+def sign_in_device(
+    request: Request,
+    body: SignInDeviceRequest,
+    app_db: AppDatabase = Depends(get_app_database),
+) -> PairResponse:
+    """With accounts on, make a device bound to the person who signed in and hand back its token: the address, a username and
+    a password, no pair code (Step 8.9). The pair code stays for a device with no person (accounts off)."""
+    _require_secure_pairing_transport(request)
+    now = utc_now()
+    _check_pair_rate_limit(request, now, record_attempt=False)
+    try:
+        if not _use_multiuser_auth():
+            raise HTTPException(status_code=409, detail="this Mac does not use accounts: ask for a pairing link")
+        name = body.device_name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="device_name is required")
+        person = app_db.get_user_by_username(body.username.strip())
+        # An unknown name costs the same hash as a wrong password and reads the same: no one learns who has an account.
+        matches = accounts.verify_password(body.password, person.password_hash if person else accounts.hash_password(" "))
+        if person is None or not matches:
+            raise HTTPException(status_code=401, detail="invalid username or password")
+        if not person.active:
+            raise HTTPException(status_code=403, detail="user is disabled")
+        raw_token = accounts.new_session_token()
+        device = app_db.create_device(name=name, user_id=person.id, token_hash=accounts.hash_token(raw_token))
+        app_db.set_device_route(device.id, "tailnet" if _has_proxy_origin_headers(request) else "lan")
+        _record_device_audit(
+            action_name="device.sign_in",
+            actor=f"user:{person.username}",
+            params={"person": person.username, "device_name": name},
+            device_id=device.id,
+            after=_to_public_device(device).model_dump(mode="json"),
+        )
+        return _to_pair_response(device, raw_token)
+    except HTTPException:
+        _record_pair_attempt(request, now)
+        raise
+
+
 @router.post("/enroll", response_model=PairResponse)
 def enroll_device(
     request: Request,
