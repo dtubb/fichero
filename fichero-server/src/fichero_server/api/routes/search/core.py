@@ -1913,7 +1913,7 @@ async def save_search(
     ctx: "ActionContext" = Depends(action_context),
 ) -> SavedSearchResponse:
     """Save a search for later."""
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "savedsearch.save",
         request.model_dump(mode="json"),

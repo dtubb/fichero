@@ -495,7 +495,7 @@ async def merge_entities(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> EntityAuditResponse:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "entity.merge",
         request.model_dump(mode="json"),
@@ -559,7 +559,7 @@ async def batch_set_entity_curation_state(
     from pathlib import Path
 
     ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db, "entity.batch_curation", request.model_dump(mode="json"), ctx
     )
     return BatchEntityCurationResponse.model_validate(result.result)
@@ -662,7 +662,7 @@ async def split_entity(
         library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
     )
-    result = registry.invoke(db, "entity.split", request.model_dump(mode="json"), ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "entity.split", request.model_dump(mode="json"), ctx)
     return EntityAuditResponse.model_validate(result.result)
 
 
@@ -815,7 +815,7 @@ async def undo_entity_operation(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> EntityAuditResponse:
-    result = registry.invoke(db, "entity.unmerge", {"audit_id": audit_id}, ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "entity.unmerge", {"audit_id": audit_id}, ctx)
     return EntityAuditResponse.model_validate(result.result)
 
 
@@ -1358,7 +1358,7 @@ async def put_external_authority_settings(
     from pathlib import Path
 
     ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
-    registry.invoke(
+    await asyncio.to_thread(registry.invoke,
         db, "kg.set_external_authority_enabled", body.model_dump(mode="json"), ctx
     )
     return body
@@ -1509,7 +1509,7 @@ async def link_external_authority(
     from pathlib import Path
 
     ctx = ActionContext(actor="human", library_path=str(Path(db.path).parent))
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "entity.link_authority",
         {
@@ -1711,7 +1711,7 @@ async def enrich_import(
     from pathlib import Path
 
     ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
-    result = registry.invoke(db, "entity.enrich_import", body.model_dump(mode="json"), ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "entity.enrich_import", body.model_dump(mode="json"), ctx)
     return EnrichImportResponse.model_validate(result.result)
 
 

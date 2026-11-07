@@ -1,6 +1,7 @@
 """Bibliographic metadata API (#908)."""
 
 from __future__ import annotations
+import asyncio
 
 import logging
 from fichero_server.core.timeutil import utc_now
@@ -107,7 +108,7 @@ async def attach_record(
     ctx: ActionContext | object = Depends(action_context),
 ) -> MetadataResponse:
     ctx = _resolve_action_ctx(ctx, library_path=x_fichero_library_path)
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "bibliography.attach",
         {
@@ -261,7 +262,7 @@ async def resolve(
             merged[key] = value
         # Route through the audited action layer so every mutation
         # gets an ActionAudit row, actor attribution, and change event (#3252).
-        result = registry.invoke(
+        result = await asyncio.to_thread(registry.invoke,
             db,
             "bibliography.patch_metadata",
             {"document_id": document_id, "metadata": merged},
@@ -293,7 +294,7 @@ async def patch_metadata(
     ctx: ActionContext | object = Depends(action_context),
 ) -> MetadataResponse:
     ctx = _resolve_action_ctx(ctx, library_path=x_fichero_library_path)
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "bibliography.patch_metadata",
         {
@@ -351,7 +352,7 @@ async def run_extractor(
     merged = await extract_full(doc, llm_config=llm_config)
     # Route through the audited action layer so every mutation
     # gets an ActionAudit row, actor attribution, and change event (#3252).
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "bibliography.patch_metadata",
         {"document_id": document_id, "metadata": merged},
@@ -483,7 +484,7 @@ async def bulk_import_persist(
     ctx: ActionContext | object = Depends(action_context),
 ) -> BulkImportResponse:
     ctx = _resolve_action_ctx(ctx, library_path=x_fichero_library_path)
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "bibliography.bulk_import",
         request.model_dump(mode="json"),

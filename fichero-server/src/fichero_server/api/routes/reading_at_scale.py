@@ -7,6 +7,7 @@ any pass. Following one reads the job row: shard counts, the failed shards with 
 what landed.
 """
 from __future__ import annotations
+import asyncio
 
 from typing import Any
 
@@ -122,7 +123,7 @@ async def start_reading_at_scale(
     passes as it finishes. Refused, with nothing queued, without `pages_may_leave` (403), without a
     Hugging Face token (412), or with a reader that cannot run off this Mac (422)."""
     try:
-        result = registry.invoke(db, "reading.start_at_scale", request.model_dump(), ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "reading.start_at_scale", request.model_dump(), ctx)
     except _read_job().PagesMayNotLeave as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except _refusals()[0] as exc:
@@ -148,7 +149,7 @@ async def resend_failed_shards(
     ctx: ActionContext = Depends(action_context),
 ) -> dict[str, Any]:
     try:
-        return registry.invoke(db, "reading.resend_failed", {"job_id": job_id}, ctx).result
+        return (await asyncio.to_thread(registry.invoke,db, "reading.resend_failed", {"job_id": job_id}, ctx)).result
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -162,7 +163,7 @@ async def cancel_reading_job(
     ctx: ActionContext = Depends(action_context),
 ) -> dict[str, str]:
     try:
-        return registry.invoke(db, "reading.cancel_at_scale", {"job_id": job_id}, ctx).result
+        return (await asyncio.to_thread(registry.invoke,db, "reading.cancel_at_scale", {"job_id": job_id}, ctx)).result
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -174,7 +175,7 @@ async def catch_up_reading_job(
     ctx: ActionContext = Depends(action_context),
 ) -> dict[str, str]:
     try:
-        return registry.invoke(db, "reading.catch_up", {"job_id": job_id}, ctx).result
+        return (await asyncio.to_thread(registry.invoke,db, "reading.catch_up", {"job_id": job_id}, ctx)).result
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:

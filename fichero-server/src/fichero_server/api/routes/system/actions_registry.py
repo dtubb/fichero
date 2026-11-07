@@ -22,6 +22,7 @@ cannot be forged through request bodies or headers.
 """
 
 from __future__ import annotations
+import asyncio
 
 from typing import Annotated, Any, Literal, Optional
 
@@ -149,7 +150,7 @@ async def invoke_action(
     """Validate + run a registered action through the audited choke point."""
     ctx.run_id = body.run_id
     try:
-        result = registry.invoke(db, body.name, body.params, ctx)
+        result = await asyncio.to_thread(registry.invoke,db, body.name, body.params, ctx)
     except ActionNotFoundError:
         raise HTTPException(status_code=404, detail=f"Unknown action: {body.name}")
     except ValidationError as exc:

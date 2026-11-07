@@ -943,7 +943,7 @@ async def delete_workflow_runs_route(
     if request.statuses and document_reader(http, library_path) is not None:  # "every failed run" cannot be cut to the caller's pages
         raise HTTPException(status_code=403, detail="Delete runs by name: this removes every run in those states")
     await run_check(http, library_path, db, request.thread_ids or [], write=True)
-    result = registry.invoke(db, "workflow_run.delete", request.model_dump(), ctx)
+    result = await run_in_threadpool(registry.invoke, db, "workflow_run.delete", request.model_dump(), ctx)
     return WorkflowRunDeleteResult.model_validate(result.result)
 
 
@@ -1036,7 +1036,7 @@ async def delete_thread(
             request_cancellation(thread_id)
 
         deleted = await checkpointer.adelete_thread(thread_id) if checkpoint_tuple else 0
-        delete_result = registry.invoke(
+        delete_result = await run_in_threadpool(registry.invoke,
             db, "workflow_run.delete", {"thread_ids": [thread_id]}, ctx
         )
         activity_deleted = delete_result.result.get("count", 0)

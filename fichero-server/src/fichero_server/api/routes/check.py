@@ -4,6 +4,7 @@ Start, follow and stop a check run (`check.run`, `check.cancel`); record a verdi
 (`check.verdict`, recorded at `person`); list the verdicts on a proposal or of a run.
 """
 from __future__ import annotations
+import asyncio
 
 from typing import Any
 
@@ -75,7 +76,7 @@ async def start_check_run(
     verdict at the trust level `model`; a corrected reading is a new reading naming the first; a model
     never curates a statement or verifies an entity. Through `check.run`."""
     try:
-        return registry.invoke(db, "check.run", request.model_dump(), ctx).result
+        return (await asyncio.to_thread(registry.invoke,db, "check.run", request.model_dump(), ctx)).result
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -97,7 +98,7 @@ async def cancel_check_run(
     ctx: ActionContext = Depends(action_context),
 ) -> dict[str, str]:
     try:
-        return registry.invoke(db, "check.cancel", {"job_id": job_id}, ctx).result
+        return (await asyncio.to_thread(registry.invoke,db, "check.cancel", {"job_id": job_id}, ctx)).result
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -112,7 +113,7 @@ async def record_verdict(
     is the server's: `person` for you, `model` for a run or an agent. A reject records your verdict; a
     statement's curation is still its own action."""
     try:
-        return registry.invoke(db, "check.verdict", params.model_dump(), ctx).result
+        return (await asyncio.to_thread(registry.invoke,db, "check.verdict", params.model_dump(), ctx)).result
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:

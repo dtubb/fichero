@@ -6,6 +6,7 @@ cite?" — the citation network alongside the entity network.
 """
 
 from __future__ import annotations
+import asyncio
 
 import logging
 from typing import Any
@@ -146,7 +147,7 @@ async def create_citation(
         library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
     )
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "citation.create",
         request.model_dump(mode="json"),
@@ -252,7 +253,7 @@ async def patch_citation(
         library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
     )
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "citation.patch",
         {
@@ -282,7 +283,7 @@ async def delete_citation(
         library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
     )
-    registry.invoke(
+    await asyncio.to_thread(registry.invoke,
         db,
         "citation.delete",
         {"citation_id": citation_id},

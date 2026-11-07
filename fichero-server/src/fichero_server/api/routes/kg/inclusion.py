@@ -6,6 +6,7 @@ queries roll up entities/claims. Lives under ``/api/kg/inclusion``.
 """
 
 from __future__ import annotations
+import asyncio
 
 from pathlib import Path
 
@@ -134,7 +135,7 @@ async def upsert_inclusion(
 ) -> KnowledgeGraphInclusion:
     """Upsert an inclusion rule. Most-recent row wins per (scope, target)."""
     ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db, "inclusion.upsert", request.model_dump(mode="json"), ctx
     )
     return KnowledgeGraphInclusion.model_validate(result.result)

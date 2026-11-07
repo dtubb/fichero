@@ -16,6 +16,7 @@ own body.
 """
 
 from __future__ import annotations
+import asyncio
 
 import logging
 import re
@@ -2345,7 +2346,7 @@ async def update_segments_many(
         origin_window=x_fichero_origin_window, db=db,
     )
     try:
-        result = registry.invoke(db, "segment.update_many", params.model_dump(mode="json"), ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "segment.update_many", params.model_dump(mode="json"), ctx)
     except Exception as exc:
         raise _as_http_error(exc) from exc
     return {**result.result, "audit_id": result.audit_id}
@@ -3812,7 +3813,7 @@ async def create_pass(
         actor=actor, library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window, db=db,
     )
-    result = registry.invoke(db, "segment.pass_create", params.model_dump(mode="json"), ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "segment.pass_create", params.model_dump(mode="json"), ctx)
     return SegmentPass.model_validate(result.result)
 
 
@@ -3828,7 +3829,7 @@ async def delete_pass(
         actor=actor, library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window, db=db,
     )
-    result = registry.invoke(db, "segment.pass_delete", {"pass_id": pass_id}, ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "segment.pass_delete", {"pass_id": pass_id}, ctx)
     return result.result
 
 
@@ -3861,7 +3862,7 @@ async def set_pass_ground_truth(
         actor=actor, library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window, db=db,
     )
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db, "segment.pass_ground_truth", {"pass_id": pass_id, "ground_truth": body.ground_truth}, ctx,
     )
     return PassGroundTruthResponse(**result.result)
@@ -3921,7 +3922,7 @@ async def create_segment(
         actor=actor, library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window, db=db,
     )
-    result = registry.invoke(db, "segment.create", params.model_dump(mode="json"), ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "segment.create", params.model_dump(mode="json"), ctx)
     segment_id = result.result["segment_ids"][0]
     return segment_read_from_row(db.get(Segment, segment_id))
 
@@ -3938,7 +3939,7 @@ async def create_segments_bulk(
         actor=actor, library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window, db=db,
     )
-    result = registry.invoke(db, "segment.create_many", params.model_dump(mode="json"), ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "segment.create_many", params.model_dump(mode="json"), ctx)
     segment_ids = result.result["segment_ids"]
     return {
         "segments": [
@@ -3965,7 +3966,7 @@ async def propose_match(
         actor=actor, library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window, db=db,
     )
-    result = registry.invoke(db, "segment.match_propose", params.model_dump(mode="json"), ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "segment.match_propose", params.model_dump(mode="json"), ctx)
     match = db.get(SegmentMatch, result.result["match_id"])
     return match.model_dump(mode="json") if match else result.result
 
@@ -4004,7 +4005,7 @@ async def accept_match(
         actor=actor, library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window, db=db,
     )
-    result = registry.invoke(db, "segment.match_accept", {"match_id": match_id}, ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "segment.match_accept", {"match_id": match_id}, ctx)
     return result.result
 
 
@@ -4020,7 +4021,7 @@ async def reject_match(
         actor=actor, library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window, db=db,
     )
-    result = registry.invoke(db, "segment.match_reject", {"match_id": match_id}, ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "segment.match_reject", {"match_id": match_id}, ctx)
     return result.result
 
 
@@ -4036,7 +4037,7 @@ async def merge_segments(
         actor=actor, library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window, db=db,
     )
-    result = registry.invoke(db, "segment.merge", params.model_dump(mode="json"), ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "segment.merge", params.model_dump(mode="json"), ctx)
     return result.result
 
 
@@ -4052,7 +4053,7 @@ async def split_segment(
         actor=actor, library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window, db=db,
     )
-    result = registry.invoke(db, "segment.split", params.model_dump(mode="json"), ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "segment.split", params.model_dump(mode="json"), ctx)
     return result.result
 
 
@@ -4068,7 +4069,7 @@ async def carry_across_match(
         actor=actor, library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window, db=db,
     )
-    result = registry.invoke(db, "segment.carry", params.model_dump(mode="json"), ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "segment.carry", params.model_dump(mode="json"), ctx)
     return result.result
 
 
@@ -4119,7 +4120,7 @@ async def update_segment(
         actor=actor, library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window, db=db,
     )
-    registry.invoke(db, "segment.update", params.model_dump(mode="json"), ctx)
+    await asyncio.to_thread(registry.invoke,db, "segment.update", params.model_dump(mode="json"), ctx)
     return segment_read_from_row(db.get(Segment, segment_id))
 
 
@@ -4135,7 +4136,7 @@ async def delete_segments(
         actor=actor, library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window, db=db,
     )
-    result = registry.invoke(db, "segment.delete", params.model_dump(mode="json"), ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "segment.delete", params.model_dump(mode="json"), ctx)
     return result.result
 
 
@@ -4151,7 +4152,7 @@ async def undelete_segments(
         actor=actor, library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window, db=db,
     )
-    result = registry.invoke(db, "segment.undelete", params.model_dump(mode="json"), ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "segment.undelete", params.model_dump(mode="json"), ctx)
     return result.result
 
 
@@ -4178,7 +4179,7 @@ async def restore_segment_version(
     params = {
         "segment_id": segment_id, "version": body.version, "expected_version": body.expected_version,
     }
-    registry.invoke(db, "segment.restore_version", params, ctx)
+    await asyncio.to_thread(registry.invoke,db, "segment.restore_version", params, ctx)
     return segment_read_from_row(db.get(Segment, segment_id))
 
 

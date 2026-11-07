@@ -1,6 +1,7 @@
 """Research Agents CRUD routes — Projects, Plans, Tasks, Steps."""
 
 from fichero_server.core.timeutil import utc_now
+import asyncio
 import json
 import re
 from typing import Any
@@ -138,7 +139,7 @@ async def create_project(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ResearchProject:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "research.project.create",
         request.model_dump(mode="json"),
@@ -177,7 +178,7 @@ async def update_project(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ResearchProject:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "research.project.update",
         {"project_id": project_id, **request.model_dump(mode="json", exclude_unset=True)},
@@ -192,7 +193,7 @@ async def delete_project(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> DeletedWithIdResponse:
-    registry.invoke(db, "research.project.delete", {"project_id": project_id}, ctx)
+    await asyncio.to_thread(registry.invoke,db, "research.project.delete", {"project_id": project_id}, ctx)
     return DeletedWithIdResponse(status="deleted", id=project_id)
 
 
@@ -404,7 +405,7 @@ async def create_plan(
             project_name=project.name if project else None,
             project_description=project.description if project else None,
         )
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "research.plan.create",
         {
@@ -444,7 +445,7 @@ async def update_plan(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ResearchPlan:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "research.plan.update",
         {"plan_id": plan_id, **request.model_dump(mode="json", exclude_unset=True)},
@@ -537,7 +538,7 @@ async def create_task(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ResearchTask:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "research.task.create",
         request.model_dump(mode="json"),
@@ -591,7 +592,7 @@ async def update_task(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ResearchTask:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "research.task.update",
         {"task_id": task_id, **request.model_dump(mode="json", exclude_unset=True)},
@@ -684,7 +685,7 @@ async def create_step(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ResearchStep:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "research.step.create",
         request.model_dump(mode="json"),
@@ -710,7 +711,7 @@ async def update_step(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ResearchStep:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "research.step.update",
         {"step_id": step_id, **request.model_dump(mode="json", exclude_unset=True)},

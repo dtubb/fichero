@@ -8,6 +8,7 @@ both this table and the artifacts where the engine's text still lives.
 """
 
 from __future__ import annotations
+import asyncio
 
 import hashlib
 import uuid
@@ -157,7 +158,7 @@ async def create_revision(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ContentRepresentationRevision:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "representation.revise",
         {**payload.model_dump(), "representation_id": representation_id},
@@ -1357,7 +1358,7 @@ async def create_representation_route(
 ) -> ContentRepresentation:
     """`POST /api/content-representations` — write one reading."""
     try:
-        result = registry.invoke(db, "representation.create", payload.model_dump(), ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "representation.create", payload.model_dump(), ctx)
     except Exception as exc:  # typed refusals -> 4xx, never a 500
         raise _as_http_error(exc) from exc
     return ContentRepresentation.model_validate(result.result)
@@ -1387,7 +1388,7 @@ async def create_representations_batch_route(
 ) -> RepresentationCreateManyResponse:
     """`POST /api/content-representations/batch` — one Reader edit across lines, one undo step."""
     try:
-        result = registry.invoke(db, "representation.create_many", payload.model_dump(), ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "representation.create_many", payload.model_dump(), ctx)
     except Exception as exc:
         raise _as_http_error(exc) from exc
     return RepresentationCreateManyResponse(

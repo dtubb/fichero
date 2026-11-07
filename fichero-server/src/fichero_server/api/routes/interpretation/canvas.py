@@ -270,7 +270,7 @@ async def save_folder_canvas_layout(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> CanvasLayoutBatchResponse:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "canvas.layout.save",
         {
@@ -346,7 +346,7 @@ async def arrange_folder_canvas_layout(
     ctx: ActionContext = Depends(action_context),
 ) -> CanvasLayoutBatchResponse:
     try:
-        result = registry.invoke(
+        result = await asyncio.to_thread(registry.invoke,
             db,
             "canvas.arrange",
             {
@@ -605,7 +605,7 @@ async def create_folder_canvas_item(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> CanvasItem:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "canvas.item.create",
         {
@@ -626,7 +626,7 @@ async def update_folder_canvas_item(
     ctx: ActionContext = Depends(action_context),
 ) -> CanvasItem:
     try:
-        result = registry.invoke(
+        result = await asyncio.to_thread(registry.invoke,
             db,
             "canvas.item.update",
             {
@@ -652,7 +652,7 @@ async def delete_folder_canvas_item(
     ctx: ActionContext = Depends(action_context),
 ) -> CanvasDeletedResponse:
     try:
-        registry.invoke(
+        await asyncio.to_thread(registry.invoke,
             db,
             "canvas.item.delete",
             {"folder_id": folder_id, "item_id": item_id},

@@ -1,6 +1,7 @@
 """PyKEEN link-prediction routes (#377, #899 Phase E)."""
 
 from __future__ import annotations
+import asyncio
 
 import logging
 from pathlib import Path
@@ -172,7 +173,7 @@ async def create_prediction_review(
     actor: str = Depends(request_actor),
 ) -> KnowledgePredictionReview:
     ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db, "pykeen.create_review", review.model_dump(mode="json"), ctx
     )
     return KnowledgePredictionReview.model_validate(result.result)
@@ -258,7 +259,7 @@ async def decide_prediction_review(
     actor: str = Depends(request_actor),
 ) -> KnowledgePredictionReview:
     ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "pykeen.decide_review",
         {

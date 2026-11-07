@@ -31,6 +31,7 @@ rather than drifted:
 """
 
 from __future__ import annotations
+import asyncio
 
 from typing import Any, Optional
 
@@ -573,5 +574,5 @@ async def put_source_setting(
     else:
         name = "source_setting.clear"
         params.pop("value", None)
-    result = registry.invoke(db, name, params, ctx)
+    result = await asyncio.to_thread(registry.invoke,db, name, params, ctx)
     return {"ok": result.ok, "result": result.result, "audit_id": result.audit_id}

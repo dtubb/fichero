@@ -6,6 +6,7 @@ Surfaces the cross-source support counts computed by
 """
 
 from __future__ import annotations
+import asyncio
 
 import logging
 from pathlib import Path
@@ -158,7 +159,7 @@ async def recompute_triangulation(
 ) -> RecomputeResponse:
     """Persist corpus-wide support counts back onto claim rows."""
     ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
-    result = registry.invoke(db, "triangulation.recompute", {}, ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "triangulation.recompute", {}, ctx)
     updated = result.result["claims_updated"]
     return RecomputeResponse(
         claims_updated=updated,

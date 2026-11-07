@@ -17,6 +17,7 @@ row as a link between two regions.
 """
 
 from __future__ import annotations
+import asyncio
 
 from typing import Optional
 
@@ -401,5 +402,5 @@ async def create_link(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> dict:
-    result = registry.invoke(db, "typed_link.create", body.model_dump(), ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "typed_link.create", body.model_dump(), ctx)
     return {"ok": result.ok, "result": result.result, "audit_id": result.audit_id}

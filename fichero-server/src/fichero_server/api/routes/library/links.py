@@ -7,6 +7,7 @@ library items (document, note, entity, claim) via source_id/target_id.
 """
 
 from __future__ import annotations
+import asyncio
 
 from fichero_server.core.timeutil import utc_now
 import logging
@@ -345,7 +346,7 @@ async def create_library_link(
         library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
     )
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "library-link.create",
         {"link": request.model_dump(mode="json")},
@@ -407,7 +408,7 @@ async def update_library_link(
         library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
     )
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "library-link.update",
         {"link_id": link_id, "patch": request.model_dump(mode="json", exclude_unset=True)},
@@ -435,7 +436,7 @@ async def delete_library_link(
         library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
     )
-    registry.invoke(db, "library-link.delete", {"link_id": link_id}, ctx)
+    await asyncio.to_thread(registry.invoke,db, "library-link.delete", {"link_id": link_id}, ctx)
     return LibraryLinkDeletedResponse(success=True, link_id=link_id, operation="deleted")
 
 

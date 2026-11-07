@@ -16,6 +16,7 @@ from fichero_server.actions.registry import (
     audit_with_digests,
     registry,
 )
+import asyncio
 from fichero_server.db import Database
 from fichero_server.models import ResearchNotesListResponse
 from fichero_server.models.research import (
@@ -121,7 +122,7 @@ async def create_search_source(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> SearchSource:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "research.source.create",
         request.model_dump(mode="json"),
@@ -233,7 +234,7 @@ async def create_note(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ResearchNote:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "research.note.create",
         request.model_dump(mode="json"),
@@ -273,7 +274,7 @@ async def update_note(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ResearchNote:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "research.note.update",
         {"note_id": note_id, **request.model_dump(mode="json")},
@@ -367,7 +368,7 @@ async def create_checklist(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ResearchChecklist:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "research.checklist.create",
         request.model_dump(mode="json"),
@@ -397,7 +398,7 @@ async def toggle_checklist_item(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ResearchChecklist:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "research.checklist.update",
         {

@@ -6,6 +6,7 @@ API endpoints for accessing processing artifacts (transcriptions, summaries, ent
 
 import logging
 from enum import StrEnum
+import asyncio
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
@@ -462,7 +463,7 @@ async def create_artifact(
         origin_window=x_fichero_origin_window,
         db=db,
     )
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "artifact.create",
         request.model_dump(mode="json"),
@@ -950,7 +951,7 @@ async def update_artifact(
         origin_window=x_fichero_origin_window,
         db=db,
     )
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "artifact.update",
         {"artifact_id": artifact_id, "patch": update.model_dump(mode="json")},
@@ -990,7 +991,7 @@ async def delete_artifact(
         origin_window=x_fichero_origin_window,
         db=db,
     )
-    registry.invoke(
+    await asyncio.to_thread(registry.invoke,
         db,
         "artifact.delete",
         {"artifact_id": artifact_id},
@@ -1113,7 +1114,7 @@ async def bulk_create_artifacts(
         origin_window=x_fichero_origin_window,
         db=db,
     )
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "artifact.bulk_create",
         request.model_dump(mode="json"),
@@ -1682,7 +1683,7 @@ async def edit_artifact_regions(
             box_count = len(block.boxes) if block else 0
             if all(0 <= i < box_count for i in edit.indices):
                 target_ids = [_converted_segment_id(artifact_id, i) for i in edit.indices]
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "segment.convert_and_edit",
         {

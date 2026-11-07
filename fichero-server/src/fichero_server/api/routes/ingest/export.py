@@ -620,7 +620,7 @@ async def keep_export(
     from fichero_server.kept_export import KeptExportRefused
 
     try:
-        result = registry.invoke(db, "export.keep", request.model_dump(), ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "export.keep", request.model_dump(), ctx)
     except KeptExportRefused as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _kept(db, result.result["id"])
@@ -634,7 +634,7 @@ async def remove_kept_export(
     ctx: ActionContext = Depends(action_context),
 ) -> KeptExportRemoved:
     _kept(db, export_id)
-    registry.invoke(db, "export.unkeep", {"export_id": export_id}, ctx)
+    await asyncio.to_thread(registry.invoke,db, "export.unkeep", {"export_id": export_id}, ctx)
     return KeptExportRemoved(id=export_id)
 
 

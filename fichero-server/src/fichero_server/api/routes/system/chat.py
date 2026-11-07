@@ -1095,7 +1095,7 @@ async def create_conversation(
 ) -> ConversationHistory:
     """Create an empty conversation through the audited ``conversation.create``
     action (#4308) — no LLM required, appears in the sidebar immediately."""
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "conversation.create",
         {
@@ -1149,7 +1149,7 @@ async def save_conversation_as_workspace(
         return _agent_workspace_response(db, existing)
 
     scoped_members = _conversation_scoped_members(conversation)
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "document.create",
         {
@@ -1167,7 +1167,7 @@ async def save_conversation_as_workspace(
         ctx,
     )
     workspace = Document.model_validate(result.result)
-    registry.invoke(
+    await asyncio.to_thread(registry.invoke,
         db,
         "document.patch_workspace",
         {
@@ -1211,7 +1211,7 @@ async def patch_agent_workspace_members(
 ) -> AgentWorkspace:
     """Add or remove source, entity, claim, or note references from a workspace."""
     _agent_workspace_or_404(db, workspace_id)
-    registry.invoke(
+    await asyncio.to_thread(registry.invoke,
         db,
         "document.patch_workspace",
         {
@@ -1233,7 +1233,7 @@ async def delete_agent_workspace(
 ) -> AgentWorkspaceDeletedResponse:
     """Soft-delete a workspace node through the existing undoable document action."""
     _agent_workspace_or_404(db, workspace_id)
-    registry.invoke(db, "document.delete", {"doc_id": workspace_id}, ctx)
+    await asyncio.to_thread(registry.invoke,db, "document.delete", {"doc_id": workspace_id}, ctx)
     return AgentWorkspaceDeletedResponse(status="deleted", id=workspace_id)
 
 

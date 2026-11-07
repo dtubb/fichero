@@ -9,6 +9,7 @@ sent to the trash by `POST /duplicates/remove`, the audited, undoable `sync.remo
 engine's disk (the engine may be on another machine; the app never assumes it can see it).
 """
 from __future__ import annotations
+import asyncio
 
 from datetime import datetime
 from typing import Literal
@@ -274,7 +275,7 @@ async def remove_duplicates(
     go to the trash (nothing is deleted for good). Refused (409) in words if any is a kept document
     or no longer a duplicate; then nothing is removed."""
     try:
-        result = registry.invoke(db, "sync.remove_duplicates", request.model_dump(), ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "sync.remove_duplicates", request.model_dump(), ctx)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return RemovedDuplicates(**result.result)
@@ -306,7 +307,7 @@ async def put_intake(
     wrote or adopted that was changed outside comes in as a new pass ("edited outside Fichero"),
     overwriting nothing; one whose page changed too is a conflict, both kept."""
     _intake_state(db, folder_id)  # 404 for a folder that is not tied
-    registry.invoke(db, "sync.intake", {"folder_id": folder_id, "on": request.on}, ctx)
+    await asyncio.to_thread(registry.invoke,db, "sync.intake", {"folder_id": folder_id, "on": request.on}, ctx)
     return _intake_state(db, folder_id)
 
 
@@ -345,7 +346,7 @@ async def put_mode(
     folder that cannot be written to, or that no project folder came from."""
     _status_of(db, folder_id)
     try:
-        registry.invoke(db, "sync.mode", {"folder_id": folder_id, "mode": request.mode}, ctx)
+        await asyncio.to_thread(registry.invoke,db, "sync.mode", {"folder_id": folder_id, "mode": request.mode}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _status_of(db, folder_id)
@@ -363,7 +364,7 @@ async def tie_folder(
     write is never overwritten. Refused (422) for a path that is not a full path on the engine's
     disk or a format a synced folder does not hold."""
     try:
-        result = registry.invoke(db, "sync.tie", request.model_dump(), ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "sync.tie", request.model_dump(), ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return Tied(**result.result)
@@ -382,5 +383,5 @@ async def untie_folder(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> Tied:
-    result = registry.invoke(db, "sync.untie", {"folder_id": folder_id}, ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "sync.untie", {"folder_id": folder_id}, ctx)
     return Tied(**result.result)

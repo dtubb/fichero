@@ -13,6 +13,7 @@ Endpoints:
 """
 
 from __future__ import annotations
+import asyncio
 
 import logging
 from datetime import datetime
@@ -408,7 +409,7 @@ async def accept_pair(
     actor: str = Depends(request_actor),
 ) -> AcceptResponse:
     ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
-    result = registry.invoke(db, "review.accept", {"pair_id": pair_id}, ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "review.accept", {"pair_id": pair_id}, ctx)
     response = AcceptResponse.model_validate(result.result)
     _maybe_trigger_retrain(db)
     return response
@@ -512,7 +513,7 @@ async def reject_pair(
     actor: str = Depends(request_actor),
 ) -> RejectResponse:
     ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
-    result = registry.invoke(db, "review.reject", {"pair_id": pair_id}, ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "review.reject", {"pair_id": pair_id}, ctx)
     _maybe_trigger_retrain(db)
     return RejectResponse.model_validate(result.result)
 
@@ -640,5 +641,5 @@ async def queue_pair(
     actor: str = Depends(request_actor),
 ) -> ReviewPairResponse:
     ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
-    result = registry.invoke(db, "review.queue", request.model_dump(mode="json"), ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "review.queue", request.model_dump(mode="json"), ctx)
     return ReviewPairResponse.model_validate(result.result)

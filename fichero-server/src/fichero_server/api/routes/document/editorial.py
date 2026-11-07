@@ -9,6 +9,7 @@ drawn with them (`source.sure.brackets-are-drawn`): the brackets are made at rea
 """
 
 from __future__ import annotations
+import asyncio
 
 from typing import Any, Optional
 
@@ -248,7 +249,7 @@ async def record_many(
     ctx: ActionContext = Depends(action_context),
 ) -> EditorialActionAnswer:
     """One whole-segment fact on several segments (the Inspector's multi-selection): one audit id, one undo."""
-    result = registry.invoke(db, "editorial.record_many", body.model_dump(mode="json"), ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "editorial.record_many", body.model_dump(mode="json"), ctx)
     return EditorialActionAnswer(ok=result.ok, result=result.result, audit_id=result.audit_id)
 
 
@@ -258,7 +259,7 @@ async def withdraw_many(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> EditorialActionAnswer:
-    result = registry.invoke(db, "editorial.withdraw_many", body.model_dump(mode="json"), ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "editorial.withdraw_many", body.model_dump(mode="json"), ctx)
     return EditorialActionAnswer(ok=result.ok, result=result.result, audit_id=result.audit_id)
 
 

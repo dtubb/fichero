@@ -7,6 +7,7 @@ freely.
 """
 
 from __future__ import annotations
+import asyncio
 
 import logging
 from fichero_server.core.timeutil import utc_now
@@ -203,7 +204,7 @@ async def create_value(
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> ClassificationValue:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "classification.create",
         request.model_dump(mode="json"),
@@ -253,7 +254,7 @@ async def patch_value(
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> ClassificationValue:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "classification.patch",
         {
@@ -289,7 +290,7 @@ async def delete_value(
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> None:
-    registry.invoke(db, "classification.delete", {"value_id": value_id}, ctx)
+    await asyncio.to_thread(registry.invoke,db, "classification.delete", {"value_id": value_id}, ctx)
 
 
 # ---------------------------------------------------------------------------

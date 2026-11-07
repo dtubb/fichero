@@ -7,6 +7,7 @@ KnowledgeClaim with the annotation's anchor as source.
 """
 
 from __future__ import annotations
+import asyncio
 
 import logging
 from datetime import datetime
@@ -265,7 +266,7 @@ async def create_annotation(
     db: Database = Depends(get_library_database_for_named_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> Annotation:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "annotation.create",
         request.model_dump(mode="json"),
@@ -395,7 +396,7 @@ async def patch_annotation(
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> Annotation:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "annotation.update",
         {"annotation_id": annotation_id, "update": request.model_dump(mode="json", exclude_unset=True)},
@@ -439,7 +440,7 @@ async def delete_annotation(
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> None:
-    registry.invoke(db, "annotation.delete", {"annotation_id": annotation_id}, ctx)
+    await asyncio.to_thread(registry.invoke,db, "annotation.delete", {"annotation_id": annotation_id}, ctx)
 
 
 # The crop routes return PNG bytes (image / PDF region) or a text substring —
@@ -695,7 +696,7 @@ async def promote_to_claim(
     a second emit in the action). The previous hand-rolled emit_change
     calls are replaced by the registry's built-in audit+emit pipeline.
     """
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "annotation.promote_to_claim",
         {"annotation_id": annotation_id},

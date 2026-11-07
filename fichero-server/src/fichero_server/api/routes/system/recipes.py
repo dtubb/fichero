@@ -1077,7 +1077,7 @@ async def choose_font(
     else:
         answers.pop("fonts", None)
     try:
-        done = registry.invoke(db, "project.save_setup", {"answers": normalise_answers(answers, strict=True)}, ctx)
+        done = await asyncio.to_thread(registry.invoke,db, "project.save_setup", {"answers": normalise_answers(answers, strict=True)}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     facts = derived.script_facts(body.script, str(answers.get("period") or ""), fonts.get(body.script))
@@ -2076,7 +2076,7 @@ async def save_project_setup(
                 logger.info("Read the whole page was un-ticked; its page reader's choice went with it")
             fit_overrides(kept)  # a saved choice for a step the sent recipe lacks: the page step added, any other dropped (#6259)
             bakeoff.apply_project_overrides(kept, list(known_cards(include_not_built=True)))
-        result = registry.invoke(db, "project.save_setup", params, ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "project.save_setup", params, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     _search_when_known(db, (result.result or {}).get("answers"))
@@ -2171,7 +2171,7 @@ async def allow_cloud(
     models. An audited action (who, when, which project), undoable, and reversible in Set Up (the same `cloud_allowed`
     answer). Nothing else in the project's setup changes. `allowed: false` says no, for this project, whatever the app's
     switch says (`ai.cloud.project-overrides-the-default`, #6348): the same action sets yes or no."""
-    result = registry.invoke(db, "project.allow_cloud", {"allowed": body.allowed} if body else {}, ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "project.allow_cloud", {"allowed": body.allowed} if body else {}, ctx)
     return AllowCloudResult(**result.result)
 
 
@@ -3104,7 +3104,7 @@ async def use_installed_instead(
         try:
             recipe = use_place_instead(setup["recipe"], (await asyncio.to_thread(_start_plan, db))["elsewhere"], request.model,
                                        request.provider, now=now)
-            result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
+            result = await asyncio.to_thread(registry.invoke,db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return _whole_setup(result.result)
@@ -3113,7 +3113,7 @@ async def use_installed_instead(
         raise HTTPException(status_code=422, detail="that model is not one Fichero has a card for")
     try:
         recipe = use_instead(setup["recipe"], (await asyncio.to_thread(_start_plan, db))["downloads"], request.model, card, now=now)
-        result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _whole_setup(result.result)
@@ -3142,7 +3142,7 @@ async def put_step_on_a_place(
     setup = read_project_setup(_library(db))
     try:
         recipe = set_step_place(setup["recipe"], request.step, request.place)
-        result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _whole_setup(result.result)
@@ -3192,7 +3192,7 @@ async def use_candidate_for_step(
                                                     "the candidates (online, to search) and choose one of them")
     try:
         recipe = use_candidate(setup["recipe"], request.step, card, now=utc_now_iso(timespec="seconds"))
-        result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _whole_setup(result.result)
@@ -3235,7 +3235,7 @@ async def use_readers_for_step(
         cards.append(card)
     try:
         recipe = use_readers(setup["recipe"], request.step, cards, now=utc_now_iso(timespec="seconds"))
-        result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _whole_setup(result.result)
@@ -3273,7 +3273,7 @@ async def _use_unsure_correction(db: Database, ctx: ActionContext, library: Path
             raise ValueError("Set Up leaves Correct out for this project, so a model cannot be set to correct")
         fresh = use_candidate(fresh, new_correct, card, now=utc_now_iso(timespec="seconds"), because=UNSURE_BECAUSE,
                              extra={UNSURE_FIELD: True, CORRECT_WAS_ON_FIELD: was_on})
-        result = registry.invoke(db, "project.save_setup", {"answers": answers, "recipe": fresh}, ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "project.save_setup", {"answers": answers, "recipe": fresh}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _whole_setup(result.result)
@@ -3317,7 +3317,7 @@ async def use_setup_pick_for_step(
             kept = overrides_without(setup["recipe"], request.step)
         recipe = await asyncio.to_thread(_assemble, answers or {}, library, overrides=kept)
         recipe["overrides"] = kept
-        result = registry.invoke(db, "project.save_setup", {"answers": answers, "recipe": recipe}, ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "project.save_setup", {"answers": answers, "recipe": recipe}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _whole_setup(result.result)
@@ -3430,7 +3430,7 @@ async def change_project_layers(
     `remove` takes a layer out again and withdraws its proposed jobs. Refused with 422, in words, for a
     project not set up, an unknown layer, or one it already has."""
     try:
-        registry.invoke(db, "project.add_layer", request.model_dump(mode="json"), ctx)
+        await asyncio.to_thread(registry.invoke,db, "project.add_layer", request.model_dump(mode="json"), ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return StartPlan(**await asyncio.to_thread(_start_plan, db, clusters=_cluster_names(http)))
@@ -3641,4 +3641,4 @@ async def accept_unpriced_cloud_model(
     """Accept that this project runs one cloud model with no listed price (or take the yes back): its calls are counted at an
     assumed price and listed apart (`ai.where.accept-unpriced-cloud-model`). The one audited action every refused path names, and the
     one Start's yes uses; kept in the project, keyed by provider and model, not in Set Up's answers."""
-    return AcceptedUnpriced(**registry.invoke(db, "cloud.accept_unpriced", request.model_dump(), ctx).result)
+    return AcceptedUnpriced(**(await asyncio.to_thread(registry.invoke,db, "cloud.accept_unpriced", request.model_dump(), ctx)).result)

@@ -3,6 +3,7 @@
 from fichero_server.core.timeutil import utc_now
 from datetime import datetime, timezone
 from typing import Any, TypeVar
+import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -253,7 +254,7 @@ async def create_framework(
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> InterpretiveFramework:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "framework.create",
         request.model_dump(mode="json"),
@@ -315,7 +316,7 @@ async def update_framework(
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> InterpretiveFramework:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "framework.update",
         {"framework_id": framework_id, **request.model_dump(mode="json", exclude_unset=True)},
@@ -348,7 +349,7 @@ async def delete_framework(
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> FrameworkDeactivatedResponse:
-    registry.invoke(db, "framework.delete", {"framework_id": framework_id}, ctx)
+    await asyncio.to_thread(registry.invoke,db, "framework.delete", {"framework_id": framework_id}, ctx)
     return FrameworkDeactivatedResponse(status="deactivated")
 
 
@@ -419,7 +420,7 @@ async def create_interpretation(
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> Interpretation:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "interpretation.create",
         request.model_dump(mode="json"),
@@ -496,7 +497,7 @@ async def update_interpretation(
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> Interpretation:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "interpretation.update",
         {
@@ -541,7 +542,7 @@ async def create_pattern(
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> PatternInstance:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "pattern.create",
         request.model_dump(mode="json"),
@@ -602,7 +603,7 @@ async def update_pattern(
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> PatternInstance:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "pattern.update",
         {"pattern_id": pattern_id, **request.model_dump(mode="json", exclude_unset=True)},
@@ -638,7 +639,7 @@ async def add_claim_to_pattern(
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> PatternInstance:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "pattern.add_claim",
         {"pattern_id": pattern_id, "claim_id": claim_id},
@@ -678,7 +679,7 @@ async def create_circle_state(
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> HermeneuticCircleState:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "circle_state.create",
         request.model_dump(mode="json"),
@@ -747,7 +748,7 @@ async def navigate_circle(
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> HermeneuticCircleState:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "circle_state.navigate",
         {"state_id": state_id, **request.model_dump(mode="json")},
@@ -784,7 +785,7 @@ async def backtrack_circle(
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> HermeneuticCircleState:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "circle_state.backtrack",
         {"state_id": state_id},

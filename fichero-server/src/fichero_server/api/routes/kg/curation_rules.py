@@ -1,6 +1,7 @@
 """Persistent entity/claim curation rule CRUD routes."""
 
 from __future__ import annotations
+import asyncio
 
 from datetime import datetime
 
@@ -255,7 +256,7 @@ async def create_entity_rule(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> EntityRuleReadResponse:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "kg.entity_rule.create",
         request.model_dump(mode="json"),
@@ -270,7 +271,7 @@ async def create_entity_rules_batch(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> EntityRuleListResponse:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "kg.entity_rule.batch_create",
         request.model_dump(mode="json"),
@@ -285,7 +286,7 @@ async def delete_entity_rule(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> EntityRuleDeleteResponse:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "kg.entity_rule.delete",
         request.model_dump(mode="json"),
@@ -315,7 +316,7 @@ async def create_claim_rule(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ClaimRuleReadResponse:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "kg.claim_rule.create",
         request.model_dump(mode="json"),
@@ -330,7 +331,7 @@ async def create_claim_rules_batch(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ClaimRuleListResponse:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "kg.claim_rule.batch_create",
         request.model_dump(mode="json"),
@@ -345,7 +346,7 @@ async def delete_claim_rule(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ClaimRuleDeleteResponse:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "kg.claim_rule.delete",
         request.model_dump(mode="json"),

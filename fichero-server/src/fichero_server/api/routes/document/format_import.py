@@ -36,6 +36,7 @@ correctness concern and not only a speed one.
 """
 
 from __future__ import annotations
+import asyncio
 
 import re
 
@@ -1219,7 +1220,7 @@ async def import_document_page(
         if dataset is not None:
             (folder / Path(dataset.filename).name).write_bytes(await dataset.read())
         # The pass is named after the file the PERSON chose, not the temporary copy.
-        result = registry.invoke(
+        result = (await asyncio.to_thread(registry.invoke,
             db,
             "format.import",
             {
@@ -1231,7 +1232,7 @@ async def import_document_page(
                 "ground_truth": ground_truth,
             },
             ctx,
-        ).result
+        )).result
     finally:
         shutil.rmtree(folder, ignore_errors=True)
 

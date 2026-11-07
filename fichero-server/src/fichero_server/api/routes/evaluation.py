@@ -6,6 +6,7 @@ it is appended to the model's card and a later evaluation adds to it. Stopping i
 (`POST /api/activity/jobs/{id}/cancel`), which reaches the kind's own cancel.
 """
 from __future__ import annotations
+import asyncio
 
 from typing import Any, Literal
 
@@ -67,7 +68,7 @@ async def start_evaluation(
     named page is not held out from a trained candidate, no page has a checked reading, a model is not
     on this Mac, or the model is remote (not built yet). Through `evaluation.run`."""
     try:
-        return EvaluationStarted(**registry.invoke(db, "evaluation.run", request.model_dump(), ctx).result)
+        return EvaluationStarted(**(await asyncio.to_thread(registry.invoke,db, "evaluation.run", request.model_dump(), ctx)).result)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

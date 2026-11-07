@@ -6,6 +6,7 @@ Thin over `fichero_server.training.job`. Starting and stopping are audited actio
 the training set's counts, the price per hour, the last log lines, and the reader it landed.
 """
 from __future__ import annotations
+import asyncio
 
 from typing import Any
 
@@ -170,7 +171,7 @@ async def start_kraken_training(
     person's yes for the pages to leave, without a Hugging Face token, or with a base reader that is
     not installed."""
     try:
-        result = registry.invoke(db, "training.start", request.model_dump(), ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "training.start", request.model_dump(), ctx)
     except _training_job().PagesMayNotLeave as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except _no_token() as exc:
@@ -192,7 +193,7 @@ async def start_kraken_training_here(
     resumes from its last finished epoch, and records the memory and time it took. Follow and stop it
     with `/training/jobs/{job_id}`. Refused with a base reader that is not installed."""
     try:
-        result = registry.invoke(db, "training.start_here", request.model_dump(), ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "training.start_here", request.model_dump(), ctx)
     except (ValueError, RuntimeError, LookupError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return TrainingStartedHere(**result.result)
@@ -212,7 +213,7 @@ async def start_regions_training_here(
     pages, and a recipe's find-regions step can use it (`{"yolo": "<its id>"}`). Refused when the base model is
     not downloaded or no page in scope has a person's regions."""
     try:
-        result = registry.invoke(db, "training.start_regions_here", request.model_dump(), ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "training.start_regions_here", request.model_dump(), ctx)
     except (ValueError, RuntimeError, LookupError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return TrainingStartedHere(**result.result)
@@ -231,7 +232,7 @@ async def start_vision_lora_training(
     converted to 4-bit MLX on this Mac and landed as `fichero-trained/<name>`, the adapter kept beside
     it. The same refusals as the Kraken card."""
     try:
-        result = registry.invoke(db, "training.start_vision_lora", request.model_dump(), ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "training.start_vision_lora", request.model_dump(), ctx)
     except _training_job().PagesMayNotLeave as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except _no_token() as exc:
@@ -304,7 +305,7 @@ async def cancel_training_job(
     ctx: ActionContext = Depends(action_context),
 ) -> dict[str, str]:
     try:
-        return registry.invoke(db, "training.cancel", {"job_id": job_id}, ctx).result
+        return (await asyncio.to_thread(registry.invoke,db, "training.cancel", {"job_id": job_id}, ctx)).result
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -433,7 +434,7 @@ async def make_trained_model_global(
     from fichero_server.training.project_models import NotInProject
 
     try:
-        return ModelMadeGlobal(**registry.invoke(db, "training.make_model_global", params.model_dump(), ctx).result)
+        return ModelMadeGlobal(**(await asyncio.to_thread(registry.invoke,db, "training.make_model_global", params.model_dump(), ctx)).result)
     except NotInProject as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except FileExistsError as exc:
@@ -472,7 +473,7 @@ async def start_gathering_reasons(
     `why` and `thinking` arms are made from them (the `review` arm from the check job's readings card,
     `POST /api/check/runs`). A hosted teacher goes through the egress gate like any model call."""
     try:
-        return registry.invoke(db, "training.gather_reasons", request.model_dump(), ctx).result
+        return (await asyncio.to_thread(registry.invoke,db, "training.gather_reasons", request.model_dump(), ctx)).result
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -492,7 +493,7 @@ async def cancel_reasons_job(
     ctx: ActionContext = Depends(action_context),
 ) -> dict[str, str]:
     try:
-        return registry.invoke(db, "training.cancel_reasons", {"job_id": job_id}, ctx).result
+        return (await asyncio.to_thread(registry.invoke,db, "training.cancel_reasons", {"job_id": job_id}, ctx)).result
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -516,7 +517,7 @@ async def start_reasons_ab(
     reasoning student is adopted only beyond `noise_band`; the result is written on every Fichero-trained
     contender's card either way. Through `training.measure_reasons_ab`; 422 without held-out pages."""
     try:
-        return registry.invoke(db, "training.measure_reasons_ab", request.model_dump(), ctx).result
+        return (await asyncio.to_thread(registry.invoke,db, "training.measure_reasons_ab", request.model_dump(), ctx)).result
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

@@ -6,6 +6,7 @@ them (`finddocs.accept`, `finddocs.reject`): each audited, undone by one undo th
 `/api/actions/audit/{id}/undo`. The MCP and the command line get these from the contract.
 """
 from __future__ import annotations
+import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
@@ -97,7 +98,7 @@ async def start_find_documents(
     As the run ends, the documents at least `accept_above` sure are accepted (left out: 0.95, the project's
     default); the rest wait for a person. `accept_above: null` leaves them all for a person."""
     try:
-        job_id = registry.invoke(db, "finddocs.run", request.model_dump(), ctx).result["job_id"]
+        job_id = (await asyncio.to_thread(registry.invoke,db, "finddocs.run", request.model_dump(), ctx)).result["job_id"]
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return FindDocumentsRun(**_job().status(db, job_id))
@@ -173,7 +174,7 @@ async def accept_find_documents_proposal(
     Each kind records who chose it: the run, accepted by this caller. A proposal a later run replaced, or a
     document whose pages are no longer the folder's loose pages, is refused (409) and nothing changes."""
     try:
-        result = registry.invoke(db, "finddocs.accept", {"proposal_id": proposal_id, **body.model_dump()}, ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "finddocs.accept", {"proposal_id": proposal_id, **body.model_dump()}, ctx)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except finddocs_store.ProposalOutOfDate as exc:
@@ -195,7 +196,7 @@ async def reject_find_documents_proposal(
     """Reject proposed documents: kept, marked rejected, for the project's own model to learn from. One audited
     action: undoing it (its `audit_id`) puts back only the documents it rejected (#5698)."""
     try:
-        result = registry.invoke(db, "finddocs.reject", {"proposal_id": proposal_id, **body.model_dump()}, ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "finddocs.reject", {"proposal_id": proposal_id, **body.model_dump()}, ctx)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return FindDocumentsRejectResult(**_lean(finddocs_store.read(db, proposal_id), summary).model_dump(),
@@ -294,7 +295,7 @@ async def score_find_documents(
     carries `suggested_accept_above`: the lowest level at least 99% right over at least `min_joins` joins, pooled
     over every folder's newest score; null until then. It never turns the auto-accept on."""
     try:
-        result = registry.invoke(db, "finddocs.score", body.model_dump(), ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "finddocs.score", body.model_dump(), ctx)
     except finddocs_score.ScoreNotPossible as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except LookupError as exc:

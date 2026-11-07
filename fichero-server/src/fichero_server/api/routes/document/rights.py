@@ -10,6 +10,7 @@ not yet decide who is refused what: that is `source.rights.one-check`, held for 
 """
 
 from __future__ import annotations
+import asyncio
 
 from typing import Any, Optional
 
@@ -314,7 +315,7 @@ async def set_rights(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> RightsAnswer:
-    result = registry.invoke(db, "rights.set", body.model_dump(mode="json"), ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "rights.set", body.model_dump(mode="json"), ctx)
     return RightsAnswer(ok=result.ok, result=result.result, audit_id=result.audit_id)
 
 
@@ -325,7 +326,7 @@ async def set_rights_many(
     ctx: ActionContext = Depends(action_context),
 ) -> RightsAnswer:
     """The same record on several targets (the Inspector's multi-selection): one audit id, one undo, all or nothing."""
-    result = registry.invoke(db, "rights.set_many", body.model_dump(mode="json"), ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "rights.set_many", body.model_dump(mode="json"), ctx)
     return RightsAnswer(ok=result.ok, result=result.result, audit_id=result.audit_id)
 
 
@@ -335,7 +336,7 @@ async def withdraw_rights(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> RightsAnswer:
-    result = registry.invoke(db, "rights.withdraw", {"record_id": record_id}, ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "rights.withdraw", {"record_id": record_id}, ctx)
     return RightsAnswer(ok=result.ok, result=result.result, audit_id=result.audit_id)
 
 

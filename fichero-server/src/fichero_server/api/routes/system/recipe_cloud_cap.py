@@ -4,6 +4,7 @@ place (`ai.where.cloud-spend-cap`) and the bake-off's (#4951, `source.try.bakeof
 
 from __future__ import annotations
 
+import asyncio
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -61,9 +62,9 @@ async def change_cloud_cap(
     audit_ids: list[str] = []
     try:
         if answers is not None:
-            audit_ids.append(registry.invoke(db, "project.save_setup", {"answers": answers}, ctx).audit_id)
+            audit_ids.append((await asyncio.to_thread(registry.invoke,db, "project.save_setup", {"answers": answers}, ctx)).audit_id)
         if request.run_cap_usd is not None:
-            run_audit = registry.invoke(db, "run.change_cap", {"run_cap_usd": request.run_cap_usd}, ctx).audit_id
+            run_audit = (await asyncio.to_thread(registry.invoke,db, "run.change_cap", {"run_cap_usd": request.run_cap_usd}, ctx)).audit_id
             audit_ids.append(run_audit)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -370,7 +371,7 @@ async def use_bakeoff_choice(
     try:
         recipe = bakeoff.use_this(setup["recipe"], table, card, scope=request.scope, folder_id=request.folder_id,
                                   now=utc_now_iso(timespec="seconds"), granularity=request.granularity)
-        result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _whole_setup(result.result)

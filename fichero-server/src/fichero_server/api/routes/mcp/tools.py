@@ -5,6 +5,7 @@ duplicated `/api/entities` and `/api/claims` and are retired (`research.mcp-know
 """
 
 from __future__ import annotations
+import asyncio
 
 import logging
 from typing import Any
@@ -53,7 +54,7 @@ async def mcp_check_verdict(
 
     ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent), via_mcp=True)
     try:
-        return registry.invoke(db, "check.verdict", request.model_dump(), ctx).result
+        return (await asyncio.to_thread(registry.invoke,db, "check.verdict", request.model_dump(), ctx)).result
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:

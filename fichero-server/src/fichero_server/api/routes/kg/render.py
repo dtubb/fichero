@@ -1,6 +1,7 @@
 """Knowledge-graph rendering routes."""
 
 from __future__ import annotations
+import asyncio
 
 import logging
 from fichero_server.core.timeutil import utc_now
@@ -244,7 +245,7 @@ async def generate_entity_bio(
     description = biography if entity.description is None or ai_owned else entity.description
     if description != biography:
         metadata["ai_biography"] = biography
-    registry.invoke(
+    await asyncio.to_thread(registry.invoke,
         db,
         "entity.update",
         {

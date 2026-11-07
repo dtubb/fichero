@@ -4,6 +4,7 @@ This module implements the "sources" route surface requested in issue #364.
 """
 
 from __future__ import annotations
+import asyncio
 
 from typing import Any
 
@@ -168,7 +169,7 @@ async def upsert_source(
 ) -> SourceUpsertResponse:
     """Create or update a source (stored as a Document)."""
     ctx = _resolve_action_ctx(ctx, library_path=x_fichero_library_path)
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "source.upsert",
         request.model_dump(mode="json"),
@@ -210,7 +211,7 @@ async def update_source(
 ) -> SourceUpsertResponse:
     """Update an existing source."""
     ctx = _resolve_action_ctx(ctx, library_path=x_fichero_library_path)
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "source.update",
         {
@@ -231,7 +232,7 @@ async def delete_source(
 ) -> None:
     """Delete a source."""
     ctx = _resolve_action_ctx(ctx, library_path=x_fichero_library_path)
-    registry.invoke(
+    await asyncio.to_thread(registry.invoke,
         db,
         "source.delete",
         {"source_id": source_id},

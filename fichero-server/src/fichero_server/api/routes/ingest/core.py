@@ -1253,7 +1253,7 @@ async def ingest_xlsx(
     field) is used as the document name.
     """
     _require_ingest_owner(http_request)
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "import.xlsx",
         request.model_dump(mode="json"),

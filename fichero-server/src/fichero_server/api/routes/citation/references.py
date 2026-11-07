@@ -1,6 +1,7 @@
 """Backend API for first-class bibliographic references (#1103, stage A)."""
 
 from __future__ import annotations
+import asyncio
 
 from datetime import datetime
 from fichero_server.core.timeutil import utc_now
@@ -396,7 +397,7 @@ async def patch_reference(
         library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
     )
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "reference.patch",
         {
@@ -427,7 +428,7 @@ async def delete_reference(
         library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
     )
-    registry.invoke(
+    await asyncio.to_thread(registry.invoke,
         db,
         "reference.delete",
         {"reference_id": reference_id},

@@ -5,6 +5,7 @@ providing a clean separation from the broader knowledge graph functionality.
 """
 
 from __future__ import annotations
+import asyncio
 
 from datetime import datetime
 from fichero_server.core.timeutil import utc_now
@@ -166,7 +167,7 @@ async def create_claim_link(
     """Create a link between two claims."""
     if not isinstance(ctx, ActionContext):
         ctx = ActionContext(actor="system")
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "claim.create_link",
         {"claim_id": claim_id, "link": request.model_dump(mode="json")},
@@ -226,7 +227,7 @@ async def update_claim_link(
     """Update an existing claim link."""
     if not isinstance(ctx, ActionContext):
         ctx = ActionContext(actor="system")
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "claim.update_link",
         {"link_id": link_id, "patch": request.model_dump(mode="json", exclude_unset=True)},
@@ -244,7 +245,7 @@ async def delete_claim_link(
     """Delete a claim link (hard delete)."""
     if not isinstance(ctx, ActionContext):
         ctx = ActionContext(actor="system")
-    registry.invoke(
+    await asyncio.to_thread(registry.invoke,
         db,
         "claim.delete_link",
         {"link_id": link_id},

@@ -1448,7 +1448,7 @@ async def set_background_paused(
 ) -> BackgroundPauseResponse:
     """Pause or resume ALL background work on this Mac (`activity.pause.global`). Kept across
     relaunch. While paused nothing is started by the queue; a job already running finishes."""
-    result = registry.invoke(db, "background.pause", {"paused": request.paused}, ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "background.pause", {"paused": request.paused}, ctx)
     return BackgroundPauseResponse.model_validate(result.result)
 
 
@@ -1462,7 +1462,7 @@ async def set_background_mode(
     waiting work go ahead although the person is at the Mac or it is on battery (memory and heat still
     hold it, and heavy work still runs one job at a time while memory is busy) until set back to
     `automatic`; `paused` pauses all background work. Kept across relaunch."""
-    result = registry.invoke(db, "background.mode", {"mode": request.mode}, ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "background.mode", {"mode": request.mode}, ctx)
     return BackgroundModeResponse.model_validate(result.result)
 
 
@@ -1571,7 +1571,7 @@ async def clear_failed_jobs(
     cleared. Its row is kept (its run's tree and the record still read it) and no longer listed; a
     retry lists it again. Failed workflow runs are cleared by `POST /api/workflow-execution/runs/delete`
     with `statuses: ["failed"]`."""
-    result = registry.invoke(db, "job.clear_failed", {}, ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "job.clear_failed", {}, ctx)
     return ClearFailedResponse.model_validate(result.result)
 
 
@@ -1867,7 +1867,7 @@ async def cleanup_old_activities(
 
     Returns the number of deleted activities.
     """
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "activity.cleanup",
         {"days": days},
@@ -1913,7 +1913,7 @@ async def delete_activity(
     picked (Daniel: an old activity should be deletable). 404 when the id is
     unknown so the UI never claims a delete that removed nothing.
     """
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "activity.delete",
         {"activity_id": activity_id},

@@ -8,6 +8,7 @@ corpus.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime
 from fichero_server.core.timeutil import ensure_utc, utc_now
@@ -166,7 +167,8 @@ async def create_note(
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> Note:
-    result = registry.invoke(
+    result = await asyncio.to_thread(
+        registry.invoke,
         db,
         "note.create",
         request.model_dump(mode="json"),
@@ -310,7 +312,8 @@ async def patch_note(
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> Note:
-    result = registry.invoke(
+    result = await asyncio.to_thread(
+        registry.invoke,
         db,
         "note.update",
         {
@@ -356,7 +359,7 @@ async def delete_note(
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> None:
-    registry.invoke(db, "note.delete", {"note_id": note_id}, ctx)
+    await asyncio.to_thread(registry.invoke, db, "note.delete", {"note_id": note_id}, ctx)
 
 
 # =============================================================================

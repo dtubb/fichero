@@ -5,6 +5,7 @@ Provides queue views and batch transition operations.
 """
 
 from __future__ import annotations
+import asyncio
 
 import logging
 from copy import deepcopy
@@ -936,7 +937,7 @@ async def transition_claim(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ClaimTransitionResponse:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "claim.transition",
         {"claim_id": claim_id, **request.model_dump(mode="json")},
@@ -956,7 +957,7 @@ async def batch_transition_claims(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> BatchClaimTransitionResponse:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "claim.batch_transition",
         request.model_dump(mode="json"),
@@ -975,7 +976,7 @@ async def batch_set_claim_curation_state(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> BatchClaimCurationResponse:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "claim.batch_curation",
         request.model_dump(mode="json"),
@@ -994,7 +995,7 @@ async def merge_claims(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ClaimAuditResponse:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "claim.merge",
         request.model_dump(mode="json"),
@@ -1013,7 +1014,7 @@ async def unmerge_claims(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ClaimAuditResponse:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "claim.unmerge",
         request.model_dump(mode="json"),
@@ -1118,7 +1119,7 @@ async def dedupe_claims(
     merges_applied = 0
     if request.apply:
         for group in groups:
-            result = registry.invoke(
+            result = await asyncio.to_thread(registry.invoke,
                 db,
                 "claim.merge",
                 {
@@ -1148,7 +1149,7 @@ async def prune_trivial_claims(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> PruneTrivialClaimsResponse:
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "claim.prune_trivial",
         request.model_dump(mode="json"),

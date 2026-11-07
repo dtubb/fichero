@@ -9,6 +9,7 @@ the sign's code point, found by ONE query, not by reading the project page by pa
 """
 
 from __future__ import annotations
+import asyncio
 
 from typing import Any, Optional
 
@@ -183,7 +184,7 @@ async def declare_sign(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ActionAnswer:
-    result = registry.invoke(db, "sign.declare", body.model_dump(), ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "sign.declare", body.model_dump(), ctx)
     return ActionAnswer(ok=result.ok, result=result.result, audit_id=result.audit_id)
 
 
@@ -193,7 +194,7 @@ async def withdraw_sign(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ActionAnswer:
-    result = registry.invoke(db, "sign.withdraw", {"sign_id": sign_id}, ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "sign.withdraw", {"sign_id": sign_id}, ctx)
     return ActionAnswer(ok=result.ok, result=result.result, audit_id=result.audit_id)
 
 

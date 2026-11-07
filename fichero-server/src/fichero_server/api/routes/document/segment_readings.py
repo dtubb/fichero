@@ -947,7 +947,7 @@ async def choose_segment_reading(
     """`POST /api/segments/{segment_id}/readings/choice` — record which
     reading counts. Only a person may (`ChoiceNeedsAPerson`, 403)."""
     try:
-        result = registry.invoke(
+        result = await asyncio.to_thread(registry.invoke,
             db,
             "reading.choose",
             {"segment_id": segment_id, **payload.model_dump(exclude_none=True)},
@@ -1006,7 +1006,7 @@ async def correct_segment_line(
             params["corrects_representation_id"] = counted.id
         if params["expected_counting_id"] is None:
             params.pop("expected_counting_id")
-        result = registry.invoke(db, "representation.create", params, ctx)
+        result = await asyncio.to_thread(registry.invoke,db, "representation.create", params, ctx)
     except HTTPException:
         raise  # the stale 409 carries its own detail
     except Exception as exc:

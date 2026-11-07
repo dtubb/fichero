@@ -19,6 +19,7 @@ by enumerating them (`a79b901d8`).
 """
 
 from __future__ import annotations
+import asyncio
 
 from typing import Optional
 
@@ -959,7 +960,7 @@ async def create_reading_order(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> dict:
-    result = registry.invoke(db, "reading_order.create", body.model_dump(), ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "reading_order.create", body.model_dump(), ctx)
     return {"ok": result.ok, "result": result.result, "audit_id": result.audit_id}
 
 
@@ -993,7 +994,7 @@ async def place_in_reading_order(
     """The ONE reorder call the Reader, the Inspector and the Segments pane all make, by drag or
     by key (ruled 2026-09-27, Q5). Thin: the audited `reading_order.place` does the work, so
     it is undoable through the audit trail like every other edit."""
-    result = registry.invoke(db, "reading_order.place", {"order_id": order_id, **body.model_dump()}, ctx)
+    result = await asyncio.to_thread(registry.invoke,db, "reading_order.place", {"order_id": order_id, **body.model_dump()}, ctx)
     return ReadingOrderActionAnswer(ok=result.ok, result=result.result, audit_id=result.audit_id)
 
 

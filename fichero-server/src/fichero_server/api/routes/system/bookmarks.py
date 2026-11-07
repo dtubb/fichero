@@ -7,6 +7,7 @@ resolution, so dangling targets raise loudly instead of silently degrading.
 """
 
 from __future__ import annotations
+import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -122,7 +123,7 @@ async def create_bookmark(
     ctx: ActionContext = Depends(action_context),
 ) -> Document:
     """Create a bookmark node that references another document."""
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "bookmark.create",
         request.model_dump(mode="json"),

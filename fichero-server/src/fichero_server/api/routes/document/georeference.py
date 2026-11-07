@@ -12,6 +12,7 @@ held as `unknown` (a CRS not converted yet) is listed in `not_used`, never guess
 """
 
 from __future__ import annotations
+import asyncio
 
 import hashlib
 import json
@@ -291,7 +292,7 @@ async def set_transformation(
     """`PUT /api/georeference/passes/{pass_id}/transformation` -- choose the type; 422 with the
     number of GCPs it needs when the pass has too few."""
     try:
-        result = registry.invoke(db, "georef.set_transformation",
+        result = await asyncio.to_thread(registry.invoke,db, "georef.set_transformation",
                                  {"pass_id": pass_id, "transformation": body.transformation}, ctx)
     except (LookupError, ValueError) as exc:
         raise _http(exc) from exc

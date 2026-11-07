@@ -5,6 +5,7 @@ providing a clean separation from the broader knowledge graph functionality.
 """
 
 from __future__ import annotations
+import asyncio
 
 from fichero_server.models.anchors import SourceAnchor
 from fichero_server.core.timeutil import utc_now
@@ -949,7 +950,7 @@ async def create_claim(
         library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
     )
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "claim.create",
         request.model_dump(mode="json"),
@@ -977,7 +978,7 @@ async def patch_claim(
         library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
     )
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "claim.patch",
         {
@@ -1112,7 +1113,7 @@ async def delete_claim(
         library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
     )
-    registry.invoke(db, "claim.delete", {"claim_id": claim_id}, ctx)
+    await asyncio.to_thread(registry.invoke,db, "claim.delete", {"claim_id": claim_id}, ctx)
 
 
 # =============================================================================

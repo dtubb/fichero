@@ -5,6 +5,7 @@ providing a clean separation from the broader knowledge graph functionality.
 """
 
 from __future__ import annotations
+import asyncio
 
 import logging
 import re
@@ -853,7 +854,7 @@ async def bulk_upsert_entities(
         library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
     )
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "entity.bulk_upsert",
         request.model_dump(mode="json"),
@@ -1196,7 +1197,7 @@ async def upsert_entity(
                     "and cannot be stored as an entity name"
                 ),
             )
-        result = registry.invoke(
+        result = await asyncio.to_thread(registry.invoke,
             db,
             "entity.update",
             {
@@ -1207,7 +1208,7 @@ async def upsert_entity(
         )
         return KnowledgeEntity.model_validate(result.result)
 
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "entity.create",
         request.model_dump(mode="json"),
@@ -1645,7 +1646,7 @@ async def patch_entity(
         library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
     )
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "entity.update",
         {
@@ -1711,7 +1712,7 @@ async def delete_entity(
         library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
     )
-    registry.invoke(
+    await asyncio.to_thread(registry.invoke,
         db,
         "entity.delete",
         {"entity_id": entity_id, "cascade_claims": cascade_claims},
@@ -1962,7 +1963,7 @@ async def add_entity_aliases(
         library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
     )
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db,
         "entity.update",
         {
@@ -2947,7 +2948,7 @@ async def repoint_mention(
     ctx = _resolve_action_ctx(
         ctx, actor=actor, library_path=x_fichero_library_path, origin_window=x_fichero_origin_window,
     )
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db, "mention.repoint", {"entity_id": entity_id, **request.model_dump(mode="json")}, ctx,
     )
     return _mention_correction_answer(result)
@@ -2969,7 +2970,7 @@ async def respan_mention(
     ctx = _resolve_action_ctx(
         ctx, actor=actor, library_path=x_fichero_library_path, origin_window=x_fichero_origin_window,
     )
-    result = registry.invoke(
+    result = await asyncio.to_thread(registry.invoke,
         db, "mention.respan", {"entity_id": entity_id, **request.model_dump(mode="json")}, ctx,
     )
     return _mention_correction_answer(result)
