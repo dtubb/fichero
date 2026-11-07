@@ -1018,6 +1018,8 @@ def touches_build(lane: dict, step: dict, root) -> bool:
         rules = tomllib.loads((Path(root) / "harness.toml").read_text())
     except (OSError, ValueError):
         return False
+    if rules.get("check", {}).get("build_remote"):  # t88: the build runs on another Mac, so the owner's hold here holds nothing back
+        return False
     paths = tuple(rules.get("check", {}).get("build_paths", ()))
     branch = rules.get("land", {}).get("branch", "integration")
     tree = step.get("land_tree") or lane.get("worktree", "")

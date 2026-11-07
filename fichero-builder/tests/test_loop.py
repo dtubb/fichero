@@ -1065,3 +1065,8 @@ def test_touches_build_reads_the_build_paths_and_diffs_the_batch_and_a_worker_la
     assert queue.touches_build(ln, {"head": docs}, root) is False, "a docs-only batch never waits on the hold"
     assert queue.touches_build(ln, {"head": ""}, root) is True, "a worker lane's step with no head: its worktree HEAD (the Swift commit)"
     assert queue.touches_build(ln, {"head": swift}, None) is False, "no root: unknown, never held"
+
+
+def test_a_build_remote_means_the_owners_hold_here_holds_no_batch_back(tmp_path):
+    (tmp_path / "harness.toml").write_text('[check]\nbuild_paths = ["fichero/"]\nbuild_remote = "air:~/fichero-gate"\n')
+    assert queue.touches_build({"id": "l", "worktree": str(tmp_path)}, {"head": "x"}, tmp_path) is False

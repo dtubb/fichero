@@ -57,6 +57,9 @@ remote = ["imac:~/fichero-gate", "air:~/fichero-gate"]
 # manager 2026-11-06 (the Pro at load 30 to 57 beside the owner's Xcode): "auto" sends every guard that names no git, subprocess, swiftlint
 # or xcodebuild to the first runner in ONE ssh batch (no heavy lock there); a red there is re-run here before it counts
 remote_guards = "auto"
+# manager 2026-11-06 t88: the build rung on the M1 Air (its own derived data under ~/fichero-gate), so the Pro stays the owner's; the Air
+# unreachable, or a red there that names no Swift source error, builds here as before
+build_remote = "air:~/fichero-gate"
 remote_min_free_gb = 6  # manager 2026-11-06: a runner under 6 GiB free is skipped
 pytest_plugins = ["anyio.pytest_plugin", "_hypothesis_pytestplugin", "langsmith.pytest_plugin", "pytest_timeout", "pytest_asyncio.plugin"]
 

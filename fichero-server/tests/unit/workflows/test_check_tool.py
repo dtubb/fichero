@@ -1475,3 +1475,49 @@ def test_the_remote_guard_batch_runs_every_guard_with_its_own_timeout_in_one_cal
     assert out["check_g0"]["ok"] and out["check_g0"]["remote"] == "imac"
     assert out["check_g1"]["exit_code"] == 3 and not out["check_g1"]["ok"]
     assert out["check_g2"]["timed_out"] and not out["check_g2"]["ok"], "a hang is cut at the guard's own timeout"
+
+
+def test_the_build_runs_on_the_build_remote_with_its_own_derived_data_and_falls_back_here_when_that_mac_is_down(tmp_path, monkeypatch):
+    """manager 2026-11-06 t88: the build rung on the M1 Air so the Pro stays the owner's; unreachable = the build here, as before."""
+    monkeypatch.setattr(ct.journal, "STATE", tmp_path / "journal")
+    (tmp_path / "journal").mkdir()
+    monkeypatch.setattr(ct, "_build_key", lambda src, cfg: "k1")
+    monkeypatch.setattr(ct, "_lines", lambda *a, **k: ["abc123"])
+    up = [0]
+    monkeypatch.setattr(ct, "_ssh", lambda host, script, t, stdin=None: subprocess.CompletedProcess(
+        [], 0 if up[0] == 0 else 255, b"/Users/Shared/fg-air\n" if up[0] == 0 else b"", b"" if up[0] == 0 else b"timed out"))
+    ran = []
+
+    def run(name, argv, cwd, timeout_s, env=None, as_jail=True, log=None):
+        ran.append((name, argv, as_jail))
+        return {"name": name, "argv": argv, "exit_code": 0, "ok": True, "timed_out": False, "seconds": 1, "stdout_tail": "", "stderr_tail": ""}
+    monkeypatch.setattr(ct, "run_command", run)
+    monkeypatch.setattr(ct, "_build_locked", lambda root, changed, cfg: {"ok": True, "skipped": False, "results": [{"here": True}]})
+    cfg = ct.Config(build=("xcodebuild", "-derivedDataPath", "/Users/Shared/fichero-worker/derived", "-disableAutomaticPackageResolution", "build"),
+                    build_paths=("fichero/",), build_remote="air:~/fichero-gate")
+    r = ct.build(str(tmp_path), ["fichero/A.swift"], cfg)
+    assert r["ok"] and r["results"][0]["remote"] == "air"
+    (_, sync, j1), (_, b, j2) = ran
+    assert sync[0] == "rsync" and "--delete" in sync and sync[-1] == "air:/Users/Shared/fg-air/build-tree/" and not j1
+    script = b[-1]
+    assert "/Users/Shared/fg-air/derived" in script and "/Users/Shared/fichero-worker" not in script, "its own derived data, under the registered root"
+    assert "-disableAutomaticPackageResolution" not in script and "cd /Users/Shared/fg-air/build-tree" in script and not j2
+    assert "/Users/Shared/fg-air/heavy.lock" in script, "under that Mac's own one-heavy-job lock"
+    ran.clear()
+    assert ct.build(str(tmp_path), ["fichero/A.swift"], cfg)["results"][0].get("reused") == "k1" and ran == [], "a green key is reused"
+    up[0] = 1
+    monkeypatch.setattr(ct, "_build_key", lambda src, cfg: "k2")
+    assert ct.build(str(tmp_path), ["fichero/A.swift"], cfg)["results"] == [{"here": True}], "that Mac down: the build runs here"
+    up[0], red = 0, ["error: unable to find a destination"]
+
+    def run_red(name, argv, cwd, timeout_s, env=None, as_jail=True, log=None):
+        ok = name != "build"
+        return {"name": name, "argv": argv, "exit_code": 0 if ok else 70, "ok": ok, "timed_out": False, "seconds": 1,
+                "stdout_tail": "" if ok else red[0], "stderr_tail": ""}
+    monkeypatch.setattr(ct, "run_command", run_red)
+    monkeypatch.setattr(ct, "_build_key", lambda src, cfg: "k3")
+    assert ct.build(str(tmp_path), ["fichero/A.swift"], cfg)["results"] == [{"here": True}], "a red that names no source: built here"
+    red[0] = "/x/fichero/A.swift:3:5: error: cannot find 'b' in scope"
+    monkeypatch.setattr(ct, "_build_key", lambda src, cfg: "k4")
+    r = ct.build(str(tmp_path), ["fichero/A.swift"], cfg)
+    assert not r["ok"] and r["results"][0]["remote"] == "air", "a Swift source error over there is the code's red"
