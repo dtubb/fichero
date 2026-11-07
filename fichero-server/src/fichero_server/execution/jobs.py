@@ -143,6 +143,10 @@ STUCK_IMAGE_JOB_SECONDS = 60.0  # the spec's "first thumbnail within a minute"
 #: A model-lane job that has shown no progress for this long, and is no live model call, is stuck: it lets the one slot go
 #: (#6213). Progress is the job's words on its row (`say`, `save_detail`); a call waiting on its answer is slow (#5938).
 STUCK_MODEL_JOB_SECONDS = 60.0
+#: A database-lane job with no progress for this long is hung in a database call: it is let go after a bounded time (#6205,
+#: `activity.lane.hung-call-says-so`). Its slot is freed, its row says `timed out in the database`, and the lane no longer
+#: counts it running. Ten minutes: a big write or a checkpoint may take one; a call that does not come back does not.
+STUCK_DATABASE_JOB_SECONDS = 600.0
 #: After an open that found work a dead engine left (#6216, ruling 2): for this long every memory lane takes one page at a
 #: time whatever its gate allows, so a Mac just back from paging or a kill is not thrown straight back into it.
 GENTLE_START_SECONDS = 60.0
@@ -4098,6 +4102,11 @@ class _Lane:
         self.calls: set[str] = set()
         #: When each running job was claimed (monotonic), by job id: the images lane's stuck ones give back their slot.
         self.started: dict[str, float] = {}
+        #: Each running job's library key, by job id: the hung database-lane release reopens it to settle the row (#6205).
+        self.keys: dict[str, str] = {}
+        #: The database lane's stuck jobs whose row the release already marked failed (#6205): settled once, so the
+        #: watchdog neither reopens the library nor rewrites the row on every tick.
+        self.settled: set[str] = set()
         #: The model lane: when each running job last showed progress (`_heard_from`), and the jobs that are model calls
         #: waiting on their answer (`lane_slot`), which are slow, never stuck (#6213, #5938).
         self.heard: dict[str, float] = {}
@@ -4106,14 +4115,16 @@ class _Lane:
         self.kinds: dict[str, str] = {}
 
     def stuck(self) -> set[str]:
-        """The images lane's running jobs claimed more than `STUCK_IMAGE_JOB_SECONDS` ago (a thumbnail takes seconds), and the
-        model lane's that have shown no progress for `STUCK_MODEL_JOB_SECONDS` and are no live model call: their threads are
-        blocked (a file that never reads, a lock), and they no longer hold a slot against any project (#6213).
+        """The images lane's running jobs claimed more than `STUCK_IMAGE_JOB_SECONDS` ago (a thumbnail takes seconds), the
+        database lane's claimed more than `STUCK_DATABASE_JOB_SECONDS` ago (a database call that never comes back, #6205),
+        and the model lane's that have shown no progress for `STUCK_MODEL_JOB_SECONDS` and are no live model call: their
+        threads are blocked (a file that never reads, a lock), and they no longer hold a slot against any project (#6213).
         ponytail: a blocked Python thread cannot be killed; the lane runs beside it on a thread of its own, at most `slots`
         extra, and the stuck row stays running (its thread may still finish it). A Kraken page is one call with no words of
         its own: handed to the lane it is a live call (`_live_call`), slow, never stuck."""
-        if self.name == "images":
-            cutoff = time.monotonic() - STUCK_IMAGE_JOB_SECONDS
+        if self.name in ("images", "database"):
+            limit = STUCK_IMAGE_JOB_SECONDS if self.name == "images" else STUCK_DATABASE_JOB_SECONDS
+            cutoff = time.monotonic() - limit
             return {
                 job_id
                 for job_id, at in list(self.started.items())
@@ -4311,11 +4322,12 @@ class _Scheduler:
             if self._retire(lane):
                 return
             lane.event.clear()
-            images = self.lanes["images"]
-            if images.libraries and len(images.threads) < images.threads_wanted:
-                self.wake(
-                    None
-                )  # its threads are stuck: no other wake may come to start the one beside them (#6213)
+            for stuck_lane in (self.lanes["images"], self.lanes["database"]):
+                if stuck_lane.libraries and len(stuck_lane.threads) < stuck_lane.threads_wanted:
+                    self.wake(
+                        None
+                    )  # its threads are stuck: no other wake may come to start the one beside them (#6213, #6205)
+                    break
             # An error in a scan ends this thread (logged by threading's excepthook); the next
             # wake (an enqueue, a library open, a pause change) starts a new one. A caller waiting
             # on handed-in work hears the error rather than waiting forever.
@@ -4326,6 +4338,8 @@ class _Scheduler:
                     finally:
                         lane.running.pop(picked[2][0], None)
                         lane.started.pop(picked[2][0], None)
+                        lane.keys.pop(picked[2][0], None)
+                        lane.settled.discard(picked[2][0])
                         lane.heard.pop(picked[2][0], None)
                         lane.kinds.pop(picked[2][0], None)
                         lane.live_calls.discard(picked[2][0])
@@ -4415,6 +4429,30 @@ class _Scheduler:
                 if job_id != besides:
                     return job_id
         return None
+
+    def release_hung_database_jobs(self) -> None:
+        """The database lane's hung jobs are let go (#6205, `activity.lane.hung-call-says-so`): a thread wedged in a
+        database call, past `STUCK_DATABASE_JOB_SECONDS` of no progress, no longer holds its slot, and its row says `timed
+        out in the database` (failed). The blocked thread cannot settle its own row (it is in the call that will not come
+        back), so this does it, on the row's library. Nothing within the deadline is touched: a big write is not a hang."""
+        from fichero_server.db.manager import db_manager
+
+        lane = self.lanes["database"]
+        for job_id in list(lane.stuck()):
+            if job_id in lane.settled:
+                continue  # already marked failed: it stays running (its thread may still finish it), and the lane keeps its beside thread
+            lane.settled.add(job_id)
+            key = lane.keys.get(job_id)
+            if key is None:
+                continue  # claimed outside `_claim_one` (a test): no library to settle it on
+            db = db_manager.open_database(key)
+            if db is None:
+                continue  # its library closed: the row is settled when it opens
+            db.execute(
+                "UPDATE jobs SET state = 'failed', reason = 'timed out in the database', "
+                f"finished_at = ?{_clear_waiting_on(db)} WHERE id = ? AND state = 'running'",
+                [utc_now(), job_id],
+            )
 
     @staticmethod
     def _ask_to_free_idle(
@@ -4629,6 +4667,9 @@ class _Scheduler:
                 )
                 lane.running[row[0]] = row[3]
                 lane.started[row[0]] = time.monotonic()
+                lane.keys[row[0]] = key
+                if lane.name == "database":
+                    _arm_hung_database_watchdog()  # #6205: the lane's hung calls are let go after a bounded time
                 lane.kinds[row[0]] = row[1]
                 if row[1] == CO_RUN_KIND:
                     lane.calls.add(row[0])
@@ -5277,6 +5318,41 @@ def queue_state(db, own_kinds: list[str], since=None) -> str | None:
     ):
         return "over"
     return None
+
+
+# #6205: a database-lane thread wedged in a database call is let go after a bounded time. The thread blocked in the call
+# cannot settle its own row, so a watchdog of its own does: one per process, checking every scheduler (the engine's one,
+# and any a test made in its place). Armed on the first database-lane claim, so a test that makes no database job pays for
+# no thread; the engine's single claim arms it once.
+_DATABASE_WATCHDOG_INTERVAL = 1.0
+_hung_database_watchdog: threading.Thread | None = None
+_hung_database_watchdog_lock = threading.Lock()
+
+
+def _release_hung_database_jobs_all() -> None:
+    for scheduler in list(_SCHEDULERS):
+        try:
+            scheduler.release_hung_database_jobs()
+        except Exception:  # noqa: BLE001 -- a tick that dies says nothing ever again
+            logger.warning("database-lane watchdog tick failed", exc_info=True)
+
+
+def _hung_database_watchdog_loop() -> None:
+    while True:
+        time.sleep(_DATABASE_WATCHDOG_INTERVAL)
+        _release_hung_database_jobs_all()
+
+
+def _arm_hung_database_watchdog() -> None:
+    global _hung_database_watchdog
+    if _hung_database_watchdog is not None:
+        return
+    with _hung_database_watchdog_lock:
+        if _hung_database_watchdog is None:
+            _hung_database_watchdog = threading.Thread(
+                target=_hung_database_watchdog_loop, name="database-lane-watchdog", daemon=True
+            )
+            _hung_database_watchdog.start()
 
 
 _scheduler = _Scheduler()
