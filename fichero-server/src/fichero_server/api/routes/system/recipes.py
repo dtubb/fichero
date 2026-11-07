@@ -31,6 +31,7 @@ from fichero_server.db import Database
 from fichero_server.db.embeddings import search_embedder
 
 from fichero_server.recipes import places
+from fichero_server.recipes.answers import as_number
 from fichero_server.recipes.cloud_cap import (
     CloudCapLine,
     cap_refusals,
@@ -1234,8 +1235,8 @@ def _answers(answers: dict[str, Any]) -> Answers:
         purposes=tuple(a["purposes"]), languages=frozenset(t for t in a.get("languages") or () if t != "und"),  # "Not sure" is no language to the rules
         scripts=frozenset(a.get("scripts") or ()), materials=tuple(a["materials"]),
         jobs=tuple(a.get("jobs") or ()), removed_jobs=tuple(a.get("removed_jobs") or ()),
-        pages=a.get("pages") or 0, cloud_allowed=places.may_leave_to(a, "cloud"),
-        mac_memory_gb=a.get("mac_memory_gb") or _this_machine_memory_gb(),
+        pages=as_number(a.get("pages"), "pages", whole=True) or 0, cloud_allowed=places.may_leave_to(a, "cloud"),
+        mac_memory_gb=as_number(a.get("mac_memory_gb"), "mac_memory_gb") or _this_machine_memory_gb(),
         layers=frozenset(a.get("layers") or ()), loose_pages=bool(a.get("loose_pages")),
         faded_pages=bool(a.get("faded_pages")), photographs=bool(a.get("photographs")),
         job_answers=dict(a.get("job_answers") or {}), period=str(a.get("period") or ""),
