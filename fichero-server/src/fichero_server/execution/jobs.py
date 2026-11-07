@@ -1659,7 +1659,7 @@ def enqueue_many(
         marks = ", ".join("?" for _ in chunk)
         ids.update(
             db.execute_fetchall(
-                f"SELECT subject, id FROM jobs WHERE kind = ? AND state = 'waiting' AND subject IN ({marks})",
+                f"SELECT subject, id FROM jobs WHERE kind = ? AND state IN ('waiting', 'running') AND subject IN ({marks})",
                 [kind, *chunk],
             )
         )
