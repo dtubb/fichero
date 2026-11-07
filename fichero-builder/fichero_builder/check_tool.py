@@ -1494,6 +1494,9 @@ def acceptance_changed(root, since: str, head: str, cfg: Config, ids) -> list[st
     return hits
 
 
+SCRATCH_CHECKOUT_S = 600.0  # a scratch tree's `git worktree add`: minutes under load, never the 60 s other git calls get
+
+
 def _scratch_tree(root, head: str, pinned, cfg: Config, overlay: bool = True, data_from_head: tuple = ()) -> str:
     """A detached worktree of `head` with the pinned copy's check files laid over it: the checks judge the worker's
     committed code, never its uncommitted edits and never its own copies of the checks. overlay=False: head's own tree,
@@ -1503,9 +1506,12 @@ def _scratch_tree(root, head: str, pinned, cfg: Config, overlay: bool = True, da
     stays instead of the pinned one, so the pinned guard judges head's routes against head's allowlist; the script stays pinned."""
     sha = (_lines(root, "rev-parse", head) or [""])[0]
     tree = _mkdtemp("check-tree-", readable=True)
-    r = _git(root, "-c", "core.hooksPath=/dev/null", "worktree", "add", "--detach", "-q", tree, sha)  # no repo hook runs as the owner
+    # no repo hook runs as the owner. A whole checkout at load 100 with Defender scanning every write took over git's default 60 s and
+    # was killed (2026-11-07: 'reset died of signal 9', then an empty reason): the checkout gets SCRATCH_CHECKOUT_S
+    r = _git(root, "-c", "core.hooksPath=/dev/null", "worktree", "add", "--detach", "-q", tree, sha, timeout_s=SCRATCH_CHECKOUT_S)
     if not r["ok"]:
-        raise RuntimeError(f"scratch tree failed: {r['stderr_tail']}")
+        why = r["stderr_tail"].strip() or (f"timed out after {SCRATCH_CHECKOUT_S:g} s" if r.get("timed_out") else f"exit {r.get('exit_code')}")
+        raise RuntimeError(f"scratch tree failed: {why}")
     try:
         for f in (_lines(pinned, "ls-files") or []) if overlay else []:
             if f.startswith(cfg.check_paths):

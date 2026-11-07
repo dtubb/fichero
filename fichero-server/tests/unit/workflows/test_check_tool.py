@@ -1521,3 +1521,19 @@ def test_the_build_runs_on_the_build_remote_with_its_own_derived_data_and_falls_
     monkeypatch.setattr(ct, "_build_key", lambda src, cfg: "k4")
     r = ct.build(str(tmp_path), ["fichero/A.swift"], cfg)
     assert not r["ok"] and r["results"][0]["remote"] == "air", "a Swift source error over there is the code's red"
+
+
+def test_the_scratch_checkout_gets_minutes_not_gits_60_s_and_a_kill_names_its_reason(tmp_path, monkeypatch):
+    """2026-11-07: at load 100 with Defender scanning, the scratch `worktree add` passed 60 s and was killed: 'reset died of
+    signal 9', then a red with an empty reason."""
+    seen = []
+
+    def git(root, *args, timeout_s=60):
+        seen.append((args[2] if len(args) > 2 else args[0], timeout_s))
+        return {"ok": False, "stderr_tail": "", "timed_out": True, "exit_code": -9}
+    monkeypatch.setattr(ct, "_git", git)
+    monkeypatch.setattr(ct, "_lines", lambda *a, **k: ["abc123"])
+    with pytest.raises(RuntimeError) as e:
+        ct._scratch_tree(tmp_path, "HEAD", tmp_path, ct.Config())
+    assert ("worktree", ct.SCRATCH_CHECKOUT_S) in seen and ct.SCRATCH_CHECKOUT_S >= 600
+    assert "timed out after 600 s" in str(e.value), "never an empty reason"

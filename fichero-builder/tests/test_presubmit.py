@@ -119,3 +119,31 @@ def test_a_batch_whose_red_is_only_its_own_guard_data_passes_with_the_line_and_a
     ok, said = queue.presubmit("ext", _git(lane, "rev-parse", "HEAD"))
     assert not ok and "would need the guard-data approve" not in said, "a red the data does not explain is still a refusal"
     assert journal.read()[-1]["event"] == "presubmit" and journal.read()[-1]["state"] == "red"
+
+
+def test_the_ready_checks_fast_guards_run_a_timed_out_guard_once_more_and_only_a_second_timeout_is_red(tmp_path):
+    """2026-11-07: at load 95 a 10 s guard timed out in `builder done` and refused a green batch; the ladder retries a timeout once."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    script = next(p for p in Path(__file__).resolve().parents if (p / "scripts" / "lane_ready_check.sh").exists()) / "scripts" / "lane_ready_check.sh"
+    (tmp_path / "pipeline" / "projects").mkdir(parents=True)
+    (tmp_path / "pipeline" / "projects" / "fichero.toml").write_text(
+        '[repo]\npython_path = "."\n[[ladder]]\nname = "fast-guards"\nskip = []\ntimeout_s = 1\n')
+    s = tmp_path / "scripts"
+    s.mkdir()
+    for i in range(20):
+        (s / f"check_g{i:02}.py").write_text("pass\n")
+    mark = tmp_path / "slow-once"
+    (s / "check_g00.py").write_text(f"import os, time\nif not os.path.exists({str(mark)!r}):\n    open({str(mark)!r}, 'w').close(); time.sleep(3)\n")
+    fn = subprocess.run(["sed", "-n", "/^run_fast_guards()/,/^}/p", str(script)], capture_output=True, text=True, check=True).stdout
+
+    def run():
+        return subprocess.run(["bash", "-c", fn + "\nrun_fast_guards"], cwd=tmp_path, capture_output=True, text=True,
+                              env={"PATH": "/usr/bin:/bin", "FICHERO_PYTHON_BIN": sys.executable}, timeout=60)
+    r = run()
+    assert r.returncode == 0 and "FAIL" not in r.stdout, r.stdout + r.stderr
+    (s / "check_g00.py").write_text("import time\ntime.sleep(3)\n")
+    r = run()
+    assert r.returncode == 1 and "check_g00.py: timeout (twice)" in r.stdout, "a guard that times out twice is red"

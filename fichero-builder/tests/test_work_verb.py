@@ -743,3 +743,18 @@ def test_a_pinned_copy_removed_before_the_rebase_is_pinned_again_and_the_error_n
     (gone / "harness.toml").write_text("[check]\n")
     with pytest.raises(work.jail.JailMissing, match="harness.toml has no \\[jail\\] user and workroot"):
         work._jail(types.SimpleNamespace(pinned=str(gone)))
+
+
+def test_a_review_that_never_reached_its_api_is_tried_again_and_then_is_an_alert_never_a_not_ready(chain, monkeypatch, capsys):
+    """2026-11-07: an SSL error after the Mac woke came back as the review's text, read as NOT READY, and spent all three
+    send-backs of a batch nobody had reviewed."""
+    monkeypatch.setattr(work.time, "sleep", lambda s: None)
+    said = iter([(False, "API Error: Unable to connect to API: SSL certificate hostname mismatch"), (True, "READY")])
+    monkeypatch.setattr(work, "do_review", lambda *a: next(said))
+    assert chain() == 0, "the second try reached the API and said READY: the batch goes on to land"
+    assert "land" in [c[0] for c in chain.calls]
+    monkeypatch.setattr(work, "do_review", lambda *a: (False, "API Error: Unable to connect to API: SSL certificate hostname mismatch"))
+    chain.calls.clear()
+    assert chain() == 2
+    assert "could not reach its API" in capsys.readouterr().out and "land" not in [c[0] for c in chain.calls]
+    assert work.unreachable("NOT READY: API Error: Unable to connect is mentioned in a finding") is False, "a verdict is a verdict"

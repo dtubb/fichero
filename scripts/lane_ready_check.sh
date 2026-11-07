@@ -35,12 +35,15 @@ if len(guards) < 20:  # a guard that finds nothing to run is blind, not green
     sys.exit(f"FAIL: only {len(guards)} guards found under scripts/check_*.py")
 bad = []
 for g in guards:
-    try:
-        r = subprocess.run([sys.executable, g], env=env, capture_output=True, text=True, timeout=rung.get("timeout_s", 60))
-        if r.returncode:
-            bad.append(f"FAIL: {g}\n" + "\n".join((r.stdout + r.stderr).splitlines()[-40:]))
-    except subprocess.TimeoutExpired:
-        bad.append(f"FAIL: {g}: timeout")
+    for attempt in (1, 2):  # a timeout under load is run once more, as the ladder's guards rung does (2026-11-07: load 95, a 10 s guard timed out)
+        try:
+            r = subprocess.run([sys.executable, g], env=env, capture_output=True, text=True, timeout=rung.get("timeout_s", 60))
+            if r.returncode:
+                bad.append(f"FAIL: {g}\n" + "\n".join((r.stdout + r.stderr).splitlines()[-40:]))
+            break
+        except subprocess.TimeoutExpired:
+            if attempt == 2:
+                bad.append(f"FAIL: {g}: timeout (twice)")
 print("\n".join(bad))
 sys.exit(1 if bad else 0)
 PYEOF

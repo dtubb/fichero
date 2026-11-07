@@ -1070,3 +1070,32 @@ def test_touches_build_reads_the_build_paths_and_diffs_the_batch_and_a_worker_la
 def test_a_build_remote_means_the_owners_hold_here_holds_no_batch_back(tmp_path):
     (tmp_path / "harness.toml").write_text('[check]\nbuild_paths = ["fichero/"]\nbuild_remote = "air:~/fichero-gate"\n')
     assert queue.touches_build({"id": "l", "worktree": str(tmp_path)}, {"head": "x"}, tmp_path) is False
+
+
+def test_a_pinned_copy_cut_short_is_made_again_and_two_chains_pinning_at_once_both_get_a_whole_one(tmp_path, monkeypatch):
+    """#6381 (2026-11-07 14:05): a landing was making pinned-<sha> while two chains read pinned-<sha>/harness.toml: missing,
+    so JailMissing on three batches. One maker at a time; a copy with no harness.toml is not a copy."""
+    import subprocess
+    import threading
+    from pathlib import Path
+
+    from fichero_builder import journal, work
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    (tmp_path / "state").mkdir()
+    repo = tmp_path / "engine"
+    subprocess.run(["git", "init", "-q", "-b", "integration", str(repo)], check=True)
+    (repo / "harness.toml").write_text("[land]\nbranch = 'integration'\n")
+    for a in (["add", "-A"], ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "base"]):
+        subprocess.run(["git", "-C", str(repo), *a], check=True, capture_output=True)
+    sha = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+    root, pins = tmp_path / "root", tmp_path / "pins"
+    root.mkdir()
+    (root / "harness.toml").write_text(f"[check]\nengine_repo = '{repo}'\n[land]\npinned_dir = '{pins}'\n")
+    brief = tmp_path / "brief.md"
+    brief.write_text(f"# step (base {sha})\n")
+    (pins / f"pinned-{sha[:7]}").mkdir(parents=True)  # the half copy a killed `worktree add` left
+    got = []
+    ts = [threading.Thread(target=lambda: got.append(work.ensure_pinned(str(root), str(brief), ""))) for _ in range(2)]
+    [t.start() for t in ts]
+    [t.join() for t in ts]
+    assert len(got) == 2 and all((Path(g) / "harness.toml").is_file() for g in got), "both chains read a whole copy"

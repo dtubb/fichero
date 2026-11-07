@@ -126,7 +126,7 @@ boundary = ['/Users/(?!Shared/)[A-Za-z0-9._-]+/', 'sk-ant-[A-Za-z0-9_-]{8,}', 'g
 [loop]
 # manager 2026-11-04 (alerts 315, 316): the lanes the loop ticks, named; a lane not here (an old milestone lane in queue.json) never starts.
 # Build-order milestones are taken only with feed_milestones = true: a lane is queued on purpose.
-only = ["lane-sharing", "lane-onboard", "lane-ie", "harness-gen3", "harness-unblock", "dev-workflows", "spec-writer", "lane-qwen"]  # spec-writer: a Fable session writing specs (2026-11-06); lane-qwen: the Qwen trial, #6380 (2026-11-07)
+only = ["lane-sharing", "lane-onboard", "lane-ie", "harness-gen3", "harness-unblock", "dev-workflows", "spec-writer", "lane-qwen", "lane-qwen2"]  # spec-writer: a Fable session writing specs (2026-11-06); lane-qwen: the Qwen trial, #6380 (2026-11-07)
 # owner 2026-11-06: two lanes' chains at once (the pool was one worker, so [check].parallel = 2 was never used)
 lanes = 2
 feed_milestones = false
@@ -186,7 +186,7 @@ reviewer = { provider = "claude-code", model = "opus", context = 200000 }  # its
 # manager 2026-11-02 (6a): sonnet reviews by default; opus (`reviewer`) when a range touches these paths, and once per milestone
 reviewer_fast = { provider = "claude-code", model = "sonnet", context = 200000 }
 # owner 2026-11-06 (t28): these lanes' batches always get the full reviewer; half-done fast reviews cost them whole rounds
-opus_lanes = ["lane-sharing", "lane-qwen"]  # lane-qwen: Opus reviews every Qwen batch (owner 2026-11-07, #6380)
+opus_lanes = ["lane-sharing", "lane-qwen", "lane-qwen2"]  # lane-qwen: Opus reviews every Qwen batch (owner 2026-11-07, #6380)
 reviewer_paths = ["fichero-builder/", "scripts/harness_", "scripts/lane_ready_check.sh", "harness.toml"]
 spec-writer = { provider = "claude-code", model = "opus" }
 helper = { provider = "claude-code", model = "haiku" }

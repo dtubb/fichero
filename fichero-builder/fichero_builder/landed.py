@@ -12,6 +12,7 @@ import contextlib
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -65,9 +66,15 @@ def pin(repo, sha: str, pinned_dir: Path, keep_others: bool = False) -> str:
         if b != name:
             _ok(_git(repo, "branch", "-D", b), f"branch -D {b}")
     dest = pinned_dir / name
-    if not dest.is_dir():
-        pinned_dir.mkdir(parents=True, exist_ok=True)
-        _ok(_git(repo, "worktree", "add", "-q", str(dest), name), "worktree add")
+    with journal.Lock("pin", what=f"making {name}"):  # #6381: one maker at a time; a chain re-pinning waits for a copy being made
+        if dest.is_dir() and not (dest / "harness.toml").is_file():  # a copy cut short (a kill mid `worktree add`): made again
+            _git(repo, "worktree", "remove", "--force", str(dest))
+            if dest.is_dir() and dest.parent == pinned_dir and dest.name.startswith("pinned-"):  # never a registered tree: a bare dir
+                shutil.rmtree(dest)
+                _git(repo, "worktree", "prune")
+        if not dest.is_dir():
+            pinned_dir.mkdir(parents=True, exist_ok=True)
+            _ok(_git(repo, "worktree", "add", "-q", str(dest), name), "worktree add")
     return str(dest)
 
 

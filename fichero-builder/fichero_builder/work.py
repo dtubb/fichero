@@ -11,6 +11,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import threading
@@ -210,6 +211,18 @@ def pinned_approvals(t: str) -> list[str]:
                              ("approve_pinned_new", "a new file under a pinned path" in t)) if hit]
 
 
+REVIEW_RETRY_WAITS_S = (60, 300)  # a review that never reached its API is tried again after these waits
+UNREACHABLE = re.compile(r"API Error: (Unable to connect|Connection error|Request timed out)|\b(Overloaded|overloaded_error)\b|\b529\b|ECONNRESET|ETIMEDOUT")
+
+
+def unreachable(text: str) -> bool:
+    """The reviewer's output is a transport failure, not a verdict: an API connection, timeout or overload error and no READY or
+    NOT READY line of its own."""
+    lines = [x for x in (text or "").splitlines() if x.strip()]
+    verdict = any(x.startswith(("READY", "NOT READY")) for x in lines)
+    return bool(lines) and not verdict and bool(UNREACHABLE.search(text))
+
+
 def blocking(text: str, last: str) -> str:
     """What blocked: the first review group whose own closing line is NOT READY, named by its `[group n of m]` header with that
     line quoted. The file's last line alone says READY when a later group passed (alert -75 read 'not READY: READY', 2026-11-02)."""
@@ -312,12 +325,18 @@ def ensure_pinned(root: str, brief: str, base: str) -> str:
         raise ValueError(f"[land].pinned_dir {str(pinned_dir)!r} must be an absolute path")
     name = f"pinned-{base_of(brief, base)[:7]}"
     dest = pinned_dir / name
-    if not dest.is_dir():
-        pinned_dir.mkdir(parents=True, exist_ok=True)
-        for args in (("branch", "-f", name, name[7:]), ("worktree", "add", "-q", str(dest), name)):
-            r = _git(repo, *args)
-            if r.returncode:
-                raise RuntimeError(f"git {' '.join(args)}: {r.stderr.strip()}")
+    with journal.Lock("pin", what=f"making {name}"):  # #6381: the landing's `pin` may be making this very copy: wait for it, never read a half one
+        if dest.is_dir() and not (dest / "harness.toml").is_file():  # cut short: made again
+            _git(repo, "worktree", "remove", "--force", str(dest))
+            if dest.is_dir() and dest.parent == pinned_dir and dest.name.startswith("pinned-"):  # never a registered tree: a bare dir
+                shutil.rmtree(dest)
+                _git(repo, "worktree", "prune")
+        if not dest.is_dir():
+            pinned_dir.mkdir(parents=True, exist_ok=True)
+            for args in (("branch", "-f", name, name[7:]), ("worktree", "add", "-q", str(dest), name)):
+                r = _git(repo, *args)
+                if r.returncode:
+                    raise RuntimeError(f"git {' '.join(args)}: {r.stderr.strip()}")
     return str(dest)
 
 
@@ -537,6 +556,16 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
             elif land_tool.unreviewed(repo, branch, head, verdicts):
                 model = pick_reviewer(a, repo, branch, head, reviewer)
                 ok, text = do_review(a, repo, head, ladder, verdicts, model)
+                for wait in REVIEW_RETRY_WAITS_S:  # 2026-11-07: an SSL error after wake spent a batch's 3 send-backs on no review at all
+                    if ok or not unreachable(text):
+                        break
+                    step("review", False, f"the reviewer could not reach its API: {text.strip().splitlines()[-1][:160]}; again in {wait} s")
+                    time.sleep(wait)
+                    ok, text = do_review(a, repo, head, ladder, verdicts, model)
+                if not ok and unreachable(text):  # still no review: an alert for a person, never findings sent back to the lane
+                    (state / f"review-{a.name}.txt").write_text(text)
+                    return no("review-unreachable", f"no review: the reviewer could not reach its API ({len(REVIEW_RETRY_WAITS_S) + 1} tries): "
+                              f"{text.strip().splitlines()[-1][:200]}", text, str(state / f"review-{a.name}.txt"))
             else:  # same input, same model: this exact range has its READY (a queue restarted in `reviewing` lands here)
                 ok, text = True, "READY (the verdict this range already has; no second model pass)"
             last = text.splitlines()[-1] if text else "the reviewer said nothing"
