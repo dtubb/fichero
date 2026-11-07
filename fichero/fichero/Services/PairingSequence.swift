@@ -61,24 +61,40 @@ enum PairingSequence {
             return answer.failure
         }
         guard let url = tried.chosen else {
-            let name = PairingAddressTry.host(link.addresses.first ?? "")
+            let name = PairingAddressTry.address(link.addresses.first ?? "")
             return .failed(tried.attempts.last?.failure ?? .noAnswer, context: .init(host: name))
         }
         let answered = await seen.value
-        let context = PairingFailure.Context(host: PairingAddressTry.host(url), hostVersion: answered?.version, thisVersion: ownVersion)
+        let context = PairingFailure.Context(host: PairingAddressTry.address(url), hostVersion: answered?.version, thisVersion: ownVersion)
         if let hostContract = answered?.contract, hostContract != ownContract {
             return .failed(.versionMismatch, context: context)  // refused before any code is sent
         }
+        var step = "the code (POST /api/pair)"
         do {
             try await host.pair(at: url, code: link.code)
+            step = "its project list (GET /api/authz/libraries)"
             return try await confirmLibrary(link: link, host: host, url: url, context: context)
         } catch let failure as PairingFailure {
             await host.discardPairing(at: url)
             return .failed(failure, context: context)
+        } catch let error where unreadable(error) {
+            // A host whose answer this app cannot read (#6383): name the address and the call, the decoder's words to the log.
+            let why = String(describing: error)
+            log.error("Pairing: \(url, privacy: .public) answered \(step, privacy: .public) unreadably: \(why, privacy: .public)")
+            await host.discardPairing(at: url)
+            return .stopped(message: "\(context.host) answered \(step), but not in a form this Fichero can read. "
+                            + "Update Fichero on both Macs to the same version, then try again.")
         } catch {
             await host.discardPairing(at: url)
             return .stopped(message: (error as? LocalizedError)?.errorDescription ?? "Fichero couldn't do that. Try again.")
         }
+    }
+
+    /// A decoding failure, bare or wrapped by the generated client (`underlyingError`).
+    private static func unreadable(_ error: Error) -> Bool {
+        if error is DecodingError { return true }
+        let underlying = Mirror(reflecting: error).children.first { $0.label == "underlyingError" }?.value as? Error
+        return underlying.map(unreadable) ?? false
     }
 
     /// After the code is redeemed: the library the link named (in the host's spelling), the only one, or the person's choice.

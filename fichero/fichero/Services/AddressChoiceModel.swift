@@ -80,7 +80,11 @@ enum AddressChoiceModel {
         if sharingHost.lowercased().hasSuffix(".ts.net") {
             return tailnetSharerRows(sharing, port: port, forward: tailnetForward, conflict: tailnetConflict, lanIP: lanIP)
         }
-        rows.append(AddressRow(choice: .thisNetwork, url: sharing, title: "This network", reach: thisNetworkReach, disabledReason: nil))
+        // The engine listens on its port, never 443: an address saved without one (`https://10.10.10.1`, #6383) gets it.
+        var withPort = URLComponents(url: sharing, resolvingAgainstBaseURL: false)
+        withPort?.port = port
+        rows.append(AddressRow(choice: .thisNetwork, url: withPort?.url ?? sharing, title: "This network",
+                               reach: thisNetworkReach, disabledReason: nil))
         let tail = (tailnetURL ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if let tailOrigin = URL(string: tail), let tailHost = tailOrigin.host, tailHost.lowercased().hasSuffix(".ts.net") {
             var parts = URLComponents()

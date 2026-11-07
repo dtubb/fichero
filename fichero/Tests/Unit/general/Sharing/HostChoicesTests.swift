@@ -30,7 +30,9 @@ struct HostChoicesTests {
     }
 
     @Test func typedNamesBecomeHttpsAddresses() {
-        #expect(HostChoices.typedURL("studio")?.absoluteString == "https://studio.local")
+        #expect(HostChoices.typedURL("studio")?.absoluteString == "https://studio.local:8765", "a bare name gets the engine port (#6383)")
+        #expect(HostChoices.typedURL("10.10.10.1")?.absoluteString == "https://10.10.10.1:8765")
+        #expect(HostChoices.typedURL("https://10.10.10.1")?.absoluteString == "https://10.10.10.1:8765")
         #expect(HostChoices.typedURL(" studio.local:8443 ")?.absoluteString == "https://studio.local:8443")
         #expect(HostChoices.typedURL("https://studio.local:8443")?.host == "studio.local")
         #expect(HostChoices.typedURL("studio:8443")?.absoluteString == "https://studio.local:8443")

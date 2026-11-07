@@ -219,11 +219,20 @@ func validatedRemoteURL(
     components.path = ""
     components.query = nil
     components.fragment = nil
+    components.port = components.port ?? enginePortIfOwnAddress(normalizedHost)
 
     guard let url = components.url else {
         throw RemoteURLValidationError.invalid
     }
     return url
+}
+
+/// A Mac's own address (an IP, a .local name) answers only on the engine's port: a link, a typed host or a saved server
+/// without one (`https://10.10.10.1`, #6383) gets 8765, never 443 where nothing listens. A .ts.net or public name keeps
+/// what it says (a `tailscale serve` or a proxy may well be on 443); loopback keeps what it says.
+private func enginePortIfOwnAddress(_ host: String) -> Int? {
+    guard !EngineConfig.isLoopbackHostLiteral(host), host.hasSuffix(".local") || isIPAddressLiteral(host) else { return nil }
+    return 8765  // the shipped engine port (`bind_host.SHIPPED_PORT`, `EngineConfig.defaultHostString`)
 }
 
 func validatedHostedRemoteURL(from raw: String) throws -> URL {

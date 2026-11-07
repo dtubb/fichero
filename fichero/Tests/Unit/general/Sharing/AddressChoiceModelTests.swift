@@ -130,4 +130,10 @@ struct AddressChoiceModelTests {
     func nothingShared() {
         #expect(AddressChoiceModel.rows(sharingAddress: "", tailnetURL: nil, tailnetForward: nil).isEmpty)
     }
+
+    @Test("a bridge address saved without a port (https://10.10.10.1) links with the engine's port, never 443 (#6383)")
+    func aPortlessAddressGetsTheEnginePort() {
+        let rows = AddressChoiceModel.rows(sharingAddress: "https://10.10.10.1", tailnetURL: nil, tailnetForward: "none")
+        #expect(AddressChoiceModel.root(for: .thisNetwork, rows: rows)?.absoluteString == "https://10.10.10.1:8765")
+    }
 }

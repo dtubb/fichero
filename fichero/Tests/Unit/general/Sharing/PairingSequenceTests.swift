@@ -23,6 +23,24 @@ struct PairingSequenceTests {
         #expect(await host.log == ["health m.local", "pair m.local", "authz/libraries m.local"])
     }
 
+    @Test func anUnreadableAnswerNamesTheAddressPortAndCallNotTheDecoder() async {
+        var host = FakeHost()
+        host.librariesUnreadable = true
+        let result = await run(link(), host: host)
+        guard case .stopped(let message) = result else { Issue.record("expected stopped: \(result)"); return }
+        #expect(message.hasPrefix("m.local:8765 answered its project list (GET /api/authz/libraries)"), "\(message)")
+        #expect(!message.contains("correct format"))
+        #expect(await host.log.last == "discard m.local", "the half-made pairing is undone")
+    }
+
+    @Test @MainActor func anAddressPastedWhereALinkGoesIsNotAPairingLink() {
+        #expect {
+            try RemoteClientPairing.pairingFields(fromInviteOrPayload: "10.10.10.1:8765")
+        } throws: { error in
+            (error as? PairingFailureError)?.failure == .invalidLink
+        }
+    }
+
     @Test func aHostThatSpellsTheSamePackageAnotherWayStillGivesIt() async {
         // Decomposed "é" in the host's list, precomposed in the link: the same package.
         let decomposed = "/Users/Shared/a/Cafe\u{301}.fichero"
@@ -107,6 +125,7 @@ private struct FakeHost: PairingSequence.Host {
     var dead: [String] = []
     var pairFails: PairingFailure?
     var pairErrorMessage: String?
+    var librariesUnreadable = false
     private let recorder = Log()
 
     init(contract: String = "c1", version: String = "2026.10.28", libraries: [String] = ["/Users/Shared/a/Notes.fichero"],
@@ -138,6 +157,9 @@ private struct FakeHost: PairingSequence.Host {
 
     func libraries(at url: String) async throws -> [String] {
         await recorder.add("authz/libraries \(PairingAddressTry.host(url))")
+        if librariesUnreadable {
+            throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "not the shape the client expects"))
+        }
         return libraries
     }
 }

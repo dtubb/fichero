@@ -66,7 +66,13 @@ enum RemoteClientPairing {
             }
             return try pairingFields(from: payload)
         }
-        return try pairingFields(from: trimmed)
+        do {
+            return try pairingFields(from: trimmed)
+        } catch is DecodingError {
+            // An address typed where a link goes (`10.10.10.1:8765`, #6383) is not JSON: say it isn't a pairing link,
+            // naming what was pasted, never the decoder's "isn't in the correct format".
+            throw PairingFailureError(failure: .invalidLink, context: .init(host: trimmed))
+        }
     }
 
     static func inviteLinkString(from payload: PairingQRCodePayload) throws -> String {

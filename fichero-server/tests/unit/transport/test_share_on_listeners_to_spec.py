@@ -16,6 +16,7 @@ LAN = "192.168.1.42"
 @pytest.fixture(autouse=True)
 def _lan(monkeypatch):
     monkeypatch.setattr(backend_main, "resolve_lan_bind_host", lambda: LAN)
+    monkeypatch.setattr(backend_main, "_private_interface_ips", lambda: [])
 
 
 def test_sharing_on_at_a_local_address_binds_the_lan_listener_with_no_device_paired(app_db):

@@ -149,6 +149,68 @@ def primary_lan_ip() -> str:
         probe.close()
 
 
+# RFC 1918 and IPv4 link-local: the networks a Mac's own interfaces (Wi-Fi, Ethernet, the Thunderbolt bridge) use at home
+# or in an office. Not 100.64/10 (Tailscale reaches the loopback port through `tailscale serve`), never a public address.
+PRIVATE_LAN_NETWORKS = tuple(
+    ipaddress.ip_network(n) for n in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16")
+)
+
+
+def is_private_lan_address(host: str) -> bool:
+    """Whether ``host`` is an IPv4 address of a private network (#6383): what a LAN listener may bind beside the named one."""
+    try:
+        addr = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return addr.version == 4 and any(addr in net for net in PRIVATE_LAN_NETWORKS)
+
+
+def _interface_ipv4s() -> list[str]:
+    """The IPv4 address of every interface that is up, read with getifaddrs (no DNS, no subprocess: the sandboxed engine
+    has neither, see `primary_lan_ip`). macOS layout of `struct sockaddr`; elsewhere nothing."""
+    import ctypes
+    import ctypes.util
+    import sys
+
+    if sys.platform != "darwin":
+        return []
+
+    class Sockaddr(ctypes.Structure):
+        _fields_ = [("sa_len", ctypes.c_uint8), ("sa_family", ctypes.c_uint8), ("sa_data", ctypes.c_uint8 * 14)]
+
+    class Ifaddrs(ctypes.Structure):
+        pass
+
+    Ifaddrs._fields_ = [
+        ("ifa_next", ctypes.POINTER(Ifaddrs)), ("ifa_name", ctypes.c_char_p), ("ifa_flags", ctypes.c_uint),
+        ("ifa_addr", ctypes.POINTER(Sockaddr)), ("ifa_netmask", ctypes.POINTER(Sockaddr)),
+        ("ifa_dstaddr", ctypes.POINTER(Sockaddr)), ("ifa_data", ctypes.c_void_p),
+    ]
+    libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
+    head = ctypes.POINTER(Ifaddrs)()
+    if libc.getifaddrs(ctypes.byref(head)) != 0:
+        return []
+    found: list[str] = []
+    try:
+        node = head
+        while node:
+            entry = node.contents
+            if entry.ifa_addr and entry.ifa_flags & 0x1 and entry.ifa_addr.contents.sa_family == socket.AF_INET:
+                found.append(socket.inet_ntoa(bytes(entry.ifa_addr.contents.sa_data[2:6])))
+            node = entry.ifa_next
+    finally:
+        libc.freeifaddrs(head)
+    return found
+
+
+def private_interface_ips(addresses: list[str] | None = None) -> list[str]:
+    """This Mac's private interface addresses (#6383, owner ruling 2026-11-07, extends #5897): the Thunderbolt bridge's
+    10.10.10.x, a second Ethernet port. Bound beside the named LAN address while Sharing is on; never 0.0.0.0, never a
+    public or loopback address. ``addresses`` stands in for the interfaces in tests."""
+    source = _interface_ipv4s() if addresses is None else addresses
+    return list(dict.fromkeys(a for a in source if is_private_lan_address(a)))
+
+
 def port_in_use_message(port: int) -> str:
     """The sentence for a port an older engine still holds (`sharing.stale-server-holding-the-port`): what the app and the
     Sharing pane show instead of "engine failed to start"."""

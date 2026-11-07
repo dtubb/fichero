@@ -23,6 +23,7 @@ import tracemalloc
 import warnings
 
 from fichero_server.security.bind_host import listen_port, port_in_use_message, resolve_bind_host
+from fichero_server.security.bind_host import private_interface_ips as _private_interface_ips
 from fichero_server.security.bind_host import resolve_lan_bind_host
 from fichero_server.security.bind_host import primary_lan_ip as _primary_lan_ip
 from fichero_server.security.security_scoped_access import activate_library_bookmarks
@@ -70,13 +71,14 @@ def _app_db_for_listener():
 
 
 def _listener_hosts(bind_host: str, app_db=None) -> list[str]:  # noqa: ARG001 -- the app db no longer gates the listener
-    """Sharing on listens on this network: the loopback port, plus the LAN address the app named (`FICHERO_LAN_HOST`).
-    There is no separate "This network" switch (owner ruling 2026-10-20, #5897); Tailscale reaches the loopback port
-    through `tailscale serve`."""
+    """Sharing on listens on this network: the loopback port, the LAN address the app named (`FICHERO_LAN_HOST`), and
+    every private interface address of this Mac, so another Mac reaches it over the Thunderbolt bridge (#6383, owner
+    ruling 2026-11-07, extends #5897). There is no separate "This network" switch; Tailscale reaches the loopback port
+    through `tailscale serve`. Never 0.0.0.0, never a public address beyond the one named."""
     lan_host = resolve_lan_bind_host()
-    if lan_host is None or lan_host == bind_host:
+    if lan_host is None:
         return [bind_host]
-    return [bind_host, lan_host]
+    return list(dict.fromkeys([bind_host, lan_host, *_private_interface_ips()]))
 
 
 def _slot_address(host: str, bind_host: str, port: int) -> str | None:

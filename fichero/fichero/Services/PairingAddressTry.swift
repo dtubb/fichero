@@ -72,6 +72,12 @@ enum PairingAddressTry {
 
     static func host(_ url: String) -> String { URL(string: url)?.host ?? url }
 
+    /// The host with its port, as an alert names it (`10.10.10.1:8765`, #6383): which address and port were tried.
+    static func address(_ url: String) -> String {
+        guard let parsed = URL(string: url), let name = parsed.host else { return url }
+        return parsed.port.map { "\(name):\($0)" } ?? name
+    }
+
     static func label(_ url: String) -> String {
         let name = host(url)
         return name.lowercased().hasSuffix(".ts.net") ? "Tailscale (\(name))" : name
