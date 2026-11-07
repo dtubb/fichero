@@ -48,7 +48,7 @@ def test_an_idle_connection_survives_longer_than_the_default_five_seconds():
     process = subprocess.Popen([sys.executable, "-c", "from fichero_server.__main__ import main; main()"],
                                env=env, stdout=log, stderr=subprocess.STDOUT)
     conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    conn.settimeout(10)
+    conn.settimeout(90)                                             # a cold engine in the jail takes over 10 s to answer its first request
     try:
         deadline = time.monotonic() + 90
         while time.monotonic() < deadline and process.poll() is None:
@@ -59,6 +59,7 @@ def test_an_idle_connection_survives_longer_than_the_default_five_seconds():
                 time.sleep(0.25)
         conn.sendall(REQUEST)
         assert _read_response(conn) is not None, "the first probe was not answered"
+        conn.settimeout(10)
         time.sleep(7)  # past uvicorn's default 5 s, inside the 20 s the engine now allows
         conn.sendall(REQUEST)
         assert _read_response(conn) is not None, "the engine closed the idle connection before the next probe"
