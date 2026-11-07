@@ -13,11 +13,37 @@ of one, nothing lost. Two strengths:
 """
 from __future__ import annotations
 
+import math
 from typing import Any
 
 #: The directions setup offers (section 7b, screen 4): left to right, right to left, top to bottom
 #: with columns right to left (`ttb`), and top to bottom with columns left to right (`ttb-lr`).
 SETUP_DIRECTIONS: tuple[str, ...] = ("ltr", "rtl", "ttb", "ttb-lr")
+
+
+def as_number(value: Any, field: str, *, whole: bool = False) -> int | float | None:
+    """Read a saved value as a number: a number stored as text is the number it spells; a value that is
+    not a number is refused in words naming the field, never a bare TypeError at a later comparison (#6298).
+    `whole`: when True the value must be a whole number (returned as int); otherwise any finite number is
+    accepted (returned as float)."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise ValueError(f"{field} is {value!r}: it needs to be a number, not yes/no")
+    if isinstance(value, (int, float)):
+        number: float = float(value)
+    else:
+        try:
+            number = float(str(value).strip())
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError(f"{field} is {value!r}: it needs to be a number") from None
+    if whole:
+        if not number.is_integer():
+            raise ValueError(f"{field} is {value!r}: it needs to be a whole number")
+        return int(number)
+    if not math.isfinite(number):
+        raise ValueError(f"{field} is {value!r}: it needs to be a finite number")
+    return number
 
 
 def _list(value: Any) -> list:
