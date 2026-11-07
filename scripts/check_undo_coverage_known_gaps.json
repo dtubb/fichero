@@ -304,6 +304,7 @@
   "POST /api/pair/devices/renew": "device-token renewal rotates a secret credential; undo would require restoring prior token material, which is intentionally not retained",
   "POST /api/pair/devices/{device_id}/revoke": "revoke IS the inverse of pair; not artifact-undoable",
   "POST /api/pair/enroll": "device enrollment is an auth op; the inverse is device revocation, not artifact undo",
+  "POST /api/pair/sign-in": "signing a device in with a username and password is an auth op like pairing (#2083); the inverse is device revocation, not artifact undo",
   "POST /api/policies/orchestration": "no undo registration in current tree",
   "POST /api/policies/orchestration/evaluate": "no undo registration in current tree",
   "POST /api/projects": "no undo registration in current tree",
