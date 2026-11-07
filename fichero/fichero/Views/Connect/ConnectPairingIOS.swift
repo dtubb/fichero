@@ -246,7 +246,8 @@ struct RemoteConnectionSetupView: View {
             errorMessage = nil
             Task { await pair(with: payload) }
         } catch {
-            errorMessage = error.localizedDescription
+            // A QR that is not a pairing payload is the table's "This isn't a pairing link" alert, never the decoder's words.
+            show(PairingFailureError(failure: .invalidLink, context: .init(host: pickedHost?.name ?? "your Mac")))
         }
     }
 
