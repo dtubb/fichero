@@ -1382,22 +1382,35 @@ Written for the builder 2026-11-07 (spec-writer, from the code at origin/integra
 
 ### Stage 10 — Layout stages
 
-#### Step 10.1 — Region-model row, lines per block, segmenter search, layout measures
+#### Step 10.1 — Region-model row, lines per block, segmenter search, layout measures (#6064)
 - Behaviours: `designer.layout.region-model-row`, `designer.layout.lines-per-block`, `designer.layout.segmenters-searched`, `designer.layout.measures`
-- Tests: fichero-server/tests/unit/recipes/test_region_model_row.py, fichero-server/tests/unit/recipes/test_lines_per_block.py, fichero-server/tests/unit/recipes/test_bakeoff_contenders_5660.py
+- Tests: fichero-server/tests/unit/recipes/test_bakeoff_contenders_5660.py, fichero-server/tests/unit/recipes/test_regions_one_pass_5689.py, test_region_model_row.py (not yet written), test_lines_per_block.py (not yet written)
 - Depends on: 2.1
 - Size: M
 
-#### Step 10.2 — Find the layout as one page
+Written for the builder 2026-11-07 (spec-writer, from the code at origin/integration). **Built:** Find Regions runs Kraken's segmenter by default or a YOLO layout model chosen as a card (`recipes/regions.py`, `prep.regions.open-default`, `prep.yolo.regions-card`, #5525), and the bake-off has contenders per stage (`test_bakeoff_contenders_5660.py`); one Kraken pass keeps lines with regions (Step 2.1). **Left:** (1) engine: Find Regions gets one row "Blocks found by" with three choices: Kraken (one pass, default), the YOLO layout model already a card, a cloud vision model with its cost per page; (2) with a YOLO or cloud region model each block's lines still come from Kraken's line finder inside the block (`lines-per-block`), so a region model never changes which lines are read, only how they are grouped; (3) the finder searches segmenters online as it does readers (the Hub's `image-segmentation` and layout cards that name regions), so Find Regions can gain a candidate (appendix, fact 3); (4) the layout stage's measures: line recall and region IoU against a person's regions on the sample pages, in the stage's measure table with the same band words as Read's. **Acceptance (engine):** the Find Regions candidates answer holds the three kinds with the cloud one priced; a plan with YOLO regions and Kraken lines segments lines per block and the line set equals Kraken's own on the same page within the blocks; a finder search for `find-regions` returns a Hub layout model as a listable row, not "cannot run"; the measure table for the stage reports line recall and region IoU on a fixture with hand-drawn regions. **Acceptance (app, by test):** the row shows the three choices and the stage page the two measures with their basis.
+
+- test (to write): `test_region_model_row.py` in fichero-server/tests/unit/recipes/ (the three kinds priced; the finder search lists a layout model)
+- test (to write): `test_lines_per_block.py` in fichero-server/tests/unit/recipes/ (lines per block equal Kraken's within the blocks; the two measures on the fixture)
+
+#### Step 10.2 — Find the layout as one page (#6064)
 - Behaviours: `designer.layout.one-page`
-- Tests: fichero/ficheroTests/FindLayoutPageTests.swift
+- Tests: FindLayoutPageTests.swift (not yet written)
 - Size: S
 
-#### Step 10.3 — Leave out non-text segments; damaged mark
+Written for the builder 2026-11-07 (spec-writer). **Built:** Find Regions and Find Lines are two stage pages, each with its own try and result. **Left:** one page, "Find the layout", holding the region-model row (10.1), the line finder's row and ONE drawn result (blocks and lines over the sample page, Step 7.3's drawing); the two jobs stay two jobs in the recipe (`find-regions`, `find-lines`), so a recipe file is unchanged; the page's try runs both and draws once. **Acceptance (app, by test):** the stage list shows "Find the layout" once where it showed two pages; the page mounts the two rows and one drawing; the recipe written holds both jobs as before.
+
+- test (to write): `FindLayoutPageTests.swift` in fichero/Tests/Unit/general/Models/ (one page, two rows, one drawing; the recipe's two jobs unchanged)
+
+#### Step 10.3 — Leave out non-text segments; damaged mark (#6064)
 - Behaviours: `designer.clean.leaves-out-non-text`, `designer.clean.damaged-mark`
-- Tests: test_leave_out.py, fichero-server/tests/unit/recipes/test_damaged_mark.py
+- Tests: fichero-server/tests/unit/recipes/test_leave_out.py, test_damaged_mark.py (not yet written)
 - Depends on: 6.1
 - Size: S
+
+Written for the builder 2026-11-07 (spec-writer). **Built (#6070, first slice):** the Leave Out stage between Find Lines and Read, on by default in a plan that finds and reads lines, free and on this Mac, with the rules too small, off the page and likely bleed-through (`recipes/leave_out.py`, `test_leave_out.py`), each mark saying why in `left_out` and setting `is_furniture`; the page-box, ruler and colour-card reasons (`source/image-enhancement.md` Step 3.1); the Inspector's Certainty and Damage. **Left:** (1) engine: the non-text rules the bullet still owes (a drawing or seal, a stamp, a printed form line) as reasons in the same vocabulary, each off by default until the bake-off shows it helps; (2) engine: a page or a region can carry a `damaged` mark (a person's, or a model's as a proposal), stored as the segment's or page's metadata, read by the Inspector's Certainty and Damage and by Leave Out (a damaged region's lines are left out with the reason "damaged"); (3) app: the mark in the editor's Mark tool (`preview.edit.tool.mark-ruler-card-blank`'s set gains Damaged) and the Inspector row. **Acceptance (engine):** a fixture with a seal region leaves its lines out with reason "seal" when the rule is on and keeps them when off; marking a region damaged leaves its lines out with "damaged" and the Inspector's Damage reads it; the mark is undoable. **Acceptance (app, by test):** Mark offers Damaged; the Inspector shows it.
+
+- test (to write): `test_damaged_mark.py` in fichero-server/tests/unit/recipes/ (the mark stored and read; Leave Out's "damaged"; undo; the new non-text reasons on and off)
 
 ### Stage 11 — Teach a model
 
