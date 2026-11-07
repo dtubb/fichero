@@ -57,7 +57,7 @@ def _is_split_page(doc: Any) -> bool:
 _DOCUMENT_FIELDS = ("id", "parent_id", "name", "doc_type", "file_type", "node_kind", "deleted_at")
 _LINES_AT_ONCE = 500
 #: What the plan's counts ask of a line's reading: not its words, of which a read library holds a million rows.
-_READING_FIELDS = ("document_id", "segment_id", "retracted_at", "derived_from_artifact_id")
+_READING_FIELDS = ("document_id", "segment_id", "retracted_at", "derived_from_artifact_id", "content")
 
 
 def _documents(db: Any, within: set[str] | None, memo: dict | None = None) -> list[Any]:
@@ -276,7 +276,8 @@ def _has_line_readings(db: Any, doc_id: str, model: str | None) -> bool:
     if _has_lines(db, doc_id, model):
         return True
     by_model = {a.id for a in db.query(Artifact, document_id=doc_id) if model is None or a.model == model}
-    return bool(by_model) and any(r.segment_id and not r.retracted_at and r.derived_from_artifact_id in by_model
+    return bool(by_model) and any(r.segment_id and not r.retracted_at and (r.content or "").strip()
+                                  and r.derived_from_artifact_id in by_model
                                   for r in db.query(ContentRepresentation, document_id=doc_id))
 
 
@@ -293,7 +294,7 @@ def pages_with_readings(db: Any, pages: list[str]) -> set[str]:
             have.add(a.document_id)
         artifacts.setdefault(a.document_id, set()).add(a.id)
     for r in db.query_fields_in(ContentRepresentation, _READING_FIELDS, "document_id", list(artifacts)):
-        if r.segment_id and not r.retracted_at and r.derived_from_artifact_id in artifacts.get(r.document_id, ()):
+        if r.segment_id and not r.retracted_at and (r.content or "").strip() and r.derived_from_artifact_id in artifacts.get(r.document_id, ()):
             have.add(r.document_id)
     return have
 
@@ -309,8 +310,8 @@ def lines_state(db: Any, doc_id: str, model: str | None = None) -> tuple[int, in
     lines = [x for x in db.query(Segment, document_id=doc_id) if x.kind == "line" and x.deleted_at is None]
     if not lines:
         return 0, 0, 0
-    # A reading taken back is no reading, as the reader counts it (`working_lines.unread_by`, #6264).
-    read = {r.segment_id for r in db.query(ContentRepresentation, document_id=doc_id) if r.segment_id and not r.retracted_at}
+    # A reading taken back or with no text is no reading, as the reader counts it (`working_lines.unread_by`, #6264).
+    read = {r.segment_id for r in db.query(ContentRepresentation, document_id=doc_id) if r.segment_id and not r.retracted_at and (r.content or "").strip()}
     blank = [x for x in lines if x.id not in read and isinstance((x.metadata or {}).get(NO_WRITING_MARK), dict)
              and (model is None or x.metadata[NO_WRITING_MARK].get("model") in (model, ""))]
     return len(lines), sum(1 for x in lines if x.id not in read) - len(blank), len(blank)
@@ -341,7 +342,7 @@ def pages_with_line_readings(db: Any, pages: list[str], model: str | None) -> se
         if model is None or a.model == model:
             by_model.setdefault(a.document_id, set()).add(a.id)
     for r in db.query_fields_in(ContentRepresentation, _READING_FIELDS, "document_id", list(by_model)):
-        if r.segment_id and not r.retracted_at and r.derived_from_artifact_id in by_model.get(r.document_id, ()):
+        if r.segment_id and not r.retracted_at and (r.content or "").strip() and r.derived_from_artifact_id in by_model.get(r.document_id, ()):
             have.add(r.document_id)
     return have
 
@@ -365,7 +366,7 @@ def _lines_states(db: Any, pages: list[str], model: str | None) -> dict[str, tup
             lines.setdefault(x.document_id, []).append(x)
     read: dict[str, set[str]] = {}
     for r in db.query_fields_in(ContentRepresentation, _READING_FIELDS, "document_id", list(lines)):
-        if r.segment_id and not r.retracted_at:  # a reading taken back is no reading (#6264)
+        if r.segment_id and not r.retracted_at and (r.content or "").strip():  # a reading taken back or empty is no reading (#6264)
             read.setdefault(r.document_id, set()).add(r.segment_id)
     out: dict[str, tuple[int, int, int]] = {}
     for doc_id, found in lines.items():
@@ -401,7 +402,7 @@ def lines_by_page(db: Any, pages: list[str]) -> dict[str, PageLines]:
             lines.setdefault(x.document_id, []).append(x)
     read: dict[str, set[str]] = {}
     for r in db.query_fields_in(ContentRepresentation, _READING_FIELDS, "document_id", list(lines)):
-        if r.segment_id and not r.retracted_at:
+        if r.segment_id and not r.retracted_at and (r.content or "").strip():
             read.setdefault(r.document_id, set()).add(r.segment_id)
     out: dict[str, PageLines] = {}
     for page in pages:
@@ -515,7 +516,7 @@ def unread_reasons(db: Any, doc_id: str) -> dict[str, str]:
     from fichero_server.models import ContentRepresentation
     from fichero_server.models.segments import Segment
 
-    read = {r.segment_id for r in db.query(ContentRepresentation, document_id=doc_id) if r.segment_id and not r.retracted_at}
+    read = {r.segment_id for r in db.query(ContentRepresentation, document_id=doc_id) if r.segment_id and not r.retracted_at and (r.content or "").strip()}
     return {x.id: (x.metadata or {}).get("unread_reason") or NOT_ANSWERED for x in db.query(Segment, document_id=doc_id)
             if x.kind == "line" and x.deleted_at is None and x.id not in read
             and not isinstance((x.metadata or {}).get("read_no_writing"), dict)}

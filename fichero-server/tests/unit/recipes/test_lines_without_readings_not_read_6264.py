@@ -33,3 +33,34 @@ def test_a_page_whose_readings_were_taken_back_is_read_again(db):
     _taken_back(db, page)
     assert is_done(db, CARD, page) is False
     assert split_done(db, CARD, [page]) == ([page], 0)
+
+
+def test_a_page_with_lines_and_empty_readings_is_not_read_and_one_with_text_is(db):
+    """A line whose reading carries no text (empty content) has no reading text: the page is unread (#6264)."""
+    from fichero_server.models import Document, DocType, FileType
+    from fichero_server.models.anchors import SourceAnchor
+    from fichero_server.models.segments import Segment, SegmentPass, ProvenanceKind, bbox_and_tile_from_anchor
+
+    def _page_with_content(doc_name, n, content):
+        doc = Document(name=doc_name, doc_type=DocType.file, file_type=FileType.image, path="/" + doc_name)
+        db.save(doc)
+        pas = SegmentPass(document_id=doc.id, name="lines", provenance_kind=ProvenanceKind.workflow)
+        db.save(pas)
+        for i in range(n):
+            anchor = SourceAnchor(document_id=doc.id, rect=[0.1, 0.9 * i / n, 0.6, 0.5 / n])
+            x, y, w, h, tile = bbox_and_tile_from_anchor(anchor)
+            seg = Segment(document_id=doc.id, pass_id=pas.id, kind="line", anchor=anchor, bbox_x=x, bbox_y=y,
+                          bbox_w=w, bbox_h=h, tile=tile, doc_kind=f"{doc.id}:line",
+                          provenance_kind=ProvenanceKind.workflow)
+            db.save(seg)
+            db.save(ContentRepresentation(document_id=doc.id, segment_id=seg.id, kind="transcription",
+                                          content=content, source_anchor=anchor))
+        return doc.id
+
+    empty = _page_with_content("e.png", 4, "")
+    text = _page_with_content("t.png", 4, "texto")
+    assert is_done(db, CARD, empty) is False
+    assert is_done(db, CARD, text) is True
+    assert split_done(db, CARD, [empty]) == ([empty], 0)
+    assert split_done(db, CARD, [text]) == ([], 1)
+
