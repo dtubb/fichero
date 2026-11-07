@@ -14,8 +14,8 @@ enum PairingCodeRenewal {
     enum Outcome {
         /// The new code: it replaces the old one in a single step, so there is never a blank card in between.
         case fresh(PairingCodeRecord)
-        /// The mint failed: the expired code goes and this is the sentence to show.
-        case failed(String)
+        /// The mint failed: the expired code goes and this is what failed, for the alert (Step 8.8).
+        case failed(Error)
         /// The wait or the mint was cancelled (the card went away): nothing is shown or changed.
         case cancelled
     }
@@ -35,7 +35,7 @@ enum PairingCodeRenewal {
         } catch let error as URLError where error.code == .cancelled {
             return .cancelled
         } catch {
-            return .failed(error.localizedDescription)
+            return .failed(error)
         }
     }
 }

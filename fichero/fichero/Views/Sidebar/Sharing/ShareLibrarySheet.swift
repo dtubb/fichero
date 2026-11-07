@@ -52,7 +52,10 @@ struct ShareLibrarySheet: View {
     @State var sharingState: SharingStateRecord?
     @State var addressChoice: AddressChoice?
     @State var spkiPin = ""
+    /// A hint in words under the Share button ("Choose a person…"); a failure is the alert below, never this line.
     @State var shareError: String?
+    /// A failure while sharing, as the one alert (Step 8.8): the sheet stays open with its choices kept.
+    @State var failurePrompt: FailureAlertPrompt?
     @State var copied = false
 
     // Inline "New person…" create
@@ -99,5 +102,6 @@ struct ShareLibrarySheet: View {
         }
         .frame(minWidth: 420, minHeight: 480)
         .task { await loadEverything() }
+        .failureAlert($failurePrompt)
     }
 }

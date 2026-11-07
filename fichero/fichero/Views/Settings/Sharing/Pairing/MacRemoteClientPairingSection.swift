@@ -15,7 +15,8 @@ struct MacRemoteClientPairingSection: View {
     @State private var pairCode = ""
     // This Mac's own `.ts.net` address, from its own engine; a host in another tailnet always asks for its invite.
     @State private var ownTailnetURL: String?
-    @State private var clientPairingError: String?
+    /// A failed connect, as the one alert (`sharing.alerts.one-alert-per-failure`); never a line of raw text under the fields.
+    @State private var failurePrompt: FailureAlertPrompt?
     @State private var isClientPairing = false
     // Shown only after the host answers "person required": a Multi-user host asks who this Mac is.
     @State private var needsPerson = false
@@ -62,12 +63,6 @@ struct MacRemoteClientPairingSection: View {
                     .textFieldStyle(.roundedBorder)
             }
 
-            if let clientPairingError {
-                Label(clientPairingError, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
-
             HStack {
                 Spacer()
                 Button(ConnectSheetModel.connectTitle(isConnecting: isClientPairing)) {
@@ -100,6 +95,7 @@ struct MacRemoteClientPairingSection: View {
             }
         }
         .onDisappear { nearby.stop() }
+        .failureAlert($failurePrompt)
     }
 
     /// The Fichero Macs nearby, this Mac left out; picking one starts pairing with it (#5892). "Searching…" in grey
@@ -114,7 +110,6 @@ struct MacRemoteClientPairingSection: View {
         ForEach(hosts, id: \.publicURL) { host in
             Button {
                 chosen = host
-                clientPairingError = nil
             } label: {
                 Label(host.name, systemImage: chosen == host ? "checkmark.circle.fill" : "desktopcomputer")
             }
@@ -149,7 +144,6 @@ struct MacRemoteClientPairingSection: View {
 
     private func connectThisMacAsRemoteClient() async {
         isClientPairing = true
-        clientPairingError = nil
         defer { isClientPairing = false }
 
         let previousHost = engineHost
@@ -176,7 +170,30 @@ struct MacRemoteClientPairingSection: View {
                 })
         } catch {
             if error as? RemoteClientPairingError == .personRequired { needsPerson = true }
-            clientPairingError = error.localizedDescription
+            failurePrompt = SharingFailurePrompt.make(
+                pairing: error, host: inviteHost ?? chosen?.name ?? "the other Mac",
+                offers: [.pasteLinkAgain, .openTailscale, .tryAgain, .openNetworkSettings, .signIn, .checkForUpdates],
+                perform: perform, copy: { PlatformPasteboard.writeString($0) })
+        }
+    }
+
+    /// A fix button of the alert, done here.
+    private func perform(_ fix: SharingFailurePrompt.Fix) {
+        switch fix {
+        case .pasteLinkAgain:
+            if let pasted = NSPasteboard.general.string(forType: .string) { clientInvite = pasted }
+        case .openTailscale:
+            NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Tailscale.app"))
+        case .tryAgain:
+            Task { await connectThisMacAsRemoteClient() }
+        case .openNetworkSettings, .openAppSettings:
+            if let url = URL(string: "x-apple.systempreferences:com.apple.Network-Settings.extension") { NSWorkspace.shared.open(url) }
+        case .signIn:
+            needsPerson = true
+        case .checkForUpdates:
+            SparkleUpdater.shared.checkForUpdates()
+        case .turnSharingOffAndOn:
+            break
         }
     }
 

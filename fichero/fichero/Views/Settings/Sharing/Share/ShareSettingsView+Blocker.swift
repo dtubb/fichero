@@ -46,7 +46,7 @@ extension ShareSettingsView {
             do {
                 try await backendService.start()
             } catch {
-                shareError = error.localizedDescription
+                showFailure(error, "Couldn't start the engine")
             }
             loadSPKIPin()
         case .sharingNotStarted:

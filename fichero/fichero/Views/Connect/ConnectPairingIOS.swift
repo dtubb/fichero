@@ -28,13 +28,15 @@ struct RemoteConnectionSetupView: View {
     @State private var showingManualEntry = false
     @State private var isPairing = false
     @State private var errorMessage: String?
-    @State private var failure: PairingFailureError?
+    /// A failed pairing, as the one alert (`sharing.alerts.one-alert-per-failure`).
+    @State private var failurePrompt: FailureAlertPrompt?
+    @Environment(\.openURL) private var openURL
     @State private var pickerSource: CaptureSource?
     @State private var showingDocumentScanner = false
     @State private var captureError: String?
 
     var body: some View {
-        connectView
+        connectView.failureAlert($failurePrompt)
         // #2347: on iPhone/iPad the pairing screen opens STRAIGHT into QR
         // scanning — the whole point is to scan the host Mac's code. Present the
         // scanner once on first appearance; after a Cancel the landing card's
@@ -194,7 +196,6 @@ struct RemoteConnectionSetupView: View {
                         Text(errorMessage)
                             .font(.caption)
                             .foregroundStyle(.red)
-                        PairingFailureButtons(failure: failure, message: errorMessage) { showingScanner = true }
                     }
                     if let captureError {
                         Text(captureError)
@@ -321,10 +322,20 @@ private extension RemoteConnectionSetupView {
         }
     }
 
-    /// The failure's sentence (the permission line where it explains it) and, for a pairing step, the buttons that go with it.
+    /// The failure as the one alert: the step's title and sentence, its fix where this screen can do it, Copy Details.
     func show(_ error: Error) {
-        failure = error as? PairingFailureError
-        errorMessage = failure.map { LocalNetworkPolicy.sentence(for: $0.failure, context: $0.context) } ?? error.localizedDescription
+        failurePrompt = SharingFailurePrompt.make(
+            pairing: error, host: pickedHost?.name ?? "your Mac", offers: SharingFailurePrompt.phoneOffers,
+            perform: { fix in
+                if let url = SharingFailurePrompt.url(for: fix) {
+                    openURL(url)
+                } else if fix == .pasteLinkAgain {
+                    showingManualEntry = true
+                } else {
+                    showingScanner = supportsCameraScanner
+                }
+            },
+            copy: { PlatformPasteboard.writeString($0) })
     }
 
     func finishPairing(with fields: RemoteClientPairingFields) async throws {
@@ -333,7 +344,6 @@ private extension RemoteConnectionSetupView {
         }
         isPairing = true
         errorMessage = nil
-        failure = nil
         defer { isPairing = false }
         _ = try await RemoteClientPairing.pairAndPersistHost(
             remoteURL: fields.remoteURL,

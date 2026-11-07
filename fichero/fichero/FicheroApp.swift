@@ -397,6 +397,8 @@ struct FicheroApp: App {
     var body: some Scene {
         WindowGroup("Fichero", id: "main") {
             libraryWindowRoot(seed: nil)
+                // A host stopped sharing, or a shared library would not open: one alert (Step 8.8).
+                .background { Color.clear.failureAlert(Bindable(libraryManager).sharingFailure) }
                 .onOpenURL { url in
                     handleOpenURL(url)
                 }

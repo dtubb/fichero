@@ -54,10 +54,18 @@ extension ShareSettingsView {
             try await MultiuserSwitch.set(
                 enabled, pairing: PairingService(apiRoot: EngineConfig.host), service: nil, steps: nil)
         } catch {
-            shareError = error.localizedDescription
+            showFailure(error, "Couldn't change Multi-user")
         }
         await appState.checkBackendHealth()
         multiuserEnabled = backendMultiuser  // the local copy other views read follows the engine, never the other way round
+    }
+
+    /// A failure while sharing, as the one alert (`sharing.host.dialog-errors-are-alerts`): never raw text on the grey line. Its
+    /// fix, where the engine is not listening, re-applies Sharing, which restarts the engine and its listener.
+    func showFailure(_ error: Error, _ title: String) {
+        failurePrompt = SharingFailurePrompt.make(
+            sharing: error, title: title, offers: hostingEnabled ? [.turnSharingOffAndOn] : [],
+            perform: { _ in Task { await applySharing() } }, copy: { PlatformPasteboard.writeString($0) })
     }
 
     func applySharing() async {
@@ -102,7 +110,7 @@ extension ShareSettingsView {
             loadSPKIPin()
             if hostingEnabled { await refreshDevices() }
         } catch {
-            shareError = error.localizedDescription
+            showFailure(error, hostingEnabled ? "Couldn't turn Sharing on" : "Couldn't turn Sharing off")
         }
         // The engine answers `none` until Sharing is on and makes the forward after readiness: re-read, or the row stays stale (review N1).
         await refreshSharingState()
@@ -148,7 +156,7 @@ extension ShareSettingsView {
             pairingCode = try await PairingService(apiRoot: EngineConfig.host).createPairingCode()
             codeEnginePID = currentEnginePID
         } catch {
-            if !error.isCancellationError { shareError = error.localizedDescription }
+            if !error.isCancellationError { showFailure(error, "Couldn't make a pairing code") }
         }
     }
 
@@ -169,7 +177,7 @@ extension ShareSettingsView {
         do {
             pairedDevices = try await PairingService(apiRoot: EngineConfig.host).listDevices()
         } catch {
-            shareError = error.localizedDescription
+            showFailure(error, "Couldn't list the paired devices")
         }
     }
 
@@ -180,7 +188,7 @@ extension ShareSettingsView {
             try await PairingService(apiRoot: EngineConfig.host).revokeDevice(id: deviceID)
             await refreshDevices()
         } catch {
-            shareError = error.localizedDescription
+            showFailure(error, "Couldn't remove the device")
         }
     }
 
@@ -191,7 +199,7 @@ extension ShareSettingsView {
         do {
             for id in selectedDevices { try await service.revokeDevice(id: id) }
         } catch {
-            shareError = error.localizedDescription
+            showFailure(error, "Couldn't remove the device")
         }
         selectedDevices.removeAll()
         await refreshDevices()

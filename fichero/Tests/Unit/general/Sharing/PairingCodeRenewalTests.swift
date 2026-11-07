@@ -38,8 +38,8 @@ struct PairingCodeRenewalTests {
     @Test func aFailedMintIsReportedInWords() async {
         struct Down: LocalizedError { var errorDescription: String? { "The engine is not responding." } }
         let outcome = await PairingCodeRenewal.renew(mint: { throw Down() })
-        guard case .failed(let message) = outcome else { Issue.record("expected a failure"); return }
-        #expect(message == "The engine is not responding.")
+        guard case .failed(let error) = outcome else { Issue.record("expected a failure"); return }
+        #expect(error is Down)
     }
 
     @Test func aCancelledRenewalIsNotAFailure() async {

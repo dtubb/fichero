@@ -23,7 +23,14 @@ enum SharedLibraryOpener {
                 from: previous, to: hostRoot,
                 notResponding: "That Mac is not responding. Check that it is on and Sharing is on.")
         } catch {
-            libraryManager.sharingStoppedNotice = error.localizedDescription
+            // The switch rolled back: the app is on this Mac's projects again (`sharing.alerts.one-alert-per-failure`).
+            let name = PairedMachineStore.load().first { $0.id == hostRoot }?.name ?? apiRoot.host ?? "That Mac"
+            libraryManager.sharingFailure = SharingFailurePrompt.make(
+                title: "\(name) isn't responding",
+                sentence: "It is off, asleep, or Sharing is off there. Fichero went back to this Mac's projects.",
+                retry: { Task { await open(hostRoot: hostRoot, libraryPath: libraryPath, appState: appState,
+                                            backendService: backendService, libraryManager: libraryManager) } },
+                copy: { PlatformPasteboard.writeString($0) })
         }
     }
 

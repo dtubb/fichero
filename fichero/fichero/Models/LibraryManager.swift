@@ -68,8 +68,9 @@ class LibraryManager {
     /// populates on iPhone even when its .task fires before loadCollections() (#2472).
     var librariesLoadVersion: Int = 0
 
-    /// One sentence shown after a host stopped sharing a library this Mac had open (#5731); cleared by the view.
-    var sharingStoppedNotice: String?
+    /// The alert after a host stopped sharing a library this Mac had open (#5731), or a shared library that would not open
+    /// (Step 8.8): the app's root shows it, and closing it clears it.
+    var sharingFailure: FailureAlertPrompt?
     /// Shared projects whose host turned Sharing off: greyed in the sidebar until Forgotten (#5739).
     /// Kept across a relaunch by `HostGoneRowStore`.
     var hostGoneRows: [HostGoneRow] = HostGoneRowStore.load() {

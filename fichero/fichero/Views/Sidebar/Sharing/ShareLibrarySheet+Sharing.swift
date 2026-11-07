@@ -34,7 +34,7 @@ extension ShareLibrarySheet {
             await mintPairingCodeIfPossible()
             await loadMembers()
         } catch {
-            shareError = error.localizedDescription
+            showFailure(error, "Couldn't share the project")
         }
     }
 
@@ -51,11 +51,15 @@ extension ShareLibrarySheet {
                 username: username, role: role, library: library.url.path, folderId: folder.folderId)
             didFolderShare = true
             await loadMembers()
-        } catch APIError.httpError(_, let message) {
-            shareError = message  // the engine's own words, without the status prefix
         } catch {
-            shareError = error.localizedDescription
+            showFailure(error, "Couldn't share the folder")
         }
+    }
+
+    /// A failure as the one alert: the engine's own words where it gave them (`SharingFailurePrompt.make(sharing:)`).
+    func showFailure(_ error: Error, _ title: String) {
+        failurePrompt = SharingFailurePrompt.make(
+            sharing: error, title: title, offers: [], perform: { _ in }, copy: { PlatformPasteboard.writeString($0) })
     }
 
     /// Whether this Mac can prepare its own hosting for the share link: the host
@@ -93,7 +97,7 @@ extension ShareLibrarySheet {
             appState.reconfigureGeneratedClientsForCurrentHost()
             libraryManager.reconfigureGeneratedClientsForCurrentHost()
         } catch {
-            shareError = error.localizedDescription
+            showFailure(error, "Couldn't turn Sharing on")
         }
     }
 
@@ -115,7 +119,7 @@ extension ShareLibrarySheet {
             pairingCode = try await PairingService(apiRoot: EngineConfig.host)
                 .createPairingCode(library: library.url.path)
         } catch {
-            shareError = error.localizedDescription
+            showFailure(error, "Couldn't make the link")
         }
     }
 

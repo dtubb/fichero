@@ -35,7 +35,10 @@ struct ShareSettingsView: View {
     @State var pairingCode: PairingCodeRecord?
     @State var pairedDevices: [PairedDeviceRecord] = []
     @State var spkiPin = ""
+    /// A note for the grey line (the Multi-user migration's, a renewal's): words of ours, never an error's text.
     @State var shareError: String?
+    /// A failure while sharing, as the one alert.
+    @State var failurePrompt: FailureAlertPrompt?
     @State var isApplyingChange = false
     @State var isGeneratingCode = false
     @State var isLoadingDevices = false
@@ -93,6 +96,7 @@ struct ShareSettingsView: View {
                         .foregroundStyle(shareError == nil ? Color.secondary : Color.red)
                 }
             }
+            .failureAlert($failurePrompt)
 
             nothingSharedSection
 
@@ -191,7 +195,7 @@ struct ShareSettingsView: View {
             // and cancel the renewal itself (review 597).
             switch await PairingCodeRenewal.renew(mint: { try await PairingService(apiRoot: EngineConfig.host).createPairingCode() }) {
             case .fresh(let code): pairingCode = code
-            case .failed(let message): pairingCode = nil; shareError = message
+            case .failed(let error): pairingCode = nil; showFailure(error, "Couldn't make a pairing code")
             case .cancelled: break
             }
         }

@@ -323,7 +323,9 @@ extension LibraryManager {
     /// The host turned Sharing off: this guest says one sentence and closes the shared project, so its
     /// windows go back to the Mac's own projects with no error screen (`sharing.off-closes-the-guest`, #5731).
     func hostStoppedSharing(libraryId: UUID, hostName: String) {
-        sharingStoppedNotice = SharingStopped.sentence(host: hostName)
+        sharingFailure = SharingFailurePrompt.make(
+            .hostStopped, context: .init(host: hostName.isEmpty ? "The host" : hostName), offers: [], perform: { _ in },
+            copy: { PlatformPasteboard.writeString($0) })
         if let library = getLibrary(id: libraryId) {
             hostGoneRows.removeAll { $0.id == libraryId }
             hostGoneRows.append(HostGoneRow(id: libraryId, name: library.displayName, host: hostName))

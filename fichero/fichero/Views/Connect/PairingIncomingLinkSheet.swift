@@ -14,8 +14,9 @@ struct PairingIncomingLinkSheet: View {
 
     @State private var isPairing = true
     @State private var errorMessage: String?
-    /// Set when the failure is one of the pairing steps: it decides which buttons the sheet offers (`PairingFailureActions`).
-    @State private var failure: PairingFailureError?
+    /// A failed pairing, as the one alert (`sharing.alerts.one-alert-per-failure`); the sheet behind it says only that it is not connected.
+    @State private var failurePrompt: FailureAlertPrompt?
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         NavigationStack {
@@ -23,17 +24,8 @@ struct PairingIncomingLinkSheet: View {
                 if isPairing {
                     ProgressView("Connecting…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let errorMessage {
-                    VStack(spacing: 16) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.largeTitle)
-                            .foregroundStyle(.red)
-                        Text(errorMessage)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                        failureButtons
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if errorMessage != nil {
+                    ContentUnavailableView("Not Connected", systemImage: "exclamationmark.triangle")
                 }
             }
             .navigationTitle("Connecting…")
@@ -45,16 +37,12 @@ struct PairingIncomingLinkSheet: View {
             }
         }
         .task { await pair() }
-    }
-
-    private var failureButtons: some View {
-        PairingFailureButtons(failure: failure, message: errorMessage ?? "") { Task { await pair() } }
+        .failureAlert($failurePrompt)
     }
 
     private func pair() async {
         isPairing = true
         errorMessage = nil
-        failure = nil
         do {
             let fields = try RemoteClientPairing.pairingFields(fromInviteOrPayload: url.absoluteString)
             _ = try await RemoteClientPairing.pairAndPersistHost(
@@ -74,8 +62,16 @@ struct PairingIncomingLinkSheet: View {
             await onConnected()
         } catch {
             isPairing = false
-            failure = error as? PairingFailureError
-            errorMessage = failure.map { LocalNetworkPolicy.sentence(for: $0.failure, context: $0.context) } ?? error.localizedDescription
+            errorMessage = ""
+            failurePrompt = SharingFailurePrompt.make(
+                pairing: error,
+                host: (try? RemoteClientPairing.pairingFields(fromInviteOrPayload: url.absoluteString))
+                    .flatMap { URL(string: $0.remoteURL)?.host } ?? "your Mac",
+                offers: SharingFailurePrompt.phoneOffers.subtracting([.pasteLinkAgain]),
+                perform: { fix in
+                    if let page = SharingFailurePrompt.url(for: fix) { openURL(page) } else { Task { await pair() } }
+                },
+                copy: { PlatformPasteboard.writeString($0) })
         }
     }
 }
