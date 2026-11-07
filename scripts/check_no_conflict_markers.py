@@ -31,6 +31,7 @@ read when it has no NUL byte and decodes as UTF-8 (git's own test for binary, pl
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -118,18 +119,39 @@ def offenders(files: list[Path]) -> list[tuple[str, int, str]]:
     return found
 
 
-def main() -> int:
-    files = tracked_text_files()
+def batch_files() -> list[Path] | None:
+    """The files this batch adds or changes (against `git merge-base HEAD origin/integration`), or None when there is no batch:
+    HEAD is integration itself, there is no origin/integration, or FICHERO_CONFLICT_SCAN=full. #6382 (2026-11-07): the full scan
+    read 7,600 files twice and passed 60 s at load 100, sending back a spec batch. A marker enters only in a commit, so a batch's
+    own files are where it would be; the full scan stays for integration itself (the nightly gate), the net for merges made
+    outside the ladder."""
+    if os.environ.get("FICHERO_CONFLICT_SCAN") == "full":
+        return None
+    def git(*a):
+        r = subprocess.run(["git", "-C", str(REPO_ROOT), *a], capture_output=True, text=True)
+        return r.stdout.strip() if r.returncode == 0 else ""
+    base, head = git("merge-base", "HEAD", "origin/integration"), git("rev-parse", "HEAD")
+    if not base or base == head:
+        return None
+    names = git("diff", "--name-only", "--diff-filter=AMR", base, "HEAD").splitlines()
+    return [Path(n) for n in names if n and n not in EXEMPT]
 
-    readable = sum(1 for rel in files if _text(rel) is not None)
+
+def main() -> int:
+    scoped = batch_files()
+    files = scoped if scoped is not None else tracked_text_files()
+    texts = {rel: _text(rel) for rel in files}  # each file read ONCE (the floor and the scan both read it before)
+    readable = sum(1 for t in texts.values() if t is not None)
 
     # Floor on what was READ, not on what was found wrong. If this collapses,
-    # the check is blind and must say so rather than reporting a clean tree.
-    blind = require_scan_floor(readable, SCAN_FLOOR, "tracked text files")
-    if blind:
-        return blind
+    # the check is blind and must say so rather than reporting a clean tree. A batch's own files are few by nature: no floor.
+    if scoped is None:
+        blind = require_scan_floor(readable, SCAN_FLOOR, "tracked text files")
+        if blind:
+            return blind
 
-    bad = offenders(files)
+    bad = [(str(rel), n, line[:60]) for rel, t in texts.items() if t is not None
+           for n, line in enumerate(t.splitlines(), 1) if line.startswith(MARKERS)]
     if bad:
         print("unresolved merge-conflict markers are COMMITTED:\n")
         for rel, lineno, snippet in bad:
@@ -142,7 +164,7 @@ def main() -> int:
         )
         return 1
 
-    print(f"conflict markers: OK ({readable} tracked text files read)")
+    print(f"conflict markers: OK ({readable} {'files this batch changed' if scoped is not None else 'tracked text files'} read)")
     return 0
 
 

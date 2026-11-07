@@ -147,6 +147,7 @@ class TestDoesNotCryWolf:
         r = subprocess.run(
             [sys.executable, str(SCRIPT)],
             capture_output=True, text=True, timeout=300, cwd=REPO_ROOT,
+            env={**__import__("os").environ, "FICHERO_CONFLICT_SCAN": "full"},  # #6382: the whole tree, never only this branch's files
         )
         assert r.returncode == 0, r.stdout + r.stderr
         assert "OK" in r.stdout
@@ -181,3 +182,36 @@ class TestBlindIsNotClean:
             f"expected BLIND(2), got {r.returncode}: {r.stdout}{r.stderr}"
         )
         assert "BLIND" in r.stdout + r.stderr
+
+
+class TestScopedToTheBatch:
+    """#6382 (2026-11-07): the full scan read every tracked file twice and passed 60 s at load 100; a batch is scanned by its own
+    changed files, and integration itself (no batch) still gets the full scan."""
+
+    def _repo(self, tmp_path):
+        import os
+        r = tmp_path / "r"
+        r.mkdir()
+        env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+        def git(*a):
+            subprocess.run(["git", "-C", str(r), *a], check=True, capture_output=True, env=env)
+        git("init", "-q", "-b", "integration")
+        (r / "old.txt").write_text("<<<<<<< HEAD\nstale marker already on integration\n", encoding="utf-8")
+        git("add", "-A")
+        git("commit", "-qm", "base")
+        git("update-ref", "refs/remotes/origin/integration", "HEAD")
+        return r, git
+
+    def test_a_batch_is_scanned_by_its_own_files_and_integration_by_all(self, tmp_path, monkeypatch):
+        mod = load_checker()
+        r, git = self._repo(tmp_path)
+        monkeypatch.setattr(mod, "REPO_ROOT", r)
+        assert mod.batch_files() is None, "HEAD is integration itself: the full scan"
+        (r / "new.py").write_text("x = 1\n>>>>>>> theirs\n", encoding="utf-8")
+        (r / "clean.md").write_text("Title\n=======\n", encoding="utf-8")
+        git("add", "-A")
+        git("commit", "-qm", "batch")
+        assert sorted(str(p) for p in mod.batch_files()) == ["clean.md", "new.py"], "only what the batch adds or changes"
+        assert mod.main() == 1, "the batch's own marker is caught"
+        monkeypatch.setenv("FICHERO_CONFLICT_SCAN", "full")
+        assert mod.batch_files() is None
