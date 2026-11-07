@@ -91,6 +91,7 @@ class _PairingCode:
     display_name: str = ""
     role: str = INVITE_DEFAULT_ROLE  # on `library`, for a NEW person (an existing person keeps the role they have)
     library: str | None = None
+    also_libraries: tuple[str, ...] = ()  # more projects a plain link gives (the which-projects dialog's set, #6366)
     folder_id: str | None = None  # a folder of `library` the invitation shares, not the whole project (#5967)
     never_expires: bool = False
     claimed: bool = False  # a redeem is under way: only one at a time may spend the code
@@ -130,6 +131,9 @@ class PairCodeRequest(BaseModel):
     display_name: str | None = None
     role: Literal["viewer", "editor"] = INVITE_DEFAULT_ROLE
     library: str | None = Field(default=None, description="the library the role is granted on, for a new person")
+    libraries: list[str] = Field(default_factory=list, description=(
+        "more projects a plain link (no person) gives the paired device, beside `library`: the which-projects dialog's ONE link "
+        "for a set (#6366); a path that is no project on this Mac is left out"))
     folder_id: str | None = Field(default=None, description=(
         "share one folder of that project instead of the whole project: the person reaches that folder and what is under "
         "it, nothing beside it (`sharing.share-sheet-chooses-what`)"))
@@ -764,6 +768,18 @@ def _library_a_link_is_for(request: Request, body: PairCodeRequest) -> str | Non
     return package
 
 
+def _projects_a_link_also_gives(body: PairCodeRequest | None) -> tuple[str, ...]:
+    """The other projects a plain link names, as the registry spells them, each once; a path with no project is left out."""
+    from fichero_server.security import authz
+
+    out: list[str] = []
+    for named in body.libraries if body else []:
+        package = authz.normalize_library_path(named.strip()) if named.strip() else None
+        if package and package not in out and os.path.isfile(os.path.join(package, "fichero.duckdb")):
+            out.append(package)
+    return tuple(out)
+
+
 @router.post("/code", response_model=PairCodeResponse)
 def create_pairing_code(
     request: Request,
@@ -849,6 +865,7 @@ def create_pairing_code(
         display_name=(body.display_name or "").strip(),
         role=granted_role or "",
         library=library_path or _library_a_link_is_for(request, body),
+        also_libraries=() if person_name else _projects_a_link_also_gives(body),
         folder_id=folder_id,
         never_expires=body.never_expires and person_name is not None,
         minted_by=(_current_session_user(request).username if _current_session_user(request) else "host app"),  # "host app": a code naming no person
@@ -1040,15 +1057,15 @@ def pair_device(
         app_db.set_device_route(device.id, "tailnet" if _has_proxy_origin_headers(request) else "lan")
         record.used = True
         _PAIRING_CODES.pop(code, None)
-        if record.library:
+        for package in [p for p in (record.library, *record.also_libraries) if p]:
             # The host's list of what a device may open names the project the link was minted for, even when it was never
             # put in the registry (a project the app made on first run): else the guest is told it was not given it.
-            _register_link_library(record.library)
+            _register_link_library(package)
             owner = app_db.get_user(user_id)
-            if owner is not None and owner.is_owner and app_db.get_library_role(owner.id, record.library) is None:
+            if owner is not None and owner.is_owner and app_db.get_library_role(owner.id, package) is None:
                 # The owner owns the project they minted a link for: a device that is theirs must reach it, whether or not
                 # the project ever had a roles row (one the app made on first run did not).
-                app_db.set_library_role(user_id=owner.id, library_path=record.library, role="owner")
+                app_db.set_library_role(user_id=owner.id, library_path=package, role="owner")
         if record.person:
             _record_device_audit(
                 action_name="device.pair_for_person",
