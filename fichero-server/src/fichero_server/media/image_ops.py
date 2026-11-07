@@ -106,6 +106,10 @@ def detect_content_bbox(image: Image.Image) -> tuple[int, int, int, int]:
     return left, top, right - left, bottom - top
 
 
+#: The long side the page outline is found at (see `remove_black_background_opencv`).
+_MASK_DIM = 2048
+
+
 def remove_black_background_opencv(image: Image.Image) -> Image.Image:
     """Contour-based page lift for photographed documents on a dark ground.
 
@@ -124,7 +128,13 @@ def remove_black_background_opencv(image: Image.Image) -> Image.Image:
     except ImportError:
         return image.convert("RGBA")
 
-    gray = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2GRAY)
+    # The page outline is found on a copy no bigger than _MASK_DIM on its long side, then stretched back: a 100-megapixel scan
+    # took ~30 bytes a pixel here and, with the rest of the engine, killed it on an 8 GB Mac (#6384). A small image is unchanged.
+    scale = min(1.0, _MASK_DIM / max(image.size))
+    small = image if scale == 1.0 else image.resize(
+        (max(1, round(image.width * scale)), max(1, round(image.height * scale))), Image.Resampling.BOX
+    )
+    gray = cv2.cvtColor(np.array(small.convert("RGB")), cv2.COLOR_RGB2GRAY)
     if np.count_nonzero(gray < 80) / gray.size < 0.01:
         return image.convert("RGBA")
     _, binary = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY)
@@ -140,9 +150,16 @@ def remove_black_background_opencv(image: Image.Image) -> Image.Image:
     ys, xs = np.nonzero(mask)
     if not len(xs):
         return image.convert("RGBA")
-    rgba = image.convert("RGBA")
-    rgba.putalpha(Image.fromarray(mask))
-    return rgba.crop((int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1))
+    alpha = Image.fromarray(mask)
+    if scale != 1.0:
+        alpha = alpha.resize(image.size, Image.Resampling.BILINEAR)
+        box = (max(0, int(xs.min() / scale)), max(0, int(ys.min() / scale)),
+               min(image.width, int((xs.max() + 1) / scale) + 1), min(image.height, int((ys.max() + 1) / scale) + 1))
+    else:
+        box = (int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1)
+    page = image.crop(box).convert("RGBA")  # cut first, so the transparency is only ever built for the page itself
+    page.putalpha(alpha.crop(box))
+    return page
 
 
 #: Connectivity is computed at this bounded working size; similarity stays at
