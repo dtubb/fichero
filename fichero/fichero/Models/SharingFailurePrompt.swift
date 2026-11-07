@@ -39,11 +39,12 @@ enum SharingFailurePrompt {
     static let copyDetailsLabel = "Copy Details"
     static let dismissLabel = "OK"
 
-    /// What happened, as the alert's title (the table's first column). One flat case per step.
-    static func title(_ failure: PairingFailure, _ context: PairingFailure.Context) -> String { stepTitle(failure, context) }
+    /// What happened, as the alert's title (the table's first column): the link and reach steps, then the rest.
+    static func title(_ failure: PairingFailure, _ context: PairingFailure.Context) -> String {
+        reachTitle(failure, context) ?? accountTitle(failure, context)
+    }
 
-    // swiftlint:disable:next cyclomatic_complexity
-    private static func stepTitle(_ failure: PairingFailure, _ context: PairingFailure.Context) -> String {
+    private static func reachTitle(_ failure: PairingFailure, _ context: PairingFailure.Context) -> String? {
         let host = context.host
         switch failure {
         case .invalidLink: return "This isn't a pairing link"
@@ -55,6 +56,13 @@ enum SharingFailurePrompt {
         case .certificatePin: return "A different Mac answered"
         case .certificateName: return "\(host)'s certificate doesn't match"
         case .tailnetByNumber: return "Tailscale needs the name"
+        default: return nil
+        }
+    }
+
+    private static func accountTitle(_ failure: PairingFailure, _ context: PairingFailure.Context) -> String {
+        let host = context.host
+        switch failure {
         case .codeUsedOrExpired: return "That code has expired"
         case .tooManyTries: return "Too many tries"
         case .personRequired: return "Sign in to \(host)"
@@ -63,6 +71,7 @@ enum SharingFailurePrompt {
         case .hostSharesNothing: return "\(host) hasn't shared any project yet"
         case .hostStopped: return "\(host) stopped sharing"
         case .deviceForgotten: return "\(host) no longer knows this \(context.noun)"
+        default: return "Couldn't connect to \(host)"  // the reach steps have their titles above
         }
     }
 
@@ -89,7 +98,7 @@ enum SharingFailurePrompt {
             title: title(failure, context),
             why: LocalNetworkPolicy.sentence(for: failure, context: context),
             fix: fix(failure, host: context.host).flatMap { offers.contains($0) ? $0 : nil },
-            details: PairingFailureActions.details(failure, context: context), perform: perform, copy: copy)
+            details: PairingFailureActions.details(failure, context: context), acts: (perform, copy))
     }
 
     /// The alert for whatever a pairing threw: a step of the table where the error is one (or a transport failure that
@@ -108,24 +117,24 @@ enum SharingFailurePrompt {
         case .tokenNotSaved?:
             return prompt(title: "This \(context.noun) couldn't keep its key", why: error.localizedDescription,
                           fix: offers.contains(.tryAgain) ? .tryAgain : nil, details: error.localizedDescription,
-                          perform: perform, copy: copy)
+                          acts: (perform, copy))
         case let own?:
             return prompt(title: "Couldn't connect to \(host)", why: own.errorDescription ?? "", fix: nil,
-                          details: own.errorDescription ?? "", perform: perform, copy: copy)
+                          details: own.errorDescription ?? "", acts: (perform, copy))
         case nil: break
         }
         if let stopped = error as? PairingStoppedError {
             return prompt(title: "Couldn't connect to \(host)", why: stopped.message, fix: nil, details: stopped.message,
-                          perform: perform, copy: copy)
+                          acts: (perform, copy))
         }
         if case APIError.badRequest(let words)? = error as? APIError {
-            return prompt(title: "Couldn't connect to \(host)", why: words, fix: nil, details: words, perform: perform, copy: copy)
+            return prompt(title: "Couldn't connect to \(host)", why: words, fix: nil, details: words, acts: (perform, copy))
         }
         if transportCode(error) != nil {
             return make(LivePairingHost.failure(from: error, host: host), context: context, offers: offers, perform: perform, copy: copy)
         }
         return prompt(title: "Couldn't connect to \(host)", why: unknownSentence, fix: nil,
-                      details: "Fichero could not connect to \(host).\n\(String(describing: error))", perform: perform, copy: copy)
+                      details: "Fichero could not connect to \(host).\n\(String(describing: error))", acts: (perform, copy))
     }
 
     /// The alert for a sharing step on this Mac that failed (turning Sharing on, the devices list, a share, a code):
@@ -140,17 +149,17 @@ enum SharingFailurePrompt {
             return prompt(
                 title: title,
                 why: "The engine on this Mac isn't accepting connections on the sharing port. Turn Sharing off and on to start it again.",
-                fix: offers.contains(.turnSharingOffAndOn) ? .turnSharingOffAndOn : nil, details: details, perform: perform, copy: copy)
+                fix: offers.contains(.turnSharingOffAndOn) ? .turnSharingOffAndOn : nil, details: details, acts: (perform, copy))
         }
         switch error as? APIError {
         case .httpError(403, _)?:
             // ponytail: the table's Sign In as Owner button waits for a sign-in-as-owner action on this Mac; the words say it.
             return prompt(title: title, why: "Only this Mac's owner can share its projects. Sign in as the owner, then share again.",
-                          fix: nil, details: details, perform: perform, copy: copy)
+                          fix: nil, details: details, acts: (perform, copy))
         case .httpError(_, let words)?, .badRequest(let words)?, .notFound(let words)?, .serverError(let words)?:
-            return prompt(title: title, why: words, fix: nil, details: details, perform: perform, copy: copy)
+            return prompt(title: title, why: words, fix: nil, details: details, acts: (perform, copy))
         default:
-            return prompt(title: title, why: unknownSentence, fix: nil, details: details, perform: perform, copy: copy)
+            return prompt(title: title, why: unknownSentence, fix: nil, details: details, acts: (perform, copy))
         }
     }
 
@@ -159,7 +168,7 @@ enum SharingFailurePrompt {
         title: String, sentence: String, retry: (() -> Void)? = nil, copy: @escaping (String) -> Void
     ) -> FailureAlertPrompt {
         prompt(title: title, why: sentence, fix: retry == nil ? nil : .tryAgain, details: "\(title).\n\(sentence)",
-               perform: { _ in retry?() }, copy: copy)
+               acts: ({ _ in retry?() }, copy))
     }
 
     static let unknownSentence = "Something went wrong. Copy Details and send them to whoever helps you with Fichero."
@@ -175,14 +184,13 @@ enum SharingFailurePrompt {
         return nil
     }
 
-    // swiftlint:disable:next function_parameter_count
-    private static func prompt(
-        title: String, why: String, fix: Fix?, details: String,
-        perform: @escaping (Fix) -> Void, copy: @escaping (String) -> Void
-    ) -> FailureAlertPrompt {
+    /// What the buttons do: the fix, and Copy Details with the text it copies.
+    private typealias Acts = (perform: (Fix) -> Void, copy: (String) -> Void)
+
+    private static func prompt(title: String, why: String, fix: Fix?, details: String, acts: Acts) -> FailureAlertPrompt {
         var fixes: [FailureAlertPrompt.Fix] = []
-        if let fix { fixes.append(.init(id: 0, label: fix.label, action: { perform(fix) })) }
-        fixes.append(.init(id: 1, label: copyDetailsLabel, action: { copy(details) }))
+        if let fix { fixes.append(.init(id: 0, label: fix.label, action: { acts.perform(fix) })) }
+        fixes.append(.init(id: 1, label: copyDetailsLabel, action: { acts.copy(details) }))
         return FailureAlertPrompt(title: title, message: FailureAlertPrompt.message(why: why, fix: nil), fixes: fixes,
                                   dismissLabel: dismissLabel)
     }
