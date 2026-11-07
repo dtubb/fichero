@@ -279,29 +279,6 @@ class DatabaseManager:
                     )
                 logger.info(f"Database connection created: {db_path}")
 
-                # Resume interrupted post-ingest work (user, live 2026-08-19):
-                # the derivative/embed queue is in-memory, so quitting mid-
-                # import stranded every still-queued document in `pending` —
-                # never embedded, invisible to semantic search. Re-queue them
-                # on open; the stages are idempotent (thumbnail is ensure-
-                # style, embed skips already-embedded rows).
-                if os.environ.get("FICHERO_SKIP_DERIVATIVE_RESUME") != "1":
-                    try:
-                        from fichero_server.importers.derivatives import (
-                            queue_derivatives,
-                        )
-                        from fichero_server.models import Document, Status
-
-                        stranded = db.query(Document, status=Status.pending)
-                        if stranded:
-                            logger.info(
-                                "Resuming derivatives for %d pending document(s)",
-                                len(stranded),
-                            )
-                            queue_derivatives(stranded, library_path=package_path, db=db, arrived=False)
-                    except Exception:
-                        logger.exception("Pending-derivative resume failed")
-
                 # Runs the engine did not finish are marked interrupted, said with when (#5555): here,
                 # on every open, not left to the activity tracker's sweep, which is skipped when the
                 # tracker is first made off an event loop (and a ghost run then said "running" for good).
@@ -329,6 +306,31 @@ class DatabaseManager:
                     sync_folder.rescan(db)
                 except Exception:
                     logger.exception("Could not resume the library's jobs")
+
+                # Resume interrupted post-ingest work (user, live 2026-08-19):
+                # the derivative/embed queue is in-memory, so quitting mid-
+                # import stranded every still-queued document in `pending` —
+                # never embedded, invisible to semantic search. Re-queue them
+                # on open; the stages are idempotent (thumbnail is ensure-
+                # style, embed skips already-embedded rows). AFTER `jobs.resume` above (#6209): a stage
+                # still `running` from the dead engine only becomes `waiting` there, and a requeue that
+                # saw it running would queue the same work a second time -- two waiting rows for one page.
+                if os.environ.get("FICHERO_SKIP_DERIVATIVE_RESUME") != "1":
+                    try:
+                        from fichero_server.importers.derivatives import (
+                            queue_derivatives,
+                        )
+                        from fichero_server.models import Document, Status
+
+                        stranded = db.query(Document, status=Status.pending)
+                        if stranded:
+                            logger.info(
+                                "Resuming derivatives for %d pending document(s)",
+                                len(stranded),
+                            )
+                            queue_derivatives(stranded, library_path=package_path, db=db, arrived=False)
+                    except Exception:
+                        logger.exception("Pending-derivative resume failed")
 
                 # Run logs from before #5711 move into lines in the background, never at open.
                 try:
