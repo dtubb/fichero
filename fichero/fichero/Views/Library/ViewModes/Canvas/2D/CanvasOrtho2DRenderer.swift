@@ -172,7 +172,13 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     /// narrow pane (the Preview) framed the board by its height and cut the columns off.
     var viewportSize: CGSize = .zero {
         // A board fitted before the pane had a size was fitted to a square: fit again once the shape is known.
-        didSet { if oldValue == .zero, viewportSize != .zero, cameraIsAutoFit { fit() } }
+        didSet {
+            if oldValue == .zero, viewportSize != .zero, cameraIsAutoFit {
+                fit()
+            } else if oldValue != viewportSize, viewportSize != .zero {
+                reclampZoomOut()
+            }
+        }
     }
 
     /// True while several selected cards move together (see `setGroupDragging`).
@@ -216,6 +222,8 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
                 fit()
             }
         }
+        // A card added or removed, or the board arranged, moves the furthest zoom-out.
+        reclampZoomOut()
     }
 
     /// Drag-onto-item target picking lands in #3086 (needs a scene raycast); tap
@@ -258,7 +266,9 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     /// zoom-constant mesh and the remembered camera are redone once, when the pinch ends
     /// (`settleZoom`): rebuilding them on every pinch event made zooming jagged (2026-10-09).
     func setOrthoScale(_ scale: Float, live: Bool = false) {
-        orthoScale = min(max(scale, 0.1), 200)  // 0.5→0.1 (2026-08-22): zoom close enough to read
+        // 0.5→0.1 (2026-08-22): zoom close enough to read. Zoom OUT stops a little past fit-to-content
+        // (`library.canvas.zoom-out-stops-near-fit`), following this pane's size and the board.
+        orthoScale = min(max(scale, Self.minOrthoScale), farthestOrthoScale())
         // The tier follows the zoom here for the same reason as 3D: this is a
         // plain class, so a pinch that only moves the scale republishes
         // nothing and a SwiftUI update pass may never re-read it.
@@ -266,6 +276,24 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         applyOrthoScale()
         guard !live else { return }
         settleZoom()
+    }
+
+    static let minOrthoScale: Float = 0.1
+    static let maxOrthoScaleCeiling: Float = 200
+
+    /// The furthest zoom-out for the board and pane as they are now. A pane with no size yet has no
+    /// fit to follow, so only the renderer's own ceiling applies until it has one.
+    func farthestOrthoScale() -> Float {
+        guard viewportSize != .zero else { return Self.maxOrthoScaleCeiling }
+        return CanvasCameraFit.maxOrthoScale(
+            cameraCards(), viewport: viewportSize, margin: Float(CanvasGridPlacement.cellWidth) / 2,
+            emptyBoardScale: Float(CanvasGridPlacement.cellHeight) * 0.7, ceiling: Self.maxOrthoScaleCeiling
+        )
+    }
+
+    /// The pane or the board changed: a camera already past the new furthest zoom-out is brought to it.
+    func reclampZoomOut() {
+        if orthoScale > farthestOrthoScale() { setOrthoScale(orthoScale) }
     }
 
     /// The zoom's follow-ups: zoom-constant selection chrome (#4601) and the remembered camera.

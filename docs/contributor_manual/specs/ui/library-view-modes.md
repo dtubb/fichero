@@ -555,7 +555,7 @@ homeless until a map-view UI spec exists (#5128).
 - `library.canvas.a-board-remembers-its-camera` — **[OK]** (572719bca) a board opens fitted to the pane
   with margin; coming back to a folder returns to the centre and zoom the person left it at (kept per
   Mac, not in the library).
-- `library.canvas.zoom-out-stops-near-fit` — **[GAP]** (#6368; owner 2026-11-06, two screenshots) on
+- `library.canvas.zoom-out-stops-near-fit` — **[PARTIAL]** (built, not yet compiled or run; #6368; owner 2026-11-06, two screenshots) on
   every 2D canvas pane (the Library's Canvas mode and the folder canvas in a Preview pane, one canvas,
   `library.canvas.one-canvas-everywhere`) zooming out stops a little past fit-to-content: the minimum
   zoom is the scale at which every card just fits the pane (the pose `CanvasCameraFit.fit` computes
@@ -825,13 +825,13 @@ parent's field; `WorkspaceLayoutDefaults.rememberedPaneList` round-trips it.
 
 #### Step 1.2 — canvas zoom-out stops a little past fit-to-content, per pane, following the pane's size (#6368)
 - Behaviours: `library.canvas.zoom-out-stops-near-fit`
-- Tests: CanvasZoomFloorTests.swift (not yet written), fichero/Tests/Unit/general/Views/Library/CanvasZoomKeepsTheCardsTests.swift
+- Tests: CanvasZoomFloorTests.swift, fichero/Tests/Unit/general/Views/Library/CanvasZoomKeepsTheCardsTests.swift
 - Depends on: 1.1
 - Size: S
 
 Order: the pure rule (minimum ortho scale from a fit pose, a pane size and the 0.9 margin; the one-cell floor) with its test red then green; then `setOrthoScale` clamps to it and the resize and board-change paths re-derive it. Depends on 1.1 only in order (the owner wants both in the next dev build; 1.1 adds the Preview panes this applies to), not in code.
 
-- test (to write): `CanvasZoomFloorTests.swift` in fichero/Tests/Unit/general/Views/Library/
+- test: `CanvasZoomFloorTests.swift` in fichero/Tests/Unit/general/Views/Library/
 
 ## Cross-references — rulings honored, not restated here
 

@@ -25,6 +25,20 @@ enum CanvasCameraFit {
         return Pose(center: (bounds.min + bounds.max) / 2, orthoScale: max(spanY / 2, spanX / 2 / aspect))
     }
 
+    /// How much of the pane the board fills at the furthest zoom-out: the fit scale over this, so a thin rim of
+    /// empty space is left and the content never shrinks to a cluster (`library.canvas.zoom-out-stops-near-fit`).
+    static let zoomOutFill: Float = 0.9
+
+    /// The largest ortho scale (the furthest zoom-out) for these cards in this pane: the fit pose's scale over
+    /// `zoomOutFill`. With no cards it is `emptyBoardScale` (one grid cell filling the pane's height), never a
+    /// fixed constant. `ceiling` is the renderer's own far limit; the result never exceeds it.
+    static func maxOrthoScale(
+        _ cards: [Card], viewport: CGSize, margin: Float, emptyBoardScale: Float, ceiling: Float
+    ) -> Float {
+        let scale = fit(cards, viewport: viewport, margin: margin).map { $0.orthoScale / zoomOutFill } ?? emptyBoardScale
+        return min(scale, ceiling)
+    }
+
     /// Whether a camera shows the board: some card is in view, and the cards are not lost as specks (the board
     /// fills at least a tenth of the view's height or width). A remembered camera that fails this is replaced by
     /// the fit: a board that changed since, or a camera saved in a different pane, showed only stray dots.
