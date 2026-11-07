@@ -1857,6 +1857,7 @@ and node, not by job); a retry action for failed pages.
   stage left `running` by the dead engine is back to `waiting` before the re-queue looks and
   `enqueue_many` skips it — each pending document keeps exactly one waiting row per stage, no
   duplicate. `fichero-server/tests/unit/jobs/test_open_does_not_duplicate_waiting_rows.py`.
+  Built 2026-11-07: engine app-module import path does not load lancedb (import stays lazy inside the functions that open a LanceDB table, #6093), so /api/health answers before the embed stage's lancedb import finishes; pinned by `fichero-server/tests/unit/api/test_health_not_blocked_by_lancedb_import_6093.py`.
 - `activity.durable.enqueue-with-the-change` — **[PARTIAL]** (#5357) the job a change
   implies is written in the change's own transaction. Built for the correction re-embed
   (`ActionRegistry.invoke`, `fichero-server/tests/unit/jobs/test_job_queue.py`) and an import's derivative stages, which commit or roll
