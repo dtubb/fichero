@@ -1414,24 +1414,38 @@ Written for the builder 2026-11-07 (spec-writer). **Built (#6070, first slice):*
 
 ### Stage 11 — Teach a model
 
-#### Step 11.1 — The offer: when, whether and where, explained
+#### Step 11.1 — The offer: when, whether and where, explained (#6065)
 - Behaviours: `designer.teach.offer-when-ready`, `designer.teach.asks-whether-and-where-at-the-offer`, `designer.teach.explained`
-- Tests: fichero-server/tests/unit/recipes/test_teach_offer.py, fichero/ficheroTests/TeachOfferTests.swift
+- Tests: fichero-server/tests/unit/training/test_adopt_past_the_noise_band_5700.py, test_teach_offer.py (not yet written), TeachOfferTests.swift (not yet written)
 - Depends on: 6.1, 5.2
 - Size: M
 
-#### Step 11.2 — Measurement, the switch, costs, the recorded switch
+Written for the builder 2026-11-07 (spec-writer, from the code at origin/integration). **Built:** the Train page exists and the offers are computed in the engine (`recipes/train_offers.py`: readiness per job from `at_least`, the regions threshold `MIN_PAGES`, the teacher as the model that read the most pages; distillation from a teacher's passes, `training/kraken_set.py`; where it runs, local or Hugging Face, `compute/jobs-and-fine-tuning.md`). **Left:** (1) engine: the offer appears when the path's threshold is reached (default 500 checked lines for a Kraken fine-tune, the lines of 200 pages for a LoRA, or the volume rule's 5,000 pages, whichever first), served on the Train page's answer and as one line on the stage page ("Teach a model… 512 of 500 lines"); the path's teaching default (Step 5.2) decides whether it is offered pre-ticked; (2) engine: whether and where are asked AT the offer and nowhere earlier: the places the app allows, each with its time and cost from the routes, the Hugging Face cap shown; (3) app: the offer explained in plain words with "Learn more" to the manual's "Teaching a model as you go", the whether and where as one question each. **Acceptance (engine):** with 512 checked lines on a path that teaches, the Train answer carries the offer with the threshold sentence and the places; with 300 it carries the progress line (Step 3.1) and no offer; on a path that does not teach the offer is present and unticked; the places listed are only those the app allows. **Acceptance (app, by test):** the stage page's line and the Train page's offer read from the answer; the two questions appear only at the offer.
+
+- test (to write): `test_teach_offer.py` in fichero-server/tests/unit/recipes/ (the three thresholds, whichever first; the path's default; the places from the app's allowance)
+- test (to write): `TeachOfferTests.swift` in fichero/Tests/Unit/general/Models/ (the line and the offer from the answer; the two questions at the offer only)
+
+#### Step 11.2 — Measurement, the switch, costs, the recorded switch (#6065)
 - Behaviours: `designer.teach.measured-against-current-and-shipped`, `designer.teach.switch-within-band`, `designer.teach.costs-before-and-after`, `designer.run.switch-recorded`
-- Tests: fichero-server/tests/unit/recipes/test_teach_measure_and_switch.py, fichero-server/tests/unit/recipes/test_switch_recorded.py
+- Tests: fichero-server/tests/unit/training/test_adopt_past_the_noise_band_5700.py, fichero-server/tests/unit/training/test_noise_band_per_project_5692.py, test_teach_measure_and_switch.py (not yet written), test_switch_recorded.py (not yet written)
 - Size: M
+
+Written for the builder 2026-11-07 (spec-writer). **Built:** a taught model is adopted only when it beats the current one past the project's noise band on held-out pages (`test_adopt_past_the_noise_band_5700.py`, `test_noise_band_per_project_5692.py`); the reasons A/B measures a student against the answer-only one with a gain and a band (`training/reasons_ab.py`). **Left:** (1) engine: the taught model is measured on held-out checked pages against the current pick, the cloud teacher and the shipped readers with the same scorer, band and insertion rate as Step 6.1, in one table; (2) the switch happens only within the band's rule (better past the band, or as good and cheaper when cost matters most), and the run records it (`designer.run.switch-recorded`: which step, from which model to which, on what figures, when; shown in Activity and on Ready's step line); (3) costs before and after the switch, predicted then measured, on the Train page. **Acceptance (engine):** a taught model at CER 4.0 against a current 4.4 with a band of 0.5 is not switched; at 3.8 it is, the switch row recorded with both figures; the table holds the current pick, the teacher and the shipped readers with insertion rate; the cost line shows before and after. **Acceptance (app, by test):** the Train page renders the table and the cost line from the answer; Ready's step line shows "switched from … on …".
+
+- test (to write): `test_teach_measure_and_switch.py` in fichero-server/tests/unit/recipes/ (the table against the three; the band rule both ways; costs before and after)
+- test (to write): `test_switch_recorded.py` in fichero-server/tests/unit/recipes/ (the switch row's fields; shown on the run and the step)
 
 ### Stage 12 — Ready and the run
 
-#### Step 12.1 — Totals against the route; predicted then measured; cap stops; path moves as offers
+#### Step 12.1 — Totals against the route; predicted then measured; cap stops; path moves as offers (#6065)
 - Behaviours: `designer.ready.totals-against-the-route`, `designer.run.predicted-then-measured`, `designer.run.cap-stops-and-says`, `designer.run.path-moves-are-offers`
-- Tests: fichero-server/tests/unit/recipes/test_ready_totals.py, fichero-server/tests/unit/recipes/test_run_predicted_measured.py, fichero-server/tests/unit/recipes/test_run_cap_stops.py
+- Tests: fichero-server/tests/unit/recipes/test_routes_for_the_volume.py, fichero-server/tests/unit/recipes/test_cap_refusal_offers_the_fix_6295.py, test_ready_totals.py (not yet written), test_run_predicted_measured.py (not yet written), test_run_cap_stops.py (not yet written)
 - Depends on: 7.2, 11.2
 - Size: M
+
+Written for the builder 2026-11-07 (spec-writer). **Built:** the routes' figures with their basis (`routes.py`), the plan's estimate and the cap refusal with fixes (Step 18.2), the run's summary with pace and cost (`activity-and-automatic-work.md` Step 2.1). **Left:** (1) engine: Ready's total predicted cost and hours as the sum of the stages' predictions (Step 7.2), shown against the route's figure in one line ("your path estimated US$120; measured on your pages, US$96"); (2) the run carries predicted then measured per stage, the summary saying both; (3) a cap that stops a run says so in the run's words with the fix (18.2's) and the pages done; (4) a path move during a run (a Teach switch, a cheaper step) is an offer on the run, clicked, never applied by itself. **Acceptance (engine):** the Ready answer's total equals the sum of the stage predictions and names the route's figure; a run's summary carries predicted and measured per stage; a run stopped by the cap says the cap, the pages done and the fixes; a switch during the run appears as an offer row and changes nothing until taken. **Acceptance (app, by test):** Ready shows the one line; Activity's row shows the offer.
+
+- test (to write): `test_ready_totals.py`, `test_run_predicted_measured.py`, `test_run_cap_stops.py` in fichero-server/tests/unit/recipes/ (the sum against the route; predicted then measured; the stop's words; the offer row)
 
 ### Stage 13 — Workflows
 
