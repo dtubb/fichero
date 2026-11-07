@@ -1250,11 +1250,17 @@ Written for the builder 2026-11-07 (spec-writer). **Built (#5438):** `derived.py
 
 ### Stage 3 — Checking lines
 
-#### Step 3.1 — Progress in words; corrections become the reference
+#### Step 3.1 — Progress in words; corrections become the reference (#6056)
 - Behaviours: `designer.check.progress-in-words`, `designer.check.corrections-become-the-reference`
-- Tests: fichero-server/tests/unit/recipes/test_check_progress.py, fichero-server/tests/unit/recipes/test_corrections_replace_reference.py
+- Tests: fichero-server/tests/unit/recipes/test_import_ground_truth.py, test_check_progress.py (not yet written), test_corrections_replace_reference.py (not yet written), CheckProgressLineTests.swift (not yet written)
 - Depends on: 2.2
 - Size: S
+
+Written for the builder 2026-11-07 (spec-writer, from the code at origin/integration). **Built:** the thresholds and the counts exist in the engine: the bake-off needs `MIN_LINES = 100` checked lines on `MIN_PAGES = 2` pages (`bakeoff.py:52-53`, `bakeoff.readiness`, its sentence "Needs N corrected lines on at least 2 pages; this project has …"), Teach a model has its own count and threshold (`train_offers.py:178-184`, regions on pages; the lines threshold per job from `at_least`); a person-made pass already outranks an imported or model reading as the reference (`bakeoff.ground_truth`, `made_by_a_person`; `test_import_ground_truth.py`); the pages to check are proposed least-sure first (`what_to_check.least_sure`). **Left:** (1) engine: one progress line per threshold, served with the readiness (`GET /api/recipes/project/start` and the bake-off's readiness answer): "62 of 100 lines checked on 1 of 2 pages; Compare can measure at 100" and "62 of 500 for Teach a model…", the numbers the engine's own counts and thresholds, the words from one function so Read, Train and Ready cannot differ; (2) engine: a checked line replaces the reference at once: the next compare and every candidate row's slot 1 (Step 8.2) read it without a re-import or a restart, and the measurement label says "on N checked lines" when the reference holds any; (3) app: the Read and Train pages and Ready show the engine's line verbatim under their heading, and nothing else counts lines in the app. **Acceptance (engine):** with 62 person-checked lines on one page the readiness answer carries exactly "62 of 100 lines checked on 1 of 2 pages; Compare can measure at 100" and the Teach line "62 of 500 for Teach a model…"; with 100 lines on two pages the Compare line reads "Compare can measure now"; checking one more line on a page with an imported reading changes that line's reference to the person's in the very next bake-off run, with no other call. **Acceptance (app, by test):** Read, Train and Ready each mount the engine's line and hold no counting of their own.
+
+- test (to write): `test_check_progress.py` in fichero-server/tests/unit/recipes/ (the two lines from fixtures at 62/1, 100/2 and 0/0; one function; the Teach line's threshold from `at_least`)
+- test (to write): `test_corrections_replace_reference.py` in fichero-server/tests/unit/recipes/ (a check replaces the reference at once; the label names checked lines)
+- test (to write): `CheckProgressLineTests.swift` in fichero/Tests/Unit/general/Models/ (the three pages mount the engine's line; no app-side count)
 
 ### Stage 4 — Filters
 
