@@ -48,6 +48,8 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         "/api/health",
         "/api/auth/login",
         "/api/pair",
+        // A person signs a device in with no code (Step 8.9): no local token may go to the remote host.
+        "/api/pair/sign-in",
         "/openapi.json",
         "/docs",
         "/redoc"

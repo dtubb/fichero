@@ -18,9 +18,8 @@ extension RemoteClientPairing {
         let code = pairCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let name = deviceName.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard !code.isEmpty else {
-            throw RemoteClientPairingError.missingPairCode
-        }
+        // A link with no code is for a person (Step 8.9): they sign in; until they have, the host asks who they are.
+        if code.isEmpty, person == nil { throw RemoteClientPairingError.personRequired }
         guard !name.isEmpty else {
             throw RemoteClientPairingError.missingDeviceName
         }
@@ -31,8 +30,13 @@ extension RemoteClientPairing {
             requireSecureTransportForRemote: true
         )
         let normalizedSPKIPin = try expectedSPKIPin.map(RemoteCertificatePinning.validatedSPKIPin)
-        let response = try await PairingService(apiRoot: url, expectedSPKIPin: normalizedSPKIPin)
-            .pairDeviceUnauthenticated(code: code, deviceName: name, person: person)
+        let service = PairingService(apiRoot: url, expectedSPKIPin: normalizedSPKIPin)
+        let response: PairingExchangeResponse
+        if code.isEmpty, let person {
+            response = try await service.signInDeviceUnauthenticated(deviceName: name, person: person)
+        } else {
+            response = try await service.pairDeviceUnauthenticated(code: code, deviceName: name, person: person)
+        }
         return PairingExchangeResult(
             apiRoot: url,
             deviceToken: response.deviceToken,
@@ -120,7 +124,7 @@ extension RemoteClientPairing {
     ) async throws -> URL {
         let code = pairCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let name = deviceName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !code.isEmpty else { throw RemoteClientPairingError.missingPairCode }
+        guard !code.isEmpty || person != nil else { throw RemoteClientPairingError.personRequired }
         guard !name.isEmpty else { throw RemoteClientPairingError.missingDeviceName }
         let normalizedSPKIPin = try expectedSPKIPin.map(RemoteCertificatePinning.validatedSPKIPin)
         let host = LivePairingHost(spkiPin: normalizedSPKIPin, deviceName: name, person: person)

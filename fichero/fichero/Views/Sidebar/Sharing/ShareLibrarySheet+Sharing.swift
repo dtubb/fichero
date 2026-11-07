@@ -115,6 +115,12 @@ extension ShareLibrarySheet {
     @MainActor
     func mintPairingCodeIfPossible() async {
         guard shareLinkUnavailableReason == nil else { return }
+        // With accounts the link is the project's and the way to reach this Mac, no code: the person signs in with the
+        // username and password they were told (`sharing.people.sign-in-without-a-code`, Step 8.9).
+        if Self.sharesWithPeople(multiuser: EngineConfig.multiuserEnabled, folder: folder != nil) {
+            pairingCode = PairingCodeRecord(code: "", expiresAt: nil)
+            return
+        }
         do {
             pairingCode = try await PairingService(apiRoot: EngineConfig.host)
                 .createPairingCode(library: library.url.path)

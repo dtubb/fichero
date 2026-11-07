@@ -3,8 +3,13 @@ import SwiftUI
 extension ShareLibrarySheet {
     /// Every note shown under the share link. The link goes to ANOTHER person, so it never carries the Settings card's
     /// own-Mac hint (a link minted on the owner's host would pair that Mac as the owner, ## 534); a test reads this list.
-    static func linkNotes(person: String) -> [String] {
-        ["This link lets \(person) connect to your project — it carries a single-use code that expires. Share only with them."]
+    /// `signsIn`: the link has no code and the person signs in with their own name and password (Step 8.9).
+    static func linkNotes(person: String, signsIn: Bool = false) -> [String] {
+        if signsIn {
+            return ["This link takes \(person) to your project; they sign in with their username and password. "
+                    + "Tell them those yourself: the link carries neither."]
+        }
+        return ["This link lets \(person) connect to your project — it carries a single-use code that expires. Share only with them."]
     }
 
     /// The link the person you just shared with actually opens.
@@ -47,7 +52,7 @@ extension ShareLibrarySheet {
                         }
                     }
                 }
-                ForEach(Self.linkNotes(person: sharedPersonName), id: \.self) { note in
+                ForEach(Self.linkNotes(person: sharedPersonName, signsIn: pairingCode?.code.isEmpty == true), id: \.self) { note in
                     Text(note)
                         .font(.caption)
                         .foregroundStyle(.secondary)

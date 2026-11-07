@@ -32,7 +32,6 @@ struct PairingPerson: Equatable {
 }
 
 enum RemoteClientPairingError: LocalizedError, Equatable {
-    case missingPairCode
     case missingDeviceName
     case missingLibraryPath
     case invalidInviteLink
@@ -68,12 +67,6 @@ enum RemoteClientPairingError: LocalizedError, Equatable {
         case .tokenNotSaved:
             return "\(Self.thisDevice) couldn't save the connection key in its Keychain, so nothing was paired. "
                 + "Update Fichero on this \(Self.deviceNoun) and ask for a new link."
-        case .missingPairCode:
-            #if os(macOS)
-            return "Paste the invite link from the host Mac."
-            #else
-            return "Scan the pairing QR code or enter a pairing code."
-            #endif
         case .missingDeviceName:
             return "Enter a device name."
         case .missingLibraryPath:

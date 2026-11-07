@@ -55,7 +55,7 @@ struct MacRemoteClientPairingSection: View {
             }
 
             // Asked only after the host answers that it needs a person.
-            if ConnectSheetModel.asksForPerson(hostAskedForPerson: needsPerson) {
+            if ConnectSheetModel.asksForPerson(hostAskedForPerson: needsPerson || linkSignsIn) {
                 TextField("Username", text: $personName)
                     .textFieldStyle(.roundedBorder)
                     .autocorrectionDisabled()
@@ -72,7 +72,7 @@ struct MacRemoteClientPairingSection: View {
                 .keyboardShortcut(.defaultAction)
                 .disabled(!ConnectSheetModel.canConnect(
                     codeRoute: chosenNeedsCodeOnly, code: pairCode, link: clientInvite, isConnecting: isClientPairing,
-                    needsPerson: needsPerson, name: personName, password: personPassword))
+                    needsPerson: needsPerson || linkSignsIn, name: personName, password: personPassword))
             }
         }
         // A tapped fichero:// link lands here (#3788): prefill it so the person SEES what they are about to connect to
@@ -134,6 +134,11 @@ struct MacRemoteClientPairingSection: View {
             throw APIError.badRequest("That invite is for another Mac than \(chosen.name). Paste the one shown on \(chosen.name).")
         }
         return fields
+    }
+
+    /// A pasted link with no code is for a person (Step 8.9): the name and password fields show at once.
+    private var linkSignsIn: Bool {
+        (try? RemoteClientPairing.pairingFields(fromInviteOrPayload: clientInvite))?.pairCode.isEmpty == true
     }
 
     /// The host the pasted invite points at, shown read-only so the person sees where they are about to connect.
