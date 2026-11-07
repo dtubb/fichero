@@ -1449,11 +1449,16 @@ Written for the builder 2026-11-07 (spec-writer). **Built:** the routes' figures
 
 ### Stage 13 — Workflows
 
-#### Step 13.1 — Workflow line, Open in the editor, own workflow as a candidate, Adjust in the editor
+#### Step 13.1 — Workflow line, Open in the editor, own workflow as a candidate, Adjust in the editor (#6066)
 - Behaviours: `designer.step.names-its-workflow`, `designer.step.adjust-in-the-editor`, `designer.step.own-workflow-as-a-candidate`
-- Tests: fichero-server/tests/unit/recipes/test_step_workflow_fit.py, fichero/ficheroTests/StepWorkflowTests.swift
+- Tests: fichero-server/tests/unit/recipes/test_recipe_execution_to_spec.py, test_step_workflow_fit.py (not yet written), StepWorkflowTests.swift (not yet written)
 - Depends on: 7.1
 - Size: M
+
+Written for the builder 2026-11-07 (spec-writer, from the code at origin/integration). **Built:** every recipe step runs as a workflow (a shipped preset by name or a person's own, `recipes/recipe.py` `source.recipe.steps-are-jobs`, `test_recipe_execution_to_spec.py`); the review preset is one (`REVIEW_PRESET`); the workflow editor exists (`WorkflowEditor`) and node configs hold the model and settings. **Left:** (1) engine: the stage's answer names the workflow that carries the step (`workflow: {id, kind: preset | own, name}`) and whether its node config agrees with the page's model and settings (`agrees: true` or the differing fields named); (2) engine: a person's own workflow that fits the step (its ports and its job) is listed as a candidate on the stage page with the reason "your workflow Read with notes", ranked by the same rule once it has a measure and under the fits otherwise; (3) app: one grey line on each stage page ("runs as the shipped workflow Read lines with Kraken") with "Open in the editor" (read-only for a preset), the node's config showing the same model and settings as the page, and "Adjust in the editor" on a person's own workflow writing back through the one route (`PUT /api/recipes/project`), never a second config. **Acceptance (engine):** a plan's stage answer names its preset and `agrees: true`; after a person's edit of their own workflow's model the answer names the field that differs; a person's workflow with the step's ports appears in the candidates with the reason sentence and the fit; one without the ports does not. **Acceptance (app, by test):** the grey line and Open in the editor on every stage page; a preset opens read-only; Adjust writes through the one route and the page shows the change.
+
+- test (to write): `test_step_workflow_fit.py` in fichero-server/tests/unit/recipes/ (the named workflow and `agrees`; the differing field; the own-workflow candidate by ports)
+- test (to write): `StepWorkflowTests.swift` in fichero/Tests/Unit/general/Models/ (the grey line; read-only preset; Adjust through the one route)
 
 ### Stage 14 — Sharing recipes
 
