@@ -1538,3 +1538,20 @@ def test_the_scratch_checkout_gets_minutes_not_gits_60_s_and_a_kill_names_its_re
         ct._scratch_tree(tmp_path, "HEAD", tmp_path, ct.Config())
     assert ("worktree", ct.SCRATCH_CHECKOUT_S) in seen and ct.SCRATCH_CHECKOUT_S >= 600
     assert "timed out after 600 s" in str(e.value), "never an empty reason"
+
+
+def test_a_base_tree_that_cannot_be_made_is_an_infra_error_never_a_red_to_approve(tmp_path, monkeypatch):
+    """Alert 416 (2026-11-07): the base tree's checkout passed git's 60 s at load 22 and came back as a red-on-base offering only
+    approve or send-back; an approve would skip the proof, a send-back blames the lane. It is a check that could not run."""
+    seen = []
+
+    def git(root, *args, timeout_s=60):
+        seen.append((args[0], timeout_s))
+        if args[0] == "worktree":
+            return {"ok": False, "stderr_tail": "", "timed_out": True, "exit_code": -9}
+        return {"ok": True, "stdout_tail": "abc123\n", "stderr_tail": ""}
+    monkeypatch.setattr(ct, "_git", git)
+    with pytest.raises(RuntimeError) as e:
+        ct.red_on_base(tmp_path, "base0", "HEAD", ["tests/test_x.py"], ct.Config())
+    assert "could not make the base tree" in str(e.value) and "timed out" in str(e.value)
+    assert ("worktree", ct.SCRATCH_CHECKOUT_S) in seen

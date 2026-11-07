@@ -1022,7 +1022,7 @@ def _stable_build_tree(root, cfg: Config) -> str:
     if not (tree / ".git").exists():
         tree.parent.mkdir(parents=True, exist_ok=True)
         _git(repo, "worktree", "prune")
-        r = _git(repo, "-c", "core.hooksPath=/dev/null", "worktree", "add", "--detach", "-q", str(tree), sha)
+        r = _git(repo, "-c", "core.hooksPath=/dev/null", "worktree", "add", "--detach", "-q", str(tree), sha, timeout_s=SCRATCH_CHECKOUT_S)
         if not r["ok"]:
             raise RuntimeError(f"build tree failed: {r['stderr_tail']}")
         os.chmod(tree, 0o755)
@@ -1298,8 +1298,10 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
     sha = _git(root, "rev-parse", head)["stdout_tail"].strip()  # `HEAD` inside the scratch tree would be `since`
     base = _mkdtemp("check-base-tree-", readable=True)
     try:
-        if not _git(root, "worktree", "add", "--detach", "-q", base, since)["ok"]:
-            return red(f"could not make a scratch tree at {since[:9]}")
+        r0 = _git(root, "worktree", "add", "--detach", "-q", base, since, timeout_s=SCRATCH_CHECKOUT_S)
+        if not r0["ok"]:  # infra, never a code verdict: an approve would skip the proof (manager 2026-11-07, alert 416)
+            why = r0["stderr_tail"].strip() or (f"timed out after {SCRATCH_CHECKOUT_S:g} s" if r0.get("timed_out") else f"exit {r0.get('exit_code')}")
+            raise RuntimeError(f"scratch tree failed: could not make the base tree at {since[:9]}: {why}")
         _git(base, "checkout", sha, "--", *files)  # a new file is not on base; checkout still copies it
         have = already_built_files(root, since, head, cfg)  # a proving test of a behaviour already there passes on base by design
         data_skipped: set[str] = set()
