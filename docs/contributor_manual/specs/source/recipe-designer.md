@@ -1216,10 +1216,14 @@ Written for the builder 2026-11-07 (spec-writer). **Built:** the bake-off's read
 
 ### Stage 2 — Material, imported truth and one Kraken pass
 
-#### Step 2.1 — One Kraken pass
+#### Step 2.1 — One Kraken pass (#6054)
 - Behaviours: `designer.layout.one-kraken-pass`
-- Tests: fichero-server/tests/unit/recipes/test_one_kraken_pass.py
+- Tests: fichero-server/tests/unit/recipes/test_regions_one_pass_5689.py, test_one_kraken_pass.py (not yet written)
 - Size: S
+
+Written for the builder 2026-11-07 (spec-writer, from the code at origin/integration). **Built (#5689):** one `blla` call returns regions and lines and each line keeps its region (`kraken_runtime._segment_raw`, `geometry_from_segmentation`); Find Regions stores both (`recipes/regions.py:283`) and Read reads the stored lines instead of segmenting again (`test_regions_one_pass_5689.py`). **Left:** the two re-calls the bullet names: (1) the bake-off's `find_lines_with("kraken", photo)` (`recipes/bakeoff.py:771-777`) calls `kraken_runtime.segment_to_geometry(photo)` for every sample page even when Find Regions has stored that page's lines; it reads the stored geometry first and segments only a page with none; (2) the runner's Find Lines step, when Find Regions ran Kraken on the page in the same plan, takes the stored lines and makes no call (today the `find-lines` job may segment again where the finder is Kraken and the regions pass already holds the lines). The one seam stays `segment_lines`, as the 5689 test stubs it. **Acceptance (engine):** with Find Regions and Find Lines both Kraken on a 3-page fixture, a counting stub on the segmenter sees exactly 3 calls across Find Regions, Find Lines, Read and a bake-off over those pages (today 6 or 9); a page whose stored lines were deleted is segmented once more and no other page is; with Find Regions on Apple Vision and Find Lines on Kraken the count is unchanged from today (the lines are Kraken's own pass); the bake-off's figures on the fixture are identical before and after (the same lines read).
+
+- test (to write): `test_one_kraken_pass.py` in fichero-server/tests/unit/recipes/ (the counting stub across the four callers; the deleted-lines page segmented once; the mixed-finder case unchanged; identical bake-off figures)
 
 #### Step 2.2 — Imported transcriptions detected, asked once, measured at once
 - Behaviours: `designer.material.imported-transcriptions-detected`, `designer.material.imported-truth-asked-once`, `designer.material.imported-truth-measures-at-once`
