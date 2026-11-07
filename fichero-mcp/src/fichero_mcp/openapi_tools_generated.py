@@ -6058,6 +6058,16 @@ def fichero_pairing_sharing_state(
     return _rt.call("GET", "/api/pair/sharing")
 
 
+def fichero_pairing_sign_in_device(
+    *,
+    device_name: Annotated[str, Field(description='Device Name.')],
+    password: Annotated[str, Field(description='Password.')],
+    username: Annotated[str, Field(description='Username.')],
+) -> Any:
+    'Sign In Device\n\nWith accounts on, make a device bound to the person who signed in and hand back its token: the address, a username and\na password, no pair code (Step 8.9). The pair code stays for a device with no person (accounts off).\n\nRoute: POST /api/pair/sign-in (toolset `pairing`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/pair/sign-in", json=_rt.body({"device_name": device_name, "password": password, "username": username}))
+
+
 def fichero_pairing_detected_tailnet(
 ) -> Any:
     "Detected Tailnet\n\nThis Mac's `.ts.net` address when Tailscale is running, for the share sheet to offer (#5318).\n\nRoute: GET /api/pair/tailnet (toolset `pairing`; reads)."
@@ -10084,6 +10094,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_pairing_revoke_invite", "pairing", "DELETE", "/api/pair/invites/{invite_id}", fichero_pairing_revoke_invite),
     GeneratedTool("fichero_pairing_set_multiuser", "pairing", "PUT", "/api/pair/multiuser", fichero_pairing_set_multiuser),
     GeneratedTool("fichero_pairing_sharing_state", "pairing", "GET", "/api/pair/sharing", fichero_pairing_sharing_state),
+    GeneratedTool("fichero_pairing_sign_in_device", "pairing", "POST", "/api/pair/sign-in", fichero_pairing_sign_in_device),
     GeneratedTool("fichero_pairing_detected_tailnet", "pairing", "GET", "/api/pair/tailnet", fichero_pairing_detected_tailnet),
     GeneratedTool("fichero_orchestration_list_policy_rules", "orchestration", "GET", "/api/policies/orchestration", fichero_orchestration_list_policy_rules),
     GeneratedTool("fichero_orchestration_create_policy_rule", "orchestration", "POST", "/api/policies/orchestration", fichero_orchestration_create_policy_rule),

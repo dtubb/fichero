@@ -8840,6 +8840,16 @@
         "response_model": "SharingStateResponse"
       },
       {
+        "method": "POST",
+        "path": "/pair/sign-in",
+        "operation_id": "sign_in_device_api_pair_sign_in_post",
+        "summary": "Sign In Device",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SignInDeviceRequest",
+        "response_model": "PairResponse"
+      },
+      {
         "method": "GET",
         "path": "/pair/tailnet",
         "operation_id": "detected_tailnet_api_pair_tailnet_get",

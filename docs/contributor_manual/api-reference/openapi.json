@@ -3337,6 +3337,49 @@
         }
       }
     },
+    "/api/pair/sign-in": {
+      "post": {
+        "tags": [
+          "pairing",
+          "pairing"
+        ],
+        "summary": "Sign In Device",
+        "description": "With accounts on, make a device bound to the person who signed in and hand back its token: the address, a username and\na password, no pair code (Step 8.9). The pair code stays for a device with no person (accounts off).",
+        "operationId": "sign_in_device_api_pair_sign_in_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInDeviceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pair/enroll": {
       "post": {
         "tags": [
@@ -96868,6 +96911,32 @@
           "name"
         ],
         "title": "SignInClient"
+      },
+      "SignInDeviceRequest": {
+        "properties": {
+          "device_name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Device Name"
+          },
+          "username": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_name",
+          "username",
+          "password"
+        ],
+        "title": "SignInDeviceRequest",
+        "description": "A person signs a device in with no code (`sharing.people.sign-in-without-a-code`): sent once over the pinned TLS\nconnection, never stored or logged."
       },
       "SignInRequest": {
         "properties": {

@@ -12805,6 +12805,29 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("sign-in-device")
+    def pair_sign_in_device_post(
+        ctx: typer.Context,
+        device_name: str = typer.Option(..., '--device-name', help='Device Name.'),
+        password: str = typer.Option(..., '--password', help='Password.'),
+        username: str = typer.Option(..., '--username', help='Username.'),
+    ) -> None:
+        """Sign In Device (POST /api/pair/sign-in)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/pair/sign-in"
+            params = None
+            payload = _build_json_payload({
+                "device_name": device_name,
+                "password": password,
+                "username": username,
+            }, {
+                "device_name": {'type': 'string', 'minLength': 1, 'title': 'Device Name', 'x-cli-required': True},
+                "password": {'type': 'string', 'title': 'Password', 'x-cli-required': True},
+                "username": {'type': 'string', 'minLength': 1, 'title': 'Username', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("detected-tailnet")
     def pair_detected_tailnet_get(
         ctx: typer.Context,
