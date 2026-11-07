@@ -74,7 +74,7 @@ final class LivePairingHost: PairingSequence.Host {
     }
 
     /// A transport failure as its step: the `URLError` code is found wherever the generated client wrapped it.
-    static func failure(from error: Error, host: String) -> PairingFailure {
+    nonisolated static func failure(from error: Error, host: String) -> PairingFailure {
         var current: NSError? = error as NSError
         while let next = current {
             if next.domain == NSURLErrorDomain { return PairingFailure.from(urlErrorCode: next.code, host: host) }
