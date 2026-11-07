@@ -193,8 +193,8 @@ final class PairingService {
 
     /// `library`: the project the link is for, so the redeem gives this device that project
     /// (`sharing.link-grants-its-project`).
-    func createPairingCode(library: String? = nil) async throws -> PairingCodeRecord {
-        let body = library.map { Operations.CreatePairingCodeApiPairCodePost.Input.Body.json(.init(library: $0)) }
+    func createPairingCode(library: String? = nil, also: [String] = []) async throws -> PairingCodeRecord {
+        let body = library.map { Operations.CreatePairingCodeApiPairCodePost.Input.Body.json(.init(library: $0, libraries: also)) }
         let response = try await client.api.createPairingCodeApiPairCodePost(.init(body: body))
         switch response {
         case .ok(let okResponse):

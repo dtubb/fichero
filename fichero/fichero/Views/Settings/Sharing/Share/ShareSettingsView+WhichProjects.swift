@@ -22,9 +22,9 @@ extension ShareSettingsView {
             libraries: libraryManager.openLibraries.filter { $0.id != LibraryManager.globalLibraryId },
             multiuser: multiuserEnabled,
             usersStore: appState.usersStore,
-            onLink: { library in
-                // The sheet has closed; the project's own Share sheet makes its link (Multi-user off).
-                Task { @MainActor in activeSheet = .project(library.id) }
+            onLink: { first, rest in
+                // The sheet has closed; the first project's own Share sheet makes the ONE link for the set (Multi-user off).
+                Task { @MainActor in activeSheet = .project(first.id, also: rest.map(\.url.path)) }
             })
         .onDisappear { Task { await refreshSharingState() } }
     }

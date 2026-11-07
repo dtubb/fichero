@@ -30,6 +30,13 @@ struct ShareWhichProjectsDialogTests {
         #expect(model.grants(order: ["A", "B"]) == [.init(libraryId: "A", personId: "maya", role: "editor")])
     }
 
+    /// Multi-user off, A and B checked: ONE link gives both, the first one's Share sheet makes it (#6366, ruled sub-bullet).
+    @Test func withNoAccountsOneLinkCarriesEveryCheckedProjectInOrder() {
+        var model = ShareWhichProjectsModel()
+        model.checked = ["C", "A"]
+        #expect(model.linkSet(order: ["A", "B", "C"]) == ["A", "C"])
+    }
+
     @Test func notNowSendsNothing() {
         #expect(ShareWhichProjectsModel().grants(order: ["A", "B"]).isEmpty)
     }

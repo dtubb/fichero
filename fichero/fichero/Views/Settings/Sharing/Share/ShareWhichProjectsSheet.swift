@@ -18,6 +18,9 @@ struct ShareWhichProjectsModel: Equatable {
 
     var canShare: Bool { !checked.isEmpty }
 
+    /// With Multi-user off, the projects the ONE link gives, in the sidebar's order: the first one's Share sheet makes it.
+    func linkSet(order: [String]) -> [String] { order.filter(checked.contains) }
+
     /// One share call per checked project and chosen person, in a stable order; nothing for a project with no one.
     func grants(order: [String]) -> [Grant] {
         order.filter(checked.contains).flatMap { libraryId in
@@ -29,12 +32,13 @@ struct ShareWhichProjectsModel: Equatable {
 
 /// The dialog itself: one row per project this Mac has, a check box each; with accounts, who can open it;
 /// Share / Not Now.
-/// With Multi-user off a checked project is shared by its link: Share opens that project's Share sheet (`onLink`).
+/// With Multi-user off the checked projects are shared by ONE link: Share opens the first one's Share sheet, whose link gives
+/// the rest too (`onLink`: the first and the others).
 struct ShareWhichProjectsSheet: View {
     let libraries: [LibraryManager.LibraryReference]
     let multiuser: Bool
     let usersStore: UsersStore
-    let onLink: (LibraryManager.LibraryReference) -> Void
+    let onLink: (LibraryManager.LibraryReference, [LibraryManager.LibraryReference]) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var model = ShareWhichProjectsModel()
     @State private var isSharing = false
@@ -109,9 +113,11 @@ struct ShareWhichProjectsSheet: View {
         isSharing = true
         defer { isSharing = false }
         guard multiuser else {
-            if let first = libraries.first(where: { model.checked.contains($0.id.uuidString) }) {
+            let ids = model.linkSet(order: libraries.map(\.id.uuidString))
+            let picked = ids.compactMap { id in libraries.first { $0.id.uuidString == id } }
+            if let first = picked.first {
                 dismiss()
-                onLink(first)
+                onLink(first, Array(picked.dropFirst()))
             }
             return
         }
@@ -136,6 +142,6 @@ struct ShareWhichProjectsSheet: View {
     let istmina = LibraryManager.LibraryReference(
         url: URL(fileURLWithPath: "/tmp/Istmina.fichero"), document: FicheroDocument(), displayName: "Istmina")
     return ShareWhichProjectsSheet(libraries: [marshall, istmina], multiuser: false,
-                                   usersStore: AppState().usersStore, onLink: { _ in })
+                                   usersStore: AppState().usersStore, onLink: { _, _ in })
 }
 #endif

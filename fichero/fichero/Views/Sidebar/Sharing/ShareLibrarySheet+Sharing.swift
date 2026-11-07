@@ -123,7 +123,7 @@ extension ShareLibrarySheet {
         }
         do {
             pairingCode = try await PairingService(apiRoot: EngineConfig.host)
-                .createPairingCode(library: library.url.path)
+                .createPairingCode(library: library.url.path, also: alsoLibraries)
         } catch {
             showFailure(error, "Couldn't make the link")
         }

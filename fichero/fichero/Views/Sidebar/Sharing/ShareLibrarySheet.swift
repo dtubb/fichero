@@ -19,6 +19,8 @@ struct ShareLibrarySheet: View {
     /// Share one folder of the project instead of all of it (`sharing.settings.project-share-sheet`, #5967): the person reaches that
     /// folder and what is under it, nothing beside it. nil: the whole project.
     var folder: FolderShareTarget?
+    /// The other projects this sheet's one link gives (Multi-user off, the which-projects dialog's set, #6366).
+    var alsoLibraries: [String] = []
 
     @Environment(\.dismiss) private var dismiss
 

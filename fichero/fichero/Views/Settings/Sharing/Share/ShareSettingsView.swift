@@ -55,7 +55,8 @@ struct ShareSettingsView: View {
     /// The one sheet this pane presents: two `.sheet(isPresented:)` on the same view race, and only one shows reliably.
     enum ActiveSheet: Identifiable, Hashable {
         case addDevice, connect, whichProjects
-        case project(UUID)
+        /// A project's Share sheet; `also`: the other projects its one link gives (the which-projects dialog's set, #6366).
+        case project(UUID, also: [String] = [])
         var id: Self { self }
     }
     @State var activeSheet: ActiveSheet?
@@ -122,10 +123,10 @@ struct ShareSettingsView: View {
             case .addDevice: addDeviceSheet
             case .connect: connectSheet
             case .whichProjects: whichProjectsSheet
-            case .project(let id):
+            case .project(let id, let also):
                 Group {
                     if let library = libraryManager.getLibrary(id: id) {
-                        ShareLibrarySheet(library: library, usersStore: appState.usersStore)
+                        ShareLibrarySheet(library: library, usersStore: appState.usersStore, alsoLibraries: also)
                     }
                 }
             }
