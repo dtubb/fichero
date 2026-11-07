@@ -172,6 +172,14 @@ extension LibraryManager {
         }
     }
 
+    /// True when `path` lies inside a Trash folder: a volume's `.Trashes` or the home `.Trash`
+    /// (#6377). A library moved there is not one the person has open; the engine refuses it
+    /// at every launch, so it leaves the reopen list.
+    nonisolated static func isInsideTrash(_ path: String) -> Bool {
+        let parts = (path as NSString).pathComponents
+        return parts.contains(".Trashes") || parts.contains(".Trash")
+    }
+
     /// A restore-list entry the loop should attempt: non-empty absolute
     /// `.fichero` path with no traversal, and never the Global library (#4517).
     private func restorablePathIsValid(_ path: String, globalKey: String?) -> Bool {
@@ -182,6 +190,10 @@ extension LibraryManager {
         let url = URL(fileURLWithPath: path)
         guard url.pathExtension == "fichero" else {
             libraryManagerLogger.warning("Skipping non-fichero path: \(path)")
+            return false
+        }
+        if Self.isInsideTrash(path) {
+            libraryManagerLogger.info("Dropping saved library inside a Trash folder (#6377): \(path)")
             return false
         }
         if let globalKey, Self.canonicalLibraryKey(url) == globalKey {
