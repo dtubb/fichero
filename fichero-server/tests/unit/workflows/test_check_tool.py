@@ -1252,7 +1252,8 @@ def test_a_remote_runner_runs_the_engine_pytest_there_and_an_unreachable_one_ale
 
 
 def test_one_ladders_end_keeps_the_other_running_ladders_remote_copy(tmp_path, monkeypatch):
-    """Review 2026-11-02: with [check].parallel = 2 the first ladder to end deleted every shipped copy, including the one the other
+    """(2026-11-07: the waits are minutes, not seconds: on the loaded iMac a 120 s inner run timed out and the test failed on
+    timing, not on what it pins.) Review 2026-11-02: with [check].parallel = 2 the first ladder to end deleted every shipped copy, including the one the other
     ladder was still running tests in. Each thread removes only the trees it shipped."""
     import threading
     from fichero_builder import journal
@@ -1270,20 +1271,20 @@ def test_one_ladders_end_keeps_the_other_running_ladders_remote_copy(tmp_path, m
     b_shipped, a_dropped, seen = threading.Event(), threading.Event(), {}
 
     def ladder_a():
-        assert ct.pytest_rung(trees[0], ["test_x.py"], cfg, timeout_s=120)["ok"]
-        b_shipped.wait(20)
+        assert ct.pytest_rung(trees[0], ["test_x.py"], cfg, timeout_s=600)["ok"]
+        b_shipped.wait(600)
         ct._drop_remote(cfg)
         a_dropped.set()
 
     def ladder_b():
-        assert ct.pytest_rung(trees[1], ["test_x.py"], cfg, timeout_s=120)["ok"]
+        assert ct.pytest_rung(trees[1], ["test_x.py"], cfg, timeout_s=600)["ok"]
         b_shipped.set()
-        a_dropped.wait(20)
+        a_dropped.wait(600)
         seen["after_a_ended"] = sorted(x.name for x in (tmp_path / "gate").iterdir() if x.name.startswith("run-"))
         ct._drop_remote(cfg)
     ts = [threading.Thread(target=f) for f in (ladder_a, ladder_b)]
     [t.start() for t in ts]
-    [t.join(60) for t in ts]
+    [t.join(900) for t in ts]
     assert len(seen["after_a_ended"]) == 1, "b's copy survived a's end"
     assert not [x for x in (tmp_path / "gate").iterdir() if x.name.startswith("run-")], "and b removed its own"
 
