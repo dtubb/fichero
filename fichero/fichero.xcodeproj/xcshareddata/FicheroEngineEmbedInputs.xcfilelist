@@ -110,6 +110,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/ingest/core.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/ingest/export.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/ingest/iiif.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/ingest/image_editing.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/ingest/image_op_actions.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/ingest/image_prepare_actions.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/ingest/image_prepare_shared.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/interpretation/__init__.py

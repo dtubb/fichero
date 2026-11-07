@@ -1907,3 +1907,5 @@ def _action_crop_image_child(
 # The prepare-images actions (square, blank, proposals, batch) live in their own module; imported last so they register with
 # the rest and `mark_blank_impl` stays reachable from here.
 from fichero_server.api.routes.ingest.image_prepare_actions import mark_blank_impl, square_image_impl  # noqa: E402, F401
+# One action per remaining chain operation, made from the vocabulary above (`image.ops.one-action-per-operation`, #6363).
+from fichero_server.api.routes.ingest import image_op_actions  # noqa: E402, F401
