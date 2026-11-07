@@ -2,7 +2,7 @@
 
 `not_generated_yet` (thumbnail only: the inline-generation permits are taken, so the request is shed and the client retries)
 and `no_picture` (the original is readable but no picture could be made from it). The unreadable-original reasons are in
-`test_display_404_names_why_unreachable_original.py`.
+`test_display_404_names_why_unreachable_original.py`. The source route's readable-original reason (`no_source`) is here too.
 """
 
 from __future__ import annotations
@@ -48,3 +48,17 @@ def test_an_unreadable_original_is_still_named_before_the_permit_is_asked(client
     db.save(doc)
     r = client.get(f"/api/storage/thumbnail/{doc.id}")
     assert r.json()["reason"] == "moved_or_deleted"
+
+
+def test_a_source_404_with_a_readable_original_says_no_source(client, db, test_package):
+    """#6308: /source names the reason too — a PDF page has no file of its own, but its parent PDF is readable."""
+    pdf_path = test_package / "files" / "letter.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 (test)")
+    parent = Document(name="Letter", doc_type=DocType.file, file_type=FileType.pdf, path="files/letter.pdf")
+    db.save(parent)
+    page = Document(name="Letter p1", doc_type=DocType.page, file_type=None, parent_id=parent.id, sequence=1)
+    db.save(page)
+    r = client.get(f"/api/storage/source/{page.id}")
+    assert r.status_code == 404
+    assert r.json()["reason"] == "no_source"
+    assert "source" in r.json()["detail"].lower()

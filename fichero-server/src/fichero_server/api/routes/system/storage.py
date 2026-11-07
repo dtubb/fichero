@@ -64,6 +64,8 @@ class NotFoundResponse(BaseModel):
 NOT_GENERATED_YET = "not_generated_yet"
 NO_PICTURE = "no_picture"
 _NO_PICTURE_WORDS = (NO_PICTURE, "the original can be read but no picture could be made from it")
+NO_SOURCE = "no_source"
+_NO_SOURCE_WORDS = (NO_SOURCE, "the original can be read but no source file could be served from it")
 
 
 def _original_unavailable(
@@ -372,11 +374,11 @@ async def get_source_file(
         logger.warning(
             f"resolve_source returned None for doc {doc_id}: path={doc.path}, has_bookmark={bool(doc.metadata.get('bookmark'))}"
         )
-        return await asyncio.to_thread(_original_unavailable, doc, "Source file not available", db)
+        return await asyncio.to_thread(_original_unavailable, doc, "Source file not available", db, _NO_SOURCE_WORDS)
 
     if not source_path.exists():
         logger.warning(f"Source path resolved but doesn't exist: {source_path}")
-        return await asyncio.to_thread(_original_unavailable, doc, "Source file not available", db)
+        return await asyncio.to_thread(_original_unavailable, doc, "Source file not available", db, _NO_SOURCE_WORDS)
 
     # Determine media type from file extension
     suffix = source_path.suffix.lower()
