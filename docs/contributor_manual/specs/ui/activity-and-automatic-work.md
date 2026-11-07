@@ -1853,7 +1853,10 @@ and node, not by job); a retry action for failed pages.
   the derivative stages and the correction re-embed are rows in `jobs`, and an import's stages
   survive a quit (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`). The open-time `Status.pending` re-queue stays for libraries
   imported before; it no longer runs anything twice. Still a gap: ingest tasks, chains, downloads,
-  reindex.
+  reindex. Built 2026-11-07: the open-time re-queue now runs after `jobs.resume` (#6209), so a
+  stage left `running` by the dead engine is back to `waiting` before the re-queue looks and
+  `enqueue_many` skips it — each pending document keeps exactly one waiting row per stage, no
+  duplicate. `fichero-server/tests/unit/jobs/test_open_does_not_duplicate_waiting_rows.py`.
 - `activity.durable.enqueue-with-the-change` — **[PARTIAL]** (#5357) the job a change
   implies is written in the change's own transaction. Built for the correction re-embed
   (`ActionRegistry.invoke`, `fichero-server/tests/unit/jobs/test_job_queue.py`) and an import's derivative stages, which commit or roll

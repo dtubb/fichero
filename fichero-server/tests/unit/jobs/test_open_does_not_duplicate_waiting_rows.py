@@ -1,7 +1,7 @@
 """Opening a library must not make two waiting rows for one pending document (#6209).
 
 Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md --
-`activity.lane.no-wait-on-a-job-that-will-not-run`.
+`activity.durable.queue-is-rows`.
 
 A dead engine leaves its queued work as durable `jobs` rows: a pending document
 whose thumbnail was mid-render when the engine quit sits there with its
@@ -38,7 +38,7 @@ def no_nlp(monkeypatch):
 
 
 def test_opening_a_project_queues_each_pending_stage_once(db, test_package, monkeypatch):
-    """`activity.lane.no-wait-on-a-job-that-will-not-run` (#6209): after open, each pending
+    """`activity.durable.queue-is-rows` (#6209): after open, each pending
     document has exactly one waiting row per stage. The engine died mid-thumbnail: that job is
     `running` and its embed is `waiting` when the project opens again, and the requeue must not
     make a second thumbnail row for the same page."""
