@@ -168,6 +168,7 @@ This is the Trash the app already promises in its delete dialog and does not hav
   soft delete and `GET /api/documents/trash` per library, pinned by `fichero-server/tests/unit/api/test_trash.py`
   (`test_each_project_lists_only_its_own_trash`). *Not built:* the app's per-project Trash. *Test:* delete in two projects and in the always-there project; each Trash lists only
   its own.
+  - Note 2026-11-07 (spec-writer, from the landings): the app half is built since 2026-10-10, `SidebarTrashRow` ends every project's section and the top section (`safety.trash.a-place-in-the-sidebar`); what is left of this line is the click-around test on two projects and the always-there one, in Step 3.1.
 - `safety.trash.a-place-in-the-sidebar` — **[PARTIAL]** (#5243, #2077) the Trash is a row named Trash at the
   end of each project's section of the sidebar; the always-there project's is at the end of the
   top section; its icon shows whether that Trash is empty. It opens in the Library like any
@@ -255,6 +256,7 @@ This is the Trash the app already promises in its delete dialog and does not hav
   content. This is the same shape as the source-model set's purge of a segment, and should be
   one action family with it. *Test:* empty with no room for a snapshot: refused, nothing
   removed.
+  - Note 2026-11-07 (spec-writer): the refusal half is built and pinned, `test_no_snapshot_no_empty` under `safety.trash.empty-is-one-step`; what is left is the per-thing note in the record (name, kind, who, when) and the one action family with the segment purge, in Step 2.4.
 - `safety.trash.never-empties-itself` — **[GAP]** (#5243) nothing is removed from the Trash by age. There is no
   setting for it. The Trash shows its size so a person can decide. *Test:* none needed beyond
   the absence of a sweeper; a guardrail refuses one.
@@ -289,6 +291,84 @@ This is the Trash the app already promises in its delete dialog and does not hav
 - `safety.trash.shortcuts-ask-first` — **[GAP]** (#5243) the Shortcuts delete action sends to the Trash and
   needs no confirmation; no Shortcuts action empties the Trash. This answers the open half of
   → #3304. *Test:* the intent calls the Trash action.
+
+## Build order
+
+What landed (read from origin/integration on 2026-11-07, `git log -- '*trash*'`): the engine's soft delete, `GET /api/documents/trash` per project with what, when, who, where from and why, Put Back into the old folder or Sources with the offer, Empty Trash as one recorded step after a snapshot naming moved items, the stored files and notes it removes, the owner-only empty and the editor's put back; the one `document.delete` path for the app's document deletes; the Trash seam over claims, entities, notes, annotations, segments, artifacts, the full graphs and the curation queues, with a guard refusing a new GET handler without it (30 known gaps seeded); the app's Trash row per project with its chevron and child rows, Put Back and Empty Trash… in the context and Edit menus, the Trash pane, the drop on the row (Swift written, not all run), the Trash folder's preview; #6175's floor on integration (fff858ac0, 580a09a43): a sidebar delete never takes the parent, one undoable batch, the selection never a delete target, the engine's snapshot in the audit row (`ui/sidebar-crud.md` `delete.never-deletes-the-parent`, `delete.snapshot-so-undo-restores`). What is left is each bullet's *Not built*, in the order below: the owner's ruling of 2026-11-04 stands over all of it (the Trash is a plain folder in the sidebar tree, Finder-like, never a mode or a window: things are moved in, put back, or deleted for good), and #6175 comes first.
+
+### Stage 1 — the floor: a delete never takes the parent, and every delete is the one path (#6175)
+
+#### Step 1.1 — #6175 closed on the owner's Mac; every document delete and the drop on the Trash row are the one recorded path (#6175, #5243)
+- Behaviours: `safety.trash.one-delete-path`, `safety.trash.drop-to-trash`
+- Tests: fichero-server/tests/unit/api/test_sidebar_delete_and_undo_end_to_end_6175.py, fichero/Tests/Unit/general/Views/Sidebar/SidebarDeleteTests.swift, fichero-server/tests/unit/test_one_delete_path_to_the_trash_5243.py
+- Size: S
+
+Landed: the engine never deletes upward, the app's selection is never a delete target, the batch is one undoable set (`ui/sidebar-crud.md`, #6175). Left: the owner's device check of #6175 (the issue stays open for it); the Swift tests run, not only compiled; a mixed selection (documents with workflows or searches) deleted as one batch, not one by one; batch-undo end to end; the audit row kept until purge and undo after a restart (`delete.snapshot-so-undo-restores`'s unverified half). Nothing of the Trash's own goes before this.
+
+### Stage 2 — the engine and the routes: every kind, out of view everywhere, Put Back and Empty whole, who may, from everywhere
+
+#### Step 2.1 — the rule and one shape: every delete action declares Trash or undo-only; every Trash kind is soft-deleted the same way; deleted runs and folders of other kinds join (#5243, #4960)
+- Behaviours: `safety.trash.the-rule`, `safety.trash.one-shape-for-every-kind`, `safety.trash.deleted-runs-join-it`, `safety.trash.no-hard-delete-by-folder`
+- Tests: fichero-server/tests/unit/api/test_trash.py, fichero-server/tests/unit/api/test_folder_delete_is_a_recorded_step_5243.py, test_trash_every_kind.py (not yet written)
+- Depends on: 1.1
+- Size: M
+
+Engine only. Order: the registration field (trash or undo-only) and its guardrail; the three columns (when, by whom, step id) on notes, references, workflows, runs, batches, saved searches, conversations, canvas boards and entities, existing rows read as live; the deleted run listed in the Trash and its Put Back; a folder of workflows, searches or chats trashed as one step. Ruled 2026-11-07 (manager default, owner may veto): a deleted pass goes to the Trash (it costs tokens to redo) and Put Back restores it, as the table says.
+
+- test (to write): `test_trash_every_kind.py` in fichero-server/tests/unit/api/ (one of each kind deleted lists in the Trash with who, when and step; a group deleted together is put back together; a run returns with every event; the guardrail names an action that declares neither)
+
+#### Step 2.2 — out of view everywhere: the 30 known gaps closed, exports and datasets, the rest of the dependants, the curated-work count (#5406, #5243)
+- Behaviours: `safety.trash.every-read-leaves-it-out`, `safety.trash.dependants-go-with-their-source`, `safety.trash.curated-work-is-never-hidden-silently`
+- Tests: fichero-server/tests/unit/scripts/test_check_trash_seam_reads_5406.py, fichero-server/tests/unit/api/test_trash_hides_segments_annotations_notes_5406.py, test_trash_reads_leave_it_out_everywhere.py (not yet written)
+- Depends on: 2.1
+- Size: M
+
+Engine only. Order: each handler in `scripts/check_trash_seam_reads_known_gaps.json` closed and removed from the file until it is empty; exports and datasets through the seam; the per-document artifact reads of a trashed document; the graph reads beyond the full-library graphs; the cascade keeping a two-source statement with its stated absence; the delete's result carrying the count of person-curated statements and notes taken out of view, for the app's notice (Step 3.1).
+
+- test (to write): `test_trash_reads_leave_it_out_everywhere.py` in fichero-server/tests/unit/api/ (the known-gaps file is empty; an export and a dataset of a folder leave a trashed page out; a two-source statement survives a purge with its absence stated; the delete result counts curated work)
+
+#### Step 2.3 — Put Back and Empty, whole: a moved item's two answers, the transfer made permanent, pages and annotations counted, a note per removed file (#5243, #5657, #2077)
+- Behaviours: `safety.trash.put-back`, `safety.trash.put-back-a-moved-item`, `safety.trash.empty-names-moved-items`, `safety.trash.empty-says-what-will-go`, `safety.trash.empty-removes-everything-and-only-that`
+- Tests: fichero-server/tests/unit/api/test_trash.py, fichero-server/tests/unit/api/test_empty_trash_removes_only_its_own_files_5243.py, test_trash_put_back_moved_and_empty.py (not yet written)
+- Depends on: 2.2
+- Size: M
+
+Engine only; the app's notice, offer and sheet are Step 3.1. Order: `POST /api/documents/{id}/restore` takes `moved: "undo" | "keep-copy"` for an item a move sent here (the transfer's `undo-move`, or the move recorded as a copy in both projects), refused in words without it; Empty marks the transfer permanent in both projects and its undo is refused in words; the preview counts pages and annotations apart from documents; the audit row keeps one note per removed file.
+
+- test (to write): `test_trash_put_back_moved_and_empty.py` in fichero-server/tests/unit/api/ (both answers for a moved item, read back in both projects; the transfer's record after Empty and the refused undo; the preview's page and annotation counts equal what goes; the audit row's note per file)
+
+#### Step 2.4 — what Empty cannot do, and who may: the record's notes, no sweeper, see what you could see, an editor's own permanent delete, an agent refused (#5243, #4917)
+- Behaviours: `safety.trash.empty-cannot-be-undone-and-says-so`, `safety.trash.never-empties-itself`, `safety.trash.you-see-what-you-could-see`, `safety.trash.who-may-put-back`, `safety.trash.who-may-empty`
+- Tests: fichero-server/tests/unit/security/test_only_the_owner_empties_the_trash_5243.py, fichero-server/tests/unit/api/test_trash.py, test_trash_access.py (not yet written)
+- Depends on: 2.3
+- Size: M
+
+Engine only. Order: the record's per-thing note and the one action family with the segment purge; a guardrail that refuses any retention or sweeper over the Trash; the #4917 access rules over the Trash list, a trashed thing and Put Back; `document.purge` of one item allowed to the person who trashed it, and an agent's account refused for purge and empty; the record naming both the deleter and the restorer.
+
+- test (to write): `test_trash_access.py` in fichero-server/tests/unit/security/ (a viewer denied on a folder sees no trashed document of it and cannot put back; editor B cannot purge A's item, A can, the owner can; an agent is refused; the put-back record names both people; the sweeper guardrail)
+
+#### Step 2.5 — from everywhere: the command line, the agent tools, Shortcuts and a run delete softly; it is the library's Trash on every device (#5243, #2077, #3304)
+- Behaviours: `safety.trash.command-line-and-agents`, `safety.trash.shortcuts-ask-first`, `safety.trash.an-agent-deletes-softly`, `safety.trash.it-is-the-librarys-trash`
+- Tests: fichero-mcp/tests/test_mcp_generated.py, test_trash_cli_mcp.py (not yet written), TrashOnEveryDeviceIOSTests.swift (not yet written)
+- Depends on: 2.4
+- Size: M
+
+Engine and the generated clients first (Empty Trash, the reason and from-where in the listing, the person-only rule for permanent deletes, every delete soft for an agent's account and a run); then the Shortcuts intent sending to the Trash with no confirmation and no empty intent; then the iPhone and iPad showing the same Trash (a row in the sidebar, Put Back) from the same routes.
+
+- test (to write): `test_trash_cli_mcp.py` in fichero-cli/tests/ (list with reason and from-where, put back, empty, the person-only purge, an agent's soft delete of an undo-only kind)
+- test (to write): `TrashOnEveryDeviceIOSTests.swift` in fichero/Tests/UI/ios/ (delete on the Mac fixture engine, the iPhone lists it, Put Back)
+
+### Stage 3 — the app: a plain folder in the tree, Finder-like (owner 2026-11-04)
+
+#### Step 3.1 — the Trash is a folder: opens like one in every view mode, lists what and why, Put Back's notice and offer, Delete Permanently…, drag out to put back, no dialog on a delete (#2077, #5243)
+- Behaviours: `safety.trash.is-a-folder-in-the-sidebar`, `safety.trash.a-place-in-the-sidebar`, `safety.trash.one-per-project`, `safety.trash.lists-what-and-why`, `safety.trash.delete-is-not-confirmed`
+- Tests: fichero/Tests/Unit/general/Views/Sidebar/SidebarTrashNodeTests.swift, fichero/Tests/Unit/general/Models/TrashStoreTests.swift, TrashFolderUITests.swift (not yet written)
+- Depends on: 2.3
+- Size: M
+
+App only, on the routes above. Order: the Trash row as a folder of the tree (its chevron where a folder's is, the owner's eyes on it; child rows that open their contents) listing in every Library view mode with the columns where from, when, by whom and why, search and sorting within it, Quick Look and the Source view on a trashed thing read-only; Put Back's notice with the offer to put the folder back too; Delete Permanently… with the engine's numbers; dragging an item out onto a folder of its project puts it back there; the reversible delete shows no dialog, a notice offers Undo and names curated work taken out of view (Step 2.2's count); the mark on a two-source statement; the Empty Trash sheet's moved-items lines. Nothing here is a window or a mode.
+
+- test (to write): `TrashFolderUITests.swift` in fichero/Tests/UI/mac/ (XCUITest: delete shows no dialog and a notice with Undo; the Trash row opens as a folder in list and icon mode with the four columns; Put Back returns the item and offers the folder; drag out puts back; Delete Permanently… shows the numbers; two projects and the always-there project each list only their own)
 
 ## Not in this slice
 
