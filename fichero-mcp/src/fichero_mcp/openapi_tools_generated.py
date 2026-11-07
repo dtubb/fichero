@@ -5986,13 +5986,14 @@ def fichero_pairing_create_code(
     display_name: Annotated[Optional[str], Field(description='Display Name.')] = None,
     expires_in_days: Annotated[Optional[int], Field(description='default 7.')] = None,
     folder_id: Annotated[Optional[str], Field(description='share one folder of that project instead of the whole project: the person reaches that folder and what is under it, nothing beside it (`sharing.share-sheet-chooses-what`)')] = None,
+    libraries: Annotated[Optional[list[Any]], Field(description="more projects a plain link (no person) gives the paired device, beside `library`: the which-projects dialog's ONE link for a set (#6366); a path that is no project on this Mac is left out.")] = None,
     library: Annotated[Optional[str], Field(description='the library the role is granted on, for a new person.')] = None,
     never_expires: Annotated[Optional[bool], Field(description='Never Expires. Default: false.')] = None,
     role: Annotated[Optional[str], Field(description='Role. One of: viewer, editor. Default: "viewer".')] = None,
     username: Annotated[Optional[str], Field(description='Username.')] = None,
 ) -> Any:
     'Create Pairing Code\n\nMint a short-lived one-time pairing code for the authenticated caller.\n\nRoute: POST /api/pair/code (toolset `pairing`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/pair/code", json=_rt.body({"display_name": display_name, "expires_in_days": expires_in_days, "folder_id": folder_id, "library": library, "never_expires": never_expires, "role": role, "username": username}))
+    return _rt.call("POST", "/api/pair/code", json=_rt.body({"display_name": display_name, "expires_in_days": expires_in_days, "folder_id": folder_id, "libraries": libraries, "library": library, "never_expires": never_expires, "role": role, "username": username}))
 
 
 def fichero_pairing_list_devices(

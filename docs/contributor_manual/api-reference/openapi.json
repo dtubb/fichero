@@ -83794,6 +83794,14 @@
             "title": "Library",
             "description": "the library the role is granted on, for a new person"
           },
+          "libraries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Libraries",
+            "description": "more projects a plain link (no person) gives the paired device, beside `library`: the which-projects dialog's ONE link for a set (#6366); a path that is no project on this Mac is left out"
+          },
           "folder_id": {
             "type": "string",
             "nullable": true,
