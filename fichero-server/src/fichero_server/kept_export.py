@@ -321,9 +321,12 @@ def write(db: Any, subject: str) -> None:
         return  # removed meanwhile
     folder = Path(export["folder"])
     left_out: list[tuple[str, str]] = []
+    job_id = jobs.current_job_id()
     if not folder.is_dir():
         raise KeptExportRefused(f"{folder} is not there any more; choose the export's folder again.")
     for unit in _units(db, export):
+        if job_id:
+            jobs.progress(job_id)
         if key and unit.key != key and export["format"] not in WHOLE_FORMATS:
             continue  # (the workbook is one file: any page's change rewrites it)
         data = _render(db, export, unit, left_out)

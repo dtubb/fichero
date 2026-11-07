@@ -1525,10 +1525,17 @@ def save_detail(
 
 
 def _heard_from(job_id: str) -> None:
-    """A running job showed progress: the model lane's stuck-lane deadline counts from now (#6213)."""
-    lane = _scheduler.lanes["local-ml"]
-    if job_id in lane.running:
-        lane.heard[job_id] = time.monotonic()
+    """A running job showed progress: its lane's stuck-lane deadline counts from now (#6213, #6205)."""
+    for lane in _scheduler.lanes.values():
+        if job_id in lane.running:
+            lane.heard[job_id] = time.monotonic()
+            return
+
+
+def progress(job_id: str) -> None:
+    """A running job reports progress: its lane's stuck deadline counts from now (#6205)."""
+    if job_id:
+        _heard_from(job_id)
 
 
 @contextlib.contextmanager
@@ -4107,8 +4114,8 @@ class _Lane:
         #: The database lane's stuck jobs whose row the release already marked failed (#6205): settled once, so the
         #: watchdog neither reopens the library nor rewrites the row on every tick.
         self.settled: set[str] = set()
-        #: The model lane: when each running job last showed progress (`_heard_from`), and the jobs that are model calls
-        #: waiting on their answer (`lane_slot`), which are slow, never stuck (#6213, #5938).
+        #: When each running job last showed progress (`_heard_from`); the model and database lanes time out from this
+        #: (#6213, #6205). `live_calls` are model calls waiting on their answer: slow, never stuck (#6213, #5938).
         self.heard: dict[str, float] = {}
         self.live_calls: set[str] = set()
         #: Each running job's kind, by job id: only a kind that `says_per_item` is stuck by silence.
@@ -4116,19 +4123,28 @@ class _Lane:
 
     def stuck(self) -> set[str]:
         """The images lane's running jobs claimed more than `STUCK_IMAGE_JOB_SECONDS` ago (a thumbnail takes seconds), the
-        database lane's claimed more than `STUCK_DATABASE_JOB_SECONDS` ago (a database call that never comes back, #6205),
-        and the model lane's that have shown no progress for `STUCK_MODEL_JOB_SECONDS` and are no live model call: their
-        threads are blocked (a file that never reads, a lock), and they no longer hold a slot against any project (#6213).
+        database lane's with no progress (a `progress`/`say`/`save_detail` ping, else the claim time) for
+        `STUCK_DATABASE_JOB_SECONDS` (a database call that never comes back, #6205), and the model lane's that have shown no
+        progress for `STUCK_MODEL_JOB_SECONDS` and are no live model call: their threads are blocked (a file that never
+        reads, a lock), and they no longer hold a slot against any project (#6213).
         ponytail: a blocked Python thread cannot be killed; the lane runs beside it on a thread of its own, at most `slots`
         extra, and the stuck row stays running (its thread may still finish it). A Kraken page is one call with no words of
         its own: handed to the lane it is a live call (`_live_call`), slow, never stuck."""
-        if self.name in ("images", "database"):
-            limit = STUCK_IMAGE_JOB_SECONDS if self.name == "images" else STUCK_DATABASE_JOB_SECONDS
-            cutoff = time.monotonic() - limit
+        if self.name == "images":
+            cutoff = time.monotonic() - STUCK_IMAGE_JOB_SECONDS
             return {
                 job_id
                 for job_id, at in list(self.started.items())
                 if at < cutoff and job_id in self.running
+            }
+        if self.name == "database":
+            # progress-based, like the model lane: a database job that keeps reporting progress is
+            # not a hang, whatever its total length (#6205); no report yet falls back to the claim time.
+            cutoff = time.monotonic() - STUCK_DATABASE_JOB_SECONDS
+            return {
+                job_id
+                for job_id in list(self.running)
+                if self.heard.get(job_id, self.started.get(job_id, cutoff + 1)) < cutoff
             }
         if self.name != "local-ml":
             return set()
@@ -4432,27 +4448,29 @@ class _Scheduler:
 
     def release_hung_database_jobs(self) -> None:
         """The database lane's hung jobs are let go (#6205, `activity.lane.hung-call-says-so`): a thread wedged in a
-        database call, past `STUCK_DATABASE_JOB_SECONDS` of no progress, no longer holds its slot, and its row says `timed
-        out in the database` (failed). The blocked thread cannot settle its own row (it is in the call that will not come
-        back), so this does it, on the row's library. Nothing within the deadline is touched: a big write is not a hang."""
+        database call, past `STUCK_DATABASE_JOB_SECONDS` without any progress ping, no longer holds its slot, and its row
+        says `timed out in the database` (failed). The blocked thread cannot settle its own row (it is in the call that
+        will not come back), so this does it, on the row's library. A job still reporting progress is never touched: a big
+        write is not a hang."""
         from fichero_server.db.manager import db_manager
 
         lane = self.lanes["database"]
         for job_id in list(lane.stuck()):
             if job_id in lane.settled:
                 continue  # already marked failed: it stays running (its thread may still finish it), and the lane keeps its beside thread
-            lane.settled.add(job_id)
             key = lane.keys.get(job_id)
             if key is None:
-                continue  # claimed outside `_claim_one` (a test): no library to settle it on
+                lane.settled.add(job_id)  # claimed outside `_claim_one` (a test): no library to settle it on; do not retry
+                continue
             db = db_manager.open_database(key)
             if db is None:
-                continue  # its library closed: the row is settled when it opens
+                continue  # its library is closed right now: retry next tick, and settle it once it opens
             db.execute(
                 "UPDATE jobs SET state = 'failed', reason = 'timed out in the database', "
                 f"finished_at = ?{_clear_waiting_on(db)} WHERE id = ? AND state = 'running'",
                 [utc_now(), job_id],
             )
+            lane.settled.add(job_id)  # settled once the row is actually written, so the tick neither reopens nor rewrites
 
     @staticmethod
     def _ask_to_free_idle(

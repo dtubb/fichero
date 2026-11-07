@@ -367,6 +367,7 @@ def write(db: Any, subject: str) -> None:
 
     folder_id, doc_id = subject.split(":", 1)
     folder = _folder(db, folder_id)
+    job_id = jobs.current_job_id()
     if folder is None:
         return  # untied meanwhile
     root = Path(folder["path"])
@@ -374,6 +375,8 @@ def write(db: Any, subject: str) -> None:
         _write_back(db, folder, root, doc_id)
         return
     for fmt in folder["formats"]:
+        if job_id:
+            jobs.progress(job_id)
         try:
             out = export_page(db, doc_id, fmt)
         except (ExportRefused, FormatCannotWrite):
@@ -422,7 +425,10 @@ def _write_back(db: Any, folder: dict[str, Any], root: Path, doc_id: str) -> Non
     rows = db.execute_fetchall("SELECT rel_path, format, sha256, exported_sha256 FROM sync_files "
                                "WHERE folder_id = ? AND document_id = ? AND state IN ('written', 'deleted-outside')",
                                [folder["id"], doc_id])
+    job_id = jobs.current_job_id()
     for rel, fmt, sha, exported in rows:
+        if job_id:
+            jobs.progress(job_id)
         path = root / rel
         if path.exists() and _sha(path.read_bytes()) != sha:
             _changed_outside(db, folder, rel, doc_id, fmt, sha, exported)
@@ -455,7 +461,10 @@ def read(db: Any, folder_id: str) -> None:
     rows = db.execute_fetchall(
         "SELECT rel_path, document_id, format, sha256, exported_sha256, state FROM sync_files WHERE folder_id = ? "
         "AND state IN ('written', 'changed-outside', 'deleted-outside')", [folder_id])
+    job_id = jobs.current_job_id()
     for rel, doc_id, fmt, sha, exported, state in rows:
+        if job_id:
+            jobs.progress(job_id)
         path = root / rel
         if not path.exists():
             if state != "deleted-outside":
