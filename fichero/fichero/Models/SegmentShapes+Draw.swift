@@ -21,6 +21,14 @@ extension SegmentShapes {
         var minimumPoints: Int { self == .baseline ? 2 : 3 }
     }
 
+    /// The four corners of a normalised `[x, y, width, height]` rect, clockwise from the top left: a marquee
+    /// promoted to a region on a segment pass is drawn as this polygon (#6426).
+    static func corners(ofRect rect: [Double]) -> [[Double]] {
+        guard rect.count >= 4 else { return [] }
+        return [[rect[0], rect[1]], [rect[0] + rect[2], rect[1]],
+                [rect[0] + rect[2], rect[1] + rect[3]], [rect[0], rect[1] + rect[3]]]
+    }
+
     /// A click on the FIRST point of a polygon with enough points closes it.
     static func closes(_ points: [[Double]], at point: [Double], tolerance: [Double]) -> Bool {
         guard points.count >= DrawKind.polygon.minimumPoints, let first = points.first,

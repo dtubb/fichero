@@ -366,6 +366,14 @@ extension ZoomableImagePreview {
         }
         let pixelSize = marquees.imagePixelSize
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        // A page shown from a segment pass gets its region ON that pass (`segment.create`, ⌘Z). A regions artifact
+        // made here became a pass ranked below the working one, and the box vanished on the next load (#6426).
+        if shownArtifactlessPassId != nil, onlyIndex == nil {
+            for rect in rects { drawSegmentShape(.polygon, points: SegmentShapes.corners(ofRect: rect)) }
+            marquees.clear()
+            isAddingRegion = false
+            return
+        }
         Task {
             do {
                 let artifactId: String

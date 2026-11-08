@@ -15,4 +15,11 @@ struct PreviewRegionDeleteTests {
         #expect(PreviewRegionDelete.door(selectionCount: 2, segmentCount: 2, versionedCount: 1) == .artifact)
         #expect(PreviewRegionDelete.door(selectionCount: 0, segmentCount: 0, versionedCount: 0) == .artifact)
     }
+
+    /// #6426: a marquee promoted on a segment pass is drawn as a polygon region on that pass.
+    @Test("a marquee rect becomes the four corners of a region polygon, clockwise from the top left")
+    func marqueeCorners() {
+        #expect(SegmentShapes.corners(ofRect: [0.1, 0.2, 0.3, 0.4]) == [[0.1, 0.2], [0.4, 0.2], [0.4, 0.2 + 0.4], [0.1, 0.2 + 0.4]])
+        #expect(SegmentShapes.corners(ofRect: [0.1]).isEmpty)
+    }
 }
