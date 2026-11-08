@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import shutil
 import tempfile
 import uuid
 from dataclasses import dataclass, field
@@ -44,7 +45,15 @@ from fichero_server.execution import jobs
 
 KIND = "write-kept-export"
 #: How long a page must stay unchanged before its files are rewritten.
-QUIET_SECONDS = 5.0
+QUIET_SECONDS = 60.0
+#: Less free space than this on the export's folder or the scratch folder and a write is refused in words, not attempted (#6417):
+#: a Word export renders in a scratch folder first, and a disk that fills mid-write breaks every other job.
+MIN_FREE_BYTES = 2 * 1024**3
+#: The formats whose file is a function of the pages' text and names alone, so an unchanged input makes an unchanged file.
+_TEXT_FORMATS = ("word", "markdown", "plain-text", "word-transcript")
+#: (export id, unit key) -> hash of the input last written. In memory: a restart costs one re-render, never a wrong skip.
+# ponytail: process-local; a column on kept_export_files if a restart's re-render ever matters.
+_WRITTEN_INPUT: dict[tuple[str, str], str] = {}
 #: The page interchange formats, written one file per page by the exporter.
 PAGE_FORMATS = ("alto", "pagexml", "tei", "hocr")
 #: Written for the whole project, one file (the catalogue workbook, `catalogue-export.md`): per document only.
@@ -313,6 +322,26 @@ def _put(db: Any, export: dict[str, Any], rel: str, data: bytes) -> None:
     _record(db, export["id"], rel, _sha(data), "written")
 
 
+def _refuse_low_space(folder: Path) -> None:
+    """Say so in words, with the number, instead of starting a write the disk cannot finish (#6417)."""
+    for where, what in ((folder, "the export's folder"), (Path(tempfile.gettempdir()), "the scratch space")):
+        free = shutil.disk_usage(where).free
+        if free < MIN_FREE_BYTES:
+            raise KeptExportRefused(
+                f"Not writing: only {free / 1024**3:.1f} GB is free on the disk holding {what}, and a write needs "
+                f"{MIN_FREE_BYTES / 1024**3:.0f} GB. Free some space (Settings shows what uses it) and it writes again.")
+
+
+def _input_hash(db: Any, export: dict[str, Any], unit: _Unit) -> str | None:
+    """A hash of what the unit's file is made from, or None for a format that depends on more than text."""
+    if export["format"] not in _TEXT_FORMATS:
+        return None
+    parts = [export["format"], export["per"], unit.name, unit.filename]
+    for page in unit.pages:
+        parts += [page.id, page.name or "", page.path or "", _text(db, page.id) or ""]
+    return _sha("\0".join(parts).encode("utf-8"))
+
+
 def write(db: Any, subject: str) -> None:
     """The job: write the export (subject `<id>`), or one of its files (`<id>:<page or document>`)."""
     export_id, _, key = subject.partition(":")
@@ -323,12 +352,19 @@ def write(db: Any, subject: str) -> None:
     left_out: list[tuple[str, str]] = []
     if not folder.is_dir():
         raise KeptExportRefused(f"{folder} is not there any more; choose the export's folder again.")
+    _refuse_low_space(folder)
     for unit in _units(db, export):
         if key and unit.key != key and export["format"] not in WHOLE_FORMATS:
             continue  # (the workbook is one file: any page's change rewrites it)
+        seen, now = (export["id"], unit.key), _input_hash(db, export, unit)
+        # a rewrite after a change skips a file whose input is the same and which is still there; "write now" always writes
+        if key and now is not None and _WRITTEN_INPUT.get(seen) == now and (folder / unit.filename).exists():
+            continue
         data = _render(db, export, unit, left_out)
         if data is not None:
             _put(db, export, unit.filename, data)
+            if now is not None:
+                _WRITTEN_INPUT[seen] = now
     if left_out:  # the job finishes done and Activity says what it left out (#5966)
         jobs.note_done(f"Partial: {len(left_out)} image(s) left out")
 

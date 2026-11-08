@@ -3816,6 +3816,12 @@ Setup
   another, not run together as one paragraph. Built (2026-10-17): `export_service.render_markdown_text`
   ends every line but the last of a page with two spaces (CommonMark's hard break, invisible in the
   file). Tested in `fichero-server/tests/unit/jobs/test_kept_markdown_lines_5502.py`.
+- `source.onboard.kept-exported.does-not-fill-the-disk` — **[OK]** (#6417) a kept export does not re-render on every edit or write into a
+  full disk: a rewrite after a change waits a quiet minute (`QUIET_SECONDS`); one whose pages' text and names are the same as the
+  last write, with its file still there, renders nothing ("write now" always writes); and a write with under 2 GB free on the
+  export's folder or the scratch space is refused in words with the free figure, writing nothing. Built (2026-11-08): `kept_export.write`.
+  Tested in `fichero-server/tests/unit/jobs/test_kept_exports.py::test_a_rewrite_with_an_unchanged_input_renders_nothing` and
+  `::test_a_write_on_a_nearly_full_disk_refuses_in_words_and_writes_nothing`.
 - `source.onboard.kept-exported.loose-pages-are-documents` — **[GAP]** (#5502) the operator's run wrote
   one `Sources.md` for a project whose pages sit loose under one folder, and expected one file per
   document. By the rule above a page's document is the node it sits in, and a folder of loose pages is
