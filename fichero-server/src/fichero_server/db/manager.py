@@ -47,7 +47,7 @@ class DatabaseBusy(RuntimeError):
 
 
 class OpenGate:
-    """At most `cap` library opens at once, admitted in the order they asked (`app.launch-opens-few-at-a-time`, #6430).
+    """At most `cap` library opens at once, admitted in the order they asked (`sharing.launch.opens-few-at-a-time`, #6430).
 
     A launch that restores several large libraries used to open them all together and starve a small machine. A waiter that
     arrives first is let in first, so the library the app asks for first (the last one used) opens first. An open that
