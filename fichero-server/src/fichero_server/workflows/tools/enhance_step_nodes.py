@@ -13,7 +13,9 @@ from pathlib import Path
 from typing import Any
 
 from fichero_server.llm import LLMConfig
-from fichero_server.media.enhance import STEPS, node_config
+from pydantic import BaseModel, Field
+
+from fichero_server.media.enhance import STEPS, StepSpec, node_config
 from fichero_server.media.image_flatten import flatten_for_opaque_format
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.tools.image_edit_chains import (
@@ -35,8 +37,35 @@ _OUTPUT_CONFIG = {
 }
 
 
+class _FlipParams(BaseModel):
+    direction: str = Field("horizontal", pattern="^(horizontal|vertical)$", description="Mirror left to right, or top to bottom.")
+
+
+class _NoParams(BaseModel):
+    pass
+
+
+def _by_chain_op(op_for: Any) -> Any:
+    """A step whose pixels are an editor operation (`media.image_ops.apply_operation`): the node and the chain row run one function."""
+    def run(image: Any, params: BaseModel) -> tuple[Any, dict[str, Any]]:
+        from fichero_server.media.image_ops import apply_operation
+
+        op = op_for(params)
+        return apply_operation(image, {"op": op, "params": params.model_dump()}), {"method": op}
+    return run
+
+
+#: The nodes for operations that are not enhancement steps: the same registry shape, so `_register` serves both.
+SPECS: dict[str, StepSpec] = {
+    **STEPS,
+    "flip": StepSpec("flip", _FlipParams, _by_chain_op(lambda p: f"flip_{p.direction}")),
+    "grayscale": StepSpec("grayscale", _NoParams, _by_chain_op(lambda p: "grayscale")),
+    "auto-levels": StepSpec("auto-levels", _NoParams, _by_chain_op(lambda p: "auto_levels")),
+}
+
+
 def _chosen(step: str, given: dict[str, Any]) -> dict[str, Any]:
-    return {k: given[k] for k in STEPS[step].params.model_fields if given.get(k) is not None}
+    return {k: given[k] for k in SPECS[step].params.model_fields if given.get(k) is not None}
 
 
 def step_image_file(step: str, file_path: str | Path, output_dir: str | Path, *, output_format: str = "jpg",
@@ -53,7 +82,7 @@ def step_image_file(step: str, file_path: str | Path, output_dir: str | Path, *,
         from PIL import Image
 
         chosen = _chosen(step, given)
-        spec = STEPS[step]
+        spec = SPECS[step]
         with Image.open(source) as image:
             original_size = list(image.size)
             extra: dict[str, Any] = {}
@@ -82,9 +111,9 @@ def step_image_file(step: str, file_path: str | Path, output_dir: str | Path, *,
         return {"source": str(source), "outputs": [], "output_files": [], "details": {}, "error": str(exc)}
 
 
-def _register(tool: str, step: str, op: str, display: str, description: str, icon: str, sort_order: int,
+def _register(tool: str, step: str, op: Any, display: str, description: str, icon: str, sort_order: int,
               versos: bool = False, role: str = "enhanced") -> None:
-    fields = list(STEPS[step].params.model_fields)
+    fields = list(SPECS[step].params.model_fields)
 
     async def node(inputs: dict[str, Any], state: State, llm_config: LLMConfig) -> dict[str, Any]:
         files = inputs.get("files") or state.get("input_files", [])
@@ -101,8 +130,12 @@ def _register(tool: str, step: str, op: str, display: str, description: str, ico
                             verso=verso_files[index] if index < len(verso_files) else None, **given)
             for index, file_path in enumerate(files)
         ]
+        chosen = _chosen(step, given)
+        # `op` is the editor's chain name; a step with no chain row of its own (yellowing and sharpness run inside Auto Enhance) is None
+        row_op = op(chosen) if callable(op) else op
         image_edit_operations = append_image_edit_operations(
-            inputs, state, lambda _doc: {"op": op, "page": int(inputs.get("page", 1)), "params": _chosen(step, given)})
+            inputs, state, lambda _doc: None if row_op is None else
+            {"op": row_op, "page": int(inputs.get("page", 1)), "params": {} if step == "flip" else chosen})
         rendition_report = persist_workflow_renditions(inputs, state, role=role, results=results)
         output_files = [path for result in results for path in result.get("outputs", [])]
         no_effect = describe_no_effect(files, output_files, rendition_report)
@@ -129,7 +162,7 @@ def _register(tool: str, step: str, op: str, display: str, description: str, ico
         ],
         output_ports=[PortDef(id="output_files", name="Adjusted Files", port_type="output", data_type=DataType.FILES,
                               description="Derived image files.")],
-        config_schema={**node_config(STEPS[step].params), **_OUTPUT_CONFIG}, sort_order=sort_order,
+        config_schema={**node_config(SPECS[step].params), **_OUTPUT_CONFIG}, sort_order=sort_order,
     )(node)
     globals()[tool] = node
 
@@ -146,3 +179,16 @@ _register("bleed_through_images", "bleed-through", "bleed_through", "Suppress Sh
 _register("binarise_images", "binarise", "binarise", "Binarise",
           "Black and white by Otsu or an adaptive threshold, written as a separate binarised rendition, without modifying source files.",
           "circle.lefthalf.filled", 32, role="binarised")
+_register("yellowing_images", "yellowing", None, "Remove Yellowing",
+          "Take the yellow cast out of the paper and keep the ink, written as an enhanced rendition, without modifying source files.",
+          "sun.max", 31)
+_register("sharpen_images", "sharpen", None, "Sharpen",
+          "An unsharp mask on the lightness, written as an enhanced rendition, without modifying source files.",
+          "scope", 33)
+_register("flip_images", "flip", lambda chosen: f"flip_{chosen.get('direction', 'horizontal')}", "Flip",
+          "Mirror each page left to right or top to bottom, without modifying source files.",
+          "arrow.left.and.right.righttriangle.left.righttriangle.right", 34)
+_register("grayscale_images", "grayscale", "grayscale", "Grayscale",
+          "Take the colour out of each page, without modifying source files.", "circle.lefthalf.filled.righthalf.striped.horizontal", 35)
+_register("auto_levels_images", "auto-levels", "auto_levels", "Auto Levels",
+          "Stretch each page's lightness to the full range, without modifying source files.", "slider.horizontal.3", 36)
