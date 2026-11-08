@@ -52,7 +52,6 @@ enum SharingFailurePrompt {
         case .olderLink: return "This link is for an older Fichero"
         case .nameNotFound, .tailnetNameNotFound: return "Can't find \(host)"
         case .noAnswer: return "\(host) didn't answer"
-        case .unexpected: return "\(host) replied in a way Fichero didn't expect"
         case .refused: return "\(host) isn't listening"
         case .offline: return "No network"
         case .certificatePin: return "A different Mac answered"
@@ -72,6 +71,7 @@ enum SharingFailurePrompt {
         case .libraryNotGiven: return "\(host) didn't share that project with you"
         case .hostSharesNothing: return "\(host) hasn't shared any project yet"
         case .hostStopped: return "\(host) stopped sharing"
+        case .unexpected: return "\(host) replied in a way Fichero didn't expect"
         case .deviceForgotten: return "\(host) no longer knows this \(context.noun)"
         default: return "Couldn't connect to \(host)"  // the reach steps have their titles above
         }
