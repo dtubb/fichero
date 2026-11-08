@@ -40,14 +40,9 @@ extension ShareSettingsView {
     /// The link for one row (its own Copy), built from the same code as the QR.
     func inviteLinkString(for choice: AddressChoice) -> String? {
         guard let pairingCode, let root = AddressChoiceModel.root(for: choice, rows: addressRows) else { return nil }
-        let advertisedPin: String?
-        switch RemoteClientPairing.invitePin(spkiPin, for: root) {
-        case .missing: return nil
-        case .notNeeded: advertisedPin = nil
-        case .pin(let pin): advertisedPin = pin
-        }
-        let payload = PairingService.buildQRCodePayload(
-            apiRoot: root, from: pairingCode, spki: advertisedPin, libraryPath: sharedLibraryPath)
+        guard let payload = PairingLinkAddresses.payload(
+            chosen: root, rows: addressRows, code: pairingCode, spkiPin: spkiPin, libraryPath: sharedLibraryPath)
+        else { return nil }
         return try? RemoteClientPairing.inviteLinkString(from: payload)
     }
 
@@ -63,18 +58,8 @@ extension ShareSettingsView {
 
     var pairingQRPayload: PairingQRCodePayload? {
         guard let pairingCode, let advertisedPairingRoot else { return nil }
-        let advertisedPin: String?
-        switch RemoteClientPairing.invitePin(spkiPin, for: advertisedPairingRoot) {
-        case .missing: return nil
-        case .notNeeded: advertisedPin = nil  // a publicly-trusted host: the link carries no pin (#5891)
-        case .pin(let pin): advertisedPin = pin
-        }
-        return PairingService.buildQRCodePayload(
-            apiRoot: advertisedPairingRoot,
-            from: pairingCode,
-            spki: advertisedPin,
-            libraryPath: sharedLibraryPath
-        )
+        return PairingLinkAddresses.payload(
+            chosen: advertisedPairingRoot, rows: addressRows, code: pairingCode, spkiPin: spkiPin, libraryPath: sharedLibraryPath)
     }
 
     var inviteLinkString: String? {

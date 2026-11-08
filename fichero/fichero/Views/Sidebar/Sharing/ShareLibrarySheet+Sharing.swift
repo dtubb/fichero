@@ -150,18 +150,9 @@ extension ShareLibrarySheet {
               let reachableURL = AddressChoiceModel.root(for: addressChoice, rows: addressRows)
                 ?? (addressRows.isEmpty ? (try? validatedHostedRemoteURL(from: publicBaseURL)) : nil)
         else { return nil }
-        let advertisedPin: String?
-        switch RemoteClientPairing.invitePin(spkiPin, for: reachableURL) {
-        case .missing: return nil
-        case .notNeeded: advertisedPin = nil  // a publicly-trusted host: no pin in the link (#5891)
-        case .pin(let pin): advertisedPin = pin
-        }
-        let payload = PairingService.buildQRCodePayload(
-            apiRoot: reachableURL,
-            from: pairingCode,
-            spki: advertisedPin,
-            libraryPath: library.url.path
-        )
+        guard let payload = PairingLinkAddresses.payload(
+            chosen: reachableURL, rows: addressRows, code: pairingCode, spkiPin: spkiPin, libraryPath: library.url.path)
+        else { return nil }
         return try? RemoteClientPairing.inviteLinkString(from: payload)
     }
 

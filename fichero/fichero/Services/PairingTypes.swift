@@ -368,7 +368,8 @@ final class PairingService {
         apiRoot: URL,
         from code: PairingCodeRecord,
         spki: String? = nil,
-        libraryPath: String? = nil
+        libraryPath: String? = nil,
+        alternates: [URL] = []
     ) -> PairingQRCodePayload {
         PairingQRCodePayload(
             version: 1,
@@ -376,7 +377,8 @@ final class PairingService {
             pairCode: code.code,
             expiresAt: code.expiresAt,
             spki: spki,
-            libraryPath: libraryPath
+            libraryPath: libraryPath,
+            altURLs: alternates.isEmpty ? nil : alternates.map { $0.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) }
         )
     }
 
