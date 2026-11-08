@@ -1258,25 +1258,32 @@ def presubmit(lane_id: str, sha: str, pinned=None) -> tuple[bool, str]:
 def refresh_live(root, branch: str, git=None) -> str:
     """The loop's own tree (`--root`) follows origin/<branch> after each landing, so the code it runs is never behind the rules it
     reads (2026-11-03: a list in harness.toml landed while the loop's tree lacked the code for it, and the loop died on every ladder).
-    Only a DETACHED, clean tree moves (a person's branch checkout is never touched); the re-exec for new code follows by itself
-    at the next quiet tick. One `loop` row; the word back is what happened."""
+    Only a DETACHED tree moves (a person's branch checkout is never touched); the re-exec for new code follows by itself
+    at the next quiet tick. A hot-patched (dirty) tree moves too, its edits carried, when origin did not touch those files: a
+    dirty tree left in place froze the rules data, so a landed known-gaps entry stayed a red in every presubmit (manager
+    2026-11-07 21:37, lane-sharing). Origin touching a patched file = left, said. One `loop` row; the word back is what happened."""
     git = git or [land_tool.GIT, "-C", str(root)]
     def g(*a):
         return subprocess.run([*git, *a], capture_output=True, text=True)
     if g("symbolic-ref", "-q", "HEAD").returncode == 0:
         return "on a branch: left"
-    if g("status", "--porcelain", "--untracked-files=no").stdout.strip():
-        journal.append("loop", state="live-tree-dirty", detail=f"{root} has changes: not moved to origin/{branch}")
-        return "dirty: left"
+    dirty = g("diff", "--name-only", "HEAD").stdout.split()
     f = g("fetch", "-q", "origin", branch)
-    c = g("checkout", "-q", "--detach", f"origin/{branch}") if f.returncode == 0 else f
+    if f.returncode:
+        journal.append("loop", state="live-tree-refused", detail=(f.stderr or f.stdout).strip()[-300:])
+        return "refused"
+    if clash := sorted(set(dirty) & set(g("diff", "--name-only", "HEAD", f"origin/{branch}").stdout.split())):
+        journal.append("loop", state="live-tree-dirty", detail=f"{root}: origin/{branch} changes the hot-patched {', '.join(clash)}: not moved")
+        return "dirty: left"
+    c = g("checkout", "-q", "--detach", f"origin/{branch}")  # git carries edits to files the move does not touch
     if c.returncode:
         journal.append("loop", state="live-tree-refused", detail=(c.stderr or c.stdout).strip()[-300:])
         return "refused"
     head = g("rev-parse", "HEAD").stdout.strip()
     DRAIN[0] = True  # the code on disk is newer than this process: no chain starts on the old code before the re-exec (2026-11-04)
-    journal.append("loop", state="live-tree", detail=f"{root} at origin/{branch} {head[:9]}")
-    return f"moved to {head[:9]}"
+    carried = f", carrying the hot patch of {', '.join(dirty)}" if dirty else ""
+    journal.append("loop", state="live-tree", detail=f"{root} at origin/{branch} {head[:9]}{carried}")
+    return f"moved to {head[:9]}{carried}"
 
 def trees(paths: list) -> dict:
     """{path: "HEAD sha1-of-status"} read as the owner (the jail's trees are the worker's: safe.directory); unreadable is its own word."""

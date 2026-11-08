@@ -73,8 +73,17 @@ def test_the_loops_detached_clean_tree_follows_origin_and_a_branch_or_a_dirty_tr
     assert queue.DRAIN[0] is True, "no chain starts on the old code before the re-exec (2026-11-04)"
     queue.DRAIN[0] = False
     assert [r["state"] for r in journal.read() if r["event"] == "loop"] == ["live-tree"]
+    (seed / "g").write_text("g\n")  # a hot patch of f rides a landing that leaves f alone (manager 2026-11-07 21:37)
+    _git(seed, "add", "g"), _git(seed, "commit", "-qm", "three"), _git(seed, "push", "-q", "origin", "HEAD:integration")
     (live / "f").write_text("local\n")
-    assert queue.refresh_live(live, "integration", git=git) == "dirty: left"
+    three = _git(seed, "rev-parse", "HEAD")
+    assert queue.refresh_live(live, "integration", git=git) == f"moved to {three[:9]}, carrying the hot patch of f"
+    assert (live / "g").read_text() == "g\n" and (live / "f").read_text() == "local\n", "the new data is there, the patch kept"
+    queue.DRAIN[0] = False
+    (seed / "f").write_text("4\n")  # a landing that changes the patched file: left, said
+    _git(seed, "commit", "-qam", "four"), _git(seed, "push", "-q", "origin", "HEAD:integration")
+    assert queue.refresh_live(live, "integration", git=git) == "dirty: left" and _git(live, "rev-parse", "HEAD") == three
+    assert "changes the hot-patched f" in [r for r in journal.read() if r["event"] == "loop"][-1]["detail"]
     _git(live, "checkout", "-q", "--", "f"), _git(live, "checkout", "-q", "-b", "mine")
     assert queue.refresh_live(live, "integration", git=git) == "on a branch: left"
 
