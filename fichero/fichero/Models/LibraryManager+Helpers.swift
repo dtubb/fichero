@@ -84,6 +84,7 @@ extension LibraryManager {
         let rest = order.dropFirst().compactMap { byId[$0] }
         guard !rest.isEmpty else {
             LaunchProfile.milestone("all libraries ready", detail: "1 library")
+            launchOpenOrder = []
             return
         }
         // All at once, not one after another (#5228): each load is engine round trips, and the engine
@@ -94,6 +95,7 @@ extension LibraryManager {
             }
             for load in loads { await load.value }
             LaunchProfile.milestone("all libraries ready", detail: "\(rest.count + 1) libraries")
+            self.launchOpenOrder = []  // the opening is over: a later refetch is not an opening (#6430)
         }
     }
 

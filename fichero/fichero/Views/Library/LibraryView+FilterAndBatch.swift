@@ -390,7 +390,8 @@ extension LibraryView {
         }
         if phase == .loadingDocuments, let id = libraryManager.currentLibraryId,
            let library = libraryManager.openLibraries.first(where: { $0.id == id }),
-           let opening = LibraryOpeningProgress.message(name: library.displayName, id: id, order: libraryManager.launchOpenOrder) {
+           let opening = LibraryOpeningProgress.message(name: library.displayName, id: id, order: libraryManager.launchOpenOrder,
+                                                      loaded: libraryManager.loadedLibraryIds) {
             return opening
         }
         // `.empty`/`.loaded`/`.failed` have their own views and never reach the

@@ -24,4 +24,9 @@ struct LibraryOpeningProgressTests {
         #expect(LibraryOpeningProgress.message(name: "Only", id: ids[0], order: [ids[0]]) == nil)
         #expect(LibraryOpeningProgress.message(name: "Other", id: UUID(), order: ids) == nil)
     }
+
+    @Test func aLibraryThatHasLoadedIsNeverNamedAsOpeningAgain() {
+        #expect(LibraryOpeningProgress.message(name: "Marshall", id: ids[1], order: ids, loaded: [ids[1]]) == nil)
+        #expect(LibraryOpeningProgress.message(name: "Marshall", id: ids[2], order: ids, loaded: [ids[1]]) == "Opening Marshall (3 of 4)…")
+    }
 }
