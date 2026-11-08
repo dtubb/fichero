@@ -85781,7 +85781,15 @@
               "split",
               "straighten",
               "crop",
-              "clarity"
+              "clarity",
+              "stain-flatten",
+              "yellowing",
+              "sharpen",
+              "denoise",
+              "binarise",
+              "flip",
+              "grayscale",
+              "auto-levels"
             ],
             "title": "Id"
           },
@@ -85826,7 +85834,7 @@
           "by_hand"
         ],
         "title": "PrepareOperation",
-        "description": "One of Prepare Images' four operations, each selectable (`wide.prepare.four-operations-listed`, section C)."
+        "description": "One of Prepare Images' operations (the four, then the rest of the suite, off by default), each selectable (`wide.prepare.four-operations-listed`, section C)."
       },
       "PrepareSuggestion": {
         "properties": {

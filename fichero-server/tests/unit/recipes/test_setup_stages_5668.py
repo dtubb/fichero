@@ -107,7 +107,7 @@ def test_wide_prepare_images_lists_four_operations_in_order(client, with_materia
     default from the questions and whether it is on; no other stage has operations."""
     items = client.get("/api/recipes/stages").json()["items"]
     prepare = next(s for s in items if s["id"] == "prepare-images")
-    assert [o["id"] for o in prepare["operations"]] == ["split", "straighten", "crop", "clarity"]
+    assert [o["id"] for o in prepare["operations"]][:4] == ["split", "straighten", "crop", "clarity"]  # the rest of the suite follows, off
     assert all(o["title"] and o["sentence"] for o in prepare["operations"])
     assert [s["id"] for s in items if s["operations"]] == ["prepare-images"]
 
@@ -136,8 +136,8 @@ def test_wide_an_operation_switched_by_hand_wins_over_its_question(client, with_
 
 
 def test_wide_an_unknown_operation_is_refused_in_words(client, with_material):
-    r = client.put("/api/recipes/project", json={"answers": {"job_answers": {"prepare_operations": ["crop", "sharpen"]}}})
-    assert r.status_code == 422 and "sharpen" in r.text and "split" in r.text
+    r = client.put("/api/recipes/project", json={"answers": {"job_answers": {"prepare_operations": ["crop", "nonsense"]}}})
+    assert r.status_code == 422 and "nonsense" in r.text and "split" in r.text
 
 
 #: Section J of wide-onboarding.md, job by job: does the step call a model a person can choose?

@@ -38,6 +38,21 @@ OPERATIONS: tuple[Operation, ...] = (
     Operation(CLARITY, "Clarity",
               "Brightens, raises the contrast and sharpens faded or dim writing on a new copy."),
 )
+#: The rest of the suite (`image.ops.recipe-designer-offers-every-operation`), in the suite's order: each is the engine step of that
+#: name (`workflows/tools/enhance_step_nodes.SPECS`), off until the hand switches it on. Ruled lines and bleed-through are not here:
+#: the paper answers run them (`prepare_run.PAPER_STEPS`).
+_EXTRA = (
+    ("stain-flatten", "Flatten stains", "Evens out stains and discolouration so the writing stands clear of them."),
+    ("yellowing", "Remove yellowing", "Takes the yellow cast of old paper out of the page."),
+    ("sharpen", "Sharpen", "Sharpens soft or blurred writing."),
+    ("denoise", "Remove speckle", "Cleans speckle and scanner noise from the page."),
+    ("binarise", "Binarise", "Turns the page to black writing on white, for readers that want a clean two-tone page."),
+    ("flip", "Flip", "Mirrors the page left to right (a page photographed in a mirror or from behind glass)."),
+    ("grayscale", "Grayscale", "Drops the colour and keeps the tones."),
+    ("auto-levels", "Auto levels", "Stretches the page's darkest and lightest tones to fill the range."),
+)
+EXTRA = tuple(e[0] for e in _EXTRA)
+OPERATIONS = OPERATIONS + tuple(Operation(*e) for e in _EXTRA)
 IDS = tuple(o.id for o in OPERATIONS)
 
 
@@ -58,7 +73,7 @@ def defaults(job_answers: dict[str, Any] | None) -> dict[str, bool]:
     from fichero_server.recipes.prepare import runs_contrast
 
     return {SPLIT: (job_answers or {}).get("two_pages_per_image") is True, STRAIGHTEN: True, CROP: True,
-            CLARITY: runs_contrast(_paper(job_answers))}
+            CLARITY: runs_contrast(_paper(job_answers)), **{i: False for i in EXTRA}}
 
 
 def on(job_answers: dict[str, Any] | None) -> dict[str, bool]:
@@ -96,5 +111,5 @@ def to_run(job_answers: dict[str, Any] | None, paper: list[str] | None = None) -
 
     by_hand = chosen(job_answers)
     if by_hand is not None:
-        return [i for i in PREPARE_OPERATIONS if i in by_hand]
+        return [i for i in (*PREPARE_OPERATIONS, *EXTRA) if i in by_hand]
     return [i for i in PREPARE_OPERATIONS if i != CLARITY or runs_contrast(paper)]

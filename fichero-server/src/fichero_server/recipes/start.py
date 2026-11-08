@@ -616,6 +616,9 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                 entry["paper_steps"] = [PAPER_STEPS[a] for a in PAPER_STEPS if a in entry["paper"]]  # what the paper answers run
                 # The operations to run (`wide.prepare.plan-runs-only-chosen-operations`): the hand's choice, else the questions'.
                 entry["operations"] = prepare_operations.to_run(job_answers, entry["paper"])
+                named = [o.title for o in prepare_operations.OPERATIONS if o.id in entry["operations"] and o.id in prepare_operations.EXTRA]
+                if named:
+                    entry["how"] = f"{entry['how']} It also runs {', '.join(named)}.".strip()
                 if not entry["operations"]:
                     skip(sid, f"{label}: every operation is switched off, so no page is prepared",
                          "switch an operation on in Prepare Images")
