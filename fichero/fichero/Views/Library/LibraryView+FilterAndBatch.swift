@@ -388,6 +388,11 @@ extension LibraryView {
         if phase == .loadingDocuments, isShowingEntitiesCollection {
             return "Loading entities…"
         }
+        if phase == .loadingDocuments, let id = libraryManager.currentLibraryId,
+           let library = libraryManager.openLibraries.first(where: { $0.id == id }),
+           let opening = LibraryOpeningProgress.message(name: library.displayName, id: id, order: libraryManager.launchOpenOrder) {
+            return opening
+        }
         // `.empty`/`.loaded`/`.failed` have their own views and never reach the
         // spinner branch; "Loading…" is the honest last resort if one ever does.
         return phase.message ?? "Loading…"

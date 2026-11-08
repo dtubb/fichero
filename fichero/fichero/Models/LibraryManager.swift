@@ -47,6 +47,8 @@ class LibraryManager {
     var backendIsReady = false
     var loadedLibraryIds: Set<UUID> = []
     var loadingLibraryIds: Set<UUID> = []
+    /// The order the open libraries load at launch, the front one first (`LibraryOpeningProgress`, #6430).
+    var launchOpenOrder: [UUID] = []
 
     /// Failed-load retry counter per library (`scheduleLoadRetry`). A load
     /// left "unloaded for retry" (#3986-B) previously had no retryer — the

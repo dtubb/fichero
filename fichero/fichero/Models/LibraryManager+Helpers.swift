@@ -69,6 +69,7 @@ extension LibraryManager {
         // library the window shows is loaded and awaited; the others follow in the background, so the
         // sidebar and the front library are usable while the rest arrive.
         let order = Self.frontFirst(openLibraries.map(\.id), front: currentLibraryId)
+        launchOpenOrder = order
         let byId = Dictionary(openLibraries.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         guard let frontId = order.first, let front = byId[frontId] else { return }
         await loadLibraryDataIfNeeded(for: front)
