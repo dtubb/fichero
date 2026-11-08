@@ -69,7 +69,11 @@ def test_each_heartbeat_arms_a_fresh_one_shot_so_a_second_stall_is_dumped_too(mo
         async def beat_twice():
             stop = loop_lag.start(loop, ping_seconds=0.02, slow_seconds=5, dump_seconds=30.0)
             events.clear()  # the arm made at start
-            await asyncio.sleep(0.25)  # the watcher pings every 20 ms: several heartbeats ran on this loop
+            # the watcher pings every 20 ms; wait for two re-arms, not a fixed time (a loaded machine runs it late, #6007)
+            for _ in range(500):
+                if sum(1 for e in events if e != "cancel") >= 2:
+                    break
+                await asyncio.sleep(0.02)
             stop.set()
 
         loop.run_until_complete(beat_twice())
