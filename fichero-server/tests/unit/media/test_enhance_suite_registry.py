@@ -104,3 +104,29 @@ def test_flip_goes_the_way_it_is_told_and_grayscale_leaves_no_colour(tmp_path):
     assert (flipped[10:14] != (40, 35, 30)).any() and (flipped[46:50, 10:70] == (40, 35, 30)).all()
     gray = np.asarray(Image.open(step_image_file("grayscale", source, tmp_path / "g", output_format="png")["outputs"][0]))
     assert (gray[..., 0] == gray[..., 1]).all() and (gray[..., 1] == gray[..., 2]).all()
+
+
+#: chain names with no Prepare Images operation of their own, named so a new chain operation cannot slip past
+#: (`image.ops.matrix-is-complete`, #6363). Ruled lines and bleed-through are run by the paper answers; the rest are editor-only.
+NO_PREPARE_YET = {"adaptive_binarize", "auto_crop_border", "bleed_through", "brightness", "enhance", "fuzzy_clean", "mark_blank",
+                  "remove_background", "rotate", "ruled_lines", "segment", "square"}
+
+
+def test_the_operation_matrix_is_complete_or_names_what_is_not_yet():
+    """One walk of the chain vocabulary: each operation has its action, its node and its Prepare operation id, or is named here as
+    not yet (`image.ops.matrix-is-complete`). A new operation added without all the doors fails this naming the missing ones."""
+    from fichero_server.media.image_op_matrix import missing_doors
+
+    missing = missing_doors()
+    assert missing["action"] == set(), f"chain operations with no image.<op> action: {missing['action']}"
+    no_node, no_prepare = missing["node"], missing["prepare"]
+    assert no_node == NO_NODE_YET, f"no node: new {no_node - NO_NODE_YET}; named but now have one {NO_NODE_YET - no_node}"
+    assert no_prepare == NO_PREPARE_YET, f"no Prepare id: new {no_prepare - NO_PREPARE_YET}; named but now have one {NO_PREPARE_YET - no_prepare}"
+
+
+def test_a_new_operation_without_its_doors_fails_the_matrix_naming_them(monkeypatch):
+    from fichero_server.api.routes.ingest import image_editing
+    from fichero_server.media.image_op_matrix import missing_doors
+
+    monkeypatch.setitem(image_editing._OPERATION_MODELS, "noop", image_editing._OPERATION_MODELS["denoise"])
+    assert all("noop" in doors for doors in missing_doors().values())
