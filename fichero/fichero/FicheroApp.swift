@@ -381,8 +381,7 @@ struct FicheroApp: App {
         // the window that provided it.
         .onAppear { appDelegate.openMainWindow = { openWindow(id: "main") } }
         .onAppear {
-            SharedLibraryOpener.install(
-                appState: appState, backendService: backendService, libraryManager: libraryManager)
+            SharedLibraryOpener.install(libraryManager: libraryManager)
             SharingAddressFollower.install(appState: appState, backendService: backendService)
         }
         .frame(minWidth: 640, minHeight: 700)

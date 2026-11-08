@@ -179,13 +179,14 @@ extension LibraryManager {
     /// Mac, so there is no security-scoped resource to acquire and no
     /// `FileManager.fileExists` gate (which would always fail for a remote path).
     /// The generated client talks to `EngineConfig.host` with `libraryPath` set to
-    /// this path, so a fresh `LibraryReference` is a valid remote library.
+    /// this path, so a fresh `LibraryReference` is a valid remote library. With `pinnedTo` the library dials THAT Mac beside
+    /// the local ones and the app-wide host is left alone (`sharing.guest.library-pinned-to-its-host`, #6360).
     ///
     /// Reuses an already-open library at the same path; otherwise creates one and
     /// makes it current. Setting `currentLibraryId` re-roots the workspace via
     /// `LibraryWorkspaceSelection.activeLibrary`.
     @discardableResult
-    func switchToRemoteLibrary(path: String, displayName: String? = nil) -> LibraryReference? {
+    func switchToRemoteLibrary(path: String, displayName: String? = nil, pinnedTo hostRoot: URL? = nil) -> LibraryReference? {
         let trimmedPath = path.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedPath.isEmpty else { return nil }
         let url = URL(fileURLWithPath: trimmedPath)
@@ -195,10 +196,10 @@ extension LibraryManager {
         // scoped to the host they belong to (a path on the maintainer's Mac must never
         // leak into Ann's-Mac recents). Recorded on every remote open — reuse
         // included — so re-opening bumps it to the top.
-        RemoteLibraryRecents.note(path: trimmedPath, host: EngineConfig.host.absoluteString)
+        RemoteLibraryRecents.note(path: trimmedPath, host: (hostRoot ?? EngineConfig.host).absoluteString)
 
         // Reuse if already open (compare by standardized path, not URL identity).
-        if let existing = openLibraries.first(where: { $0.url.path == url.path }) {
+        if let existing = openLibraries.first(where: { $0.url.path == url.path && (hostRoot == nil || $0.host.url == hostRoot) }) {
             currentLibraryId = existing.id
             return existing
         }
@@ -209,6 +210,8 @@ extension LibraryManager {
             url: url,
             document: FicheroDocument(),
             displayName: (resolvedName?.isEmpty == false ? resolvedName! : defaultName),
+            host: hostRoot.map { BackendHost(url: $0, tokenKind: .remote) } ?? .appDefault,
+            pinnedToHost: hostRoot != nil,  // a shared library dials its own Mac (`sharing.guest.library-pinned-to-its-host`)
             startAccessing: false  // remote path — no local security scope
         )
 

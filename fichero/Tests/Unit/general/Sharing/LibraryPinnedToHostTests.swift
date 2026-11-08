@@ -44,4 +44,21 @@ struct LibraryPinnedToHostTests {
     @Test func aPinnedLibraryReadsAsRemoteInTheSidebar() {
         #expect(library(pinned: true).locationDescriptor.isLocal == false)
     }
+
+    @Test func openingASharedLibraryAddsAPinnedOneBesideTheLocalOnesAndKeepsTheRest() throws {
+        let manager = LibraryManager.shared
+        let before = manager.openLibraries.map(\.id)
+        let current = manager.currentLibraryId
+        defer {
+            manager.openLibraries.removeAll { !before.contains($0.id) }
+            manager.currentLibraryId = current
+        }
+        let path = "/Volumes/Archive/Pinned Beside \(UUID().uuidString)"
+        let opened = try #require(manager.switchToRemoteLibrary(path: path, pinnedTo: studio))
+        #expect(opened.pinnedToHost)
+        #expect(opened.host.url == studio)
+        #expect(manager.currentLibraryId == opened.id)
+        #expect(before.allSatisfy { id in manager.openLibraries.contains { $0.id == id } })
+        #expect(manager.switchToRemoteLibrary(path: path, pinnedTo: studio)?.id == opened.id)
+    }
 }
