@@ -15,7 +15,7 @@ KIND = "image-operation"
 _kinds_registered = False
 
 
-def queue_image_operation(db: Any, action: str, params: dict[str, Any], *, started_by: str = "ui") -> str:
+def queue_image_operation(db: Any, action: str, params: dict[str, Any], *, started_by: str = "person") -> str:
     """Queue `action` (an `image.<op>` that takes a `document_id`) with `params`; returns the job id. Each request is its own job:
     the subject is unique, so two asks of the same page are two jobs, not one (a waiting job of a subject is otherwise reused)."""
     from fichero_server.execution import jobs
@@ -34,7 +34,7 @@ def _run(db: Any, subject: str) -> None:
     if row is None or not row[0]:
         raise ValueError("the image operation job has no request")
     request = json.loads(row[0])
-    ctx = ActionContext(actor=row[1] or "ui", library_path=str(db.path.parent))
+    ctx = ActionContext(actor=row[1] or "person", library_path=str(db.path.parent))
     registry.invoke(db, request["action"], request["params"], ctx)
 
 
