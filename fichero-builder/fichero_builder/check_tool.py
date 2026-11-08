@@ -67,6 +67,7 @@ class Config:
     build_timeout_s: float = 1800
     build_lock: str = ""                # a lock file: one build at a time on the machine ("" = no lock)
     build_tree: str = ""                # a STABLE worktree path the build runs in, so xcodebuild is incremental ("" = the scratch tree)
+    daily_builds: dict = field(default_factory=dict)  # {name: xcodebuild argv}: once a day on build_remote, never here (#6390)
     build_remote: str = ""              # "host:dir": the build rung runs on that Mac (its own derived data under dir), off the owner's;
                                         # unreachable = the build here, as before ("" = here)
     routes_file: str = ""               # an OpenAPI JSON at head whose paths are the engine's routes (the guard-data-added-routes rule)
@@ -116,7 +117,7 @@ def load(root) -> Config:
         pytest_config=c.get("pytest_config", d.pytest_config), pytest_plugins=tuple(c.get("pytest_plugins", d.pytest_plugins)), max_files=c.get("max_files", d.max_files),
         max_lines=c.get("max_lines", d.max_lines), max_commits=c.get("max_commits", d.max_commits), build_paths=tuple(c.get("build_paths", d.build_paths)), product_paths=tuple(c.get("product_paths", d.product_paths)),
         build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
-        build_lock=c.get("build_lock", d.build_lock), build_tree=c.get("build_tree", d.build_tree), build_remote=c.get("build_remote", d.build_remote), routes_file=c.get("routes_file", d.routes_file), generated=tuple(c.get("generated", d.generated)), rebake=tuple(c.get("rebake", d.rebake)), rebake_issue=c.get("rebake_issue", d.rebake_issue), engine_repo=c.get("engine_repo", d.engine_repo),
+        build_lock=c.get("build_lock", d.build_lock), build_tree=c.get("build_tree", d.build_tree), build_remote=c.get("build_remote", d.build_remote), daily_builds={k: tuple(v) for k, v in c.get("daily_builds", {}).items()}, routes_file=c.get("routes_file", d.routes_file), generated=tuple(c.get("generated", d.generated)), rebake=tuple(c.get("rebake", d.rebake)), rebake_issue=c.get("rebake_issue", d.rebake_issue), engine_repo=c.get("engine_repo", d.engine_repo),
         remote=(c["remote"][0] if c["remote"] else "") if isinstance(c.get("remote"), list) else c.get("remote", d.remote),
         remotes=tuple(c["remote"]) if isinstance(c.get("remote"), list) else d.remotes, remote_python=c.get("remote_python", d.remote_python),
         remote_guards=c.get("remote_guards", d.remote_guards), guard_inputs=dict(c.get("guard_inputs", {})), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb),
@@ -881,7 +882,7 @@ def build(root, changed: list[str], cfg: Config) -> dict:
     return _build_locked(root, changed, cfg)  # ponytail: the remote down under the owner's hold waits here, holding its slot
 
 
-def _remote_build(root, cfg: Config) -> dict | None:
+def _remote_build(root, cfg: Config, cmd: tuple = (), name: str = "build") -> dict | None:
     """The build rung on `[check].build_remote` (manager 2026-11-06 t88: the M1 Air, so the Pro stays the owner's; the first step of
     the machine pool, #6356): the stable build tree rsynced (mtimes kept, removed files removed, no .git) to <dir>/build-tree there,
     xcodebuild there with <dir>/derived as its derived data, under that Mac's own one-heavy-job lock. Everything lives under the
@@ -901,46 +902,56 @@ def _remote_build(root, cfg: Config) -> dict | None:
         lock = open(lp, "a")
         fcntl.flock(lock, fcntl.LOCK_EX)
     try:
-        return _remote_build_locked(root, cfg, host, rbase)
+        return _remote_build_locked(root, cfg, host, rbase, cmd, name)
     finally:
         if lock is not None:
             lock.close()
 
 
-def _remote_build_locked(root, cfg: Config, host: str, rbase: str) -> dict | None:
+def _remote_build_locked(root, cfg: Config, host: str, rbase: str, cmd: tuple = (), name: str = "build") -> dict | None:
     src = _stable_build_tree(root, cfg) if cfg.build_tree else str(root)
-    key = _build_key(src, cfg)
+    key = _build_key(src, cfg, cmd)
     if key and (hit := _build_results().get(key)):
-        journal.append("check", state="build-reused", rung="build", detail=f"green at {hit.get('head', '?')[:9]} {hit.get('ts', '')}: {key[:12]}")
+        journal.append("check", state="build-reused", rung=name, detail=f"green at {hit.get('head', '?')[:9]} {hit.get('ts', '')}: {key[:12]}")
         return {"ok": True, "skipped": False, "results": [{"name": "build", "ok": True, "exit_code": 0, "timed_out": False, "seconds": 0,
                                                            "stdout_tail": f"reused: the same build key built green at {hit.get('head', '?')[:9]}", "stderr_tail": "", "reused": key}]}
-    tree, derived = f"{rbase}/build-tree", f"{rbase}/derived"
+    tree, derived = f"{rbase}/build-tree", f"{rbase}/derived" + ("" if name == "build" else f"-{name}")  # a daily build: its own derived data
     sync = run_command("build-sync", ["rsync", "-a", "--delete", "--exclude", ".git", "-e", "ssh -o BatchMode=yes -o ConnectTimeout=10",
                                       f"{src}/", f"{host}:{tree}/"], src, 900, None, as_jail=False)
     if not sync["ok"]:
-        journal.append("check", state="build-remote-down", rung="build", runner=host, detail=f"rsync: {sync['stderr_tail'][-200:]}")
+        journal.append("check", state="build-remote-down", rung=name, runner=host, detail=f"rsync: {sync['stderr_tail'][-200:]}")
         return None
-    b = list(cfg.build)
+    b = list(cmd or cfg.build)
     if "-derivedDataPath" in b[:-1]:
         b[b.index("-derivedDataPath") + 1] = derived
     b = [a for a in b if a != "-disableAutomaticPackageResolution"]  # its first build there resolves the packages into its own derived data
     script = _remote_heavy(f"{rbase}/venv/bin/python", f"{rbase}/heavy.lock", f"cd {shlex.quote(tree)} && {shlex.join(b)}")
-    log = journal.STATE / "build-logs" / f"build-{time.strftime('%Y%m%d-%H%M%S')}-{host}.log"
-    r = run_command("build", ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host, script], src, cfg.build_timeout_s, None,
+    log = journal.STATE / "build-logs" / f"{name}-{time.strftime('%Y%m%d-%H%M%S')}-{host}.log"
+    r = run_command(name, ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host, script], src, cfg.build_timeout_s, None,
                     as_jail=False, log=log)
     if r["exit_code"] == 255:
-        journal.append("check", state="build-remote-down", rung="build", runner=host, detail=r["stderr_tail"][-200:])
+        journal.append("check", state="build-remote-down", rung=name, runner=host, detail=r["stderr_tail"][-200:])
         return None
     if not r["ok"] and not SOURCE_ERROR.search((r.get("errors") or "") + (r.get("stdout_tail") or "")):
         # a red that names no Swift source error is that Mac's (a missing component, a package fetch, a timeout), never the code's
-        journal.append("check", state="build-remote-env-red", rung="build", runner=host, detail=(r.get("stderr_tail") or "")[-200:])
+        journal.append("check", state="build-remote-env-red", rung=name, runner=host, detail=(r.get("stderr_tail") or "")[-200:])
         return None
     r["remote"] = host
-    journal.append("check", state="build-remote", rung="build", runner=host, ok=r["ok"], seconds=r.get("seconds"))
+    journal.append("check", state="build-remote", rung=name, runner=host, ok=r["ok"], seconds=r.get("seconds"))
     if r["ok"] and key:
         _build_result_put(key, (_lines(src, "rev-parse", "HEAD") or [""])[0])
     return {"ok": r["ok"], "skipped": False, "results": [r]}
 
+
+
+def daily_builds(root, cfg: Config) -> list[tuple[str, dict | None]]:
+    """#6390 (owner 2026-11-07): what the build rung never compiles (the iOS app, the Swift test target), built once a day on
+    `[check].build_remote` from the stable tree at the loop's checkout, each with its own derived data there, under the same
+    locks; a green key is reused. None for a name = it could not run there (down, or a red that names no Swift source).
+    Never on this Mac (the owner's): no remote = nothing runs."""
+    if not cfg.build_remote:
+        return []
+    return [(name, _remote_build(root, cfg, tuple(argv), name)) for name, argv in cfg.daily_builds.items()]
 
 @_heavy("xcodebuild (the build rung)")
 def _build_locked(root, changed: list[str], cfg: Config) -> dict:
@@ -1053,7 +1064,7 @@ def _clear_dir(d: str) -> None:
 _XCODE: list = []
 
 
-def _build_key(tree, cfg: Config) -> str:
+def _build_key(tree, cfg: Config, cmd: tuple = ()) -> str:
     """What a build reads: the tree hash of each [check].build_paths dir, the build command, and the Xcode version. A harness
     change never reuses a Swift result across a different tree hash; '' = no key (nothing is reused)."""
     trees = [(_lines(tree, "rev-parse", f"HEAD:{p.rstrip('/')}") or [""])[0] for p in cfg.build_paths]
@@ -1064,7 +1075,7 @@ def _build_key(tree, cfg: Config) -> str:
             _XCODE.append(subprocess.run(["xcodebuild", "-version"], capture_output=True, text=True, timeout=60).stdout.strip())
         except (OSError, subprocess.TimeoutExpired):
             _XCODE.append("")
-    return hashlib.sha256(json.dumps([trees, list(cfg.build), _XCODE[0]]).encode()).hexdigest()
+    return hashlib.sha256(json.dumps([trees, list(cmd or cfg.build), _XCODE[0]]).encode()).hexdigest()
 
 
 def _build_results() -> dict:

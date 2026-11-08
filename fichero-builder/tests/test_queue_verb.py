@@ -549,6 +549,26 @@ def test_verify_all_waits_while_a_lane_is_busy_and_never_runs_for_an_unpushed_la
     assert queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None) is True and ran == [], "a lane with work left: not yet"
 
 
+
+def test_the_daily_builds_run_once_a_day_busy_lanes_or_not_and_a_red_one_is_an_alert(state):
+    """#6390 (owner 2026-11-07): the iOS app and the Swift test target, built once a day; no [check.daily_builds] = never."""
+    fake = Fake()
+    queue.add("busy", "/w/y", "1.1", str(state / "b1.1"), [])
+    queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None)
+    assert not (journal.STATE / queue.DAILY).exists(), "no daily builds declared: nothing runs"
+    ran = []
+    fake.procs.daily_builds = lambda: (ran.append(1), (1, "ios-sim: GREEN\ntests: RED T.swift:26:9: error: cannot find 'X' (log l)"))[1]
+    queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None)
+    queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None)
+    assert ran == [1], "once a day, though a lane is busy"
+    assert [r["state"] for r in journal.read() if r["event"] == "daily-builds"] == ["red"]
+    alerts = [r for r in journal.read() if r["event"] == "alert"]
+    assert len(alerts) == 1 and alerts[0]["step"] == "daily-builds" and "tests: RED T.swift:26:9" in alerts[0]["what"]
+    (journal.STATE / queue.DAILY).write_text(f"{queue.time.time() - queue.DAILY_S - 1}\n")
+    fake.procs.daily_builds = lambda: (ran.append(2), (0, "ios-sim: GREEN\ntests: GREEN"))[1]
+    queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None)
+    assert ran == [1, 2] and len([r for r in journal.read() if r["event"] == "alert"]) == 1, "a day later: again; green = no alert"
+
 def test_a_lane_named_in_opus_lanes_gets_the_full_reviewer_and_others_the_fast_one(state, monkeypatch):
     """Owner 2026-11-06 (t28): [models].opus_lanes; a named lane's batches always get the full reviewer, any other the fast one."""
     (state / "harness.toml").write_text('[check]\nengine_repo = "/e"\n[land]\nbranch = "integration"\n'

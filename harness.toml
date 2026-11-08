@@ -87,6 +87,15 @@ build_tree = "/Users/Shared/fichero-worker/build-tree"
 # chmod -R a+rX; a local `integration` branch; fetch landing branches into it by ref.
 engine_repo = "/Users/Shared/fichero-engine"
 
+# #6390 (owner 2026-11-07): what the build rung never compiles, built once a day on build_remote (the Air; never this Mac), each
+# with its own derived data there, red = an alert: the iOS app (macOS-only APIs in shared Swift broke it unseen) and the Swift
+# test target (a missing import landed unseen). -derivedDataPath is replaced over there.
+[check.daily_builds]
+ios-sim = ["xcodebuild", "-project", "fichero/fichero.xcodeproj", "-scheme", "Fichero (Dev Local)", "-destination", "generic/platform=iOS Simulator",
+           "-derivedDataPath", "derived", "-jobs", "4", "-skipPackagePluginValidation", "CODE_SIGNING_ALLOWED=NO", "build"]
+tests = ["xcodebuild", "-project", "fichero/fichero.xcodeproj", "-scheme", "Fichero (Dev Local)", "-destination", "platform=macOS",
+         "-derivedDataPath", "derived", "-jobs", "4", "-skipPackagePluginValidation", "CODE_SIGNING_ALLOWED=NO", "build-for-testing"]
+
 # Speed 5 inputs (2026-11-08, read with an audit hook: what each guard opens and lists, two levels deep; scripts/ whole).
 # Undeclared = the whole tree (a guard that starts a subprocess, or lists the root). ponytail: a stat-only read is not seen,
 # so a guard reading a path only by .exists() can be reused stale; verify-all runs every guard uncached each night.

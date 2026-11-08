@@ -1494,7 +1494,7 @@ def test_the_build_runs_on_the_build_remote_with_its_own_derived_data_and_falls_
     """manager 2026-11-06 t88: the build rung on the M1 Air so the Pro stays the owner's; unreachable = the build here, as before."""
     monkeypatch.setattr(ct.journal, "STATE", tmp_path / "journal")
     (tmp_path / "journal").mkdir()
-    monkeypatch.setattr(ct, "_build_key", lambda src, cfg: "k1")
+    monkeypatch.setattr(ct, "_build_key", lambda src, cfg, cmd=(): "k1")
     monkeypatch.setattr(ct, "_lines", lambda *a, **k: ["abc123"])
     up = [0]
     monkeypatch.setattr(ct, "_ssh", lambda host, script, t, stdin=None: subprocess.CompletedProcess(
@@ -1519,7 +1519,7 @@ def test_the_build_runs_on_the_build_remote_with_its_own_derived_data_and_falls_
     ran.clear()
     assert ct.build(str(tmp_path), ["fichero/A.swift"], cfg)["results"][0].get("reused") == "k1" and ran == [], "a green key is reused"
     up[0] = 1
-    monkeypatch.setattr(ct, "_build_key", lambda src, cfg: "k2")
+    monkeypatch.setattr(ct, "_build_key", lambda src, cfg, cmd=(): "k2")
     assert ct.build(str(tmp_path), ["fichero/A.swift"], cfg)["results"] == [{"here": True}], "that Mac down: the build runs here"
     up[0], red = 0, ["error: unable to find a destination"]
 
@@ -1528,13 +1528,45 @@ def test_the_build_runs_on_the_build_remote_with_its_own_derived_data_and_falls_
         return {"name": name, "argv": argv, "exit_code": 0 if ok else 70, "ok": ok, "timed_out": False, "seconds": 1,
                 "stdout_tail": "" if ok else red[0], "stderr_tail": ""}
     monkeypatch.setattr(ct, "run_command", run_red)
-    monkeypatch.setattr(ct, "_build_key", lambda src, cfg: "k3")
+    monkeypatch.setattr(ct, "_build_key", lambda src, cfg, cmd=(): "k3")
     assert ct.build(str(tmp_path), ["fichero/A.swift"], cfg)["results"] == [{"here": True}], "a red that names no source: built here"
     red[0] = "/x/fichero/A.swift:3:5: error: cannot find 'b' in scope"
-    monkeypatch.setattr(ct, "_build_key", lambda src, cfg: "k4")
+    monkeypatch.setattr(ct, "_build_key", lambda src, cfg, cmd=(): "k4")
     r = ct.build(str(tmp_path), ["fichero/A.swift"], cfg)
     assert not r["ok"] and r["results"][0]["remote"] == "air", "a Swift source error over there is the code's red"
 
+
+
+def test_the_daily_builds_run_each_named_command_on_the_build_remote_with_its_own_derived_data_and_never_here(tmp_path, monkeypatch):
+    """#6390 (owner 2026-11-07): the iOS app and the Swift test target, which the build rung never compiles, once a day on the
+    Air; no build remote = nothing runs (never the owner's Pro); the Air down = could not run, not a red."""
+    monkeypatch.setattr(ct.journal, "STATE", tmp_path / "journal")
+    (tmp_path / "journal").mkdir()
+    monkeypatch.setattr(ct, "_build_key", lambda src, cfg, cmd=(): "")
+    monkeypatch.setattr(ct, "_lines", lambda *a, **k: ["abc123"])
+    up = [0]
+    monkeypatch.setattr(ct, "_ssh", lambda host, script, t, stdin=None: subprocess.CompletedProcess(
+        [], 0 if up[0] == 0 else 255, b"/Users/Shared/fg-air\n" if up[0] == 0 else b"", b""))
+    ran = []
+
+    def run(name, argv, cwd, timeout_s, env=None, as_jail=True, log=None):
+        ran.append((name, argv))
+        ok = name != "tests"
+        return {"name": name, "argv": argv, "exit_code": 0 if ok else 65, "ok": ok, "timed_out": False, "seconds": 1,
+                "stdout_tail": "" if ok else "/x/fichero/T.swift:26:9: error: cannot find 'APIClient' in scope", "stderr_tail": ""}
+    monkeypatch.setattr(ct, "run_command", run)
+    monkeypatch.setattr(ct, "_build_locked", lambda *a: pytest.fail("a daily build never runs on this Mac"))
+    daily = {"ios-sim": ("xcodebuild", "-destination", "generic/platform=iOS Simulator", "-derivedDataPath", "d", "build"),
+             "tests": ("xcodebuild", "-destination", "platform=macOS", "-derivedDataPath", "d", "build-for-testing")}
+    assert ct.daily_builds(str(tmp_path), ct.Config(daily_builds=daily)) == [], "no build remote: nothing runs"
+    cfg = ct.Config(build=("xcodebuild", "build"), build_paths=("fichero/",), build_remote="air:~/fichero-gate", daily_builds=daily)
+    res = dict(ct.daily_builds(str(tmp_path), cfg))
+    assert res["ios-sim"]["ok"] and not res["tests"]["ok"], "a Swift source error in the test target is the code's red"
+    scripts = {n: a[-1] for n, a in ran if n in daily}
+    assert "/Users/Shared/fg-air/derived-ios-sim" in scripts["ios-sim"] and "generic/platform=iOS Simulator" in scripts["ios-sim"]
+    assert "/Users/Shared/fg-air/derived-tests" in scripts["tests"] and "build-for-testing" in scripts["tests"]
+    up[0] = 1
+    assert [r for _, r in ct.daily_builds(str(tmp_path), cfg)] == [None, None], "the Air down: could not run, never a red"
 
 def test_the_scratch_checkout_gets_minutes_not_gits_60_s_and_a_kill_names_its_reason(tmp_path, monkeypatch):
     """2026-11-07: at load 100 with Defender scanning, the scratch `worktree add` passed 60 s and was killed: 'reset died of

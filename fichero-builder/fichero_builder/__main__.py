@@ -151,6 +151,8 @@ def main(argv=None) -> int:
     bc.add_argument("lane"), bc.add_argument("--root", default="."), bc.add_argument("--state", help="where the queue and the journal live")
     va = sub.add_parser("verify-all", help="everything on a checkout's HEAD verified before a dev DMG: every guard, the full engine suite (on [check].remote), the app build; one `verify` row; --build makes the dev DMG only after a green verdict")
     va.add_argument("--root", default="."), va.add_argument("--state", help="where the journal lives"), va.add_argument("--build", action="store_true")
+    db = sub.add_parser("daily-builds", help="what the build rung never compiles ([check.daily_builds]: the iOS app, the Swift test target), on [check].build_remote only; exit 0 green, 1 red, 2 could not run (#6390)")
+    db.add_argument("--root", default="."), db.add_argument("--state", help="where the journal lives")
     hv = sub.add_parser("heavy", help="run a heavy command (xcodebuild, a full pytest run) under the machine's one-heavy-job lock; waits, and says who holds it after 30 s: builder heavy -- <cmd>")
     hv.add_argument("--state", help="where the journal and the lock live"), hv.add_argument("argv", nargs=argparse.REMAINDER)
     hb = sub.add_parser("heartbeat", help="the loop's watchdog: an alert row when the journal has no `loop` tick for more than --ticks ticks (once per silence); exit 1 while stale")
@@ -289,6 +291,17 @@ def main(argv=None) -> int:
             return 2
         with journal.heavy("heavy: " + " ".join(argv)[:80]):
             return subprocess.run(argv, env={**os.environ, journal.HEAVY_ENV: "1"}).returncode
+    if a.cmd == "daily-builds":
+        journal.STATE = Path(a.state) if a.state else journal.STATE
+        res = check_tool.daily_builds(a.root, check_tool.load(Path(a.root)))
+        for name, r in res:
+            one = (r or {}).get("results", [{}])[0]
+            why = ((one.get("errors") or one.get("stdout_tail") or "").strip().splitlines() or [""])[0][:200]
+            print(f"{name}: " + ("COULD NOT RUN (the remote is down, or red with no Swift source error)" if r is None
+                                 else "GREEN" if r["ok"] else f"RED {why} (log {one.get('log', '-')})"))
+        if any(r is not None and not r["ok"] for _, r in res):
+            return 1
+        return 2 if not res or any(r is None for _, r in res) else 0
     if a.cmd == "verify-all":
         from fichero_builder import verify
 

@@ -128,6 +128,7 @@ class Procs:
     # taken lane ids -> (lane id, worktree, [{step, brief, issues, waits}]) of the next build-order milestone, or None
     next_milestone: Callable[[set], tuple | None] = lambda taken: None
     build: Callable[[dict], tuple] = lambda lane: (0, "")  # lane -> (rc, output) of the dev build after its milestone landed
+    daily_builds: Callable[[], tuple] | None = None  # () -> (rc, output) of `builder daily-builds`; None = no [check.daily_builds]
     verify_all: Callable[[], tuple] = lambda: (0, "")  # () -> (rc, output) of `builder verify-all` over the loop's checkout
     touches_product: Callable[[dict, str], bool] = lambda lane, head: True  # (lane, head) -> does the batch about to land change app/engine product paths
     tell: Callable[[dict, str], str] = lambda lane, text: ""  # (lane, text) -> '' or why: into an external lane's registered pane
@@ -836,6 +837,38 @@ def verify_when_idle(procs: Procs, chains: dict | None) -> None:
         t.start()
 
 
+DAILY = "daily-builds.last"  # when the daily builds last started (epoch seconds)
+DAILY_S = 24 * 3600
+
+
+def daily_when_due(procs: Procs, chains: dict | None) -> None:
+    """#6390 (owner 2026-11-07): the iOS app and the Swift test target, which the build rung never compiles, built once a day
+    on the build remote (`builder daily-builds`), busy lanes or not: a `daily-builds` row, and an alert when one is red. It runs
+    in a BUILDS thread, so a re-exec waits for it. ponytail: one day from the last START; a down Air waits the day too."""
+    if procs.daily_builds is None or any(t.name == "daily-builds" and t.is_alive() for t in BUILDS):
+        return
+    marker = journal.STATE / DAILY
+    try:
+        if time.time() - float(marker.read_text()) < DAILY_S:
+            return
+    except (OSError, ValueError):
+        pass
+    marker.write_text(f"{time.time()}\n")
+
+    def run_it():
+        rc, output = procs.daily_builds()
+        journal.append("daily-builds", state={0: "green", 1: "red"}.get(rc, "not-run"), detail=output[-600:])
+        if rc == 1:
+            red = next((ln for ln in output.splitlines() if ": RED" in ln), output.strip()[-200:])
+            alert("-", "daily-builds", f"a daily build is red: {red}", str(journal.STATE / "build-logs"), [])
+    if chains is None:
+        run_it()
+    else:
+        t = threading.Thread(target=run_it, name="daily-builds", daemon=True)
+        BUILDS.append(t)
+        t.start()
+
+
 ONLY: list = [()]  # [loop].only: the lanes the loop ticks; () = every lane in the queue (tests); the verb sets it (manager 2026-11-04)
 
 
@@ -851,6 +884,7 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
         except Exception:  # noqa: BLE001 - the same for the tick's own work on a lane: a row, and the other lanes still tick
             journal.append("loop", state="lane-error", lane=lane["id"], detail=traceback.format_exc()[-1500:])
             out(f"{lane['id']}: lane error (journal row lane-error); the loop goes on")
+    daily_when_due(procs, chains)
     if not busy:
         verify_when_idle(procs, chains)
         if getattr(procs, "root", ""):  # housekeeping at a quiet tick: the ladders' old scratch dirs (run.scratch-sweep)
@@ -1176,6 +1210,11 @@ def real_procs(root) -> Procs:
                            cwd=str(pkg), capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(pkg)})
         return r.returncode, (r.stdout + r.stderr)[-2000:]
 
+    def daily_builds():
+        r = subprocess.run([sys.executable, "-m", "fichero_builder", "daily-builds", "--root", str(root), "--state", str(journal.STATE)],
+                           cwd=str(pkg), capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(pkg)})
+        return r.returncode, (r.stdout + r.stderr)[-2000:]
+
     def stop(lane):
         if lane.get("feed"):
             (Path(lane["feed"]) / "stop").write_text("")
@@ -1205,7 +1244,7 @@ def real_procs(root) -> Procs:
 
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
-                 next_milestone=lambda taken: next_in_order(root, taken), build=build, verify_all=verify_all, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake,
+                 next_milestone=lambda taken: next_in_order(root, taken), build=build, verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake,
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "", root=str(root))
 
 
