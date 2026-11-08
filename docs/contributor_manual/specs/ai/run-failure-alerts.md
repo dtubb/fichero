@@ -169,7 +169,7 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
 
 ### B. The bug report
 
-- `run.fail.bug-report-route` [OK] (#6354) — `POST /api/activity/jobs/{id}/bug-report` builds and answers the report
+- `run.fail.bug-report-route` [OK] (#6354; owner 2026-11-08: the route builds the report, the app saves it on this Mac and the owner sends it, nothing leaves the Mac automatically, `run.fail.bug-report-destination`) — `POST /api/activity/jobs/{id}/bug-report` builds and answers the report
   for a failed run: `{title, body, attachments: [{name, text}]}` where `title` is "<kind>: <words' first sentence>",
   `body` is plain text and `attachments` are `run.json` (the fields in C) and `log.txt` (the run's Problems log lines,
   `activity.log.problems-first`, redacted). A run that is not failed answers 409 in words. Tests:
@@ -188,9 +188,7 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   against the real log fixtures in `tests/fixtures/engine_logs/`. Tests:
   `fichero-server/tests/unit/api/test_bug_report_is_redacted_6354.py` (a traceback with a home path, an API key in a
   URL, a bearer header and a page's text in an exception message: none of them in the report; the fixtures' lines).
-- `run.fail.bug-report-destination` [GAP] (#6354; question 2) — where the report goes once built: ruled by the owner.
-  Until then the app offers Save Bug Report… (a file the person attaches by hand) and the route is the one source.
-  Tests: named with the ruling.
+- `run.fail.bug-report-destination` [GAP] (#6354; question 2 RULED by the owner 2026-11-08) — the report is SAVED on this Mac and the owner sends it: Save Bug Report… writes the `.zip` of the three parts through the Save panel (default name `fichero-bug-<date>-<kind>.zip`, in the folder the person chooses), and the alert then offers Reveal in Finder and the maintainer's address to attach it to; nothing leaves the Mac automatically, no upload, no mail composed without the person, no telemetry; the engine route stays the one source of the report. Tests: `RunBugReportTests` (the zip is written where chosen and nothing is sent; the reveal shows the file; a run with no network behaves the same).
 
 ### C. The app: an alert that says what happened and what to do
 
@@ -233,8 +231,8 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
 
 - `run.fail.report-shows-then-sends` [GAP] (#6354) — "Send a Bug Report…" asks the engine for the report, shows its
   title, body and the names of its attachments, says in one line what is left out (paths, keys, your pages' text), and
-  only then sends it where question 2 rules (until ruled: Save Bug Report…, a `.zip` of the three parts, through the
-  Save panel). Tests: `fichero/Tests/Unit/general/App/RunBugReportTests` (the preview text is the engine's;
+  only then saves it (owner 2026-11-08: Save Bug Report…, a `.zip` of the three parts, through the Save panel; the
+  owner sends it, nothing leaves the Mac by itself). Tests: `fichero/Tests/Unit/general/App/RunBugReportTests` (the preview text is the engine's;
   nothing is sent before Continue; the zip holds exactly the three parts).
 
 ### E. CLI and MCP
