@@ -761,6 +761,11 @@ the write path would produce.
   tree ids of the inputs `[check].guard_inputs` declares for it (the whole tree when it declares none), the tree's diff and
   status (the pinned overlay, anything uncommitted) and the interpreter, ruff and swiftlint versions; a red always runs again,
   and any part that cannot be read means it runs. The cache is `<state>/guard-cache.json` (the chain and `builder check` only).
+  Built 2026-11-08: the repo's `[check.guard_inputs]` declares 100 of the 121 guards, read with an audit hook (what each
+  opens and lists, two levels deep, `scripts/` whole); a guard that starts a subprocess or lists the root stays undeclared
+  (the whole tree), and the skipped guards are left out. So a batch that touches only `fichero/` reuses the greens of the
+  guards that never read it. Ceiling: a read by `.exists()` alone is not seen, so such a guard can be reused stale; the
+  nightly verify-all runs every guard uncached. Test `fichero-builder/tests/test_guard_inputs.py::test_every_declared_guard_exists_and_every_input_is_in_the_tree`.
   Test `fichero-server/tests/unit/workflows/test_check_tool.py::test_a_guard_green_is_reused_for_the_same_inputs_and_runs_again_when_one_changes`.
   Soak fixes 11:40 (manager): one approve carries every reason the refusal listed (maintainer, weakened, pinned-new, red: an
   approve had re-run with maintainer only and refused again on the weakened tests it listed); an external lane's red offers
