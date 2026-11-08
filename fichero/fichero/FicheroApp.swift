@@ -56,6 +56,9 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
         // The engine's async startup lives in the delegate, not in a scene `.task`: `@main
         // App.init` is synchronous and `.task` is per-scene, so the delegate is the
         // one app-level hook that fires exactly once, independent of any window.
+        if EngineConfig.dropUnchosenPairedHost() {
+            logger.notice("A paired Mac was stored as this Mac's engine without being chosen: using this Mac's own engine (#6418)")
+        }
         Task { await controller.start() }
     }
 

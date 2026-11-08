@@ -25,6 +25,8 @@ struct MacRemoteClientPairingSection: View {
     /// A typed address's key, read at first contact and trusted by the person (`HostKeyProbe`); nil pin for a public CA.
     @State private var trusted: (url: URL, pin: String?)?
     @State private var trustAsk: HostKeyFingerprint.Ask?
+    /// Which button asked, kept while the person decides about a host's key.
+    @State private var pendingSwitch = false
 
     init(
         appState: AppState,
@@ -73,9 +75,13 @@ struct MacRemoteClientPairingSection: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
-                .disabled(!ConnectSheetModel.canConnect(
-                    codeRoute: chosenNeedsCodeOnly, code: pairCode, link: clientInvite, isConnecting: isClientPairing,
-                    needsPerson: needsPerson || linkSignsIn, name: personName, password: personPassword))
+                .disabled(!canConnect)
+                // The explicit whole-Mac choice: this Mac then uses that Mac's engine for everything, until switched back.
+                Button("Use It as This Mac's Engine") {
+                    Task { await connectThisMacAsRemoteClient(switchesWholeMac: true) }
+                }
+                .disabled(!canConnect)
+                .accessibilityIdentifier("sharing.connect.useAsEngine")
             }
         }
         // A tapped fichero:// link lands here (#3788): prefill it so the person SEES what they are about to connect to
@@ -101,7 +107,7 @@ struct MacRemoteClientPairingSection: View {
         .failureAlert($failurePrompt)
         .hostTrustAlert($trustAsk) { ask in
             trusted = (ask.url, ask.pin)
-            Task { await connectThisMacAsRemoteClient() }
+            Task { await connectThisMacAsRemoteClient(switchesWholeMac: pendingSwitch) }
         }
     }
 
@@ -172,7 +178,16 @@ struct MacRemoteClientPairingSection: View {
         return false
     }
 
-    private func connectThisMacAsRemoteClient() async {
+    private var canConnect: Bool {
+        ConnectSheetModel.canConnect(
+            codeRoute: chosenNeedsCodeOnly, code: pairCode, link: clientInvite, isConnecting: isClientPairing,
+            needsPerson: needsPerson || linkSignsIn, name: personName, password: personPassword)
+    }
+
+    /// Connect pairs and keeps this Mac's own engine: the host's libraries show under it in the sidebar and open beside the
+    /// local ones. `switchesWholeMac` is the other choice, the old one: this Mac then runs on that Mac's engine (#6418).
+    private func connectThisMacAsRemoteClient(switchesWholeMac: Bool = false) async {
+        pendingSwitch = switchesWholeMac
         isClientPairing = true
         defer { isClientPairing = false }
 
@@ -189,8 +204,13 @@ struct MacRemoteClientPairingSection: View {
                 expectedSPKIPin: pairingFields.spkiPin,
                 libraryPath: pairingFields.libraryPath,
                 person: PairingPerson(username: personName, password: personPassword),
-                altURLs: pairingFields.altURLs
+                altURLs: pairingFields.altURLs,
+                makesAppHost: switchesWholeMac
             )
+            guard switchesWholeMac else {
+                libraryManager.pairedMachines = PairedMachineStore.load()
+                return
+            }
             // The one procedure that changes the engine host (stop, write, repoint, start, check, roll back) is shared
             // with Settings › Engine › Advanced › Apply (#5916).
             try await engineHostSwitch().run(
@@ -199,6 +219,7 @@ struct MacRemoteClientPairingSection: View {
                 onFailure: { _ in
                     RemoteClientPairing.rollbackFailedHostSwitch(previousHost: previousHost, attemptedHost: apiRoot)
                 })
+            EngineConfig.defaults.set(apiRoot.absoluteString, forKey: EngineConfig.wholeMacHostKey)
         } catch {
             if error as? RemoteClientPairingError == .personRequired { needsPerson = true }
             failurePrompt = SharingFailurePrompt.make(
@@ -216,7 +237,7 @@ struct MacRemoteClientPairingSection: View {
         case .openTailscale:
             NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Tailscale.app"))
         case .tryAgain:
-            Task { await connectThisMacAsRemoteClient() }
+            Task { await connectThisMacAsRemoteClient(switchesWholeMac: pendingSwitch) }
         case .openNetworkSettings, .openAppSettings:
             if let url = URL(string: "x-apple.systempreferences:com.apple.Network-Settings.extension") { NSWorkspace.shared.open(url) }
         case .signIn:

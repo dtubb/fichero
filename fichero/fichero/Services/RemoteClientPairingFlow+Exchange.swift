@@ -66,9 +66,13 @@ extension RemoteClientPairing {
     static func persistPairedHost(
         _ result: PairingExchangeResult,
         expectedSPKIPin: String?,
-        libraryPath: String?
+        libraryPath: String?,
+        makesAppHost: Bool = true
     ) throws {
         try persistHostCredentials(result, expectedSPKIPin: expectedSPKIPin)
+        // A Mac that only pairs keeps its own engine: the host's token and key are kept (the library dials it by its own
+        // address), the app-wide host is not written (#6418: it stopped the next launch from starting this Mac's engine).
+        guard makesAppHost else { return }
         EngineConfig.storeHost(result.apiRoot.absoluteString)
         // Reset the failover endpoint set to just this newly paired endpoint
         // (#3098): a fresh pairing establishes THE paired host, so a previous
@@ -120,7 +124,8 @@ extension RemoteClientPairing {
         expectedSPKIPin: String?,
         libraryPath: String? = nil,
         person: PairingPerson? = nil,
-        altURLs: [String] = []
+        altURLs: [String] = [],
+        makesAppHost: Bool = true
     ) async throws -> URL {
         let code = pairCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let name = deviceName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -137,7 +142,7 @@ extension RemoteClientPairing {
         case .paired(_, let confirmedLibrary):
             guard let exchange = host.exchange else { throw PairingStoppedError(message: PairingFailure.noAnswer.sentence()) }
             let pin = try resolvedSPKIPin(normalizedSPKIPin, for: exchange.apiRoot)
-            try persistPairedHost(exchange, expectedSPKIPin: pin, libraryPath: confirmedLibrary)
+            try persistPairedHost(exchange, expectedSPKIPin: pin, libraryPath: confirmedLibrary, makesAppHost: makesAppHost)
             PairedMachineStore.record(apiRoot: exchange.apiRoot, library: confirmedLibrary)
             return exchange.apiRoot
         case .choose:
