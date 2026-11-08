@@ -122,10 +122,11 @@ def _provider_kind(exc: BaseException | None, text: str, status: int | None) -> 
     low = (text or (str(exc) if exc is not None else "")).lower()
     if exc is not None and (isinstance(exc, ProviderQuotaError) or status in (401, 402, 429)):
         try:
-            if cb.classify_provider_error(exc) == "fatal":
-                return "key-refused" if cb.fatal_cause(exc) == "key" else "no-credit"
-        except Exception:  # noqa: BLE001
-            pass
+            fatal = cb.classify_provider_error(exc) == "fatal"
+        except Exception:  # noqa: BLE001 -- a breaker that cannot classify falls through to the status below
+            fatal = False
+        if fatal:
+            return "key-refused" if cb.fatal_cause(exc) == "key" else "no-credit"
         if status in (401, 402):  # the breaker's own words did not match, the status did
             return "key-refused" if status == 401 else "no-credit"
         return "rate-limited"

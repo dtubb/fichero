@@ -739,9 +739,9 @@ def detected_tailnet(
     return TailnetOfferResponse(tailnet_url=tailscale_serve.detected_tailnet_url() or None)
 
 
-def _register_link_library(package: str) -> None:
+def _register_link_library(package: str) -> bool:
     """Put the project a link was minted for on this Mac's known-library list if it is not there. Best effort: a registry
-    that cannot be written never fails a pairing that already succeeded."""
+    that cannot be written never fails a pairing that already succeeded. False (logged) when it could not be written."""
     from fichero_server.api.routes.library.registry import get_global_database  # lazy: routes import each other
     from fichero_server.models import KnownLibrary
 
@@ -751,6 +751,8 @@ def _register_link_library(package: str) -> None:
             registry.save(KnownLibrary(path=package, name=Path(package).name))
     except Exception:  # noqa: BLE001 -- see the docstring
         logger.warning("Could not register %s for a paired device", package, exc_info=True)
+        return False
+    return True
 
 
 def _library_a_link_is_for(request: Request, body: PairCodeRequest) -> str | None:

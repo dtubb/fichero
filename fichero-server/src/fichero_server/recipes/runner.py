@@ -1287,11 +1287,14 @@ class RunEnded(RuntimeError):
     """The run's own end in words ("Done with failures: ...", "Stopped: ..."): said as it is, never wrapped (#6298)."""
 
 
-def _drop_the_run_cap(db: Any, job_id: str) -> None:
+def _drop_the_run_cap(db: Any, job_id: str) -> bool:
+    """Clear the run's cap file. False (logged) when it could not be cleared: a stale cap file must not replace the run's own result."""
     try:
         spend.clear_run_cap(str(_library(db)), job_id)
-    except Exception:  # noqa: BLE001 -- a stale cap file must not replace the run's own result
+    except Exception:  # noqa: BLE001 -- see the docstring
         logger.exception("run %s: its run cap could not be cleared", job_id)
+        return False
+    return True
 
 
 def _hold_the_run_cap(db: Any, job_id: str) -> None:
