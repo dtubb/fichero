@@ -51,6 +51,8 @@ def test_a_journal_of_fixed_rows_gives_that_status():
 
 def test_the_status_verb_serves_the_console(monkeypatch, tmp_path):
     seen = {}
+    for g in ("ROOT", "LOOP_LANES"):  # main sets them from the cwd's harness.toml: run from the repo root, a later test read 2 lanes
+        monkeypatch.setattr(console, g, getattr(console, g))
     monkeypatch.setattr(console, "server", lambda host, port: (seen.update(host=host, port=port), _Stub())[1])
     assert cli.main(["status", "--port", "9998", "--state", str(tmp_path)]) == 0
     assert seen == {"host": "127.0.0.1", "port": 9998}
