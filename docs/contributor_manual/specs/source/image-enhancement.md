@@ -441,6 +441,7 @@ waits on a sample ships its synthetic test first and keeps the line `[PARTIAL]` 
 - Depends on: 2.1
 - Waits on: sample 1 (the typed before/reference pairs) for the 3/255 check
 - Size: M
+- Owner ruling 2026-11-08: both Auto Enhance methods stay. A new Enhance row is `clahe`, and the PIL enhance remains a choice in the popover, not only the re-render of old rows.
 
 #### Step 4.4 — The working rendition, once: the key (built), its consumers and the thumbnail cut from it (#6200, #6193; was Step 1.4)
 - Side: engine
@@ -540,6 +541,11 @@ The inventory is lane-ie's matrix (`agent-work/status/briefs/image-ops-matrix.md
   Preview's editor with sliders and before/after; the port names its source function and does not
   rewrite. Show-through is one setting fitted from the sample, by region only when the sample is uneven.
   Perspective correction and the dewarp are in now, owned by `image-preparation.md`.
+- 2026-11-08 (owner, answers to the Stage 4 questions): the sample pages stay outside the repo, read from the folder
+  `FICHERO_IMAGE_PREP_SAMPLES` names by a by-hand check pytest never collects; the method table in "The legacy methods,
+  read closely" is the port's source of record, the bundle is not unpacked; the Inspector's page-region row says the
+  share, the method and the confidence, not the box's four numbers. Auto Enhance keeps BOTH methods: CLAHE is the
+  default and the PIL enhance stays reachable as a choice in the popover (question 3).
 
 ## Open questions
 
@@ -550,7 +556,7 @@ sample is uneven (`image.enhance.show-through-one-setting-then-regions`); perspe
 
 Asked 2026-11-05 (Stage 4; the owner's answer goes in Rulings, the step text does not guess):
 
-1. **Where the sample pages live.** Reduced copies committed under `fichero-server/tests/fixtures/image_enhance/` (the archive's pages enter the public history; private manuscripts were purged from it on 2026-10-25), or a folder outside the repo named by `FICHERO_IMAGE_PREP_SAMPLES` and read by a by-hand check that pytest never collects (today's shape)?
-2. **The legacy source.** `~/code/fichero-archive` holds only `stale-branches-2026-07-30.bundle`; no plain legacy tree is on this Mac. Is the method table in "The legacy methods, read closely" the port's source of record, or should the bundle be unpacked and the functions re-read before Step 4.3 closes #6190?
-3. **Auto Enhance by default.** Step 4.3 makes a new Enhance row `clahe` unless a person turns the switch off. Is the PIL enhance to stay reachable as a choice in the popover, or only as the re-render of old rows?
-4. **The Inspector row's words** for the page region (Step 4.1): the share, method and confidence as drafted, or the box's four numbers too?
+1. **DECIDED 2026-11-08: outside the repo (b).** **Where the sample pages live.** Reduced copies committed under `fichero-server/tests/fixtures/image_enhance/` (the archive's pages enter the public history; private manuscripts were purged from it on 2026-10-25), or a folder outside the repo named by `FICHERO_IMAGE_PREP_SAMPLES` and read by a by-hand check that pytest never collects (today's shape)?
+2. **DECIDED 2026-11-08: the table is the source of record (a).** **The legacy source.** `~/code/fichero-archive` holds only `stale-branches-2026-07-30.bundle`; no plain legacy tree is on this Mac. Is the method table in "The legacy methods, read closely" the port's source of record, or should the bundle be unpacked and the functions re-read before Step 4.3 closes #6190?
+3. **DECIDED 2026-11-08: keep both (CLAHE default, PIL enhance stays a popover choice).** **Auto Enhance by default.** Step 4.3 makes a new Enhance row `clahe` unless a person turns the switch off. Is the PIL enhance to stay reachable as a choice in the popover, or only as the re-render of old rows?
+4. **DECIDED 2026-11-08: share, method and confidence (a).** **The Inspector row's words** for the page region (Step 4.1): the share, method and confidence as drafted, or the box's four numbers too?
