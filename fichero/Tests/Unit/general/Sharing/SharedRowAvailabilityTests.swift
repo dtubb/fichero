@@ -45,6 +45,7 @@ struct SharedRowAvailabilityTests {
         let savedMachines = manager.pairedMachines
         defer {
             manager.pairedMachines = savedMachines
+            PairedMachineStore.save(savedMachines)
             manager.greyedSharedRows = []
             manager.hostRowsLastAsked = [:]
         }
@@ -57,6 +58,27 @@ struct SharedRowAvailabilityTests {
         manager.hostRowsLastAsked = [:]
         await manager.checkSharedRows(now: Date()) { _ in nil }
         #expect(manager.greyedSharedRows == [SharedRowAvailability.key(host: host, library: "/B")])  // unchanged
+    }
+
+    @Test func aLibraryTheHostListsSincePairingAppearsAndADroppedOneStays() async {
+        #expect(SharedRowAvailability.merged(known: ["/A"], accessible: ["/A", "/C"]) == ["/A", "/C"])
+        #expect(SharedRowAvailability.merged(known: ["/A", "/B"], accessible: ["/A"]) == ["/A", "/B"])
+        let manager = LibraryManager.shared
+        let savedMachines = manager.pairedMachines
+        defer {
+            manager.pairedMachines = savedMachines
+            PairedMachineStore.save(savedMachines)
+            manager.greyedSharedRows = []
+            manager.hostRowsLastAsked = [:]
+        }
+        manager.hostRowsLastAsked = [:]
+        manager.pairedMachines = [PairedMachine(id: host, name: "studio.local", libraries: ["/A"])]
+        await manager.checkSharedRows(now: Date()) { _ in ["/A", "/C"] }
+        #expect(manager.pairedMachines.first?.libraries == ["/A", "/C"])
+        #expect(PairedMachineStore.load().first { $0.id == host }?.libraries == ["/A", "/C"])
+        manager.hostRowsLastAsked = [:]
+        await manager.checkSharedRows(now: Date()) { _ in nil }  // a failed read changes no list
+        #expect(manager.pairedMachines.first?.libraries == ["/A", "/C"])
     }
 
     @Test func aHostWithNoStoredPinIsNotAskedAtAll() async {

@@ -32,6 +32,13 @@ enum SharedRowAvailability {
         return try? await service.accessibleLibraryPaths()
     }
 
+    /// The libraries a row shows after the host answered: what it showed, plus any the host now lists that it did not.
+    /// A library the host stopped listing stays (greyed) until Forget.
+    static func merged(known: [String], accessible: [String]) -> [String] {
+        let have = Set(known.map(canonical))
+        return known + accessible.filter { !have.contains(canonical($0)) }
+    }
+
     private static func canonical(_ path: String) -> String {
         URL(fileURLWithPath: path).standardized.path.nfcNormalized
     }
@@ -45,7 +52,7 @@ extension LibraryManager {
         now: Date = Date(),
         read: @escaping (URL) async -> [String]? = { await SharedRowAvailability.readFromHost($0) }
     ) async {
-        for machine in pairedMachines {
+        for machine in pairedMachines {  // a copy: the loop updates the stored rows as the hosts answer
             guard let root = URL(string: machine.id),
                   SharedRowAvailability.shouldAsk(host: machine.id, now: now, lastAsked: hostRowsLastAsked) else { continue }
             hostRowsLastAsked[machine.id] = now
@@ -57,6 +64,12 @@ extension LibraryManager {
             let gone = SharedRowAvailability.unavailable(libraries: machine.libraries, accessible: accessible)
             greyedSharedRows.subtract(machine.libraries.map { SharedRowAvailability.key(host: machine.id, library: $0) })
             greyedSharedRows.formUnion(gone.map { "\(machine.id)|\($0)" })
+            // The host's own list: a library it shares since pairing appears without pairing again.
+            let shown = SharedRowAvailability.merged(known: machine.libraries, accessible: accessible ?? [])
+            if shown != machine.libraries, let index = pairedMachines.firstIndex(where: { $0.id == machine.id }) {
+                pairedMachines[index].libraries = shown
+                PairedMachineStore.save(pairedMachines)
+            }
         }
     }
 }
