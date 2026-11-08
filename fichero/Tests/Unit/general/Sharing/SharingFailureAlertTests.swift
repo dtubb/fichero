@@ -80,6 +80,13 @@ struct SharingFailureAlertTests {
         #expect(shown.fixes.map(\.label) == ["Copy Details"])  // no Sign In as Owner where the view can't do it
     }
 
+    @Test func aHostAskingWhoThisIsOpensThePhonesSignInNotAFailure() {
+        #expect(SharingFailurePrompt.asksForPerson(RemoteClientPairingError.personRequired))
+        #expect(SharingFailurePrompt.asksForPerson(PairingFailureError(failure: .personRequired, context: .init(host: "studio"))))
+        #expect(!SharingFailurePrompt.asksForPerson(PairingFailureError(failure: .codeUsedOrExpired, context: .init(host: "studio"))))
+        #expect(!SharingFailurePrompt.asksForPerson(RemoteClientPairingError.missingDeviceName))
+    }
+
     @Test func aForbiddenShareOffersSignInAsOwner() {
         var did: SharingFailurePrompt.Fix?
         let shown = SharingFailurePrompt.make(sharing: APIError.httpError(statusCode: 403, message: "forbidden"), title: "Couldn't share",

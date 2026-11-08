@@ -102,6 +102,13 @@ enum SharingFailurePrompt {
             details: PairingFailureActions.details(failure, context: context), acts: (perform, copy))
     }
 
+    /// The host asked who this device is (step 7, person): the phone answers with its sign-in alert, not a failure alert.
+    static func asksForPerson(_ error: Error) -> Bool {
+        if case .personRequired? = error as? RemoteClientPairingError { return true }
+        if case .personRequired? = (error as? PairingFailureError)?.failure { return true }
+        return false
+    }
+
     /// The alert for whatever a pairing threw: a step of the table where the error is one (or a transport failure that
     /// maps to one), our own sentence where it is ours, and a plain line with the raw text in Copy Details otherwise.
     static func make(

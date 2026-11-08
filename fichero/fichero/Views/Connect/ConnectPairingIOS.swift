@@ -30,6 +30,9 @@ struct RemoteConnectionSetupView: View {
     @State private var errorMessage: String?
     /// A failed pairing, as the one alert (`sharing.alerts.one-alert-per-failure`).
     @State private var failurePrompt: FailureAlertPrompt?
+    /// The host that asked who this device is (Step 8.9), and the link to pair again with the person.
+    @State private var signInHost: String?
+    @State private var signInFields: RemoteClientPairingFields?
     @Environment(\.openURL) private var openURL
     @State private var pickerSource: CaptureSource?
     @State private var showingDocumentScanner = false
@@ -37,6 +40,12 @@ struct RemoteConnectionSetupView: View {
 
     var body: some View {
         connectView.failureAlert($failurePrompt)
+        .personSignInAlert(host: $signInHost) { person in
+            guard let fields = signInFields else { return }
+            Task {
+                do { try await finishPairing(with: fields, person: person) } catch { show(error) }
+            }
+        }
         // #2347: on iPhone/iPad the pairing screen opens STRAIGHT into QR
         // scanning — the whole point is to scan the host Mac's code. Present the
         // scanner once on first appearance; after a Cancel the landing card's
@@ -325,6 +334,10 @@ private extension RemoteConnectionSetupView {
 
     /// The failure as the one alert: the step's title and sentence, its fix where this screen can do it, Copy Details.
     func show(_ error: Error) {
+        if SharingFailurePrompt.asksForPerson(error), let fields = signInFields {
+            signInHost = pickedHost?.name ?? URL(string: fields.remoteURL)?.host ?? "your Mac"
+            return
+        }
         failurePrompt = SharingFailurePrompt.make(
             pairing: error, host: pickedHost?.name ?? "your Mac", offers: SharingFailurePrompt.phoneOffers,
             perform: { fix in
@@ -339,10 +352,11 @@ private extension RemoteConnectionSetupView {
             copy: { PlatformPasteboard.writeString($0) })
     }
 
-    func finishPairing(with fields: RemoteClientPairingFields) async throws {
+    func finishPairing(with fields: RemoteClientPairingFields, person: PairingPerson? = nil) async throws {
         if let pickedHost, let refusal = HostChoices.refusal(forInviteAt: fields.remoteURL, picked: pickedHost) {
             throw APIError.badRequest(refusal)
         }
+        signInFields = fields
         isPairing = true
         errorMessage = nil
         defer { isPairing = false }
@@ -352,6 +366,7 @@ private extension RemoteConnectionSetupView {
             deviceName: RemoteClientPairing.defaultDeviceName(),
             expectedSPKIPin: fields.spkiPin,
             libraryPath: fields.libraryPath,
+            person: person,
             altURLs: fields.altURLs
         )
         // Repoint the app-level client at the freshly-paired host; adopt +
