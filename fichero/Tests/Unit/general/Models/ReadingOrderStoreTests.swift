@@ -59,6 +59,23 @@ struct ReadingOrderStoreTests {
         return (store, transport)
     }
 
+    /// #6423: a segment deleted on the page (or its ⌘Z) must reach the list; before, the store never heard of
+    /// `SegmentEditRunner.didChange` and kept the deleted segment's row.
+    @Test("a segment edit on the page re-reads the level shown, so a deleted segment leaves the list")
+    func aDeletedSegmentLeavesTheList() async throws {
+        let (store, transport) = try await loaded()
+        #expect(store.shown.count == 3)
+        transport.entryList.remove(at: 1)
+        NotificationCenter.default.post(name: SegmentEditRunner.didChange, object: "d1")
+        for _ in 0..<50 where store.shown.count != 2 { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(store.shown.map(\.segmentId) == ["s-a", "s-c"])
+        // Another page's edit leaves this one's list alone.
+        let calls = transport.entriesCalls
+        NotificationCenter.default.post(name: SegmentEditRunner.didChange, object: "another-page")
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(transport.entriesCalls == calls)
+    }
+
     /// The picker's choice (#5160; `check_store_wholesale_reload`): picking the order already shown
     /// must not re-read and replace the list -- that is the wholesale reload the guard forbids, and it
     /// would throw away the level the person opened. Another order does replace it: a new list.

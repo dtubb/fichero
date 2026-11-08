@@ -42,8 +42,16 @@ final class ReadingOrderStore {
         }
     }
 
+    /// A segment edit made anywhere (a delete, its ⌘Z) changes which rows the order holds; the level shown is
+    /// read again on `SegmentEditRunner.didChange` for THIS page (#6423: a deleted segment stayed listed).
+    @ObservationIgnored private var changes: SegmentChangeObserver?
+
     init(transport: ReadingOrderTransport) {
         self.transport = transport
+        changes = SegmentChangeObserver { [weak self] pageId in
+            guard let self, pageId == nil || pageId == self.documentId else { return }
+            await self.reloadEntries()
+        }
     }
 
     /// The page's working pass when its orders were read (`SegmentStore.workingPass`), so the list can
