@@ -188,10 +188,11 @@ class WorkflowExecutionService {
         case .badRequest(let refused):
             // A run refused at the door: for a cloud refusal the engine's words (`detail.message`) and the typed
             // refusal with its fixes (`detail.refusal`); `CloudRefusalAlert` offers them.
-            let detail = (try? refused.body.json)?.detail
             logger.error("Execute workflow refused: 400")
-            if let refusal = detail?.refusal { throw WorkflowExecutionError.cloudRefused(refusal) }
-            let message = detail?.message
+            let body = (try? refused.body.json).flatMap { try? JSONEncoder().encode($0) }
+            let parsed = body.flatMap { try? JSONDecoder().decode(CloudRefusedBody.self, from: $0) }?.detail
+            if let refusal = parsed?.refusal { throw WorkflowExecutionError.cloudRefused(refusal) }
+            let message = parsed?.message ?? EngineErrorDetail.message(from: body)
             throw WorkflowExecutionError.serverError(400, message ?? "Execute workflow was refused")
         case .unprocessableContent:
             logger.error("Execute workflow failed: validation error")
@@ -455,4 +456,21 @@ class WorkflowExecutionService {
             throw WorkflowExecutionError.unrecognizedControlStatus(raw)
         }
     }
+}
+
+/// The 400's body as the engine sends it: `detail` is a sentence or, for a cloud refusal, an object carrying `message` and the
+/// typed `refusal`. The declared body is `ErrorDetail` (a string or any object), so the object is read here, not off the generated type.
+struct CloudRefusedBody: Decodable {
+    struct Detail: Decodable {
+        let message: String?
+        let refusal: Components.Schemas.CloudRefusal?
+    }
+    let detail: Detail?
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        detail = try? container.decode(Detail.self, forKey: .detail)
+    }
+
+    private enum CodingKeys: String, CodingKey { case detail }
 }
