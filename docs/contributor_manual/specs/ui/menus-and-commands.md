@@ -704,6 +704,12 @@ rulings-2026-10-17). The design holds (shared components), and iOS-only tests ma
 
 ---
 
+- `menus.one-command-table` — **[GAP]** (#6435; owner 2026-11-08) every command has ONE row in one table (section 2 of the 2026-11-08 review): its menu-bar group, the surfaces it applies to, its component, chord and icon; the menu bar and every surface's context menu render the table's rows for that surface, in its order, through the same component, so a context menu never holds an item the table does not and never lacks one it does. Acceptance: for each surface, the rendered context menu's titles equal the table's rows for it; the menu bar's groups equal the table's groups. *Test:* `MenuTableTests.swift` (not yet written; the table as a value, the per-surface equality, every row has a group, every chord in the table is unique).
+- `menus.chords-are-standard-mac` — **[GAP]** (#6435; owner rule 2026-11-08) every chord is a logical standard Mac chord: Apple's convention where one exists (⌘N, O, W, S, Z, X, C, V, A, F, G, ⌘, Settings, ⌘[ ⌘] Back/Forward, ⌘⌫ Delete, ⌘0 Actual Size, ⌥⌘I Inspector), a standard chord is never repurposed, and a new command's chord follows the pattern of its family (⌥ or ⇧ variants of the related command, mnemonic letters); the 2026-11-08 audit (section 4) lists the chords to change, and `MenuShortcutUniquenessTests` gains a standard-chord table so a repurposed standard fails the test. Acceptance: ⌘I is not Link Files, Back is ⌘[, the Inspector is ⌥⌘I, Rotate is ⌥⌘← / ⌥⌘→, and every proposed Segments and Levels chord is the settled one. *Test:* the existing `MenuShortcutUniquenessTests.swift` extended with the standard-chord table.
+- `menus.toolbars-one-home-per-tool` — **[GAP]** (#6435; owner addition 2026-11-08) toolbars hold tools and view switches, never a selection's verbs; every tool has ONE home (the Preview's Editing bar for image and shape tools, the Reader bar for display and navigation, the Workflow bar for the chain) and a per-pane tool never appears in the window toolbar; the Source pane image controls (Enhance, Clean up the folder) leave for the Edit pane (#6436) and the two Edit Segments toggles go (`source/segment-editor-crud.md` Step 1.7). Acceptance: no toolbar shows Enhance outside the Edit pane; no control is called Edit Segments; every tool appears in exactly one bar. *Test:* `ToolbarHomesTests.swift` (not yet written; the tool-to-bar table, each tool once).
+- `menus.wording-and-icons-one-rule` — **[GAP]** (#6435) every command's title is an imperative verb, names its object when the object is not the selection ("Run the Recipe on This Folder…", "Delete 3 Segments"), ends with an ellipsis when a sheet follows, and carries ONE icon used everywhere it appears; the table is the source and the test reads it. Acceptance: no two rows of the table name one command differently; every row with a sheet ends in an ellipsis; every icon appears for one command only. *Test:* `MenuTableTests.swift` (not yet written; the wording and icon rules over the table).
+- `menus.context-menus-mirror-the-table` — **[GAP]** (#6435) a context menu is the table's rows for its surface and nothing else; the Library's `documentContextMenu`, the sidebar's row menus, the Preview's region menu, the Reader's line menu, the Segments pane's and the Inspector's menus all render from the one table (one component per row, as the item verbs already are); hand-rolled items go. Acceptance: right-clicking a page in the sidebar, the list, the Preview and the Reader shows the same rows for a page, in the same order with the same icons. *Test:* `MenuTableTests.swift` (not yet written).
+
 ## RATIFIED 2026-09-15 (evening, CD)
 
 - **View is organized into SUBMENUS, not flat sections.** The junk-drawer fix is nesting: each group
@@ -718,6 +724,109 @@ rulings-2026-10-17). The design holds (shared components), and iOS-only tests ma
   (Mac / iPad menu bar) or a toolbar `Menu` / `.contextMenu` (iPhone) unchanged; tests cover each
   platform's surface. This raises the bar on every menu change — no macOS-only command bodies.
 
+
+## Review 2026-11-08 — every menu, context menu, toolbar and chord (Fable, for #6435; the manager reads before approval)
+
+Read from the code at origin/integration (`fichero/fichero/App/Menus/**`, every `.contextMenu` under `Views/`, `Views/Shell/Toolbar/*`, `Views/Shell/PaneHead/*`, `Views/Reader/ReaderToolbar*`, every `keyboardShortcut(`). Spec work only. Folds in Edit › Segments ▸ (`source/segment-editor-crud.md` Step 1.2, `menus.edit.segments-submenu`), Group/Ungroup (Step 1.16), Run the Recipe on This Item (Step 1.1 below, #6411), the focused-pane Select All (`source/segment-editor-crud.md` Step 1.10) and the owner's chord rule of 2026-11-08 (logical, standard Mac chords; never repurpose a standard one; new chords follow the pattern).
+
+### 1. Inventory: what exists
+
+**Menu bar** (`FicheroApp.swift` CommandGroups, `App/Menus/*`): Fichero (About replaced, Settings ⌘,, Quit group) · **File** (`FileMenuCommands.swift`: Set Up New Project…, Connect to Library…, Open… ⌘O, Open Recent ▸ with Clear Menu, Close Project ⌃⌘W, New Window ⌘N, New Tab ⌘T, Duplicate Window ⇧⌘T, Import ▸ Link Files… ⌘I / Copy Files… ⌥⌘I / Move Files… ⇧⌘I (`+SidebarActions.swift`), New Folder ⇧⌘N, Save Project As… ⇧⌘S, Export ▸ BibTeX…, Markdown Static Site…, Export Page As ▸ Markdown…/Word…, Import Page From… (`ReaderExportCommands.swift`), Grant Folder Access…) · **Edit** (Undo ⌘Z / Redo ⇧⌘Z routed, `+UndoNavigation.swift`; Select All ⌘A routed by the focused pane, `+SelectAll.swift`; Rename ⏎-when-focused, Delete ⌘⌫, the item verbs Bookmark…, Add to Workspace…, Export a Copy…, Exclude ▸ (`ItemVerbs/+ItemVerbs.swift`); Proposed Document ▸ and Direction ▸ (`+ProposalVerbs.swift`); Find in Page ⌥⌘F; Page › Segments' items are moving here, `menus.edit.segments-submenu`) · **View** (`ViewMenuCommands.swift` and its sections: Library layouts ⌘1–6; Sidebar ▸ modes Library/Chat/Workflows/Automation/Research with numbers (`SidebarMode.shortcutNumber`, ⌃⌘); Sort ▸ Ascending/Descending and the fields; Preview ▸ modes ⌃⌘J/B/H and Representation ▸ ⌃⌥⌘<key>; Show/Hide Inspector ⌃⌘I; Canvas ▸; Panes ▸ (Show Mini Toolbar, pane toggles, Workflow Bar ⇧⌘G); Workspaces ▸ ⌥⌘1–5, Save Workspace…, Delete Workspace ▸, Toolbar Buttons ▸; Show Ruler; Go Up; Show Workflow Bar, Bar Labels) · **Go** (`ViewMenuPaneSections.swift:186`: Back ⌘' and Forward ⇧⌘' (`+UndoNavigation.swift`), Go Up) · **Page** (`PageAndProjectMenuCommands.swift:24`: Reader Lens ▸ (`ReaderLensSection.swift`), Next/Previous Doubtful Word ⌃⌘G / ⇧⌃⌘G, Zoom ▸ Actual Size ⌘0 / Zoom to Fit ⌘9 / In ⌘+ / Out ⌘− (`ImagePreviewMenuCommands.swift`), Magnifier Panel ⇧⌘M, Lock Magnifier ⌥⌘M, Magnifier Zoom ⌥⌘] / ⌥⌘[, Loupe ⌥⌘L, Lock Loupe ⇧⌘L, Loupe Zoom ⌃⌘] / ⌃⌘[, Rotate Left ⌘L / Right ⌘R (`RotateImageCommands.swift`), Group/Ungroup of pages (`RotateImageCommands.swift:61`), Segments section: Edit Segments, Delete, Join ⌘J, Kind/Direction/Furniture (`SegmentMenuCommands.swift`), Page › Segments › Open / Correct This Line… / Delete Lines / Create Named Order (`+LineVerbs.swift`)) · **Project** (`PageAndProjectMenuCommands.swift:52`: Set Up… / Set Up Fichero…, Start ⇧⌘⏎, Cloud switch, Edit Document Types…, Read › Reading ▸ Run the Recipe on This Folder… and Run a Step Again on This Folder ▸, Organise › Find the Documents ⇧⌘D, Connect › SPARQL Console…, Train › Train a Model… and Make Available in Every Project, Activity ▸ (run buttons), Workflows ▸ (Run Workflow on Selection… ⇧⌘R, New Workflow ⌃⇧⌘N, New Chain, New Comparison), Chat ▸ (New Chat ⌃⌘N, Add to Chat), Rename/Share/Delete Project…, Show in Finder (`+ProjectVerbs.swift`)) · **Canvas** (`CanvasMenuCommands.swift`: Zoom to Fit ⌘9, Jump Back ⌘[, Jump Forward ⌘]) · **Window** (system, Activity ⌥⌘0, tabs) · **Help** (Save Logs for Support…, Send Logs to the Maintainer…, Language Coverage…, Feature Tiers…).
+
+**Context menus by surface** (every `.contextMenu` under `Views/`):
+- *Sidebar rows* (`Sidebar/ItemRow/SidebarItemRow+Presentation*.swift`, `SidebarItemContextMenu.swift`, `SidebarView+ViewComponents.swift:111` for the always-there project, `Sections/LibraryHeaderRow.swift`, `SidebarModelsNode.swift` Train a Model / Make Available, `Trash/SidebarTrashNode.swift` Put Back, `Sharing/HostGoneRowView.swift` Forget): New Folder, Share…, Rename, Duplicate, Make Alias, Delete ⌘⌫, Reveal Original, Exclude ▸, Bookmark…, Add to Workspace…, Find the Documents, Run the Recipe on This Folder…, Export a Copy…, Run Workflow ▸, Add to Chat, Move to Folder ▸, Automation verbs.
+- *Library item list, every mode* (`Library/LibraryView+ContextMenu.swift` `documentContextMenu`, rendered by List, Table, Columns, Icon, Canvas 2D/3D, Dataset grid/cards/map/timeline/calendar, `ProposedDocumentsInItems.swift`, `TrashPane.swift`, `NoteListView.swift`, the empty-area Import menu): Open/Quick Look, Add to Chat, Import Files Here…, New Folder, Rename, Duplicate, Make Alias, Export a Copy…, Reveal Original, Locate Originals…, Add to Workspace…, Bookmark…, Find the Documents, Run the Recipe on This Folder…, Group as Stack / Ungroup, Exclude ▸ (processing, search, everywhere), Direction ▸, Delete, Run Workflow ▸; Trash: Put Back, Empty Trash…; Notes: Open in Window, Delete.
+- *Preview image* (`Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Regions.swift:180` `regionContextMenu`: Add Region… / Stop Adding Regions, Clear Selections, New Region from Selection… (gated)); *Preview PDF page* (`PDFViewer/PDFPageWithToolbar.swift:397`); the Regions layer's double-click popover (`+SegmentPopover.swift`).
+- *Reader* (`Reader/Page/ReaderLinesView.swift:105`: Correct This Line…, Delete; `ReadingPaneView.swift:512`: the lens items; `Components/ReadingOrderList.swift:80, 215` `lineMenu`: Correct This Line…, Delete, Create Named Order; keys ⌥⌘↑↓⇞⇟ when the list is focused, `ReadingOrderListKeys`).
+- *Segments pane* (`Segments/SegmentsPictureGrid.swift:86`: Open; `CorrectThisLine.swift:102`: Correct This Line…).
+- *Inspector* (`Inspector/Artifacts/ArtifactListView.swift:248, 353`: Run Workflow, Open in Window, Set as Document Content, Translate ▸; `Source/Info/…BibliographyRow.swift`: Edit…, Resolve Metadata, Delete Reference…; `Document/DocumentInspectorRelatedTab.swift`: Open Document; `Notes/Annotations/AnnotationListView.swift`: Open in Window; `Knowledge/*`: Copy all keywords, claim and entity menus, Delete; `Citations/CitationListView.swift`: Open in Window).
+- *Pane head and crumbs* (`Shell/PaneHead/PaneHead.swift:132, 241`: the crumb path, pane rows); *bars* (`Shell/Toolbar/WorkflowBar.swift:285`, `AnnotationBar.swift:40`: Bar Labels; `WorkflowBar+ChainRail.swift:244`: Choose Model…); *Activity* (`Activity/Window/ActivityGroupsView.swift:89`: Stop, Show Details, Delete N Runs; `ActivityViewHelpers.swift:157`); *Workflow* (`Workflow/**`: node, edge, list, chain, batch and execution menus: Delete Connection, View Details, Resume, Delete Batch, New Chain); *Chat/Research* (`Chat/Research/ResearchProjectListView.swift`: Delete Project).
+
+**Toolbars** (controls by file; counts are `help`/`accessibilityLabel` lines): the window toolbar (`Shell/Toolbar/ActivityStatusToolbarItem.swift`, `PaneHead/PaneKindSelector.swift`, `PaneChromeMenu.swift`); the **Workflow bar** (`WorkflowBar.swift`, `+ChainRail`, `+ChainRow`, `+Compare`, `+Context`, `WorkflowStepInspectPopover.swift`: a chain rail with per-step model choice and compare); the **Annotation bar** (`AnnotationBar.swift`: Tag Next Highlight…, Clear Pending Tags, labels); the **Preview head controls** (`PaneHead/PreviewHeadControls.swift`: up to the parent image, previous/next page, previous/next rendition, Renditions ▸, show/hide zoom controls ⌥⌘E, Edit Segments); the **Preview markup tools row** (`PaneHead/PreviewMarkupToolsRow.swift`: Highlight ⌥⌘Y and its colour/mode, the tools with ⌥⌘ letter chords u, v, w, r, g, s, k, n, the Shape kind picker, Join N); the **Reader toolbar** (`Reader/ReaderToolbar.swift`, `+Controls`, `+Overflow`, `ReaderToolbarCluster.swift`: close, pages, renditions, zoom in/out/fit/actual, magnifier, loupe and lock, Edit image and the image tools, pin, the Display menu: Show Image/Annotations/Word Boxes/Regions/Text Inline/Edit Segments, Filter, Show metadata); the **Source pane image controls** (`Preview/SourcePaneImageControls.swift`: Enhance, Clean up the folder; the toolbar #6436 says leaked); the **Set Up** window's own buttons (Compare on These Pages, Run this step, Find a Reader…, `Onboarding/*`).
+
+**Chords, complete** (owner × key): standard and kept: ⌘O Open, ⌘N New Window, ⌘T New Tab, ⌘W/⌃⌘W Close, ⌘Z/⇧⌘Z, ⌘A, ⌘F Find (library search), ⌘⌫ Delete, ⌘, Settings, ⌘0 Actual Size, ⌘+/⌘−, ⌘1–6 layouts (Finder's ⌘1–4 pattern), ⌥⌘1–5 workspaces, ⌃⌘I Inspector (Xcode's pattern; the Finder convention is ⌥⌘I Get Info), ⇧⌘S Save As, ⇧⌘N New Folder. Non-standard or repurposed (section 4): ⌘I Link Files (⌘I is Get Info everywhere), ⌥⌘I / ⇧⌘I Copy/Move Files, ⌘L Rotate Left (⌘L is Location in browsers and Finder's Make Alias), ⌘R Rotate Right (⌘R is Reload/Reply), ⌘J Join (⌘J is Jump to Selection / Show View Options), ⌘9 Zoom to Fit (twice: Page and Canvas), ⌘' / ⇧⌘' Back/Forward (Go) beside ⌘[ / ⌘] Jump Back/Forward (Canvas) and ⌘[ / ⌘] in the Set Up pager, ⇧⌘T Duplicate Window (⇧⌘T is Reopen Closed Tab), ⇧⌘D Find the Documents (⇧⌘D is Send in Mail; ⌘D Bookmark), ⇧⌘R Run Workflow on Selection, ⇧⌘⏎ Start, ⌃⌘N New Chat, ⌃⇧⌘N New Workflow, ⌃⌘G / ⇧⌃⌘G Doubtful Word, ⇧⌘M / ⌥⌘M Magnifier, ⌥⌘L / ⇧⌘L Loupe, ⌥⌘[ ] and ⌃⌘[ ] magnifier and loupe zoom, ⌥⌘E zoom controls, ⌥⌘Y Highlight, ⌥⌘U/V/W/R/G/S/K/N markup tools, ⌥⌘F Find in Page, ⇧⌘G Workflow Bar (⇧⌘G is Find Previous), ⌃⌘J/B/H Preview modes, ⌃⌥⌘<key> Representation, ⌃⌘1–5 sidebar modes, ⌥⌘0 Activity, ⌃⌘R (ContentView root layout), ⌥⌘↑↓⇞⇟ order moves, ⌥⇧⌘W (`ViewMenuPaneSections.swift:306`). Proposed and provisional until this table settles them: ⌥⌘A Select All Segments, ⌥⌘N New Region, ⌥⇧⌘N New Line, ⌥⌘S Split, ⌥⌘G / ⌥⇧⌘G Group/Ungroup, ⌥⌘⏎ Run next step, ⌥⌘R Run the Recipe on This Item, ⌥⌘↑/↓ levels, ⌥⇧⌘W Use as Working Text, ⌥⌘L Compare Levels, Edit Shape's free chord, Run Again (#6437).
+
+### 2. The ONE command table
+
+Every command has one row: one logical group (its menu-bar home), the surfaces it applies to (and so the context menus that render it), one component, one chord or none, one icon. A command appears in the context menu of EVERY surface it applies to and nowhere it does not; the menu bar and the context menus render the same component (`menus.context-matches-bar`, `menus.no-hand-rolled-duplicates`). Surfaces: **S** sidebar rows, **L** library item list (every mode), **P** Preview (image and PDF), **R** Reader, **G** Segments pane, **I** Inspector, **A** Activity, **W** workflow surfaces. Chords here are the SETTLED proposals of section 4; "—" is deliberately none.
+
+| Group (menu-bar home) | Command | Surfaces | Chord | Icon |
+|---|---|---|---|---|
+| File | Set Up New Project…, Connect to Library…, Open…, Open Recent ▸, Close Project, New Window, New Tab, Duplicate Window, Save Project As…, Grant Folder Access… | — (window-level) | ⌘O, ⌃⌘W, ⌘N, ⌘T, ⌥⌘N→ see note, ⇧⌘S | system |
+| File › Import ▸ | Link Files…, Copy Files…, Move Files…, Import Page From… | S, L (empty area and folder rows) | none (⌘I is Get Info and leaves) | `square.and.arrow.down` |
+| File › Export ▸ | Export a Copy…, Export Page As ▸, BibTeX…, Static Site… | S, L, R | ⇧⌘E Export a Copy (the Export pattern) | `square.and.arrow.up` |
+| File | New Folder | S, L | ⇧⌘N | `folder.badge.plus` |
+| Edit | Undo, Redo, Cut, Copy, Paste | all | ⌘Z, ⇧⌘Z, ⌘X, ⌘C, ⌘V | system |
+| Edit | Select All (the focused pane's things; the sidebar refuses) | L, P, R, I, G | ⌘A | — |
+| Edit | Rename | S, L, I rows | ⏎ when a row is focused | `pencil` |
+| Edit | Delete / Move to Trash | S, L, A, W, I rows | ⌘⌫ | `trash` |
+| Edit | Duplicate, Make Alias | S, L | ⌘D Duplicate (Finder), ⌃⌘A Make Alias (Finder) | `plus.square.on.square`, `arrowshape.turn.up.right` |
+| Edit | Bookmark…, Add to Workspace… | S, L | — | `bookmark`, `square.grid.2x2` |
+| Edit › Exclude ▸ | from processing, from search, everywhere | S, L | — | `eye.slash` |
+| Edit › Direction ▸, Proposed Document ▸ | the item verbs' submenus | L | — | — |
+| Edit › Segments ▸ | Select All Segments, New Region, New Line, Edit Shape, Split…, Join, Group, Ungroup, Kind ▸, Direction ▸, Furniture, Delete, Correct This Line…, Create Named Order, Run <next step> on This | P, R, G, I (every segment surface) | see section 4 | per `source/segment-editor-crud.md` |
+| Edit | Find in Page | R, P | ⌥⌘F | `magnifyingglass` |
+| View | Library layouts, Sidebar ▸, Sort ▸, Preview ▸, Inspector, Panes ▸, Workspaces ▸, Ruler, Workflow Bar, Reading Level ▸ (#6429) | — | ⌘1–6, ⌃⌘1–5, ⌃⌘J/B/H, ⌥⌘I Inspector (Finder pattern, moved from ⌃⌘I), ⌥⌘1–5 | — |
+| Go | Back, Forward, Enclosing Folder (Go Up), Reveal in Sidebar | all | ⌘[ , ⌘] , ⌘↑ (Finder) | system |
+| Page | Reader Lens ▸, Zoom ▸ (Actual Size, Fit, In, Out), Magnifier ▸, Loupe ▸, Rotate Left/Right, Next/Previous Page, Next/Previous Doubtful Word, Renditions ▸, Use for Reading (#6414) | P, R | ⌘0, ⌘9→⇧⌘0 Fit (the Zoom pattern), ⌘+/⌘−, ⌥⌘L Loupe kept, Rotate ⌥⌘L/⌥⌘R→ see note, ⌃⌘G kept | — |
+| Project | Set Up…, Start, Run the Recipe on This Item (#6411), Run Again (#6437), Run a Step Again ▸, Find the Documents, Train a Model…, Make Available in Every Project, SPARQL Console…, Workflows ▸, Chat ▸, Rename/Share/Delete Project…, Show in Finder | S, L (the recipe items on every row kind) | ⇧⌘⏎ Start kept, ⌥⌘R Run the Recipe on This Item, ⌥⇧⌘R Run Again, ⇧⌘D leaves (Find the Documents: none) | `play.rectangle`, `arrow.clockwise` |
+| Window | Activity, tabs, workspaces windows | — | ⌥⌘0 kept | — |
+| Help | Save Logs…, Send Logs…, Language Coverage…, Feature Tiers… | — | — | — |
+
+Items that MOVE: Page › Segments → Edit › Segments ▸ (ruled); Canvas › Jump Back/Forward → Go › Back/Forward (one history, `source.editor.select-takes-you-there-and-back`); Group/Ungroup of pages (`RotateImageCommands.swift:61`) → the Library's Group as Stack / Ungroup under Edit, beside Edit › Segments ▸ Group of segments, with different names ("Group as Stack" for pages, "Group" for segments); Rotate out of Page's chord slots (section 4); Find the Documents keeps its Project home and loses its chord; the Reader's Correct This Line… and Create Named Order join Edit › Segments ▸ as its last rows; the Source pane's Enhance and Clean up the folder leave their own toolbar for the Edit pane (#6436).
+
+### 3. Grouping rules
+
+1. **File** opens, closes, imports and exports; it never changes a selection's content. **Edit** changes the selection (and holds every submenu that acts on a selection: Segments ▸, Exclude ▸, Direction ▸). **View** changes how the window looks and what is shown, never the data. **Go** moves (one history for every jump). **Page** acts on the page being read (zoom, lens, magnifiers, rotation, renditions). **Project** runs and sets up the recipe and the project-wide tools. **Window** and **Help** are the system's.
+2. A command lives in ONE group; a surface's context menu shows the rows of the table whose Surfaces column names it, in the table's order, with the same titles, icons and chords, through the same component; a context menu never holds an item the table does not, and an item the table gives a surface is never missing from it (`menus.context-matches-bar` made testable: the table is a Swift value the menus and the test read).
+3. Submenus only where a term repeats (Import ▸, Export ▸, Exclude ▸, Segments ▸, Zoom ▸, Workspaces ▸), one level deep, at most about eight items; a disabled item says why under it (`menus.disabled-says-why`, the Page › Segments precedent).
+4. Wording: verbs in the imperative, the object named when it is not the selection ("Run the Recipe on This Folder…", "Delete 3 Segments"), an ellipsis when a sheet follows; one icon per command, the same everywhere.
+5. Toolbars hold TOOLS (a state the pointer is in) and view switches, never commands that belong to a selection: a selection's verbs are in Edit and the context menus. Each tool has ONE home: the Preview's Editing bar for image and shape tools (`source.editor.two-bars-reader-and-editing`), the Reader bar for display and navigation, the Workflow bar for the chain; a per-pane tool never leaks into the window toolbar. Leaked today: the Source pane image controls (Enhance, Clean up the folder; #6436), the two Edit Segments toggles (head controls and Display menu; `source/segment-editor-crud.md` Step 1.7).
+
+### 4. Chord audit (the owner's rule 2026-11-08: standard Mac chords; never repurpose a standard one; new chords follow the pattern)
+
+| Chord | Today | Standard meaning | Verdict |
+|---|---|---|---|
+| ⌘I | Link Files… | Get Info (Finder, everywhere) | CHANGE: Import loses its chords; ⌘I is reserved for a future Get Info (the Inspector) |
+| ⌥⌘I, ⇧⌘I | Copy / Move Files… | ⌥⌘I Show Inspector (Finder) | CHANGE: none; ⌥⌘I becomes Show/Hide Inspector (moved from ⌃⌘I) |
+| ⌘L | Rotate Left | Location (browsers), Make Alias (Finder) | CHANGE: Rotate Left ⌥⌘← and Rotate Right ⌥⌘→ (Preview.app's pattern is ⌘L/⌘R, but ⌘R collides below; one pair, arrows) |
+| ⌘R | Rotate Right | Reload / Reply | CHANGE as above |
+| ⌘J | Join | Jump to Selection, Show View Options | KEEP for now (ruled 2026-09-28); flagged: Finder uses ⌘J; the test decides when Edit › Segments lands |
+| ⌘9 | Zoom to Fit (Page AND Canvas) | none; Zoom pattern is ⌘0 actual, ⇧⌘0 fit (Xcode, Preview uses ⌘9 Zoom to Fit) | KEEP one owner: Page's; Canvas's duplicate goes (the Canvas is a Library mode, View › Zoom to Fit uses the same item) |
+| ⌘' / ⇧⌘' | Back / Forward (Go) | none | CHANGE to ⌘[ / ⌘] (Finder, Safari); Canvas Jump Back/Forward merges into them; the Set Up pager keeps ⌘[ ⌘] inside its own window |
+| ⇧⌘T | Duplicate Window | Reopen Closed Tab | CHANGE: none (menu only) |
+| ⇧⌘D | Find the Documents | Send (Mail), Add Bookmark ⌘D | CHANGE: none |
+| ⇧⌘R | Run Workflow on Selection… | Reload ignoring cache | CHANGE: none; Run Again takes ⌥⇧⌘R |
+| ⇧⌘⏎ | Start | none (Send in Messages is ⏎) | KEEP |
+| ⌃⌘N, ⌃⇧⌘N | New Chat, New Workflow | none | KEEP (the New pattern with ⌃) |
+| ⌃⌘G, ⇧⌃⌘G | Next/Previous Doubtful Word | ⌘G Find Next | KEEP (the Find pattern with ⌃) |
+| ⇧⌘M, ⌥⌘M | Magnifier Panel, Lock Magnifier | ⌘M Minimise; ⇧⌘M none | KEEP |
+| ⌥⌘L, ⇧⌘L | Loupe, Lock Loupe | none | KEEP; Compare Levels does NOT take ⌥⌘L (section 1's proposal withdrawn) |
+| ⌥⌘[ ], ⌃⌘[ ] | magnifier / loupe zoom | ⌘[ ] Back/Forward | KEEP (modified variants of the bracket pair) |
+| ⌥⌘E | Show/hide zoom controls | none | KEEP; Edit Shape takes another |
+| ⌥⌘Y and ⌥⌘U/V/W/R/G/S/K/N | markup tools | none | KEEP as the tools' family; ⌥⌘N New Region COLLIDES (tool key n): New Region becomes ⇧⌘N's sibling ⌥⇧⌘N… see Segments row |
+| ⌥⌘F | Find in Page | none (⌘F Find) | KEEP |
+| ⇧⌘G | Workflow Bar | Find Previous | CHANGE: none (View menu only) |
+| ⌃⌘I | Inspector | none (Finder ⌥⌘I) | CHANGE to ⌥⌘I |
+| ⌃⌘J/B/H, ⌃⌥⌘<key>, ⌃⌘1–5 | Preview modes, Representation, Sidebar modes | none | KEEP (the View family with ⌃) |
+| ⌥⌘0 | Activity | none | KEEP |
+| ⌃⌘R | root layout (`ContentView+RootLayout.swift:134`) | none | VERIFY its label; drop if it is a dead item |
+| ⌥⇧⌘W | `ViewMenuPaneSections.swift:306` | ⌥⌘W Close All | VERIFY; drop |
+| **Segments ▸ (settled proposals)** | Select All Segments | — | ⌥⌘A outside the Reader (⌘A inside) |
+| | New Region / New Line | — | ⌥⌘N collides with the markup tool n: New Region ⌃⌘N collides with New Chat; so **New Region ⇧⌘N** is wrong too (New Folder). Settled: New Region and New Line have NO chord; the tools R and L on the Editing bar make them (`source.editor.labelled-shape-tools`) |
+| | Edit Shape | — | E on the Editing bar; menu chord none |
+| | Split… | — | ⌥⌘S? ⌘S is Save; the ⌥ variant is free: KEEP ⌥⌘S |
+| | Join | — | ⌘J kept (above) |
+| | Group / Ungroup (segments) | — | ⌥⌘G / ⌥⇧⌘G (Group as Stack for pages has none) |
+| | Delete | — | ⌘⌫ (Edit › Delete, one keyed home); ⌫ on a surface |
+| | Run <next step> on This | — | none (menu); Run the Recipe on This Item ⌥⌘R; Run Again ⌥⇧⌘R |
+| **Levels (#6429)** | step shown level | — | ⌥⌘↑ / ⌥⌘↓ collide with the order list's ⌥⌘↑↓ when the list is focused: settled ⌃⌥⌘↑ / ⌃⌥⌘↓; Use as Working Text none; Compare Levels none |
+
+Every CHANGE above is one build step (section 5), one test case in `MenuShortcutUniquenessTests` and one line in the manual's shortcuts table.
+
+### 5. Build order (small steps; Stage 2 below)
+
+2.1 the command table as a Swift value every menu and context menu renders from, with the test that a surface's context menu equals the table's rows for it (no items move yet); 2.2 the moves: Page › Segments → Edit › Segments ▸ (with Step 1.2 of the segment editor), Canvas Jump → Go, page Group/Ungroup renamed Group as Stack; 2.3 the chord changes of section 4 in one commit with the uniqueness test extended (Import chords off, ⌥⌘I Inspector, Rotate arrows, Back/Forward brackets, Duplicate Window and Find the Documents and Workflow Bar and Run Workflow lose theirs, ⌥⇧⌘R Run Again, the Segments and Levels chords as settled); 2.4 toolbars: one home per tool, the Source pane image controls removed (#6436), the two Edit Segments toggles removed (segment editor Step 1.7); 2.5 wording and icons pass over the table.
 
 ## Build order
 
@@ -734,6 +843,51 @@ Engine first: the Start plan's scope takes the ids of a selection and resolves t
 
 - test (to write): `test_start_scope_is_the_selection_6411.py` in fichero-server/tests/unit/recipes/ (a PDF resolves to its pages and no other; a page to itself; three ids to their union; an empty scope refuses in words; a landed pass inside the scope is reused)
 - test (to write): `RunRecipeScopeLabelTests.swift` in fichero/Tests/Unit/general/App/ (the scope for a click inside and outside the selection, per kind; the label per kind and count; the disabled reason per state; the shortcut declared once)
+
+### Stage 2 — The 2026-11-08 menus review (#6435)
+
+#### Step 2.1 — the command table as one value every menu renders from, and its test (#6435)
+- Behaviours: `menus.one-command-table`, `menus.context-menus-mirror-the-table`
+- Tests: fichero/Tests/Unit/general/App/MenuTerminologyBoundaryTests.swift, fichero/Tests/Unit/general/App/PageMenuTests.swift, MenuTableTests.swift (not yet written)
+- Size: M
+
+Swift only: the table of section 2 as a value; the menu bar and each surface's context menu render their rows from it (the item-verb components exist; hand-rolled items fold in); the equality test per surface. No item moves yet.
+
+- test (to write): `MenuTableTests.swift` in fichero/Tests/Unit/general/App/ (per surface, the rendered titles equal the table's rows; every row has one group; chords unique)
+
+#### Step 2.2 — the moves: Page › Segments to Edit › Segments ▸, Canvas Jump to Go, Group as Stack named (#6435, #6413)
+- Behaviours: `menus.edit.segments-submenu`
+- Tests: fichero/Tests/Unit/general/App/PageMenuTests.swift, fichero/Tests/Unit/general/Views/Shell/MenuShortcutUniquenessTests.swift, MenuTableTests.swift (not yet written)
+- Depends on: 2.1
+- Size: S
+
+With `source/segment-editor-crud.md` Step 1.2; the Canvas menu's Jump Back/Forward become Go › Back/Forward on the one history (`source.editor.select-takes-you-there-and-back`); the page Group/Ungroup renamed Group as Stack / Ungroup Stack.
+
+#### Step 2.3 — the chord changes of the audit, in one commit, with the standard-chord table in the uniqueness test (#6435)
+- Behaviours: `menus.chords-are-standard-mac`, `menus.shortcut-uniqueness`
+- Tests: fichero/Tests/Unit/general/Views/Shell/MenuShortcutUniquenessTests.swift, fichero/Tests/Unit/general/App/MenuShortcutBoundaryTests.swift
+- Depends on: 2.1
+- Size: M
+
+Section 4's CHANGE rows: Import loses its chords; Inspector ⌥⌘I; Rotate ⌥⌘← / ⌥⌘→; Back/Forward ⌘[ ⌘]; Duplicate Window, Find the Documents, Workflow Bar and Run Workflow lose theirs; the settled Segments and Levels chords; the two VERIFY rows resolved; the manual's shortcuts table updated in the same commit.
+
+#### Step 2.4 — toolbars: one home per tool, the leaked bars removed (#6435, #6436)
+- Behaviours: `menus.toolbars-one-home-per-tool`
+- Tests: fichero/Tests/Unit/general/Views/Shell/MenuShortcutUniquenessTests.swift, ToolbarHomesTests.swift (not yet written)
+- Depends on: 2.1
+- Size: S
+
+The tool-to-bar table; the Source pane image controls go (Enhance lives in the Edit pane, `source/image-preparation.md` Step 1.6); the Edit Segments toggles go with the segment editor's Step 1.7.
+
+- test (to write): `ToolbarHomesTests.swift` in fichero/Tests/Unit/general/Views/Shell/ (each tool in exactly one bar; no selection verb in a bar)
+
+#### Step 2.5 — wording and icons pass over the table (#6435)
+- Behaviours: `menus.wording-and-icons-one-rule`
+- Tests: MenuTableTests.swift (not yet written), fichero/Tests/Unit/general/App/MenuTerminologyBoundaryTests.swift
+- Depends on: 2.2, 2.3, 2.4
+- Size: S
+
+Imperative verbs, the object named when it is not the selection, an ellipsis before a sheet, one icon per command everywhere; the table is the source and the test reads it.
 
 ## Open questions (still open)
 
