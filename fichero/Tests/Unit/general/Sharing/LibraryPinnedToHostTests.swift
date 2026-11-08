@@ -61,4 +61,12 @@ struct LibraryPinnedToHostTests {
         #expect(before.allSatisfy { id in manager.openLibraries.contains { $0.id == id } })
         #expect(manager.switchToRemoteLibrary(path: path, pinnedTo: studio)?.id == opened.id)
     }
+
+    @Test func servicesBuiltFromAPinnedLibrarysClientDialItsHostNotTheAppHost() {
+        let pinned = library(pinned: true)
+        #expect(ActivityService(apiClient: pinned.apiClient).client.baseURL == studio)
+        #expect(ArtifactService(apiClient: pinned.apiClient).client.baseURL == studio)
+        #expect(RenditionService(apiClient: pinned.apiClient).client.baseURL == studio)
+        #expect(ImportService(apiClient: pinned.apiClient).client.baseURL == studio)
+    }
 }

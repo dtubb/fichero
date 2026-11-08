@@ -17,13 +17,9 @@ class ActivityService {
 
     /// Convenience initializer from APIClient - extracts library path
     convenience init(apiClient: APIClient) {
-        let libraryPath = apiClient.currentLibraryPath ?? ""
-        let ficheroClient = FicheroClient(
-            baseURL: EngineConfig.host,
-            libraryPath: libraryPath,
-            transportMode: EngineConfig.transportMode
-        )
-        self.init(ficheroClient: ficheroClient)
+        // Share the library's own client (a reference type), never a new one on the app-wide host: a library pinned to
+        // a paired Mac keeps dialling that Mac (`sharing.guest.library-pinned-to-its-host`, #6360).
+        self.init(ficheroClient: apiClient.client)
     }
 
     // MARK: - Activity Queries

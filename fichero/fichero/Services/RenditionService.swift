@@ -96,12 +96,9 @@ final class RenditionService {
     }
 
     convenience init(apiClient: APIClient) {
-        let ficheroClient = FicheroClient(
-            baseURL: EngineConfig.host,
-            libraryPath: apiClient.currentLibraryPath ?? "",
-            transportMode: EngineConfig.transportMode
-        )
-        self.init(ficheroClient: ficheroClient)
+        // Share the library's own client (a reference type), never a new one on the app-wide host: a library pinned to
+        // a paired Mac keeps dialling that Mac (`sharing.guest.library-pinned-to-its-host`, #6360).
+        self.init(ficheroClient: apiClient.client)
     }
 
     /// This document's renditions, in engine order.
