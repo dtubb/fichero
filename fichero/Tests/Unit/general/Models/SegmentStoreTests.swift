@@ -150,6 +150,29 @@ final class SegmentStoreTests: XCTestCase {
         )
     }
 
+    /// #6424: the engine's per-segment read carries no `box_index`; splicing that row in made
+    /// `SegmentDisplay.geometry` refuse the whole pass (its boxes must be exactly 0..<count), so the Preview drew
+    /// nothing while the lists still showed rows. A patch keeps the position the held row already had.
+    func testAPatchWithoutABoxIndexKeepsTheHeldRowsPosition() async throws {
+        let store = Self.storeWithMockTransport()
+        Self.stubSuccess(
+            documentId: "doc-1",
+            passes: [Self.passJSON(id: "pass-1", documentId: "doc-1")],
+            segments: [
+                Self.segmentJSON(id: "seg-1", documentId: "doc-1", passId: "pass-1", boxIndex: 0, text: "one"),
+                Self.segmentJSON(id: "seg-2", documentId: "doc-1", passId: "pass-1", boxIndex: 1, text: "two")
+            ]
+        )
+        await store.load(documentId: "doc-1")
+        var reread = try XCTUnwrap(store.segments(documentId: "doc-1").first { $0.id == "seg-2" })
+        reread.boxIndex = nil
+        reread.text = "two, read again"
+        store.patch(segmentId: "seg-2", with: reread)
+        let held = store.segments(documentId: "doc-1")
+        XCTAssertEqual(held.first { $0.id == "seg-2" }?.text, "two, read again", "the new text is taken")
+        XCTAssertEqual(Set(held.compactMap(\.boxIndex)), [0, 1], "the position is kept, so the pass still draws")
+    }
+
     // MARK: - load(documentId:) replaces ONLY that document's entry
 
     func testLoadReplacesOnlyTheNamedDocumentsEntryLeavesOthersUntouched() async throws {
