@@ -539,6 +539,8 @@ automatic run asks once and waits (`source.project.automatic-after-first-yes`, #
 the global pause is the only switch a person needs. The workflow bar and Run menu keep running any
 workflow by hand: a hand run is a job like any other.
 
+> Companion (2026-11-08, #6441): `activity-pane.md` holds the delta that makes Activity a PANE KIND (the generic window = the pane + the Inspector; one outline table grouped by run or by file; versions as siblings; history filterable; Run Automatically a setting). The behaviours below stand; where the companion supersedes a clause it says so.
+
 ## Behaviors
 
 ### A. One job model

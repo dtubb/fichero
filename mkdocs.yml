@@ -514,6 +514,7 @@ nav:
           - UI:
               - About: contributor_manual/specs/ui/about.md
               - Activity & Automatic Work: contributor_manual/specs/ui/activity-and-automatic-work.md
+              - Activity as a Pane (draft): contributor_manual/specs/ui/activity-pane.md
               - Automation: contributor_manual/specs/ui/automation.md
               - Catalogue Table: contributor_manual/specs/ui/catalogue-table.md
               - Library View Modes: contributor_manual/specs/ui/library-view-modes.md

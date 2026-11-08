@@ -553,6 +553,8 @@ the browse→read flow down the centre.
 - **Right** — the source image, anchored full height (historical documents are vertically
   oriented, so uninterrupted top-to-bottom space maximises zoom and minimises scrolling).
 
+> Companion (2026-11-08, #6441): `activity-pane.md` adds `PaneKind.activity` (an Activity pane scoped by library, in the kind switcher, saved in workspaces) and makes the generic Activity window a one-leaf pane list plus the Inspector.
+
 ## Behaviors (each → one pinning test)
 
 ### A. Pane composition & split
