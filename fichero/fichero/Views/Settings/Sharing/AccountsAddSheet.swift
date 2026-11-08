@@ -87,7 +87,8 @@ struct AccountsAddSheet: View {
                 minted = MintedInvite(mint: try await store.createInvite(username: user, displayName: name))
             }
         } catch {
-            failure = AccountsAddSheetModel.failureWords(error.localizedDescription)
+            // Only the engine's words reach the sheet; a client error reads "Couldn't add the account" (no-bottom-strip).
+            failure = AccountsAddSheetModel.failureWords(SharingFailurePrompt.engineWords(error) ?? "")
         }
     }
 }

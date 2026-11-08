@@ -87,6 +87,12 @@ struct SharingFailureAlertTests {
         #expect(!SharingFailurePrompt.asksForPerson(RemoteClientPairingError.missingDeviceName))
     }
 
+    @Test func onlyTheEnginesWordsAreWords() {
+        #expect(SharingFailurePrompt.engineWords(APIError.badRequest("That username is taken.")) == "That username is taken.")
+        struct ClientError: LocalizedError { var errorDescription: String? { "Client encountered an error invoking the operation" } }
+        #expect(SharingFailurePrompt.engineWords(ClientError()) == nil)
+    }
+
     @Test func aForbiddenShareOffersSignInAsOwner() {
         var did: SharingFailurePrompt.Fix?
         let shown = SharingFailurePrompt.make(sharing: APIError.httpError(statusCode: 403, message: "forbidden"), title: "Couldn't share",

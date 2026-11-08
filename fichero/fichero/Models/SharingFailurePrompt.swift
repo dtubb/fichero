@@ -164,10 +164,16 @@ enum SharingFailurePrompt {
             // Sign In as Owner signs this app in again by the owner key (`OwnerSignInCoordinator.run`), no password asked.
             return prompt(title: title, why: "Only this Mac's owner can share its projects. Sign in as the owner, then share again.",
                           fix: offers.contains(.signInAsOwner) ? .signInAsOwner : nil, details: details, acts: (perform, copy))
-        case .httpError(_, let words)?, .badRequest(let words)?, .notFound(let words)?, .serverError(let words)?:
-            return prompt(title: title, why: words, fix: nil, details: details, acts: (perform, copy))
         default:
-            return prompt(title: title, why: unknownSentence, fix: nil, details: details, acts: (perform, copy))
+            return prompt(title: title, why: engineWords(error) ?? unknownSentence, fix: nil, details: details, acts: (perform, copy))
+        }
+    }
+
+    /// The engine's own words in a refusal, or nil where the error is the client's (its text is for Copy Details only).
+    static func engineWords(_ error: Error) -> String? {
+        switch error as? APIError {
+        case .httpError(_, let words)?, .badRequest(let words)?, .notFound(let words)?, .serverError(let words)?: words
+        default: nil
         }
     }
 
