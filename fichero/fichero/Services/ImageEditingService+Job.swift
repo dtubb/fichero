@@ -22,7 +22,7 @@ enum ImageJobError: LocalizedError {
 
 extension ImageEditingService {
     /// `POST /api/images/{id}/jobs`: queue `action` (an `image.<op>`) with its settings; returns the job id.
-    func queueJob(documentId: String, action: String, params: [String: Any]) async throws -> String {
+    func queueJob(documentId: String, action: String, params: [String: (any Sendable)?]) async throws -> String {
         let container = try OpenAPIObjectContainer(unvalidatedValue: params)
         let response = try await client.api.queueImageOperationJobApiImagesDocumentIdJobsPost(
             path: .init(documentId: documentId),
