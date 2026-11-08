@@ -158,7 +158,7 @@ extension ReadingPaneView {
     @ViewBuilder
     private var linesTabContent: some View {
         if let pageId = effectivePageId ?? effectiveDocument?.id {
-            ReaderLinesView(documentId: pageId, zoom: webZoom)
+            ReaderLinesView(documentId: pageId, zoom: webZoom, onPinchZoom: { webZoom = $0 })
         } else {
             readerEmptyState
         }

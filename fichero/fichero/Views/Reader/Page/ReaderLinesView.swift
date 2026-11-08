@@ -9,7 +9,12 @@ import SwiftUI
 struct ReaderLinesView: View {
     let documentId: String
     let zoom: Double
+    /// A trackpad pinch on the lines moves the Reader's one zoom, as on the web pane (#6428).
+    var onPinchZoom: ((Double) -> Void)?
 
+    #if os(macOS)
+    @State private var pinchStart: Double?
+    #endif
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(WindowState.self) private var windowState: WindowState?
 
@@ -45,6 +50,15 @@ struct ReaderLinesView: View {
                     .listRowSeparator(.hidden)
                 }
                 .listStyle(.plain)
+                #if os(macOS)
+                .simultaneousGesture(MagnifyGesture()
+                    .onChanged { value in
+                        let start = pinchStart ?? zoom
+                        pinchStart = start
+                        onPinchZoom?(ReaderZoom.scaled(from: start, by: value.magnification))
+                    }
+                    .onEnded { _ in pinchStart = nil })
+                #endif
                 .onChange(of: shown) { _, now in
                     guard let first = lines.first(where: { now.contains($0.id) }) else { return }
                     withAnimation { proxy.scrollTo(first.id, anchor: .center) }
