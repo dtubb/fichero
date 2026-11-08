@@ -16,7 +16,9 @@ from fichero_builder import check_tool, jail, journal
 
 def _suite_dirs(root: Path, cfg) -> tuple[list[str], tuple]:
     """(the engine packages' tests dirs, the whole-tests dirs): every `<package>/tests` there is, a whole-tests one on its own."""
-    whole = tuple(sorted(set(cfg.whole_tests.values())))
+    # a whole_tests value may be a list of single test files (2026-11-08): those sit inside a package's tests dir, which verify runs
+    # whole anyway, so only a dir value is a whole-tests suite here
+    whole = tuple(sorted({v for v in cfg.whole_tests.values() if isinstance(v, str)}))
     dirs = sorted(f"{p.parent.name}/tests" for p in root.glob("*/tests") if p.is_dir() and f"{p.parent.name}/tests" not in whole)
     return dirs, whole
 
