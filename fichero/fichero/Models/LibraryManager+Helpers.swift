@@ -643,3 +643,10 @@ extension LibraryManager {
         libraryManagerLogger.info("⏱ loadLibraryData exit — library: \(library.displayName)")
     }
 }
+
+extension LibraryManager.LibraryReference {
+    /// Where this library dials now: its own paired Mac when pinned, else the app-wide engine host.
+    var currentEndpoint: (URL, TransportMode) {
+        pinnedToHost ? (host.url, .https) : (EngineConfig.host, EngineConfig.transportMode)
+    }
+}

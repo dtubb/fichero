@@ -132,6 +132,9 @@ class LibraryManager {
         /// hold several backends at once. Drives the clients' baseURL, the TLS
         /// pin, and the sidebar location badge.
         let host: BackendHost
+        /// True for a library that dials its own paired Mac (`sharing.guest.library-pinned-to-its-host`, #6360, #2866):
+        /// the app-wide host switch and an engine restart never repoint it, and it is always dialled over HTTPS.
+        let pinnedToHost: Bool
         var displayName: String  // Display name for window title (e.g., "Untitled 2", "MyResearch")
         var document: FicheroDocument
 
@@ -486,6 +489,7 @@ class LibraryManager {
             displayName: String,
             id: UUID? = nil,
             host: BackendHost = .appDefault,
+            pinnedToHost: Bool = false,
             apiClient: APIClient? = nil,
             documentStore: DocumentStore? = nil,
             searchService: SearchService? = nil,
@@ -500,6 +504,7 @@ class LibraryManager {
             self.id = id ?? UUID()
             self.url = url
             self.host = host
+            self.pinnedToHost = pinnedToHost
             // The always-there project has no name, whatever name reached here (a saved "Local").
             self.displayName = AlwaysThereProject.displayName(forPath: url.path, given: displayName)
             self.document = document
@@ -521,6 +526,7 @@ class LibraryManager {
                 self.apiClient = APIClient(client: FicheroClient(baseURL: host.url, libraryPath: url.path, session: session))
             } else {
                 self.apiClient = APIClient(baseURL: host.url)
+                if pinnedToHost { self.apiClient.reconfigure(baseURL: host.url, transportMode: .https) }
             }
 
             // Set the library path on the API client immediately
@@ -538,7 +544,7 @@ class LibraryManager {
                 ?? FicheroClient(
                     baseURL: host.url,
                     libraryPath: url.path,
-                    transportMode: EngineConfig.transportMode
+                    transportMode: pinnedToHost ? .https : EngineConfig.transportMode
                 )
 
             // Initialize all services with the library's APIClient
@@ -617,21 +623,20 @@ class LibraryManager {
         /// restarted: the clients built at the first connect keep dialling what they were given
         /// (`activity.reconnects-after-engine-restart`).
         func reresolveEndpoint() {
-            ficheroClient.reconfigure(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
-            apiClient.reconfigure(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
+            let (baseURL, transport) = currentEndpoint
+            ficheroClient.reconfigure(baseURL: baseURL, transportMode: transport)
+            apiClient.reconfigure(baseURL: baseURL, transportMode: transport)
         }
 
         func reconfigureBackendHost() {
-            // Every library is currently created on the app-default host, so it
-            // follows the Settings engine-host switch (unchanged behavior). When
-            // a library is pinned to a SPECIFIC remote host (#2866 follow-up),
-            // this will branch on that; today there are no such libraries.
-            ficheroClient.reconfigure(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
+            // A library follows the Settings engine-host switch unless it is pinned to its own host.
+            let (baseURL, transport) = currentEndpoint
+            ficheroClient.reconfigure(baseURL: baseURL, transportMode: transport)
             // Also rebind the legacy APIClient's separate FicheroClient (#2349):
             // DocumentStore + ChainService are built on `apiClient`, not the shared
             // `ficheroClient`, so without this they kept the old (localhost) host
             // after pairing while every generated service had already rebound.
-            apiClient.reconfigure(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
+            apiClient.reconfigure(baseURL: baseURL, transportMode: transport)
             storageService.clearAll()
         }
     }
