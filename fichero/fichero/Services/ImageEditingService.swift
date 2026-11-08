@@ -36,23 +36,8 @@ struct ImageEditOperation: Identifiable, Hashable {
 
     var params: [String: Any] { dict["params"] as? [String: Any] ?? [:] }
 
-    var icon: String {
-        switch opKind {
-        case "crop": return "crop"
-        case "rotate": return "rotate.right"
-        case "straighten": return "crop.rotate"
-        case "enhance": return "wand.and.stars"
-        case "fuzzy_clean": return "sparkles"
-        // NOT person.crop.rectangle.badge.xmark — that symbol does not exist
-        // in the system set and AppKit logged it on every editor open
-        // (Daniel's log, 2026-08-29).
-        case "remove_background": return "scissors"
-        case "segment": return "square.split.bottomrightquarter"
-        case "flip_horizontal", "flip_vertical": return "arrow.left.and.right.righttriangle.left.righttriangle.right"
-        case "grayscale": return "circle.lefthalf.filled"
-        default: return "slider.horizontal.3"
-        }
-    }
+    /// The glyph every place draws for this op (`preview.edit.tool.one-icon-table`): the toolbar, the chain row, Add Step.
+    var icon: String { Self.glyph(for: opKind) }
 
     var title: String {
         switch opKind {

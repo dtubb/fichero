@@ -312,13 +312,13 @@ extension ImageEditChainPanel {
     private var addStepGrid: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                addToolButton("rotate.left", title: "Rotate ↺") {
+                addToolButton(ImageEditOperation.glyph(for: "rotate_left"), title: "Rotate ↺") {
                     onRotate(90); addStepExpanded = false
                 }
-                addToolButton("rotate.right", title: "Rotate ↻") {
+                addToolButton(ImageEditOperation.glyph(for: "rotate"), title: "Rotate ↻") {
                     onRotate(-90); addStepExpanded = false
                 }
-                addToolButton("crop.rotate", title: "Straighten") {
+                addToolButton(ImageEditOperation.glyph(for: "straighten"), title: "Straighten") {
                     onStraighten(); addStepExpanded = false
                 }
             }
@@ -349,14 +349,14 @@ extension ImageEditChainPanel {
                 }
             }
             HStack(spacing: 8) {
-                addToolButton("person.and.background.dotted", title: "Remove BG") {
+                addToolButton(ImageEditOperation.glyph(for: "remove_background"), title: "Remove BG") {
                     onRemoveBackground(); addStepExpanded = false
                 }
-                addToolButton("sparkles", title: "Despeckle") {
+                addToolButton(ImageEditOperation.glyph(for: "fuzzy_clean"), title: "Despeckle") {
                     onFuzzyClean(); addStepExpanded = false
                 }
             }
-            addToolButton("square.split.2x1", title: "Segment") {
+            addToolButton(ImageEditOperation.glyph(for: "segment"), title: "Segment") {
                 onSegment(); addStepExpanded = false
             }
             .frame(maxWidth: .infinity)

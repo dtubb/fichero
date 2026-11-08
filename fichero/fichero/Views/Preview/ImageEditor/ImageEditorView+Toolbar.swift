@@ -47,13 +47,13 @@ extension ImageEditorView {
 
             // Edit tools — icon-only SF Symbols (#1420 spec).
             Group {
-                toolButton("rotate.left", help: "Rotate left 90°") {
+                toolButton(ImageEditOperation.glyph(for: "rotate_left"), help: "Rotate left 90°") {
                     Task { await model.rotate(by: 90) }
                 }
-                toolButton("rotate.right", help: "Rotate right 90°") {
+                toolButton(ImageEditOperation.glyph(for: "rotate"), help: "Rotate right 90°") {
                     Task { await model.rotate(by: -90) }
                 }
-                toolButton("crop.rotate", help: "Straighten — auto-detect document skew") {
+                toolButton(ImageEditOperation.glyph(for: "straighten"), help: "Straighten — auto-detect document skew") {
                     Task { await model.straighten() }
                 }
 
@@ -80,13 +80,13 @@ extension ImageEditorView {
                 .accessibilityLabel("Rotate")
                 .popover(isPresented: $showRotatePopover, arrowEdge: .bottom) { rotatePopover }
 
-                toolButton("person.and.background.dotted", help: "Remove background — AI-powered background removal") {
+                toolButton(ImageEditOperation.glyph(for: "remove_background"), help: "Remove background — AI-powered background removal") {
                     Task { await model.removeBackground() }
                 }
-                toolButton("sparkles", help: "Despeckle — remove noise and speckle artifacts") {
+                toolButton(ImageEditOperation.glyph(for: "fuzzy_clean"), help: "Despeckle — remove noise and speckle artifacts") {
                     Task { await model.fuzzyClean() }
                 }
-                toolButton("square.split.2x1", help: "Segment — detect and label image regions") {
+                toolButton(ImageEditOperation.glyph(for: "segment"), help: "Segment — detect and label image regions") {
                     Task { await model.segment() }
                 }
             }
@@ -130,7 +130,7 @@ extension ImageEditorView {
 
             if compareMode == .single, let found = PageCorners(pageRegion: activeDocument.metadata["page_region"]?.value) {
                 let help = pageCorners == nil ? "Show the page corners — drag one, press Return to square" : "Hide the page corners"
-                toolButton("viewfinder", help: help) {
+                toolButton(ImageEditOperation.glyph(for: "square"), help: help) {
                     pageCorners = pageCorners == nil ? found : nil
                 }
                 .accessibilityIdentifier("imageEditPageCorners")
@@ -141,7 +141,7 @@ extension ImageEditorView {
 
             if marqueeSelection != nil && compareMode == .single {
                 Divider().frame(height: 20)
-                toolButton("crop", help: "Crop to selection") {
+                toolButton(ImageEditOperation.glyph(for: "crop"), help: "Crop to selection") {
                     Task { await cropToSelection() }
                 }
                 .disabled(model.isBusy)
