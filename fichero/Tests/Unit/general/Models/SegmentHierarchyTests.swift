@@ -190,6 +190,16 @@ final class SegmentHierarchyTests: XCTestCase {
 
     // MARK: - segments-list-nests
 
+    /// #6425: an order that lists a region AND its line at the same level (the engine used to seed it flat) showed
+    /// the line twice, nested and again beside its region. The line is a row once, under the region.
+    func testALineListedBesideItsRegionIsShownOnce() async throws {
+        let store = try await loadedPage().store
+        let segments = store.workingSegments(documentId: "page-1")
+        let rows = SegmentsPane.outline(segments, top: ["r1", "l1", "l2", "r2"])
+        XCTAssertEqual(rows.map(\.segmentId), ["r1", "r2"], "l1 and l2 are r1's rows, not top-level ones")
+        XCTAssertEqual(rows[0].children.map(\.segmentId), ["l1", "l2"])
+    }
+
     /// "The Segments list groups rows by region: its lines indented under it, a line discloses its words", each
     /// level in the order the page reads it.
     func testTheListGroupsLinesUnderRegionsInReadingOrder() async throws {

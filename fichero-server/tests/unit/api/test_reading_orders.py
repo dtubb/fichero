@@ -842,3 +842,31 @@ class TestThePlaceRoute:
             "segment_id": rows[0].id, "order_id": "another", "at_end": True,
         })
         assert response.status_code == 422
+
+
+class TestSeededOrdersNest:
+    """#6425: the Order tab listed a line twice, under its region and again at the top, because the seeded
+    as-written order was flat. A line's entry sits under its region's entry, as the order model says."""
+
+    def test_a_seeded_order_puts_a_line_under_its_regions_entry(self, db):
+        doc, pass_row, rows = _page(db)
+        region = Segment(
+            document_id=doc.id, pass_id=pass_row.id, kind="region", doc_kind=f"{doc.id}:region",
+            anchor=SourceAnchor(document_id=doc.id, rect=[0.05, 0.05, 0.6, 0.6]),
+            bbox_x=0.05, bbox_y=0.05, bbox_w=0.6, bbox_h=0.6, tile="",
+            provenance_kind=ProvenanceKind.human,
+        )
+        db.save(region)
+        for row in rows[:2]:
+            row.parent_segment_id = region.id
+            db.save(row)
+
+        made = _create(db, doc, pass_row, seed_from_pass=True)
+
+        entries = {e.segment_id: e for e in db.query(ReadingOrderEntry, order_id=made["order_id"])}
+        assert entries[rows[0].id].parent_entry_id == entries[region.id].id
+        assert entries[rows[1].id].parent_entry_id == entries[region.id].id
+        assert entries[rows[2].id].parent_entry_id is None, "a line with no region stays at the top"
+        assert entries[region.id].parent_entry_id is None
+        assert _sequence(db, made["order_id"]) == [region.id, rows[2].id] or set(_sequence(db, made["order_id"])) == {region.id, rows[2].id}
+

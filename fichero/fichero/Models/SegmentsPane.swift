@@ -85,7 +85,19 @@ enum SegmentsPane {
             let children = depth < 8 ? (byParent[id] ?? []).map { row($0.id, depth: depth + 1) } : []
             return OutlineRow(segmentId: id, kind: byId[id]?.kind ?? "", children: children)
         }
-        return top.map { row($0, depth: 0) }
+        // An id whose ancestor is also in `top` is shown under that ancestor, not again beside it (#6425).
+        let held = Set(top)
+        func underHeldAncestor(_ id: String) -> Bool {
+            var cursor = byId[id]?.parentSegmentId
+            var hops = 0
+            while let parent = cursor, hops < 8 {
+                if held.contains(parent) { return true }
+                cursor = byId[parent]?.parentSegmentId
+                hops += 1
+            }
+            return false
+        }
+        return top.filter { !underHeldAncestor($0) }.map { row($0, depth: 0) }
     }
 
     static func hasChildren(_ segmentId: String, in segments: [Segment]) -> Bool {

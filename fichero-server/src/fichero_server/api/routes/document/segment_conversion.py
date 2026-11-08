@@ -646,8 +646,7 @@ def _convert_one(db: Any, artifact: Artifact) -> tuple[SegmentPass, list[Segment
     # each one by searching its siblings would be quadratic on exactly the page
     # where conversion is already the slowest thing the app does. The ORDER is
     # the same order `_segment_order_key` gives, which reads `box_index` first.
-    from fichero_server.api.routes.document.reading_orders import ensure_as_written_order
-    from fichero_server.models.reading_orders import ReadingOrderEntry
+    from fichero_server.api.routes.document.reading_orders import ensure_as_written_order, seeded_entries
 
     order = ensure_as_written_order(
         db,
@@ -655,10 +654,7 @@ def _convert_one(db: Any, artifact: Artifact) -> tuple[SegmentPass, list[Segment
         pass_id=pass_row.id,
         provenance_kind=pass_row.provenance_kind,
     )
-    db.save_many([
-        ReadingOrderEntry(order_id=order.id, segment_id=row.id, position=float(index + 1))
-        for index, row in enumerate(rows)
-    ])
+    db.save_many(seeded_entries(order.id, rows))
 
     # No `SegmentVersion` rows. Version rows are PREIMAGES -- `SegmentVersion`
     # says so itself ("no row is written at creation") and

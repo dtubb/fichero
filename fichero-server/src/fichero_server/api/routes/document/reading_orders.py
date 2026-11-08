@@ -71,6 +71,22 @@ def _live_order(db: Database, order_id: str) -> ReadingOrder:
     return row
 
 
+def seeded_entries(order_id: str, rows: list[Segment]) -> list[ReadingOrderEntry]:
+    """Entries for `rows` (already in page order): a row whose parent segment is in `rows` sits UNDER the
+    parent's entry, positions counted among its siblings. A flat seed listed a line twice in the app, under
+    its region and again at the top (#6425). A parent met after its child leaves the child at the top."""
+    made: dict[str, ReadingOrderEntry] = {}
+    counts: dict[str | None, int] = {}
+    for row in rows:
+        parent = made.get(row.parent_segment_id) if row.parent_segment_id else None
+        key = parent.id if parent else None
+        counts[key] = counts.get(key, 0) + 1
+        made[row.id] = ReadingOrderEntry(
+            order_id=order_id, segment_id=row.id, parent_entry_id=key, position=float(counts[key])
+        )
+    return list(made.values())
+
+
 def entries_in_sequence(
     db: Database, order_id: str, *, parent_entry_id: str | None = None
 ) -> list[ReadingOrderEntry]:
@@ -318,12 +334,7 @@ def _action_order_create(
         # PAGE order, imported. See the module docstring for why this module
         # holds no sort of its own.
         rows.sort(key=_segment_order_key)
-        for index, row in enumerate(rows):
-            db.save(
-                ReadingOrderEntry(
-                    order_id=order.id, segment_id=row.id, position=float(index + 1)
-                )
-            )
+        db.save_many(seeded_entries(order.id, rows))
         seeded = len(rows)
 
     spec = ChangeSpec(
