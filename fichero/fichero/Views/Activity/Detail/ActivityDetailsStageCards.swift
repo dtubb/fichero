@@ -37,7 +37,11 @@ struct ActivityDetailsStageCards: View {
             Text("What to check").font(.callout.weight(.medium))
             ForEach(card.toCheck) { row in
                 Button(row.text) { perform(.openPage(documentId: row.id)) }
+                    #if os(macOS)
                     .buttonStyle(.link)
+                    #else
+                    .buttonStyle(.borderless)  // .link is macOS only (#6390)
+                    #endif
                     .controlSize(.small)
             }
         }

@@ -91,7 +91,11 @@ struct ActivityDetailsFailedPages: View {
                 let more = details.failedCount - rows.count
                 if let store {
                     Button("Show the \(more) more") { Task { await store.loadFailedPages(jobId: details.jobId) } }
+                        #if os(macOS)
                         .buttonStyle(.link)
+                        #else
+                        .buttonStyle(.borderless)  // .link is macOS only (#6390)
+                        #endif
                         .controlSize(.small)
                         .accessibilityIdentifier("activity.details.failedPages.showAll")
                 } else {
