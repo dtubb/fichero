@@ -448,6 +448,14 @@ values alone; never a batch rewrite of a person's work.
   are the app's only holders of names and statements; built: the stores; not built: the
   Claims table and the Inspector's knowledge section reading them, the artifact store retired.
 
+
+### I. Compared on our own pages: names (#6385), then statements, coreference and links (#6386)
+
+The owner asked (2026-11-07) how Fichero should find names, relations, coreference and authority links in OCR and HTR text, and whether tuning any of it is a recipe step. The answer is measured, not argued: every candidate is scored on the project's hand-labelled check set (`kg.names.measured`, Step 1.4), separately on clean text and on HTR text with its errors, through the ONE bake-off harness (`recipes/bakeoff.py`, one comparison code path, as the reader bake-off is), its figures kept with the run; nothing is bundled before its licence is read (`source.model.licence-class`, `cards.OPEN_LICENCES`; everything the app needs ships inside); output lands only in the claims layer with provenance, reviewable and curated, never silently written (`kg.statements.grounded`, `kg.statements.review`; the readable paragraph's rulings of 2026-09-18: the unit of editing is the claim, every edit audited and training data); corrections persist and feed the fine-tune; the best LLM labels are distilled into a small tuned model (`compute/distillation.md`, recipes distil step models). spaCy stays for tokens, sentences and lemmas whatever wins at names.
+
+- `kg.compare.names-candidates-on-the-check-set` — **[GAP]** (#6385) engine. The names bake-off (`find-names-tag-words`) scores, per entity type (people, places, organisations and institutions, events; regiments and ships as organisations until the type list says otherwise), precision and recall on the project's check set, for each candidate that fits: (1) spaCy's transformer NER, stock and fine-tuned (`SpacyNERProvider`, `workflows/ner/providers.py`); (2) GLiNER zero-shot with the project's labels given at run time, then fine-tuned on a few hundred corrected spans; (3) the LLM-labelled set (local or cloud, `LLMNERProvider`) distilled into a small tagger; (4) a model trained on historical OCR-noisy text (the HIPE and Impresso lineage, a byte-level variant included); (5) NuNER or NuExtract zero-shot; (6) later, not in the comparison: entity linking to authority records (Step 7.3). Each candidate is a card with its licence class and where it runs; one whose licence is not open is measured by the by-hand script on a scratch engine and never bundled or offered. The figures are kept with the run and shown on the step card as `kg.names.measured` says, with the text class named (clean, HTR). Acceptance: on a fixture check set of ten pages with confirmed names, the harness reports precision and recall per type for every fitting candidate, twice (the clean text and the HTR text), through the one comparison path (a counting seam on `bakeoff` sees one scorer); a candidate whose card's licence is not in `OPEN_LICENCES` is in the by-hand table and absent from the step's candidates; the figures are on the run and the card.
+- `kg.compare.names-fine-tune-is-a-recipe-step` — **[GAP]** (#6385, #5536) engine and app. When a person corrects names on a page the corrections are the labelled set (`kg.names.one-canonical-set`'s resolved proposals, exported as spans with their types), a recipe step `tune-names` fine-tunes the chosen tagger on them through the one trainer (`compute.tune.one-trainer-three-places`: this Mac for spaCy on an 8 GB Mac and GLiNER's small models, Hugging Face Jobs otherwise), the tuned model is measured on the held-out check pages against the stock one and the LLM (the same scorer), and the project uses it only when it wins past the band and the person takes it (`compute.tune.not-default-until-chosen`, `compute.tune.adopted-by-the-recipe`). Offered after the threshold the path sets (a few hundred corrected spans), as `recipe-designer.md` Step 11.1 offers Teach a model. Acceptance: 300 corrected spans on a fixture project produce a training set the trainer reads; a fake trainer returns a tagger whose figures sit beside the stock and LLM figures on the step card; the project's default changes only on the person's choice; the offer appears at the threshold and not before.
+
 ## Build order
 
 ### Stage 0 — Check what is running today
@@ -590,6 +598,28 @@ values alone; never a batch rewrite of a person's work.
 - Tests: fichero-server/tests/unit/kg/test_timeline_map_rows_from_values.py, fichero/Tests/Unit/general/Views/Inspector/ParagraphUsesEngineRendererTests.swift
 - Depends on: 4.1, 3.3
 - Size: M
+
+### Stage 6 — Names compared on our own pages; the fine-tune as a recipe step (#6385)
+
+#### Step 6.1 — the names bake-off over the candidates, per type, clean and HTR, licence read first (#6385)
+- Behaviours: `kg.compare.names-candidates-on-the-check-set`
+- Tests: fichero-server/tests/unit/kg/test_spacy_ner.py, fichero-server/tests/unit/recipes/test_candidates_filtered_then_ranked_4950.py, test_names_bakeoff_candidates.py (not yet written)
+- Depends on: 1.4
+- Size: M
+
+Order: the check set gains the HTR text beside the clean text per page (the page's raw reading and its corrected one); the candidate cards (spaCy stock and tuned, GLiNER, the distilled tagger, the HIPE-lineage model, NuNER) with licence class and place; the bake-off's names scorer per type over the one path; the by-hand script for non-open candidates on a scratch engine (the Step 8.1 pattern). The decision the owner asked for is the table this step produces, read on the B12 check set first.
+
+- test (to write): `test_names_bakeoff_candidates.py` in fichero-server/tests/unit/recipes/ (per-type precision and recall for each fitting candidate, clean and HTR; one scorer; the non-open candidate absent from the step and present in the by-hand table; figures on the run and the card)
+
+#### Step 6.2 — `tune-names`: corrections are the labelled set, the tagger fine-tunes through the one trainer, measured against stock and the LLM, adopted only when taken (#6385, #5536)
+- Behaviours: `kg.compare.names-fine-tune-is-a-recipe-step`
+- Tests: fichero-server/tests/unit/training/test_adopt_past_the_noise_band_5700.py, test_tune_names_step.py (not yet written)
+- Depends on: 6.1
+- Size: M
+
+Order: the span export from resolved proposals; the `tune-names` job on the one trainer (spaCy here on 8 GB, GLiNER small here, else Hugging Face); the measure beside stock and LLM; the offer at the threshold through Teach a model's page. The spaCy trainer #5536 names is this step.
+
+- test (to write): `test_tune_names_step.py` in fichero-server/tests/unit/training/ (the span set from 300 corrections; the fake trainer's tagger measured beside the other two; the default unchanged until taken; the offer at the threshold)
 
 ## Test matrix (legs this surface touches)
 
