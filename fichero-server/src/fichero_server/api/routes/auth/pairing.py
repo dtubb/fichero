@@ -740,8 +740,8 @@ def detected_tailnet(
 
 
 def _register_link_library(package: str) -> bool:
-    """Put the project a link was minted for on this Mac's known-library list if it is not there. Best effort: a registry
-    that cannot be written never fails a pairing that already succeeded. False (logged) when it could not be written."""
+    """Put the project a link was minted for on this Mac's known-library list if it is not there. False (logged) when it
+    could not be written: the redeem then refuses with a 503 before anything is made (`pair_device`)."""
     from fichero_server.api.routes.library.registry import get_global_database  # lazy: routes import each other
     from fichero_server.models import KnownLibrary
 
@@ -749,7 +749,7 @@ def _register_link_library(package: str) -> bool:
         registry = get_global_database()
         if not registry.query(KnownLibrary, path=package):
             registry.save(KnownLibrary(path=package, name=Path(package).name))
-    except Exception:  # noqa: BLE001 -- see the docstring
+    except Exception as exc:
         logger.warning("Could not register %s for a paired device", package, exc_info=True)
         return False
     return True
@@ -1047,6 +1047,13 @@ def pair_device(
                 raise HTTPException(status_code=401, detail="invalid or expired pairing code")
             user_id = user.id
 
+        for package in [p for p in (record.library, *record.also_libraries) if p]:
+            # The host's list of what a device may open names the project the link was minted for, even when it was never
+            # put in the registry (a project the app made on first run): else the guest is told it was not given it.
+            if not _register_link_library(package):
+                raise HTTPException(
+                    status_code=503, detail="this Mac could not record the shared project; try the link again",
+                )
         raw_token = accounts.new_session_token()
         device = app_db.create_device(
             name=name,
@@ -1060,9 +1067,6 @@ def pair_device(
         record.used = True
         _PAIRING_CODES.pop(code, None)
         for package in [p for p in (record.library, *record.also_libraries) if p]:
-            # The host's list of what a device may open names the project the link was minted for, even when it was never
-            # put in the registry (a project the app made on first run): else the guest is told it was not given it.
-            _register_link_library(package)
             owner = app_db.get_user(user_id)
             if owner is not None and owner.is_owner and app_db.get_library_role(owner.id, package) is None:
                 # The owner owns the project they minted a link for: a device that is theirs must reach it, whether or not
