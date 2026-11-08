@@ -34,7 +34,12 @@ At the PAGE level the same rows count the page's segments per level ("Modernised
 
 The readings list, the choice, `representation.create` with a level, the Normalise step and its run titles, the selection-scoped start, the Compare component and the shared window state all exist. The one contract addition is the compare answer's `levels` sides; everything else is wording and layout. Tests: `tests/unit/api/test_reading_levels.py` (existing) extended for the compare sides and the editor's level; `InspectorLevelsTests.swift`, `ShownLevelTests.swift` (new, pure).
 
-## 5. Open for the owner
+## 5. Answered by the owner (2026-11-08 13:10)
+
+1. as_written is the DEFAULT working text, not always: the person compares levels and changes which level is the working text; the next step reads the working text. The levels are shown side by side: working text | normalised or modernised | translation.
+2. Chords: yes, for the level actions, proposed and checked by the menus uniqueness rule.
+
+The questions as asked:
 
 1. Is as_written always the working text, or does "Into what" with a single level make that level the working text for Names and Dates? Recommended: as_written stays the working text unless the recipe says otherwise, and the step line shows it either way.
 2. Chords: ⌥⌘↑/↓ to step through levels, or none (menu only)? Recommended: none at first; the menu and the Inspector badge suffice.
