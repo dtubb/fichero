@@ -96,9 +96,8 @@ struct SetupStageSamples: View {
     private func compareWindow(_ page: ComparedPage) -> some View {
         StageCompareWindow(pageId: page.id, name: store.name(of: page.id),
                            candidates: store.result?.candidates ?? [], useThis: useThis,
-                           readers: FeatureManager.shared.isWideSetUpEnabled
-                               ? CompareReadersStore(client: store.client, pageId: page.id, tryStage: store.stageId,
-                                                     platform: .of(compactWidth: sizeClass == .compact)) : nil)
+                           readers: CompareReadersStore(client: store.client, pageId: page.id, tryStage: store.stageId,
+                                                        platform: .of(compactWidth: sizeClass == .compact)))
     }
 
     private func pageReading(_ page: SetupStageTryResult.Page) -> some View {
@@ -118,9 +117,10 @@ struct SetupStageSamples: View {
     /// Compare, at two models and not at one: the one door to the compare view from a stage page (`wide.compare.one-view-from-the-pager`).
     @ViewBuilder
     private func compareDoor(_ result: SetupStageTryResult, models: Int) -> some View {
-        if FeatureManager.shared.isWideSetUpEnabled, StageCompareDoor.showsCompare(candidates: models),
+        // Out of the wideSetUp flag: it fixes an owner-reported defect (#5727).
+        if StageCompareDoor.showsCompare(candidates: models),
            let first = (result.pages ?? store.samples.map(\.id)).first {
-            Button("Compare") { comparing = ComparedPage(id: first) }
+            Button("See the Readings") { comparing = ComparedPage(id: first) }
                 .accessibilityIdentifier("setup.stage.compare")
         }
     }

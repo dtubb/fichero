@@ -95,7 +95,7 @@ struct CompareReadersView: View {
                 }
                 .allowsHitTesting(false)
             }
-            .frame(maxHeight: 280)
+            .frame(maxHeight: 460)  // grows with the Set Up window (#5727); was 280
             .accessibilityHidden(true)
     }
 
