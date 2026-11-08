@@ -45,6 +45,13 @@ struct PairingFailureWordsTests {
         #expect(PairingFailure.unexpected.step == PairingFailure.noAnswer.step)
     }
 
+    @Test func aKeyMismatchOnATailscaleAddressNamesTheWebProxy() {
+        let tailnet = PairingFailure.Context(host: "studio.tail1234.ts.net")
+        #expect(PairingFailure.certificatePin.sentence(tailnet).contains("Tailscale web proxy"))
+        #expect(!PairingFailure.certificatePin.sentence(context).contains("Tailscale web proxy"))  // a .local host: no such hint
+        #expect(PairingAddressTry.reason(.unexpected, url: "https://x.local:8765") != "it could not be reached")
+    }
+
     @Test func aTailnetNumberFailsInItsOwnWords() {
         #expect(PairingFailure.from(urlErrorCode: -1200, host: "100.64.0.1") == .tailnetByNumber)
         #expect(PairingFailure.tailnetByNumber.sentence(context).contains("by name, not by number"))

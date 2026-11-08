@@ -213,10 +213,10 @@ struct MacRemoteClientPairingSection: View {
                 makesAppHost: switchesWholeMac
             )
             guard switchesWholeMac else {
-                libraryManager.pairedMachines = PairedMachineStore.load()
                 // The host's whole list for this device now, not at the next launch: its row shows every project it shares.
-                await libraryManager.checkSharedRows()
-                onConnected()
+                await ConnectSheetModel.finishConnect(
+                    reload: { libraryManager.pairedMachines = PairedMachineStore.load() },
+                    readHostList: { await libraryManager.checkSharedRows() }, close: onConnected)
                 return
             }
             // The one procedure that changes the engine host (stop, write, repoint, start, check, roll back) is shared

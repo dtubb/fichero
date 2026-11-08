@@ -71,7 +71,7 @@ enum PairingFailure: CaseIterable, Equatable, Error {
             return "\(host) didn't answer in 5 seconds. Is Fichero open on \(host), and is Sharing on? "
                 + "(If you are on a campus or hotel network, it may keep devices apart: use Tailscale.)"
         case .unexpected:
-            return "\(host) was reached, but the reply was not one Fichero expected. Try again; if it happens again, "
+            return "Fichero could not finish connecting to \(host), and not for a reason it knows. Try again; if it happens again, "
                 + "use Copy Details and send it to the person who runs Fichero on \(host)."
         case .refused:
             return "\(host) is on, but Fichero isn't listening there: turn Sharing off and on."

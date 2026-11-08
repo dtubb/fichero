@@ -55,4 +55,12 @@ struct ConnectRoutingTests {
         #expect(!SharingSettingsView.startsOnDevices(tab: .users, pendingInvite: nil))
         #expect(!SharingSettingsView.startsOnDevices(tab: .users, pendingInvite: ""))
     }
+
+    @MainActor @Test("a connect that worked reloads the hosts, reads the host's list, then closes once (#6432, #6433)")
+    func finishesInOrderAndClosesOnce() async {
+        var steps: [String] = []
+        await Model.finishConnect(
+            reload: { steps.append("reload") }, readHostList: { steps.append("read") }, close: { steps.append("close") })
+        #expect(steps == ["reload", "read", "close"])
+    }
 }

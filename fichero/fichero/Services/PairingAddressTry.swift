@@ -94,6 +94,7 @@ enum PairingAddressTry {
         case .offline?: return "this device isn't connected to a network"
         case .certificatePin?, .certificateName?: return "it showed a different security key than the link"
         case .tailnetByNumber?: return "Tailscale addresses work by name, not by number"
+        case .unexpected?: return "something went wrong that Fichero does not know (see Copy Details)"
         case nil: return "answered"
         default: return "it could not be reached"
         }
