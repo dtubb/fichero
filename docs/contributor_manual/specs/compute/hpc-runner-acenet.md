@@ -187,6 +187,59 @@ vLLM offline inference, `resume_from_checkpoint` with `--requeue` for training, 
 - `compute.hpc.slurm-target-behind-read-at-scale` — **[PARTIAL]** (#5457, #5238) the loop runs unchanged against `SlurmReadTarget` over a fake login shell (`test_the_same_loop_reads_on_a_cluster`); not yet against a real cluster or Slurm-in-Docker. A `SlurmTarget` implements the read-at-scale target interface; the loop's package, shard, submit, poll, fetch, land and resend steps run unchanged against it. *Test:* the read-at-scale loop against Slurm-in-Docker lands its pages as a pass.
 
 
+## Build order (written 2026-11-07 for milestone 6, ACENet: step 4 of `compute/recipe-steps-at-scale.md`'s Order of work; after milestone 5, HF)
+
+The slice: `SlurmReadTarget` submits one array per recipe stage, nothing heavy touches a login node, the whole flow is rehearsed on a local Slurm container before a real cluster, and Activity shows the far side as one row. Real cluster runs (one 500-page batch on ACENet) come only after Step 1.2's rehearsal passes; nothing here is for the Monday build.
+
+### Stage 1 — the array per stage, the rehearsal, the far side shown
+
+#### Step 1.1 — one Slurm array per recipe stage: the stage of the scale spec on `SlurmReadTarget`, sized to the walltime, shards not files (#5642, #5457, #5566)
+- Behaviours: `compute.hpc.submit-array`, `compute.hpc.slurm-target-behind-read-at-scale`, `compute.hpc.batches-fit-the-walltime`, `compute.hpc.stage-as-shards`, `compute.hpc.shards-not-files`
+- Tests: fichero-server/tests/unit/remote_read/test_read_at_scale_job.py, fichero-server/tests/unit/remote_read/test_read_on_slurm.py, fichero-server/tests/unit/remote_read/test_read_package.py, fichero-server/tests/unit/remote_read/test_sizing.py, test_slurm_array_per_stage.py (not yet written)
+- Size: M
+
+Built: a read on a cluster is ONE array for every shard still to send (`SlurmReadTarget.submit_all`, `--array=0-K%N`), a re-send of failed shards an array of only those, Stop one `scancel`; the loop runs unchanged over a fake login shell; `size_run` sizes a batch to the shorter walltime class with a 20 % margin; pages travel downscaled as one tar per shard; `describe_slurm_read` names the allocation, a typed GPU, the warning signal and `--requeue` (`compute.hpc.sbatch-fits-the-site`, OK). Left: the array submitted PER STAGE of the scale spec (a batch's same-place steps as one stage, `compute.recipe.fuse-same-place-steps`; the sbatch default run-task script path retired for the one runner, `compute.job.one-runner-line-cut`); the allocation and walltime signal per step from the site profile; the login-node prefetch gone (the IIIF pages fetched on this Mac before the send, as today, and the upload by Globus or SFTP, Step 1.2); per-batch result tars coming back instead of one PAGE XML per page; the cluster's own queue limit (`%M`) when lower than two batches in flight (ruling 2 of the scale spec). Acceptance (fake login shell, no cluster): a recipe of two stages over 1,000 pages placed on the cluster submits two arrays, one per stage, the second's tasks depending on the first's landing; the array's `%N` is the site profile's limit when it is under two; a failed task's re-send is an array of that task alone; each task's results come back as one tar and land through the PAGE import once; the sbatch of each stage names the step's allocation and signal from the profile.
+
+- test (to write): `test_slurm_array_per_stage.py` in fichero-server/tests/unit/remote_read/ (two arrays for two stages with the dependency; `%M` from the profile; the per-task tar landing once; the per-step allocation and signal)
+
+#### Step 1.2 — the rehearsal: Slurm in Docker in CI, the worker image on a paid GPU, a rented Slurm and Apptainer machine; nothing heavy on a login node; a site profile (#5642, #5241)
+- Behaviours: `compute.hpc.rehearsed-before-a-cluster`, `compute.hpc.slim-worker-image`, `compute.hpc.nothing-heavy-on-a-login-node`, `compute.hpc.site-profiles`
+- Tests: fichero-server/tests/unit/remote_read/test_slurm_target.py, test_slurm_in_docker_rehearsal.py (not yet written)
+- Depends on: 1.1
+- Size: M
+
+Built: the worker image (`fichero-server/docker/worker.Dockerfile`, amd64, the runner's PEP 723 dependencies, no MLX, built and published by CI); a package's IIIF pages fetched on this Mac and travelling in it; `SshShell` over the system `ssh` with one ControlMaster connection. Left, the three layers cheapest first: (1) a Slurm-in-Docker rehearsal in CI (`fichero-server/tests/integration/slurm/`, a `docker compose` of one controller and two compute containers with Apptainer, outbound internet blocked on the compute side) running the runner's whole array flow: submit, `sacct` states, a timeout, a requeue, a failed task re-sent alone; free, never on the M4; (2) the worker image on a paid GPU (Hugging Face Jobs, already used for the LoRA) proving the image, vLLM offline inference and pages per second; (3) a rented Slurm and Apptainer machine for the whole flow before any real cluster; the image pulled once onto `/project` from a data-transfer node or uploaded from the Mac, the weights by Globus, never through a login node and never inside a job; a site profile (scheduler, container runtime, unattended-access mode, transfer, allocation, GPU types, walltime classes, compute-node internet) read by every step above, nothing ACENet-only. Acceptance: the CI rehearsal passes the seven flows named above against the containers; the profile for the rehearsal machine and the one for ACENet differ only in their fields, the code reading both; the run's description names no login-node step and the upload goes by the profile's transfer; the paid-GPU run reports pages per second into `size_run`'s measured rate.
+
+- test (to write): `test_slurm_in_docker_rehearsal.py` in fichero-server/tests/integration/slurm/ (the seven flows against the containers; skipped where Docker is absent, never silently green)
+
+#### Step 1.3 — Activity shows the far side: one row from one `sacct` call, failures in words per task, results exactly once, a long job resumes (#5642, #5457, #5240)
+- Behaviours: `compute.hpc.status-from-sacct`, `compute.hpc.failure-states-in-words`, `compute.hpc.results-exactly-once`, `compute.hpc.resume-long-training`
+- Tests: fichero-server/tests/unit/remote_read/test_slurm_target.py, fichero-server/tests/unit/training/test_resumable_training.py, test_far_side_in_activity.py (not yet written)
+- Depends on: 1.1
+- Size: M
+
+Built: one `sacct` call for the whole array read into the row's words; TIMEOUT, OUT_OF_MEMORY, NODE_FAIL, PREEMPTED, FAILED and CANCELLED said in words; the resumable wrapper with a stub trainer. Left: the poll every few minutes at `compute.job.poll-is-gentle`'s interval while the app is open, picked up on reopen; ONE Activity row for the run ("Reading on <cluster>: 7 of 12 tasks done, 2 running, 1 waiting in the queue, 2 failed · 3,400 of 6,000 pages", the Activity spec's `activity.lane.scale-out-batches-and-result-files` names the same row), a failed task failing only ITS pages with the reason in words and retried once by itself (NODE_FAIL and PREEMPTED requeued, OUT_OF_MEMORY with a half-size slice, TIMEOUT resumed, a task failing twice set aside); results folding in exactly once with job, node, model and image digest even when downloaded twice or resubmitted; the resumable wrapper wired to the real trainers so a long job re-queues under the same id. Acceptance (fake shell): an array of 12 tasks with the states above gives exactly the row sentence quoted; a task that fails OUT_OF_MEMORY is resubmitted alone at half size and its pages alone are marked; downloading one task's tar twice lands its pages once; a job killed at the warning signal continues as the same id with "running (part 2)"; closing and reopening the app resumes the poll and the row.
+
+- test (to write): `test_far_side_in_activity.py` in fichero-server/tests/unit/remote_read/ (the row sentence; per-task failure and retry; exactly-once landing; resume on reopen)
+
+#### Step 1.4 — set up once and plan before send: the key, Test Connection, the plan in words, the MFA modes (#5642)
+- Behaviours: `compute.hpc.key-once`, `compute.hpc.test-connection`, `compute.hpc.plan-before-send`, `compute.hpc.mfa-modes`
+- Tests: fichero-server/tests/unit/remote_read/test_cluster_check.py, test_cluster_setup_and_plan.py (not yet written)
+- Depends on: 1.2
+- Size: M
+
+Built: the live cluster check with each step passed, failed with its reason, or not tried (`remote_read/cluster_check.py`); `dry-run-submit` (`api/routes/ai/hpc.py`), one array index per input FILE (right for a workflow run, wrong for a page read). Left: Fichero makes the key (the public half pasted into CCDB once, the private half in the engine's own key folder, mode 0700, never the Keychain or `~/.ssh`); Test Connection checks the folder, Apptainer, the allocation and the GPU driver against the image's CUDA and stages the image; the plan before send in words (pages, model, GPUs, GPU hours, time, that pages leave the Mac, asked once per project as egress is), the dry run building one index per BATCH for a page read; one MFA push per session before automation-node access, the run attended while the session lasts and watching stopping in words when it lapses. Acceptance: the key is made and the public half shown once, no `~/.ssh` read; the check names each failed step; the plan for 6,000 pages names its six figures and refuses until agreed; a lapsed session marks the run "watching stopped: sign in again" and nothing is sent.
+
+- test (to write): `test_cluster_setup_and_plan.py` in fichero-server/tests/unit/remote_read/ (the key's folder and mode; the check's steps; the plan's six figures and the gate; the MFA lapse)
+
+#### Step 1.5 — IIIF at a million pages, the vLLM offline reader inside the task, the target's second factor (#5642, #5566, #5457)
+- Behaviours: `compute.hpc.iiif-at-scale`, `compute.hpc.vllm-offline-reader`, `compute.hpc.slurm-target`
+- Tests: fichero-server/tests/unit/remote_read/test_reading_at_scale.py, fichero-server/tests/unit/remote_read/test_vllm_reader.py, fichero-server/tests/unit/remote_read/test_slurm_target.py
+- Depends on: 1.3
+- Size: M
+
+Built: `vllm_reader` with `ReadStep.engine` against a fake `vllm`; reading at scale with fakes at 10,000 pages and 1,000 IIIF canvases; `SlurmTarget` over the `Shell` seam. Left: a million-page IIIF run fetching politely at reader size off the login nodes, keeping references, starting with a measured pilot of about 20 pages; tensor-parallel across the job's GPUs when the step names it; the second factor passed through the app where ssh asks, and the engine-held key. Acceptance (fakes): a 1,000,000-canvas plan starts with the pilot and sizes the rest from its rate; the fetcher never exceeds the manifest's polite rate; a step naming two GPUs runs vLLM tensor-parallel in one task; a second-factor prompt from ssh reaches the app and the answer reaches ssh.
+
 ## Test matrix
 
 | Leg | This surface? | Pins | File |
