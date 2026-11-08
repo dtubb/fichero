@@ -28,6 +28,7 @@ READ_ONLY_MUTATING_VERB_ALLOWLIST: dict[str, str] = {
     "kg/sparql.py:sparql_query_legacy:POST": "Deprecated read-only alias that delegates to sparql_query; same RDF-query-only behavior.",
     "system/locations.py:resolve_location:POST": "POST carries a typed navigation anchor; handler validates and resolves document/page identity without persisting state (#3576).",
     "document/dataset.py:dataset_query:POST": "POST body carries the query shapes (filters/sort/bins/facets); handler is a read-only SELECT via db.dataset_query plus prototype-defaults resolution — persists nothing.",
+    "system/activity.py:post_job_bug_report:POST": "POST builds a bug report for a job and answers with it; builds and sends nothing (#6354).",
     "search/core.py:enhanced_search:POST": "POST /api/search is read-only search/query compute.",
     "workflow_execution/core.py:dry_run_workflow:POST": "POST carries the whole workflow and its inputs; the dry run asks the checks /execute makes, starts no run, calls no model and writes nothing (workflows.canvas.dry-run, #4370).",
     "search/explain.py:explain_search:POST": "POST body contains explanation request; handler only reads search inputs and returns attribution.",
