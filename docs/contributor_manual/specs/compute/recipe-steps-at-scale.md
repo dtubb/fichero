@@ -241,6 +241,42 @@ twelve hours or costs more than its estimate.
   `fichero-server/tests/unit/remote_read/test_cloud_batch_job.py`) a provider batch's wait, counts and billed cost land
   with its results; a batch past twelve hours or over its estimate logs one line.
 
+## Build order (written 2026-11-07 for milestone 5, HF; the Order of work above is its source)
+
+The slice's acceptance, end to end (the manager for the owner, 2026-11-07): a sample is labelled with a cloud model (Gemini), a small model is distilled on Hugging Face Jobs from those labels (`compute/distillation.md` Stage 1), and the rest of the corpus runs on the distilled model here or on Hugging Face through the steps below; a model pass is never rerun, its results are reused (`activity.read.page-read-once`). Hugging Face does two things and nothing else in this milestone (ruling 3: Jobs only): it runs a whole workflow or any single step remotely, and it fine-tunes (`compute/jobs-and-fine-tuning.md` Stage 1). The first targets are distilling Kraken and training a YOLO detector on EDITED (enhanced) images; then the flow above. Milestone 6 (ACENet, step 4 of the Order of work) is `compute/hpc-runner-acenet.md`'s build order, written as the next batch, and nothing here waits on it.
+
+### Stage 1 — the shared multi-step stage, the cloud batch, Hugging Face Jobs
+
+#### Step 1.1 — the shared multi-step stage: a batch's same-place steps as one stage, done is landed, Stop keeps what landed (#5642, #6127)
+- Behaviours: `compute.recipe.done-is-landed`, `compute.recipe.stop-keeps-what-landed`, `compute.recipe.folder-shows-steps-done`, `compute.recipe.task-compute-record-landed`
+- Tests: fichero-server/tests/unit/remote_read/test_recipe_steps_at_scale.py, fichero-server/tests/unit/remote_read/test_read_at_scale_job.py
+- Size: M
+
+Built: `run_shard` runs the stage's steps per page in order with a result file per step (`compute.recipe.fuse-same-place-steps`, OK); the done state is worked out as it runs (`split_done`); a resumed recipe adopts the read still out (`job.out_under`). Left: the plan (batches, stages, places) stored on the row at start; Stop cancelling queued and running tasks while keeping and landing what arrives after it, Pause submitting nothing new; the folder's steps-done counting a remote stage's landed tasks; each task's per-page compute record landing with its results and feeding the slow-path lines. Acceptance: on this Mac with the local place standing in for a remote one, a two-step stage (lines, read) over a 3-page fake folder lands two result files per page and the folder's steps-done reads both; a Stop at the second page keeps page 1 landed, lands page 2's late result and marks page 3 unsent; a resume after a kill replans from the done state and sends no landed page; each task's record (seconds, pages, place) is on the run's slow-path lines.
+
+- test (to write): the cases above in `test_recipe_steps_at_scale.py` (the same file, as the bullets say)
+
+#### Step 1.2 — the cloud batch wired into the recipe runner: threshold, adopt by id, retry failed lines only, Stop, consent and the cap (#5940, #6127, #5946)
+- Behaviours: `compute.recipe.cloud-batch-above-threshold`, `compute.recipe.cloud-batch-adopted-by-id`, `compute.recipe.cloud-batch-retries-failed-requests-only`, `compute.recipe.cloud-batch-stop-cancels`, `compute.recipe.cloud-batch-consent-and-cost`
+- Tests: fichero-server/tests/unit/remote_read/test_cloud_batch_job.py, fichero-server/tests/unit/llm/test_provider_batches.py
+- Depends on: 1.1
+- Size: M
+
+Built: one client per API shape over each provider's SDK against a fake of it (`llm/provider_batch.py`), the plan placing a cloud read of 100 pages or more as `batch`, `cloud_batch.run_step` queueing and replaying, ids saved and adopted, answered lines kept, `request_cancel`, consent and the cap's hold and booking. Left: the retry of failed lines alone and the Stop path wired into the recipe runner (today both exist in `cloud_batch` and are not reached from `runner.py`); the one sheet showing the batch's half price beside the plain-call and local estimates; a real run (one 500-page batch per provider on a project that allows cloud, then a weekend's 10,000 pages, the slow-path record read afterwards: the measured threshold replaces the guessed 100 by ruling 4). Acceptance: a recipe run of 120 pages on a cloud model that nobody waits on goes as one batch per recipe batch and 80 pages go as plain calls; a kill and resume adopts the open batch by id and resubmits nothing; a batch with 3 failed lines of 500 lands 497 and resends 3 alone; Stop cancels, polls to the end, lands the answered lines and then reads Stopped; a batch that would pass the project cap is not sent and the sheet says so with the three figures.
+
+- test (to write): the runner-wired cases in `test_cloud_batch_job.py` (the same file); the sheet's three figures in `fichero-server/tests/unit/recipes/test_cap_refusal_offers_the_fix_6295.py`'s shape
+
+#### Step 1.3 — Hugging Face Jobs: the stage of 1.1 on `HfJobsTarget`, batches pipelined two in flight, any step placed there from the chooser (#6173, #5398, #5717, #5976)
+- Behaviours: `compute.recipe.step-major-batches-pipelined`
+- Tests: fichero-server/tests/unit/remote_read/test_batches_pipelined.py, fichero-server/tests/unit/recipes/test_recipe_remote_placement.py, fichero-server/tests/unit/recipes/test_find_remote_models_5717.py, fichero-server/tests/unit/training/test_hf_jobs_target.py
+- Depends on: 1.1
+- Size: M
+
+Built: `HfJobsTarget` (send, submit, statuses, fetch_part, cancel; `training/hf_jobs.py`); reading at scale on Hugging Face Jobs as one job row of many shards (`remote_read/job.py`); the next batch's first step sent ahead when placed on a cluster or Hugging Face, two reads in flight per place (`remote_read/pipeline.py`); the runner's `_send_at_scale` gated on `places.may_leave_to(..., "huggingface")` and the monthly cap; a step placed on Hugging Face (`source.recipe.step-runs-on-huggingface`, PARTIAL, `test_recipe_remote_placement.py`); remote cards in the finder saying where they run (`source.find.models-that-run-remotely`, PARTIAL). Left: a later step sent ahead once its inputs have landed; the cluster's own queue limit when lower than two (ruling 2); ANY step choosable for Hugging Face from the shared chooser's "where it runs" (this Mac, Hugging Face, cluster, cloud model, with cost and time; #6168's chooser, `recipe-designer.md` Step 16.1), find-lines and read-a-line first, a folder runnable this way from its menu (#6170); every candidate naming where it runs (#5976); a real run, one 500-page batch, then 5,000. Acceptance: with a fake Hub, a recipe over 1,000 pages placed on Hugging Face for find-lines and read-a-line runs as one stage per batch with two batches in flight, the second's first step sent ahead and adopted on its turn, results landing as page readings through the PAGE import, pages leaving only while the project allows; choosing Hugging Face for a step in the chooser writes `place: huggingface-jobs` on that step and the plan prices it; a folder's menu offers the same run; a Kraken card and a vision model each name the places they can run.
+
+- test (to write): `test_recipe_steps_on_hf_end_to_end.py` in fichero-server/tests/unit/remote_read/ (the 1,000-page fake run; two in flight; adopt on turn; landing; the places gate)
+- test (to write): the chooser's place column and the folder menu in `fichero-server/tests/unit/recipes/test_recipe_remote_placement.py` (the same file)
+
 ## Test matrix
 
 | Leg | This surface? | Pins | File |

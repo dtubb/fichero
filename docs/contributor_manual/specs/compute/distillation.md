@@ -484,6 +484,39 @@ run at setup, before the recipe is fixed:
 Filled at approval, from the surfaces this spec settles (see Open questions). Listed here as
 missing so the gap is visible: none of the four is written yet. [MISSING]
 
+## Build order (written 2026-11-07 for milestone 5, HF: the distil half; the cascade, drift and licence lines are placed when their milestone is cut)
+
+### Stage 1 — label with a cloud model, distil Kraken on Hugging Face Jobs, run the rest on the student, never rerun a pass
+
+#### Step 1.1 — the teacher labels the sample: a cloud model reads Kraken's lines, the sample covers the scope, the set keeps check levels (#5398, #5337, #5404)
+- Behaviours: `distill.collect.teacher-reads-the-lines`, `distill.collect.sample-covers-scope`, `distill.scale.check-trust-levels`, `distill.set.keeps-reasons`
+- Tests: fichero-server/tests/unit/training/test_kraken_training_set.py, fichero-server/tests/unit/training/test_line_pairs.py, test_teacher_labels_the_sample.py (not yet written)
+- Size: M
+
+Built: Transcribe in Kraken mode with `lines_read_by: "model"` (Kraken finds each line, the run's vision model reads each line's crop; the pass keeps Kraken's geometry, so its PAGE export is a training set); the Kraken set writer (`training/kraken_set.py`). Left: the sample chosen to cover the scope (hands, periods, folders, as the project's answers name them) not the first N pages; each page's check level (person, model checker, unchecked teacher) recorded on the set and on a held-out set; the reasons kept beside the readings where the teacher gave them. Acceptance: a Gemini teacher (a fake) labels a 60-page sample drawn across three folders and two hands; the set names each page's level `teacher` and a corrected page's `person`; the held-out part is one in five and never trained on.
+
+- test (to write): `test_teacher_labels_the_sample.py` in fichero-server/tests/unit/training/ (the sample's coverage; the levels; the held-out split)
+
+#### Step 1.2 — distil Kraken on Hugging Face Jobs from the labels, the student measured against people and adopted within the bar (#5337, #5240, #5404)
+- Behaviours: `distill.job.any-model-job`, `distill.train.card-names-teacher`, `distill.measure.against-people`, `distill.adopt.within-bar`, `distill.scale.local-first-then-remote`
+- Tests: fichero-server/tests/unit/training/test_hf_jobs_target.py, fichero-server/tests/unit/training/test_adopt_past_the_noise_band_5700.py, test_distil_kraken_on_hf.py (not yet written)
+- Depends on: 1.1
+- Size: M
+
+Built: the Hugging Face target and the Kraken trainer in the Job (`compute/jobs-and-fine-tuning.md` Step 1.1); adoption past the project's noise band. Left: the distil job as a kind any model job can take, Kraken first (the student's card names its teacher, set, place and scores); the student measured on the held-out checked pages against PEOPLE's readings (a model-checked reference saying so); adoption within the bar the project sets; the same recipe that read the sample here reading the whole archive on Hugging Face, sharded, resending only failed shards, landing idempotently, the student landing in a portable form and MLX inside its project. Acceptance: from Step 1.1's set a fake Job returns a Kraken student whose card names Gemini as teacher; its held-out CER against the person-checked pages is on the card with the band; one past the band is adopted as the step's card, one inside is not and says so; the archive's remaining 940 pages run on the student through Step 1.3 of the scale spec with two batches in flight.
+
+- test (to write): `test_distil_kraken_on_hf.py` in fichero-server/tests/unit/training/ (the job kind; the card's teacher; the measure against people; adopt within the bar; the rest of the corpus on the student)
+
+#### Step 1.3 — nothing is read twice: a model pass is reused, the rounds stop on evidence, the student runs local (#5404, #5240, #5397)
+- Behaviours: `distill.scale.rounds-stop-on-evidence`, `distill.runs-local`, `distill.scale.everyday-corrections-are-data`, `distill.scale.iiif-by-reference`
+- Tests: fichero-server/tests/unit/remote_read/test_reading_at_scale.py, fichero-server/tests/unit/training/test_copied_pages_train_5699.py, test_distil_rounds_and_reuse.py (not yet written)
+- Depends on: 1.2
+- Size: M
+
+Built: reading at scale lands idempotently (`compute.land.idempotent`); a page is read once (`activity.read.page-read-once`, the standing rule: same input and same model reuse the result). Left: a distil round reuses every teacher reading and every student reading already landed (a second round labels only the new sample pages and measures only new held-out pages); the rounds stop when the held-out gain is inside the band for two rounds or the budget is spent, saying which; the adopted student runs on the person's Macs through Kraken on the background lane with its speed and peak memory measured there; everyday corrections join the next set; IIIF pages travel by reference. Acceptance: a second round on the same project sends no page the teacher read already and measures no held-out page twice (a counting fake sees 0 repeats); two rounds inside the band stop with "no gain past the band"; the student reads a page here with its seconds and peak recorded; a person's correction made after round one is in round two's set.
+
+- test (to write): `test_distil_rounds_and_reuse.py` in fichero-server/tests/unit/training/ (zero repeats; the stop rule; the local run's figures; the correction in the next set)
+
 ## Test matrix
 
 To be filled at approval. The fixtures are real corrected pages from the test corpus, with a tiny

@@ -843,6 +843,57 @@ needs them.
 - `compute.tune.start` — **[GAP]** (#5240) `compute.tune.recipe`, `compute.tune.base-model`
 - `compute.publish.start` — **[GAP]** (#5240) `compute.publish.visibility.<private|gated|public>`
 
+## Build order (written 2026-11-07 for milestone 5, HF: the fine-tune half; Jobs, Engines and Publishing are placed in later stages when their milestone is cut)
+
+### Stage 1 — fine-tune on Hugging Face Jobs: one trainer, Kraken and YOLO on edited images, the model back as a card the recipe adopts
+
+#### Step 1.1 — one trainer in three places, proven on Hugging Face first, the token checked first (#5119, #5397, #5398)
+- Behaviours: `compute.tune.one-trainer-three-places`, `compute.tune.proven-on-huggingface-first`, `compute.tune.where-cheapest-first`
+- Tests: fichero-server/tests/unit/training/test_hf_jobs_target.py, fichero-server/tests/unit/training/test_hf_training_preflight_to_spec.py, test_hf_trainer_in_the_image.py (not yet written)
+- Size: M
+
+Built: Hugging Face Jobs as a place to train (`training/hf_jobs.py`: a private bucket of the person's account, the Job runs `hf_kraken_train.py` from the mounted bucket, the token passed to the client and nowhere else, an explicit time limit and the hardware price read first; `compute.tune.hf-token-checked-first` OK); Kraken training on this Mac (`training/local.py`, `POST /api/training/kraken/here`). Left: the `train-a-model` job as ONE code path wherever it runs (the engine's process here; the image's "run a package" mode on Hugging Face or a cluster) giving the same model, log and scores from the same set; the proof record on the recipe after two Hugging Face runs land within the noise band of each other; the place chosen cheapest-first (this Mac when the card's measured memory fits beside the resident embedder, else Hugging Face, else the cluster). Acceptance: the same training set run here (stub trainer) and through the fake Job gives byte-identical logs apart from timings and the same held-out CER; a recipe with two Hugging Face runs within the band carries the proof record (dates, image digest, hardware, CER) and one without is offered to a cluster as "not yet proven on Hugging Face"; a card whose memory fits this Mac trains here and one that does not goes to Hugging Face, each saying why.
+
+- test (to write): `test_hf_trainer_in_the_image.py` in fichero-server/tests/unit/training/ (one path two places; the proof record; cheapest first with reasons)
+
+#### Step 1.2 — Kraken recognition with held-out scores, Kraken segmentation, YOLO on EDITED images (#4621, #5240, #5397, #6296)
+- Behaviours: `compute.tune.kraken-recognition`, `compute.tune.kraken-segmentation`, `compute.tune.yolo-layout`, `compute.tune.set-excludes-flagged-lines`
+- Tests: fichero-server/tests/unit/training/test_kraken_training_set.py, fichero-server/tests/unit/training/test_set_excludes_flagged_lines.py, fichero-server/tests/unit/training/test_yolo_regions_training.py, test_yolo_trains_on_edited_images.py (not yet written)
+- Depends on: 1.1
+- Size: M
+
+Built: `ketos train -f page -q early` from a base reader card on Hugging Face Jobs, best model returned (`compute.tune.kraken-recognition` PARTIAL); the YOLO regions fine-tune on this Mac from corrected regions (`training/yolo_set.py`, `training/yolo_local.py`, `prep.yolo.fine-tune-from-corrected-regions`); flagged lines left out of a set. Left: held-out character and word error rates returned with the Kraken model, here and in the image; `ketos segtrain` as `train-kraken-segmentation`, and the line finder told to use the trained model; the YOLO `train-layout` job for the page, regions and lines from the project's checked boxes, trained on the EDITED image of each page (the rendition the readers use since #6296, `image.enhance.rendition-records-its-steps`, never the raw file), on this Mac or Hugging Face through the one trainer. Acceptance: a tiny Kraken set run two epochs in the cpu image yields a loadable model with CER and WER on its held-out part; a segmentation set yields a segmenter the line finder loads by card; a YOLO set built from a project whose pages carry edited renditions reads the edited image for every page (a counting seam on the raw path sees 0 reads) and trains on this Mac and through the fake Job to the same label set.
+
+- test (to write): `test_yolo_trains_on_edited_images.py` in fichero-server/tests/unit/training/ (edited rendition read, raw never; the same set both places; the held-out scores on the Kraken model)
+
+#### Step 1.3 — a LoRA that survives the time limit and always returns its adapter (#5240)
+- Behaviours: `compute.tune.lora`, `compute.tune.survives-the-time-limit`, `compute.tune.adapter-always-returns`, `compute.tune.convert-for-mlx`
+- Tests: fichero-server/tests/unit/training/test_resumable_training.py, fichero-server/tests/unit/training/test_hf_jobs_target.py
+- Depends on: 1.1
+- Size: M
+
+Built: a vision LoRA on Hugging Face Jobs (`hf_vision_lora_train.py`, rank and epochs on the request), the adapter always returned beside the MLX model, the resumable wrapper with a stub trainer (`training/resumable.py`). Left: the recipe file naming rank, learning rate, epochs and the prompt form (QLoRA when the card and memory call for it); the wrapper wired to the real `ketos` and LoRA trainers so a Job near its limit checkpoints, re-queues under the same id and resumes ("running (part 2)"); the merged model only when asked. Acceptance: a LoRA recipe file drives the fake Job's arguments; a stub trainer killed at the limit resumes from its checkpoint with steps 1..12 run once each and the row reading part 2; the adapter returns with no merged model unless asked.
+
+#### Step 1.4 — the model comes back as a card, scored on the project's own pages, never the default until chosen, adopted by the recipe as one visible cycle (#5240, #4947, #5337, #5941)
+- Behaviours: `compute.tune.model-comes-back-as-a-card`, `compute.tune.scored-against-your-own-pages`, `compute.tune.not-default-until-chosen`, `compute.tune.adopted-by-the-recipe`, `compute.tune.loop-is-one-visible-cycle`
+- Tests: fichero-server/tests/unit/training/test_models_live_in_the_project.py, fichero-server/tests/unit/training/test_evaluation_job.py, fichero-server/tests/unit/training/test_adopt_past_the_noise_band_5700.py, test_trained_model_cycle.py (not yet written)
+- Depends on: 1.2
+- Size: M
+
+Built: landing as a card in the project (`training/landing.py`, `training/mlx_landing.py`, `compute.model.lives-in-project`), the evaluation job and the noise band. Left: the score against the project's held-out ground truth beside the base on landing, both on the card; defaults unchanged by landing; the trained model that beats the step's current card past the band entering the recipe as a new card for that step in the next recipe version, offered with the A/B table; the loop as one visible section on the stage page (teacher, set, place, cost, score, the switch; `recipe-designer.md` Steps 11.1 and 11.2 are its page). Acceptance: a landed model's card carries its score and its base's; the project's defaults are unchanged; a model past the band appears as a new card on the step with the table and the recipe version bumps only when the person takes it; the stage page shows the cycle's six facts from one answer.
+
+- test (to write): `test_trained_model_cycle.py` in fichero-server/tests/unit/training/ (the card's two scores; defaults untouched; the offer past the band; the version bump on taking)
+
+#### Step 1.5 — the start sheet, the private dataset, the bake-off's reads as training lines (#5440, #5894)
+- Behaviours: `compute.tune.start-sheet`, `compute.tune.training-data-goes-only-to-a-private-dataset`, `compute.tune.bakeoff-reads-become-training-lines`, `compute.tune.start`
+- Tests: fichero-server/tests/unit/training/test_bakeoff_dataset_5894.py, fichero-server/tests/unit/training/test_line_pairs.py, test_training_start_sheet.py (not yet written)
+- Depends on: 1.4
+- Size: M
+
+Built: `training/bakeoff_lines.py` `push_private_dataset` (the staged lines to a private dataset of the person's account; the owner's rule: train yes, release no). Left: one start sheet from the recipe, onboarding or a model's node showing every place with its cost and time and the set's size; the bake-off's `lines.json` (every arm's reading per line) becoming the training lines with each line's check level; `compute.tune.start`'s two parameters (recipe, base model). Acceptance: the sheet lists this Mac, Hugging Face and the cluster with figures and refuses a place the app does not allow; the dataset pushed is private and holds the lines with their check levels; a bake-off's lines land as a set the trainer reads.
+
+- test (to write): `test_training_start_sheet.py` in fichero-server/tests/unit/training/ (the places with figures; the refusal; the private push; the bake-off lines as a set)
+
 ## Test matrix
 
 | Leg | This slice? | Pins | File |
