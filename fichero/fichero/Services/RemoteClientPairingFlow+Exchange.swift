@@ -30,7 +30,7 @@ extension RemoteClientPairing {
             requireSecureTransportForRemote: true
         )
         let normalizedSPKIPin = try expectedSPKIPin.map(RemoteCertificatePinning.validatedSPKIPin)
-        let service = PairingService(apiRoot: url, expectedSPKIPin: normalizedSPKIPin)
+        let service = try await PairingService(apiRoot: url, expectedSPKIPin: normalizedSPKIPin)
         let response: PairingExchangeResponse
         if code.isEmpty, let person {
             response = try await service.signInDeviceUnauthenticated(deviceName: name, person: person)
