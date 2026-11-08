@@ -63,3 +63,20 @@ enum SegmentEditingMode {
         isEditing && onSelectedBox
     }
 }
+
+/// Which door a Preview Delete takes (#6419). Boxes that ARE segments (each carries a segment id, and each segment has the version
+/// the engine checks an edit against) go through the one audited `segment.delete` batch, `SegmentDeleter`, so the segment goes
+/// with its box, in one step and one ⌘Z, on every surface. Anything else is a box of a result artifact that is not rows yet: the
+/// artifact route converts it and deletes (and the segments are re-read afterwards, so no surface keeps the old ones).
+enum PreviewRegionDelete {
+    enum Door: Equatable {
+        case segments
+        case artifact
+    }
+
+    /// `selectionCount` boxes are selected; `segmentCount` of them name a segment and `versionedCount` of those have a version.
+    static func door(selectionCount: Int, segmentCount: Int, versionedCount: Int) -> Door {
+        selectionCount > 0 && segmentCount == selectionCount && versionedCount == segmentCount ? .segments : .artifact
+    }
+}
+

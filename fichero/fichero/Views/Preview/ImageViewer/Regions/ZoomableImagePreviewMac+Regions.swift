@@ -280,6 +280,7 @@ extension ZoomableImagePreview {
     /// indices are meaningless afterwards, so the selection clears.
     func deleteSelectedRegions() {
         if deleteSelectedSegments() { return }   // an imported page (#5152)
+        if deleteSelectedBoxesAsSegments() { return }   // boxes that are segments: the audited segment.delete (#6419)
         let selection = regionSelection
         guard let artifactId = RegionEditTarget.forSelectionEdit(
                   shownArtifactId: ocrGeometryArtifactId,
@@ -299,6 +300,7 @@ extension ZoomableImagePreview {
                 ocrGeometry = updated.artifact.ocrGeometry
                 registerRegionUndo(updated, actionName: "Delete Regions")
                 selection.invalidate(artifactId: artifactId)
+                await reloadSegmentsAfterRegionEdit()  // the segments went with their boxes: every surface re-reads them (#6419)
             } catch {
                 Self.logger.error("Region delete failed: \(String(describing: error))")
             }

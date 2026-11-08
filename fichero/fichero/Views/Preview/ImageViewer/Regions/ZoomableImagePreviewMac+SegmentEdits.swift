@@ -124,6 +124,29 @@ extension ZoomableImagePreview {
         return true
     }
 
+    /// DELETE the selected boxes when every one IS a segment (#6419): the one `segment.delete` batch (`SegmentDeleter`), one ⌘Z,
+    /// so the segment goes with its box on a page that also has a result artifact. False hands the delete to the artifact route.
+    func deleteSelectedBoxesAsSegments() -> Bool {
+        guard let documentId, let store = segmentEditStore else { return false }
+        let selection = regionSelection
+        let segments = SegmentDeleter.segments(
+            SegmentDeleter.selectedIds(selection, documentId: documentId, store: store), documentId: documentId, store: store
+        )
+        guard PreviewRegionDelete.door(
+            selectionCount: selection.count, segmentCount: segments.count, versionedCount: segments.filter { $0.version != nil }.count
+        ) == .segments else { return false }
+        let actionsService = actionStore?.actionsService, steps = windowSteps
+        Task {
+            if let problem = await SegmentDeleter.run(
+                segments, documentId: documentId, store: store, actionsService: actionsService, steps: steps, clearing: selection
+            ) {
+                Self.logger.error("Delete Segments failed: \(problem, privacy: .public)")
+            }
+            await loadOCRGeometry()
+        }
+        return true
+    }
+
     /// JOIN the selected boxes on an artifact-less pass. True when handled here.
     func joinSelectedSegments() -> Bool {
         guard shownArtifactlessPassId != nil, let documentId else { return false }
