@@ -1,8 +1,5 @@
 """A registry that cannot be written refuses the redeem with a 503 and spends nothing (#6366): no swallowed failure."""
 
-import pytest
-from fastapi import HTTPException
-
 from fichero_server.api.routes.auth import pairing
 from fichero_server.security import authz
 from tests.unit.security import test_sharing_probe_2026_10_01 as probe
@@ -10,15 +7,13 @@ from tests.unit.security import test_sharing_probe_2026_10_01 as probe
 harness = probe.harness
 
 
-def test_unwritable_registry_refuses_instead_of_logging(monkeypatch):
+def test_unwritable_registry_is_reported_to_the_caller(monkeypatch):
     class Broken:
         def query(self, *_a, **_k):
             raise OSError("read-only")
 
     monkeypatch.setattr("fichero_server.api.routes.library.registry.get_global_database", lambda: Broken())
-    with pytest.raises(HTTPException) as err:
-        pairing._register_link_library("/tmp/Some Project")
-    assert err.value.status_code == 503
+    assert pairing._register_link_library("/tmp/Some Project") is False
 
 
 def test_redeem_with_unwritable_registry_makes_no_device_and_keeps_the_code(harness, monkeypatch):

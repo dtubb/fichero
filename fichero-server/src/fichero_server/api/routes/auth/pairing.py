@@ -749,7 +749,7 @@ def _register_link_library(package: str) -> bool:
         registry = get_global_database()
         if not registry.query(KnownLibrary, path=package):
             registry.save(KnownLibrary(path=package, name=Path(package).name))
-    except Exception as exc:
+    except Exception:
         logger.warning("Could not register %s for a paired device", package, exc_info=True)
         return False
     return True
