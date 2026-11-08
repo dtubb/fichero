@@ -253,6 +253,17 @@ The look is `agent-work/status/briefs/readings-levels-look-2026-11-08.md` with t
 - test (to write): `InspectorLevelsTests.swift` and `ShownLevelTests.swift` in fichero/Tests/Unit/general/Views/Inspector/ (the rows and badges from a readings list; the verbs' calls; the shared level state and its fallback mark)
 - test (to write): `test_working_text_is_read_by_later_steps_6429.py` and `test_step_line_reads_and_writes_6429.py` in fichero-server/tests/unit/api/ (the default and the page's choice; a Names run reading the chosen level; the step line per job and setting; the compare sides by level)
 
+#### Step 1.18 — the agreement heat map: legend and non-colour cue, one map on the Preview and the Reader, choose a reading from the popover, levels as sides (#6438)
+- Behaviours: `source.disagree.heat-map-legend-and-cue`, `source.disagree.one-map-on-preview-and-reader`, `source.disagree.choose-a-reading-from-the-popover`, `source.disagree.levels-as-sides`
+- Tests: fichero/Tests/Unit/general/Models/ReadingDisagreementTests.swift, fichero/Tests/Unit/general/Models/DisagreementWiringTests.swift, fichero/Tests/Unit/general/Models/CompareViewTests.swift, fichero-server/tests/unit/api/test_where_the_readers_disagree_5665.py, fichero-server/tests/unit/api/test_correct_a_line.py, DisagreementLegendTests.swift (not yet written), AgreementLayerSharedStateTests.swift (not yet written), DisagreementPopoverVerbsTests.swift (not yet written), CompareLevelsTintTests.swift (not yet written)
+- Depends on: 1.4, 1.17
+- Size: M
+
+The behaviours live in `readings-and-apparatus.md` (APPROVED, no Build order of its own), under "Where the readers disagree"; this step is their home, as 1.17 is for the levels. Owner 2026-11-08: NOT in the dev build. No engine change: the map is `GET /api/documents/{page_id}/disagreement` as built (`source.disagree.route`), the pick is the existing correction (`representation.create`) or the existing choice route, and the level sides ride Step 1.17's compare selector. Swift only: the legend and cue on `DisagreementTint`'s three states, the Preview overlay over the word-box layer from the one store, the window's Agreement flag with its three doors, the popover's two verbs, and the tint over the compare rows.
+
+- test (to write): `DisagreementLegendTests.swift`, `AgreementLayerSharedStateTests.swift` and `DisagreementPopoverVerbsTests.swift` in fichero/Tests/Unit/general/Models/ (the legend's words and the cue per tint; one flag three doors, both surfaces and the selection shared; the text composed for Use This Word and the one call per verb)
+- test (to write): `CompareLevelsTintTests.swift` in fichero/Tests/Unit/general/Models/ (the tint and cue from compare rows with level sides; two sides never red)
+
 ## Open questions
 
 1. The proposed chords (⌥⌘A outside the Reader, ⌥⌘N, ⌥⇧⌘N, Edit Shape's free chord, Split's ⌥⌘S, Run next step's ⌥⌘⏎) stand only if `MenuShortcutUniquenessTests` and the system-chord audit accept them; a collision picks another chord, never a second meaning for one.
