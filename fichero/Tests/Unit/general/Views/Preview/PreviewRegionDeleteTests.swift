@@ -22,4 +22,13 @@ struct PreviewRegionDeleteTests {
         #expect(SegmentShapes.corners(ofRect: [0.1, 0.2, 0.3, 0.4]) == [[0.1, 0.2], [0.4, 0.2], [0.4, 0.2 + 0.4], [0.1, 0.2 + 0.4]])
         #expect(SegmentShapes.corners(ofRect: [0.1]).isEmpty)
     }
+
+    /// #6426: the `shownArtifactlessPassId` branch of `promoteMarquees` draws on the pass for the whole set only.
+    @Test("marquees are drawn on the shown segment pass only for the whole set; otherwise the artifact route stays")
+    func marqueesOnASegmentPass() {
+        #expect(SegmentShapes.drawsMarqueesOnPass(passShown: true, onlyIndex: nil))
+        #expect(!SegmentShapes.drawsMarqueesOnPass(passShown: true, onlyIndex: 1))
+        #expect(!SegmentShapes.drawsMarqueesOnPass(passShown: false, onlyIndex: nil))
+        #expect(!SegmentShapes.drawsMarqueesOnPass(passShown: false, onlyIndex: 0))
+    }
 }

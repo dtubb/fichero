@@ -29,6 +29,13 @@ extension SegmentShapes {
                 [rect[0] + rect[2], rect[1] + rect[3]], [rect[0], rect[1] + rect[3]]]
     }
 
+    /// Where Add Region sends marquees: on a page shown from a segment pass, the whole set is drawn as
+    /// polygon segments on that pass; one marquee promoted on its own, or any other page, keeps the
+    /// regions-artifact route (#6426).
+    static func drawsMarqueesOnPass(passShown: Bool, onlyIndex: Int?) -> Bool {
+        passShown && onlyIndex == nil
+    }
+
     /// A click on the FIRST point of a polygon with enough points closes it.
     static func closes(_ points: [[Double]], at point: [Double], tolerance: [Double]) -> Bool {
         guard points.count >= DrawKind.polygon.minimumPoints, let first = points.first,
