@@ -99,15 +99,9 @@ struct MacRemoteClientPairingSection: View {
         }
         .onDisappear { nearby.stop() }
         .failureAlert($failurePrompt)
-        .alert(trustAsk.map { "Trust \($0.url.host ?? "this Mac")?" } ?? "",
-               isPresented: Binding(get: { trustAsk != nil }, set: { if !$0 { trustAsk = nil } })) {
-            Button("Trust and Connect") {
-                if let ask = trustAsk { trusted = (ask.url, ask.pin) }
-                Task { await connectThisMacAsRemoteClient() }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            if let ask = trustAsk { Text(HostKeyFingerprint.trustSentence(host: ask.url.host ?? "", fingerprint: ask.fingerprint)) }
+        .hostTrustAlert($trustAsk) { ask in
+            trusted = (ask.url, ask.pin)
+            Task { await connectThisMacAsRemoteClient() }
         }
     }
 
@@ -144,7 +138,7 @@ struct MacRemoteClientPairingSection: View {
         }
         if let trusted, HostKeyProbe.typedAddress(clientInvite) == trusted.url {
             // A typed address signs a person in pinned to the key they trusted; no code, no project named.
-            return RemoteClientPairingFields(remoteURL: trusted.url.absoluteString, pairCode: "", spkiPin: trusted.pin, libraryPath: "")
+            return HostKeyProbe.signInFields(trusted.url, pin: trusted.pin)
         }
         let fields = try RemoteClientPairing.pairingFields(fromInviteOrPayload: clientInvite)
         if let chosen, !HostChoices.invite(fields.remoteURL, isFor: chosen) {
@@ -170,12 +164,11 @@ struct MacRemoteClientPairingSection: View {
     /// public CA certifies (`tailscale serve`) needs no pin and is trusted as is. Returns false when the ask is shown.
     private func trustTypedAddress() async throws -> Bool {
         guard let address = HostKeyProbe.typedAddress(clientInvite), trusted?.url != address else { return true }
-        if RemoteCertificatePinning.usesPublicCertificateAuthority(url: address) {
+        guard let ask = try await HostKeyProbe.firstContact(address) else {
             trusted = (address, nil)
             return true
         }
-        let pin = try await HostKeyProbe.sha256Pin(at: address)
-        trustAsk = .init(url: address, pin: pin, fingerprint: HostKeyFingerprint.text(ofPin: pin) ?? pin)
+        trustAsk = ask
         return false
     }
 

@@ -47,6 +47,19 @@ nonisolated enum HostKeyProbe {
         try await RemoteCertificatePinning.presentedSHA256Pin(at: url)
     }
 
+    /// First contact with a typed address: nil when a public CA certifies it (`tailscale serve`: no pin, no ask), else the
+    /// key it presents, to show the person before anything is sent.
+    static func firstContact(_ address: URL) async throws -> HostKeyFingerprint.Ask? {
+        if RemoteCertificatePinning.usesPublicCertificateAuthority(url: address) { return nil }
+        let pin = try await sha256Pin(at: address)
+        return .init(url: address, pin: pin, fingerprint: HostKeyFingerprint.text(ofPin: pin) ?? pin)
+    }
+
+    /// What a trusted typed address pairs with: a person signs in, pinned to the trusted key; no code, no project named.
+    @MainActor static func signInFields(_ address: URL, pin: String?) -> RemoteClientPairingFields {
+        RemoteClientPairingFields(remoteURL: address.absoluteString, pairCode: "", spkiPin: pin, libraryPath: "")
+    }
+
     /// A typed address (`studio.local`, `10.10.10.1:8765`, `https://studio.local:8765`), not a link: https is assumed and an
     /// address of this Mac's kind with no port gets the engine's (`validatedRemoteURL`). Nil for a link, a payload or junk.
     @MainActor static func typedAddress(_ text: String) -> URL? {

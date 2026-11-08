@@ -33,6 +33,8 @@ struct RemoteConnectionSetupView: View {
     /// The host that asked who this device is (Step 8.9), and the link to pair again with the person.
     @State private var signInHost: String?
     @State private var signInFields: RemoteClientPairingFields?
+    /// A typed address's key at first contact, waiting for the person to trust it (`hostTrustAlert`).
+    @State private var trustAsk: HostKeyFingerprint.Ask?
     @Environment(\.openURL) private var openURL
     @State private var pickerSource: CaptureSource?
     @State private var showingDocumentScanner = false
@@ -46,6 +48,7 @@ struct RemoteConnectionSetupView: View {
                 do { try await finishPairing(with: fields, person: person) } catch { show(error) }
             }
         }
+        .hostTrustAlert($trustAsk) { askSignIn(HostKeyProbe.signInFields($0.url, pin: $0.pin)) }
         // #2347: on iPhone/iPad the pairing screen opens STRAIGHT into QR
         // scanning — the whole point is to scan the host Mac's code. Present the
         // scanner once on first appearance; after a Cancel the landing card's
@@ -325,6 +328,13 @@ private extension RemoteConnectionSetupView {
         showingManualEntry = false
         Task {
             do {
+                // A typed address (Step 8.9): trust its key at first contact, then sign the person in; no code, no link.
+                if let address = HostKeyProbe.typedAddress(trimmed) {
+                    if let ask = try await HostKeyProbe.firstContact(address) { trustAsk = ask } else {
+                        askSignIn(HostKeyProbe.signInFields(address, pin: nil))
+                    }
+                    return
+                }
                 try await finishPairing(with: RemoteClientPairing.pairingFields(fromInviteOrPayload: trimmed))
             } catch {
                 show(error)
@@ -350,6 +360,12 @@ private extension RemoteConnectionSetupView {
                 }
             },
             copy: { PlatformPasteboard.writeString($0) })
+    }
+
+    /// The host is reached and trusted; ask who this device is, then pair with these fields.
+    func askSignIn(_ fields: RemoteClientPairingFields) {
+        signInFields = fields
+        signInHost = URL(string: fields.remoteURL)?.host ?? "your Mac"
     }
 
     func finishPairing(with fields: RemoteClientPairingFields, person: PairingPerson? = nil) async throws {
