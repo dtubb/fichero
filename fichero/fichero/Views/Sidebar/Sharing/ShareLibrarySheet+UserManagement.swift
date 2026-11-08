@@ -52,7 +52,7 @@ extension ShareLibrarySheet {
             members = try await library.actionsService.listLibraryMembers().members ?? []
         } catch {
             members = []
-            membersError = error.localizedDescription
+            membersError = "Fichero couldn't load who has this project. Close this and open it again."
         }
     }
 
@@ -62,7 +62,6 @@ extension ShareLibrarySheet {
     @MainActor
     func createNewPerson() async {
         isCreating = true
-        createError = nil
         defer { isCreating = false }
         let username = newUsername.trimmingCharacters(in: .whitespaces)
         do {
@@ -79,7 +78,7 @@ extension ShareLibrarySheet {
                 newPassword = ""
             }
         } catch {
-            createError = error.localizedDescription
+            showFailure(error, "Couldn't add that person")
         }
     }
 }

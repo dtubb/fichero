@@ -42,7 +42,9 @@ struct ShareWhichProjectsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var model = ShareWhichProjectsModel()
     @State private var isSharing = false
-    @State private var failure: String?
+    @Environment(AppState.self) private var appState: AppState?
+    /// A failed share, as the one alert (`sharing.host.dialog-errors-are-alerts`); the checks stay for the second try.
+    @State private var failurePrompt: FailureAlertPrompt?
 
     var body: some View {
         NavigationStack {
@@ -68,9 +70,7 @@ struct ShareWhichProjectsSheet: View {
                         .accessibilityIdentifier("sharing.whichProjects.share")
                 }
             }
-            .alert("Fichero couldn't share that project", isPresented: failureShown) {
-                Button("OK", role: .cancel) {}
-            } message: { Text(failure ?? "") }
+            .failureAlert($failurePrompt)
         }
         .frame(minWidth: 420, minHeight: 360)
         .accessibilityIdentifier("sharing.whichProjects.sheet")
@@ -92,10 +92,6 @@ struct ShareWhichProjectsSheet: View {
         } else {
             Text("Any device you pair with this Mac").font(.caption).foregroundStyle(.secondary)
         }
-    }
-
-    private var failureShown: Binding<Bool> {
-        Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })
     }
 
     private func checkedBinding(_ libraryId: String) -> Binding<Bool> {
@@ -126,7 +122,10 @@ struct ShareWhichProjectsSheet: View {
             do {
                 _ = try await library.actionsService.shareLibrary(user: grant.personId, role: grant.role)
             } catch {
-                failure = error.localizedDescription
+                let ownerSignIn = appState?.ownerSignIn
+                failurePrompt = SharingFailurePrompt.make(
+                    sharing: error, title: "Couldn't share \(library.displayName)", offers: ownerSignIn == nil ? [] : [.signInAsOwner],
+                    perform: { _ in Task { await ownerSignIn?.run() } }, copy: { PlatformPasteboard.writeString($0) })
                 return
             }
         }

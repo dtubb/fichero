@@ -20,11 +20,6 @@ extension ShareLibrarySheet {
                     memberRow(member)
                 }
             }
-            if let manageError {
-                Text(manageError)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
         }
     }
 
@@ -63,7 +58,6 @@ extension ShareLibrarySheet {
     @MainActor
     func changeRole(userId: String, role newRole: String) async {
         isApplying = true
-        manageError = nil
         defer { isApplying = false }
         do {
             _ = try await library.actionsService.setLibraryRole(userId: userId, role: newRole)
@@ -78,7 +72,7 @@ extension ShareLibrarySheet {
                 )
             }
         } catch {
-            manageError = error.localizedDescription
+            showFailure(error, "Couldn't change that person's role")
         }
     }
 
@@ -86,13 +80,12 @@ extension ShareLibrarySheet {
     @MainActor
     func revoke(userId: String) async {
         isApplying = true
-        manageError = nil
         defer { isApplying = false }
         do {
             _ = try await library.actionsService.revokeLibraryRole(userId: userId)
             members.removeAll { $0.userId == userId }
         } catch {
-            manageError = error.localizedDescription
+            showFailure(error, "Couldn't remove that person from the project")
         }
     }
 }

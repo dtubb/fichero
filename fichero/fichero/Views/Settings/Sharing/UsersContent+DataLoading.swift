@@ -17,13 +17,11 @@ extension UsersContent {
 
     @MainActor
     internal func refreshAuthz() async {
-        authzError = nil
         do {
             authzSnapshot = try await library.actionsService.loadLibraryAuthzSnapshot()
             pendingRoleDrafts.removeAll()
         } catch {
-            authzSnapshot = nil
-            authzError = error.localizedDescription
+            authzSnapshot = nil  // ponytail: a load that fails hides the roles section; an alert on every open would nag
         }
     }
 

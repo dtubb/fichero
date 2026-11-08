@@ -65,14 +65,12 @@ struct ShareLibrarySheet: View {
     @State var newUsername = ""
     @State var newPassword = ""
     @State var isCreating = false
-    @State var createError: String?
 
     // Members
     @State var members: [Components.Schemas.LibraryMember] = []
     @State var isLoadingMembers = false
     @State var membersError: String?
     @State var isApplying = false
-    @State var manageError: String?
 
     /// The share sheet grants Viewer/Editor only — Owner is deliberately NOT here
     /// (#3787). Owner is a whole-library administrator, granted on purpose in

@@ -36,7 +36,6 @@ struct UsersContent: View {
     let library: LibraryManager.LibraryReference
 
     @State var authzSnapshot: Components.Schemas.LibraryAuthzSnapshot?
-    @State var authzError: String?
     @State var pendingUserId: String?
     @State var pendingRole = "editor"
     @State var pendingRoleDrafts: [String: String] = [:]
@@ -50,7 +49,8 @@ struct UsersContent: View {
     @State var sharingIsOn = true
     @State var capturePerson: CapturePersonTarget?
     @State var isCreatingUser = false
-    @State var accountError: String?
+    /// A failed account or role change, as the one alert (`sharing.alerts.no-bottom-strip`), never red text in the list.
+    @State var failurePrompt: FailureAlertPrompt?
 
     var body: some View {
         Group {
@@ -77,6 +77,7 @@ struct UsersContent: View {
         .task(id: library.id) {
             await loadData()
         }
+        .failureAlert($failurePrompt)
     }
 }
 

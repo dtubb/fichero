@@ -17,9 +17,6 @@ extension UsersContent {
             // The people (you first, with the You mark), grey Invited rows, `+` and `−` (`sharing.settings.three-panes`).
             Section {
                 ForEach(accountRows) { accountRow($0) }
-                if let accountError {
-                    Text(accountError).font(.caption).foregroundStyle(.red)
-                }
                 // While Multi-user is off there is nobody to add (the engine answers 404): the line names the switch instead
                 // (`sharing.people-pane-off-state`, #5917).
                 if let off = PeoplePaneOffState.words(multiuserOn: identityStore.multiuserEnabled, isOwner: identityStore.isOwnerAccess) {

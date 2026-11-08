@@ -77,10 +77,5 @@ extension ShareLibrarySheet {
             }
         }
         .disabled(isCreating || !canCreatePerson)
-        if let createError {
-            Text(createError)
-                .font(.caption)
-                .foregroundStyle(.red)
-        }
     }
 }
