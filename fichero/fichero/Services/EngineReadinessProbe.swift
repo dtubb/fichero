@@ -330,26 +330,31 @@ struct EngineReadinessProbe {
         return observed
     }
 
+    /// One observation, retried ONCE on a fresh connection if the first died on a closed one (`isClosedConnection`, #6372).
     nonisolated private static func fetchHealthUnbounded(api: Client) async -> HealthObservation {
+        let first = await fetchHealthAttempt(api: api)
+        guard first.closedConnection else { return first.observation }
+        probeLogger.info("health probe: connection closed under it; retrying once")
+        return await fetchHealthAttempt(api: api).observation
+    }
+
+    nonisolated private static func fetchHealthAttempt(api: Client) async -> (observation: HealthObservation, closedConnection: Bool) {
         do {
             let response = try await api.healthCheckApiHealthGet(.init())
             switch response {
             case .ok(let okResponse):
                 let body = try okResponse.body.json
-                return HealthObservation(status: 200, nonce: body.launchNonce, pid: body.enginePid)
+                return (HealthObservation(status: 200, nonce: body.launchNonce, pid: body.enginePid), false)
             case .unprocessableContent:
-                return HealthObservation(status: 422, nonce: nil, pid: nil)
+                return (HealthObservation(status: 422, nonce: nil, pid: nil), false)
             case .undocumented(let statusCode, _):
-                return HealthObservation(status: statusCode, nonce: nil, pid: nil)
+                return (HealthObservation(status: statusCode, nonce: nil, pid: nil), false)
             }
         } catch {
-            // H1 (Siracusa): don't swallow the cause. A TLS-pin mismatch, a UDS
-            // connect failure, a timeout, and a decode failure of a genuine 200
-            // all land here — previously all collapsed to a bare "nil" and read
-            // to the user as "engine isn't running". Log the real error; still
-            // fail-closed to nil so classification stays conservative.
+            // H1 (Siracusa): don't swallow the cause (TLS-pin mismatch, UDS connect failure, timeout, decode failure all land
+            // here, and used to read as "engine isn't running"). Log the real error; still fail-closed to nil.
             probeLogger.error("health probe threw (fail-closed to notResponding): \(error, privacy: .public)")
-            return HealthObservation(status: nil, nonce: nil, pid: nil)
+            return (HealthObservation(status: nil, nonce: nil, pid: nil), isClosedConnection(error))
         }
     }
 
