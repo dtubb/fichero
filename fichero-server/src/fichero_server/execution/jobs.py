@@ -274,6 +274,12 @@ _SLIPS = (
 )
 
 
+def request_of(db: "Database", kind: str, subject: str) -> tuple[Any, Any] | None:
+    """`(detail, started_by)` of the job of `kind` and `subject`, or None: the request a job was queued with."""
+    row = db.execute_fetchone("SELECT detail, started_by FROM jobs WHERE kind = ? AND subject = ?", [kind, subject])
+    return (row[0], row[1]) if row else None
+
+
 def finished_details(db: "Database", kind: str, limit: int) -> list[tuple[Any, Any]]:
     """`(subject, detail)` of the latest `limit` finished jobs of `kind` that carry a detail, newest first (the booked-cost read)."""
     return db.execute_fetchall(

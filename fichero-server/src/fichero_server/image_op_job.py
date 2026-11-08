@@ -28,7 +28,9 @@ def queue_image_operation(db: Any, action: str, params: dict[str, Any], *, start
 def _run(db: Any, subject: str) -> None:
     from fichero_server.actions.registry import ActionContext, registry
 
-    row = db.execute_fetchone("SELECT detail, started_by FROM jobs WHERE kind = ? AND subject = ?", [KIND, subject])
+    from fichero_server.execution import jobs
+
+    row = jobs.request_of(db, KIND, subject)
     if row is None or not row[0]:
         raise ValueError("the image operation job has no request")
     request = json.loads(row[0])

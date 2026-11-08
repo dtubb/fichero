@@ -55,3 +55,12 @@ def test_only_an_image_action_on_one_page_is_accepted(client, db):
     assert client.post(f"/api/images/{doc.id}/jobs", json={"action": "image.nonsense"}).status_code == 422
     assert client.post(f"/api/images/{doc.id}/jobs", json={"action": "image.rotate", "params": {}}).status_code == 422  # angle is required
     assert client.post("/api/images/nope/jobs", json={"action": "image.grayscale"}).status_code == 404
+
+
+def test_a_job_request_is_read_through_the_jobs_module(db):
+    doc = _page(db)
+    job_id = queue_image_operation(db, "image.grayscale", {"document_id": doc.id}, started_by="person")
+    subject = jobs.read_job(db, job_id)["subject"]
+    detail, started_by = jobs.request_of(db, KIND, subject)
+    assert json.loads(detail)["action"] == "image.grayscale" and started_by == "person"
+    assert jobs.request_of(db, KIND, "no-such-subject") is None
