@@ -79,4 +79,3 @@ enum PreviewRegionDelete {
         selectionCount > 0 && segmentCount == selectionCount && versionedCount == segmentCount ? .segments : .artifact
     }
 }
-
