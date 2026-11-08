@@ -32,7 +32,7 @@ struct PairingFailureActionsTests {
         let text = PairingFailureActions.details(.noAnswer, context: context)
         #expect(text.contains("Step 3:") && text.contains(PairingFailure.noAnswer.sentence(context)))
         #expect(text.contains("2026.10.27") && text.contains("2026.10.28") && text.contains("macbook-air-m1"))
-        for word in ["token", "code ", "pin "] { #expect(!text.lowercased().contains(word), word) }
+        for word in ["token", "code ", "pin "] { #expect(!text.lowercased().contains(word), "\(word)") }
     }
 
     @Test func aLocalAddressThatDoesNotAnswerOffersOpenSettings() {

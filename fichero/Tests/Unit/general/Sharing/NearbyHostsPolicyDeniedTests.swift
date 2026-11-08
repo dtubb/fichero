@@ -25,10 +25,10 @@ struct NearbyHostsPolicyDeniedTests {
 
     @Test func theLocalRangesAreTheRightOnes() {
         for host in ["a.local", "10.0.0.4", "192.168.1.2", "169.254.3.4", "172.16.0.1", "172.31.255.1"] {
-            #expect(LocalNetworkPolicy.isLocalAddress(host), host)
+            #expect(LocalNetworkPolicy.isLocalAddress(host), "\(host)")
         }
         for host in ["a.tail1234.ts.net", "100.101.102.103", "172.15.0.1", "172.32.0.1", "example.com"] {
-            #expect(!LocalNetworkPolicy.isLocalAddress(host), host)
+            #expect(!LocalNetworkPolicy.isLocalAddress(host), "\(host)")
         }
     }
 
