@@ -790,6 +790,8 @@ The owner's feedback on Activity (too many clocks, too much text) is a rule for 
 
 ### 4. Chord audit (the owner's rule 2026-11-08: standard Mac chords; never repurpose a standard one; new chords follow the pattern)
 
+**DECIDED 2026-11-08 15:45 (owner): the audit is accepted in full** — Import loses ⌘I; Rotate Left/Right become ⌥⌘← / ⌥⌘→; Inspector becomes ⌥⌘I; Back/Forward become ⌘[ / ⌘]; Join is ⌥⌘J; Duplicate Window, Find Documents, Workflow Bar and Run Workflow lose their chords. Step 2.3 builds exactly this table; nothing in it is provisional any more.
+
 | Chord | Today | Standard meaning | Verdict |
 |---|---|---|---|
 | ⌘I | Link Files… | Get Info (Finder, everywhere) | CHANGE: Import loses its chords; ⌘I is reserved for a future Get Info (the Inspector) |
