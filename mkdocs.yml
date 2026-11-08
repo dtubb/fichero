@@ -431,6 +431,7 @@ nav:
               - Dev Orchestration Harness: contributor_manual/specs/harness/dev-orchestration-harness.md
               - Dev Pipeline: contributor_manual/specs/harness/deterministic-conductor.md
               - Dev Workflows (proposed): contributor_manual/specs/harness/dev-workflows.md
+              - Builder as a Mac App (draft): contributor_manual/specs/harness/builder-mac-app.md
               - Issues, Milestones & Labels (proposed): contributor_manual/specs/harness/issues-and-labels.md
               - Engine Startup & Shutdown Lifecycle: contributor_manual/specs/harness/engine-startup-lifecycle.md
               - Observable Data Layer: contributor_manual/specs/harness/observable-data-layer.md
