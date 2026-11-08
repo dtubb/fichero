@@ -218,6 +218,7 @@ private struct SidebarDropAlertsModifier: ViewModifier {
             } message: {
                 Text(sidebarState.dropErrorMessage ?? "The drop could not be completed.")
             }
+            .missingLibraryAlert()
             .modifier(sidebarMessageAlert(
                 title: "Rename Failed",
                 fallback: "The rename could not be completed.",

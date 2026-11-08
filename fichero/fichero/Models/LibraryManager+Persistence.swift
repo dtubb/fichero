@@ -161,6 +161,7 @@ extension LibraryManager {
                 validPaths.append(path)
             } else {
                 libraryManagerLogger.warning("Pruning missing saved library: \(path)")
+                MissingLibraryNotice.shared.report(path)
                 prunedAnyPath = true
             }
         }
