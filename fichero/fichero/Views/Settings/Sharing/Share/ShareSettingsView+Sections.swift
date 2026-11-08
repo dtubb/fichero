@@ -60,6 +60,12 @@ extension ShareSettingsView {
                 ProgressView("Finishing setup…")
             case .ready, .notReady:
                 addressRowsView
+                // The key a guest that typed this Mac's address is shown at first contact (`HostKeyFingerprint`), to compare.
+                if let key = HostKeyFingerprint.text(ofPin: spkiPin) {
+                    Text("This Mac's key: \(key)").font(.caption.monospaced()).foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .accessibilityIdentifier("sharing.host.key-fingerprint")
+                }
                 if let image = qrImage {
                     Image(platformImage: image)
                         .interpolation(.none)

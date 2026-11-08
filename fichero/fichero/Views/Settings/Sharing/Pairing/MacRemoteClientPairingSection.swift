@@ -22,6 +22,9 @@ struct MacRemoteClientPairingSection: View {
     @State private var needsPerson = false
     @State private var personName = ""
     @State private var personPassword = ""
+    /// A typed address's key, read at first contact and trusted by the person (`HostKeyProbe`); nil pin for a public CA.
+    @State private var trusted: (url: URL, pin: String?)?
+    @State private var trustAsk: HostKeyFingerprint.Ask?
 
     init(
         appState: AppState,
@@ -96,6 +99,16 @@ struct MacRemoteClientPairingSection: View {
         }
         .onDisappear { nearby.stop() }
         .failureAlert($failurePrompt)
+        .alert(trustAsk.map { "Trust \($0.url.host ?? "this Mac")?" } ?? "",
+               isPresented: Binding(get: { trustAsk != nil }, set: { if !$0 { trustAsk = nil } })) {
+            Button("Trust and Connect") {
+                if let ask = trustAsk { trusted = (ask.url, ask.pin) }
+                Task { await connectThisMacAsRemoteClient() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            if let ask = trustAsk { Text(HostKeyFingerprint.trustSentence(host: ask.url.host ?? "", fingerprint: ask.fingerprint)) }
+        }
     }
 
     /// The Fichero Macs nearby, this Mac left out; picking one starts pairing with it (#5892). "Searching…" in grey
@@ -129,6 +142,10 @@ struct MacRemoteClientPairingSection: View {
         if let chosen, chosenNeedsCodeOnly, let url = chosen.publicURL {
             return RemoteClientPairingFields(remoteURL: url, pairCode: pairCode, spkiPin: nil, libraryPath: "")
         }
+        if let trusted, HostKeyProbe.typedAddress(clientInvite) == trusted.url {
+            // A typed address signs a person in pinned to the key they trusted; no code, no project named.
+            return RemoteClientPairingFields(remoteURL: trusted.url.absoluteString, pairCode: "", spkiPin: trusted.pin, libraryPath: "")
+        }
         let fields = try RemoteClientPairing.pairingFields(fromInviteOrPayload: clientInvite)
         if let chosen, !HostChoices.invite(fields.remoteURL, isFor: chosen) {
             throw APIError.badRequest("That invite is for another Mac than \(chosen.name). Paste the one shown on \(chosen.name).")
@@ -137,14 +154,29 @@ struct MacRemoteClientPairingSection: View {
     }
 
     /// A pasted link with no code is for a person (Step 8.9): the name and password fields show at once.
+    /// So does a typed address: there is no code to give.
     private var linkSignsIn: Bool {
-        (try? RemoteClientPairing.pairingFields(fromInviteOrPayload: clientInvite))?.pairCode.isEmpty == true
+        HostKeyProbe.typedAddress(clientInvite) != nil
+            || (try? RemoteClientPairing.pairingFields(fromInviteOrPayload: clientInvite))?.pairCode.isEmpty == true
     }
 
-    /// The host the pasted invite points at, shown read-only so the person sees where they are about to connect.
+    /// The host the pasted invite (or typed address) points at, shown read-only so the person sees where they connect.
     private var inviteHost: String? {
-        (try? RemoteClientPairing.pairingFields(fromInviteOrPayload: clientInvite))
-            .flatMap { URL(string: $0.remoteURL)?.host }
+        HostKeyProbe.typedAddress(clientInvite)?.host
+            ?? (try? RemoteClientPairing.pairingFields(fromInviteOrPayload: clientInvite)).flatMap { URL(string: $0.remoteURL)?.host }
+    }
+
+    /// First contact with a typed address: read the key it presents and ask the person to trust its fingerprint. A host a
+    /// public CA certifies (`tailscale serve`) needs no pin and is trusted as is. Returns false when the ask is shown.
+    private func trustTypedAddress() async throws -> Bool {
+        guard let address = HostKeyProbe.typedAddress(clientInvite), trusted?.url != address else { return true }
+        if RemoteCertificatePinning.usesPublicCertificateAuthority(url: address) {
+            trusted = (address, nil)
+            return true
+        }
+        let pin = try await HostKeyProbe.sha256Pin(at: address)
+        trustAsk = .init(url: address, pin: pin, fingerprint: HostKeyFingerprint.text(ofPin: pin) ?? pin)
+        return false
     }
 
     private func connectThisMacAsRemoteClient() async {
@@ -153,6 +185,7 @@ struct MacRemoteClientPairingSection: View {
 
         let previousHost = engineHost
         do {
+            guard try await trustTypedAddress() else { return }
             let pairingFields = try fieldsToPair()
             // The same sequence the phone runs (`sharing.both-clients-run-the-same-checks`): try the link's addresses, check the
             // contract before any code is sent, pair, keep the token (or revoke), confirm the project, persist.
