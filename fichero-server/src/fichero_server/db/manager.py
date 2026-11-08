@@ -45,6 +45,55 @@ class DatabaseBusy(RuntimeError):
     instead of a 500 -- and nothing was copied."""
 
 
+class OpenGate:
+    """At most `cap` library opens at once, admitted in the order they asked (`app.launch-opens-few-at-a-time`, #6430).
+
+    A launch that restores several large libraries used to open them all together and starve a small machine. A waiter that
+    arrives first is let in first, so the library the app asks for first (the last one used) opens first. An open that
+    needs another library (a move resuming) is already inside the gate and passes, so one cap never deadlocks itself."""
+
+    def __init__(self, cap: int):
+        self._cap = max(1, cap)
+        self._running = 0
+        self._queue: list[object] = []
+        self._cond = threading.Condition()
+        self._inside = threading.local()
+        #: The most opens ever running together; read by the test that pins the cap.
+        self.peak = 0
+
+    def __enter__(self) -> "OpenGate":
+        if getattr(self._inside, "held", False):
+            self._inside.nested = getattr(self._inside, "nested", 0) + 1
+            return self
+        ticket = object()
+        with self._cond:
+            self._queue.append(ticket)
+            while self._running >= self._cap or self._queue[0] is not ticket:
+                self._cond.wait()
+            self._queue.pop(0)
+            self._running += 1
+            self.peak = max(self.peak, self._running)
+            self._cond.notify_all()
+        self._inside.held = True
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        if getattr(self._inside, "nested", 0):
+            self._inside.nested -= 1
+            return
+        self._inside.held = False
+        with self._cond:
+            self._running -= 1
+            self._cond.notify_all()
+
+
+def _open_cap() -> int:
+    try:
+        return int(os.environ.get("FICHERO_LIBRARY_OPEN_CAP", "2"))
+    except ValueError:
+        return 2
+
+
 class DatabaseManager:
     """Manages Database instances for package documents — ONE per package,
     shared across all threads (#2508).
@@ -76,6 +125,7 @@ class DatabaseManager:
         #: open; `_lock` now guards only the dictionaries.
         self._open_locks: dict[str, threading.Lock] = {}
         self._lock = threading.Lock()
+        self._open_gate = OpenGate(_open_cap())
         logger.info("DatabaseManager initialized")
 
     def open_database(self, cache_key: str) -> "Database | None":
@@ -89,6 +139,15 @@ class DatabaseManager:
         return self._cache_key(Path(nfc_path(package_path))) in self._databases
 
     def get_database(
+        self, package_path: str | Path, *, create: bool = False
+    ) -> "Database":
+        """An open library is returned at once; one that must be opened waits its turn at the gate (#6430)."""
+        if self.is_open(package_path):
+            return self._open_database(package_path, create=create)
+        with self._open_gate:
+            return self._open_database(package_path, create=create)
+
+    def _open_database(
         self, package_path: str | Path, *, create: bool = False
     ) -> "Database":
         """Get or open the one shared Database instance for a package.
