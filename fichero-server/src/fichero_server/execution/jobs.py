@@ -3699,7 +3699,8 @@ BACKGROUND_STARTERS = (
 )
 #: The literal starters that are a person's (or an account's, agent's: `started_by_for`): not background. "correction"
 #: follows the person's own edit and they wait to see the names (ruled 2026-10-19), so its re-embed and re-read go first.
-PERSON_STARTERS = ("owner", "person", "workflow", "correction")
+#: "ui" is an image operation the person asked for in the app (`image_op_job`, #6384): they wait on it.
+PERSON_STARTERS = ("owner", "person", "workflow", "correction", "ui")
 _PERSON_WAITS_SQL = (
     "(COALESCE(watched, FALSE) OR COALESCE(started_by, 'automatic') NOT IN ("
     + ", ".join(f"'{who}'" for who in BACKGROUND_STARTERS)
