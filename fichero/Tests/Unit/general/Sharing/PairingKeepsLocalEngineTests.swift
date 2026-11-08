@@ -29,7 +29,8 @@ struct PairingKeepsLocalEngineTests {
             RemoteCertificatePinning.clearPersistedSPKIPin(hostString: host.absoluteString)
             if let saved { EngineConfig.defaults.set(saved, forKey: EngineConfig.userDefaultsKey) }
         }
-        let result = PairingExchangeResult(apiRoot: host, deviceToken: "device-token", expiresAt: Date(timeIntervalSince1970: 2_000_000_000))
+        let expiry = Date(timeIntervalSince1970: 2_000_000_000)
+        let result = PairingExchangeResult(apiRoot: host, deviceToken: "device-token", expiresAt: expiry)
         try RemoteClientPairing.persistPairedHost(
             result, expectedSPKIPin: Data("spki".utf8).base64EncodedString(), libraryPath: "/A", makesAppHost: false)
 
