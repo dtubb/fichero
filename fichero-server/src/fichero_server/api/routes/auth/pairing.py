@@ -1012,6 +1012,14 @@ def pair_device(
             if not chosen.active:
                 raise HTTPException(status_code=403, detail="user is disabled")
             user_id = chosen.id
+        # Before any account, grant or device exists: a registry that cannot be written refuses with nothing left behind.
+        for package in [p for p in (record.library, *record.also_libraries) if p]:
+            # The host's list of what a device may open names the project the link was minted for, even when it was never
+            # put in the registry (a project the app made on first run): else the guest is told it was not given it.
+            if not _register_link_library(package):
+                raise HTTPException(
+                    status_code=503, detail="this Mac could not record the shared project; try the link again",
+                )
         if new_account:
             chosen = app_db.create_user(
                 username=record.person,
@@ -1047,13 +1055,6 @@ def pair_device(
                 raise HTTPException(status_code=401, detail="invalid or expired pairing code")
             user_id = user.id
 
-        for package in [p for p in (record.library, *record.also_libraries) if p]:
-            # The host's list of what a device may open names the project the link was minted for, even when it was never
-            # put in the registry (a project the app made on first run): else the guest is told it was not given it.
-            if not _register_link_library(package):
-                raise HTTPException(
-                    status_code=503, detail="this Mac could not record the shared project; try the link again",
-                )
         raw_token = accounts.new_session_token()
         device = app_db.create_device(
             name=name,
@@ -1084,8 +1085,9 @@ def pair_device(
                 after=_to_public_device(device).model_dump(mode="json"),
             )
         return _to_pair_response(device, raw_token)
-    except HTTPException:
-        _record_pair_attempt(request, now)
+    except HTTPException as exc:
+        if exc.status_code != 503:  # this Mac's fault is not the guest's failed attempt
+            _record_pair_attempt(request, now)
         raise
     finally:
         if claimed_here is not None and not claimed_here.used:
