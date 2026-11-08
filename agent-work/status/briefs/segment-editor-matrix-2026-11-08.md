@@ -46,7 +46,7 @@ Doors per cell: c = click/gesture, x = context menu, m = menu-bar item, k = shor
 4. **Create without drawing** does not exist anywhere; Step 1.4 adds New Region / New Line.
 5. **Run a recipe on the next step** exists only folder-scoped and in the Project menu and Set Up; nothing on a segment or page selection says what the next step is. NEEDED: one item, "Run <step name> on This Page/These Lines", from the recipe's steps-done for the selection's page (`compute.recipe.folder-shows-steps-done`), through #6411's selection-scoped start; on every surface's context menu and Project › Read › Reading ▸.
 6. **Text correction has no audit id** (`CorrectThisLine.swift` ponytail note): it joins the undo story when the audited action lands; a cell to carry on the table, not a new step here.
-7. **The hierarchy note (#6415)**: stroke › character › word › line › segment › region › page, all editable; later steps tie output to segments. The matrix's rows are per level once the Inspector shows the levels (item 2).
+7. **The hierarchy note (#6415)**: stroke › character › word › line › region › page ("segment" is any level, owner 2026-11-08), all editable; later steps tie output to segments. The matrix's rows are per level once the Inspector shows the levels (item 2).
 
 ## 3. Proposed next steps (for the manager to approve, not written)
 

@@ -17,10 +17,10 @@ Every operation: ONE audited engine action, ONE undo, ONE Swift component render
 
 | Operation | Engine action (exists) | Edit › Segments ▸ item | Context menus (Preview, Inspector, Segments pane, Reader lines) | Shortcut (proposed) | Icon (SF Symbol) |
 |---|---|---|---|---|---|
-| Select All Segments (on this page) | none (selection is app state, `RegionSelection.selectAll`) | Select All Segments | yes, on the page/empty area | ⌥⌘A (⌘A stays text / rows) | `checkmark.rectangle.stack` |
+| Select All Segments (on this page) | none (selection is app state, `RegionSelection.selectAll`) | Select All Segments | yes, on the page/empty area | ⌥⌘A outside the Reader; in the Reader ⌘A itself selects the lines (owner 2026-11-08) | `checkmark.rectangle.stack` |
 | New Region | `segment.create_many` (one region) | New Region | yes | ⌥⌘N | `rectangle.dashed.badge.plus` |
 | New Line | `segment.create_many` (one line, in the region under the pointer or selected) | New Line | yes | ⌥⇧⌘N | `text.badge.plus` |
-| Edit Shape (handles on the selection) | `segment.update` per drag, `segment.convert_and_edit` first on a result-only page | Edit Shape | yes | ⌥⌘E | `pencil.and.outline` |
+| Edit Shape (handles on the selection) | `segment.update` per drag, `segment.convert_and_edit` first on a result-only page | Edit Shape | yes | a free chord from the uniqueness test (⌥⌘E is show/hide zoom controls) | `pencil.and.outline` |
 | Nudge | `segment.update` | (arrow keys, no item) | no | ←↑↓→, ⇧ ×10 | — |
 | Set Kind / Direction / Furniture | `segment.update_many` (`SegmentAttributeMenu.Items`, exists) | Kind ▸, Direction ▸, Furniture | yes | none | `tag` |
 | Join | `segment.merge` (exists) | Join | yes | ⌘J (exists) | `arrow.triangle.merge` |
@@ -50,7 +50,7 @@ N marquees added at once are ONE create batch through the existing segment path 
 
 ## 6. The hierarchy note (owner 2026-11-08, #6413, #6415)
 
-The model is stroke › character › word › line › segment › region › page, and ALL of it must be editable: the Inspector shows the selection's place in that hierarchy, up to the page and down to the children, and acts on any level with the same verbs. Later steps (readers, page readers, normalisation, names) tie their output back to a segment, never floating on the page (#6415, its step in `source/models-chains-and-projects.md`).
+The model is stroke › character › word › line › region › page ("segment" is any level, owner 2026-11-08), and ALL of it must be editable: the Inspector shows the selection's place in that hierarchy, up to the page and down to the children, and acts on any level with the same verbs. Later steps (readers, page readers, normalisation, names) tie their output back to a segment, never floating on the page (#6415, its step in `source/models-chains-and-projects.md`).
 
 ## 7. Design look: labelled tools and Paint-to-shape (owner 2026-11-08)
 
@@ -67,7 +67,7 @@ The model is stroke › character › word › line › segment › region › p
 | Line | a LINE by its baseline | click points along the writing; double-click finishes | `underline` | L |
 | Paint | a LINE or a REGION FITTED to the ink | brush over the writing; release fits | `paintbrush.pointed` | B |
 | Split (Step 1.6) | two from one | click the cut | `scissors` | S |
-| Edit Shape (Step 1.2) | handles on the selection | drag a handle | `pencil.and.outline` | E |
+| Edit Shape (Step 1.2) | handles on the selection | drag a handle | `pencil.and.outline` | E in the bar; the menu chord is a free one from the uniqueness test |
 
 **Paint-to-shape rule.** The brush is a stroke (a polyline with a width, the width adjustable with [ and ] and shown as the cursor's circle). On release the app sends ONE `segment.create` with the stroke and the kind to fit (`fit_from_stroke`, one optional field; no new route); the engine, in a pure function of the stroke and the page's current image (`media/paint_fit.py`, tested on synthetic ink), binarises the image under the stroke's mask, keeps the ink components whose centre lies inside it, and fits: for **Line**, the baseline as the lower envelope of the ink per column, smoothed, and the outline as the ink's hull padded by the stroke's half-width; for **Region**, the outline as the concave hull of the components (a box when Paint is used with Region chosen); nothing fitted (no ink under the stroke) refuses in words and draws nothing. The result is created on the shown pass as the Shape tool's results are, selected, with Edit Shape's handles shown at once so the fit is adjusted by hand; one ⌘Z removes it. A stroke across two lines of writing fits two LINES in one create batch (one audit row) when the ink falls into two rows; across text and margin it fits what it covers, the person trims with the handles. What Paint fits is a starting shape, never ground truth: the segment's `made_by` says "painted, fitted by Fichero" until a person edits it.
 
