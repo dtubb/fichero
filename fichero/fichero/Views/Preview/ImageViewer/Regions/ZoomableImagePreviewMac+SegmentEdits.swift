@@ -203,6 +203,17 @@ extension ZoomableImagePreview {
         marquees.clear()
         isAddingRegion = false
     }
+
+    /// After a promotion: the whole set clears the marquees; one marquee is removed on its own.
+    func finishPromotion(of marquees: PreviewMarqueeSelection, onlyIndex: Int?) {
+        if let onlyIndex {
+            marquees.selectedIndex = onlyIndex
+            marquees.removeSelected()
+        } else {
+            marquees.clear()
+            isAddingRegion = false
+        }
+    }
 }
 
 #endif

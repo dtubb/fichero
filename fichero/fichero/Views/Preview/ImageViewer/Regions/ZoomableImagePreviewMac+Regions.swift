@@ -409,13 +409,7 @@ extension ZoomableImagePreview {
                         latest.id, documentId: documentId, in: [latest]
                     )
                 }
-                if onlyIndex == nil {
-                    marquees.clear()
-                    isAddingRegion = false
-                } else if let onlyIndex {
-                    marquees.selectedIndex = onlyIndex
-                    marquees.removeSelected()
-                }
+                finishPromotion(of: marquees, onlyIndex: onlyIndex)
             } catch {
                 Self.logger.error("Region promote failed: \(String(describing: error))")
             }
