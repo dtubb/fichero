@@ -175,6 +175,28 @@ public enum RemoteCertificatePinning {
     }
 
     #if canImport(Security)
+    /// The `sha256/…` pin of the key `url` presents, for first contact with a typed address (no link, so no pin to check
+    /// yet; the person compares its fingerprint before anything is sent). Nothing is sent: the TLS handshake is cancelled at
+    /// the server-trust challenge, after the leaf key is read, so this session never carries a request. A host that does not
+    /// answer throws the transport error, as any connect does.
+    public static func presentedSHA256Pin(at url: URL) async throws -> String {
+        let capture = PresentedKeyCapture()
+        let session = URLSession(configuration: .ephemeral, delegate: capture, delegateQueue: nil)
+        defer { session.invalidateAndCancel() }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 5
+        do {
+            _ = try await session.data(for: request)
+        } catch {
+            if let pin = capture.pin { return pin }
+            throw error
+        }
+        guard let pin = capture.pin else { throw RemoteCertificatePinningError.missingSPKIPin }
+        return pin
+    }
+    #endif
+
+    #if canImport(Security)
     /// Resolve a server-trust authentication challenge against the dynamic
     /// (persisted-pin) policy, returning the disposition + credential the
     /// caller should hand to its completion handler.
@@ -605,6 +627,26 @@ internal final class DynamicPinnedSessionDelegate: NSObject, URLSessionDelegate,
     ) {
         let (disposition, credential) = RemoteCertificatePinning.resolveServerTrustChallenge(challenge)
         completionHandler(disposition, credential)
+    }
+}
+
+/// Reads the leaf key at the trust challenge and cancels it, so no request reaches a host that is not yet trusted.
+private final class PresentedKeyCapture: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let lock = NSLock()
+    private var captured: String?
+    var pin: String? { lock.withLock { captured } }
+
+    func urlSession(
+        _ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge
+    ) async -> (URLSession.AuthChallengeDisposition, URLCredential?) {
+        if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+           let trust = challenge.protectionSpace.serverTrust,
+           let leaf = (SecTrustCopyCertificateChain(trust) as? [SecCertificate])?.first,
+           let key = SecCertificateCopyKey(leaf),
+           let pin = try? RemoteCertificatePinning.sha256Pin(for: key) {
+            lock.withLock { captured = pin }
+        }
+        return (.cancelAuthenticationChallenge, nil)
     }
 }
 #endif

@@ -1,7 +1,6 @@
 import CryptoKit
 import FicheroAPIClient
 import Foundation
-import Security
 
 /// First contact with a typed address (`sharing.people.sign-in-without-a-code`, Step 8.9): with no link there is no pin, so the
 /// guest reads the key the host presents, shows its fingerprint once, and pairs pinned to it only when the person trusts it.
@@ -43,22 +42,9 @@ nonisolated enum HostKeyFingerprint {
 }
 
 nonisolated enum HostKeyProbe {
-    /// The `sha256/…` pin of the key `url` presents. Nothing is sent: the TLS handshake is cancelled at the server-trust
-    /// challenge, after the key is read. A host that does not answer throws the transport error, as any connect does.
+    /// The `sha256/…` pin of the key `url` presents, read with nothing sent (`RemoteCertificatePinning.presentedSHA256Pin`).
     static func sha256Pin(at url: URL) async throws -> String {
-        let delegate = KeyCapture()
-        let session = URLSession(configuration: .ephemeral, delegate: delegate, delegateQueue: nil)
-        defer { session.invalidateAndCancel() }
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 5
-        do {
-            _ = try await session.data(for: request)
-        } catch {
-            if let pin = delegate.pin { return pin }
-            throw error
-        }
-        guard let pin = delegate.pin else { throw RemoteCertificatePinningError.missingSPKIPin }
-        return pin
+        try await RemoteCertificatePinning.presentedSHA256Pin(at: url)
     }
 
     /// A typed address (`studio.local`, `10.10.10.1:8765`, `https://studio.local:8765`), not a link: https is assumed and an
@@ -69,25 +55,5 @@ nonisolated enum HostKeyProbe {
               !trimmed.contains("?"), !trimmed.contains(" ") else { return nil }
         let withScheme = trimmed.contains("://") ? trimmed : "https://\(trimmed)"
         return try? validatedRemoteURL(from: withScheme, allowLocalhost: false, requireSecureTransportForRemote: true)
-    }
-}
-
-/// Reads the leaf key at the trust challenge and cancels it, so no request reaches a host that is not yet trusted.
-private final class KeyCapture: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
-    private let lock = NSLock()
-    private var captured: String?
-    var pin: String? { lock.withLock { captured } }
-
-    func urlSession(
-        _ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge
-    ) async -> (URLSession.AuthChallengeDisposition, URLCredential?) {
-        if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
-           let trust = challenge.protectionSpace.serverTrust,
-           let leaf = (SecTrustCopyCertificateChain(trust) as? [SecCertificate])?.first,
-           let key = SecCertificateCopyKey(leaf),
-           let pin = try? RemoteCertificatePinning.sha256Pin(for: key) {
-            lock.withLock { captured = pin }
-        }
-        return (.cancelAuthenticationChallenge, nil)
     }
 }
