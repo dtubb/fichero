@@ -35686,7 +35686,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CloudRefusalError"
+                  "$ref": "#/components/schemas/ErrorDetail"
                 }
               }
             }
@@ -61425,37 +61425,6 @@
           "words"
         ],
         "title": "CloudRefusal"
-      },
-      "CloudRefusalDetail": {
-        "properties": {
-          "message": {
-            "type": "string",
-            "title": "Message"
-          },
-          "refusal": {
-            "$ref": "#/components/schemas/CloudRefusal",
-            "nullable": true
-          }
-        },
-        "type": "object",
-        "required": [
-          "message"
-        ],
-        "title": "CloudRefusalDetail",
-        "description": "The `detail` of a 400 that is a cloud refusal."
-      },
-      "CloudRefusalError": {
-        "properties": {
-          "detail": {
-            "$ref": "#/components/schemas/CloudRefusalDetail"
-          }
-        },
-        "type": "object",
-        "required": [
-          "detail"
-        ],
-        "title": "CloudRefusalError",
-        "description": "The body of a 400 that is a cloud refusal: FastAPI's `{\"detail\": ...}` with the typed refusal inside."
       },
       "CloudRefusalFix": {
         "properties": {
