@@ -125,6 +125,10 @@ def do_run(a, model: str) -> str:
     return ends[-1]
 
 
+NETWORK_BLIP = re.compile(r"unable to access|Could not resolve host|Failed to connect|Connection (timed out|reset)|early EOF")
+NETWORK_RETRY_S = 20
+
+
 def do_rebase(a, branch: str) -> str:
     """As the worker: fetch origin and rebase the worktree onto origin/<branch>, so a lane that lands after another is judged
     on the range that will land. '' = done; otherwise why (the rebase aborted, never resolved here).
@@ -134,7 +138,11 @@ def do_rebase(a, branch: str) -> str:
     rebase the identity is re-baked once more at HEAD and, if that changed it, committed citing `[check].rebake_issue` with the
     lane's own trailers. One `rebake` journal row each."""
     q, g, wt = shlex.quote, shlex.quote(jail_git()), shlex.quote(str(a.worktree))
-    r = as_worker(a, f"{g} -C {wt} fetch -q origin && {g} -C {wt} rebase -q origin/{q(branch)}")
+    cmd = f"{g} -C {wt} fetch -q origin && {g} -C {wt} rebase -q origin/{q(branch)}"
+    r = as_worker(a, cmd)
+    if r.returncode and NETWORK_BLIP.search(r.stderr or r.stdout or ""):  # manager 2026-11-08: a GitHub blip is not a conflict; once more
+        time.sleep(NETWORK_RETRY_S)
+        r = as_worker(a, cmd)
     if r.returncode == 0:
         return ""
     cfg = check_tool.load(a.pinned)
