@@ -44,6 +44,16 @@ struct PrepareOperationsTests {
         #expect(PrepareOperationRows.summary(of: PrepareOperationRows.rows(of: try listing(), answer: nil))
                 == "Runs: straighten, crop.")
     }
+
+    @Test("the rest of the suite is offered after the four, off until the person switches it on")
+    func theRestOfTheSuiteFollows() throws {
+        let listing = try ["split", "straighten", "crop", "clarity", "binarise", "flip"].map { try operation($0, on: ["straighten", "crop", "clarity"].contains($0)) }
+        let rows = PrepareOperationRows.rows(of: listing, answer: nil)
+        #expect(rows.map(\.id) == ["split", "straighten", "crop", "clarity", "binarise", "flip"])
+        #expect(rows.suffix(2).allSatisfy { !$0.isOn })
+        let after = PrepareOperationRows.answer(after: "flip", to: true, rows: rows)
+        #expect(after == .many(["straighten", "crop", "clarity", "flip"]))
+    }
 }
 
 @MainActor @Test("the page says how many folders answer for themselves, never their names")
