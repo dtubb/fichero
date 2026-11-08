@@ -11,19 +11,19 @@ PAPER_STEPS = {"ruled": "ruled-lines", "show-through": "bleed-through"}
 
 
 def run_paper_steps(db: Any, documents: list[str], run_id: str, paper: list[str] | None,
-                    stop: Any = None, extra: list[str] | None = None) -> dict[str, Any]:
+                    stop: Any = None) -> dict[str, Any]:
     """The steps the paper answers name (ruled: ruled-lines; show-through: bleed-through, method a), run in that order on each
     page's image into one `enhanced` rendition whose `steps` name each. A page that already has one from this card is left."""
     from pathlib import Path
 
     from PIL import Image
 
-    from fichero_server.workflows.tools.enhance_step_nodes import SPECS as STEPS  # the suite: enhancement steps and editor operations
+    from fichero_server.media.enhance import STEPS
     from fichero_server.models import Document, NodeRegion, Rendition
     from fichero_server.models.anchors import RegionConfidence
     from fichero_server.workflows.tools.sources import _resolve_abs_path
 
-    names = [PAPER_STEPS[a] for a in PAPER_STEPS if a in (paper or [])] + [e.replace("_", "-") for e in extra or []]
+    names = [PAPER_STEPS[a] for a in PAPER_STEPS if a in (paper or [])]
     account: dict[str, Any] = {"steps": names, "enhanced": 0, "kept": 0, "no_image": 0}
     if not names:
         return account
@@ -71,6 +71,38 @@ def run_paper_steps(db: Any, documents: list[str], run_id: str, paper: list[str]
     return account
 
 
+def run_extra_operations(db: Any, documents: list[str], operations: list[str], stop: Any = None) -> dict[str, Any]:
+    """Each chosen operation of the rest of the suite runs on each page through its own audited action (`image.<op>`): one audit
+    entry per page and operation, one chain row, and Undo is the action's. A page whose chain already carries the operation from
+    a recipe run is left (`kept`); a page that fails is skipped and counted (`failed`)."""
+    import logging
+
+    from fichero_server.actions.registry import ActionContext, registry
+    from fichero_server.api.routes.ingest import image_editing  # noqa: F401 -- registers the image.<op> actions
+    from fichero_server.models import ImageEditChain
+    from fichero_server.recipes.prepare_operations import ACTION_OF
+
+    ctx = ActionContext(actor="recipe", library_path=str(db.path.parent))
+    account: dict[str, Any] = {"operations": list(operations), "ran": 0, "kept": 0, "failed": 0}
+    for doc_id in documents:
+        done = {op.get("op") for chain in db.query(ImageEditChain, document_id=doc_id) for op in chain.operations
+                if op.get("who") == "recipe"}
+        for name in operations:
+            if stop is not None and stop():
+                return account
+            action = ACTION_OF[name]
+            if action.removeprefix("image.") in done:
+                account["kept"] += 1
+                continue
+            try:
+                registry.invoke(db, action, {"document_id": doc_id, "who": "recipe"}, ctx)
+                account["ran"] += 1
+            except Exception as exc:  # noqa: BLE001 -- one page that fails is skipped and said; the others still go on
+                logging.getLogger(__name__).warning("%s on %s skipped: %s", action, doc_id, exc)
+                account["failed"] += 1
+    return account
+
+
 def run_prepare(db: Any, documents: list[str], parent: str,
                  step: dict[str, Any], paper: list[str] | None = None,
                  operations: list[str] | None = None) -> tuple[str | None, str, str | None]:
@@ -98,8 +130,10 @@ def run_prepare(db: Any, documents: list[str], parent: str,
         step["show_through_only"] = show_through_only.mark_pages(
             db, sorted(documents, key=lambda i: order.get(i, len(order))), stop=lambda: _stop_asked(parent))
     extra = [o for o in ops if o in prepare_operations.EXTRA]  # the rest of the suite, switched on by hand
-    if PAPER_STEPS.keys() & set(paper or []) or extra:  # ruled paper, writing that shows through (`image.enhance.onboarding-step`)
-        step["paper_steps"] = run_paper_steps(db, documents, parent, paper, stop=lambda: _stop_asked(parent), extra=extra)
+    if extra:  # the rest of the suite: each through its audited action, one entry per page (`image.ops.recipe-designer-offers-every-operation`)
+        step["extra_operations"] = run_extra_operations(db, documents, extra, stop=lambda: _stop_asked(parent))
+    if PAPER_STEPS.keys() & set(paper or []):  # ruled paper, writing that shows through (`image.enhance.onboarding-step`)
+        step["paper_steps"] = run_paper_steps(db, documents, parent, paper, stop=lambda: _stop_asked(parent))
     if _stop_asked(parent):  # stopped before its next page (#5609): the account counts the pages it looked at
         return None, "cancelled", "Stopped by you"
     return None, "done", None

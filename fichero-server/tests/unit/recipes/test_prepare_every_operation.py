@@ -5,7 +5,7 @@ from __future__ import annotations
 from PIL import Image
 
 from fichero_server.recipes import prepare_operations as ops
-from fichero_server.models import Document, FileType, Rendition
+from fichero_server.models import Document, FileType
 from tests.unit.recipes.test_prepare_step_setup import PREP, _plan, _prepare_run, _recipe
 
 
@@ -32,15 +32,33 @@ def test_the_plans_sentence_names_the_extra_operations():
     assert "Flip" not in _prepare_run(_plan(_recipe(PREP)))["how"]
 
 
-def test_the_run_writes_one_enhanced_rendition_with_a_steps_row_for_each(db, tmp_path):
-    from fichero_server.recipes.prepare_run import run_prepare
-
+def _page(db, tmp_path):
     path = tmp_path / "p.png"
     Image.new("RGB", (80, 60), (200, 190, 170)).save(path)
     doc = Document(name="p.png", path=str(path), file_type=FileType.image)
     db.save(doc)
+    return doc
+
+
+def test_the_run_executes_each_pick_through_its_audited_action_and_undo_takes_it_back(db, tmp_path):
+    import asyncio
+
+    from fichero_server.actions.registry import ActionContext
+    from fichero_server.api.routes.system.actions_registry import undo_action
+    from fichero_server.models import ActionAudit, ImageEditChain
+    from fichero_server.recipes.prepare_run import run_prepare
+
+    doc = _page(db, tmp_path)
     step: dict = {}
     run_prepare(db, [doc.id], "run-1", step, operations=["binarise", "flip"])
-    enhanced = [r for r in db.query(Rendition, document_id=doc.id) if r.role == "enhanced"]
-    assert len(enhanced) == 1 and [s["step"] for s in enhanced[0].steps] == ["binarise", "flip"]
-    assert step["paper_steps"]["enhanced"] == 1
+    chain = list(db.query(ImageEditChain, document_id=doc.id))[0]
+    assert [o["op"] for o in chain.operations] == ["binarise", "flip_horizontal"]
+    audits = [a for a in db.query(ActionAudit) if a.action_name in ("image.binarise", "image.flip_horizontal")]
+    assert sorted(a.action_name for a in audits) == ["image.binarise", "image.flip_horizontal"]  # one entry each
+    assert step["extra_operations"]["ran"] == 2
+    run_prepare(db, [doc.id], "run-2", {}, operations=["binarise", "flip"])  # a second run leaves what the first did
+    assert len(list(db.query(ImageEditChain, document_id=doc.id))[0].operations) == 2
+    last = next(a for a in audits if a.action_name == "image.flip_horizontal")
+    asyncio.run(undo_action(last.id, request=None, db=db, ctx=ActionContext(actor="person", library_path=str(db.path.parent)),
+                            x_fichero_library_path=str(db.path.parent), x_fichero_origin_window=None))
+    assert len(list(db.query(ImageEditChain, document_id=doc.id))[0].operations) == 1

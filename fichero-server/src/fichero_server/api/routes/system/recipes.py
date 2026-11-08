@@ -486,7 +486,7 @@ class StageQuestion(BaseModel):
 class PrepareOperation(BaseModel):
     """One of Prepare Images' operations (the four, then the rest of the suite, off by default), each selectable (`wide.prepare.four-operations-listed`, section C)."""
 
-    id: Literal["split", "straighten", "crop", "clarity", "stain-flatten", "yellowing", "sharpen", "denoise", "binarise", "flip",
+    id: Literal["split", "straighten", "crop", "clarity", "stain-flatten", "sharpen", "denoise", "binarise", "flip",
                 "grayscale", "auto-levels"]
     title: str
     sentence: str = Field(description="what it does, in the engine's words")

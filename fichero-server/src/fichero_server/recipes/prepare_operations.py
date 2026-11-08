@@ -43,7 +43,6 @@ OPERATIONS: tuple[Operation, ...] = (
 #: the paper answers run them (`prepare_run.PAPER_STEPS`).
 _EXTRA = (
     ("stain-flatten", "Flatten stains", "Evens out stains and discolouration so the writing stands clear of them."),
-    ("yellowing", "Remove yellowing", "Takes the yellow cast of old paper out of the page."),
     ("sharpen", "Sharpen", "Sharpens soft or blurred writing."),
     ("denoise", "Remove speckle", "Cleans speckle and scanner noise from the page."),
     ("binarise", "Binarise", "Turns the page to black writing on white, for readers that want a clean two-tone page."),
@@ -52,6 +51,8 @@ _EXTRA = (
     ("auto-levels", "Auto levels", "Stretches the page's darkest and lightest tones to fill the range."),
 )
 EXTRA = tuple(e[0] for e in _EXTRA)
+#: The audited action each runs through (`image.ops.one-action-per-operation`).
+ACTION_OF = {i: "image." + i.replace("-", "_") for i in EXTRA} | {"flip": "image.flip_horizontal"}
 OPERATIONS = OPERATIONS + tuple(Operation(*e) for e in _EXTRA)
 IDS = tuple(o.id for o in OPERATIONS)
 
