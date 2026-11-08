@@ -155,6 +155,26 @@ extension BackendConnectionView {
         #endif
     }
 
+    /// #6418: forget the unreachable host and start this Mac's own engine (the same stop, write, repoint, start and check as
+    /// every host change, `EngineHostSwitch`). The paired Macs stay paired; only which engine this Mac runs changes.
+    @ViewBuilder
+    var ownEngineButton: some View {
+        Button {
+            Task {
+                try? await EngineHostSwitch.standard(
+                    appState: appState, backendService: backendService, libraryManager: LibraryManager.shared,
+                    setHost: { $0.isEmpty ? EngineConfig.clearStoredHost() : EngineConfig.storeHost($0) }
+                ).run(from: EngineConfig.hostString, to: "", notResponding: "This Mac's own engine did not start.")
+            }
+        } label: {
+            Label("Use Own Engine", systemImage: "desktopcomputer")
+                .lineLimit(1)
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(backendService.isStarting)
+        .accessibilityIdentifier("backend.action.useOwnEngine")
+    }
+
     /// Opens the full engine log — where the developer detail belongs. The
     /// popover deliberately shows no raw transport error and no shell command
     /// (#4380/#4269); this button is the way to both. macOS only.

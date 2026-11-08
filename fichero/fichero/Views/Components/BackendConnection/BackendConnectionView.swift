@@ -87,6 +87,14 @@ struct BackendConnectionView: View {
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        if showsOwnEngineOffer {
+            Text(ConnectionPresentation.ownEngineSentence(host: EngineConfig.hostString))
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("backend.connection.ownEngineSentence")
+        }
         if let notice = backendService.staleEngineNotice {
             Text(notice)
                 .font(.caption)
@@ -111,6 +119,7 @@ struct BackendConnectionView: View {
             } else if let action {
                 primaryActionButton(action)
             }
+            if showsOwnEngineOffer { ownEngineButton }
             settingsButton
             showLogButton
         }
