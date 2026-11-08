@@ -58,6 +58,8 @@ Written 2026-11-08 for #6413 and #6412 after the Fable review (`agent-work/statu
 
 ### Stage 1 — CRUD on every surface, no mode gate, nothing lost
 
+Order and cross-spec dependencies (Fable review 2026-11-08, fixes 6 and 13): 1.1 first; then 1.2 (the gate); then `source/image-preparation.md` Steps 1.4 and 1.5 (one box mapping in one place), which 1.1's marquees, 1.4's new shapes, 1.11's Paint stroke and 1.14's overlays all draw through; then 1.3, 1.5, 1.6. 1.8 rides on `ui/menus-and-commands.md` Step 1.1 (the selection-scoped start). 1.14's Flip is `source/models-chains-and-projects.md` Step 3.1 (`CompareViewModel` has Side by Side, Overlay and Wipe today; Flip is that step's). Engine-first steps run in parallel with the Swift ones: 1.12's kind table, 1.13's words, 1.11's fit. RISKY BLIND IN SWIFT, needing the Air launch check or the owner's eyes before they are called done: 1.7's chrome move, 1.9 and 1.10's ⌫ and ⌘A routing in the Reader, 1.12's drag re-parent, 1.14's draggable overlays, Paint's stroke-to-rendition-frame mapping.
+
 #### Step 1.1 — N marquees, one audit row, one undo; Delete deletes the segment (#6412, #6419)
 - Behaviours: `source.editor.n-marquees-one-audit-one-undo`, `source.editor.delete-deletes-the-segment`
 - Tests: fichero/Tests/Unit/general/Models/RegionSelectionTests.swift, test_n_marquees_one_audit_row_6412.py (not yet written), test_preview_delete_deletes_the_segment_6419.py (not yet written), PreviewSegmentCrudTests.swift (not yet written)
@@ -97,7 +99,7 @@ Swift only: Select All Segments over the shared `RegionSelection` from the Inspe
 - Depends on: 1.1, 1.2
 - Size: M
 
-Swift on the engine's existing actions: New Region and New Line as items and from the Inspector, the drawn shape through the same create, the handles under Edit Shape, the saved state read from the store.
+Also needs `source/image-preparation.md` Step 1.5 (the one mapping) for a shape drawn on a rendition. Swift on the engine's existing actions: New Region and New Line as items and from the Inspector, the drawn shape through the same create, the handles under Edit Shape, the saved state read from the store.
 
 - test (to write): `PreviewMakeNewSegmentTests.swift` and `PreviewSegmentCrudTests.swift` in fichero/Tests/Unit/general/Views/Source/ (the create call built from a menu press and from a drawn shape; the new segment selected; the store re-read; one undo)
 
@@ -137,7 +139,7 @@ Swift only, moving the existing controls: the head controls and the Reader toolb
 - Depends on: 1.2
 - Size: M
 
-Rides on `ui/menus-and-commands.md` Step 1.1 (the selection-scoped start, #6411): the step name from the page's steps-done, the label from kind and count, Run Again ▸ from `redo_steps`, the item in Edit › Segments ▸, Project › Read › Reading ▸ and the context menus, ⌥⌘⏎ through the uniqueness test. Engine: the selection-scoped start takes the step to run, as the folder's redo already does.
+Depends across specs on `ui/menus-and-commands.md` Step 1.1 (the selection-scoped start, #6411), which lands first: the step name from the page's steps-done, the label from kind and count, Run Again ▸ from `redo_steps`, the item in Edit › Segments ▸, Project › Read › Reading ▸ and the context menus, ⌥⌘⏎ through the uniqueness test. Engine: the selection-scoped start takes the step to run, as the folder's redo already does.
 
 - test (to write): `RunNextStepItemTests.swift` in fichero/Tests/Unit/general/App/ (the next step from steps-done; the label per kind and count; the three disabled reasons; the scope and step passed to the start)
 
@@ -167,7 +169,7 @@ Swift only: the per-pane meaning as a table on `SelectAllRoutingPolicy`, the Rea
 - Depends on: 1.4, 1.7
 - Size: M
 
-The design look is section 7 of `agent-work/status/briefs/segment-editor-review-2026-11-08.md`; the owner reads it before this step is approved. Engine first: the fit as a pure function in a new `paint_fit.py` under media on synthetic ink, red then green, then `fit_from_stroke` on `segment.create` (one optional field). Swift: the labelled tools replace the kind menu on the Editing bar, keys and cursor, the remembered tool; the Paint stroke, its width, the create call, the handles after.
+The design look is section 7 of `agent-work/status/briefs/segment-editor-review-2026-11-08.md`; the owner reads it before this step is approved. Also needs `source/image-preparation.md` Step 1.5: a stroke painted on a rendition is mapped to the photograph's frame before the fit. Engine first: the fit as a pure function in a new `paint_fit.py` under media on synthetic ink, red then green, then `fit_from_stroke` on `segment.create` (one optional field). Swift: the labelled tools replace the kind menu on the Editing bar, keys and cursor, the remembered tool; the Paint stroke, its width, the create call, the handles after.
 
 - test (to write): `test_paint_fits_a_shape.py` in fichero-server/tests/unit/media/ (the five synthetic cases; the fit through `segment.create` with `fit_from_stroke` is one audited row)
 - test (to write): `LabelledShapeToolsTests.swift` and `PaintToolTests.swift` in fichero/Tests/Unit/general/Views/Preview/ (the tool table and keys; the remembered kind; the stroke's call and width keys; handles shown after a fit)
@@ -199,7 +201,7 @@ For lane-onboard after #5727. Engine first: the words on `ReadingOrderRead` from
 - Depends on: 1.5, 1.13
 - Size: M
 
-Engine: Combine Orders as one `reading_order.create` with its entries by the interleave or take-then rule. Swift: the numbered overlay on the mapped boxes (`prep.preview-draws-segments-on-the-selected-rendition`), the two-sided Compare component with orders as its sides in Side by Side, Overlay, Wipe and Flip, the overlay edits through the existing `reading_order.place` and `.renumber` and the one item table's segment verbs.
+Also needs `source/models-chains-and-projects.md` Step 3.1 (the Flip mode) and `source/image-preparation.md` Step 1.5 (the mapped boxes). Engine: Combine Orders as one `reading_order.create` with its entries by the interleave or take-then rule. Swift: the numbered overlay on the mapped boxes (`prep.preview-draws-segments-on-the-selected-rendition`), the two-sided Compare component with orders as its sides in Side by Side, Overlay, Wipe and Flip, the overlay edits through the existing `reading_order.place` and `.renumber` and the one item table's segment verbs.
 
 - test (to write): `test_combine_orders_6421.py` in fichero-server/tests/unit/api/ (interleave and take-then; sources untouched; one undo)
 - test (to write): `OrdersSeenOnThePageTests.swift` and `OrderOverlayEditTests.swift` in fichero/Tests/Unit/general/Views/Preview/ (the numbered overlay; the three modes and the flip with two orders; a dragged number's place call; a renumber)
