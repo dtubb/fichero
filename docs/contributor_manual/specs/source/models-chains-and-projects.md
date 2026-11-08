@@ -4859,6 +4859,52 @@ The list, the filter and the Set Up section exist; this step adds one hand (cort
 - test (to write): `test_hands_fit_the_languages_6012.py` in fichero-server/tests/unit/recipes/ (the Spanish–Latin 16th–17th c. list; Kurrent only for German; no languages gives every Latin hand of the period)
 - test (to write): `test_typeface_for_print_6012.py` in fichero-server/tests/unit/recipes/ (print-only shows typefaces and no hands; a mixed project shows both; `fraktur` reaches the finder's query)
 
+### Stage 2 — The training UI, split from #5692 (owner 2026-11-08)
+
+#### Step 2.1 — cost before training (#6392)
+- Behaviours: `source.train.cost-before-training`
+- Tests: fichero-server/tests/unit/training/test_noise_band_per_project_5692.py, test_cost_before_training_6392.py (not yet written)
+- Depends on: none
+- Size: S
+
+- test (to write): `test_cost_before_training_6392.py` in fichero-server/tests/unit/training/ (the range from the listed price and the minutes; the local offer with no money; no Start while the price is unknown)
+
+#### Step 2.2 — the caps apply to a training run (#6393)
+- Behaviours: `source.train.caps-apply-to-training`
+- Tests: fichero-server/tests/unit/training/test_noise_band_per_project_5692.py, test_training_caps_6393.py (not yet written)
+- Depends on: 2.1
+- Size: S
+
+Reuses the one spend hold and the one typed refusal of `ai/cloud-permission-and-spend.md` (its Stage 1 and 3); nothing new is written for caps.
+
+- test (to write): `test_training_caps_6393.py` in fichero-server/tests/unit/training/ (refused in words past the cap; reserve then book the actual; a local run untouched)
+
+#### Step 2.3 — WER beside CER (#6395)
+- Behaviours: `source.train.wer-beside-cer`
+- Tests: fichero-server/tests/unit/training/test_noise_band_per_project_5692.py, test_wer_beside_cer_6395.py (not yet written)
+- Depends on: none
+- Size: S
+
+- test (to write): `test_wer_beside_cer_6395.py` in fichero-server/tests/unit/training/ (both numbers served everywhere CER is; "not measured" for an old reader, never 0)
+
+#### Step 2.4 — the trained model's link (#6396)
+- Behaviours: `source.train.trained-models-link`
+- Tests: fichero-server/tests/unit/training/test_noise_band_per_project_5692.py, test_trained_models_link_6396.py (not yet written)
+- Depends on: 2.3
+- Size: M
+
+- test (to write): `test_trained_models_link_6396.py` in fichero-server/tests/unit/training/ (each link resolves to its thing; a deleted run says "run not kept" and the rest stand)
+
+#### Step 2.5 — train on another Mac (#6394)
+- Behaviours: `source.train.on-another-mac`
+- Tests: fichero-server/tests/unit/training/test_noise_band_per_project_5692.py, test_train_on_another_mac_6394.py (not yet written)
+- Depends on: 2.1, 2.2
+- Size: L
+
+Last, because it rides on the pairing and the run targets of `compute/recipe-steps-at-scale.md`; a training run is one more job kind on the same roads, never a second transport.
+
+- test (to write): `test_train_on_another_mac_6394.py` in fichero-server/tests/unit/training/ (the paired Mac listed with its free memory; the run shows here with the Mac named and cancels from here; the reader lands in this project)
+
 
 ## Open questions (with recommendations)
 
@@ -5059,6 +5105,11 @@ Each is described in the paragraph named; the id lets a test cite it.
   request names no band (`reasons_job.band_for`, `test_the_reasons_ab_uses_the_projects_band_unless_one_is_given`). A
   trained reader is adopted only past it (`source.train.adopt-only-past-the-noise-band`).*
   Recipe Designer change 7 (designer.measure.noise-band): the bake-off default is 0.5 CER points per model kind, not one point.
+- `source.train.cost-before-training` — **[GAP]** (#6392, split from #5692 by the owner 2026-11-08) before a training run starts, the offer says what it will cost in money and time: for Hugging Face Jobs the hardware's listed price an hour (`hf_jobs.price_per_hour`, read not guessed, as `compute.job.costs-shown-where-known`) times the estimated minutes from the set's line count and the last run of that size, as a range; for this Mac the estimated minutes and "free, your Mac is busy for about N minutes"; both say "estimate" and the last run's actual beside it when one exists. Start is not offered while the price is unknown (the service unreachable): the offer says so. *Acceptance:* an offer for a 2,000-line set on a T4 shows "about US$X–Y, 20–30 minutes" from the listed price; the same set here shows minutes and no money; with the price unavailable the Start button is absent and the words say why. *Tests:* `test_cost_before_training_6392.py` in fichero-server/tests/unit/training/ (not yet written).
+- `source.train.caps-apply-to-training` — **[GAP]** (#6393, split from #5692) a training run that costs money is held by the same spend hold as a cloud reader call (`llm/spend.py`, the project's and the app's monthly and daily caps of `ai/cloud-permission-and-spend.md`): its estimate is reserved before the job is sent, booked against the project when the job ends with the actual, and refused in words when it would pass a cap ("capped at $N a month, of which $M is spent; this run needs about $K"), with the one typed refusal and the raise or allow-once route of that spec. A run on this Mac costs nothing and is never held. *Acceptance:* with US$2 left under the monthly cap a US$5 estimate is refused with the words and the route; a run under the cap reserves, then books the actual; a local run is not touched. *Tests:* `test_training_caps_6393.py` in fichero-server/tests/unit/training/ (not yet written).
+- `source.train.on-another-mac` — **[GAP]** (#6394, split from #5692) the offer lets the person choose where the run goes, from the same places a recipe step may run (`compute/recipe-steps-at-scale.md`: this Mac, another Mac of theirs that is paired and awake, Hugging Face Jobs; a cluster when `hpc-runner-acenet.md` lands): a Mac is listed with its free memory and whether it can take the set now (`budget.machine`'s reading over the pairing), the run is one job on that Mac's engine through the existing job routes, and progress, cancel and the result come back over the same pairing as a shared library's. *Acceptance:* with the Air paired and awake the offer lists it with its free memory; a run sent there shows in this Mac's Activity with the Air named and can be cancelled from here; the trained reader lands in this project. *Tests:* `test_train_on_another_mac_6394.py` in fichero-server/tests/unit/training/ (not yet written).
+- `source.train.wer-beside-cer` — **[GAP]** (#6395, split from #5692; the measure exists: `training/evaluation.py` computes the page's word errors and the WER over pages read, #5660 item 7) every place a trained reader's CER is shown shows its WER beside it, the same way: the offer, the evaluation result, the reader's card, the comparison table (`designer.measure.*`), and the adopt decision's words name both; the noise band stays a CER band (the adopt rule does not change), WER is shown, not judged by. *Acceptance:* an evaluation result reads "CER 4.1 % · WER 12.3 %"; a card with no WER kept (a reader evaluated before #5660) reads "WER not measured", never 0. *Tests:* `test_wer_beside_cer_6395.py` in fichero-server/tests/unit/training/ (not yet written), `TrainedReaderCardTests.swift` (not yet written).
+- `source.train.trained-models-link` — **[GAP]** (#6396, split from #5692; the card's fields exist: `training/landing.py` carries the base, the teacher and the training set) the trained reader's card links where it came from: the base model (its catalogue row), the teacher (the person, or the model whose lines it distilled), the training set (how many lines from which pages, opened as a Library selection of those pages), the run (its Activity row, where it ran, when, how long, what it cost), and the evaluation (the held-out pages and the two numbers); each a link that opens the thing, not text; the same card in Settings › AI › Models and in the finder's row for the reader. *Acceptance:* clicking the training set opens the pages it was trained on; clicking the run opens its Activity row; a reader whose run was deleted says "run not kept" and keeps the other links. *Tests:* `test_trained_models_link_6396.py` in fichero-server/tests/unit/training/ (not yet written), `TrainedReaderCardTests.swift` (not yet written).
 - `source.train.adopt-only-past-the-noise-band` — **[PARTIAL]** (#5700, #5441, R4 exit) after an evaluation, the best trained Kraken
   reader measured becomes the project's read-a-line reader only when its CER on the held-out pages beats the best downloadable
   reader's by more than the project's noise band; it is kept as the step's project-scope override (`model: {trained: <reader id>}`,
