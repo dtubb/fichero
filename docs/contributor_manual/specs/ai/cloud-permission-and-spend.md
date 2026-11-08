@@ -95,12 +95,16 @@ Status tags are as of 2026-11-04 (A: the engine half of its first three lines is
   and `EgressRefusedError` as a field, on the validation 400 as `detail.refusal`, on a run's paused-at-cap status
   (`spend.stopped_at_cap`) and on the per-page failure (category `egress_refused` gains `spend_refused`). Tests:
   `fichero-server/tests/unit/llm/test_cloud_refusal_shape_6349.py` (each kind, each fix including `allow-everywhere`, the words name the figure).
-- `ai.cloud.hand-run-refused-before-it-starts` [PARTIAL] (#6349, #6028; Step 3.1a built the typed 400; the one `refused` stream event is built (`execution.runner.refused_event`, sent as the run pauses at a cap); the app listens for it: `WorkflowStreamEvent.refused`, and the alert's answer resumes the paused run with the once overrides, uncompiled) — a hand run (`POST *The 400 is declared as the shared `ErrorDetail` (a sentence or an object, #5094); the app reads `message` and `refusal` out of that object itself.* *Test:* `CloudRefusedBodyTests` (`anObjectDetailCarriesTheMessageAndTheTypedRefusal`, `aSentenceDetailLeavesNoRefusalAndDoesNotThrow`), `test_execute_declares_its_400_refusal_as_error_detail`; Swift, needs compile: builder.
+- `ai.cloud.hand-run-refused-before-it-starts` [PARTIAL] (#6349, #6028; Step 3.1a built the typed 400; the one `refused` stream event is built (`execution.runner.refused_event`, sent as the run pauses at a cap); the app listens for it: `WorkflowStreamEvent.refused`, and the alert's answer resumes the paused run with the once overrides, uncompiled) — a hand run (`POST
   /api/workflow-execution/execute`) refused at validation for images answers the typed refusal, not prose alone; a run
   whose first cloud call would not fit a cap is refused at that call and paused (built: `_STOPPED_AT_CAP`), and the
   execution stream sends one `refused` event carrying the refusal so the app need not read a sentence. Tests:
   `fichero-server/tests/unit/api/test_execute_refusal_is_typed_6349.py`,
   `fichero-server/tests/unit/workflows/test_paused_at_cap_event_6349.py`.
+  *Built, uncompiled:* the 400 is declared as the shared `ErrorDetail` (a sentence or an object, #5094) and the app reads
+  `message` and `refusal` out of that object itself (`CloudRefusedBody`). *Tests:*
+  `fichero-server/tests/unit/api/test_structured_refusals_declared_5094.py::test_execute_declares_its_400_refusal_as_error_detail`,
+  `fichero/Tests/Unit/general/Models/CloudRefusedBodyTests.swift`.
 - `ai.cloud.one-run-overrides` [PARTIAL] (#6349, #6350; Step 3.1b built: the two flags on the execute and resume requests, `llm/run_overrides.py` read by the gate and the hold, the spend still booked; the recipe Start's two flags are built too (`tests/unit/recipes/test_recipe_start_one_run_overrides_6350.py`); the run status serves the Activity words as `once_words` and the project run strip says them beside its line (`ProjectRunStripStateTests`, uncompiled)) — the execute request (and a recipe Start) take
   `allow_cloud_once: bool` and `over_cap_once: bool`; both are kept on the run row (like `run_cap_usd`), read by the
   gate and the hold for calls of that run only, written to no project or app setting, and shown on the run's Activity
