@@ -92,7 +92,9 @@ def test_the_remote_wrapper_holds_the_machines_lock_while_its_script_runs_and_pa
     one = check_tool._remote_heavy(sys.executable, lock, f"echo a-start >> {log}; sleep 1; echo a-end >> {log}; exit 7")
     two = check_tool._remote_heavy(sys.executable, lock, f"echo b-start >> {log}; echo b-end >> {log}")
     p1 = subprocess.Popen(["sh", "-c", one])
-    time.sleep(0.4)
+    t0 = time.monotonic()  # the first holds the lock once it has written a-start: a fixed 0.4 s lost the race at load 124 (2026-11-07)
+    while not (log.exists() and "a-start" in log.read_text()) and time.monotonic() - t0 < 30:
+        time.sleep(0.05)
     p2 = subprocess.Popen(["sh", "-c", two])
     assert p1.wait(10) == 7 and p2.wait(10) == 0
     assert log.read_text().split() == ["a-start", "a-end", "b-start", "b-end"], "the second waited for the first"
