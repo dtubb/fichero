@@ -24,7 +24,7 @@ enum SharedRowAvailability {
 
     /// What the paired host says this device may open, over the pinned connection to THAT host (`PairingService(apiRoot:)`
     /// would dial this Mac's own engine in a release build). nil when no pin is stored for the host or the read fails.
-    static func readFromHost(
+    @MainActor static func readFromHost(
         _ root: URL, pin: String? = nil
     ) async -> [String]? {
         guard let pin = pin ?? RemoteAccessConfig.hostedBackendSPKIPin(hostString: root.absoluteString),
