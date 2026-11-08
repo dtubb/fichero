@@ -292,6 +292,8 @@ Behaviours (slice 1):
   its chord. The composing type is `PageAndProjectMenuCommands` (was `ReadKnowledgeMenuCommands`).
   Pinned by `PageMenuTests`, `MenuTerminologyBoundaryTests.testPageMenuReplacesReadAndSegment` and
   `MenuShortcutUniquenessTests.pageMenuChordsAreUnique`.
+- `menus.project.run-recipe-on-this-item` — **[GAP]** (#6411, #4552; owner 2026-11-08: a recipe cannot be run on ONE selected file or PDF; today `RunRecipeOnFolderMenuItem` is rendered only for a folder row (`LibraryView+ContextMenu` passes `isFolder: document.docType == .folder`; the sidebar's folder row), `RecipeFolderScope.forClick` answers nothing for a page, and running a workflow on one PDF ran on every sidebar item, #4552) the same one item, relabelled by what it acts on ("Run the Recipe on This Folder…", "… on This PDF…", "… on This Document…", "… on These 3 Items…"), is rendered by the file, PDF and group rows' context menus in the Library pane, the Preview's folder views and the sidebar, and runs on EXACTLY the clicked selection, never the sidebar's selection or the window's folder (the #4552 scope rule): the clicked row alone when it is not part of the selection, the whole selection when it is (Finder semantics, as `RecipeFolderScope.forClick` already does for one folder; it gains the other kinds and a set of ids). The engine's folder-scoped start (`source.recipe.folder-scoped-start`, `folder_id` on the Start plan and `start`) takes the scope as the ids it already takes, worked out to pages the same way: a folder or group to its pages, a PDF to its pages, a page or file to itself; a scope with no pages refuses Start in words; nothing outside the scope is touched, and a model pass already landed on a page in it is reused (`activity.read.page-read-once`). No new route: the Start plan's scope field widens from one folder to the ids of the selection; the item, the plan read and the start are the existing component. Acceptance: right-clicking one PDF in a folder of twenty and choosing Run the Recipe on This PDF… starts a run whose Activity row names that PDF and reads its pages and no other; with three rows selected and one of them right-clicked the item reads "… on These 3 Items…" and runs on the three; a right-click on a row outside the selection runs on that row alone. *Test:* `MenuTerminologyBoundaryTests.testRecipeFolderScope` (the existing test, extended to the other kinds and the selection set), `test_start_scope_is_the_selection_6411.py` (not yet written), `RunRecipeScopeLabelTests.swift` (not yet written).
+- `menus.project.run-recipe-shortcut` — **[GAP]** (#6411) the menu-bar item in Project › Read › Reading ▸ (`FocusedRunRecipeOnFolderButton`) acts on the window's current selection by the same scope rule (`RecipeFolderScope.forSelection`: the selection when there is one, else the folder the window shows), carries the label of what it acts on and ONE keyboard shortcut (⌥⌘R proposed; `MenuShortcutUniquenessTests.projectMenuChordsAreUnique` and the system-shortcut audit decide, as `menus.shortcut-uniqueness` rules), and when it cannot act is disabled with its reason in words ("Select an item or a folder to run the recipe on"; "Open a project to start its recipe"; the plan's refusal), never silent. Acceptance: with a PDF selected ⌥⌘R starts the run on it and the menu item read "Run the Recipe on This PDF…  ⌥⌘R"; with nothing selected in a window showing a folder it runs on the folder; with no project it is disabled with the reason. *Test:* `PageMenuTests.readingSubmenu` (the existing test, extended), the existing `MenuShortcutUniquenessTests.swift`, `RunRecipeScopeLabelTests.swift` (not yet written).
 - `menus.project.read-reading-submenu` — **[OK]** (#5652 slice 2) **Built 2026-10-12 (app), not yet
   seen:** Project › Read holds a **Reading ▸** submenu of the reading verbs on the selection. Today it
   holds the one such verb the app has, **Run the Recipe on This Folder…** (`FocusedRunRecipeOnFolderButton`
@@ -714,6 +716,23 @@ rulings-2026-10-17). The design holds (shared components), and iOS-only tests ma
   not Mac-first. The shared `Focused*Button` / `*MenuItems` components render in a `CommandMenu`
   (Mac / iPad menu bar) or a toolbar `Menu` / `.contextMenu` (iPhone) unchanged; tests cover each
   platform's surface. This raises the bar on every menu change — no macOS-only command bodies.
+
+
+## Build order
+
+Written 2026-11-08 for the owner's finding #6411; the rest of this spec's behaviours are not yet cut into steps (the spec is DRAFT for the guard).
+
+### Stage 1 — Run the recipe on the selection
+
+#### Step 1.1 — Run the Recipe on This Item: every row kind, the clicked selection as the scope, a shortcut and a disabled reason (#6411, #4552)
+- Behaviours: `menus.project.run-recipe-on-this-item`, `menus.project.run-recipe-shortcut`
+- Tests: fichero/Tests/Unit/general/App/MenuTerminologyBoundaryTests.swift, fichero/Tests/Unit/general/App/PageMenuTests.swift, fichero/Tests/Unit/general/Views/Shell/MenuShortcutUniquenessTests.swift, fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift, test_start_scope_is_the_selection_6411.py (not yet written), RunRecipeScopeLabelTests.swift (not yet written)
+- Size: M
+
+Engine first: the Start plan's scope takes the ids of a selection and resolves them to pages (folder and group as today, a PDF to its pages, a page to itself), refusing an empty scope in words; one test. Then Swift, all on the existing component: `RecipeFolderScope` answers a set of ids and a kind for the clicked row of any kind and for the window's selection; the item's label from the kind and count; the three context menus and the Preview's folder views render it for every row; the Project menu item carries the shortcut and the reason. Reuses `RunRecipeOnFolderMenuItem`, `FocusedRunRecipeOnFolderButton`, `RecipeSetupStore.loadStartPlan`/`start`; no new route.
+
+- test (to write): `test_start_scope_is_the_selection_6411.py` in fichero-server/tests/unit/recipes/ (a PDF resolves to its pages and no other; a page to itself; three ids to their union; an empty scope refuses in words; a landed pass inside the scope is reused)
+- test (to write): `RunRecipeScopeLabelTests.swift` in fichero/Tests/Unit/general/App/ (the scope for a click inside and outside the selection, per kind; the label per kind and count; the disabled reason per state; the shortcut declared once)
 
 ## Open questions (still open)
 
