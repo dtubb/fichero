@@ -20,7 +20,7 @@ enum PairingLinkAddresses {
     /// The payload for `chosen` with the others as `alt_urls`. nil when the chosen address has no usable pin yet; an
     /// alternate with none is left out. One pin serves them all (the same key whatever the name); a public-CA address
     /// ignores it.
-    static func payload(
+    @MainActor static func payload(
         chosen: URL, rows: [AddressRow], code: PairingCodeRecord, spkiPin: String, libraryPath: String?
     ) -> PairingQRCodePayload? {
         var pin: String?

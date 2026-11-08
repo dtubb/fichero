@@ -10,6 +10,7 @@
 import Foundation
 import Testing
 
+@MainActor
 struct PairingLinkAddressesTests {
     private let pin = Data("spki".utf8).base64EncodedString()
     private let code = PairingCodeRecord(code: "ABCD-1234", expiresAt: nil)
