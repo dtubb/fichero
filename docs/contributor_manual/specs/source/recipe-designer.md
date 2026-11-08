@@ -292,6 +292,8 @@ Mac's chip and memory, the providers with a key and the places work can run).
   or Hugging Face + cost → (b); cloud allowed + a large archive (the volume rule) → (a). The chosen card says
   "proposed from your answers; change here"; the other cards stay. Changing an answer re-proposes; a card the
   person chose by hand is never re-proposed over. *Test:* `test_how_answers_pick_the_card.py`.
+- `designer.how.teach-as-you-go` [GAP] (#6407, #6406, #5692; owner scenario 2026-11-08: the first 100 pages with Gemini, fine-tune a model on Hugging Face from those readings, then the rest with Kraken and MLX models on Hugging Face; manager rulings 2026-11-08) — How offers one more card beside the four questions' routes: **Teach as you go**, a staged plan across MANY pages, the distil route of `routes.py` made a plan with its gate: (a) N pages read with model A, the teacher (the How answers' cloud model); the person chooses PER RUN a covering sample or the first N in order, default covering, N editable, 100 proposed (`distill.collect.first-n-or-covering-sample` in `compute/distillation.md`); (b) fine-tune from those readings on the target the How "where" answer and the app's allowances give, this Mac or Hugging Face Jobs (`designer.teach.asks-whether-and-where-at-the-offer`, Step 16.3's place rule; provisional, owner to confirm: a transformers base on Hugging Face with an MLX copy for this Mac, `distill.student.transformers-base-on-hf-mlx-copy-local`); (c) a gate before the switch: the student's CER AND WER (`source.train.wer-beside-cer`, #6395) on held-out checked pages against the person's corrections as truth (Step 3.1, `designer.check.corrections-become-the-reference`) within the project's noise band (Step 6.1, `designer.teach.switch-within-band`); (d) the remaining pages read with the student on its place; never a model pass rerun (`activity.read.page-read-once`: the N teacher-read pages are not read again). The card shows the four stages with their figures from the route (`sample_pages` × the teacher's per-page price; the target's price per hour; zero for the rest on this Mac) and the gate's bar, and says the risk in plain words (Step 18.7). Everything happens in the app: no hand-built sets or files; the set is `training/kraken_set.py`'s, the start is `train_offers.start_when_ready`'s, the spend is under the project's Hugging Face cap (`spend_this_month`). No new route: the plan is the recipe's steps with places and a gate step, run by the recipe runner. Acceptance: choosing Teach as you go with "first 100" on a 1,000-page project shows the four stages priced; Start reads pages 1–100 with the teacher and no other page, trains, measures, and either switches (the switch recorded, `designer.run.switch-recorded`) and reads 101–1,000 with the student, or stops at the gate saying which measure fell short and offers to read on with the teacher at its cost. *Test:* `test_teach_as_you_go_end_to_end.py` (not yet written, one test with `compute/distillation.md` Stage 1), `test_how_offers_teach_as_you_go.py` (not yet written).
+- `designer.how.teach-as-you-go-gate-says-both-measures` [GAP] (#6407, #6395) — the gate's verdict names CER and WER side by side with the bar ("3.1% characters, 9.8% words; the bar is the current reader's 4.0% ± 0.6"), passes only when CER clears the band (WER shown, as `source.train.wer-beside-cer` rules), and a fall-short says which and offers the two ways on: more labelled pages (another N with the teacher, priced) or the teacher for the rest (priced). *Test:* `test_teach_as_you_go_end_to_end.py` (not yet written).
 
 **Improves — the risks in plain words (the maintainer, 2026-10-30; DRAFT).** `designer.rank.predictability-in-words`
 says a model's trade-off on its row; these say the same once, where the choice is made, and on the plan.
@@ -1573,3 +1575,27 @@ Engine before app in every step; the Budget steps first because #6295 and #6294 
 - Tests: fichero-server/tests/unit/recipes/test_risks_text_is_the_engines.py, fichero-server/tests/unit/recipes/test_chain_risk_on_ready.py, fichero-server/tests/unit/recipes/test_what_to_check_after_a_run.py
 - Depends on: 18.5
 - Size: M
+
+### Stage 19 — Teach as you go: the staged plan across many pages (owner scenario 2026-11-08; #6407, #6406)
+
+One answer for the owner's scenario and the Hugging Face story: the How card of `designer.how.teach-as-you-go`, built on what exists (Stage 11's offer and switch, `train_offers.py`, the distil route's `sample_pages`, `compute/distillation.md` Steps 1.1–1.3, Step 16.3's place, Step 6.1's band, Step 3.1's truth). The MLX-on-Hugging-Face line is provisional until the owner confirms.
+
+#### Step 19.1 — The card in How: the four stages priced, the per-run sample choice, the place (#6407)
+- Behaviours: `designer.how.teach-as-you-go`
+- Tests: fichero-server/tests/unit/recipes/test_how_answers_pick_the_card.py, fichero-server/tests/unit/recipes/test_routes_for_the_volume.py, fichero-server/tests/unit/recipes/test_train_offers_5660.py, test_how_offers_teach_as_you_go.py (not yet written), test_teach_as_you_go_end_to_end.py (not yet written)
+- Depends on: 18.5, 16.3
+- Size: M
+
+Engine: the distil route becomes a plan (steps with places and a gate step) the recipe runner takes; the sample choice (`first-n` with N, or `covering`) is a setting on the plan read by `distill.collect.first-n-or-covering-sample`; the target from the How "where" answer and the allowances. Swift: the card beside the route cards, its four stages and figures from the engine's route, the N field, the sample choice. Nothing hand-built, no new API.
+
+- test (to write): `test_how_offers_teach_as_you_go.py` in fichero-server/tests/unit/recipes/ (the card appears with a teacher and a trainable step; its four figures and their bases; first-n and covering reach the plan; the place follows the answer and the allowances)
+
+#### Step 19.2 — The gate with both measures, the switch, the rest on the student, never a pass rerun (#6407, #6395)
+- Behaviours: `designer.how.teach-as-you-go-gate-says-both-measures`
+- Tests: fichero-server/tests/unit/remote_read/test_reading_at_scale.py, fichero-server/tests/unit/training/test_noise_band_per_project_5692.py, fichero-server/tests/unit/training/test_adopt_past_the_noise_band_5700.py, test_teach_as_you_go_end_to_end.py (not yet written)
+- Depends on: 19.1
+- Size: M
+
+The gate step measures CER and WER on the held-out checked pages (the measure of `training/evaluation.py`), decides by the band, records the switch, and the runner reads the remaining pages with the student on its place, skipping every page a model pass already read. The one end-to-end test lives in fichero-server/tests/unit/training/ and is named on `compute/distillation.md` Steps 1.1–1.3 as well.
+
+- test (to write): `test_teach_as_you_go_end_to_end.py` in fichero-server/tests/unit/training/ (a fake Gemini labels the first 100 of 1,000 pages, and a covering sample in a second case; a fake Job returns a student; CER and WER on the held-out pages; the switch recorded; the 900 remaining run on the student on a fake Hugging Face target; a counting fake sees zero repeated passes)
