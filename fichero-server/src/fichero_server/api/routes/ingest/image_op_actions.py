@@ -22,6 +22,11 @@ from fichero_server.api.routes.ingest.image_editing import (
     _render_and_append,
     _resolve_source_and_page,
 )
+from fastapi import Depends, HTTPException
+
+from fichero_server.api.auth import action_context
+from fichero_server.api.main import get_library_database_for_write
+from fichero_server.api.routes.ingest.image_editing import router
 from fichero_server.db import Database
 
 
@@ -49,3 +54,40 @@ class _PageOnly(BaseModel):
 for _name in sorted(_OPERATION_MODELS.keys() | _PARAMETERLESS_OPERATIONS):
     if f"image.{_name}" not in registry.names():
         _register(_name, _OPERATION_MODELS.get(_name, _PageOnly))
+
+
+class ImageOperationJobRequest(BaseModel):
+    action: str = Field(description="An `image.<op>` action that takes a `document_id`, e.g. `image.remove_background`.")
+    params: dict = Field(default_factory=dict, description="The action's settings; the page comes from the path.")
+
+
+class ImageOperationJob(BaseModel):
+    job_id: str
+
+
+@router.post("/{document_id}/jobs", response_model=ImageOperationJob, status_code=202)
+async def queue_image_operation_job(
+    document_id: str,
+    request: ImageOperationJobRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ImageOperationJob:
+    """Ask for an image operation as a job (`image.ops.long-operation-is-a-job`, #6384): returns the job id at once; the operation
+    runs on the images lane, reports through Activity, and is cancelled as any job is. The same action as the direct route."""
+    import asyncio
+
+    from fichero_server.image_op_job import queue_image_operation
+
+    if not request.action.startswith("image.") or request.action not in registry.names():
+        raise HTTPException(422, f"Not an image operation: {request.action}")
+    params = {**request.params, "document_id": document_id}
+    model = registry.get(request.action).params_model
+    if "document_id" not in model.model_fields:
+        raise HTTPException(422, f"{request.action} does not act on one page")
+    try:
+        model.model_validate(params)
+    except Exception as exc:
+        raise HTTPException(422, f"Invalid settings for {request.action}: {exc}") from exc
+    _get_or_404_document(db, document_id)
+    job_id = await asyncio.to_thread(queue_image_operation, db, request.action, params, started_by=ctx.actor)
+    return ImageOperationJob(job_id=job_id)

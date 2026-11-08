@@ -28174,6 +28174,80 @@
         }
       }
     },
+    "/api/images/{document_id}/jobs": {
+      "post": {
+        "tags": [
+          "images",
+          "images"
+        ],
+        "summary": "Queue Image Operation Job",
+        "description": "Ask for an image operation as a job (`image.ops.long-operation-is-a-job`, #6384): returns the job id at once; the operation\nruns on the images lane, reports through Activity, and is cancelled as any job is. The same action as the direct route.",
+        "operationId": "queue_image_operation_job_api_images__document_id__jobs_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageOperationJobRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageOperationJob"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/locations/resolve": {
       "post": {
         "tags": [
@@ -73355,6 +73429,39 @@
         ],
         "title": "ImageInfoResponse",
         "description": "IIIF Image Information Response (info.json)."
+      },
+      "ImageOperationJob": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id"
+        ],
+        "title": "ImageOperationJob"
+      },
+      "ImageOperationJobRequest": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "description": "An `image.<op>` action that takes a `document_id`, e.g. `image.remove_background`."
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params",
+            "description": "The action's settings; the page comes from the path."
+          }
+        },
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "title": "ImageOperationJobRequest"
       },
       "ImageSplitRequest": {
         "properties": {

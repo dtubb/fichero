@@ -328,6 +328,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/formats/tesseract_box.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/validation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/yolo.py
 $(SRCROOT)/../fichero-server/src/fichero_server/histdate.py
+$(SRCROOT)/../fichero-server/src/fichero_server/image_op_job.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/cloud_link_import.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/dataless.py

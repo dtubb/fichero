@@ -8501,6 +8501,27 @@ def register_generated_openapi_commands(
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("queue-operation-job")
+    def images_queue_operation_job_post(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help='Document Id'),
+        action: str = typer.Option(..., '--action', help='An `image.<op>` action that takes a `document_id`, e.g. `image.remove_background`.'),
+        params: Optional[str] = typer.Option(None, '--params', help="The action's settings; the page comes from the path. JSON."),
+    ) -> None:
+        """Queue Image Operation Job (POST /api/images/{document_id}/jobs)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/images/{document_id}/jobs"
+            params = None
+            payload = _build_json_payload({
+                "action": action,
+                "params": params,
+            }, {
+                "action": {'type': 'string', 'title': 'Action', 'description': 'An `image.<op>` action that takes a `document_id`, e.g. `image.remove_background`.', 'x-cli-required': True},
+                "params": {'additionalProperties': True, 'type': 'object', 'title': 'Params', 'description': "The action's settings; the page comes from the path.", 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("crop")
     def images_crop_post(
         ctx: typer.Context,

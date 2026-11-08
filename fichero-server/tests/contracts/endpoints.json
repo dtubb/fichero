@@ -5860,6 +5860,18 @@
       },
       {
         "method": "POST",
+        "path": "/images/{document_id}/jobs",
+        "operation_id": "queue_image_operation_job_api_images__document_id__jobs_post",
+        "summary": "Queue Image Operation Job",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": "ImageOperationJobRequest",
+        "response_model": null
+      },
+      {
+        "method": "POST",
         "path": "/images/{document_id}/operations/crop",
         "operation_id": "crop_image_api_images__document_id__operations_crop_post",
         "summary": "Crop Image",

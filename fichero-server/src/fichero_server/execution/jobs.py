@@ -97,6 +97,7 @@ _KIND_MODULES = (
     "fichero_server.recipes.runner",
     "fichero_server.training.evaluation",
     "fichero_server.kept_export",
+    "fichero_server.image_op_job",
     "fichero_server.recipes.discovery",
     "fichero_server.recipes.bakeoff",
     "fichero_server.api.routes.kg.review",

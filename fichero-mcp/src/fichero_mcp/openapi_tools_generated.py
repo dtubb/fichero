@@ -4018,6 +4018,16 @@ def fichero_images_put_edit_chain(
     return _rt.call("PUT", f"/api/images/{document_id}/edits", json=_rt.body({"operations": operations}))
 
 
+def fichero_images_queue_operation_job(
+    *,
+    document_id: Annotated[str, Field(description='Document Id')],
+    action: Annotated[str, Field(description='An `image.<op>` action that takes a `document_id`, e.g. `image.remove_background`.')],
+    params: Annotated[Optional[dict[str, Any]], Field(description="The action's settings; the page comes from the path.")] = None,
+) -> Any:
+    'Queue Image Operation Job\n\nAsk for an image operation as a job (`image.ops.long-operation-is-a-job`, #6384): returns the job id at once; the operation\nruns on the images lane, reports through Activity, and is cancelled as any job is. The same action as the direct route.\n\nRoute: POST /api/images/{document_id}/jobs (toolset `images`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/images/{document_id}/jobs", json=_rt.body({"action": action, "params": params}))
+
+
 def fichero_images_crop(
     *,
     document_id: Annotated[str, Field(description='Document Id')],
@@ -9875,6 +9885,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_images_delete_edit_chain", "images", "DELETE", "/api/images/{document_id}/edits", fichero_images_delete_edit_chain),
     GeneratedTool("fichero_images_get_edit_chain", "images", "GET", "/api/images/{document_id}/edits", fichero_images_get_edit_chain),
     GeneratedTool("fichero_images_put_edit_chain", "images", "PUT", "/api/images/{document_id}/edits", fichero_images_put_edit_chain),
+    GeneratedTool("fichero_images_queue_operation_job", "images", "POST", "/api/images/{document_id}/jobs", fichero_images_queue_operation_job),
     GeneratedTool("fichero_images_crop", "images", "POST", "/api/images/{document_id}/operations/crop", fichero_images_crop),
     GeneratedTool("fichero_images_enhance", "images", "POST", "/api/images/{document_id}/operations/enhance", fichero_images_enhance),
     GeneratedTool("fichero_images_remove_background", "images", "POST", "/api/images/{document_id}/operations/remove-background", fichero_images_remove_background),
