@@ -17,7 +17,7 @@ enum PairingFailureActions {
         switch failure {
         case .invalidLink, .olderLink, .codeUsedOrExpired, .personRequired, .versionMismatch, .deviceForgotten, .certificatePin:
             return false
-        case .nameNotFound, .tailnetNameNotFound, .noAnswer, .refused, .offline, .certificateName, .tailnetByNumber,
+        case .nameNotFound, .tailnetNameNotFound, .noAnswer, .unexpected, .refused, .offline, .certificateName, .tailnetByNumber,
              .tooManyTries, .libraryNotGiven, .hostSharesNothing, .hostStopped:
             return true
         }

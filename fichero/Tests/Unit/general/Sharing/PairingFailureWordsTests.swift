@@ -36,6 +36,15 @@ struct PairingFailureWordsTests {
         #expect(PairingFailure.from(urlErrorCode: -1202, host: "x.local") == .certificatePin)
     }
 
+    @Test func anErrorThatIsNotATransportErrorIsNotReportedAsNoAnswer() {
+        struct Odd: Error {}
+        #expect(LivePairingHost.failure(from: Odd(), host: "x.local") == .unexpected)
+        #expect(LivePairingHost.failure(from: RemoteCertificatePinningError.missingSPKIPin, host: "x.local") == .unexpected)
+        let transport = NSError(domain: NSURLErrorDomain, code: -1001)
+        #expect(LivePairingHost.failure(from: transport, host: "x.local") == .noAnswer)  // a real timeout still is
+        #expect(PairingFailure.unexpected.step == PairingFailure.noAnswer.step)
+    }
+
     @Test func aTailnetNumberFailsInItsOwnWords() {
         #expect(PairingFailure.from(urlErrorCode: -1200, host: "100.64.0.1") == .tailnetByNumber)
         #expect(PairingFailure.tailnetByNumber.sentence(context).contains("by name, not by number"))

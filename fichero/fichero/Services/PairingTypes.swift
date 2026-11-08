@@ -371,15 +371,10 @@ final class PairingService {
         libraryPath: String? = nil,
         alternates: [URL] = []
     ) -> PairingQRCodePayload {
-        PairingQRCodePayload(
-            version: 1,
-            apiURL: apiRoot.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")),
-            pairCode: code.code,
-            expiresAt: code.expiresAt,
-            spki: spki,
-            libraryPath: libraryPath,
-            altURLs: alternates.isEmpty ? nil : alternates.map { $0.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) }
-        )
+        let root = { (url: URL) in url.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) }
+        return PairingQRCodePayload(
+            version: 1, apiURL: root(apiRoot), pairCode: code.code, expiresAt: code.expiresAt, spki: spki,
+            libraryPath: libraryPath, altURLs: alternates.isEmpty ? nil : alternates.map(root))
     }
 
     /// The library paths this credential may access on the paired engine,

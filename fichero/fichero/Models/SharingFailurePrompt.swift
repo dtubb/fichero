@@ -52,6 +52,7 @@ enum SharingFailurePrompt {
         case .olderLink: return "This link is for an older Fichero"
         case .nameNotFound, .tailnetNameNotFound: return "Can't find \(host)"
         case .noAnswer: return "\(host) didn't answer"
+        case .unexpected: return "\(host) replied in a way Fichero didn't expect"
         case .refused: return "\(host) isn't listening"
         case .offline: return "No network"
         case .certificatePin: return "A different Mac answered"
@@ -82,7 +83,7 @@ enum SharingFailurePrompt {
         switch failure {
         case .invalidLink, .certificatePin, .codeUsedOrExpired, .deviceForgotten: return .pasteLinkAgain
         case .nameNotFound, .tailnetNameNotFound: return .openTailscale
-        case .noAnswer, .refused, .certificateName, .tooManyTries: return .tryAgain
+        case .noAnswer, .unexpected, .refused, .certificateName, .tooManyTries: return .tryAgain
         case .offline: return .openNetworkSettings
         case .personRequired: return .signIn
         case .versionMismatch: return .checkForUpdates

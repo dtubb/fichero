@@ -9,6 +9,9 @@ enum PairingFailure: CaseIterable, Equatable, Error {
     case nameNotFound
     case tailnetNameNotFound
     case noAnswer
+    /// The host answered, or the call failed, in a way no other step names (a cancelled call, a decode error, an error the
+    /// client wrapped in a type this table does not know). Never reported as "didn't answer" (#6431); the real error is in the log.
+    case unexpected
     case refused
     case offline
     case certificatePin
@@ -37,7 +40,7 @@ enum PairingFailure: CaseIterable, Equatable, Error {
         switch self {
         case .invalidLink, .olderLink: return 1
         case .nameNotFound, .tailnetNameNotFound: return 2
-        case .noAnswer, .refused, .offline: return 3
+        case .noAnswer, .unexpected, .refused, .offline: return 3
         case .certificatePin, .certificateName, .tailnetByNumber: return 5
         case .codeUsedOrExpired, .tooManyTries: return 6
         case .personRequired: return 7
@@ -67,6 +70,9 @@ enum PairingFailure: CaseIterable, Equatable, Error {
         case .noAnswer:
             return "\(host) didn't answer in 5 seconds. Is Fichero open on \(host), and is Sharing on? "
                 + "(If you are on a campus or hotel network, it may keep devices apart: use Tailscale.)"
+        case .unexpected:
+            return "\(host) was reached, but the reply was not one Fichero expected. Try again; if it happens again, "
+                + "use Copy Details and send it to the person who runs Fichero on \(host)."
         case .refused:
             return "\(host) is on, but Fichero isn't listening there: turn Sharing off and on."
         case .offline:

@@ -1,5 +1,8 @@
 import FicheroAPIClient
 import Foundation
+import OSLog
+
+private let livePairingLogger = Logger(subsystem: "app.fichero.fichero", category: "LivePairingHost")
 
 /// The real host behind `PairingSequence`: the existing steps (health with the contract check, the unauthenticated pair, the
 /// Keychain save that revokes on a refusal, the accessible-library list), one call each, in the order the sequence asks. A Mac and a
@@ -80,7 +83,12 @@ final class LivePairingHost: PairingSequence.Host {
             if next.domain == NSURLErrorDomain { return PairingFailure.from(urlErrorCode: next.code, host: host) }
             current = next.userInfo[NSUnderlyingErrorKey] as? NSError
         }
-        return .noAnswer
+        // Not a transport error: say so, and keep the real one in the log. It was "didn't answer" for everything (#6431).
+        let kind = String(describing: type(of: error))
+        let message = error.localizedDescription
+        livePairingLogger.error(
+            "Pairing step failed, not a network error: \(host, privacy: .public) \(kind, privacy: .public) \(message, privacy: .public)")
+        return .unexpected
     }
 }
 
