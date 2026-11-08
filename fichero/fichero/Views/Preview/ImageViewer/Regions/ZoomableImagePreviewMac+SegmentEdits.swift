@@ -198,7 +198,7 @@ extension ZoomableImagePreview {
     }
 
     /// One polygon segment per marquee rectangle, drawn on the shown pass (#6426).
-    func drawMarqueesAsSegments(_ rects: [[Double]]) {
+    func drawMarqueesAsSegments(_ rects: [[Double]], clearing marquees: PreviewMarqueeSelection) {
         for rect in rects { drawSegmentShape(.polygon, points: SegmentShapes.corners(ofRect: rect)) }
         marquees.clear()
         isAddingRegion = false

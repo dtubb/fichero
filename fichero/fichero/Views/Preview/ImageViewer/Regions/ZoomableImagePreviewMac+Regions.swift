@@ -369,7 +369,7 @@ extension ZoomableImagePreview {
         // A page shown from a segment pass gets its region ON that pass (`segment.create`, ⌘Z). A regions artifact
         // made here became a pass ranked below the working one, and the box vanished on the next load (#6426).
         if shownArtifactlessPassId != nil, onlyIndex == nil {
-            drawMarqueesAsSegments(rects)
+            drawMarqueesAsSegments(rects, clearing: marquees)
             return
         }
         Task {
