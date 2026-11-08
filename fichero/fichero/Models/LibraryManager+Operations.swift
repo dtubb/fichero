@@ -223,9 +223,18 @@ extension LibraryManager {
         }
 
         currentLibraryId = library.id
+        if hostRoot != nil { saveOpenLibraryPaths() }  // remembered for the next launch (`restorePinnedLibraries`)
         scheduleLoadWhenBackendReady(for: library)
         libraryManagerLogger.info("Switched to remote library: \(url.path, privacy: .public)")
         return library
+    }
+
+    /// A shared library that would not open goes again (when `id` is given) and the saved list says so, so it is not reopened
+    /// at the next launch (`restorePinnedLibraries`); the library that was on screen is on screen again.
+    func dropPinnedLibrary(_ id: UUID?, backTo previous: UUID?) {
+        if let id { openLibraries.removeAll { $0.id == id } }
+        currentLibraryId = previous
+        saveOpenLibraryPaths()
     }
 
     /// Create a project at the location setup's Your project step chose (`NewProjectStore`): the ONE

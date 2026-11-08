@@ -69,4 +69,68 @@ struct LibraryPinnedToHostTests {
         #expect(RenditionService(apiClient: pinned.apiClient).client.baseURL == studio)
         #expect(ImportService(apiClient: pinned.apiClient).client.baseURL == studio)
     }
+
+    @Test func aPinnedLibraryIsSavedApartFromTheLocalPaths() throws {
+        let manager = LibraryManager.shared
+        let defaults = EngineConfig.defaults
+        let savedLocal = defaults.object(forKey: LibraryManager.openLibraryPathsKey)
+        let savedPinned = defaults.object(forKey: LibraryManager.pinnedLibrariesKey)
+        let before = manager.openLibraries.map(\.id)
+        let current = manager.currentLibraryId
+        defer {
+            manager.openLibraries.removeAll { !before.contains($0.id) }
+            manager.currentLibraryId = current
+            defaults.set(savedLocal, forKey: LibraryManager.openLibraryPathsKey)
+            defaults.set(savedPinned, forKey: LibraryManager.pinnedLibrariesKey)
+        }
+        let path = "/Volumes/Archive/Saved Apart \(UUID().uuidString)"
+        _ = try #require(manager.switchToRemoteLibrary(path: path, pinnedTo: studio))
+        #expect(defaults.stringArray(forKey: LibraryManager.openLibraryPathsKey)?.contains(path) != true)
+        let pinned = defaults.array(forKey: LibraryManager.pinnedLibrariesKey) as? [[String: String]] ?? []
+        #expect(pinned.contains { $0["host"] == studio.absoluteString && $0["path"] == path })
+    }
+
+    @Test func restoreReopensASavedSharedLibraryBesideTheLocalOnesForAPairedHostOnly() {
+        let manager = LibraryManager.shared
+        let defaults = EngineConfig.defaults
+        let savedLocal = defaults.object(forKey: LibraryManager.openLibraryPathsKey)
+        let savedPinned = defaults.object(forKey: LibraryManager.pinnedLibrariesKey)
+        let before = manager.openLibraries.map(\.id)
+        let current = manager.currentLibraryId
+        defer {
+            manager.openLibraries.removeAll { !before.contains($0.id) }
+            manager.currentLibraryId = current
+            defaults.set(savedLocal, forKey: LibraryManager.openLibraryPathsKey)
+            defaults.set(savedPinned, forKey: LibraryManager.pinnedLibrariesKey)
+        }
+        let kept = "/Volumes/Archive/Restore Kept \(UUID().uuidString)"
+        let unpaired = "/Volumes/Archive/Restore Dropped \(UUID().uuidString)"
+        let saved = [["host": studio.absoluteString, "path": kept], ["host": "https://gone.local:8765", "path": unpaired]]
+        manager.restorePinnedLibraries(saved: saved, paired: [studio.absoluteString])
+        #expect(manager.openLibraries.contains { $0.url.path == kept && $0.pinnedToHost && $0.host.url == studio })
+        #expect(!manager.openLibraries.contains { $0.url.path == unpaired })
+        #expect(manager.currentLibraryId == current)
+    }
+
+    @Test func aSharedLibraryThatWouldNotOpenIsDroppedFromTheSavedListToo() throws {
+        let manager = LibraryManager.shared
+        let defaults = EngineConfig.defaults
+        let savedLocal = defaults.object(forKey: LibraryManager.openLibraryPathsKey)
+        let savedPinned = defaults.object(forKey: LibraryManager.pinnedLibrariesKey)
+        let before = manager.openLibraries.map(\.id)
+        let current = manager.currentLibraryId
+        defer {
+            manager.openLibraries.removeAll { !before.contains($0.id) }
+            manager.currentLibraryId = current
+            defaults.set(savedLocal, forKey: LibraryManager.openLibraryPathsKey)
+            defaults.set(savedPinned, forKey: LibraryManager.pinnedLibrariesKey)
+        }
+        let path = "/Volumes/Archive/Would Not Open \(UUID().uuidString)"
+        let opened = try #require(manager.switchToRemoteLibrary(path: path, pinnedTo: studio))
+        manager.dropPinnedLibrary(opened.id, backTo: current)
+        #expect(!manager.openLibraries.contains { $0.id == opened.id })
+        #expect(manager.currentLibraryId == current)
+        let saved = defaults.array(forKey: LibraryManager.pinnedLibrariesKey) as? [[String: String]] ?? []
+        #expect(!saved.contains { $0["path"] == path })
+    }
 }

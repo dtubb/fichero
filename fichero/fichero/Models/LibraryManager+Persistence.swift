@@ -8,6 +8,8 @@ extension LibraryManager {
     // Not `private`: the NFC migration test (#3076) seeds these keys directly.
     static let openLibraryPathsKey = "FicheroOpenLibraryPaths"
     static let libraryDisplayNamesByPathKey = "FicheroLibraryDisplayNamesByPath"
+    /// The shared libraries open on a paired Mac, `[["host": root, "path": path]]` (`sharing.guest.library-pinned-to-its-host`).
+    static let pinnedLibrariesKey = "FicheroPinnedLibraries"
 
     /// Save current open library paths to UserDefaults.
     /// Excludes temporary/untitled libraries — those live in /var/folders/.../T/
@@ -25,9 +27,13 @@ extension LibraryManager {
         // canonical bytes the app sends in the library header and the backend
         // registry uses — a re-open can never resolve to a duplicate NFD variant.
         let paths = openLibraries
-            .filter { $0.id != Self.globalLibraryId && !isTemporaryLibrary($0.url) }
+            .filter { $0.id != Self.globalLibraryId && !$0.pinnedToHost && !isTemporaryLibrary($0.url) }
             .map { $0.url.path.nfcNormalized }
         EngineConfig.defaults.set(paths, forKey: Self.openLibraryPathsKey)
+        // A pinned library's path is a path on ANOTHER Mac: kept apart, never restored as a local one.
+        EngineConfig.defaults.set(
+            openLibraries.filter(\.pinnedToHost).map { ["host": $0.host.url.absoluteString, "path": $0.url.path] },
+            forKey: Self.pinnedLibrariesKey)
         saveLibraryDisplayNames()
         libraryManagerLogger.info("Saved \(paths.count) library paths to UserDefaults")
     }
@@ -106,8 +112,29 @@ extension LibraryManager {
         return EngineConfig.defaults.stringArray(forKey: Self.openLibraryPathsKey) ?? []
     }
 
+    /// Reopens the shared libraries that were open, beside the local ones, for each host still paired. The current library
+    /// stays what restore made it. The host is not asked here: an unanswering one shows its own failure when used.
+    func restorePinnedLibraries(
+        saved: [[String: String]], paired: Set<String> = Set(PairedMachineStore.load().map(\.id))
+    ) {
+        let current = currentLibraryId
+        for entry in saved {
+            guard let host = entry["host"], paired.contains(host), let root = URL(string: host), let path = entry["path"] else { continue }
+            _ = switchToRemoteLibrary(path: path, pinnedTo: root)
+        }
+        currentLibraryId = current
+        saveOpenLibraryPaths()  // the list now says what is open (a host no longer paired is dropped)
+    }
+
+    /// The shared libraries saved last time. Read BEFORE the local libraries reopen: each reopen saves the open list, which
+    /// has no shared library in it yet and would write this key empty.
+    static func savedPinnedLibraries() -> [[String: String]] {
+        EngineConfig.defaults.array(forKey: pinnedLibrariesKey) as? [[String: String]] ?? []
+    }
+
     /// Restore libraries from saved paths
     func restoreSavedLibraries() {
+        let pinned = Self.savedPinnedLibraries()
         // No backend-ready guard (launch-speed, #4036): materializing a
         // LibraryReference is purely local (UserDefaults paths + security
         // scope), per-library DATA loads already defer through
@@ -171,6 +198,7 @@ extension LibraryManager {
             EngineConfig.defaults.set(validPaths, forKey: Self.openLibraryPathsKey)
             libraryManagerLogger.info("Pruned \(paths.count - validPaths.count) missing/invalid library paths")
         }
+        restorePinnedLibraries(saved: pinned)
     }
 
     /// True when `path` lies inside a Trash folder: a volume's `.Trashes` or the home `.Trash`

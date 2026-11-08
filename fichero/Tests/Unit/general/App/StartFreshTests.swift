@@ -7,8 +7,8 @@
 //
 
 @testable import Fichero
-import Testing
 import Foundation
+import Testing
 
 @MainActor
 struct StartFreshTests {
@@ -17,6 +17,7 @@ struct StartFreshTests {
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(["/tmp/A.fichero"], forKey: LibraryManager.openLibraryPathsKey)
+        defaults.set([["host": "https://studio.local:8765", "path": "/B"]], forKey: LibraryManager.pinnedLibrariesKey)
         defaults.set("0 0 800 600", forKey: "NSWindow Frame main-AppWindow-1")
         defaults.set(["a"], forKey: "NSSplitView Subview Frames sidebar")
         defaults.set(true, forKey: "SomeUserPreference")
@@ -24,6 +25,7 @@ struct StartFreshTests {
         StartFresh.reset(standard: defaults, appDefaults: defaults)
 
         #expect(defaults.object(forKey: LibraryManager.openLibraryPathsKey) == nil)
+        #expect(defaults.object(forKey: LibraryManager.pinnedLibrariesKey) == nil)
         #expect(defaults.object(forKey: "NSWindow Frame main-AppWindow-1") == nil)
         #expect(defaults.object(forKey: "NSSplitView Subview Frames sidebar") == nil)
         #expect(defaults.bool(forKey: "SomeUserPreference"))

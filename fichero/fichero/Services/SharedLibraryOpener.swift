@@ -15,8 +15,7 @@ enum SharedLibraryOpener {
             _ = try await library.apiClient.healthCheck()
         } catch {
             // Back to what was on screen (`sharing.alerts.one-alert-per-failure`).
-            if !alreadyOpen { libraryManager.openLibraries.removeAll { $0.id == library.id } }
-            libraryManager.currentLibraryId = previous
+            libraryManager.dropPinnedLibrary(alreadyOpen ? nil : library.id, backTo: previous)
             let name = PairedMachineStore.load().first { $0.id == hostRoot }?.name ?? apiRoot.host ?? "That Mac"
             libraryManager.sharingFailure = SharingFailurePrompt.make(
                 title: "\(name) isn't responding",

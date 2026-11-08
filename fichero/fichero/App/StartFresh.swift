@@ -29,6 +29,7 @@ enum StartFresh {
     /// Forgets the open projects and the window layout.
     @MainActor static func reset(standard: UserDefaults = .standard, appDefaults: UserDefaults = EngineConfig.defaults) {
         appDefaults.removeObject(forKey: LibraryManager.openLibraryPathsKey)
+        appDefaults.removeObject(forKey: LibraryManager.pinnedLibrariesKey)
         for key in standard.dictionaryRepresentation().keys where isLayoutKey(key) {
             standard.removeObject(forKey: key)
         }
