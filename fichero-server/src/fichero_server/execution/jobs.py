@@ -1657,12 +1657,12 @@ def enqueue_many(
     ids: dict[str, str] = {}
     for chunk in _chunks(list(dict.fromkeys(subjects)), 500):
         marks = ", ".join("?" for _ in chunk)
-        ids.update(
-            db.execute_fetchall(
-                f"SELECT subject, id FROM jobs WHERE kind = ? AND state IN ('waiting', 'running') AND subject IN ({marks})",
-                [kind, *chunk],
-            )
+        found = db.execute_fetchall(
+            f"SELECT subject, id FROM jobs WHERE kind = ? AND state = 'waiting' AND subject IN ({marks})",
+            [kind, *chunk],
         )
+        logger.debug("enqueue_many: kind=%s, subjects=%s, found=%s", kind, chunk, found)
+        ids.update(found)
     new = [subject for subject in dict.fromkeys(subjects) if subject not in ids]
     model = KINDS[kind].model if kind in KINDS else None
     now = utc_now()
@@ -1678,6 +1678,9 @@ def enqueue_many(
                 for value in (job_id, kind, subject, model, started_by, now)
             ],
         )
+    # Debug: print what was inserted
+    if new:
+        logger.debug("enqueue_many: created %d new %s jobs for subjects: %s", len(new), kind, new)
     futures = [_scheduler.watch(ids[subject]) for subject in subjects]
     key = _key(db)
     db.add_after_commit_hook(lambda: _scheduler.wake(key))
@@ -2485,11 +2488,78 @@ def resume(db: "Database") -> None:
         [utc_now(), STOPPING, *RUN_KINDS, *live],
     )
     # (Same rule: only rows no live thread runs were left by an engine that is gone; owner, 2026-10-19.)
-    db.execute(
-        f"UPDATE jobs SET state = 'waiting', reason = 'Interrupted; carries on'{_clear_waiting_on(db)} "
-        f"WHERE state = 'running'{not_live}",
-        live,
-    )
+    # Only reset running jobs that don't already have a waiting job (queue_derivatives may have created one).
+    # If a running job has a waiting job for the same subject, fail it (the waiting job will carry on instead).
+    # This handles the case where queue_derivatives created a new waiting job while the running job was still in the database.
+    if live:
+        # Exclude live jobs (currently running threads) from the check
+        live_marks = ", ".join("?" for _ in live)
+        not_live_clause = f" AND id NOT IN ({live_marks})"
+        
+        # Get subjects that already have waiting jobs (excluding live jobs)
+        waiting_subjects = db.execute_fetchall(
+            f"SELECT DISTINCT subject FROM jobs WHERE state = 'waiting'{not_live_clause}",
+            live,
+        )
+        waiting_subjects_list = [r[0] for r in waiting_subjects]
+        
+        if waiting_subjects_list:
+            waiting_marks = ", ".join("?" for _ in waiting_subjects_list)
+            # Delete running jobs whose subjects HAVE a waiting job (the waiting job will carry on instead)
+            deleted = db.execute_fetchall(
+                f"SELECT id, kind, subject FROM jobs WHERE state = 'running' AND subject IN ({waiting_marks}){not_live_clause}",
+                [*waiting_subjects_list, *live],
+            )
+            db.execute(
+                f"DELETE FROM jobs WHERE state = 'running' AND subject IN ({waiting_marks}){not_live_clause}",
+                [*waiting_subjects_list, *live],
+            )
+            logger.debug("resume: deleted %d running jobs: %s", len(deleted), deleted)
+            # Only reset running jobs whose subjects do NOT have a waiting job
+            db.execute(
+                f"UPDATE jobs SET state = 'waiting', reason = 'Interrupted; carries on'{_clear_waiting_on(db)} "
+                f"WHERE state = 'running' AND subject NOT IN ({waiting_marks}){not_live_clause}",
+                [*waiting_subjects_list, *live],
+            )
+            logger.debug("resume: failed %d running jobs, reset 0", len(waiting_subjects_list))
+        else:
+            db.execute(
+                f"UPDATE jobs SET state = 'waiting', reason = 'Interrupted; carries on'{_clear_waiting_on(db)} "
+                f"WHERE state = 'running'{not_live_clause}",
+                live,
+            )
+    else:
+        # Get subjects that already have waiting jobs
+        waiting_subjects = db.execute_fetchall(
+            "SELECT DISTINCT subject FROM jobs WHERE state = 'waiting'",
+        )
+        waiting_subjects_list = [r[0] for r in waiting_subjects]
+        
+        if waiting_subjects_list:
+            waiting_marks = ", ".join("?" for _ in waiting_subjects_list)
+            # Delete running jobs whose subjects HAVE a waiting job (the waiting job will carry on instead)
+            deleted = db.execute_fetchall(
+                f"SELECT id, kind, subject FROM jobs WHERE state = 'running' AND subject IN ({waiting_marks})",
+                waiting_subjects_list,
+            )
+            db.execute(
+                f"DELETE FROM jobs WHERE state = 'running' AND subject IN ({waiting_marks})",
+                waiting_subjects_list,
+            )
+            logger.debug("resume: deleted %d running jobs: %s", len(deleted), deleted)
+            # Only reset running jobs whose subjects do NOT have a waiting job
+            db.execute(
+                f"UPDATE jobs SET state = 'waiting', reason = 'Interrupted; carries on'{_clear_waiting_on(db)} "
+                f"WHERE state = 'running' AND subject NOT IN ({waiting_marks})",
+                waiting_subjects_list,
+            )
+            logger.debug("resume: failed %d running jobs, reset 0", len(waiting_subjects_list))
+        else:
+            db.execute(
+                f"UPDATE jobs SET state = 'waiting', reason = 'Interrupted; carries on'{_clear_waiting_on(db)} "
+                "WHERE state = 'running'",
+            )
+            logger.debug("resume: failed 0 running jobs, reset all")
     # A page whose thumbnail is already there needs no job: one left queued, interrupted just now, or set aside after
     # its kills, would hold the heavy work queued after it for good (#5845). After the reset above, so a thumbnail job
     # that was running when the engine stopped is settled too.
