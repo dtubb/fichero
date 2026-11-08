@@ -17,19 +17,7 @@ extension ImageEditorView {
             // ruling is that a cut-out page should read the way the page will
             // read, not like a graphics-editor swatch. The ground below is
             // that white.
-            if compareMode == .sideBySide {
-                if let original = model.originalPreview, let edited = model.editedPreview {
-                    HStack(spacing: 8) {
-                        comparePane(image: original.image, pixelSize: original.pixelSize, title: "Original")
-                        comparePane(image: edited.image, pixelSize: edited.pixelSize, title: "Edited")
-                    }
-                    .padding(8)
-                    .scaleEffect(compareZoom)
-                } else {
-                    ProgressView("Loading compare preview…")
-                        .controlSize(.small)
-                }
-            } else if compareMode == .wipe {
+            if compareMode == .wipe {
                 if let original = model.originalPreview, let edited = model.editedPreview {
                     GeometryReader { geo in
                         let fitted = ImageFit.fittedRect(
@@ -171,27 +159,5 @@ extension ImageEditorView {
         // transparent, just white") — `.textBackgroundColor`, the same white
         // the reader's page sits on, rather than a pattern.
         .background(Color(platformColor: .textBackgroundColor))
-    }
-
-    private func comparePane(image: PlatformImage, pixelSize: CGSize, title: String) -> some View {
-        VStack(spacing: 6) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            GeometryReader { geo in
-                let fitted = ImageFit.fittedRect(
-                    imagePixelSize: pixelSize,
-                    in: CGSize(width: geo.size.width - 12, height: geo.size.height - 12)
-                )
-                let frame = fitted.offsetBy(dx: 6, dy: 6)
-                Image(platformImage: image)
-                    .resizable()
-                    .interpolation(.high)
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: frame.width, height: frame.height)
-                    .position(x: frame.midX, y: frame.midY)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
