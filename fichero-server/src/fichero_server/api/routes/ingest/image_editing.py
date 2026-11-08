@@ -325,43 +325,10 @@ def _load_source_image(path: Path, page: int = 1) -> Image.Image:
 
 
 def _remove_black_background_opencv(image: Image.Image) -> Image.Image:
-    """Port the archive contour-mask and crop path for black scanner borders.
+    """The archive contour-mask and crop path for black scanner borders: the one in `media/image_ops`, bounded in memory (#6384)."""
+    from fichero_server.media.image_ops import remove_black_background_opencv
 
-    Degrades gracefully when OpenCV is not installed (it is not bundled in the
-    shipped app): the image is returned unchanged rather than crashing the edit
-    with an ImportError.
-    """
-    from PIL import Image  # lazy (#3985): keep PIL off the engine boot path
-
-    try:
-        import cv2  # type: ignore[import-not-found]
-        import numpy as np
-    except ImportError:
-        return image.convert("RGBA")
-
-    rgb = np.array(image.convert("RGB"))
-    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
-    if np.count_nonzero(gray < 80) / gray.size < 0.01:
-        return image.convert("RGBA")
-    _, binary = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY)
-    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not contours:
-        return image.convert("RGBA")
-    areas = [cv2.contourArea(contour) for contour in contours]
-    largest = max(areas)
-    mask = np.zeros_like(binary)
-    for contour, area in zip(contours, areas):
-        if area >= largest * 0.2:
-            cv2.drawContours(mask, [contour], -1, 255, thickness=-1)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
-    mask = cv2.GaussianBlur(mask, (21, 21), 0)
-    ys, xs = np.nonzero(mask)
-    if not len(xs):
-        return image.convert("RGBA")
-    rgba = image.convert("RGBA")
-    rgba.putalpha(Image.fromarray(mask))
-    return rgba.crop((int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1))
+    return remove_black_background_opencv(image)
 
 
 def _remove_background(image: Image.Image, params: dict[str, Any]) -> Image.Image:

@@ -44,3 +44,16 @@ def test_the_cut_keeps_the_page_and_drops_the_ground():
     alpha = np.asarray(page.getchannel("A"))
     assert alpha[page.height // 2, page.width // 2] == 255
     assert page.width < 4000 and page.height < 3000  # the black border is cropped away
+
+
+def test_the_editor_routes_copy_is_the_same_bounded_function():
+    from fichero_server.api.routes.ingest import image_editing
+
+    image = _scan(7000, 5000)
+    tracemalloc.start()
+    try:
+        image_editing._remove_black_background_opencv(image)
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+    assert peak < BYTES_PER_PIXEL * image.width * image.height
