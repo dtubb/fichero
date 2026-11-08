@@ -64,3 +64,12 @@ def test_a_job_request_is_read_through_the_jobs_module(db):
     detail, started_by = jobs.request_of(db, KIND, subject)
     assert json.loads(detail)["action"] == "image.grayscale" and started_by == "person"
     assert jobs.request_of(db, KIND, "no-such-subject") is None
+
+
+def test_a_job_asked_for_with_no_starter_is_a_persons(db):
+    """The one throttle rule decides every starter (#5819): an image operation nobody names a starter for is a person's, so it
+    runs flat out and only battery slows it."""
+    doc = _page(db)
+    job_id = queue_image_operation(db, "image.grayscale", {"document_id": doc.id})
+    started_by = jobs.read_job(db, job_id)["started_by"]
+    assert started_by == "person" and started_by in jobs.PERSON_STARTERS
