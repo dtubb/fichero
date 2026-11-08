@@ -79,6 +79,10 @@ class LibraryManager {
 
     /// The Macs this device has paired with (`sharing.guest.machines-group`, #6360); kept by `PairedMachineStore`.
     var pairedMachines: [PairedMachine] = PairedMachineStore.load()
+    /// Shared Libraries rows whose host answered and no longer lists the library (`SharedRowAvailability.key`); asked again at
+    /// launch and focus, never kept across a relaunch. `hostRowsLastAsked` is the throttle.
+    var greyedSharedRows: Set<String> = []
+    @ObservationIgnored var hostRowsLastAsked: [String: Date] = [:]
     /// File ▸ Connect to Library… and the machine rows set this; the app's window shows the connect sheet.
     var connectToLibraryRequested = false
     /// Set by the app's window: opens a shared library by switching to its host (`SharedLibraryOpener`).

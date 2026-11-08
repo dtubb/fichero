@@ -76,7 +76,12 @@ extension SidebarView {
             ForEach(libraryManager.pairedMachines.filter { !$0.libraries.isEmpty }) { machine in
                 Section {
                     ForEach(machine.libraries, id: \.self) { path in
-                        SharedLibraryRowView(machine: "", library: path) {
+                        SharedLibraryRowView(
+                            machine: "", library: path,
+                            unavailableSentence: libraryManager.greyedSharedRows
+                                .contains(SharedRowAvailability.key(host: machine.id, library: path))
+                                ? "Not available: \(machine.name) no longer shares this" : nil
+                        ) {
                             guard let open = libraryManager.openSharedLibrary else {
                                 libraryManager.connectToLibraryRequested = true
                                 return

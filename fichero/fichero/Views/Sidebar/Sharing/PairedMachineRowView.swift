@@ -4,6 +4,8 @@ import SwiftUI
 struct SharedLibraryRowView: View {
     let machine: String
     let library: String
+    /// Set when the host answered and no longer lists this library: the row is greyed with one sentence and does not open.
+    var unavailableSentence: String?
     let onOpen: () -> Void
 
     var body: some View {
@@ -11,9 +13,12 @@ struct SharedLibraryRowView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(URL(fileURLWithPath: library).lastPathComponent).lineLimit(1).truncationMode(.middle)
                 if !machine.isEmpty { Text(machine).font(.caption).foregroundStyle(.secondary) }
+                if let unavailableSentence { Text(unavailableSentence).font(.caption).foregroundStyle(.secondary) }
             }
         }
         .buttonStyle(.plain)
+        .disabled(unavailableSentence != nil)
+        .opacity(unavailableSentence == nil ? 1 : 0.5)
         .accessibilityElement(children: .combine)
     }
 }

@@ -384,6 +384,10 @@ struct FicheroApp: App {
             SharedLibraryOpener.install(libraryManager: libraryManager)
             SharingAddressFollower.install(appState: appState, backendService: backendService)
         }
+        .task { await libraryManager.checkSharedRows() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await libraryManager.checkSharedRows() }
+        }
         .frame(minWidth: 640, minHeight: 700)
         // ★ EVERY FRAME PERFECT (#3615): the semantic surface color is the BASE
         // layer under the whole window, so the BackendConnectionView → LibraryWindow
