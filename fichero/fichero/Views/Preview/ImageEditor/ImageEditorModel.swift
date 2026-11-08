@@ -297,7 +297,8 @@ final class ImageEditorModel {
 
     func removeBackground(method: String = "opencv") async {
         await runOp { service in
-            try await service.removeBackground(documentId: self.documentId, method: method, page: self.page)
+            // A job, not a held request: a very large scan takes longer than a request may, and Activity shows it with Cancel (#6384).
+            try await service.removeBackgroundAsJob(documentId: self.documentId, method: method, page: self.page)
         }
     }
 
