@@ -150,7 +150,8 @@ extension ShareSettingsView {
         VStack(spacing: 12) {
             Form {
                 MacRemoteClientPairingSection(
-                    appState: appState, backendService: backendService, libraryManager: libraryManager)
+                    appState: appState, backendService: backendService, libraryManager: libraryManager,
+                    onConnected: { showConnect = false })
             }
             .formStyle(.grouped)
             HStack {

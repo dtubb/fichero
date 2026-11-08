@@ -81,6 +81,15 @@ struct SharedRowAvailabilityTests {
         #expect(manager.pairedMachines.first?.libraries == ["/A", "/C"])
     }
 
+    @Test func aTailscaleNameIsReadWithNoPinAndAnOwnCertificateNeedsOne() throws {
+        let tailnet = try #require(URL(string: "https://studio.tail1234.ts.net:8765"))
+        let own = try #require(URL(string: "https://studio.local:8765"))
+        #expect(SharedRowAvailability.readTrust(tailnet, stored: nil) == .init(pin: nil))  // the Tailscale name keeps no pin (#6433)
+        #expect(SharedRowAvailability.readTrust(own, stored: nil) == nil)
+        let pin = Data("spki".utf8).base64EncodedString()
+        #expect(SharedRowAvailability.readTrust(own, stored: pin) == .init(pin: pin))
+    }
+
     @Test func aHostWithNoStoredPinIsNotAskedAtAll() async {
         // No pin, no connection: never the local engine, never the system trust store.
         let unknown = URL(string: "https://never-paired-\(UUID().uuidString.lowercased()).invalid:8765")!

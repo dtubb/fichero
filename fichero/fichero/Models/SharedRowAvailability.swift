@@ -27,10 +27,20 @@ enum SharedRowAvailability {
     @MainActor static func readFromHost(
         _ root: URL, pin: String? = nil
     ) async -> [String]? {
-        guard let pin = pin ?? RemoteAccessConfig.hostedBackendSPKIPin(hostString: root.absoluteString),
-              let service = try? PairingService(apiRoot: root, expectedSPKIPin: pin) else { return nil }
+        let stored = pin ?? RemoteAccessConfig.hostedBackendSPKIPin(hostString: root.absoluteString)
+        guard let trust = readTrust(root, stored: stored),
+              let service = try? PairingService(apiRoot: root, expectedSPKIPin: trust.pin) else { return nil }
         return try? await service.accessibleLibraryPaths()
     }
+
+    /// The key to hold the host to: none for a host a public authority certifies (a `.ts.net` name keeps no pin, so "no stored
+    /// pin" is not "never paired" there, #6433), the stored one otherwise. nil when the host serves its own certificate and
+    /// no pin is stored: not asked at all.
+    static func readTrust(_ root: URL, stored: String?) -> ReadTrust? {
+        do { return ReadTrust(pin: try RemoteClientPairing.resolvedSPKIPin(stored, for: root)) } catch { return nil }
+    }
+
+    struct ReadTrust: Equatable { let pin: String? }
 
     /// The libraries a row shows after the host answered: what it showed, plus any the host now lists that it did not.
     /// A library the host stopped listing stays (greyed) until Forget.

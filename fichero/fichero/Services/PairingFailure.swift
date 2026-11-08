@@ -87,8 +87,12 @@ enum PairingFailure: CaseIterable, Equatable, Error {
         let host = context.host
         switch self {
         case .certificatePin:
-            return "\(host) showed a different security key than the link. This may be a different Mac with the same name. "
-                + "Scan or paste a new link from \(host)."
+            let proxy = host.lowercased().hasSuffix(".ts.net")
+                ? " If this address is a Tailscale web proxy, which replaces the key, "
+                + "use the port that passes the connection straight through."
+                : ""
+            return "\(host) showed a different security key than the link. This may be a different Mac with the same name."
+                + proxy + " Scan or paste a new link from \(host)."
         case .certificateName:
             return "\(host)'s security certificate doesn't name the address in the link. "
                 + "Turn Sharing off and on on \(host) so it makes a new one."

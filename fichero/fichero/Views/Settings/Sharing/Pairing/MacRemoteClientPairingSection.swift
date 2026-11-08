@@ -28,11 +28,16 @@ struct MacRemoteClientPairingSection: View {
     /// Which button asked, kept while the person decides about a host's key.
     @State private var pendingSwitch = false
 
+    /// Called once after a connect succeeded, so the window that holds this section closes (#6432).
+    private let onConnected: () -> Void
+
     init(
         appState: AppState,
         backendService: EmbeddedBackendService,
-        libraryManager: LibraryManager
+        libraryManager: LibraryManager,
+        onConnected: @escaping () -> Void = {}
     ) {
+        self.onConnected = onConnected
         self._appState = Bindable(wrappedValue: appState)
         self._backendService = Bindable(wrappedValue: backendService)
         self._libraryManager = Bindable(wrappedValue: libraryManager)
@@ -209,6 +214,9 @@ struct MacRemoteClientPairingSection: View {
             )
             guard switchesWholeMac else {
                 libraryManager.pairedMachines = PairedMachineStore.load()
+                // The host's whole list for this device now, not at the next launch: its row shows every project it shares.
+                await libraryManager.checkSharedRows()
+                onConnected()
                 return
             }
             // The one procedure that changes the engine host (stop, write, repoint, start, check, roll back) is shared
@@ -220,6 +228,7 @@ struct MacRemoteClientPairingSection: View {
                     RemoteClientPairing.rollbackFailedHostSwitch(previousHost: previousHost, attemptedHost: apiRoot)
                 })
             EngineConfig.defaults.set(apiRoot.absoluteString, forKey: EngineConfig.wholeMacHostKey)
+            onConnected()
         } catch {
             if error as? RemoteClientPairingError == .personRequired { needsPerson = true }
             failurePrompt = SharingFailurePrompt.make(
@@ -288,7 +297,8 @@ struct RemoteConnectionChooserSheet: View {
                 MacRemoteClientPairingSection(
                     appState: appState,
                     backendService: backendService,
-                    libraryManager: libraryManager
+                    libraryManager: libraryManager,
+                    onConnected: { dismiss() }
                 )
             }
             .formStyle(.grouped)
