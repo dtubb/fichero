@@ -203,6 +203,7 @@ nav:
               - Artifacts Source: reference_manual/tool_references/tools/artifacts_source.md
               - Auto Crop Scan Borders: reference_manual/tool_references/tools/auto_crop_border_images.md
               - Auto Deskew Images: reference_manual/tool_references/tools/deskew_images.md
+              - Auto Levels: reference_manual/tool_references/tools/auto_levels_images.md
               - Binarise: reference_manual/tool_references/tools/binarise_images.md
               - Book Structure: reference_manual/tool_references/tools/book_structure.md
               - Browser Navigate: reference_manual/tool_references/tools/research_browser_navigate.md
@@ -265,8 +266,10 @@ nav:
               - Faces: reference_manual/tool_references/tools/faces.md
               - Files: reference_manual/tool_references/tools/files.md
               - Flatten Stains: reference_manual/tool_references/tools/stain_flatten_images.md
+              - Flip: reference_manual/tool_references/tools/flip_images.md
               - Folder: reference_manual/tool_references/tools/folder.md
               - Fuzzy Clean Images: reference_manual/tool_references/tools/fuzzy_clean_images.md
+              - Grayscale: reference_manual/tool_references/tools/grayscale_images.md
               - Handwriting: reference_manual/tool_references/tools/handwriting.md
               - Import Artifacts: reference_manual/tool_references/tools/import_artifacts.md
               - Interpret: reference_manual/tool_references/tools/interpret.md
@@ -289,6 +292,7 @@ nav:
               - ReAct Agent: reference_manual/tool_references/tools/react_agent.md
               - Recombine Segments: reference_manual/tool_references/tools/recombine_segments.md
               - Remove Background Images: reference_manual/tool_references/tools/remove_background_images.md
+              - Remove Yellowing: reference_manual/tool_references/tools/yellowing_images.md
               - Rewrite: reference_manual/tool_references/tools/rewrite.md
               - Rotate / Auto-Orient Images: reference_manual/tool_references/tools/rotate_images.md
               - Safety: reference_manual/tool_references/tools/safety.md
@@ -297,6 +301,7 @@ nav:
               - Segment Images: reference_manual/tool_references/tools/segment_images.md
               - Selection: reference_manual/tool_references/tools/selection.md
               - Sentiment: reference_manual/tool_references/tools/sentiment.md
+              - Sharpen: reference_manual/tool_references/tools/sharpen_images.md
               - Similarity: reference_manual/tool_references/tools/similarity.md
               - Split Chapters: reference_manual/tool_references/tools/split_chapters.md
               - Split Diary Entries: reference_manual/tool_references/tools/diary_entries.md

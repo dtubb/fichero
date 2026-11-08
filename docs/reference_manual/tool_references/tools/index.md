@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-A tool is one step: it reads something, does one job, and emits a result. Workflows are tools wired together. Each page below says what the tool reads and emits, every option it takes, and — for tools that ask a model — the exact words it sends. There are 133 of them.
+A tool is one step: it reads something, does one job, and emits a result. Workflows are tools wired together. Each page below says what the tool reads and emits, every option it takes, and — for tools that ask a model — the exact words it sends. There are 138 of them.
 
 ## Agent
 
@@ -126,6 +126,7 @@ A tool is one step: it reads something, does one job, and emits a result. Workfl
 | [Aggregate](tools/aggregate.md) | Combine upstream fan-out results into a single payload. | no |
 | [Auto Crop Scan Borders](tools/auto_crop_border_images.md) | Detect and crop dark scan margins locally. | no |
 | [Auto Deskew Images](tools/deskew_images.md) | Detect and straighten skewed scans locally. | no |
+| [Auto Levels](tools/auto_levels_images.md) | Stretch each page's lightness to the full range, without modifying source files. | no |
 | [Binarise](tools/binarise_images.md) | Black and white by Otsu or an adaptive threshold, written as a separate binarised rendition, without modifying source files. | no |
 | [Consistency Check](tools/consistency-check.md) | Flag deterministic numeral, name, and formula inconsistencies. | no |
 | [Contrast Images](tools/contrast_images.md) | Even out the light on a page with local contrast (CLAHE on the lightness channel), without modifying source files. | no |
@@ -133,14 +134,18 @@ A tool is one step: it reads something, does one job, and emits a result. Workfl
 | [Enhance Images](tools/enhance_images.md) | Create contrast/sharpness/denoise image derivatives without modifying source files. | no |
 | [Extract Date](tools/date_extract.md) | Extract the historical date a document was written (Gregorian, Julian, French Republican, Old Style, regnal, era names) and store it as a Julian Day Number range for sorting and filtering. | no |
 | [Flatten Stains](tools/stain_flatten_images.md) | Even out stains and shadows by dividing the page by a closing of its lightness, without modifying source files. | no |
+| [Flip](tools/flip_images.md) | Mirror each page left to right or top to bottom, without modifying source files. | no |
 | [Fuzzy Clean Images](tools/fuzzy_clean_images.md) | Despeckle and clean scan background without modifying source files. | no |
+| [Grayscale](tools/grayscale_images.md) | Take the colour out of each page, without modifying source files. | no |
 | [OCR Cleanup](tools/ocr_cleanup.md) | Fix common OCR artefacts: dehyphenate line-break splits, rejoin multi-column text, strip library ownership stamps. | no |
 | [Prepare Images](tools/prepare_images.md) | Normalize images/PDF pages for OCR without modifying source files. | no |
 | [Quiet Ruled Lines](tools/ruled_lines_images.md) | Fill thin, long green, blue or red ruling from the surrounding paper and keep the ink, without modifying source files. | no |
 | [Recombine Segments](tools/recombine_segments.md) | Stitch segment image files into one derived image. | no |
 | [Remove Background Images](tools/remove_background_images.md) | Create alpha-background image derivatives without modifying source files. | no |
+| [Remove Yellowing](tools/yellowing_images.md) | Take the yellow cast out of the paper and keep the ink, written as an enhanced rendition, without modifying source files. | no |
 | [Rotate / Auto-Orient Images](tools/rotate_images.md) | Create rotated or EXIF-oriented image derivatives without modifying source files. | no |
 | [Segment Images](tools/segment_images.md) | Detect foreground document regions and emit cropped segment derivatives. | no |
+| [Sharpen](tools/sharpen_images.md) | An unsharp mask on the lightness, written as an enhanced rendition, without modifying source files. | no |
 | [Split Images](tools/split_images.md) | Split images into grid tiles or PDFs into page images without modifying sources. | no |
 | [Split Pages](tools/split_pages.md) | Find the document in a photograph and cut an open book or notebook at its gutter into pages, in reading order; a closed cover or single page is kept whole, an unclear gutter is proposed for review. Sources are never changed. | no |
 | [Suppress Show-Through](tools/bleed_through_images.md) | Push the faint mirrored writing of the other side to paper and keep the ink; method b also reads the verso, without modifying source files. | no |
