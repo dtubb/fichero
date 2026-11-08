@@ -30,3 +30,21 @@ def test_daily_builds_runs_the_daily_tests_on_the_checkout_and_a_red_names_its_f
     monkeypatch.setattr(check_tool, "green_runs", lambda *a: {"ok": True, "stdout_tail": "1 passed"})
     assert cli.main(["daily-builds", "--root", str(tmp_path), "--state", str(tmp_path / "s")]) == 0
     assert "scan-tests: GREEN" in capsys.readouterr().out
+
+
+def test_every_engine_test_using_the_scan_helper_runs_daily_and_the_ones_that_scan_the_repo_run_per_batch():
+    """Review 132: 17 tests loaded scripts/_scan_files.py by path and were in neither list. Any engine test that names the
+    helper is in [check].daily_tests; one that scans repo paths is under a [check.whole_tests] prefix (a temp-dir-only one
+    may be daily only, listed here by name)."""
+    import subprocess
+    found = set(subprocess.run(["git", "-C", str(ROOT), "grep", "-l", "_scan_files", "--", "fichero-server/tests/**/*.py"],
+                               capture_output=True, text=True).stdout.split())
+    cfg = check_tool.load(ROOT)
+    assert found and not found - set(cfg.daily_tests), sorted(found - set(cfg.daily_tests))
+    per_batch = {t for v in cfg.whole_tests.values() if not isinstance(v, str) for t in v}
+    temp_only = {f"fichero-server/tests/unit/{t}" for t in (
+        "formats/test_real_files_lose_no_text.py", "importers/test_folder_of_images_and_layout.py", "importers/test_pages_in_icloud_5669.py",
+        "jobs/test_adopted_folder.py", "jobs/test_synced_folder.py", "jobs/test_synced_folder_keep_arranged.py",
+        "llm/test_spacy_pipelines_as_files_to_spec.py", "transfer/test_incoming_copy_security.py",
+        "transfer/test_transfer_a_page_whole.py", "transfer/test_transfer_is_never_half_done.py")}
+    assert not found - per_batch - temp_only, sorted(found - per_batch - temp_only)

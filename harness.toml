@@ -89,8 +89,13 @@ engine_repo = "/Users/Shared/fichero-engine"
 # every _scan_files test, the functional ones too, once a day on the loop's checkout (`builder daily-builds`), red = an alert
 daily_tests = [
   "fichero-server/tests/unit/api/test_mutation_log_names_its_actor.py",
+  "fichero-server/tests/unit/api/test_no_model_work_in_gets.py",
+  "fichero-server/tests/unit/api/test_routes_hpc.py",
   "fichero-server/tests/unit/api/test_routes_kg_reset_removed.py",
+  "fichero-server/tests/unit/api/test_structured_refusals_declared_5094.py",
   "fichero-server/tests/unit/api/test_textedit_engine_primitives.py",
+  "fichero-server/tests/unit/core/test_no_test_arms_a_repeating_dump_6007.py",
+  "fichero-server/tests/unit/core/test_threads_fit_the_machine_5953.py",
   "fichero-server/tests/unit/db/test_every_used_model_is_declared.py",
   "fichero-server/tests/unit/db/test_query_where_extra_sql_is_constant.py",
   "fichero-server/tests/unit/db/test_saved_is_found_after_a_crash.py",
@@ -100,29 +105,38 @@ daily_tests = [
   "fichero-server/tests/unit/importers/test_pages_in_icloud_5669.py",
   "fichero-server/tests/unit/jobs/test_a_job_that_dies_with_the_engine.py",
   "fichero-server/tests/unit/jobs/test_adopted_folder.py",
+  "fichero-server/tests/unit/jobs/test_one_throttle_rule_5819.py",
   "fichero-server/tests/unit/jobs/test_synced_folder.py",
   "fichero-server/tests/unit/jobs/test_synced_folder_keep_arranged.py",
+  "fichero-server/tests/unit/llm/test_egress_gate_every_call_site.py",
   "fichero-server/tests/unit/llm/test_kraken_runtime.py",
+  "fichero-server/tests/unit/llm/test_kraken_two_pages_at_once.py",
   "fichero-server/tests/unit/llm/test_master_output_language.py",
   "fichero-server/tests/unit/llm/test_models_live_in_the_store.py",
   "fichero-server/tests/unit/llm/test_one_egress_gate_5368.py",
   "fichero-server/tests/unit/llm/test_spacy_pipelines_as_files_to_spec.py",
   "fichero-server/tests/unit/media/test_enhance_three_doors.py",
   "fichero-server/tests/unit/media/test_no_leftovers_of_the_old_rendition_choice_6296.py",
+  "fichero-server/tests/unit/media/test_quartz_names_resolved_before_threads_5745.py",
   "fichero-server/tests/unit/models/test_doctype_references_valid.py",
   "fichero-server/tests/unit/packaging/test_engine_starts_without_unbundled_packages.py",
   "fichero-server/tests/unit/recipes/test_htr_united_verifies_https_5809.py",
   "fichero-server/tests/unit/recipes/test_topic_registry.py",
   "fichero-server/tests/unit/scripts/test_app_loggers_share_one_subsystem_6124.py",
   "fichero-server/tests/unit/scripts/test_check_capability_reference_current.py",
+  "fichero-server/tests/unit/scripts/test_check_routes_use_action_layer.py",
   "fichero-server/tests/unit/scripts/test_db_access_guardrail.py",
+  "fichero-server/tests/unit/scripts/test_guardrails_scan_floor.py",
+  "fichero-server/tests/unit/scripts/test_ios_never_links_ingest_3282.py",
   "fichero-server/tests/unit/scripts/test_no_unrunnable_tests.py",
   "fichero-server/tests/unit/scripts/test_route_write_authz_guardrail.py",
+  "fichero-server/tests/unit/scripts/test_scan_files_skips_nested_worktrees.py",
   "fichero-server/tests/unit/scripts/test_sf_symbol_names.py",
   "fichero-server/tests/unit/scripts/test_single_connection_guardrail.py",
   "fichero-server/tests/unit/seams/test_change_event_seam.py",
   "fichero-server/tests/unit/seams/test_discarded_result_seam.py",
   "fichero-server/tests/unit/seams/test_focused_value_seam.py",
+  "fichero-server/tests/unit/seams/test_mcp_never_spawns_an_engine_5512.py",
   "fichero-server/tests/unit/seams/test_optional_callback_seam.py",
   "fichero-server/tests/unit/seams/test_retired_geometry_field_seam.py",
   "fichero-server/tests/unit/seams/test_state_channel_seam.py",
@@ -134,8 +148,11 @@ daily_tests = [
   "fichero-server/tests/unit/transfer/test_incoming_copy_security.py",
   "fichero-server/tests/unit/transfer/test_transfer_a_page_whole.py",
   "fichero-server/tests/unit/transfer/test_transfer_is_never_half_done.py",
+  "fichero-server/tests/unit/transport/test_remote_run_in_activity_to_spec.py",
   "fichero-server/tests/unit/transport/test_revoke_ends_every_stream_5913.py",
   "fichero-server/tests/unit/workflows/test_a_new_result_is_a_pass_at_once.py",
+  "fichero-server/tests/unit/workflows/test_routed_workflow_round_trip_3949.py",
+  "fichero-server/tests/unit/workflows/test_spacy_never_blocks_the_loop.py",
 ]
 
 # 2026-11-08: the tree-scanning guardrail tests (they import scripts/_scan_files) each run when a batch touches what they scan
@@ -145,6 +162,18 @@ daily_tests = [
 "docs/reference_manual/tool_references/" = [
   "fichero-server/tests/unit/scripts/test_check_capability_reference_current.py",
 ]
+"fichero-cli/tests/" = [
+  "fichero-server/tests/unit/scripts/test_scan_files_skips_nested_worktrees.py",
+]
+"fichero-mcp/src/" = [
+  "fichero-server/tests/unit/seams/test_mcp_never_spawns_an_engine_5512.py",
+]
+"fichero-mcp/tests/" = [
+  "fichero-server/tests/unit/scripts/test_scan_files_skips_nested_worktrees.py",
+]
+"fichero-server/" = [
+  "fichero-server/tests/unit/workflows/test_routed_workflow_round_trip_3949.py",
+]
 "fichero-server/bin/" = [
   "fichero-server/tests/unit/security/test_real_data_guard.py",
 ]
@@ -152,21 +181,28 @@ daily_tests = [
   "fichero-server/tests/unit/security/test_real_data_guard.py",
 ]
 "fichero-server/src/" = [
+  "fichero-server/tests/unit/core/test_no_test_arms_a_repeating_dump_6007.py",
   "fichero-server/tests/unit/llm/test_kraken_runtime.py",
 ]
 "fichero-server/src/fichero_server/" = [
   "fichero-server/tests/unit/api/test_mutation_log_names_its_actor.py",
+  "fichero-server/tests/unit/api/test_routes_hpc.py",
   "fichero-server/tests/unit/api/test_textedit_engine_primitives.py",
+  "fichero-server/tests/unit/core/test_threads_fit_the_machine_5953.py",
   "fichero-server/tests/unit/db/test_every_used_model_is_declared.py",
   "fichero-server/tests/unit/db/test_query_where_extra_sql_is_constant.py",
   "fichero-server/tests/unit/db/test_saved_is_found_after_a_crash.py",
   "fichero-server/tests/unit/execution/test_failure_in_words_6212.py",
   "fichero-server/tests/unit/jobs/test_a_job_that_dies_with_the_engine.py",
+  "fichero-server/tests/unit/jobs/test_one_throttle_rule_5819.py",
+  "fichero-server/tests/unit/llm/test_egress_gate_every_call_site.py",
+  "fichero-server/tests/unit/llm/test_kraken_two_pages_at_once.py",
   "fichero-server/tests/unit/llm/test_master_output_language.py",
   "fichero-server/tests/unit/llm/test_models_live_in_the_store.py",
   "fichero-server/tests/unit/llm/test_one_egress_gate_5368.py",
   "fichero-server/tests/unit/media/test_enhance_three_doors.py",
   "fichero-server/tests/unit/media/test_no_leftovers_of_the_old_rendition_choice_6296.py",
+  "fichero-server/tests/unit/media/test_quartz_names_resolved_before_threads_5745.py",
   "fichero-server/tests/unit/models/test_doctype_references_valid.py",
   "fichero-server/tests/unit/packaging/test_engine_starts_without_unbundled_packages.py",
   "fichero-server/tests/unit/recipes/test_htr_united_verifies_https_5809.py",
@@ -180,10 +216,17 @@ daily_tests = [
   "fichero-server/tests/unit/security/test_security_guardrails.py",
   "fichero-server/tests/unit/transfer/test_every_id_field_is_classified.py",
   "fichero-server/tests/unit/workflows/test_a_new_result_is_a_pass_at_once.py",
+  "fichero-server/tests/unit/workflows/test_spacy_never_blocks_the_loop.py",
+]
+"fichero-server/src/fichero_server/api/" = [
+  "fichero-server/tests/unit/api/test_no_model_work_in_gets.py",
 ]
 "fichero-server/src/fichero_server/api/routes/" = [
   "fichero-server/tests/unit/api/test_routes_kg_reset_removed.py",
+  "fichero-server/tests/unit/api/test_structured_refusals_declared_5094.py",
+  "fichero-server/tests/unit/scripts/test_check_routes_use_action_layer.py",
   "fichero-server/tests/unit/scripts/test_route_write_authz_guardrail.py",
+  "fichero-server/tests/unit/transport/test_remote_run_in_activity_to_spec.py",
   "fichero-server/tests/unit/transport/test_revoke_ends_every_stream_5913.py",
 ]
 "fichero-server/src/fichero_server/execution/" = [
@@ -193,17 +236,21 @@ daily_tests = [
   "fichero-server/tests/unit/seams/test_state_channel_seam.py",
 ]
 "fichero-server/tests/" = [
+  "fichero-server/tests/unit/core/test_no_test_arms_a_repeating_dump_6007.py",
   "fichero-server/tests/unit/scripts/test_no_unrunnable_tests.py",
+  "fichero-server/tests/unit/scripts/test_scan_files_skips_nested_worktrees.py",
   "fichero-server/tests/unit/seams/test_retired_geometry_field_seam.py",
 ]
 "fichero/fichero/" = [
   "fichero-server/tests/unit/scripts/test_app_loggers_share_one_subsystem_6124.py",
+  "fichero-server/tests/unit/scripts/test_ios_never_links_ingest_3282.py",
   "fichero-server/tests/unit/scripts/test_sf_symbol_names.py",
   "fichero-server/tests/unit/seams/test_focused_value_seam.py",
   "fichero-server/tests/unit/seams/test_optional_callback_seam.py",
   "fichero-server/tests/unit/test_one_delete_path_to_the_trash_5243.py",
 ]
 "scripts/" = [
+  "fichero-server/tests/unit/scripts/test_guardrails_scan_floor.py",
   "fichero-server/tests/unit/security/test_real_data_guard.py",
 ]
 
