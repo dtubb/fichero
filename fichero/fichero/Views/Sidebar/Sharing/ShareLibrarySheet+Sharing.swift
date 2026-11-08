@@ -56,10 +56,13 @@ extension ShareLibrarySheet {
         }
     }
 
-    /// A failure as the one alert: the engine's own words where it gave them (`SharingFailurePrompt.make(sharing:)`).
+    /// A failure as the one alert: the engine's own words where it gave them (`SharingFailurePrompt.make(sharing:)`); a share only
+    /// the owner may make offers Sign In as Owner, and the sheet stays open with its choices for the second try.
     func showFailure(_ error: Error, _ title: String) {
+        let ownerSignIn = appState?.ownerSignIn
         failurePrompt = SharingFailurePrompt.make(
-            sharing: error, title: title, offers: [], perform: { _ in }, copy: { PlatformPasteboard.writeString($0) })
+            sharing: error, title: title, offers: ownerSignIn == nil ? [] : [.signInAsOwner],
+            perform: { _ in Task { await ownerSignIn?.run() } }, copy: { PlatformPasteboard.writeString($0) })
     }
 
     /// Whether this Mac can prepare its own hosting for the share link: the host

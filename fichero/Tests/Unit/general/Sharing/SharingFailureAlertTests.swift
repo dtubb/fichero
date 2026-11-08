@@ -77,6 +77,16 @@ struct SharingFailureAlertTests {
         let shown = SharingFailurePrompt.make(sharing: APIError.httpError(statusCode: 403, message: "forbidden"), title: "Couldn't share",
                                               offers: [], perform: { _ in }, copy: { _ in })
         #expect(shown.message.contains("Only this Mac's owner can share"))
+        #expect(shown.fixes.map(\.label) == ["Copy Details"])  // no Sign In as Owner where the view can't do it
+    }
+
+    @Test func aForbiddenShareOffersSignInAsOwner() {
+        var did: SharingFailurePrompt.Fix?
+        let shown = SharingFailurePrompt.make(sharing: APIError.httpError(statusCode: 403, message: "forbidden"), title: "Couldn't share",
+                                              offers: [.signInAsOwner], perform: { did = $0 }, copy: { _ in })
+        #expect(shown.fixes.first?.label == "Sign In as Owner")
+        shown.fixes.first?.action()
+        #expect(did == .signInAsOwner)
     }
 
     @Test func theEnginesOwnWordsAreShown() {

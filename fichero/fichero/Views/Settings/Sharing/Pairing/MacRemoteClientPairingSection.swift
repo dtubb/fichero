@@ -197,7 +197,7 @@ struct MacRemoteClientPairingSection: View {
             needsPerson = true
         case .checkForUpdates:
             SparkleUpdater.shared.checkForUpdates()
-        case .turnSharingOffAndOn:
+        case .turnSharingOffAndOn, .signInAsOwner:
             break
         }
     }

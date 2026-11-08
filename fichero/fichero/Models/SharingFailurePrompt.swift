@@ -8,7 +8,7 @@ enum SharingFailurePrompt {
     /// The fix buttons of the table. A view offers only the ones it can do.
     enum Fix: Hashable, CaseIterable {
         case pasteLinkAgain, openTailscale, tryAgain, openNetworkSettings, openAppSettings, signIn, checkForUpdates
-        case turnSharingOffAndOn
+        case turnSharingOffAndOn, signInAsOwner
 
         var label: String {
             switch self {
@@ -20,6 +20,7 @@ enum SharingFailurePrompt {
             case .signIn: "Sign In…"
             case .checkForUpdates: "Check for Updates…"
             case .turnSharingOffAndOn: "Turn Sharing Off and On"
+            case .signInAsOwner: "Sign In as Owner"
             }
         }
     }
@@ -153,9 +154,9 @@ enum SharingFailurePrompt {
         }
         switch error as? APIError {
         case .httpError(403, _)?:
-            // ponytail: the table's Sign In as Owner button waits for a sign-in-as-owner action on this Mac; the words say it.
+            // Sign In as Owner signs this app in again by the owner key (`OwnerSignInCoordinator.run`), no password asked.
             return prompt(title: title, why: "Only this Mac's owner can share its projects. Sign in as the owner, then share again.",
-                          fix: nil, details: details, acts: (perform, copy))
+                          fix: offers.contains(.signInAsOwner) ? .signInAsOwner : nil, details: details, acts: (perform, copy))
         case .httpError(_, let words)?, .badRequest(let words)?, .notFound(let words)?, .serverError(let words)?:
             return prompt(title: title, why: words, fix: nil, details: details, acts: (perform, copy))
         default:

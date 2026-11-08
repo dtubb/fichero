@@ -61,11 +61,14 @@ extension ShareSettingsView {
     }
 
     /// A failure while sharing, as the one alert (`sharing.host.dialog-errors-are-alerts`): never raw text on the grey line. Its
-    /// fix, where the engine is not listening, re-applies Sharing, which restarts the engine and its listener.
+    /// fix, where the engine is not listening, re-applies Sharing, which restarts the engine and its listener; where only the
+    /// owner may share, it signs this app in as the owner by key.
     func showFailure(_ error: Error, _ title: String) {
         failurePrompt = SharingFailurePrompt.make(
-            sharing: error, title: title, offers: hostingEnabled ? [.turnSharingOffAndOn] : [],
-            perform: { _ in Task { await applySharing() } }, copy: { PlatformPasteboard.writeString($0) })
+            sharing: error, title: title, offers: hostingEnabled ? [.turnSharingOffAndOn, .signInAsOwner] : [.signInAsOwner],
+            perform: { fix in
+                Task { if fix == .signInAsOwner { await appState.ownerSignIn.run() } else { await applySharing() } }
+            }, copy: { PlatformPasteboard.writeString($0) })
     }
 
     func applySharing() async {
