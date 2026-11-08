@@ -96,3 +96,11 @@ def test_modules_raising_an_object_detail_declare_it_as_error_detail():
     # Non-vacuous: the six known object-detail refusals (notes, documents, content representations, references,
     # reading orders, ingest) must be among the modules this test actually inspected.
     assert raisers, "no object-detail refusals found; the scan is looking at nothing"
+
+
+def test_execute_declares_its_400_refusal_as_error_detail():
+    """The run's door refusal (a cloud refusal carries an object detail) is declared with the shared ErrorDetail body."""
+    from fichero_server.api.main import app
+
+    body = app.openapi()["paths"]["/api/workflow-execution/execute"]["post"]["responses"]["400"]
+    assert body["content"]["application/json"]["schema"]["$ref"].endswith("/ErrorDetail")
