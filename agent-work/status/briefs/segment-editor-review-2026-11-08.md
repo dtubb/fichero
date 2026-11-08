@@ -51,3 +51,24 @@ N marquees added at once are ONE create batch through the existing segment path 
 ## 6. The hierarchy note (owner 2026-11-08, #6413, #6415)
 
 The model is stroke › character › word › line › segment › region › page, and ALL of it must be editable: the Inspector shows the selection's place in that hierarchy, up to the page and down to the children, and acts on any level with the same verbs. Later steps (readers, page readers, normalisation, names) tie their output back to a segment, never floating on the page (#6415, its step in `source/models-chains-and-projects.md`).
+
+## 7. Design look: labelled tools and Paint-to-shape (owner 2026-11-08)
+
+**What exists.** ONE Shape tool with a kind menu shown only in Edit Segments (`PreviewMarkupToolsRow.swift`, "Shape kind — Box: drag. Polygon: click points…"; `SegmentShapes.DrawKind` box, polygon, baseline; `RegionInteractionLayer+DrawShape.swift`, `ShapeDrawing.swift`); a finished polygon is `segment.create` of a REGION by its outline, a finished baseline a LINE by its open path (`source.editor.draw-shapes`, PARTIAL); `source.editor.make-new-in-the-preview` (#6183, MISSING) wants one gesture of the kind last used. No brush exists. The engine already binarises ink and takes connected components for other reasons (`media/blank_page.py` ink share, `media/flatten_curve.py` `_baselines`, `media/find_page.py` contours), and `refine-shapes` is a job kind with no runner.
+
+**Why it is unclear.** The kinds are hidden in a menu of a tool that is itself hidden behind a mode; "Box" does not say it makes a region; a polygon takes a click per point, a baseline too, so selecting a line of text means clicking along it.
+
+**Proposed tools on the Editing bar** (Step 1.7's bar), each a labelled button with an icon, a one-letter key while the bar has focus (never in a text field), a crosshair cursor, Escape cancelling, the kind REMEMBERED (#6183):
+
+| Tool | Makes | Gesture | Icon (SF Symbol) | Key |
+|---|---|---|---|---|
+| Region | a REGION as a box | drag a rectangle | `rectangle.dashed` | R |
+| Polygon | a REGION by its outline | click points; first point or double-click closes | `pentagon` | P |
+| Line | a LINE by its baseline | click points along the writing; double-click finishes | `underline` | L |
+| Paint | a LINE or a REGION FITTED to the ink | brush over the writing; release fits | `paintbrush.pointed` | B |
+| Split (Step 1.6) | two from one | click the cut | `scissors` | S |
+| Edit Shape (Step 1.2) | handles on the selection | drag a handle | `pencil.and.outline` | E |
+
+**Paint-to-shape rule.** The brush is a stroke (a polyline with a width, the width adjustable with [ and ] and shown as the cursor's circle). On release the app sends ONE `segment.create` with the stroke and the kind to fit (`fit_from_stroke`, one optional field; no new route); the engine, in a pure function of the stroke and the page's current image (`media/paint_fit.py`, tested on synthetic ink), binarises the image under the stroke's mask, keeps the ink components whose centre lies inside it, and fits: for **Line**, the baseline as the lower envelope of the ink per column, smoothed, and the outline as the ink's hull padded by the stroke's half-width; for **Region**, the outline as the concave hull of the components (a box when Paint is used with Region chosen); nothing fitted (no ink under the stroke) refuses in words and draws nothing. The result is created on the shown pass as the Shape tool's results are, selected, with Edit Shape's handles shown at once so the fit is adjusted by hand; one ⌘Z removes it. A stroke across two lines of writing fits two LINES in one create batch (one audit row) when the ink falls into two rows; across text and margin it fits what it covers, the person trims with the handles. What Paint fits is a starting shape, never ground truth: the segment's `made_by` says "painted, fitted by Fichero" until a person edits it.
+
+**Relation to the existing behaviours.** `source.editor.draw-shapes` keeps its three gestures, now as three labelled tools (Region, Polygon, Line) and no kind menu; `source.editor.make-new-in-the-preview` (#6183) is satisfied by the remembered tool plus New Region / New Line without drawing (Step 1.4); Paint is new (`source.editor.paint-fits-a-shape`). The two Edit Segments toggles go (Step 1.7). The owner reads this before Step 1.11 is approved.
