@@ -455,6 +455,11 @@ The owner asked (2026-11-07) how Fichero should find names, relations, coreferen
 
 - `kg.compare.names-candidates-on-the-check-set` — **[GAP]** (#6385) engine. The names bake-off (`find-names-tag-words`) scores, per entity type (people, places, organisations and institutions, events; regiments and ships as organisations until the type list says otherwise), precision and recall on the project's check set, for each candidate that fits: (1) spaCy's transformer NER, stock and fine-tuned (`SpacyNERProvider`, `workflows/ner/providers.py`); (2) GLiNER zero-shot with the project's labels given at run time, then fine-tuned on a few hundred corrected spans; (3) the LLM-labelled set (local or cloud, `LLMNERProvider`) distilled into a small tagger; (4) a model trained on historical OCR-noisy text (the HIPE and Impresso lineage, a byte-level variant included); (5) NuNER or NuExtract zero-shot; (6) later, not in the comparison: entity linking to authority records (Step 7.3). Each candidate is a card with its licence class and where it runs; one whose licence is not open is measured by the by-hand script on a scratch engine and never bundled or offered. The figures are kept with the run and shown on the step card as `kg.names.measured` says, with the text class named (clean, HTR). Acceptance: on a fixture check set of ten pages with confirmed names, the harness reports precision and recall per type for every fitting candidate, twice (the clean text and the HTR text), through the one comparison path (a counting seam on `bakeoff` sees one scorer); a candidate whose card's licence is not in `OPEN_LICENCES` is in the by-hand table and absent from the step's candidates; the figures are on the run and the card.
 - `kg.compare.names-fine-tune-is-a-recipe-step` — **[GAP]** (#6385, #5536) engine and app. When a person corrects names on a page the corrections are the labelled set (`kg.names.one-canonical-set`'s resolved proposals, exported as spans with their types), a recipe step `tune-names` fine-tunes the chosen tagger on them through the one trainer (`compute.tune.one-trainer-three-places`: this Mac for spaCy on an 8 GB Mac and GLiNER's small models, Hugging Face Jobs otherwise), the tuned model is measured on the held-out check pages against the stock one and the LLM (the same scorer), and the project uses it only when it wins past the band and the person takes it (`compute.tune.not-default-until-chosen`, `compute.tune.adopted-by-the-recipe`). Offered after the threshold the path sets (a few hundred corrected spans), as `recipe-designer.md` Step 11.1 offers Teach a model. Acceptance: 300 corrected spans on a fixture project produce a training set the trainer reads; a fake trainer returns a tagger whose figures sit beside the stock and LLM figures on the step card; the project's default changes only on the person's choice; the offer appears at the threshold and not before.
+- `kg.compare.relations-candidates-on-the-check-set` — **[GAP]** (#6386) engine. The statements bake-off (`find-statements`, `kg.statements.measured`, Step 4.3) scores precision and recall of (subject, verb, object) statements on the check set, clean and HTR, for: GLiREL; REBEL (seq2seq triples); GLiNER multitask and GLiFormer relations; a schema-constrained LLM pass (NuExtract, or a local or cloud LLM with structured output, the prompt versioned, `kg.names.prompt-is-versioned`); and the deterministic spaCy SVO proposals that exist (`knowledge/spacy_svo.py`, the baseline). Every candidate's output goes through the grounding contract (`kg.statements.grounded`: no invented text, the span on the page) before it is scored, so a fluent model that invents is scored as wrong. KG construction pipelines built for retrieval (GraphRAG, LightRAG, AutoSchemaKG) are read for ideas and not candidates: they do not produce scholarly claims with provenance. Acceptance: on the fixture check set each candidate's statements are scored after the grounding filter, twice (clean, HTR); an invented statement counts against its candidate; the spaCy baseline's figures appear beside the rest.
+- `kg.compare.coreference-candidates-on-the-check-set` — **[GAP]** (#6386) engine. Same person across a page or a document: fastcoref, spaCy's coreference, and an LLM pass are scored on the check set's confirmed mention chains (a mention is the link, `kg.one.mention-is-the-link`), by chain precision and recall; a resolved chain becomes a proposal in the folder resolution pass (`kg.resolve.folder-pass`), never a merge on its own (`kg.resolve.unclear-is-flagged`, `kg.resolve.person-wins`). Acceptance: on a fixture with confirmed chains the three candidates are scored; a chain the model resolves lands as a proposal with its evidence in the to-review route and merges nothing.
+- `kg.compare.linking-candidates-on-the-check-set` — **[GAP]** (#6386, #6385 item 6) engine. Linking an entity to an authority record (`knowledge/authorities.py`'s canonical URIs: Wikidata, the gazetteers, the authority files): GLiNER-Linker with reranking, ReFinED, BLINK and GENRE, and plain Wikidata and authority-file lookups are scored on the check set's confirmed links (accuracy at 1, and the share left unlinked when nothing fits), clean and HTR; a link is a proposed `same_as` per type (`kg.attr.links-proposed-per-type`, Step 3.3), confirmed by a person, and the existing Wikidata enrichment (`knowledge/wikidata_enrich.py`) then runs on confirmed links only. Acceptance: on a fixture with confirmed links each candidate's accuracy and unlinked share are reported; every link a candidate makes is a proposal row, none written as fact; enrichment runs for a confirmed link and not for a proposed one.
+- `kg.compare.link-prediction-is-a-suggestion` — **[GAP]** (#6386) engine. The PyKEEN link predictor that exists (`knowledge/pykeen_predictor.py`, TransE by default, RotatE as a second card) suggests missing edges into the review queue only (`kg.claim.review-queue`), each with its score and the statements it rests on, and never writes an edge; its suggestions are scored on held-out edges of the check set (hits at 10). Acceptance: predicted edges appear as review-queue rows with score and evidence and no claim row exists until a person accepts one; hits at 10 is reported on the held-out edges.
+- `kg.compare.winner-is-distilled-and-bundled-by-licence` — **[GAP]** (#6385, #6386) engine. For each of the four tasks the best LLM labels on the project's pages are distilled into a small tuned model where the comparison shows a small model within the band of the LLM (`distill.job.any-model-job`, `distill.adopt.within-bar`); a candidate is bundled with the app only when its licence class allows it (`source.model.licence-class`; a GPL or AGPL checkpoint carries its sheet as the YOLO cards do, `prep.licence.agpl-stated-on-the-card`) and otherwise stays a download the person chooses; the comparison tables (per task, per text class) are kept in `recipes/seed/measured-defaults.yaml` beside the readers' rows (`recipe-designer.md` Step 8.1's table, the same provenance fields). Acceptance: a task whose small student is within the band of the LLM on held-out pages is offered as the distilled card; a candidate with a non-open licence is never in the bundle manifest (`scripts/check_engine_imports_bundled.py`'s list) and is offered as a download with its sheet; the measured-defaults file holds one row per candidate per task per text class with its provenance.
 
 ## Build order
 
@@ -620,6 +625,42 @@ Order: the check set gains the HTR text beside the clean text per page (the page
 Order: the span export from resolved proposals; the `tune-names` job on the one trainer (spaCy here on 8 GB, GLiNER small here, else Hugging Face); the measure beside stock and LLM; the offer at the threshold through Teach a model's page. The spaCy trainer #5536 names is this step.
 
 - test (to write): `test_tune_names_step.py` in fichero-server/tests/unit/training/ (the span set from 300 corrections; the fake trainer's tagger measured beside the other two; the default unchanged until taken; the offer at the threshold)
+
+### Stage 7 — Statements, coreference and links compared; suggestions never written; the winners distilled (#6386)
+
+#### Step 7.1 — relation extraction compared after the grounding filter (#6386)
+- Behaviours: `kg.compare.relations-candidates-on-the-check-set`
+- Tests: fichero-server/tests/unit/knowledge/test_spacy_svo_validator.py, fichero-server/tests/unit/knowledge/test_svo_quality.py, test_statements_bakeoff_candidates.py (not yet written)
+- Depends on: 4.3, 6.1
+- Size: M
+
+- test (to write): `test_statements_bakeoff_candidates.py` in fichero-server/tests/unit/recipes/ (each candidate scored after grounding, clean and HTR; an invented statement counts against; the SVO baseline beside)
+
+#### Step 7.2 — coreference compared; a resolved chain is a proposal (#6386)
+- Behaviours: `kg.compare.coreference-candidates-on-the-check-set`
+- Tests: test_coreference_bakeoff.py (not yet written)
+- Depends on: 7.1
+- Size: S
+
+- test (to write): `test_coreference_bakeoff.py` in fichero-server/tests/unit/recipes/ (the three candidates scored on chains; a chain lands as a proposal with evidence and merges nothing)
+
+#### Step 7.3 — entity linking compared; a link is a proposal per type; enrichment on confirmed links only (#6386)
+- Behaviours: `kg.compare.linking-candidates-on-the-check-set`
+- Tests: fichero-server/tests/unit/kg/test_wikidata_enrich.py, test_linking_bakeoff.py (not yet written)
+- Depends on: 3.3, 7.1
+- Size: M
+
+- test (to write): `test_linking_bakeoff.py` in fichero-server/tests/unit/recipes/ (accuracy at 1 and the unlinked share per candidate, clean and HTR; every link a proposal; enrichment only on a confirmed link)
+
+#### Step 7.4 — link prediction as suggestions; the winners distilled and bundled by licence; the tables kept (#6386, #6385)
+- Behaviours: `kg.compare.link-prediction-is-a-suggestion`, `kg.compare.winner-is-distilled-and-bundled-by-licence`
+- Tests: fichero-server/tests/unit/kg/test_pykeen_predictor.py, test_kg_winners_distilled.py (not yet written)
+- Depends on: 7.3
+- Size: M
+
+Nothing of Stages 6 and 7 is for the Monday build. The order inside each is engine first; the app shows the figures where the step card already shows the readers' (`recipe-designer.md` Step 6.1's measure table).
+
+- test (to write): `test_kg_winners_distilled.py` in fichero-server/tests/unit/recipes/ (predicted edges as review rows with score and evidence; hits at 10; the student within the band offered; the non-open candidate out of the bundle manifest and offered as a download; the measured-defaults rows)
 
 ## Test matrix (legs this surface touches)
 
