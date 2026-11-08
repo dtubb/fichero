@@ -293,10 +293,14 @@ def main(argv=None) -> int:
             return subprocess.run(argv, env={**os.environ, journal.HEAVY_ENV: "1"}).returncode
     if a.cmd == "daily-builds":
         journal.STATE = Path(a.state) if a.state else journal.STATE
-        res = check_tool.daily_builds(a.root, check_tool.load(Path(a.root)))
+        cfg = check_tool.load(Path(a.root))
+        res = check_tool.daily_builds(a.root, cfg)
+        if cfg.daily_tests:  # every tree-scanning guardrail test on the checkout itself (2026-11-08: five sat red on integration for hours)
+            res.append(("scan-tests", check_tool.green_runs(Path(a.root), list(cfg.daily_tests), (), cfg, 3600)))
         for name, r in res:
-            one = (r or {}).get("results", [{}])[0]
-            why = ((one.get("errors") or one.get("stdout_tail") or "").strip().splitlines() or [""])[0][:200]
+            one = (r or {}).get("results", [r or {}])[0]  # a build has results; the green run is its own row
+            text = (one.get("errors") or one.get("stdout_tail") or "").strip().splitlines()
+            why = next((ln for ln in text if ln.startswith("FAILED ")), text[0] if text else "")[:200]
             print(f"{name}: " + ("COULD NOT RUN (the remote is down, or red with no Swift source error)" if r is None
                                  else "GREEN" if r["ok"] else f"RED {why} (log {one.get('log', '-')})"))
         if any(r is not None and not r["ok"] for _, r in res):

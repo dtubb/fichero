@@ -1101,6 +1101,21 @@ def test_a_change_outside_the_whole_tests_prefix_runs_only_the_changed_test_file
     assert ct._whole_tests(["pkg/lib.py"], cfg) == ("pkg/tests",)
 
 
+
+def test_a_whole_tests_list_runs_its_test_files_engine_shaped_beside_the_changed_tests_and_its_dirs_whole(monkeypatch):
+    """2026-11-08: five tree-scanning guardrail tests sat red on integration for hours: no batch edits them, so none ran.
+    A prefix may name a list; a `.py` entry runs with the changed tests (engine-shaped), a dir runs whole as before."""
+    cfg = ct.Config(whole_tests={"src/app/": ["tests/scripts/test_db_guardrail.py", "tests/seams/test_seam.py"], "builder/": "builder/tests"})
+    assert ct._whole_tests(["src/app/x.py"], cfg) == ("tests/scripts/test_db_guardrail.py", "tests/seams/test_seam.py")
+    assert ct._whole_tests(["src/app/x.py", "builder/b.py"], cfg)[0] == "builder/tests"
+    assert ct._whole_tests(["docs/a.md"], cfg) == ()
+    ran = []
+    ok = {"ok": True, "argv": [], "exit_code": 0, "timed_out": False, "seconds": 1, "stdout_tail": "", "stderr_tail": ""}
+    monkeypatch.setattr(ct, "pytest_rung", lambda tree, fs, cfg, t: (ran.append(("engine", tuple(fs))), {**ok, "name": "pytest"})[1])
+    monkeypatch.setattr(ct, "whole_tests_rung", lambda tree, d, cfg, t: (ran.append(("whole", d)), {**ok, "name": "pytest"})[1])
+    r = ct.green_runs("/t", ["tests/test_new.py"], ("builder/tests", "tests/scripts/test_db_guardrail.py"), cfg, 60)
+    assert r["ok"] and ran == [("engine", ("tests/test_new.py", "tests/scripts/test_db_guardrail.py")), ("whole", "builder/tests")]
+
 def test_already_built_exempts_only_a_test_only_commit_that_names_its_test(tmp_path):
     """The worker writes the message: a line on a commit that also changes source would opt out of the red proof."""
     g, base = _git_repo(tmp_path)

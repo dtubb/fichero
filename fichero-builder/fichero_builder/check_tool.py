@@ -53,7 +53,7 @@ class Config:
     spec_dir: str = ""                  # folder of the specs whose item acceptance a worker may not rewrite ("" = none)
     check_paths: tuple = ()             # files/folders that judge a diff: run from the pinned copy, never the worker's
     red_paths: tuple = ()               # a diff touching these (prefixes) needs a failing-on-base test; () = any file
-    whole_tests: dict = field(default_factory=dict)  # {path prefix: tests dir}: a diff under the prefix runs that dir WHOLE in the green run
+    whole_tests: dict = field(default_factory=dict)  # {path prefix: tests dir | [dirs or test files]}: a diff under the prefix runs them in the green run
     test_globs: tuple = ("test_*.py", "*_test.py")
     auto: tuple = ()                    # rule classes the ladder decides by itself, each named here (AUTO_RULES) and journalled as an `auto` row
     pytest_config: str = ""             # the pinned pytest config file (relative to the tree), passed as `-c`; "" = pytest's own search
@@ -67,6 +67,7 @@ class Config:
     build_timeout_s: float = 1800
     build_lock: str = ""                # a lock file: one build at a time on the machine ("" = no lock)
     build_tree: str = ""                # a STABLE worktree path the build runs in, so xcodebuild is incremental ("" = the scratch tree)
+    daily_tests: tuple = ()  # test files run once a day on the loop's checkout (every tree-scanning guardrail test, 2026-11-08)
     daily_builds: dict = field(default_factory=dict)  # {name: xcodebuild argv}: once a day on build_remote, never here (#6390)
     build_remote: str = ""              # "host:dir": the build rung runs on that Mac (its own derived data under dir), off the owner's;
                                         # unreachable = the build here, as before ("" = here)
@@ -117,7 +118,7 @@ def load(root) -> Config:
         pytest_config=c.get("pytest_config", d.pytest_config), pytest_plugins=tuple(c.get("pytest_plugins", d.pytest_plugins)), max_files=c.get("max_files", d.max_files),
         max_lines=c.get("max_lines", d.max_lines), max_commits=c.get("max_commits", d.max_commits), build_paths=tuple(c.get("build_paths", d.build_paths)), product_paths=tuple(c.get("product_paths", d.product_paths)),
         build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
-        build_lock=c.get("build_lock", d.build_lock), build_tree=c.get("build_tree", d.build_tree), build_remote=c.get("build_remote", d.build_remote), daily_builds={k: tuple(v) for k, v in c.get("daily_builds", {}).items()}, routes_file=c.get("routes_file", d.routes_file), generated=tuple(c.get("generated", d.generated)), rebake=tuple(c.get("rebake", d.rebake)), rebake_issue=c.get("rebake_issue", d.rebake_issue), engine_repo=c.get("engine_repo", d.engine_repo),
+        build_lock=c.get("build_lock", d.build_lock), build_tree=c.get("build_tree", d.build_tree), build_remote=c.get("build_remote", d.build_remote), daily_builds={k: tuple(v) for k, v in c.get("daily_builds", {}).items()}, daily_tests=tuple(c.get("daily_tests", ())), routes_file=c.get("routes_file", d.routes_file), generated=tuple(c.get("generated", d.generated)), rebake=tuple(c.get("rebake", d.rebake)), rebake_issue=c.get("rebake_issue", d.rebake_issue), engine_repo=c.get("engine_repo", d.engine_repo),
         remote=(c["remote"][0] if c["remote"] else "") if isinstance(c.get("remote"), list) else c.get("remote", d.remote),
         remotes=tuple(c["remote"]) if isinstance(c.get("remote"), list) else d.remotes, remote_python=c.get("remote_python", d.remote_python),
         remote_guards=c.get("remote_guards", d.remote_guards), guard_inputs=dict(c.get("guard_inputs", {})), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb),
@@ -646,6 +647,9 @@ def green_runs(tree, files: list[str], whole: tuple, cfg: Config, timeout_s: flo
     """The green run: the engine-shaped pytest over the changed test files, then each whole-tests dir as its own pytest.
     One row: the first red (or the last green) as the row's own fields, `runs` = every command and its tail."""
     runs = []
+    # a whole_tests FILE (a tree-scanning guardrail test, 2026-11-08) runs engine-shaped beside the changed tests; a dir runs whole
+    files = list(dict.fromkeys([*files, *(d for d in whole if d.endswith(".py"))]))
+    whole = tuple(d for d in whole if not d.endswith(".py"))
     groups: dict[str, list[str]] = {}  # one pytest per top-level package: two `tests` dirs in one run shadow each other
     for f in files:
         groups.setdefault(Path(f).parts[0] if len(Path(f).parts) > 1 else "", []).append(f)
@@ -1605,7 +1609,8 @@ def _needs_red(names: list[str], tests: list[str], cfg: Config) -> bool:
 
 def _whole_tests(names: list[str], cfg: Config) -> tuple:
     """Tests dirs the green run takes whole: a changed source can break an old test its own new test never imports."""
-    return tuple(sorted({d for p, d in cfg.whole_tests.items() if any(n.startswith(p) for n in names)}))
+    return tuple(sorted({d for p, v in cfg.whole_tests.items() if any(n.startswith(p) for n in names)
+                         for d in ([v] if isinstance(v, str) else v)}))
 
 
 def _no_red_row(tree, whole: tuple, cfg: Config) -> dict:

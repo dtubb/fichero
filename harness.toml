@@ -36,7 +36,6 @@ check_paths = [
 # red-on-base is owed only by engine/CLI/MCP/Builder Python; Swift or contract changes need a Lead build row, docs and specs neither.
 red_paths = ["fichero-server/src/", "fichero-cli/src/", "fichero-mcp/src/", "fichero-builder/fichero_builder/"]
 # a Builder source change also runs the whole Builder tests dir in the green run (a broken old test slipped through once).
-whole_tests = { "fichero-builder/fichero_builder/" = "fichero-builder/tests" }
 spec_dir = "docs/contributor_manual/specs"
 test_globs = ["test_*.py", "*_test.py"]
 # speed batch 1 (manager 2026-11-03): rule classes the ladder decides by itself, each an `auto` journal row the manager audits
@@ -86,6 +85,127 @@ build_tree = "/Users/Shared/fichero-worker/build-tree"
 # user reads its objects and the scratch worktrees made from it). Set up once: git clone --no-checkout <owner repo> here;
 # chmod -R a+rX; a local `integration` branch; fetch landing branches into it by ref.
 engine_repo = "/Users/Shared/fichero-engine"
+
+# every _scan_files test, the functional ones too, once a day on the loop's checkout (`builder daily-builds`), red = an alert
+daily_tests = [
+  "fichero-server/tests/unit/api/test_mutation_log_names_its_actor.py",
+  "fichero-server/tests/unit/api/test_routes_kg_reset_removed.py",
+  "fichero-server/tests/unit/api/test_textedit_engine_primitives.py",
+  "fichero-server/tests/unit/db/test_every_used_model_is_declared.py",
+  "fichero-server/tests/unit/db/test_query_where_extra_sql_is_constant.py",
+  "fichero-server/tests/unit/db/test_saved_is_found_after_a_crash.py",
+  "fichero-server/tests/unit/execution/test_failure_in_words_6212.py",
+  "fichero-server/tests/unit/formats/test_real_files_lose_no_text.py",
+  "fichero-server/tests/unit/importers/test_folder_of_images_and_layout.py",
+  "fichero-server/tests/unit/importers/test_pages_in_icloud_5669.py",
+  "fichero-server/tests/unit/jobs/test_a_job_that_dies_with_the_engine.py",
+  "fichero-server/tests/unit/jobs/test_adopted_folder.py",
+  "fichero-server/tests/unit/jobs/test_synced_folder.py",
+  "fichero-server/tests/unit/jobs/test_synced_folder_keep_arranged.py",
+  "fichero-server/tests/unit/llm/test_kraken_runtime.py",
+  "fichero-server/tests/unit/llm/test_master_output_language.py",
+  "fichero-server/tests/unit/llm/test_models_live_in_the_store.py",
+  "fichero-server/tests/unit/llm/test_one_egress_gate_5368.py",
+  "fichero-server/tests/unit/llm/test_spacy_pipelines_as_files_to_spec.py",
+  "fichero-server/tests/unit/media/test_enhance_three_doors.py",
+  "fichero-server/tests/unit/media/test_no_leftovers_of_the_old_rendition_choice_6296.py",
+  "fichero-server/tests/unit/models/test_doctype_references_valid.py",
+  "fichero-server/tests/unit/packaging/test_engine_starts_without_unbundled_packages.py",
+  "fichero-server/tests/unit/recipes/test_htr_united_verifies_https_5809.py",
+  "fichero-server/tests/unit/recipes/test_topic_registry.py",
+  "fichero-server/tests/unit/scripts/test_app_loggers_share_one_subsystem_6124.py",
+  "fichero-server/tests/unit/scripts/test_check_capability_reference_current.py",
+  "fichero-server/tests/unit/scripts/test_db_access_guardrail.py",
+  "fichero-server/tests/unit/scripts/test_no_unrunnable_tests.py",
+  "fichero-server/tests/unit/scripts/test_route_write_authz_guardrail.py",
+  "fichero-server/tests/unit/scripts/test_sf_symbol_names.py",
+  "fichero-server/tests/unit/scripts/test_single_connection_guardrail.py",
+  "fichero-server/tests/unit/seams/test_change_event_seam.py",
+  "fichero-server/tests/unit/seams/test_discarded_result_seam.py",
+  "fichero-server/tests/unit/seams/test_focused_value_seam.py",
+  "fichero-server/tests/unit/seams/test_optional_callback_seam.py",
+  "fichero-server/tests/unit/seams/test_retired_geometry_field_seam.py",
+  "fichero-server/tests/unit/seams/test_state_channel_seam.py",
+  "fichero-server/tests/unit/seams/test_swallowed_exception_seam.py",
+  "fichero-server/tests/unit/security/test_real_data_guard.py",
+  "fichero-server/tests/unit/security/test_security_guardrails.py",
+  "fichero-server/tests/unit/test_one_delete_path_to_the_trash_5243.py",
+  "fichero-server/tests/unit/transfer/test_every_id_field_is_classified.py",
+  "fichero-server/tests/unit/transfer/test_incoming_copy_security.py",
+  "fichero-server/tests/unit/transfer/test_transfer_a_page_whole.py",
+  "fichero-server/tests/unit/transfer/test_transfer_is_never_half_done.py",
+  "fichero-server/tests/unit/transport/test_revoke_ends_every_stream_5913.py",
+  "fichero-server/tests/unit/workflows/test_a_new_result_is_a_pass_at_once.py",
+]
+
+# 2026-11-08: the tree-scanning guardrail tests (they import scripts/_scan_files) each run when a batch touches what they scan
+# (the roots each passed to scan_rglob, recorded on a real run); five sat red on integration for hours because no batch edits them.
+[check.whole_tests]
+"fichero-builder/fichero_builder/" = "fichero-builder/tests"
+"docs/reference_manual/tool_references/" = [
+  "fichero-server/tests/unit/scripts/test_check_capability_reference_current.py",
+]
+"fichero-server/bin/" = [
+  "fichero-server/tests/unit/security/test_real_data_guard.py",
+]
+"fichero-server/scripts/" = [
+  "fichero-server/tests/unit/security/test_real_data_guard.py",
+]
+"fichero-server/src/" = [
+  "fichero-server/tests/unit/llm/test_kraken_runtime.py",
+]
+"fichero-server/src/fichero_server/" = [
+  "fichero-server/tests/unit/api/test_mutation_log_names_its_actor.py",
+  "fichero-server/tests/unit/api/test_textedit_engine_primitives.py",
+  "fichero-server/tests/unit/db/test_every_used_model_is_declared.py",
+  "fichero-server/tests/unit/db/test_query_where_extra_sql_is_constant.py",
+  "fichero-server/tests/unit/db/test_saved_is_found_after_a_crash.py",
+  "fichero-server/tests/unit/execution/test_failure_in_words_6212.py",
+  "fichero-server/tests/unit/jobs/test_a_job_that_dies_with_the_engine.py",
+  "fichero-server/tests/unit/llm/test_master_output_language.py",
+  "fichero-server/tests/unit/llm/test_models_live_in_the_store.py",
+  "fichero-server/tests/unit/llm/test_one_egress_gate_5368.py",
+  "fichero-server/tests/unit/media/test_enhance_three_doors.py",
+  "fichero-server/tests/unit/media/test_no_leftovers_of_the_old_rendition_choice_6296.py",
+  "fichero-server/tests/unit/models/test_doctype_references_valid.py",
+  "fichero-server/tests/unit/packaging/test_engine_starts_without_unbundled_packages.py",
+  "fichero-server/tests/unit/recipes/test_htr_united_verifies_https_5809.py",
+  "fichero-server/tests/unit/recipes/test_topic_registry.py",
+  "fichero-server/tests/unit/scripts/test_db_access_guardrail.py",
+  "fichero-server/tests/unit/scripts/test_single_connection_guardrail.py",
+  "fichero-server/tests/unit/seams/test_change_event_seam.py",
+  "fichero-server/tests/unit/seams/test_discarded_result_seam.py",
+  "fichero-server/tests/unit/seams/test_retired_geometry_field_seam.py",
+  "fichero-server/tests/unit/seams/test_swallowed_exception_seam.py",
+  "fichero-server/tests/unit/security/test_security_guardrails.py",
+  "fichero-server/tests/unit/transfer/test_every_id_field_is_classified.py",
+  "fichero-server/tests/unit/workflows/test_a_new_result_is_a_pass_at_once.py",
+]
+"fichero-server/src/fichero_server/api/routes/" = [
+  "fichero-server/tests/unit/api/test_routes_kg_reset_removed.py",
+  "fichero-server/tests/unit/scripts/test_route_write_authz_guardrail.py",
+  "fichero-server/tests/unit/transport/test_revoke_ends_every_stream_5913.py",
+]
+"fichero-server/src/fichero_server/execution/" = [
+  "fichero-server/tests/unit/seams/test_state_channel_seam.py",
+]
+"fichero-server/src/fichero_server/workflows/" = [
+  "fichero-server/tests/unit/seams/test_state_channel_seam.py",
+]
+"fichero-server/tests/" = [
+  "fichero-server/tests/unit/scripts/test_no_unrunnable_tests.py",
+  "fichero-server/tests/unit/seams/test_retired_geometry_field_seam.py",
+]
+"fichero/fichero/" = [
+  "fichero-server/tests/unit/scripts/test_app_loggers_share_one_subsystem_6124.py",
+  "fichero-server/tests/unit/scripts/test_sf_symbol_names.py",
+  "fichero-server/tests/unit/seams/test_focused_value_seam.py",
+  "fichero-server/tests/unit/seams/test_optional_callback_seam.py",
+  "fichero-server/tests/unit/test_one_delete_path_to_the_trash_5243.py",
+]
+"scripts/" = [
+  "fichero-server/tests/unit/security/test_real_data_guard.py",
+]
 
 # #6390 (owner 2026-11-07): what the build rung never compiles, built once a day on build_remote (the Air; never this Mac), each
 # with its own derived data there, red = an alert: the iOS app (macOS-only APIs in shared Swift broke it unseen) and the Swift
