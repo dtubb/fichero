@@ -8685,6 +8685,7 @@ def register_generated_openapi_commands(
     def images_straighten_post(
         ctx: typer.Context,
         document_id: str = typer.Argument(..., help='Document Id'),
+        angle: Optional[float] = typer.Option(None, '--angle', help='The angle a person set on the Straighten dial, in degrees; absent, the page is measured and turned by what it finds (Auto).'),
         page: Optional[int] = typer.Option(None, '--page', help='Page. Default: 1.'),
     ) -> None:
         """Straighten Image (POST /api/images/{document_id}/operations/straighten)."""
@@ -8692,8 +8693,10 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/images/{document_id}/operations/straighten"
             params = None
             payload = _build_json_payload({
+                "angle": angle,
                 "page": page,
             }, {
+                "angle": {'type': 'number', 'maximum': 45.0, 'minimum': -45.0, 'nullable': True, 'title': 'Angle', 'description': 'The angle a person set on the Straighten dial, in degrees; absent, the page is measured and turned by what it finds (Auto).', 'x-cli-required': False},
                 "page": {'type': 'integer', 'minimum': 1.0, 'title': 'Page', 'default': 1, 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)

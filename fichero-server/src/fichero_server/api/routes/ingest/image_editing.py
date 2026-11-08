@@ -12,7 +12,7 @@ import tempfile
 from datetime import datetime, timezone
 from fichero_server.core.timeutil import utc_now
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field, ValidationError, field_validator
@@ -71,6 +71,10 @@ class RotateOperationRequest(rotate_step.Params):
 
 class StraightenOperationRequest(deskew_step.Params):
     page: int = Field(1, ge=1)
+    angle: Optional[float] = Field(
+        None, ge=-45.0, le=45.0,
+        description="The angle a person set on the Straighten dial, in degrees; absent, the page is measured and turned by what it finds (Auto).",
+    )
 
 
 class EnhanceOperationRequest(BaseModel):
@@ -972,11 +976,16 @@ def straighten_image_impl(
     doc = _get_or_404_document(db, document_id)
     source_path, page = _resolve_source_and_page(db, doc, request.page)
     base = _load_source_image(source_path, page=page)
-    derived, account = deskew_step.run(base, deskew_step.Params())  # the one deskew: the angle it found and the page turned by it
+    if request.angle is not None:  # the dial: the person's angle, applied as the chain's own straighten op does
+        angle, method = float(request.angle), "person"
+        derived = _apply_operation(base, {"op": "straighten", "params": {"angle": angle, "expand": True}})
+    else:
+        derived, account = deskew_step.run(base, deskew_step.Params())  # the one deskew: the angle it found and the page turned by it
+        angle, method = account["angle"], "auto"
     op = {
         "op": "straighten",
         "page": page,
-        "params": {"angle": account["angle"], "expand": True},
+        "params": {"angle": angle, "expand": True, "method": method},
     }
     op["derived_path"] = _write_derived_image(document_id, page, derived)
     op["created_at"] = utc_now().isoformat()

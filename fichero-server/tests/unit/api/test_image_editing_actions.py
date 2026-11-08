@@ -362,6 +362,23 @@ class TestAppendOpActions:
         assert inverse_audit.action_name == "image.set_operations"
         assert inverse_audit.inverse_of == audit.id
 
+    def test_straighten_takes_the_angle_a_person_set_on_the_dial(self, client, db, tmp_path):
+        """`preview.edit.tool.straighten-is-a-dial` (#6190): a typed angle is applied and recorded as the person's; none is Auto."""
+        doc = _make_image_doc(db, tmp_path, size=(80, 50))
+        headers = {"X-Fichero-Library-Path": str(db.path.parent)}
+
+        by_hand = client.post(f"/api/images/{doc.id}/operations/straighten", json={"page": 1, "angle": 3.5}, headers=headers)
+        assert by_hand.status_code == 200, by_hand.text
+        row = _ops(db, doc.id)[0]
+        assert row["params"]["angle"] == 3.5 and row["params"]["method"] == "person"
+
+        too_far = client.post(f"/api/images/{doc.id}/operations/straighten", json={"page": 1, "angle": 90}, headers=headers)
+        assert too_far.status_code == 422  # the dial is a few degrees, not a quarter turn
+
+        auto = client.post(f"/api/images/{doc.id}/operations/straighten", json={"page": 1}, headers=headers)
+        assert auto.status_code == 200
+        assert _ops(db, doc.id)[-1]["params"]["method"] == "auto"
+
     @pytest.mark.parametrize(
         (
             "method",

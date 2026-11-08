@@ -100358,6 +100358,14 @@
             "minimum": 1.0,
             "title": "Page",
             "default": 1
+          },
+          "angle": {
+            "type": "number",
+            "maximum": 45.0,
+            "minimum": -45.0,
+            "nullable": true,
+            "title": "Angle",
+            "description": "The angle a person set on the Straighten dial, in degrees; absent, the page is measured and turned by what it finds (Auto)."
           }
         },
         "type": "object",

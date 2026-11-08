@@ -284,7 +284,8 @@ def test_the_editor_request_schema_is_the_params_model_plus_the_page(request_nam
     request = getattr(image_editing, request_name)
     assert issubclass(request, params)
     schema, base = request.model_json_schema()["properties"], params.model_json_schema()["properties"]
-    assert {k: v for k, v in schema.items() if k != "page"} == base
+    editor_only = {"page", "angle"} if step == "deskew" else {"page"}  # Straighten's dial angle is the person's, never a node tunable
+    assert {k: v for k, v in schema.items() if k not in editor_only} == base
     assert "page" in schema
 
 
@@ -341,3 +342,10 @@ def test_a_stored_contrast_row_out_of_range_still_previews_as_it_was_saved(clien
     # An old library holds this row; the save route would now refuse it (422), so it goes in the table directly.
     db.save(ImageEditChain(document_id=doc.id, operations=[{"op": "contrast", "params": {"factor": 12, "clip": 6.0}}]))
     assert client.get(f"/api/images/{doc.id}/preview").status_code == 200
+
+
+def test_the_straighten_request_carries_the_dial_angle_beside_the_page():
+    from fichero_server.api.routes.ingest.image_editing import StraightenOperationRequest
+
+    assert "angle" in StraightenOperationRequest.model_json_schema()["properties"]
+    assert StraightenOperationRequest(page=1).angle is None  # none stays Auto

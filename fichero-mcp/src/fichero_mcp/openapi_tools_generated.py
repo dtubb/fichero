@@ -4099,10 +4099,11 @@ def fichero_images_segment(
 def fichero_images_straighten(
     *,
     document_id: Annotated[str, Field(description='Document Id')],
+    angle: Annotated[Optional[float], Field(description='The angle a person set on the Straighten dial, in degrees; absent, the page is measured and turned by what it finds (Auto).')] = None,
     page: Annotated[Optional[int], Field(description='Page. Default: 1.')] = None,
 ) -> Any:
     'Straighten Image\n\nRoute: POST /api/images/{document_id}/operations/straighten (toolset `images`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", f"/api/images/{document_id}/operations/straighten", json=_rt.body({"page": page}))
+    return _rt.call("POST", f"/api/images/{document_id}/operations/straighten", json=_rt.body({"angle": angle, "page": page}))
 
 
 def fichero_images_preview(
