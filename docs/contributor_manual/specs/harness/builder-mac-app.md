@@ -16,7 +16,8 @@
 Once the builder is solid it becomes a Mac app like Fichero itself: signed, sandboxed by entitlements, installable on any
 Mac (a friend's included) from the website, with the console as its window. What the owner observes: one app in the Dock
 that shows the lanes, the queue, the ladder's rungs per batch, graphs of progress over time, real token counts and the cost
-so far, and alerts explained in plain words; the worker runs inside the app's sandbox, not as a second Unix user. The
+so far, and alerts explained in plain words; later, the worker runs inside the app's sandbox, not as a second Unix user (section A, after the
+console-only first version the owner decided). The
 engine of the app is the builder as it stands (`fichero-builder/fichero_builder`, stdlib Python, the journal, the rules
 file); the app is a shell over it exactly as Fichero's app is a shell over its engine (`engine-startup-lifecycle.md`): the
 Swift side owns the window, the sandbox and the process; the Python side owns every decision.
@@ -63,6 +64,12 @@ Swift side owns the window, the sandbox and the process; the Python side owns ev
 
 ### B. The console as the window
 
+- `builder-app.drives-the-existing-install` [GAP] (#6345; owner 2026-11-08) — the app finds this Mac's installed builder
+  (the `builder` on PATH, or the path the owner picks once) and its state dir, and drives them: it starts and watches the
+  loop through the same `launchctl` agent, reads the same journal and shows the same console; it bundles no Python and
+  runs no builder of its own, and two builders never run against one state dir. Acceptance: with the builder installed
+  the app's console shows that install's lanes and journal; with none installed the app says so and offers the install
+  page; starting the loop from the app leaves exactly one loop agent loaded.
 - `builder-app.console-is-the-window` [GAP] (#6345) — the app's window is the console page (`dev-workflows.run.loop-status`,
   the phone layout and read-only tailnet view of Step 2.26 included) in a web view bound to the app's own loopback
   server; the token is the app's, never typed. Acceptance: the window shows the same page as `builder status` in a
@@ -107,21 +114,6 @@ Nothing below is built until the owner approves this spec (the header flips to A
 manager does not approve this one, 2026-11-08). The order is written so the owner can read what comes first; no issue
 is filed from it and no lane takes a step from it while the header says DRAFT.
 
-### Stage 0 — Decide the sandbox (no app yet)
-
-#### Step 0.1 — The sandbox test from dev-workflows.md decides the mechanism (#6345)
-- Behaviours: `builder-app.worker-inherits-the-sandbox`
-- Tests: fichero-builder/tests/test_pi_policy_extension.py, test_sandbox_mechanism.py (not yet written)
-- Depends on: none
-- Size: M
-
-The existing paragraph in `dev-workflows.md` already orders this: a signed launcher with App Sandbox inherited, raw
-Seatbelt with a maintained profile, Apple `container`, each tried with Pi and Claude Code on one real item; the one
-that passes the jail tests and runs the worker is the mechanism. Nothing else in this spec starts before it is known.
-
-- test (to write): `test_sandbox_mechanism.py` in fichero-builder/tests/ (the worker as a child of a sandboxed launcher:
-  a read of a denied path refused and journalled; a write outside the folder refused; the hook's refusals unchanged)
-
 ### Stage 1 — The console says what the owner asked
 
 #### Step 1.1 — Rungs, plain-word alerts, "landed" means origin/integration (#6345)
@@ -157,21 +149,19 @@ no new store. The counts are the ledger's, flagged as it flags them.
 - test (to write): `test_auto_send_back.py` in fichero-builder/tests/ (a NOT READY review alert sent back by rule with the
   row naming it; an ask-owner alert waits)
 
-### Stage 2 — The app
+### Stage 2 — The console-only app over the existing install (the owner's first version)
 
-#### Step 2.1 — The shell: one folder, the inherited sandbox, the console as the window (#6345)
-- Behaviours: `builder-app.one-app-one-folder`, `builder-app.console-is-the-window`, `builder-app.build-merge-push-stay-outside`
-- Tests: fichero/Tests/Unit/general/Views/Settings/CloudCapsSettingsTests.swift, BuilderAppShellTests.swift (not yet written)
-- Depends on: 0.1, 1.2
-- Size: L
+#### Step 2.1 — A window that shows the existing console and drives this Mac's builder (#6345)
+- Behaviours: `builder-app.drives-the-existing-install`, `builder-app.console-is-the-window`
+- Tests: fichero-builder/tests/test_status_page.py, BuilderAppShellTests.swift (not yet written)
+- Depends on: 1.2
+- Size: M
 
-Fichero's launcher and readiness probe reused for a second engine; the bookmark for the folder; the web view on the
-loopback console. The Swift test file cited beside the planned one is the Settings test the shell's folder picker is
-modelled on, not a test of this step.
+The first thing shipped: a signed Mac app whose window is a web view on the installed builder's loopback console, with
+the loop's start and stop through the same `launchctl` agent and nothing bundled. No sandbox work, no second builder.
 
-- test (to write): `BuilderAppShellTests.swift` in fichero/Tests/Unit/general/Views/ (the folder bookmark survives a
-  relaunch; the console loads from the app's server with the app's token; a worker's push refused, the app's land step
-  pushes)
+- test (to write): `BuilderAppShellTests.swift` in fichero/Tests/Unit/general/Views/ (the console loads from the installed
+  builder's server with its token; no builder installed is said in words; one loop agent after start)
 
 #### Step 2.2 — Signed, notarized, on the website, updated (#6345)
 - Behaviours: `builder-app.signed-and-updated-like-fichero`
@@ -179,14 +169,45 @@ modelled on, not a test of this step.
 - Depends on: 2.1
 - Size: M
 
+The release lane signs it beside Fichero; the bundle is the shell alone, so the "nothing outside the stdlib and the
+builder" check reads "nothing but the shell".
+
 - test (to write): `test_builder_app_release.py` in fichero-builder/tests/ (the release lane's DMG smoke opens the app;
-  the Sparkle feed carries the version; the bundle imports nothing outside the stdlib and the builder)
+  the Sparkle feed carries the version; the bundle carries no Python)
 
-## Open questions for the owner
+### Stage 3 — The sandboxed worker inside the app (later, only if the owner still wants it)
 
-- QUESTION (owner): does the app run the worker's model session itself (Claude Code signed in inside the sandbox, which
-  needs the login to live in the container) or does it drive the owner's existing Claude Code install outside it? The
-  default taken here is inside, since "runs on a friend's Mac" needs the whole thing in the bundle; the owner may veto.
-- QUESTION (owner): one app for builder and console, or the console alone first as a small app that watches a builder
-  run from the command line? The default taken here is one app, built after Stage 1 has put everything the owner asked
-  for into the page.
+#### Step 3.1 — The sandbox test from dev-workflows.md decides the mechanism (#6345)
+- Behaviours: `builder-app.worker-inherits-the-sandbox`
+- Tests: fichero-builder/tests/test_pi_policy_extension.py, test_sandbox_mechanism.py (not yet written)
+- Depends on: 2.2
+- Size: M
+
+The existing paragraph in `dev-workflows.md` orders this: a signed launcher with App Sandbox inherited, raw Seatbelt with
+a maintained profile, Apple `container`, each tried with Pi and Claude Code on one real item.
+
+- test (to write): `test_sandbox_mechanism.py` in fichero-builder/tests/ (the worker as a child of a sandboxed launcher:
+  a read of a denied path refused and journalled; a write outside the folder refused; the hook's refusals unchanged)
+
+#### Step 3.2 — One folder, the inherited sandbox, build and push outside it (#6345)
+- Behaviours: `builder-app.one-app-one-folder`, `builder-app.build-merge-push-stay-outside`
+- Tests: fichero-builder/tests/test_pi_policy_extension.py, BuilderAppSandboxTests.swift (not yet written)
+- Depends on: 3.1
+- Size: L
+
+- test (to write): `BuilderAppSandboxTests.swift` in fichero/Tests/Unit/general/Views/ (the folder bookmark survives a
+  relaunch; a worker's push refused, the app's land step pushes)
+
+## Decisions (owner 2026-11-08, DECIDED)
+
+- **The app drives the existing install.** The app is a window over this Mac's builder as installed: its `builder` verbs,
+  its loop (`local.builder.loop`), its state dir and its worktrees; it bundles no Python, starts no session of its own
+  and never runs a second builder beside the installed one. "Runs on a friend's Mac" therefore means the friend installs
+  the builder first; the bundled, sandboxed worker of section A is the later goal of the issue, not the first version.
+- **The first version is console-only.** It shows the existing console (`dev-workflows.run.loop-status`, Step 2.26 of
+  `dev-workflows.md`) and nothing else; the sandboxed worker (section A) comes after, and only if the owner still wants
+  it once the console app is in use.
+
+Both earlier owner questions (bundle the model session or drive the owner's install; one app or console first) are
+settled by these two and are closed.
+
