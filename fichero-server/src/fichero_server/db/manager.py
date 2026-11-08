@@ -6,6 +6,7 @@ Each .fichero package directory gets its own Database instance.
 
 from __future__ import annotations
 
+import functools
 import logging
 
 import duckdb
@@ -87,6 +88,19 @@ class OpenGate:
             self._cond.notify_all()
 
 
+def _through_open_gate(get_database):
+    """An open library is returned at once; one that must be opened waits its turn at the gate (#6430)."""
+
+    @functools.wraps(get_database)
+    def gated(self, package_path, *, create=False):
+        if self.is_open(package_path):
+            return get_database(self, package_path, create=create)
+        with self._open_gate:
+            return get_database(self, package_path, create=create)
+
+    return gated
+
+
 def _open_cap() -> int:
     try:
         return int(os.environ.get("FICHERO_LIBRARY_OPEN_CAP", "2"))
@@ -138,16 +152,8 @@ class DatabaseManager:
         """Whether this package already has its shared connection -- without opening it (#5257)."""
         return self._cache_key(Path(nfc_path(package_path))) in self._databases
 
+    @_through_open_gate
     def get_database(
-        self, package_path: str | Path, *, create: bool = False
-    ) -> "Database":
-        """An open library is returned at once; one that must be opened waits its turn at the gate (#6430)."""
-        if self.is_open(package_path):
-            return self._open_database(package_path, create=create)
-        with self._open_gate:
-            return self._open_database(package_path, create=create)
-
-    def _open_database(
         self, package_path: str | Path, *, create: bool = False
     ) -> "Database":
         """Get or open the one shared Database instance for a package.
