@@ -47,6 +47,7 @@ def test_the_regions_land_as_a_machines_regions_with_yolos_labels(client, db, tm
     db.save(text_only)
     found = [yolo_runtime.Region(kind_raw="Table", rect=[0.1, 0.5, 0.8, 0.3], confidence=0.9),
              yolo_runtime.Region(kind_raw="Section-header", rect=[0.1, 0.05, 0.8, 0.05], confidence=0.8)]
+    monkeypatch.setattr(yolo_runtime, "is_installed", lambda model_id: True)  # the weights are here; the finder is stubbed
     monkeypatch.setattr(yolo_runtime, "detect_regions", lambda path, model_id=MODEL, **k: found)
 
     account = find_regions(db, [page.id, text_only.id], "run-1", MODEL)

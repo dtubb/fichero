@@ -109,6 +109,7 @@ def test_a_yolo_region_found_in_the_crop_comes_back_in_whole_image_fractions(db,
             seen.append(image.size)
         return [yolo_runtime.Region(kind_raw="Table", rect=[0.0, 0.0, 0.5, 0.5], confidence=0.9)]
 
+    monkeypatch.setattr(yolo_runtime, "is_installed", lambda model_id: True)  # the weights are here; the finder is stubbed
     monkeypatch.setattr(yolo_runtime, "detect_regions", detect)
     page = _page(db, tmp_path, BOX)
 

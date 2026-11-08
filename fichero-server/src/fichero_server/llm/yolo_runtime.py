@@ -100,7 +100,10 @@ def _quiet() -> None:
 def _model(model_id: str):
     path = model_path(model_id)
     if path is None:
-        raise FileNotFoundError(f"The layout model {model_id} is not downloaded")
+        from fichero_server.llm.local_inference import LocalModelNotInstalledError
+
+        # Typed, so every caller classifies it the same way: "model not ready", with the download offered (`model_missing`).
+        raise LocalModelNotInstalledError(f"The layout model {model_id} is not downloaded to this Mac")
     with _LOCK:
         if model_id not in _LOADED:
             _quiet()

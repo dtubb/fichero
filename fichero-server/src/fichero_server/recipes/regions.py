@@ -135,6 +135,14 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
     from fichero_server.workflows.tools.llm_base import save_artifact
     from fichero_server.workflows.tools.sources import _resolve_abs_path
 
+    if provider == "yolo" and documents:
+        # A layout model whose weights are not on this Mac is ONE visible state, said before any page, never a page that finds
+        # nothing (#6404): the run fails as "model not ready" and the download is the one the plan already offers.
+        from fichero_server.llm.local_inference import LocalModelNotInstalledError
+        from fichero_server.llm.yolo_runtime import is_installed
+
+        if not is_installed(model):
+            raise LocalModelNotInstalledError(f"The layout model {model} is not downloaded to this Mac")
     library = str(Path(db.path).parent)
     account = {"pages": 0, "regions": 0, "no_image": 0}
     started = time.monotonic()

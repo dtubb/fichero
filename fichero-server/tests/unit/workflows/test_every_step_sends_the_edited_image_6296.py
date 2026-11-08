@@ -179,6 +179,7 @@ def _find_regions(page, monkeypatch, provider):
         return [Region(kind_raw="Text", rect=[0.1, 0.1, 0.5, 0.5], confidence=0.9)]
 
     monkeypatch.setattr(kraken_runtime, "segment_lines", seg)
+    monkeypatch.setattr(yolo_runtime, "is_installed", lambda model_id: True)  # the weights are here; the finder is stubbed
     monkeypatch.setattr(yolo_runtime, "detect_regions", yolo)
     find_regions(page["db"], [page["doc"].id], "run-1", "blla" if provider == "kraken" else "yolo", provider=provider)
     return sizes

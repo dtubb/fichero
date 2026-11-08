@@ -58,6 +58,7 @@ def test_a_persons_regions_become_labels_and_a_models_do_not(client, db, tmp_pat
     from fichero_server.recipes.regions import find_regions
 
     folder, first, second = corrected
+    monkeypatch.setattr(yolo_runtime, "is_installed", lambda model_id: True)  # the weights are here; the finder is stubbed
     monkeypatch.setattr(yolo_runtime, "detect_regions", lambda path, model_id=None, **k: [
         yolo_runtime.Region(kind_raw="Picture", rect=[0.0, 0.0, 1.0, 1.0], confidence=0.3)])
     find_regions(db, [first.id], "run-model", "yolo-doclaynet-11n")  # a model's regions: never training data
