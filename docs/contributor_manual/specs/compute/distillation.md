@@ -318,6 +318,7 @@ Tests for `distill.reasoning.*` and `distill.set.keeps-reasons`:
   named small student.
 - `distill.collect.sample-covers-scope` — **[GAP]** (#5337) the teacher's sample is
   proposed to cover every hand, layout and page kind in the scope.
+- `distill.collect.first-n-or-covering-sample` — **[GAP]** (#6407; owner scenario 2026-11-08, "the first 100 pages with Gemini"; manager ruling 2026-11-08) the person chooses PER RUN how the teacher's sample is drawn: a covering sample (`distill.collect.sample-covers-scope`, the default) or the first N pages in the project's reading order; N is editable (the owner starts with 100) and is the `sample_pages` the distil route already prices (`recipes/routes.py` `routes_for_volume`), so the route card's figures follow the choice. The choice is asked where the route is chosen (Set Up's How, `designer.how.teach-as-you-go` in `source/recipe-designer.md`) and recorded on the run; it is never a hidden constant. Acceptance: with "first 100" chosen the teacher labels pages 1–100 in order and no other; with the covering sample chosen it labels a sample drawn across the scope's folders and hands; the route card's label cost names the N chosen. *Test:* `test_teach_as_you_go_end_to_end.py` (not yet written, the one test across this spec and `source/recipe-designer.md` Stage 19) and the existing `test_kraken_training_set.py`.
 - `distill.set.keeps-reasons` — **[PARTIAL]** (#4642; built (`training/line_pairs.py` arms `why`, `thinking`, `review`; the vision card's `arm`); not yet trained on real pages) where the teacher gave its reasons, the set keeps them,
   and a student can be trained to give them.
 - `distill.reasoning.traces-in-the-ledger` — **[PARTIAL]** (#4642; built: `training/reasons.py`, one episode a call with the teacher, prompt file, run and time, by PAGE line id; not yet: the call's cost, and the teacher's readings landing as a pass that names its episodes) a reasoning teacher's traces for each line
@@ -379,6 +380,7 @@ Tests for `distill.reasoning.*` and `distill.set.keeps-reasons`:
   model-checked reference say so.
 - `distill.scale.everyday-corrections-are-data` — **[GAP]** (#5404) corrections to text, entities and
   claims made in ordinary use reach the next training set through the episode ledger.
+- `distill.student.transformers-base-on-hf-mlx-copy-local` — **[GAP]** (#6407, #6406; PROVISIONAL, owner to confirm; manager 2026-11-08) a student that is to run on Hugging Face is fine-tuned from a TRANSFORMERS base there (Kraken or a safetensors vision model, the two kinds the Job and the remote reader already load), and the bulk read on Hugging Face runs that transformers student; for fast runs on a Mac the same student is converted to an MLX copy (`compute.tune.convert-for-mlx`) that lives in the project beside it (`compute.model.lives-in-project`); MLX itself NEVER runs on Hugging Face. The student's card names both forms with where each runs (`distill.train.card-names-teacher`; the places rule `source.onboard.hf-place-one-rule-everywhere`: "runs on Hugging Face as its base; the MLX copy runs here"). An MLX-only model the person picked as the base is refused for a Hugging Face fine-tune in words naming its transformers original when the Hub lists one. Acceptance: a distil run placed on Hugging Face trains the transformers student there, reads the rest there with it, and lands an MLX copy in the project whose card says "this Mac"; a run placed on this Mac trains Kraken here and converts nothing. *Test:* `test_teach_as_you_go_end_to_end.py` (not yet written) and the existing `test_vision_student_lands.py`.
 - `distill.scale.local-first-then-remote` — **[GAP]** (#5404) the same recipe that read a sample on
   this Mac reads a whole archive on Hugging Face Jobs or a cluster, sharded, resending only failed
   shards, landing idempotently; trained students land in a portable form as well as MLX, inside their project
@@ -488,9 +490,11 @@ missing so the gap is visible: none of the four is written yet. [MISSING]
 
 ### Stage 1 — label with a cloud model, distil Kraken on Hugging Face Jobs, run the rest on the student, never rerun a pass
 
+The person's door to this stage is Set Up's How option Teach as you go (`source/recipe-designer.md` Stage 19, written 2026-11-08 for #6407 and the owner's scenario); the first-N choice and the provisional Hugging Face decision below came from it.
+
 #### Step 1.1 — the teacher labels the sample: a cloud model reads Kraken's lines, the sample covers the scope, the set keeps check levels (#5398, #5337, #5404)
-- Behaviours: `distill.collect.teacher-reads-the-lines`, `distill.collect.sample-covers-scope`, `distill.scale.check-trust-levels`, `distill.set.keeps-reasons`
-- Tests: fichero-server/tests/unit/training/test_kraken_training_set.py, fichero-server/tests/unit/training/test_line_pairs.py, test_teacher_labels_the_sample.py (not yet written)
+- Behaviours: `distill.collect.teacher-reads-the-lines`, `distill.collect.sample-covers-scope`, `distill.collect.first-n-or-covering-sample`, `distill.scale.check-trust-levels`, `distill.set.keeps-reasons`
+- Tests: fichero-server/tests/unit/training/test_kraken_training_set.py, fichero-server/tests/unit/training/test_line_pairs.py, test_teacher_labels_the_sample.py (not yet written), test_teach_as_you_go_end_to_end.py (not yet written)
 - Size: M
 
 Built: Transcribe in Kraken mode with `lines_read_by: "model"` (Kraken finds each line, the run's vision model reads each line's crop; the pass keeps Kraken's geometry, so its PAGE export is a training set); the Kraken set writer (`training/kraken_set.py`). Left: the sample chosen to cover the scope (hands, periods, folders, as the project's answers name them) not the first N pages; each page's check level (person, model checker, unchecked teacher) recorded on the set and on a held-out set; the reasons kept beside the readings where the teacher gave them. Acceptance: a Gemini teacher (a fake) labels a 60-page sample drawn across three folders and two hands; the set names each page's level `teacher` and a corrected page's `person`; the held-out part is one in five and never trained on.
@@ -499,7 +503,7 @@ Built: Transcribe in Kraken mode with `lines_read_by: "model"` (Kraken finds eac
 
 #### Step 1.2 — distil Kraken on Hugging Face Jobs from the labels, the student measured against people and adopted within the bar (#5337, #5240, #5404)
 - Behaviours: `distill.job.any-model-job`, `distill.train.card-names-teacher`, `distill.measure.against-people`, `distill.adopt.within-bar`, `distill.scale.local-first-then-remote`
-- Tests: fichero-server/tests/unit/training/test_hf_jobs_target.py, fichero-server/tests/unit/training/test_adopt_past_the_noise_band_5700.py, test_distil_kraken_on_hf.py (not yet written)
+- Tests: fichero-server/tests/unit/training/test_hf_jobs_target.py, fichero-server/tests/unit/training/test_adopt_past_the_noise_band_5700.py, test_distil_kraken_on_hf.py (not yet written), test_teach_as_you_go_end_to_end.py (not yet written)
 - Depends on: 1.1
 - Size: M
 
@@ -508,14 +512,16 @@ Built: the Hugging Face target and the Kraken trainer in the Job (`compute/jobs-
 - test (to write): `test_distil_kraken_on_hf.py` in fichero-server/tests/unit/training/ (the job kind; the card's teacher; the measure against people; adopt within the bar; the rest of the corpus on the student)
 
 #### Step 1.3 — nothing is read twice: a model pass is reused, the rounds stop on evidence, the student runs local (#5404, #5240, #5397)
-- Behaviours: `distill.scale.rounds-stop-on-evidence`, `distill.runs-local`, `distill.scale.everyday-corrections-are-data`, `distill.scale.iiif-by-reference`
-- Tests: fichero-server/tests/unit/remote_read/test_reading_at_scale.py, fichero-server/tests/unit/training/test_copied_pages_train_5699.py, test_distil_rounds_and_reuse.py (not yet written)
+- Behaviours: `distill.scale.rounds-stop-on-evidence`, `distill.runs-local`, `distill.scale.everyday-corrections-are-data`, `distill.scale.iiif-by-reference`, `distill.student.transformers-base-on-hf-mlx-copy-local`
+- Tests: fichero-server/tests/unit/remote_read/test_reading_at_scale.py, fichero-server/tests/unit/training/test_copied_pages_train_5699.py, fichero-server/tests/unit/training/test_vision_student_lands.py, test_distil_rounds_and_reuse.py (not yet written), test_teach_as_you_go_end_to_end.py (not yet written)
 - Depends on: 1.2
 - Size: M
 
 Built: reading at scale lands idempotently (`compute.land.idempotent`); a page is read once (`activity.read.page-read-once`, the standing rule: same input and same model reuse the result). Left: a distil round reuses every teacher reading and every student reading already landed (a second round labels only the new sample pages and measures only new held-out pages); the rounds stop when the held-out gain is inside the band for two rounds or the budget is spent, saying which; the adopted student runs on the person's Macs through Kraken on the background lane with its speed and peak memory measured there; everyday corrections join the next set; IIIF pages travel by reference. Acceptance: a second round on the same project sends no page the teacher read already and measures no held-out page twice (a counting fake sees 0 repeats); two rounds inside the band stop with "no gain past the band"; the student reads a page here with its seconds and peak recorded; a person's correction made after round one is in round two's set.
 
 - test (to write): `test_distil_rounds_and_reuse.py` in fichero-server/tests/unit/training/ (zero repeats; the stop rule; the local run's figures; the correction in the next set)
+
+Across Steps 1.1–1.3 and `source/recipe-designer.md` Stage 19, ONE end-to-end test (#6407, written 2026-11-08): `test_teach_as_you_go_end_to_end.py` in fichero-server/tests/unit/training/ (a fake Gemini labels the first 100 pages of a 1,000-page fake project (and, in a second case, a covering sample); a fake Job returns a student; the student's CER and WER on the held-out checked pages clear the gate; the remaining 900 pages run on the student on a fake Hugging Face target; a counting fake sees every page read exactly once by exactly one model: zero repeated passes, `activity.read.page-read-once`; the switch is recorded). Named on Steps 1.1 and 1.2 above and on Stage 19's steps so one file pins the whole story.
 
 ## Test matrix
 
