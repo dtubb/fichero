@@ -3570,6 +3570,8 @@ Setup
   others to any. A hand typed is kept as typed, so a curated id cannot be told from a typed word and is not
   refused. *Test:* `fichero-server/tests/unit/recipes/test_set_up_follows_the_project_5688.py`.
 - `source.onboard.material.hand-follows-the-material` — **[PARTIAL]** (#6012; built, Swift needs compile) Which hand is asked only when the material includes handwriting: for print or typescript alone the section says "Print and typescript have no hand" and offers no hands (a hand is a way of writing by hand). A mix that includes handwriting asks as before. *Test:* `HandLanguagesTests.testOnlyHandwritingHasAHand` (`RecipeSetupStore.asksWhichHand(materials:)`, pure). *Not built:* typeface or print choices in its place.
+- `source.onboard.material.hands-fit-the-languages` — **[PARTIAL]** (#6012; owner triage 2026-11-08: a step for the remaining hands and the typefaces. Built: the engine's curated list (`recipes/hands.py`: secretary, humanistic, italic, procesal, Spanish humanistic cursive (bastarda), Kurrent, copperplate, Palmer, modern cursive, and the Arabic and Hebrew hands), each with its script, centuries, tags and the languages it is particular to, served by `GET /api/recipes/hands` filtered by the first script, the period and the project's languages (#6118), so Kurrent is left out of a Spanish project and the list is re-read when the script or period changes (`RecipeSetupStore+Hands.swift`). Not built: **cortesana** (the Castilian chancery hand, 15th–16th c., tags `cortesana`, `spanish-paleography`, es) is missing from the list, and the owner's Spanish–Latin project of the bug still saw only Kurrent and Not sure on the 2026-10-22 build because the language filter landed after it) Which hand offers the hands that fit the project's languages, script and century, and never a hand particular to a language the project did not choose. *Acceptance:* a Spanish and Latin project of the 16th–17th century offers procesal, cortesana, Spanish humanistic cursive, humanistic and italic, and not Kurrent or secretary; a German project offers Kurrent; a project with no languages offers every Latin hand of its period. *Test:* `test_hands_fit_the_languages_6012.py` in fichero-server/tests/unit/recipes/ (not yet written).
+- `source.onboard.material.typeface-for-print` — **[GAP]** (#6012; the owner's third expectation) when the materials include print or typescript, the section offers typefaces in the hand's place, from a curated list kept beside the hands (`recipes/hands.py`, one `Typeface` table: roman, italic, blackletter or gothic (Fraktur named for German), typewriter, and Not sure), each with its tags (`print`, `fraktur`, `typewriter`), filtered by language the same way (Fraktur is left out of a Spanish project); the answer is saved with the Set Up answers (`typefaces`) and feeds the reader search exactly as the hands do (`source.onboard.material.feeds-the-reader-search`: an OCR reader tagged `fraktur` for a German print project). A mixed project shows both: the hands for the handwriting, the typefaces for the print. *Acceptance:* print-only material shows the typeface list and no hands; handwriting and print show both; the finder's query for a German print project carries `fraktur`. *Tests:* `test_typeface_for_print_6012.py` (not yet written), `HandLanguagesTests` extended (the section shows typefaces for print, not yet written).
 - `source.onboard.material.feeds-the-reader-search` — **[PARTIAL]** (#5668) Built 2026-10-11 (engine): the hand's tags join the Hugging Face tag search (`discovery.search_hugging_face(hand_tags)`, from the open project's answers in the search job); pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. *Not built: the period in the search.* the period and the hand feed the
   search for readers (the Hugging Face tags people use, such as `htr`, `catmus`, `kurrent`, with the
   language tags) and the comparison of readers. *Test:* pytest, the finder's query for a Kurrent hand
@@ -4839,6 +4841,24 @@ To be filled at approval. The legs this slice will need, so the gap is visible:
   search and a browse menu, several as tokens, a language stored as its tag; no disclosure
   chevrons; one sentence per step; a step's problem once, in words, with the fix as a button; never
   a raw model id. The screens: section 7b.
+
+## Build order
+
+The spec is DRAFT; the guard reads this section as warnings. Only the steps the owner has asked for are written (triage 2026-11-08); the rest of the spec's [GAP] and [PARTIAL] bullets are not yet cut into steps.
+
+### Stage 1 — Which hand fits the material
+
+#### Step 1.1 — the hands that fit the languages, and typefaces for print (#6012)
+- Behaviours: `source.onboard.material.hands-fit-the-languages`, `source.onboard.material.typeface-for-print`
+- Tests: fichero-server/tests/unit/recipes/test_setup_samples_5668.py, test_hands_fit_the_languages_6012.py (not yet written), test_typeface_for_print_6012.py (not yet written)
+- Depends on: none
+- Size: S
+
+The list, the filter and the Set Up section exist; this step adds one hand (cortesana), one small table (the typefaces) beside it, and shows typefaces where print is among the materials. Nothing new in the contract beyond the `typefaces` answer and the table's rows on the existing hands route.
+
+- test (to write): `test_hands_fit_the_languages_6012.py` in fichero-server/tests/unit/recipes/ (the Spanish–Latin 16th–17th c. list; Kurrent only for German; no languages gives every Latin hand of the period)
+- test (to write): `test_typeface_for_print_6012.py` in fichero-server/tests/unit/recipes/ (print-only shows typefaces and no hands; a mixed project shows both; `fraktur` reaches the finder's query)
+
 
 ## Open questions (with recommendations)
 
