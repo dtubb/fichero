@@ -162,3 +162,14 @@ def test_a_manual_hold_is_a_live_builder_heavy_holder_and_a_dead_one_is_none(tmp
     assert journal.manual_hold() == "", "a rung's own hold is not the person's"
     (tmp_path / "heavy.lock").write_text("999999 heavy: sleep 86400")
     assert journal.manual_hold() == "", "a dead holder is no hold"
+
+
+def test_a_heavy_job_is_refused_in_words_when_the_disk_is_nearly_full(state, monkeypatch):
+    """#6417: a Mac at 99% broke every job with Errno 28; a build never starts under the free-space floor."""
+    monkeypatch.setattr(journal, "MIN_FREE_GB", 10**9)
+    with pytest.raises(OSError, match="REFUSED.*free disk space"):
+        with journal.heavy("a build"):
+            pytest.fail("the job must not start")
+    monkeypatch.setattr(journal, "MIN_FREE_GB", 0)
+    with journal.heavy("a build"):
+        pass

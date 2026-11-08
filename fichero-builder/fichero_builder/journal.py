@@ -101,6 +101,17 @@ def ladder_slots_known() -> list[str]:
     return sorted({"ladder", *(p.name[:-5] for p in STATE.glob("ladder-*.lock") if p.name[7:-5].isdigit())})
 
 
+MIN_FREE_GB = float(os.environ.get("FICHERO_MIN_FREE_GB") or 30)  # manager 2026-11-08 (#6417): a Mac 99% full broke every job with Errno 28
+
+
+def check_free_space() -> None:
+    """Refuse a heavy job (a build, the full suite) when the state volume has under MIN_FREE_GB free: say so in words."""
+    import shutil
+    free = shutil.disk_usage(STATE if STATE.exists() else Path.home()).free / 2**30
+    if free < MIN_FREE_GB:
+        raise OSError(f"REFUSED: {free:.0f} GiB free on this Mac, under {MIN_FREE_GB:g}: free disk space (Time Machine local snapshots first) before a build")
+
+
 HEAVY_ENV = "FICHERO_HEAVY_HELD"  # set for what `builder heavy` runs: it already holds the lock
 
 
@@ -148,6 +159,7 @@ def heavy(what: str, yields: bool = False):
     if os.environ.get(HEAVY_ENV):
         yield
         return
+    check_free_space()
     lk = Lock("heavy", what=what)
     if yields:
         said = False
