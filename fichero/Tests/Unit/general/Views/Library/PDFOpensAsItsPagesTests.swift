@@ -38,11 +38,12 @@ struct PDFOpensAsItsPagesTests {
         #expect(!LibraryView.columnOpensChildren(note))
     }
 
-    /// A double-click on a page row in the Preview's List or Table reaches the window's selection (`library.contents.double-click-selects-the-item`).
-    @Test func aDoubleClickedPageRowInThePreviewGoesToTheWindowsSelection() throws {
-        let rows = try String(contentsOf: AppSource.root().appendingPathComponent("Views/Preview/FolderRowsPreview.swift"), encoding: .utf8)
-        let selection = try String(contentsOf: AppSource.root().appendingPathComponent("Views/Library/LibraryView+Selection.swift"), encoding: .utf8)
-        #expect(rows.contains("onOpenItem: { onNavigateToDocument?($0.id) }"))
-        #expect(selection.contains("detailDocument = doc\n            onOpenItem?(doc)"))
+    /// A double-clicked page row reaches the window's selection hook (`library.contents.double-click-selects-the-item`).
+    @Test func aDoubleClickedPageRowIsHandedToTheWindowsSelection() {
+        var handed: [String] = []
+        let page = Document(id: "p4", parentId: "deed", docType: .page, name: "4")
+        LibraryView.handOffOpenedItem(page) { handed.append($0.id) }
+        LibraryView.handOffOpenedItem(page, to: nil)
+        #expect(handed == ["p4"])
     }
 }
