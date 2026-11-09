@@ -71,8 +71,8 @@ extension SidebarView {
                         .accessibilityIdentifier(SidebarAccessibilityID.projectsHeading)
                 }
             }
-            // One section per Mac that shared libraries with this person, titled by its name, below Projects
-            // (owner 2026-11-06, `sharing.guest.machines-group`); one how-to-pair section when there is none.
+            // One section per paired Mac (one that shared nothing yet says so), titled by its name, below Projects
+            // (owner 2026-11-06, `sharing.guest.machines-group`); one how-to-pair section when no Mac is paired.
             ForEach(SharedMachineSections.sections(libraryManager.pairedMachines)) { section in
                 let machine = section.machine
                 Section {
@@ -101,7 +101,7 @@ extension SidebarView {
                         .truncationMode(.middle)
                 }
             }
-            if SharedLibraryChooserView.showsHowToPair(libraryManager.pairedMachines) {
+            if SharedMachineSections.showsHowToPair(libraryManager.pairedMachines) {
                 Section { PairedMachinesEmptyView() } header: { Text("Shared Libraries") }
             }
             // App-level destinations pinned once at the bottom, not repeated

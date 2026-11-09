@@ -8,15 +8,10 @@ struct SharedLibraryChooserView: View {
 
     var body: some View {
         List {
-            ForEach(SharedMachineSections.sections(machines)) { section in
-                Section(section.machine.name) {
-                    ForEach(section.rows, id: \.self) { row in
-                        switch row {
-                        case .library(let path):
-                            SharedLibraryRowView(machine: "", library: path) { onOpen(section.machine, path) }
-                        case .nothingShared(let sentence):
-                            Text(sentence).foregroundStyle(.secondary)
-                        }
+            ForEach(machines) { machine in
+                Section(machine.name) {
+                    ForEach(machine.libraries, id: \.self) { path in
+                        SharedLibraryRowView(machine: "", library: path) { onOpen(machine, path) }
                     }
                 }
             }
@@ -26,7 +21,7 @@ struct SharedLibraryChooserView: View {
     }
 
     /// With no library shared yet the list says how to pair, never an empty screen (`sharing.ios.no-empty-detail`).
-    static func showsHowToPair(_ machines: [PairedMachine]) -> Bool { SharedMachineSections.showsHowToPair(machines) }
+    static func showsHowToPair(_ machines: [PairedMachine]) -> Bool { machines.allSatisfy(\.libraries.isEmpty) }
 }
 
 #if DEBUG
