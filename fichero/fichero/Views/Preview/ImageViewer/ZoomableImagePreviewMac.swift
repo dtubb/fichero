@@ -492,6 +492,7 @@ extension ZoomableImagePreview {
             // persisted regions; Esc clears every ephemeral region state.
             .onDeleteCommand { handleRegionDeleteKey() }
             .onExitCommand { clearEphemeralRegionState() }
+            .onKeyPress(.return, phases: .down) { _ in finishShapeDrawingFromKey() }
             // Daniel's ruling (2026-08-10, audit 3c): left/right mean
             // PREVIOUS/NEXT item, up/down pan the current image. ←/→ pan
             // only when the zoomed image can actually travel horizontally;

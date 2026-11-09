@@ -4,7 +4,7 @@ import SwiftUI
 
 /// The Shape tool's polygon and baseline in Edit Segments (`source.editor.draw-shapes`): each click adds
 /// a point; for a polygon a click on the first point closes it, and for either a double-click finishes.
-/// Escape abandons it (`WindowState.abandonDrawing`). The finished points go to the host
+/// Return finishes it too (`ZoomableImagePreviewMac.finishShapeDrawingFromKey`). Escape abandons it (`WindowState.abandonDrawing`). The finished points go to the host
 /// (`onDrawShapeCommit`), which makes the segment with ⌘Z. A box is
 /// still the band's drag, unchanged: this takes no event while the tool draws boxes.
 extension RegionInteractionLayer {
@@ -54,12 +54,30 @@ extension RegionInteractionLayer {
                     points.dropFirst().forEach { path.addLine(to: $0) }
                 }
                 .stroke(Color.accentColor, style: StrokeStyle(lineWidth: drawKind == .baseline ? 2 : 1.5, dash: [4]))
+                // A polygon shows the edge that would close it, and its first point stands out: that is the one to click.
+                let closable = drawKind == .polygon && points.count >= SegmentShapes.DrawKind.polygon.minimumPoints
+                if closable, let first = points.first, let last = points.last {
+                    Path { path in
+                        path.move(to: last)
+                        path.addLine(to: first)
+                    }
+                    .stroke(Color.accentColor.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [2, 4]))
+                }
                 ForEach(points.indices, id: \.self) { index in
+                    let isClosePoint = closable && index == 0
                     Rectangle()
-                        .fill(Color(nsColor: .controlBackgroundColor))
+                        .fill(isClosePoint ? Color.accentColor : Color(nsColor: .controlBackgroundColor))
                         .overlay(Rectangle().stroke(Color.accentColor, lineWidth: 1))
-                        .frame(width: 6, height: 6)
+                        .frame(width: isClosePoint ? 10 : 6, height: isClosePoint ? 10 : 6)
                         .position(points[index])
+                }
+                if closable, let first = points.first {
+                    Text("Click here, double-click or press Return to close")
+                        .font(.caption)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(.regularMaterial, in: Capsule())
+                        .position(x: first.x + 110, y: first.y - 16)
+                        .allowsHitTesting(false)
                 }
             }
         }
