@@ -10,9 +10,9 @@ final class ConnectionPopoverRowsTests: XCTestCase {
     private let asleep = PairedMachine(id: "https://studio.local:8765", name: "Studio", libraries: ["/x/Jesuits.fichero"])
 
     private func rows(inUse: String? = nil) -> [ConnectionRows.Row] {
-        ConnectionRows.rows(
-            local: .running, machines: [awake, asleep], openHosts: [awake.id], states: [:],
-            lastAnswered: [awake.id: now.addingTimeInterval(-120)], inUse: inUse, now: now)
+        ConnectionRows.rows(.init(
+            local: .running, machines: [awake, asleep], openHosts: [awake.id],
+            lastAnswered: [awake.id: now.addingTimeInterval(-120)], inUse: inUse, now: now))
     }
 
     /// The spec's acceptance: local engine running, two paired Macs, one asleep.
@@ -47,8 +47,7 @@ final class ConnectionPopoverRowsTests: XCTestCase {
     }
 
     func testAStoppedEngineOffersRestart() {
-        let stopped = ConnectionRows.rows(
-            local: .stopped, machines: [], openHosts: [], states: [:], lastAnswered: [:], inUse: nil, now: now)
+        let stopped = ConnectionRows.rows(.init(local: .stopped, machines: [], now: now))
         XCTAssertEqual(stopped[0].fix, .restartEngine)
     }
 }

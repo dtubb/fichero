@@ -1,8 +1,9 @@
 import Foundation
 
 /// The rows of the toolbar's connection popover: This Mac, then each paired Mac by name
-/// (`sharing.connections.popover-lists-every-connection`, Step 8.14, #6434). One row model, no sentences: a state, the library, the address in use, one short time, and for a problem ONE short
-/// line with the fix `ConnectionPresentation.Action` names. Pure, so the budget and the states are assertable without a window.
+/// (`sharing.connections.popover-lists-every-connection`, Step 8.14, #6434). One row model, no sentences: a state, the
+/// library, the address in use, one short time, and for a problem ONE short line with the fix
+/// `ConnectionPresentation.Action` names. Pure, so the budget and the states are assertable without a window.
 enum ConnectionRows {
     enum State: Equatable {
         case running, starting, stopped  // This Mac's engine
@@ -29,24 +30,32 @@ enum ConnectionRows {
     static let nameWordBudget = 4
     static let problemWordBudget = 8
 
-    /// `states` and `lastAnswered` are keyed by the host's address (`PairedMachine.id`); a host with no entry has not been
-    /// asked yet and reads as connected only when one of its libraries is open (`openHosts`). `inUse` is the host dialled as the
-    /// whole Mac's engine, if any.
-    static func rows(
-        local: State, machines: [PairedMachine], openHosts: Set<String>, states: [String: State],
-        lastAnswered: [String: Date], inUse: String?, now: Date
-    ) -> [Row] {
+    /// What the rows are built from. `states` and `lastAnswered` are keyed by the host's address (`PairedMachine.id`); a host
+    /// with no entry has not been asked yet and reads as connected only when one of its libraries is open (`openHosts`).
+    /// `inUse` is the host dialled as the whole Mac's engine, if any.
+    struct Input {
+        var local: State
+        var machines: [PairedMachine]
+        var openHosts: Set<String> = []
+        var states: [String: State] = [:]
+        var lastAnswered: [String: Date] = [:]
+        var inUse: String?
+        var now = Date()
+    }
+
+    static func rows(_ input: Input) -> [Row] {
+        let (local, machines, inUse, now) = (input.local, input.machines, input.inUse, input.now)
         let thisMac = Row(
             id: thisMacID, name: "This Mac", state: local, library: nil, address: nil, lastAnswered: nil,
             problem: local == .stopped ? "Engine stopped" : nil, fix: local == .stopped ? .restartEngine : nil,
             canUse: inUse != nil, canDisconnect: false)
         let hosts = machines.map { machine -> Row in
-            let state = states[machine.id] ?? (openHosts.contains(machine.id) ? .connected : .asleep)
+            let state = input.states[machine.id] ?? (input.openHosts.contains(machine.id) ? .connected : .asleep)
             let problem = problemLine(state)
             return Row(
                 id: machine.id, name: shortName(machine.name), state: state,
                 library: machine.libraries.first.map { URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent },
-                address: addressKind(machine.id), lastAnswered: lastAnswered[machine.id].map { shortTime(since: $0, now: now) },
+                address: addressKind(machine.id), lastAnswered: input.lastAnswered[machine.id].map { shortTime(since: $0, now: now) },
                 problem: problem, fix: problem == nil ? nil : .reconnect,
                 canUse: state == .connected && inUse != machine.id, canDisconnect: true)
         }

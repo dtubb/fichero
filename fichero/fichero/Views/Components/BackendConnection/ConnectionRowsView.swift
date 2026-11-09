@@ -66,14 +66,14 @@ struct ConnectionRowsView: View {
 #if DEBUG
 #Preview("Connection rows") {
     ConnectionRowsView(
-        rows: ConnectionRows.rows(
+        rows: ConnectionRows.rows(.init(
             local: .running,
             machines: [
                 PairedMachine(id: "https://mini.tail1.ts.net:8765", name: "Mac mini", libraries: ["/x/Marshall.fichero"]),
                 PairedMachine(id: "https://studio.local:8765", name: "Studio", libraries: ["/x/Jesuits.fichero"])
             ],
-            openHosts: ["https://mini.tail1.ts.net:8765"], states: [:],
-            lastAnswered: ["https://mini.tail1.ts.net:8765": Date().addingTimeInterval(-120)], inUse: nil, now: Date()),
+            openHosts: ["https://mini.tail1.ts.net:8765"],
+            lastAnswered: ["https://mini.tail1.ts.net:8765": Date().addingTimeInterval(-120)])),
         onFix: { _ in }, onDisconnect: { _ in })
         .padding()
         .frame(width: 380)

@@ -65,11 +65,11 @@ struct BackendConnectionView: View {
     private var connectionRows: some View {
         if !libraryManager.pairedMachines.isEmpty {
             let local: ConnectionRows.State = appState.isBackendRunning ? .running : .stopped
-            let rows = ConnectionRows.rows(
+            let rows = ConnectionRows.rows(.init(
                 local: local, machines: libraryManager.pairedMachines,
                 openHosts: Set(libraryManager.openLibraries.map { $0.host.url.absoluteString }),
                 states: libraryManager.hostStates, lastAnswered: libraryManager.hostLastAnswered,
-                inUse: UserDefaults.standard.string(forKey: EngineConfig.wholeMacHostKey), now: Date())
+                inUse: UserDefaults.standard.string(forKey: EngineConfig.wholeMacHostKey)))
             ConnectionRowsView(
                 rows: rows,
                 onFix: { row in
