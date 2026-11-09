@@ -104,6 +104,8 @@ final class ReaderLineEditor {
     private(set) var picture: Data?
     /// The reading that counts now, which a correction corrects; nil when none counts yet.
     private(set) var reading: InspectorText.Reading?
+    /// The line's label and the reading it shows (#6455): where none counts, the newest person's reading, never an unlabelled text.
+    private(set) var label: ShownReadingLabel?
     /// The words in the field.
     var draft: String
     /// Why the last save did not land.
@@ -115,7 +117,7 @@ final class ReaderLineEditor {
     }
 
     /// The words shown before any typing: the counting reading, else the segment's own text.
-    var shownWords: String { reading?.content ?? segment.text ?? "" }
+    var shownWords: String { label?.shown.content ?? reading?.content ?? segment.text ?? "" }
 
     var isChanged: Bool {
         draft.trimmingCharacters(in: .whitespacesAndNewlines) != shownWords.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -125,7 +127,9 @@ final class ReaderLineEditor {
     /// Inspector use.
     func load(_ service: SegmentService) async {
         let untouched = draft == shownWords
-        reading = (try? await service.readings(segmentId: segment.id))?.countingReading(ofKind: "transcription")
+        let readings = try? await service.readings(segmentId: segment.id)
+        reading = readings?.countingReading(ofKind: "transcription")
+        label = ShownReadingLabel(readings)
         if untouched { draft = shownWords }  // words typed while it loaded are kept
         if picture == nil {
             picture = try? await SegmentPictureService(client: service.client)
@@ -155,7 +159,9 @@ final class ReaderLineEditor {
     }
 
     private func reread(_ service: SegmentService) async {
-        reading = (try? await service.readings(segmentId: segment.id))?.countingReading(ofKind: "transcription")
+        let readings = try? await service.readings(segmentId: segment.id)
+        reading = readings?.countingReading(ofKind: "transcription")
+        label = ShownReadingLabel(readings)
         draft = shownWords
     }
 }

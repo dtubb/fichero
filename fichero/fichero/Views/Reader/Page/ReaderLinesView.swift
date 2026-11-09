@@ -204,6 +204,12 @@ struct ReaderLineRow: View {
 
     private var words: some View {
         VStack(alignment: .leading, spacing: 4) {
+            if let label = editor.label {
+                Label(label.text, systemImage: label.glyph)
+                    .font(.caption).foregroundStyle(.secondary)
+                    .help(label.help)
+                    .accessibilityLabel("\(label.text), \(label.help)")
+            }
             field
             if editor.isChanged {
                 HStack {
