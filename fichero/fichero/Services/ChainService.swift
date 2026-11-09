@@ -55,13 +55,25 @@ class ChainService {
         isLoading = true
         error = nil
 
-        do {
-            chains = try await listChains()
-            logger.info("Loaded \(self.chains.count) chains")
-        } catch {
-            if !error.isCancellationError {
-                self.error = error.localizedDescription
-                logger.error("Failed to load chains: \(error.localizedDescription)")
+        // A first-launch request the engine's adoption cancels is asked again, not left as "Loaded 0 chains" (#6479);
+        // a cancelled TASK (this load was superseded) stops, as before.
+        var attempt = 0
+        while true {
+            do {
+                chains = try await listChains()
+                logger.info("Loaded \(self.chains.count) chains")
+                break
+            } catch {
+                attempt += 1
+                if error.isCancellationError, !Task.isCancelled, attempt <= 3 {
+                    try? await Task.sleep(for: .seconds(0.5 * Double(attempt)))
+                    continue
+                }
+                if !error.isCancellationError {
+                    self.error = error.localizedDescription
+                    logger.error("Failed to load chains: \(error.localizedDescription)")
+                }
+                break
             }
         }
 
