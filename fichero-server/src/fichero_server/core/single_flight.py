@@ -20,6 +20,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 SLOW_MS = 200
+WARN_MS = 1000  # a poll this slow is a warning naming the library (#6446)
 
 
 def _key(route: str, kwargs: dict[str, Any]) -> tuple[Any, ...]:
@@ -57,7 +58,10 @@ def single_flight(fn: Callable[..., Any]) -> Callable[..., Any]:
         finally:
             flights.pop(key, None)
         ms = (time.monotonic() - started) * 1000
-        if ms > SLOW_MS:
+        if ms > WARN_MS:
+            db = kwargs.get("db")
+            logger.warning("slow poll %s took %d ms on library %s", route, ms, getattr(db, "path", None))
+        elif ms > SLOW_MS:
             logger.info("poll %s took %d ms (%s rows); %d callers were served from a running query so far",
                         route, ms, _rows(result), stats["served"])
         return result

@@ -31,6 +31,7 @@ from importlib.metadata import PackageNotFoundError, version as package_version
 # before anything can pull in transformers, primes the kreuzberg cache, and
 # starts the import-timing epoch. See _startup.py (#5051).
 from fichero_server.api._startup import api_stamp as _api_stamp
+from fichero_server.api.change_stream import library_generation
 from fichero_server.core.single_flight import single_flight
 
 import logging
@@ -39,7 +40,8 @@ from pathlib import Path
 from typing import Any, Callable, Sequence
 
 import duckdb
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -2530,25 +2532,40 @@ def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthRes
     return response
 
 
-@app.get("/api/stats", response_model=LibraryStatsResponse)
 @single_flight
-async def get_stats(db: Database = Depends(get_library_database)):
-    """Get library statistics for the current library."""
+async def _stats_once(*, db: Database) -> LibraryStatsResponse:
     from fichero_server.models import Document, Artifact
 
     def read() -> LibraryStatsResponse:
         return LibraryStatsResponse(
-            documents=sum(
-                1
-                for doc in db.all(Document)
-                if getattr(doc, "deleted_at", None) is None
-            ),
+            # A count, never every row hydrated (#6446: 1.8-3.3 s per poll on a large library).
+            documents=db.count_committed(Document, deleted_at=None),
             artifacts=db.count(Artifact),
             embedding_stats=EmbeddingStatsResponse(**db.embedding_stats()),
         )
 
     # Off the loop (#5843): opening LanceDB imports lancedb and waited 255 s on the import lock, holding /api/health.
     return await asyncio.to_thread(read)
+
+
+@app.get("/api/stats", response_model=LibraryStatsResponse)
+async def get_stats(request: Request, db: Database = Depends(get_library_database)):
+    """Get library statistics for the current library.
+
+    Kept until the library announces a change, and answered 304 to a caller that holds the current ETag (#6446).
+    """
+    from fichero_server.core import change_cache
+
+    library = str(db.path.parent)
+    tag = change_cache.etag(library, "stats")
+    if request.headers.get("if-none-match") == tag:
+        return Response(status_code=304, headers={"ETag": tag})
+    stats = change_cache.get(library, "stats")
+    if stats is None:
+        generation = library_generation(library)
+        stats = await _stats_once(db=db)
+        change_cache.put(library, "stats", generation, stats)
+    return JSONResponse(content=jsonable_encoder(stats), headers={"ETag": tag})
 
 
 @app.get("/api/stats/knowledge", response_model=KnowledgeRowCountsResponse)

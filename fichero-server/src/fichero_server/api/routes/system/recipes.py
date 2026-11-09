@@ -14,7 +14,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry, started_by_for
@@ -2911,17 +2913,29 @@ async def get_start_plan(
     (`source.onboard.estimate-before-start`). 422 for a folder not in the project."""
     from fichero_server.recipes.project import setup_stamp
 
-    try:
-        plan = await _plan_once(db=db, folder_id=folder_id, clusters=tuple(_cluster_names(http)), first_pages=first_pages, setup_saved=setup_stamp(_library(db)),
-                               steps=tuple(x for x in (steps or "").split(",") if x))
-    except LookupError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    from fichero_server.api.change_stream import library_generation
+    from fichero_server.core import change_cache
+
+    library = str(db.path.parent)
+    wanted = tuple(x for x in (steps or "").split(",") if x)
+    key = ("plan", folder_id, tuple(_cluster_names(http)), first_pages, setup_stamp(_library(db)), wanted)
+    tag = change_cache.etag(library, key)
+    if http.headers.get("if-none-match") == tag:  # nothing changed since the caller's copy (#6446)
+        return Response(status_code=304, headers={"ETag": tag})  # type: ignore[return-value]
+    plan = change_cache.get(library, key)
+    if plan is None:
+        generation = library_generation(library)
+        try:
+            plan = await _plan_once(db=db, folder_id=folder_id, clusters=key[2], first_pages=first_pages, setup_saved=key[4], steps=wanted)
+        except LookupError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        change_cache.put(library, key, generation, plan)
     if summary:
         plan = copy.deepcopy(plan)  # another caller may share this plan
         for step in plan.get("step_choices") or []:
             cands = step.get("candidates") or []
             step["candidates"] = [c for c in cands if c.get("picked") or c.get("recommended")] or cands[:1]
-    return StartPlan(**plan)
+    return JSONResponse(content=jsonable_encoder(StartPlan(**plan)), headers={"ETag": tag})  # type: ignore[return-value]
 
 
 class StartParams(BaseModel):

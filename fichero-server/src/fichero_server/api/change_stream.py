@@ -231,6 +231,7 @@ class _ChangeHub:
         self._subscriber_by_queue: dict[asyncio.Queue, _Subscriber] = {}
         self._replay_buffers: OrderedDict[str, deque[ChangeEvent]] = OrderedDict()
         self._next_event_ids: dict[str, int] = {}
+        self._generations: dict[str, int] = {}  # one tick per emit, never reset: the polled-result cache key (#6446)
         self._lock = threading.Lock()
         # (emit key, live key) pairs already warned about, with how many emits each has dropped (#6309).
         self._drift_counts: OrderedDict[tuple[str, tuple[str, ...]], int] = OrderedDict()
@@ -312,6 +313,7 @@ class _ChangeHub:
         """
         library_path = self._canonical_key(library_path)
         with self._lock:
+            self._generations[library_path] = self._generations.get(library_path, 0) + 1
             self._assign_event_id_locked(library_path, event)
             self._replay_buffer_locked(library_path).append(event)
             subs = list(self._subscribers.get(library_path, ()))
@@ -352,6 +354,10 @@ class _ChangeHub:
                     count,
                 )
         return delivered
+
+    def generation(self, library_path: str) -> int:
+        with self._lock:
+            return self._generations.get(self._canonical_key(library_path), 0)
 
     def revoke_devices(self, device_ids: list[str]) -> int:
         """End the streams these paired devices hold: each gets a last `sharing.revoked` frame (#5913). Others are untouched."""
@@ -541,6 +547,11 @@ _change_hub = _ChangeHub()
 from fichero_server.security import revocation as _revocation  # noqa: E402
 
 _revocation.on_revoked(_change_hub.revoke_devices)  # a revoked device's open streams end (#5913)
+
+
+def library_generation(library_path: str) -> int:
+    """How many changes this process has announced for the library: a polled result is current while it holds (#6446)."""
+    return _change_hub.generation(library_path)
 
 
 def emit_change(
