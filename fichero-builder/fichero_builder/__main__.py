@@ -173,6 +173,8 @@ def main(argv=None) -> int:
     me = sub.add_parser("measure", help="run a script on a test machine against a lane's commit (git archive of its engine source): one measure row, told to the lane's pane")
     me.add_argument("--lane", required=True), me.add_argument("--machine", required=True), me.add_argument("--sha", default="")
     me.add_argument("--root", default=str(Path.cwd())), me.add_argument("--state"), me.add_argument("argv", nargs=argparse.REMAINDER)
+    rs = sub.add_parser("rung-stats", help="per-rung duration (mean, p90, max, total) from the journal's rung rows")
+    rs.add_argument("--since", default="", help="an ISO timestamp or date: only rows from then on"), rs.add_argument("--state")
     mc = sub.add_parser("machines", help="test machines: `sync <name>` installs the test plugins at the jail venv's exact pins into the machine's gate venv")
     mc.add_argument("action", choices=["sync"]), mc.add_argument("machine"), mc.add_argument("--root", default=str(Path.cwd())), mc.add_argument("--state")
     ins = sub.add_parser("install", help="copy the newest dev DMG to a [machines] test machine over ssh, install it in ~/Applications there, open it and say whether the app and its engine run")
@@ -394,6 +396,11 @@ def main(argv=None) -> int:
 
         journal.STATE = Path(a.state) if a.state else journal.STATE
         return measure.main(a)
+    if a.cmd == "rung-stats":
+        from fichero_builder import rung_stats
+
+        journal.STATE = Path(a.state) if a.state else journal.STATE
+        return rung_stats.main(a)
     if a.cmd == "machines":
         from fichero_builder import measure
 
