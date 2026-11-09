@@ -7,7 +7,4 @@ extension EditorView {
 
     /// A folder, and a PDF showing its pages, draw in the pane's chosen view (Canvas, List or Table); a group keeps its board.
     static func foldersPaneView(for doc: Document) -> Bool { doc.docType == .folder || doc.fileType == .pdf }
-
-    /// A folder, and a PDF showing its pages, draw in the pane's chosen view (Canvas, List or Table); a group keeps its board.
-    static func foldersPaneView(for doc: Document) -> Bool { doc.docType == .folder || doc.fileType == .pdf }
 }
