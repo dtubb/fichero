@@ -16,8 +16,21 @@ struct SharedLibraryChooserIOSTests {
         #expect(SharedLibraryChooserView.showsHowToPair([]))
     }
 
-    @Test func aPairedMacThatSharedNothingSaysHowToPair() {
-        #expect(SharedLibraryChooserView.showsHowToPair([PairedMachine(id: "https://a:8765", name: "a", libraries: [])]))
+    /// #6459: a paired Mac that shared nothing yet is still listed, with its own sentence, and is not "no Macs yet".
+    @Test func aPairedMacThatSharedNothingIsListedWithItsOwnSentence() {
+        let machines = [PairedMachine(id: "https://a:8765", name: "a", libraries: [])]
+        #expect(!SharedLibraryChooserView.showsHowToPair(machines))
+        let sections = SharedMachineSections.sections(machines)
+        #expect(sections.map(\.machine.name) == ["a"])
+        #expect(sections.first?.rows == [.nothingShared("a hasn't shared any project yet")])
+    }
+
+    @Test func eachPairedMacKeepsItsOwnLibrariesInOrder() {
+        let machines = [PairedMachine(id: "https://a:8765", name: "a", libraries: ["/x/One", "/x/Two"]),
+                        PairedMachine(id: "https://b:8765", name: "b", libraries: [])]
+        let sections = SharedMachineSections.sections(machines)
+        #expect(sections.first?.rows == [.library("/x/One"), .library("/x/Two")])
+        #expect(sections.count == 2)
     }
 
     @Test func aSharedLibraryIsListedNotTheHowToSentence() {

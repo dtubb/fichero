@@ -73,20 +73,26 @@ extension SidebarView {
             }
             // One section per Mac that shared libraries with this person, titled by its name, below Projects
             // (owner 2026-11-06, `sharing.guest.machines-group`); one how-to-pair section when there is none.
-            ForEach(libraryManager.pairedMachines.filter { !$0.libraries.isEmpty }) { machine in
+            ForEach(SharedMachineSections.sections(libraryManager.pairedMachines)) { section in
+                let machine = section.machine
                 Section {
-                    ForEach(machine.libraries, id: \.self) { path in
-                        SharedLibraryRowView(
-                            machine: "", library: path,
-                            unavailableSentence: libraryManager.greyedSharedRows
-                                .contains(SharedRowAvailability.key(host: machine.id, library: path))
-                                ? "Not available: \(machine.name) no longer shares this" : nil
-                        ) {
-                            guard let open = libraryManager.openSharedLibrary else {
-                                libraryManager.connectToLibraryRequested = true
-                                return
+                    ForEach(section.rows, id: \.self) { row in
+                        switch row {
+                        case .library(let path):
+                            SharedLibraryRowView(
+                                machine: "", library: path,
+                                unavailableSentence: libraryManager.greyedSharedRows
+                                    .contains(SharedRowAvailability.key(host: machine.id, library: path))
+                                    ? "Not available: \(machine.name) no longer shares this" : nil
+                            ) {
+                                guard let open = libraryManager.openSharedLibrary else {
+                                    libraryManager.connectToLibraryRequested = true
+                                    return
+                                }
+                                Task { await open(machine, path) }
                             }
-                            Task { await open(machine, path) }
+                        case .nothingShared(let sentence):
+                            Text(sentence).foregroundStyle(.secondary)
                         }
                     }
                 } header: {

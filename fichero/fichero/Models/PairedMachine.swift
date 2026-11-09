@@ -39,3 +39,29 @@ enum PairedMachineStore {
         save(rows, to: defaults)
     }
 }
+
+/// What a paired Mac's section lists in the sidebar and the phone's chooser (`sharing.guest.machines-group`, #6459): every
+/// paired Mac, so one that shares nothing yet still shows (as "<host> hasn't shared any project yet") instead of vanishing
+/// and leaving the how-to-pair sentence to say the Mac was never paired.
+enum SharedMachineSections {
+    enum Row: Equatable, Hashable {
+        case library(String)
+        case nothingShared(String)
+    }
+
+    struct Section: Identifiable, Equatable {
+        let machine: PairedMachine
+        let rows: [Row]
+        var id: String { machine.id }
+    }
+
+    static func sections(_ machines: [PairedMachine]) -> [Section] {
+        machines.map { machine in
+            Section(machine: machine, rows: machine.libraries.isEmpty
+                ? [.nothingShared("\(machine.name) hasn't shared any project yet")] : machine.libraries.map(Row.library))
+        }
+    }
+
+    /// The how-to-pair sentence is for a device with no paired Mac at all.
+    static func showsHowToPair(_ machines: [PairedMachine]) -> Bool { machines.isEmpty }
+}
