@@ -767,6 +767,7 @@ Every command has one row: one logical group (its menu-bar home), the surfaces i
 | Edit › Direction ▸, Proposed Document ▸ | the item verbs' submenus | L | — | — |
 | Edit › Segments ▸ | Select All Segments, New Region, New Line, Edit Shape, Split…, Join, Group, Ungroup, Kind ▸, Direction ▸, Furniture, Delete, Correct This Line…, Create Named Order, Run <next step> on This | P, R, G, I (every segment surface) | see section 4 | per `source/segment-editor-crud.md` |
 | Edit | Find in Page | R, P | ⌥⌘F | `magnifyingglass` |
+| Project › Workflows ▸ | Run Workflow ▸ on a reading, Run on the Latest Content ▸ (`source/segment-editor-crud.md` Step 1.22, #6460: the one Run Workflow component on a reading's row and the Reader's lens title menu) | R, I | — (a submenu; ⌥⌘R stays the recipe's) | the workflow glyph |
 | Edit › Mark ▸ | Unclear, Lost, Supplied, Withdraw Mark (`source/segment-editor-crud.md` Step 1.19, #6451; a stretch of the selected text) | R, I, P (inline text) | ⇧⌘U Mark Unclear PROPOSED for the uniqueness test; the rest none | `questionmark.square.dashed` |
 | View | Library layouts, Sidebar ▸, Sort ▸, Preview ▸, Inspector, Panes ▸, Workspaces ▸, Ruler, Workflow Bar, Reading Level ▸ (#6429) | — | ⌘1–6 layouts, ⌃⌘1–5 sidebar modes, ⌃⌘J/B/H Preview modes, ⌥⌘I Show/Hide Inspector (the Finder convention; changed from ⌃⌘I, section 4), ⌥⌘1–5 workspaces, Reading Level ⌃⌥⌘↑/↓ | — |
 | Go | Back, Forward, Enclosing Folder (Go Up), Reveal in Sidebar | all | ⌘[ , ⌘] , ⌘↑ (Finder) | system |
