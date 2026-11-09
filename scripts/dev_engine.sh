@@ -3,13 +3,16 @@
 # The engine exits when its launcher dies (FICHERO_PARENT_PID), so tmux is the launcher.
 # State is the scratch library, never the real app state. 'stop' is manual: the Run pre-action only calls 'start'.
 set -u
+# Xcode runs pre-actions with a minimal PATH: tmux lives in Homebrew.
+PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SESSION=f_engine
 SOCK="${FICHERO_UDS_PATH:-$HOME/Library/Containers/app.fichero.fichero/Data/tmp/fichero.sock}"
 LOGDIR="$HOME/.local/state/fichero-dev-engine"
 LOG="$LOGDIR/engine.log"
 PY="${FICHERO_PYTHON_BIN:-}"
-for p in "$HOME/code/fichero/.venv/bin/python" "$ROOT/.venv/bin/python"; do
+# integration .venv first: ~/code/fichero/.venv has a scipy macOS 27 dyld refuses (every Kraken page fails)
+for p in "$HOME/code/fichero-worktrees/integration/.venv/bin/python" "$ROOT/.venv/bin/python"; do
   [ -n "$PY" ] && [ -x "$PY" ] && break; PY="$p"
 done
 
