@@ -26,9 +26,9 @@ struct SegmentMenuContent: View {
     var body: some View {
         let editing = target?.isEditing == true
         let count = target?.selectionCount ?? 0
-        Button(editing ? "Stop Editing Segments" : "Edit Segments") { target?.toggleEditing() }
+        Button(editing ? "Stop Editing Shape" : "Edit Shape") { target?.toggleEditing() }
             .disabled(target == nil)
-        if let reason = Self.reason(hasPage: target != nil, editing: editing, selected: count) {
+        if let reason = Self.reason(hasPage: target != nil, selected: count) {
             Text(reason)
         }
         Divider()
@@ -40,10 +40,10 @@ struct SegmentMenuContent: View {
             .disabled(!Self.canDelete(selected: count))
         Button("Join") { target?.join() }
             .keyboardShortcut("j", modifiers: [.command, .option])
-            .disabled(!editing || count < 2)
+            .disabled(count < 2)
         Divider()
         SegmentAttributeMenu.Items(apply: { target?.apply($0) })
-            .disabled(!editing || count == 0)
+            .disabled(count == 0)
     }
 
     static func deleteTitle(_ count: Int) -> String { count > 1 ? "Delete \(count) Segments" : "Delete Segment" }
@@ -52,9 +52,8 @@ struct SegmentMenuContent: View {
     static func canDelete(selected: Int) -> Bool { selected > 0 }
 
     /// Why the segments' verbs cannot act, said once under Edit Segments; nil when they can.
-    static func reason(hasPage: Bool, editing: Bool, selected: Int) -> String? {
+    static func reason(hasPage: Bool, selected: Int) -> String? {
         if !hasPage { return "Show a page in \(SourcePane.name) to edit its segments" }
-        if !editing { return "Turn on Edit Segments to change segments" }
         return selected == 0 ? "Select segments on the page" : nil
     }
 }

@@ -13,12 +13,11 @@ import Testing
 struct PageMenuTests {
     @Test("Page › Segments says why its verbs cannot act, once, under Edit Segments")
     func segmentsSayWhy() {
-        #expect(SegmentMenuContent.reason(hasPage: false, editing: false, selected: 0)
+        #expect(SegmentMenuContent.reason(hasPage: false, selected: 0)
             == "Show a page in \(SourcePane.name) to edit its segments")
-        #expect(SegmentMenuContent.reason(hasPage: true, editing: false, selected: 2)
-            == "Turn on Edit Segments to change segments")
-        #expect(SegmentMenuContent.reason(hasPage: true, editing: true, selected: 0) == "Select segments on the page")
-        #expect(SegmentMenuContent.reason(hasPage: true, editing: true, selected: 1) == nil)
+        #expect(SegmentMenuContent.reason(hasPage: true, selected: 0) == "Select segments on the page")
+        #expect(SegmentMenuContent.reason(hasPage: true, selected: 2) == nil, "a selection is the edit state: no mode is asked for")
+        #expect(SegmentMenuContent.reason(hasPage: true, selected: 1) == nil)
     }
 
     @Test("Reading ▸ › Run the Recipe on This Folder… says why it cannot act")

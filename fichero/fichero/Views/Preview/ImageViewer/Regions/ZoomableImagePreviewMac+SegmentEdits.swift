@@ -82,7 +82,7 @@ extension ZoomableImagePreview {
     /// `segment.update` with ⌘Z. False when no point is selected here, so the arrow keeps its paging.
     /// ponytail: one audited edit per key press; coalesce a held key into one if the audit trail grows.
     func nudgeSelectedShapePoint(_ deltaX: Double, _ deltaY: Double, fast: Bool) -> Bool {
-        guard windowState?.isEditingSegments == true, let ref = windowState?.selectedShapePoint,
+        guard let ref = windowState?.selectedShapePoint,
               let documentId, ref.documentId == documentId,
               let store = segmentEditStore, imageSize.width > 0, imageSize.height > 0,
               let segment = shownSegment(at: ref.boxIndex, documentId, store),

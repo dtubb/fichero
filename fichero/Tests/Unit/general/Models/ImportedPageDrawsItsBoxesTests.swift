@@ -2665,7 +2665,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                        ["previewMarkupShapeKind", "previewMarkupDelete"])
         XCTAssertEqual(SegmentVerbs.offered(.all, isEditing: true, selectionCount: 2),
                        ["previewMarkupShapeKind", "previewMarkupDelete", "previewMarkupCombine"])
-        XCTAssertEqual(SegmentVerbs.offered(.all, isEditing: false, selectionCount: 2), [], "reading a page: no edit verbs")
+        XCTAssertEqual(SegmentVerbs.offered(.all, isEditing: false, selectionCount: 2),
+                       ["previewMarkupDelete", "previewMarkupCombine"], "no mode: the verbs follow the selection; only the Shape kinds need the tool")
+        XCTAssertEqual(SegmentVerbs.offered(.all, isEditing: false, selectionCount: 0), [])
         let chrome = PreviewPaneChrome()
         chrome.segmentVerbs = .pdfPage
         chrome.reset()

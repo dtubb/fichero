@@ -12,40 +12,36 @@ import Testing
 struct SegmentEditingModeTests {
 
     @Test func deleteAndCombineActInTheMode() {
-        #expect(SegmentEditingMode.action(for: .delete, isEditing: true, selectionCount: 1) == .delete)
-        #expect(SegmentEditingMode.action(for: .combine, isEditing: true, selectionCount: 2) == .combine)
+        #expect(SegmentEditingMode.action(for: .delete, selectionCount: 1) == .delete)
+        #expect(SegmentEditingMode.action(for: .combine, selectionCount: 2) == .combine)
     }
 
-    @Test func outOfTheModeNoVerbEdits() {
-        for verb in [PreviewRegionVerb.select, .draw, .delete, .combine] {
-            #expect(SegmentEditingMode.action(for: verb, isEditing: false, selectionCount: 5) == nil)
-        }
+    /// #6413: no mode first. Only the verbs that ARM a tool (select, draw) are not edits.
+    @Test func noModeIsNeededForAVerbToAct() {
+        #expect(SegmentEditingMode.action(for: .delete, selectionCount: 5) == .delete)
+        #expect(SegmentEditingMode.action(for: .combine, selectionCount: 5) == .combine)
     }
 
     @Test func combineNeedsTwoAndDeleteNeedsOne() {
-        #expect(SegmentEditingMode.action(for: .combine, isEditing: true, selectionCount: 1) == nil)
-        #expect(SegmentEditingMode.action(for: .delete, isEditing: true, selectionCount: 0) == nil)
+        #expect(SegmentEditingMode.action(for: .combine, selectionCount: 1) == nil)
+        #expect(SegmentEditingMode.action(for: .delete, selectionCount: 0) == nil)
     }
 
     /// Select and Draw ARM tools; treating them as edits would fire a verb on arming.
     @Test func selectAndDrawAreNotEdits() {
-        #expect(SegmentEditingMode.action(for: .select, isEditing: true, selectionCount: 3) == nil)
-        #expect(SegmentEditingMode.action(for: .draw, isEditing: true, selectionCount: 3) == nil)
+        #expect(SegmentEditingMode.action(for: .select, selectionCount: 3) == nil)
+        #expect(SegmentEditingMode.action(for: .draw, selectionCount: 3) == nil)
     }
 
     /// A marquee is a run scope, not a segment: ⌫ removes it while reading too.
-    @Test func deleteKeyRemovesAPickedMarqueeInEitherMode() {
-        for editing in [false, true] {
-            #expect(SegmentEditingMode.deleteKey(marqueePicked: true, isEditing: editing, selectionCount: 3) == .removeMarquee)
-        }
+    @Test func deleteKeyRemovesAPickedMarqueeFirst() {
+        #expect(SegmentEditingMode.deleteKey(marqueePicked: true, selectionCount: 3) == .removeMarquee)
     }
 
-    /// The case that would lose work: reading a page, a region selected to see its text,
-    /// ⌫ pressed -- the region must survive.
-    @Test func deleteKeyNeverDeletesARegionWhileReading() {
-        #expect(SegmentEditingMode.deleteKey(marqueePicked: false, isEditing: false, selectionCount: 1) == .nothing)
-        #expect(SegmentEditingMode.deleteKey(marqueePicked: false, isEditing: true, selectionCount: 1) == .deleteRegions)
-        #expect(SegmentEditingMode.deleteKey(marqueePicked: false, isEditing: true, selectionCount: 0) == .nothing)
+    /// A selection is the edit state (#6413): click a region, press ⌫, and it is deleted (one ⌘Z).
+    @Test func deleteKeyDeletesTheSelectionWithNoModeFirst() {
+        #expect(SegmentEditingMode.deleteKey(marqueePicked: false, selectionCount: 1) == .deleteRegions)
+        #expect(SegmentEditingMode.deleteKey(marqueePicked: false, selectionCount: 0) == .nothing)
     }
 
     @Test func aPressOnASelectedBoxMovesItOnlyInTheMode() {

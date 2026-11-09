@@ -99,7 +99,7 @@ extension ZoomableImagePreview {
 
     /// Where the nudged shape point is now, for its filled handle (Edit Segments only).
     private func selectedShapePoint(in all: [OCRGeometryBox]) -> [Double]? {
-        guard windowState?.isEditingSegments == true, let ref = windowState?.selectedShapePoint,
+        guard let ref = windowState?.selectedShapePoint,
               ref.documentId == documentId, all.indices.contains(ref.boxIndex),
               let points = all[ref.boxIndex].shapes.first(where: { $0.target == ref.target })?.points,
               points.indices.contains(ref.index) else { return nil }
@@ -192,15 +192,9 @@ extension ZoomableImagePreview {
         Button(isAddingRegion ? "Stop Adding Regions" : "Add Region…") {
             isAddingRegion.toggle()
         }
-        // Clearing marquees is ephemeral and stays; naming one INTO a region writes a
-        // segment, so it waits for the mode (#5114).
+        // Naming a marquee INTO a region needs no mode: a selection is the edit state (#6413).
         if let documentId, let marquees = windowState?.previewMarquees,
-           marquees.documentId == documentId, !marquees.isEmpty, !isEditingSegments {
-            Button("Clear Selections") { marquees.clear() }
-                .help("Discard the drawn selections without saving them")
-        }
-        if let documentId, let marquees = windowState?.previewMarquees,
-           marquees.documentId == documentId, !marquees.isEmpty, isEditingSegments {
+           marquees.documentId == documentId, !marquees.isEmpty {
             // Daniel, 2026-08-31: the right-click verb ASKS for a name now
             // (hence the ellipsis) — it arms the same naming request the
             // pencil badge does, anchored on the first marquee's badge, so
@@ -219,7 +213,7 @@ extension ZoomableImagePreview {
         let selection = regionSelection
         // Scoped like the selection (#5152): an imported page's boxes are joined and deleted through
         // the segment actions; promoting words is an artifact verb and stays with an artifact.
-        if isEditingSegments, let scope = ocrGeometrySelectionScope, selection.artifactId == scope {
+        if let scope = ocrGeometrySelectionScope, selection.artifactId == scope {
             if selection.count >= 2 {
                 Button("Join \(selection.count) Regions") { combineSelectedRegions() }
             }
@@ -481,7 +475,6 @@ extension ZoomableImagePreview {
         let marquees = windowState?.previewMarquees
         switch SegmentEditingMode.deleteKey(
             marqueePicked: marquees?.selectedIndex != nil,
-            isEditing: isEditingSegments,
             selectionCount: regionSelection.count
         ) {
         case .removeMarquee: marquees?.removeSelected()
@@ -505,12 +498,10 @@ extension ZoomableImagePreview {
         )
     }
 
-    /// The head's markup-row verbs, gated by the mode.
+    /// The head's markup-row verbs, on the selection alone.
     func handleRegionVerb(_ note: Notification) {
         guard let raw = note.object as? String, let verb = PreviewRegionVerb(rawValue: raw) else { return }
-        switch SegmentEditingMode.action(
-            for: verb, isEditing: isEditingSegments, selectionCount: regionSelection.count
-        ) {
+        switch SegmentEditingMode.action(for: verb, selectionCount: regionSelection.count) {
         case .delete: deleteSelectedRegions()
         case .combine: combineSelectedRegions()
         case nil: break
