@@ -79,7 +79,7 @@
     "/api/stats": {
       "get": {
         "summary": "Get Stats",
-        "description": "Get library statistics for the current library.",
+        "description": "Get library statistics for the current library.\n\nKept until the library announces a change, and answered 304 to a caller that holds the current ETag (#6446).",
         "operationId": "get_stats_api_stats_get",
         "responses": {
           "200": {
@@ -95753,6 +95753,21 @@
             "type": "string",
             "nullable": true,
             "title": "Text"
+          },
+          "counting_basis": {
+            "type": "string",
+            "nullable": true,
+            "title": "Counting Basis"
+          },
+          "counting_level": {
+            "type": "string",
+            "nullable": true,
+            "title": "Counting Level"
+          },
+          "read_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Read By"
           },
           "confidence": {
             "type": "number",

@@ -160,6 +160,12 @@ class SegmentRead(BaseModel):
     #: only when the source box actually carried one (never invented).
     baseline: list[list[float]] | None = None
     text: str | None = None
+    #: Why `text` is the shown reading, and by whom, so a label needs no second request (`source.editor.the-shown-reading-is-the-counting-one-and-says-so`,
+    #: #6451): the counting basis ("chosen", "newest-human", ... or "none" when no reading counts, then the reading named is the newest
+    #: person's), the reading's level, and who read it (the model, else the author).
+    counting_basis: str | None = None
+    counting_level: str | None = None
+    read_by: str | None = None
     confidence: float | None = None
     #: The language and script SET ON THIS SEGMENT -- not resolved
     #: (`source.lang.many-per-page`, slice 9, #4938). Two reasons they are the

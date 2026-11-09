@@ -435,15 +435,20 @@ def counting_texts(db: Database, rows: list[Segment], kind: str = "transcription
     return {segment_id: reading.content for segment_id, reading in counting_readings(db, rows, kind).items()}
 
 
-def counting_readings(db: Database, rows: list[Segment], kind: str = "transcription") -> dict[str, ReadingRead]:
-    """Each row's COUNTING reading of `kind`, by segment id, for a list of rows at once (#5139).
+def counting_answers(
+    db: Database, rows: list[Segment], kind: str = "transcription",
+) -> dict[str, tuple[ReadingRead, CountingAnswer | None]]:
+    """Each row's COUNTING reading AND why it counts, for a row with any reading of `kind` (#6451). Where NONE counts the answer is
+    None and the reading is the newest person's (else the newest), so a label can name it ("N readings, none chosen").
+
+    `counting_readings` is this, narrowed to the rows where one counts. By segment id, for a list of rows at once (#5139).
 
     What a segment list hands back as `text`: the same answer the page's text uses for that
     segment (`counting_by_kind`, the project's rule, a person's choice), so a list row and the
     page can never disagree. ONE readings query and one choices query for the whole list, by
     segment id (indexed) -- not a request per segment, which is what a caller had to do before,
     and not a whole document's readings for one page of a library listing. A row with no
-    reading of `kind`, or none that counts, is absent.
+    reading of `kind` is absent.
     """
     ids = [row.id for row in rows]
     if not ids:
@@ -458,7 +463,7 @@ def counting_readings(db: Database, rows: list[Segment], kind: str = "transcript
     choices: dict[str, list[ReadingChoice]] = {}
     for choice in db.query_in(ReadingChoice, "segment_id", list(by_segment)):
         choices.setdefault(choice.segment_id, []).append(choice)
-    texts: dict[str, ReadingRead] = {}
+    texts: dict[str, tuple[ReadingRead, CountingAnswer | None]] = {}
     retired_memo: dict[tuple[str, str], set[str]] = {}   # a line's words worked out once (#5190)
     pass_of = {row.id: row.pass_id for row in rows}
     marked = ground_truth_pass_ids(db, pass_of.values())
@@ -469,8 +474,18 @@ def counting_readings(db: Database, rows: list[Segment], kind: str = "transcript
             retired_memo=retired_memo, on_ground_truth=pass_of.get(segment_id) in marked, measures=measures,
         )
         if counted is not None and counted.representation_id is not None:
-            texts[segment_id] = next(i for i in items if i.id == counted.representation_id)
+            texts[segment_id] = (next(i for i in items if i.id == counted.representation_id), counted)
+        else:
+            people = [i for i in items if i.provenance_kind == ProvenanceKind.human]
+            texts[segment_id] = (max(people or items, key=lambda i: (i.created_at, i.id)), None)
     return texts
+
+
+def counting_readings(db: Database, rows: list[Segment], kind: str = "transcription") -> dict[str, ReadingRead]:
+    """Each row's COUNTING reading of `kind` (see `counting_answers`); a row where none counts is absent."""
+    return {
+        segment_id: reading for segment_id, (reading, answer) in counting_answers(db, rows, kind).items() if answer is not None
+    }
 
 
 def _readings_for_live_rows(

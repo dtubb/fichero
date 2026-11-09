@@ -411,14 +411,21 @@ def _with_texts(db: Database, rows: list[Segment], reads: list[SegmentRead]) -> 
     none of them without one readings request each. A converted row whose words still come from
     its artifact keeps them; a stored reading is the answer otherwise.
     """
-    from fichero_server.api.routes.document.segment_readings import counting_readings
+    from fichero_server.api.routes.document.segment_readings import counting_answers
 
-    counted = counting_readings(db, rows)
+    counted = counting_answers(db, rows)
     source_of = {row.id: getattr(row, "source_artifact_id", None) for row in rows}
     for read in reads:
-        reading = counted.get(read.id)
-        if reading is None:
+        found = counted.get(read.id)
+        if found is None:
             continue
+        reading, answer = found
+        # The label's facts (#6451): why this reading is the shown one, its level and who read it.
+        read.counting_basis = answer.basis.value if answer is not None else "none"
+        read.counting_level = reading.level
+        read.read_by = reading.producer_model or reading.created_by
+        if answer is None:
+            continue  # none counts: the label names the newest person's reading; `text` is not claimed
         # A reading from another result than the one the pass came from (a later reader, a person) counts over the
         # words the pass's own result carried (#5707: after Read wrote a newer reading onto a Kraken pass's lines,
         # the list still served the pass's 00:40 words). The pass's own words stay where they are its result's.

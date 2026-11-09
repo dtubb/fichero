@@ -8414,7 +8414,7 @@ def fichero_sources_update(
 
 def fichero_engine_get_stats(
 ) -> Any:
-    'Get Stats\n\nGet library statistics for the current library.\n\nRoute: GET /api/stats (toolset `engine`; reads).'
+    'Get Stats\n\nGet library statistics for the current library.\n\nKept until the library announces a change, and answered 304 to a caller that holds the current ETag (#6446).\n\nRoute: GET /api/stats (toolset `engine`; reads).'
     return _rt.call("GET", "/api/stats")
 
 
