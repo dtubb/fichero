@@ -22,7 +22,7 @@ struct CloudRefusedBodyTests {
                     "refusal": {"kind": "cap", "scope": "project", "words": "Over the project cap", "fixes": []}}}
         """)
         #expect(body.detail?.message == "Over the project cap")
-        #expect(body.detail?.refusal?.scope == "project")
+        #expect(body.detail?.refusal?.scope == .project)
     }
 
     @Test func aSentenceDetailLeavesNoRefusalAndDoesNotThrow() throws {
