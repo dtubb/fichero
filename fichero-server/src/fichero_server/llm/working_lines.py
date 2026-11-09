@@ -209,6 +209,7 @@ def write_readings(
     level: str | None = None,
     library_path: str | None = None,
     derived_from: dict[str | None, str] | None = None,
+    tool: str | None = None,
 ) -> list[str]:
     """Each `(segment_id, text)` written as a reading of that line (`representation.create`), derived from
     the reader's page artifact (whose provider and model say who read it), under `run_id`: a machine's
@@ -218,17 +219,21 @@ def write_readings(
     (`source.reading.levels`): a reader that expands abbreviations writes `expanded`, which counts beside
     the line as written, never over it; unset, no level is recorded, as before. `derived_from` names, per segment,
 the reading a new one was made from (a correction names the reading it corrects, `correct`). A reading's third
-value, where given, is the reader's certainty about it (`machine_confidence`, #5694). Returns the readings' ids."""
+value, where given, is the reader's certainty about it (`machine_confidence`, #5694). Each reading records who made it
+(`source.editor.a-reading-records-who-made-it`): `producer_model` from the artifact's model (provider-prefixed where it has
+one) and `producer_tool` from `tool`. Returns the readings' ids."""
     import fichero_server.api.routes.document.content_representations  # noqa: F401  (representation.create)
     from fichero_server.actions.registry import ActionContext, registry
 
     ctx = ActionContext(actor=actor, run_id=run_id, library_path=library_path, is_bootstrap=True)
-    from fichero_server.models import ContentRepresentation
+    from fichero_server.models import Artifact, ContentRepresentation
 
     # A reading this result already wrote on the line is not written again (#5707: one stored twice, 40 ms apart).
     have = {(r.segment_id, r.kind, r.content, r.derived_from_artifact_id, r.level)
             for r in db.query(ContentRepresentation, document_id=document_id)
             if artifact_id and r.derived_from_artifact_id == artifact_id and not r.retracted_at}
+    maker = db.get(Artifact, artifact_id) if artifact_id else None
+    model = (f"{maker.provider}/{maker.model}" if maker.provider else maker.model) if maker and maker.model else None
     made = []
     for segment_id, text, *certainty in readings:
         if not (text or "").strip():
@@ -238,7 +243,7 @@ value, where given, is the reader's certainty about it (`machine_confidence`, #5
         made.append(registry.invoke(db, "representation.create", {
             "document_id": document_id, "segment_id": segment_id, "kind": kind, "content": text.strip(),
             "derived_from_artifact_id": artifact_id, "level": level,
-            "machine_confidence": certainty[0] if certainty else None,
+            "machine_confidence": certainty[0] if certainty else None, "producer_model": model, "producer_tool": tool,
             "derived_from_representation_id": (derived_from or {}).get(segment_id)}, ctx).result["id"])
     return made
 

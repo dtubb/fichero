@@ -91106,6 +91106,16 @@
             "minimum": 0.0,
             "nullable": true,
             "title": "Machine Confidence"
+          },
+          "producer_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Producer Model"
+          },
+          "producer_tool": {
+            "type": "string",
+            "nullable": true,
+            "title": "Producer Tool"
           }
         },
         "additionalProperties": false,

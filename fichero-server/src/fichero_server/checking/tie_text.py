@@ -462,7 +462,10 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
                 "derived_from_artifact_id": reading.id,
                 # How well the page text matched this line (`source.align.confidence-per-line`, #5217), so the person sees
                 # which lines to check; the line's certainty as a reading, for everything that reads machine_confidence.
-                "machine_confidence": scored["score"]}, ctx).result
+                "machine_confidence": scored["score"],
+                # Who made it: the page reader's model, by the tie (`source.editor.a-reading-records-who-made-it`).
+                "producer_model": f"{reading.provider}/{reading.model}" if reading.provider and reading.model else reading.model,
+                "producer_tool": KIND}, ctx).result
             if scored["tied"]:
                 counts["tied"] += 1
                 here["tied"] += 1

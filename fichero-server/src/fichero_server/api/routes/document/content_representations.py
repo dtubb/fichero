@@ -345,6 +345,10 @@ class RepresentationCreateParams(BaseModel):
     #: The recogniser's certainty about this reading, 0 to 1, where it gave one (#5694: Names is not run on a page
     #: read too uncertainly to name anyone). Kept on a machine's reading only.
     machine_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    #: Who made it (`source.editor.a-reading-records-who-made-it`): the model the run chose and the step or job that wrote it,
+    #: recorded on the row itself so a line's versions are labelled from the row alone. Kept on a machine's reading only.
+    producer_model: str | None = None
+    producer_tool: str | None = None
 
     def audit_params(self) -> dict:
         """The audit row gets every argument EXCEPT the words, and a digest in
@@ -451,6 +455,8 @@ def _write_reading(
     )
     if reading.provenance_kind is not ProvenanceKind.human:
         reading.machine_confidence = params.machine_confidence
+        reading.producer_model = params.producer_model
+        reading.producer_tool = params.producer_tool
     db.save(reading)
 
     after = {
