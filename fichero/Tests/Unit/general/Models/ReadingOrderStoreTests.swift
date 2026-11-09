@@ -1,4 +1,5 @@
 @testable import Fichero
+import Foundation
 import Testing
 
 /// Q5 (ruled 2026-09-27): reorder in the Reader, the Inspector and the Segments pane, by drag and
