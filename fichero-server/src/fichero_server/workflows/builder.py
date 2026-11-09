@@ -1298,7 +1298,9 @@ def _make_node_function(
                 print(f"[STEP]   Error: {error_msg}")
                 logger.error(f"Node {node_id} tool returned error: {error_msg}")
                 raise SystemicErrorDetected(
-                    message=f"Step '{node_label}' failed: {error_msg}",
+                    message=(f"Step '{node_label}' has no text to work on: the page has not been read yet. "
+                             "Read it first (Set Up, Read), then run this again."
+                             if error_msg == "No text provided" else f"Step '{node_label}' failed: {error_msg}"),
                     error_count=1,
                     total_count=1,
                     errors=[{"node": node_id, "error": error_msg}],
