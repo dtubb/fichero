@@ -1,5 +1,5 @@
-import Foundation
 @testable import Fichero
+import Foundation
 import Testing
 
 /// #5652 slice 2: the Read menu became Page with the Segment menu folded in, and Project › Read › Reading ▸ holds
