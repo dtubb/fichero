@@ -3,7 +3,6 @@ import Foundation
 import Testing
 
 /// #6454: a selection in the Reader becomes one `editorial.record` request per line, in code points, on the reading shown.
-@MainActor
 @Suite("Mark a stretch from the Reader (#6454)")
 struct ReaderMarkTests {
     private let lines = [
@@ -46,9 +45,8 @@ struct ReaderMarkTests {
         #expect(made.first?.charEnd == 3)
     }
 
-    @Test("the three kinds, and the menu's chord and reason")
-    func kindsAndMenu() {
+    @Test("the three kinds")
+    func kinds() {
         #expect(ReaderMark.Kind.allCases.map(\.rawValue) == ["unclear", "lost", "supplied"])
-        #expect(ReaderMarkMenu.reason == "Select text in the Reader to mark it")
     }
 }

@@ -237,16 +237,6 @@ struct MenuShortcutUniquenessTests {
         }
     }
 
-    /// #6454: Edit › Mark ▸ › Mark Unclear takes ⇧⌘U (⌘U Underline is standard and untouched), minted once, app-wide.
-    @Test("Mark Unclear's ⇧⌘U is minted once, on the Mark menu, and is no reserved chord")
-    func markUnclearChordIsUnique() throws {
-        let sites = try allMints(everywhere: true).filter { "\($0.key)-\($0.modifiers)" == "u-command+shift" }
-        let siteList = sites.map { "\($0.file):\($0.line)" }.joined(separator: ", ")
-        #expect(sites.count == 1, "u-command+shift is minted \(sites.count) times: \(siteList)")
-        #expect(sites.first?.file == "App/Menus/FocusedCommands/ReaderMarkCommands.swift", "\(siteList)")
-        #expect(Self.systemReservedChords["u-command+shift"] == nil)
-    }
-
     // MARK: - Source scan
 
     /// Every shortcut mint under `App/` and `Views/Shell/`:

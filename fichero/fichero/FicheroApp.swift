@@ -518,7 +518,6 @@ struct FicheroApp: App {
 
                 // Edit › Segments ▸ (#6413; was Page › Segments).
                 SegmentsEditMenu()
-                ReaderMarkMenu()
 
                 Divider()
 
