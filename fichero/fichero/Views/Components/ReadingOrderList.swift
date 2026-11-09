@@ -87,7 +87,7 @@ struct ReadingOrderList: View {
                         Task { await record(store.move(segmentId, to: target), in: store) }
                     }
                 }
-                .contextMenu(forSelectionType: String.self, menu: lineMenu, primaryAction: reveal)
+                .contextMenu(forSelectionType: String.self, menu: lineMenu, primaryAction: primaryAction)
                 #if os(macOS)
                 .onDeleteCommand { deleteLines(nil) }
                 #endif
@@ -243,6 +243,15 @@ struct ReadingOrderList: View {
         }
     }
 
+    /// The list's one primary action runs on a double-click AND on Return: Return (a key event) corrects the one
+    /// selected line in place, as Finder renames; a double-click, or Return on a segment with no edit yet, reveals.
+    private func primaryAction(_ ids: Set<String>) {
+        #if os(macOS)
+        if NSApp.currentEvent?.type == .keyDown, ids.count == 1, let id = ids.first, beginRename(id) == .handled { return }
+        #endif
+        reveal(ids)
+    }
+
     /// A double-click on a row (Return renames): reveal it in the linked Preview, selected, scrolled and
     /// zoomed to (#5424) -- the one reveal the Reader's line click makes too.
     private func reveal(_ ids: Set<String>) {
@@ -283,7 +292,7 @@ struct ReadingOrderList: View {
                     entryRow(segmentId, at: index, nesting: nested)
                 }
             }
-            .contextMenu(forSelectionType: String.self, menu: lineMenu, primaryAction: reveal)
+            .contextMenu(forSelectionType: String.self, menu: lineMenu, primaryAction: primaryAction)
             #if os(macOS)
             .onDeleteCommand { deleteLines(nil) }
             #endif
