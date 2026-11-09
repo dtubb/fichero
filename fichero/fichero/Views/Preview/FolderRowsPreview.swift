@@ -32,8 +32,7 @@ struct FolderRowsPreview: View {
             defaultDisplayMode: mode,
             availableDisplayModes: [mode],
             folderId: folderId,
-            onNavigateInto: { onNavigateToDocument?($0.id) },
-            onOpenItem: { onNavigateToDocument?($0.id) }
+            onNavigateInto: { onNavigateToDocument?($0.id) }
         )
         .task(id: folderId) {
             loaded = false

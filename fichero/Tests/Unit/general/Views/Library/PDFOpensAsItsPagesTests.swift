@@ -36,13 +36,4 @@ struct PDFOpensAsItsPagesTests {
         #expect(LibraryView.columnOpensChildren(group))
         #expect(!LibraryView.columnOpensChildren(note))
     }
-
-    /// A double-clicked page row reaches the window's selection hook (`library.contents.double-click-selects-the-item`).
-    @Test func aDoubleClickedPageRowIsHandedToTheWindowsSelection() {
-        var handed: [String] = []
-        let page = Document(id: "p4", parentId: "deed", docType: .page, name: "4")
-        LibraryView.handOffOpenedItem(page) { handed.append($0.id) }
-        LibraryView.handOffOpenedItem(page, to: nil)
-        #expect(handed == ["p4"])
-    }
 }

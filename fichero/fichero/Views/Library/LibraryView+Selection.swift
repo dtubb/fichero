@@ -365,9 +365,6 @@ extension LibraryView {
 
     // MARK: - Open Affordances (#1685)
 
-    /// A nested contents view's double-clicked page or file goes to the window's one selection path (#6410).
-    static func handOffOpenedItem(_ doc: Document, to hook: ((Document) -> Void)?) { hook?(doc) }
-
     /// In-window "Open": navigate into containers, otherwise show the doc in
     /// the detail/preview pane. Mirrors the existing double-click open path.
     func openDocument(_ doc: Document) {
@@ -391,7 +388,6 @@ extension LibraryView {
             navigateIntoUnlessThere(doc)
         } else {
             detailDocument = doc
-            Self.handOffOpenedItem(doc, to: onOpenItem)
         }
     }
 
