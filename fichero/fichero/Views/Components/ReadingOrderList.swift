@@ -121,8 +121,10 @@ struct ReadingOrderList: View {
         .focusedValue(\.lineVerbs, lineVerbs)
         // One selection across the surfaces (#5155): a row picked here is the focused Source view's
         // selection too, so the boxes light and the Inspector follows.
+        // And back: what another surface selects (the Reader, the Preview) is selected here too.
+        .onChange(of: sharedIds) { _, now in if Set(now) != picks { picks = Set(now) } }
         .onChange(of: picks) { _, picked in
-            guard !picked.isEmpty, let focused = windowState?.focusedRegionSelection, let segmentService else { return }
+            guard !picked.isEmpty, Set(sharedIds) != picked, let focused = windowState?.focusedRegionSelection, let segmentService else { return }
             // In the list's own order, so the shared selection reads top to bottom.
             let inOrder = (store?.shown.map(\.segmentId) ?? []).filter(picked.contains)
             onSelected?(InspectorPath.select(
@@ -145,6 +147,14 @@ struct ReadingOrderList: View {
                 windowState?.pendingSegmentSelection = nil
             }
         }
+    }
+
+    /// The segments the one shared selection holds on this page (the Preview's, the Reader's, this list's).
+    private var sharedIds: [String] {
+        guard let segmentService, let selection = windowState?.focusedRegionSelection else { return [] }
+        return InspectorPath.selectedSegmentIds(
+            selection: selection, documentId: documentId, store: SegmentStore.shared(for: segmentService)
+        )
     }
 
     /// The list's selection as Page › Segments' verbs see it (#5652): Correct This Line… on the selected line, and

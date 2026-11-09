@@ -21,3 +21,24 @@ struct OrderListMenuTests {
         #expect(LineVerbs.moveReason(target) == nil)
     }
 }
+
+/// What a click on a Reader line makes the selection (Step 1.25): Finder's rules over the page's order.
+struct ReaderPickTests {
+    private let order = ["a", "b", "c", "d", "e"]
+
+    @Test("a plain click is that line alone; ⌘ adds and removes; an id off the page changes nothing")
+    func plainAndCommand() {
+        #expect(ReaderLines.picked("c", held: ["a", "b"], order: order, command: false, shift: false) == ["c"])
+        #expect(ReaderLines.picked("c", held: ["a"], order: order, command: true, shift: false) == ["a", "c"])
+        #expect(ReaderLines.picked("a", held: ["a", "c"], order: order, command: true, shift: false) == ["c"])
+        #expect(ReaderLines.picked("zz", held: ["a"], order: order, command: true, shift: false) == ["a"])
+    }
+
+    @Test("⇧ takes the run from the last picked line either way; with ⌘ it is added to what is held")
+    func shiftRuns() {
+        #expect(ReaderLines.picked("d", held: ["b"], order: order, command: false, shift: true) == ["b", "c", "d"])
+        #expect(ReaderLines.picked("a", held: ["c"], order: order, command: false, shift: true) == ["a", "b", "c"])
+        #expect(ReaderLines.picked("d", held: ["a", "c"], order: order, command: true, shift: true) == ["a", "c", "d"])
+        #expect(ReaderLines.picked("c", held: [], order: order, command: false, shift: true) == ["c"])
+    }
+}
