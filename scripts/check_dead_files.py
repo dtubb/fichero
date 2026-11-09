@@ -57,6 +57,10 @@ PROTOCOL_REQUIREMENTS = frozenset({
 
 # Current candidate-dead backlog. Drop entries as files are removed or wired.
 KNOWN_VIOLATIONS: dict[str, str] = {
+    "Models/ParallelText.swift": (
+        "#6463 — the Parallel Text model lands before its view (the next slice of "
+        "source.editor.parallel-text-view). Remove this entry when the view lands."
+    ),
     "Views/Settings/AI/AISettingsView+Tabs.swift": (
         "#6022 — false positive, NOT dead: this file's only own type, CloudAccessSection, is used "
         "by AISettingsView.defaultsTab in this same file (an extension of AISettingsView); the scanner "
