@@ -984,6 +984,9 @@ class LineCorrectionBody(BaseModel):
     expected_counting_id: Optional[str] = Field(None, description=(
         "The reading that counted when you read the line. When another counts now, the correction is "
         "refused (409, naming it) and nothing is written. Unset: the one that counts now."))
+    corrects_representation_id: Optional[str] = Field(None, description=(
+        "The reading of this line to correct, at ITS level and kind (a compared reading, `source.editor."
+        "compare-two-to-four-readings-with-the-line-picture-and-edit-in-line`). Unset: the one that counts now."))
 
 
 @router.post("/{segment_id}/correct", response_model=ContentRepresentation)
@@ -1006,16 +1009,25 @@ async def correct_segment_line(
         segment = _live_segment(db, segment_id)  # a provisional id refused, a merged-away one followed
         segment_id = segment.id
         items = readings_of_segment(db, segment_id)
-        current = counting_by_kind(db, segment_id, items).get(payload.kind)
+        kind, level = payload.kind, None
+        chosen = None
+        if payload.corrects_representation_id is not None:
+            chosen = next((item for item in items if item.id == payload.corrects_representation_id), None)
+            if chosen is None:
+                raise HTTPException(status_code=404, detail="That reading is not a reading of this line.")
+            kind, level = chosen.kind, chosen.level
+        current = counting_by_kind_and_level(db, segment_id, items).get((kind, counting_level(level)))
         counting_id = current.representation_id if current is not None else None
-        counted = next((item for item in items if item.id == counting_id), None)
+        counted = chosen or next((item for item in items if item.id == counting_id), None)
         params: dict[str, Any] = {
             "document_id": segment.document_id,
             "segment_id": segment_id,
-            "kind": payload.kind,
+            "kind": kind,
             "content": payload.text,
             "expected_counting_id": payload.expected_counting_id or counting_id,
         }
+        if level is not None:
+            params["level"] = level
         if counted is not None and counted.provisional:
             params["derived_from_artifact_id"] = counted.derived_from_artifact_id
         elif counted is not None:

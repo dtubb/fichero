@@ -78219,6 +78219,12 @@
             "nullable": true,
             "title": "Expected Counting Id",
             "description": "The reading that counted when you read the line. When another counts now, the correction is refused (409, naming it) and nothing is written. Unset: the one that counts now."
+          },
+          "corrects_representation_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Corrects Representation Id",
+            "description": "The reading of this line to correct, at ITS level and kind (a compared reading, `source.editor.compare-two-to-four-readings-with-the-line-picture-and-edit-in-line`). Unset: the one that counts now."
           }
         },
         "additionalProperties": false,

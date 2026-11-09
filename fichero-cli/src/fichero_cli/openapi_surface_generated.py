@@ -17079,6 +17079,7 @@ def register_generated_openapi_commands(
     def segments_correct_line_post(
         ctx: typer.Context,
         segment_id: str = typer.Argument(..., help='Segment Id'),
+        corrects_representation_id: Optional[str] = typer.Option(None, '--corrects-representation-id', help='The reading of this line to correct, at ITS level and kind (a compared reading, `source.editor.compare-two-to-four-readings-with-the-line-picture-and-edit-in-line`). Unset: the one that counts now.'),
         expected_counting_id: Optional[str] = typer.Option(None, '--expected-counting-id', help='The reading that counted when you read the line. When another counts now, the correction is refused (409, naming it) and nothing is written. Unset: the one that counts now.'),
         kind: Optional[str] = typer.Option(None, '--kind', help='The kind of reading corrected. Default: "transcription".'),
         text: str = typer.Option(..., '--text', help="The line's corrected text."),
@@ -17088,10 +17089,12 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/segments/{segment_id}/correct"
             params = None
             payload = _build_json_payload({
+                "corrects_representation_id": corrects_representation_id,
                 "expected_counting_id": expected_counting_id,
                 "kind": kind,
                 "text": text,
             }, {
+                "corrects_representation_id": {'type': 'string', 'nullable': True, 'title': 'Corrects Representation Id', 'description': 'The reading of this line to correct, at ITS level and kind (a compared reading, `source.editor.compare-two-to-four-readings-with-the-line-picture-and-edit-in-line`). Unset: the one that counts now.', 'x-cli-required': False},
                 "expected_counting_id": {'type': 'string', 'nullable': True, 'title': 'Expected Counting Id', 'description': 'The reading that counted when you read the line. When another counts now, the correction is refused (409, naming it) and nothing is written. Unset: the one that counts now.', 'x-cli-required': False},
                 "kind": {'type': 'string', 'title': 'Kind', 'description': 'The kind of reading corrected.', 'default': 'transcription', 'x-cli-required': False},
                 "text": {'type': 'string', 'minLength': 1, 'title': 'Text', 'description': "The line's corrected text.", 'x-cli-required': True},

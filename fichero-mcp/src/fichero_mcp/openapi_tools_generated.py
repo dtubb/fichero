@@ -8090,12 +8090,13 @@ def fichero_segments_update(
 def fichero_segments_correct_line(
     *,
     segment_id: Annotated[str, Field(description='Segment Id')],
+    corrects_representation_id: Annotated[Optional[str], Field(description='The reading of this line to correct, at ITS level and kind (a compared reading, `source.editor.compare-two-to-four-readings-with-the-line-picture-and-edit-in-line`). Unset: the one that counts now.')] = None,
     expected_counting_id: Annotated[Optional[str], Field(description='The reading that counted when you read the line. When another counts now, the correction is refused (409, naming it) and nothing is written. Unset: the one that counts now.')] = None,
     kind: Annotated[Optional[str], Field(description='The kind of reading corrected. Default: "transcription".')] = None,
     text: Annotated[str, Field(description="The line's corrected text.")],
 ) -> Any:
     "Correct Segment Line\n\nCorrect a line: the segment and its new text, nothing more (#5499, `source.reading.correct-a-line`).\n\nOne `representation.create` -- the action every correction is -- with the document, the reading it\ncorrects (the one that counts now, or the artifact text a provisional one still lives in) and the\ncompare-and-set worked out here. Audited and undoable as that action is; who corrected it is the caller,\nso a person's correction is a person's reading and counts over a machine's. The answer is the reading; the\nline's outline, which the correction did not change, is not repeated in it (#5697): the segment has it.\n\nRoute: POST /api/segments/{segment_id}/correct (toolset `segments`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", f"/api/segments/{segment_id}/correct", json=_rt.body({"expected_counting_id": expected_counting_id, "kind": kind, "text": text}))
+    return _rt.call("POST", f"/api/segments/{segment_id}/correct", json=_rt.body({"corrects_representation_id": corrects_representation_id, "expected_counting_id": expected_counting_id, "kind": kind, "text": text}))
 
 
 def fichero_segments_get_picture(
