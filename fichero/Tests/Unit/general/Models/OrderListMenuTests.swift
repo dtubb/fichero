@@ -7,7 +7,6 @@ import Testing
 struct OrderListMenuTests {
     @Test("with nothing to act on every new item is disabled and says what to select")
     func noTarget() {
-        #expect(LineVerbs.renameReason(nil) == "Select one line in the Order list")
         #expect(LineVerbs.revealReason(nil) == "Select a segment in the Order list")
         #expect(LineVerbs.moveReason(nil) == "Select a row in a named order")
     }
@@ -17,11 +16,8 @@ struct OrderListMenuTests {
         var target = LineVerbsTarget()
         target.reveal = {}
         #expect(LineVerbs.revealReason(target) == nil)
-        #expect(LineVerbs.renameReason(target) != nil)
         #expect(LineVerbs.moveReason(target) != nil)
-        target.rename = {}
         target.move = { _ in }
-        #expect(LineVerbs.renameReason(target) == nil)
         #expect(LineVerbs.moveReason(target) == nil)
     }
 }

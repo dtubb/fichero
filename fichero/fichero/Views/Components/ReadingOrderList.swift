@@ -143,13 +143,11 @@ struct ReadingOrderList: View {
     /// Create Named Order while the page has none.
     private var lineVerbs: LineVerbsTarget {
         var target = LineVerbsTarget(segment: selection.flatMap(segment))
-        if let line = target.segment, CorrectLine.offers(line) { target.correct = { correcting = line } }
+        // A line is corrected IN PLACE here (Return, the menu): one verb, not a rename and a correct (Step 1.25).
+        if let line = target.segment, CorrectLine.offers(line) { target.correct = { _ = beginRename(line.id) } }
         if let selection {
             target.delete = { deleteLines(nil) }
             target.reveal = { reveal([selection]) }
-            if let line = target.segment, OrderRename.begins(on: [line]) != nil {
-                target.rename = { _ = beginRename(selection) }
-            }
             if let store, !store.shown.isEmpty {
                 target.move = { step in Task { await record(store.move(selection, step: step), in: store) } }
             }
@@ -163,12 +161,8 @@ struct ReadingOrderList: View {
     /// A row's menu: Correct This Line on one line (#5499).
     @ViewBuilder
     private func lineMenu(_ ids: Set<String>) -> some View {
-        CorrectThisLineButton(segment: ids.count == 1 ? ids.first.flatMap(segment) : nil) { correcting = $0 }
-        if let id = ids.first, ids.count == 1 {
-            Button(LineVerbs.renameTitle) { _ = beginRename(id) }
-                .disabled(OrderRename.begins(on: segment(id).map { [$0] } ?? []) == nil)
-            Button(LineVerbs.revealTitle) { reveal(ids) }
-        }
+        CorrectThisLineButton(segment: ids.count == 1 ? ids.first.flatMap(segment) : nil) { _ = beginRename($0.id) }
+        if ids.count == 1 { Button(LineVerbs.revealTitle) { reveal(ids) } }
         Divider()
         Button(role: .destructive) { deleteLines(ids) } label: { Label("Delete", systemImage: "trash") }
             .disabled(ids.isEmpty)

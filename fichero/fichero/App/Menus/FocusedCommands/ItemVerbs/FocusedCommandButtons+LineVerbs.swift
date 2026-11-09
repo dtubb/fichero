@@ -15,8 +15,6 @@ struct LineVerbsTarget: Equatable {
     var createNamedOrder: (@MainActor () -> Void)?
     /// Delete the selected lines (`source.editor.delete-selected-lines`): one audited batch, one ⌘Z.
     var delete: (@MainActor () -> Void)?
-    /// Edit the selected line's words in place (Return, Finder style; Step 1.25).
-    var rename: (@MainActor () -> Void)?
     /// Show the selection in the Preview (double-click).
     var reveal: (@MainActor () -> Void)?
     /// Move the selected row in the order; nil when the list has no order to move in.
@@ -26,7 +24,7 @@ struct LineVerbsTarget: Equatable {
         lhs.segment?.id == rhs.segment?.id && lhs.segment?.kind == rhs.segment?.kind
             && (lhs.correct != nil) == (rhs.correct != nil) && (lhs.open != nil) == (rhs.open != nil)
             && (lhs.createNamedOrder != nil) == (rhs.createNamedOrder != nil)
-            && (lhs.delete != nil) == (rhs.delete != nil) && (lhs.rename != nil) == (rhs.rename != nil)
+            && (lhs.delete != nil) == (rhs.delete != nil)
             && (lhs.reveal != nil) == (rhs.reveal != nil) && (lhs.move != nil) == (rhs.move != nil)
     }
 }
@@ -40,12 +38,7 @@ enum LineVerbs {
     static let correctTitle = "Correct This Line…"
     static let createNamedOrderTitle = "Create Named Order"
     static let deleteTitle = "Delete Lines"
-    static let renameTitle = "Rename"
     static let revealTitle = "Show in Preview"
-
-    static func renameReason(_ target: LineVerbsTarget?) -> String? {
-        target?.rename == nil ? "Select one line in the Order list" : nil
-    }
 
     static func revealReason(_ target: LineVerbsTarget?) -> String? {
         target?.reveal == nil ? "Select a segment in the Order list" : nil
@@ -106,17 +99,6 @@ struct DeleteLinesMenuItem: View {
     }
 }
 
-struct RenameMenuItem: View {
-    let target: LineVerbsTarget?
-
-    var body: some View {
-        // No chord here: Return belongs to the list (a menu key equivalent would take it from every text field).
-        Button(LineVerbs.renameTitle) { target?.rename?() }
-            .help("Edit this line's words in place (Return)")
-            .disabled(LineVerbs.renameReason(target) != nil)
-    }
-}
-
 struct RevealMenuItem: View {
     let target: LineVerbsTarget?
 
@@ -160,8 +142,6 @@ struct FocusedLineVerbButtons: View {
     @FocusedValue(\.lineVerbs) private var target
 
     var body: some View {
-        RenameMenuItem(target: target)
-        if let reason = LineVerbs.renameReason(target) { Text(reason) }
         RevealMenuItem(target: target)
         MoveRowMenuItems(target: target)
         if let reason = LineVerbs.moveReason(target) { Text(reason) }
