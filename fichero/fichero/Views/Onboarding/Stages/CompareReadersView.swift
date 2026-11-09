@@ -74,7 +74,7 @@ struct CompareReadersView: View {
     private func picture(_ model: CompareViewModel) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             boxedPicture(model)
-            if let note = CompareViewModel.noBoxesNote(readFrom: store.frame?.readFrom.rawValue,
+            if let note = SegmentOnRendition.noBoxesNote(readFrom: store.frame?.readFrom.rawValue,
                                                        followed: store.frame?.followed ?? false) {
                 Text(note).font(.caption).foregroundStyle(.secondary)
                     .accessibilityIdentifier("compare.noBoxes")
@@ -88,7 +88,7 @@ struct CompareReadersView: View {
             .overlay {
                 Canvas { context, size in
                     for line in model.lines {
-                        guard let drawn = CompareViewModel.drawnBox(of: line, frame: store.frame, photograph: store.image),
+                        guard let drawn = SegmentOnRendition.drawnBox(of: line, frame: store.frame, photograph: store.image),
                               let rect = CompareViewModel.boxRect(drawn.box, image: drawn.image, canvas: size) else { continue }
                         context.stroke(Path(rect), with: .color(line.differs ? .orange : .blue), lineWidth: 1)
                     }

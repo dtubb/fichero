@@ -110,26 +110,26 @@ struct CompareViewTests {
         let bbox: [Double] = [100, 50, 200, 20], frameBbox: [Double] = [10, 5, 20, 2]
         let photo = (width: 1000, height: 500), edited = (width: 400, height: 300)
         // No edits (a rendition is not what the picture shows): the photograph's bbox and size.
-        let plain = CompareViewModel.drawnBox(boxes: (bbox, frameBbox), readFrom: "rendition", followed: true,
+        let plain = SegmentOnRendition.drawnBox(boxes: (bbox, frameBbox), readFrom: "rendition", followed: true,
                                               frameSize: edited, photograph: photo)
         #expect(plain?.box == bbox && plain?.image.width == 1000)
-        let original = CompareViewModel.drawnBox(boxes: (bbox, nil), readFrom: "original", followed: false,
+        let original = SegmentOnRendition.drawnBox(boxes: (bbox, nil), readFrom: "original", followed: false,
                                                  frameSize: nil, photograph: photo)
         #expect(original?.box == bbox)
         // Saved edits and the lines' place known: the frame's box in the edited image's size.
-        let followed = CompareViewModel.drawnBox(boxes: (bbox, frameBbox), readFrom: "edited", followed: true,
+        let followed = SegmentOnRendition.drawnBox(boxes: (bbox, frameBbox), readFrom: "edited", followed: true,
                                                  frameSize: edited, photograph: photo)
         #expect(followed?.box == frameBbox && followed?.image.width == 400 && followed?.image.height == 300)
         // Saved edits and the place unknown: no box rather than a wrong one.
-        #expect(CompareViewModel.drawnBox(boxes: (bbox, nil), readFrom: "edited", followed: false,
+        #expect(SegmentOnRendition.drawnBox(boxes: (bbox, nil), readFrom: "edited", followed: false,
                                           frameSize: edited, photograph: photo) == nil)
     }
 
     @Test("a page with saved edits and unknown lines says why it has no boxes; other pages say nothing")
     func noBoxesSaysWhy() {
-        #expect(CompareViewModel.noBoxesNote(readFrom: "edited", followed: false) != nil)
-        #expect(CompareViewModel.noBoxesNote(readFrom: "edited", followed: true) == nil)
-        #expect(CompareViewModel.noBoxesNote(readFrom: "original", followed: false) == nil)
-        #expect(CompareViewModel.noBoxesNote(readFrom: nil, followed: false) == nil)
+        #expect(SegmentOnRendition.noBoxesNote(readFrom: "edited", followed: false) != nil)
+        #expect(SegmentOnRendition.noBoxesNote(readFrom: "edited", followed: true) == nil)
+        #expect(SegmentOnRendition.noBoxesNote(readFrom: "original", followed: false) == nil)
+        #expect(SegmentOnRendition.noBoxesNote(readFrom: nil, followed: false) == nil)
     }
 }

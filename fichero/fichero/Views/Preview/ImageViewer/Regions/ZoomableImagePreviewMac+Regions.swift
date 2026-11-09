@@ -119,18 +119,21 @@ extension ZoomableImagePreview {
     /// you select what you can see), falling back to the whole geometry when
     /// the overlay is off.
     func selectAllGeometryForArmedTool() {
-        guard let artifactId = ocrGeometrySelectionScope else { return }
-        let all = frameMatchedGeometryBoxes
-        guard !all.isEmpty else { return }
-        let indices: [Int]
+        guard let artifactId = ocrGeometrySelectionScope, let geometry = ocrGeometry else { return }
+        // Selecting is of the page's segments, not of what this picture can draw: on a rendition whose frame is not the
+        // geometry's the overlay shows none of them, and Select All used to find nothing (#6448).
+        let frameMatches = geometryFrameMatchesDisplay(geometry)
+        let all = geometry.boxes
+        let isTextTool: Bool
         switch windowState?.activeMarkupTool {
-        case .textSelect, .wordSelect:
-            let words = all.indices.filter { all[$0].level == "word" }
-            indices = words.isEmpty ? Array(all.indices) : words
-        default:
-            let shown = displayedGeometryBoxes.map(\.index)
-            indices = shown.isEmpty ? Array(all.indices) : shown
+        case .textSelect, .wordSelect: isTextTool = true
+        default: isTextTool = false
         }
+        let indices = SegmentOnRendition.selectAllIndices(
+            levels: all.map(\.level), shown: displayedGeometryBoxes.map(\.index), frameMatches: frameMatches,
+            isTextTool: isTextTool
+        )
+        guard !indices.isEmpty else { return }
         regionSelection.selectAll(indices, artifactId: artifactId, documentId: documentId, in: all)
     }
 
