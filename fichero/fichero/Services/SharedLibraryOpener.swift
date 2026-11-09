@@ -17,9 +17,9 @@ enum SharedLibraryOpener {
             // Back to what was on screen (`sharing.alerts.one-alert-per-failure`).
             libraryManager.dropPinnedLibrary(alreadyOpen ? nil : library.id, backTo: previous)
             let name = PairedMachineStore.load().first { $0.id == hostRoot }?.name ?? apiRoot.host ?? "That Mac"
+            let words = failureWords(for: error, host: name)
             libraryManager.sharingFailure = SharingFailurePrompt.make(
-                title: "\(name) isn't responding",
-                sentence: "It is off, asleep, or Sharing is off there. Fichero stayed on this Mac's projects.",
+                title: words.title, sentence: words.sentence,
                 retry: { Task { await open(hostRoot: hostRoot, libraryPath: libraryPath, libraryManager: libraryManager) } },
                 copy: { PlatformPasteboard.writeString($0) })
         }
