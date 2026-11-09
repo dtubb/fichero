@@ -175,17 +175,19 @@ struct ReadingOrderList: View {
     /// The line Correct This Line is asking about; nil when it is not asking.
     @State private var correcting: Segment?
 
-    /// A double-click (or Return) on a row: reveal it in the linked Preview, selected, scrolled and
-    /// zoomed to (#5424) -- the one reveal the Reader's line click makes too.
     private var documentStore: SegmentStore? { segmentService.map { SegmentStore.shared(for: $0) } }
 
+    /// Shift+Up/Down (#6457): only Shift extends; a plain arrow stays the List's own (`InspectorPath.extendPlaces`).
     private func extend(_ places: Int, _ press: KeyPress, store: SegmentStore?) -> KeyPress.Result {
-        guard press.modifiers.contains(.shift), let store, let focused = windowState?.focusedRegionSelection,
+        guard let places = InspectorPath.extendPlaces(places, shift: press.modifiers.contains(.shift)),
+              let store, let focused = windowState?.focusedRegionSelection,
               InspectorPath.stepSelection(by: places, extend: true, selection: focused, documentId: documentId, store: store)
         else { return .ignored }
         return .handled
     }
 
+    /// A double-click (or Return) on a row: reveal it in the linked Preview, selected, scrolled and
+    /// zoomed to (#5424) -- the one reveal the Reader's line click makes too.
     private func reveal(_ ids: Set<String>) {
         guard let segmentId = ids.first, let windowState, let segmentService else { return }
         onSelected?(windowState.revealSegments(

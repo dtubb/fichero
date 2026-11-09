@@ -125,6 +125,9 @@ struct InspectorPath: Equatable {
         return Array(Set(places + [target])).sorted().map { order[$0] }
     }
 
+    /// The step a Shift+arrow takes in a list that extends (#6457): nil without Shift, so a plain arrow keeps its other job.
+    static func extendPlaces(_ places: Int, shift: Bool) -> Int? { shift && places != 0 ? places : nil }
+
     /// Up/Down on the shared selection (#6457), for any surface that has focus: the order is the shown page's boxes in reading order,
     /// the selection moves through `select` so the Preview, the Reader and the Inspector change together. False when nothing moves.
     @MainActor

@@ -70,4 +70,12 @@ struct SelectionStepsAcrossSurfacesTests {
         InspectorPath.select(segmentIds: [order[0]], into: selection, documentId: "doc-0001", store: store)
         #expect(!InspectorPath.stepSelection(by: -1, extend: false, selection: selection, documentId: "doc-0001", store: store))
     }
+
+    /// The Order list's Shift+arrow guard: only Shift extends, so a plain arrow keeps its other job.
+    @Test func onlyShiftExtendsInTheLists() {
+        #expect(InspectorPath.extendPlaces(1, shift: true) == 1)
+        #expect(InspectorPath.extendPlaces(-1, shift: true) == -1)
+        #expect(InspectorPath.extendPlaces(1, shift: false) == nil)
+        #expect(InspectorPath.extendPlaces(0, shift: true) == nil)
+    }
 }
