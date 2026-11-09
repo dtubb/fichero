@@ -295,6 +295,10 @@ struct ReadingOrderList: View {
                 node: node, index: index, tones: nesting.tones,
                 content: { id, position in AnyView(row(id, at: position)) }
             )
+        } else if nesting != nil {
+            // Folded under its region by `SegmentsPane.outline`: shown there, not again beside it (#6425).
+            // Kept in the ForEach (not filtered out) so `onMove` offsets still index `store.shown`.
+            EmptyView()
         } else {
             row(segmentId, at: index).tag(segmentId)
         }
