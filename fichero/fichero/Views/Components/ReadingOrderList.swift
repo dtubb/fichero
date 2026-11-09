@@ -52,7 +52,13 @@ struct ReadingOrderList: View {
     }
 
     /// The selected line, by segment id.
-    @State private var selection: String?
+    @State private var picks: Set<String> = []
+    /// The one selected row; nil with none or several (the verbs that act on one row ask this; Shift, ⌘ and ⌥ click
+    /// pick several, Finder style, and the list's Delete and the shared selection take them all).
+    private var selection: String? {
+        get { picks.count == 1 ? picks.first : nil }
+        nonmutating set { picks = newValue.map { [$0] } ?? [] }
+    }
     /// Whether the list itself has keyboard focus: its ⌥⌘ keys exist only then, so with the Reader
     /// focused the same keys reach the Reader's caret line (`ReaderLineMove`), not this list.
     @FocusState private var listFocused: Bool
@@ -65,12 +71,12 @@ struct ReadingOrderList: View {
         VStack(spacing: 0) {
             if let store, !store.orders.isEmpty, !(hidesWhenEmpty && store.shown.isEmpty) {
                 // Which order, new orders and flows, Previous / Next (#5160).
-                ReadingOrderPicker(documentId: documentId, store: store, selection: $selection)
+                ReadingOrderPicker(documentId: documentId, store: store, selection: Binding(get: { selection }, set: { selection = $0 }))
                 Divider()
             }
             if let store, !store.shown.isEmpty {
                 let nested = nestedRows(top: store.shown.map(\.segmentId))
-                List(selection: $selection) {
+                List(selection: $picks) {
                     ForEach(Array(store.shown.enumerated()), id: \.element.segmentId) { index, entry in
                         entryRow(entry.segmentId, at: index, nesting: nested)
                     }
@@ -115,10 +121,12 @@ struct ReadingOrderList: View {
         .focusedValue(\.lineVerbs, lineVerbs)
         // One selection across the surfaces (#5155): a row picked here is the focused Source view's
         // selection too, so the boxes light and the Inspector follows.
-        .onChange(of: selection) { _, picked in
-            guard let picked, let focused = windowState?.focusedRegionSelection, let segmentService else { return }
+        .onChange(of: picks) { _, picked in
+            guard !picked.isEmpty, let focused = windowState?.focusedRegionSelection, let segmentService else { return }
+            // In the list's own order, so the shared selection reads top to bottom.
+            let inOrder = (store?.shown.map(\.segmentId) ?? []).filter(picked.contains)
             onSelected?(InspectorPath.select(
-                segmentIds: [picked], into: focused, documentId: documentId,
+                segmentIds: inOrder.isEmpty ? Array(picked) : inOrder, into: focused, documentId: documentId,
                 store: SegmentStore.shared(for: segmentService)
             ))
         }
@@ -260,7 +268,7 @@ struct ReadingOrderList: View {
     private func unordered(_ ids: [String]) -> some View {
         VStack(spacing: 0) {
             let nested = nestedRows(top: ids)
-            List(selection: $selection) {
+            List(selection: $picks) {
                 ForEach(Array(ids.enumerated()), id: \.element) { index, segmentId in
                     entryRow(segmentId, at: index, nesting: nested)
                 }
