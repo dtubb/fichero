@@ -20,7 +20,9 @@ enum SharedLibraryOpener {
             let words = failureWords(for: error, host: name)
             libraryManager.sharingFailure = SharingFailurePrompt.make(
                 title: words.title, sentence: words.sentence,
-                retry: { Task { await open(hostRoot: hostRoot, libraryPath: libraryPath, libraryManager: libraryManager) } },
+                retry: !words.canRetry ? nil : {
+                    Task { await open(hostRoot: hostRoot, libraryPath: libraryPath, libraryManager: libraryManager) }
+                },
                 copy: { PlatformPasteboard.writeString($0) })
         }
     }
