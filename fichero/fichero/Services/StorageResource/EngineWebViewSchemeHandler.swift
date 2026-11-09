@@ -169,8 +169,8 @@ extension EngineWebViewError: CustomNSError {
 
     /// The failure in words for the reader's failure page (#6450): a status says what it means, not "error 1".
     static func words(for error: any Error) -> String {
-        let ns = error as NSError
-        guard let status = ns.userInfo[statusKey] as? Int else { return error.localizedDescription }
+        let rebuilt = error as NSError
+        guard let status = rebuilt.userInfo[statusKey] as? Int else { return error.localizedDescription }
         return words(forStatus: status)
     }
 
