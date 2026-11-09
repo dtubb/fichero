@@ -61,7 +61,8 @@ struct LibraryView: View {
     var onRequestPreviousPaneFocus: () -> Void = {}  // Left arrow in list/table — move to sidebar
     var onRequestNextPaneFocus: () -> Void = {}  // Right arrow in list/table — move to inspector
     var onNavigateInto: (Document) -> Void = { _ in }  // Double-click on folder/PDF — navigate into it
-    /// Double-click on a page or file: a nested contents view hands it to the window's one selection path (`library.contents.double-click-selects-the-item`, #6410).
+    /// Double-click on a page or file: a nested contents view hands it to the window's one selection path
+    /// (`library.contents.double-click-selects-the-item`, #6410).
     var onOpenItem: ((Document) -> Void)?
     /// Called when a page item row is selected in the outline table (#2405).
     /// Callers should set `pageFocusDocument` to drive reader + inspector focus.
