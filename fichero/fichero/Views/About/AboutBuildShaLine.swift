@@ -21,3 +21,11 @@ struct AboutBuildShaLine: View {
         }
     }
 }
+
+#Preview("Build line") {
+    // Outside a stamped bundle the key is absent and the line hides; this shows the shape it takes with one.
+    Text(AboutInfo.buildShaLine("2b9b216c34") ?? "")
+        .font(.callout.monospaced())
+        .foregroundStyle(.secondary)
+        .padding()
+}
