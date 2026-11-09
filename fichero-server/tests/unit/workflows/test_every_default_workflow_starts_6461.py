@@ -45,7 +45,7 @@ def test_translate_from_a_workflow_translates_a_page_that_has_text_and_says_plai
     def run(page):
         started = client.post("/api/workflow-execution/execute", json={"workflow_id": workflow.id, "inputs": {"selected_doc_ids": [page.id]}})
         assert started.status_code == 202, started.text
-        for _ in range(60):
+        for _ in range(240):  # 2 minutes: the machine may be loaded (a 30 s wait failed at load 34)
             status = client.get(f"/api/workflow-execution/threads/{started.json()['thread_id']}/status")
             if status.status_code == 200 and status.json()["status"] in ("completed", "failed", "error"):
                 return status.json()
