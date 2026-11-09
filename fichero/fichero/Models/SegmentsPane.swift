@@ -81,8 +81,13 @@ enum SegmentsPane {
     static func outline(_ segments: [Segment], top: [String]) -> [OutlineRow] {
         let byId = Dictionary(segments.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let byParent = Dictionary(grouping: segments.filter { $0.parentSegmentId != nil }, by: { $0.parentSegmentId ?? "" })
+        // Children follow the order's own sequence where it lists them, then the segments' own order (#6425).
+        let place = Dictionary(top.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
         func row(_ id: String, depth: Int) -> OutlineRow {
-            let children = depth < 8 ? (byParent[id] ?? []).map { row($0.id, depth: depth + 1) } : []
+            let kids = (byParent[id] ?? []).enumerated().sorted {
+                (place[$0.element.id] ?? Int.max, $0.offset) < (place[$1.element.id] ?? Int.max, $1.offset)
+            }.map(\.element)
+            let children = depth < 8 ? kids.map { row($0.id, depth: depth + 1) } : []
             return OutlineRow(segmentId: id, kind: byId[id]?.kind ?? "", children: children)
         }
         // An id whose ancestor is also in `top` is shown under that ancestor, not again beside it (#6425).

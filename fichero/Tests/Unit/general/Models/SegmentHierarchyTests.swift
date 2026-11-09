@@ -200,6 +200,16 @@ final class SegmentHierarchyTests: XCTestCase {
         XCTAssertEqual(rows[0].children.map(\.segmentId), ["l1", "l2"])
     }
 
+    /// #6425: the order a person set is the order the page reads, so a region's lines follow the stored order's sequence, not the
+    /// order the segments were made in.
+    func testARegionsLinesFollowTheStoredOrdersSequence() async throws {
+        let store = try await loadedPage().store
+        let segments = store.workingSegments(documentId: "page-1")
+        let rows = SegmentsPane.outline(segments, top: ["r1", "l2", "l1"])
+        XCTAssertEqual(rows.map(\.segmentId), ["r1"])
+        XCTAssertEqual(rows[0].children.map(\.segmentId), ["l2", "l1"])
+    }
+
     /// "The Segments list groups rows by region: its lines indented under it, a line discloses its words", each
     /// level in the order the page reads it.
     func testTheListGroupsLinesUnderRegionsInReadingOrder() async throws {
