@@ -31,7 +31,7 @@ extension LibraryView {
         let doc = filteredDocuments.first { $0.id == id }
             ?? columnsChildren.values.lazy.compactMap({ $0.first { $0.id == id } }).first
         // A group opens the next column like a folder (#5570): its pages, in order.
-        return doc.map(Self.columnOpensChildren) == true ? doc : nil
+        return doc?.isFolderLike == true ? doc : nil
     }
 
     /// The documents of column `depth`: 0 = the browsed set, deeper = the
@@ -60,7 +60,7 @@ extension LibraryView {
         guard selection.count == 1,
               let id = orderedPrimarySelectionId,
               let doc = navigableDocument(for: id),
-              !Self.columnOpensChildren(doc) else { return nil }
+              !doc.isFolderLike else { return nil }
         return doc
     }
 
@@ -267,7 +267,7 @@ extension LibraryView {
                     .help(DocumentTitle.displayName(for: doc))
             }
             Spacer(minLength: 0)
-            if Self.columnOpensChildren(doc) {
+            if doc.isFolderLike {
                 Image(systemName: "chevron.right")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
@@ -324,16 +324,13 @@ extension LibraryView {
             handleTap(doc)
             return
         }
-        if Self.columnOpensChildren(doc) {
+        if doc.isFolderLike {
             columnsPath = MillerColumnModel.descend(path: columnsLivePath, atDepth: depth, into: doc.id)
         } else {
             columnsPath = MillerColumnModel.truncate(path: columnsLivePath, forSelectionAtDepth: depth)
         }
         handleTap(doc)
     }
-
-    /// A folder, a group and a PDF each open the next column with their children (`library.pdf.opens-as-its-pages`, #6410).
-    nonisolated static func columnOpensChildren(_ doc: Document) -> Bool { doc.isNavigableContainer }
 
     /// Whether a columns click may open or close columns — i.e. write
     /// `columnsPath` (#4377). NOT about which column is active, which a
@@ -374,7 +371,7 @@ extension LibraryView {
         case .right:
             guard let primaryId = orderedPrimarySelectionId,
                   let doc = columnsActiveDocuments.first(where: { $0.id == primaryId }),
-                  Self.columnOpensChildren(doc) else { return .handled }
+                  doc.isFolderLike else { return .handled }
             columnsPath = MillerColumnModel.descend(path: path, atDepth: depth, into: doc.id)
             columnsActiveDepth = depth + 1
             if let firstChild = columnsChildren[doc.id]?.first {

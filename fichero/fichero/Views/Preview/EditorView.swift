@@ -284,7 +284,7 @@ struct EditorView: View {
         case .folderContents(let folderId):
             // A group previews here too, as its pages on its own board (#5570).
             // A plain folder shows in THIS pane's chosen view; a group is always its pages on its board.
-            FolderViewPreview(folderId: folderId, usesPaneView: Self.foldersPaneView(for: doc), onNavigateToDocument: onNavigateToDocument)
+            FolderViewPreview(folderId: folderId, usesPaneView: doc.docType == .folder, onNavigateToDocument: onNavigateToDocument)
         case .glyph(let systemImage, let title):
             GlyphPreviewPlaceholder(systemImage: systemImage, title: title)
         case .entrySource:

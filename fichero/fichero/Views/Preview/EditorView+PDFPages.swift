@@ -4,7 +4,4 @@ extension EditorView {
     static func pdfPreviewRoute(for doc: Document) -> PreviewRoute {
         doc.childCount > 0 ? .folderContents(folderId: doc.id) : .storageDisplay(documentId: doc.id)
     }
-
-    /// A folder, and a PDF showing its pages, draw in the pane's chosen view (Canvas, List or Table); a group keeps its board.
-    static func foldersPaneView(for doc: Document) -> Bool { doc.docType == .folder || doc.fileType == .pdf }
 }

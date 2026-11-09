@@ -103,13 +103,21 @@ final class MillerColumnModelTests: XCTestCase {
         XCTAssertTrue(nav.contains("handleColumnsArrowKey(direction: direction)"))
     }
 
-    func testOnlyANonContainerGetsThePreviewColumnAContainerOpensTheNextOne() {
-        // A folder, a group and a PDF (#6410) open the next column; a plain file gets the preview surface.
-        let folder = Document(id: "f", parentId: nil, docType: .folder, name: "F")
-        let group = Document(id: "g", parentId: nil, docType: .group, name: "G", childCount: 2)
-        let pdf = Document(id: "p", parentId: nil, docType: .file, fileType: .pdf, name: "p.pdf", childCount: 3)
-        let note = Document(id: "n", parentId: nil, docType: .file, fileType: .text, name: "n.txt")
-        for container in [folder, group, pdf] { XCTAssertTrue(LibraryView.columnOpensChildren(container)) }
-        XCTAssertFalse(LibraryView.columnOpensChildren(note))
+    func testPreviewColumnReusesThePreviewSurfaceForSingleNonFolderSelection() throws {
+        let base = try AppSource.root().appendingPathComponent("Views/Library")
+        let columns = try String(
+            contentsOf: base.appendingPathComponent("ViewModes/Columns/LibraryView+ColumnsView.swift"),
+            encoding: .utf8
+        )
+        // The trailing preview column is the EXISTING Preview surface
+        // (EditorView = source viewer) — never a Reader/Inspector variant —
+        // and only for a SINGLE non-folder selection (Finder behavior). Since
+        // #5570 a group is a container too: it opens a column, not a preview,
+        // so the guard reads `isFolderLike` (folder or group).
+        XCTAssertTrue(columns.contains("EditorView(document: previewDoc)"))
+        XCTAssertTrue(columns.contains("selection.count == 1"))
+        XCTAssertTrue(columns.contains("!doc.isFolderLike else { return nil }"))
+        XCTAssertFalse(columns.contains("InspectorView("))
+        XCTAssertFalse(columns.contains("ReaderView("))
     }
 }
