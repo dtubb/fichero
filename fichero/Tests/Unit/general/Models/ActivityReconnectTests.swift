@@ -33,6 +33,14 @@ struct ActivityReconnectTests {
         #expect(waits == [.seconds(2), .seconds(4), .seconds(8), .seconds(16), .seconds(30), .seconds(30), .seconds(30), .seconds(30)])
     }
 
+    @Test func aWindowNobodyCanSeeWaitsAtLeastThirtySecondsBetweenJobsReads() {
+        let base = Duration.seconds(2)
+        #expect(ActivityStore.jobsPollWait(failures: 0, windowVisible: true, base: base) == .seconds(2))
+        #expect(ActivityStore.jobsPollWait(failures: 0, windowVisible: false, base: base) == .seconds(30))
+        #expect(ActivityStore.jobsPollWait(failures: 2, windowVisible: true, base: base) == .seconds(8))
+        #expect(ActivityStore.jobsPollWait(failures: 2, windowVisible: false, base: base) == .seconds(30))
+    }
+
     @Test func theRunListReloadsWhenTheEngineAnswersAgain() {
         let store = store()
         let before = store.refreshToken

@@ -194,6 +194,9 @@ class AppState {
     // MARK: - Initialization
 
     init() {
+        #if os(macOS)
+        ActivityStore.anyWindowVisible = { MainActor.assumeIsolated { NSApplication.shared.occlusionState.contains(.visible) } }
+        #endif
         // Opens the whole-launch signpost interval; ContentView's first frame
         // closes it. The milestone's elapsed value IS the pre-main cost (dyld +
         // static init), which nothing measured before (#3946).
