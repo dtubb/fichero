@@ -82,6 +82,9 @@ struct ReadingOrderList: View {
                 .onDeleteCommand { deleteLines(nil) }
                 #endif
                 .focused($listFocused)
+                // Shift+Up/Down add the next row to the shared selection (#6457); plain arrows stay the list's own.
+                .onKeyPress(.upArrow, phases: .down) { press in extend(-1, press, store: documentStore) }
+                .onKeyPress(.downArrow, phases: .down) { press in extend(1, press, store: documentStore) }
                 Divider()
                 keyRow(store)
                 if let refusal = store.lastRefusal {
@@ -174,6 +177,15 @@ struct ReadingOrderList: View {
 
     /// A double-click (or Return) on a row: reveal it in the linked Preview, selected, scrolled and
     /// zoomed to (#5424) -- the one reveal the Reader's line click makes too.
+    private var documentStore: SegmentStore? { segmentService.map { SegmentStore.shared(for: $0) } }
+
+    private func extend(_ places: Int, _ press: KeyPress, store: SegmentStore?) -> KeyPress.Result {
+        guard press.modifiers.contains(.shift), let store, let focused = windowState?.focusedRegionSelection,
+              InspectorPath.stepSelection(by: places, extend: true, selection: focused, documentId: documentId, store: store)
+        else { return .ignored }
+        return .handled
+    }
+
     private func reveal(_ ids: Set<String>) {
         guard let segmentId = ids.first, let windowState, let segmentService else { return }
         onSelected?(windowState.revealSegments(
