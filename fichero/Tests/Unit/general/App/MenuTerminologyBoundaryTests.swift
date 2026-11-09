@@ -251,9 +251,10 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
         let project = try XCTUnwrap(source.range(of: "CommandMenu(\"Project\")"))
         let body = String(source[page.upperBound..<project.lowerBound])
         for item in ["Menu(\"Reader Lens\")", "DoubtfulWordMenuSection()", "ImagePreviewMenuCommands()",
-                     "RotateImageMenuSection()", "Section(\"Segments\") {\n                SegmentMenuContent()"] {
+                     "RotateImageMenuSection()"] {
             XCTAssertTrue(body.contains(item), "Page is missing \(item)")
         }
+        XCTAssertFalse(body.contains("SegmentMenuContent()"), "the Segments section moved to Edit › Segments ▸ (#6413)")
         let app = try Self.appSource("FicheroApp.swift")
         XCTAssertFalse(app.contains("CommandMenu(\"Read\")"))
         XCTAssertFalse(app.contains("CommandMenu(\"Segment\")"))

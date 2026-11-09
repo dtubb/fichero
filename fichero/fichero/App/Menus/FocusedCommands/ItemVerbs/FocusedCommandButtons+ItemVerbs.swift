@@ -308,13 +308,20 @@ struct FocusedDeleteButton: View {
     @FocusedValue(\.itemVerbs) private var items
     @FocusedValue(\.sidebarActions) private var sidebarActions
     @FocusedValue(\.sidebarSelectionInfo) private var selectionInfo
+    @FocusedValue(\.segmentMenu) private var segments
+    @FocusedValue(\.focusedPaneKind) private var focusedPane
 
     var body: some View {
-        let target = FocusedItemVerbs.target(items: items, actions: sidebarActions, info: selectionInfo)
-        DeleteItemsMenuItem(target: target)
-        // With nothing selected, Rename's reason above says it once.
-        if let reason = ItemVerbs.deleteReason(target), reason != ItemVerbs.nothingSelected {
-            Text(reason)
+        // The Preview holding segments takes ⌘⌫ for them (#6413): one keyed Delete, the item list's or the segments'.
+        if let segments, SegmentDeleteRoute.takesDelete(focusedPane: focusedPane, selectedSegments: segments.selectionCount) {
+            Button(SegmentMenuContent.deleteTitle(segments.selectionCount), role: .destructive) { segments.delete() }
+        } else {
+            let target = FocusedItemVerbs.target(items: items, actions: sidebarActions, info: selectionInfo)
+            DeleteItemsMenuItem(target: target)
+            // With nothing selected, Rename's reason above says it once.
+            if let reason = ItemVerbs.deleteReason(target), reason != ItemVerbs.nothingSelected {
+                Text(reason)
+            }
         }
     }
 }

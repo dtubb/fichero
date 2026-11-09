@@ -516,6 +516,9 @@ struct FicheroApp: App {
 
                 GroupItemsMenuSection()
 
+                // Edit › Segments ▸ (#6413; was Page › Segments).
+                SegmentsEditMenu()
+
                 Divider()
 
                 // Find section (CD 2026-09-16): ⌘F "Search" is the native library

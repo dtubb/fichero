@@ -19,8 +19,8 @@ struct PageAndProjectMenuCommands: Commands {
     var body: some Commands {
         // MARK: Page — the page in front of you (ruled 2026-10-10, was Read; #5652 slice 2).
         // Everything you do WHILE reading a page lives here, not scattered in View: the reader lens,
-        // the doubtful words, the zoom / magnifier / loupe controls, rotate, and the page's segments
-        // (the Segment menu folded in). Every item keeps its chord.
+        // the doubtful words, the zoom / magnifier / loupe controls, rotate, (the Segment menu
+        // folded in, then moved to Edit › Segments ▸, #6413). Every item keeps its chord.
         CommandMenu("Page") {
             Menu("Reader Lens") {
                 ReaderLensSection()
@@ -35,14 +35,6 @@ struct PageAndProjectMenuCommands: Commands {
 
             Divider()
             RotateImageMenuSection()
-
-            // The page's segments, on the focused Preview's selection (#5229; was the Segment menu).
-            Section("Segments") {
-                SegmentMenuContent()
-                // A line's and a segment's verbs on the focused list's selection (#5652 slice 4, group 3).
-                Divider()
-                FocusedLineVerbButtons()
-            }
         }
 
         // MARK: Project — the recipe, stage by stage (ruled 2026-10-10, menus-and-commands spec).
