@@ -78,6 +78,15 @@ struct SegmentInspectorView: View {
         text?.countingContent(ofKind: "transcription") ?? segments.first { $0.id == segmentId }?.text
     }
 
+    /// Up/Down step the shared selection through the page in reading order (#6457); Shift extends. A text field being edited keeps its arrows.
+    private func step(_ places: Int, extend: Bool) -> KeyPress.Result {
+        guard editing == nil, let segmentService, let focused = windowState?.focusedRegionSelection,
+              InspectorPath.stepSelection(
+                by: places, extend: extend, selection: focused, documentId: documentId, store: SegmentStore.shared(for: segmentService)
+              ) else { return .ignored }
+        return .handled
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             pathHead
@@ -185,6 +194,9 @@ struct SegmentInspectorView: View {
         // Not `.task(id: inspected)`, which also drops an Edit… in progress.
         .onChange(of: readingRevision) { Task { await reloadText() } }
         .onChange(of: selectedIds) { level = .selection }
+        .focusable()
+        .onKeyPress(.upArrow, phases: .down) { press in step(-1, extend: press.modifiers.contains(.shift)) }
+        .onKeyPress(.downArrow, phases: .down) { press in step(1, extend: press.modifiers.contains(.shift)) }
         // The selection's settings are read under a task keyed on the ids: a newer selection cancels the older read, so
         // an older run can never finish last and show the old selection's answer (## 1075).
         .task(id: isMulti ? selectedIds : []) { if isMulti { await reloadText() } }

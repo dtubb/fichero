@@ -100,13 +100,8 @@ extension ZoomableImagePreview {
     /// Up/Down with segments selected move the selection through the page in reading order (#6457), everywhere at once
     /// through `InspectorPath.select`. False when nothing moves, so the arrow keeps its panning.
     func stepSegmentSelection(_ step: Int, extend: Bool) -> Bool {
-        guard let documentId, let store = segmentEditStore,
-              let shown = SegmentDisplay.selected(for: documentId, store: store) else { return false }
-        let order = shown.geometry.boxes.compactMap(\.segmentId)
-        let selected = InspectorPath.selectedSegmentIds(selection: regionSelection, documentId: documentId, store: store)
-        guard let next = InspectorPath.stepped(selected, in: order, by: step, extend: extend) else { return false }
-        InspectorPath.select(segmentIds: next, into: regionSelection, documentId: documentId, store: store)
-        return true
+        guard let documentId, let store = segmentEditStore else { return false }
+        return InspectorPath.stepSelection(by: step, extend: extend, selection: regionSelection, documentId: documentId, store: store)
     }
 
     /// DRAW a polygon or baseline with the Shape tool: `segment.create` on the shown pass, ⌘Z. Only on a

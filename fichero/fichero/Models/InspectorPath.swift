@@ -125,6 +125,20 @@ struct InspectorPath: Equatable {
         return Array(Set(places + [target])).sorted().map { order[$0] }
     }
 
+    /// Up/Down on the shared selection (#6457), for any surface that has focus: the order is the shown page's boxes in reading order,
+    /// the selection moves through `select` so the Preview, the Reader and the Inspector change together. False when nothing moves.
+    @MainActor
+    static func stepSelection(
+        by step: Int, extend: Bool, selection: RegionSelection, documentId: String, store: SegmentStore
+    ) -> Bool {
+        guard let shown = SegmentDisplay.selected(for: documentId, store: store) else { return false }
+        let order = shown.geometry.boxes.compactMap(\.segmentId)
+        let selected = selectedSegmentIds(selection: selection, documentId: documentId, store: store)
+        guard let next = stepped(selected, in: order, by: step, extend: extend) else { return false }
+        select(segmentIds: next, into: selection, documentId: documentId, store: store)
+        return true
+    }
+
     /// REVEAL (#5424, `reader.order.reveal-line-in-preview`): select `segmentIds` exactly as `select`
     /// does, then ask the pane owning `selection` to scroll and zoom to their boxes (their union). The
     /// ONE reveal action: the Order tab's and the Order pane's double-click and the Reader's line click
