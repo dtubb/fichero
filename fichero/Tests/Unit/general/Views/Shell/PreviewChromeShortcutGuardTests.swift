@@ -186,7 +186,8 @@ struct PreviewMarkupRowOrderGuardTests {
         #expect(SegmentVerbs.offered(.all, isEditing: true, selectionCount: 1).contains("previewMarkupDelete"))
         #expect(!SegmentVerbs.offered(.all, isEditing: true, selectionCount: 1).contains("previewMarkupCombine"))
         #expect(SegmentVerbs.offered(.all, isEditing: true, selectionCount: 2).contains("previewMarkupCombine"))
-        #expect(SegmentVerbs.offered(.all, isEditing: false, selectionCount: 2).isEmpty, "reading, a selection is for reading")
+        #expect(SegmentVerbs.offered(.all, isEditing: false, selectionCount: 2) == ["previewMarkupDelete", "previewMarkupCombine"], "no mode: the verbs follow the selection (#6413)")
+        #expect(SegmentVerbs.offered(.all, isEditing: false, selectionCount: 0).isEmpty, "nothing selected, no tool: nothing offered")
     }
 }
 
