@@ -91,10 +91,13 @@ final class DocumentKGPaneRouteTests: XCTestCase {
     /// A failed page says what happened in words and offers Retry to the same URL (#6450).
     func testFailurePageNamesTheStatusAndOffersRetry() throws {
         let url = try XCTUnwrap(URL(string: "fichero-server://engine/documents/5_Hoja_3_Recto.JPG/view"))
-        let words = EngineWebViewError.words(for: EngineWebViewError.httpStatus(404, path: "/x"))
+        // WebKit rebuilds the error from domain, code and userInfo: the words must survive that.
+        let original = EngineWebViewError.httpStatus(404, path: "/x") as NSError
+        let rebuilt = NSError(domain: original.domain, code: original.code, userInfo: original.userInfo)
+        let words = EngineWebViewError.words(for: rebuilt)
         XCTAssertFalse(words.contains("error 1"))
         XCTAssertTrue(words.contains("still be opening"))
-        XCTAssertTrue(EngineWebViewError.words(for: EngineWebViewError.httpStatus(503, path: "/x")).contains("503"))
+        XCTAssertTrue(EngineWebViewError.words(for: EngineWebViewError.httpStatus(503, path: "/x") as NSError).contains("503"))
         let html = DocumentKGPaneRoute.loadFailureHTML(detail: words, retryURL: url)
         XCTAssertTrue(html.contains("href=\"\(url.absoluteString)\">Retry</a>"))
         XCTAssertFalse(html.contains("reopen this pane"))

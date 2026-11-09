@@ -157,10 +157,24 @@ enum EngineWebViewError: Error, LocalizedError {
     }
 }
 
-extension EngineWebViewError {
+extension EngineWebViewError: CustomNSError {
+    /// WebKit hands the coordinator a REBUILT `NSError` (domain + code + `userInfo`), not this enum, so the status travels in
+    /// `userInfo` and `words(for:)` reads it from there (#6450).
+    static let statusKey = "fichero.engineHTTPStatus"
+
+    var errorUserInfo: [String: Any] {
+        guard case .httpStatus(let status, _) = self else { return [:] }
+        return [Self.statusKey: status, NSLocalizedDescriptionKey: Self.words(forStatus: status)]
+    }
+
     /// The failure in words for the reader's failure page (#6450): a status says what it means, not "error 1".
     static func words(for error: any Error) -> String {
-        guard case .httpStatus(let status, _) = error as? EngineWebViewError else { return error.localizedDescription }
+        let ns = error as NSError
+        guard let status = ns.userInfo[statusKey] as? Int else { return error.localizedDescription }
+        return words(forStatus: status)
+    }
+
+    static func words(forStatus status: Int) -> String {
         switch status {
         case 404: return "The engine does not have this page yet. Its library may still be opening."
         case 500...599: return "The engine is busy or hit a problem (HTTP \(status))."
