@@ -10,4 +10,9 @@ extension ActivityStore {
 
     /// Whether any window of the app can be seen; the app sets it from AppKit's occlusion state at launch (`AppState.init`).
     nonisolated(unsafe) static var anyWindowVisible: @Sendable () -> Bool = { true }
+
+    /// `jobsPollWait` for the window as it is now.
+    static func nextJobsPollWait(failures: Int, base: Duration) -> Duration {
+        jobsPollWait(failures: failures, windowVisible: anyWindowVisible(), base: base)
+    }
 }

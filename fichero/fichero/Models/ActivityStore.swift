@@ -258,7 +258,7 @@ final class ActivityStore: ChangeEventConsumer {
             while !Task.isCancelled {
                 await self?.refreshBackgroundJobs()
                 guard let self else { return }
-                try? await Task.sleep(for: Self.jobsPollWait(failures: jobsPollFailures, windowVisible: Self.anyWindowVisible(), base: jobsPollInterval))
+                try? await Task.sleep(for: Self.nextJobsPollWait(failures: jobsPollFailures, base: jobsPollInterval))
             }
         }
     }
