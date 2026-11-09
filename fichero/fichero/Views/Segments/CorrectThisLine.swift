@@ -20,6 +20,13 @@ enum CorrectLine {
         guard !words.isEmpty, words != (current ?? "").trimmingCharacters(in: .whitespacesAndNewlines) else { return nil }
         return words
     }
+
+    /// Records `words` as the person's reading of `line` and reloads the page's segments: the sheet's save, for a caller with no sheet.
+    static func send(_ line: Segment, words: String, segmentService: SegmentService) async throws {
+        let reading = try? await segmentService.readings(segmentId: line.id)?.countingReading(ofKind: "transcription")
+        _ = try await segmentService.correctLine(segmentId: line.id, text: words, expectedCountingId: reading?.id)
+        await SegmentStore.shared(for: segmentService).load(documentId: line.documentId, force: true)
+    }
 }
 
 /// The menu item and the sheet that asks for the words. One per surface; `target` is the line being corrected.
