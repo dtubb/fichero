@@ -35,6 +35,21 @@ struct ReadingDisagreement: Decodable, Equatable {
         let text: String?
         let agreement: Double
         let words: [Word]
+        /// Every compared reader with no reading of this line, and why; not counted in `agreement` (#6453).
+        var absent: [AbsentReader]?
+    }
+
+    /// A compared reader with no reading of a line, and why, in the engine's words.
+    struct AbsentReader: Decodable, Equatable {
+        let reader: String
+        let why: String
+    }
+
+    /// Where a person's correction exists: the page's error rate of the readers against it (#6453).
+    struct AgainstCorrectedPage: Decodable, Equatable {
+        let errorRate: Double
+        let lines: Int
+        let ofLines: Int
     }
 
     /// One word's place on the page: its line, then its place in the line.
@@ -59,6 +74,9 @@ struct ReadingDisagreement: Decodable, Equatable {
     let pageAgreement: Double?
     let normalisedAs: String?
     let lines: [Line]
+    /// What the agreement is, in the engine's words (`1 − d / L`); never "accuracy" (#6453).
+    var definition: String?
+    var againstCorrected: AgainstCorrectedPage?
     /// The pixel size of the image the words' boxes were measured on; nil when no word has one.
     var imageWidth: Double?
     var imageHeight: Double?
@@ -106,7 +124,8 @@ struct ReadingDisagreement: Decodable, Equatable {
     /// A word's popover rows (`source.disagree.popover`): each variant, most readers first (the engine's order
     /// kept among equals), the readers by label, and how many of how many; a reader that gave nothing reads as
     /// "(nothing)".
-    func variantRows(for word: Word) -> [VariantRow] {
+    func variantRows(for word: Word, inLine line: Int? = nil) -> [VariantRow] {
+        let total = line.map(readersOfLine) ?? readers.count
         let labels = Dictionary(readers.map { ($0.id, $0.label) }, uniquingKeysWith: { first, _ in first })
         let ordered = word.variants.enumerated().sorted { lhs, rhs in
             lhs.element.readers.count != rhs.element.readers.count
@@ -115,8 +134,21 @@ struct ReadingDisagreement: Decodable, Equatable {
         return ordered.map { _, variant in
             VariantRow(text: variant.text.isEmpty ? "(nothing)" : variant.text,
                        readers: variant.readers.map { labels[$0] ?? $0 }.joined(separator: ", "),
-                       count: "\(variant.readers.count) of \(readers.count)")
+                       count: "\(variant.readers.count) of \(total)")
         }
+    }
+
+    /// The quiet rows under a word's variants: each compared reader with no reading of the line, "<label>: <why>".
+    func absentRows(inLine line: Int) -> [String] {
+        guard lines.indices.contains(line) else { return [] }
+        let labels = Dictionary(readers.map { ($0.id, $0.label) }, uniquingKeysWith: { first, _ in first })
+        return (lines[line].absent ?? []).map { "\(labels[$0.reader] ?? $0.reader): \($0.why)" }
+    }
+
+    /// The N of "n of N": the readers that read the line (every compared reader less the absent ones).
+    func readersOfLine(_ line: Int) -> Int {
+        guard lines.indices.contains(line) else { return readers.count }
+        return max(readers.count - (lines[line].absent?.count ?? 0), 0)
     }
 
     /// An agreement figure in words: "82% agreement".

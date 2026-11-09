@@ -185,7 +185,9 @@ struct DisagreementPageView: View {
                 }
                 .popover(isPresented: Binding(get: { popoverFor == ref },
                                               set: { if !$0, popoverFor == ref { popoverFor = nil } })) {
-                    DisagreementWordPopover(word: word.text, rows: disagreement.variantRows(for: word))
+                    DisagreementWordPopover(
+                        word: word.text, rows: disagreement.variantRows(for: word, inLine: ref.line),
+                        absent: disagreement.absentRows(inLine: ref.line), definition: disagreement.definition)
                 }
                 .accessibilityLabel("\(word.text), \(ReadingDisagreement.percent(word.agreement))")
                 .accessibilityAddTraits(.isButton)
@@ -231,7 +233,9 @@ struct DisagreementPageView: View {
                 }
                 .popover(isPresented: Binding(get: { popoverFor == box.ref },
                                               set: { if !$0, popoverFor == box.ref { popoverFor = nil } })) {
-                    DisagreementWordPopover(word: word.text, rows: disagreement.variantRows(for: word))
+                    DisagreementWordPopover(
+                        word: word.text, rows: disagreement.variantRows(for: word, inLine: box.ref.line),
+                        absent: disagreement.absentRows(inLine: box.ref.line), definition: disagreement.definition)
                 }
                 .accessibilityLabel("\(word.text), \(ReadingDisagreement.percent(word.agreement))")
                 .accessibilityAddTraits(.isButton)
@@ -243,6 +247,11 @@ struct DisagreementPageView: View {
 struct DisagreementWordPopover: View {
     let word: String
     let rows: [ReadingDisagreement.VariantRow]
+    /// Readers with no reading of the line, "<label>: <why>", quiet under the variants.
+    var absent: [String] = []
+    /// What the agreement is; shown on tapping the ⓘ.
+    var definition: String?
+    @State private var showsDefinition = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -255,6 +264,15 @@ struct DisagreementWordPopover: View {
                     Text(row.count).font(.caption).monospacedDigit().foregroundStyle(.secondary)
                 }
                 Text(row.readers).font(.caption).foregroundStyle(.secondary)
+            }
+            ForEach(absent, id: \.self) { Text($0).font(.caption).foregroundStyle(.tertiary) }
+            if let definition, !definition.isEmpty {
+                Button("About this agreement", systemImage: "info.circle") { showsDefinition.toggle() }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.plain)
+                    .popover(isPresented: $showsDefinition) {
+                        Text(definition).font(.caption).padding().frame(width: 260)
+                    }
             }
         }
         .padding()
