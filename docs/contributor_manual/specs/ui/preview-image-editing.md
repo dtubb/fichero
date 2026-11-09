@@ -280,6 +280,8 @@ as *Note*, where it is reached the same way.
   (`doc.fileType == .pdf`, not a page) returns `.storageDisplay` unconditionally, with no
   `isEditing` check at all. The per-page raster edit chain (`ImageEditorView`) already works;
   a PDF parent simply never routes to it.
+  *Built:* a PDF that has listed pages no longer returns `.storageDisplay`; it previews as its pages
+  (`EditorView.pdfPreviewRoute`, `library.pdf.opens-as-its-pages`), so the toggle question applies to one with none.
 - `preview.edit.continuous-scroll-through-pages` — **[GAP]** (#1933) the image editor should
   scroll continuously through a document's pages/images, the way the PDF viewer's continuous
   mode does, rather than one page at a time. Not verified as built — the editor's canvas

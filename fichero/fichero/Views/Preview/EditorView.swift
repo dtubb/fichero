@@ -284,7 +284,7 @@ struct EditorView: View {
         case .folderContents(let folderId):
             // A group previews here too, as its pages on its own board (#5570).
             // A plain folder shows in THIS pane's chosen view; a group is always its pages on its board.
-            FolderViewPreview(folderId: folderId, usesPaneView: doc.docType == .folder, onNavigateToDocument: onNavigateToDocument)
+            FolderViewPreview(folderId: folderId, usesPaneView: Self.foldersPaneView(for: doc), onNavigateToDocument: onNavigateToDocument)
         case .glyph(let systemImage, let title):
             GlyphPreviewPlaceholder(systemImage: systemImage, title: title)
         case .entrySource:
@@ -397,4 +397,10 @@ extension EditorView {
     static func pdfPreviewRoute(for doc: Document) -> PreviewRoute {
         doc.childCount > 0 ? .folderContents(folderId: doc.id) : .storageDisplay(documentId: doc.id)
     }
+
+    /// A folder, and a PDF showing its pages, draw in the pane's chosen view (Canvas, List or Table); a group keeps its board.
+    static func foldersPaneView(for doc: Document) -> Bool { doc.docType == .folder || doc.fileType == .pdf }
+
+    /// A folder, and a PDF showing its pages, draw in the pane's chosen view (Canvas, List or Table); a group keeps its board.
+    static func foldersPaneView(for doc: Document) -> Bool { doc.docType == .folder || doc.fileType == .pdf }
 }

@@ -22,4 +22,10 @@ struct PDFOpensAsItsPagesTests {
         #expect(pdf(childCount: 12).isNavigableContainer)
         #expect(SidebarItem.fromDocument(pdf(childCount: 12), libraryId: LibraryManager.globalLibraryId).isExpandable)
     }
+
+    @Test func aPDFsPagesDrawInThePanesViewButAGroupKeepsItsBoard() {
+        #expect(EditorView.foldersPaneView(for: pdf(childCount: 12)))
+        let group = Document(id: "g", parentId: "box3", docType: .group, name: "G", childCount: 3)
+        #expect(!EditorView.foldersPaneView(for: group))
+    }
 }
