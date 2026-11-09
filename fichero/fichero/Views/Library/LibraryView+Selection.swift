@@ -388,6 +388,7 @@ extension LibraryView {
             navigateIntoUnlessThere(doc)
         } else {
             detailDocument = doc
+            onOpenItem?(doc)
         }
     }
 

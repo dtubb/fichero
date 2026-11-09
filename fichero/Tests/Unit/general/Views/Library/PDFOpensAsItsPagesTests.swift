@@ -1,3 +1,4 @@
+import Foundation
 @testable import Fichero
 import Testing
 
@@ -27,5 +28,21 @@ struct PDFOpensAsItsPagesTests {
         #expect(EditorView.foldersPaneView(for: pdf(childCount: 12)))
         let group = Document(id: "g", parentId: "box3", docType: .group, name: "G", childCount: 3)
         #expect(!EditorView.foldersPaneView(for: group))
+    }
+
+    @Test func columnsOpenTheNextColumnForAPDFAndAGroupNotAPlainFile() {
+        let group = Document(id: "g", parentId: "box3", docType: .group, name: "G", childCount: 3)
+        let note = Document(id: "n", parentId: "box3", docType: .file, fileType: .text, name: "n.txt")
+        #expect(LibraryView.columnOpensChildren(pdf(childCount: 12)))
+        #expect(LibraryView.columnOpensChildren(group))
+        #expect(!LibraryView.columnOpensChildren(note))
+    }
+
+    /// A double-click on a page row in the Preview's List or Table reaches the window's selection (`library.contents.double-click-selects-the-item`).
+    @Test func aDoubleClickedPageRowInThePreviewGoesToTheWindowsSelection() throws {
+        let rows = try String(contentsOf: AppSource.root().appendingPathComponent("Views/Preview/FolderRowsPreview.swift"), encoding: .utf8)
+        let selection = try String(contentsOf: AppSource.root().appendingPathComponent("Views/Library/LibraryView+Selection.swift"), encoding: .utf8)
+        #expect(rows.contains("onOpenItem: { onNavigateToDocument?($0.id) }"))
+        #expect(selection.contains("detailDocument = doc\n            onOpenItem?(doc)"))
     }
 }
