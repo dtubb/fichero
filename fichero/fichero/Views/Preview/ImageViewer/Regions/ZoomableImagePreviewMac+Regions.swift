@@ -508,6 +508,16 @@ extension ZoomableImagePreview {
         }
     }
 
+    /// Return while a polygon or baseline is being drawn: finish it, as a click on its first point or a double-click does.
+    /// Ignored (the key keeps its other jobs) with no drawing or too few points.
+    func finishShapeDrawingFromKey() -> KeyPress.Result {
+        guard let windowState, windowState.drawingPoints.count >= windowState.shapeKind.minimumPoints else { return .ignored }
+        let points = windowState.drawingPoints
+        windowState.drawingPoints = []
+        drawSegmentShape(windowState.shapeKind, points: points)
+        return .handled
+    }
+
     /// Esc: everything ephemeral goes — add mode, marquees, selection.
     func clearEphemeralRegionState() {
         // Escape during a polygon or baseline drawing abandons just the drawing, nothing else.
