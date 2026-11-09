@@ -939,6 +939,7 @@ async def list_segment_readings(
                   else counting.get(kind))
         items = [item for item in items if matches_kind_filter(item, kind)]
         counting = {kind: answer} if answer is not None else {}
+    items = sorted(items, key=lambda item: item.created_at, reverse=True)  # newest first (`source.editor.content-listed-newest-first-in-the-pane`)
     return ReadingListResponse(items=items, count=len(items), counting=counting)
 
 
