@@ -3,6 +3,7 @@ import Foundation
 import Testing
 
 /// #6454: a selection in the Reader becomes one `editorial.record` request per line, in code points, on the reading shown.
+@MainActor
 @Suite("Mark a stretch from the Reader (#6454)")
 struct ReaderMarkTests {
     private let lines = [
