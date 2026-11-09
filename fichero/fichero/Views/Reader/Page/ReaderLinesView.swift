@@ -50,6 +50,9 @@ struct ReaderLinesView: View {
                     .listRowSeparator(.hidden)
                 }
                 .listStyle(.plain)
+                // Up/Down step the shared selection through the page's lines (#6457), as in the Inspector and the Preview.
+                .onKeyPress(.upArrow, phases: .down) { press in step(-1, extend: press.modifiers.contains(.shift), store) }
+                .onKeyPress(.downArrow, phases: .down) { press in step(1, extend: press.modifiers.contains(.shift), store) }
                 #if os(macOS)
                 .simultaneousGesture(MagnifyGesture()
                     .onChanged { value in
@@ -71,6 +74,13 @@ struct ReaderLinesView: View {
     private func selectedIds(_ store: SegmentStore) -> [String] {
         guard let selection = windowState?.focusedRegionSelection else { return [] }
         return InspectorPath.selectedSegmentIds(selection: selection, documentId: documentId, store: store)
+    }
+
+    private func step(_ places: Int, extend: Bool, _ store: SegmentStore) -> KeyPress.Result {
+        guard let selection = windowState?.focusedRegionSelection,
+              InspectorPath.stepSelection(by: places, extend: extend, selection: selection, documentId: documentId, store: store)
+        else { return .ignored }
+        return .handled
     }
 
     private func reveal(_ segmentId: String, store: SegmentStore) {
