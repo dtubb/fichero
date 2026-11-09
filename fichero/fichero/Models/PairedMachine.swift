@@ -40,9 +40,9 @@ enum PairedMachineStore {
     }
 }
 
-/// What a paired Mac's section lists in the sidebar and the phone's chooser (`sharing.guest.machines-group`, #6459): every
-/// paired Mac in the Mac sidebar, so one that shares nothing yet still shows (as "<host> hasn't shared any project yet") instead of vanishing
-/// and leaving the how-to-pair sentence to say the Mac was never paired.
+/// What a paired Mac's section lists in the Mac sidebar (`sharing.guest.machines-group`, #6459): every paired Mac, so one
+/// that shares nothing yet still shows (as "<host> hasn't shared any project yet") instead of vanishing and leaving the
+/// how-to-pair sentence to say the Mac was never paired. The phone's chooser keeps its own rule.
 enum SharedMachineSections {
     enum Row: Equatable, Hashable {
         case library(String)
