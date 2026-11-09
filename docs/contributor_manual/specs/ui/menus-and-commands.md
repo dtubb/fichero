@@ -767,6 +767,7 @@ Every command has one row: one logical group (its menu-bar home), the surfaces i
 | Edit › Direction ▸, Proposed Document ▸ | the item verbs' submenus | L | — | — |
 | Edit › Segments ▸ | Select All Segments, New Region, New Line, Edit Shape, Split…, Join, Group, Ungroup, Kind ▸, Direction ▸, Furniture, Delete, Correct This Line…, Create Named Order, Run <next step> on This | P, R, G, I (every segment surface) | see section 4 | per `source/segment-editor-crud.md` |
 | Edit | Find in Page | R, P | ⌥⌘F | `magnifyingglass` |
+| Edit › Mark ▸ | Unclear, Lost, Supplied, Withdraw Mark (`source/segment-editor-crud.md` Step 1.19, #6451; a stretch of the selected text) | R, I, P (inline text) | ⇧⌘U Mark Unclear PROPOSED for the uniqueness test; the rest none | `questionmark.square.dashed` |
 | View | Library layouts, Sidebar ▸, Sort ▸, Preview ▸, Inspector, Panes ▸, Workspaces ▸, Ruler, Workflow Bar, Reading Level ▸ (#6429) | — | ⌘1–6 layouts, ⌃⌘1–5 sidebar modes, ⌃⌘J/B/H Preview modes, ⌥⌘I Show/Hide Inspector (the Finder convention; changed from ⌃⌘I, section 4), ⌥⌘1–5 workspaces, Reading Level ⌃⌥⌘↑/↓ | — |
 | Go | Back, Forward, Enclosing Folder (Go Up), Reveal in Sidebar | all | ⌘[ , ⌘] , ⌘↑ (Finder) | system |
 | Page | Reader Lens ▸, Zoom ▸ (Actual Size, Fit, In, Out), Magnifier ▸, Loupe ▸, Rotate Left/Right, Next/Previous Page, Next/Previous Doubtful Word, Renditions ▸, Use for Reading (#6414) | P, R | ⌘0 Actual Size, ⌘9 Zoom to Fit (Page keeps it; the Canvas duplicate goes), ⌘+/⌘−, Loupe ⌥⌘L and Lock Loupe ⇧⌘L kept, Magnifier ⇧⌘M/⌥⌘M kept, Rotate Left ⌥⌘← and Rotate Right ⌥⌘→ (from ⌘L/⌘R, section 4), Doubtful Word ⌃⌘G/⇧⌃⌘G kept | — |
@@ -813,6 +814,7 @@ The owner's feedback on Activity (too many clocks, too much text) is a rule for 
 | ⌥⌘E | Show/hide zoom controls | none | KEEP; Edit Shape takes another |
 | ⌥⌘Y and ⌥⌘U/V/W/R/G/S/K/N | markup tools | none | KEEP as the tools' family; ⌥⌘N New Region COLLIDES (tool key n): New Region becomes ⇧⌘N's sibling ⌥⇧⌘N… see Segments row |
 | ⌥⌘F | Find in Page | none (⌘F Find) | KEEP |
+| ⇧⌘U (proposed 2026-11-08 21:25) | Mark Unclear (Step 1.19 of `source/segment-editor-crud.md`, #6451) | ⌘U Underline is standard and untouched; ⇧⌘U none; ⌥⌘U is the Select Text tool | PROPOSED: the ⇧ variant of the mnemonic key, the audit's pattern; `MenuShortcutUniquenessTests` decides |
 | ⇧⌘G | Workflow Bar | Find Previous | CHANGE: none (View menu only) |
 | ⌃⌘I | Inspector | none (Finder ⌥⌘I) | CHANGE to ⌥⌘I |
 | ⌃⌘J/B/H, ⌃⌥⌘<key>, ⌃⌘1–5 | Preview modes, Representation, Sidebar modes | none | KEEP (the View family with ⌃) |
