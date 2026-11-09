@@ -202,11 +202,17 @@ extension ContentView {
             // minimum width, and a minimum that follows the measured width changes the width it is measured from, so
             // the split view's column size moved during its own constraints pass (#6447, SIGABRT).
             let visibility = paneVisibility
-            return WidescreenPanePlan.make(
-                showDocumentGrid: visibility.grid, showDocumentCanvas: visibility.canvas,
-                showReadingPane: visibility.reading, showChatPane: showChatPane, availableWidth: 0
-            ).minimumWidth
+            return Self.widescreenDetailMinWidth(
+                grid: visibility.grid, canvas: visibility.canvas, reading: visibility.reading, chat: showChatPane
+            )
         }
+    }
+
+    /// The floor the chosen panes can shed to: the plan for width 0. It takes no width, so it cannot follow one (#6447).
+    static func widescreenDetailMinWidth(grid: Bool, canvas: Bool, reading: Bool, chat: Bool) -> Double {
+        WidescreenPanePlan.make(
+            showDocumentGrid: grid, showDocumentCanvas: canvas, showReadingPane: reading, showChatPane: chat, availableWidth: 0
+        ).minimumWidth
     }
 
     static func adaptiveWidescreenAvailableWidth(
