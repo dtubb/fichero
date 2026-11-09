@@ -69,6 +69,8 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     /// The pending automatic reload after a failed engine load; cancelled by
     /// the next explicit load so a stale retry cannot race a fresh document.
     var failureRetryTask: Task<Void, Never>?
+    /// The engine URL last asked for, so the failure page can offer Retry (#6450).
+    var lastRequestURL: URL?
     /// Whether the engine answers after a typed line could not reach it (13b out of reach), and the task
     /// that tells the page each change of it.
     var reachability: EngineReachabilityStore?
@@ -131,6 +133,7 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
             )
             return
         }
+        lastRequestURL = request.url
         webView.load(request)
     }
 
@@ -365,7 +368,7 @@ extension DocumentKGWebPaneCoordinatorMacOS {
             }
         }
         webView.loadHTMLString(
-            DocumentKGPaneRoute.loadFailureHTML(detail: error.localizedDescription),
+            DocumentKGPaneRoute.loadFailureHTML(detail: EngineWebViewError.words(for: error), retryURL: lastRequestURL),
             baseURL: nil
         )
     }

@@ -52,6 +52,8 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
     /// The pending automatic reload after a failed engine load; cancelled by
     /// the next explicit load so a stale retry cannot race a fresh document.
     var failureRetryTask: Task<Void, Never>?
+    /// The engine URL last asked for, so the failure page can offer Retry (#6450).
+    var lastRequestURL: URL?
 
     init(parent: DocumentKGWebPane) {
         self.parent = parent
@@ -98,6 +100,7 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
             )
             return
         }
+        lastRequestURL = request.url
         webView.load(request)
     }
 
@@ -336,7 +339,7 @@ extension DocumentKGWebPaneCoordinatoriOS {
             }
         }
         webView.loadHTMLString(
-            DocumentKGPaneRoute.loadFailureHTML(detail: error.localizedDescription),
+            DocumentKGPaneRoute.loadFailureHTML(detail: EngineWebViewError.words(for: error), retryURL: lastRequestURL),
             baseURL: nil
         )
     }

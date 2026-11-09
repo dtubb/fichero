@@ -156,3 +156,15 @@ enum EngineWebViewError: Error, LocalizedError {
         }
     }
 }
+
+extension EngineWebViewError {
+    /// The failure in words for the reader's failure page (#6450): a status says what it means, not "error 1".
+    static func words(for error: any Error) -> String {
+        guard case .httpStatus(let status, _) = error as? EngineWebViewError else { return error.localizedDescription }
+        switch status {
+        case 404: return "The engine does not have this page yet. Its library may still be opening."
+        case 500...599: return "The engine is busy or hit a problem (HTTP \(status))."
+        default: return "The engine refused this page (HTTP \(status))."
+        }
+    }
+}

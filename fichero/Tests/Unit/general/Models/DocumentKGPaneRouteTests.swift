@@ -88,6 +88,18 @@ final class DocumentKGPaneRouteTests: XCTestCase {
         XCTAssertTrue(html.contains("failed to load"))
     }
 
+    /// A failed page says what happened in words and offers Retry to the same URL (#6450).
+    func testFailurePageNamesTheStatusAndOffersRetry() throws {
+        let url = try XCTUnwrap(URL(string: "fichero-server://engine/documents/5_Hoja_3_Recto.JPG/view"))
+        let words = EngineWebViewError.words(for: EngineWebViewError.httpStatus(404, path: "/x"))
+        XCTAssertFalse(words.contains("error 1"))
+        XCTAssertTrue(words.contains("still be opening"))
+        XCTAssertTrue(EngineWebViewError.words(for: EngineWebViewError.httpStatus(503, path: "/x")).contains("503"))
+        let html = DocumentKGPaneRoute.loadFailureHTML(detail: words, retryURL: url)
+        XCTAssertTrue(html.contains("href=\"\(url.absoluteString)\">Retry</a>"))
+        XCTAssertFalse(html.contains("reopen this pane"))
+    }
+
     /// The global-KG request now loads over the custom `fichero-server://engine`
     /// origin, NOT a raw `https://…:8765` URL — `EngineWebViewSchemeHandler`
     /// funnels it through the transport-agnostic `FicheroClient` so it works over
