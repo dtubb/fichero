@@ -513,7 +513,7 @@ final class DocumentStore {
                 // forever). A missing parent is not a dead engine: fall back
                 // to the ROOT SET so the window always shows something real,
                 // and clear the phantom selection so re-clicks route fresh.
-                if error.isNotFoundError {
+                if error.isNotFoundError || (error as? DocumentServiceError)?.isNotFound == true {
                     logger.warning(
                         "loadChildren 404 for \(document.id) — restored selection is stale; falling back to the root set"
                     )
