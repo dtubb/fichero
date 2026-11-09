@@ -113,10 +113,10 @@ final class MillerColumnModelTests: XCTestCase {
         // (EditorView = source viewer) — never a Reader/Inspector variant —
         // and only for a SINGLE non-folder selection (Finder behavior). Since
         // #5570 a group is a container too: it opens a column, not a preview,
-        // so the guard reads `isFolderLike` (folder or group).
+        // and so is a PDF (#6410): the guard reads `columnOpensChildren` (folder, group or PDF).
         XCTAssertTrue(columns.contains("EditorView(document: previewDoc)"))
         XCTAssertTrue(columns.contains("selection.count == 1"))
-        XCTAssertTrue(columns.contains("!doc.isFolderLike else { return nil }"))
+        XCTAssertTrue(columns.contains("!Self.columnOpensChildren(doc) else { return nil }"))
         XCTAssertFalse(columns.contains("InspectorView("))
         XCTAssertFalse(columns.contains("ReaderView("))
     }
