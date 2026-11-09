@@ -90,7 +90,7 @@ struct ReadingOrderList: View {
                 .onKeyPress(.upArrow, phases: .down) { press in extend(-1, press, store: documentStore) }
                 .onKeyPress(.downArrow, phases: .down) { press in extend(1, press, store: documentStore) }
                 // Return renames the one selected line in place; a double-click reveals (Step 1.25).
-                .onKeyPress(.return, phases: .down) { _ in beginRename() }
+                .onKeyPress(.return, phases: .down) { _ in beginRename(selection) }
                 Divider()
                 keyRow(store)
                 if let refusal = store.lastRefusal {
@@ -144,7 +144,14 @@ struct ReadingOrderList: View {
     private var lineVerbs: LineVerbsTarget {
         var target = LineVerbsTarget(segment: selection.flatMap(segment))
         if let line = target.segment, CorrectLine.offers(line) { target.correct = { correcting = line } }
-        if selection != nil { target.delete = { deleteLines(nil) } }
+        if let selection {
+            target.delete = { deleteLines(nil) }
+            target.reveal = { reveal([selection]) }
+            target.rename = OrderRename.begins(on: target.segment.map { [$0] } ?? []) == nil ? nil : { _ = beginRename(selection) }
+            if let store, !store.shown.isEmpty {
+                target.move = { step in Task { await record(store.move(selection, step: step), in: store) } }
+            }
+        }
         if let store, store.documentId == documentId, store.orders.isEmpty {
             target.createNamedOrder = { Task { await createNamedOrder() } }
         }
@@ -155,6 +162,11 @@ struct ReadingOrderList: View {
     @ViewBuilder
     private func lineMenu(_ ids: Set<String>) -> some View {
         CorrectThisLineButton(segment: ids.count == 1 ? ids.first.flatMap(segment) : nil) { correcting = $0 }
+        if let id = ids.first, ids.count == 1 {
+            Button(LineVerbs.renameTitle) { _ = beginRename(id) }
+                .disabled(OrderRename.begins(on: segment(id).map { [$0] } ?? []) == nil)
+            Button(LineVerbs.revealTitle) { reveal(ids) }
+        }
         Divider()
         Button(role: .destructive) { deleteLines(ids) } label: { Label("Delete", systemImage: "trash") }
             .disabled(ids.isEmpty)
@@ -193,11 +205,12 @@ struct ReadingOrderList: View {
     }
 
     /// Return on the one selected line: edit its words in place (`OrderRename.begins`).
-    private func beginRename() -> KeyPress.Result {
-        guard renaming == nil, let selection,
-              let words = OrderRename.begins(on: [segment(selection)].compactMap { $0 }) else { return .ignored }
+    private func beginRename(_ id: String? = nil) -> KeyPress.Result {
+        guard renaming == nil, let id = id ?? selection,
+              let words = OrderRename.begins(on: [segment(id)].compactMap { $0 }) else { return .ignored }
         draft = words
-        renaming = selection
+        renaming = id
+        selection = id
         renameFocused = true
         return .handled
     }
