@@ -1,9 +1,9 @@
 import AsyncHTTPClient
 import Foundation
 import NIOPosix
+import OpenAPIAsyncHTTPClient
 import OpenAPIRuntime
 import OpenAPIURLSession
-import OpenAPIAsyncHTTPClient
 
 /// Which underlying `ClientTransport` a `FicheroClient` dials the engine with.
 ///
@@ -189,6 +189,7 @@ public final class FicheroClient: ObservableObject {
         let middlewares: [any ClientMiddleware] = [
             AuthTokenMiddleware(),
             libraryPathProvider.createMiddleware(),
+            ConditionalGetMiddleware(),
             EngineErrorBodyMiddleware()
         ]
         self.transport = transport
@@ -237,6 +238,7 @@ public final class FicheroClient: ObservableObject {
         let middlewares: [any ClientMiddleware] = [
             AuthTokenMiddleware(),
             libraryPathProvider.createMiddleware(),
+            ConditionalGetMiddleware(),
             EngineErrorBodyMiddleware()
         ]
         self.transport = transport
