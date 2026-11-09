@@ -44,7 +44,7 @@ struct ReaderLinesView: View {
                     ReaderLineRow(
                         segment: line, direction: direction(line.id), zoom: zoom,
                         isSelected: shown.contains(line.id),
-                        onPick: { reveal(line.id, store: store) }
+                        onPick: { pick(line.id, among: lines, store: store) }
                     )
                     .id(line.id)
                     // The window test (#6474) reads which rows the shared selection has lit.
@@ -87,6 +87,27 @@ struct ReaderLinesView: View {
               )
         else { return .ignored }
         return .handled
+    }
+
+    /// A click on a line's picture: the one line (revealed in the Preview), or -- with ⌘ or ⇧ -- a set made as Finder
+    /// makes it (`ReaderLines.picked`), written into the one shared selection so the Preview, the Order list and the
+    /// Segments list show the same lines.
+    private func pick(_ segmentId: String, among lines: [Segment], store: SegmentStore) {
+        #if os(macOS)
+        let flags = NSEvent.modifierFlags
+        let (command, shift) = (flags.contains(.command), flags.contains(.shift))
+        #else
+        let (command, shift) = (false, false)
+        #endif
+        guard command || shift, let selection = windowState?.focusedRegionSelection else {
+            reveal(segmentId, store: store)
+            return
+        }
+        let held = InspectorPath.selectedSegmentIds(selection: selection, documentId: documentId, store: store)
+        let ids = ReaderLines.picked(segmentId, held: held, order: lines.map(\.id), command: command, shift: shift)
+        if ids.isEmpty { selection.clear() } else {
+            _ = InspectorPath.select(segmentIds: ids, into: selection, documentId: documentId, store: store)
+        }
     }
 
     private func reveal(_ segmentId: String, store: SegmentStore) {

@@ -14,6 +14,21 @@ enum ReaderLines {
         store.workingSegments(documentId: documentId).filter { $0.kind.lowercased() == "line" }
     }
 
+    /// What a click on a line's picture makes the selection, Finder style: a plain click is that line alone; ⌘ adds
+    /// it or takes it out; ⇧ takes the run from the last picked line to it, down the page's order (the whole run is
+    /// added to what is held with ⌘⇧, replaces it with ⇧ alone). An id off the page changes nothing.
+    static func picked(
+        _ id: String, held: [String], order: [String], command: Bool, shift: Bool
+    ) -> [String] {
+        guard let place = order.firstIndex(of: id) else { return held }
+        if shift, let anchorId = held.last, let anchor = order.firstIndex(of: anchorId) {
+            let run = Array(order[min(anchor, place)...max(anchor, place)])
+            return command ? held + run.filter { !held.contains($0) } : run
+        }
+        if command { return held.contains(id) ? held.filter { $0 != id } : held + [id] }
+        return [id]
+    }
+
     /// The lines the selection lights: a selected line, and the line a selected word sits in. The Lines
     /// mode follows the focused Preview's selection as the other Reader modes do.
     static func shown(_ selectedIds: [String], among lines: [Segment], segments: [Segment]) -> Set<String> {
