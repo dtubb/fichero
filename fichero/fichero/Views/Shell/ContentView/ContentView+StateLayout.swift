@@ -198,7 +198,14 @@ extension ContentView {
                 ? max(ContentView.contentListMinWidth, max(ContentView.pdfCanvasMinWidth, 300))
                 : max(ContentView.pdfCanvasMinWidth, 300)
         case .widescreen:
-            return adaptiveWidescreenPanePlan.minimumWidth
+            // The FLOOR the panes can shed to, never the plan for the measured width: this value is the window's
+            // minimum width, and a minimum that follows the measured width changes the width it is measured from, so
+            // the split view's column size moved during its own constraints pass (#6447, SIGABRT).
+            let visibility = paneVisibility
+            return WidescreenPanePlan.make(
+                showDocumentGrid: visibility.grid, showDocumentCanvas: visibility.canvas,
+                showReadingPane: visibility.reading, showChatPane: showChatPane, availableWidth: 0
+            ).minimumWidth
         }
     }
 
