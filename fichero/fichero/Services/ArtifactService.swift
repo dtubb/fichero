@@ -329,6 +329,8 @@ enum ArtifactServiceError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
+        case .unexpectedResponse(404):
+            return "Not found: it is no longer in this library"
         case .unexpectedResponse(let code):
             return "Unexpected response from artifact service (status: \(code))"
         case .serverError(let message):

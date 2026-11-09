@@ -330,6 +330,9 @@ extension DocumentService {
             let docs = try okResponse.body.json
             logger.info("Found \(docs.count) children")
             return try docs.items.map { try convertToDocument($0) }
+        case .undocumented(404, _):
+            // The spec does not declare this 404 yet (#6477); a missing parent is "not found", never "unexpected".
+            throw DocumentServiceError.notFound(parentId)
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
@@ -828,6 +831,12 @@ enum DocumentServiceError: Error, LocalizedError {
     case httpStatus(operation: String, code: Int)
     /// #5348: the engine refused a save because the text changed on another Mac since it was read here.
     case stale
+
+    /// A document the engine does not have: what a restored selection of a deleted library meets (#6477, #6479).
+    var isNotFound: Bool {
+        if case .notFound = self { return true }
+        return false
+    }
 
     var errorDescription: String? {
         switch self {
