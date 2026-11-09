@@ -76,8 +76,7 @@ struct BackendConnectionView: View {
                     if row.id == ConnectionRows.thisMacID { Task { await onRetry?() } } else {
                         Task { await libraryManager.askHostAgain(row.id) }
                     }
-                },
-                onDisconnect: { libraryManager.disconnectPairedMachine($0.id) })
+                })
         }
     }
 

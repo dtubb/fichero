@@ -81,6 +81,42 @@ struct SharedRowAvailabilityTests {
         #expect(manager.pairedMachines.first?.libraries == ["/A", "/C"])
     }
 
+    /// The connection popover's rows read these (#6434): an answer is connected with a time, a failed read is asleep.
+    @Test func checkingRecordsWhoAnsweredAndAskHostAgainIgnoresTheThrottle() async {
+        let manager = LibraryManager.shared
+        let savedMachines = manager.pairedMachines
+        defer {
+            manager.pairedMachines = savedMachines
+            PairedMachineStore.save(savedMachines)
+            manager.greyedSharedRows = []
+            manager.hostRowsLastAsked = [:]
+            manager.hostStates = [:]
+            manager.hostLastAnswered = [:]
+        }
+        manager.hostRowsLastAsked = [:]
+        manager.hostStates = [:]
+        manager.hostLastAnswered = [:]
+        manager.pairedMachines = [PairedMachine(id: host, name: "studio.local", libraries: ["/A"])]
+        let answered = Date(timeIntervalSince1970: 5_000)
+        await manager.checkSharedRows(now: answered) { _ in ["/A"] }
+        #expect(manager.hostStates[host] == .connected)
+        #expect(manager.hostLastAnswered[host] == answered)
+
+        // Asked a second ago: the throttle skips it, so nothing is read and the state stays.
+        await manager.checkSharedRows(now: answered.addingTimeInterval(1)) { _ in nil }
+        #expect(manager.hostStates[host] == .connected)
+
+        // Past the throttle a failed read is asleep and keeps the last time it answered.
+        await manager.checkSharedRows(now: answered.addingTimeInterval(61)) { _ in nil }
+        #expect(manager.hostStates[host] == .asleep)
+        #expect(manager.hostLastAnswered[host] == answered)
+
+        // Reconnect clears the throttle for that host, so the next check asks at once.
+        manager.hostRowsLastAsked[host] = Date()
+        await manager.askHostAgain(host, read: { _ in ["/A"] })
+        #expect(manager.hostStates[host] == .connected)
+    }
+
     @Test func aTailscaleNameIsReadWithNoPinAndAnOwnCertificateNeedsOne() throws {
         let tailnet = try #require(URL(string: "https://studio.tail1234.ts.net:8765"))
         let own = try #require(URL(string: "https://studio.local:8765"))

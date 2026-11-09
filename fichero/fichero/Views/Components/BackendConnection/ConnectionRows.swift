@@ -23,7 +23,6 @@ enum ConnectionRows {
         let problem: String?
         let fix: ConnectionPresentation.Action?
         let canUse: Bool
-        let canDisconnect: Bool
     }
 
     static let thisMacID = "this-mac"
@@ -48,7 +47,7 @@ enum ConnectionRows {
         let thisMac = Row(
             id: thisMacID, name: "This Mac", state: local, library: nil, address: nil, lastAnswered: nil,
             problem: local == .stopped ? "Engine stopped" : nil, fix: local == .stopped ? .restartEngine : nil,
-            canUse: inUse != nil, canDisconnect: false)
+            canUse: inUse != nil)
         let hosts = machines.map { machine -> Row in
             let state = input.states[machine.id] ?? (input.openHosts.contains(machine.id) ? .connected : .asleep)
             let problem = problemLine(state)
@@ -57,7 +56,7 @@ enum ConnectionRows {
                 library: machine.libraries.first.map { URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent },
                 address: addressKind(machine.id), lastAnswered: input.lastAnswered[machine.id].map { shortTime(since: $0, now: now) },
                 problem: problem, fix: problem == nil ? nil : .reconnect,
-                canUse: state == .connected && inUse != machine.id, canDisconnect: true)
+                canUse: state == .connected && inUse != machine.id)
         }
         return [thisMac] + hosts
     }

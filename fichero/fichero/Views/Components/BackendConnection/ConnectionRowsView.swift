@@ -5,7 +5,6 @@ import SwiftUI
 struct ConnectionRowsView: View {
     let rows: [ConnectionRows.Row]
     let onFix: (ConnectionRows.Row) -> Void
-    let onDisconnect: (ConnectionRows.Row) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -19,7 +18,6 @@ struct ConnectionRowsView: View {
                         Spacer()
                         if let address = row.address { Text(address).font(.caption).foregroundStyle(.secondary) }
                         if let time = row.lastAnswered { Text(time).font(.caption).foregroundStyle(.secondary) }
-                        if row.canDisconnect { Button("Disconnect") { onDisconnect(row) }.buttonStyle(.link) }
                     }
                     if let problem = row.problem, let fix = row.fix {
                         HStack {
@@ -74,7 +72,7 @@ struct ConnectionRowsView: View {
             ],
             openHosts: ["https://mini.tail1.ts.net:8765"],
             lastAnswered: ["https://mini.tail1.ts.net:8765": Date().addingTimeInterval(-120)])),
-        onFix: { _ in }, onDisconnect: { _ in })
+        onFix: { _ in })
         .padding()
         .frame(width: 380)
 }

@@ -88,19 +88,10 @@ extension LibraryManager {
 
 extension LibraryManager {
     /// Asks one paired Mac again now (the popover's Reconnect), past the 60 s throttle.
-    func askHostAgain(_ id: String) async {
+    func askHostAgain(
+        _ id: String, read: @escaping (URL) async -> [String]? = { await SharedRowAvailability.readFromHost($0) }
+    ) async {
         hostRowsLastAsked[id] = nil
-        await checkSharedRows()
-    }
-
-    /// The popover's Disconnect (`sharing.connections.popover-lists-every-connection`): closes that host's pinned libraries and
-    /// forgets the pairing.
-    func disconnectPairedMachine(_ id: String) {
-        let closing = openLibraries.filter { $0.host.url.absoluteString == id }.map(\.id)
-        for libraryId in closing { dropPinnedLibrary(libraryId, backTo: currentLibraryId == libraryId ? nil : currentLibraryId) }
-        pairedMachines.removeAll { $0.id == id }
-        PairedMachineStore.save(pairedMachines)
-        hostStates[id] = nil
-        hostLastAnswered[id] = nil
+        await checkSharedRows(read: read)
     }
 }

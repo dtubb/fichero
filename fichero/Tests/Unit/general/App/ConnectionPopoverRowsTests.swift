@@ -34,7 +34,6 @@ final class ConnectionPopoverRowsTests: XCTestCase {
         XCTAssertTrue(rows()[1].canUse)
         XCTAssertFalse(rows()[2].canUse)
         XCTAssertFalse(rows(inUse: awake.id)[1].canUse)
-        XCTAssertTrue(rows().dropFirst().allSatisfy(\.canDisconnect))
     }
 
     func testTextBudgetNamesFourWordsProblemsEightNoFullStop() {
