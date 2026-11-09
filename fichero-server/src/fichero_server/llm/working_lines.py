@@ -221,7 +221,7 @@ def write_readings(
 the reading a new one was made from (a correction names the reading it corrects, `correct`). A reading's third
 value, where given, is the reader's certainty about it (`machine_confidence`, #5694). Each reading records who made it
 (`source.editor.a-reading-records-who-made-it`): `producer_model` from the artifact's model (provider-prefixed where it has
-one) and `producer_tool` from `tool`. Returns the readings' ids."""
+one) and `producer_tool` from `tool`, else from the workflow step now running (its job id). Returns the readings' ids."""
     import fichero_server.api.routes.document.content_representations  # noqa: F401  (representation.create)
     from fichero_server.actions.registry import ActionContext, registry
 
@@ -232,6 +232,11 @@ one) and `producer_tool` from `tool`. Returns the readings' ids."""
     have = {(r.segment_id, r.kind, r.content, r.derived_from_artifact_id, r.level)
             for r in db.query(ContentRepresentation, document_id=document_id)
             if artifact_id and r.derived_from_artifact_id == artifact_id and not r.retracted_at}
+    if tool is None:  # a workflow step's readings record the step's job id (`NodeContext.tool`), never its artifact type
+        from fichero_server.workflows.node_context import get_current_node
+
+        node = get_current_node()
+        tool = (node.tool or None) if node else None
     maker = db.get(Artifact, artifact_id) if artifact_id else None
     model = (f"{maker.provider}/{maker.model}" if maker.provider else maker.model) if maker and maker.model else None
     made = []

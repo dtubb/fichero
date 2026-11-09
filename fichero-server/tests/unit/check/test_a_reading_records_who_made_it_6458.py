@@ -34,3 +34,23 @@ def test_a_step_line_reading_records_the_model_of_its_artifact_and_its_tool(db, 
     row = db.get(ContentRepresentation, made)
     assert (row.producer_model, row.producer_tool, row.producer_run_id, row.level) == (
         "anthropic/claude-sonnet-5-5", "normalise", "run-1", "regularised")
+
+
+def test_a_workflow_steps_reading_records_the_steps_job_id_not_its_artifact_type(db):
+    """WHY: `producer_tool` is the step's job id (`normalise`), so the Levels row can name the step; the artifact type
+    ("translation", "regularised") names a kind of output, and recording it would pass a test that only checks non-empty."""
+    from fichero_server.workflows import node_context
+    from fichero_server.models import Document
+
+    doc = Document(name="page.png", path="/tmp/page.png")
+    db.save(doc)
+    artifact = Artifact(document_id=doc.id, artifact_type="regularised", content="uno", model="m", provider="p")
+    db.save(artifact)
+    node_context.set_current_node("node-3", "Normalise", "wf-1", tool="normalise")
+    try:
+        (made,) = write_readings(db, document_id=doc.id, readings=[(None, "uno")], artifact_id=artifact.id, run_id="r1",
+                                 kind="transcription", level="regularised")
+    finally:
+        node_context._current_node.set(None)
+    row = db.get(ContentRepresentation, made)
+    assert row.producer_tool == "normalise" != artifact.artifact_type

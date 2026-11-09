@@ -1039,7 +1039,8 @@ def _make_node_function(
 
         # Stamp node identity for artifact provenance (#4313): save_artifact
         # reads it via workflows.node_context to fill step_name/workflow_id.
-        set_current_node(node_id, node_label, workflow_id, run_id=state.get("task_id") or "", step=step_name)
+        set_current_node(node_id, node_label, workflow_id, run_id=state.get("task_id") or "", step=step_name,
+                         tool=node_def.tool)
 
         # Episode-ledger attribution (2026-08-12): every model call made
         # under this node records with the run's identity. ContextVars flow
@@ -1830,7 +1831,7 @@ def _make_parallel_node_function(
         # in its own asyncio task (own context copy), so parallel branches
         # can't clobber each other.
         set_current_node(node_id, node_def.label or node_def.tool, workflow_id,
-                         run_id=state.get("task_id") or "", step=step_name)
+                         run_id=state.get("task_id") or "", step=step_name, tool=node_def.tool)
 
         # Get single file info from state (set by Send)
         file_path = state.get("parallel_file", "")
