@@ -52,13 +52,13 @@ pytest_config = "fichero-server/pyproject.toml"
 # manager 2026-11-02 (the Pro is CPU-bound): the engine pytest runs go to the M4 iMac, then the M1 Air (added 2026-11-03; each venv
 # synced by `builder machines sync`); a runner unreachable or under 5 GiB free = an alert and the next, then the run here; the build
 # rung and the guards that call git stay on the Pro
-remote = ["imac:~/fichero-gate", "air:~/fichero-gate"]
+remote = ["m4:~/fichero-gate", "imac:~/fichero-gate", "air:~/fichero-gate"]  # manager 2026-11-09 11:58: the M4 first (~/fichero-gate is a link to its Dev Disk), the Pro is the owner's Xcode machine
 # manager 2026-11-06 (the Pro at load 30 to 57 beside the owner's Xcode): "auto" sends every guard that names no git, subprocess, swiftlint
 # or xcodebuild to the first runner in ONE ssh batch (no heavy lock there); a red there is re-run here before it counts
 remote_guards = "auto"
 # manager 2026-11-06 t88: the build rung on the M1 Air (its own derived data under ~/fichero-gate), so the Pro stays the owner's; the Air
 # unreachable, or a red there that names no Swift source error, builds here as before
-build_remote = "air:~/fichero-gate"
+build_remote = "m4:~/fichero-gate"  # 2026-11-09: the M4 (Xcode 27, derived data on its Dev Disk); the Air stays in remote above
 remote_min_free_gb = 6  # manager 2026-11-06: a runner under 6 GiB free is skipped
 pytest_plugins = ["anyio.pytest_plugin", "_hypothesis_pytestplugin", "langsmith.pytest_plugin", "pytest_timeout", "pytest_asyncio.plugin"]
 
@@ -422,7 +422,7 @@ intake_hours = 3
 # dev-workflows.run.measure: test machines `builder measure` ships a lane's commit to (ssh host, the gate dir with venv/)
 imac = { ssh = "imac", dir = "~/fichero-gate", min_free_gb = 5 }
 m1air = { ssh = "air", dir = "~/fichero-gate", min_free_gb = 5 }   # the owner's M1 Air: any time
-m4air = { ssh = "m4", dir = "~/fichero-gate", min_free_gb = 5 }    # the M4 Air: overnight only (owner rule), and a GUI session for the app
+m4air = { ssh = "m4", dir = "~/fichero-gate", min_free_gb = 5 }    # the M4 Air: gate runner since 2026-11-09 (headless; ~/fichero-gate -> /Volumes/Fichero Dev Disk/fichero-gate), a GUI session for the app
 
 [queue]
 # `builder queue run` (dev-workflows.tool.queue): how many `builder work` processes run at once; the ladder is one at a time regardless.
