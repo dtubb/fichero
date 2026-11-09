@@ -46,6 +46,11 @@ def verify(root, cfg=None, *, jail_required: bool = True) -> dict:
         try:
             r = fn()
             ok, detail = bool(r.get("ok")), (r.get("stderr_tail") or r.get("reason") or "")[-300:] or "green"
+            if not ok:  # a red part never says "green": name what failed (2026-11-08: guards and suite read RED ... green)
+                bad = [x.get("name") or " ".join(x.get("argv") or ["?"])[-60:] for x in (r.get("results") or r.get("runs") or []) if not x.get("ok")]
+                tail = (r.get("stdout_tail") or "").strip().splitlines()[-3:]
+                detail = ("failed: " + ", ".join(bad) if bad else "failed") + (" | " + " / ".join(tail) if tail else "")
+                detail = detail[-300:]
             if r.get("skipped"):
                 detail = "skipped: no build rung configured"
         except (RuntimeError, OSError, ValueError) as e:

@@ -80,3 +80,19 @@ def test_dismiss_through_the_console_clears_every_open_alert_of_the_same_kind_an
     finally:
         srv.shutdown()
     assert sorted(i for i, act in _answers() if act == "dismiss") == sorted(ids)
+
+
+def test_dismiss_all_answers_every_open_alert(state):
+    ids = [queue.alert("l", str(n), f"kind {'abc'[n]}", "/e", []) for n in range(3)]
+    queue.answer(ids[0], "dismiss")
+    assert queue.answer("all", "dismiss") == (0, "dismissed 2 open alert(s)")
+    assert console.status(journal.read(), [])["open_alerts"] == []
+    assert queue.answer("all", "dismiss") == (0, "dismissed 0 open alert(s)")
+
+
+def test_a_dead_waiters_lock_row_is_not_shown_as_a_wait(state):
+    import os
+    journal.append("lock", state="waiting", name="heavy", holder="1 x", what="dead", pid=2 ** 22 + 12345)
+    journal.append("lock", state="waiting", name="guards", holder="2 y", what="alive", pid=os.getpid())
+    st = console.api_status(journal.read(), [], commit=lambda *a, **k: ("", 0))
+    assert [w["what"] for w in st["lock_waits"]] == ["alive"]

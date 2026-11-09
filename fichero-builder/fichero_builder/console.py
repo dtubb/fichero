@@ -264,6 +264,16 @@ def progress(worktree: str, step: str = "", milestone: str = "") -> dict:
 
 
 WORKING_S = 15 * 60  # an external lane whose HEAD moved this recently is working
+def _alive(pid) -> bool:
+    try:
+        os.kill(int(pid), 0)
+    except (TypeError, ValueError, ProcessLookupError):
+        return False
+    except PermissionError:
+        pass
+    return True
+
+
 LOOP_STALE_S = 3 * 30  # three ticks: no tick row since = the loop is off
 
 
@@ -285,7 +295,10 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
     st["lanes_note"] = f"{len(workers)} worker lane(s) (limit {LOOP_LANES}) · {sum(1 for x in lanes if x.get('kind') == 'external' and not x.get('hold'))} external"
     st["machines"] = MACHINES
     acquired = {(r.get("pid"), r.get("name")) for r in rows if r.get("event") == "lock" and r.get("state") == "acquired"}
-    st["lock_waits"] = [r for r in rows if r.get("event") == "lock" and r.get("state") == "waiting" and (r.get("pid"), r.get("name")) not in acquired][-5:]
+    # a waiter that died (tmux crash 2026-11-08) never wrote `acquired`: its row is not a wait. flock is released by the kernel when
+    # its holder dies, so a dead holder never blocks anyone; only a live waiter's row shows
+    st["lock_waits"] = [r for r in rows if r.get("event") == "lock" and r.get("state") == "waiting" and (r.get("pid"), r.get("name")) not in acquired
+                        and _alive(r.get("pid"))][-5:]
     acts = activity(rows)["running"]
     running = {a["lane"]: a for a in acts if a.get("lane")}
     st["check_running"] = next(({"lane": a["lane"], "now": a["now"], "started": a["started"]} for a in acts if a["kind"] == "check"), None)

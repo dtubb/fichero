@@ -588,6 +588,12 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
     """The manager's one verb: retry or approve re-run the step, send-back gives it to a new session with the finding,
     park leaves it, ask-owner puts it on GitHub for the owner. An action the alert does not offer is refused, with a row."""
     rows = journal.read()
+    if alert_id == "all" and action == "dismiss":  # owner 2026-11-08: Dismiss All answers every open alert at once
+        answered = {r.get("id") for r in rows if r.get("event") == "alert-answer" and r.get("ok")}
+        ids = list(dict.fromkeys(r["id"] for r in rows if r.get("event") == "alert" and r.get("id") not in answered))
+        for i in ids:
+            journal.append("alert-answer", id=i, action="dismiss", ok=True, detail="dismissed with all, from the console")
+        return 0, f"dismissed {len(ids)} open alert(s)"
     a = next((r for r in reversed(rows) if r.get("event") == "alert" and r.get("id") == alert_id), None)
     if a is not None and action == "dismiss":  # owner 2026-11-04: an alert never hangs around; dismiss answers it and changes nothing else
         # owner 2026-11-05: Dismiss "did nothing": 75 identical runner alerts were open, and each click only showed the next one. It

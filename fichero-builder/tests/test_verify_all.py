@@ -67,3 +67,12 @@ def test_two_overlapping_ladders_keep_the_jail_until_the_last_one_ends():
     assert check_tool._JAIL is j
     check_tool._jail_exit()
     assert check_tool._JAIL is None
+
+
+def test_a_red_part_names_what_failed_and_never_says_green(world, monkeypatch):
+    root, _seen, _ok = world
+    monkeypatch.setattr(check_tool, "load", lambda r: check_tool.Config(whole_tests={}, build_paths=("fichero/",)))
+    monkeypatch.setattr(check_tool, "guards", lambda tree, cfg: {"ok": False, "reason": "", "results": [{"name": "check_a", "ok": True}, {"name": "check_b", "ok": False}]})
+    assert not verify.verify(root, jail_required=False)["ok"]
+    (row,) = [r for r in journal.read() if r["event"] == "verify"]
+    assert row["parts"]["guards"]["detail"].startswith("failed: check_b")
