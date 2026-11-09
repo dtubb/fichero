@@ -479,9 +479,7 @@ extension PaneHead {
     /// The pane's own controls sitting in the row (not folded), reported to the test probe.
     private var inRowControls: some View {
         HStack(spacing: 6) { controls() }
-            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
-                onPartFrame?(PaneHeadMetrics.controlsIdentifier, $0)
-            }
+            .reportsFrame(PaneHeadMetrics.controlsIdentifier, to: onPartFrame)
     }
 
     /// Shared chrome, automatic: the pin TOGGLE (when the pane supplies its state), the split "+" (from the
@@ -521,9 +519,7 @@ extension PaneHead {
             .help("More controls")
             .accessibilityLabel("More controls")
             .accessibilityIdentifier(PaneHeadMetrics.overflowIdentifier)
-            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
-                onPartFrame?(PaneHeadMetrics.overflowIdentifier, $0)
-            }
+            .reportsFrame(PaneHeadMetrics.overflowIdentifier, to: onPartFrame)
     }
 
     /// ONE capsule treatment, so every zone reads as the same material floating
@@ -559,4 +555,17 @@ enum PaneHeadMetrics {
     static let overflowIdentifier = "PaneHeadOverflow"
     /// The pane's own controls while they sit in the row (the test probe's key, #5213).
     static let controlsIdentifier = "PaneHeadControls"
+}
+
+extension View {
+    /// Report this view's global frame to the test probe, and only when there is one: measuring for nobody is a
+    /// geometry action SwiftUI sees cycle between duplicate values at launch (#6478).
+    @ViewBuilder
+    fileprivate func reportsFrame(_ part: String, to report: ((String, CGRect) -> Void)?) -> some View {
+        if let report {
+            onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { report(part, $0) }
+        } else {
+            self
+        }
+    }
 }
