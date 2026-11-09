@@ -36,20 +36,7 @@ struct ReadingDisagreement: Decodable, Equatable {
         let agreement: Double
         let words: [Word]
         /// Every compared reader with no reading of this line, and why; not counted in `agreement` (#6453).
-        var absent: [AbsentReader]?
-    }
-
-    /// A compared reader with no reading of a line, and why, in the engine's words.
-    struct AbsentReader: Decodable, Equatable {
-        let reader: String
-        let why: String
-    }
-
-    /// Where a person's correction exists: the page's error rate of the readers against it (#6453).
-    struct AgainstCorrectedPage: Decodable, Equatable {
-        let errorRate: Double
-        let lines: Int
-        let ofLines: Int
+        var absent: [Components.Schemas.AbsentReader]?
     }
 
     /// One word's place on the page: its line, then its place in the line.
@@ -76,7 +63,6 @@ struct ReadingDisagreement: Decodable, Equatable {
     let lines: [Line]
     /// What the agreement is, in the engine's words (`1 − d / L`); never "accuracy" (#6453).
     var definition: String?
-    var againstCorrected: AgainstCorrectedPage?
     /// The pixel size of the image the words' boxes were measured on; nil when no word has one.
     var imageWidth: Double?
     var imageHeight: Double?
