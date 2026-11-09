@@ -515,6 +515,7 @@ extension ZoomableImagePreview {
             .onKeyPress(.upArrow, phases: .down) { press in
                 // Edit Segments with a shape point selected: the arrow nudges it (1 px, ⇧ 10).
                 if nudgeSelectedShapePoint(0, -1, fast: press.modifiers.contains(.shift)) { return .handled }
+                if stepSegmentSelection(-1, extend: press.modifiers.contains(.shift)) { return .handled }
                 if canPanVertically { panUp() } else {
                     verticalStep(-1)
                 }
@@ -523,6 +524,7 @@ extension ZoomableImagePreview {
             .onKeyPress(.downArrow, phases: .down) { press in
                 // Edit Segments with a shape point selected: the arrow nudges it (1 px, ⇧ 10).
                 if nudgeSelectedShapePoint(0, 1, fast: press.modifiers.contains(.shift)) { return .handled }
+                if stepSegmentSelection(1, extend: press.modifiers.contains(.shift)) { return .handled }
                 if canPanVertically { panDown() } else {
                     verticalStep(1)
                 }

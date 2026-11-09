@@ -113,6 +113,18 @@ struct InspectorPath: Equatable {
         return picked.map(\.0)
     }
 
+    /// Up/Down over the selected segments (#6457): the selection moves one place in reading order, as Finder's does, and
+    /// Shift adds the next one beyond the far end. The edge stops it (no wrap). Answers the ids now selected, or nil when
+    /// nothing moves (no selection, an id not in the order, or the edge), so the key keeps its other job.
+    static func stepped(_ selected: [String], in order: [String], by step: Int, extend: Bool) -> [String]? {
+        let places = selected.compactMap { order.firstIndex(of: $0) }.sorted()
+        guard let first = places.first, let last = places.last, step != 0 else { return nil }
+        let target = step > 0 ? last + step : first + step
+        guard order.indices.contains(target) else { return nil }
+        guard extend else { return [order[target]] }
+        return Array(Set(places + [target])).sorted().map { order[$0] }
+    }
+
     /// REVEAL (#5424, `reader.order.reveal-line-in-preview`): select `segmentIds` exactly as `select`
     /// does, then ask the pane owning `selection` to scroll and zoom to their boxes (their union). The
     /// ONE reveal action: the Order tab's and the Order pane's double-click and the Reader's line click
