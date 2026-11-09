@@ -7952,6 +7952,15 @@ def fichero_segments_list_document_matches(
     return _rt.call("GET", f"/api/segments/document/{doc_id}/matches", params={"state": state})
 
 
+def fichero_segments_on_a_rendition(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+    rendition_id: Annotated[str, Field(description='Rendition Id')],
+) -> Any:
+    "Segments On A Rendition\n\nThe page's live segments' boxes in this rendition's pixels, so the Preview can draw them on it (#6420).\n\nRoute: GET /api/segments/document/{doc_id}/on-rendition/{rendition_id} (toolset `segments`; reads)."
+    return _rt.call("GET", f"/api/segments/document/{doc_id}/on-rendition/{rendition_id}")
+
+
 def fichero_segments_get_document_text(
     *,
     document_id: Annotated[str, Field(description='Document Id')],
@@ -10303,6 +10312,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_segments_delete", "segments", "POST", "/api/segments/delete", fichero_segments_delete),
     GeneratedTool("fichero_segments_list_document", "segments", "GET", "/api/segments/document/{doc_id}", fichero_segments_list_document),
     GeneratedTool("fichero_segments_list_document_matches", "segments", "GET", "/api/segments/document/{doc_id}/matches", fichero_segments_list_document_matches),
+    GeneratedTool("fichero_segments_on_a_rendition", "segments", "GET", "/api/segments/document/{doc_id}/on-rendition/{rendition_id}", fichero_segments_on_a_rendition),
     GeneratedTool("fichero_segments_get_document_text", "segments", "GET", "/api/segments/document/{document_id}/text", fichero_segments_get_document_text),
     GeneratedTool("fichero_segments_propose_match", "segments", "POST", "/api/segments/matches", fichero_segments_propose_match),
     GeneratedTool("fichero_segments_accept_match", "segments", "POST", "/api/segments/matches/{match_id}/accept", fichero_segments_accept_match),

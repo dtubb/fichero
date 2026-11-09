@@ -11467,6 +11467,19 @@
       },
       {
         "method": "GET",
+        "path": "/segments/document/{doc_id}/on-rendition/{rendition_id}",
+        "operation_id": "segments_on_a_rendition_api_segments_document__doc_id__on_rendition__rendition_id__get",
+        "summary": "Segments On A Rendition",
+        "path_params": [
+          "doc_id",
+          "rendition_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SegmentsOnRendition"
+      },
+      {
+        "method": "GET",
         "path": "/segments/document/{document_id}/text",
         "operation_id": "get_document_text_api_segments_document__document_id__text_get",
         "summary": "Get Document Text",

@@ -16795,6 +16795,19 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("on-a-rendition")
+    def segments_on_a_rendition_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        rendition_id: str = typer.Argument(..., help='Rendition Id'),
+    ) -> None:
+        """Segments On A Rendition (GET /api/segments/document/{doc_id}/on-rendition/{rendition_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/document/{doc_id}/on-rendition/{rendition_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-document-text")
     def segments_get_document_text_get(
         ctx: typer.Context,

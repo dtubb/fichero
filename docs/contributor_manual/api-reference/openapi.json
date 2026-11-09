@@ -4666,6 +4666,58 @@
         }
       }
     },
+    "/api/segments/document/{doc_id}/on-rendition/{rendition_id}": {
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Segments On A Rendition",
+        "description": "The page's live segments' boxes in this rendition's pixels, so the Preview can draw them on it (#6420).",
+        "operationId": "segments_on_a_rendition_api_segments_document__doc_id__on_rendition__rendition_id__get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "rendition_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rendition Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentsOnRendition"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/segments/document/{doc_id}": {
       "get": {
         "tags": [
@@ -96532,6 +96584,51 @@
         ],
         "title": "SegmentVersionListResponse",
         "description": "Typed version-list envelope for the OpenAPI client.\n\n`{items, count}`, never a bare array: a bare list endpoint is the\nshape `test_no_new_bare_array_get_endpoint` exists to keep out (#1075,\nwhere a bare list and an envelope for the same idea drifted apart)."
+      },
+      "SegmentsOnRendition": {
+        "properties": {
+          "rendition_id": {
+            "type": "string",
+            "title": "Rendition Id"
+          },
+          "image_width": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Image Width"
+          },
+          "image_height": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Image Height"
+          },
+          "followed": {
+            "type": "boolean",
+            "title": "Followed",
+            "description": "the segments' place on this rendition is known; false: no box is given"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Note"
+          },
+          "boxes": {
+            "additionalProperties": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Boxes",
+            "description": "segment id -> [x, y, w, h] in this rendition's pixels"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rendition_id",
+          "followed"
+        ],
+        "title": "SegmentsOnRendition"
       },
       "SelectionKind": {
         "type": "string",

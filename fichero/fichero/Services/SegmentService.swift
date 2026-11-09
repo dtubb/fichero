@@ -49,6 +49,28 @@ final class SegmentService {
         }
     }
 
+    /// The page's live segments' boxes in a rendition's pixels (#6420), for the Preview to draw on the rendition it shows.
+    /// `followed` false means the engine does not know where the rendition sits on the photograph: no boxes, and `note` says why.
+    func segmentBoxes(documentId: String, renditionId: String) async throws -> SegmentBoxesOnRendition {
+        let response = try await client.api.segmentsOnARenditionApiSegmentsDocumentDocIdOnRenditionRenditionIdGet(
+            path: .init(docId: documentId, renditionId: renditionId)
+        )
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.json
+            return SegmentBoxesOnRendition(
+                followed: body.followed, note: body.note, size: body.imageWidth.flatMap { width in
+                    body.imageHeight.map { CGSize(width: width, height: $0) }
+                }, boxes: body.boxes?.additionalProperties ?? [:]
+            )
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw SegmentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, _):
+            throw SegmentServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
     /// ONE segment as it is now, resolved through forwarding (merge, split, or
     /// deleted-then-restored) when the id is no longer live
     /// (`source.segment.forwarding`).
@@ -260,4 +282,12 @@ enum SegmentServiceError: Error, LocalizedError {
             return "Server error: \(message)"
         }
     }
+}
+
+/// What `segmentBoxes` answers: segment id to its [x, y, w, h] in the rendition's pixels.
+struct SegmentBoxesOnRendition: Equatable {
+    let followed: Bool
+    let note: String?
+    let size: CGSize?
+    let boxes: [String: [Double]]
 }

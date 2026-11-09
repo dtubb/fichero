@@ -23,6 +23,7 @@ import uuid
 from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fichero_server.media.rendition_boxes import SegmentsOnRendition
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
@@ -533,6 +534,22 @@ async def list_segments_in_scope(
         items=items, count=len(items), total=total, document_ids=scope,
         withheld_documents=withheld,
     )
+
+
+@router.get("/document/{doc_id}/on-rendition/{rendition_id}", response_model=SegmentsOnRendition)
+@off_loop
+def segments_on_a_rendition(doc_id: str, rendition_id: str, db: Database = Depends(get_library_database)) -> SegmentsOnRendition:
+    """The page's live segments' boxes in this rendition's pixels, so the Preview can draw them on it (#6420)."""
+    from fichero_server.media.rendition_boxes import segments_on_rendition
+    from fichero_server.models import Rendition
+
+    doc = db.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    rendition = db.get(Rendition, rendition_id)
+    if rendition is None or rendition.document_id != doc_id:
+        raise HTTPException(status_code=404, detail=f"Rendition not found on this page: {rendition_id}")
+    return segments_on_rendition(db, doc, rendition, db.query(Segment, document_id=doc_id))
 
 
 @router.get("/document/{doc_id}", response_model=SegmentListResponse)
