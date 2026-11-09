@@ -85,6 +85,9 @@ class LibraryManager {
     /// launch and focus, never kept across a relaunch. `hostRowsLastAsked` is the throttle.
     var greyedSharedRows: Set<String> = []
     @ObservationIgnored var hostRowsLastAsked: [String: Date] = [:]
+    /// What each paired Mac's last answer said, for the connection popover's rows (#6434): answered, or did not.
+    var hostStates: [String: ConnectionRows.State] = [:]
+    var hostLastAnswered: [String: Date] = [:]
     /// File ▸ Connect to Library… and the machine rows set this; the app's window shows the connect sheet.
     var connectToLibraryRequested = false
     /// Set by the app's window: opens a shared library by switching to its host (`SharedLibraryOpener`).

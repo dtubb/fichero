@@ -28,6 +28,7 @@ struct BackendConnectionView: View {
     /// status, or re-implements `start()` — it is render-only.
     var onRetry: (@MainActor () async -> Void)?
     @Environment(EmbeddedBackendService.self) var backendService
+    @Environment(LibraryManager.self) private var libraryManager
 
     var body: some View {
         content(connectionStatus)
@@ -41,6 +42,7 @@ struct BackendConnectionView: View {
             header(status)
             detail(status)
             actionRow(status.action)
+            connectionRows
         }
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -54,6 +56,28 @@ struct BackendConnectionView: View {
                 backendService.status = .running
                 backendService.errorMessage = nil
             }
+        }
+    }
+
+    /// Every connection as one row: This Mac, then each paired Mac (`sharing.connections.popover-lists-every-connection`).
+    /// Shown only once a Mac is paired, so a single-Mac popover stays as it was.
+    @ViewBuilder
+    private var connectionRows: some View {
+        if !libraryManager.pairedMachines.isEmpty {
+            let local: ConnectionRows.State = appState.isBackendRunning ? .running : .stopped
+            let rows = ConnectionRows.rows(
+                local: local, machines: libraryManager.pairedMachines,
+                openHosts: Set(libraryManager.openLibraries.map { $0.host.url.absoluteString }),
+                states: libraryManager.hostStates, lastAnswered: libraryManager.hostLastAnswered,
+                inUse: UserDefaults.standard.string(forKey: EngineConfig.wholeMacHostKey), now: Date())
+            ConnectionRowsView(
+                rows: rows,
+                onFix: { row in
+                    if row.id == ConnectionRows.thisMacID { Task { await onRetry?() } } else {
+                        Task { await libraryManager.askHostAgain(row.id) }
+                    }
+                },
+                onDisconnect: { libraryManager.disconnectPairedMachine($0.id) })
         }
     }
 
