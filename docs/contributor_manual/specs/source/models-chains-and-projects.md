@@ -1327,6 +1327,13 @@ plan's peak memory across steps. Ready shows none of it.
   one (`answers.normalise_levels`); the normalise step runs once per level asked, each run writing a
   transcription at that level (or a translation) with the step's model (`start.LEVEL_PROMPTS`, the
   Modernización workflow's analyze node); pinned by `fichero-server/tests/unit/recipes/test_set_up_steps_5660.py`.
+  Built 2026-11-09 (#6452, #6456, #6461): the language chosen under Translate reaches the run — `translate_into` joins the
+  levels as `translation:<tag>` through one code path (`answers.with_translation`); a translating run is Translate's, not
+  Normalise's, in the stage list and in Activity's stage counts (`stages.stage_of(job, translation=…)`), and Normalise and
+  Translate are each on for their own part of the shared step; "Run this step" is planned alone for every step; a workflow
+  step with no text to work on says the page has not been read yet, in words; every default workflow is started on one page
+  by `fichero-server/tests/unit/workflows/test_every_default_workflow_starts_6461.py`; pinned by
+  `fichero-server/tests/unit/recipes/test_translate_into_reaches_the_run_6452.py`.
   Not built: the gazetteer reaches no step, because placing in a gazetteer is not a step Start runs yet
   (`by_hand`); setup's gazetteers (GeoNames, Wikidata, the project's list) are not the engine's (a small
   offline list, then Nominatim).
