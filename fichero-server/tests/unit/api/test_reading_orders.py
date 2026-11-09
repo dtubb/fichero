@@ -868,5 +868,8 @@ class TestSeededOrdersNest:
         assert entries[rows[1].id].parent_entry_id == entries[region.id].id
         assert entries[rows[2].id].parent_entry_id is None, "a line with no region stays at the top"
         assert entries[region.id].parent_entry_id is None
-        assert _sequence(db, made["order_id"]) == [region.id, rows[2].id] or set(_sequence(db, made["order_id"])) == {region.id, rows[2].id}
+        from fichero_server.api.routes.document.reading_orders import entries_in_sequence
 
+        assert _sequence(db, made["order_id"]) == [region.id, rows[2].id], "the region, then the loose line, once each"
+        under = [e.segment_id for e in entries_in_sequence(db, made["order_id"], parent_entry_id=entries[region.id].id)]
+        assert under == [rows[0].id, rows[1].id], "the region's two lines, in page order, under it"
