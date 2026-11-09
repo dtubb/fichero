@@ -135,3 +135,37 @@ def test_a_brief_over_100_kb_reaches_the_worker_as_a_short_prompt_naming_its_fil
     assert argv[-1] == p and sum(len(x) for x in argv) < 2000, "the whole argv stays short"
     with pytest.raises(FileNotFoundError):
         S.brief_prompt(tmp_path / "missing.txt")
+
+
+def test_find_claude_falls_back_to_the_worker_home(tmp_path, monkeypatch):
+    """#6466: sudo -u gives the worker a PATH without claude; its own ~/.local/bin/claude must be found (a dangling link is not found)."""
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    assert S.find_claude(tmp_path) is None
+    link = tmp_path / ".local" / "bin" / "claude"
+    link.parent.mkdir(parents=True)
+    link.symlink_to(tmp_path / "missing")
+    assert S.find_claude(tmp_path) is None
+    exe = tmp_path / "claude-real"
+    exe.write_text("#!/bin/sh\n")
+    exe.chmod(0o755)
+    link.unlink()
+    link.symlink_to(exe)
+    assert S.find_claude(tmp_path) == str(link)
+
+
+def test_use_worker_home_points_home_at_the_workroot(tmp_path, monkeypatch):
+    """#6466: under sudo -u HOME is still the owner's; as the worker user it becomes the workroot, for anyone else it is left alone."""
+    class Jail:
+        workroot = str(tmp_path)
+
+        def __init__(self, me):
+            self.me = me
+
+        def is_self(self):
+            return self.me
+
+    monkeypatch.setenv("HOME", "/owner")
+    S.use_worker_home(Jail(False))
+    assert os.environ["HOME"] == "/owner"
+    S.use_worker_home(Jail(True))
+    assert os.environ["HOME"] == str(tmp_path)

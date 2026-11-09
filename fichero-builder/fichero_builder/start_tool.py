@@ -40,6 +40,27 @@ def _hook_cmd(root, worktree, scratch) -> str:
     return " ".join(shlex.quote(str(x)) for x in (sys.executable, _HOOK, "--root", root, "--worktree", worktree, "--scratch", scratch))
 
 
+def use_worker_home(jail) -> None:
+    """sudo -u keeps HOME as the owner's, so git config --global, ~/.claude.json and the token file all hit a home the worker cannot
+    write (#6466): as the worker user, HOME is the workroot."""
+    if jail is not None and jail.workroot and jail.is_self():
+        os.environ["HOME"] = str(jail.workroot)
+
+
+def find_claude(*homes) -> str | None:
+    """claude on PATH, else <home>/.local/bin/claude for each home given (sudo -u keeps HOME as the owner's, so the caller
+    passes the workroot too, #6466); a dangling link is skipped."""
+    import shutil
+    found = shutil.which("claude")
+    if found:
+        return found
+    for h in homes or (Path.home(),):
+        cand = Path(h) / ".local" / "bin" / "claude"
+        if cand.is_file() and os.access(cand, os.X_OK):
+            return str(cand)
+    return None
+
+
 def trust_folder(worktree, home=None) -> None:
     """Mark `worktree` trusted in the worker's own ~/.claude.json (else claude waits on a trust prompt nobody answers)."""
     f = Path(home or Path.home()) / ".claude.json"

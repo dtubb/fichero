@@ -29,12 +29,12 @@ ap.add_argument("--print", dest="dry", action="store_true")
 a = ap.parse_args()
 
 jail = J.load(a.root)
+S.use_worker_home(jail)
 problems = S.refusals(a.root, jail)
 if problems:
     print("harness_start refuses:\n- " + "\n- ".join(problems), file=sys.stderr)
     sys.exit(1)
-import shutil  # noqa: E402
-claude = shutil.which("claude")
+claude = S.find_claude(Path.home(), jail.workroot)
 if not claude:
     print("harness_start refuses: no `claude` on the worker user's PATH (install it for that user)", file=sys.stderr)
     sys.exit(1)
