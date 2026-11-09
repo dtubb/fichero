@@ -25,7 +25,8 @@ def stage_counts(status: dict[str, Any]) -> list[dict[str, Any]]:
     skipped = [s.get("step") for s in status.get("skipped") or []]
     for stage in STAGES:
         runs = [r for r in status.get("steps") or []
-                if any((stage_of(j) or None) is stage for j in [*(r.get("steps") or []), r.get("job")] if j)]
+                if any((stage_of(j, translation=bool(r.get("translation"))) or None) is stage
+                       for j in [*(r.get("steps") or []), r.get("job")] if j)]
         skip = [s for s in skipped if s and stage_of(s) is stage]
         if not runs and not skip:
             continue

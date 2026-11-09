@@ -125,8 +125,8 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
         known = [s for s in scripts if not unknown_scripts([s])]
         out["directions"] = {s: chosen.get(s) or default_direction(s) for s in known}
     job_answers = out.get("job_answers")
-    if isinstance(job_answers, dict) and "normalise_how_far" in job_answers:
-        levels, refused = normalise_levels(job_answers["normalise_how_far"])
+    if isinstance(job_answers, dict) and ("normalise_how_far" in job_answers or job_answers.get("translate_into")):
+        levels, refused = normalise_levels(with_translation(job_answers))
         problems += refused
         out["job_answers"] = {**job_answers, "normalise_how_far": levels}
     if isinstance(job_answers, dict) and job_answers.get("review_lenses") is not None:
@@ -220,6 +220,22 @@ _SETUP_WORDS = {"abbreviations_expanded": "expanded", "normalised_spelling": "re
                 "normalized_spelling": "regularised"}
 #: A translation asked beside them: `translation:<language tag>`.
 TRANSLATION_PREFIX = "translation:"
+
+
+def with_translation(job_answers: dict[str, Any] | None) -> Any:
+    """Normalise's "Into what" with the language chosen under Translate added as its translation (#6452): the one code path,
+    `translation:<language>` in the levels, that Start's runs, the recipe's settings and the run titles already read. Where
+    only a language was chosen the levels are the translation alone; where it is already among them it is not added twice."""
+    answers = job_answers or {}
+    levels = answers.get("normalise_how_far")
+    into = str(answers.get("translate_into") or "").strip()
+    if not into:
+        return levels
+    asked = [] if levels in (None, "") else list(_list(levels))
+    if any(str(a).lower().startswith(TRANSLATION_PREFIX) and str(a)[len(TRANSLATION_PREFIX):].strip().lower() == into.lower()
+           for a in asked):
+        return asked
+    return [*asked, TRANSLATION_PREFIX + into]
 
 
 def normalise_levels(value: Any) -> tuple[list[str], list[str]]:

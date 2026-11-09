@@ -1351,7 +1351,8 @@ def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
     started_by = row["started_by"] or "owner"
     cards = detail["runs"]
     if not (detail.get("steps") and "batches_done" in detail):  # a resumed run keeps its checkpoint
-        detail["steps"] = [{"steps": card["steps"], "card": card["card"], "state": "waiting", "child_id": None}
+        detail["steps"] = [{"steps": card["steps"], "card": card["card"], "state": "waiting", "child_id": None,
+                            **({"translation": card["translation"]} if card.get("translation") else {})}
                            for card in cards]
         detail["batches_done"], detail["batch_states"] = 0, [None] * len(cards)
     steps = detail["steps"]

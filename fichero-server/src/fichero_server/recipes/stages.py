@@ -108,11 +108,11 @@ STAGES: tuple[Stage, ...] = (
           "“tþo” written out as “tiempo”, “q́” as “que”.",
           (Question("normalise_how_far", "Into what?", "many", _LEVELS, default=["as_written"], read_by_a_step=True),),
           needs=("read",)),
-    # ponytail: Translate shares Normalise's job until a translation job of its own exists; `stage_of` names Normalise.
+    # ponytail: Translate shares Normalise's job until a translation job of its own exists; a run that translates is Translate's (`stage_of(translation=True)`).
     Stage("translate", "Translate", ("translate-transliterate-normalise",),
           "Translates the text into another language, any language you choose.",
           "“muchos Años despues” as “many years later”.",
-          (Question("translate_into", "Into which language?", "language", default=""),),
+          (Question("translate_into", "Into which language?", "language", default="", read_by_a_step=True),),
           needs=("read",)),
     Stage("organise", "Organise", ("find-documents-in-a-folder", "split-into-entries"),
           "Finds which pages belong together as one document, and splits a diary or register into its entries.",
@@ -196,8 +196,11 @@ def get_stage(stage_id: str) -> Stage | None:
     return next((s for s in STAGES if s.id == stage_id), None)
 
 
-def stage_of(job: str) -> Stage | None:
-    return next((s for s in STAGES if job in s.jobs), None)
+def stage_of(job: str, *, translation: bool = False) -> Stage | None:
+    """The stage a job belongs to. Translate shares Normalise's job, so a run that translates says so (`translation`) and is
+    Translate's, never Normalise's (#6452)."""
+    return next((s for s in STAGES if job in s.jobs and (s.id != "normalise" or not translation)
+                 and (s.id != "translate" or translation)), None)
 
 
 def sampleable(stage: Stage) -> bool:
@@ -281,6 +284,38 @@ def answers_revision(stage: Stage, answers: dict[str, Any] | None, recipe: dict[
     return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:12]
 
 
+def _translating(recipe: dict[str, Any] | None, answered: dict[str, Any]) -> tuple[bool, bool]:
+    """(the recipe has the Normalise/Translate step, it asks a translation) -- Translate and Normalise share one step, and each is
+    on for its own part of "Into what", never both for the one step (#6452)."""
+    from fichero_server.recipes.answers import TRANSLATION_PREFIX, normalise_levels, with_translation
+
+    step = next((s for s in (recipe or {}).get("steps") or [] if s.get("job") == "translate-transliterate-normalise"), None)
+    if step is None:
+        return False, False
+    asked = with_translation(answered) if (answered.get("normalise_how_far") or answered.get("translate_into")) \
+        else (step.get("settings") or {}).get("target")
+    levels, _ = normalise_levels(asked or ["regularised"])
+    return True, any(x.startswith(TRANSLATION_PREFIX) for x in levels)
+
+
+def _stage_on(stage: Stage, in_recipe: set[str], recipe: dict[str, Any] | None, answered: dict[str, Any]) -> bool:
+    if stage.id not in ("normalise", "translate"):
+        return bool(in_recipe & set(stage.jobs))
+    present, translates = _translating(recipe, answered)
+    if not present:
+        return False
+    if stage.id == "translate":
+        return translates
+    from fichero_server.recipes.answers import TRANSLATION_PREFIX, normalise_levels, with_translation
+
+    asked = with_translation(answered) if (answered.get("normalise_how_far") or answered.get("translate_into")) else None
+    if asked is None:
+        step = next(s for s in recipe["steps"] if s.get("job") == "translate-transliterate-normalise")  # type: ignore[index]
+        asked = (step.get("settings") or {}).get("target")
+    levels, _ = normalise_levels(asked or ["regularised"])
+    return any(not x.startswith(TRANSLATION_PREFIX) for x in levels)
+
+
 def listing(recipe: dict[str, Any] | None, answers: dict[str, Any] | None = None,
             tried: dict[str, dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     """The stages, in pipeline order, each on or off in this project's recipe, with its questions (answered where the
@@ -301,7 +336,7 @@ def listing(recipe: dict[str, Any] | None, answers: dict[str, Any] | None = None
             "example_from_samples": example_from_samples(stage.id, result),
             # Only the jobs that run or can be done by hand: ticking Find Lines no longer ticks "Put in order" and
             # "Refine shapes", which nothing in Fichero does yet and Ready then listed as will-not-run (owner 2026-10-24).
-            "jobs": [j for j in stage.jobs if runs_or_by_hand(j)], "on": bool(in_recipe & set(stage.jobs)),
+            "jobs": [j for j in stage.jobs if runs_or_by_hand(j)], "on": _stage_on(stage, in_recipe, recipe, answered),
             "jobs_in_recipe": [j for j in stage.jobs if j in in_recipe],
             "questions": [{"key": q.key, "ask": q.ask, "kind": q.kind,
                            "options": [{"id": i, "title": t} for i, t in q.options], "default": q.default,

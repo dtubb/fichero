@@ -566,6 +566,10 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         settings = dict(step.get("settings") or {})
         answer, setting = JOB_ANSWER_SETTINGS.get(job, (None, None))
         given = (job_answers or {}).get(answer) if answer else None
+        if answer == "normalise_how_far":  # the language chosen under Translate is one of the levels asked (#6452)
+            from fichero_server.recipes.answers import with_translation
+
+            given = with_translation(job_answers)
         # An empty list is an answer where it turns things off (every review lens off, #5723); elsewhere it is none.
         if (answer and setting not in settings and given not in (None, "")
                 and (given != [] or answer in _EMPTY_IS_AN_ANSWER)):
@@ -754,19 +758,21 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
 
             asked, _ = normalise_levels(settings.get("target") or ["regularised"])
             for target in asked:
+                run = entry
                 if target.startswith(TRANSLATION_PREFIX):
                     from fichero_server.recipes.names import language_name
 
                     language = target[len(TRANSLATION_PREFIX):]
                     config = {"reading_kind": "translation", "reading_level": None,
                               "prompt": f"Translate this page into {language_name(language)}." + _LEVEL_TAIL}
+                    run = {**entry, "translation": language}  # the run belongs to the Translate stage, not Normalise (#6452)
                 elif target in LEVEL_PROMPTS:
                     config = {"reading_kind": "transcription", "reading_level": target,
                               "prompt": LEVEL_PROMPTS[target] + _LEVEL_TAIL}
                 else:
                     skip(sid, f"{label}: Fichero has no level {target!r} to write", None)
                     continue
-                runs.append({**entry, "tool_config": {"analyze": config}})
+                runs.append({**run, "tool_config": {"analyze": config}})
             continue
         if job == "find-names-tag-words" and [str(k).casefold() for k in settings.get("kinds") or []] == [NO_KINDS]:
             # Every tick box taken off: Names is off for this run, said in the plan (## 1110). An empty answer is an
