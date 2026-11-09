@@ -85,7 +85,7 @@ def test_one_disagreeing_word_scores_fractionally_and_names_who_gave_what(db, cl
     readers = {r["label"]: r["id"] for r in body["readers"]}
     assert words["el"]["variants"][1]["readers"] == [readers["Qwen2.5-VL 3B (OCR), run 3"]]
     assert words["dixo"]["agreement"] == 1.0
-    assert abs(only["agreement"] - (3 + 2 / 3) / 4) < 1e-9
+    assert 0.9 < only["agreement"] < 1.0  # character similarity (#6451), not the word share
     assert only["text"][words["testigo"]["char_start"]:words["testigo"]["char_end"]] == "testigo"
 
 

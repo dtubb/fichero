@@ -104,6 +104,12 @@ async def compare_readings(
     except RunComparisonError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     checked = bool(request.reference_checked_by and request.reference_checked_by.strip())
+    if not checked:  # no reading is checked: the figure is the readers' agreement, 1 - d / L, never an error rate
+        return CompareReadingsResponse(
+            measure="agreement", reference_label=ref_label, hypothesis_label=hyp_label, definition=AGREEMENT_DEFINITION,
+            scores=[ReadingScore(policy=x.policy, policy_description=x.policy_description, distance=x.distance,
+                                 reference_chars=x.reference_chars, hypothesis_chars=x.hypothesis_chars,
+                                 rate=1.0 - x.distance / max(x.reference_chars, x.hypothesis_chars, 1)) for x in scores])
     return CompareReadingsResponse(
         measure="cer" if checked else "agreement",
         reference_label=ref_label + (f" (checked by {request.reference_checked_by.strip()})" if checked else ""),
@@ -123,6 +129,11 @@ async def compare_readings(
 
 #: The convention readers are compared at (`source.disagree.normalised-first`).
 DISAGREEMENT_POLICY = "catmus-as-written"
+#: What the agreement figure is (`source.disagree.agreement-is-character-similarity-defined-once-and-never-accuracy`): never accuracy.
+AGREEMENT_DEFINITION = ("Agreement between the readers: 1 - d / L, where d is the edit distance between two readers' lines and L the longer of "
+                        "the two, in characters. A line's is the mean over its readers; the page's weights each line by its length. "
+                        "Case and punctuation count; u/v and i/j are one letter; abbreviations as written; diacritics compared as marks. "
+                        "No reading is checked, so it is not accuracy.")
 #: A reading made from a line's own words, not a reader's reading of the line.
 _DERIVED_TOOLS = frozenset({"line-from-its-words"})
 #: The levels a reading as written may carry: unset (a reader that says nothing reads as written) or as written.
@@ -149,12 +160,39 @@ class DisagreementWord(BaseModel):
     variants: list[DisagreementVariant] = Field(description="every distinct aligned word, most readers first")
 
 
+class ReaderSimilarity(BaseModel):
+    reader: str
+    distance: int = Field(description="Levenshtein distance between this reader's normalised line and the reference's")
+    length: int = Field(description="the longer of the two lines, in normalised characters")
+    agreement: float = Field(description="1 - distance / length (0-1); the reference itself is not listed")
+
+
+class AbsentReader(BaseModel):
+    reader: str = Field(description="the id of a compared reader with NO reading of this line")
+    why: str = Field(description="in words, from the writer's record: read the page and not this line, read another pass's lines, left this line out, or no reading")
+
+
+class AgainstCorrected(BaseModel):
+    reader: str
+    error_rate: float = Field(description="the character error rate of the reader's line against the corrected text, under the same convention")
+    reference_chars: int
+
+
 class DisagreementLine(BaseModel):
     segment_id: str
     reference_reader: str = Field(description="the medoid reading's reader id")
     text: str = Field(description="the reference reading, normalised")
-    agreement: float = Field(description="the mean of its words' agreement")
+    agreement: float = Field(description="character similarity between the readers: the mean over the readers other than the reference of 1 - d / L")
+    similarity: list[ReaderSimilarity] = Field(default_factory=list, description="each other reader's figures: what the definition line shows")
+    absent: list[AbsentReader] = Field(default_factory=list, description="every compared reader with no reading of this line, and why; not counted in `agreement`")
+    against_corrected: list[AgainstCorrected] = Field(default_factory=list, description="where a person's correction of this line exists: each reader's error rate against it; empty otherwise")
     words: list[DisagreementWord]
+
+
+class AgainstCorrectedPage(BaseModel):
+    error_rate: float = Field(description="the length-weighted mean of the readers' error rates over the lines that have a corrected text")
+    lines: int = Field(description="the lines that have a corrected text")
+    of_lines: int = Field(description="the lines compared")
 
 
 class DisagreementResponse(BaseModel):
@@ -162,7 +200,9 @@ class DisagreementResponse(BaseModel):
 
     page_id: str
     readers: list[DisagreementReader]
-    page_agreement: Optional[float] = Field(description="the mean over the page's words; null with no words")
+    page_agreement: Optional[float] = Field(description="the length-weighted mean of the lines' agreement (each line weighted by its reference's normalised length); null with no lines")
+    definition: str = Field(default="", description="what the agreement is, in words, for the app to print")
+    against_corrected: Optional[AgainstCorrectedPage] = Field(default=None, description="a separate figure, only where a person's correction exists")
     normalised_as: str = Field(description="the convention the readings were compared at")
     image_width: Optional[int] = Field(default=None, description="pixel width of the image the bboxes are in")
     image_height: Optional[int] = Field(default=None, description="pixel height of the image the bboxes are in")
@@ -264,8 +304,18 @@ def line_disagreement(readings: list[tuple[str, str]]) -> Optional[dict]:
         words.append({"text": word, "char_start": start, "char_end": end,
                       "agreement": len(variants.get(word, [])) / len(readings),
                       "variants": [{"text": t, "readers": r} for t, r in ordered]})
-    return {"reference_reader": ref_reader, "text": ref, "words": words,
-            "agreement": sum(w["agreement"] for w in words) / len(words)}
+    from fichero_server.llm.multilingual import levenshtein_distance
+
+    similarity = []
+    for i, (reader, text) in enumerate(readings):
+        if i == ref_index:
+            continue
+        distance = levenshtein_distance(ref, text)
+        length = max(len(ref), len(text))
+        similarity.append({"reader": reader, "distance": distance, "length": length,
+                           "agreement": 1.0 - distance / length if length else 1.0})
+    return {"reference_reader": ref_reader, "text": ref, "words": words, "similarity": similarity,
+            "agreement": sum(x["agreement"] for x in similarity) / len(similarity)}
 
 
 def _reader_of(row, artifacts: dict) -> tuple[str, str]:
@@ -353,7 +403,10 @@ def page_disagreement(db: Database, page_id: str) -> DisagreementResponse:
             if r.kind == "transcription" and r.level in _AS_WRITTEN_LEVELS and r.segment_id
             and r.producer_tool not in _DERIVED_TOOLS
             and getattr(r.provenance_kind, "value", r.provenance_kind) != "human"]
-    artifact_ids = sorted({r.derived_from_artifact_id for r in rows if r.derived_from_artifact_id})
+    every_row = list(db.query(ContentRepresentation, document_id=page_id))
+    page_rows = [r for r in every_row if r.kind == "transcription" and not r.segment_id and r.level in _AS_WRITTEN_LEVELS
+                 and r.producer_tool not in _DERIVED_TOOLS and getattr(r.provenance_kind, "value", r.provenance_kind) != "human"]
+    artifact_ids = sorted({r.derived_from_artifact_id for r in [*rows, *page_rows] if r.derived_from_artifact_id})
     artifacts = {a.id: a for a in db.query_in(Artifact, "id", artifact_ids)} if artifact_ids else {}
     # Each reader (a model and its run) in the order first met, with its newest reading of each segment.
     readers: dict[tuple[str, str], str] = {}
@@ -363,31 +416,67 @@ def page_disagreement(db: Database, page_id: str) -> DisagreementResponse:
         readers.setdefault(key, f"{key[0]}#{key[1]}")
         newest.setdefault(key, {})[row.segment_id] = row
     on_lines = [key for key in readers if line_ids & set(newest[key])]
+    # Readers that read the page and no line of it (their text is tied to nothing): compared nowhere, but never missing from the list.
+    page_only: dict[tuple[str, str], str] = {}
+    for row in sorted(page_rows, key=lambda r: (r.created_at, r.id)):
+        key = _reader_of(row, artifacts)
+        if key not in readers:
+            page_only.setdefault(key, f"{key[0]}#{key[1]}")
+    # A person's correction of a line is the corrected text the readers are measured against (never one of the readers).
+    corrected: dict[str, str] = {}
+    for row in sorted(every_row, key=lambda r: (r.created_at, r.id)):
+        if (row.kind == "transcription" and row.segment_id in line_ids and row.level in _AS_WRITTEN_LEVELS
+                and getattr(row.provenance_kind, "value", row.provenance_kind) == "human" and (row.content or "").strip()):
+            corrected[row.segment_id] = row.content
     runs_of: dict[str, list[str]] = {}
-    for model, run in on_lines:
+    every_key = [*on_lines, *page_only]
+    for model, run in every_key:
         runs_of.setdefault(model, []).append(run)
     labels = {key: _model_label(key[0]) + (f", run {runs_of[key[0]].index(key[1]) + 1}"
-                                           if len(runs_of[key[0]]) > 1 else "") for key in on_lines}
-    listed = [DisagreementReader(id=readers[k], label=labels[k]) for k in on_lines]
+                                           if len(runs_of[key[0]]) > 1 else "") for key in every_key}
+    ids = {**readers, **page_only}
+    listed = [DisagreementReader(id=ids[k], label=labels[k]) for k in every_key]
     if len(on_lines) < 2:
         return empty.model_copy(update={"readers": listed})
     out_lines: list[DisagreementLine] = []
-    every_word: list[float] = []
+    weighted: list[tuple[float, int]] = []
+    error_weighted: list[tuple[float, int]] = []
     for line in lines:
         given = [(readers[key], normalize(newest[key][line.id].content, policy))
                  for key in on_lines if line.id in newest[key]]
         found = line_disagreement(given)
         if found is None:
             continue
+        reason = str((line.metadata or {}).get("unread_reason") or "")
+        absent = [AbsentReader(reader=ids[k], why=(
+            "read the page, not tied to this line" if k in page_only else
+            f"left this line out: {reason}" if reason else "no reading of this line"))
+            for k in every_key if k not in on_lines or line.id not in newest[k]]
+        against: list[AgainstCorrected] = []
+        if line.id in corrected:
+            for reader, text in given:
+                try:
+                    score = character_error_rate(corrected[line.id], text, policy=policy)
+                except RunComparisonError:
+                    continue  # an empty corrected text has no denominator: no figure, not a zero
+                against.append(AgainstCorrected(reader=reader, error_rate=score.cer, reference_chars=score.reference_chars))
+                error_weighted.append((score.cer, score.reference_chars))
         ref_key = next(k for k in on_lines if readers[k] == found["reference_reader"])
         placed = _placed_words(newest[ref_key], words_of.get(line.id) or [], len(found["words"]), width, height)
         words = [DisagreementWord(**w, bbox=placed[i] if placed else None) for i, w in enumerate(found["words"])]
-        every_word += [w.agreement for w in words]
-        out_lines.append(DisagreementLine(segment_id=line.id, reference_reader=found["reference_reader"],
-                                          text=found["text"], agreement=found["agreement"], words=words))
+        weighted.append((found["agreement"], len(found["text"])))
+        out_lines.append(DisagreementLine(
+            segment_id=line.id, reference_reader=found["reference_reader"], text=found["text"], agreement=found["agreement"],
+            similarity=[ReaderSimilarity(**x) for x in found["similarity"]], absent=absent, against_corrected=against, words=words))
+    total = sum(w for _a, w in weighted)
+    error_total = sum(w for _e, w in error_weighted)
     return DisagreementResponse(
         page_id=page_id, readers=listed, normalised_as=policy.name, image_width=width, image_height=height,
-        page_agreement=(sum(every_word) / len(every_word)) if every_word else None, lines=out_lines)
+        page_agreement=(sum(a * w for a, w in weighted) / total) if total else None, definition=AGREEMENT_DEFINITION,
+        against_corrected=(AgainstCorrectedPage(error_rate=sum(e * w for e, w in error_weighted) / error_total,
+                                                lines=sum(1 for ln in out_lines if ln.against_corrected), of_lines=len(out_lines))
+                           if error_total else None),
+        lines=out_lines)
 
 
 @router.get("/{page_id}/disagreement", response_model=DisagreementResponse)

@@ -50832,6 +50832,26 @@
         ],
         "title": "Abandoned"
       },
+      "AbsentReader": {
+        "properties": {
+          "reader": {
+            "type": "string",
+            "title": "Reader",
+            "description": "the id of a compared reader with NO reading of this line"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "description": "in words, from the writer's record: read the page and not this line, read another pass's lines, left this line out, or no reading"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reader",
+          "why"
+        ],
+        "title": "AbsentReader"
+      },
       "AcceptResponse": {
         "properties": {
           "survivor_entity_id": {
@@ -51603,6 +51623,56 @@
           "listening"
         ],
         "title": "AddressRowResponse"
+      },
+      "AgainstCorrected": {
+        "properties": {
+          "reader": {
+            "type": "string",
+            "title": "Reader"
+          },
+          "error_rate": {
+            "type": "number",
+            "title": "Error Rate",
+            "description": "the character error rate of the reader's line against the corrected text, under the same convention"
+          },
+          "reference_chars": {
+            "type": "integer",
+            "title": "Reference Chars"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reader",
+          "error_rate",
+          "reference_chars"
+        ],
+        "title": "AgainstCorrected"
+      },
+      "AgainstCorrectedPage": {
+        "properties": {
+          "error_rate": {
+            "type": "number",
+            "title": "Error Rate",
+            "description": "the length-weighted mean of the readers' error rates over the lines that have a corrected text"
+          },
+          "lines": {
+            "type": "integer",
+            "title": "Lines",
+            "description": "the lines that have a corrected text"
+          },
+          "of_lines": {
+            "type": "integer",
+            "title": "Of Lines",
+            "description": "the lines compared"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error_rate",
+          "lines",
+          "of_lines"
+        ],
+        "title": "AgainstCorrectedPage"
       },
       "AgentNote": {
         "properties": {
@@ -64646,7 +64716,31 @@
           "agreement": {
             "type": "number",
             "title": "Agreement",
-            "description": "the mean of its words' agreement"
+            "description": "character similarity between the readers: the mean over the readers other than the reference of 1 - d / L"
+          },
+          "similarity": {
+            "items": {
+              "$ref": "#/components/schemas/ReaderSimilarity"
+            },
+            "type": "array",
+            "title": "Similarity",
+            "description": "each other reader's figures: what the definition line shows"
+          },
+          "absent": {
+            "items": {
+              "$ref": "#/components/schemas/AbsentReader"
+            },
+            "type": "array",
+            "title": "Absent",
+            "description": "every compared reader with no reading of this line, and why; not counted in `agreement`"
+          },
+          "against_corrected": {
+            "items": {
+              "$ref": "#/components/schemas/AgainstCorrected"
+            },
+            "type": "array",
+            "title": "Against Corrected",
+            "description": "where a person's correction of this line exists: each reader's error rate against it; empty otherwise"
           },
           "words": {
             "items": {
@@ -64703,7 +64797,18 @@
             "type": "number",
             "nullable": true,
             "title": "Page Agreement",
-            "description": "the mean over the page's words; null with no words"
+            "description": "the length-weighted mean of the lines' agreement (each line weighted by its reference's normalised length); null with no lines"
+          },
+          "definition": {
+            "type": "string",
+            "title": "Definition",
+            "description": "what the agreement is, in words, for the app to print",
+            "default": ""
+          },
+          "against_corrected": {
+            "$ref": "#/components/schemas/AgainstCorrectedPage",
+            "nullable": true,
+            "description": "a separate figure, only where a person's correction exists"
           },
           "normalised_as": {
             "type": "string",
@@ -87814,6 +87919,37 @@
         ],
         "title": "ReadableSentence",
         "description": "One clickable sentence of an entity's readable entry."
+      },
+      "ReaderSimilarity": {
+        "properties": {
+          "reader": {
+            "type": "string",
+            "title": "Reader"
+          },
+          "distance": {
+            "type": "integer",
+            "title": "Distance",
+            "description": "Levenshtein distance between this reader's normalised line and the reference's"
+          },
+          "length": {
+            "type": "integer",
+            "title": "Length",
+            "description": "the longer of the two lines, in normalised characters"
+          },
+          "agreement": {
+            "type": "number",
+            "title": "Agreement",
+            "description": "1 - distance / length (0-1); the reference itself is not listed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reader",
+          "distance",
+          "length",
+          "agreement"
+        ],
+        "title": "ReaderSimilarity"
       },
       "ReadingCampaignsResponse": {
         "properties": {
