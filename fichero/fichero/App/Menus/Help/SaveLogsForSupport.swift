@@ -165,11 +165,13 @@ nonisolated enum SupportLogs {
         model: String,
         physicalMemory: UInt64,
         freeDisk: String,
-        date: Date
+        date: Date,
+        buildSha: String = "unknown"
     ) -> String {
         let memory = ByteCountFormatter.string(fromByteCount: Int64(physicalMemory), countStyle: .memory)
         return """
         Fichero \(version) (\(build))
+        Build: \(buildSha)
         Feature tier: \(tier)
         macOS: \(osVersion)
         Model: \(model)
@@ -191,7 +193,8 @@ nonisolated enum SupportLogs {
             model: modelIdentifier(),
             physicalMemory: ProcessInfo.processInfo.physicalMemory,
             freeDisk: freeDiskDescription(),
-            date: date
+            date: date,
+            buildSha: info["FicheroBuildSHA"] as? String ?? "unknown"
         )
     }
 

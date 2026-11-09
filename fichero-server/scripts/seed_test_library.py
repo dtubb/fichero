@@ -317,6 +317,30 @@ def _seed_full(db) -> None:
     )
 
 
+def add_letter_lines(path: Path) -> dict[str, str]:
+    """Three lines on the letter of an already seeded library, so a window test has a page to step through (#6474):
+    `letter_line_1..3` in reading order. Made through the engine's own `segment.create`, as an import would, so the rows are
+    the real shape. NOT part of `seed()`: the engine mints these ids, and `--self-test` needs two seeds to be identical."""
+    db = db_manager.get_database(path)
+    import fichero_server.api.main  # noqa: F401  (registers every action)
+    from fichero_server.actions.registry import ActionContext, registry
+    from fichero_server.models.anchors import SourceAnchor
+
+    ctx = ActionContext(actor="seed", run_id="seed-letter-lines", library_path=None, is_bootstrap=True)
+    pass_id = registry.invoke(
+        db, "segment.pass_create", {"document_id": DOC_LETTER_ID, "name": "lines"}, ctx
+    ).result["id"]
+    keys = {}
+    for number, top in enumerate((0.1, 0.4, 0.7), start=1):
+        anchor = SourceAnchor(document_id=DOC_LETTER_ID, rect=[0.1, top, 0.8, 0.2]).model_dump(mode="json")
+        made = registry.invoke(db, "segment.create", {
+            "document_id": DOC_LETTER_ID, "pass_id": pass_id, "kind": "line",
+            "parent_segment_id": None, "anchor": anchor}, ctx)
+        keys[f"letter_line_{number}"] = made.result["segment_ids"][0]
+    db_manager.close_all()
+    return keys
+
+
 def seed(path: Path, with_files: bool = False, full: bool = False) -> dict:
     if full:
         with_files = True

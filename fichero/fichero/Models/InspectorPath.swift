@@ -115,10 +115,14 @@ struct InspectorPath: Equatable {
 
     /// Up/Down over the selected segments (#6457): the selection moves one place in reading order, as Finder's does, and
     /// Shift adds the next one beyond the far end. The edge stops it (no wrap). Answers the ids now selected, or nil when
-    /// nothing moves (no selection, an id not in the order, or the edge), so the key keeps its other job.
+    /// nothing moves (an id not in the order, or the edge), so the key keeps its other job.
     static func stepped(_ selected: [String], in order: [String], by step: Int, extend: Bool) -> [String]? {
+        guard step != 0, !order.isEmpty else { return nil }
+        // Nothing selected is where the keys START, as in Finder: Down takes the first, Up the last (#6474 -- with this
+        // answering nil the arrows did nothing in a window until something had been clicked).
+        if selected.isEmpty { return [step > 0 ? order[0] : order[order.count - 1]] }
         let places = selected.compactMap { order.firstIndex(of: $0) }.sorted()
-        guard let first = places.first, let last = places.last, step != 0 else { return nil }
+        guard let first = places.first, let last = places.last else { return nil }
         let target = step > 0 ? last + step : first + step
         guard order.indices.contains(target) else { return nil }
         guard extend else { return [order[target]] }

@@ -132,6 +132,9 @@ class EngineHarness:
             with_files=self.seed_mode in ("with-files", "full"),
             full=self.seed_mode == "full",
         )
+        if self.seed_mode == "full":
+            # Three lines on the letter, for the window tests that step a selection (#6474); not in seed() (its ids are minted).
+            self.summary["keys"] = {**self.summary.get("keys", {}), **seeder.add_letter_lines(self.library)}
 
         Path(self.socket_path).unlink(missing_ok=True)
         env = dict(os.environ)

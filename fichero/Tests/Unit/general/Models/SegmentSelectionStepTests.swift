@@ -28,7 +28,14 @@ struct SegmentSelectionStepTests {
     func noWrap() {
         #expect(InspectorPath.stepped(["d"], in: order, by: 1, extend: false) == nil)
         #expect(InspectorPath.stepped(["a"], in: order, by: -1, extend: true) == nil)
-        #expect(InspectorPath.stepped([], in: order, by: 1, extend: false) == nil)
+        #expect(InspectorPath.stepped(["a"], in: [], by: 1, extend: false) == nil)
         #expect(InspectorPath.stepped(["zz"], in: order, by: 1, extend: false) == nil)
+    }
+
+    @Test("with nothing selected the keys start the selection: Down the first, Up the last (#6474)")
+    func startsFromNothing() {
+        #expect(InspectorPath.stepped([], in: order, by: 1, extend: false) == ["a"])
+        #expect(InspectorPath.stepped([], in: order, by: -1, extend: false) == ["d"])
+        #expect(InspectorPath.stepped([], in: order, by: 1, extend: true) == ["a"])
     }
 }

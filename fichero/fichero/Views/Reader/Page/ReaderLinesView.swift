@@ -47,6 +47,10 @@ struct ReaderLinesView: View {
                         onPick: { reveal(line.id, store: store) }
                     )
                     .id(line.id)
+                    // The window test (#6474) reads which rows the shared selection has lit.
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("reader.line.row")
+                    .accessibilityValue(shown.contains(line.id) ? "selected" : "")
                     .listRowSeparator(.hidden)
                 }
                 .listStyle(.plain)
