@@ -147,7 +147,9 @@ struct ReadingOrderList: View {
         if let selection {
             target.delete = { deleteLines(nil) }
             target.reveal = { reveal([selection]) }
-            target.rename = OrderRename.begins(on: target.segment.map { [$0] } ?? []) == nil ? nil : { _ = beginRename(selection) }
+            if let line = target.segment, OrderRename.begins(on: [line]) != nil {
+                target.rename = { _ = beginRename(selection) }
+            }
             if let store, !store.shown.isEmpty {
                 target.move = { step in Task { await record(store.move(selection, step: step), in: store) } }
             }
