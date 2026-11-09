@@ -78,7 +78,8 @@ struct SegmentInspectorView: View {
         text?.countingContent(ofKind: "transcription") ?? segments.first { $0.id == segmentId }?.text
     }
 
-    /// Up/Down step the shared selection through the page in reading order (#6457); Shift extends. A text field being edited keeps its arrows.
+    /// Up/Down step the shared selection through the page in reading order (#6457); Shift extends.
+    /// A text field being edited keeps its arrows.
     private func step(_ places: Int, extend: Bool) -> KeyPress.Result {
         guard editing == nil, let segmentService, let focused = windowState?.focusedRegionSelection,
               InspectorPath.stepSelection(
