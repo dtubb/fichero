@@ -79,3 +79,14 @@ def test_the_start_plan_answers_304_to_its_current_etag_until_the_library_change
     assert client.get("/api/recipes/project/start").json() == first.json()  # the kept plan, same answer
     emit_change(str(db.path.parent), type="document.created")
     assert client.get("/api/recipes/project/start", headers={"If-None-Match": tag}).status_code == 200
+
+
+def test_an_etag_does_not_outlive_the_age_ceiling_or_the_engine_run(db, monkeypatch):
+    library = str(db.path.parent)
+    tag = change_cache.etag(library, "stats")
+    real = change_cache.time.time()
+    monkeypatch.setattr(change_cache.time, "time", lambda: real + change_cache.MAX_AGE_S)
+    assert change_cache.etag(library, "stats") != tag, "a write that announced nothing is seen within MAX_AGE_S"
+    monkeypatch.undo()
+    monkeypatch.setattr(change_cache, "_BOOT", "restarted")
+    assert change_cache.etag(library, "stats") != tag, "a restarted engine counts from generation 0 again"

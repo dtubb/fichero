@@ -361,3 +361,5 @@ fichero/Tests/Unit/general/Views/SidebarChatNeedsBackendShapeTests.swift
 fichero/Tests/Unit/general/Models/ActivityOpenedRunTests.swift
 # #5960 (debt, ported from m-bugs-window-c16): reads view source (the grid is mounted with its stage chooser and Open actions); its behaviour test needs a builder or the XCUITest of #5763
 fichero/Tests/Unit/general/Models/ActivityPageGridTests.swift
+# #6447: a forbidden-pattern absence check on one property (the window minimum must not read the plan made for the measured width); a behaviour test needs the ContentView instance and a window, see the XCUITest of #5763
+fichero/Tests/Unit/general/Views/Shell/ShellMinimumStabilityTests.swift

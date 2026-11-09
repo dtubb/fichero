@@ -7,17 +7,20 @@ changed is a dictionary read. `MAX_AGE_S` bounds a write that announced nothing.
 from __future__ import annotations
 
 import time
+import uuid
 from typing import Any
 
 from fichero_server.api.change_stream import library_generation
 
 MAX_AGE_S = 15.0
 _CAP = 256
+_BOOT = uuid.uuid4().hex[:8]  # a restarted engine counts generations from 0 again: its tags must not repeat the old ones
 _held: dict[tuple[str, Any], tuple[int, float, Any]] = {}
 
 
 def etag(library_path: str, key: Any = "") -> str:
-    return f'W/"{library_generation(library_path)}-{abs(hash(repr(key))) % 10**8}"'
+    """Changes with the library's generation, with the engine's run, and every MAX_AGE_S: a 304 never outlives the age ceiling."""
+    return f'W/"{_BOOT}-{library_generation(library_path)}-{abs(hash(repr(key))) % 10**8}-{int(time.time() // MAX_AGE_S)}"'
 
 
 def get(library_path: str, key: Any) -> Any | None:
