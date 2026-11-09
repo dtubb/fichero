@@ -56,6 +56,10 @@ struct ReadingOrderList: View {
     /// Whether the list itself has keyboard focus: its ⌥⌘ keys exist only then, so with the Reader
     /// focused the same keys reach the Reader's caret line (`ReaderLineMove`), not this list.
     @FocusState private var listFocused: Bool
+    /// The line being renamed in place (Return, Finder style; Step 1.25) and the words typed so far.
+    @State private var renaming: String?
+    @State private var draft = ""
+    @FocusState private var renameFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -85,6 +89,8 @@ struct ReadingOrderList: View {
                 // Shift+Up/Down add the next row to the shared selection (#6457); plain arrows stay the list's own.
                 .onKeyPress(.upArrow, phases: .down) { press in extend(-1, press, store: documentStore) }
                 .onKeyPress(.downArrow, phases: .down) { press in extend(1, press, store: documentStore) }
+                // Return renames the one selected line in place; a double-click reveals (Step 1.25).
+                .onKeyPress(.return, phases: .down) { _ in beginRename() }
                 Divider()
                 keyRow(store)
                 if let refusal = store.lastRefusal {
@@ -186,7 +192,31 @@ struct ReadingOrderList: View {
         return .handled
     }
 
-    /// A double-click (or Return) on a row: reveal it in the linked Preview, selected, scrolled and
+    /// Return on the one selected line: edit its words in place (`OrderRename.begins`).
+    private func beginRename() -> KeyPress.Result {
+        guard renaming == nil, let selection,
+              let words = OrderRename.begins(on: [segment(selection)].compactMap { $0 }) else { return .ignored }
+        draft = words
+        renaming = selection
+        renameFocused = true
+        return .handled
+    }
+
+    /// Return (or a click away) in the field: record the words as the person's reading, through the one correction path.
+    private func commitRename() {
+        guard let id = renaming else { return }
+        renaming = nil
+        guard let line = segment(id), let words = OrderRename.commit(draft, on: line), let segmentService else { return }
+        Task {
+            do {
+                try await CorrectLine.send(line, words: words, segmentService: segmentService)
+            } catch {
+                createNote = "The line was not corrected: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    /// A double-click on a row (Return renames): reveal it in the linked Preview, selected, scrolled and
     /// zoomed to (#5424) -- the one reveal the Reader's line click makes too.
     private func reveal(_ ids: Set<String>) {
         guard let segmentId = ids.first, let windowState, let segmentService else { return }
@@ -307,11 +337,20 @@ struct ReadingOrderList: View {
     /// A row: its words, and -- in the Segments pane -- a control that opens it to its children.
     private func row(_ segmentId: String, at index: Int) -> some View {
         HStack {
-            Text(rowLabel?(segmentId, index) ?? label(for: segmentId, at: index))
-                .font(BundledFonts.shared.font(.body))
-                .lineLimit(2)
-                // An unread line says what to do (#5505).
-                .help(SegmentsPane.rowHelp(segment(segmentId)) ?? "")
+            if renaming == segmentId {
+                TextField("Words", text: $draft)
+                    .font(BundledFonts.shared.font(.body))
+                    .focused($renameFocused)
+                    .onSubmit { commitRename() }
+                    .onExitCommand { renaming = nil }
+                    .onChange(of: renameFocused) { _, focused in if !focused { commitRename() } }
+            } else {
+                Text(rowLabel?(segmentId, index) ?? label(for: segmentId, at: index))
+                    .font(BundledFonts.shared.font(.body))
+                    .lineLimit(2)
+                    // An unread line says what to do (#5505).
+                    .help(SegmentsPane.rowHelp(segment(segmentId)) ?? "")
+            }
             // A line the teacher-line check flagged (#5446): marked, its scores on hover.
             if let line = flags?.flag(segmentId: segmentId, documentId: documentId) {
                 Spacer(minLength: 4)
