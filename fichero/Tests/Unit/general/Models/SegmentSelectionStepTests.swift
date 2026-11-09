@@ -32,10 +32,16 @@ struct SegmentSelectionStepTests {
         #expect(InspectorPath.stepped(["zz"], in: order, by: 1, extend: false) == nil)
     }
 
-    @Test("with nothing selected the keys start the selection: Down the first, Up the last (#6474)")
+    @Test("with nothing selected the keys start the selection where the surface asks: Down the first, Up the last (#6474)")
     func startsFromNothing() {
-        #expect(InspectorPath.stepped([], in: order, by: 1, extend: false) == ["a"])
-        #expect(InspectorPath.stepped([], in: order, by: -1, extend: false) == ["d"])
-        #expect(InspectorPath.stepped([], in: order, by: 1, extend: true) == ["a"])
+        #expect(InspectorPath.stepped([], in: order, by: 1, extend: false, startsFromNothing: true) == ["a"])
+        #expect(InspectorPath.stepped([], in: order, by: -1, extend: false, startsFromNothing: true) == ["d"])
+        #expect(InspectorPath.stepped([], in: order, by: 1, extend: true, startsFromNothing: true) == ["a"])
+    }
+
+    @Test("a surface whose arrows pan or page (the Preview) is left alone with nothing selected")
+    func theDefaultLeavesTheKeyToThePreview() {
+        #expect(InspectorPath.stepped([], in: order, by: 1, extend: false) == nil)
+        #expect(InspectorPath.stepped([], in: order, by: -1, extend: false) == nil)
     }
 }

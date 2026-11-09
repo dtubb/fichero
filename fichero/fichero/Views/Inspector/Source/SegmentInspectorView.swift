@@ -83,7 +83,8 @@ struct SegmentInspectorView: View {
     private func step(_ places: Int, extend: Bool) -> KeyPress.Result {
         guard editing == nil, let segmentService, let focused = windowState?.focusedRegionSelection,
               InspectorPath.stepSelection(
-                by: places, extend: extend, selection: focused, documentId: documentId, store: SegmentStore.shared(for: segmentService)
+                by: places, extend: extend, startsFromNothing: true, selection: focused,
+                documentId: documentId, store: SegmentStore.shared(for: segmentService)
               ) else { return .ignored }
         return .handled
     }

@@ -82,7 +82,9 @@ struct ReaderLinesView: View {
 
     private func step(_ places: Int, extend: Bool, _ store: SegmentStore) -> KeyPress.Result {
         guard let selection = windowState?.focusedRegionSelection,
-              InspectorPath.stepSelection(by: places, extend: extend, selection: selection, documentId: documentId, store: store)
+              InspectorPath.stepSelection(
+                  by: places, extend: extend, startsFromNothing: true, selection: selection, documentId: documentId, store: store
+              )
         else { return .ignored }
         return .handled
     }

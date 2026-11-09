@@ -116,11 +116,14 @@ struct InspectorPath: Equatable {
     /// Up/Down over the selected segments (#6457): the selection moves one place in reading order, as Finder's does, and
     /// Shift adds the next one beyond the far end. The edge stops it (no wrap). Answers the ids now selected, or nil when
     /// nothing moves (an id not in the order, or the edge), so the key keeps its other job.
-    static func stepped(_ selected: [String], in order: [String], by step: Int, extend: Bool) -> [String]? {
+    static func stepped(
+        _ selected: [String], in order: [String], by step: Int, extend: Bool, startsFromNothing: Bool = false
+    ) -> [String]? {
         guard step != 0, !order.isEmpty else { return nil }
         // Nothing selected is where the keys START, as in Finder: Down takes the first, Up the last (#6474 -- with this
         // answering nil the arrows did nothing in a window until something had been clicked).
-        if selected.isEmpty { return [step > 0 ? order[0] : order[order.count - 1]] }
+        // Only on surfaces whose arrows have no other job (the Inspector, the Lines list): the Preview's pan and page with them.
+        if selected.isEmpty { return startsFromNothing ? [step > 0 ? order[0] : order[order.count - 1]] : nil }
         let places = selected.compactMap { order.firstIndex(of: $0) }.sorted()
         guard let first = places.first, let last = places.last else { return nil }
         let target = step > 0 ? last + step : first + step
@@ -136,12 +139,15 @@ struct InspectorPath: Equatable {
     /// the selection moves through `select` so the Preview, the Reader and the Inspector change together. False when nothing moves.
     @MainActor
     static func stepSelection(
-        by step: Int, extend: Bool, selection: RegionSelection, documentId: String, store: SegmentStore
+        by step: Int, extend: Bool, startsFromNothing: Bool = false, selection: RegionSelection, documentId: String,
+        store: SegmentStore
     ) -> Bool {
         guard let shown = SegmentDisplay.selected(for: documentId, store: store) else { return false }
         let order = shown.geometry.boxes.compactMap(\.segmentId)
         let selected = selectedSegmentIds(selection: selection, documentId: documentId, store: store)
-        guard let next = stepped(selected, in: order, by: step, extend: extend) else { return false }
+        guard let next = stepped(
+            selected, in: order, by: step, extend: extend, startsFromNothing: startsFromNothing
+        ) else { return false }
         select(segmentIds: next, into: selection, documentId: documentId, store: store)
         return true
     }
