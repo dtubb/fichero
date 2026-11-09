@@ -21,6 +21,11 @@ enum CorrectLine {
         return words
     }
 
+    /// A pinch's magnification applied to the picture's zoom, kept between the line's own size and six times it.
+    static func zoomed(_ zoom: Double, by magnification: Double) -> Double {
+        min(6, max(1, zoom * (1 + magnification)))
+    }
+
     /// Records `words` as the person's reading of `line` and reloads the page's segments: the sheet's save, for a caller with no sheet.
     static func send(_ line: Segment, words: String, segmentService: SegmentService) async throws {
         let reading = try? await segmentService.readings(segmentId: line.id)?.countingReading(ofKind: "transcription")
@@ -36,20 +41,18 @@ struct CorrectThisLineModifier: ViewModifier {
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @State private var words = ""
     @State private var reading: InspectorText.Reading?
+    /// The line's picture, so the words are corrected against the ink (fetched as the Reader's row fetches it).
+    @State private var picture: Data?
     @State private var failure: String?
 
     func body(content: Content) -> some View {
         content
-            .alert("Correct This Line", isPresented: Binding(get: { target != nil }, set: { if !$0 { target = nil } })) {
-                TextField("Words", text: $words)
-                    .font(BundledFonts.shared.font(.body))  // the bundled script fonts, as every line view (#5842)
-                Button("Save") {
-                    let line = target
-                    Task { await save(line) }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("What the line says, recorded as your reading.")
+            .sheet(isPresented: Binding(get: { target != nil }, set: { if !$0 { target = nil } })) {
+                CorrectLineSheet(
+                    words: $words, picture: picture,
+                    save: { let line = target; target = nil; Task { await save(line) } },
+                    cancel: { target = nil }
+                )
             }
             .alert("The line was not corrected", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
                 Button("OK", role: .cancel) {}
@@ -58,7 +61,12 @@ struct CorrectThisLineModifier: ViewModifier {
             }
             .task(id: target?.id) {
                 guard let target else { return }
+                picture = nil
                 words = target.text ?? ""
+                if let segmentService {
+                    picture = try? await SegmentPictureService(client: segmentService.client)
+                        .picture(segmentId: target.id, size: ReaderLines.pictureSize)
+                }
                 reading = try? await segmentService?.readings(segmentId: target.id)?.countingReading(ofKind: "transcription")
                 if let shown = reading?.content { words = shown }
             }
@@ -109,3 +117,62 @@ struct CorrectThisLineButton: View {
         .contextMenu { CorrectThisLineButton(segment: line) { _ in } }
 }
 #endif
+
+/// The sheet Correct This Line asks in: the line's picture (zoomed with the pinch, the buttons or ⌘+ / ⌘-, scrolled
+/// when larger than the sheet) above the words, so a line is corrected against its ink, not from memory.
+struct CorrectLineSheet: View {
+    @Binding var words: String
+    let picture: Data?
+    let save: () -> Void
+    let cancel: () -> Void
+
+    @State private var zoom = 1.0
+    @State private var pinchStart: Double?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Correct This Line").font(.headline)
+            ScrollView([.horizontal, .vertical]) {
+                if let picture, let image = PlatformImage(data: picture) {
+                    Image(platformImage: image)
+                        .resizable().scaledToFit()
+                        .frame(width: 560 * zoom)
+                        .accessibilityLabel("Picture of the line")
+                } else {
+                    Rectangle().fill(.quaternary).frame(width: 560, height: 60)
+                        .overlay { Image(systemName: "photo").foregroundStyle(.secondary) }
+                }
+            }
+            .frame(height: 200)
+            .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 6))
+            .gesture(MagnifyGesture()
+                .onChanged { value in
+                    let start = pinchStart ?? zoom
+                    pinchStart = start
+                    zoom = CorrectLine.zoomed(start, by: value.magnification - 1)
+                }
+                .onEnded { _ in pinchStart = nil })
+            HStack {
+                Button { zoom = CorrectLine.zoomed(zoom, by: -0.25) } label: { Image(systemName: "minus.magnifyingglass") }
+                    .keyboardShortcut("-", modifiers: .command)
+                    .accessibilityLabel("Zoom out")
+                Button { zoom = CorrectLine.zoomed(zoom, by: 0.25) } label: { Image(systemName: "plus.magnifyingglass") }
+                    .keyboardShortcut("=", modifiers: .command)
+                    .accessibilityLabel("Zoom in")
+                Spacer()
+            }
+            .buttonStyle(.borderless)
+            TextField("Words", text: $words)
+                .font(BundledFonts.shared.font(.body))  // the bundled script fonts, as every line view (#5842)
+                .onSubmit(save)
+            Text("What the line says, recorded as your reading.").font(.caption).foregroundStyle(.secondary)
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel, action: cancel).keyboardShortcut(.cancelAction)
+                Button("Save", action: save).keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(16)
+        .frame(minWidth: 600)
+    }
+}

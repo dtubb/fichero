@@ -42,3 +42,13 @@ struct ReaderPickTests {
         #expect(ReaderLines.picked("c", held: [], order: order, command: false, shift: true) == ["c"])
     }
 }
+
+/// Correct This Line's picture zoom (Step 1.25): never smaller than the line, never past six times it.
+struct CorrectLineZoomTests {
+    @Test("a pinch is kept between the line's own size and six times it")
+    func clamp() {
+        #expect(CorrectLine.zoomed(1, by: -0.5) == 1)
+        #expect(CorrectLine.zoomed(1, by: 0.5) == 1.5)
+        #expect(CorrectLine.zoomed(5, by: 1) == 6)
+    }
+}
