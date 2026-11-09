@@ -237,6 +237,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/citations/renderer.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/atomic_json.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/background_compute.py
+$(SRCROOT)/../fichero-server/src/fichero_server/core/change_cache.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/compute_preferences.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/cores.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/duckdb_session.py
