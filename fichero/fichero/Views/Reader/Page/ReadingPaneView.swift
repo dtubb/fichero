@@ -65,6 +65,7 @@ struct ReadingPaneView: View {
     /// whichever tab was activated most recently anywhere), same class of
     /// bug `paneArtifactService` below was already fixed for.
     @Environment(WindowState.self) var windowState
+    @Environment(SegmentService.self) var segmentService: SegmentService?
     /// THIS window's artifact service (2026-09-02): the lens loader used to
     /// resolve `LibraryManager.currentLibraryId` — the app-globally current
     /// library, not this pane's — so in a multi-library window the "Showing"

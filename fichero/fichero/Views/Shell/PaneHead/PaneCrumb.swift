@@ -89,6 +89,15 @@ extension PaneCrumb {
         return (store.outline(for: crumb.id)?.children ?? store.childrenCache[crumb.id] ?? []).map(PaneCrumb.init)
     }
 
+    /// A selected segment's crumb ("Region 1", "Line 2") after the document's: where the window's selection is.
+    /// Not navigable: it names a selection, not a node to open.
+    static func segment(_ crumb: SegmentCrumbs.Crumb) -> PaneCrumb {
+        PaneCrumb(
+            id: "segment:\(crumb.segmentId ?? crumb.title)", title: crumb.title,
+            icon: crumb.segmentId == nil ? "square.on.square" : "text.alignleft", isNavigable: false
+        )
+    }
+
     /// The leaf crumb for a multi-selection (Daniel, 2026-08-29): with N>1
     /// items selected a pane head must SAY so — "3 items" — never name one
     /// document as if it were alone. Not navigable: there is no single node

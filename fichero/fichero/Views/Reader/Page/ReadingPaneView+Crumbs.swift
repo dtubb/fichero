@@ -44,6 +44,12 @@ extension ReadingPaneView {
             resolve: { documentStore.resolveDocument($0) }
         )
         crumbs += ancestry.isEmpty ? [PaneCrumb(document)] : ancestry.map(PaneCrumb.init)
+        // What is selected on the page, after the page: "Region 1 › Line 2", or "3 lines" (Step 1.25).
+        if let segmentService, let selection = windowState.focusedRegionSelection {
+            let store = SegmentStore.shared(for: segmentService)
+            let ids = InspectorPath.selectedSegmentIds(selection: selection, documentId: document.id, store: store)
+            crumbs += SegmentCrumbs.trail(selected: ids, in: store.workingSegments(documentId: document.id)).map(PaneCrumb.segment)
+        }
         return crumbs
     }
 }
