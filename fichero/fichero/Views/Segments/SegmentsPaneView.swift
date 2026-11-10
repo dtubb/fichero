@@ -69,7 +69,7 @@ struct SegmentsPaneView: View {
             await FlaggedLineStore.shared(for: segmentService).load(documentId: document.id)
             // A gathered row's page has arrived: select its segment in the focused Source view.
             if let pending = pendingSelect, pending.documentId == document.id,
-               let selection = windowState?.focusedRegionSelection {
+               let selection = windowState?.sharedRegionSelection {
                 InspectorPath.select(segmentIds: [pending.segmentId], into: selection, documentId: document.id, store: store)
                 pendingSelect = nil
             }
@@ -129,7 +129,7 @@ struct SegmentsPaneView: View {
     /// A picture picked: the focused Source view's selection, as a list row's is (#5155).
     private func pick(_ segmentId: String, on documentId: String) {
         picked = segmentId
-        guard let selection = windowState?.focusedRegionSelection, let segmentService else { return }
+        guard let selection = windowState?.sharedRegionSelection, let segmentService else { return }
         InspectorPath.select(
             segmentIds: [segmentId], into: selection, documentId: documentId, store: SegmentStore.shared(for: segmentService)
         )

@@ -130,6 +130,14 @@ class WindowState {
     /// `@Observable` property), so the pane releases it when it goes (`releaseRegionSelection`).
     private(set) var focusedRegionSelection: RegionSelection?
 
+    /// The selection the window shares while NO Preview is focused (a Reader and an Inspector with no Preview
+    /// open): the Reader's lines, the Order lists and the Inspector still select as one. Owner 2026-11-10:
+    /// a segment picked in the Reader must show in the document Inspector.
+    let windowSelection = RegionSelection()
+
+    /// The selection the lists, the Reader and the Inspector read and write: the focused Preview's, else the window's.
+    var sharedRegionSelection: RegionSelection { focusedRegionSelection ?? windowSelection }
+
     /// A pane was USED (a click, a band, ⌘A, a verb): its selection is the one the window acts on.
     func focusRegionSelection(_ selection: RegionSelection) {
         if focusedRegionSelection !== selection { focusedRegionSelection = selection }
