@@ -682,3 +682,36 @@ def test_worktrees_skip_scratch_checkouts_under_tmp_and_the_refresh_thread_fills
     monkeypatch.setattr(console, "worktrees", lambda root: {"ts": "t", "trees": ["filled"]})
     console.refresh("auto").join(5)
     assert console._TREES.get("data", {}).get("trees") == ["filled"], "the refresh thread filled the worktrees cache"
+
+
+def test_one_spend_number_per_lane_and_per_batch_from_transcripts_and_the_workers_cost_rows(tmp_path, monkeypatch):
+    """#6503: Spend today and a lane's USD/turns read the transcripts (external lanes, which write no cost row) plus the workers'
+    end-of-session cost rows (managed lanes, whose transcripts the owner cannot read); each is attributed to the batch whose `sent`
+    row it follows; the Tokens column is gone."""
+    wt = "/w/ext"
+    d = tmp_path / "-w-ext"
+    d.mkdir()
+    u = {"input_tokens": 1_000_000, "output_tokens": 0}
+    day = time.strftime("%Y-%m-%d")
+    local = lambda h: time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(time.mktime(time.strptime(f"{day}T{h}:00:00", "%Y-%m-%dT%H:%M:%S"))))  # noqa: E731
+    (d / "s.jsonl").write_text("\n".join(json.dumps({"timestamp": local(h) + ".0Z", "message": {"id": f"m{h}", "model": "claude-sonnet-5-5", "usage": u}}) for h in ("09", "11")) + "\n")
+    rows = [{"ts": f"{day}T08:00:00", "event": "queue", "lane": "ext", "step": "b1", "state": "sent"},
+            {"ts": f"{day}T10:00:00", "event": "queue", "lane": "ext", "step": "b2", "state": "sent"},
+            {"ts": f"{day}T08:30:00", "event": "queue", "lane": "w", "step": "s1", "state": "sent"},
+            {"ts": f"{day}T09:30:00", "event": "cost", "task": "w", "usd": 2.0, "turns": 10, "end": "done"},
+            {"ts": f"{day}T10:30:00", "event": "queue", "lane": "w", "step": "s2", "state": "sent"},
+            {"ts": f"{day}T11:30:00", "event": "cost", "task": "w", "usd": 0.5, "turns": 3, "end": "done"},
+            {"ts": f"{day}T11:35:00", "event": "loop", "state": "tick"}]
+    lanes = [{"id": "ext", "kind": "external", "worktree": wt, "cursor": 1, "paused": False, "steps": [_s("b1", "landed"), _s("b2", "done")]},
+             {"id": "w", "kind": "worker", "worktree": "/nonexistent/w", "cursor": 1, "paused": False, "steps": [_s("s1", "landed"), _s("s2", "sent")]}]
+    got = console.lane_usage(lanes, day=day, base=tmp_path, prices={"sonnet": [3, 15]}, rows=rows)
+    assert got[0]["usd"] == 6.0 and got[0]["batches"] == {"b1": 3.0, "b2": 3.0}
+    monkeypatch.setattr(console, "lane_usage", lambda lanes_, **k: got)
+    monkeypatch.setattr(console, "_git_tiles", lambda: {})
+    st = console.api_status(rows, lanes, commit=lambda w: ("", 0))
+    ext, w = st["lanes"]
+    assert ext["usd"] == 6.0 and ext["turns"] == 2 and ext["batch_usd"] == 3.0 and "tokens" not in ext
+    assert w["usd"] == 2.5 and w["turns"] == 13 and w["batches"] == {"s1": 2.0, "s2": 0.5} and w["batch_usd"] == 0.5
+    assert st["spend_today_usd"] == 8.5, "one number: transcripts plus cost rows"
+    page = (Path(console.__file__).parent / "console.html").read_text()
+    assert "<th>Tokens</th>" not in page and "l.tokens" not in page and "batch_usd" in page

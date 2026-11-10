@@ -349,7 +349,11 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
     st["loop_on"] = bool(ticks) and now - time.mktime(time.strptime(ticks[-1]["ts"], "%Y-%m-%dT%H:%M:%S")) <= LOOP_STALE_S
     st["console"] = [r for r in rows if r.get("event") == "console"][-20:]
     st["loop_lanes"] = LOOP_LANES
-    st["lane_usage"] = lane_usage(lanes)
+    st["lane_usage"] = lane_usage(lanes, rows=rows)
+    usage = {u["lane"]: u for u in st["lane_usage"]}
+    # #6503: one spend number. External lanes (Max sessions) write no cost row: their transcripts say. Managed lanes' transcripts are
+    # the jail user's, unreadable here: their end-of-session cost rows (the shared journal) say. Both API-equivalent, both today
+    st["spend_today_usd"] = round(st["spend_today_usd"] + sum(u["usd"] for u in usage.values()), 2)
     st.update(_git_tiles())  # last landing and today's closes from origin itself: true even for a landing run by hand
     workers = [x for x in lanes if x.get("kind") != "external" and x["cursor"] < len(x["steps"])]
     st["lanes_note"] = f"{len(workers)} worker lane(s) (limit {LOOP_LANES}) · {sum(1 for x in lanes if x.get('kind') == 'external' and not x.get('hold'))} external"
@@ -374,6 +378,11 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
         cur = x["steps"][x["cursor"]] if x["cursor"] < len(x["steps"]) else None
         sent = [r for r in rows if r.get("event") == "queue" and r.get("lane") == x["id"] and r.get("state") == "sent"]
         cost = [r for r in rows if r.get("event") == "cost" and r.get("task") == x["id"]]
+        u, windows = usage.get(x["id"]), sent_windows(rows, x["id"])
+        batches = dict((u or {}).get("batches", {}))
+        for r in cost:  # a worker's session cost goes to the batch it was sent on
+            if b := batch_of(windows, r.get("ts", "")):
+                batches[b] = round(batches.get(b, 0.0) + float(r.get("usd") or 0), 2)
         mine = [r for r in rows if r.get("lane") == x["id"] or r.get("task") == x["id"]]
         started = time.mktime(time.strptime(sent[-1]["ts"], "%Y-%m-%dT%H:%M:%S")) if sent and cur and cur["state"] not in ("queued", "blocked") else None
         last, ct = commit(x["worktree"]) if Path(x["worktree"]).is_dir() else ("", 0)
@@ -402,8 +411,9 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
             commit_ts=time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(ct)) if ct else "",
             steps=shown, landed_n=sum(1 for s in shown if s["state"] == "landed"), not_landed_n=sum(1 for s in shown if s["state"] == NOT_LANDED),
             elapsed_s=int(now - started) if started else None,
-            usd=round(sum(float(r.get("usd") or 0) for r in cost), 2), turns=cost[-1].get("turns") if cost else None,
-            tokens=cost[-1].get("tokens") if cost else None,
+            usd=round(sum(float(r.get("usd") or 0) for r in cost) + (u or {}).get("usd", 0.0), 2),
+            turns=((u or {}).get("turns") or 0) + sum(int(r.get("turns") or 0) for r in cost) or None,
+            batches=batches, batch_usd=batches.get(cur["step"]) if cur else None,
             last_commit=last,
             doing=(mine[-1].get("state") or mine[-1].get("event", "")) + (f": {str(mine[-1].get('detail', ''))[:160]}" if mine and mine[-1].get("detail") else "") if mine else "")
     return st
@@ -432,19 +442,29 @@ def _usage_rows(f: Path, day: str) -> dict:
             except (ValueError, KeyError, TypeError):
                 continue
             if ts == day and m.get("id"):
-                out[m["id"]] = (m.get("model", ""), m.get("usage") or {})
+                local = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(calendar.timegm(time.strptime(r["timestamp"][:19], "%Y-%m-%dT%H:%M:%S"))))
+                out[m["id"]] = (m.get("model", ""), m.get("usage") or {}, local)
     _USAGE[str(f)] = (key, out)
     return out
 
 
-def lane_usage(lanes: list[dict], day: str = "", base: Path | None = None, prices: dict | None = None) -> list[dict]:
+def batch_of(windows: list[tuple], ts: str) -> str:
+    """The step a spend at `ts` belongs to: the lane's last `sent` row at or before it (#6503). windows = [(ts, step)] sorted."""
+    return next((step for w, step in reversed(windows) if w <= ts), "")
+
+
+def sent_windows(rows: list[dict], lane_id: str) -> list[tuple]:
+    return sorted((r["ts"], r.get("step", "")) for r in rows if r.get("event") == "queue" and r.get("lane") == lane_id and r.get("state") == "sent")
+
+
+def lane_usage(lanes: list[dict], day: str = "", base: Path | None = None, prices: dict | None = None, rows: list[dict] | None = None) -> list[dict]:
     """Per external lane (owner 2026-11-02 'Lane usage today'): today's tokens in/out and turns from its Claude Code session
     transcripts (~/.claude/projects/<worktree, non-alphanumerics as '-'>/**/*.jsonl), and the API-equivalent USD (on Max, not
     billed): cache reads at 0.1x and cache writes at 1.25x the input price. One row per worktree; held lanes are left out."""
     day = day or time.strftime("%Y-%m-%d")
     base = base or PROJECTS
     prices = PRICES if prices is None else prices
-    rows, seen = [], set()
+    out, seen = [], set()
     for x in lanes:
         if x.get("kind") != "external" or x.get("hold") or x["worktree"] in seen:
             continue
@@ -457,16 +477,19 @@ def lane_usage(lanes: list[dict], day: str = "", base: Path | None = None, price
             except OSError:
                 continue
         t = {"in": 0, "cache_write": 0, "cache_read": 0, "out": 0}
-        usd = 0.0
-        for model, u in msgs.values():
+        usd, batches, windows = 0.0, {}, sent_windows(rows or [], x["id"])
+        for model, u, ts in msgs.values():
             i, cw, cr, o = (int(u.get(k) or 0) for k in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens"))
             t["in"] += i; t["cache_write"] += cw; t["cache_read"] += cr; t["out"] += o  # noqa: E702
             p = next((v for k, v in prices.items() if k in model), None)
             if p:
-                usd += (i + 1.25 * cw + 0.1 * cr) * p[0] / 1e6 + o * p[1] / 1e6
-        rows.append({"lane": x["id"], "turns": len(msgs), "tokens_in": t["in"] + t["cache_write"] + t["cache_read"], "tokens_out": t["out"],
-                     **t, "usd": round(usd, 2)})
-    return rows
+                one = (i + 1.25 * cw + 0.1 * cr) * p[0] / 1e6 + o * p[1] / 1e6
+                usd += one
+                if b := batch_of(windows, ts):  # #6503: the batch this message was spent on
+                    batches[b] = round(batches.get(b, 0.0) + one, 2)
+        out.append({"lane": x["id"], "turns": len(msgs), "tokens_in": t["in"] + t["cache_write"] + t["cache_read"], "tokens_out": t["out"],
+                    **t, "usd": round(usd, 2), "batches": batches})
+    return out
 
 
 SECTIONS = ("In order", "Then", "Parked")  # Then: an older file; the owner's list is In order + Parked
