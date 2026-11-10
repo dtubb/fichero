@@ -353,9 +353,9 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             lane["paused"] = True
             return False
         s["trees"], s["trees_at"] = procs.trees(_others(lane, handles, procs)), time.strftime("%Y-%m-%dT%H:%M:%S")  # before the worker can move anything
-        if bad := brief_preflight(Path(s.get("resume_brief") or s["brief"]).read_text(), lane["id"], procs.jail_gh):  # #6495: before a session is spent
-            return block(s, "the brief asks for what a managed worker cannot do; " + " / ".join(bad), actions=("retry", "park"))
         try:
+            if bad := brief_preflight(Path(s.get("resume_brief") or s["brief"]).read_text(), lane["id"], procs.jail_gh):  # #6495: before a session is spent
+                return block(s, "the brief asks for what a managed worker cannot do; " + " / ".join(bad), actions=("retry", "park"))
             if h is None:
                 if len(handles) >= workers_n:
                     return True
@@ -757,6 +757,9 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
         if s is None:
             journal.append("alert-answer", id=alert_id, action=action, ok=False, detail="the lane or step is gone")
             return 1, "REFUSED: the lane or step is gone"
+        if action == "dispatch":  # #6500: the loop runs this lane from now on, as [loop].dispatch would
+            lane["dispatch"] = True
+            save(lanes)
         if action in ("retry", "approve", "send-back"):
             # an external lane has no worker to send a step to: retry and approve re-take its snapshot; send-back waits for its done
             again = "done" if action == "approve" or (lane.get("kind") == "external" and action == "retry" and s.get("head")) else "queued"
@@ -918,17 +921,27 @@ def repane(listing: str | None = None) -> list[str]:
     with journal.Lock("queue"):
         lanes = load()
         for x in lanes:
-            if x.get("kind") != "external" or not x.get("pane") or x["pane"] in live:
-                continue
+            if x.get("kind") != "external" or "pane" not in x or x["pane"] in live:
+                continue  # a lane that never registered a pane is the owner's own branch: the intake rule's (#6501), not a lost session
             wt = os.path.realpath(x["worktree"])
             fit = [p[0] for p in panes if p[1].lstrip("-") not in SHELLS and (os.path.realpath(p[2]) + "/").startswith(wt + "/")]
             if len(fit) == 1:
                 moved.append(f"{x['id']}: pane {x['pane']} -> {fit[0]}")
                 journal.append("queue", lane=x["id"], state="repane", detail=moved[-1])
                 x["pane"] = fit[0]
+                x.pop("no_session", None)
+            elif not fit and not x.get("no_session") and x["cursor"] < len(x["steps"]):  # #6500: nobody is on it: say so ONCE, with the way out
+                s = x["steps"][x["cursor"]]
+                x["no_session"], old = time.strftime("%Y-%m-%dT%H:%M:%S"), x["pane"]
+                x["pane"] = ""
+                moved.append(f"{x['id']}: pane {old} gone, no session in its tree: no-session")
+                journal.append("queue", lane=x["id"], step=s["step"], state="no-session", detail=moved[-1])
+                alert(x["id"], s["step"], f"{x['id']}: {s['state']} since {x['no_session'][:16]}, nobody is on it; dispatch it (the loop runs it) or park it",
+                      str(journal.STATE / "queue.json"), ["dispatch", "park"])
         if moved:
             save(lanes)
     return moved
+
 
 def feed(procs: Procs, lanes_n: int, out=print) -> bool:
     """While fewer than `lanes_n` lanes have steps left, queue the next build-order milestone no lane holds. True if one was taken."""
@@ -1024,7 +1037,7 @@ def manage(lane: dict, procs: Procs) -> bool:
     """run.loop-dispatch (#6466): an external lane in [loop].dispatch whose cursor step is queued (no session of its own says done)
     becomes a managed worker lane: its tree is <workroot>/wt-<lane> (its own tree is kept as `own_tree`), its pane is forgotten,
     one fresh session per batch (`fresh`). Written under the lock; one `queue` row `managed`. False when nothing changed."""
-    if lane.get("kind") != "external" or lane["id"] not in DISPATCH[0] or lane.get("hold") or lane["cursor"] >= len(lane["steps"]):
+    if lane.get("kind") != "external" or (lane["id"] not in DISPATCH[0] and not lane.get("dispatch")) or lane.get("hold") or lane["cursor"] >= len(lane["steps"]):
         return False
     if lane["steps"][lane["cursor"]]["state"] != "queued":
         return False
@@ -1036,6 +1049,7 @@ def manage(lane: dict, procs: Procs) -> bool:
             return False
         x.update(kind="worker", fresh=True, own_tree=x["worktree"], worktree=tree)
         x.pop("pane", None)
+        x.pop("no_session", None)
         save(lanes)
     journal.append("queue", lane=lane["id"], step=lane["steps"][lane["cursor"]]["step"], state="managed",
                    detail=f"dispatched by the loop: a managed worker in {tree} (own tree {lane['worktree']})")

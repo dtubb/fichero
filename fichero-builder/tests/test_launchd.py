@@ -87,3 +87,31 @@ def test_the_agents_run_unbuffered_so_loop_log_is_current(state):
     """#6466: launchd block-buffers stdout, so loop.log lagged the journal by hours; every agent runs with PYTHONUNBUFFERED."""
     for p in queue.launch_agents("/r", state / "la", state=state / "s"):
         assert plistlib.loads(p.read_bytes())["EnvironmentVariables"]["PYTHONUNBUFFERED"] == "1", p.name
+
+
+def test_a_dead_pane_with_no_session_to_take_marks_the_lane_no_session_once_with_an_alert_and_dispatch_hands_it_to_the_loop(state, monkeypatch):
+    """#6500: a lane whose registered pane is gone and whose worktree holds no Claude session was idle forever with no row. Now:
+    pane cleared, `no_session` stamped, one `queue` row and one alert (dispatch, park); the next tick is quiet; a session that appears
+    later is taken and the mark cleared; `dispatch` makes the loop manage the lane (as [loop].dispatch would)."""
+    wa = str(state / "a")
+    os.mkdir(wa)
+    (state / "b1.1").write_text("brief")
+    queue.add("a", wa, "batch-1", str(state / "b1.1"), [7], kind="external", pane="%1")
+    assert queue.repane("%6\tzsh\t" + wa) == ["a: pane %1 gone, no session in its tree: no-session"]
+    x = queue.load()[0]
+    assert x["pane"] == "" and x["no_session"]
+    rows = [r for r in journal.read() if r.get("state") == "no-session"]
+    a = [r for r in journal.read() if r["event"] == "alert"]
+    assert len(rows) == 1 and len(a) == 1 and a[0]["actions"] == ["dispatch", "park"] and "nobody is on it" in a[0]["what"]
+    assert queue.repane("%6\tzsh\t" + wa) == [] and len([r for r in journal.read() if r["event"] == "alert"]) == 1, "once"
+    assert queue.repane(f"%9\t2.1.317\t{wa}") == ["a: pane  -> %9"] and "no_session" not in queue.load()[0], "a session that appears is taken"
+    queue.repane("%6\tzsh\t" + wa)
+    aid = [r for r in journal.read() if r["event"] == "alert"][-1]["id"]
+    assert queue.answer(aid, "dispatch")[0] == 0 and queue.load()[0].get("dispatch") is True
+    from test_queue_verb import Fake
+    monkeypatch.setattr(queue, "DISPATCH", [()])
+    fake = Fake()
+    fake.procs.workroot = str(state / "wr")
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    x = queue.load()[0]
+    assert x["kind"] == "worker" and "no_session" not in x and fake.starts == [("a", "batch-1", 1)], "the loop runs it as a managed lane"

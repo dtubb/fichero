@@ -715,3 +715,15 @@ def test_one_spend_number_per_lane_and_per_batch_from_transcripts_and_the_worker
     assert st["spend_today_usd"] == 8.5, "one number: transcripts plus cost rows"
     page = (Path(console.__file__).parent / "console.html").read_text()
     assert "<th>Tokens</th>" not in page and "l.tokens" not in page and "batch_usd" in page
+
+
+def test_a_lane_nobody_is_on_reads_no_session_and_the_strip_offers_dispatch_and_park(tmp_path):
+    """#6500: an external lane marked no_session reads `no-session` (since when), the Needs-you strip counts it and its buttons
+    answer the lane's alert with the existing `alert` verb (dispatch, park)."""
+    lanes = [{"id": "s", "worktree": "/nonexistent/s", "cursor": 0, "paused": False, "kind": "external", "pane": "", "no_session": "2026-11-09T08:23:00",
+              "steps": [_s("batch-59", "queued")]}]
+    st = console.api_status([], lanes, commit=lambda w: ("", 0))
+    assert st["lanes"][0]["state"] == "no-session" and st["lanes"][0]["no_session"] == "2026-11-09T08:23:00"
+    page = (Path(console.__file__).parent / "console.html").read_text()
+    strip = page.split("Needs you")[0][-1500:] + page.split("Needs you")[1][:1500]
+    assert '"no-session"' in strip and 'action: "dispatch"' in strip and 'action: "park"' in strip
