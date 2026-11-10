@@ -1312,6 +1312,7 @@ def real_procs(root) -> Procs:
     def start(lane, step):
         a, q = ns(lane, step), shlex.quote
         a.pinned = work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))  # #6466: the worker imports fichero_builder from here
+        a.root = a.pinned  # #6466: the worker reads harness.toml from --root; the owner's checkout is unreadable to it, the pinned copy is not
         if lane.get("fresh") and not Path(a.worktree).exists() and step.get("head"):  # a retried batch: its head (in the engine repo) travels as a bundle
             bundle, ref = work.shared_state(a) / f"base-{lane['id']}.bundle", f"base-lane-{lane['id']}"  # the ref ensure_worktree fetches
             r = work._git(repo, "update-ref", f"refs/heads/{ref}", step["head"])
