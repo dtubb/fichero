@@ -64,6 +64,7 @@ struct PaneVisibilitySection: View {
                 shortcut: nil
             )
             ShowMiniToolbarToggle()
+            ShowWithdrawnReadingsToggle()
         }
     }
 }
@@ -146,6 +147,19 @@ struct ShowMiniToolbarToggle: View {
     var body: some View {
         Toggle(isOn: $showMiniToolbar) {
             Label("Show Mini Toolbar", systemImage: "rectangle.topthird.inset.filled")
+        }
+    }
+}
+
+// MARK: - Show Withdrawn Readings
+
+/// The Reader's versions tree also lists the readings that were withdrawn, struck through (`ReaderLinesView`).
+struct ShowWithdrawnReadingsToggle: View {
+    @AppStorage("reader.showWithdrawnReadings") private var shows = false
+
+    var body: some View {
+        Toggle(isOn: $shows) {
+            Label("Show Withdrawn Readings", systemImage: "strikethrough")
         }
     }
 }

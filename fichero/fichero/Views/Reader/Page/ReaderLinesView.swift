@@ -136,6 +136,8 @@ struct ReaderLineRow: View {
     @State private var correcting: Segment?
     /// This line's own versions-triangle click and the ⌥-click stamp it was made under (#6492).
     @State private var versionsOwn: (open: Bool, stamp: Int)?
+    /// View > Show Withdrawn Readings: the versions tree also lists the retracted readings, struck through.
+    @AppStorage("reader.showWithdrawnReadings") private var showsWithdrawn = false
 
     init(segment: Segment, direction: String?, zoom: Double, isSelected: Bool = false, onPick: (() -> Void)? = nil) {
         self.segment = segment
@@ -172,6 +174,7 @@ struct ReaderLineRow: View {
         }
         // Page › Segments › Correct This Line… on the selected line (#5652), the same verb as this row's menu.
         .focusedSceneValue(\.lineVerbs, lineVerbsTarget)
+        .onChange(of: showsWithdrawn, initial: true) { _, now in editor.showsWithdrawn = now }
         .task(id: segment.id) {
             if let segmentService { await editor.load(segmentService) }
         }
@@ -271,7 +274,7 @@ struct ReaderLineRow: View {
             }
             field
             if ReadingTree.discloses(editor.versions), versionsOpen {
-                ReaderLineVersions(roots: editor.versions, countingId: editor.reading?.id)
+                ReaderLineVersions(roots: editor.versions, countingId: editor.reading?.id, withdrawn: editor.withdrawnIds)
             }
             if editor.isChanged {
                 HStack {

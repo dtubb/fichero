@@ -42,4 +42,16 @@ struct ReadingTreeTests {
         #expect(!ReadingTree.discloses(ReadingTree.build([reading("only", at: 1)])))
         #expect(!ReadingTree.discloses(ReadingTree.build([])))
     }
+
+    @Test("Show Withdrawn Readings: the text keeps retracted readings apart, and the tree lists them only when asked")
+    func withdrawnReadingsAreKeptApart() {
+        let text = InspectorText(
+            readings: [reading("kraken", at: 1), reading("old", at: 2)], retracted: ["old"], counting: [:]
+        )
+        #expect(text.readings.map(\.id) == ["kraken"], "a retracted reading is still not a reading")
+        #expect(text.withdrawn.map(\.id) == ["old"])
+        let retracted = Set(text.withdrawn.map(\.id))
+        #expect(ReadingTree.build(text.allReadings, retracted: retracted).map(\.id) == ["kraken"])
+        #expect(ReadingTree.build(text.allReadings, retracted: retracted, showsWithdrawn: true).map(\.id) == ["kraken", "old"])
+    }
 }

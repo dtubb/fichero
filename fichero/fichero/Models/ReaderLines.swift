@@ -122,7 +122,17 @@ final class ReaderLineEditor {
     /// The line's label and the reading it shows (#6455): where none counts, the newest person's reading, never an unlabelled text.
     private(set) var label: ShownReadingLabel?
     /// The line's readings as a tree, for its disclosure triangle (#6492).
-    private(set) var versions: [ReadingTree] = []
+    var versions: [ReadingTree] {
+        ReadingTree.build(
+            text?.allReadings ?? [], retracted: Set(text?.withdrawn.map(\.id) ?? []), showsWithdrawn: showsWithdrawn
+        )
+    }
+    /// The readings as the engine listed them, live and withdrawn.
+    private var text: InspectorText?
+    /// "Show Withdrawn Readings": the tree also lists the retracted readings, struck through.
+    var showsWithdrawn = false
+    /// The retracted readings' ids, for the tree to strike through.
+    var withdrawnIds: Set<String> { Set(text?.withdrawn.map(\.id) ?? []) }
     /// The words in the field.
     var draft: String
     /// Why the last save did not land.
@@ -147,7 +157,7 @@ final class ReaderLineEditor {
         let readings = try? await service.readings(segmentId: segment.id)
         reading = readings?.countingReading(ofKind: "transcription")
         label = ShownReadingLabel(readings)
-        versions = ReadingTree.build(readings?.readings ?? [])
+        text = readings
         if untouched { draft = shownWords }  // words typed while it loaded are kept
         if picture == nil {
             picture = try? await SegmentPictureService(client: service.client)
@@ -180,7 +190,7 @@ final class ReaderLineEditor {
         let readings = try? await service.readings(segmentId: segment.id)
         reading = readings?.countingReading(ofKind: "transcription")
         label = ShownReadingLabel(readings)
-        versions = ReadingTree.build(readings?.readings ?? [])
+        text = readings
         draft = shownWords
     }
 }
