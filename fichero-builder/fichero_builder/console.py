@@ -281,6 +281,42 @@ def _alive(pid) -> bool:
 LOOP_STALE_S = 3 * 30  # three ticks: no tick row since = the loop is off
 
 
+_LIVE: dict = {"at": 0.0, "rows": {}}
+LIVE_TTL_S = 10
+
+
+def _tmux_as_worker(root, *args: str) -> str:
+    """One tmux call as the jail user (the managed workers' server); '' on any failure. The seam the test replaces."""
+    f = Path(root) / "harness.toml"
+    jail = tomllib.loads(f.read_text()).get("jail", {}) if f.is_file() else {}
+    if not jail.get("user"):
+        return ""
+    try:
+        r = subprocess.run([jail.get("sudo", "sudo"), "-n", "-H", "-u", jail["user"], "tmux", *args], capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return r.stdout if r.returncode == 0 else ""
+
+
+def live_lines(root, now: float | None = None, tmux=None) -> dict:
+    """{window name: {"line", "ts"}} for the managed workers' windows: the last real line of the pane and when the window last moved.
+    Read from the pane, not the journal (a worker's minute-to-minute work is never a journal row); cached LIVE_TTL_S."""
+    now = now or time.time()
+    if now - _LIVE["at"] < LIVE_TTL_S:
+        return _LIVE["rows"]
+    tmux = tmux or (lambda *a: _tmux_as_worker(root, *a))
+    out = {}
+    for ln in tmux("list-windows", "-a", "-F", "#{window_name}\t#{window_activity}").splitlines():
+        name, _, act = ln.partition("\t")
+        if not name or not act.isdigit():
+            continue
+        pane = [x.strip() for x in tmux("capture-pane", "-p", "-t", f"harness:{name}").splitlines()]
+        real = [x for x in pane if x and not set(x) <= set("─━│┃╭╮╰╯ >❯⏵") and "bypass permissions" not in x and "Update installed" not in x]
+        out[name] = {"line": (real[-1] if real else "")[:160], "ts": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(int(act)))}
+    _LIVE.update(at=now, rows=out)
+    return out
+
+
 def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, commit=_last_commit) -> dict:
     """status() plus the last review, the heartbeat, and per lane: its steps, the step now (id + title), elapsed since it
     was sent, the worker's spend and turns, its last commit, and the lane's last row."""
@@ -310,8 +346,11 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
     st["events"] = [{k: (str(r.get(k, ""))[:160] if k == "detail" else r.get(k, "")) for k in ("ts", "event", "lane", "step", "state", "detail")}
                     for r in rows if r.get("event") in ("queue", "alert", "alert-answer", "loop", "landed", "console")][-15:]  # #6467: the last journal events
     by_id = {x["id"]: x for x in lanes}
+    live = live_lines(ROOT) if ROOT else {}
     for row in st["lanes"]:
         x = by_id[row["lane"]]
+        if row["lane"] in live:
+            row["live"] = live[row["lane"]]
         cur = x["steps"][x["cursor"]] if x["cursor"] < len(x["steps"]) else None
         sent = [r for r in rows if r.get("event") == "queue" and r.get("lane") == x["id"] and r.get("state") == "sent"]
         cost = [r for r in rows if r.get("event") == "cost" and r.get("task") == x["id"]]

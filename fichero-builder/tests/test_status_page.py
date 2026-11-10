@@ -561,3 +561,12 @@ def test_a_start_with_no_end_for_a_day_is_abandoned_not_running(monkeypatch):
     d = console.activity(rows)
     assert [a["key"] for a in d["running"]] == ["live"]
     assert d["recent"][0]["key"] == "dead" and d["recent"][0]["ok"] is False
+
+
+def test_live_lines_read_the_last_real_pane_line_and_when_the_window_moved(monkeypatch):
+    monkeypatch.setattr(console, "_LIVE", {"at": 0.0, "rows": {}})
+    def tmux(*a):
+        return "lane-ie\t1794325018\n" if a[0] == "list-windows" else "──────\n⏺ editing foo.py\n\n❯ \n  ⏵⏵ bypass permissions on\n"
+    d = console.live_lines("/nowhere", now=1000.0, tmux=tmux)
+    assert d["lane-ie"]["line"] == "⏺ editing foo.py" and d["lane-ie"]["ts"].startswith("2026-11-")
+    assert console.live_lines("/nowhere", now=1005.0, tmux=lambda *a: "")["lane-ie"]  # cached for LIVE_TTL_S
