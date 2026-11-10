@@ -585,6 +585,12 @@ extension ReadingOrderList {
     /// The lines a move on `named` means: the row, or the focused selection when it holds the row (one rule with Delete).
     private func movedIds(named: Set<String>?) -> [String] {
         guard let store = documentStore else { return [] }
+        // The list's own picks, when the menu was opened on several: they are the selection, whatever the shared one holds
+        // (it can lag behind a pick, which moved only the first of four).
+        if let named, named.count > 1 {
+            let order = (self.store?.shown.map(\.segmentId) ?? []).filter(named.contains)
+            return order.isEmpty ? Array(named) : order
+        }
         let held = SegmentDeleter.selectedIds(windowState?.sharedRegionSelection, documentId: documentId, store: store)
         return SegmentDeleter.ids(row: named?.first ?? selection, held: held)
     }
