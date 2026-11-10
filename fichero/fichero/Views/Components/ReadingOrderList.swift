@@ -112,6 +112,8 @@ struct ReadingOrderList: View {
                 // No named order is no reason to show nothing: the page's segments, as written (#5204).
                 unordered(asWritten)
             } else if !hidesWhenEmpty {
+                // Whatever rendition is open, the heading is there: nobody has to know to switch to find it.
+                if store?.orders.isEmpty ?? true { layoutOrderHead; Divider() }
                 ContentUnavailableView(
                     "No Reading Order", systemImage: "list.number",
                     description: Text("This page has no named order yet.")
@@ -185,8 +187,7 @@ struct ReadingOrderList: View {
     private func lineMenu(_ ids: Set<String>) -> some View {
         CorrectThisLineButton(segment: ids.count == 1 ? ids.first.flatMap(segment) : nil) { _ = beginRename($0.id) }
         if ids.count == 1 { Button(LineVerbs.revealTitle) { reveal(ids) } }
-        moveMenu(ids)
-        moreVerbs(ids)
+        SegmentVerbMenu(ids: movedIds(named: ids), documentId: documentId, onNote: { createNote = $0 })
         Divider()
         Button(role: .destructive) { deleteLines(ids) } label: { Label("Delete", systemImage: "trash") }
             .disabled(ids.isEmpty)
@@ -288,26 +289,31 @@ struct ReadingOrderList: View {
         segmentService.flatMap { SegmentStore.shared(for: $0).workingPass(documentId: documentId)?.id }
     }
 
+    /// The order's name, at the top of the list in every state (#6482).
+    private var layoutOrderHead: some View {
+        // The order's name sits at the top, like the renditions: always there, even with no named order, so it is
+        // plain what a layout order is and where to make one (#6482). The words live in the tooltip, not the menu.
+        HStack(spacing: 6) {
+            Image(systemName: "list.number").foregroundStyle(.secondary).accessibilityHidden(true)
+            Menu {
+                CreateNamedOrderMenuItem(target: lineVerbs)
+                    .accessibilityIdentifier("readingOrder.createNamedOrder")
+            } label: {
+                Text("Layout Order").font(.headline)
+            }
+            .fixedSize()
+            .help("The order this page's segments are read in. Now it is the order the layout found them; make a named order to rearrange it.")
+            Spacer(minLength: 4)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+    }
+
     /// A page with no named order: its segments as written, selectable like the order's rows, and the one
     /// verb that gives it an order. No move keys: there is no order to move in.
     private func unordered(_ ids: [String]) -> some View {
         VStack(spacing: 0) {
-            // The order's name sits at the top, like the renditions: always there, even with no named order, so it is
-            // plain what a layout order is and where to make one (#6482). The words live in the tooltip, not the menu.
-            HStack(spacing: 6) {
-                Image(systemName: "list.number").foregroundStyle(.secondary).accessibilityHidden(true)
-                Menu {
-                    CreateNamedOrderMenuItem(target: lineVerbs)
-                        .accessibilityIdentifier("readingOrder.createNamedOrder")
-                } label: {
-                    Text("Layout Order").font(.headline)
-                }
-                .fixedSize()
-                .help("The order this page's segments are read in. Now it is the order the layout found them; make a named order to rearrange it.")
-                Spacer(minLength: 4)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            layoutOrderHead
             Divider()
             let nested = nestedRows(top: ids)
             List(selection: $picks) {
@@ -427,6 +433,15 @@ extension ReadingOrderList {
     /// once a line has a reading.
     private func label(for segmentId: String, at index: Int) -> String {
         guard segmentService != nil else { return "Segment \(index + 1)" }
+        // A region is numbered among the page's regions, not by its row among the entries (lines folded under an
+        // earlier region would make the second one "Region 25"): the number every other surface gives it.
+        if let found = segment(segmentId), found.kind == "region", let segmentService {
+            let regions = SegmentStore.shared(for: segmentService).workingSegments(documentId: documentId)
+                .filter { $0.kind == "region" }
+            if let place = regions.firstIndex(where: { $0.id == segmentId }) {
+                return SegmentsPane.rowLabel(found, at: place)
+            }
+        }
         return SegmentsPane.rowLabel(segment(segmentId), at: index)
     }
 
@@ -565,58 +580,6 @@ private final class PreviewOrderTransport: ReadingOrderTransport {
 // MARK: - Moving lines into a region (menu, drag and drop)
 
 extension ReadingOrderList {
-    /// Move Into Region ▸ (the page's other regions) and Lift Out of Region: present only when they can apply, never greyed.
-    @ViewBuilder
-    private func moveMenu(_ ids: Set<String>) -> some View {
-        let held = movedIds(named: ids)
-        let regions = SegmentMover.targets(for: held, in: pageSegments)
-        if !regions.isEmpty {
-            Menu("Move Into Region") {
-                ForEach(Array(regions.enumerated()), id: \.element.id) { position, region in
-                    Button("Region \(position + 1)") { moveLines(held, into: region.id) }
-                }
-            }
-        }
-        if SegmentMover.canLift(held, in: pageSegments) {
-            Button("Lift Out of Region") { moveLines(held, into: nil) }
-        }
-    }
-
-    /// The rest of the segment verbs the Preview and the Inspector offer, so no surface lacks one: Join (two or more
-    /// lines) and the attribute menu (kind, direction, text or furniture). Each is the one audited call, one ⌘Z.
-    @ViewBuilder
-    func moreVerbs(_ ids: Set<String>) -> some View {
-        let held = movedIds(named: ids)
-        if held.count >= 2 { Button("Join") { runEdit(held, "Join Lines") { SegmentEdit.join($0) } } }
-        if !held.isEmpty {
-            Divider()
-            SegmentAttributeMenu.Items(apply: { attribute in
-                runEdit(held, "Set Segment") { SegmentEdit.set(attribute, on: $0) }
-            })
-        }
-    }
-
-    /// Plan `ids` with `plan` and send it through the runner; why not is said under the list, never silent.
-    private func runEdit(
-        _ ids: [String], _ actionName: String, plan: @escaping ([Segment]) -> Result<SegmentEdit.Call, SegmentEdit.Refusal>
-    ) {
-        guard let store = documentStore, let actionsService = actionStore?.actionsService else { return }
-        let segments = SegmentDeleter.segments(ids, documentId: documentId, store: store)
-        let steps = windowSteps, documentId = documentId
-        Task {
-            switch plan(segments) {
-            case .failure(let refusal): createNote = SegmentMover.problem(refusal)
-            case .success(let call):
-                do {
-                    try await SegmentEditRunner(actionsService: actionsService, store: store).run(
-                        call, documentId: documentId, actionName: actionName, steps: steps
-                    )
-                    createNote = nil
-                } catch { createNote = "That did not happen: \(error.localizedDescription)" }
-            }
-        }
-    }
-
     private var pageSegments: [Segment] { documentStore?.workingSegments(documentId: documentId) ?? [] }
 
     /// The lines a move on `named` means: the row, or the focused selection when it holds the row (one rule with Delete).

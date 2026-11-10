@@ -155,6 +155,7 @@ struct ReaderLineRow: View {
         // Correct This Line (#5499): the engine's one verb, the line and its words.
         .contextMenu {
             CorrectThisLineButton(segment: segment) { correcting = $0 }
+            SegmentVerbMenu(ids: verbIds, documentId: segment.documentId, onNote: { deleteNote = $0 })
             Divider()
             Button(role: .destructive) { deleteLines() } label: { Label("Delete", systemImage: "trash") }
         }
@@ -167,6 +168,15 @@ struct ReaderLineRow: View {
         .task(id: segment.id) {
             if let segmentService { await editor.load(segmentService) }
         }
+    }
+
+    /// The lines a verb on this row means: the row, or the focused selection when it holds the row.
+    private var verbIds: [String] {
+        guard let segmentService else { return [segment.id] }
+        let held = SegmentDeleter.selectedIds(
+            windowState?.sharedRegionSelection, documentId: segment.documentId, store: SegmentStore.shared(for: segmentService)
+        )
+        return SegmentDeleter.ids(row: segment.id, held: held)
     }
 
     private var lineVerbsTarget: LineVerbsTarget? {
