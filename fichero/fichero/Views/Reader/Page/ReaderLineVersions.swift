@@ -10,6 +10,8 @@ struct ReaderLineVersions: View {
     let roots: [ReadingTree]
     /// The reading that counts, checked.
     let countingId: String?
+    /// Retracted readings (shown only with "Show Withdrawn Readings"): struck through.
+    var withdrawn: Set<String> = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -27,7 +29,10 @@ struct ReaderLineVersions: View {
                 .accessibilityLabel(reading.id == countingId ? "Counts" : "")
             VStack(alignment: .leading, spacing: 1) {
                 Text(reading.content).font(.callout).textSelection(.enabled)
-                Text(Self.caption(reading)).font(.caption).foregroundStyle(.secondary)
+                    .strikethrough(withdrawn.contains(reading.id))
+                    .foregroundStyle(withdrawn.contains(reading.id) ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+                Text(Self.caption(reading) + (withdrawn.contains(reading.id) ? " · withdrawn" : ""))
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
     }
