@@ -43,7 +43,7 @@ struct LibraryTableDisclosureAligner: NSViewRepresentable {
                             ) { [weak self] _ in MainActor.assumeIsolated { self?.align() } },
                             NotificationCenter.default.addObserver(
                                 forName: NSOutlineView.itemDidExpandNotification, object: found, queue: .main
-                            ) { [weak self] _ in MainActor.assumeIsolated { self?.align() } },
+                            ) { [weak self] _ in MainActor.assumeIsolated { self?.align() } }
                         ]
                     }
                     align()
@@ -59,8 +59,8 @@ struct LibraryTableDisclosureAligner: NSViewRepresentable {
                 guard let rowView = outline.rowView(atRow: row, makeIfNecessary: false) else { continue }
                 for button in rowView.subviews where button.identifier == NSOutlineView.disclosureButtonIdentifier {
                     let height = button.frame.height
-                    let y = LibraryTableDisclosureAlignment.chevronY(rowHeight: rowView.bounds.height, chevronHeight: height)
-                    let flippedY = rowView.isFlipped ? y : rowView.bounds.height - y - height
+                    let topY = LibraryTableDisclosureAlignment.chevronY(rowHeight: rowView.bounds.height, chevronHeight: height)
+                    let flippedY = rowView.isFlipped ? topY : rowView.bounds.height - topY - height
                     if abs(button.frame.origin.y - flippedY) > 0.5 { button.setFrameOrigin(NSPoint(x: button.frame.origin.x, y: flippedY)) }
                 }
             }
