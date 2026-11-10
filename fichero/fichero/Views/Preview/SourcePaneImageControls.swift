@@ -11,6 +11,7 @@ struct SourcePaneImageControls: View {
     @Environment(StorageService.self) private var storageService
     @Environment(ActionStore.self) private var actionStore: ActionStore?
     @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
+    @Environment(WindowState.self) private var windowState: WindowState?
     @State private var cleanupStep: CleanupStep?
     @State private var failure: String?
 
@@ -23,7 +24,8 @@ struct SourcePaneImageControls: View {
                     .background(.bar, in: RoundedRectangle(cornerRadius: 8))
                     .frame(maxWidth: 360)
             }
-            if !items.isEmpty {
+            // Image work is Image mode's (#6482): Read and Segments show the page without these over it.
+            if !items.isEmpty, windowState?.previewMode == .image {
                 HStack(spacing: 8) {
                     if items.contains(.enhance) {
                         Button("Enhance", systemImage: "wand.and.stars") { Task { await enhance() } }
