@@ -186,6 +186,7 @@ struct ReadingOrderList: View {
         CorrectThisLineButton(segment: ids.count == 1 ? ids.first.flatMap(segment) : nil) { _ = beginRename($0.id) }
         if ids.count == 1 { Button(LineVerbs.revealTitle) { reveal(ids) } }
         moveMenu(ids)
+        moreVerbs(ids)
         Divider()
         Button(role: .destructive) { deleteLines(ids) } label: { Label("Delete", systemImage: "trash") }
             .disabled(ids.isEmpty)
@@ -578,6 +579,41 @@ extension ReadingOrderList {
         }
         if SegmentMover.canLift(held, in: pageSegments) {
             Button("Lift Out of Region") { moveLines(held, into: nil) }
+        }
+    }
+
+    /// The rest of the segment verbs the Preview and the Inspector offer, so no surface lacks one: Join (two or more
+    /// lines) and the attribute menu (kind, direction, text or furniture). Each is the one audited call, one ⌘Z.
+    @ViewBuilder
+    func moreVerbs(_ ids: Set<String>) -> some View {
+        let held = movedIds(named: ids)
+        if held.count >= 2 { Button("Join") { runEdit(held, "Join Lines") { SegmentEdit.join($0) } } }
+        if !held.isEmpty {
+            Divider()
+            SegmentAttributeMenu.Items(apply: { attribute in
+                runEdit(held, "Set Segment") { SegmentEdit.set(attribute, on: $0) }
+            })
+        }
+    }
+
+    /// Plan `ids` with `plan` and send it through the runner; why not is said under the list, never silent.
+    private func runEdit(
+        _ ids: [String], _ actionName: String, plan: @escaping ([Segment]) -> Result<SegmentEdit.Call, SegmentEdit.Refusal>
+    ) {
+        guard let store = documentStore, let actionsService = actionStore?.actionsService else { return }
+        let segments = SegmentDeleter.segments(ids, documentId: documentId, store: store)
+        let steps = windowSteps, documentId = documentId
+        Task {
+            switch plan(segments) {
+            case .failure(let refusal): createNote = SegmentMover.problem(refusal)
+            case .success(let call):
+                do {
+                    try await SegmentEditRunner(actionsService: actionsService, store: store).run(
+                        call, documentId: documentId, actionName: actionName, steps: steps
+                    )
+                    createNote = nil
+                } catch { createNote = "That did not happen: \(error.localizedDescription)" }
+            }
         }
     }
 
