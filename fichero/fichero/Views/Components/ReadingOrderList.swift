@@ -95,8 +95,8 @@ struct ReadingOrderList: View {
                 #endif
                 .focused($listFocused)
                 // Shift+Up/Down add the next row to the shared selection (#6457); plain arrows stay the list's own.
-                .onKeyPress(.upArrow, phases: .down) { press in extend(-1, press, store: documentStore) }
-                .onKeyPress(.downArrow, phases: .down) { press in extend(1, press, store: documentStore) }
+                .onKeyPress(.upArrow, phases: .down) { press in optionMove(.upward, press) ?? extend(-1, press, store: documentStore) }
+                .onKeyPress(.downArrow, phases: .down) { press in optionMove(.downward, press) ?? extend(1, press, store: documentStore) }
                 // Return renames the one selected line in place; a double-click reveals (Step 1.25).
                 .onKeyPress(.return, phases: .down) { _ in beginRename(selection) }
                 Divider()
@@ -218,6 +218,14 @@ struct ReadingOrderList: View {
     private var documentStore: SegmentStore? { segmentService.map { SegmentStore.shared(for: $0) } }
 
     /// Shift+Up/Down (#6457): only Shift extends; a plain arrow stays the List's own (`InspectorPath.extendPlaces`).
+    /// ⌥↑ / ⌥↓ move the selected line one place, the same call as the Move buttons (Finder keeps plain arrows for the
+    /// selection). Nil for any other chord, so the arrows keep their meaning.
+    private func optionMove(_ step: ReadingOrderMove.Step, _ press: KeyPress) -> KeyPress.Result? {
+        guard press.modifiers == .option, let store, let segmentId = selection else { return nil }
+        Task { await record(store.move(segmentId, step: step), in: store) }
+        return .handled
+    }
+
     private func extend(_ places: Int, _ press: KeyPress, store: SegmentStore?) -> KeyPress.Result {
         guard let places = InspectorPath.extendPlaces(places, shift: press.modifiers.contains(.shift)),
               let store, let focused = windowState?.sharedRegionSelection,
