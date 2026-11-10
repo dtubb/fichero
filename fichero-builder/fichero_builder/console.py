@@ -103,6 +103,10 @@ VERBS = {
     "pause": (("lane",), lambda a: _builder("queue", "pause", "--lane", a["lane"], *_st())),
     "resume": (("lane",), lambda a: _builder("queue", "resume", "--lane", a["lane"], "--root", str(ROOT), *_st())),
     "stop": (("lane",), lambda a: _builder("queue", "stop", "--lane", a["lane"], *_st())),
+    "start": (("lane",), lambda a: _builder("queue", "resume", "--lane", a["lane"], "--root", str(ROOT), *_st())),  # #6467: a blocked or parked lane goes again
+    "queue-move": (("lane", "step", "to"), lambda a: _builder("queue", "move", "--lane", a["lane"], "--step", a["step"], "--to", a["to"], *_st())),
+    "park": (("lane", "step"), lambda a: _builder("queue", "park", "--lane", a["lane"], "--step", a["step"], *_st())),
+    "unpark": (("lane", "step"), lambda a: _builder("queue", "unpark", "--lane", a["lane"], "--step", a["step"], *_st())),
     "loop-start": ((), lambda a: ["launchctl", "bootstrap", f"gui/{os.getuid()}", _plist()]),
     "loop-stop": ((), lambda a: ["launchctl", "bootout", f"gui/{os.getuid()}/local.builder.loop"]),
     "alert": (("id", "action"), lambda a: _builder("alert", a["id"], a["action"], "--root", str(ROOT), *_st())),
@@ -303,6 +307,8 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
     running = {a["lane"]: a for a in acts if a.get("lane")}
     st["check_running"] = next(({"lane": a["lane"], "now": a["now"], "started": a["started"]} for a in acts if a["kind"] == "check"), None)
     st["order_saving"] = any(x["id"] == "build-order" and any(s["state"] != "landed" for s in x["steps"]) for x in lanes)
+    st["events"] = [{k: (str(r.get(k, ""))[:160] if k == "detail" else r.get(k, "")) for k in ("ts", "event", "lane", "step", "state", "detail")}
+                    for r in rows if r.get("event") in ("queue", "alert", "alert-answer", "loop", "landed", "console")][-15:]  # #6467: the last journal events
     by_id = {x["id"]: x for x in lanes}
     for row in st["lanes"]:
         x = by_id[row["lane"]]
@@ -329,7 +335,10 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
         shown = steps_on_origin(x, (st.get("last_land_git") or {}).get("sha", ""))
         if row["state"] == "done" and shown and shown[-1]["state"] != "landed":  # a lane through its steps reads `done` (review 96)
             row["state"] = NOT_LANDED  # the lane is through its steps; the last one is not on origin/integration
-        row.update(
+        row.update(  # #6467: why the lane waits, in a line, and the batches queued behind its cursor
+            why=("paused" if x.get("paused") else "held" if x.get("hold") else "finished" if cur is None
+                 else f"{cur['state']}: {cur['why'].strip().splitlines()[0][:160]}" if cur.get("why", "").strip() else cur["state"]),
+            queued=[{"step": q["step"], "state": q["state"], "issues": q.get("issues", [])} for q in x["steps"][x["cursor"] + 1:]],
             worktree=x["worktree"], title=_title(cur["brief"]) if cur else "", brief_text=_head(cur["brief"]) if cur else "",
             commit_ts=time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(ct)) if ct else "",
             steps=shown, landed_n=sum(1 for s in shown if s["state"] == "landed"), not_landed_n=sum(1 for s in shown if s["state"] == NOT_LANDED),

@@ -110,7 +110,7 @@ const Ago = ({ ts }) => ts ? html`<span title=${ts}>${rel(ts)}</span>` : html`<s
 const dur = s => s == null ? "-" : s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)} min` : `${Math.floor(s / 3600)} h ${Math.floor(s % 3600 / 60)} min`;
 
 const PILL = { working: ["green", true], running: ["green", true], sent: ["green", true], checking: ["blue", true], reviewing: ["blue", true],
-  done: ["blue", false], "done, not landed yet": ["orange", false], landed: ["green", false], queued: ["", false], idle: ["", false], blocked: ["red", false], paused: ["orange", false] };
+  done: ["blue", false], "done, not landed yet": ["orange", false], landed: ["green", false], queued: ["", false], idle: ["", false], blocked: ["red", false], paused: ["orange", false], parked: ["orange", false] };
 function Pill({ state, paused }) {
   const s = paused && !["landed", "done"].includes(state) ? "paused" : state;
   const [c, pulse] = PILL[s] || ["", false];
@@ -132,18 +132,25 @@ function Lanes({ lanes }) {
         <td class="tri" onClick=${() => setOpen({ ...open, [l.lane]: !open[l.lane] })}>${open[l.lane] ? "▾" : "▸"}</td>
         <td><b>${l.lane}</b>${l.kind === "external" ? html` <span class="muted">external${l.waiting != null ? ` · ${l.waiting} commits waiting` : ""}</span>` : ""}</td>
         <td><span class="mono">${l.step}</span>${l.progress?.n ? html` · step <b>${l.progress.i ?? "?"}</b> of ${l.progress.n} in ${l.progress.milestone}` : ""}${l.landed_n || l.not_landed_n ? html` <span class="muted">· <b>${l.landed_n}</b> landed on integration${l.not_landed_n ? html`, <b>${l.not_landed_n}</b> done, not landed yet` : ""}</span>` : ""}<div class="muted">${l.title}</div></td>
-        <td><${Pill} state=${l.state} paused=${l.paused} /></td>
+        <td><${Pill} state=${l.state} paused=${l.paused} />${l.why && !["sent", "running", "working"].includes(l.state) ? html`<div class="muted" style="font-size:11px;max-width:260px" title=${l.why}>${l.why}</div>` : ""}</td>
         <td>${l.activity ? html`<span class="pill blue"><span class="dot blue pulse"></span>${l.activity.kind}${l.activity.now ? ": " + l.activity.now : ""}</span> <span class="muted">since <${Ago} ts=${l.activity.started} />, ${l.activity.done} rung(s) done</span>${l.activity.base_moved && html` <span class="pill orange">base moved; will rebase</span>`}` : l.doing}<div class="muted">${l.last_commit && html`<span class="mono">${l.last_commit.split(" ")[0]}</span> ${l.last_commit.split(" ").slice(1).join(" ").replace(/ \([^)]*\)$/, "")} · <${Ago} ts=${l.commit_ts} />`}</div></td>
         <td>${dur(l.elapsed_s)}</td><td>${l.turns ?? "-"}</td><td>${l.tokens ?? "-"}</td><td>${l.usd.toFixed(2)}</td>
         <td><div class="actions">
           ${l.paused ? html`<button class="btn" onClick=${() => act("resume", { lane: l.lane })}>${I.play} Resume</button>`
                      : html`<button class="btn" onClick=${() => act("pause", { lane: l.lane })}>${I.pause} Pause</button>`}
           <button class="btn" onClick=${() => confirm(`Stop ${l.lane}? The worker commits what is green and its session ends; the tree is kept.`) && act("stop", { lane: l.lane })}>${I.stop} Stop</button>
+          ${!l.paused && ["blocked", "parked", "idle", "queued"].includes(l.state) && html`<button class="btn" title="a blocked step goes again as queued; the loop starts its session" onClick=${() => act("start", { lane: l.lane })}>${I.play} Start</button>`}
         </div></td>
       </tr>
       ${open[l.lane] && html`
-        ${l.steps.map(s => html`<tr class="sub"><td></td><td></td><td><span class="mono">${s.step}</span></td><td><${Pill} state=${s.state} /></td>
-          <td colspan="6">${s.issues.map(n => "#" + n).join(", ")} <span class="muted">${s.why}</span></td></tr>`)}
+        ${l.steps.map((s, i) => html`<tr class="sub"><td></td><td></td><td><span class="mono">${s.step}</span></td><td><${Pill} state=${s.state} /></td>
+          <td colspan="5">${s.issues.map(n => "#" + n).join(", ")} <span class="muted">${s.why}</span></td>
+          <td><div class="actions">${(l.queued || []).some(q => q.step === s.step) && html`
+            ${["queued", "parked"].includes(s.state) && html`<button class="btn" title="earlier in the queue" onClick=${() => act("queue-move", { lane: l.lane, step: s.step, to: i - 1 })}>↑</button>
+              <button class="btn" title="later in the queue" onClick=${() => act("queue-move", { lane: l.lane, step: s.step, to: i + 1 })}>↓</button>`}
+            ${s.state === "queued" && html`<button class="btn" onClick=${() => act("park", { lane: l.lane, step: s.step })}>Park</button>`}
+            ${s.state === "parked" && html`<button class="btn" onClick=${() => act("unpark", { lane: l.lane, step: s.step })}>Unpark</button>`}`}
+            ${s.state === "blocked" && html`<button class="btn" onClick=${() => act("park", { lane: l.lane, step: s.step })}>Park</button>`}</div></td></tr>`)}
         <tr class="sub"><td></td><td colspan="9"><span class="muted">Brief</span><pre>${l.brief_text}</pre><span class="muted mono">${l.worktree}</span>
           <button class="btn" style="margin-left:8px" title="the pinned ladder over this lane's HEAD now; lands nothing" onClick=${() => act("check-lane", { lane: l.lane })}>Run check</button>
           ${(window.__st?.machines || []).length > 0 && html`<form style="margin-top:6px" onSubmit=${e => { e.preventDefault(); const f = e.target; act("measure", { lane: l.lane, machine: f.machine.value, script: f.script.value }); }}>
@@ -357,6 +364,9 @@ function App() {
       ${{ milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, issues: Issues, release: Release }[tab]
         ? html`<${{ milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, issues: Issues, release: Release }[tab]} st=${st} />`
         : html`<h2>Lanes</h2><${Lanes} lanes=${st.lanes} />`}
+      ${(st.events || []).length > 0 && html`<h2>Last events</h2>
+      <div class="wrap"><table><tbody>${[...st.events].reverse().map(r => html`<tr><td class="muted"><${Ago} ts=${r.ts} /></td><td>${r.event}</td><td><b>${r.lane || ""}</b> <span class="mono">${r.step || ""}</span></td>
+        <td>${r.state || ""}</td><td class="muted">${r.detail || ""}</td></tr>`)}</tbody></table></div>`}
       <h2>Console actions</h2>
       <div class="wrap"><table><tbody>${[...st.console].reverse().map(r => html`<tr>
         <td class="muted"><${Ago} ts=${r.ts} /></td><td>${r.who}</td><td>${r.verb}</td>

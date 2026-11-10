@@ -512,3 +512,36 @@ def test_the_console_lists_the_dev_builds_on_disk_and_downloads_one_only_by_a_bu
         srv.shutdown()
     assert console.argv_for("reveal-build", {"sha": "b" * 9}) == ["/usr/bin/open", "-R", str(dmg)]
     assert console.argv_for("open-build", {"sha": "b" * 9}) == ["/usr/bin/open", str(dmg)]
+
+
+def test_the_console_moves_parks_unparks_and_starts_through_the_queue_verbs():
+    """#6467: every Plan click is a queue verb under the queue lock; no model in the path."""
+    assert console.argv_for("queue-move", {"lane": "a", "step": "1.2", "to": 0})[3:10] == ["queue", "move", "--lane", "a", "--step", "1.2", "--to"]
+    assert console.argv_for("queue-move", {"lane": "a", "step": "1.2", "to": "3"})[10] == "3"
+    assert console.argv_for("park", {"lane": "a", "step": "1.2"})[3:8] == ["queue", "park", "--lane", "a", "--step"]
+    assert console.argv_for("unpark", {"lane": "a", "step": "1.2"})[3:8] == ["queue", "unpark", "--lane", "a", "--step"]
+    assert console.argv_for("start", {"lane": "a"})[3:7] == ["queue", "resume", "--lane", "a"]
+    with pytest.raises(ValueError):
+        console.argv_for("queue-move", {"lane": "a", "step": "1.2"})
+
+
+def test_api_status_says_why_a_lane_waits_and_lists_its_queued_batches_and_the_last_events(tmp_path):
+    brief = tmp_path / "b.md"
+    brief.write_text("x\n")
+    s = lambda step, state, why="": {"step": step, "state": state, "issues": [1], "why": why, "brief": str(brief)}  # noqa: E731
+    lanes = [{"id": "a", "worktree": "/nonexistent/a", "cursor": 1, "paused": False, "kind": "external",
+              "steps": [s("b1", "landed"), s("b2", "blocked", "red at pytest\nmore"), s("b3", "queued"), s("b4", "parked", "dismissed")]},
+             {"id": "b", "worktree": "/nonexistent/b", "cursor": 0, "paused": True, "kind": "worker", "steps": [s("s1", "queued")]},
+             {"id": "c", "worktree": "/nonexistent/c", "cursor": 1, "paused": False, "kind": "worker", "steps": [s("s1", "landed")]}]
+    rows = [{"ts": f"2026-11-10T10:00:{i:02d}", "event": "queue", "lane": "a", "step": "b2", "state": "blocked", "detail": f"row {i}"} for i in range(20)]
+    st = console.api_status(rows, lanes, now=time.time(), commit=lambda wt: ("", 0))
+    by = {x["lane"]: x for x in st["lanes"]}
+    assert by["a"]["why"] == "blocked: red at pytest" and by["b"]["why"] == "paused" and by["c"]["why"] == "finished"
+    assert [(q["step"], q["state"]) for q in by["a"]["queued"]] == [("b3", "queued"), ("b4", "parked")]
+    assert len(st["events"]) == 15 and st["events"][-1]["detail"] == "row 19" and st["events"][0]["ts"] == "2026-11-10T10:00:05"
+
+
+def test_the_page_wires_the_plan_clicks_to_the_queue_verbs():
+    page = console.PAGE.read_text()
+    for verb in ('act("queue-move"', 'act("park"', 'act("unpark"', 'act("start"', 'act("alert", { id: "all", action: "dismiss" })', "st.events"):
+        assert verb in page, verb

@@ -588,3 +588,27 @@ def test_a_lane_named_in_opus_lanes_gets_the_full_reviewer_and_others_the_fast_o
     for lane in ("lane-sharing", "lane-ie"):
         procs.chain({"id": lane, "worktree": "/w", "kind": "external"}, {"step": "b1", "brief": "/b", "issues": []}, lambda s: None)
     assert seen == {"lane-sharing": "opus", "lane-ie": "sonnet"}
+
+
+def test_queue_move_park_and_unpark_reorder_the_steps_behind_the_cursor_under_the_lock_and_refuse_the_rest(state, capsys):
+    """#6467 (run.loop-plan): the owner orders a lane's queue from the console; the verbs behind it. `move --to N` puts a queued or
+    parked step at position N among the steps from the cursor on; the cursor's own step and a landed one never move; `park` sends a
+    queued or blocked step to the end as parked; `unpark` makes a parked step queued. Each is one `queue` row."""
+    for n in ("1.1", "1.2", "1.3", "1.4"):
+        queue.add("m1", "/w/m1", n, str(state / "b1.1"), [])
+    lanes = queue.load()
+    lanes[0]["steps"][0]["state"], lanes[0]["cursor"] = "landed", 1
+    queue.save(lanes)
+    st = ["--state", str(journal.STATE)]
+    assert cli.main(["queue", "move", "--lane", "m1", "--step", "1.4", "--to", "1", *st]) == 0
+    assert [s["step"] for s in queue.load()[0]["steps"]] == ["1.1", "1.4", "1.2", "1.3"], "1.4 is now the cursor's step"
+    assert cli.main(["queue", "move", "--lane", "m1", "--step", "1.1", "--to", "3", *st]) == 1 and "REFUSED" in capsys.readouterr().out, "a landed step"
+    assert cli.main(["queue", "park", "--lane", "m1", "--step", "1.4", *st]) == 0
+    assert [(s["step"], s["state"]) for s in queue.load()[0]["steps"]][1:] == [("1.2", "queued"), ("1.3", "queued"), ("1.4", "parked")]
+    assert cli.main(["queue", "unpark", "--lane", "m1", "--step", "1.4", *st]) == 0
+    assert queue.load()[0]["steps"][-1]["state"] == "queued"
+    assert cli.main(["queue", "move", "--lane", "m1", "--step", "1.4", "--to", "9", *st]) == 0, "past the end: the end"
+    assert cli.main(["queue", "move", "--lane", "m1", "--step", "1.4", "--to", "0", *st]) == 0 and [s["step"] for s in queue.load()[0]["steps"]] == ["1.1", "1.4", "1.2", "1.3"], "before the cursor: at the cursor"
+    assert cli.main(["queue", "park", "--lane", "m1", "--step", "1.1", *st]) == 1, "a landed step is never parked"
+    assert cli.main(["queue", "move", "--lane", "zz", "--step", "1.1", "--to", "1", *st]) == 1
+    assert [r["state"] for r in journal.read() if r.get("event") == "queue" and r.get("lane") == "m1" and r.get("state") in ("moved", "parked", "unparked")] == ["moved", "parked", "unparked", "moved", "moved"]
