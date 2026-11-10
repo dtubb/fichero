@@ -1243,3 +1243,15 @@ def test_a_brief_a_managed_worker_cannot_carry_out_is_refused_before_a_session_i
     assert queue.brief_preflight("brief 1.1: fix scripts/x.py; see /Users/Shared/fichero-worker/notes.txt", "m1") == []
     assert queue.brief_preflight("read /Users/danieltubb/x", "m1") and queue.brief_preflight("gh pr list", "m1") and queue.brief_preflight("builder done m1 now", "m1")
     assert queue.brief_preflight("gh issue view 7", "m1", gh_ok=True) == [], "[jail].gh = true: the jail has a token"
+
+
+def test_intake_any_takes_an_owner_branch_on_count_or_age_alone(tmp_path):
+    """#6501: the owner's own branch (ux: 63 commits, none with `(Step ` or a Behaviour trailer) never met the intake rule.
+    A lane named in [loop].intake_any is taken on its commit count or age alone."""
+    wt, g = _ext_repo(tmp_path, commits=3)
+    (wt / "z").write_text("z")
+    g(wt, "add", "."), g(wt, "commit", "-qm", "wip: half a step")
+    lane_ = {"id": "ux", "worktree": str(wt)}
+    assert queue.intake_sha(lane_, "integration", 1, 0) == "", "not a finished step"
+    assert queue.intake_sha(lane_, "integration", 1, 0, any_subject=True) == g(wt, "rev-parse", "HEAD")
+    assert queue.intake_sha(lane_, "integration", 9, 99, any_subject=True) == "", "the thresholds still hold"

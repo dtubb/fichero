@@ -557,9 +557,10 @@ STOPPED = ("Continue from the tree: this step was stopped by the owner mid-way. 
            "uncommitted work is still in the worktree; read them first, then finish the step.")
 
 
-def intake_sha(lane: dict, branch: str, commits: int, hours: float, now: float | None = None) -> str:
-    """The lane's HEAD when it is a finished step (`(Step ` in its subject or a `Behaviour:` trailer) and the lane has `commits`
-    commits past origin/<branch>, or its oldest unlanded one is `hours` old; else ''."""
+def intake_sha(lane: dict, branch: str, commits: int, hours: float, now: float | None = None, any_subject: bool = False) -> str:
+    """The lane's HEAD when it is a finished step (`(Step ` in its subject or a `Behaviour:` trailer; any subject for a lane in
+    [loop].intake_any, #6501: the owner's own branch) and the lane has `commits` commits past origin/<branch>, or its oldest
+    unlanded one is `hours` old; else ''."""
     g = ["git", "-c", "safe.directory=*", "-C", lane["worktree"]]
     if not missing(lane["worktree"], branch):  # every commit is on origin by patch (a pre-rebase copy of a landed batch)
         return ""
@@ -568,7 +569,7 @@ def intake_sha(lane: dict, branch: str, commits: int, hours: float, now: float |
     if not log:
         return ""
     msg = subprocess.run(g + ["log", "-1", "--format=%B"], capture_output=True, text=True).stdout
-    if "(Step " not in msg.split("\n", 1)[0] and not re.search(r"(?m)^Behaviour:", msg):
+    if not any_subject and "(Step " not in msg.split("\n", 1)[0] and not re.search(r"(?m)^Behaviour:", msg):
         return ""
     old = (now or time.time()) - int(log[-1][1])
     return log[0][0] if len(log) >= commits or old >= hours * 3600 else ""
@@ -1475,7 +1476,8 @@ def real_procs(root) -> Procs:
         refresh_live(root, branch)
 
     def intake(lane):
-        return intake_sha(lane, branch, int(loop_cfg.get("intake_commits", 8)), float(loop_cfg.get("intake_hours", 3)))
+        return intake_sha(lane, branch, int(loop_cfg.get("intake_commits", 8)), float(loop_cfg.get("intake_hours", 3)),
+                          any_subject=lane["id"] in loop_cfg.get("intake_any", ()))
 
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
