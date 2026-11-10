@@ -1,7 +1,4 @@
 import SwiftUI
-#if os(macOS)
-import AppKit
-#endif
 
 /// A line's versions under its disclosure triangle (`source.editor.reader-line-discloses-its-versions`, #6492): each
 /// reading says who made it, what it is and when; one made from or correcting another sits under it. Reading only;
@@ -65,6 +62,8 @@ struct ReaderVersionsTriangle: View {
     let count: Int
 
     @Environment(WindowState.self) private var windowState: WindowState?
+    /// ⌥ held? Tracked via `onModifierKeysChanged` (pure SwiftUI, so the iOS build and a hardware keyboard see it too).
+    @State private var optionHeld = false
 
     var isOpen: Bool { Self.isOpen(own: own, allOpen: windowState?.readerVersionsAllOpen ?? false,
                                    stamp: windowState?.readerVersionsStamp ?? 0) }
@@ -78,7 +77,7 @@ struct ReaderVersionsTriangle: View {
     var body: some View {
         Button {
             let stamp = windowState?.readerVersionsStamp ?? 0
-            if Self.optionHeld, let windowState {
+            if optionHeld, let windowState {
                 windowState.readerVersionsAllOpen = !isOpen
                 windowState.readerVersionsStamp += 1
             } else {
@@ -93,15 +92,9 @@ struct ReaderVersionsTriangle: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onModifierKeysChanged(mask: .option) { _, modifiers in optionHeld = modifiers.contains(.option) }
         .help(isOpen ? "Hide this line's versions (⌥-click: every line)" : "Show this line's \(count) versions (⌥-click: every line)")
         .accessibilityLabel(isOpen ? "Hide \(count) versions" : "Show \(count) versions")
     }
-
-    private static var optionHeld: Bool {
-        #if os(macOS)
-        NSEvent.modifierFlags.contains(.option)
-        #else
-        false
-        #endif
-    }
 }
+
