@@ -290,6 +290,25 @@ Mac's chip and memory, the providers with a key and the places work can run).
   regularise text) · let Fichero compare and choose (the default: the compare of section 8 decides on the
   person's pages). Saved as `answers.how.model_kind`. *Test:* same file (the three options, the default, and
   that the large-model option is greyed with its reason when the cloud is not allowed and this Mac cannot run one).
+- `designer.how.cloud-asked-before-any-default` [GAP] (#6489, owner 2026-11-10: "I was only able to choose allow cloud models later") —
+  whether pages may leave this Mac is asked BEFORE any model is proposed: in the How step's "Where" question (built behind
+  `wideSetUp`, not yet in the flow the owner sees; the shown flow asks it late), above "What matters most?", so no default is made
+  without it. If it changes later (here or in the plan), every default is worked out again from the new answer and the plan says
+  what changed and why ("Read is now Gemini 2.5 Pro: you allowed cloud models and have a Google key"). A saved "no" stays no; an
+  unanswered question reads as the app's setting (`places.project_says_cloud`). *Test:* `test_defaults_recomputed_on_cloud_change.py`
+  (the same answers give a local Read with cloud off and a keyed frontier Read with it on; the change is named in the plan; not yet written).
+- `designer.how.quality-with-cloud-is-a-frontier-reader` [GAP] (#6489, owner 2026-11-10: the default was "quality" and Read still
+  came out as PP-OCR) — "quality" with cloud allowed and a Gemini or Claude key chooses a frontier vision model for Read on any
+  material (Gemini Pro first, `discovery.frontier_rank`), not only handwriting (`assemble._frontier_first` stops at anything else
+  today); without cloud or a key it chooses the best local reader and the plan says what a key would add. PP-OCR is never the headline
+  reader unless it is the best local card for the script. *Test:* `test_read_default_table.py` (one row per material x cloud x key;
+  not yet written).
+- `designer.setup.close-on-the-left-saves` [GAP] (#6490, owner 2026-11-10: "all screens close on the left; this closes and saves") —
+  every Set Up page has Close at the leading edge of its bar (`ToolbarItem(placement: .cancellationAction)`; Esc on the Mac; on
+  iPhone and iPad the sheet's leading button, and a swipe down does the same). It saves every answer so far as the project's draft,
+  closes, and marks the project "setup not finished"; opening Set Up again returns to the page it was on, and nothing is asked
+  again. It never needs the last page. Close is not Cancel: nothing entered is thrown away. *Test:* `SetupCloseSavesTests` (Close
+  writes the answers and the page; reopening restores both; not yet written); the button's place is XCUITest #5763.
 - `designer.how.what-matters` [PARTIAL] (#6052; engine built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is built behind `wideSetUp` (`RecipeHowFields`, the How step), not yet seen in a build; extends `designer.path.what-matters-most`) — "What matters
   most?": speed · cost · quality · privacy, one choice, pre-filled from the places answer (privacy when only
   this Mac is ticked). Privacy means nothing leaves this Mac and the cloud question of
