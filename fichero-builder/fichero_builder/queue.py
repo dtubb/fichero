@@ -143,6 +143,7 @@ class Procs:
     blob: Callable[[dict, dict, str], str] = lambda lane, step, path: ""  # (lane, step, path) -> the blob sha of path at the checked head, '' if none
     workroot: str = ""  # [jail].workroot: a managed lane's tree is wt-<lane> here (run.loop-dispatch)
     root: str = ""  # the loop's checkout (its harness.toml): the rules warnings at start and the scratch sweep read it
+    jail_gh: bool = False  # [jail].gh: the jail user has a gh token, so a brief may ask for gh (#6495)
 
 
 QUIET = ("queued", "blocked", "landed", "parked")  # a step state in which the lane's own worker is not moving its tree
@@ -352,6 +353,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             lane["paused"] = True
             return False
         s["trees"], s["trees_at"] = procs.trees(_others(lane, handles, procs)), time.strftime("%Y-%m-%dT%H:%M:%S")  # before the worker can move anything
+        if bad := brief_preflight(Path(s.get("resume_brief") or s["brief"]).read_text(), lane["id"], procs.jail_gh):  # #6495: before a session is spent
+            return block(s, "the brief asks for what a managed worker cannot do; " + " / ".join(bad), actions=("retry", "park"))
         try:
             if h is None:
                 if len(handles) >= workers_n:
@@ -569,6 +572,19 @@ def intake_sha(lane: dict, branch: str, commits: int, hours: float, now: float |
         return ""
     old = (now or time.time()) - int(log[-1][1])
     return log[0][0] if len(log) >= commits or old >= hours * 3600 else ""
+
+
+def brief_preflight(text: str, lane_id: str, gh_ok: bool = False) -> list[str]:
+    """#6495 (run.loop-brief-preflight): what a managed worker, the jail user, cannot do that this brief asks for, each with what
+    to put in the brief instead (short: an alert's text is one line). ponytail: three regexes; a fourth kind when one turns up."""
+    out = []
+    if m := re.findall(r"(?<![\w/])(?:~/[\w./-]+|/Users/(?!Shared/)[\w./-]+)", text):
+        out.append(f"owner paths ({', '.join(dict.fromkeys(x.rstrip('.') for x in m))}): paste their text in")
+    if not gh_ok and (m := re.findall(r"\bgh\s+(?:issue|pr|api|repo|release|run|label|milestone|search)\b(?:\s+[\w#-]+)?", text)):
+        out.append(f"gh ({'; '.join(dict.fromkeys(m))}): no token in the jail, paste the issue text in (or [jail].gh = true)")
+    if m := re.findall(rf"(?:builder\s+)?done\s+{re.escape(lane_id)}\b", text):
+        out.append(f"`{m[0]}`: a worker lane's done is refused, drop it (the worker ends with its DONE line)")
+    return out
 
 
 def done_cmd(lane_id: str) -> str:
@@ -1422,7 +1438,7 @@ def real_procs(root) -> Procs:
                  landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
                  next_milestone=lambda taken: next_in_order(root, taken), build=build, verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake,
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "",
-                 workroot=str(rules.get("jail", {}).get("workroot", "")), blob=blob, root=str(root))
+                 workroot=str(rules.get("jail", {}).get("workroot", "")), blob=blob, root=str(root), jail_gh=bool(rules.get("jail", {}).get("gh")))
 
 
 PRESUBMIT_TIMEOUT_S = 1200

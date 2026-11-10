@@ -1222,3 +1222,24 @@ def test_a_maintainer_lanes_pinned_diff_is_approved_by_itself_only_when_every_bl
     fake.procs.blob = lambda lane_, step, path: "a" * 40
     queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
     assert steps_of("m4")[0]["state"] == "blocked", "a file not in the approved list blocks, whatever its blob"
+
+
+def test_a_brief_a_managed_worker_cannot_carry_out_is_refused_before_a_session_is_spent_and_retry_never_resends_it(state):
+    """#6495 (run.loop-brief-preflight): a brief naming the owner's home, a gh command or the lane's own `done` never starts a
+    session: the step is blocked with one alert that says what to change; `retry` on that alert refuses it again, unchanged."""
+    (state / "bad").write_text("Read ~/Desktop/crash/crash.txt as the owner's user.\nRun gh issue view 6447.\nSubmit with done m1\n")
+    queue.add("m1", "/w/m1", "1.1", str(state / "bad"), [7])
+    fake = Fake()
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert fake.starts == [], "no session was spent on it"
+    assert steps()["1.1"]["state"] == "blocked"
+    a = [r for r in journal.read() if r["event"] == "alert"]
+    assert len(a) == 1 and a[0]["actions"] == ["retry", "park"]
+    assert "~/Desktop/crash/crash.txt" in a[0]["what"] and "gh issue view" in a[0]["what"] and "done m1" in a[0]["what"], a[0]["what"]
+    assert "paste" in a[0]["what"] and "DONE" in a[0]["what"], "the alert says what to put in the brief instead"
+    assert queue.answer(a[0]["id"], "retry")[0] == 0
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert fake.starts == [] and steps()["1.1"]["state"] == "blocked", "the same brief is never re-sent"
+    assert queue.brief_preflight("brief 1.1: fix scripts/x.py; see /Users/Shared/fichero-worker/notes.txt", "m1") == []
+    assert queue.brief_preflight("read /Users/danieltubb/x", "m1") and queue.brief_preflight("gh pr list", "m1") and queue.brief_preflight("builder done m1 now", "m1")
+    assert queue.brief_preflight("gh issue view 7", "m1", gh_ok=True) == [], "[jail].gh = true: the jail has a token"
