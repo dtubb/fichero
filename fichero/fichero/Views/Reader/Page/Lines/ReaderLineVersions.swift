@@ -98,3 +98,28 @@ struct ReaderVersionsTriangle: View {
     }
 }
 
+#if DEBUG
+#Preview("A line's versions: a machine reading, the correction that counts under it, a withdrawn import") {
+    let day = 86_400.0
+    let machine = InspectorText.Reading(
+        id: "r1", kind: "transcription", content: "Tlie qnick brown fox", maker: "workflow", author: nil, guideline: nil,
+        pairId: nil, pairRole: nil, level: "diplomatic", producerModel: "google/gemini-3-flash", producerProvider: "openrouter",
+        createdAt: Date(timeIntervalSinceNow: -2 * day)
+    )
+    let correction = InspectorText.Reading(
+        id: "r2", kind: "transcription", content: "The quick brown fox", maker: "human", author: "dtubb", guideline: nil,
+        pairId: nil, pairRole: nil, correctsId: "r1", level: "diplomatic", createdAt: Date(timeIntervalSinceNow: -day / 24)
+    )
+    let imported = InspectorText.Reading(
+        id: "r0", kind: "transcription", content: "The quick brwn fox", maker: "import", author: nil, guideline: nil,
+        pairId: nil, pairRole: nil, createdAt: Date(timeIntervalSinceNow: -5 * day)
+    )
+    let roots = ReadingTree.build([machine, correction, imported], retracted: ["r0"], showsWithdrawn: true)
+    VStack(alignment: .leading, spacing: 8) {
+        ReaderVersionsTriangle(own: .constant((open: true, stamp: 0)), count: ReaderLineVersions.flattened(roots).count)
+        ReaderLineVersions(roots: roots, countingId: "r2", withdrawn: ["r0"])
+    }
+    .padding()
+    .frame(width: 360)
+}
+#endif
