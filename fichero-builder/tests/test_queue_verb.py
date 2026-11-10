@@ -235,6 +235,8 @@ def test_the_real_start_makes_the_worktree_and_runs_the_worker_side_with_its_fee
     scripts, popens = [], []
     monkeypatch.setattr(queue.work, "as_worker", lambda a, s: (scripts.append(s), type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})())[1])
     monkeypatch.setattr(queue.subprocess, "Popen", lambda argv, **k: popens.append(argv) or object())
+    monkeypatch.setattr(queue, "tmux_as_worker", lambda j, *a: "")  # no window of the lane's name is up (#6496)
+    monkeypatch.setattr(queue, "run_alive", lambda j, feed: True)
     monkeypatch.setattr(queue.work, "ensure_pinned", lambda root, brief, base: str(state))
     monkeypatch.setattr(queue.land_tool, "resolve_branch", lambda repo, branch: "d" * 40)  # the pinned copy the worker imports from (#6466)
     procs = queue.real_procs(state)
@@ -267,6 +269,8 @@ def test_a_planted_inbox_cannot_turn_the_owners_chmod_or_writes_on_another_folde
     monkeypatch.setattr(queue.work, "ensure_pinned", lambda root, brief, base: str(state))
     monkeypatch.setattr(queue.land_tool, "resolve_branch", lambda repo, branch: "d" * 40)
     monkeypatch.setattr(queue.subprocess, "Popen", lambda argv, **k: object())
+    monkeypatch.setattr(queue, "tmux_as_worker", lambda j, *a: "")
+    monkeypatch.setattr(queue, "run_alive", lambda j, feed: True)
     the_lane = {"id": "m1", "worktree": str(wr / "wt-m1"), "seq": 3}
     procs = queue.real_procs(state)
     procs.start(the_lane, {"step": "1.1", "brief": str(state / "b1.1"), "issues": [7]})
@@ -614,3 +618,26 @@ def test_queue_move_park_and_unpark_reorder_the_steps_behind_the_cursor_under_th
     assert cli.main(["queue", "park", "--lane", "m1", "--step", "1.1", *st]) == 1, "a landed step is never parked"
     assert cli.main(["queue", "move", "--lane", "zz", "--step", "1.1", "--to", "1", *st]) == 1
     assert [r["state"] for r in journal.read() if r.get("event") == "queue" and r.get("lane") == "m1" and r.get("state") in ("moved", "parked", "unparked")] == ["moved", "parked", "unparked", "moved", "moved"]
+
+
+def test_stop_kills_the_lanes_windows_by_id_once_its_run_is_gone_and_start_refuses_while_a_same_named_window_lives(state, monkeypatch):
+    """#6496: a lost `builder run` left its Claude session alive in a window the loop could not reach, and a second start made a
+    second window of the same name. stop ends every window named the lane (by id, as the jail user) when no run watches the feed;
+    start refuses while one exists, naming it."""
+    (state / "harness.toml").write_text('[check]\nengine_repo = "/e"\n[land]\nbranch = "integration"\n[jail]\nuser = "wu"\nworkroot = "' + str(state / "wr") + '"\n'
+                                        '[models]\nproviders = ["claude-code"]\nbuilder = { provider = "claude-code", model = "sonnet" }\nreviewer = { provider = "claude-code", model = "opus" }\n')
+    (state / "wr").mkdir(), (state / "feed").mkdir()
+    calls, alive = [], [True]
+    monkeypatch.setattr(queue, "tmux_as_worker", lambda j, *a: calls.append(a) or ("@0\tm1\n@1\tm1\n@2\tother\n" if a[0] == "list-windows" else ""))
+    monkeypatch.setattr(queue, "run_alive", lambda j, feed: alive[0])
+    monkeypatch.setattr(queue.work, "ensure_pinned", lambda root, brief, base: str(state))
+    monkeypatch.setattr(queue.land_tool, "resolve_branch", lambda repo, branch: "d" * 40)
+    procs = queue.real_procs(state)
+    the_lane = {"id": "m1", "worktree": str(state / "wr" / "wt-m1"), "seq": 3, "feed": str(state / "feed")}
+    procs.stop(the_lane)
+    assert (state / "feed" / "stop").exists() and not [a for a in calls if a[0] == "kill-window"], "a live run ends its own pane on the marker"
+    alive[0] = False
+    procs.stop(the_lane)
+    assert [a for a in calls if a[0] == "kill-window"] == [("kill-window", "-t", "@0"), ("kill-window", "-t", "@1")], "by id, never by the ambiguous name"
+    with pytest.raises(RuntimeError, match=r"@0.*m1|m1.*@0"):
+        procs.start(the_lane, {"step": "1.1", "brief": str(state / "b1.1"), "issues": [7]})

@@ -1302,6 +1302,28 @@ def _approved(step: dict | None, key: str) -> bool:
     return bool(step and step.get(key) and step.get("approved_head") == step.get("head", ""))
 
 
+def tmux_as_worker(j, *args: str) -> str:
+    """One tmux call on the managed workers' server (the jail user's); '' on any failure. The seam the tests replace."""
+    try:
+        r = subprocess.run([j.sudo, "-n", "-H", "-u", j.user, "tmux", *args], capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return r.stdout if r.returncode == 0 else ""
+
+
+def run_alive(j, feed: str) -> bool:
+    """Is a `builder run` still watching this feed? (pgrep as the owner sees the jail user's processes.) The seam the tests replace."""
+    if not feed:
+        return False
+    r = subprocess.run(["pgrep", "-u", j.user, "-f", f"--feed {feed}"], capture_output=True, text=True)
+    return r.returncode == 0
+
+
+def worker_windows(j, name: str) -> list[str]:
+    """#6496: the ids of the windows named `name` on the workers' server (a name is ambiguous to tmux once there are two)."""
+    return [i for i, _, n in (ln.partition("\t") for ln in tmux_as_worker(j, "list-windows", "-a", "-F", "#{window_id}\t#{window_name}").splitlines()) if n == name]
+
+
 def real_procs(root) -> Procs:
     root = Path(root)
     rules = tomllib.loads((root / "harness.toml").read_text())
@@ -1329,6 +1351,9 @@ def real_procs(root) -> Procs:
         a, q = ns(lane, step), shlex.quote
         a.pinned = work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))  # #6466: the worker imports fichero_builder from here
         a.root = a.pinned  # #6466: the worker reads harness.toml from --root; the owner's checkout is unreadable to it, the pinned copy is not
+        j = work._jail(a)
+        if wins := worker_windows(j, lane["id"]):  # #6496: a second session of one name is unreachable by name; the old one is ended first
+            raise RuntimeError(f"a tmux window named {lane['id']} is still up ({', '.join(wins)}): `builder queue stop {lane['id']}` ends it, then retry")
         if lane.get("fresh") and not Path(a.worktree).exists() and step.get("head"):  # a retried batch: its head (in the engine repo) travels as a bundle
             bundle, ref = work.shared_state(a) / f"base-{lane['id']}.bundle", f"base-lane-{lane['id']}"  # the ref ensure_worktree fetches
             r = work._git(repo, "update-ref", f"refs/heads/{ref}", step["head"])
@@ -1341,7 +1366,6 @@ def real_procs(root) -> Procs:
             raise RuntimeError(why)
         if lane.get("fresh") and lane["seq"] > 0 and (why := work.do_rebase(a, branch)):  # the tree of the last batch, onto origin's tip
             raise RuntimeError(why)
-        j = work._jail(a)
         # the owner's folder: a worker cannot write its own next brief. The workroot is world-writable, so the name is one no worker can
         # plant a link at: made exclusively, then opened to reading (the sticky bit keeps a worker from replacing it)
         feed = Path(tempfile.mkdtemp(prefix=f"inbox-{lane['id']}-{lane['seq']}-", dir=j.workroot))
@@ -1406,6 +1430,11 @@ def real_procs(root) -> Procs:
     def stop(lane):
         if lane.get("feed"):
             (Path(lane["feed"]) / "stop").write_text("")
+        j = jail.load(root)
+        if j is None or not j.user or run_alive(j, lane.get("feed", "")):
+            return  # a live `builder run` TERMs its pane on the marker within its tick
+        for w in worker_windows(j, lane["id"]):  # #6496: the run is gone, so nothing else will end the session
+            tmux_as_worker(j, "kill-window", "-t", w)
 
     loop_cfg = rules.get("loop", {})
 
