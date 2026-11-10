@@ -309,6 +309,14 @@ Mac's chip and memory, the providers with a key and the places work can run).
   closes, and marks the project "setup not finished"; opening Set Up again returns to the page it was on, and nothing is asked
   again. It never needs the last page. Close is not Cancel: nothing entered is thrown away. *Test:* `SetupCloseSavesTests` (Close
   writes the answers and the page; reopening restores both; not yet written); the button's place is XCUITest #5763.
+- `designer.how.pick-the-default-models` [GAP] (#6491, owner 2026-11-10: the How screen should let me choose a default there) — below the three
+  questions the How step shows "Starting models": one row per step the recipe will run, Read first, each with the model the
+  rules propose, the reason in one line, and a standard pop-up menu to change it, listing only what that step can take
+  (the step's candidate list, the one catalog). A cloud model is greyed with its reason when cloud is off or no key is set. A
+  pick is saved as `answers.how.defaults` (job -> card id), marks the step person-chosen, and is not proposed over again
+  (`designer.how.person-chosen-is-kept`); the next pages show it as chosen. Changing Where or What matters recomputes only the rows
+  not picked by hand. Mac and iOS use the same rows (a Menu on touch). *Test:* `test_how_defaults.py` (a picked default is saved and
+  survives a recompute; an unpicked row follows the answers; a refused card is not offered), `RecipeHowDefaultsTests`; not yet written.
 - `designer.how.what-matters` [PARTIAL] (#6052; engine built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is built behind `wideSetUp` (`RecipeHowFields`, the How step), not yet seen in a build; extends `designer.path.what-matters-most`) — "What matters
   most?": speed · cost · quality · privacy, one choice, pre-filled from the places answer (privacy when only
   this Mac is ticked). Privacy means nothing leaves this Mac and the cloud question of
