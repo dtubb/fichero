@@ -516,9 +516,10 @@ struct SegmentOutlineRow: View {
     private var labelled: some View {
         wrap(node.segmentId, AnyView(
             HStack(spacing: 6) {
-                Circle()
-                    .fill(SelectionStyle.regionSwatch(tones[node.segmentId]))
-                    .frame(width: 8, height: 8)
+                // The kind's icon in the hue its box is drawn in: the swatch and the kind in one mark.
+                Image(systemName: SegmentHierarchy.Level(kind: node.kind).symbolName)
+                    .foregroundStyle(SelectionStyle.regionSwatch(tones[node.segmentId]))
+                    .frame(width: 16)
                     .accessibilityHidden(true)
                 content(node.segmentId, index)
             }
