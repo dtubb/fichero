@@ -291,6 +291,23 @@ struct ReadingOrderList: View {
     /// verb that gives it an order. No move keys: there is no order to move in.
     private func unordered(_ ids: [String]) -> some View {
         VStack(spacing: 0) {
+            // The order's name sits at the top, like the renditions: always there, even with no named order, so it is
+            // plain what a layout order is and where to make one (#6482). The words live in the tooltip, not the menu.
+            HStack(spacing: 6) {
+                Image(systemName: "list.number").foregroundStyle(.secondary).accessibilityHidden(true)
+                Menu {
+                    CreateNamedOrderMenuItem(target: lineVerbs)
+                        .accessibilityIdentifier("readingOrder.createNamedOrder")
+                } label: {
+                    Text("Layout Order").font(.headline)
+                }
+                .fixedSize()
+                .help("The order this page's segments are read in. Now it is the order the layout found them; make a named order to rearrange it.")
+                Spacer(minLength: 4)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            Divider()
             let nested = nestedRows(top: ids)
             List(selection: $picks) {
                 ForEach(Array(ids.enumerated()), id: \.element) { index, segmentId in
@@ -301,17 +318,6 @@ struct ReadingOrderList: View {
             #if os(macOS)
             .onDeleteCommand { deleteLines(nil) }
             #endif
-            Divider()
-            HStack(spacing: 8) {
-                Text("Layout order. This page has no named order yet.")
-                    .font(.caption).foregroundStyle(.secondary)
-                    .help("The segments in the order the layout found them; no file gave an order")
-                Spacer()
-                CreateNamedOrderMenuItem(target: lineVerbs)
-                    .accessibilityIdentifier("readingOrder.createNamedOrder")
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
             if let createNote {
                 Text(createNote).font(.caption).foregroundStyle(.secondary).padding(4)
             }
