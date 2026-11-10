@@ -115,3 +115,27 @@ def test_a_dead_pane_with_no_session_to_take_marks_the_lane_no_session_once_with
     queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
     x = queue.load()[0]
     assert x["kind"] == "worker" and "no_session" not in x and fake.starts == [("a", "batch-1", 1)], "the loop runs it as a managed lane"
+
+
+def test_a_no_session_alert_is_one_per_lane_per_day_and_none_for_a_lane_whose_step_is_not_queued(state):
+    """2026-11-10 (lead, after #6500 deployed): six alerts fired at the first tick. A lane whose cursor step is not `queued` (done,
+    checking, blocked: nothing a session would do now) gets none; a lane gets at most one a day while nobody is on it."""
+    wa, wb = str(state / "a"), str(state / "b")
+    os.mkdir(wa), os.mkdir(wb)
+    (state / "b1.1").write_text("brief")
+    queue.add("a", wa, "batch-1", str(state / "b1.1"), [7], kind="external", pane="%1")
+    queue.add("b", wb, "batch-1", str(state / "b1.1"), [8], kind="external", pane="%2")
+    lanes = queue.load()
+    next(x for x in lanes if x["id"] == "b")["steps"][0]["state"] = "done"
+    queue.save(lanes)
+    listing = f"%6\tzsh\t{wa}\n%7\tzsh\t{wb}"
+    queue.repane(listing)
+    alerts = lambda: [r for r in journal.read() if r["event"] == "alert"]  # noqa: E731
+    assert [r["lane"] for r in alerts()] == ["a"], "b's step is done: no session would move it; no alert"
+    queue.repane(listing)
+    assert len(alerts()) == 1, "the same day: no second alert"
+    lanes = queue.load()
+    next(x for x in lanes if x["id"] == "a")["no_session"] = "2026-11-09T08:23:00"
+    queue.save(lanes)
+    queue.repane(listing)
+    assert [r["lane"] for r in alerts()] == ["a", "a"] and queue.load()[0]["no_session"] > "2026-11-10", "a day later, still nobody: one more, stamped today"
