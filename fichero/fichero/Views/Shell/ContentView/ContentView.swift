@@ -193,6 +193,7 @@ struct ContentView: View {
     @Environment(ConversationService.self) var conversationService
     @Environment(ImportService.self) var importService
     @Environment(WindowState.self) var windowState
+    @Environment(SegmentService.self) var segmentService: SegmentService?
     @Environment(WorkflowStore.self) var workflowStore
     @Environment(SavedSearchService.self) var savedSearchService
     @Environment(WorkflowStreamService.self) var workflowStreamService
