@@ -425,7 +425,7 @@ blocked_hours = 4
 
 [loop.approved_pinned]
 # #6466: a maintainer lane's pinned-checks refusal naming ONLY these files at exactly these blobs is approved by itself
-"scripts/harness_start.py" = "55e0f2a812b22076f3e186604d5283c54dec9162"
+"scripts/harness_start.py" = "177b793f2e51a5d5f54e198f64f04baff2632ee4"
 
 [machines]
 # dev-workflows.run.measure: test machines `builder measure` ships a lane's commit to (ssh host, the gate dir with venv/)

@@ -152,20 +152,3 @@ def test_find_claude_falls_back_to_the_worker_home(tmp_path, monkeypatch):
     link.symlink_to(exe)
     assert S.find_claude(tmp_path) == str(link)
 
-
-def test_use_worker_home_points_home_at_the_workroot(tmp_path, monkeypatch):
-    """#6466: under sudo -u HOME is still the owner's; as the worker user it becomes the workroot, for anyone else it is left alone."""
-    class Jail:
-        workroot = str(tmp_path)
-
-        def __init__(self, me):
-            self.me = me
-
-        def is_self(self):
-            return self.me
-
-    monkeypatch.setenv("HOME", "/owner")
-    S.use_worker_home(Jail(False))
-    assert os.environ["HOME"] == "/owner"
-    S.use_worker_home(Jail(True))
-    assert os.environ["HOME"] == str(tmp_path)

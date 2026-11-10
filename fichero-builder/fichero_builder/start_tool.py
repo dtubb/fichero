@@ -40,13 +40,6 @@ def _hook_cmd(root, worktree, scratch) -> str:
     return " ".join(shlex.quote(str(x)) for x in (sys.executable, _HOOK, "--root", root, "--worktree", worktree, "--scratch", scratch))
 
 
-def use_worker_home(jail) -> None:
-    """sudo -u keeps HOME as the owner's, so git config --global, ~/.claude.json and the token file all hit a home the worker cannot
-    write (#6466): as the worker user, HOME is the workroot."""
-    if jail is not None and jail.workroot and jail.is_self():
-        os.environ["HOME"] = str(jail.workroot)
-
-
 def find_claude(*homes) -> str | None:
     """claude on PATH, else <home>/.local/bin/claude for each home given (sudo -u keeps HOME as the owner's, so the caller
     passes the workroot too, #6466); a dangling link is skipped."""

@@ -29,7 +29,6 @@ ap.add_argument("--print", dest="dry", action="store_true")
 a = ap.parse_args()
 
 jail = J.load(a.root)
-S.use_worker_home(jail)
 problems = S.refusals(a.root, jail)
 if problems:
     print("harness_start refuses:\n- " + "\n- ".join(problems), file=sys.stderr)
