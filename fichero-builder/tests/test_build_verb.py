@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import subprocess
 import sys
 
@@ -11,6 +12,14 @@ import pytest
 
 from fichero_builder import __main__ as cli
 from fichero_builder import build, journal
+
+
+def _fake_script(script, body: str) -> None:
+    """A shebang cannot hold an interpreter path with a space (the gate disk's), so the script is an sh wrapper around a .py."""
+    py = script.with_suffix(".py")
+    py.write_text(body)
+    script.write_text(f"#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(py))} \"$@\"\n")
+    script.chmod(0o755)
 
 
 @pytest.fixture
@@ -22,8 +31,7 @@ def root(tmp_path, monkeypatch):
     (r / "fichero" / "Configs" / "Version.xcconfig").write_text("MARKETING_VERSION = 2026.11.1\n")
     (r / "harness.toml").write_text("[check]\n")
     script = r / "scripts" / "build-release-dmg.sh"
-    script.write_text(f"""#!{sys.executable}
-import json, os, sys
+    _fake_script(script, f"""import json, os, sys
 keep = ("FICHERO_RELEASE_TIER", "FICHERO_RELEASE_VERSION", "FICHERO_DMG_PATH", "PATH")
 open(os.environ["FICHERO_DMG_PATH"] + ".seen", "w").write(json.dumps({{"argv": sys.argv[1:], "env": {{k: os.environ.get(k) for k in keep}}, "cwd": os.getcwd()}}))
 print("building")
@@ -32,7 +40,6 @@ if os.path.exists("{r}/fail"):
 if not os.path.exists("{r}/no-dmg"):
     open(os.environ["FICHERO_DMG_PATH"], "w").write("dmg")
 """)
-    script.chmod(0o755)
     (r / "build" / "releases").mkdir(parents=True)
     (r / ".gitignore").write_text("build/\nfail\nno-dmg\n")
     for args in (["init", "-q"], ["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "c"]):
@@ -119,8 +126,7 @@ def test_the_heavy_lock_is_held_only_for_the_app_build_and_packaging_runs_outsid
         log.open("a").write("lock-off\n")
     monkeypatch.setattr(journal, "heavy", heavy)
     script = root / "scripts" / "build-release-dmg.sh"
-    script.write_text(f"""#!{sys.executable}
-import os, sys
+    _fake_script(script, f"""import os, sys
 open("{log}", "a").write(f"{{sys.argv[1:]}} stop={{os.environ.get('FICHERO_DMG_STOP_AFTER_APP_BUILD')}}\\n")
 if "--skip-app-build" in sys.argv:
     open(os.environ["FICHERO_DMG_PATH"], "w").write("dmg")
