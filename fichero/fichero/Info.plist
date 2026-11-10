@@ -65,6 +65,16 @@
 			<string>app.fichero.fichero.drag-item</string>
 		</dict>
 		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Fichero Segment Drag</string>
+			<key>UTTypeIdentifier</key>
+			<string>app.fichero.fichero.segment-drag</string>
+		</dict>
+		<dict>
 			<key>LSTypeIsPackage</key>
 			<true/>
 			<key>UTTypeConformsTo</key>
