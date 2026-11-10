@@ -94,7 +94,22 @@ class WindowState {
     /// ruled 2026-09-27). Off -- the default -- the page is for reading and nothing on it
     /// changes; `SegmentEditingMode` holds the rule. Per-window, like the armed tool: two
     /// Source views split in one window edit together.
-    var isEditingSegments = false
+    var isEditingSegments = false {
+        didSet {
+            // One state: the mode is Segments exactly while the page edits segments.
+            if isEditingSegments, previewMode != .segments { previewMode = .segments }
+            if !isEditingSegments, previewMode == .segments { previewMode = .read }
+        }
+    }
+
+    /// The Preview's mode (`PreviewMode`): Read, Segments or Image. Segments IS `isEditingSegments`; each is set from
+    /// the other, so the head's three-way control and the older Edit Segments entries never disagree.
+    var previewMode: PreviewMode = .read {
+        didSet {
+            let editing = previewMode == .segments
+            if isEditingSegments != editing { isEditingSegments = editing }
+        }
+    }
 
     /// What the Segments pane shows instead of the page: a set gathered from the Inspector --
     /// "Everything in This Hand", "Every Instance" of a sign (#4942). Nil shows the page.
