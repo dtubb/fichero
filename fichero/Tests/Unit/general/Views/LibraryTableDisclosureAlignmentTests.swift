@@ -1,6 +1,6 @@
+@testable import Fichero
 import Foundation
 import Testing
-@testable import Fichero
 
 @Suite struct LibraryTableDisclosureAlignmentTests {
     @Test func chevronIsLevelWithIconTopOnOneAndFourLineRows() {
