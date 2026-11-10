@@ -20,6 +20,8 @@ enum SegmentEdit {
         case delete(SegmentDeleteRequest)
         case merge(SegmentMergeRequest)
         case updateMany(SegmentUpdateManyRequest)
+        /// Move into a region, or out to the page (`segment.reparent`).
+        case reparent(SegmentReparentRequest)
         /// Reshape's baseline edit (`SegmentShapes.reshape`).
         case baseline(SegmentBaselineRequest)
         /// The Shape tool's polygon or baseline (`SegmentShapes.create`).
@@ -33,6 +35,7 @@ enum SegmentEdit {
             case .delete(let params): try params.encode(to: encoder)
             case .merge(let params): try params.encode(to: encoder)
             case .updateMany(let params): try params.encode(to: encoder)
+            case .reparent(let params): try params.encode(to: encoder)
             }
         }
     }
@@ -132,6 +135,20 @@ enum SegmentEdit {
         ))
     }
 
+    /// MOVE the segments picked into `parent` (a line into a region), or out to the page when `parent` is nil.
+    /// One audited action, one ⌘Z. The engine refuses a parent in another pass and a move into itself.
+    static func reparent(_ segments: [Segment], into parent: String?) -> Result<Call, Refusal> {
+        guard !segments.isEmpty else { return .failure(.tooFew) }
+        guard let versions = versions(of: segments) else { return .failure(.versionUnknown) }
+        return .success(Call(
+            action: "segment.reparent",
+            params: .reparent(SegmentReparentRequest(
+                segments: segments.map { SegmentReparentRequest.Item(segmentId: $0.id, expectedVersion: versions[$0.id] ?? 0) },
+                parentSegmentId: parent
+            ))
+        ))
+    }
+
     /// JOIN the segments picked; the first picked is the one kept.
     static func join(_ segments: [Segment]) -> Result<Call, Refusal> {
         guard segments.count >= 2, let keep = segments.first else { return .failure(.tooFew) }
@@ -205,6 +222,26 @@ struct SegmentDeleteRequest: Encodable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case segmentIds = "segment_ids", expectedVersions = "expected_versions"
+    }
+}
+
+/// `segment.reparent`: move segments under another segment, each with the version it was read at.
+struct SegmentReparentRequest: Encodable, Equatable {
+    struct Item: Encodable, Equatable {
+        let segmentId: String
+        let expectedVersion: Int
+        enum CodingKeys: String, CodingKey { case segmentId = "segment_id", expectedVersion = "expected_version" }
+    }
+
+    let segments: [Item]
+    let parentSegmentId: String?
+
+    enum CodingKeys: String, CodingKey { case segments, parentSegmentId = "parent_segment_id" }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(segments, forKey: .segments)
+        try container.encodeIfPresent(parentSegmentId, forKey: .parentSegmentId)
     }
 }
 
