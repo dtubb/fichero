@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import stat
 import sys
 import types
