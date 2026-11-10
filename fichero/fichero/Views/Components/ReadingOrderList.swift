@@ -5,6 +5,7 @@ import SwiftUI
 /// lists the order (ruled 2026-09-27, Q5): the Inspector's Source section and the Reader both
 /// mount this, and every move goes through `ReadingOrderStore`, so a drag and a key, in either
 /// place, are the same engine call, undoable with ⌘Z.
+// swiftlint:disable:next type_body_length -- extraction owed, tracked with #6476
 struct ReadingOrderList: View {
     let documentId: String
     /// List this segment's children (a block's lines, a line's words) instead of the page's top level
