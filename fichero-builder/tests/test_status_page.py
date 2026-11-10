@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 from pathlib import Path
 import threading
 import time
@@ -598,3 +599,36 @@ def test_live_lines_capture_by_window_id_so_two_windows_of_one_name_show_the_new
         return "old line\n" if a[-1] == "@0" else "new line\n"
     d = console.live_lines("/nowhere", now=1000.0, tmux=tmux)
     assert d["lane-ie"]["line"] == "new line" and [a for a in calls if a[0] == "capture-pane"] == [("capture-pane", "-p", "-t", "@1")]
+
+
+def test_api_status_is_served_from_a_three_second_cache_and_git_reads_are_once_per_head(live, tmp_path, monkeypatch):
+    """#6498: the page asked for /api/status on every journal row and each call ran git per lane; now one compute serves ~3 s,
+    and a worktree's last commit and waiting count are read once per (worktree, HEAD, landing tip)."""
+    url, _ = live
+    monkeypatch.setattr(console, "_STATUS", {"at": 0.0, "data": None})
+    n = [0]
+    real = console.api_status
+    monkeypatch.setattr(console, "api_status", lambda *a, **k: n.__setitem__(0, n[0] + 1) or real(*a, **k))
+    for _ in range(3):
+        urllib.request.urlopen(url + "/api/status", timeout=5).read()
+    assert n[0] == 1, "three requests within the cache's life: one compute"
+    wt = tmp_path / "wt"
+    wt.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "integration", str(wt)], check=True)
+    subprocess.run(["git", "-C", str(wt), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "first"], check=True)
+    calls = []
+    real_git = console._git_text
+    monkeypatch.setattr(console, "_git_text", lambda repo, *a: calls.append(a) or real_git(repo, *a))
+    monkeypatch.setattr(console, "_GIT_AT", {})
+    assert console._last_commit(str(wt))[0].startswith(real_git(str(wt), "log", "-1", "--format=%h").strip())
+    console._last_commit(str(wt))
+    assert sum(1 for a in calls if a[0] == "log") == 1, "the second read of the same head is the cache"
+    subprocess.run(["git", "-C", str(wt), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "second"], check=True)
+    assert "second" in console._last_commit(str(wt))[0], "a new head is read again"
+
+
+def test_the_page_debounces_status_reloads_to_two_seconds_and_skips_ticks():
+    """#6498: the SSE reload waits 2 s after the last row and ignores tick rows."""
+    page = (Path(console.__file__).parent / "console.html").read_text()
+    assert "setTimeout(load, 2000)" in page and "setTimeout(load, 300)" not in page
+    assert '"tick"' in page.split("es.onmessage")[1].split("\n")[0], "a tick row never triggers a reload"

@@ -92,7 +92,7 @@ function useStatus() {
     const load = () => fetch("/api/status").then(r => r.json()).then(setSt).catch(() => {});
     load();
     const es = new EventSource("/api/events");
-    es.onmessage = () => { clearTimeout(timer); timer = setTimeout(load, 300); };  // live: every journal row refreshes
+    es.onmessage = e => { if (e.data.includes('"state": "tick"')) return; clearTimeout(timer); timer = setTimeout(load, 2000); };  // live: a journal row (not a tick) refreshes, 2 s after the last one (#6498)
     const slow = setInterval(load, 15000);  // times tick while the journal is quiet
     return () => { es.close(); clearInterval(slow); };
   }, []);
