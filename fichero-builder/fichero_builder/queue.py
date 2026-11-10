@@ -230,6 +230,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     def block(s, why, actions=ACTIONS, evidence="", auto_send_back=False):
         q = journal.STATE / f"question-{lane['id']}-{s['step']}.txt"
         q.write_text(f"QUESTION: {why}\n")
+        s["red_head"], s["red_at"] = s.get("head", ""), time.strftime("%Y-%m-%dT%H:%M:%S")  # #6506: a retry of the same head says so
         if auto_send_back:
             s["auto_sb"] = s.get("auto_sb", 0) + 1  # before the move, which stores it
         s["blocked_at"] = _now()  # the watchdog's clock (#6466)
@@ -408,9 +409,14 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                 store(lane, expect=(s["step"], s.get("head", "")))  # review 116: a newer `builder done` saved meanwhile wins
             return True
         if running := [k for k, f in chains.items() if k not in ("pool", lane["id"]) and not f.done()]:
-            if len(running) >= chains["pool"]._max_workers:  # the pool queues it with no word: say so (2026-11-05: batch-25 waited 40 min unseen)
-                journal.append("queue", lane=lane["id"], step=s["step"], state="waiting-for-worker",
-                               detail=f"waiting for a chain worker ({len(running)} ahead of it, running or queued: {', '.join(sorted(running))}; [loop].lanes = {chains['pool']._max_workers})")
+            if len(running) >= chains["pool"]._max_workers:  # #6506: held HERE (one row per head), never queued FIFO in the pool: the next free slot goes to the tick's first ready lane (green-first)
+                if lane.get("waiting_head") != s.get("head"):
+                    lane["waiting_head"] = s.get("head")
+                    journal.append("queue", lane=lane["id"], step=s["step"], state="waiting-for-worker",
+                                   detail=f"waiting for a chain worker ({len(running)} running: {', '.join(sorted(running))}; [loop].lanes = {chains['pool']._max_workers})")
+                    store(lane, expect=(s["step"], s.get("head", "")))
+                return True
+        s.pop("retry_of", None)
         chains[lane["id"]] = chains["pool"].submit(chain)
         chains[lane["id"]].head = s.get("head", "")
         return True
@@ -689,6 +695,7 @@ def done(lane_id: str, sha: str = "") -> str:
                 journal.append("queue", lane=lane_id, step=s["step"], state="superseded", detail=f"{old_head[:9]} by {sha[:9]}: its check is cancelled")
             if not why:
                 s.pop("settling", None)
+                s.pop("retry_of", None)  # #6506: a fresh done is green-first again
                 s.update(state="done", head=sha, why=f"DONE {sha} (external)", rounds=0, restarts=0, **({"land_tree": path} if path else {}))
                 save(lanes)
     journal.append("queue", lane=lane_id, step=s["step"] if not why else "-", state="done" if not why else "done-refused", detail=why or sha)
@@ -770,6 +777,11 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
             again = "done" if action == "approve" or (lane.get("kind") == "external" and action == "retry" and s.get("head")) else "queued"
             said = f"{a.get('what', '')}\n{s.get('why', '')}"
             s.update(state=again, rounds=0, restarts=0, why="")
+            if action == "retry":  # #6506: the retried head goes behind fresh dones; an unchanged head is said to be one
+                s["retry_of"] = s.get("head", "")
+                same = s.get("head") and s.get("red_head") == s.get("head")
+                journal.append("queue", lane=a["lane"], step=a["step"], state="retry", detail=(f"same head ({s['head'][:9]}) and same rules as the red at {s.get('red_at', '')[11:16]}: "
+                               "it answers the same unless the base or the harness changed" if same else f"retried at {s.get('head', '')[:9] or 'no head'}"))
             if action == "approve":  # manager 2026-11-02: an approve binds to this head and the tests the alert named; a new head clears it
                 # one head's approvals ACCUMULATE (manager 2026-11-03: sharing bb3 was asked about the same test three times,
                 # each approve replacing the last one's files); a new head starts empty
@@ -1065,9 +1077,15 @@ def manage(lane: dict, procs: Procs) -> bool:
     return True
 
 
+def _green_first(lane: dict) -> int:
+    """#6506: a lane whose cursor step is a fresh `done` (a worker's or its own) ticks before one whose step an alert retried."""
+    s = lane["steps"][lane["cursor"]] if lane["cursor"] < len(lane["steps"]) else None
+    return 0 if s and s["state"] == "done" and not s.get("retry_of") else 1
+
+
 def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, chains: dict | None = None) -> bool:
     busy = False
-    for lane in filter(_ours, load()):
+    for lane in sorted(filter(_ours, load()), key=_green_first):
         try:
             if manage(lane, procs):
                 lane = next(x for x in load() if x["id"] == lane["id"])

@@ -738,8 +738,10 @@ def test_a_chain_waiting_for_the_pools_one_worker_says_so_and_a_free_pool_says_n
         chains = {"pool": pool, "lane-ie": blocker}
         queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
         (row,) = [r for r in journal.read() if r.get("state") == "waiting-for-worker"]
-        assert row["lane"] == "ext" and row["detail"] == "waiting for a chain worker (1 ahead of it, running or queued: lane-ie; [loop].lanes = 1)"
-        assert "ext" in chains, "it is still submitted: it runs when the worker frees"
+        assert row["lane"] == "ext" and row["detail"] == "waiting for a chain worker (1 running: lane-ie; [loop].lanes = 1)"
+        assert "ext" not in chains, "#6506: held, never queued FIFO in the pool; the next free slot goes to the tick's first ready lane"
+        queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
+        assert len([r for r in journal.read() if r.get("state") == "waiting-for-worker"]) == 1, "one row per head while it waits"
     finally:  # every thread joined: a chain left running writes into the NEXT test's queue (batch-26's ladder red)
         release.set()
         pool.shutdown(wait=True, cancel_futures=True)
@@ -1255,3 +1257,32 @@ def test_intake_any_takes_an_owner_branch_on_count_or_age_alone(tmp_path):
     assert queue.intake_sha(lane_, "integration", 1, 0) == "", "not a finished step"
     assert queue.intake_sha(lane_, "integration", 1, 0, any_subject=True) == g(wt, "rev-parse", "HEAD")
     assert queue.intake_sha(lane_, "integration", 9, 99, any_subject=True) == "", "the thresholds still hold"
+
+
+def test_chain_slots_go_green_first_a_fresh_done_before_an_alert_retry_and_a_full_pool_holds_the_batch_instead_of_queueing_it(state):
+    """#6506: two retried reds took both chain slots while the first green managed batch waited behind them. A batch is submitted
+    only when a slot is free (held with one `waiting-for-worker` row, never queued FIFO in the pool), lanes with a fresh `done`
+    go before a step an alert retried, and a retry of an unchanged head says so in its row."""
+    import threading
+    queue.add("old", "/w/old", "1.1", str(state / "b1.1"), [7], kind="external")
+    queue.add("fresh", "/w/fresh", "1.1", str(state / "b1.2"), [8], kind="external")
+    assert cli.main(["done", "old", "a" * 40, "--state", str(journal.STATE)]) == 0
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "red", "why": "ladder red", "findings": "t"}] * 4})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)  # old: red, sent back thrice, then an alert
+    a = [r for r in journal.read() if r["event"] == "alert" and r["lane"] == "old"][-1]
+    assert queue.answer(a["id"], "retry")[0] == 0
+    retry_row = [r for r in journal.read() if r.get("state") == "retry" and r.get("lane") == "old"][-1]
+    assert "same head" in retry_row["detail"] and "same rules" in retry_row["detail"], retry_row
+    assert cli.main(["done", "fresh", "b" * 40, "--state", str(journal.STATE)]) == 0
+    release = threading.Event()
+    fake.procs.chain = lambda lane_, step, stage: release.wait(5) and {"ok": True, "head": step["head"], "why": "", "findings": ""}
+    pool = queue.ThreadPoolExecutor(max_workers=1)
+    chains = {"pool": pool}
+    try:
+        queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
+        assert "fresh" in chains and "old" not in chains, "the fresh done took the one slot; the retried head holds, not queued in the pool"
+        (row,) = [r for r in journal.read() if r.get("state") == "waiting-for-worker"]
+        assert row["lane"] == "old"
+    finally:
+        release.set()
+        pool.shutdown(wait=True, cancel_futures=True)

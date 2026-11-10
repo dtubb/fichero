@@ -904,6 +904,7 @@ the write path would produce.
 - `dev-workflows.run.loop-owner-branch-lands` [PARTIAL] (#6501; review 2026-11-10: the ux lane had 63 commits waiting and no commit met the intake rule) — a lane named in `[loop].intake_any` is taken by the intake on its commit count or age alone, whatever its subjects say; and every external lane row on the console whose tree has commits past origin carries its HEAD and a Land now button that, after a confirm, posts the allow-listed `done` verb with that HEAD (one batch through check, review and landing). Tests `fichero-builder/tests/test_loop.py::test_intake_any_takes_an_owner_branch_on_count_or_age_alone`, `fichero-builder/tests/test_status_page.py::test_an_external_lane_row_carries_its_head_and_the_page_offers_land_now_through_the_done_verb`. Not yet: `intake_any` set for a lane (the owner's rules file).
 - `dev-workflows.run.daily-builds-alert` [PARTIAL] (#6502; review 2026-11-10: alert 470 was a traceback tail, alert 474 offered no retry) — a red daily build's alert carries its `: RED` lines only; a daily-builds verb that crashes (any other non-zero exit) is a `daily-builds` row `not-run` holding its output and an alert `the daily-builds verb failed: <its last line>`; both offer `retry`, which drops the day's marker so the builds run at the next tick instead of tomorrow; the page shows park on a no-action alert, and its Dismiss says a blocked step behind it is parked. Test `fichero-builder/tests/test_queue_verb.py::test_a_crashed_daily_builds_verb_is_a_not_run_row_and_a_legible_alert_and_retry_reruns_it_now`. Not yet: the alert saying a red is environmental (the M4's default.profraw).
 - `dev-workflows.run.console-events-true` [PARTIAL] (#6504; review 2026-11-10: four page defects) — Last events leaves out loop ticks and the timer's refresh rows (a lane error stays); Console actions leaves out the timer's refreshes, so the person's own actions stay; a lane whose cursor step is `done` with batches behind it reads `done` with `done, waiting for the check`, and `done, not landed yet` is kept for a lane through its steps; the blocked pill reads `blocked`, with the first line of why beside it. Test `fichero-builder/tests/test_status_page.py::test_events_and_actions_hold_no_ticks_or_auto_refreshes_and_a_mid_lane_done_step_waits_for_the_check`.
+- `dev-workflows.run.loop-green-first` [PARTIAL] (#6506; review 2026-11-10: two retried reds held both chain slots while the first green managed batch waited) — a batch whose chain is ready is submitted only when a chain slot is free; with every slot busy it is held in the queue (one `waiting-for-worker` row per head, naming what runs), never queued FIFO in the pool. Each tick visits lanes green-first: a lane whose cursor step is a fresh `done` (a worker's DONE or its own `builder done`) before one whose step an alert `retry` re-took (`retry_of`, cleared by a new head). A retry writes one `queue` row `retry`; when the head equals the one the red was on, it says `same head and same rules as the red at HH:MM`. Tests `fichero-builder/tests/test_loop.py::test_chain_slots_go_green_first_a_fresh_done_before_an_alert_retry_and_a_full_pool_holds_the_batch_instead_of_queueing_it`, `::test_a_chain_waiting_for_the_pools_one_worker_says_so_and_a_free_pool_says_nothing`. Not yet: `[loop].lanes = 3` when the Pro is idle (a load rule the owner sets).
 - `dev-workflows.run.loop-already-landed` [PARTIAL] (#6466) — a batch whose chain finds no commit over origin/<branch> (every commit already there by patch) is landed as it is: the step reads `landed` (`already on origin: ...`), the cursor moves on, nothing is pushed, no alert. Test `fichero-builder/tests/test_loop.py::test_a_batch_whose_commits_are_already_on_origin_lands_without_a_chain_and_the_lane_goes_on`.
 - `dev-workflows.run.loop-blocked-watchdog` [PARTIAL] (#6466) — a `blocked` step never waits forever. `block` stamps `blocked_at` (a step blocked before this code is stamped when first seen); after `[loop].blocked_hours` (default 4) it is retried ONCE: a fresh session on its brief plus the question (`retry-<lane>-<step>.txt`; a worker lane's live session is closed first; an external lane with a head is re-taken as `done`), its alerts answered `retried`, one `queue` row `blocked-retry`. Blocked again that long, it is parked: moved to the end of its lane as `parked` with ONE alert (actions retry, park), so the batch queued behind it is the cursor's and nothing freezes; a parked step at the cursor waits for `queue resume`, an alert `retry`, or `builder done`. Test `fichero-builder/tests/test_loop.py::test_a_step_blocked_longer_than_the_limit_is_retried_once_in_a_fresh_session_then_parked_behind_the_next_batch`.
 - `dev-workflows.run.loop-dismiss-parks` [PARTIAL] (#6466) — Dismiss and Dismiss All never orphan a step: every dismissed alert whose step is still `blocked` parks that step (as above); a step in any other state is untouched. An auto send-back (see `run.loop-alerts`) also raises its alert (actions send-back, retry, park), superseded by the lane's next done, so a lane with no pane is never silent. Tests `fichero-builder/tests/test_alerts_clear.py::test_dismissing_a_blocked_steps_alert_parks_the_step_and_the_lane_goes_on`, `::test_dismiss_all_parks_every_blocked_step_behind_its_alerts`, `fichero-builder/tests/test_loop.py::test_an_auto_send_back_raises_an_alert_too`.
@@ -1506,13 +1507,13 @@ Issues #6495, #6496, #6500-#6502 (the review at 15:17 ADT); built on the harness
 
 Issues #6497-#6499, #6503, #6505; built on the same branch.
 
-#### Step 4.9 — the review of 2026-11-10: the page's event tables and labels
-- Behaviours: `dev-workflows.run.console-events-true`
-- Tests: fichero-builder/tests/test_status_page.py
+#### Step 4.9 — the review of 2026-11-10: the page's event tables, and green-first chain slots
+- Behaviours: `dev-workflows.run.console-events-true`, `dev-workflows.run.loop-green-first`
+- Tests: fichero-builder/tests/test_status_page.py, fichero-builder/tests/test_loop.py
 - Depends on: 4.8
 - Size: S
 
-Issue #6504; built on the same branch.
+Issues #6504, #6506; built on the same branch.
 
 ## Behaviour tests
 
@@ -1624,6 +1625,7 @@ Every behaviour names its test above, written in its step; each `security.*` and
 | `dev-workflows.run.console-worktrees-own` | 4.8 |
 | `dev-workflows.run.console-one-spend` | 4.8 |
 | `dev-workflows.run.console-events-true` | 4.9 |
+| `dev-workflows.run.loop-green-first` | 4.9 |
 
 ## Test matrix
 
