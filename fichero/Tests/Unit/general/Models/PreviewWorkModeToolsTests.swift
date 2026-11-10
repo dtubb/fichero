@@ -4,7 +4,7 @@ import Testing
 
 /// What each Preview mode puts on the markup row (`source.editor.toolbar-follows-the-mode`): reading offers no box or
 /// pixel tool, segments offers the shape tools and no annotation, image offers no markup tool at all.
-struct PreviewModeToolsTests {
+struct PreviewWorkModeToolsTests {
     private let annotation: Set<String> = [
         "previewMarkupTextSelect", "previewMarkupWordSelect", "previewMarkupHighlight", "previewMarkupLine",
         "previewMarkupNote", "previewMarkupStar", "previewMarkupCheck"
@@ -16,19 +16,19 @@ struct PreviewModeToolsTests {
 
     @Test("Read offers the annotation tools and no shape tool")
     func read() {
-        #expect(PreviewMode.read.tools == annotation)
-        #expect(shapes.allSatisfy { !PreviewMode.read.offers($0) })
+        #expect(PreviewWorkMode.read.tools == annotation)
+        #expect(shapes.allSatisfy { !PreviewWorkMode.read.offers($0) })
     }
 
     @Test("Segments offers the shape tools and no annotation tool")
     func segments() {
-        #expect(PreviewMode.segments.tools == shapes)
-        #expect(annotation.allSatisfy { !PreviewMode.segments.offers($0) })
+        #expect(PreviewWorkMode.segments.tools == shapes)
+        #expect(annotation.allSatisfy { !PreviewWorkMode.segments.offers($0) })
     }
 
     @Test("Image offers no markup tool: its operations are the image controls")
     func image() {
-        #expect(PreviewMode.image.tools.isEmpty)
+        #expect(PreviewWorkMode.image.tools.isEmpty)
     }
 
     @Test("the mode and Edit Segments are one state, whichever is set")

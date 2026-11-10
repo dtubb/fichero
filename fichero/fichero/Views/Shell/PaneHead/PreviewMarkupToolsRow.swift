@@ -172,7 +172,7 @@ struct PreviewMarkupToolsRow: View {
         editVerbs
     }
 
-    /// Whether the window's Preview mode (Read, Segments, Image) puts this tool on the row (`PreviewMode.offers`).
+    /// Whether the window's Preview mode (Read, Segments, Image) puts this tool on the row (`PreviewWorkMode.offers`).
     private func shows(_ identifier: String) -> Bool {
         (windowState?.previewMode ?? .read).offers(identifier)
     }

@@ -113,7 +113,7 @@ struct PreviewHeadLensControls: View {
         if chrome.canEditSegments, let windowState {
             @Bindable var state = windowState
             Picker("Mode", selection: $state.previewMode) {
-                ForEach(PreviewMode.allCases) { mode in
+                ForEach(PreviewWorkMode.allCases) { mode in
                     Label(mode.title, systemImage: mode.icon).tag(mode)
                 }
             }

@@ -3,7 +3,7 @@ import Foundation
 /// The Preview's three modes (`source.editor.preview-has-three-modes`, #6482), one three-way control in its head.
 /// Each mode puts its own tools on the markup row (`source.editor.toolbar-follows-the-mode`): reading never offers a
 /// box or pixel tool, editing segments offers no annotation, and the image mode offers the pixel operations only.
-nonisolated enum PreviewMode: String, CaseIterable, Identifiable {
+nonisolated enum PreviewWorkMode: String, CaseIterable, Identifiable {
     /// Look, annotate, highlight, copy: what is drawn is shown, never edited. The default.
     case read
     /// Edit regions, lines and the order: draw, reshape, move, join, delete.
