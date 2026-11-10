@@ -305,6 +305,26 @@ function Issues({ st }) {
     <td>${i.what}</td><td>${i.links.map(l => html`<a href=${l.url} target="_blank" style="margin-right:6px">#${l.n}</a>`)}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">Nothing yet today.</p>`}`;
 }
 
+// #6524: what landed since the last dev build, each issue with a line to try and how it was checked; Copy release notes = the same, grouped by milestone, as markdown
+function releaseNotes(sb) {
+  const groups = {};
+  for (const i of sb.issues) (groups[i.milestone || "No milestone"] ||= []).push(i);
+  const lines = [`# Since build ${sb.build.sha} (${sb.build.ts})`, ""];
+  for (const [m, items] of Object.entries(groups)) { lines.push(`## ${m}`); for (const i of items) lines.push(`- #${i.number} ${i.title}${i.try ? ` — try: ${i.try}` : ""} (${i.checked})`); lines.push(""); }
+  if (sb.worked_on.length) { lines.push("## Worked on, not closed"); for (const i of sb.worked_on) lines.push(`- #${i.number} ${i.title}`); }
+  return lines.join("\n");
+}
+function SinceBuild({ d }) {
+  if (!d) return "";
+  if (!d.build) return html`<h2>Since your last build</h2><p class="muted">No dev build recorded yet.</p>`;
+  const pill = c => html`<span class=${"pill " + (c === "window test" ? "green" : c === "unit tests only" ? "blue" : "orange")}>${c}</span>`;
+  return html`<h2>Since your last build <span class="mono muted" style="font-weight:400">${d.build.sha} · <${Ago} ts=${d.build.ts} /></span>
+      <button class="btn" title="the same list, grouped by milestone, as markdown" onClick=${() => navigator.clipboard.writeText(releaseNotes(d)).then(() => showError("Release notes copied."), () => showError("Could not copy."))}>Copy release notes</button></h2>
+    ${d.issues.length ? html`<div class="wrap"><table><thead><tr><th>Issue</th><th>Try</th><th>Checked</th><th>Milestone</th></tr></thead><tbody>${d.issues.map(i => html`<tr class="row">
+      <td>${i.url ? html`<a href=${i.url} target="_blank">#${i.number}</a>` : `#${i.number}`} ${i.title}</td><td>${i.try || html`<span class="muted">no 'done looks like' line, no spec test</span>`}</td><td>${pill(i.checked)}</td><td class="muted">${i.milestone}</td></tr>`)}</tbody></table></div>`
+      : html`<p class="muted">No issue closed since that build.</p>`}
+    ${d.worked_on.length ? html`<p class="muted">Worked on, not closed: ${d.worked_on.map(i => html`<span style="margin-right:8px">#${i.number} ${i.title}</span>`)}</p>` : ""}`;
+}
 function Release({ st }) {
   const d = useApi("/api/release", refetchKey(st));
   if (!d) return html`<p class="muted">Loading…</p>`;
@@ -314,6 +334,7 @@ function Release({ st }) {
       <${Card} k="Release PR" v=${d.prs?.length ? html`<a href=${d.prs[0].url} target="_blank">#${d.prs[0].number}</a>` : "none open"} dot=${d.prs?.length ? "blue" : ""} />
     </div>
     <p class="muted">Make release PR is the owner's to say: the console shows it, never does it.</p>
+    <${SinceBuild} d=${d.since_build} />
     <h2>Run tests on the integration tip</h2>
     <form onSubmit=${e => { e.preventDefault(); act("test", { paths: e.target.paths.value.trim().split(/\s+/) }); }}>
       <input name="paths" placeholder="fichero-server/tests/unit/recipes fichero-builder/tests" style="width:420px" required /> <button class="btn">${I.play} Run tests</button>

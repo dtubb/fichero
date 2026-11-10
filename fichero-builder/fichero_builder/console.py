@@ -801,15 +801,61 @@ def issues_today(rows: list[dict], url: str = "", today: str = "") -> list[dict]
     return out
 
 
-def release(root, branch: str = "integration", gh: str = "gh", pr=None) -> dict:
-    """View D: the commits on origin/<branch> not on main, the last release tag, and an open release PR (gh, on Refresh)."""
+def _issue_of(n: int, gh: str, root) -> dict:
+    r = subprocess.run([gh, "issue", "view", str(n), "--json", "title,body,milestone"], capture_output=True, text=True, timeout=60, cwd=str(root))
+    return json.loads(r.stdout) if r.returncode == 0 and r.stdout.strip() else {}
+
+
+CHECKED = (("window test", "not run", "window test written, not run"), ("window test", "not yet run", "window test written, not run"),
+           ("unverified", "", "unverified"), ("window test", "", "window test"), ("app tests not run", "", "unit tests only"))
+
+
+def _checked(bodies: list[str]) -> str:
+    """How the batch said it was checked, from its commit bodies: the first CHECKED entry whose words all appear; else unit tests only."""
+    text = "\n".join(bodies).lower()
+    return next((label for a, b, label in CHECKED if a in text and b in text), "unit tests only")
+
+
+def since_build(root, rows: list[dict], branch: str = "integration", gh: str = "gh", issue=None) -> dict:
+    """#6524 (Release tab, 'Since your last build'): the issues the Fixes/Closes lines after the last green `build` row close, each with a line
+    to try (the issue's 'Done looks like' line, else the Test line of the spec behaviour the commit's Behaviour trailer names) and how it was
+    checked (CHECKED, from the commit bodies); 'Part of' commits as worked on, not closed. `issue` (n -> gh's {title, body, milestone}) is the seam."""
+    builds = [r for r in rows if r.get("event") == "build" and r.get("ok") and r.get("sha")]
+    if not builds:
+        return {"build": None, "issues": [], "worked_on": []}
+    b = builds[-1]
+    log = _git_text(str(root), "log", "--format=%x1e%H%x00%B", f"{b['sha']}..origin/{branch}")
+    bodies = {rec.partition("\x00")[0].strip(): rec.partition("\x00")[2] for rec in log.split("\x1e") if rec.strip()}
+    # a `(Fixes #N)` at the end of a subject counts too (the branch's own commits say it there), unlike the landing's own-line rule
+    cited = [(sha, m.group(1).lower(), int(m.group(2))) for sha, body in bodies.items() for m in re.finditer(r"(Fixes|Closes|Part of)\s*#(\d+)", body, re.I)]
+    issue = issue or (lambda n: _issue_of(n, gh, root))
+    url = repo_url(root)
+    closed = sorted({n for _s, k, n in cited if k in ("fixes", "closes")})
+    worked = sorted({n for _s, k, n in cited if k not in ("fixes", "closes")} - set(closed))
+
+    def one(n: int) -> dict:
+        mine = [bodies[sha] for sha, _k, nn in cited if nn == n and sha in bodies]
+        info = issue(n) or {}
+        done = next((ln.split(":", 1)[1].strip() for ln in (info.get("body") or "").splitlines() if ln.lower().lstrip("*- ").startswith("done looks like")), "")
+        if not done and (beh := next((m.group(1) for body in mine if (m := re.search(r"(?m)^Behaviour:\s*`?([a-z][\w.-]+\.[\w.-]+)", body))), "")):
+            line = _git_text(str(root), "grep", "-h", "-F", f"`{beh}`", f"origin/{branch}", "--", "docs/contributor_manual/specs")
+            done = f"Test {m.group(1)}" if (m := re.search(r"Tests? `([^`]+)`", line)) else ""
+        return {"number": n, "url": f"{url}/issues/{n}" if url else "", "title": info.get("title") or (mine[0].strip().splitlines()[0] if mine else ""), "try": done,
+                "checked": _checked(mine), "milestone": (info.get("milestone") or {}).get("title", "") if isinstance(info.get("milestone"), dict) else ""}
+    return {"build": {"sha": b["sha"][:9], "ts": b.get("ts", "")}, "issues": [one(n) for n in closed], "worked_on": [one(n) for n in worked]}
+
+
+def release(root, branch: str = "integration", gh: str = "gh", pr=None, rows: list[dict] | None = None, issue=None) -> dict:
+    """View D: the commits on origin/<branch> not on main, the last release tag, an open release PR (gh, on Refresh), and what
+    landed since the last dev build (#6524)."""
     log = _git_text(str(root), "log", "--format=%h %s", f"origin/main..origin/{branch}").splitlines()
     tag = _git_text(str(root), "describe", "--tags", "--abbrev=0", "origin/main").strip()
     if pr is None:
         r = subprocess.run([gh, "pr", "list", "--base", "main", "--head", branch, "--state", "open", "--json", "number,url,title"],
                            capture_output=True, text=True, timeout=60, cwd=str(root))
         pr = json.loads(r.stdout or "[]") if r.returncode == 0 else []
-    return {"ts": _ts(time.time()), "ahead": len(log), "commits": log[:40], "tag": tag, "prs": pr}
+    return {"ts": _ts(time.time()), "ahead": len(log), "commits": log[:40], "tag": tag, "prs": pr,
+            "since_build": since_build(root, journal.read() if rows is None else rows, branch, gh, issue)}
 
 
 _TILES: dict = {}

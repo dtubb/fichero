@@ -762,3 +762,38 @@ def test_events_and_actions_hold_no_ticks_or_auto_refreshes_and_a_mid_lane_done_
     assert st["lanes"][0]["state"] == "done" and st["lanes"][0]["why"] == "done, waiting for the check", "mid-lane: not the finished-lane label"
     page = (Path(console.__file__).parent / "console.html").read_text()
     assert '"question"' not in page.split("function Pill")[1].split("}")[0]
+
+
+def test_since_your_last_build_lists_each_issue_closed_after_the_last_dev_build_with_what_to_try_and_how_it_was_checked(tmp_path):
+    """#6524: the Release tab's panel: issues the Fixes lines after the last green build row close, a line to try (the issue's
+    'done looks like', else the spec behaviour's Test line), how it was checked from the commit bodies, grouped by milestone for
+    Copy release notes; 'Part of' commits are listed as worked on, not closed."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    def g(*a):
+        return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=repo, check=True, capture_output=True, text=True).stdout.strip()
+    g("init", "-q", "-b", "integration")
+    spec = repo / "docs/contributor_manual/specs/x.md"
+    spec.parent.mkdir(parents=True)
+    spec.write_text("- `x.run.arrows` [PARTIAL] (#2) — arrows start the selection. Test `fichero/Tests/UI/ArrowKeysUITests.swift::startsFromNothing`.\n")
+    g("add", "."), g("commit", "-qm", "base")
+    built = g("rev-parse", "HEAD")
+    g("commit", "-q", "--allow-empty", "-m", "fix(app): arrows start the selection from nothing (Fixes #2)\n\nWINDOW TEST WRITTEN, NOT YET RUN: the manager runs it.\n\nBehaviour: x.run.arrows")
+    g("commit", "-q", "--allow-empty", "-m", "fix(console): the status cache (Fixes #3)\n\nTests: test_status_page.py.")
+    g("commit", "-q", "--allow-empty", "-m", "feat(harness): half of it (Part of #4)")
+    g("update-ref", "refs/remotes/origin/integration", "HEAD")
+    rows = [{"ts": "2026-11-09T08:11:04", "event": "build", "ok": True, "sha": built, "dmg": "/x.dmg"}]
+    issues = {2: {"title": "Arrows from nothing", "body": "What is wrong: ...\n\nDone looks like: ↓ on an empty selection selects the first line.\n", "milestone": {"title": "Reader"}},
+              3: {"title": "Slow status", "body": "no such line", "milestone": None}, 4: {"title": "Half", "body": "", "milestone": {"title": "Harness"}}}
+    d = console.since_build(repo, rows, issue=lambda n: issues[n])
+    assert d["build"] == {"sha": built[:9], "ts": "2026-11-09T08:11:04"}
+    assert [i["number"] for i in d["issues"]] == [2, 3] and [i["number"] for i in d["worked_on"]] == [4]
+    a, b = d["issues"]
+    assert a["title"] == "Arrows from nothing" and a["try"] == "↓ on an empty selection selects the first line." and a["checked"] == "window test written, not run" and a["milestone"] == "Reader"
+    assert b["try"] == "" and b["checked"] == "unit tests only" and b["milestone"] == ""
+    rel = console.release(repo, pr=[], rows=rows, issue=lambda n: issues[n])
+    assert rel["since_build"]["issues"][0]["number"] == 2, "release() carries it, so the cached console-release.json does"
+    assert console.since_build(repo, [], issue=lambda n: issues[n]) == {"build": None, "issues": [], "worked_on": []}, "no build recorded: nothing to list"
+    page = (Path(console.__file__).parent / "console.html").read_text()
+    assert "Since your last build" in page and "Copy release notes" in page and "navigator.clipboard.writeText" in page
