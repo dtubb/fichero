@@ -79,7 +79,7 @@ struct RegionColoursTests {
         let hues = Set(["a", "b", "c"].compactMap { tones[$0]?.hue })
         #expect(hues == [1], "every region-less line is one hue: the page's implicit region, next after r1")
         let shades = ["a", "b", "c"].compactMap { tones[$0]?.strength }
-        #expect(shades == shades.sorted(by: >) && Set(shades).count == 3, "graded along the reading order")
+        #expect(shades == shades.sorted(by: <) && Set(shades).count == 3, "graded along the reading order, light to dark")
         #expect(RegionColours.tones(of: Array(loose.reversed())) == tones, "the same page draws the same every time")
         // The ids that used to pick colours by hash pick nothing now: renaming them changes no colour.
         let renamed = loose.map { (segment: Segment) -> Segment in

@@ -98,7 +98,7 @@ final class BoxColourThroughTheStoreTests: XCTestCase {
         let looseA = try XCTUnwrap(tone("a", in: drawn)), looseB = try XCTUnwrap(tone("b", in: drawn))
         XCTAssertEqual(looseA.hue, looseB.hue, "one implicit region, one hue")
         XCTAssertEqual(looseA.hue, 2, "placed after r1 and r2, where its first line falls")
-        XCTAssertGreaterThan(looseA.strength, looseB.strength)
+        XCTAssertLessThan(looseA.strength, looseB.strength, "light to dark along the order")
         let again = try await loadedPage().drawn
         XCTAssertEqual(drawn.boxes.map(\.tone), again.boxes.map(\.tone), "the same page draws the same colours every time")
     }
