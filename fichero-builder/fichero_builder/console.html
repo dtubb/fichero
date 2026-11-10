@@ -182,7 +182,8 @@ function Alerts({ alerts }) {
     <div><b class="mono">${a.id}</b> <span class="muted"><${Ago} ts=${a.ts} /></span></div>
     <div class="what">${a.what}</div>
     <div class="actions" style="justify-content:flex-start">${(a.actions || []).map(x => html`<button class="btn" onClick=${() => act("alert", { id: a.id, action: x })}>${x}</button>`)}
-      <button class="btn" title="answer it without acting: it moves to Resolved" onClick=${() => act("alert", { id: a.id, action: "dismiss" })}>Dismiss</button></div>
+      ${!(a.actions || []).length && html`<button class="btn" title="leave it: the alert is answered, nothing else changes" onClick=${() => act("alert", { id: a.id, action: "park" })}>park</button>`}
+      <button class="btn" title="answer it without acting: it moves to Resolved; a step still blocked behind it is parked" onClick=${() => act("alert", { id: a.id, action: "dismiss" })}>Dismiss</button></div>
   </div>`)}</div>`;
 }
 

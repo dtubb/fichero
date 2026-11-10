@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from fichero_builder import __main__ as cli
-from fichero_builder import journal, queue
+from fichero_builder import console, journal, queue
 
 
 class Fake:
@@ -641,3 +641,26 @@ def test_stop_kills_the_lanes_windows_by_id_once_its_run_is_gone_and_start_refus
     assert [a for a in calls if a[0] == "kill-window"] == [("kill-window", "-t", "@0"), ("kill-window", "-t", "@1")], "by id, never by the ambiguous name"
     with pytest.raises(RuntimeError, match=r"@0.*m1|m1.*@0"):
         procs.start(the_lane, {"step": "1.1", "brief": str(state / "b1.1"), "issues": [7]})
+
+
+def test_a_crashed_daily_builds_verb_is_a_not_run_row_and_a_legible_alert_and_retry_reruns_it_now(state):
+    """#6502: alert 470 read the last 200 chars of a traceback. A verb that crashes (rc 2) is a `daily-builds` row `not-run` holding the
+    traceback and an alert naming its last line; a red's alert carries the `: RED` lines only; both offer retry, which runs the builds
+    at the next tick instead of tomorrow; a no-action alert may be parked from the page."""
+    fake = Fake()
+    tb = "Traceback (most recent call last):\n  File \"check_tool.py\", line 1048, in x\n    raise RuntimeError(f\"{' '.join(args[-3:])} failed: {r['stderr_tail']}\")\nRuntimeError: xcodebuild failed: boom"
+    fake.procs.daily_builds = lambda: (2, tb)
+    queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None)
+    rows = [r for r in journal.read() if r["event"] == "daily-builds"]
+    assert rows[-1]["state"] == "not-run" and "Traceback" in rows[-1]["detail"]
+    a = [r for r in journal.read() if r["event"] == "alert"][-1]
+    assert a["what"] == "the daily-builds verb failed: RuntimeError: xcodebuild failed: boom" and a["actions"] == ["retry"]
+    ran = []
+    fake.procs.daily_builds = lambda: (ran.append(1), (1, "ios-sim: RED LLVM Profile Error: Failed to write file default.profraw\ntests: GREEN\nsome noise"))[1]
+    assert queue.answer(a["id"], "retry")[0] == 0 and not (journal.STATE / queue.DAILY).exists(), "retry: the day's marker is gone"
+    queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None)
+    assert ran == [1]
+    a = [r for r in journal.read() if r["event"] == "alert"][-1]
+    assert a["what"] == "a daily build is red: ios-sim: RED LLVM Profile Error: Failed to write file default.profraw" and a["actions"] == ["retry"]
+    page = (Path(console.__file__).parent / "console.html").read_text()
+    assert 'action: "park"' in page.split("function Alerts")[1].split("function Resolved")[0], "a no-action alert can be parked from the page"

@@ -112,6 +112,7 @@ def live(tmp_path, monkeypatch):
     (tmp_path / "journal.jsonl").write_text("".join(json.dumps(r) + "\n" for r in ROWS))
     monkeypatch.setattr(console.queue, "load", lambda: LANES)
     monkeypatch.setattr(console, "ROOT", tmp_path)
+    monkeypatch.setattr(console, "_STATUS", {"at": 0.0, "data": None})  # #6498: the 3 s status cache never carries one test's journal into the next
     ran = []
     monkeypatch.setattr(console, "run_verb", lambda argv: ran.append(argv) or (0, "ok"))
     monkeypatch.setattr(console, "EVENT_POLL_S", 0.05)

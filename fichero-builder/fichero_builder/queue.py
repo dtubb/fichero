@@ -748,6 +748,10 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
         why = f"no alert {alert_id!r}" if a is None else f"{action!r} is not one of {a['actions']}"
         journal.append("alert-answer", id=alert_id, action=action, ok=False, detail=why)
         return 1, f"REFUSED: {why}"
+    if a.get("lane") == "-" and a.get("step") == "daily-builds" and action == "retry":  # #6502: the builds run at the next tick
+        (journal.STATE / DAILY).unlink(missing_ok=True)
+        journal.append("alert-answer", id=alert_id, action=action, ok=True, detail="the daily builds run at the next tick")
+        return 0, f"{alert_id}: retry (the daily builds run at the next tick)"
     with journal.Lock("queue"):
         lanes = load()
         lane = next((x for x in lanes if x["id"] == a["lane"]), None)
@@ -1011,14 +1015,18 @@ def daily_when_due(procs: Procs, chains: dict | None) -> None:
             return
     except (OSError, ValueError):
         pass
+    marker.parent.mkdir(parents=True, exist_ok=True)
     marker.write_text(f"{time.time()}\n")
 
     def run_it():
         rc, output = procs.daily_builds()
-        journal.append("daily-builds", state={0: "green", 1: "red"}.get(rc, "not-run"), detail=output[-600:])
-        if rc == 1:
-            red = next((ln for ln in output.splitlines() if ": RED" in ln), output.strip()[-200:])
-            alert("-", "daily-builds", f"a daily build is red: {red}", str(journal.STATE / "build-logs"), [])
+        journal.append("daily-builds", state={0: "green", 1: "red"}.get(rc, "not-run"), detail=output[-1500:])
+        if rc == 1:  # #6502: the `: RED` lines only, never a tail of the verb's output; retry runs the builds now, not tomorrow
+            red = [ln.strip() for ln in output.splitlines() if ": RED" in ln] or [output.strip()[-200:]]
+            alert("-", "daily-builds", f"a daily build is red: {'; '.join(red)}", str(journal.STATE / "build-logs"), ["retry"])
+        elif rc:  # the verb itself crashed: its last line names the error; the row holds the traceback
+            last = (output.strip().splitlines() or ["no output"])[-1][:200]
+            alert("-", "daily-builds", f"the daily-builds verb failed: {last}", str(journal.STATE / "journal.jsonl"), ["retry"])
     if chains is None:
         run_it()
     else:
