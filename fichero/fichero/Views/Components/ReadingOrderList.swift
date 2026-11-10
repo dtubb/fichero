@@ -362,14 +362,15 @@ struct ReadingOrderList: View {
         if let nesting, let node = nesting.rows[segmentId] {
             SegmentOutlineRow(
                 node: node, index: index, tones: nesting.tones,
-                content: { id, position in AnyView(row(id, at: position)) }
+                content: { id, position in AnyView(row(id, at: position)) },
+                wrap: { id, view in AnyView(movable(id, view)) }
             )
         } else if nesting != nil {
             // Folded under its region by `SegmentsPane.outline`: shown there, not again beside it (#6425).
             // Kept in the ForEach (not filtered out) so `onMove` offsets still index `store.shown`.
             EmptyView()
         } else {
-            row(segmentId, at: index).tag(segmentId)
+            movable(segmentId, row(segmentId, at: index)).tag(segmentId)
         }
     }
 }
@@ -443,13 +444,16 @@ struct SegmentOutlineRow: View {
     let tones: [String: RegionColours.Tone]
     /// The list's own row for an id (its words, its flag).
     let content: (String, Int) -> AnyView
+    /// What surrounds the whole row (the swatch included): the list's drag and drop, lit across the row.
+    let wrap: (String, AnyView) -> AnyView
 
     @State private var expanded: Bool
 
     init(
         node: SegmentsPane.OutlineRow, index: Int, tones: [String: RegionColours.Tone],
-        content: @escaping (String, Int) -> AnyView
+        content: @escaping (String, Int) -> AnyView, wrap: @escaping (String, AnyView) -> AnyView = { _, view in view }
     ) {
+        self.wrap = wrap
         self.node = node
         self.index = index
         self.tones = tones
@@ -464,7 +468,7 @@ struct SegmentOutlineRow: View {
         } else {
             DisclosureGroup(isExpanded: $expanded) {
                 ForEach(Array(node.children.enumerated()), id: \.element.id) { position, child in
-                    SegmentOutlineRow(node: child, index: position, tones: tones, content: content)
+                    SegmentOutlineRow(node: child, index: position, tones: tones, content: content, wrap: wrap)
                 }
             } label: {
                 labelled
@@ -473,13 +477,15 @@ struct SegmentOutlineRow: View {
     }
 
     private var labelled: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(SelectionStyle.regionSwatch(tones[node.segmentId]))
-                .frame(width: 8, height: 8)
-                .accessibilityHidden(true)
-            content(node.segmentId, index)
-        }
+        wrap(node.segmentId, AnyView(
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(SelectionStyle.regionSwatch(tones[node.segmentId]))
+                    .frame(width: 8, height: 8)
+                    .accessibilityHidden(true)
+                content(node.segmentId, index)
+            }
+        ))
         .tag(node.segmentId)
     }
 }
@@ -611,8 +617,15 @@ extension ReadingOrderList {
     /// A row: its words, and -- in the Segments pane -- a control that opens it to its children.
     private func row(_ segmentId: String, at index: Int) -> some View {
         rowContent(segmentId, at: index)
-            .background(dropTarget == segmentId ? Color.accentColor.opacity(0.18) : .clear, in: .rect(cornerRadius: 6))
-            // A drag carries the selection when it holds this row, else the row; dropped on a region it moves them in.
+    }
+
+    /// The whole row, swatch and all, is the drag handle and the drop target, lit like the sidebar's: a drag carries the
+    /// selection when it holds this row, else the row; dropped on a region it moves them in.
+    func movable(_ segmentId: String, _ view: some View) -> some View {
+        view
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(.rect)
+            .background(dropTarget == segmentId ? Color.accentColor.opacity(0.25) : .clear, in: .rect(cornerRadius: 6))
             .draggable(dragPayload(segmentId))
             .dropDestination(for: SegmentDrag.self, action: { drags, _ in
                 dropped(drags.flatMap(\.ids), onto: segmentId)
