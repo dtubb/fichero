@@ -182,6 +182,18 @@ def test_a_rerun_after_the_worker_rewrote_its_branch_replaces_the_owners_ref(scr
     assert _g(scratch.engine, "rev-parse", "refs/heads/work-n1") == second
 
 
+def test_fetch_brings_in_a_base_the_engine_mirror_has_not_seen_yet(scratch):
+    up = scratch.tmp / "up"
+    subprocess.run(["git", "clone", "-q", str(scratch.engine), str(up)], check=True)
+    _commit(up, "newer")  # origin moved on; the worktree rebased onto it, the engine mirror did not fetch yet
+    _g(scratch.engine, "remote", "add", "origin", str(up))
+    _g(scratch.wt, "remote", "set-url", "origin", str(up)), _g(scratch.wt, "fetch", "-q", "origin")
+    _g(scratch.wt, "reset", "-q", "--hard", "origin/integration")
+    _commit(scratch.wt, "mine")
+    head = work.do_fetch(scratch.a, str(scratch.engine), "integration")
+    assert head and head == _g(scratch.wt, "rev-parse", "HEAD")
+
+
 def test_export_counts_the_real_commits_over_the_base(scratch):
     _commit(scratch.wt, "one"), _commit(scratch.wt, "two")
     assert work.do_export(scratch.a, "integration") == 2

@@ -197,6 +197,7 @@ def do_fetch(a, repo: str, branch: str) -> str:
     r = as_worker(a, f"mkdir -p {q(str(state))} && rm -f {q(str(bundle))} && {q(jail_git())} -C {q(str(a.worktree))} bundle create "
                      f"{q(str(bundle))} origin/{q(branch)}..HEAD && chmod a+r {q(str(bundle))}")
     ref = f"refs/heads/work-{a.name}"
+    _git(repo, "fetch", "-q", "--no-tags", "origin", branch)  # the bundle's base may be newer than this mirror (2026-11-10: "lacks these prerequisite commits"); a mirror with no origin just fails here
     if r.returncode or _git(repo, "fetch", "-q", "--no-tags", "--", str(bundle), f"+HEAD:{ref}").returncode:
         return ""
     return _git(repo, "rev-parse", "--verify", f"{ref}^{{commit}}").stdout.strip()
