@@ -170,8 +170,6 @@
   "POST /api/hermeneutics/patterns/{pattern_id}/claims/{claim_id}": "#3299 generated client is available; patterns have no approved inspector placement (#3434)",
   "POST /api/hpc/clusters/{cluster_id}/dry-run-submit": "no Swift call for the /api/hpc/* family (6 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "POST /api/hpc/clusters/{cluster_id}/test": "no Swift call for the /api/hpc/* family (6 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
-  "POST /api/images/batch-apply": "store missing — server batch endpoint; the image editor fans a uniform op out client-side over per-doc operations instead (#3677)",
-  "POST /api/images/batch-apply/{batch_id}/undo": "store missing — server batch-undo; no client consumer (editor undoes via the audited action log) (#3677)",
   "POST /api/images/crops/batch": "store missing — server batch-crop; no client consumer yet (#3677)",
   "POST /api/images/{document_id}/split": "store missing — structural split (creates child Documents); no client consumer yet (#3677)",
   "POST /api/images/{document_id}/uncrop": "store missing — reverses a structural crop child; no client consumer yet (#3677)",
@@ -291,7 +289,6 @@
   "PUT /api/auth/local-clients/switches": "local CLI/MCP clients (multiuser-always-on slice 6a): the app's Settings/approval sheet store is Swift, later; engine first (#2403)",
   "GET /api/auth/local-clients/requests": "local CLI/MCP clients (multiuser-always-on slice 6a): the app's Settings/approval sheet store is Swift, later; engine first (#2403)",
   "GET /api/auth/local-clients/switches": "local CLI/MCP clients (multiuser-always-on slice 6a): the app's Settings/approval sheet store is Swift, later; engine first (#2403)",
-  "POST /api/recipes/project/allow-cloud": "the one-click Allow on a refused cloud call: engine first (CLI, MCP); the app's click waits on an owner question (#5368)",
   "POST /api/recipes/cloud/accept-unpriced": "accepting a cloud model with no listed price: engine first (CLI, MCP, Start's accept_unpriced); the app's control to accept and withdraw is not built (#5987)",
   "POST /api/recipes/project/steps/use-readers": "the engine half of choosing several readers for Find where the readers disagree (#6121); the app's multi-select that calls it is not built yet",
   "POST /api/content-representations/batch": "a Reader edit across lines (representation.create_many, source.textedit.reader-edit-is-one-step): the app sends it through the audited action invoke so it has one undo step, not through this route; the CLI and MCP reach the route",
@@ -305,8 +302,6 @@
   "POST /api/workers/tell": "dev-only worker control (dev tier, FICHERO_DEV_WORKERS=1): reached through the CLI/harness scripts, never from the app; no store by design",
   "POST /api/workers/{job_id}/stop": "dev-only worker control (dev tier, FICHERO_DEV_WORKERS=1): reached through the CLI/harness scripts, never from the app; no store by design",
   "POST /api/workflow-execution/dry-run": "the dry run of a run's checks (Step 2.3, #4370): engine first, reached through the generated CLI and MCP; the editor's Test button that calls it is Step 4.6, not built",
-  "GET /api/ai/cloud-caps": "the app-wide cloud caps (ai.cloud.monthly-cap-in-settings, Step 1.1 engine): the Settings field that reads and sets them is Step 1.2 (Swift, waits for lane-onboard's Budget block); until then the CLI reaches them",
-  "PUT /api/ai/cloud-caps": "the app-wide cloud caps (ai.cloud.monthly-cap-in-settings, Step 1.1 engine): the Settings field that reads and sets them is Step 1.2 (Swift, waits for lane-onboard's Budget block); until then the CLI reaches them",
   "POST /api/activity/jobs/{job_id}/bug-report": "the report of a failed run (run.fail.bug-report-route, #6354 step 1.3, engine): Send a Bug Report in the app is Step 2.3 (Swift, waits for an owner ruling on where the report goes); until then the CLI and MCP reach it (Step 1.4)",
-  "POST /api/images/{document_id}/jobs": "store missing — the job route (#6384); the Preview editor still calls the direct route and waits, the app asks for a job when its Swift part lands"
+  "POST /api/segments/reparent": "Move Into / Lift Out and the Order list's drop (#6476, Step 1.25): the app runs it as the audited action segment.reparent through POST /api/actions/invoke (SegmentMover, SegmentEditRunner), so ⌘Z holds it; this matrix counts a route by its operation name"
 }
