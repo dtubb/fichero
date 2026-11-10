@@ -296,7 +296,9 @@ extension RegionInteractionLayer {
         guard let point = layerPoint(event.point, in: size) else { return }
         shiftHeld = event.shift
         // Edit Segments on ONE selected shape: Reshape takes the press, the drag and the release.
-        if handleReshape(event, in: size) || handleDrawShape(event, in: size) { return }
+        // An armed Polygon or Baseline tool owns the click first (#6476): a point placed inside a selected region
+        // was taken by Reshape and the region, not the drawing, got it.
+        if handleDrawShape(event, in: size) || handleReshape(event, in: size) { return }
         switch event.phase {
         case .pressed:
             handlePress(at: point, clickCount: event.clickCount, in: size)
