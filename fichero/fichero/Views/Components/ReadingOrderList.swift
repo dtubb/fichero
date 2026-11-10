@@ -201,8 +201,9 @@ struct ReadingOrderList: View {
         guard let segmentService else { return }
         let store = SegmentStore.shared(for: segmentService)
         let focused = windowState?.sharedRegionSelection
-        let held = SegmentDeleter.selectedIds(focused, documentId: documentId, store: store)
-        let ids = SegmentDeleter.ids(row: named?.first ?? selection, held: held)
+        // The rows the menu was opened on, all of them (`movedIds`: Move Into takes the same rule); the first alone
+        // deleted one of a selection of four.
+        let ids = movedIds(named: named)
         let steps = windowSteps, actionsService = actionStore?.actionsService, documentId = documentId
         Task {
             createNote = await SegmentDeleter.run(
