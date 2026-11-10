@@ -692,7 +692,9 @@ extension ReadingOrderList {
                     .font(BundledFonts.shared.font(.body))
                     .focused($renameFocused)
                     .onSubmit { commitRename() }
+                    #if os(macOS)
                     .onExitCommand { renaming = nil }
+                    #endif
                     .onChange(of: renameFocused) { _, focused in if !focused { commitRename() } }
             } else {
                 Text(rowLabel?(segmentId, index) ?? label(for: segmentId, at: index))
