@@ -121,6 +121,8 @@ final class ReaderLineEditor {
     private(set) var reading: InspectorText.Reading?
     /// The line's label and the reading it shows (#6455): where none counts, the newest person's reading, never an unlabelled text.
     private(set) var label: ShownReadingLabel?
+    /// The line's readings as a tree, for its disclosure triangle (#6492).
+    private(set) var versions: [ReadingTree] = []
     /// The words in the field.
     var draft: String
     /// Why the last save did not land.
@@ -145,6 +147,7 @@ final class ReaderLineEditor {
         let readings = try? await service.readings(segmentId: segment.id)
         reading = readings?.countingReading(ofKind: "transcription")
         label = ShownReadingLabel(readings)
+        versions = ReadingTree.build(readings?.readings ?? [], retracted: readings?.retracted ?? [])
         if untouched { draft = shownWords }  // words typed while it loaded are kept
         if picture == nil {
             picture = try? await SegmentPictureService(client: service.client)
@@ -177,6 +180,7 @@ final class ReaderLineEditor {
         let readings = try? await service.readings(segmentId: segment.id)
         reading = readings?.countingReading(ofKind: "transcription")
         label = ShownReadingLabel(readings)
+        versions = ReadingTree.build(readings?.readings ?? [], retracted: readings?.retracted ?? [])
         draft = shownWords
     }
 }
