@@ -74,6 +74,7 @@ extension ZoomableImagePreview {
                       segmentId: entry.box.segmentId, kind: entry.box.level,
                       parentSegmentId: entry.box.parentSegmentId,
                       tone: entry.box.tone,
+                      orderNumber: entry.box.orderNumber,
                       direction: direction(entry.box.segmentId))
             },
             selected: selected,
@@ -94,6 +95,7 @@ extension ZoomableImagePreview {
             documentId: documentId
         )
         overlay.transcriptionFamily = transcriptionFont?.family
+        overlay.showsOrderNumbers = showOrderNumbers
         return overlay
     }
 

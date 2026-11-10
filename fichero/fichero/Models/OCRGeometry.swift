@@ -46,6 +46,9 @@ struct OCRGeometryBox: Codable, Hashable, Identifiable {
     /// Its region's hue and its shade along the reading order (`RegionColours.tones`), from a segment pass;
     /// nil for artifact geometry, which is drawn in the plain box colour. Not part of the artifact wire format.
     var tone: RegionColours.Tone?
+    /// A line's reading number down the page (`RegionColours.orderNumbers`), shown by "Show Order Numbers"; nil for a
+    /// region, a word, and artifact geometry. Not part of the artifact wire format.
+    var orderNumber: Int?
 
     /// A box a person drew, rather than a pass measuring one.
     var isHandDrawn: Bool { provider?.lowercased() == "user" || source?.lowercased() == "manual" }
