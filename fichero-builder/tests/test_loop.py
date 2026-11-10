@@ -1017,8 +1017,9 @@ def test_an_external_lanes_landing_builds_no_app_product_or_not(state, tmp_path)
 
 
 def test_an_external_lanes_red_is_sent_back_by_the_loop_three_times_a_batch_then_it_is_an_alert(state, tmp_path):
-    """dev-workflows.run.loop-alerts (manager 2026-11-03): a red the manager would only send back goes to the lane's pane with no
-    alert: one `auto-send-back` row says what was done; the fourth red in the batch is the alert as before; approve-kind refusals never."""
+    """dev-workflows.run.loop-alerts (manager 2026-11-03; #6466): a red the manager would only send back goes to the lane's pane:
+    one `auto-send-back` row says what was done, and an alert names it (superseded by the lane's next done); the fourth red in the
+    batch is the plain alert as before; approve-kind refusals never."""
     wt, g = _ext_repo(tmp_path)
     queue.add("lane-x", str(wt), "batch-1", str(state / "b1.1"), [], kind="external", pane="%7")
     told = []
@@ -1028,7 +1029,8 @@ def test_an_external_lanes_red_is_sent_back_by_the_loop_three_times_a_batch_then
         assert queue.done("lane-x") == ""
         queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
         assert steps_of("lane-x")[0]["state"] == "blocked"
-        assert len(_alerts()) == (1 if i == 3 else 0), f"round {i + 1}"
+        assert len(_alerts()) == i + 1 and len(_open_alerts()) == 1, f"round {i + 1}"
+        assert _alerts()[-1]["actions"] == (["send-back", "retry", "park"] if i < 3 else ["send-back", "retry", "park"])
         (wt / f"fix{i}").write_text("x")
         g(wt, "add", "."), g(wt, "commit", "-qm", f"fix {i} (Step 1.2)")
     rows = [r["detail"] for r in journal.read() if r.get("state") == "auto-send-back"]
@@ -1099,3 +1101,64 @@ def test_a_pinned_copy_cut_short_is_made_again_and_two_chains_pinning_at_once_bo
     [t.start() for t in ts]
     [t.join() for t in ts]
     assert len(got) == 2 and all((Path(g) / "harness.toml").is_file() for g in got), "both chains read a whole copy"
+
+
+def _open_alerts():
+    answered = {r.get("id") for r in journal.read() if r.get("event") == "alert-answer" and r.get("ok")}
+    return [r for r in _alerts() if r["id"] not in answered]
+
+
+def test_a_batch_whose_commits_are_already_on_origin_lands_without_a_chain_and_the_lane_goes_on(state):
+    """#6466 (run.loop-already-landed): `the worktree has no commits over origin/integration` blocked lane-ie batch-46 and
+    lane-sharing batch-55 for a day with queued batches frozen behind them. The batch IS landed: the step reads landed, the
+    cursor moves on, nothing is pushed and no alert is raised."""
+    queue.add("ext", "/w/ext", "batch-1", str(state / "b1.1"), [7], kind="external")
+    queue.add("ext", "/w/ext", "batch-2", str(state / "b1.2"), [8])
+    fake = Fake(chains={"batch-1": [{"ok": False, "kind": "already-landed", "why": "the worktree has no commits over origin/integration"}]})
+    assert cli.main(["done", "ext", "abc123", "--state", str(journal.STATE)]) == 0
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    s = steps_of("ext")[0]
+    assert s["state"] == "landed" and "already" in s["why"] and fake.landed_calls == [] and _alerts() == []
+    assert next(x for x in queue.load() if x["id"] == "ext")["cursor"] == 1
+
+
+def test_a_step_blocked_longer_than_the_limit_is_retried_once_in_a_fresh_session_then_parked_behind_the_next_batch(state, monkeypatch):
+    """#6466 (run.loop-blocked-watchdog): a blocked step never waits forever. After [loop].blocked_hours it is retried ONCE as a
+    fresh session on its brief plus the question; blocked again that long, it is parked at the end of the lane with one alert,
+    and the batch queued behind it runs."""
+    lane(state)
+    clock = [1_000_000.0]
+    monkeypatch.setattr(queue, "_now", lambda: clock[0])
+    monkeypatch.setattr(queue, "BLOCKED_H", [4.0])
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "red", "why": "pytest red", "findings": "t1 failed"}] * 6})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "blocked" and steps()["1.1"].get("blocked_at") == clock[0] and len(_open_alerts()) == 1
+    clock[0] += 3 * 3600
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "blocked", "under the limit: left alone"
+    clock[0] += 2 * 3600
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    s = steps()["1.1"]
+    assert s["state"] == "blocked" and s["block_retries"] == 1, "retried once (the fresh session was red again), blocked again"
+    retry = [r for r in journal.read() if r.get("state") == "blocked-retry"]
+    assert len(retry) == 1 and "pytest red" in open(s["resume_brief"]).read(), "the fresh session got the brief and the question"
+    assert len(_open_alerts()) == 1, "the old alert was answered by the retry; the new block has one"
+    clock[0] += 5 * 3600
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    order = [s["step"] for s in steps_of("m1")]
+    assert order == ["1.2", "1.1"] and steps()["1.1"]["state"] == "parked" and steps()["1.2"]["state"] == "landed", "parked at the end; the next batch ran"
+    parked = [a for a in _open_alerts() if "parked" in a["what"]]
+    assert len(parked) == 1 and set(parked[0]["actions"]) == {"retry", "park"} and len(_open_alerts()) == 1
+
+
+def test_an_auto_send_back_raises_an_alert_too(state, tmp_path):
+    """#6466: a lane with no pane never saw its auto send-back (lane-onboard batch-28 sat a day with no open alert): the
+    send-back is told AND an alert names it; the next done supersedes the alert as any."""
+    wt, g = _ext_repo(tmp_path)
+    queue.add("lane-x", str(wt), "batch-1", str(state / "b1.1"), [], kind="external", pane="%7")
+    fake = Fake(chains={"batch-1": [{"ok": False, "kind": "red", "why": "ruff on the changed Python", "findings": "x.py:1 F401"}]})
+    fake.procs.tell = lambda lane, text: ""
+    assert queue.done("lane-x") == ""
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert steps_of("lane-x")[0]["state"] == "blocked" and steps_of("lane-x")[0]["auto_sb"] == 1
+    assert [(a["lane"], a["actions"]) for a in _open_alerts()] == [("lane-x", ["send-back", "retry", "park"])]

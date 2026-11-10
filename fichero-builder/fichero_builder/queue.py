@@ -36,6 +36,8 @@ from typing import Callable
 from fichero_builder import check_tool, codemap, jail, journal, land_tool, models, work
 
 ROUNDS, RESTARTS = 2, 2
+BLOCKED_H: list = [4.0]  # [loop].blocked_hours: a blocked step this old is retried once in a fresh session, then parked (#6466)
+_now = time.time  # the tests set the clock
 AUTO_SEND_BACKS = 3  # an external lane's red check is sent back by the loop this many times a batch, then it is an alert
 FIX = ("Step {step}: the {kind} did not pass. Fix it on this branch with new commit(s), under the same rules.\n\n{findings}\n\n"
        "When it is committed, end your turn with the exact line DONE <short sha of the branch head>.\n")
@@ -139,7 +141,7 @@ class Procs:
     root: str = ""  # the loop's checkout (its harness.toml): the rules warnings at start and the scratch sweep read it
 
 
-QUIET = ("queued", "blocked", "landed")  # a step state in which the lane's own worker is not moving its tree
+QUIET = ("queued", "blocked", "landed", "parked")  # a step state in which the lane's own worker is not moving its tree
 
 
 def _others(lane: dict, handles: dict, procs: Procs) -> list[str]:
@@ -225,10 +227,12 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         q.write_text(f"QUESTION: {why}\n")
         if auto_send_back:
             s["auto_sb"] = s.get("auto_sb", 0) + 1  # before the move, which stores it
+        s["blocked_at"] = _now()  # the watchdog's clock (#6466)
         move(s, "blocked", why)
-        if auto_send_back:  # a red the manager would only send back: the lane gets the findings, no alert (manager 2026-11-03)
+        if auto_send_back:  # a red the manager would only send back: the lane gets the findings, and an alert names it (#6466: a lane with no pane saw nothing)
             findings_to_lane(s, why, evidence, q, state="auto-send-back",  # ONE row: the count, the reason and the findings file (review 361)
                              note=f"sent back automatically ({s['auto_sb']} of {AUTO_SEND_BACKS}): {why.splitlines()[0][:200]}; findings in ")
+            alert(lane["id"], s["step"], why, evidence or str(q), ["send-back", "retry", "park"])
             return False
         alert(lane["id"], s["step"], why, evidence or str(q), list(actions))
         if lane.get("kind") == "external" and s.get("land_tree"):  # the lane fixes it on its branch: tell it where the findings are
@@ -279,8 +283,38 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                 t.start()
         return False
     s = lane["steps"][lane["cursor"]]
-    if s["state"] == "blocked":
-        return False
+    if s["state"] == "parked":
+        return False  # the lane's last step, parked: an answer `retry` or `builder done` takes it again
+    if s["state"] == "blocked":  # #6466 (run.loop-blocked-watchdog): never forever
+        if not s.get("blocked_at"):
+            s["blocked_at"] = _now()  # blocked before this code: the clock starts now
+            store(lane)
+            return False
+        age_h = (_now() - s["blocked_at"]) / 3600
+        if age_h < BLOCKED_H[0]:
+            return False
+        if s.get("block_retries", 0) < 1:  # once: a fresh session on the brief plus the question
+            s["block_retries"] = 1
+            q = journal.STATE / f"question-{lane['id']}-{s['step']}.txt"
+            fix = journal.STATE / f"retry-{lane['id']}-{s['step']}.txt"
+            fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + "\n\n" + FIX.format(step=s["step"], kind="last session",
+                           findings=(q.read_text() if q.is_file() else s.get("why", "")).strip()))
+            s["resume_brief"], s["rounds"], s["restarts"] = str(fix), 0, 0
+            s.pop("blocked_at")
+            if h is not None:  # a fresh session, never the one that blocked
+                procs.stop(lane)
+                del handles[lane["id"]]
+            lane["feed"] = ""
+            close_alerts(lane["id"], s["step"], f"retried after {age_h:.0f} h blocked")
+            journal.append("queue", lane=lane["id"], step=s["step"], state="blocked-retry", detail=f"blocked {age_h:.0f} h: retried once in a fresh session")
+            move(s, "done" if lane.get("kind") == "external" and s.get("head") else "queued", f"blocked {age_h:.0f} h: retried once in a fresh session")
+            return True
+        _park(lane, s, f"blocked {age_h:.0f} h after its retry: parked at the end of the lane")
+        store(lane)
+        close_alerts(lane["id"], s["step"], "parked by the watchdog")
+        alert(lane["id"], s["step"], f"parked: blocked {age_h:.0f} h after its retry; {s.get('why', '').splitlines()[0][:200] if s.get('why') else ''}",
+              str(journal.STATE / f"question-{lane['id']}-{s['step']}.txt"), ["retry", "park"])
+        return True
     if lane.get("kind") == "external" and s["state"] in ("queued", "sent"):
         return False  # no worker: the lane's own session says `builder done <lane> <sha>` (dev-workflows.run.loop-external-lane)
     fut = (chains or {}).get(lane["id"])
@@ -402,6 +436,11 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if left:
             journal.append("queue", lane=lane["id"], step=s["step"], state="issue-open", detail=", ".join(left))
         return True
+    if r.get("kind") == "already-landed":  # #6466 (run.loop-already-landed): every commit is on origin already; the step IS landed
+        close_alerts(lane["id"], s["step"], "already on origin")
+        lane["cursor"] += 1
+        move(s, "landed", f"already on origin: {r['why']}")
+        return True
     if r.get("kind") in ("needs-maintainer", "weakened-tests", "red-on-base", "pinned-new", "guard-data"):  # a pinned check or a test changed on purpose: the manager's call
         s["approve_kind"] = r["kind"]
         s["approvals"] = r.get("approvals") or []  # every reason the refusal listed: one approve sets them all
@@ -425,6 +464,32 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     auto = (lane.get("kind") == "external" and bool(s.get("land_tree")) and r.get("kind") in ("red", "not-ready", "refused")
             and s.get("auto_sb", 0) < AUTO_SEND_BACKS)  # the cap spent, the alert comes as before
     return block(s, f"{r['why']}\n{r.get('findings', '')}".strip(), acts, evidence=r.get("evidence", ""), auto_send_back=auto)
+
+
+def _park(lane: dict, s: dict, why: str) -> None:
+    """The step to the end of its lane as `parked` (#6466): the lane's cursor then names the batch behind it, so nothing freezes.
+    One `queue` row; the caller saves."""
+    lane["steps"].remove(s)
+    lane["steps"].append(s)
+    s["state"], s["why"] = "parked", why[-500:]
+    for k in ("blocked_at", "settling"):
+        s.pop(k, None)
+    journal.append("queue", lane=lane["id"], step=s["step"], state="parked", detail=why[-300:])
+
+
+def park_blocked(pairs: set, why: str) -> list[str]:
+    """Every (lane, step) named that is still `blocked` is parked (run.loop-dismiss-parks): a Dismiss never orphans a step."""
+    out = []
+    with journal.Lock("queue"):
+        lanes = load()
+        for x in lanes:
+            for s in list(x["steps"]):
+                if (x["id"], s["step"]) in pairs and s["state"] == "blocked":
+                    _park(x, s, why)
+                    out.append(f"{x['id']} {s['step']}")
+        if out:
+            save(lanes)
+    return out
 
 
 ACTIONS = ("retry", "park", "ask-owner")
@@ -593,7 +658,8 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
         ids = list(dict.fromkeys(r["id"] for r in rows if r.get("event") == "alert" and r.get("id") not in answered))
         for i in ids:
             journal.append("alert-answer", id=i, action="dismiss", ok=True, detail="dismissed with all, from the console")
-        return 0, f"dismissed {len(ids)} open alert(s)"
+        parked = park_blocked({(r.get("lane"), r.get("step")) for r in rows if r.get("event") == "alert" and r.get("id") in ids}, "dismissed from the console: parked")
+        return 0, f"dismissed {len(ids)} open alert(s)" + (f"; parked {', '.join(parked)}" if parked else "")
     a = next((r for r in reversed(rows) if r.get("event") == "alert" and r.get("id") == alert_id), None)
     if a is not None and action == "dismiss":  # owner 2026-11-04: an alert never hangs around; dismiss answers it and changes nothing else
         # owner 2026-11-05: Dismiss "did nothing": 75 identical runner alerts were open, and each click only showed the next one. It
@@ -604,7 +670,8 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
         journal.append("alert-answer", id=alert_id, action="dismiss", ok=True, detail="dismissed from the console")
         for other in dict.fromkeys(same):
             journal.append("alert-answer", id=other, action="dismiss", ok=True, detail=f"dismissed with {alert_id}: the same alert")
-        return 0, f"{alert_id}: dismissed" + (f", with {len(set(same))} open alert(s) of the same kind" if same else "")
+        parked = park_blocked({(a.get("lane"), a.get("step"))}, f"dismissed from the console ({alert_id}): parked")
+        return 0, f"{alert_id}: dismissed" + (f", with {len(set(same))} open alert(s) of the same kind" if same else "") + (f"; parked {parked[0]}" if parked else "")
     if a is None or (action not in a.get("actions", []) and not (action == "park" and not a.get("actions"))):  # a no-action alert may be parked
         why = f"no alert {alert_id!r}" if a is None else f"{action!r} is not one of {a['actions']}"
         journal.append("alert-answer", id=alert_id, action=action, ok=False, detail=why)

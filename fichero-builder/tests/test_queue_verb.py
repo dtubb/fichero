@@ -235,6 +235,8 @@ def test_the_real_start_makes_the_worktree_and_runs_the_worker_side_with_its_fee
     scripts, popens = [], []
     monkeypatch.setattr(queue.work, "as_worker", lambda a, s: (scripts.append(s), type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})())[1])
     monkeypatch.setattr(queue.subprocess, "Popen", lambda argv, **k: popens.append(argv) or object())
+    monkeypatch.setattr(queue.work, "ensure_pinned", lambda root, brief, base: str(state))
+    monkeypatch.setattr(queue.land_tool, "resolve_branch", lambda repo, branch: "d" * 40)  # the pinned copy the worker imports from (#6466)
     procs = queue.real_procs(state)
     the_lane = {"id": "m1", "worktree": str(state / "wr" / "wt-m1"), "seq": 3}
     procs.start(the_lane, {"step": "1.1", "brief": str(state / "b1.1"), "issues": [7]})
@@ -260,6 +262,8 @@ def test_a_planted_inbox_cannot_turn_the_owners_chmod_or_writes_on_another_folde
                                         '[models]\nproviders = ["claude-code"]\nbuilder = { provider = "claude-code", model = "sonnet" }\nreviewer = { provider = "claude-code", model = "opus" }\n')
     (wr / "inbox-m1-3").symlink_to(private)
     monkeypatch.setattr(queue.work, "as_worker", lambda a, s: type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})())
+    monkeypatch.setattr(queue.work, "ensure_pinned", lambda root, brief, base: str(state))
+    monkeypatch.setattr(queue.land_tool, "resolve_branch", lambda repo, branch: "d" * 40)
     monkeypatch.setattr(queue.subprocess, "Popen", lambda argv, **k: object())
     the_lane = {"id": "m1", "worktree": str(wr / "wt-m1"), "seq": 3}
     procs = queue.real_procs(state)

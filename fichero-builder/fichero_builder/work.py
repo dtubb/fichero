@@ -472,7 +472,7 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
             return no("error", why)
         n = do_export(a, branch)
         if not step("patches", n > 0, f"{n} patch(es) under patches-{a.name} in the shared state"):
-            return no("error", f"the worktree has no commits over origin/{branch}")
+            return no("already-landed", f"the worktree has no commits over origin/{branch}")  # #6466: the loop lands the step as it is
         head = do_fetch(a, repo, branch)
         if not step("fetch", bool(head), head or f"could not fetch the worktree branch into {repo}"):
             return no("error", f"could not fetch the worktree's branch into {repo}")

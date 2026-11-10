@@ -96,3 +96,29 @@ def test_a_dead_waiters_lock_row_is_not_shown_as_a_wait(state):
     journal.append("lock", state="waiting", name="guards", holder="2 y", what="alive", pid=os.getpid())
     st = console.api_status(journal.read(), [], commit=lambda *a, **k: ("", 0))
     assert [w["what"] for w in st["lock_waits"]] == ["alive"]
+
+
+def test_dismissing_a_blocked_steps_alert_parks_the_step_and_the_lane_goes_on(state):
+    """#6466 (run.loop-dismiss-parks): Dismiss left lane-ie batch-46 blocked with no open alert, nothing ever touching it again.
+    A dismissed alert of a BLOCKED step parks that step at the end of its lane (state parked), so the next batch is the cursor's."""
+    queue.add("ext", "/w/ext", "batch-1", str(state / "b"), [7], kind="external")
+    queue.add("ext", "/w/ext", "batch-2", str(state / "b"), [8])
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="blocked", why="red")
+    queue.save(lanes)
+    aid = queue.alert("ext", "batch-1", "red at pytest", "/e", ["retry", "park"])
+    assert cli.main(["alert", aid, "dismiss", "--state", str(journal.STATE)]) == 0
+    x = queue.load()[0]
+    assert [(s["step"], s["state"]) for s in x["steps"]] == [("batch-2", "queued"), ("batch-1", "parked")] and x["cursor"] == 0
+    assert [r["state"] for r in journal.read() if r.get("event") == "queue" and r.get("step") == "batch-1"][-1] == "parked"
+
+
+def test_dismiss_all_parks_every_blocked_step_behind_its_alerts(state):
+    queue.add("a", "/w/a", "s1", str(state / "b"), [7], kind="external")
+    queue.add("b", "/w/b", "s1", str(state / "b"), [8], kind="external")
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="blocked")  # a: blocked -> parked
+    queue.save(lanes)  # b: queued -> untouched
+    queue.alert("a", "s1", "red", "/e", ["retry"]), queue.alert("b", "s1", "a note", "/e", [])
+    assert cli.main(["alert", "all", "dismiss", "--state", str(journal.STATE)]) == 0
+    assert [x["steps"][0]["state"] for x in queue.load()] == ["parked", "queued"]
