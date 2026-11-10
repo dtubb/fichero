@@ -81,3 +81,9 @@ def test_no_tmux_on_the_path_is_nothing_to_re_point_never_an_error(state, monkey
     monkeypatch.setenv("PATH", str(state))
     queue.save([{"id": "a", "kind": "external", "pane": "%1", "worktree": str(state), "cursor": 0, "steps": []}])
     assert queue.repane() == [] and queue.load()[0]["pane"] == "%1"
+
+
+def test_the_agents_run_unbuffered_so_loop_log_is_current(state):
+    """#6466: launchd block-buffers stdout, so loop.log lagged the journal by hours; every agent runs with PYTHONUNBUFFERED."""
+    for p in queue.launch_agents("/r", state / "la", state=state / "s"):
+        assert plistlib.loads(p.read_bytes())["EnvironmentVariables"]["PYTHONUNBUFFERED"] == "1", p.name

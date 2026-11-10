@@ -361,7 +361,7 @@ def test_the_loop_re_execs_itself_between_ticks_when_its_code_changes_and_nothin
     """Manager 2026-11-02: restarting the loop by hand to pick up new code is a hand step. Between ticks, with no chain and no
     worker session, a changed source makes it exec itself with the same args, after one row."""
     marks = iter([("a",), ("a",), ("b",), ("b",)])
-    monkeypatch.setattr(queue, "code_mark", lambda: next(marks, ("b",)))
+    monkeypatch.setattr(queue, "code_mark", lambda root="": next(marks, ("b",)))
     execs = []
     monkeypatch.setattr(queue, "reexec", lambda: execs.append(1))
     fake = Fake()

@@ -130,3 +130,13 @@ def test_the_loop_records_its_own_checkout_as_the_live_root_when_it_starts(state
     procs.root = str(state)
     queue.run(procs, workers_n=1, push=False, once=True, heartbeat=True, out=lambda s: None)
     assert (journal.STATE / "live-root").read_text().strip() == str(state.resolve())
+
+
+def test_a_rules_edit_changes_the_code_mark_so_the_loop_re_execs(state):
+    """#6466: harness.toml ([loop].only, the rules) is read once at start; an edit must restart the loop like a code change does."""
+    (state / "harness.toml").write_text("[loop]\nonly = []\n")
+    before = queue.code_mark(state)
+    assert before == queue.code_mark(state), "a stable mark between ticks"
+    (state / "harness.toml").write_text("[loop]\nonly = ['x']\n")
+    assert queue.code_mark(state) != before
+    assert queue.code_mark() == queue.code_mark(), "no root: the package alone, as before"

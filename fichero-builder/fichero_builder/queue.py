@@ -726,7 +726,7 @@ def launch_agents(root, out, *, state=None, tick_s: float = 30.0, port: int = 87
         label = f"local.builder.{name}"
         f = out / f"{label}.plist"
         f.write_bytes(plistlib.dumps({"Label": label, "ProgramArguments": [sys.executable, "-m", "fichero_builder", *args],
-                                      "WorkingDirectory": str(logs), "EnvironmentVariables": {"PYTHONPATH": str(pkg), "PATH": os.environ.get("PATH", "")},
+                                      "WorkingDirectory": str(logs), "EnvironmentVariables": {"PYTHONPATH": str(pkg), "PATH": os.environ.get("PATH", ""), "PYTHONUNBUFFERED": "1"},  # #6466: loop.log lagged the journal by hours
                                       "StandardOutPath": str(logs / f"{name}.log"), "StandardErrorPath": str(logs / f"{name}.log"), **when}))
         paths.append(f)
     return paths
@@ -903,10 +903,11 @@ DRAIN: list = [False]
 BUILDS: list = []  # the post-landing dev builds' threads: a re-exec waits for them
 
 
-def code_mark() -> tuple:
-    """What the running loop's code is: each fichero_builder source's name, size and mtime."""
+def code_mark(root="") -> tuple:
+    """What the running loop's code is: each fichero_builder source's name, size and mtime, and the rules file it reads (#6466)."""
     pkg = Path(__file__).resolve().parent
-    return tuple(sorted((f.name, f.stat().st_size, f.stat().st_mtime_ns) for f in pkg.glob("*.py")))
+    files = list(pkg.glob("*.py")) + ([Path(root) / "harness.toml"] if root and (Path(root) / "harness.toml").is_file() else [])
+    return tuple(sorted((f.name, f.stat().st_size, f.stat().st_mtime_ns) for f in files))
 
 
 def reexec() -> None:  # the tests replace this
@@ -919,8 +920,11 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
     session and a resume from another shell is picked up. Each tick first takes build-order milestones up to `lanes_n`."""
     handles: dict = {}
     DRAIN[0] = False  # a fresh process (a re-exec included) runs the code on disk
-    mark = code_mark()
+    root = getattr(procs, "root", "") or ""
+    mark = code_mark(root)
     if heartbeat:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(line_buffering=True)  # #6466: under launchd a block-buffered loop.log is hours behind
         journal.STATE.mkdir(parents=True, exist_ok=True)
         (journal.STATE / "loop.pid").write_text(f"{os.getpid()}\n")  # the watchdog's restart kills this pid; an exec keeps it
         from fichero_builder import check_tool
@@ -949,11 +953,11 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
             return 0
         # new code (soak 2026-11-02: a hand restart is a defect): between ticks, nothing in flight, the loop execs itself, same args.
         # ponytail: a live worker session holds the restart off (a restart would lose its handle); it runs at the next quiet tick
-        DRAIN[0] = heartbeat and code_mark() != mark  # serial chains never left a gap: stop starting them until it re-execs
-        if heartbeat and code_mark() != mark and not handles and not any(not f.done() for k, f in (chains or {}).items() if k != "pool") and not any(t.is_alive() for t in BUILDS):
+        DRAIN[0] = heartbeat and code_mark(root) != mark  # serial chains never left a gap: stop starting them until it re-execs
+        if heartbeat and code_mark(root) != mark and not handles and not any(not f.done() for k, f in (chains or {}).items() if k != "pool") and not any(t.is_alive() for t in BUILDS):
             journal.append("loop", state="restarted", detail="loop restarted for new code", pid=os.getpid(), argv=sys.argv[1:])
             reexec()
-            mark = code_mark()  # a test's reexec returns
+            mark = code_mark(root)  # a test's reexec returns
         procs.sleep(tick_s)
 
 
