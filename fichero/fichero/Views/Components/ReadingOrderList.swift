@@ -641,6 +641,16 @@ extension ReadingOrderList {
         return true
     }
 
+    /// A drop on a row that takes nothing in: the ONE dragged line takes this row's place in the order, one audited move,
+    /// one ⌘Z (the List's own `.onMove` never sees the drag, the row's `.draggable` has it). Several lines at once: no.
+    private func reordered(_ ids: [String], to targetId: String) -> Bool {
+        guard let store, ids.count == 1, let id = ids.first, id != targetId,
+              let target = store.shown.firstIndex(where: { $0.segmentId == targetId }),
+              store.shown.contains(where: { $0.segmentId == id }) else { return false }
+        Task { await record(store.move(id, to: target), in: store) }
+        return true
+    }
+
     /// A row: its words, and -- in the Segments pane -- a control that opens it to its children.
     private func row(_ segmentId: String, at index: Int) -> some View {
         rowContent(segmentId, at: index)
@@ -658,7 +668,9 @@ extension ReadingOrderList {
             // selection arriving from another pane, so a pick in the Preview does not steal its focus.
             .simultaneousGesture(TapGesture().onEnded { listFocused = true })
             .dropDestination(for: SegmentDrag.self, action: { drags, _ in
-                dropped(drags.flatMap(\.ids), onto: segmentId)
+                let ids = drags.flatMap(\.ids)
+                // On a region it moves them in; anywhere else it puts the dragged line in this row's place.
+                return dropped(ids, onto: segmentId) || reordered(ids, to: segmentId)
             }, isTargeted: { targeting in
                 if targeting, canTake(segmentId) { dropTarget = segmentId } else if dropTarget == segmentId { dropTarget = nil }
             })
