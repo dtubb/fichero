@@ -33,8 +33,8 @@ nonisolated enum RegionColours {
     ///   region ancestor belong to ONE implicit region: the page's own.
     /// - A region's hue is `hue(ofRegion:)`, a fixed hash of its id; the implicit page region has its own constant.
     /// - Inside a region, the graded segments (its top non-region level: lines, or a word with no line) are
-    ///   shaded evenly from `lightestStrength` (the first) to full strength (the last) in reading order, light to dark (owner 2026-11-10). Their children (words, letters)
-    ///   take their shade. A region box is drawn at full strength.
+    ///   shaded evenly from `lightestStrength` (the first) to full strength (the last) in reading order, light to dark (owner
+    ///   2026-11-10). Their children (words, letters) take their shade. A region box is drawn at full strength.
     /// - `readingOrder` is the working pass's order (segment ids) when the caller holds one; nil means the
     ///   page's as-written order, which is the boxes' own order (`boxIndex`) -- the engine makes the as-written
     ///   order from it (`ConvertPageRequest`). Segments the order does not name follow it in as-written order.
@@ -92,9 +92,9 @@ nonisolated enum RegionColours {
         return tones
     }
 
+    // ponytail: no collision handling, any rule that avoids one depends on the other regions again; widen the palette.
     /// A region's palette slot: FNV-1a over its kind and id (Swift's `Hasher` is seeded per launch, which would
     /// recolour every region on every start). Two regions can share a slot; none moves when another is deleted.
-    // ponytail: no collision handling, any rule that avoids one depends on the other regions again; widen the palette.
     static func hue(ofRegion id: String) -> Int {
         var hash: UInt64 = 0xcbf29ce484222325
         for byte in "region:\(id)".utf8 {

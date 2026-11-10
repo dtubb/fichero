@@ -55,8 +55,7 @@ class ChainService {
         isLoading = true
         error = nil
 
-        // A first-launch request the engine's adoption cancels is asked again, not left as "Loaded 0 chains" (#6479);
-        // a cancelled TASK (this load was superseded) stops, as before.
+        // A load the engine's first-launch adoption cancels is asked again (#6479); a cancelled TASK stops, as before.
         var attempt = 0
         while true {
             do {

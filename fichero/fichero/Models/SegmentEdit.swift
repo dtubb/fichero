@@ -230,6 +230,7 @@ struct SegmentReparentRequest: Encodable, Equatable {
     struct Item: Encodable, Equatable {
         let segmentId: String
         let expectedVersion: Int
+        // swiftlint:disable:next nesting
         enum CodingKeys: String, CodingKey { case segmentId = "segment_id", expectedVersion = "expected_version" }
     }
 

@@ -203,6 +203,15 @@ final class DocumentOverlayView: NSView {
         }
     }
 
+    /// No reading yet: hollow and dashed, never hidden, so it can be seen, picked and typed (also the faint box beside a polygon).
+    private func drawHollow(_ rect: CGRect, colour: NSColor, width: CGFloat, dash: [CGFloat]) {
+        let hollow = NSBezierPath(rect: rect)
+        colour.setStroke()
+        hollow.lineWidth = width
+        hollow.setLineDash(dash, count: 2, phase: 0)
+        hollow.stroke()
+    }
+
     /// Every level at once, each inside its parent and lighter than it (ruled 2026-10-05, hierarchy A, #5426):
     /// a region as a faint wash of its hue and a thin outline, its lines as thin outlines in their reading-order
     /// shade, words and letters as hairlines in their line's shade (`SegmentHierarchy`). A selection lights its
@@ -233,11 +242,7 @@ final class DocumentOverlayView: NSView {
             // under its ink -- never as the box around them (#5163's residue).
             if overlay.showsBoundingBoxes, !box.shapes.isEmpty {
                 // The box beside the polygon: faint and dashed so it never reads as the shape itself.
-                let bound = NSBezierPath(rect: rect)
-                colour(0.5).setStroke()
-                bound.lineWidth = line
-                bound.setLineDash([3 / scale, 3 / scale], count: 2, phase: 0)
-                bound.stroke()
+                drawHollow(rect, colour: colour(0.5), width: line, dash: [3 / scale, 3 / scale])
             }
             if !box.shapes.isEmpty, !setsText {
                 ShapeDrawing.draw(box.shapes, imageRect: imageRect, scale: scale, look: .init(
@@ -250,12 +255,7 @@ final class DocumentOverlayView: NSView {
                 continue
             }
             if box.noReading {
-                // No reading yet: hollow and dashed, never hidden, so it can be seen, picked and typed.
-                let hollow = NSBezierPath(rect: rect)
-                colour(1).setStroke()
-                hollow.lineWidth = width
-                hollow.setLineDash([4 / scale, 3 / scale], count: 2, phase: 0)
-                hollow.stroke()
+                drawHollow(rect, colour: colour(1), width: width, dash: [4 / scale, 3 / scale])
                 continue
             }
             let path = NSBezierPath(rect: rect)
