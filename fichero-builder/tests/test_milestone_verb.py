@@ -168,9 +168,11 @@ def test_the_where_list_uses_the_code_map_when_the_repo_is_indexed_and_drops_wha
     repo = _repo(tmp_path)
     (repo / "tests_here").mkdir()
     (repo / "tests_here" / "test_x.py").write_text("def test_x(): pass\n")
+    # A shebang cannot hold an interpreter path with a space (the gate disk's), so the server is a sh wrapper around a script.
+    script = tmp_path / "server.py"
     server = tmp_path / "server"
-    server.write_text(f"""#!{sys.executable}
-import json, sys
+    server.write_text(f"#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(script))}\n")
+    script.write_text(f"""import json, sys
 for line in sys.stdin:
     m = json.loads(line)
     if "id" not in m:
