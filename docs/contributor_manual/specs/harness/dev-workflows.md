@@ -898,6 +898,7 @@ the write path would produce.
 - `dev-workflows.run.console-status-cache` [PARTIAL] (#6498; review 2026-11-10: /api/status took 3-10 s and the page asked on every journal row) — `/api/status` is computed once per 3 s (`STATUS_TTL_S`); requests that overlap wait for the compute in flight; a worktree's last commit and its waiting count are read from git once per (worktree, HEAD, landing tip) and served from memory after; the page reloads status 2 s after the last journal row, never on a tick row, and every 15 s. Tests `fichero-builder/tests/test_status_page.py::test_api_status_is_served_from_a_three_second_cache_and_git_reads_are_once_per_head`, `::test_the_page_debounces_status_reloads_to_two_seconds_and_skips_ticks`. Not yet: the journal read once per cache fill (rows_of still reads the file per compute).
 - `dev-workflows.run.console-tabs-refetch` [PARTIAL] (#6499; review 2026-11-10: the tabs went stale after 20 console rows) — the Milestones, Worktrees, Activity, Landing, Issues and Release tabs fetch again when the heartbeat, the landing tip or the newest console row's time changes, never on the console row count. Test `fichero-builder/tests/test_status_page.py::test_the_tabs_refetch_on_the_heartbeat_or_a_landing_never_on_the_console_row_count`.
 - `dev-workflows.run.console-gh-in-the-repo` [PARTIAL] (#6497; review 2026-11-10: every planned milestone read 'not a git repository' under launchd) — every gh call that resolves the repository (the milestone's open and closed issue lists, from the console, the loop's build-order intake and `builder milestone`) runs with the checkout as its cwd, so the console's LaunchAgent, whose working directory is the state dir, plans milestones as the terminal did. Tests `fichero-builder/tests/test_milestone_verb.py::test_list_issues_runs_gh_in_the_repo_so_a_launchd_cwd_still_resolves_the_remote`, `fichero-builder/tests/test_status_page.py::test_milestones_run_gh_in_the_root_for_open_and_closed_issues`.
+- `dev-workflows.run.console-worktrees-own` [PARTIAL] (#6505; review 2026-11-10: the tab listed other sessions' scratch checkouts and took 30 s cold) — the Worktrees tab lists only trees beside the checkout (its parent folder) or under `[jail].workroot`; a checkout under `/private/tmp` or anywhere else is another session's and is not shown; the auto refresh thread fills the worktrees cache, so a page open never waits for a cold read. Test `fichero-builder/tests/test_status_page.py::test_worktrees_skip_scratch_checkouts_under_tmp_and_the_refresh_thread_fills_the_cache`.
 - `dev-workflows.run.loop-already-landed` [PARTIAL] (#6466) — a batch whose chain finds no commit over origin/<branch> (every commit already there by patch) is landed as it is: the step reads `landed` (`already on origin: ...`), the cursor moves on, nothing is pushed, no alert. Test `fichero-builder/tests/test_loop.py::test_a_batch_whose_commits_are_already_on_origin_lands_without_a_chain_and_the_lane_goes_on`.
 - `dev-workflows.run.loop-blocked-watchdog` [PARTIAL] (#6466) — a `blocked` step never waits forever. `block` stamps `blocked_at` (a step blocked before this code is stamped when first seen); after `[loop].blocked_hours` (default 4) it is retried ONCE: a fresh session on its brief plus the question (`retry-<lane>-<step>.txt`; a worker lane's live session is closed first; an external lane with a head is re-taken as `done`), its alerts answered `retried`, one `queue` row `blocked-retry`. Blocked again that long, it is parked: moved to the end of its lane as `parked` with ONE alert (actions retry, park), so the batch queued behind it is the cursor's and nothing freezes; a parked step at the cursor waits for `queue resume`, an alert `retry`, or `builder done`. Test `fichero-builder/tests/test_loop.py::test_a_step_blocked_longer_than_the_limit_is_retried_once_in_a_fresh_session_then_parked_behind_the_next_batch`.
 - `dev-workflows.run.loop-dismiss-parks` [PARTIAL] (#6466) — Dismiss and Dismiss All never orphan a step: every dismissed alert whose step is still `blocked` parks that step (as above); a step in any other state is untouched. An auto send-back (see `run.loop-alerts`) also raises its alert (actions send-back, retry, park), superseded by the lane's next done, so a lane with no pane is never silent. Tests `fichero-builder/tests/test_alerts_clear.py::test_dismissing_a_blocked_steps_alert_parks_the_step_and_the_lane_goes_on`, `::test_dismiss_all_parks_every_blocked_step_behind_its_alerts`, `fichero-builder/tests/test_loop.py::test_an_auto_send_back_raises_an_alert_too`.
@@ -1484,13 +1485,21 @@ Built by the harness-fix branch (2026-11-10); what remains is one managed batch 
 
 Built by the same branch; open work is the console Plan page (#6467).
 
-#### Step 4.7 — the review of 2026-11-10: managed sessions that end, and a console that is fast and true
-- Behaviours: `dev-workflows.run.loop-brief-preflight`, `dev-workflows.run.loop-session-ends`, `dev-workflows.run.console-status-cache`, `dev-workflows.run.console-tabs-refetch`, `dev-workflows.run.console-gh-in-the-repo`
-- Tests: fichero-builder/tests/test_loop.py, fichero-builder/tests/test_status_page.py
+#### Step 4.7 — the review of 2026-11-10: managed sessions that are refused or ended
+- Behaviours: `dev-workflows.run.loop-brief-preflight`, `dev-workflows.run.loop-session-ends`
+- Tests: fichero-builder/tests/test_loop.py, fichero-builder/tests/test_queue_verb.py
 - Depends on: 4.6
 - Size: S
 
-Issues #6495-#6506 (the review at 15:17 ADT); built on the harness-console-fix branch.
+Issues #6495, #6496 (the review at 15:17 ADT); built on the harness-console-fix branch.
+
+#### Step 4.8 — the review of 2026-11-10: a console that is fast and true
+- Behaviours: `dev-workflows.run.console-status-cache`, `dev-workflows.run.console-tabs-refetch`, `dev-workflows.run.console-gh-in-the-repo`, `dev-workflows.run.console-worktrees-own`
+- Tests: fichero-builder/tests/test_status_page.py, fichero-builder/tests/test_milestone_verb.py
+- Depends on: 4.7
+- Size: S
+
+Issues #6497-#6499, #6503-#6505; built on the same branch.
 
 ## Behaviour tests
 
@@ -1593,9 +1602,10 @@ Every behaviour names its test above, written in its step; each `security.*` and
 | `dev-workflows.run.loop-current` | 4.6 |
 | `dev-workflows.run.loop-brief-preflight` | 4.7 |
 | `dev-workflows.run.loop-session-ends` | 4.7 |
-| `dev-workflows.run.console-status-cache` | 4.7 |
-| `dev-workflows.run.console-tabs-refetch` | 4.7 |
-| `dev-workflows.run.console-gh-in-the-repo` | 4.7 |
+| `dev-workflows.run.console-status-cache` | 4.8 |
+| `dev-workflows.run.console-tabs-refetch` | 4.8 |
+| `dev-workflows.run.console-gh-in-the-repo` | 4.8 |
+| `dev-workflows.run.console-worktrees-own` | 4.8 |
 
 ## Test matrix
 

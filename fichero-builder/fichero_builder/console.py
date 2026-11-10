@@ -648,12 +648,15 @@ def worktrees(root, git=_git_text) -> dict:
     branch, grace = doc.get("land", {}).get("branch", "integration"), float(doc.get("land", {}).get("worktree_grace_hours", 36))
     workroot = doc.get("jail", {}).get("workroot", "")
     live = landed.live_worktrees()
+    # #6505: other sessions' scratch checkouts (/private/tmp/claude-*/.../scratchpad/...) are not the owner's trees and cannot be cleaned from
+    # here: only a tree beside the checkout (its parent folder) or under the workroot is listed. ponytail: a [land].worktree_dirs list if a third place turns up
+    homes = tuple(os.path.realpath(p) + "/" for p in (str(Path(root).parent), workroot) if p)
     todo = []
     for repo, where in ((str(root), "checkout"), (f"{workroot}/root", "jail")) if workroot else ((str(root), "checkout"),):
         blocks = git(repo, "worktree", "list", "--porcelain").strip().split("\n\n")
         for k, block in enumerate(b for b in blocks if b.strip()):
             f = dict((ln.split(" ", 1) + [""])[:2] for ln in block.splitlines())
-            if f.get("worktree") and Path(f["worktree"]).is_dir():
+            if f.get("worktree") and Path(f["worktree"]).is_dir() and (os.path.realpath(f["worktree"]) + "/").startswith(homes):
                 todo.append((repo, where, k, f))
 
     def one(item) -> dict:
@@ -823,6 +826,7 @@ def refresh(who: str) -> threading.Thread:
             data = milestones(ROOT)
             _cache().write_text(json.dumps(data))
             (journal.STATE / "console-release.json").write_text(json.dumps(release(ROOT)))
+            _TREES.update(at=time.time(), data=worktrees(ROOT))  # #6505: a page open never waits the 30 s of a cold worktree read
             journal.append("console", who=who, verb="refresh", state="ended", ok=True, rc=0, detail=f"{len(data['milestones'])} milestones")
         except Exception as e:  # noqa: BLE001 - a row, never a dead thread
             journal.append("console", who=who, verb="refresh", state="ended", ok=False, rc=1, detail=str(e)[-500:])
