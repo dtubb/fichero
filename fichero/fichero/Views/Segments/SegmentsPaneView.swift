@@ -183,8 +183,9 @@ struct SegmentsPaneView: View {
                 parentId = steps.first { $0.id == crumb.id }?.segmentId
             },
             selector: { kindSelector },
-            controls: { EmptyView() },
-            tools: {
+            // The flag and match counts sit in the head itself (#6482): a ⋯ row holding only them opened an
+            // empty bar whenever both were zero, and the ⋯ never said what it held. Absent at zero.
+            controls: {
                 if flaggedOnPage > 0 {
                     Label("\(flaggedOnPage) Flagged", systemImage: "flag.fill")
                         .font(.caption)
@@ -197,7 +198,8 @@ struct SegmentsPaneView: View {
                     }
                     .help("Review the matches proposed on this page: accept or reject each")
                 }
-            }
+            },
+            tools: { EmptyView() }
         )
     }
 }
