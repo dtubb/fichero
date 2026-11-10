@@ -1107,7 +1107,7 @@ def _git_argv(root, args) -> list[str]:
                        capture_output=True, text=True, env=_git_env())
     names = {k.split(".")[1] for k in r.stdout.split() if k.count(".") >= 2}
     off = ["-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "diff.external=",
-           "-c", "core.attributesFile=/dev/null"]
+           "-c", "core.attributesFile=/dev/null", "-c", "safe.directory=*"]  # #6507: the jail user's tree, read as the owner with the global config off
     for n in sorted(names):
         off += ["-c", f"filter.{n}.smudge=", "-c", f"filter.{n}.clean=", "-c", f"filter.{n}.process=",
                 "-c", f"filter.{n}.required=false"]
