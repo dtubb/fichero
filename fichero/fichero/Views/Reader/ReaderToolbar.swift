@@ -260,14 +260,12 @@ struct ReaderToolbar: View {
                             SelectionStyle.regionLegendSwatch(hue: hue)
                         }
                     }
-                    Text("The shade is the reading order: the first line darkest.")
+                    Toggle("Shade by Reading Order", isOn: Binding(
+                        get: { RegionColours.shadesByOrder },
+                        set: { UserDefaults.standard.set($0, forKey: RegionColours.shadeKey) }
+                    ))
+                    .accessibilityIdentifier("previewShadeByOrder")
                 }
-            }
-            if let segmentEditingEnabled {
-                Divider()
-                Toggle("Edit Segments", isOn: segmentEditingEnabled)
-                    .help("Draw, move, join and delete segments on this page. Off, the page is for reading.")
-                    .accessibilityIdentifier("previewEditSegments")
             }
         } label: {
             Image(systemName: "switch.2")

@@ -21,6 +21,10 @@ nonisolated enum RegionColours {
         let strength: Double
     }
 
+    /// The display option "Shade by Reading Order" (Display menu); on unless a person turned it off.
+    static let shadeKey = "preview.shadeByReadingOrder"
+    static var shadesByOrder: Bool { UserDefaults.standard.object(forKey: shadeKey) as? Bool ?? true }
+
     /// Each segment's tone (`colour.region-hue`, `colour.reading-order-gradient`, `colour.never-random`,
     /// `colour.regionless-lines-are-one-region`).
     ///
@@ -34,7 +38,8 @@ nonisolated enum RegionColours {
     /// - `readingOrder` is the working pass's order (segment ids) when the caller holds one; nil means the
     ///   page's as-written order, which is the boxes' own order (`boxIndex`) -- the engine makes the as-written
     ///   order from it (`ConvertPageRequest`). Segments the order does not name follow it in as-written order.
-    static func tones(of segments: [Segment], readingOrder: [String]? = nil) -> [String: Tone] {
+    static func tones(of segments: [Segment], readingOrder: [String]? = nil,
+                      shadeByOrder: Bool = RegionColours.shadesByOrder) -> [String: Tone] {
         let byId = Dictionary(segments.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let asWritten = segments.sorted { ($0.boxIndex ?? 0, $0.id) < ($1.boxIndex ?? 0, $1.id) }
         var sequence = (readingOrder ?? []).compactMap { byId[$0] }
@@ -81,7 +86,7 @@ nonisolated enum RegionColours {
 
         var tones: [String: Tone] = [:]
         for (id, found) in places {
-            let strength = found.graded.flatMap { gradedStrength[$0] } ?? 1
+            let strength = shadeByOrder ? (found.graded.flatMap { gradedStrength[$0] } ?? 1) : 1
             tones[id] = Tone(hue: hues[found.region] ?? 0, strength: strength)
         }
         return tones
