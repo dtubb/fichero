@@ -122,6 +122,8 @@ extension ContentView {
         if browserSelection.count > 1 {
             if !crumbs.isEmpty { crumbs.removeLast() }
             crumbs.append(.multiSelection(count: browserSelection.count))
+        } else if shown?.docType != .folder {
+            crumbs += previewDetailCrumbs(shown)
         }
         let selectionIsFolder = browserSelection.count <= 1 && shown?.docType == .folder
         // Tools slot retired 2026-08-30: the markup row graduated to the
@@ -156,6 +158,49 @@ extension ContentView {
             switchableRoots: PaneCrumb.otherLibraries(than: windowState.libraryId)
         )
         .environment(\.offersTranscriptionFont, true)
+    }
+
+    /// What the page is showing past the page itself (owner 2026-11-10): the region selected on it, and the
+    /// rendition on screen, as plain crumbs after the page: "Page 3 › Region 2 › Crop". Neither navigates.
+    @MainActor
+    private func previewDetailCrumbs(_ shown: Document?) -> [PaneCrumb] {
+        var out: [PaneCrumb] = []
+        if let shown, let region = selectedRegionName(on: shown.id) {
+            out.append(PaneCrumb(id: "shown-region", title: region, icon: "rectangle.dashed", isNavigable: false))
+        }
+        // A page with one rendition has nothing to name: the menu is hidden then too.
+        let names = previewChrome.renditionNames
+        if names.count > 1, names.indices.contains(previewChrome.renditionIndex) {
+            out.append(PaneCrumb(
+                id: "shown-rendition", title: names[previewChrome.renditionIndex], icon: "photo", isNavigable: false
+            ))
+        }
+        return out
+    }
+
+    /// "Region 2": the region the focused selection is in on this page (the one segment selected, or its nearest
+    /// region), counted among the page's regions as every other surface counts them. Nil for none or for several.
+    @MainActor
+    private func selectedRegionName(on documentId: String) -> String? {
+        guard let segmentService else { return nil }
+        let store = SegmentStore.shared(for: segmentService)
+        let ids = InspectorPath.selectedSegmentIds(
+            selection: windowState.sharedRegionSelection, documentId: documentId, store: store
+        )
+        let segments = store.workingSegments(documentId: documentId)
+        let byId = Dictionary(segments.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let regions = Set(ids.compactMap { id -> String? in
+            var cursor = byId[id]
+            var hops = 0
+            while let current = cursor, current.kind != "region", hops < 32 {
+                cursor = current.parentSegmentId.flatMap { byId[$0] }
+                hops += 1
+            }
+            return cursor?.kind == "region" ? cursor?.id : nil
+        })
+        guard regions.count == 1, let regionId = regions.first,
+              let place = segments.filter({ $0.kind == "region" }).firstIndex(where: { $0.id == regionId }) else { return nil }
+        return "Region \(place + 1)"
     }
 
     /// #4705 increment 2: routes through `PaneSurface.allowsSplit`, the ONE
