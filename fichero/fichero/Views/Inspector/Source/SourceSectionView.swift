@@ -35,7 +35,7 @@ struct SourceSectionView: View {
 
     /// The focused Source-view pane's selection on THIS page, as segment ids.
     private var selectedSegmentIds: [String] {
-        guard let selection = windowState?.focusedRegionSelection, let segmentService else { return [] }
+        guard let selection = windowState?.sharedRegionSelection, let segmentService else { return [] }
         return InspectorPath.selectedSegmentIds(
             selection: selection, documentId: document.id, store: SegmentStore.shared(for: segmentService)
         )

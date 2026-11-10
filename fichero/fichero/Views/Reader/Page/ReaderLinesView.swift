@@ -76,12 +76,12 @@ struct ReaderLinesView: View {
 
     /// The focused Preview's selection on this page, as segment ids -- the Inspector's one resolution.
     private func selectedIds(_ store: SegmentStore) -> [String] {
-        guard let selection = windowState?.focusedRegionSelection else { return [] }
+        guard let selection = windowState?.sharedRegionSelection else { return [] }
         return InspectorPath.selectedSegmentIds(selection: selection, documentId: documentId, store: store)
     }
 
     private func step(_ places: Int, extend: Bool, _ store: SegmentStore) -> KeyPress.Result {
-        guard let selection = windowState?.focusedRegionSelection,
+        guard let selection = windowState?.sharedRegionSelection,
               InspectorPath.stepSelection(
                   by: places, extend: extend, startsFromNothing: true, selection: selection, documentId: documentId, store: store
               )
@@ -99,7 +99,7 @@ struct ReaderLinesView: View {
         #else
         let (command, shift) = (false, false)
         #endif
-        guard command || shift, let selection = windowState?.focusedRegionSelection else {
+        guard command || shift, let selection = windowState?.sharedRegionSelection else {
             reveal(segmentId, store: store)
             return
         }
@@ -199,7 +199,7 @@ struct ReaderLineRow: View {
     private func deleteLines() {
         guard let segmentService else { return }
         let store = SegmentStore.shared(for: segmentService)
-        let focused = windowState?.focusedRegionSelection
+        let focused = windowState?.sharedRegionSelection
         let held = SegmentDeleter.selectedIds(focused, documentId: segment.documentId, store: store)
         let ids = SegmentDeleter.ids(row: segment.id, held: held)
         let actionsService = actionStore?.actionsService, steps = windowSteps, documentId = segment.documentId

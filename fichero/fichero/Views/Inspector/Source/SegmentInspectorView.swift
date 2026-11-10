@@ -81,7 +81,7 @@ struct SegmentInspectorView: View {
     /// Up/Down step the shared selection through the page in reading order (#6457); Shift extends.
     /// A text field being edited keeps its arrows.
     private func step(_ places: Int, extend: Bool) -> KeyPress.Result {
-        guard editing == nil, let segmentService, let focused = windowState?.focusedRegionSelection,
+        guard editing == nil, let segmentService, let focused = windowState?.sharedRegionSelection,
               InspectorPath.stepSelection(
                 by: places, extend: extend, startsFromNothing: true, selection: focused,
                 documentId: documentId, store: SegmentStore.shared(for: segmentService)
@@ -245,7 +245,7 @@ struct SegmentInspectorView: View {
         let store = SegmentStore.shared(for: segmentService)
         let segments = SegmentDeleter.segments(selectedIds, documentId: documentId, store: store)
         let actionsService = actionStore?.actionsService, steps = windowSteps, documentId = documentId
-        let focused = windowState?.focusedRegionSelection
+        let focused = windowState?.sharedRegionSelection
         Task {
             deleteNote = await SegmentDeleter.run(
                 segments, documentId: documentId, store: store, actionsService: actionsService, steps: steps,

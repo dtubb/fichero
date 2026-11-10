@@ -124,7 +124,7 @@ struct ReadingOrderList: View {
         // And back: what another surface selects (the Reader, the Preview) is selected here too.
         .onChange(of: sharedIds) { _, now in if Set(now) != picks { picks = Set(now) } }
         .onChange(of: picks) { _, picked in
-            guard !picked.isEmpty, Set(sharedIds) != picked, let focused = windowState?.focusedRegionSelection, let segmentService else { return }
+            guard !picked.isEmpty, Set(sharedIds) != picked, let focused = windowState?.sharedRegionSelection, let segmentService else { return }
             // In the list's own order, so the shared selection reads top to bottom.
             let inOrder = (store?.shown.map(\.segmentId) ?? []).filter(picked.contains)
             onSelected?(InspectorPath.select(
@@ -151,7 +151,7 @@ struct ReadingOrderList: View {
 
     /// The segments the one shared selection holds on this page (the Preview's, the Reader's, this list's).
     private var sharedIds: [String] {
-        guard let segmentService, let selection = windowState?.focusedRegionSelection else { return [] }
+        guard let segmentService, let selection = windowState?.sharedRegionSelection else { return [] }
         return InspectorPath.selectedSegmentIds(
             selection: selection, documentId: documentId, store: SegmentStore.shared(for: segmentService)
         )
@@ -192,7 +192,7 @@ struct ReadingOrderList: View {
     private func deleteLines(_ named: Set<String>?) {
         guard let segmentService else { return }
         let store = SegmentStore.shared(for: segmentService)
-        let focused = windowState?.focusedRegionSelection
+        let focused = windowState?.sharedRegionSelection
         let held = SegmentDeleter.selectedIds(focused, documentId: documentId, store: store)
         let ids = SegmentDeleter.ids(row: named?.first ?? selection, held: held)
         let steps = windowSteps, actionsService = actionStore?.actionsService, documentId = documentId
@@ -212,7 +212,7 @@ struct ReadingOrderList: View {
     /// Shift+Up/Down (#6457): only Shift extends; a plain arrow stays the List's own (`InspectorPath.extendPlaces`).
     private func extend(_ places: Int, _ press: KeyPress, store: SegmentStore?) -> KeyPress.Result {
         guard let places = InspectorPath.extendPlaces(places, shift: press.modifiers.contains(.shift)),
-              let store, let focused = windowState?.focusedRegionSelection,
+              let store, let focused = windowState?.sharedRegionSelection,
               InspectorPath.stepSelection(by: places, extend: true, selection: focused, documentId: documentId, store: store)
         else { return .ignored }
         return .handled

@@ -21,6 +21,19 @@ struct RegionSelectionPerPaneTests {
         #expect(!left.isSelected(4, in: "a1"))
     }
 
+    /// Owner 2026-11-10: a segment picked in the Reader showed nowhere else when no Preview was open.
+    @Test("with no Preview focused the window still has one selection the Reader, the lists and the Inspector share")
+    func windowSelectionWithoutAPreview() {
+        let state = window()
+        #expect(state.focusedRegionSelection == nil)
+        #expect(state.sharedRegionSelection === state.windowSelection)
+        let preview = RegionSelection()
+        state.focusRegionSelection(preview)
+        #expect(state.sharedRegionSelection === preview, "a focused Preview's selection wins")
+        state.releaseRegionSelection(preview)
+        #expect(state.sharedRegionSelection === state.windowSelection, "and the window's returns when it goes")
+    }
+
     @Test("the window acts on the pane that was used last")
     func focusFollowsUse() {
         let state = window()
