@@ -15,23 +15,23 @@ struct OrderListReparentDropTests {
     }
 
     private var page: [Segment] {
-        [segment("r1", kind: "region"), segment("r2", kind: "region"),
+        [segment("r1", kind: "region"), segment("region2", kind: "region"),
          segment("l1", kind: "line", parent: "r1"), segment("l2", kind: "line", parent: "r1"),
          segment("w1", kind: "word", parent: "l1")]
     }
 
     @Test("lines drop into a region in the order dragged; a line already in it may move to another")
     func linesIntoARegion() {
-        let r2 = page[1]
-        #expect(OrderDrop.accepted(["l2", "l1"], into: r2, in: page) == ["l2", "l1"])
+        let region2 = page[1]
+        #expect(OrderDrop.accepted(["l2", "l1"], into: region2, in: page) == ["l2", "l1"])
     }
 
     @Test("only the level just below drops in: a region into a region or a line, a word into a region, is refused")
     func levels() {
-        let r2 = page[1], l1 = page[2]
-        #expect(OrderDrop.accepted(["r1"], into: r2, in: page).isEmpty)
-        #expect(OrderDrop.accepted(["r1"], into: l1, in: page).isEmpty)
-        #expect(OrderDrop.accepted(["w1"], into: r2, in: page).isEmpty)
+        let region2 = page[1], line1 = page[2]
+        #expect(OrderDrop.accepted(["r1"], into: region2, in: page).isEmpty)
+        #expect(OrderDrop.accepted(["r1"], into: line1, in: page).isEmpty)
+        #expect(OrderDrop.accepted(["w1"], into: region2, in: page).isEmpty)
         #expect(OrderDrop.accepted(["w1"], into: page[3], in: page) == ["w1"])
     }
 
@@ -46,7 +46,7 @@ struct OrderListReparentDropTests {
         let segments = page + [segment("g1", kind: "glyph", parent: "w1")]
         #expect(SegmentMover.targets(for: ["w1"], in: segments).map(\.id) == ["l1", "l2"])
         #expect(SegmentMover.targets(for: ["g1"], in: segments).map(\.id) == ["w1"])
-        #expect(SegmentMover.targets(for: ["l1"], in: segments).map(\.id) == ["r1", "r2"])
+        #expect(SegmentMover.targets(for: ["l1"], in: segments).map(\.id) == ["r1", "region2"])
         #expect(SegmentMover.targets(for: ["l1", "w1"], in: segments).isEmpty)
     }
 }

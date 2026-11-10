@@ -1,5 +1,5 @@
-import Testing
 @testable import Fichero
+import Testing
 
 /// The kind icons: every kind maps to a symbol, and the four levels differ.
 struct SegmentKindSymbolTests {

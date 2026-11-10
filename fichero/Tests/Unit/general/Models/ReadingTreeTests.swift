@@ -7,12 +7,12 @@ struct ReadingTreeTests {
     private func reading(
         _ id: String, at minute: Double, from: String? = nil, corrects: String? = nil
     ) -> InspectorText.Reading {
-        var r = InspectorText.Reading(id: id, kind: "transcription", content: id, maker: "workflow", author: nil,
-                                      guideline: nil, pairId: nil, pairRole: nil)
-        r.createdAt = Date(timeIntervalSince1970: minute * 60)
-        r.derivedFromId = from
-        r.correctsId = corrects
-        return r
+        var made = InspectorText.Reading(id: id, kind: "transcription", content: id, maker: "workflow", author: nil,
+                                         guideline: nil, pairId: nil, pairRole: nil)
+        made.createdAt = Date(timeIntervalSince1970: minute * 60)
+        made.derivedFromId = from
+        made.correctsId = corrects
+        return made
     }
 
     @Test("Kraken and Google are roots oldest first; Google's modernisation and a correction hang under their source")
@@ -21,7 +21,7 @@ struct ReadingTreeTests {
             reading("modern", at: 3, from: "google"),
             reading("google", at: 2),
             reading("kraken", at: 1),
-            reading("fix", at: 4, corrects: "kraken"),
+            reading("fix", at: 4, corrects: "kraken")
         ])
         #expect(roots.map(\.id) == ["kraken", "google"])
         #expect(roots[0].children.map(\.id) == ["fix"])
