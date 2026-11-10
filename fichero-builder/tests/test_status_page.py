@@ -632,3 +632,12 @@ def test_the_page_debounces_status_reloads_to_two_seconds_and_skips_ticks():
     page = (Path(console.__file__).parent / "console.html").read_text()
     assert "setTimeout(load, 2000)" in page and "setTimeout(load, 300)" not in page
     assert '"tick"' in page.split("es.onmessage")[1].split("\n")[0], "a tick row never triggers a reload"
+
+
+def test_the_tabs_refetch_on_the_heartbeat_or_a_landing_never_on_the_console_row_count():
+    """#6499: Milestones, Worktrees, Landing and Release refetch on a key of the heartbeat, the landing tip and the newest
+    console row, never on the console row count (capped at 20, so it stops changing)."""
+    page = (Path(console.__file__).parent / "console.html").read_text()
+    assert "[st.console.length]" not in page and "st.console.length +" not in page
+    assert page.count("refetchKey(st)") >= 6, "every tab's fetch hangs on the one key"
+    assert "const refetchKey" in page and "heartbeat" in page.split("const refetchKey")[1].split(";")[0] and "last_land_git" in page.split("const refetchKey")[1].split(";")[0]
