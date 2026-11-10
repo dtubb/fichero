@@ -1330,6 +1330,9 @@ def real_procs(root) -> Procs:
         feed = Path(tempfile.mkdtemp(prefix=f"inbox-{lane['id']}-{lane['seq']}-", dir=j.workroot))
         feed.chmod(0o755)
         lane["feed"] = str(feed)
+        (feed / "brief.txt").write_text(Path(a.brief).read_text())  # #6466: the brief lives under the owner's state dir, which the worker cannot read
+        (feed / "brief.txt").chmod(0o644)
+        a.brief = str(feed / "brief.txt")
         codemap.provide(root)
         cmd = work.run_cmd(a, builder, "--feed", feed, "--seq", lane["seq"])
         return subprocess.Popen([j.sudo, "-n", "-H", "-u", j.user, "sh", "-c", f"cd {q(j.workroot)} && {cmd}"],

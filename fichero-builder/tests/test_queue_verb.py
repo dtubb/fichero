@@ -246,6 +246,8 @@ def test_the_real_start_makes_the_worktree_and_runs_the_worker_side_with_its_fee
     assert popens[0][:5] == ["/usr/bin/sudo", "-n", "-H", "-u", "wu"] or popens[0][1:5] == ["-n", "-H", "-u", "wu"]
     cmd = popens[0][-1]
     assert f"--feed {feed}" in cmd and "--seq 3" in cmd and "--name m1" in cmd
+    assert f"--brief {feed}/brief.txt" in cmd and (feed / "brief.txt").read_text() == "brief 1.1" and (feed / "brief.txt").stat().st_mode & 0o777 == 0o644, \
+        "#6466: the brief under the owner's state dir is unreadable by the jail user; its copy in the inbox is what the worker reads"
     procs.send({**the_lane, "seq": 4}, "next")
     assert (feed / "msg-4.txt").read_text() == "next"
     procs.stop(the_lane)
@@ -267,7 +269,7 @@ def test_a_planted_inbox_cannot_turn_the_owners_chmod_or_writes_on_another_folde
     monkeypatch.setattr(queue.subprocess, "Popen", lambda argv, **k: object())
     the_lane = {"id": "m1", "worktree": str(wr / "wt-m1"), "seq": 3}
     procs = queue.real_procs(state)
-    procs.start(the_lane, {"step": "1.1", "brief": "/b", "issues": [7]})
+    procs.start(the_lane, {"step": "1.1", "brief": str(state / "b1.1"), "issues": [7]})
     procs.send({**the_lane, "seq": 4}, "next")
     procs.stop(the_lane)
     assert private.stat().st_mode & 0o777 == 0o700 and list(private.iterdir()) == [], "nothing reached the folder the link points at"
