@@ -742,3 +742,23 @@ def test_an_external_lane_row_carries_its_head_and_the_page_offers_land_now_thro
     assert st["lanes"][0]["head"] == head
     page = (Path(console.__file__).parent / "console.html").read_text()
     assert 'act("done", { lane: l.lane, sha: l.head })' in page and "Land now" in page
+
+
+def test_events_and_actions_hold_no_ticks_or_auto_refreshes_and_a_mid_lane_done_step_waits_for_the_check(tmp_path):
+    """#6504: Last events had 11 ticks in 15 rows and Console actions 20 auto refreshes; a lane whose cursor step is done with
+    batches behind it read 'done, not landed yet' (the finished-lane label); the blocked pill said 'question'."""
+    brief = tmp_path / "b.md"
+    brief.write_text("x\n")
+    s = lambda step, state: {"step": step, "state": state, "issues": [1], "why": "", "brief": str(brief)}  # noqa: E731
+    rows = [{"ts": f"2026-11-10T10:00:{i:02d}", "event": "loop", "state": "tick"} for i in range(20)]
+    rows += [{"ts": "2026-11-10T09:00:00", "event": "queue", "lane": "a", "step": "b1", "state": "done", "detail": "x"},
+             {"ts": "2026-11-10T09:00:01", "event": "loop", "state": "lane-error", "lane": "a", "detail": "boom"}]
+    rows += [{"ts": f"2026-11-10T11:00:{i:02d}", "event": "console", "who": "auto", "verb": "refresh", "state": "ended", "ok": True} for i in range(25)]
+    rows += [{"ts": "2026-11-10T08:00:00", "event": "console", "who": "owner", "verb": "pause", "state": "ended", "ok": True}]
+    lanes = [{"id": "a", "worktree": "/nonexistent/a", "cursor": 0, "paused": False, "kind": "worker", "steps": [s("b1", "done"), s("b2", "queued")]}]
+    st = console.api_status(rows, lanes, now=time.time(), commit=lambda wt: ("", 0))
+    assert [e["event"] for e in st["events"]] == ["queue", "loop", "console"] and st["events"][1]["state"] == "lane-error", "no ticks, no auto refresh; a lane error and the owner's action stay"
+    assert [c["verb"] for c in st["console"]] == ["pause"], "no auto refreshes; the owner's own actions stay"
+    assert st["lanes"][0]["state"] == "done" and st["lanes"][0]["why"] == "done, waiting for the check", "mid-lane: not the finished-lane label"
+    page = (Path(console.__file__).parent / "console.html").read_text()
+    assert '"question"' not in page.split("function Pill")[1].split("}")[0]

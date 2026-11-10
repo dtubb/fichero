@@ -116,7 +116,7 @@ const PILL = { working: ["green", true], running: ["green", true], sent: ["green
 function Pill({ state, paused }) {
   const s = paused && !["landed", "done"].includes(state) ? "paused" : state;
   const [c, pulse] = PILL[s] || ["", false];
-  return html`<span class=${"pill " + c}><span class=${`dot ${c} ${pulse ? "pulse" : ""}`}></span>${s === "blocked" ? "question" : s}</span>`;
+  return html`<span class=${"pill " + c}><span class=${`dot ${c} ${pulse ? "pulse" : ""}`}></span>${s}</span>`;
 }
 
 const tok = n => n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? Math.round(n / 1e3) + "k" : String(n);

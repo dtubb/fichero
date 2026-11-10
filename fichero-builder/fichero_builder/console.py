@@ -347,7 +347,7 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
     st["last_review"] = {k: reviews[-1].get(k) for k in ("ts", "sha", "ok", "detail")} if reviews else None
     st["heartbeat"] = ticks[-1]["ts"] if ticks else None
     st["loop_on"] = bool(ticks) and now - time.mktime(time.strptime(ticks[-1]["ts"], "%Y-%m-%dT%H:%M:%S")) <= LOOP_STALE_S
-    st["console"] = [r for r in rows if r.get("event") == "console"][-20:]
+    st["console"] = [r for r in rows if r.get("event") == "console" and not (r.get("who") == "auto" and r.get("verb") == "refresh")][-20:]  # #6504: the person's actions, not the timer's
     st["loop_lanes"] = LOOP_LANES
     st["lane_usage"] = lane_usage(lanes, rows=rows)
     usage = {u["lane"]: u for u in st["lane_usage"]}
@@ -368,7 +368,8 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
     st["check_running"] = next(({"lane": a["lane"], "now": a["now"], "started": a["started"]} for a in acts if a["kind"] == "check"), None)
     st["order_saving"] = any(x["id"] == "build-order" and any(s["state"] != "landed" for s in x["steps"]) for x in lanes)
     st["events"] = [{k: (str(r.get(k, ""))[:160] if k == "detail" else r.get(k, "")) for k in ("ts", "event", "lane", "step", "state", "detail")}
-                    for r in rows if r.get("event") in ("queue", "alert", "alert-answer", "loop", "landed", "console")][-15:]  # #6467: the last journal events
+                    for r in rows if r.get("event") in ("queue", "alert", "alert-answer", "loop", "landed", "console")
+                    and not (r.get("event") == "loop" and r.get("state") == "tick") and not (r.get("who") == "auto" and r.get("verb") == "refresh")][-15:]  # #6467, #6504: the last journal events, ticks and timer refreshes left out
     by_id = {x["id"]: x for x in lanes}
     live = live_lines(ROOT) if ROOT else {}
     for row in st["lanes"]:
@@ -404,10 +405,11 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
             if a["kind"] == "check" and base and tip and not tip.startswith(base):  # another batch landed under it (manager 2026-11-02)
                 row["activity"]["base_moved"] = True
         shown = steps_on_origin(x, (st.get("last_land_git") or {}).get("sha", ""))
-        if row["state"] == "done" and shown and shown[-1]["state"] != "landed":  # a lane through its steps reads `done` (review 96)
+        if row["state"] == "done" and cur is None and shown and shown[-1]["state"] != "landed":  # a lane through its steps reads `done` (review 96)
             row["state"] = NOT_LANDED  # the lane is through its steps; the last one is not on origin/integration
         row.update(  # #6467: why the lane waits, in a line, and the batches queued behind its cursor
             why=("paused" if x.get("paused") else "held" if x.get("hold") else "finished" if cur is None
+                 else "done, waiting for the check" if cur["state"] == "done" and not cur.get("why", "").strip()  # #6504: mid-lane, never the finished-lane label
                  else f"{cur['state']}: {cur['why'].strip().splitlines()[0][:160]}" if cur.get("why", "").strip() else cur["state"]),
             queued=[{"step": q["step"], "state": q["state"], "issues": q.get("issues", [])} for q in x["steps"][x["cursor"] + 1:]],
             worktree=x["worktree"], title=_title(cur["brief"]) if cur else "", brief_text=_head(cur["brief"]) if cur else "",
