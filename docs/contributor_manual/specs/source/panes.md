@@ -20,7 +20,7 @@ A person clicks a folder and sees it ONCE: the Items pane lists it, and the othe
 
 **Content choices.** What a pane shows for a selection, one of: `nothing` (the pane draws its empty state, `panes.empty-state.blank`, and loads nothing), `theItem` (the selected thing itself: a folder's rows, a page's image, a segment's box), `reader` (a Reader of all the selection's content: every page of a folder in archival order, the page's text, the segment's line), `view(name)` (a view the pane offers for that kind: a folder's canvas, table or map in the Source pane; Lines or Disagreement in the Reader).
 
-**The table.** A pure value, `PaneShowing` (to be written, `fichero/fichero/Models/PaneShowing.swift`): `PaneShowing.content(pane: PaneKind, selection: SelectionKind, chosen: Choice?) -> Choice` returns the chosen value when the pane offers it for that kind, else the default; `PaneShowing.choices(pane:selection:)` lists what the pane's menu offers (empty = no menu entry, the pane has one sensible content). Defaults (proposed; Ruling 1):
+**The table.** A pure value, `PaneShowing` (to be written, a new file in the app's Models folder): `PaneShowing.content(pane: PaneKind, selection: SelectionKind, chosen: Choice?) -> Choice` returns the chosen value when the pane offers it for that kind, else the default; `PaneShowing.choices(pane:selection:)` lists what the pane's menu offers (empty = no menu entry, the pane has one sensible content). Defaults (proposed; Ruling 1):
 
 | selection | Items | Source | Reader | Segments | Inspector |
 |---|---|---|---|---|---|
