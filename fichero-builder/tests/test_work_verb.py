@@ -758,3 +758,13 @@ def test_a_review_that_never_reached_its_api_is_tried_again_and_then_is_an_alert
     assert chain() == 2
     assert "could not reach its API" in capsys.readouterr().out and "land" not in [c[0] for c in chain.calls]
     assert work.unreachable("NOT READY: API Error: Unable to connect is mentioned in a finding") is False, "a verdict is a verdict"
+
+
+def test_run_cmd_takes_the_package_from_the_pinned_copy_not_the_owners_checkout(scratch):
+    """#6466: the jail user cannot read the owner's checkout, so `builder run` imports fichero_builder from the pinned copy
+    (world-readable) when it holds one; a pinned copy without the package falls back to this one."""
+    (scratch.tmp / "pin" / "fichero-builder" / "fichero_builder").mkdir(parents=True)
+    cmd = work.run_cmd(scratch.a, "sonnet")
+    assert f"PYTHONPATH={scratch.tmp}/pin/fichero-builder " in cmd, cmd
+    (scratch.tmp / "pin" / "fichero-builder" / "fichero_builder").rmdir()
+    assert f"PYTHONPATH={Path(work.__file__).resolve().parents[1]} " in work.run_cmd(scratch.a, "sonnet")

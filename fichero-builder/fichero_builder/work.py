@@ -84,6 +84,8 @@ def run_cmd(a, model: str, *extra) -> str:
     """The `builder run` command line the jail user runs (the one-brief path, and the queue's long-running session with --feed)."""
     py = check_tool.load(a.pinned).python or sys.executable
     pkg = Path(__file__).resolve().parents[1]
+    if (Path(a.pinned) / "fichero-builder" / "fichero_builder").is_dir():  # #6466: the jail user cannot read the owner's checkout; the pinned copy is world-readable
+        pkg = Path(a.pinned) / "fichero-builder"
     return codemap.index_prefix(a.pinned, a.worktree) + " ".join(["PYTHONPATH=" + shlex.quote(str(pkg)), shlex.quote(py), "-m fichero_builder run",
                      *(f"{k} {shlex.quote(str(v))}" for k, v in (
                          ("--worktree", a.worktree), ("--brief", a.brief), ("--root", a.root), ("--name", a.name), ("--model", model),

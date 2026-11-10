@@ -1161,6 +1161,7 @@ def real_procs(root) -> Procs:
 
     def start(lane, step):
         a, q = ns(lane, step), shlex.quote
+        a.pinned = work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))  # #6466: the worker imports fichero_builder from here
         if why := work.ensure_worktree(a, f"lane-{lane['id']}"):
             raise RuntimeError(why)
         j = work._jail(a)
