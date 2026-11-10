@@ -948,11 +948,11 @@ def repane(listing: str | None = None) -> list[str]:
                 journal.append("queue", lane=x["id"], state="repane", detail=moved[-1])
                 x["pane"] = fit[0]
                 x.pop("no_session", None)
-            elif not fit and not x.get("no_session") and x["cursor"] < len(x["steps"]):  # #6500: nobody is on it: say so ONCE, with the way out
-                s = x["steps"][x["cursor"]]
+            elif (not fit and x["cursor"] < len(x["steps"]) and (s := x["steps"][x["cursor"]])["state"] == "queued"  # #6500: nobody is on it, and a session would move it
+                  and str(x.get("no_session", ""))[:10] < time.strftime("%Y-%m-%d")):  # at most one alert a lane a day (lead 2026-11-10: six at the first tick)
                 x["no_session"], old = time.strftime("%Y-%m-%dT%H:%M:%S"), x["pane"]
                 x["pane"] = ""
-                moved.append(f"{x['id']}: pane {old} gone, no session in its tree: no-session")
+                moved.append(f"{x['id']}: pane {old or 'none'} gone, no session in its tree: no-session")
                 journal.append("queue", lane=x["id"], step=s["step"], state="no-session", detail=moved[-1])
                 alert(x["id"], s["step"], f"{x['id']}: {s['state']} since {x['no_session'][:16]}, nobody is on it; dispatch it (the loop runs it) or park it",
                       str(journal.STATE / "queue.json"), ["dispatch", "park"])
