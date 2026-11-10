@@ -727,3 +727,17 @@ def test_a_lane_nobody_is_on_reads_no_session_and_the_strip_offers_dispatch_and_
     page = (Path(console.__file__).parent / "console.html").read_text()
     strip = page.split("Needs you")[0][-1500:] + page.split("Needs you")[1][:1500]
     assert '"no-session"' in strip and 'action: "dispatch"' in strip and 'action: "park"' in strip
+
+
+def test_an_external_lane_row_carries_its_head_and_the_page_offers_land_now_through_the_done_verb(tmp_path):
+    """#6501: the owner's branch waits forever for an intake; a Land now button posts the allow-listed `done` with the lane's HEAD."""
+    wt = tmp_path / "wt"
+    wt.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "integration", str(wt)], check=True)
+    subprocess.run(["git", "-C", str(wt), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "first"], check=True)
+    head = subprocess.run(["git", "-C", str(wt), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    lanes = [{"id": "ux", "worktree": str(wt), "cursor": 0, "paused": False, "kind": "external", "steps": [_s("batch-1", "queued")]}]
+    st = console.api_status([], lanes)
+    assert st["lanes"][0]["head"] == head
+    page = (Path(console.__file__).parent / "console.html").read_text()
+    assert 'act("done", { lane: l.lane, sha: l.head })' in page and "Land now" in page

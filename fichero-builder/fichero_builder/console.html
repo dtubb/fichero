@@ -144,6 +144,7 @@ function Lanes({ lanes: all }) {
                      : html`<button class="btn" onClick=${() => act("pause", { lane: l.lane })}>${I.pause} Pause</button>`}
           <button class="btn" onClick=${() => confirm(`Stop ${l.lane}? The worker commits what is green and its session ends; the tree is kept.`) && act("stop", { lane: l.lane })}>${I.stop} Stop</button>
           ${!l.paused && ["blocked", "parked", "idle", "queued"].includes(l.state) && html`<button class="btn" title="a blocked step goes again as queued; the loop starts its session" onClick=${() => act("start", { lane: l.lane })}>${I.play} Start</button>`}
+          ${l.kind === "external" && l.head && l.waiting > 0 && !["checking", "reviewing", "landing"].includes(l.state) && html`<button class="btn" title="builder done <lane> <HEAD>: its commits go through the check, review and landing as one batch (#6501)" onClick=${() => confirm(`Land ${l.lane} at ${l.head.slice(0, 9)}? Its ${l.waiting} commit(s) go through the check, the review and the landing as one batch.`) && act("done", { lane: l.lane, sha: l.head })}>Land now</button>`}
         </div></td>
       </tr>
       ${open[l.lane] && html`
