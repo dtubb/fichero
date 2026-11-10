@@ -25,6 +25,12 @@ struct LibraryTableDisclosureAligner: NSViewRepresentable {
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
+            guard window != nil else {  // leaving the window: drop the observers here, since a deinit may not touch them
+                tokens.forEach(NotificationCenter.default.removeObserver)
+                tokens = []
+                outline = nil
+                return
+            }
             attach()
             DispatchQueue.main.async { [weak self] in self?.attach() }
         }
@@ -65,8 +71,6 @@ struct LibraryTableDisclosureAligner: NSViewRepresentable {
                 }
             }
         }
-
-        deinit { tokens.forEach(NotificationCenter.default.removeObserver) }
 
         private static func firstOutline(in root: NSView) -> NSOutlineView? {
             var queue: [NSView] = [root]
