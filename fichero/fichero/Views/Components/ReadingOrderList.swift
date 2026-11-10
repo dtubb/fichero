@@ -326,6 +326,7 @@ struct ReadingOrderList: View {
             #if os(macOS)
             .onDeleteCommand { deleteLines(nil) }
             #endif
+            .focused($listFocused)
             if let createNote {
                 Text(createNote).font(.caption).foregroundStyle(.secondary).padding(4)
             }
@@ -651,6 +652,10 @@ extension ReadingOrderList {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(.rect)
             .draggable(dragPayload(segmentId))
+            // A click on a row gives this list the keyboard (#6476, `source.editor.focused-pane-is-plain`): the drag
+            // source took the click, so Delete and the arrows stayed with the item list. A click only, never a
+            // selection arriving from another pane, so a pick in the Preview does not steal its focus.
+            .simultaneousGesture(TapGesture().onEnded { listFocused = true })
             .dropDestination(for: SegmentDrag.self, action: { drags, _ in
                 dropped(drags.flatMap(\.ids), onto: segmentId)
             }, isTargeted: { targeting in
