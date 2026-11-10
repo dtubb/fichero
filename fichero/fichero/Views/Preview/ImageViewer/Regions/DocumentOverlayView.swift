@@ -204,7 +204,6 @@ final class DocumentOverlayView: NSView {
     }
 
     /// No reading yet: hollow and dashed, never hidden, so it can be seen, picked and typed (also the faint box beside a polygon).
-    // swiftlint:disable:next function_body_length -- split owed, #6476
     private func drawHollow(_ rect: CGRect, colour: NSColor, width: CGFloat, dash: [CGFloat]) {
         let hollow = NSBezierPath(rect: rect)
         colour.setStroke()
