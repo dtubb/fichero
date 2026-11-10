@@ -305,12 +305,15 @@ def live_lines(root, now: float | None = None, tmux=None) -> dict:
     if now - _LIVE["at"] < LIVE_TTL_S:
         return _LIVE["rows"]
     tmux = tmux or (lambda *a: _tmux_as_worker(root, *a))
-    out = {}
-    for ln in tmux("list-windows", "-a", "-F", "#{window_name}\t#{window_activity}").splitlines():
-        name, _, act = ln.partition("\t")
-        if not name or not act.isdigit():
-            continue
-        pane = [x.strip() for x in tmux("capture-pane", "-p", "-t", f"harness:{name}").splitlines()]
+    out, newest = {}, {}
+    for ln in tmux("list-windows", "-a", "-F", "#{window_id}\t#{window_name}\t#{window_activity}").splitlines():
+        wid, name, act = (ln.split("\t") + ["", ""])[:3]
+        if name and act.isdigit() and int(act) >= newest.get(name, -1):  # #6496: two windows of one name: the one that moved last
+            newest[name] = int(act)
+            out[name] = wid
+    for name, wid in out.items():
+        act = newest[name]
+        pane = [x.strip() for x in tmux("capture-pane", "-p", "-t", wid).splitlines()]
         real = [x for x in pane if x and not set(x) <= set("─━│┃╭╮╰╯ >❯⏵") and "bypass permissions" not in x and "Update installed" not in x]
         out[name] = {"line": (real[-1] if real else "")[:160], "ts": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(int(act)))}
     _LIVE.update(at=now, rows=out)

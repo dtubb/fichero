@@ -566,7 +566,7 @@ def test_a_start_with_no_end_for_a_day_is_abandoned_not_running(monkeypatch):
 def test_live_lines_read_the_last_real_pane_line_and_when_the_window_moved(monkeypatch):
     monkeypatch.setattr(console, "_LIVE", {"at": 0.0, "rows": {}})
     def tmux(*a):
-        return "lane-ie\t1794325018\n" if a[0] == "list-windows" else "──────\n⏺ editing foo.py\n\n❯ \n  ⏵⏵ bypass permissions on\n"
+        return "@0\tlane-ie\t1794325018\n" if a[0] == "list-windows" else "──────\n⏺ editing foo.py\n\n❯ \n  ⏵⏵ bypass permissions on\n"
     d = console.live_lines("/nowhere", now=1000.0, tmux=tmux)
     assert d["lane-ie"]["line"] == "⏺ editing foo.py" and d["lane-ie"]["ts"].startswith("2026-11-")
     assert console.live_lines("/nowhere", now=1005.0, tmux=lambda *a: "")["lane-ie"]  # cached for LIVE_TTL_S
@@ -584,3 +584,17 @@ def test_an_alert_for_the_harness_lane_gets_an_id_the_console_accepts(tmp_path, 
     monkeypatch.setattr(journal, "STATE", tmp_path)
     aid = queue.alert("-", "daily-builds", "a daily build is red", "", [])
     assert aid == "harness-daily-builds-1"
+
+
+def test_live_lines_capture_by_window_id_so_two_windows_of_one_name_show_the_newest(monkeypatch):
+    """#6496: `capture-pane -t harness:lane-ie` fails when two windows carry the name; the id of the one that moved last is used."""
+    monkeypatch.setattr(console, "_LIVE", {"at": 0.0, "rows": {}})
+    calls = []
+
+    def tmux(*a):
+        calls.append(a)
+        if a[0] == "list-windows":
+            return "@0\tlane-ie\t1794325018\n@1\tlane-ie\t1794325999\n"
+        return "old line\n" if a[-1] == "@0" else "new line\n"
+    d = console.live_lines("/nowhere", now=1000.0, tmux=tmux)
+    assert d["lane-ie"]["line"] == "new line" and [a for a in calls if a[0] == "capture-pane"] == [("capture-pane", "-p", "-t", "@1")]
