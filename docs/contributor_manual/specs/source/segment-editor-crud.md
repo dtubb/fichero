@@ -5,6 +5,7 @@
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it; code makes them pass.
 > **Status: DRAFT — written 2026-11-08 by the spec writer from the owner's dev-build findings (#6413), the marquee grain finding (#6412) and the manager's rulings of 2026-11-08; the manager reads the steps before approval.** A companion to `segment-editor.md` (APPROVED 2026-10-26), which it does not change: it adds behaviours for what the owner found missing and cuts them into steps. The review that produced it is `agent-work/status/briefs/segment-editor-review-2026-11-08.md`.
+> The focused-pane behaviour (#6476) lives in `source/panes.md` as `source.panes.focused-pane-is-plain`; Step 1.25 here no longer lists it.
 
 ## Intent
 
