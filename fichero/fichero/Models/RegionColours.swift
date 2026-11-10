@@ -1,8 +1,9 @@
 import Foundation
 
 /// Which colour a segment is drawn in (`segment-editor.md` "Box colour and the segment hierarchy", ruled
-/// 2026-10-04, #5426, #5463): its REGION's hue, shaded along the working pass's reading order. Nothing is
-/// coloured at random: no hash of an id picks a colour, so the same page draws the same way every time.
+/// 2026-10-04, #5426, #5463): its REGION's hue, shaded along the working pass's reading order. The hue is the
+/// REGION's own (owner 2026-11-08, #6419/#6422, superseding the 2026-10-04 order rule): a fixed hash of its id, so
+/// deleting or adding another region never recolours it, and the same page draws the same way every time.
 ///
 /// The ONE colour rule (#5467 part b). Every surface that colours a box reads a `Tone` from here and turns it
 /// into a colour with `SelectionStyle.regionColour`: the Preview image overlay, the PDF page, the Inspector's
@@ -30,8 +31,7 @@ nonisolated enum RegionColours {
     ///
     /// - A segment's region is its nearest ancestor of kind `region` (itself, for a region). Segments with no
     ///   region ancestor belong to ONE implicit region: the page's own.
-    /// - Regions take hues in the order the reading order first reaches them -- the implicit region at the place
-    ///   its first segment falls -- wrapping after `paletteCount`.
+    /// - A region's hue is `hue(ofRegion:)`, a fixed hash of its id; the implicit page region has its own constant.
     /// - Inside a region, the graded segments (its top non-region level: lines, or a word with no line) are
     ///   shaded evenly from `lightestStrength` (the first) to full strength (the last) in reading order, light to dark (owner 2026-11-10). Their children (words, letters)
     ///   take their shade. A region box is drawn at full strength.
@@ -70,7 +70,7 @@ nonisolated enum RegionColours {
             let found = place(of: segment)
             let region = found.region ?? implicitRegion
             places[segment.id] = (region, found.graded)
-            if hues[region] == nil { hues[region] = hues.count % paletteCount }
+            if hues[region] == nil { hues[region] = region == implicitRegion ? 0 : hue(ofRegion: region) }
             if let graded = found.graded, !(gradedByRegion[region] ?? []).contains(graded) {
                 gradedByRegion[region, default: []].append(graded)
             }
@@ -92,6 +92,17 @@ nonisolated enum RegionColours {
         return tones
     }
 
+    /// A region's palette slot: FNV-1a over its kind and id (Swift's `Hasher` is seeded per launch, which would
+    /// recolour every region on every start). Two regions can share a slot; none moves when another is deleted.
+    // ponytail: no collision handling, any rule that avoids one depends on the other regions again; widen the palette.
+    static func hue(ofRegion id: String) -> Int {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in "region:\(id)".utf8 {
+            hash = (hash ^ UInt64(byte)) &* 0x100000001b3
+        }
+        return Int(hash % UInt64(paletteCount))
+    }
+
     /// Each LINE's reading number, 1 up the page, in the order `tones` reads (the chosen order, else the boxes' own):
     /// the "Show Order Numbers" display switch. Regions and words carry none.
     static func orderNumbers(of segments: [Segment], readingOrder: [String]? = nil) -> [String: Int] {
@@ -107,8 +118,8 @@ nonisolated enum RegionColours {
         return numbers
     }
 
-    /// The legend's hues (`source.editor.hierarchy.legend`): each region's hue once, in the order regions take
-    /// them -- the reading order (`tones` hands hues out in it). At most the palette's length.
+    /// The legend's hues (`source.editor.hierarchy.legend`): each region's hue once, lowest first (two regions
+    /// can share a slot). At most the palette's length.
     static func legend(of tones: [Tone]) -> [Int] {
         Array(Set(tones.map(\.hue))).sorted()
     }

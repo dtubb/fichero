@@ -247,9 +247,10 @@ final class SegmentHierarchyTests: XCTestCase {
         XCTAssertTrue(script.contains("\"hue\":\"blue\""), script)
     }
 
-    /// The legend shows each region's hue once, in region reading order.
+    /// The legend shows each region's hue once, lowest first.
     func testTheLegendListsEachRegionsHueInOrder() async throws {
         let drawn = try await loadedPage().drawn
-        XCTAssertEqual(RegionColours.legend(of: drawn.boxes.compactMap(\.tone)), [0, 1])
+        XCTAssertEqual(RegionColours.legend(of: drawn.boxes.compactMap(\.tone)),
+                       Array(Set([RegionColours.hue(ofRegion: "r1"), RegionColours.hue(ofRegion: "r2")])).sorted())
     }
 }
