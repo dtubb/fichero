@@ -33,7 +33,7 @@ nonisolated enum RegionColours {
     /// - Regions take hues in the order the reading order first reaches them -- the implicit region at the place
     ///   its first segment falls -- wrapping after `paletteCount`.
     /// - Inside a region, the graded segments (its top non-region level: lines, or a word with no line) are
-    ///   shaded evenly from full strength to `lightestStrength` in reading order. Their children (words, letters)
+    ///   shaded evenly from `lightestStrength` (the first) to full strength (the last) in reading order, light to dark (owner 2026-11-10). Their children (words, letters)
     ///   take their shade. A region box is drawn at full strength.
     /// - `readingOrder` is the working pass's order (segment ids) when the caller holds one; nil means the
     ///   page's as-written order, which is the boxes' own order (`boxIndex`) -- the engine makes the as-written
@@ -80,7 +80,7 @@ nonisolated enum RegionColours {
         for (_, graded) in gradedByRegion {
             for (position, id) in graded.enumerated() {
                 gradedStrength[id] = graded.count < 2
-                    ? 1 : 1 - (1 - lightestStrength) * Double(position) / Double(graded.count - 1)
+                    ? 1 : lightestStrength + (1 - lightestStrength) * Double(position) / Double(graded.count - 1)
             }
         }
 

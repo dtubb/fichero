@@ -87,7 +87,7 @@ final class BoxColourThroughTheStoreTests: XCTestCase {
         let otherRegion = try XCTUnwrap(tone("l3", in: drawn))
         XCTAssertEqual(first.hue, second.hue, "lines of one region share its hue")
         XCTAssertNotEqual(first.hue, otherRegion.hue, "two regions never share a hue")
-        XCTAssertGreaterThan(first.strength, second.strength, "the first line in reading order is the stronger")
+        XCTAssertLessThan(first.strength, second.strength, "the first line in reading order is the lighter, the last the darker")
         XCTAssertNotEqual(SelectionStyle.regionColour(first), SelectionStyle.regionColour(otherRegion))
     }
 

@@ -1823,7 +1823,7 @@ from the region instead of the role.
   `BoxColourThroughTheStoreTests` (through `SegmentStore` and `SegmentDisplay.selected`); not yet seen in
   the app, and the set colour is not built.
 - `source.editor.colour.reading-order-gradient` — **[PARTIAL]** (#5426) inside a region, lines are shaded
-  from the hue's full strength to a lighter strength along the working pass's reading order (the
+  from a lighter strength (the first line) to the hue's full strength (the last), light to dark (owner 2026-11-10), along the working pass's reading order (the
   pane's chosen order, else as written); moving a line in the order changes its shade. Replaces the
   two-tint alternation. Built on the as-written order and pinned by `RegionColoursTests` (a reordered
   order moves the shade); not yet seen in the app, and the Preview does not yet read the pane's chosen order.

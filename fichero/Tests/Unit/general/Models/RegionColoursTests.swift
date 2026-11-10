@@ -41,13 +41,13 @@ struct RegionColoursTests {
         #expect(tones["w1"] == tones["l1"], "a word takes its line's shade")
     }
 
-    @Test("source.editor.colour.reading-order-gradient: lines shade from full to light in reading order; reordering moves the shade")
+    @Test("source.editor.colour.reading-order-gradient: lines shade from light to dark in reading order; reordering moves the shade")
     func gradientFollowsTheOrder() {
         let asWritten = RegionColours.tones(of: page)
         let shades = ["l1", "l2", "l3"].compactMap { asWritten[$0]?.strength }
-        let expected = [1, (1 + RegionColours.lightestStrength) / 2, RegionColours.lightestStrength]
+        let expected = [RegionColours.lightestStrength, (1 + RegionColours.lightestStrength) / 2, 1]
         #expect(zip(shades, expected).allSatisfy { abs($0 - $1) < 1e-9 } && shades.count == 3,
-                "evenly spaced from full strength to the lightest, first line darkest")
+                "evenly spaced from the lightest to full strength, first line lightest, last darkest")
         #expect(asWritten["l4"]?.strength == 1, "a region with one line draws it at full strength")
 
         // The pane's chosen order puts l3 first: the shades follow the order, not the box order.
