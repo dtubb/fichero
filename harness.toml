@@ -408,7 +408,7 @@ boundary = ['/Users/(?!Shared/)[A-Za-z0-9._-]+/', 'sk-ant-[A-Za-z0-9_-]{8,}', 'g
 [loop]
 # manager 2026-11-04 (alerts 315, 316): the lanes the loop ticks, named; a lane not here (an old milestone lane in queue.json) never starts.
 # Build-order milestones are taken only with feed_milestones = true: a lane is queued on purpose.
-only = ["lane-sharing", "lane-onboard", "lane-ie", "harness-gen3", "harness-unblock", "dev-workflows", "spec-writer", "lane-qwen", "lane-qwen2"]  # spec-writer: a Fable session writing specs (2026-11-06); lane-qwen: the Qwen trial, #6380 (2026-11-07)
+only = ["lane-sharing", "lane-onboard", "lane-ie", "harness-gen3", "harness-unblock", "dev-workflows", "spec-writer", "lane-qwen", "lane-qwen2", "builder-6466", "builder-harness"]  # spec-writer: a Fable session writing specs (2026-11-06); lane-qwen: the Qwen trial, #6380 (2026-11-07)
 # owner 2026-11-06: two lanes' chains at once (the pool was one worker, so [check].parallel = 2 was never used)
 lanes = 2
 feed_milestones = false
