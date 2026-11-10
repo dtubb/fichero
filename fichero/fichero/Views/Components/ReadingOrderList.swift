@@ -116,6 +116,8 @@ struct ReadingOrderList: View {
                     "No Reading Order", systemImage: "list.number",
                     description: Text("This page has no named order yet.")
                 )
+                // The pane's full height, as with rows, so it does not jump when the first segment arrives (#6482).
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .correctThisLine($correcting)

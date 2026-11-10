@@ -26,6 +26,8 @@ struct ReadingOrderPicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
+                // The order's name is a plain heading with its glyph, not a small subtitle menu (#6482).
+                Image(systemName: "list.number").foregroundStyle(.secondary).accessibilityHidden(true)
                 Menu {
                     ForEach(store.orders) { order in
                         Button { Task { try? await store.choose(order.id) } } label: {
@@ -41,7 +43,7 @@ struct ReadingOrderPicker: View {
                     Button("New Flow…") { name = ""; naming = .flow }
                     continueFlowMenu
                 } label: {
-                    Text(shown.map(ReadingOrderChoice.title) ?? "Order")
+                    Text(shown.map(ReadingOrderChoice.title) ?? "Order").font(.headline)
                 }
                 .fixedSize()
                 .help(ReadingOrderChoice.help(shown))
