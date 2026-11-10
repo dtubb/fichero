@@ -138,11 +138,29 @@ struct BoxKey: Hashable {
     let bbox: [Double]
     let text: String
     let level: String
+    /// The segment the box draws, when it has one. Unread or unshaped segments share a zero rect and no text, so
+    /// without it a multi-pick of them found the FIRST box every time (only the first lit) and a colour looked up
+    /// by key was the first one's. Counts only when BOTH sides have one: geometry with no ids still matches by shape.
+    let segmentId: String?
 
     init(_ box: OCRGeometryBox) {
         bbox = box.bbox
         text = box.text
         level = box.level
+        segmentId = box.segmentId
+    }
+
+    // ponytail: equality ignores a missing id, so it is not transitive across nil and non-nil; the hash leaves the id out
+    // to stay consistent with it. Upgrade: key the two geometries by id and drop the shape fallback.
+    static func == (lhs: BoxKey, rhs: BoxKey) -> Bool {
+        lhs.bbox == rhs.bbox && lhs.text == rhs.text && lhs.level == rhs.level
+            && (lhs.segmentId == nil || rhs.segmentId == nil || lhs.segmentId == rhs.segmentId)
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(bbox)
+        hasher.combine(text)
+        hasher.combine(level)
     }
 }
 
