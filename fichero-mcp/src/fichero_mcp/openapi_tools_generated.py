@@ -8046,6 +8046,15 @@ def fichero_segments_get_pass_original(
     return _rt.call("GET", f"/api/segments/passes/{pass_id}/original")
 
 
+def fichero_segments_reparent(
+    *,
+    parent_segment_id: Annotated[Optional[str], Field(description='The segment they now sit inside (a line into a region); none lifts them out to the page.')] = None,
+    segments: Annotated[list[Any], Field(description='The segments to move, each with the version the caller saw.')],
+) -> Any:
+    'Reparent Segments\n\n`POST /api/segments/reparent` — move segments under another segment as one audited action and one undo step.\n\nRoute: POST /api/segments/reparent (toolset `segments`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/segments/reparent", json=_rt.body({"parent_segment_id": parent_segment_id, "segments": segments}))
+
+
 def fichero_segments_split(
     *,
     at_offset: Annotated[Optional[int], Field(description="Split at this character of the line's reading instead of giving parts.")] = None,
@@ -10322,6 +10331,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_segments_delete_pass", "segments", "DELETE", "/api/segments/passes/{pass_id}", fichero_segments_delete_pass),
     GeneratedTool("fichero_segments_set_pass_ground_truth", "segments", "PUT", "/api/segments/passes/{pass_id}/ground-truth", fichero_segments_set_pass_ground_truth),
     GeneratedTool("fichero_segments_get_pass_original", "segments", "GET", "/api/segments/passes/{pass_id}/original", fichero_segments_get_pass_original),
+    GeneratedTool("fichero_segments_reparent", "segments", "POST", "/api/segments/reparent", fichero_segments_reparent),
     GeneratedTool("fichero_segments_split", "segments", "POST", "/api/segments/split", fichero_segments_split),
     GeneratedTool("fichero_segments_undelete", "segments", "POST", "/api/segments/undelete", fichero_segments_undelete),
     GeneratedTool("fichero_segments_get", "segments", "GET", "/api/segments/{segment_id}", fichero_segments_get),

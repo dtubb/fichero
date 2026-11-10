@@ -2148,6 +2148,20 @@ class SegmentUpdateManyParams(BaseModel):
     updates: list[SegmentAttributeUpdate] = Field(min_length=1, description='One change per segment, each with its id and version.')
 
 
+class SegmentReparentItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    segment_id: str
+    expected_version: int
+
+
+class SegmentReparentParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    segments: list[SegmentReparentItem] = Field(min_length=1, description='The segments to move, each with the version the caller saw.')
+    parent_segment_id: Optional[str] = Field(default=None, description='The segment they now sit inside (a line into a region); none lifts them out to the page.')
+
+
 class SegmentVersionRestore(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -2283,6 +2297,74 @@ def _action_segment_update_many(db: Database, params: SegmentUpdateManyParams, c
         segment_ids=[row.id for row, _item in rows],
         pass_ids=sorted({row.pass_id for row, _item in rows}),
         document_ids=sorted({row.document_id for row, _item in rows}),
+    )
+    return {"versions": after_versions}, spec
+
+
+@action(
+    "segment.reparent",
+    SegmentReparentParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_many_via_previous_version,
+)
+def _action_segment_reparent(db: Database, params: SegmentReparentParams, ctx: ActionContext):
+    """Move segments under another segment (a line into a region): ONE audit row, ONE undo step.
+
+    ALL OR NOTHING, like `segment.update_many`. The new parent must be live and in the same pass
+    and document as every moved segment, must not be one of them, and must not sit inside one of
+    them (a cycle). Reading-order entries are not touched: where a line reads is `reading_order.place`'s
+    business, and moving a line's parent does not reorder the page.
+    """
+    _refuse_repeated_ids([item.segment_id for item in params.segments])
+    rows = [_live_current_row(db, item.segment_id, item.expected_version) for item in params.segments]
+    moved_ids = {row.id for row in rows}
+
+    new_parent = None
+    if params.parent_segment_id is not None:
+        _assert_not_provisional_http(params.parent_segment_id, what="parent_segment_id")
+        new_parent = db.get(Segment, params.parent_segment_id)
+        if new_parent is None:
+            raise HTTPException(status_code=404, detail=f"Segment not found: {params.parent_segment_id}")
+        reason = segment_liveness_reason(db, new_parent.id)
+        if reason is not None:
+            raise _as_http_error(SegmentNotLive(new_parent.id, reason))
+        for row in rows:
+            if row.pass_id != new_parent.pass_id or row.document_id != new_parent.document_id:
+                raise _as_http_error(SegmentParentMismatchError(
+                    f"parent segment {new_parent.id!r} is not in pass {row.pass_id!r} of document {row.document_id!r}"
+                ))
+        # A segment may not move into itself or into anything it holds: walk up from the new parent.
+        cursor, hops = new_parent, 0
+        while cursor is not None and hops < 64:
+            if cursor.id in moved_ids:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"segment {cursor.id!r} cannot be moved into itself or something it holds",
+                )
+            cursor = db.get(Segment, cursor.parent_segment_id) if cursor.parent_segment_id else None
+            hops += 1
+
+    audit_id = uuid.uuid4().hex
+    before_versions: list[dict[str, Any]] = []
+    after_versions: list[dict[str, Any]] = []
+    for row in rows:
+        before_versions.append({"segment_id": row.id, "version": row.version})
+        snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        row.parent_segment_id = params.parent_segment_id
+        db.save(row)
+        after_versions.append({"segment_id": row.id, "version": row.version})
+
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=[row.id for row in rows],
+        before={"versions": before_versions},
+        after={"versions": after_versions},
+        emit_type="segment.updated",
+        segment_ids=[row.id for row in rows],
+        pass_ids=sorted({row.pass_id for row in rows}),
+        document_ids=sorted({row.document_id for row in rows}),
     )
     return {"versions": after_versions}, spec
 
@@ -4046,6 +4128,26 @@ async def reject_match(
     )
     result = registry.invoke(db, "segment.match_reject", {"match_id": match_id}, ctx)
     return result.result
+
+
+@router.post("/reparent")
+async def reparent_segments(
+    params: SegmentReparentParams,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(default=None, alias="X-Fichero-Origin-Window"),
+    actor: str = Depends(request_actor),
+) -> dict[str, Any]:
+    """`POST /api/segments/reparent` — move segments under another segment as one audited action and one undo step."""
+    ctx = _resolve_action_ctx(
+        actor=actor, library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window, db=db,
+    )
+    try:
+        result = registry.invoke(db, "segment.reparent", params.model_dump(mode="json"), ctx)
+    except Exception as exc:
+        raise _as_http_error(exc) from exc
+    return {**result.result, "audit_id": result.audit_id}
 
 
 @router.post("/merge")
