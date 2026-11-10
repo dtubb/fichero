@@ -1,15 +1,15 @@
 import SwiftUI
 
-/// A document's reading order as a list you can rearrange -- by drag, and by ⌥⌘↑ / ⌥⌘↓ and
+/// A document's reading order as a list you can rearrange
 /// ⌥⌘⇞ / ⌥⌘⇟ (to the start / end) on the selected line. ONE list view for every place that
 /// lists the order (ruled 2026-09-27, Q5): the Inspector's Source section and the Reader both
 /// mount this, and every move goes through `ReadingOrderStore`, so a drag and a key, in either
 /// place, are the same engine call, undoable with ⌘Z.
-// swiftlint:disable:next type_body_length -- extraction owed, tracked with #6476
+// swiftlint:disable:next type_body_length
 struct ReadingOrderList: View {
     let documentId: String
     /// List this segment's children (a block's lines, a line's words) instead of the page's top level
-    /// -- the Inspector's Order section at the inspected level.
+    ///
     var parentSegmentId: String?
     /// Show nothing at all for an empty level (ruled: a section with nothing to say is hidden).
     var hidesWhenEmpty = false
@@ -271,7 +271,7 @@ struct ReadingOrderList: View {
     }
 
     /// A double-click on a row (Return renames): reveal it in the linked Preview, selected, scrolled and
-    /// zoomed to (#5424) -- the one reveal the Reader's line click makes too.
+    /// zoomed to (#5424)
     private func reveal(_ ids: Set<String>) {
         guard let segmentId = ids.first, let windowState, let segmentService else { return }
         onSelected?(windowState.revealSegments(
@@ -379,7 +379,7 @@ struct ReadingOrderList: View {
                 RegionColours.tones(of: segments))
     }
 
-    /// A row of the level shown: flat, or -- nesting -- holding its children (`SegmentsPane.outline`), each
+    /// A row of the level shown: flat, or
     /// with its swatch. Rows are keyed by segment id, so a segment event redraws its row, never the list.
     @ViewBuilder
     private func entryRow(
@@ -474,7 +474,7 @@ extension ReadingOrderList {
 
 /// One row of the nested Segments list (hierarchy A, #5426, `source.editor.hierarchy.segments-list-nests`): the
 /// swatch of the colour its box is drawn in (`SelectionStyle.regionSwatch`, the one colour path), its words, and
-/// its children disclosed under it, indented -- a region open on its lines, a line closed on its words.
+/// its children disclosed under it, indented
 struct SegmentOutlineRow: View {
     let node: SegmentsPane.OutlineRow
     let index: Int
@@ -661,7 +661,7 @@ extension ReadingOrderList {
         return true
     }
 
-    /// A row: its words, and -- in the Segments pane -- a control that opens it to its children.
+    /// A row: its words, and
     private func row(_ segmentId: String, at index: Int) -> some View {
         rowContent(segmentId, at: index)
     }
