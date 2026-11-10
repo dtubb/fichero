@@ -694,7 +694,7 @@ def close_alerts(lane_id: str, step: str, why: str) -> list[str]:
 def alert(lane_id: str, step: str, why: str, evidence: str, actions: list[str]) -> str:
     """One `alert` row: what failed in a line, where its evidence is, what the manager may answer (dev-workflows.run.loop-alerts)."""
     n = sum(1 for r in journal.read() if r.get("event") == "alert") + 1
-    aid = f"{lane_id}-{step}-{n}"
+    aid = f"{lane_id.lstrip('-') or 'harness'}-{step}-{n}"  # the console refuses an id that starts with "-": a lane named "-" made Dismiss do nothing
     journal.append("alert", id=aid, lane=lane_id, step=step, what=(why.strip().splitlines() or [""])[0][:300], evidence=evidence, actions=actions)
     return aid
 

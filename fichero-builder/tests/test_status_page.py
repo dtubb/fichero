@@ -570,3 +570,17 @@ def test_live_lines_read_the_last_real_pane_line_and_when_the_window_moved(monke
     d = console.live_lines("/nowhere", now=1000.0, tmux=tmux)
     assert d["lane-ie"]["line"] == "⏺ editing foo.py" and d["lane-ie"]["ts"].startswith("2026-11-")
     assert console.live_lines("/nowhere", now=1005.0, tmux=lambda *a: "")["lane-ie"]  # cached for LIVE_TTL_S
+
+
+def test_every_button_on_the_page_names_a_verb_the_console_serves():
+    import re
+    page = (Path(console.__file__).parent / "console.html").read_text()
+    used = set(re.findall(r'act\("([\w-]+)"', page))
+    assert used and used <= set(console.VERBS), sorted(used - set(console.VERBS))
+
+
+def test_an_alert_for_the_harness_lane_gets_an_id_the_console_accepts(tmp_path, monkeypatch):
+    from fichero_builder import queue
+    monkeypatch.setattr(journal, "STATE", tmp_path)
+    aid = queue.alert("-", "daily-builds", "a daily build is red", "", [])
+    assert aid == "harness-daily-builds-1"
