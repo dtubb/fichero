@@ -106,25 +106,23 @@ struct PreviewHeadLensControls: View {
         renditionsMenu
     }
 
-    /// Edit Segments in the HEAD (ruled 2026-09-27, Q3): the mode was reachable only inside the
-    /// What-to-show menu, which is a place to look for display options, not for "can I change
-    /// this page". Both switches write one state; the menu entry stays.
+    /// The Preview's mode, in the head: Read, Segments, Image (`source.editor.preview-has-three-modes`, #6482). It
+    /// writes `WindowState.previewMode`, which IS the older Edit Segments state, so the menu entry cannot disagree.
     @ViewBuilder
     private var editSegmentsToggle: some View {
         if chrome.canEditSegments, let windowState {
-            let isEditing = windowState.isEditingSegments
-            Button {
-                windowState.isEditingSegments.toggle()
-            } label: {
-                Image(systemName: "rectangle.and.pencil.and.ellipsis")
+            @Bindable var state = windowState
+            Picker("Mode", selection: $state.previewMode) {
+                ForEach(PreviewMode.allCases) { mode in
+                    Label(mode.title, systemImage: mode.icon).tag(mode)
+                }
             }
-            .buttonStyle(.borderless)
-            .foregroundStyle(isEditing ? Color.accentColor : Color.secondary)
-            .help(isEditing ? "Stop editing segments -- the page is for reading"
-                     : "Edit Segments -- draw, move, join and delete segments on this page")
-            .accessibilityLabel("Edit Segments")
-            .accessibilityValue(isEditing ? "On" : "Off")
-            .accessibilityIdentifier("previewHeadEditSegments")
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            .help("Read: look, annotate, highlight. Segments: edit regions, lines and the order. Image: change the pixels.")
+            .accessibilityLabel("Preview mode")
+            .accessibilityIdentifier("previewHeadMode")
         }
     }
 
