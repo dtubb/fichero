@@ -460,6 +460,7 @@ nav:
               - Segment Editor: contributor_manual/specs/source/segment-editor.md
               - Segment Editor CRUD (draft): contributor_manual/specs/source/segment-editor-crud.md
               - Editable Reader (draft): contributor_manual/specs/source/editable-reader.md
+              - Panes (draft): contributor_manual/specs/source/panes.md
               - Line Editor: contributor_manual/specs/source/line-editor.md
               - Formats & Training: contributor_manual/specs/source/formats-and-training.md
               - Maps & Georeference: contributor_manual/specs/source/maps-and-georeference.md
