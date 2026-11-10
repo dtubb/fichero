@@ -14,5 +14,8 @@ def test_every_declared_guard_exists_and_every_input_is_in_the_tree():
         assert (ROOT / "scripts" / f"{stem}.py").is_file(), stem
         assert "scripts" in prefixes, stem  # the guard itself, its helpers and baselines
         for p in prefixes:
+            if not (ROOT / ".git").exists():  # a gate copy (the M4 run dir) has no repo: the tree itself is the check
+                assert (ROOT / p).exists(), f"{stem}: {p} is not in the tree"
+                continue
             r = subprocess.run(["git", "-C", str(ROOT), "cat-file", "-e", f"HEAD:{p}"], capture_output=True)
             assert r.returncode == 0, f"{stem}: {p} is not in HEAD"
