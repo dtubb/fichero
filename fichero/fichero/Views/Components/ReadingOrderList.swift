@@ -378,7 +378,7 @@ struct ReadingOrderList: View {
             SegmentOutlineRow(
                 node: node, index: index, tones: nesting.tones,
                 content: { id, position in AnyView(row(id, at: position)) },
-                wrap: { id, view in AnyView(movable(id, view)) }
+                wrap: { id, view in AnyView(movable(id, view)) }, lit: dropTarget
             )
         } else if nesting != nil {
             // Folded under its region by `SegmentsPane.outline`: shown there, not again beside it (#6425).
@@ -386,6 +386,7 @@ struct ReadingOrderList: View {
             EmptyView()
         } else {
             movable(segmentId, row(segmentId, at: index)).tag(segmentId)
+                .listRowBackground(dropTarget == segmentId ? Color.accentColor.opacity(0.25) : Color.clear)
         }
     }
 }
@@ -470,14 +471,18 @@ struct SegmentOutlineRow: View {
     let content: (String, Int) -> AnyView
     /// What surrounds the whole row (the swatch included): the list's drag and drop, lit across the row.
     let wrap: (String, AnyView) -> AnyView
+    /// The row lit as a drop target: the WHOLE row's background (the list row), not the words' width.
+    var lit: String?
 
     @State private var expanded: Bool
 
     init(
         node: SegmentsPane.OutlineRow, index: Int, tones: [String: RegionColours.Tone],
-        content: @escaping (String, Int) -> AnyView, wrap: @escaping (String, AnyView) -> AnyView = { _, view in view }
+        content: @escaping (String, Int) -> AnyView, wrap: @escaping (String, AnyView) -> AnyView = { _, view in view },
+        lit: String? = nil
     ) {
         self.wrap = wrap
+        self.lit = lit
         self.node = node
         self.index = index
         self.tones = tones
@@ -487,12 +492,18 @@ struct SegmentOutlineRow: View {
     }
 
     var body: some View {
+        Group { rows }
+            // The drop target's whole row, edge to edge, like the sidebar's.
+            .listRowBackground(lit == node.segmentId ? Color.accentColor.opacity(0.25) : Color.clear)
+    }
+
+    @ViewBuilder private var rows: some View {
         if node.children.isEmpty {
             labelled
         } else {
             DisclosureGroup(isExpanded: $expanded) {
                 ForEach(Array(node.children.enumerated()), id: \.element.id) { position, child in
-                    SegmentOutlineRow(node: child, index: position, tones: tones, content: content, wrap: wrap)
+                    SegmentOutlineRow(node: child, index: position, tones: tones, content: content, wrap: wrap, lit: lit)
                 }
             } label: {
                 labelled
@@ -638,7 +649,6 @@ extension ReadingOrderList {
         view
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(.rect)
-            .background(dropTarget == segmentId ? Color.accentColor.opacity(0.25) : .clear, in: .rect(cornerRadius: 6))
             .draggable(dragPayload(segmentId))
             .dropDestination(for: SegmentDrag.self, action: { drags, _ in
                 dropped(drags.flatMap(\.ids), onto: segmentId)
