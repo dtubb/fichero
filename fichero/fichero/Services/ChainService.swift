@@ -1,3 +1,4 @@
+// swiftlint:disable file_length -- split owed, #6476
 import Combine
 import FicheroAPIClient
 import Foundation

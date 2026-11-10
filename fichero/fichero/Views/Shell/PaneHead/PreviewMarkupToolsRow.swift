@@ -1,3 +1,4 @@
+// swiftlint:disable file_length type_body_length -- split owed, #6476
 import SwiftUI
 
 //  Extracted for file_length (#5113) with that issue's checklist: path asserted free, cut
