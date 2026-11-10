@@ -247,7 +247,7 @@ def main(argv=None) -> int:
             print("REFUSED: --spec is needed when the milestone is named")
             return 1
         order = milestone.build_order(a.spec)
-        planned = milestone.plan(milestone.list_issues(a.name, gh=a.gh), order, milestone.spec_slug(a.spec))
+        planned = milestone.plan(milestone.list_issues(a.name, gh=a.gh, cwd=str(a.repo_dir)), order, milestone.spec_slug(a.spec))
         rules_doc = tomllib.loads((Path(a.repo_dir) / "harness.toml").read_text())
         base = a.base or resolve(a.repo_dir, "origin/" + rules_doc.get("land", {}).get("branch", ""))
         rules = rules_doc.get("brief", {}).get("rules", "")
