@@ -112,7 +112,7 @@ const Ago = ({ ts }) => ts ? html`<span title=${ts}>${rel(ts)}</span>` : html`<s
 const dur = s => s == null ? "-" : s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)} min` : `${Math.floor(s / 3600)} h ${Math.floor(s % 3600 / 60)} min`;
 
 const PILL = { working: ["green", true], running: ["green", true], sent: ["green", true], checking: ["blue", true], reviewing: ["blue", true],
-  done: ["blue", false], "done, not landed yet": ["orange", false], landed: ["green", false], queued: ["", false], idle: ["", false], blocked: ["red", false], paused: ["orange", false], parked: ["orange", false] };
+  done: ["blue", false], "done, not landed yet": ["orange", false], landed: ["green", false], queued: ["", false], idle: ["", false], "no-session": ["red", false], blocked: ["red", false], paused: ["orange", false], parked: ["orange", false] };
 function Pill({ state, paused }) {
   const s = paused && !["landed", "done"].includes(state) ? "paused" : state;
   const [c, pulse] = PILL[s] || ["", false];
@@ -124,7 +124,7 @@ function Card({ k, v, dot, sub }) {
   return html`<div class="card"><div class="k">${k}</div><div class="v">${dot && html`<span class=${"dot " + dot}></span>`}${v}</div><div class="k">${sub}</div></div>`;
 }
 
-const LANE_ORDER = { working: 0, running: 0, sent: 0, checking: 0, reviewing: 0, blocked: 1, "done, not landed yet": 2, queued: 3, parked: 4, idle: 5, done: 6, landed: 6 };  // what is moving, then what needs you, then the rest
+const LANE_ORDER = { working: 0, running: 0, sent: 0, checking: 0, reviewing: 0, blocked: 1, "no-session": 1, "done, not landed yet": 2, queued: 3, parked: 4, idle: 5, done: 6, landed: 6 };  // what is moving, then what needs you, then the rest
 function Lanes({ lanes: all }) {
   const lanes = [...all].sort((a, b) => (LANE_ORDER[a.state] ?? 5) - (LANE_ORDER[b.state] ?? 5));
   const [open, setOpen] = useState({});
@@ -363,8 +363,11 @@ function App() {
             <b>${u.lane}</b> ${tok(u.tokens_in)} in · ${tok(u.tokens_out)} out · ${u.turns} turns <span class="muted">$${u.usd.toFixed(2)}</span></div>`)}
           <div class="k muted">API-equivalent $: on Max, not billed</div></div>`}
       </div>
-      ${(() => { const q = st.lanes.filter(l => l.state === "blocked").length, a = st.open_alerts.length;
-        return (q || a) ? html`<div class="banner"><span class="dot red"></span><b>Needs you:</b> ${a ? `${a} alert(s)` : ""}${a && q ? ", " : ""}${q ? `${q} lane(s) with a question` : ""}</div>` : html`<div class="banner"><span class="dot green"></span>Nothing needs you.</div>`; })()}
+      ${(() => { const q = st.lanes.filter(l => l.state === "blocked").length, a = st.open_alerts.length, ns = st.lanes.filter(l => l.state === "no-session");
+        const alertOf = l => st.open_alerts.find(x => x.lane === l.lane && (x.actions || []).includes("dispatch"));  // #6500: the lane's own no-session alert
+        return (q || a || ns.length) ? html`<div class="banner"><span class="dot red"></span><b>Needs you:</b> ${a ? `${a} alert(s)` : ""}${a && q ? ", " : ""}${q ? `${q} lane(s) with a question` : ""}
+          ${ns.map(l => html`<div><b>${l.lane}</b>: nobody is on it since <${Ago} ts=${l.no_session} /> ${alertOf(l) ? html`<button class="btn" title="the loop runs this lane from now on, one managed session per batch" onClick=${() => act("alert", { id: alertOf(l).id, action: "dispatch" })}>${I.play} Dispatch</button> <button class="btn" onClick=${() => act("alert", { id: alertOf(l).id, action: "park" })}>Park</button>` : ""}</div>`)}</div>`
+          : html`<div class="banner"><span class="dot green"></span>Nothing needs you.</div>`; })()}
       ${st.open_alerts.length > 0 && html`<h2>Alerts <button class="btn" onClick=${() => act("alert", { id: "all", action: "dismiss" })}>Dismiss all</button></h2><${Alerts} alerts=${st.open_alerts} />`}
       ${(st.resolved_alerts || []).length > 0 && html`<${Resolved} alerts=${st.resolved_alerts} />`}
       ${{ milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, issues: Issues, release: Release }[tab]

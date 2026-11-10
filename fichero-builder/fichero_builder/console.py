@@ -388,6 +388,8 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
         last, ct = commit(x["worktree"]) if Path(x["worktree"]).is_dir() else ("", 0)
         if x.get("kind") == "external" and row["state"] == "queued":  # no worker of ours: its own commits say whether it works
             row["state"] = "held" if x.get("hold") else "working" if ct and now - ct <= WORKING_S else "idle"  # a held lane's tree may be another lane's
+        if x.get("kind") == "external" and x.get("no_session") and row["state"] in ("queued", "idle", "working"):  # #6500: nobody is on it
+            row["state"], row["no_session"] = "no-session", x["no_session"]
         if Path(x["worktree"]).is_dir():
             pr = progress(x["worktree"], "" if x.get("kind") == "external" else (cur or {}).get("step", ""), x["id"])
             if x.get("kind") == "external" and pr.get("step"):
