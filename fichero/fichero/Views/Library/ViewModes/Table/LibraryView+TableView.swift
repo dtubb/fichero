@@ -22,6 +22,7 @@ extension LibraryView {
         .tableStyle(.inset)
         #if os(macOS)
         .alternatingRowBackgrounds()
+        .background(LibraryTableDisclosureAligner())  // #6473
         #endif
         .contextMenu(forSelectionType: String.self) { items in
             // Deterministic primary pick, not Set hash order (#4160):
