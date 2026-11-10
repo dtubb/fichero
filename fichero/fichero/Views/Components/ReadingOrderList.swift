@@ -107,8 +107,9 @@ struct ReadingOrderList: View {
                 if let createNote {
                     Text(createNote).font(.caption).foregroundStyle(.secondary).padding(4)
                 }
-            } else if let store, store.documentId == documentId, store.orders.isEmpty, !hidesWhenEmpty,
-                      !asWritten.isEmpty {
+            } else if let store, store.documentId == documentId, store.orders.isEmpty, !asWritten.isEmpty {
+                // Also where the host hides an EMPTY list (the Inspector under a selected page or region): this one is
+                // not empty, its children are the segments as written, so they show, as they do under a named order.
                 // No named order is no reason to show nothing: the page's segments, as written (#5204).
                 unordered(asWritten)
             } else if !hidesWhenEmpty {
