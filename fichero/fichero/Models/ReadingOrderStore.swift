@@ -78,16 +78,18 @@ final class ReadingOrderStore {
 
     /// Load a document's orders and show `preferred` (the file's own order, by default) or the first.
     func load(documentId: String, preferred name: String = "as-written") async throws {
+        // Read everything first, assign after: a read that fails or is cancelled (the page changed under it) must not
+        // leave this store believing it holds `documentId`, or `loadFollowing` skips every retry and the list stays empty.
+        let loaded = try await transport.orders(documentId: documentId)
+        let chosen = (loaded.first { $0.name == name } ?? loaded.first)?.id
+        var top: [ReadingOrderMove.Entry] = []
+        if let chosen { top = try await transport.entries(orderId: chosen, parentEntryId: nil) }
         self.documentId = documentId
-        orders = try await transport.orders(documentId: documentId)
-        orderId = (orders.first { $0.name == name } ?? orders.first)?.id
+        orders = loaded
+        orderId = chosen
         levels = [:]
         shownLevel = .top
-        if let orderId {
-            entries = try await transport.entries(orderId: orderId, parentEntryId: nil)
-        } else {
-            entries = []
-        }
+        entries = top
     }
 
     /// Show another of the page's orders (the picker, #5160): its top level, from the engine.
