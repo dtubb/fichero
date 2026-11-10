@@ -141,6 +141,7 @@ extension ZoomableImagePreview {
             regionsEnabled: $regionsEnabled,
             inlineTextEnabled: $inlineTextEnabled,
             orderNumbersEnabled: $showOrderNumbers,
+            boundingBoxesEnabled: $showBoundingBoxes,
             segmentEditingEnabled: windowState.map { state in
                 Binding(get: { state.isEditingSegments }, set: { state.isEditingSegments = $0 })
             },

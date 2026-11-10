@@ -137,6 +137,8 @@ struct ReaderToolbar: View {
     var inlineTextEnabled: Binding<Bool>?
     /// "Show Order Numbers": the reading number on each line (the Preview's Display menu).
     var orderNumbersEnabled: Binding<Bool>?
+    /// "Show Bounding Box": the box beside a polygon or baseline (the Preview's Display menu).
+    var boundingBoxesEnabled: Binding<Bool>?
     /// The segment-editing MODE (#5114). Lives in this menu because the ruling put it
     /// with the view's other options. nil where there are no segments to edit.
     var segmentEditingEnabled: Binding<Bool>?
@@ -250,6 +252,10 @@ struct ReaderToolbar: View {
             }
             if let inlineTextEnabled {
                 Toggle("Show Text Inline", isOn: inlineTextEnabled)
+            }
+            if let boundingBoxesEnabled {
+                Toggle("Show Bounding Box", isOn: boundingBoxesEnabled)
+                    .accessibilityIdentifier("previewShowBoundingBoxes")
             }
             if let orderNumbersEnabled {
                 Toggle("Show Order Numbers", isOn: orderNumbersEnabled)
