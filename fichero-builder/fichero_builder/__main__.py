@@ -386,6 +386,7 @@ def main(argv=None) -> int:
         queue.ONLY[0] = tuple(cfg.get("only", ()))
         queue.DISPATCH[0] = tuple(cfg.get("dispatch", ()))  # #6466: external lanes the loop runs itself
         queue.BLOCKED_H[0] = float(cfg.get("blocked_hours", queue.BLOCKED_H[0]))
+        queue.APPROVED_PINNED[0] = {str(k): str(v) for k, v in dict(cfg.get("approved_pinned", {})).items()}
         return queue.run(procs, workers_n=max(queue.workers(a.root), lanes_n), push=True, lanes_n=lanes_n, tick_s=a.tick, forever=True, heartbeat=True,
                          feed_milestones=bool(cfg.get("feed_milestones", False)))
     if a.cmd == "queue":

@@ -1190,10 +1190,35 @@ def test_an_external_lane_outside_dispatch_still_waits_for_its_done(state, monke
 
 
 def test_the_loop_verb_reads_dispatch_and_blocked_hours_from_the_loop_table(state, monkeypatch):
-    (state / "harness.toml").write_text('[check]\nengine_repo = "/e"\n[land]\nbranch = "integration"\n[loop]\ndispatch = ["a", "b"]\nblocked_hours = 2.5\n')
+    (state / "harness.toml").write_text('[check]\nengine_repo = "/e"\n[land]\nbranch = "integration"\n[loop]\ndispatch = ["a", "b"]\nblocked_hours = 2.5\n[loop.approved_pinned]\n"scripts/x.py" = "abc"\n')
     monkeypatch.setattr(queue, "DISPATCH", [()])
     monkeypatch.setattr(queue, "BLOCKED_H", [4.0])
     monkeypatch.setattr(queue, "real_procs", lambda root: Fake().procs)
     monkeypatch.setattr(queue, "run", lambda procs, **k: 0)
     assert cli.main(["loop", "--root", str(state), "--state", str(state / "s")]) == 0
-    assert queue.DISPATCH[0] == ("a", "b") and queue.BLOCKED_H[0] == 2.5
+    assert queue.DISPATCH[0] == ("a", "b") and queue.BLOCKED_H[0] == 2.5 and queue.APPROVED_PINNED[0] == {"scripts/x.py": "abc"}
+
+
+def test_a_maintainer_lanes_pinned_diff_is_approved_by_itself_only_when_every_blob_matches_the_approved_list(state, monkeypatch, tmp_path):
+    """#6466 (run.loop-auto-approve-pinned): the owner approved the pinned-file diffs of the harness fix. A maintainer lane whose
+    pinned-checks refusal names only files whose blob at the checked head equals [loop.approved_pinned] is approved by itself
+    (state done again, maintainer set, one `auto-approve` row, no alert); any other file or blob is the alert as before."""
+    diff = tmp_path / "pinned.diff"
+    diff.write_text("diff --git a/scripts/harness_start.py b/scripts/harness_start.py\n--- a\n+++ b\n")
+    monkeypatch.setattr(queue, "APPROVED_PINNED", [{"scripts/harness_start.py": "a" * 40}])
+    for lane_id, blob, maint, want in (("m1", "a" * 40, True, "landed"), ("m2", "b" * 40, True, "blocked"), ("m3", "a" * 40, False, "blocked")):
+        queue.add(lane_id, f"/w/{lane_id}", "1.1", str(state / "b1.1"), [7], maintainer=maint or None)
+        fake = Fake(chains={"1.1": [{"ok": False, "kind": "needs-maintainer", "why": "pinned-checks: scripts/harness_start.py: a pinned check file was changed", "evidence": str(diff)}]})
+        fake.procs.blob = lambda lane_, step, path, blob=blob: blob if path == "scripts/harness_start.py" else ""
+        queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+        s = steps_of(lane_id)[0]
+        assert s["state"] == want, lane_id
+        if want == "landed":
+            assert s.get("maintainer") and [r["lane"] for r in journal.read() if r.get("state") == "auto-approve"] == ["m1"]
+    assert sorted(a["lane"] for a in _alerts()) == ["m2", "m3"], "a wrong blob or a lane without maintainer is the manager's call"
+    diff.write_text("diff --git a/scripts/harness_start.py b/scripts/harness_start.py\ndiff --git a/scripts/other.py b/scripts/other.py\n")
+    queue.add("m4", "/w/m4", "1.1", str(state / "b1.1"), [7], maintainer=True)
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "needs-maintainer", "why": "pinned", "evidence": str(diff)}]})
+    fake.procs.blob = lambda lane_, step, path: "a" * 40
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert steps_of("m4")[0]["state"] == "blocked", "a file not in the approved list blocks, whatever its blob"

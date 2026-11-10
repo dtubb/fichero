@@ -417,6 +417,15 @@ feed_milestones = false
 intake_commits = 8
 intake_hours = 3
 # tell = "<script> <pane> <text>"   # unset: the tracked `builder tell` (fichero_builder/tell.py)
+# #6466 (owner 2026-11-10): external lanes the loop runs by itself, as managed worker lanes in [jail].workroot/wt-<lane>, one fresh
+# session per batch, no session of a person watching. A lane not here still waits for its own `builder done`.
+dispatch = ["lane-ie", "lane-sharing", "lane-onboard", "spec-writer"]
+# a blocked step this many hours old is retried once in a fresh session, then parked at the end of its lane with one alert
+blocked_hours = 4
+
+[loop.approved_pinned]
+# #6466: a maintainer lane's pinned-checks refusal naming ONLY these files at exactly these blobs is approved by itself
+"scripts/harness_start.py" = "55e0f2a812b22076f3e186604d5283c54dec9162"
 
 [machines]
 # dev-workflows.run.measure: test machines `builder measure` ships a lane's commit to (ssh host, the gate dir with venv/)

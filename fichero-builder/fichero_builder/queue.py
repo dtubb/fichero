@@ -37,6 +37,7 @@ from fichero_builder import check_tool, codemap, jail, journal, land_tool, model
 
 ROUNDS, RESTARTS = 2, 2
 DISPATCH: list = [()]  # [loop].dispatch: external lanes the loop runs itself, as managed worker lanes (#6466); the verb sets it
+APPROVED_PINNED: list = [{}]  # [loop.approved_pinned] {path: blob sha}: a maintainer lane's pinned diff of exactly these blobs is approved by itself (#6466)
 BLOCKED_H: list = [4.0]  # [loop].blocked_hours: a blocked step this old is retried once in a fresh session, then parked (#6466)
 _now = time.time  # the tests set the clock
 AUTO_SEND_BACKS = 3  # an external lane's red check is sent back by the loop this many times a batch, then it is an alert
@@ -139,6 +140,7 @@ class Procs:
     intake: Callable[[dict], str] = lambda lane: ""  # an external lane -> the sha to take now by itself (thresholds), or ''
     trees: Callable[[list], dict] = lambda paths: {}  # paths -> {path: "HEAD status-hash"}: what a step must leave unmoved (run.loop-machine-checked)
     jail_root: str = ""
+    blob: Callable[[dict, dict, str], str] = lambda lane, step, path: ""  # (lane, step, path) -> the blob sha of path at the checked head, '' if none
     workroot: str = ""  # [jail].workroot: a managed lane's tree is wt-<lane> here (run.loop-dispatch)
     root: str = ""  # the loop's checkout (its harness.toml): the rules warnings at start and the scratch sweep read it
 
@@ -451,6 +453,13 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         lane["cursor"] += 1
         move(s, "landed", f"already on origin: {r['why']}")
         return True
+    if r.get("kind") == "needs-maintainer" and lane.get("maintainer") and APPROVED_PINNED[0] and r.get("approvals", ["maintainer"]) == ["maintainer"]:
+        files = pinned_files(r.get("evidence", ""))  # run.loop-auto-approve-pinned: every file the diff names, by blob, never by name alone
+        if files and all(APPROVED_PINNED[0].get(f, "?") == procs.blob(lane, s, f) for f in files):
+            s["maintainer"], s["approved_head"] = True, s.get("head", "")
+            journal.append("queue", lane=lane["id"], step=s["step"], state="auto-approve", detail=f"pinned diff of {', '.join(files)} matches [loop.approved_pinned]: approved by itself")
+            move(s, "done", "pinned diff matches [loop.approved_pinned]: the check runs again as the maintainer")
+            return True
     if r.get("kind") in ("needs-maintainer", "weakened-tests", "red-on-base", "pinned-new", "guard-data"):  # a pinned check or a test changed on purpose: the manager's call
         s["approve_kind"] = r["kind"]
         s["approvals"] = r.get("approvals") or []  # every reason the refusal listed: one approve sets them all
@@ -474,6 +483,14 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     auto = (lane.get("kind") == "external" and bool(s.get("land_tree")) and r.get("kind") in ("red", "not-ready", "refused")
             and s.get("auto_sb", 0) < AUTO_SEND_BACKS)  # the cap spent, the alert comes as before
     return block(s, f"{r['why']}\n{r.get('findings', '')}".strip(), acts, evidence=r.get("evidence", ""), auto_send_back=auto)
+
+
+def pinned_files(diff_path: str) -> list[str]:
+    """The paths a pinned diff file names (`diff --git a/X b/X`); [] when it cannot be read."""
+    try:
+        return list(dict.fromkeys(re.findall(r"(?m)^diff --git a/(\S+) b/", Path(diff_path).read_text())))
+    except OSError:
+        return []
 
 
 def _park(lane: dict, s: dict, why: str) -> None:
@@ -1356,6 +1373,10 @@ def real_procs(root) -> Procs:
             return str(e)
         return "" if r.returncode == 0 else (r.stderr or r.stdout).strip()[-200:]
 
+    def blob(lane, step, path):  # the checked head is the engine repo's work-<lane> ref (work.do_fetch)
+        r = work._git(repo, "rev-parse", "--verify", "-q", f"refs/heads/work-{lane['id']}:{path}")
+        return r.stdout.strip() if r.returncode == 0 else ""
+
     def after_land(lane, step, head):
         from fichero_builder import landed
         landed.sweep_one(root, step["land_tree"])
@@ -1368,7 +1389,7 @@ def real_procs(root) -> Procs:
                  landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
                  next_milestone=lambda taken: next_in_order(root, taken), build=build, verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake,
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "",
-                 workroot=str(rules.get("jail", {}).get("workroot", "")), root=str(root))
+                 workroot=str(rules.get("jail", {}).get("workroot", "")), blob=blob, root=str(root))
 
 
 PRESUBMIT_TIMEOUT_S = 1200
