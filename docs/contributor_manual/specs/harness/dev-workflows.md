@@ -1463,6 +1463,22 @@ The issue was written against the old `pipeline/` (`approve-checks`, `core._sinc
 - Depends on: 4.1
 - Size: M
 
+#### Step 4.5 — the loop runs managed workers by itself: dispatch, landing, the watchdog (landed in part: watch the first batch land)
+- Behaviours: `dev-workflows.run.loop-dispatch`, `dev-workflows.run.loop-already-landed`, `dev-workflows.run.loop-blocked-watchdog`, `dev-workflows.run.loop-dismiss-parks`
+- Tests: fichero-builder/tests/test_loop.py, fichero-builder/tests/test_work_verb.py, fichero-builder/tests/test_queue_verb.py, fichero-builder/tests/test_alerts_clear.py
+- Depends on: 4.4
+- Size: S
+
+Built by the harness-fix branch (2026-11-10); what remains is one managed batch landing with no person present, then `[loop].dispatch` widened lane by lane.
+
+#### Step 4.6 — pinned auto-approval and the console plan
+- Behaviours: `dev-workflows.run.loop-auto-approve-pinned`, `dev-workflows.run.loop-plan`, `dev-workflows.run.loop-current`
+- Tests: fichero-builder/tests/test_status_page.py, fichero-builder/tests/test_launchd.py, fichero-builder/tests/test_loop_survives.py
+- Depends on: 4.5
+- Size: S
+
+Built by the same branch; open work is the console Plan page (#6467).
+
 ## Behaviour tests
 
 Every behaviour names its test above, written in its step; each `security.*` and gate test includes its failing case.
@@ -1555,6 +1571,13 @@ Every behaviour names its test above, written in its step; each `security.*` and
 | `dev-workflows.core.shared` | 2.6 |
 | `dev-workflows.models.by-config` | 3.1 |
 | `dev-workflows.run.local-parity` | 3.2 |
+| `dev-workflows.run.loop-dispatch` | 4.5 |
+| `dev-workflows.run.loop-already-landed` | 4.5 |
+| `dev-workflows.run.loop-blocked-watchdog` | 4.5 |
+| `dev-workflows.run.loop-dismiss-parks` | 4.5 |
+| `dev-workflows.run.loop-auto-approve-pinned` | 4.6 |
+| `dev-workflows.run.loop-plan` | 4.6 |
+| `dev-workflows.run.loop-current` | 4.6 |
 
 ## Test matrix
 
