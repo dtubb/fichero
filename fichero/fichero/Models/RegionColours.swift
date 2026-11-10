@@ -92,6 +92,21 @@ nonisolated enum RegionColours {
         return tones
     }
 
+    /// Each LINE's reading number, 1 up the page, in the order `tones` reads (the chosen order, else the boxes' own):
+    /// the "Show Order Numbers" display switch. Regions and words carry none.
+    static func orderNumbers(of segments: [Segment], readingOrder: [String]? = nil) -> [String: Int] {
+        let byId = Dictionary(segments.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let asWritten = segments.sorted { ($0.boxIndex ?? 0, $0.id) < ($1.boxIndex ?? 0, $1.id) }
+        var sequence = (readingOrder ?? []).compactMap { byId[$0] }
+        let named = Set(sequence.map(\.id))
+        sequence += asWritten.filter { !named.contains($0.id) }
+        var numbers: [String: Int] = [:]
+        for segment in sequence where SegmentHierarchy.Level(kind: segment.kind) == .line {
+            numbers[segment.id] = numbers.count + 1
+        }
+        return numbers
+    }
+
     /// The legend's hues (`source.editor.hierarchy.legend`): each region's hue once, in the order regions take
     /// them -- the reading order (`tones` hands hues out in it). At most the palette's length.
     static func legend(of tones: [Tone]) -> [Int] {
