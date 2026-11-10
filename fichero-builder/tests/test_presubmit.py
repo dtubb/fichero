@@ -147,3 +147,12 @@ def test_the_ready_checks_fast_guards_run_a_timed_out_guard_once_more_and_only_a
     (s / "check_g00.py").write_text("import time\ntime.sleep(3)\n")
     r = run()
     assert r.returncode == 1 and "check_g00.py: timeout (twice)" in r.stdout, "a guard that times out twice is red"
+
+
+def test_the_scratch_trees_git_trusts_the_lanes_tree_whoever_owns_it(tmp_path):
+    """#6507: `builder done lane-ie` refused with 'dubious ownership': the scratch tree's git runs as the owner on the jail user's tree
+    with the global config switched off, so no safe.directory applied. The command line carries it, as every other owner-side git call does."""
+    from fichero_builder import check_tool
+    _git(tmp_path, "init", "-q")
+    argv = check_tool._git_argv(tmp_path, ["worktree", "add", "x"])
+    assert "safe.directory=*" in argv and argv.index("safe.directory=*") < argv.index("worktree")

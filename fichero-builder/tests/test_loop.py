@@ -1286,3 +1286,18 @@ def test_chain_slots_go_green_first_a_fresh_done_before_an_alert_retry_and_a_ful
     finally:
         release.set()
         pool.shutdown(wait=True, cancel_futures=True)
+
+
+def test_a_done_with_no_new_commit_this_session_still_counts_when_the_tree_is_ahead_of_origin(state):
+    """#6507: a retried managed batch starts a fresh session on a tree that already holds the batch's commits; the worker's DONE
+    then says moved=false (HEAD equals the session's start head) and the step was blocked 'DONE with no commit'. The tree being
+    ahead of origin/<branch> is what counts; a tree with nothing past origin is still the block."""
+    lane(state)
+    fake = Fake(moved=False)
+    fake.procs.ahead_of_origin = lambda lane_: True
+    assert queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None) == 0
+    assert steps()["1.1"]["state"] == "landed" and fake.landed_calls[:1] == [("h1.1", True)]
+    queue.add("m2", "/w/m2", "1.1", str(state / "b1.1"), [9])
+    fake.procs.ahead_of_origin = lambda lane_: False
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert next(x for x in queue.load() if x["id"] == "m2")["steps"][0]["state"] == "blocked"

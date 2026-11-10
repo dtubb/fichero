@@ -144,6 +144,7 @@ class Procs:
     workroot: str = ""  # [jail].workroot: a managed lane's tree is wt-<lane> here (run.loop-dispatch)
     root: str = ""  # the loop's checkout (its harness.toml): the rules warnings at start and the scratch sweep read it
     jail_gh: bool = False  # [jail].gh: the jail user has a gh token, so a brief may ask for gh (#6495)
+    ahead_of_origin: Callable[[dict], bool] = lambda lane: False  # lane -> its tree has commits past origin/<branch> (#6507: a retried batch's DONE)
 
 
 QUIET = ("queued", "blocked", "landed", "parked")  # a step state in which the lane's own worker is not moving its tree
@@ -375,7 +376,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         row = procs.row(lane)
         if row is None:
             return True
-        if not row.get("moved"):
+        if not row.get("moved") and not procs.ahead_of_origin(lane):  # #6507: a retried batch's commits predate this session; the tree past origin counts
             return block(s, "the worker said DONE with no commit on this step")
         move(s, "done", "")
         if moved := tree_check(lane, s, handles, procs):  # an alert to read; the step goes on: the stray write was not in its tree
@@ -1506,6 +1507,7 @@ def real_procs(root) -> Procs:
                           any_subject=lane["id"] in loop_cfg.get("intake_any", ()))
 
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
+                 ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0,
                  landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
                  next_milestone=lambda taken: next_in_order(root, taken), build=build, verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake,
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "",
