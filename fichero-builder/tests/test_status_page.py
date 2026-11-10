@@ -662,3 +662,23 @@ def test_milestones_run_gh_in_the_root_for_open_and_closed_issues(tmp_path, monk
     console.milestones(tmp_path, lanes=[], reads=lambda root, lanes, branch: ({}, "", set()))
     assert [a for a, _ in seen] == [["api", "repos/{owner}/{repo}/milestones?state=all&per_page=100"], ["issue", "list"], ["issue", "list"]], seen
     assert all(cwd == str(tmp_path) for _a, cwd in seen), seen
+
+
+def test_worktrees_skip_scratch_checkouts_under_tmp_and_the_refresh_thread_fills_the_cache(tmp_path, monkeypatch):
+    """#6505: other sessions' temporary checkouts under /private/tmp or /tmp are not the owner's trees; the first page open never
+    waits 30 s because the auto refresh fills the worktrees cache."""
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    (tmp_path / "s").mkdir()
+    (tmp_path / "harness.toml").write_text('[land]\nbranch = "integration"\n')
+    (tmp_path / "mine").mkdir()
+    listing = f"worktree {tmp_path}\nHEAD a\nbranch refs/heads/main\n\nworktree /private/tmp/claude-502/x/scratchpad/rb\nHEAD b\nbranch refs/heads/rb\n\nworktree {tmp_path}/mine\nHEAD c\nbranch refs/heads/lane-x\n"
+    monkeypatch.setattr(Path, "is_dir", lambda self: True)
+    d = console.worktrees(tmp_path, git=lambda repo, *a: listing if a[0] == "worktree" else "")
+    assert [t["path"] for t in d["trees"]] == [str(tmp_path), f"{tmp_path}/mine"]
+    monkeypatch.setattr(console, "ROOT", tmp_path)
+    monkeypatch.setattr(console, "_TREES", {})
+    monkeypatch.setattr(console, "milestones", lambda root: {"milestones": []})
+    monkeypatch.setattr(console, "release", lambda root: {})
+    monkeypatch.setattr(console, "worktrees", lambda root: {"ts": "t", "trees": ["filled"]})
+    console.refresh("auto").join(5)
+    assert console._TREES.get("data", {}).get("trees") == ["filled"], "the refresh thread filled the worktrees cache"
