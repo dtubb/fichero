@@ -5295,6 +5295,62 @@
         }
       }
     },
+    "/api/segments/reparent": {
+      "post": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Reparent Segments",
+        "description": "`POST /api/segments/reparent` \u2014 move segments under another segment as one audited action and one undo step.",
+        "operationId": "reparent_segments_api_segments_reparent_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SegmentReparentParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Reparent Segments Api Segments Reparent Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/segments/merge": {
       "post": {
         "tags": [
@@ -96054,6 +96110,50 @@
           "segment_id"
         ],
         "title": "SegmentReferenceResponse"
+      },
+      "SegmentReparentItem": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "expected_version": {
+            "type": "integer",
+            "title": "Expected Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "segment_id",
+          "expected_version"
+        ],
+        "title": "SegmentReparentItem"
+      },
+      "SegmentReparentParams": {
+        "properties": {
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentReparentItem"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Segments",
+            "description": "The segments to move, each with the version the caller saw."
+          },
+          "parent_segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Segment Id",
+            "description": "The segment they now sit inside (a line into a region); none lifts them out to the page."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "segments"
+        ],
+        "title": "SegmentReparentParams"
       },
       "SegmentRestoreVersionBody": {
         "properties": {

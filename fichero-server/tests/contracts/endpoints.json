@@ -11603,6 +11603,16 @@
       },
       {
         "method": "POST",
+        "path": "/segments/reparent",
+        "operation_id": "reparent_segments_api_segments_reparent_post",
+        "summary": "Reparent Segments",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentReparentParams",
+        "response_model": null
+      },
+      {
+        "method": "POST",
         "path": "/segments/split",
         "operation_id": "split_segment_api_segments_split_post",
         "summary": "Split Segment",

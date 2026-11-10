@@ -16973,6 +16973,26 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("reparent")
+    def segments_reparent_post(
+        ctx: typer.Context,
+        parent_segment_id: Optional[str] = typer.Option(None, '--parent-segment-id', help='The segment they now sit inside (a line into a region); none lifts them out to the page.'),
+        segments: str = typer.Option(..., '--segments', help='The segments to move, each with the version the caller saw. JSON.'),
+    ) -> None:
+        """Reparent Segments (POST /api/segments/reparent)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/reparent"
+            params = None
+            payload = _build_json_payload({
+                "parent_segment_id": parent_segment_id,
+                "segments": segments,
+            }, {
+                "parent_segment_id": {'type': 'string', 'nullable': True, 'title': 'Parent Segment Id', 'description': 'The segment they now sit inside (a line into a region); none lifts them out to the page.', 'x-cli-required': False},
+                "segments": {'items': {'$ref': '#/components/schemas/SegmentReparentItem'}, 'type': 'array', 'minItems': 1, 'title': 'Segments', 'description': 'The segments to move, each with the version the caller saw.', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("split")
     def segments_split_post(
         ctx: typer.Context,
