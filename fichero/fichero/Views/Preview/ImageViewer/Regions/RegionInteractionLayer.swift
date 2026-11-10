@@ -239,7 +239,9 @@ struct RegionInteractionLayer: View {
         .accessibilityLabel("Name this selection")
         .help("Name this selection and save it as a region")
         .frame(width: side, height: side)
-        .offset(x: max(0, rect.maxX - side), y: max(0, rect.minY))
+        // The popover is attached BEFORE the badge is placed, and the badge is placed with `position` (layout), not
+        // `offset` (a drawing shift the popover cannot see): with `offset` the popover hung off the layer's top left
+        // corner, not off the marquee's pencil.
         .popover(isPresented: namingBinding(for: index)) {
             RegionNameField(request: naming) { name in
                 // Read the target BEFORE clearing: the whole-set request
@@ -249,6 +251,7 @@ struct RegionInteractionLayer: View {
                 onPromote(name, target)
             }
         }
+        .position(x: max(0, rect.maxX - side) + side / 2, y: max(0, rect.minY) + side / 2)
     }
 
     /// Presentation binding for marquee `index`'s naming popover. Dismissal
