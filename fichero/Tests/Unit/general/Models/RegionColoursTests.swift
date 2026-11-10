@@ -56,6 +56,14 @@ struct RegionColoursTests {
         #expect(reordered["r1"]?.hue == asWritten["r1"]?.hue, "the hue is the region's, not the line's place")
     }
 
+    @Test("source.editor.colour.shade-is-a-display-option: with the shade off every line is full strength and the hue stays")
+    func shadeCanBeOff() {
+        let on = RegionColours.tones(of: page, shadeByOrder: true)
+        let off = RegionColours.tones(of: page, shadeByOrder: false)
+        #expect(["l1", "l2", "l3"].compactMap { off[$0]?.strength } == [1, 1, 1], "no gradient")
+        #expect(off["l2"]?.hue == on["l2"]?.hue, "the region's hue is unchanged")
+    }
+
     @Test("source.editor.colour.never-random + regionless-lines-are-one-region: region-less lines share the page's one hue")
     func regionlessLinesAreOneRegion() throws {
         // A page whose lines have no region, after a region: the implicit region takes the next hue, at the
