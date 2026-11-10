@@ -56,6 +56,15 @@ struct RegionColoursTests {
         #expect(reordered["r1"]?.hue == asWritten["r1"]?.hue, "the hue is the region's, not the line's place")
     }
 
+    @Test("source.editor.display-menu-has-order-switches: each line's reading number runs down the page, regions and words have none")
+    func orderNumbers() {
+        let asWritten = RegionColours.orderNumbers(of: page)
+        #expect(asWritten == ["l1": 1, "l2": 2, "l3": 3, "l4": 4])
+        let reordered = RegionColours.orderNumbers(of: page, readingOrder: ["r1", "l3", "l1", "l2", "r2", "l4"])
+        #expect(reordered["l3"] == 1 && reordered["l1"] == 2 && reordered["l2"] == 3 && reordered["l4"] == 4,
+                "the numbers follow the chosen order")
+    }
+
     @Test("source.editor.colour.shade-is-a-display-option: with the shade off every line is full strength and the hue stays")
     func shadeCanBeOff() {
         let on = RegionColours.tones(of: page, shadeByOrder: true)

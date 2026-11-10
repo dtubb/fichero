@@ -69,7 +69,7 @@
             ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
             <ActionContent
                title = "Start Fichero dev engine (tmux f_engine)"
-               scriptText = "# Long-lived engine in tmux session f_engine on the scratch library; never stopped on app quit.&#10;&quot;${SRCROOT}/../scripts/dev_engine.sh&quot; start&#10;">
+               scriptText = "# Long-lived engine in tmux session f_engine on the scratch library; never stopped on app quit.&#10;echo &quot;$(date +%H:%M:%S) pre-action ran, SRCROOT=${SRCROOT}&quot; &gt;&gt; &quot;$HOME/.local/state/fichero-dev-engine/preaction.log&quot;&#10;&quot;${SRCROOT}/../scripts/dev_engine.sh&quot; start &gt;&gt; &quot;$HOME/.local/state/fichero-dev-engine/preaction.log&quot; 2&gt;&amp;1&#10;">
                <EnvironmentBuildable>
                   <BuildableReference
                      BuildableIdentifier = "primary"
