@@ -122,7 +122,9 @@ function Card({ k, v, dot, sub }) {
   return html`<div class="card"><div class="k">${k}</div><div class="v">${dot && html`<span class=${"dot " + dot}></span>`}${v}</div><div class="k">${sub}</div></div>`;
 }
 
-function Lanes({ lanes }) {
+const LANE_ORDER = { working: 0, running: 0, sent: 0, checking: 0, reviewing: 0, blocked: 1, "done, not landed yet": 2, queued: 3, parked: 4, idle: 5, done: 6, landed: 6 };  // what is moving, then what needs you, then the rest
+function Lanes({ lanes: all }) {
+  const lanes = [...all].sort((a, b) => (LANE_ORDER[a.state] ?? 5) - (LANE_ORDER[b.state] ?? 5));
   const [open, setOpen] = useState({});
   if (!lanes.length) return html`<p class="muted">No lanes yet. Start one from Milestones.</p>`;
   return html`<div class="wrap"><table>

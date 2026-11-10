@@ -363,6 +363,11 @@ def test_console_tiles_come_from_origin_an_owned_milestone_has_no_start_and_the_
     assert m["owner"] == "lane-sharing" and not m["startable"] and m["held_by"] == "owned by lane-sharing"
 
 
+@pytest.fixture(autouse=True)
+def _fixed_dates_are_not_stale(monkeypatch):  # these tests use rows dated 2026-11-02; the abandoned rule has its own test
+    monkeypatch.setattr(console, "STALE_HOURS", 10**6)
+
+
 def test_activity_gives_each_rung_its_usual_time_and_a_running_rung_reads_it():
     """Speed item 1 (manager 2026-11-02): time every rung; the console shows the usual time per rung."""
     rows = []
@@ -545,3 +550,14 @@ def test_the_page_wires_the_plan_clicks_to_the_queue_verbs():
     page = console.PAGE.read_text()
     for verb in ('act("queue-move"', 'act("park"', 'act("unpark"', 'act("start"', 'act("alert", { id: "all", action: "dismiss" })', "st.events"):
         assert verb in page, verb
+
+
+def test_a_start_with_no_end_for_a_day_is_abandoned_not_running(monkeypatch):
+    monkeypatch.setattr(console, "STALE_HOURS", 6)
+    old = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(time.time() - 86400))
+    new = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(time.time() - 60))
+    rows = [{"event": "activity", "kind": "check", "key": "dead", "lane": "l", "state": "start", "ts": old},
+            {"event": "activity", "kind": "check", "key": "live", "lane": "l", "state": "start", "ts": new}]
+    d = console.activity(rows)
+    assert [a["key"] for a in d["running"]] == ["live"]
+    assert d["recent"][0]["key"] == "dead" and d["recent"][0]["ok"] is False
