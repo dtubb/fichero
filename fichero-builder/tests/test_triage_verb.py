@@ -4,6 +4,7 @@ the label set is closed, needs-spec only inside a spec milestone, the build-orde
 from __future__ import annotations
 
 import json
+import shlex
 import sys
 
 import pytest
@@ -11,8 +12,7 @@ import pytest
 from fichero_builder import __main__ as cli
 from fichero_builder import journal, triage
 
-FAKE_GH = """#!{py}
-import json, sys
+FAKE_GH = """import json, sys
 from pathlib import Path
 state = Path({state!r})
 db = json.loads(state.read_text())
@@ -116,7 +116,9 @@ def world(tmp_path, monkeypatch):
     (specs / "no-line.md").write_text("# No line\n\n- `n.o` [GAP] (#12) — z\n")
     (specs / "prose-line.md").write_text("# Prose\n> Milestone: sharing. Companion to `x.md` (the other half)\n")
     gh = tmp_path / "gh"
-    gh.write_text(FAKE_GH.format(py=sys.executable, state=str(state)))
+    # A shebang cannot hold an interpreter path with a space (the gate disk's): an sh wrapper runs the script instead.
+    gh.with_suffix(".py").write_text(FAKE_GH.format(state=str(state)))
+    gh.write_text(f"#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(gh.with_suffix('.py')))} \"$@\"\n")
     gh.chmod(0o755)
 
     def run(*extra):
