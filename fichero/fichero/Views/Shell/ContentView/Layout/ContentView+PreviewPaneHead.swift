@@ -54,19 +54,25 @@ extension ContentView {
                 }
                 let lens: PreviewLens = (tab == .edits) ? .edit : .preview
                 if previewLens != lens { previewLens = lens }
+                // The Inspector's Edits facet is the Image mode; leaving it leaves Image.
+                if tab == .edits { windowState.previewMode = .image } else if windowState.previewMode == .image {
+                    windowState.previewMode = .read
+                }
             }
     }
 
     /// Explicitly typed (the reader's type-checker rule applied here).
     /// `selectionIsFolder` dims the "Show folder as" section while the pane is not showing a folder.
-    func previewSelector(selectionIsFolder: Bool) -> PaneKindSelector<PreviewLens> {
+    func previewSelector(selectionIsFolder: Bool) -> PaneKindSelector<PreviewWorkMode> {
         PaneKindSelector(
             kindTitle: SourcePane.name,
             kindIcon: ToolbarSymbols.previewPane,
             currentKind: .preview,
-            lenses: PreviewLens.allCases,
-            lensTitle: { (lens: PreviewLens) in lens.title },
-            lensIcon: { (lens: PreviewLens) in lens.icon },
+            // Read, Segments, Image (`source.editor.preview-has-three-modes`): the lens menu IS the mode. Only
+            // Read where the shown thing has no segments to edit.
+            lenses: previewChrome.canEditSegments ? PreviewWorkMode.allCases : [.read],
+            lensTitle: { (mode: PreviewWorkMode) in mode.title },
+            lensIcon: { (mode: PreviewWorkMode) in mode.icon },
             extraLensMenu: { AnyView(PreviewFolderViewMenuSection(selectionIsFolder: selectionIsFolder)) },
             lens: previewLensBinding
         )
@@ -75,12 +81,14 @@ extension ContentView {
     /// Picking Edit ENTERS edit mode (Daniel, 2026-08-29): the lens writes the
     /// same per-window key the Inspector's Edits facet and EditorView already
     /// share, so the head, the inspector and the canvas cannot disagree.
-    var previewLensBinding: Binding<PreviewLens> {
+    var previewLensBinding: Binding<PreviewWorkMode> {
         Binding(
-            get: { previewLens },
-            set: { lens in
-                previewLens = lens
-                previewEditorTab = (lens == .edit) ? .edits : .content
+            get: { windowState.previewMode },
+            set: { mode in
+                windowState.previewMode = mode
+                // Image is the old Edit lens (the pixels); Read and Segments are the old Preview lens.
+                previewLens = (mode == .image) ? .edit : .preview
+                previewEditorTab = (mode == .image) ? .edits : .content
             }
         )
     }

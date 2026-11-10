@@ -12,7 +12,7 @@ import SwiftUI
 /// The identity-capsule content: the Preview ∨ / Edit selector, then the
 /// paging cluster (up-to-parent · ‹ ›) left of the breadcrumb.
 struct PreviewHeadSelectorGroup: View {
-    let selector: PaneKindSelector<PreviewLens>
+    let selector: PaneKindSelector<PreviewWorkMode>
     let chrome: PreviewPaneChrome
     /// Non-nil when the shown document HAS a visual parent (Daniel,
     /// 2026-08-29: a region/page-part needs an obvious one-click way BACK UP
@@ -91,39 +91,15 @@ struct PreviewHeadSelectorGroup: View {
 /// menu.
 struct PreviewHeadLensControls: View {
     let chrome: PreviewPaneChrome
-    /// The window's Edit Segments mode -- the SAME state the What-to-show toggle writes, so
-    /// the two switches can never disagree (`WindowState.isEditingSegments`).
-    @Environment(WindowState.self) private var windowState: WindowState?
 
     /// Whether the floating magnification cluster (mini-map / zoom pill /
     /// loupe + magnifier toggles) is showing over the canvas.
     @PaneStorage("imagePreview.zoomControlsVisible") private var zoomControlsVisible = true
 
     var body: some View {
-        editSegmentsToggle
         zoomControlsToggle
         renditionSteppers
         renditionsMenu
-    }
-
-    /// The Preview's mode, in the head: Read, Segments, Image (`source.editor.preview-has-three-modes`, #6482). It
-    /// writes `WindowState.previewMode`, which IS the older Edit Segments state, so the menu entry cannot disagree.
-    @ViewBuilder
-    private var editSegmentsToggle: some View {
-        if chrome.canEditSegments, let windowState {
-            @Bindable var state = windowState
-            Picker("Mode", selection: $state.previewMode) {
-                ForEach(PreviewWorkMode.allCases) { mode in
-                    Label(mode.title, systemImage: mode.icon).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
-            .help("Read: look, annotate, highlight. Segments: edit regions, lines and the order. Image: change the pixels.")
-            .accessibilityLabel("Preview mode")
-            .accessibilityIdentifier("previewHeadMode")
-        }
     }
 
     /// ▲▼ rendition stepping RIGHT of the breadcrumb (Daniel, 2026-09-02:
