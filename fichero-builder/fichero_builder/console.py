@@ -623,6 +623,9 @@ def worktrees_cached(root) -> dict:
     return _TREES["data"]
 
 
+STALE_HOURS = 6  # the longest check or build is well under this (a build is about 6 min, a full check under an hour)
+
+
 def activity(rows: list[dict]) -> dict:
     """View A: each check, review, build and landing from its `activity` rows: running (a start with no end) with its rungs
     so far and the rung now, and the last finished ones."""
@@ -642,6 +645,9 @@ def activity(rows: list[dict]) -> dict:
         elif r.get("state") == "end":
             a.update(ended=r["ts"], ok=r.get("ok"), failed=r.get("failed", ""), groups=r.get("groups"))
     items = list(seen.values())
+    for a in items:  # a start with no end after STALE_HOURS is a process that died: shown as abandoned, never as running
+        if not a["ended"] and time.time() - time.mktime(time.strptime(a["started"][:19].replace(" ", "T"), "%Y-%m-%dT%H:%M:%S")) > STALE_HOURS * 3600:
+            a.update(ended=a["started"], ok=False, failed="no end row: the process died")
     times: dict = {}  # speed item 1: each rung's usual time, so a running one reads "usually 4 min"
     for a in items:
         for r in a["rungs"]:
