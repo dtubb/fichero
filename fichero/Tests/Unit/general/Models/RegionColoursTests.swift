@@ -35,7 +35,8 @@ struct RegionColoursTests {
         let tones = RegionColours.tones(of: page)
         let first = try #require(tones["r1"]), second = try #require(tones["r2"])
         #expect(first.hue != second.hue, "two regions on a page never share a hue")
-        #expect([first.hue, second.hue] == [0, 1], "hues follow the order the regions are read in")
+        #expect([first.hue, second.hue] == [RegionColours.hue(ofRegion: "r1"), RegionColours.hue(ofRegion: "r2")],
+                "a region's hue is a fixed hash of its id, not its place")
         #expect(["l1", "w1", "l2", "l3"].allSatisfy { tones[$0]?.hue == first.hue }, "a region's lines and words are its hue")
         #expect(tones["l4"]?.hue == second.hue)
         #expect(tones["w1"] == tones["l1"], "a word takes its line's shade")
@@ -108,7 +109,16 @@ struct RegionColoursTests {
              segment("l\(index)", kind: "line", parent: "r\(index)", at: index * 2 + 1)]
         }
         let tones = RegionColours.tones(of: kraken)
-        #expect((0..<3).map { tones["l\($0)"]?.hue } == [0, 1, 2])
+        #expect((0..<3).map { tones["l\($0)"]?.hue } == (0..<3).map { RegionColours.hue(ofRegion: "r\($0)") })
+    }
+
+    @Test("source.editor.colour.region-hue: deleting a region does not recolour the others")
+    func deletingARegionKeepsTheOthersColours() throws {
+        let before = RegionColours.tones(of: page)
+        let withoutFirst = page.filter { !["r1", "l1", "w1", "l2", "l3"].contains($0.id) }
+        let after = RegionColours.tones(of: withoutFirst)
+        #expect(after["r2"]?.hue == before["r2"]?.hue, "r2 keeps its colour when r1 goes")
+        #expect(after["l4"]?.hue == before["l4"]?.hue)
     }
 
     @Test("the palette is as long as the hue range, and a box with no tone is the plain accent")
