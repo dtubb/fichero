@@ -27,6 +27,8 @@ struct DocumentOverlay: Equatable {
         var parentSegmentId: String?
         /// Its region's hue and its shade along the reading order (`RegionColours.Tone`); nil draws plain.
         var tone: RegionColours.Tone?
+        /// A line's reading number, drawn when `showsOrderNumbers`.
+        var orderNumber: Int?
         /// The segment's resolved direction (`SegmentStore`, from the page text), so its inline reading is
         /// set the way the line is written (#5411). Nil: not resolved.
         var direction: String?
@@ -35,6 +37,8 @@ struct DocumentOverlay: Equatable {
     var boxes: [Box] = []
     /// The library's transcription family for the inline words (#5438); nil draws in the system font.
     var transcriptionFamily: String?
+    /// "Show Order Numbers" (Display menu): a small number on each line's box.
+    var showsOrderNumbers = false
 
     /// The finest level drawn: read once per draw, not once per box. Only it sets its reading inline.
     var finestLevel: SegmentHierarchy.Level { SegmentHierarchy.finestLevel(boxes.map(\.kind)) }

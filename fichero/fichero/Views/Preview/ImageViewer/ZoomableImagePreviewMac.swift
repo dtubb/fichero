@@ -195,6 +195,8 @@ struct ZoomableImagePreview: View {
     /// Draw each recognised word's text inside its box (2026-08-31). The
     /// display lives in `OCRGeometryOverlay`, which reads the same key.
     @PaneStorage("imagePreview.inlineTextEnabled") var inlineTextEnabled = false
+    /// "Show Order Numbers" (Display menu, #6482): the reading number on each line's box. Off by default.
+    @PaneStorage("imagePreview.showOrderNumbers") var showOrderNumbers = false
     /// The image layer (ruled 2026-09-27, Q2). On by default: a page with its picture hidden
     /// is a deliberate view, never where a person should land by accident.
     /// PER-PANE, like the word boxes: seeded from the remembered default, then from the pane's

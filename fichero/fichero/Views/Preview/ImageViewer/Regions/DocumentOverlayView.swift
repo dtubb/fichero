@@ -187,6 +187,7 @@ final class DocumentOverlayView: NSView {
         drawWashes(in: dirtyRect, imageRect: imageRect, scale: scale, emphasized: emphasized)  // BEHIND the boxes
         drawMarks(in: dirtyRect, imageRect: imageRect, scale: scale)
         drawBoxes(in: dirtyRect, imageRect: imageRect, scale: scale, line: line)
+        if overlay.showsOrderNumbers { drawOrderNumbers(in: dirtyRect, imageRect: imageRect, scale: scale) }
         drawMarquees(in: dirtyRect, imageRect: imageRect, scale: scale)
         drawSelection(in: dirtyRect, imageRect: imageRect, scale: scale, line: line, emphasized: emphasized)
     }
@@ -262,6 +263,25 @@ final class DocumentOverlayView: NSView {
                 path.setLineDash([3 / scale, 2 / scale], count: 2, phase: 0)
             }
             path.stroke()
+        }
+    }
+
+    /// Each line's reading number, small, at its box's top-left, in its region's colour on a plate so it reads on the scan.
+    private func drawOrderNumbers(in dirtyRect: NSRect, imageRect: CGRect, scale: CGFloat) {
+        // The context is scaled to the image; the size is divided back so the number stays caption-sized at any zoom.
+        let base = NSFont.preferredFont(forTextStyle: .caption1)
+        let font = NSFont(descriptor: base.fontDescriptor, size: base.pointSize / scale) ?? base
+        for (box, rect) in overlay.boxes(in: dirtyRect, imageRect: imageRect) {
+            guard let number = box.orderNumber else { continue }
+            let text = "\(number)" as NSString
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: font, .foregroundColor: NSColor.labelColor
+            ]
+            let size = text.size(withAttributes: attributes)
+            let plate = NSRect(x: rect.minX, y: rect.minY, width: size.width + 6 / scale, height: size.height)
+            NSColor.textBackgroundColor.withAlphaComponent(0.8).setFill()
+            NSBezierPath(roundedRect: plate, xRadius: 3 / scale, yRadius: 3 / scale).fill()
+            text.draw(at: NSPoint(x: plate.minX + 3 / scale, y: plate.minY), withAttributes: attributes)
         }
     }
 

@@ -140,6 +140,7 @@ extension ZoomableImagePreview {
             annotationsEnabled: $annotationsEnabled,
             regionsEnabled: $regionsEnabled,
             inlineTextEnabled: $inlineTextEnabled,
+            orderNumbersEnabled: $showOrderNumbers,
             segmentEditingEnabled: windowState.map { state in
                 Binding(get: { state.isEditingSegments }, set: { state.isEditingSegments = $0 })
             },
