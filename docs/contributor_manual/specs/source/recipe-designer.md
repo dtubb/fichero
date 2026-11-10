@@ -290,15 +290,15 @@ Mac's chip and memory, the providers with a key and the places work can run).
   regularise text) · let Fichero compare and choose (the default: the compare of section 8 decides on the
   person's pages). Saved as `answers.how.model_kind`. *Test:* same file (the three options, the default, and
   that the large-model option is greyed with its reason when the cloud is not allowed and this Mac cannot run one).
-- `designer.how.cloud-asked-before-any-default` [GAP] (#6489, owner 2026-11-10: "I was only able to choose allow cloud models later") —
+- `designer.how.cloud-asked-before-any-default` [GAP] (#6489, owner 2026-11-10: the cloud choice came late in the flow; the owner had not chosen cloud, so the PP-OCR default was right for cloud off) —
   whether pages may leave this Mac is asked BEFORE any model is proposed: in the How step's "Where" question (built behind
   `wideSetUp`, not yet in the flow the owner sees; the shown flow asks it late), above "What matters most?", so no default is made
   without it. If it changes later (here or in the plan), every default is worked out again from the new answer and the plan says
   what changed and why ("Read is now Gemini 2.5 Pro: you allowed cloud models and have a Google key"). A saved "no" stays no; an
   unanswered question reads as the app's setting (`places.project_says_cloud`). *Test:* `test_defaults_recomputed_on_cloud_change.py`
   (the same answers give a local Read with cloud off and a keyed frontier Read with it on; the change is named in the plan; not yet written).
-- `designer.how.quality-with-cloud-is-a-frontier-reader` [GAP] (#6489, owner 2026-11-10: the default was "quality" and Read still
-  came out as PP-OCR) — "quality" with cloud allowed and a Gemini or Claude key chooses a frontier vision model for Read on any
+- `designer.how.quality-with-cloud-is-a-frontier-reader` [GAP] (#6489, owner 2026-11-10: Gemini is a good default Read when cloud is allowed and we have access; with cloud off PP-OCR was the
+  right pick) — "quality" with cloud allowed and a Gemini or Claude key chooses a frontier vision model for Read on any
   material (Gemini Pro first, `discovery.frontier_rank`), not only handwriting (`assemble._frontier_first` stops at anything else
   today); without cloud or a key it chooses the best local reader and the plan says what a key would add. PP-OCR is never the headline
   reader unless it is the best local card for the script. *Test:* `test_read_default_table.py` (one row per material x cloud x key;
