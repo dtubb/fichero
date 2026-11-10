@@ -257,7 +257,6 @@ extension ContentView {
         return 0
         #else
         return Self.shellWindowMinWidth(
-            windowWidth: measuredWindowWidth,
             horizontalSizeClass: horizontalSizeClass,
             sidebarVisible: showSidebar,
             inspectorVisible: showInspectorSidebar,

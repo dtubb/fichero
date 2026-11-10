@@ -12,16 +12,44 @@ final class ShellMinimumStabilityTests: XCTestCase {
         for sidebar in [true, false] {
             for inspector in [true, false] {
                 for width in stride(from: 100.0, through: 2400.0, by: 7.0) {
-                    func minimum(at measured: Double) -> Double {
+                    func minimum() -> Double {
                         ContentView.shellWindowMinWidth(
-                            windowWidth: measured, horizontalSizeClass: .regular, sidebarVisible: sidebar,
+                            horizontalSizeClass: .regular, sidebarVisible: sidebar,
                             inspectorVisible: inspector, detailMinWidth: floor
                         )
                     }
-                    let first = max(width, minimum(at: width))  // the window is held to its minimum
-                    let second = max(first, minimum(at: first))
+                    let first = max(width, minimum())  // the window is held to its minimum
+                    let second = max(first, minimum())
                     XCTAssertEqual(first, second, "width \(width) sidebar \(sidebar) inspector \(inspector) did not settle in one pass")
                 }
+            }
+        }
+    }
+
+    /// #6447 (second repro, resizing the window with the Document Inspector open): the shell minimum used to drop by the
+    /// inspector's width, then the sidebar's, as the window narrowed past a collapse threshold, so the split view's
+    /// minimum changed inside its own constraints pass. Whatever the window's width, the minimum is the same.
+    func testTheShellMinimumIsTheSameAtEveryWidthTheWindowCanBe() {
+        let detail = 600.0
+        for sidebar in [true, false] {
+            for inspector in [true, false] {
+                let expected = ContentView.windowMinWidth(
+                    sidebarVisible: sidebar, inspectorVisible: inspector, detailMinWidth: detail)
+                // The collapse policy still moves with the width (that is what is SHOWN)…
+                let wide = ContentView.shellCollapsePolicy(
+                    windowWidth: 3000, horizontalSizeClass: .regular, sidebarVisible: sidebar,
+                    inspectorVisible: inspector, detailMinWidth: detail)
+                let narrow = ContentView.shellCollapsePolicy(
+                    windowWidth: expected - 1, horizontalSizeClass: .regular, sidebarVisible: sidebar,
+                    inspectorVisible: inspector, detailMinWidth: detail)
+                XCTAssertFalse(wide.collapseInspector)
+                if inspector { XCTAssertTrue(narrow.collapseInspector) }
+                // …but the window's minimum has no width to follow.
+                XCTAssertEqual(
+                    ContentView.shellWindowMinWidth(
+                        horizontalSizeClass: .regular, sidebarVisible: sidebar,
+                        inspectorVisible: inspector, detailMinWidth: detail),
+                    expected)
             }
         }
     }
