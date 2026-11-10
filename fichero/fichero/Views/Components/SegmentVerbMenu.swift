@@ -17,19 +17,22 @@ struct SegmentVerbMenu: View {
 
     var body: some View {
         let segments = store?.workingSegments(documentId: documentId) ?? []
-        let regions = segments.filter { $0.kind == "region" }
         let targets = SegmentMover.targets(for: ids, in: segments)
-        if !targets.isEmpty {
-            Menu("Move Into Region") {
-                ForEach(targets, id: \.id) { region in
-                    // Named by its place among the page's regions, as the list names them.
-                    let position = (regions.firstIndex { $0.id == region.id } ?? 0) + 1
-                    Button("Region \(position)") { move(into: region.id) }
+        if let first = targets.first {
+            // What the selection can go into is one level coarser than it: a line into a region, a word into a line, a
+            // letter into a word. Named by kind and by place among that kind on the page, as the lists name them.
+            let noun = InspectorPath.name(of: first)
+            Menu("Move Into \(noun)") {
+                ForEach(targets, id: \.id) { target in
+                    let position = (segments.filter { $0.kind == target.kind }.firstIndex { $0.id == target.id } ?? 0) + 1
+                    Button("\(noun) \(position)") { move(into: target.id) }
                 }
             }
         }
         if SegmentMover.canLift(ids, in: segments) {
-            Button("Lift Out of Region") { move(into: nil) }
+            let byId = Dictionary(segments.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            let parent = ids.lazy.compactMap { byId[$0]?.parentSegmentId }.compactMap { byId[$0] }.first
+            Button("Lift Out of \(parent.map(InspectorPath.name(of:)) ?? "Region")") { move(into: nil) }
         }
         if ids.count >= 2 {
             Button("Join") { run("Join Lines") { SegmentEdit.join($0) } }

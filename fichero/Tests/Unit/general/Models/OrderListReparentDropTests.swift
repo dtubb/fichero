@@ -40,4 +40,13 @@ struct OrderListReparentDropTests {
         #expect(OrderDrop.accepted(["r1"], into: page[0], in: page).isEmpty)
         #expect(OrderDrop.accepted(["l1", "ghost"], into: page[1], in: page) == ["l1"])
     }
+
+    @Test("Move Into offers the level above: words go into lines, a glyph into a word, lines into regions; nothing mixed")
+    func targetsByLevel() {
+        let segments = page + [segment("g1", kind: "glyph", parent: "w1")]
+        #expect(SegmentMover.targets(for: ["w1"], in: segments).map(\.id) == ["l1", "l2"])
+        #expect(SegmentMover.targets(for: ["g1"], in: segments).map(\.id) == ["w1"])
+        #expect(SegmentMover.targets(for: ["l1"], in: segments).map(\.id) == ["r1", "r2"])
+        #expect(SegmentMover.targets(for: ["l1", "w1"], in: segments).isEmpty)
+    }
 }
