@@ -486,6 +486,20 @@ are a candidate list (`source.recipe.line-finders-are-a-candidate-list` (P),
 - `designer.layout.region-model-row` [MISSING] (#6052) — Find Regions gets one row, "Blocks found by":
   Kraken (one pass, default), the YOLO layout model already selectable as a card, or a cloud vision
   model with its cost per page.
+- `designer.layout.vlm-finds-regions-and-lines` [GAP] (#6487, #6403, owner 2026-11-10: choose a vision-language model for Find
+  Regions and Find Lines) — each step has its OWN model list, drawn from the one catalog (#4307), with the cloud permission and spend
+  rules and a cost per page: Find Regions offers Kraken, YOLO layout models and vision-language models; Find Lines offers Kraken,
+  Apple's finder where it applies and vision-language models. "Find models" lists the vision-language ones for both,
+  each said in plain words ("a large model finds the lines; it may miss faint ones; US$ per page"). The picked model is
+  recorded on the regions and lines it made. *Test:* `test_layout_models_per_step.py` (each step's list holds only what it can take;
+  a cloud model is offered only when cloud is allowed; not yet written).
+- `designer.layout.vlm-corrects-regions-and-lines` [GAP] (#6487, #6284) — two optional steps after Find Lines, Correct Regions and
+  Correct Lines, each with its own model list as above. A free measure comes first (ink outside the boxes, overlaps, a
+  line crossing a region edge); a vision-language model is asked only about the pages the measure flags. It PROPOSES edits (add,
+  remove, merge, split, move) shown in the Preview as a pending set the person accepts or rejects as a whole or one at a time;
+  nothing is changed silently, an accepted edit is one audited, undoable change, and the model is recorded. A page with no
+  flag costs nothing. *Test:* `test_layout_corrections_are_proposals.py` (a proposal changes nothing until accepted; one undo
+  reverts it; an unflagged page makes no model call; not yet written).
 - `designer.layout.lines-per-block` [MISSING] (#6052, #6014) — with a YOLO or cloud region model, each
   block is cropped and Kraken's line finder runs per block; lines keep their block; reading order is
   blocks in the model's order then lines top-down, blocks right to left for right-to-left scripts.
