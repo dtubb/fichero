@@ -66,6 +66,8 @@ struct ReadingOrderList: View {
     @State private var renaming: String?
     @State private var draft = ""
     @FocusState private var renameFocused: Bool
+    /// The region a drag is over, lit as a drop target.
+    @State private var dropTarget: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -181,6 +183,7 @@ struct ReadingOrderList: View {
     private func lineMenu(_ ids: Set<String>) -> some View {
         CorrectThisLineButton(segment: ids.count == 1 ? ids.first.flatMap(segment) : nil) { _ = beginRename($0.id) }
         if ids.count == 1 { Button(LineVerbs.revealTitle) { reveal(ids) } }
+        moveMenu(ids)
         Divider()
         Button(role: .destructive) { deleteLines(ids) } label: { Label("Delete", systemImage: "trash") }
             .disabled(ids.isEmpty)
@@ -369,40 +372,6 @@ struct ReadingOrderList: View {
             row(segmentId, at: index).tag(segmentId)
         }
     }
-
-    /// A row: its words, and -- in the Segments pane -- a control that opens it to its children.
-    private func row(_ segmentId: String, at index: Int) -> some View {
-        HStack {
-            if renaming == segmentId {
-                TextField("Words", text: $draft)
-                    .font(BundledFonts.shared.font(.body))
-                    .focused($renameFocused)
-                    .onSubmit { commitRename() }
-                    .onExitCommand { renaming = nil }
-                    .onChange(of: renameFocused) { _, focused in if !focused { commitRename() } }
-            } else {
-                Text(rowLabel?(segmentId, index) ?? label(for: segmentId, at: index))
-                    .font(BundledFonts.shared.font(.body))
-                    .lineLimit(2)
-                    // An unread line says what to do (#5505).
-                    .help(SegmentsPane.rowHelp(segment(segmentId)) ?? "")
-            }
-            // A line the teacher-line check flagged (#5446): marked, its scores on hover.
-            if let line = flags?.flag(segmentId: segmentId, documentId: documentId) {
-                Spacer(minLength: 4)
-                FlaggedLineMark(line: line)
-            }
-            if !nests, let onOpen, opens?(segmentId) ?? false {
-                Spacer(minLength: 4)
-                Button { onOpen(segmentId) } label: {
-                    Image(systemName: "chevron.right")
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("Open")
-                .help("List what this segment holds")
-            }
-        }
-    }
 }
 
 // MARK: - Key rows and the step control
@@ -577,3 +546,111 @@ private final class PreviewOrderTransport: ReadingOrderTransport {
     .frame(width: 320, height: 260)
 }
 #endif
+
+// MARK: - Moving lines into a region (menu, drag and drop)
+
+extension ReadingOrderList {
+    /// Move Into Region ▸ (the page's other regions) and Lift Out of Region: present only when they can apply, never greyed.
+    @ViewBuilder
+    private func moveMenu(_ ids: Set<String>) -> some View {
+        let held = movedIds(named: ids)
+        let regions = SegmentMover.targets(for: held, in: pageSegments)
+        if !regions.isEmpty {
+            Menu("Move Into Region") {
+                ForEach(Array(regions.enumerated()), id: \.element.id) { position, region in
+                    Button("Region \(position + 1)") { moveLines(held, into: region.id) }
+                }
+            }
+        }
+        if SegmentMover.canLift(held, in: pageSegments) {
+            Button("Lift Out of Region") { moveLines(held, into: nil) }
+        }
+    }
+
+    private var pageSegments: [Segment] { documentStore?.workingSegments(documentId: documentId) ?? [] }
+
+    /// The lines a move on `named` means: the row, or the focused selection when it holds the row (one rule with Delete).
+    private func movedIds(named: Set<String>?) -> [String] {
+        guard let store = documentStore else { return [] }
+        let held = SegmentDeleter.selectedIds(windowState?.sharedRegionSelection, documentId: documentId, store: store)
+        return SegmentDeleter.ids(row: named?.first ?? selection, held: held)
+    }
+
+    /// ONE audited `segment.reparent`, one ⌘Z; why it did not happen is said under the list, never silent.
+    private func moveLines(_ ids: [String], into parent: String?) {
+        guard let store = documentStore else { return }
+        let steps = windowSteps, actionsService = actionStore?.actionsService, documentId = documentId
+        Task {
+            createNote = await SegmentMover.run(
+                SegmentDeleter.segments(ids, documentId: documentId, store: store), into: parent,
+                documentId: documentId, store: store, actionsService: actionsService, steps: steps
+            )
+        }
+    }
+
+    private func canTake(_ regionId: String) -> Bool {
+        guard let region = segment(regionId), region.kind == "region" else { return false }
+        return true
+    }
+
+    private func dragPayload(_ segmentId: String) -> SegmentDrag {
+        let held = (store?.shown.map(\.segmentId) ?? []).filter(picks.contains)
+        let ids = picks.contains(segmentId) && !held.isEmpty ? held : [segmentId]
+        let text = ids.compactMap { segment($0)?.text }.joined(separator: "\n")
+        return SegmentDrag(ids: ids, text: text)
+    }
+
+    private func dropped(_ ids: [String], onto regionId: String) -> Bool {
+        guard let region = segment(regionId), region.kind == "region" else { return false }
+        let accepted = OrderDrop.accepted(ids, into: region, in: pageSegments)
+        guard !accepted.isEmpty else { return false }
+        moveLines(accepted, into: regionId)
+        return true
+    }
+
+    /// A row: its words, and -- in the Segments pane -- a control that opens it to its children.
+    private func row(_ segmentId: String, at index: Int) -> some View {
+        rowContent(segmentId, at: index)
+            .background(dropTarget == segmentId ? Color.accentColor.opacity(0.18) : .clear, in: .rect(cornerRadius: 6))
+            // A drag carries the selection when it holds this row, else the row; dropped on a region it moves them in.
+            .draggable(dragPayload(segmentId))
+            .dropDestination(for: SegmentDrag.self, action: { drags, _ in
+                dropped(drags.flatMap(\.ids), onto: segmentId)
+            }, isTargeted: { targeting in
+                if targeting, canTake(segmentId) { dropTarget = segmentId } else if dropTarget == segmentId { dropTarget = nil }
+            })
+    }
+
+    private func rowContent(_ segmentId: String, at index: Int) -> some View {
+        HStack {
+            if renaming == segmentId {
+                TextField("Words", text: $draft)
+                    .font(BundledFonts.shared.font(.body))
+                    .focused($renameFocused)
+                    .onSubmit { commitRename() }
+                    .onExitCommand { renaming = nil }
+                    .onChange(of: renameFocused) { _, focused in if !focused { commitRename() } }
+            } else {
+                Text(rowLabel?(segmentId, index) ?? label(for: segmentId, at: index))
+                    .font(BundledFonts.shared.font(.body))
+                    .lineLimit(2)
+                    // An unread line says what to do (#5505).
+                    .help(SegmentsPane.rowHelp(segment(segmentId)) ?? "")
+            }
+            // A line the teacher-line check flagged (#5446): marked, its scores on hover.
+            if let line = flags?.flag(segmentId: segmentId, documentId: documentId) {
+                Spacer(minLength: 4)
+                FlaggedLineMark(line: line)
+            }
+            if !nests, let onOpen, opens?(segmentId) ?? false {
+                Spacer(minLength: 4)
+                Button { onOpen(segmentId) } label: {
+                    Image(systemName: "chevron.right")
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Open")
+                .help("List what this segment holds")
+            }
+        }
+    }
+}
