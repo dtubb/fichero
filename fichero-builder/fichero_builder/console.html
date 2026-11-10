@@ -85,6 +85,8 @@ async function post(path, body) {
 const act = (verb, args = {}) => post("/api/action", { verb, args });
 let showError = () => {};
 
+// #6499: what makes a tab fetch again: a tick, a landing, or a console action; never the console row count (capped at 20, so it stops changing)
+const refetchKey = st => (st.heartbeat || "") + ((st.last_land_git || {}).sha || "") + ((st.console[st.console.length - 1] || {}).ts || "");
 function useStatus() {
   const [st, setSt] = useState(null);
   useEffect(() => {
@@ -196,7 +198,7 @@ function Milestones({ st }) {
   const [pick, setPick] = useState({});
   const [ord, setOrd] = useState(null);  // the owner's unsaved order: {order, parked}
   const [iss, setIss] = useState({});  // ticked issues: Start as one lane
-  useEffect(() => { fetch("/api/milestones").then(r => r.json()).then(setData); }, [st.console.length]);
+  useEffect(() => { fetch("/api/milestones").then(r => r.json()).then(setData); }, [refetchKey(st)]);
   if (!data) return html`<p class="muted">Loading…</p>`;
   const running = st.lanes.filter(l => !l.done).length;
   const room = Math.max(0, st.loop_lanes - running);
@@ -251,7 +253,7 @@ function Milestones({ st }) {
 
 function Worktrees({ st }) {
   const [data, setData] = useState(null);
-  useEffect(() => { fetch("/api/worktrees").then(r => r.json()).then(setData).catch(() => setData({ trees: [] })); }, [st.console.length]);
+  useEffect(() => { fetch("/api/worktrees").then(r => r.json()).then(setData).catch(() => setData({ trees: [] })); }, [refetchKey(st)]);
   if (!data) return html`<p class="muted">Loading…</p>`;
   return html`<div class="wrap"><table>
     <thead><tr><th>Worktree</th><th>Where</th><th>Branch</th><th>Last commit</th><th>Dirty</th><th>Landed</th><th>Sweep</th><th></th></tr></thead>
@@ -273,7 +275,7 @@ function useApi(path, dep) {
 const Okpill = ({ ok }) => ok == null ? html`<span class="pill blue"><span class="dot blue pulse"></span>running</span>` : html`<span class=${"pill " + (ok ? "green" : "red")}>${ok ? "ok" : "red"}</span>`;
 
 function Activity({ st }) {
-  const d = useApi("/api/activity", st.console.length + (st.heartbeat || ""));
+  const d = useApi("/api/activity", refetchKey(st));
   if (!d) return html`<p class="muted">Loading…</p>`;
   const row = a => html`<tr class="row"><td>${a.kind}</td><td class="mono">${a.key}</td><td>${a.lane}</td><td><${Ago} ts=${a.started} /></td>
     <td><${Okpill} ok=${a.ended ? a.ok : null} /> ${a.failed ? html`<span class="muted">at ${a.failed}</span>` : ""}</td>
@@ -285,7 +287,7 @@ function Activity({ st }) {
 }
 
 function Landing({ st }) {
-  const d = useApi("/api/landing", st.console.length);
+  const d = useApi("/api/landing", refetchKey(st));
   if (!d) return html`<p class="muted">Loading…</p>`;
   return html`<h2>Landing queue <span class="muted" style="font-weight:400">every branch with commits not on integration</span></h2><div class="wrap"><table>
     <thead><tr><th>Branch</th><th>Head</th><th>Commits</th><th>Files</th><th>Stage</th><th>Closes</th></tr></thead>
@@ -295,14 +297,14 @@ function Landing({ st }) {
 }
 
 function Issues({ st }) {
-  const d = useApi("/api/issues", st.console.length + (st.heartbeat || ""));
+  const d = useApi("/api/issues", refetchKey(st));
   if (!d) return html`<p class="muted">Loading…</p>`;
   return html`<h2>What the harness did on GitHub today</h2>${(d.issues || []).length ? html`<div class="wrap"><table><tbody>${d.issues.map(i => html`<tr class="row"><td class="muted"><${Ago} ts=${i.ts} /></td>
     <td>${i.what}</td><td>${i.links.map(l => html`<a href=${l.url} target="_blank" style="margin-right:6px">#${l.n}</a>`)}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">Nothing yet today.</p>`}`;
 }
 
 function Release({ st }) {
-  const d = useApi("/api/release", st.console.length);
+  const d = useApi("/api/release", refetchKey(st));
   if (!d) return html`<p class="muted">Loading…</p>`;
   return html`<div class="cards">
       <${Card} k="On integration, not on main" v=${d.ahead ?? "-"} dot=${d.ahead ? "orange" : "green"} sub=${d.ts ? html`read <${Ago} ts=${d.ts} />` : "press Refresh in Milestones"} />
