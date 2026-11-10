@@ -53,6 +53,10 @@ struct DocumentRendition: Identifiable, Hashable, Sendable {
 
     /// Roles whose label is an acronym, not a title-cased word.
     static let acronymRoleNames: [String: String] = ["svg": "SVG"]
+
+    /// A way the whole page looks, not one segment's own picture (the engine's `SEGMENT_PICTURE_ROLE`,
+    /// `media/segment_pictures.py`). Only these join the page's renditions menu and up/down flip (#6482).
+    var isWholePage: Bool { role != "segment-picture" }
 }
 
 /// Fetches a document's renditions through the generated OpenAPI client.
