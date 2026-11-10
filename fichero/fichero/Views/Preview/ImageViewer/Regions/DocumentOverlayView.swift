@@ -231,6 +231,14 @@ final class DocumentOverlayView: NSView {
                 && DocumentOverlay.setsTextInline(kind: box.kind, finest: finest)
             // A segment with its own shapes is drawn AS them -- the outline its file drew, the baseline
             // under its ink -- never as the box around them (#5163's residue).
+            if overlay.showsBoundingBoxes, !box.shapes.isEmpty {
+                // The box beside the polygon: faint and dashed so it never reads as the shape itself.
+                let bound = NSBezierPath(rect: rect)
+                colour(0.5).setStroke()
+                bound.lineWidth = line
+                bound.setLineDash([3 / scale, 3 / scale], count: 2, phase: 0)
+                bound.stroke()
+            }
             if !box.shapes.isEmpty, !setsText {
                 ShapeDrawing.draw(box.shapes, imageRect: imageRect, scale: scale, look: .init(
                     line: width,

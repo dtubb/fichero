@@ -39,6 +39,8 @@ struct DocumentOverlay: Equatable {
     var transcriptionFamily: String?
     /// "Show Order Numbers" (Display menu): a small number on each line's box.
     var showsOrderNumbers = false
+    /// "Show Bounding Box" (Display menu): the box around a polygon or baseline, drawn beside it, dashed and faint.
+    var showsBoundingBoxes = false
 
     /// The finest level drawn: read once per draw, not once per box. Only it sets its reading inline.
     var finestLevel: SegmentHierarchy.Level { SegmentHierarchy.finestLevel(boxes.map(\.kind)) }
