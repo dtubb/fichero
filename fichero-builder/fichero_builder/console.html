@@ -130,7 +130,7 @@ function Lanes({ lanes: all }) {
   const [open, setOpen] = useState({});
   if (!lanes.length) return html`<p class="muted">No lanes yet. Start one from Milestones.</p>`;
   return html`<div class="wrap"><table>
-    <thead><tr><th></th><th>Lane</th><th>Step</th><th>State</th><th>Doing now</th><th>Elapsed</th><th>Turns</th><th>Tokens</th><th>USD</th><th></th></tr></thead>
+    <thead><tr><th></th><th>Lane</th><th>Step</th><th>State</th><th>Doing now</th><th>Elapsed</th><th>Turns</th><th>USD</th><th></th></tr></thead>
     <tbody>${lanes.map(l => html`
       <tr class="row">
         <td class="tri" onClick=${() => setOpen({ ...open, [l.lane]: !open[l.lane] })}>${open[l.lane] ? "▾" : "▸"}</td>
@@ -138,7 +138,7 @@ function Lanes({ lanes: all }) {
         <td><span class="mono">${l.step}</span>${l.progress?.n ? html` · step <b>${l.progress.i ?? "?"}</b> of ${l.progress.n} in ${l.progress.milestone}` : ""}${l.landed_n || l.not_landed_n ? html` <span class="muted">· <b>${l.landed_n}</b> landed on integration${l.not_landed_n ? html`, <b>${l.not_landed_n}</b> done, not landed yet` : ""}</span>` : ""}<div class="muted">${l.title}</div></td>
         <td><${Pill} state=${l.state} paused=${l.paused} />${l.why && !["sent", "running", "working"].includes(l.state) ? html`<div class="muted" style="font-size:11px;max-width:260px" title=${l.why}>${l.why}</div>` : ""}</td>
         <td>${l.activity ? html`<span class="pill blue"><span class="dot blue pulse"></span>${l.activity.kind}${l.activity.now ? ": " + l.activity.now : ""}</span> <span class="muted">since <${Ago} ts=${l.activity.started} />, ${l.activity.done} rung(s) done</span>${l.activity.base_moved && html` <span class="pill orange">base moved; will rebase</span>`}` : l.doing}${l.live?.line && html`<div class="mono" style="font-size:11px;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title=${l.live.line}>${l.live.line} <span class="muted">· <${Ago} ts=${l.live.ts} /></span></div>`}<div class="muted">${l.last_commit && html`<span class="mono">${l.last_commit.split(" ")[0]}</span> ${l.last_commit.split(" ").slice(1).join(" ").replace(/ \([^)]*\)$/, "")} · <${Ago} ts=${l.commit_ts} />`}</div></td>
-        <td>${dur(l.elapsed_s)}</td><td>${l.turns ?? "-"}</td><td>${l.tokens ?? "-"}</td><td>${l.usd.toFixed(2)}</td>
+        <td>${dur(l.elapsed_s)}</td><td>${l.turns ?? "-"}</td><td title="today, API-equivalent: transcripts (external lanes) + the workers' cost rows">${l.usd.toFixed(2)}${l.batch_usd != null ? html`<div class="muted">${l.batch_usd.toFixed(2)} this batch</div>` : ""}</td>
         <td><div class="actions">
           ${l.paused ? html`<button class="btn" onClick=${() => act("resume", { lane: l.lane })}>${I.play} Resume</button>`
                      : html`<button class="btn" onClick=${() => act("pause", { lane: l.lane })}>${I.pause} Pause</button>`}
@@ -357,7 +357,7 @@ function App() {
         <${Card} k="Last review" v=${lr ? (ready ? "READY" : "NOT READY") : "-"} dot=${lr ? (ready ? "green" : "red") : ""} sub=${html`<${Ago} ts=${lr?.ts} />`} />
         <${Card} k="Last landing" v=${st.last_land_git ? html`<span class="mono" title=${st.last_land_git.subject}>${st.last_land_git.sha.slice(0, 9)}</span>` : "-"} dot=${st.last_land_git ? "green" : ""} sub=${html`<${Ago} ts=${st.last_land_git?.ts} />`} />
         <${Card} k="Closed today" v=${(st.closed_today_git || []).length} dot=${(st.closed_today_git || []).length ? "green" : ""} sub="issues, from integration's Fixes lines" />
-        <${Card} k="Spend today" v=${"$" + st.spend_today_usd.toFixed(2)} dot="blue" sub=${st.loop_on ? html`loop on · <${Ago} ts=${st.heartbeat} />` : "loop off"} />
+        <${Card} k="Spend today (API-equivalent)" v=${"$" + st.spend_today_usd.toFixed(2)} dot="blue" sub=${st.loop_on ? html`loop on · <${Ago} ts=${st.heartbeat} />` : "loop off"} />
         ${(st.lane_usage || []).length > 0 && html`<div class="card"><div class="k">Lane usage today</div>
           ${st.lane_usage.map(u => html`<div title=${`in ${u.in} · cache write ${u.cache_write} · cache read ${u.cache_read} · out ${u.out}`}>
             <b>${u.lane}</b> ${tok(u.tokens_in)} in · ${tok(u.tokens_out)} out · ${u.turns} turns <span class="muted">$${u.usd.toFixed(2)}</span></div>`)}
