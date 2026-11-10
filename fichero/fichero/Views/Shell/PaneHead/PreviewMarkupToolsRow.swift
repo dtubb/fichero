@@ -94,7 +94,8 @@ struct PreviewMarkupToolsRow: View {
             }
         }
 
-        if shows("previewMarkupDrawRegion") {
+        // Where the canvas draws segments the one Shape button gives way to Region, Polygon and Line (below).
+        if shows("previewMarkupDrawRegion"), !offered.contains("previewMarkupShapeKind") {
             toolButton(
                 icon: PreviewMarkupTool.drawRegion.icon,
                 label: PreviewMarkupTool.drawRegion.label,
@@ -109,7 +110,7 @@ struct PreviewMarkupToolsRow: View {
                 )
             }
         }
-        if offered.contains("previewMarkupShapeKind") { shapeKindMenu }
+        if shows("previewMarkupDrawRegion"), offered.contains("previewMarkupShapeKind") { shapeButtons }
 
         if shows("previewMarkupLine") {
             toolButton(
@@ -196,7 +197,9 @@ struct PreviewMarkupToolsRow: View {
         let selection = windowState?.focusedRegionSelection ?? RegionSelection()
         // Delete and Combine write segments, so they appear only in the segment-editing
         // mode (#5114); reading a page, a selection is for reading.
-        if offered.contains("previewMarkupDelete") {
+        // Visible whenever the mode offers them and the canvas can act, GREY until they can apply (owner 2026-11-10:
+        // for discovery; this bar only, a menu still leaves an inapplicable verb out).
+        if shows("previewMarkupDelete"), segmentVerbs.contains(.delete) {
             Divider().frame(height: PaneHeadMetrics.dividerHeight)
 
             // No ⌘⌥ binding: Delete already answers to the ⌫ key path the
@@ -212,10 +215,11 @@ struct PreviewMarkupToolsRow: View {
                     name: .previewRegionVerb, object: PreviewRegionVerb.delete.rawValue
                 )
             }
+            .disabled(!offered.contains("previewMarkupDelete"))
 
             // Join needs two boxes to have anything to merge. JOIN, not Combine (ruled 2026-09-27,
             // Q4): one word on the page, the Inspector and the menu.
-            if offered.contains("previewMarkupCombine") {
+            if shows("previewMarkupCombine"), segmentVerbs.contains(.join) {
                 toolButton(
                     icon: "arrow.triangle.merge",
                     label: "Join \(selection.count)",
@@ -227,6 +231,7 @@ struct PreviewMarkupToolsRow: View {
                         name: .previewRegionVerb, object: PreviewRegionVerb.combine.rawValue
                     )
                 }
+                .disabled(!offered.contains("previewMarkupCombine"))
             }
         }
     }
@@ -358,38 +363,42 @@ struct PreviewMarkupToolsRow: View {
     }
 }
 
-// The Shape tool's kind menu, apart so the row's body stays under its length limit.
+// The shape tools, one top-level toggle each (owner 2026-11-10: the ▾ menu hid them).
 extension PreviewMarkupToolsRow {
-    /// What the ONE Shape tool draws while editing segments (`source.editor.draw-shapes`): Box (drag),
-    /// Polygon (click points; click the first, or double-click, to close), Baseline (click points;
-    /// double-click to finish). Choosing one arms the tool.
-    var shapeKindMenu: some View {
-        Menu {
-            ForEach(SegmentShapes.DrawKind.allCases) { kind in
-                Button {
-                    windowState?.shapeKind = kind
-                    windowState?.activeMarkupTool = .drawRegion
-                    NotificationCenter.default.post(name: .previewRegionVerb, object: PreviewRegionVerb.draw.rawValue)
-                } label: {
-                    if windowState?.shapeKind == kind {
-                        Label(kind.title, systemImage: "checkmark")
-                    } else {
-                        Text(kind.title)
-                    }
-                }
-            }
-        } label: {
-            Image(systemName: "chevron.down")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+    /// What the ONE Shape tool draws while editing segments (`source.editor.draw-shapes`): Region (drag a box),
+    /// Polygon (click points; click the first, or double-click, to close), Line (a baseline: click points,
+    /// double-click to finish). Choosing one arms the tool; choosing the armed one puts it down.
+    var shapeButtons: some View {
+        Group {
+            shapeButton(.box, label: "Region", icon: "rectangle.dashed", key: "r",
+                        help: "Region — drag a box (⌘⌥R)")
+            shapeButton(.polygon, label: "Polygon", icon: "pentagon", key: nil,
+                        help: "Polygon — click points; the first point or a double-click closes it")
+            shapeButton(.baseline, label: "Line", icon: "line.diagonal", key: nil,
+                        help: "Line — click points along the text, double-click to finish")
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .help("Shape kind — Box: drag. Polygon: click points, then the first point or a double-click closes it. "
-            + "Baseline: click points, double-click to finish.")
-        .accessibilityLabel("Shape kind")
-        .accessibilityIdentifier("previewMarkupShapeKind")
+    }
+
+    private func shapeButton(
+        _ kind: SegmentShapes.DrawKind, label: String, icon: String, key: KeyEquivalent?, help: String
+    ) -> some View {
+        let armed = windowState?.activeMarkupTool == .drawRegion && windowState?.shapeKind == kind
+        return labeled(label) {
+            Button {
+                if armed { windowState?.activeMarkupTool = nil; return }
+                windowState?.shapeKind = kind
+                windowState?.activeMarkupTool = .drawRegion
+                NotificationCenter.default.post(name: .previewRegionVerb, object: PreviewRegionVerb.draw.rawValue)
+            } label: {
+                Image(systemName: icon)
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(armed ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
+            .keyboardShortcut(key.map { KeyboardShortcut($0, modifiers: [.command, .option]) })
+            .help(help)
+            .accessibilityLabel(label)
+            .accessibilityIdentifier("previewMarkupShape\(kind.title)")
+        }
     }
 }
 
