@@ -147,7 +147,7 @@ final class ReaderLineEditor {
         let readings = try? await service.readings(segmentId: segment.id)
         reading = readings?.countingReading(ofKind: "transcription")
         label = ShownReadingLabel(readings)
-        versions = ReadingTree.build(readings?.readings ?? [], retracted: readings?.retracted ?? [])
+        versions = ReadingTree.build(readings?.readings ?? [])
         if untouched { draft = shownWords }  // words typed while it loaded are kept
         if picture == nil {
             picture = try? await SegmentPictureService(client: service.client)
@@ -180,7 +180,7 @@ final class ReaderLineEditor {
         let readings = try? await service.readings(segmentId: segment.id)
         reading = readings?.countingReading(ofKind: "transcription")
         label = ShownReadingLabel(readings)
-        versions = ReadingTree.build(readings?.readings ?? [], retracted: readings?.retracted ?? [])
+        versions = ReadingTree.build(readings?.readings ?? [])
         draft = shownWords
     }
 }
