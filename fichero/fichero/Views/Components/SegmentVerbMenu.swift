@@ -80,3 +80,13 @@ struct SegmentVerbMenu: View {
         }
     }
 }
+
+#if DEBUG
+#Preview("Two lines picked: Join and the attributes (Move Into / Lift Out need a page's segments)") {
+    Menu("Line 2") {
+        SegmentVerbMenu(ids: ["line-1", "line-2"], documentId: "page-1")
+    }
+    .padding()
+    .frame(width: 240)
+}
+#endif
