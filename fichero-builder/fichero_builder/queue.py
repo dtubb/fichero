@@ -1335,7 +1335,7 @@ def real_procs(root) -> Procs:
         a.brief = str(feed / "brief.txt")
         codemap.provide(root)
         cmd = work.run_cmd(a, builder, "--feed", feed, "--seq", lane["seq"])
-        log = open(work.shared_state(a) / f"run-{lane['id']}.log", "ab")  # #6466: a start that fails is read here, not lost to /dev/null
+        log = open(Path(j.workroot) / f"run-{lane['id']}.log", "ab")  # #6466: a start that fails is read here, not lost to /dev/null (the workroot is where the owner may write)
         return subprocess.Popen([j.sudo, "-n", "-H", "-u", j.user, "sh", "-c", f"cd {q(j.workroot)} && {cmd}"],
                                 stdout=log, stderr=log)
 
