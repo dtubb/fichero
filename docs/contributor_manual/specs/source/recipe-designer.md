@@ -211,7 +211,7 @@ engine measures faded pages from a sample by itself (`source.onboard.auto.prepar
   asks, under the kind of material, "What condition are the pages in?": tick boxes, none ticked by default,
   from one engine list (`GET /api/recipes/questions`): faded ink · torn or missing parts · stains · show-through
   from the other side · water damage · tight binding (text curves into the gutter) · ruled or printed lines
-  under the writing; with one line of help each, in plain words, saying what Fichero does about it. Saved as
+  under the writing · poor black-and-white photocopy (a copy of a copy: speckle, broken strokes, text blown out or filled in, dark edges; #6486); with one line of help each, in plain words, saying what Fichero does about it. Saved as
   `answers.condition` (a list, refused in words for an unknown id, kept as a list of none). *Test:*
   `test_condition_answers.py` (the list is the engine's; an unknown id is
   refused; none ticked saves an empty list, never a default).
@@ -227,6 +227,21 @@ engine measures faded pages from a sample by itself (`source.onboard.auto.prepar
   clean print; a vision-language reader offered for damaged handwriting), and whether a Review pass is on by
   default; each chosen default says which answer chose it. *Test:*
   `test_defaults_from_condition.py`.
+
+- `designer.material.condition-photocopy` [GAP] (#6486, owner 2026-11-10: poor black-and-white photocopies are common and hard to read) — "poor
+  black-and-white photocopy" is one id in the engine's condition list. Its help line says what Fichero does: levels the
+  contrast, removes speckle and dark borders, and offers a reader that copes with broken strokes. It is the same
+  photocopy whether the page is handwriting or print. Ticking it adds the photocopy preparation to the defaults table (section 4b):
+  despeckle, adaptive threshold or contrast levelling, border removal, each a step the person can untick; the
+  original image is kept and the prepared one is a new rendition (role `prepared`, as `recipes/prepare.py`). It
+  also moves a vision-language reader up for the pages it applies to. *Test:* `test_condition_answers.py` (the id
+  is in the list; saved as asked), `test_defaults_from_condition.py` (photocopy chooses the steps and says it did).
+- `designer.material.photocopy-suggested-from-a-sample` [GAP] (#6486) — the engine ticks it beforehand only when its
+  sample measure says so: a near-bimodal grey histogram (most pixels at the two extremes, few mid-greys) with a high
+  count of isolated specks and a dark border band, from 3 or more of the sample pages, labelled "from 3 of 5
+  sample pages". A clean modern black-and-white scan is bimodal too, so the speck and border measures must also
+  fire, or it is not suggested. The person changes the tick. *Test:* `test_photocopy_suggested_from_a_sample.py`
+  (a speckled bilevel fixture is suggested, a clean bilevel scan and a grey scan are not; not yet written).
 
 - `designer.onboarding.metadata-language` [MISSING] (#6180) — onboarding (About the Material) offers the METADATA
   LANGUAGE: the language of the catalogue's field labels and descriptions, which is not necessarily the language
