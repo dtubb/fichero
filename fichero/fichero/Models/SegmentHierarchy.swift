@@ -127,3 +127,16 @@ nonisolated enum SegmentHierarchy {
         kinds.reduce(Level.region) { max($0, Level(kind: $1)) }
     }
 }
+
+extension SegmentHierarchy.Level {
+    /// The list icon for a level (the kind icons, owner 2026-11-10): a region is a dashed frame, a line a run of text,
+    /// a word a lettered word, a letter one character.
+    var symbolName: String {
+        switch self {
+        case .region: "rectangle.dashed"
+        case .line: "text.alignleft"
+        case .word: "textformat"
+        case .letter: "character"
+        }
+    }
+}
