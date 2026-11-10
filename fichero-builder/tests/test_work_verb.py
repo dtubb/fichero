@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import shlex
 import json
 import subprocess
 import types
@@ -792,9 +793,9 @@ def test_run_cmd_takes_the_package_from_the_pinned_copy_not_the_owners_checkout(
     (world-readable) when it holds one; a pinned copy without the package falls back to this one."""
     (scratch.tmp / "pin" / "fichero-builder" / "fichero_builder").mkdir(parents=True)
     cmd = work.run_cmd(scratch.a, "sonnet")
-    assert f"PYTHONPATH={scratch.tmp}/pin/fichero-builder " in cmd, cmd
+    assert f"PYTHONPATH={shlex.quote(str(scratch.tmp / 'pin' / 'fichero-builder'))} " in cmd, cmd
     (scratch.tmp / "pin" / "fichero-builder" / "fichero_builder").rmdir()
-    assert f"PYTHONPATH={Path(work.__file__).resolve().parents[1]} " in work.run_cmd(scratch.a, "sonnet")
+    assert f"PYTHONPATH={shlex.quote(str(Path(work.__file__).resolve().parents[1]))} " in work.run_cmd(scratch.a, "sonnet")
 
 
 def test_run_cmd_puts_homebrew_on_the_path_the_jail_user_gets(scratch):
