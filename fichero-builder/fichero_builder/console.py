@@ -593,8 +593,8 @@ def milestones(root, gh: str = "gh", lanes: list[dict] | None = None, reads=None
                  "lane": queue.slug(name) if queue.slug(name) in held else "", "owner": queue.external_owner(specs.get(name, ""), name) if specs.get(name) else ""}
             if sec == "In order" and m["spec"] and o:
                 try:
-                    issues = ms.list_issues(name, gh=gh)
-                    shut = closed(name) if closed else _closed_issues(name, gh)
+                    issues = ms.list_issues(name, gh=gh, cwd=str(root))  # #6497: gh resolves the remote in the repo, wherever the console runs
+                    shut = closed(name) if closed else _closed_issues(name, gh, cwd=str(root))
                     sp = Path(root) / triage.SPECS / m["spec"]
                     order, slug = ms.build_order(sp), ms.spec_slug(sp)
                     planned = ms.plan(issues, order, slug)
@@ -630,9 +630,9 @@ def milestones(root, gh: str = "gh", lanes: list[dict] | None = None, reads=None
     return {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "milestones": out, "gh_ok": r.returncode == 0}
 
 
-def _closed_issues(name: str, gh: str) -> list[dict]:
+def _closed_issues(name: str, gh: str, cwd=None) -> list[dict]:
     r = subprocess.run([gh, "issue", "list", "--milestone", name, "--state", "closed", "--limit", "500", "--json", "number,title,body,labels"],
-                       capture_output=True, text=True, timeout=120)
+                       capture_output=True, text=True, timeout=120, cwd=cwd)
     return json.loads(r.stdout) if r.returncode == 0 else []
 
 

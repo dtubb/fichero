@@ -211,7 +211,7 @@ def test_milestones_come_by_section_with_counts_steps_and_issues_and_start_calls
     gh.chmod(0o755)
     issues = [{"number": 11, "title": "alpha Step 1.2: b", "body": "", "labels": [{"name": "step:1.2"}, {"name": "bug"}]},
               {"number": 12, "title": "alpha Step 1.3: c", "body": "", "labels": [{"name": "step:1.3"}]}]
-    monkeypatch.setattr(ms, "list_issues", lambda name, gh="gh": issues if name == "Alpha" else [])
+    monkeypatch.setattr(ms, "list_issues", lambda name, gh="gh", **k: issues if name == "Alpha" else [])
     monkeypatch.setattr(ms, "build_order", lambda p: [{"number": n, "title": t, "depends_on": d} for n, t, d in
                                                       [("1.1", "a", []), ("1.2", "b", []), ("1.3", "c", ["1.2"])]])
     lanes = [{"id": "alpha", "worktree": "/w", "cursor": 0, "steps": [{"step": "1.2", "state": "sent"}]}]
@@ -355,7 +355,7 @@ def test_console_tiles_come_from_origin_an_owned_milestone_has_no_start_and_the_
     gh = tmp_path / "gh"
     gh.write_text("#!/bin/sh\necho '[{\"title\":\"Sharing & Pairing\",\"open_issues\":3,\"closed_issues\":1}]'\n")
     gh.chmod(0o755)
-    monkeypatch.setattr(ms, "list_issues", lambda name, gh="gh": [{"number": 1, "title": "sharing Step 1.1: a", "body": "", "labels": [{"name": "step:1.1"}]}])
+    monkeypatch.setattr(ms, "list_issues", lambda name, gh="gh", **k: [{"number": 1, "title": "sharing Step 1.1: a", "body": "", "labels": [{"name": "step:1.1"}]}])
     monkeypatch.setattr(ms, "build_order", lambda p: [{"number": "1.1", "title": "a", "depends_on": []}])
     d = console.milestones(tmp_path, gh=str(gh), lanes=console.queue.load(), reads=lambda r, ls, b: ({}, "", set()), closed=lambda n: [])
     names = [m["name"] for m in d["milestones"]]
@@ -641,3 +641,24 @@ def test_the_tabs_refetch_on_the_heartbeat_or_a_landing_never_on_the_console_row
     assert "[st.console.length]" not in page and "st.console.length +" not in page
     assert page.count("refetchKey(st)") >= 6, "every tab's fetch hangs on the one key"
     assert "const refetchKey" in page and "heartbeat" in page.split("const refetchKey")[1].split(";")[0] and "last_land_git" in page.split("const refetchKey")[1].split(";")[0]
+
+
+def test_milestones_run_gh_in_the_root_for_open_and_closed_issues(tmp_path, monkeypatch):
+    """#6497: milestones() passed cwd=root to the milestones call only; list_issues and the closed-issue read ran wherever the
+    console was (launchd: the state dir), so every planned milestone read 'not a git repository'."""
+    from fichero_builder import milestone as ms, triage
+    seen = []
+
+    def run(argv, **k):
+        if argv[0] == "gh":
+            seen.append((argv[1:3], k.get("cwd")))
+        return type("R", (), {"returncode": 0, "stdout": '[{"title":"Alpha","open_issues":2,"closed_issues":1}]' if argv[1] == "api" else "[]", "stderr": ""})()
+    monkeypatch.setattr(ms.subprocess, "run", run)
+    monkeypatch.setattr(console.subprocess, "run", run)
+    monkeypatch.setattr(ms, "build_order", lambda p: [{"number": "1.1", "title": "a", "depends_on": []}])
+    (tmp_path / triage.BUILD_ORDER).parent.mkdir(parents=True, exist_ok=True)
+    (tmp_path / triage.BUILD_ORDER).write_text("# Build order\n\n## In order\n\n1. `Alpha` Spec: a.md\n")
+    (tmp_path / triage.SPECS / "a.md").write_text("> Milestone: alpha\n")
+    console.milestones(tmp_path, lanes=[], reads=lambda root, lanes, branch: ({}, "", set()))
+    assert [a for a, _ in seen] == [["api", "repos/{owner}/{repo}/milestones?state=all&per_page=100"], ["issue", "list"], ["issue", "list"]], seen
+    assert all(cwd == str(tmp_path) for _a, cwd in seen), seen

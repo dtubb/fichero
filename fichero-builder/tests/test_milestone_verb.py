@@ -269,3 +269,10 @@ def test_the_queue_takes_the_first_ordered_milestone_no_lane_holds_with_its_step
     assert [(s["step"], s["issues"], s["waits"]) for s in steps] == [("1.1", [7], []), ("1.2", [8], ["1.1"])]
     assert all(Path(s["brief"]).is_file() and "Rule one." in Path(s["brief"]).read_text() for s in steps)
     assert queue.next_in_order(tmp_path, {"m0", "m1"}, gh=gh) is None, "the order is done"
+
+
+def test_list_issues_runs_gh_in_the_repo_so_a_launchd_cwd_still_resolves_the_remote(tmp_path, monkeypatch):
+    """#6497: the console's LaunchAgent runs in the state dir, where gh says 'not a git repository'; gh runs in the repo given."""
+    seen = {}
+    monkeypatch.setattr(milestone.subprocess, "run", lambda argv, **k: seen.update(k) or type("R", (), {"returncode": 0, "stdout": "[]", "stderr": ""})())
+    assert milestone.list_issues("m1", gh="gh", cwd=str(tmp_path)) == [] and seen["cwd"] == str(tmp_path)

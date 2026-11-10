@@ -55,9 +55,10 @@ def step_of(issue: dict, slug: str) -> str | None:
     return m.group(1) if m else None
 
 
-def list_issues(milestone: str, *, gh: str = "gh") -> list[dict]:
+def list_issues(milestone: str, *, gh: str = "gh", cwd=None) -> list[dict]:
+    """The milestone's open issues; `cwd` is the repo gh resolves the remote in (#6497: under launchd the cwd is the state dir)."""
     r = subprocess.run([gh, "issue", "list", "--milestone", milestone, "--state", "open", "--limit", "200",
-                        "--json", "number,title,body,labels"], capture_output=True, text=True, timeout=60)
+                        "--json", "number,title,body,labels"], capture_output=True, text=True, timeout=60, cwd=cwd)
     if r.returncode:
         raise RuntimeError(f"gh could not list milestone {milestone!r}: {r.stderr.strip()}")
     return json.loads(r.stdout)

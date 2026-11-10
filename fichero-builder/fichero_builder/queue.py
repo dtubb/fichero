@@ -1588,7 +1588,7 @@ def next_in_order(root, taken: set, gh: str = "gh") -> tuple | None:
             journal.append("queue", lane=lane, step="-", state="owned", detail=f"{owner} (external) owns {spec}")
             _SKIPPED.add(lane)
             continue
-        issues = milestone.list_issues(title, gh=gh)
+        issues = milestone.list_issues(title, gh=gh, cwd=str(root))
         if not issues:
             continue
         spec_path = root / triage.SPECS / spec
