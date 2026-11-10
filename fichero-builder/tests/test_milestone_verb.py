@@ -173,22 +173,22 @@ def test_the_where_list_uses_the_code_map_when_the_repo_is_indexed_and_drops_wha
     script = tmp_path / "server.py"
     server = tmp_path / "server"
     server.write_text(f"#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(script))}\n")
-    script.write_text(f"""import json, sys
+    script.write_text("""import json, sys
 for line in sys.stdin:
     m = json.loads(line)
     if "id" not in m:
         continue
     if m["method"] == "initialize":
-        result = {{}}
+        result = {}
     else:
         name, args = m["params"]["name"], m["params"]["arguments"]
-        data = {{"resolve_repo": {{"indexed": True, "repo": "r"}},
-                "get_file_outline": {{"results": [{{"file": "pkg/other.py", "symbols": [{{"name": "helper", "line": 3}}]}},
-                                                  {{"file": "pkg/readers/runner.py", "symbols": [{{"name": "run_enhancement", "line": 1}}]}},
-                                                  {{"file": "tests_here/test_x.py", "symbols": [{{"name": "test_x", "line": 1}}]}},
-                                                  {{"file": "docs/spec.md", "symbols": []}}]}}}}[name]
-        result = {{"content": [{{"type": "text", "text": json.dumps(data)}}]}}
-    print(json.dumps({{"jsonrpc": "2.0", "id": m["id"], "result": result}}), flush=True)
+        data = {"resolve_repo": {"indexed": True, "repo": "r"},
+                "get_file_outline": {"results": [{"file": "pkg/other.py", "symbols": [{"name": "helper", "line": 3}]},
+                                                  {"file": "pkg/readers/runner.py", "symbols": [{"name": "run_enhancement", "line": 1}]},
+                                                  {"file": "tests_here/test_x.py", "symbols": [{"name": "test_x", "line": 1}]},
+                                                  {"file": "docs/spec.md", "symbols": []}]}}[name]
+        result = {"content": [{"type": "text", "text": json.dumps(data)}]}
+    print(json.dumps({"jsonrpc": "2.0", "id": m["id"], "result": result}), flush=True)
 """)
     server.chmod(0o755)
     issues = [{"body": "Where: pkg/other.py, gone/stale.py\nTests: tests_here/test_x.py, pkg/readers/runner.py"}]
