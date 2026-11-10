@@ -134,6 +134,8 @@ struct ReaderLineRow: View {
     @Environment(TranscriptionFontStore.self) private var transcriptionFont: TranscriptionFontStore?
     @State private var editor: ReaderLineEditor
     @State private var correcting: Segment?
+    /// This line's own versions-triangle click and the ⌥-click stamp it was made under (#6492).
+    @State private var versionsOwn: (open: Bool, stamp: Int)?
 
     init(segment: Segment, direction: String?, zoom: Double, isSelected: Bool = false, onPick: (() -> Void)? = nil) {
         self.segment = segment
@@ -145,6 +147,11 @@ struct ReaderLineRow: View {
     }
 
     private var metrics: ReaderLines.Metrics { ReaderLines.Metrics(zoom: zoom) }
+
+    private var versionsOpen: Bool {
+        ReaderVersionsTriangle.isOpen(own: versionsOwn, allOpen: windowState?.readerVersionsAllOpen ?? false,
+                                      stamp: windowState?.readerVersionsStamp ?? 0)
+    }
 
     var body: some View {
         // ponytail: split in three (content, verbs target, modifiers): as one expression the type-checker crashed
@@ -251,13 +258,21 @@ struct ReaderLineRow: View {
 
     private var words: some View {
         VStack(alignment: .leading, spacing: 4) {
-            if let label = editor.label {
-                Label(label.text, systemImage: label.glyph)
-                    .font(.caption).foregroundStyle(.secondary)
-                    .help(label.help)
-                    .accessibilityLabel("\(label.text), \(label.help)")
+            HStack(spacing: 4) {
+                if ReadingTree.discloses(editor.versions) {
+                    ReaderVersionsTriangle(own: $versionsOwn, count: ReaderLineVersions.flattened(editor.versions).count)
+                }
+                if let label = editor.label {
+                    Label(label.text, systemImage: label.glyph)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .help(label.help)
+                        .accessibilityLabel("\(label.text), \(label.help)")
+                }
             }
             field
+            if ReadingTree.discloses(editor.versions), versionsOpen {
+                ReaderLineVersions(roots: editor.versions, countingId: editor.reading?.id)
+            }
             if editor.isChanged {
                 HStack {
                     Spacer()

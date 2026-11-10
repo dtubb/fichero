@@ -36,6 +36,9 @@ struct InspectorText: Equatable {
         /// Still held only in its run's result (not a stored row), and the result it came from.
         var provisional = false
         var derivedFromArtifactId: String?
+        /// The reading of this segment it was made FROM (a modernisation of a transcription, a translation of it):
+        /// where it hangs in the line's versions tree (`source.editor.reader-line-discloses-its-versions`).
+        var derivedFromId: String?
 
         /// "gemini-3-flash-preview via OpenRouter": the model's own name (its last path part) and the provider,
         /// each said once; just the one that is known, nil when neither is.

@@ -130,7 +130,8 @@ extension SegmentService {
                     machineConfidence: $0.machineConfidence, readFromRenditionId: $0.readFromRenditionId,
                     producerModel: $0.producerModel, producerProvider: $0.producerProvider,
                     producerRunId: $0.producerRunId, producerStep: $0.producerStep, createdAt: $0.createdAt,
-                    provisional: $0.provisional, derivedFromArtifactId: $0.derivedFromArtifactId
+                    provisional: $0.provisional, derivedFromArtifactId: $0.derivedFromArtifactId,
+                    derivedFromId: $0.derivedFromRepresentationId
                 )
             }
             let counting = body.counting.additionalProperties.mapValues {
