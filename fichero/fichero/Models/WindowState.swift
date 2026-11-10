@@ -102,9 +102,14 @@ class WindowState {
         }
     }
 
-    /// The Preview's mode (`PreviewMode`): Read, Segments or Image. Segments IS `isEditingSegments`; each is set from
+    /// The line Reader's ⌥-click on a versions triangle (#6492): every line open or closed, as in Finder. The stamp
+    /// rises with each ⌥-click so a row's own earlier click stops counting.
+    var readerVersionsAllOpen = false
+    var readerVersionsStamp = 0
+
+    /// The Preview's mode (`PreviewWorkMode`): Read, Segments or Image. Segments IS `isEditingSegments`; each is set from
     /// the other, so the head's three-way control and the older Edit Segments entries never disagree.
-    var previewMode: PreviewMode = .read {
+    var previewMode: PreviewWorkMode = .read {
         didSet {
             let editing = previewMode == .segments
             if isEditingSegments != editing { isEditingSegments = editing }
