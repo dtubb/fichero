@@ -200,11 +200,28 @@ def act(verb: str, args: dict, who: str) -> dict:
     return {"ok": True, "started": verb, "thread": t}
 
 
+_GIT_AT: dict = {}  # (worktree, HEAD, args) -> git output: a read that only changes with the head is made once per head (#6498)
+
+
+def _git_at_head(worktree: str, *args: str, salt: str = "") -> str:
+    """_git_text, cached by the worktree's HEAD (one rev-parse a call instead of the read); `salt` joins the key for a read that
+    also depends on something else (the landing tip). ponytail: the dict grows a row per head seen; cleared at a landing."""
+    head = _git_text(worktree, "rev-parse", "HEAD").strip()
+    k = (worktree, head, salt, args)
+    if head and k in _GIT_AT:
+        return _GIT_AT[k]
+    out = _git_text(worktree, *args)
+    if head:
+        if len(_GIT_AT) > 2000:
+            _GIT_AT.clear()
+        _GIT_AT[k] = out
+    return out
+
+
 def _last_commit(worktree: str) -> tuple[str, int]:
-    """("<sha> <subject> (<age>)", its commit time) of the worktree's HEAD; ("", 0) when unreadable."""
-    r = subprocess.run(["git", "-c", "safe.directory=*", "-C", worktree, "log", "-1", "--format=%ct %h %s (%cr)"], capture_output=True, text=True)
-    ct, _, text = r.stdout.strip().partition(" ")
-    return (text, int(ct)) if r.returncode == 0 and ct.isdigit() else ("", 0)
+    """("<sha> <subject> (<age>)", its commit time) of the worktree's HEAD; ("", 0) when unreadable. Once per head (#6498)."""
+    ct, _, text = _git_at_head(worktree, "log", "-1", "--format=%ct %h %s (%cr)").strip().partition(" ")
+    return (text, int(ct)) if ct.isdigit() else ("", 0)
 
 
 def _title(brief: str) -> str:
@@ -368,7 +385,7 @@ def api_status(rows: list[dict], lanes: list[dict], now: float | None = None, co
                 row["step"] = f"Step {pr['step']}"  # its own newest commit says where it is (the queue's step is the batch's name)
             row["progress"] = pr
             if x.get("kind") == "external":  # commits waiting since its last landing
-                row["waiting"] = len([c for c in _git_text(x["worktree"], "rev-list", "origin/integration..HEAD").split() if c])
+                row["waiting"] = len(_git_at_head(x["worktree"], "rev-list", "origin/integration..HEAD", salt=(st.get("last_land_git") or {}).get("sha", "")).split())
         if a := running.get(x["id"]):  # what its check or review is doing now, and since when
             row["activity"] = {"kind": a["kind"], "now": a["now"], "started": a["started"], "done": len(a["rungs"])}
             base, tip = str(a.get("key", "")).partition(" ")[2].split("..")[0], (st.get("last_land_git") or {}).get("sha", "")
@@ -779,6 +796,20 @@ def _git_tiles(branch: str = "integration") -> dict:
     return data
 
 
+_STATUS: dict = {"at": 0.0, "data": None}
+_STATUS_LOCK = threading.Lock()
+STATUS_TTL_S = 3.0
+
+
+def status_cached() -> dict:
+    """#6498: /api/status took 3-10 s and the page asked on every journal row; one compute serves STATUS_TTL_S, and requests that
+    overlap wait for the one in flight instead of each running their own."""
+    with _STATUS_LOCK:
+        if _STATUS["data"] is None or time.time() - _STATUS["at"] > STATUS_TTL_S:
+            _STATUS.update(data=api_status(rows_of(ROOT), queue.load()), at=time.time())
+        return _STATUS["data"]
+
+
 def _cache() -> Path:
     return journal.STATE / "console-milestones.json"
 
@@ -825,7 +856,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             return self.wfile.write(b)
         if path in ("/api/status", "/status.json"):
-            return _json(self, 200, api_status(rows_of(ROOT), queue.load()))
+            return _json(self, 200, status_cached())
         if path == "/api/milestones":
             try:
                 return _json(self, 200, json.loads(_cache().read_text()))
