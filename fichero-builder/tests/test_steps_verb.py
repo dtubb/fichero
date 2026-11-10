@@ -4,6 +4,7 @@ script keeps issues in a JSON file and logs every call."""
 from __future__ import annotations
 
 import json
+import shlex
 import sys
 
 import pytest
@@ -44,8 +45,7 @@ SPEC = """# Thing — Design Spec
 ## Test matrix
 """
 
-FAKE_GH = """#!{py}
-import json, sys
+FAKE_GH = """import json, sys
 from pathlib import Path
 state = Path({state!r})
 db = json.loads(state.read_text()) if state.exists() else {{"issues": [], "calls": []}}
@@ -79,7 +79,9 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(journal, "STATE", tmp_path / "s")
     state = tmp_path / "gh.json"
     gh = tmp_path / "gh"
-    gh.write_text(FAKE_GH.format(py=sys.executable, state=str(state)))
+    # A shebang cannot hold an interpreter path with a space (the gate disk's): an sh wrapper runs the script instead.
+    gh.with_suffix(".py").write_text(FAKE_GH.format(state=str(state)))
+    gh.write_text(f"#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(gh.with_suffix('.py')))} \"$@\"\n")
     gh.chmod(0o755)
     spec = tmp_path / "spec.md"
     spec.write_text(SPEC.format(status="APPROVED"))
