@@ -36,6 +36,7 @@ from typing import Callable
 from fichero_builder import check_tool, codemap, jail, journal, land_tool, models, work
 
 ROUNDS, RESTARTS = 2, 2
+DISPATCH: list = [()]  # [loop].dispatch: external lanes the loop runs itself, as managed worker lanes (#6466); the verb sets it
 BLOCKED_H: list = [4.0]  # [loop].blocked_hours: a blocked step this old is retried once in a fresh session, then parked (#6466)
 _now = time.time  # the tests set the clock
 AUTO_SEND_BACKS = 3  # an external lane's red check is sent back by the loop this many times a batch, then it is an alert
@@ -138,6 +139,7 @@ class Procs:
     intake: Callable[[dict], str] = lambda lane: ""  # an external lane -> the sha to take now by itself (thresholds), or ''
     trees: Callable[[list], dict] = lambda paths: {}  # paths -> {path: "HEAD status-hash"}: what a step must leave unmoved (run.loop-machine-checked)
     jail_root: str = ""
+    workroot: str = ""  # [jail].workroot: a managed lane's tree is wt-<lane> here (run.loop-dispatch)
     root: str = ""  # the loop's checkout (its harness.toml): the rules warnings at start and the scratch sweep read it
 
 
@@ -238,6 +240,12 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if lane.get("kind") == "external" and s.get("land_tree"):  # the lane fixes it on its branch: tell it where the findings are
             findings_to_lane(s, why, evidence, q)
         return False
+
+    def fresh_stop():  # run.loop-dispatch: a managed lane's worker ends with its batch; the next batch starts a fresh one
+        if lane.get("fresh") and lane["id"] in handles:
+            procs.stop(lane)
+            del handles[lane["id"]]
+            lane["feed"] = ""
 
     h = handles.get(lane["id"])
     if lane.get("stop_at") and (h is None or not procs.alive(h) or time.time() >= lane["stop_at"]):  # `queue stop`: the grace is over
@@ -428,6 +436,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             procs.after_land(lane, s, r["head"])
         left = procs.still_open(lane, s)  # a row, not a close: only `builder landed` closes, on a Fixes line (owner ruling)
         close_alerts(lane["id"], s["step"], f"the step landed at {r['head'][:9]}")
+        fresh_stop()
         lane["cursor"] += 1  # ONE write ends the landing: the step is landed and the cursor is past it in the same store, so no `builder done` can run between the two
         move(s, "landed", f"landed {r['head'][:9]}" + (" (pushed)" if push else " (not pushed)") + (f"; still open: {', '.join(left)}" if left else ""))
         if push and lane.get("kind") != "external" and lane["cursor"] >= len(lane["steps"]) and any(x.get("product") for x in lane["steps"]):
@@ -438,6 +447,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         return True
     if r.get("kind") == "already-landed":  # #6466 (run.loop-already-landed): every commit is on origin already; the step IS landed
         close_alerts(lane["id"], s["step"], "already on origin")
+        fresh_stop()
         lane["cursor"] += 1
         move(s, "landed", f"already on origin: {r['why']}")
         return True
@@ -949,10 +959,34 @@ def _ours(lane: dict) -> bool:
     return not ONLY[0] or lane["id"] in ONLY[0]
 
 
+def manage(lane: dict, procs: Procs) -> bool:
+    """run.loop-dispatch (#6466): an external lane in [loop].dispatch whose cursor step is queued (no session of its own says done)
+    becomes a managed worker lane: its tree is <workroot>/wt-<lane> (its own tree is kept as `own_tree`), its pane is forgotten,
+    one fresh session per batch (`fresh`). Written under the lock; one `queue` row `managed`. False when nothing changed."""
+    if lane.get("kind") != "external" or lane["id"] not in DISPATCH[0] or lane.get("hold") or lane["cursor"] >= len(lane["steps"]):
+        return False
+    if lane["steps"][lane["cursor"]]["state"] != "queued":
+        return False
+    tree = str(Path(procs.workroot) / f"wt-{lane['id']}") if procs.workroot else lane["worktree"]
+    with journal.Lock("queue"):
+        lanes = load()
+        x = next((y for y in lanes if y["id"] == lane["id"]), None)
+        if x is None or x.get("kind") != "external":
+            return False
+        x.update(kind="worker", fresh=True, own_tree=x["worktree"], worktree=tree)
+        x.pop("pane", None)
+        save(lanes)
+    journal.append("queue", lane=lane["id"], step=lane["steps"][lane["cursor"]]["step"], state="managed",
+                   detail=f"dispatched by the loop: a managed worker in {tree} (own tree {lane['worktree']})")
+    return True
+
+
 def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, chains: dict | None = None) -> bool:
     busy = False
     for lane in filter(_ours, load()):
         try:
+            if manage(lane, procs):
+                lane = next(x for x in load() if x["id"] == lane["id"])
             busy = tick_lane(lane, procs, handles, workers_n, push, out, chains) or busy
         except Exception:  # noqa: BLE001 - the same for the tick's own work on a lane: a row, and the other lanes still tick
             journal.append("loop", state="lane-error", lane=lane["id"], detail=traceback.format_exc()[-1500:])
@@ -1233,7 +1267,17 @@ def real_procs(root) -> Procs:
     def start(lane, step):
         a, q = ns(lane, step), shlex.quote
         a.pinned = work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))  # #6466: the worker imports fichero_builder from here
+        if lane.get("fresh") and not Path(a.worktree).exists() and step.get("head"):  # a retried batch: its head (in the engine repo) travels as a bundle
+            bundle, ref = work.shared_state(a) / f"base-{lane['id']}.bundle", f"base-lane-{lane['id']}"  # the ref ensure_worktree fetches
+            r = work._git(repo, "update-ref", f"refs/heads/{ref}", step["head"])
+            r = r if r.returncode else work._git(repo, "bundle", "create", str(bundle), f"{land_tool.resolve_branch(repo, branch)}..{ref}")
+            if r.returncode:
+                raise RuntimeError(f"no bundle of {step['head'][:9]} for the managed tree: {r.stderr.strip()[-200:]}")
+            bundle.chmod(0o644)
+            a.base_bundle = str(bundle)
         if why := work.ensure_worktree(a, f"lane-{lane['id']}"):
+            raise RuntimeError(why)
+        if lane.get("fresh") and lane["seq"] > 0 and (why := work.do_rebase(a, branch)):  # the tree of the last batch, onto origin's tip
             raise RuntimeError(why)
         j = work._jail(a)
         # the owner's folder: a worker cannot write its own next brief. The workroot is world-writable, so the name is one no worker can
@@ -1323,7 +1367,8 @@ def real_procs(root) -> Procs:
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
                  next_milestone=lambda taken: next_in_order(root, taken), build=build, verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake,
-                 jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "", root=str(root))
+                 jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "",
+                 workroot=str(rules.get("jail", {}).get("workroot", "")), root=str(root))
 
 
 PRESUBMIT_TIMEOUT_S = 1200

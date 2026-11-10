@@ -768,3 +768,21 @@ def test_run_cmd_takes_the_package_from_the_pinned_copy_not_the_owners_checkout(
     assert f"PYTHONPATH={scratch.tmp}/pin/fichero-builder " in cmd, cmd
     (scratch.tmp / "pin" / "fichero-builder" / "fichero_builder").rmdir()
     assert f"PYTHONPATH={Path(work.__file__).resolve().parents[1]} " in work.run_cmd(scratch.a, "sonnet")
+
+
+def test_ensure_worktree_bases_a_managed_tree_on_a_bundle_of_the_steps_head(scratch, tmp_path):
+    """#6466: the worker's root clone sees only origin, so a retried batch's head (in the engine repo) travels as a bundle: the
+    managed tree starts at that head, on its new branch."""
+    e, wr = scratch.engine, scratch.tmp / "wr"
+    _g(e, "checkout", "-q", "-b", "feat")
+    _commit(e, "one")
+    head = _g(e, "rev-parse", "HEAD")
+    _g(e, "checkout", "-q", "integration")
+    subprocess.run(["git", "clone", "-q", str(e), str(wr / "root")], check=True)
+    bundle = tmp_path / "base.bundle"
+    _g(e, "branch", "base-lane-x", head)  # the ref the managed tree is fetched from (the loop names it after the lane)
+    _g(e, "bundle", "create", str(bundle), "integration..base-lane-x")
+    a = types.SimpleNamespace(**{**vars(scratch.a), "worktree": str(wr / "wt-x"), "base_bundle": str(bundle)})
+    (scratch.tmp / "pin" / "harness.toml").write_text((scratch.tmp / "pin" / "harness.toml").read_text() + '[land]\nbranch = "integration"\n')
+    assert work.ensure_worktree(a, "lane-x") == ""
+    assert _g(wr / "wt-x", "rev-parse", "HEAD") == head and _g(wr / "wt-x", "branch", "--show-current") == "lane-x"

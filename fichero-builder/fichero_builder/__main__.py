@@ -384,6 +384,8 @@ def main(argv=None) -> int:
         # manager 2026-11-04: a fresh loop (the LaunchAgent) took an old build-order milestone the hand loop had long skipped and started a
         # worker on steps lane-sharing had landed: the lanes are named in [loop].only, and milestones are taken only when feed_milestones is on
         queue.ONLY[0] = tuple(cfg.get("only", ()))
+        queue.DISPATCH[0] = tuple(cfg.get("dispatch", ()))  # #6466: external lanes the loop runs itself
+        queue.BLOCKED_H[0] = float(cfg.get("blocked_hours", queue.BLOCKED_H[0]))
         return queue.run(procs, workers_n=max(queue.workers(a.root), lanes_n), push=True, lanes_n=lanes_n, tick_s=a.tick, forever=True, heartbeat=True,
                          feed_milestones=bool(cfg.get("feed_milestones", False)))
     if a.cmd == "queue":

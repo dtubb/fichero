@@ -100,8 +100,11 @@ def ensure_worktree(a, new_branch: str) -> str:
         return ""
     q, g, branch = shlex.quote, shlex.quote(jail_git()), tomllib.loads((Path(a.pinned) / "harness.toml").read_text())["land"]["branch"]
     root = q(str(Path(_jail(a).workroot) / "root"))
-    r = as_worker(a, f"{g} -C {root} fetch -q origin {q(branch)} && {g} -C {root} worktree add -q -b {q(new_branch)} {q(str(a.worktree))} "
-                     f"{q(getattr(a, 'base', '') or 'origin/' + branch)}")
+    base, pre = getattr(a, "base", "") or "origin/" + branch, ""
+    if bundle := getattr(a, "base_bundle", ""):  # #6466: a head the worker's origin lacks, fetched from the owner's bundle
+        base = f"base-{new_branch}"
+        pre = f"{g} -C {root} fetch -q --no-tags -- {q(bundle)} +refs/heads/{q(base)}:refs/heads/{q(base)} && "  # the bundle carries that one ref
+    r = as_worker(a, f"{g} -C {root} fetch -q origin {q(branch)} && {pre}{g} -C {root} worktree add -q -b {q(new_branch)} {q(str(a.worktree))} {q(base)}")
     return "" if r.returncode == 0 else f"the worktree could not be made: {(r.stderr or r.stdout).strip()[-300:]}"
 
 

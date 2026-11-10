@@ -1162,3 +1162,38 @@ def test_an_auto_send_back_raises_an_alert_too(state, tmp_path):
     queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
     assert steps_of("lane-x")[0]["state"] == "blocked" and steps_of("lane-x")[0]["auto_sb"] == 1
     assert [(a["lane"], a["actions"]) for a in _open_alerts()] == [("lane-x", ["send-back", "retry", "park"])]
+
+
+def test_a_dispatched_external_lane_is_managed_by_the_loop_one_fresh_worker_per_batch(state, monkeypatch):
+    """#6466 (run.loop-dispatch): the loop itself runs an external lane named in [loop].dispatch: the lane becomes a managed
+    worker lane in <workroot>/wt-<lane> (its own tree remembered), a fresh session per batch, closed when the batch lands."""
+    queue.add("ext", "/w/ext", "batch-1", str(state / "b1.1"), [7], kind="external", pane="%9")
+    queue.add("ext", "/w/ext", "batch-2", str(state / "b1.2"), [8])
+    monkeypatch.setattr(queue, "DISPATCH", [("ext",)])
+    fake = Fake()
+    fake.procs.workroot = str(state / "wr")
+    assert queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None) == 0
+    x = next(x for x in queue.load() if x["id"] == "ext")
+    assert x["kind"] == "worker" and x["worktree"] == str(state / "wr" / "wt-ext") and x["own_tree"] == "/w/ext" and "pane" not in x and x.get("fresh")
+    assert [s["state"] for s in x["steps"]] == ["landed", "landed"] and fake.landed_calls == [("hbatch-1", True), ("hbatch-2", True)]
+    assert fake.starts == [("ext", "batch-1", 1), ("ext", "batch-2", 2)], "a fresh session per batch, never a send into the old one"
+    assert fake.sent == [] and fake.stops[:1] == ["ext"], "the first batch's worker was closed when it landed"
+    assert [r["detail"] for r in journal.read() if r.get("state") == "managed"] == ["dispatched by the loop: a managed worker in " + str(state / "wr" / "wt-ext") + " (own tree /w/ext)"]
+
+
+def test_an_external_lane_outside_dispatch_still_waits_for_its_done(state, monkeypatch):
+    queue.add("ext", "/w/ext", "batch-1", str(state / "b1.1"), [7], kind="external")
+    monkeypatch.setattr(queue, "DISPATCH", [("other",)])
+    fake = Fake()
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert fake.starts == [] and next(x for x in queue.load() if x["id"] == "ext")["kind"] == "external"
+
+
+def test_the_loop_verb_reads_dispatch_and_blocked_hours_from_the_loop_table(state, monkeypatch):
+    (state / "harness.toml").write_text('[check]\nengine_repo = "/e"\n[land]\nbranch = "integration"\n[loop]\ndispatch = ["a", "b"]\nblocked_hours = 2.5\n')
+    monkeypatch.setattr(queue, "DISPATCH", [()])
+    monkeypatch.setattr(queue, "BLOCKED_H", [4.0])
+    monkeypatch.setattr(queue, "real_procs", lambda root: Fake().procs)
+    monkeypatch.setattr(queue, "run", lambda procs, **k: 0)
+    assert cli.main(["loop", "--root", str(state), "--state", str(state / "s")]) == 0
+    assert queue.DISPATCH[0] == ("a", "b") and queue.BLOCKED_H[0] == 2.5
