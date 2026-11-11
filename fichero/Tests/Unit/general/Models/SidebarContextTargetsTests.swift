@@ -47,4 +47,23 @@ struct SidebarContextTargetsTests {
         #expect(sidebarFallbackTapActs(parent, false))
         #expect(sidebarFallbackTapActs(makeItem("leaf"), true))
     }
+
+    @Test("Option toggles like Command, alone or with Shift; Shift alone extends")
+    func optionTogglesLikeCommand() {
+        #expect(sidebarToggleModifiers(shift: false, command: false, option: true) == (false, true))
+        #expect(sidebarToggleModifiers(shift: true, command: false, option: true) == (true, true))
+        #expect(sidebarToggleModifiers(shift: true, command: false, option: false) == (true, false))
+    }
+
+    @Test("a toggle click on a selected child takes it out, and the parent stays out")
+    func toggleClickOnSelectedChildDeselectsIt() {
+        let parent = SidebarDestination.document("parent")
+        let first = SidebarDestination.document("first")
+        let second = SidebarDestination.document("second")
+        let out = sidebarFallbackProposal(
+            clicked: first, current: [first, second], anchor: first, orderedSiblings: [first, second],
+            modifiers: sidebarToggleModifiers(shift: true, command: false, option: true))
+        #expect(out == [second])
+        #expect(!out.contains(parent))
+    }
 }

@@ -55,6 +55,8 @@ struct SidebarItemRow: View {
     @Bindable var sidebarState: SidebarState
     @Bindable var libraryManager: LibraryManager
     var onOpenChatWithCurrentScope: (() -> Void)?
+    /// Writes a whole selection through the sidebar's one commit seam; a nested row's fallback tap uses it (#6534).
+    var onSelectionProposal: ((Set<SidebarDestination>) -> Void)?
 
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     @Environment(WindowState.self) var windowState

@@ -216,8 +216,8 @@ extension SidebarView {
             deleteState: deleteState,
             sidebarState: sidebarState,
             libraryManager: libraryManager,
-            onOpenChatWithCurrentScope: onOpenChatWithCurrentScope
-        ,
+            onOpenChatWithCurrentScope: onOpenChatWithCurrentScope,
+            onSelectionProposal: { applySidebarSelectionProposal($0) },
             mergeSelectionAbove: mergeAbove,
             mergeSelectionBelow: mergeBelow,
             // A schedule, trigger or batch changed by its own verb: read them again (#5712).
@@ -254,9 +254,6 @@ extension SidebarView {
         // (empty payload + moveDisabled), which both work. The observing
         // gesture routes through the SAME commit seam as the List binding
         // (applySidebarSelectionProposal), so there is still one write path.
-        // ponytail: plain clicks only — ⇧/⌘ label clicks stay with the List
-        // (they did not work on these rows before either); revisit if Daniel
-        // needs modifier-extension on the name itself.
         row
             .simultaneousGesture(TapGesture().onEnded {
                 // #145 widened the fallback to MODIFIER clicks: on rows whose
@@ -269,10 +266,7 @@ extension SidebarView {
                     current: selectionState.selectedDestinations,
                     anchor: selectionState.selectedDestination,
                     orderedSiblings: orderedSiblings,
-                    modifiers: (
-                        shift: NSEvent.modifierFlags.contains(.shift),
-                        command: NSEvent.modifierFlags.contains(.command)
-                    )
+                    modifiers: sidebarClickModifiers()
                 )
                 guard sidebarFallbackTapActs(item, sidebarState.expandedItems.contains(item.id)) else { return }
                 logFallbackTap(on: item, proposal: proposal)
