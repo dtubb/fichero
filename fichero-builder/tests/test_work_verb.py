@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import json
+import shlex
 import subprocess
 import types
 
@@ -779,7 +780,7 @@ def test_run_cmd_takes_the_package_from_the_pinned_copy_not_the_owners_checkout(
     cmd = work.run_cmd(scratch.a, "sonnet")
     assert f"PYTHONPATH={scratch.tmp}/pin/fichero-builder " in cmd, cmd
     (scratch.tmp / "pin" / "fichero-builder" / "fichero_builder").rmdir()
-    assert f"PYTHONPATH={Path(work.__file__).resolve().parents[1]} " in work.run_cmd(scratch.a, "sonnet")
+    assert f"PYTHONPATH={shlex.quote(str(Path(work.__file__).resolve().parents[1]))} " in work.run_cmd(scratch.a, "sonnet")  # quoted: the M4 gate path has a space
 
 
 def test_run_cmd_puts_homebrew_on_the_path_the_jail_user_gets(scratch):
