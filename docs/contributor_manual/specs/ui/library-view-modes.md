@@ -377,6 +377,12 @@ may be why it still reads as broken to whoever tests it next.
 - `library.table.column-customization` — **[GAP]** (#3698) a column picker should choose
   which columns the table view shows (name, dates, type, entity count, size, etc.),
   persisted per view. Not verified as built.
+- `library.table.every-column-selects` — **[OK]** (#6538) a click anywhere in a table row
+  selects it, the Name column included: a click selects, ⇧-click selects a range, ⌘-click
+  adds or removes one row, and a double-click opens. No cell carries a drag source (a
+  `.draggable` inside an `NSTableView` cell takes the mouse-down, which is how the Name column
+  stopped selecting); the drag is the ROW's, so a row drags out from any column. Pinned:
+  `fichero/Tests/Unit/general/Views/Library/LibraryOutlineRowDragTests.swift`.
 
 The table's **Done** column (one badge per step run on a document) belongs to
 `activity.document.what-has-been-run` in `ui/activity-and-automatic-work.md` (#5434); it is

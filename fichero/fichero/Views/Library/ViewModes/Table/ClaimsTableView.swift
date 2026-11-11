@@ -81,7 +81,7 @@ struct ClaimsTableView: View {
     }
 
     private var table: some View {
-        Table(sortedItems, selection: $selection, sortOrder: $sortOrder) {
+        Table(of: Item.self, selection: $selection, sortOrder: $sortOrder) {
             TableColumn("Subject", value: \.values.subject) { item in
                 Text(item.values.subject).font(.body).lineLimit(1)
                     .accessibilityIdentifier("kg.claim.row.\(item.claim.id ?? item.id)")
@@ -108,22 +108,14 @@ struct ClaimsTableView: View {
             TableColumn("Source", value: \.sourceName) { item in
                 // The source page is a door: a row click opens it (the shared
                 // ClaimSourceNavigationState cursor, see `.onChange(of: selection)`
-                // below), the label reads as the page name never a raw id, and the
-                // cell DRAGS the source document like any library row when it
-                // resolves (spec: panes-workspaces
-                // panes.claim.source-is-document). Inline (not a helper) so it
-                // lives in the column's own @ViewBuilder with no scope surprises.
-                let label = Label(item.sourceName, systemImage: "doc.text")
+                // below), and the label reads as the page name never a raw id
+                // (spec: panes-workspaces panes.claim.source-is-document). The ROW
+                // drags the source document (`rows:` below), never this cell: a drag
+                // source in a cell takes the click that selects the row (#6538).
+                Label(item.sourceName, systemImage: "doc.text")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                if let drag = item.sourceDrag {
-                    label.draggable(drag) {
-                        RowDragPreview(name: drag.name, systemImage: "doc.text")
-                    }
-                } else {
-                    label
-                }
             }
             .width(min: 120, ideal: 180)
 
@@ -138,6 +130,10 @@ struct ClaimsTableView: View {
                 ClaimProvenanceBadge(provenance: item.values.provenance)
             }
             .width(min: 90, ideal: 120)
+        } rows: {
+            ForEach(sortedItems) { item in
+                TableRow(item).itemProvider { item.sourceDrag?.itemProvider() }
+            }
         }
         .tableStyle(.inset)
         #if os(macOS)

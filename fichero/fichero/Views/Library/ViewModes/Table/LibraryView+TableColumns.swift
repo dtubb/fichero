@@ -16,7 +16,8 @@ extension LibraryView {
             outlineColumns
         } rows: {
             ForEach(filteredDocuments) { doc in
-                TableRow(LibraryOutlineNode.document(doc, children: nil))
+                let node = LibraryOutlineNode.document(doc, children: nil)
+                TableRow(node).itemProvider { outlineRowDragProvider(for: node) }
             }
         }
     }
@@ -220,18 +221,10 @@ extension LibraryView {
         // Folder name-cells accept in-app item drops (#4124) — same
         // per-cell modifier as icon/list modes; Table scopes the
         // dropDestination (and its highlight) to this cell.
+        // No `.draggable` on any cell here: the ROW drags (`outlineRowDragProvider`, #6538).
+        // A drag source in an NSTableView cell takes the mouse-down, and this column alone
+        // stopped selecting its row on a click.
         tableCellView(for: "name", document: document)
-            // Document rows drag out like list/icon rows (#4160 step 3):
-            // real file copy + RTF via the shared LibraryItemDrag —
-            // previously only CHILD rows were draggable in table mode.
-            // Same lozenge preview as list/columns rows (#26/#133-136):
-            // the default cell snapshot read as a bare text scrap.
-            .draggable(libraryItemDrag(for: document)) {
-                RowDragPreview(
-                    name: document.name,
-                    systemImage: document.fileType?.icon ?? document.docType.icon
-                )
-            }
             .modifier(LibraryFolderCellDrop(
                 acceptsDrop: document.acceptsItemDrops,
                 onDropProviders: { providers in
@@ -255,26 +248,12 @@ extension LibraryView {
     /// function-body-length budget.
     @ViewBuilder
     private func artifactNameCell(for artifact: Artifact) -> some View {
-                Label(
-                    artifact.stepName ?? artifact.artifactType,
-                    systemImage: "shippingbox"
-                )
-                .font(.subheadline)
-                .foregroundStyle(.primary)
-                // Same env-free preview contract as the group row above.
-                .draggable(LibraryItemDrag(
-                    kind: .artifact,
-                    id: artifact.id,
-                    documentId: artifact.documentId,
-                    text: artifact.content?.isEmpty == false
-                        ? artifact.content ?? artifact.artifactTypeDisplayName
-                        : artifact.artifactTypeDisplayName
-                )) {
-                    RowDragPreview(
-                        name: artifact.stepName ?? artifact.artifactType,
-                        systemImage: "shippingbox"
-                    )
-                }
+        Label(
+            artifact.stepName ?? artifact.artifactType,
+            systemImage: "shippingbox"
+        )
+        .font(.subheadline)
+        .foregroundStyle(.primary)
     }
 
     /// Name-column cell. Documents render the existing name cell; child-group rows
@@ -288,22 +267,6 @@ extension LibraryView {
             Label(type.groupLabel(count: node.count), systemImage: type.systemImage)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-                // Explicit env-free preview — the DEFAULT preview re-hosts
-                // the row with NO environment and crashes on first drag
-                // (Daniel's table-view crash, 2026-08-10: EnvironmentObjectKey
-                // force-unwrap under PasteboardUtility.File). See
-                // DragPreviewLabel's contract.
-                .draggable(LibraryItemDrag(
-                    kind: .group,
-                    id: node.id,
-                    documentId: node.document.id,
-                    text: type.groupLabel(count: node.count)
-                )) {
-                    RowDragPreview(
-                        name: type.groupLabel(count: node.count),
-                        systemImage: type.systemImage
-                    )
-                }
         case .pageItem(let page):
             // `pageThumbnailLabel ?? name` is nil exactly for a page with no
             // sequence — the case with no page number to show — so it fell
@@ -315,12 +278,6 @@ extension LibraryView {
             )
             .font(.subheadline)
             .foregroundStyle(.primary)
-            .draggable(libraryItemDrag(for: page)) {
-                RowDragPreview(
-                    name: DocumentTitle.displayName(for: page),
-                    systemImage: "doc.richtext"
-                )
-            }
         case .artifactItem(let artifact):
             artifactNameCell(for: artifact)
         case .entityItem(let entity):
