@@ -1333,3 +1333,26 @@ def test_a_done_with_no_new_commit_this_session_still_counts_when_the_tree_is_ah
     fake.procs.ahead_of_origin = lambda lane_: False
     queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
     assert next(x for x in queue.load() if x["id"] == "m2")["steps"][0]["state"] == "blocked"
+
+
+def test_a_pinned_diff_approved_once_is_approved_by_itself_at_a_later_head_with_the_same_diff_and_a_changed_diff_still_alerts(state, tmp_path):
+    """Alerts 539/543 (2026-11-11): the same nine-file pinned diff re-alerted at every new head of the ux lane. An approve binds to
+    the diff's content (git patch-id), not the head: a later refusal whose diff has the same patch-id is approved by itself with an
+    `auto-approve` row and no alert; a diff that changed is the alert as before."""
+    lane(state)
+    diff, other = tmp_path / "pinned-m1.diff", tmp_path / "pinned-m1-other.diff"
+    diff.write_text("diff --git a/scripts/x.py b/scripts/x.py\nindex 1111111..2222222 100644\n--- a/scripts/x.py\n+++ b/scripts/x.py\n@@ -1 +1 @@\n-a\n+b\n")
+    other.write_text("diff --git a/scripts/x.py b/scripts/x.py\nindex 1111111..3333333 100644\n--- a/scripts/x.py\n+++ b/scripts/x.py\n@@ -1 +1 @@\n-a\n+c\n")
+    refusal = {"ok": False, "kind": "needs-maintainer", "why": "pinned-checks at abc1234ef: scripts/x.py: a pinned check file was changed", "approvals": ["maintainer"]}
+    fake = Fake(chains={"1.1": [{**refusal, "evidence": str(diff)}, {**refusal, "evidence": str(diff), "head": "h1.1b"}],
+                        "1.2": [{**refusal, "evidence": str(other)}]})
+    seen = []
+    base_chain = fake.procs.chain
+    fake.procs.chain = lambda lane_, step, stage: seen.append((step["step"], bool(step.get("maintainer")))) or base_chain(lane_, step, stage)
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    assert cli.main(["alert", a["id"], "approve", "--state", str(state / "s")]) == 0
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "landed" and seen[:3] == [("1.1", False), ("1.1", True), ("1.1", True)], "the second refusal (same diff, another head) ran again as the maintainer by itself"
+    assert [r["detail"] for r in journal.read() if r.get("state") == "auto-approve"] == ["the pinned diff is the one approved at abc1234ef (same patch-id): approved by itself"]
+    assert len(_alerts()) == 2 and _alerts()[-1]["step"] == "1.2", "a different pinned diff is still the manager's call"

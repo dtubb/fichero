@@ -491,6 +491,15 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             journal.append("queue", lane=lane["id"], step=s["step"], state="auto-approve", detail=f"pinned diff of {', '.join(files)} matches [loop.approved_pinned]: approved by itself")
             move(s, "done", "pinned diff matches [loop.approved_pinned]: the check runs again as the maintainer")
             return True
+    if (r.get("kind") in ("needs-maintainer", "weakened-tests", "pinned-new") and s.get("approved_diff")
+            and patch_id(r.get("evidence", "")) == s["approved_diff"]):  # the diff the manager approved, at another head: approved by itself
+        for k in r.get("approvals") or ["maintainer"]:
+            s[k] = True
+        s["approved_head"] = s.get("head", "")
+        journal.append("queue", lane=lane["id"], step=s["step"], state="auto-approve",
+                       detail=f"the pinned diff is the one approved at {s.get('approved_diff_head', '')[:9]} (same patch-id): approved by itself")
+        move(s, "done", "the pinned diff is the one already approved: the check runs again with that approval")
+        return True
     if r.get("kind") in ("needs-maintainer", "weakened-tests", "red-on-base", "pinned-new", "guard-data"):  # a pinned check or a test changed on purpose: the manager's call
         s["approve_kind"] = r["kind"]
         s["approvals"] = r.get("approvals") or []  # every reason the refusal listed: one approve sets them all
@@ -745,6 +754,19 @@ def alert(lane_id: str, step: str, why: str, evidence: str, actions: list[str]) 
     return aid
 
 
+def patch_id(diff_path: str) -> str:
+    """The content identity of a diff file (`git patch-id --stable`: line numbers and index lines left out); '' when unreadable or empty.
+    An approval bound to it holds at any head whose diff of the same files is the same (2026-11-11: alerts 539/543 re-asked for one diff)."""
+    try:
+        text = Path(diff_path).read_bytes()
+    except OSError:
+        return ""
+    if not text.strip():
+        return ""
+    r = subprocess.run(["git", "patch-id", "--stable"], input=text, capture_output=True)
+    return r.stdout.decode().split(" ")[0] if r.returncode == 0 and r.stdout else hashlib.sha256(text).hexdigest()
+
+
 def _alert_kind(r: dict) -> tuple:
     """What makes two alerts the same alert for Dismiss: lane, step, and the text before its first `;`, its numbers masked."""
     return (r.get("lane"), r.get("step"), re.sub(r"\d+", "N", str(r.get("what", "")).split(";")[0]).strip())
@@ -804,6 +826,9 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
                 same = s.get("head") and s.get("red_head") == s.get("head")
                 journal.append("queue", lane=a["lane"], step=a["step"], state="retry", detail=(f"same head ({s['head'][:9]}) and same rules as the red at {s.get('red_at', '')[11:16]}: "
                                "it answers the same unless the base or the harness changed" if same else f"retried at {s.get('head', '')[:9] or 'no head'}"))
+            if action == "approve" and s.get("approve_kind") in ("needs-maintainer", "weakened-tests", "pinned-new") and (pid := patch_id(a.get("evidence", ""))):
+                at = re.search(r"\bat ([0-9a-f]{7,40})\b", a.get("what", ""))  # a refused chain stores no head on a worker lane's step: the alert names it
+                s["approved_diff"], s["approved_diff_head"] = pid, at.group(1) if at else s.get("head", "")  # bound to the diff's content, not the head
             if action == "approve":  # manager 2026-11-02: an approve binds to this head and the tests the alert named; a new head clears it
                 # one head's approvals ACCUMULATE (manager 2026-11-03: sharing bb3 was asked about the same test three times,
                 # each approve replacing the last one's files); a new head starts empty
