@@ -170,6 +170,9 @@ def write_briefs(planned: dict, *, out, repo_dir, base: str, rules: str, fetch, 
         issues = [fetch(i["number"]) for i in c["issues"]]
         where = where_map(spec_path, c["step"], str(repo_dir), binary, issues) if spec_path else []
         text = cluster(issues, repo=str(repo_dir), branch=f"lane-{lane}" if lane else f"step-{c['step']}", base="the lane's head" if lane else base, rules=rules, where=where)
+        if lane:  # a managed worker's brief: owner files inlined, its own done line cut (alert 544)
+            from fichero_builder import brief_tool
+            text = brief_tool.for_worker(text, lane)[0]
         p = out / f"brief-step-{c['step']}.txt"
         p.write_text(text)
         written.append(p)

@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from fichero_builder import check_tool, codemap, jail, journal, land_tool, models, work
+from fichero_builder import brief_tool, check_tool, codemap, jail, journal, land_tool, models, work
 
 ROUNDS, RESTARTS = 2, 2
 DISPATCH: list = [()]  # [loop].dispatch: external lanes the loop runs itself, as managed worker lanes (#6466); the verb sets it
@@ -368,7 +368,12 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             return False
         s["trees"], s["trees_at"] = procs.trees(_others(lane, handles, procs)), time.strftime("%Y-%m-%dT%H:%M:%S")  # before the worker can move anything
         try:
-            if bad := brief_preflight(Path(s.get("resume_brief") or s["brief"]).read_text(), lane["id"], procs.jail_gh):  # #6495: before a session is spent
+            bp = Path(s.get("resume_brief") or s["brief"])
+            fixed, notes = brief_tool.for_worker(bp.read_text(), lane["id"])  # alert 544: a brief written for the owner's session, made the worker's
+            if notes:
+                bp.write_text(fixed)  # in place, so a fix round appends to the same text
+                journal.append("queue", lane=lane["id"], step=s["step"], state="brief-inlined", detail="; ".join(notes)[:300])
+            if bad := brief_preflight(fixed, lane["id"], procs.jail_gh):  # #6495: before a session is spent
                 return block(s, "the brief asks for what a managed worker cannot do; " + " / ".join(bad), actions=("retry", "park"))
             if h is None:
                 if len(handles) >= workers_n:

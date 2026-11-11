@@ -3,6 +3,7 @@ review -> landed --push -> the next step; a red goes back to the worker; every t
 from __future__ import annotations
 
 import os
+import re
 import time
 
 import pytest
@@ -1257,8 +1258,11 @@ def test_a_brief_a_managed_worker_cannot_carry_out_is_refused_before_a_session_i
     assert steps()["1.1"]["state"] == "blocked"
     a = [r for r in journal.read() if r["event"] == "alert"]
     assert len(a) == 1 and a[0]["actions"] == ["retry", "park"]
-    assert "~/Desktop/crash/crash.txt" in a[0]["what"] and "gh issue view" in a[0]["what"] and "done m1" in a[0]["what"], a[0]["what"]
-    assert "paste" in a[0]["what"] and "DONE" in a[0]["what"], "the alert says what to put in the brief instead"
+    assert "gh issue view" in a[0]["what"] and "paste" in a[0]["what"], "the alert says what to put in the brief instead"
+    # alert 544: the owner path and the done line are no longer the alert's: rewritten before the preflight (the file is not there: said so)
+    text = (state / "bad").read_text()
+    assert "~/Desktop" not in a[0]["what"] and "done m1" not in a[0]["what"]
+    assert ("<an owner path" in text or "crash.txt (an owner file" in text) and "done m1" not in text, text
     assert queue.answer(a[0]["id"], "retry")[0] == 0
     queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
     assert fake.starts == [] and steps()["1.1"]["state"] == "blocked", "the same brief is never re-sent"
@@ -1411,3 +1415,28 @@ def test_a_retry_keeps_the_steps_head_and_reruns_the_check_from_the_failed_rung_
     queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)  # blocked before any check: the brief preflight
     assert queue.answer(_alerts()[-1]["id"], "retry")[0] == 0
     assert next(x for x in queue.load() if x["id"] == "m2")["steps"][0]["state"] == "queued", "no check behind it: re-queued as before"
+
+
+def test_a_brief_written_before_dispatch_is_made_worker_safe_before_the_preflight_so_an_owner_file_no_longer_blocks(state, tmp_path):
+    """Alert 544: lane-ie's brief was written for the owner's session before the lane was dispatched. Before the preflight the brief is
+    rewritten in place for the worker (the owner file inlined, the lane's done line cut): one `brief-inlined` row, the session starts."""
+    crash = tmp_path / "owner-Desktop" / "crash.txt"
+    crash.parent.mkdir()
+    crash.write_text("it crashed here\n")
+    brief = state / "b-ie"
+    brief.write_text("Read ~/Desktop/crash.txt as the owner.\nFix it.\nSubmit with done m1\n")
+    queue.add("m1", "/w/m1", "1.1", str(brief), [7])
+    fake = Fake()
+    fake.procs.owner_home = str(tmp_path / "owner-Desktop").rsplit("/", 1)[0]
+    import fichero_builder.brief_tool as bt
+    real = bt.for_worker
+    bt.for_worker = lambda text, lane_id, **k: real(text.replace("~/Desktop/crash.txt", str(crash)), lane_id, owner_paths=re.compile(rf"(?<![\w/])(?:~/[\w./-]+|{re.escape(str(tmp_path))}/[\w./-]+)"))
+    try:
+        queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    finally:
+        bt.for_worker = real
+    assert fake.starts == [("m1", "1.1", 1)], "the session started: nothing left for the preflight to refuse"
+    assert "it crashed here" in brief.read_text() and "done m1" not in brief.read_text(), "rewritten in place, so a fix round carries the same text"
+    (row,) = [r for r in journal.read() if r.get("state") == "brief-inlined"]
+    assert "inlined crash.txt" in row["detail"] and "cut 1 `done m1`" in row["detail"]
+    assert _alerts() == []
