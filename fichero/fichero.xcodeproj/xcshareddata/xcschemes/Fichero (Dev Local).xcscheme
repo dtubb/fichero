@@ -1,11 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
-   LastUpgradeVersion = "2700"
+   LastUpgradeVersion = "2720"
    version = "1.7">
    <BuildAction
       parallelizeBuildables = "YES"
       buildImplicitDependencies = "YES"
       buildArchitectures = "Automatic">
+      <PreActions>
+         <ExecutionAction
+            ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
+            <ActionContent
+               title = "Start Fichero dev engine (Dev Local only)"
+               scriptText = "# This scheme only (Dev Local): never in Dev Embedded or a Release build. Idempotent: no-op when the engine answers.&#10;mkdir -p &quot;$HOME/.local/state/fichero-dev-engine&quot;&#10;echo &quot;$(date +%H:%M:%S) build pre-action ran, SRCROOT=${SRCROOT}&quot; &gt;&gt; &quot;$HOME/.local/state/fichero-dev-engine/preaction.log&quot;&#10;&quot;${SRCROOT}/../scripts/dev_engine.sh&quot; start nowait &gt;&gt; &quot;$HOME/.local/state/fichero-dev-engine/preaction.log&quot; 2&gt;&amp;1&#10;">
+               <EnvironmentBuildable>
+                  <BuildableReference
+                     BuildableIdentifier = "primary"
+                     BlueprintIdentifier = "500"
+                     BuildableName = "Fichero.app"
+                     BlueprintName = "Fichero"
+                     ReferencedContainer = "container:fichero.xcodeproj">
+                  </BuildableReference>
+               </EnvironmentBuildable>
+            </ActionContent>
+         </ExecutionAction>
+      </PreActions>
       <BuildActionEntries>
          <BuildActionEntry
             buildForTesting = "YES"
@@ -69,7 +87,7 @@
             ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
             <ActionContent
                title = "Start Fichero dev engine (tmux f_engine)"
-               scriptText = "# Long-lived engine in tmux session f_engine on the scratch library; never stopped on app quit.&#10;echo &quot;$(date +%H:%M:%S) pre-action ran, SRCROOT=${SRCROOT}&quot; &gt;&gt; &quot;$HOME/.local/state/fichero-dev-engine/preaction.log&quot;&#10;&quot;${SRCROOT}/../scripts/dev_engine.sh&quot; start &gt;&gt; &quot;$HOME/.local/state/fichero-dev-engine/preaction.log&quot; 2&gt;&amp;1&#10;">
+               scriptText = "# Long-lived engine in tmux session f_engine on the scratch library; never stopped on app quit.&#10;echo &quot;$(date +%H:%M:%S) pre-action ran, SRCROOT=${SRCROOT}&quot; &gt;&gt; &quot;$HOME/.local/state/fichero-dev-engine/preaction.log&quot;&#10;&quot;${SRCROOT}/../scripts/dev_engine.sh&quot; start nowait &gt;&gt; &quot;$HOME/.local/state/fichero-dev-engine/preaction.log&quot; 2&gt;&amp;1&#10;">
                <EnvironmentBuildable>
                   <BuildableReference
                      BuildableIdentifier = "primary"
@@ -105,7 +123,7 @@
          </EnvironmentVariable>
          <EnvironmentVariable
             key = "FICHERO_FORCE_UDS_PATH"
-            value = "/Users/danieltubb/Library/Containers/app.fichero.fichero/Data/tmp/fichero.sock"
+            value = "/Users/dtubb/Library/Containers/app.fichero.fichero/Data/tmp/fichero.sock"
             isEnabled = "YES">
          </EnvironmentVariable>
       </EnvironmentVariables>
