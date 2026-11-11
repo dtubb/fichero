@@ -293,10 +293,39 @@ def test_a_brief_for_a_worker_lane_inlines_an_owner_file_and_drops_its_own_done_
     (home / "Desktop" / "crash" / "crash.txt").write_text("Thread 0 crashed\nat /Users/someone/code/x.swift:3\n" + "y" * 10_000)
     text = (f"Read {home}/Desktop/crash/crash.txt as the owner's user.\nAlso see {home}/code (a folder) and /Users/Shared/fichero-worker/notes.txt.\n"
             "Fix it.\nSubmit with done lane-ie\nThen builder done lane-ie too.\n")
-    out, notes = brief_tool.for_worker(text, "lane-ie", owner_paths=re.compile(rf"(?<![\w/])(?:~/[\w./-]+|{re.escape(str(home))}/[\w./-]+|/Users/(?!Shared/)[\w./-]+)"))
+    out, notes = brief_tool.for_worker(text, "lane-ie", owner_paths=re.compile(rf"(?<![\w/])(?:~/[\w./-]+|{re.escape(str(home))}/[\w./-]+|/Users/(?!Shared/)[\w./-]+)"),
+                                       allow=(home / "Desktop",))
     assert str(home) not in out and "Thread 0 crashed" in out and "at <an owner path>:3" in out, "the file's text is in the brief, owner paths inside it rewritten"
     assert "crash.txt" in out and "truncated to" in out and len(out) < 6_000, "an excerpt, capped"
-    assert "<an owner path, a folder: code>" in out and "/Users/Shared/fichero-worker/notes.txt" in out, "a folder is named, not inlined; the jail's own paths stay"
+    assert "not readable by workers; paste the text into the brief: code>" in out and "/Users/Shared/fichero-worker/notes.txt" in out, "a folder is never inlined; the jail's own paths stay"
     assert "done lane-ie" not in out and "Fix it." in out, "its own done line is cut, the rest stays"
-    assert notes == ["inlined crash.txt (excerpt)", "rewrote a folder path: code", "cut 2 `done lane-ie` line(s)"]
+    assert notes == ["inlined crash.txt (excerpt)", "rewrote a path workers cannot read: code", "cut 2 `done lane-ie` line(s)"]
     assert brief_tool.for_worker("plain brief\n", "x")[0] == "plain brief\n" and brief_tool.for_worker("plain brief\n", "x")[1] == []
+
+
+def test_only_an_allowlisted_owner_file_in_a_hand_written_brief_is_inlined_never_a_key_or_a_token_and_never_from_issue_text(tmp_path):
+    """Security (ux review of 864a4b5134, 2026-11-11): for_worker inlined ANY owner-readable file a brief named, and a brief can carry a
+    worker's own findings or an issue's text, so a jailed worker could have the owner-side loop copy a key or a token into its brief.
+    Only a file under the owner's allowlist is inlined, and only when the caller says the text is the owner's own; anything else is
+    rewritten to say the path is not readable by workers."""
+    from fichero_builder import brief_tool, milestone
+    home = tmp_path / "home"
+    for rel, body in (("Desktop/crash/app.crash", "Thread 0 crashed"), (".ssh/id_ed25519", "PRIVATE KEY"), (".config/gh/hosts.yml", "oauth_token: ghp_secret")):
+        (home / rel).parent.mkdir(parents=True, exist_ok=True)
+        (home / rel).write_text(body)
+    rx = re.compile(rf"(?<![\w/])(?:~/[\w./-]+|{re.escape(str(home))}/[\w./-]+)")
+    text = f"Read {home}/Desktop/crash/app.crash. The failing test printed {home}/.ssh/id_ed25519 and {home}/.config/gh/hosts.yml.\n"
+    out, notes = brief_tool.for_worker(text, "l", owner_paths=rx, allow=(home / "Desktop" / "crash",))
+    assert "Thread 0 crashed" in out and "PRIVATE KEY" not in out and "ghp_secret" not in out
+    assert out.count("<an owner path not readable by workers; paste the text into the brief: ") == 2 and str(home) not in out
+    assert notes == ["inlined app.crash", "rewrote a path workers cannot read: id_ed25519", "rewrote a path workers cannot read: hosts.yml"]
+    out, _ = brief_tool.for_worker(text, "l", owner_paths=rx, allow=())
+    assert "Thread 0 crashed" not in out and out.count("not readable by workers") == 3, "no allowlist: nothing is inlined"
+    link = home / "Desktop" / "crash" / "link.crash"
+    link.symlink_to(home / ".ssh" / "id_ed25519")
+    out, _ = brief_tool.for_worker(f"see {link}\n", "l", owner_paths=rx, allow=(home / "Desktop" / "crash",))
+    assert "PRIVATE KEY" not in out, "a link out of the allowlisted folder is not followed"
+    written = milestone.write_briefs({"clusters": [{"step": "1.1", "issues": [{"number": 7}]}]}, out=tmp_path / "out", repo_dir=str(tmp_path), base="b", rules="",
+                                     fetch=lambda n: {"number": n, "title": "t", "body": "see ~/Desktop/crash/app.crash", "comments": []},
+                                     cluster=lambda issues, **k: issues[0]["body"] + "\n", lane="l")
+    assert "Thread 0 crashed" not in written[0].read_text() and "not readable by workers" in written[0].read_text(), "issue text never inlines a file"

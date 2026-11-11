@@ -129,38 +129,49 @@ def cluster(issues: list[dict], *, repo: str, branch: str, base: str, rules: str
 
 OWNER_PATH = re.compile(r"(?<![\w/])(?:~/[\w./-]+|/Users/(?!Shared/)[\w./-]+)")  # what a jail user cannot read (queue.brief_preflight refuses it)
 INLINE_CAP = 4000  # bytes of an owner file put into a brief: a crash log's head is what a worker needs, never the whole file
+INLINE_DEFAULT = ("~/Library/Logs/DiagnosticReports", "~/Desktop/crash")  # [jail].inline_paths: the only owner folders a brief may inline from
 DONE_LINE = r"(?m)^.*\b(?:builder\s+)?done\s+{lane}\b.*\n?"
+NOT_READABLE = "<an owner path not readable by workers; paste the text into the brief: {name}>"
 
 
-def for_worker(text: str, lane_id: str, owner_paths: re.Pattern = OWNER_PATH, cap: int = INLINE_CAP) -> tuple[str, list[str]]:
+def for_worker(text: str, lane_id: str, owner_paths: re.Pattern = OWNER_PATH, cap: int = INLINE_CAP, allow: tuple = ()) -> tuple[str, list[str]]:
     """A brief written for the owner's own session, made one a managed worker (the jail user) can carry out (alert 544, 2026-11-11):
-    an owner-path file reference becomes the file's contents (an excerpt of `cap` bytes, owner paths inside it rewritten); a folder or
-    an unreadable path is rewritten to say so; a `done <lane>` line is cut (a worker lane's done is refused; its DONE line ends the step).
-    (the text, notes of what changed). ponytail: `~/` is expanded against this process's home, the owner's when the loop runs."""
+    an owner path is rewritten to say workers cannot read it, except a FILE under one of `allow` (the owner's allowlist, [jail].inline_paths;
+    its real path, so no link leads out), whose contents go below the brief (an excerpt of `cap` bytes, owner paths inside it rewritten);
+    a `done <lane>` line is cut (a worker lane's done is refused; its DONE line ends the step). (the text, notes of what changed).
+    SECURITY (review of 864a4b5134): a brief can carry a worker's own findings or an issue's text, so only the owner's hand-written brief
+    is called with an allowlist; findings-borne and issue-borne text is called with none, and NOTHING outside the allowlist is ever read."""
     notes: list[str] = []
     blocks: dict[str, str] = {}
+    roots = []
+    for a in allow:
+        try:
+            roots.append(Path(a).expanduser().resolve())
+        except OSError:
+            continue
 
     def swap(m: re.Match) -> str:
         raw = m.group(0).rstrip(".,;:")
         tail = m.group(0)[len(raw):]
         p = Path(raw).expanduser()
         name = p.name
-        if p.is_file():
-            try:
-                data = p.read_bytes()
-            except OSError:
-                notes.append(f"rewrote an unreadable path: {name}")
-                return f"<an owner path, unreadable: {name}>{tail}"
-            body = data[:cap].decode(errors="replace")
-            body = owner_paths.sub("<an owner path>", body)
-            blocks[name] = f"--- {name} (an owner file, inlined{', truncated to ' + str(cap) + ' bytes' if len(data) > cap else ''}) ---\n{body.rstrip()}\n--- end of {name} ---"
-            notes.append(f"inlined {name}" + (" (excerpt)" if len(data) > cap else ""))
-            return f"the text of {name} below{tail}"
-        if p.is_dir():
-            notes.append(f"rewrote a folder path: {name}")
-            return f"<an owner path, a folder: {name}>{tail}"
-        notes.append(f"rewrote a path that is not there: {name}")
-        return f"<an owner path, not found: {name}>{tail}"
+        try:
+            real = p.resolve()
+            allowed = any(real.is_relative_to(r) for r in roots) and real.is_file() and not p.is_dir()
+        except OSError:
+            allowed = False
+        if not allowed:
+            notes.append(f"rewrote a path workers cannot read: {name}")
+            return NOT_READABLE.format(name=name) + tail
+        try:
+            data = real.read_bytes()
+        except OSError:
+            notes.append(f"rewrote a path workers cannot read: {name}")
+            return NOT_READABLE.format(name=name) + tail
+        body = owner_paths.sub("<an owner path>", data[:cap].decode(errors="replace"))
+        blocks[name] = f"--- {name} (an owner file, inlined{', truncated to ' + str(cap) + ' bytes' if len(data) > cap else ''}) ---\n{body.rstrip()}\n--- end of {name} ---"
+        notes.append(f"inlined {name}" + (" (excerpt)" if len(data) > cap else ""))
+        return f"the text of {name} below{tail}"
     out = owner_paths.sub(swap, text)
     if n := len(re.findall(DONE_LINE.format(lane=re.escape(lane_id)), out)):
         out = re.sub(DONE_LINE.format(lane=re.escape(lane_id)), "", out)
