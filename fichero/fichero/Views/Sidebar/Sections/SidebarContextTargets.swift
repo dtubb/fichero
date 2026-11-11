@@ -24,6 +24,20 @@ func sidebarFallbackTapActs(_ item: SidebarItem, _ expanded: Bool) -> Bool {
     !sidebarBuildsChildRows(item, isExpanded: expanded)
 }
 
+/// The modifiers `sidebarFallbackProposal` reads for a sidebar click: Option toggles like Command, so a click with
+/// either held (⇧⌥ too) takes a selected row out of the selection (#6534).
+func sidebarToggleModifiers(shift: Bool, command: Bool, option: Bool) -> (shift: Bool, command: Bool) {
+    (shift, command || option)
+}
+
+#if os(macOS)
+func sidebarClickModifiers() -> (shift: Bool, command: Bool) {
+    let flags = NSEvent.modifierFlags
+    return sidebarToggleModifiers(
+        shift: flags.contains(.shift), command: flags.contains(.command), option: flags.contains(.option))
+}
+#endif
+
 /// Puts `menu` on the content only when `carries` is true.
 struct SidebarGroupContextMenu<MenuItems: View>: ViewModifier {
     let carries: Bool

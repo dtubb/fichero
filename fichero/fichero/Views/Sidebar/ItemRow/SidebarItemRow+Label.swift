@@ -266,20 +266,30 @@ extension SidebarItemRow {
             }
     }
 
-    /// Plain-click fallback for CHILD rows (Daniel, 2026-08-10: "still not
-    /// working for clicking on name of item child of folder") — the
-    /// UnifiedRows fallback only wraps TOP-LEVEL rows, so a nested row's
-    /// name-press was claimed by the drag machinery and never committed.
-    /// Plain clicks only; modifier clicks stay with the List.
+    /// Click fallback for CHILD rows (Daniel, 2026-08-10: "still not working for clicking on name of item child of
+    /// folder") — the UnifiedRows fallback only wraps TOP-LEVEL rows, so a nested row's name-press was claimed by the
+    /// drag machinery and never committed. Plain clicks select the row; ⇧ extends and ⌘/⌥ toggle it, through the
+    /// sidebar's one commit seam (#6534; they used to reach the PARENT's handler and select it instead). An expanded
+    /// row does nothing: its own children sit inside this gesture.
     ///
     /// Lives HERE, not in `+Drop.swift`, although its only caller is
     /// `childrenList`: it is a CLICK gesture, and the drop-path files are
     /// scanned by SidebarDropHighlightScopeTests for selection writes (#4229).
-    func childPlainClickFallback(_ child: SidebarItem) -> some Gesture {
+    func childClickFallback(_ child: SidebarItem, among siblings: [SidebarItem]) -> some Gesture {
         TapGesture().onEnded {
+            guard sidebarFallbackTapActs(child, expandedItems.contains(child.id)) else { return }
             #if os(macOS)
-            guard !NSEvent.modifierFlags.contains(.shift),
-                  !NSEvent.modifierFlags.contains(.command) else { return }
+            let modifiers = sidebarClickModifiers()
+            if modifiers.shift || modifiers.command, let onSelectionProposal {
+                onSelectionProposal(sidebarFallbackProposal(
+                    clicked: child.destination,
+                    current: selectedDestinations,
+                    anchor: selectedItemId.flatMap(SidebarDestination.init(serializedID:)),
+                    orderedSiblings: siblings.map(\.destination),
+                    modifiers: modifiers
+                ))
+                return
+            }
             #endif
             selectedItemId = child.id
         }

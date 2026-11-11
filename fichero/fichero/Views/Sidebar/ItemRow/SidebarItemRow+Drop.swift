@@ -194,7 +194,7 @@ extension SidebarItemRow {
         }
     }
 
-    // `childPlainClickFallback` moved to SidebarItemRow+Label.swift: it is a
+    // `childClickFallback` moved to SidebarItemRow+Label.swift: it is a
     // CLICK gesture, not a drop path, and this file is scanned by
     // SidebarDropHighlightScopeTests for selection writes (#4229) — a rule
     // that stays enforceable only if click behaviour lives elsewhere.
@@ -222,6 +222,7 @@ extension SidebarItemRow {
                 sidebarState: sidebarState,
                 libraryManager: libraryManager,
                 onOpenChatWithCurrentScope: onOpenChatWithCurrentScope,
+                onSelectionProposal: onSelectionProposal,
                 mergeSelectionAbove: childSelected && index > 0
                     && selectedDestinations.contains(children[index - 1].destination),
                 mergeSelectionBelow: childSelected && index + 1 < children.count
@@ -239,13 +240,9 @@ extension SidebarItemRow {
                 RowDragPreview(name: child.name, systemImage: child.icon)
             }
             .moveDisabled(child.icon == "tray.fill")
-            // Plain-click fallback for CHILD rows (Daniel, 2026-08-10: "still
-            // not working for clicking on name of item child of folder") —
-            // the UnifiedRows fallback only wraps TOP-LEVEL rows, so a
-            // nested row's name-press was claimed by the drag machinery and
-            // never committed. Same seam: write the primary selection id.
-            // Plain clicks only; modifier clicks stay with the List.
-            .simultaneousGesture(childPlainClickFallback(child))
+            // Click fallback for CHILD rows (the UnifiedRows one only wraps TOP-LEVEL rows): see
+            // `childClickFallback`. Same seam, with the sibling list so ⇧ extends over the right rows.
+            .simultaneousGesture(childClickFallback(child, among: children))
             .sidebarRowTypeErased()
             .tag(child.destination)
         }
