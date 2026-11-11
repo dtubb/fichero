@@ -1363,8 +1363,11 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   setting carries workspace defaults.
 - `source.editor.draw-shapes` — **[PARTIAL]** (#4941) box, polygon, point, line and baseline can be drawn.
   **Built 2026-09-28 (image pages, segment passes), in the ONE Shape tool:** its kind menu, shown in Edit
-  Segments, picks Box (a drag, as before), Polygon (click points; a click on the first point, or a
-  double-click, closes it) or Baseline (click points; a double-click finishes). A finished polygon is
+  Segments, picks Box (a drag, as before), Polygon (click points; a click on the first point, a
+  double-click or Return closes it; while drawing, the closing edge is shown, the first point is drawn larger in
+  the accent colour and a hint reads "Click here, double-click or press Return to close"; Return with fewer than
+  the minimum points is ignored, `ZoomableImagePreviewMac.finishShapeDrawingFromKey`, #6481; test for Return: not yet
+  written, the function reads the view's window state) or Baseline (click points; a double-click finishes). A finished polygon is
   `segment.create` of a REGION anchored by its outline and the rect it bounds; a finished baseline is a
   LINE whose anchor is the baseline as an open path -- no outline invented -- with that baseline; both on
   the shown pass, naming its picture, ⌘Z by audit id. A drawn line with a flat baseline is drawn and
