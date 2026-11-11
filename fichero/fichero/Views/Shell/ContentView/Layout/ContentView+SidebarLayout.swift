@@ -115,8 +115,8 @@ extension ContentView {
         .focusedSceneValue(\.sidebarMode, sidebarModeBinding)
         // #4970 kept the SYSTEM sidebar toggle because a hand-placed item shared a toolbar
         // section with Back/Forward. On the Mac that is reversed on purpose (Daniel, 2026-11-11):
-        // the pair lives in the sidebar column's own toolbar, and the system toggle is removed
-        // from this same column view, where Apple's docs apply the modifier.
+        // the Sidebar/Chat pair is a toolbar item of this column, beside the window controls, and the
+        // system toggle is removed from this same column view, where Apple's docs apply the modifier.
         #if os(macOS)
         .toolbar(removing: .sidebarToggle)
         .toolbar { sidebarToolbarContent }
