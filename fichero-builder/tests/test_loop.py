@@ -3,6 +3,7 @@ review -> landed --push -> the next step; a red goes back to the worker; every t
 from __future__ import annotations
 
 import os
+import time
 
 import pytest
 
@@ -287,6 +288,16 @@ def test_stop_tells_the_worker_closes_its_session_after_the_grace_and_resume_sta
     assert "Continue from the tree" in open(steps()["1.1"]["resume_brief"]).read()
     assert [r["state"] for r in journal.read() if r["event"] == "queue" and r.get("state") in ("stop", "stopped")] == ["stop", "stopped"]
     assert cli.main(["queue", "stop", "--lane", "nope", "--state", str(state / "s")]) == 1
+
+
+def test_stop_on_an_idle_lane_closes_its_window_too(state):
+    """2026-11-11: `queue stop` on a lane with no live handle (idle between steps, or a loop restarted since) left its tmux window
+    open; the owner killed it by hand as the jail user. The grace path closes the lane's session whether the loop holds a handle."""
+    lane(state)
+    fake = Fake()
+    assert cli.main(["queue", "stop", "--lane", "m1", "--grace", "0", "--state", str(state / "s")]) == 0
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert fake.stops == ["m1"] and "stop_at" not in queue.load()[0] and fake.starts == []
 
 
 def test_weakened_tests_are_an_alert_with_the_test_diff_and_approve_reruns_recording_the_approval(state):
@@ -787,8 +798,17 @@ def test_a_draining_loop_starts_no_new_chain_so_it_can_re_exec_between_chains(st
     try:
         queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
         assert set(chains) == {"pool"} and steps()["1.1"]["state"] != "landed", "no chain was submitted"
+        held = [r for r in journal.read() if r["event"] == "queue" and r.get("state") == "drain-held"]
+        assert len(held) == 1 and held[0]["lane"] == "ext", "the wait is one row (2026-11-11: ux's retry and done sat 5 h with no row)"
+        queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
+        assert len([r for r in journal.read() if r.get("state") == "drain-held"]) == 1, "one row per head, not per tick"
+        queue.DRAIN_SINCE[0] = time.time() - queue.DRAIN_MAX_S - 1  # a live worker session held the re-exec off past the cap
+        queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
+        assert "ext" in chains, "past the cap the chain runs on the loop's current code"
+        assert [r["state"] for r in journal.read() if r.get("state") in ("drain-held", "drain-expired")] == ["drain-held", "drain-expired"]
     finally:
         queue.DRAIN[0] = False
+        queue.DRAIN_SINCE[0] = 0.0
         chains["pool"].shutdown()
 
 
@@ -1245,6 +1265,18 @@ def test_a_brief_a_managed_worker_cannot_carry_out_is_refused_before_a_session_i
     assert queue.brief_preflight("brief 1.1: fix scripts/x.py; see /Users/Shared/fichero-worker/notes.txt", "m1") == []
     assert queue.brief_preflight("read /Users/danieltubb/x", "m1") and queue.brief_preflight("gh pr list", "m1") and queue.brief_preflight("builder done m1 now", "m1")
     assert queue.brief_preflight("gh issue view 7", "m1", gh_ok=True) == [], "[jail].gh = true: the jail has a token"
+
+
+def test_a_fix_brief_cuts_quoted_owner_paths_and_a_boundary_refusal_says_rewrite_the_commit():
+    """Alert 528: a review finding quoted an owner path; copied into the fix brief, brief_preflight refused the whole brief. And a
+    boundary hit is per COMMIT (history is pushed): the brief says so, not 'remove the line'."""
+    home = "/Users/" + "someone"
+    t = queue.fix_text("1.2", "review", f"NOT READY: see {home}/notes.txt and ~/Desktop/x.md; fix scripts/x.py")
+    assert "someone" not in t and "~/Desktop" not in t and "scripts/x.py" in t and "<a path outside the jail>" in t, t
+    assert queue.brief_preflight(t, "m1") == []
+    t = queue.fix_text("1.2", "refused", "the land gate refused: REFUSED (boundary):\n  abcdef1234 docs/a.md: pattern 0\n  abcdef1234 message: pattern 1")
+    assert t.count(queue.REWRITE) == 2 and "commit abcdef1234, docs/a.md: rewrite that commit" in t, t
+    assert queue.REWRITE not in queue.fix_text("1.2", "red", "pytest: 1 failed")
 
 
 def test_intake_any_takes_an_owner_branch_on_count_or_age_alone(tmp_path):

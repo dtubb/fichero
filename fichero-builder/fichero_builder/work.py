@@ -533,21 +533,27 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                     diff.write_text(_git(repo, "diff", r_since(repo, branch), head, "--", *paths).stdout)
                     kind = "needs-maintainer" if "maintainer" in approvals else "weakened-tests" if "approve_weakened" in approvals else "pinned-new"
                     return {**no(kind, f"pinned-checks at {head[:9]}: {t[-300:]}", t, str(diff)), "approvals": approvals}
-                if r.get("failed") == "guards" and not getattr(a, "guard_data", ()):
+                if r.get("failed") == "guards":
                     # a guard reads an allowlist beside itself (a .json under a check path): pinned, it judges head's routes against the
                     # OLD list, so a batch that changes the list can never pass. The manager's approve, by file name, lays head's copy over it.
+                    # An approve that named FEWER data files than the batch now changes (a later commit touched another) is widened to the
+                    # union at this head, never a plain red (manager 2026-11-11).
                     cfg_now = check_tool.load(a.pinned)
+                    have = tuple(getattr(a, "guard_data", ()) or ())
                     data = [f for f in files if f.endswith(".json") and f.startswith(tuple(cfg_now.check_paths))]
-                    if data and "guard-data-added-routes" in cfg_now.auto and not any(check_tool.known_gaps_added_only(repo, since_now, head, f, cfg_now) for f in data):
-                        for f in data:  # speed: the rule decides; head's copy of exactly these files under the pinned guards, then the ladder again
+                    more = [f for f in data if f not in have]
+                    if more and "guard-data-added-routes" in cfg_now.auto and not any(check_tool.known_gaps_added_only(repo, since_now, head, f, cfg_now) for f in more):
+                        for f in more:  # speed: the rule decides; head's copy of exactly these files under the pinned guards, then the ladder again
                             journal.append("auto", rule="guard-data-added-routes", head=head, file=f, detail="only added entries: engine routes with an issue or step")
-                        a.guard_data = tuple(data)
+                        a.guard_data = tuple(sorted({*have, *more}))
                         continue
-                    if data:
+                    if more:
+                        union = sorted({*have, *more})
                         diff = state / f"guard-data-{a.name}.diff"
-                        diff.write_text(_git(repo, "diff", since_now, head, "--", *data).stdout)
-                        return {**no("guard-data", f"guards red at {head[:9]} with guard data changed by the batch: {', '.join(data)}; approve lays HEAD's copy of "
-                                     f"exactly these files under the pinned guards (the scripts stay pinned)", _tail(r), str(diff)), "approvals": ["approve_guard_data"]}
+                        diff.write_text(_git(repo, "diff", since_now, head, "--", *union).stdout)
+                        widen = f" (the approval at this head named only {', '.join(have)}; widened to all of them)" if have else ""
+                        return {**no("guard-data", f"guards red at {head[:9]} with guard data changed by the batch: {', '.join(union)}; approve lays HEAD's copy of "
+                                     f"exactly these files under the pinned guards (the scripts stay pinned){widen}", _tail(r), str(diff)), "approvals": ["approve_guard_data"]}
                 return no("red", f"the check is red at {head[:9]} (failed: {r.get('failed') or '?'}); ladder in {ladder}", f"failed rung: {r.get('failed') or '?'}\n{_tail(r)}", ladder)
             if moved < MOVES and since_now and _base_moved(a, branch, head):  # never review a range that cannot land
                 moved += 1

@@ -866,6 +866,13 @@ def pytest_collection_modifyitems(config, items):  # noqa: ARG001
         nodeid = item.nodeid
         if nodeid.startswith(prefix):
             nodeid = nodeid[len(prefix):]
+        # a run from a symlinked or other-volume checkout (the M4 gate dir) roots pytest elsewhere and
+        # the nodeid comes out as "../../x/fichero-server::name": rebuild it from the file's own path
+        if nodeid not in known:
+            try:
+                nodeid = f"{item.path.relative_to(_Path(__file__).resolve().parent.parent).as_posix()}::{item.nodeid.split('::', 1)[1]}"
+            except (ValueError, IndexError, AttributeError):
+                pass
         if nodeid in known:
             item.add_marker(
                 pytest.mark.xfail(

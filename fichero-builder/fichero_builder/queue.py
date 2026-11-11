@@ -43,6 +43,18 @@ _now = time.time  # the tests set the clock
 AUTO_SEND_BACKS = 3  # an external lane's red check is sent back by the loop this many times a batch, then it is an alert
 FIX = ("Step {step}: the {kind} did not pass. Fix it on this branch with new commit(s), under the same rules.\n\n{findings}\n\n"
        "When it is committed, end your turn with the exact line DONE <short sha of the branch head>.\n")
+OWNER_PATH = re.compile(r"(?<![\w/])(?:~/[\w./-]+|/Users/(?!Shared/)[\w./-]+)")  # what a jail user cannot read; brief_preflight refuses it
+BOUNDARY_HIT = re.compile(r"(?m)^\s*([0-9a-f]{7,40}) (\S.*?): pattern \d+$")
+REWRITE = "rewrite that commit; a later commit does not clear it (history is pushed)"
+
+
+def fix_text(step: str, kind: str, findings: str) -> str:
+    """The fix brief's text. Owner paths quoted in a finding are cut (brief_preflight would refuse the whole brief: alert 528); a
+    boundary refusal says, per hit, that the COMMIT is rewritten: its added line is pushed as history whether a later commit removes it."""
+    findings = OWNER_PATH.sub("<a path outside the jail>", findings)
+    if "REFUSED (boundary)" in findings:
+        findings = BOUNDARY_HIT.sub(lambda m: f"{m.group(0)} -- commit {m.group(1)[:10]}, {m.group(2)}: {REWRITE}", findings)
+    return FIX.format(step=step, kind=kind, findings=findings)
 
 
 def slug(name: str) -> str:
@@ -254,8 +266,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
 
     h = handles.get(lane["id"])
     if lane.get("stop_at") and (h is None or not procs.alive(h) or time.time() >= lane["stop_at"]):  # `queue stop`: the grace is over
+        procs.stop(lane)  # with or without a handle: an idle lane's window (or one a restarted loop lost) is closed too (2026-11-11)
         if h is not None:
-            procs.stop(lane)
             del handles[lane["id"]]
         lane["feed"] = ""
         lane.pop("stop_at")
@@ -310,8 +322,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             s["block_retries"] = 1
             q = journal.STATE / f"question-{lane['id']}-{s['step']}.txt"
             fix = journal.STATE / f"retry-{lane['id']}-{s['step']}.txt"
-            fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + "\n\n" + FIX.format(step=s["step"], kind="last session",
-                           findings=(q.read_text() if q.is_file() else s.get("why", "")).strip()))
+            fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + "\n\n" + fix_text(s["step"], "last session",
+                           (q.read_text() if q.is_file() else s.get("why", "")).strip()))
             s["resume_brief"], s["rounds"], s["restarts"] = str(fix), 0, 0
             s.pop("blocked_at")
             if h is not None:  # a fresh session, never the one that blocked
@@ -400,7 +412,16 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         r = chain()
     elif fut is None:
         if DRAIN[0]:  # new code waits: no new chain starts, so the loop can re-exec between chains
-            return True
+            DRAIN_SINCE[0] = DRAIN_SINCE[0] or time.time()
+            if time.time() - DRAIN_SINCE[0] < DRAIN_MAX_S:
+                if lane.get("drain_head") != s.get("head"):  # one row per head: the wait is visible (2026-11-11: ux's retry and done sat 5 h with no row)
+                    lane["drain_head"] = s.get("head")
+                    journal.append("queue", lane=lane["id"], step=s["step"], state="drain-held",
+                                   detail=f"new code on disk: the chain waits for the loop's re-exec (at most {DRAIN_MAX_S // 60} min; a live worker session holds it off)")
+                    store(lane, expect=(s["step"], s.get("head", "")))
+                return True
+            # ponytail: past the cap the chain runs on this process's code, as every chain did before the drain existed; the re-exec comes after it
+            journal.append("queue", lane=lane["id"], step=s["step"], state="drain-expired", detail=f"waited {DRAIN_MAX_S // 60} min for a re-exec a live session holds off: the chain runs on the loop's current code")
         if (hold := journal.manual_hold()) and touches_build(lane, s, getattr(procs, "root", None)):
             # owner 2026-11-06: a held Xcode build rung sat on the only chain worker for an hour; a batch that would build waits HERE,
             # holding no worker, one `held` row per head, and starts by itself once the person's hold ends
@@ -476,7 +497,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         return block(s, r["why"], ("approve", "send-back"), r.get("evidence", ""))
     if r.get("kind") in ("red", "not-ready", "refused") and s["rounds"] < ROUNDS and lane.get("kind") != "external":  # external: an alert
         s["rounds"] += 1
-        text = FIX.format(step=s["step"], kind=r["kind"], findings=r.get("findings") or r["why"])
+        text = fix_text(s["step"], r["kind"], r.get("findings") or r["why"])
         live = handles.get(lane["id"])
         if live is not None and procs.alive(live):  # the findings into the running session (dev-workflows.run.loop-tell)
             lane["seq"] += 1
@@ -586,7 +607,7 @@ def brief_preflight(text: str, lane_id: str, gh_ok: bool = False) -> list[str]:
     """#6495 (run.loop-brief-preflight): what a managed worker, the jail user, cannot do that this brief asks for, each with what
     to put in the brief instead (short: an alert's text is one line). ponytail: three regexes; a fourth kind when one turns up."""
     out = []
-    if m := re.findall(r"(?<![\w/])(?:~/[\w./-]+|/Users/(?!Shared/)[\w./-]+)", text):
+    if m := OWNER_PATH.findall(text):
         out.append(f"owner paths ({', '.join(dict.fromkeys(x.rstrip('.') for x in m))}): paste their text in")
     if not gh_ok and (m := re.findall(r"\bgh\s+(?:issue|pr|api|repo|release|run|label|milestone|search)\b(?:\s+[\w#-]+)?", text)):
         out.append(f"gh ({'; '.join(dict.fromkeys(m))}): no token in the jail, paste the issue text in (or [jail].gh = true)")
@@ -802,7 +823,7 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
                 s["maintainer"] = True  # the chain runs the check with --maintainer
             if action == "send-back":
                 fix = journal.STATE / f"sendback-{alert_id}.txt"
-                fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + f"\n\nSent back by the manager: {a['what']}\nEvidence: {a['evidence']}\n")
+                fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + OWNER_PATH.sub("<a path outside the jail>", f"\n\nSent back by the manager: {a['what']}\nEvidence: {a['evidence']}\n"))
                 s["resume_brief"] = str(fix)
             lane["paused"] = False
             save(lanes)
@@ -1104,6 +1125,8 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
 
 
 DRAIN: list = [False]
+DRAIN_MAX_S = 15 * 60  # 2026-11-11: a live worker session held the re-exec off 5 h; every other lane's check waited, silently, for a hand restart
+DRAIN_SINCE: list = [0.0]
 BUILDS: list = []  # the post-landing dev builds' threads: a re-exec waits for them
 
 
@@ -1158,6 +1181,8 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
         # new code (soak 2026-11-02: a hand restart is a defect): between ticks, nothing in flight, the loop execs itself, same args.
         # ponytail: a live worker session holds the restart off (a restart would lose its handle); it runs at the next quiet tick
         DRAIN[0] = heartbeat and code_mark(root) != mark  # serial chains never left a gap: stop starting them until it re-execs
+        if not DRAIN[0]:
+            DRAIN_SINCE[0] = 0.0
         if heartbeat and code_mark(root) != mark and not handles and not any(not f.done() for k, f in (chains or {}).items() if k != "pool") and not any(t.is_alive() for t in BUILDS):
             journal.append("loop", state="restarted", detail="loop restarted for new code", pid=os.getpid(), argv=sys.argv[1:])
             reexec()
