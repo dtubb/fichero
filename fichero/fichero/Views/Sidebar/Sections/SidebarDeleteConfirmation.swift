@@ -120,7 +120,7 @@ func inheritedSelection(afterProposing proposed: [String], inherited: String?) -
 /// to the clicked row when nothing in the selection is deletable so the
 /// menu item's enabled state still reflects the row under the pointer.
 func sidebarContextDeleteTargets(clicked: SidebarItem, selection: [SidebarItem]) -> [SidebarItem] {
-    guard selection.count > 1, selection.contains(where: { $0.id == clicked.id }) else {
+    guard sidebarContextTargetIds(clicked: clicked.id, selection: selection.map(\.id)).count > 1 else {
         return [clicked]
     }
     let deletable = sidebarDeletableItems(selection)

@@ -1,0 +1,41 @@
+@testable import Fichero
+import Foundation
+import Testing
+
+/// `sidebar.context-menu.acts-on-the-clicked-row` (#6528)
+struct SidebarContextTargetsTests {
+    private func makeItem(_ id: String, children: [SidebarItem]? = nil) -> SidebarItem {
+        var item = SidebarItem.fromDocument(Document(id: id, docType: .folder, name: id), libraryId: UUID())
+        item.children = children
+        return item
+    }
+
+    @Test("a child row acts on itself, never on its parent")
+    func childRowActsOnItself() {
+        #expect(sidebarContextTargetIds(clicked: "child", selection: ["parent"]) == ["child"])
+        #expect(sidebarContextTargetIds(clicked: "child", selection: []) == ["child"])
+    }
+
+    @Test("a row inside a multi-selection acts on the whole selection")
+    func rowInsideSelectionActsOnSelection() {
+        #expect(sidebarContextTargetIds(clicked: "b", selection: ["a", "b", "c"]) == ["a", "b", "c"])
+    }
+
+    @Test("a row outside the selection acts on itself alone")
+    func rowOutsideSelectionActsAlone() {
+        #expect(sidebarContextTargetIds(clicked: "z", selection: ["a", "b"]) == ["z"])
+    }
+
+    @Test("a lone selected row acts on itself")
+    func loneSelectedRow() {
+        #expect(sidebarContextTargetIds(clicked: "a", selection: ["a"]) == ["a"])
+    }
+
+    @Test("an expanded group does not carry the menu; a collapsed or childless one does")
+    func groupCarriesMenuOnlyWithoutChildRows() {
+        let parent = makeItem("parent", children: [makeItem("child")])
+        #expect(!sidebarGroupCarriesContextMenu(parent, isExpanded: true))
+        #expect(sidebarGroupCarriesContextMenu(parent, isExpanded: false))
+        #expect(sidebarGroupCarriesContextMenu(makeItem("empty", children: []), isExpanded: true))
+    }
+}
