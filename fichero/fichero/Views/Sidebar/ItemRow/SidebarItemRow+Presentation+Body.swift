@@ -175,11 +175,16 @@ extension SidebarItemRow {
                 fullWidthLabel
                     .sidebarDropHighlight(isDropTargeted, selected: isRowInSelection,
                                           mergeAbove: mergeSelectionAbove, mergeBelow: mergeSelectionBelow)
+                    // The row's own menu, always: an expanded group does not carry one (#6528, below).
+                    .contextMenu { SidebarDeferredMenuContent { rowContextMenu } }
             }
             .modifier(SidebarRowDropGate(enabled: rowIsDropTarget, delegate: rowDropDelegate))
             // #4544: menu built at OPEN, not per render — see
-            // SidebarDeferredMenuContent.
-            .contextMenu { SidebarDeferredMenuContent { rowContextMenu } }
+            // SidebarDeferredMenuContent. #6528: only while the group holds no child rows; expanded, the
+            // outermost group's menu would take a right-click on any nested row and act on the ancestor.
+            .modifier(SidebarGroupContextMenu(
+                carries: sidebarGroupCarriesContextMenu(item, isExpanded: expandedItems.contains(item.id))
+            ) { SidebarDeferredMenuContent { rowContextMenu } })
             // Standard prominence keeps the disclosure chevron its normal grey on a selected row (Daniel,
             // 2026-08-10: a white chevron is invisible); it is no longer tinted accent, since the selected
             // row's name and icon no longer are (2026-10-11).
