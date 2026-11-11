@@ -38,4 +38,13 @@ struct SidebarContextTargetsTests {
         #expect(sidebarGroupCarriesContextMenu(parent, isExpanded: false))
         #expect(sidebarGroupCarriesContextMenu(makeItem("empty", children: []), isExpanded: true))
     }
+
+    /// `sidebar.selection.a-click-on-a-child-never-selects-its-parent` (#6534)
+    @Test("an expanded row's fallback tap does not act, so a click on a child never reaches the parent")
+    func expandedRowFallbackTapDoesNotAct() {
+        let parent = makeItem("parent", children: [makeItem("child")])
+        #expect(!sidebarFallbackTapActs(parent, true))
+        #expect(sidebarFallbackTapActs(parent, false))
+        #expect(sidebarFallbackTapActs(makeItem("leaf"), true))
+    }
 }

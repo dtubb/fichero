@@ -16,6 +16,14 @@ func sidebarGroupCarriesContextMenu(_ item: SidebarItem, isExpanded: Bool) -> Bo
     !sidebarBuildsChildRows(item, isExpanded: isExpanded)
 }
 
+/// Whether a root row's fallback tap (the ⇧/⌘ click path) acts (#6534). The gesture sits on the whole row, and an
+/// expanded row's child rows are inside it, so a click on a child also reached the PARENT's handler: a shift-click
+/// added the parent to the range, and a plain click selected the parent instead of the child. An expanded row's
+/// handler does nothing; the List's own selection handles its children.
+func sidebarFallbackTapActs(_ item: SidebarItem, _ expanded: Bool) -> Bool {
+    !sidebarBuildsChildRows(item, isExpanded: expanded)
+}
+
 /// Puts `menu` on the content only when `carries` is true.
 struct SidebarGroupContextMenu<MenuItems: View>: ViewModifier {
     let carries: Bool
