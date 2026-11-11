@@ -2,7 +2,8 @@ import Foundation
 
 /// Where a dragged row may land in the nested Order list (`source.editor.order-list-drag-reorders-and-reparents`,
 /// Step 1.25): into a segment exactly one level coarser (a line into a region, a word into a line), never into itself
-/// or something it holds. One rule for the Order list and the Reader's rows; the engine (`segment.reparent`) checks pass, document, liveness and cycles but NOT the parent's level, so the app checks that.
+/// or something it holds. One rule for the Order list and the Reader's rows.
+/// The engine (`segment.reparent`) checks pass, document, liveness and cycles but NOT the parent's level, so the app checks that.
 enum OrderDrop {
     /// The dragged ids that may be dropped INTO `parent`, in the order given; empty when the drop shows no target.
     static func accepted(_ draggedIds: [String], into parent: Segment, in segments: [Segment]) -> [String] {
