@@ -361,3 +361,8 @@ struct PreviewMarkupToolsRow: View {
         }
     }
 }
+
+#Preview("Markup row — no window") {
+    PreviewMarkupToolsRow(segmentVerbs: .all)
+        .padding()
+}
