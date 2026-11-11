@@ -491,7 +491,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2660;
-				LastUpgradeCheck = 2700;
+				LastUpgradeCheck = 2720;
 				TargetAttributes = {
 					208ADA983022008100B83F96 = {
 						CreatedOnToolsVersion = 26.6;
@@ -1086,25 +1086,6 @@
 				"",
 			);
 		};
-		SBX00062F27F36000EC9EE1 /* Remove Sparkle (App Store) */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			name = "Remove Sparkle (App Store)";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# App Review 2.4.5(vii): Sparkle must not ship inside the App Store build (#5730).\n# One target links Sparkle everywhere, so the App Store configuration deletes the framework from its bundle,\n# after the frameworks and the engine are embedded and before Xcode signs the app. A no-op for every other\n# configuration. The App Store configuration must also weak-link Sparkle so the binary still launches.\nif [ \"${CONFIGURATION}\" != \"App Store\" ]; then\n  exit 0\nfi\nAPP_DST=\"$(cd \"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\" && pwd -P)\"\nrm -rf \"${APP_DST}/Contents/Frameworks/Sparkle.framework\"\nif [ -e \"${APP_DST}/Contents/Frameworks/Sparkle.framework\" ]; then\n  echo \"error: Sparkle.framework is still in the App Store bundle\" >&2\n  exit 1\nfi\necho \"Sparkle.framework removed from the App Store bundle\"\n";
-		};
 		SBX00042F27F36000EC9EE1 /* Strip Sparkle Info.plist Keys */ = {
 			isa = PBXShellScriptBuildPhase;
 			name = "Strip Sparkle Info.plist Keys";
@@ -1208,6 +1189,29 @@
 				"",
 			);
 		};
+		SBX00062F27F36000EC9EE1 /* Remove Sparkle (App Store) */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			name = "Remove Sparkle (App Store)";
+			shellPath = /bin/sh;
+			shellScript = (
+				"# App Review 2.4.5(vii): Sparkle must not ship inside the App Store build (#5730).",
+				"# One target links Sparkle everywhere, so the App Store configuration deletes the framework from its bundle,",
+				"# after the frameworks and the engine are embedded and before Xcode signs the app. A no-op for every other",
+				"# configuration. The App Store configuration must also weak-link Sparkle so the binary still launches.",
+				"if [ \"${CONFIGURATION}\" != \"App Store\" ]; then",
+				"  exit 0",
+				"fi",
+				"APP_DST=\"$(cd \"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\" && pwd -P)\"",
+				"rm -rf \"${APP_DST}/Contents/Frameworks/Sparkle.framework\"",
+				"if [ -e \"${APP_DST}/Contents/Frameworks/Sparkle.framework\" ]; then",
+				"  echo \"error: Sparkle.framework is still in the App Store bundle\" >&2",
+				"  exit 1",
+				"fi",
+				"echo \"Sparkle.framework removed from the App Store bundle\"",
+				"",
+			);
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -1279,7 +1283,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1304,7 +1308,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1330,7 +1334,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1356,7 +1360,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1382,7 +1386,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1460,6 +1464,44 @@
 				TEST_TARGET_NAME = Fichero;
 			};
 			name = "Beta Embedded";
+		};
+		20AC968130A3AD8900A6B3D5 /* App Store configuration for PBXNativeTarget "FicheroTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = FicheroTests;
+			};
+			name = "App Store";
+		};
+		20AC968230A3AD8900A6B3D5 /* App Store configuration for PBXNativeTarget "FicheroIPadTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
+				PRODUCT_NAME = FicheroIPadTests;
+			};
+			name = "App Store";
+		};
+		20AC968330A3AD8900A6B3D5 /* App Store configuration for PBXNativeTarget "FicheroIOSTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
+				PRODUCT_NAME = FicheroIOSTests;
+			};
+			name = "App Store";
+		};
+		20AC968430A3AD8900A6B3D5 /* App Store configuration for PBXNativeTarget "FicheroUITests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = FicheroUITests;
+			};
+			name = "App Store";
+		};
+		20AC968530A3AD8900A6B3D5 /* App Store configuration for PBXNativeTarget "FicheroIOSUITests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
+				PRODUCT_NAME = FicheroIOSUITests;
+			};
+			name = "App Store";
 		};
 		800 /* Debug configuration for PBXProject "fichero" */ = {
 			isa = XCBuildConfiguration;
@@ -1607,8 +1649,13 @@
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_APP_SANDBOX = NO;
-				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
 				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
 				FICHERO_EMBED_ENGINE = NO;
 				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
@@ -1638,6 +1685,12 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				REGISTER_APP_GROUPS = YES;
+				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
+				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
+				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
 				SPARKLE_FEED_URL = "https://tubb.ca/apps/fichero/appcast.xml";
 				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
@@ -1668,7 +1721,7 @@
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = QAPB6CWYR6;
 				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
@@ -1795,7 +1848,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1814,7 +1867,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1833,7 +1886,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1852,7 +1905,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1871,7 +1924,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1891,7 +1944,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.ipadtests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1912,7 +1965,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.ipadtests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1933,7 +1986,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.ipadtests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1954,7 +2007,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.ipadtests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1975,7 +2028,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.ipadtests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -2412,8 +2465,8 @@
 				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = fichero/FicheroIOS.entitlements;
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = fichero/FicheroIOS.entitlements;
-				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
@@ -2552,6 +2605,7 @@
 				208ADAA43022008700B83F96 /* Dev Embedded configuration for PBXNativeTarget "FicheroIOSTests" */,
 				208ADAA53022008700B83F96 /* Alpha Embedded configuration for PBXNativeTarget "FicheroIOSTests" */,
 				208ADAA63022008700B83F96 /* Beta Embedded configuration for PBXNativeTarget "FicheroIOSTests" */,
+				20AC968330A3AD8900A6B3D5 /* App Store configuration for PBXNativeTarget "FicheroIOSTests" */,
 			);
 			defaultConfigurationName = Release;
 		};
@@ -2587,6 +2641,7 @@
 				20969FAB3000614800D06A60 /* Dev Embedded configuration for PBXNativeTarget "FicheroTests" */,
 				20969FAC3000614800D06A60 /* Alpha Embedded configuration for PBXNativeTarget "FicheroTests" */,
 				20969FAD3000614800D06A60 /* Beta Embedded configuration for PBXNativeTarget "FicheroTests" */,
+				20AC968130A3AD8900A6B3D5 /* App Store configuration for PBXNativeTarget "FicheroTests" */,
 			);
 			defaultConfigurationName = Release;
 		};
@@ -2598,6 +2653,7 @@
 				20969FB13000614800D06A60 /* Dev Embedded configuration for PBXNativeTarget "FicheroUITests" */,
 				20969FB23000614800D06A60 /* Alpha Embedded configuration for PBXNativeTarget "FicheroUITests" */,
 				20969FB33000614800D06A60 /* Beta Embedded configuration for PBXNativeTarget "FicheroUITests" */,
+				20AC968430A3AD8900A6B3D5 /* App Store configuration for PBXNativeTarget "FicheroUITests" */,
 			);
 			defaultConfigurationName = Release;
 		};
@@ -2609,6 +2665,7 @@
 				F105C0DE0000000000000014 /* Dev Embedded configuration for PBXNativeTarget "FicheroIOSUITests" */,
 				F105C0DE0000000000000015 /* Alpha Embedded configuration for PBXNativeTarget "FicheroIOSUITests" */,
 				F105C0DE0000000000000016 /* Beta Embedded configuration for PBXNativeTarget "FicheroIOSUITests" */,
+				20AC968530A3AD8900A6B3D5 /* App Store configuration for PBXNativeTarget "FicheroIOSUITests" */,
 			);
 			defaultConfigurationName = Release;
 		};
@@ -2620,6 +2677,7 @@
 				FE1DAD000000000000000054 /* Dev Embedded configuration for PBXNativeTarget "FicheroIPadTests" */,
 				FE1DAD000000000000000055 /* Alpha Embedded configuration for PBXNativeTarget "FicheroIPadTests" */,
 				FE1DAD000000000000000056 /* Beta Embedded configuration for PBXNativeTarget "FicheroIPadTests" */,
+				20AC968230A3AD8900A6B3D5 /* App Store configuration for PBXNativeTarget "FicheroIPadTests" */,
 			);
 			defaultConfigurationName = Release;
 		};
