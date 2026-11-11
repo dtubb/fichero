@@ -41,11 +41,31 @@ enum BodyCount {
 
     static func tick(_ name: String) {
         guard RenderDiagnostics.printChanges else { return }
+        watchDefaultsOnce()
         tally[name, default: 0] += 1
         guard !flushQueued else { return }
         flushQueued = true
         DispatchQueue.main.async {
             MainActor.assumeIsolated { flush() }
+        }
+    }
+
+    private static var defaultsObserver: NSObjectProtocol?
+
+    /// Every `@AppStorage` re-evaluates its view on a UserDefaults change, so a turn's line also
+    /// counts the changes that landed in it ("UserDefaults 3"): a busy turn with them is one a
+    /// defaults write set off.
+    private static func watchDefaultsOnce() {
+        guard defaultsObserver == nil else { return }
+        defaultsObserver = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification, object: nil, queue: nil
+        ) { _ in
+            // A write on the main thread counts in the turn it happened in; one from elsewhere in the next.
+            if Thread.isMainThread {
+                MainActor.assumeIsolated { tick("UserDefaults") }
+            } else {
+                DispatchQueue.main.async { MainActor.assumeIsolated { tick("UserDefaults") } }
+            }
         }
     }
 
