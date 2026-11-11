@@ -444,6 +444,10 @@ def _remote_run(name, argv, root, timeout_s, cfg: Config, extra: dict | None, cw
         rdir = _ship(root, cfg, remote)
     except OSError as e:
         return _remote_down(cfg, str(e), remote)
+    # the physical path: pytest roots itself and scopes each directory's conftest by it, and a test resolves its own file, so a gate
+    # dir that is a symlink (the M4's ~/fichero-gate -> its Dev Disk) made a directory's autouse fixture apply to every test (alert 511)
+    real = _ssh(host, f"cd {shlex.quote(rdir)} && pwd -P", 30).stdout.decode().strip()
+    rdir = real if real.startswith("/") else rdir
     py = cfg.remote_python or f"{rdir.rsplit('/', 1)[0]}/venv/bin/python"
     sub = lambda x: str(x).replace(str(root), rdir)  # noqa: E731
     cmd = [py if a == _py(cfg) else sub(a) for a in argv]
