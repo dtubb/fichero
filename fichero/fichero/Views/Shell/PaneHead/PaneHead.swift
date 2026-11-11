@@ -121,7 +121,8 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: PaneHeadMetrics.rowSpacing) {
+        BodyCount.tick("PaneHead")
+        return VStack(alignment: .leading, spacing: PaneHeadMetrics.rowSpacing) {
             HStack(spacing: PaneHeadMetrics.capsuleSpacing) {
                 identityCapsule
                 if showsBreadcrumb { breadcrumbCapsule }

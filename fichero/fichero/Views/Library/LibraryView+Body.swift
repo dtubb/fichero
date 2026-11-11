@@ -64,6 +64,7 @@ extension LibraryView {
     var body: some View {
         // Opt-in (FICHERO_PRINT_CHANGES=1): names the property that re-evaluated this body (#5228).
         if RenderDiagnostics.printChanges { Self._printChanges() }
+        BodyCount.tick("LibraryView")
         return withKeyboardShortcuts(eventWiredContent)
             // The island's bolt (v1 suggest chip) opens THIS pane's picker —
             // same sheet, same batch path as the bottom bar's bolt. Direct

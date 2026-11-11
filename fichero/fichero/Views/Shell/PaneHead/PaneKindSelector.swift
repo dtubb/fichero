@@ -57,7 +57,8 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
     // there truly isn't room for two — that is a WIDTH fallback every kind
     // shares, not a per-kind mode.
     var body: some View {
-        adaptiveSelector
+        BodyCount.tick("PaneKindSelector")
+        return adaptiveSelector
     }
 
     @ViewBuilder

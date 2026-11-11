@@ -848,6 +848,7 @@ struct ContentView: View {
     var body: some View {
         // Opt-in (FICHERO_PRINT_CHANGES=1): names the property that re-evaluated this body.
         if RenderDiagnostics.printChanges { Self._printChanges() }
+        BodyCount.tick("ContentView")
         // #2960: ErrorService is @Observable via @Environment, which has no
         // projected binding — @Bindable gives `$errorService.currentAlert`.
         @Bindable var errorService = errorService
