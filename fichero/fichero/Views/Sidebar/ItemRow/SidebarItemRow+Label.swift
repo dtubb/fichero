@@ -268,7 +268,7 @@ extension SidebarItemRow {
 
     /// Click fallback for CHILD rows (Daniel, 2026-08-10: "still not working for clicking on name of item child of
     /// folder") — the UnifiedRows fallback only wraps TOP-LEVEL rows, so a nested row's name-press was claimed by the
-    /// drag machinery and never committed. Plain clicks select the row; ⇧ extends and ⌘/⌥ toggle it, through the
+    /// drag machinery and never committed. Plain clicks select the row; ⇧ extends and ⌘ toggles it, through the
     /// sidebar's one commit seam (#6534; they used to reach the PARENT's handler and select it instead). An expanded
     /// row does nothing: its own children sit inside this gesture.
     ///
@@ -281,13 +281,19 @@ extension SidebarItemRow {
             #if os(macOS)
             let modifiers = sidebarClickModifiers()
             if modifiers.shift || modifiers.command, let onSelectionProposal {
-                onSelectionProposal(sidebarFallbackProposal(
+                let proposal = sidebarFallbackProposal(
                     clicked: child.destination,
                     current: selectedDestinations,
                     anchor: selectedItemId.flatMap(SidebarDestination.init(serializedID:)),
                     orderedSiblings: siblings.map(\.destination),
                     modifiers: modifiers
-                ))
+                )
+                let ids = proposal.map(\.serializedID).sorted().joined(separator: ",")
+                sidebarRowLogger.debug("""
+                    child fallback tap on \(child.id, privacy: .public) shift=\(modifiers.shift) \
+                    command=\(modifiers.command) proposal=\(ids, privacy: .public)
+                    """)
+                onSelectionProposal(proposal)
                 return
             }
             #endif
