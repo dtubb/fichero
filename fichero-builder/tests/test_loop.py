@@ -1243,7 +1243,7 @@ def test_a_brief_a_managed_worker_cannot_carry_out_is_refused_before_a_session_i
     queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
     assert fake.starts == [] and steps()["1.1"]["state"] == "blocked", "the same brief is never re-sent"
     assert queue.brief_preflight("brief 1.1: fix scripts/x.py; see /Users/Shared/fichero-worker/notes.txt", "m1") == []
-    assert queue.brief_preflight("read /Users/danieltubb/x", "m1") and queue.brief_preflight("gh pr list", "m1") and queue.brief_preflight("builder done m1 now", "m1")
+    assert queue.brief_preflight("read /Users/someone/x", "m1") and queue.brief_preflight("gh pr list", "m1") and queue.brief_preflight("builder done m1 now", "m1")
     assert queue.brief_preflight("gh issue view 7", "m1", gh_ok=True) == [], "[jail].gh = true: the jail has a token"
 
 
