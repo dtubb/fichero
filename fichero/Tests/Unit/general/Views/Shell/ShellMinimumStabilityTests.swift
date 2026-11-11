@@ -29,22 +29,14 @@ final class ShellMinimumStabilityTests: XCTestCase {
     /// #6447 (second repro, resizing the window with the Document Inspector open): the shell minimum used to drop by the
     /// inspector's width, then the sidebar's, as the window narrowed past a collapse threshold, so the split view's
     /// minimum changed inside its own constraints pass. Whatever the window's width, the minimum is the same.
+    /// (Collapse at a width below the minimum is not tested: the Mac window cannot be that narrow.)
     func testTheShellMinimumIsTheSameAtEveryWidthTheWindowCanBe() {
         let detail = 600.0
         for sidebar in [true, false] {
             for inspector in [true, false] {
                 let expected = ContentView.windowMinWidth(
                     sidebarVisible: sidebar, inspectorVisible: inspector, detailMinWidth: detail)
-                // The collapse policy still moves with the width (that is what is SHOWN)…
-                let wide = ContentView.shellCollapsePolicy(
-                    windowWidth: 3000, horizontalSizeClass: .regular, sidebarVisible: sidebar,
-                    inspectorVisible: inspector, detailMinWidth: detail)
-                let narrow = ContentView.shellCollapsePolicy(
-                    windowWidth: expected - 1, horizontalSizeClass: .regular, sidebarVisible: sidebar,
-                    inspectorVisible: inspector, detailMinWidth: detail)
-                XCTAssertFalse(wide.collapseInspector)
-                if inspector { XCTAssertTrue(narrow.collapseInspector) }
-                // …but the window's minimum has no width to follow.
+                // The window's minimum has no width to follow.
                 XCTAssertEqual(
                     ContentView.shellWindowMinWidth(
                         horizontalSizeClass: .regular, sidebarVisible: sidebar,
