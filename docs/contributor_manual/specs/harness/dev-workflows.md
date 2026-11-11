@@ -1511,12 +1511,12 @@ Issues #6495, #6496, #6500-#6502 (the review at 15:17 ADT); built on the harness
 Issues #6497-#6499, #6503, #6505; built on the same branch.
 
 #### Step 4.9 — the review of 2026-11-10: the page's event tables, and green-first chain slots
-- Behaviours: `dev-workflows.run.console-events-true`, `dev-workflows.run.loop-green-first`, `dev-workflows.run.console-since-build`, `dev-workflows.run.loop-retried-batch-lands`
+- Behaviours: `dev-workflows.run.console-events-true`, `dev-workflows.run.loop-green-first`, `dev-workflows.run.console-since-build`, `dev-workflows.run.loop-retried-batch-lands`, `dev-workflows.console.abandoned-after-six-hours`
 - Tests: fichero-builder/tests/test_status_page.py, fichero-builder/tests/test_loop.py, fichero-builder/tests/test_presubmit.py
 - Depends on: 4.8
 - Size: S
 
-Issues #6504, #6506, #6507, #6524; built on the same branch.
+Issues #6467, #6504, #6506, #6507, #6524; built on the same branch.
 
 ## Behaviour tests
 
@@ -1631,6 +1631,7 @@ Every behaviour names its test above, written in its step; each `security.*` and
 | `dev-workflows.run.loop-green-first` | 4.9 |
 | `dev-workflows.run.console-since-build` | 4.9 |
 | `dev-workflows.run.loop-retried-batch-lands` | 4.9 |
+| `dev-workflows.console.abandoned-after-six-hours` | 4.9 |
 
 ## Test matrix
 
