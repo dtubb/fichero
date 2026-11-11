@@ -1247,6 +1247,18 @@ def test_a_brief_a_managed_worker_cannot_carry_out_is_refused_before_a_session_i
     assert queue.brief_preflight("gh issue view 7", "m1", gh_ok=True) == [], "[jail].gh = true: the jail has a token"
 
 
+def test_a_fix_brief_cuts_quoted_owner_paths_and_a_boundary_refusal_says_rewrite_the_commit():
+    """Alert 528: a review finding quoted an owner path; copied into the fix brief, brief_preflight refused the whole brief. And a
+    boundary hit is per COMMIT (history is pushed): the brief says so, not 'remove the line'."""
+    home = "/Users/" + "someone"
+    t = queue.fix_text("1.2", "review", f"NOT READY: see {home}/notes.txt and ~/Desktop/x.md; fix scripts/x.py")
+    assert "someone" not in t and "~/Desktop" not in t and "scripts/x.py" in t and "<a path outside the jail>" in t, t
+    assert queue.brief_preflight(t, "m1") == []
+    t = queue.fix_text("1.2", "refused", "the land gate refused: REFUSED (boundary):\n  abcdef1234 docs/a.md: pattern 0\n  abcdef1234 message: pattern 1")
+    assert t.count(queue.REWRITE) == 2 and "commit abcdef1234, docs/a.md: rewrite that commit" in t, t
+    assert queue.REWRITE not in queue.fix_text("1.2", "red", "pytest: 1 failed")
+
+
 def test_intake_any_takes_an_owner_branch_on_count_or_age_alone(tmp_path):
     """#6501: the owner's own branch (ux: 63 commits, none with `(Step ` or a Behaviour trailer) never met the intake rule.
     A lane named in [loop].intake_any is taken on its commit count or age alone."""

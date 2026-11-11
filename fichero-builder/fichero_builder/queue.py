@@ -43,6 +43,18 @@ _now = time.time  # the tests set the clock
 AUTO_SEND_BACKS = 3  # an external lane's red check is sent back by the loop this many times a batch, then it is an alert
 FIX = ("Step {step}: the {kind} did not pass. Fix it on this branch with new commit(s), under the same rules.\n\n{findings}\n\n"
        "When it is committed, end your turn with the exact line DONE <short sha of the branch head>.\n")
+OWNER_PATH = re.compile(r"(?<![\w/])(?:~/[\w./-]+|/Users/(?!Shared/)[\w./-]+)")  # what a jail user cannot read; brief_preflight refuses it
+BOUNDARY_HIT = re.compile(r"(?m)^\s*([0-9a-f]{7,40}) (\S.*?): pattern \d+$")
+REWRITE = "rewrite that commit; a later commit does not clear it (history is pushed)"
+
+
+def fix_text(step: str, kind: str, findings: str) -> str:
+    """The fix brief's text. Owner paths quoted in a finding are cut (brief_preflight would refuse the whole brief: alert 528); a
+    boundary refusal says, per hit, that the COMMIT is rewritten: its added line is pushed as history whether a later commit removes it."""
+    findings = OWNER_PATH.sub("<a path outside the jail>", findings)
+    if "REFUSED (boundary)" in findings:
+        findings = BOUNDARY_HIT.sub(lambda m: f"{m.group(0)} -- commit {m.group(1)[:10]}, {m.group(2)}: {REWRITE}", findings)
+    return FIX.format(step=step, kind=kind, findings=findings)
 
 
 def slug(name: str) -> str:
@@ -310,8 +322,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             s["block_retries"] = 1
             q = journal.STATE / f"question-{lane['id']}-{s['step']}.txt"
             fix = journal.STATE / f"retry-{lane['id']}-{s['step']}.txt"
-            fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + "\n\n" + FIX.format(step=s["step"], kind="last session",
-                           findings=(q.read_text() if q.is_file() else s.get("why", "")).strip()))
+            fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + "\n\n" + fix_text(s["step"], "last session",
+                           (q.read_text() if q.is_file() else s.get("why", "")).strip()))
             s["resume_brief"], s["rounds"], s["restarts"] = str(fix), 0, 0
             s.pop("blocked_at")
             if h is not None:  # a fresh session, never the one that blocked
@@ -476,7 +488,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         return block(s, r["why"], ("approve", "send-back"), r.get("evidence", ""))
     if r.get("kind") in ("red", "not-ready", "refused") and s["rounds"] < ROUNDS and lane.get("kind") != "external":  # external: an alert
         s["rounds"] += 1
-        text = FIX.format(step=s["step"], kind=r["kind"], findings=r.get("findings") or r["why"])
+        text = fix_text(s["step"], r["kind"], r.get("findings") or r["why"])
         live = handles.get(lane["id"])
         if live is not None and procs.alive(live):  # the findings into the running session (dev-workflows.run.loop-tell)
             lane["seq"] += 1
@@ -586,7 +598,7 @@ def brief_preflight(text: str, lane_id: str, gh_ok: bool = False) -> list[str]:
     """#6495 (run.loop-brief-preflight): what a managed worker, the jail user, cannot do that this brief asks for, each with what
     to put in the brief instead (short: an alert's text is one line). ponytail: three regexes; a fourth kind when one turns up."""
     out = []
-    if m := re.findall(r"(?<![\w/])(?:~/[\w./-]+|/Users/(?!Shared/)[\w./-]+)", text):
+    if m := OWNER_PATH.findall(text):
         out.append(f"owner paths ({', '.join(dict.fromkeys(x.rstrip('.') for x in m))}): paste their text in")
     if not gh_ok and (m := re.findall(r"\bgh\s+(?:issue|pr|api|repo|release|run|label|milestone|search)\b(?:\s+[\w#-]+)?", text)):
         out.append(f"gh ({'; '.join(dict.fromkeys(m))}): no token in the jail, paste the issue text in (or [jail].gh = true)")
@@ -802,7 +814,7 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
                 s["maintainer"] = True  # the chain runs the check with --maintainer
             if action == "send-back":
                 fix = journal.STATE / f"sendback-{alert_id}.txt"
-                fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + f"\n\nSent back by the manager: {a['what']}\nEvidence: {a['evidence']}\n")
+                fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + OWNER_PATH.sub("<a path outside the jail>", f"\n\nSent back by the manager: {a['what']}\nEvidence: {a['evidence']}\n"))
                 s["resume_brief"] = str(fix)
             lane["paused"] = False
             save(lanes)
