@@ -24,10 +24,10 @@ func sidebarFallbackTapActs(_ item: SidebarItem, _ expanded: Bool) -> Bool {
     !sidebarBuildsChildRows(item, isExpanded: expanded)
 }
 
-/// The modifiers `sidebarFallbackProposal` reads for a sidebar click: Option toggles like Command, so a click with
-/// either held (⇧⌥ too) takes a selected row out of the selection (#6534).
+/// The modifiers `sidebarFallbackProposal` reads for a sidebar click: Shift is a continuous range; Command or Option adds
+/// or removes the one clicked row. Option is a toggle only on its own, so Shift+Option stays a range (#6534).
 func sidebarToggleModifiers(shift: Bool, command: Bool, option: Bool) -> (shift: Bool, command: Bool) {
-    (shift, command || option)
+    (shift, command || (option && !shift))
 }
 
 #if os(macOS)

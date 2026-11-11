@@ -48,22 +48,34 @@ struct SidebarContextTargetsTests {
         #expect(sidebarFallbackTapActs(makeItem("leaf"), true))
     }
 
-    @Test("Option toggles like Command, alone or with Shift; Shift alone extends")
-    func optionTogglesLikeCommand() {
+    @Test("Shift is a continuous range; Command or Option toggles one row; Shift+Option is a range")
+    func shiftIsARangeAndCommandOrOptionToggles() {
         #expect(sidebarToggleModifiers(shift: false, command: false, option: true) == (false, true))
-        #expect(sidebarToggleModifiers(shift: true, command: false, option: true) == (true, true))
+        #expect(sidebarToggleModifiers(shift: false, command: true, option: false) == (false, true))
         #expect(sidebarToggleModifiers(shift: true, command: false, option: false) == (true, false))
+        #expect(sidebarToggleModifiers(shift: true, command: false, option: true) == (true, false))
     }
 
-    @Test("a toggle click on a selected child takes it out, and the parent stays out")
-    func toggleClickOnSelectedChildDeselectsIt() {
+    @Test("an Option click on a selected child takes it out, and the parent stays out")
+    func optionClickOnSelectedChildDeselectsIt() {
         let parent = SidebarDestination.document("parent")
         let first = SidebarDestination.document("first")
         let second = SidebarDestination.document("second")
         let out = sidebarFallbackProposal(
             clicked: first, current: [first, second], anchor: first, orderedSiblings: [first, second],
-            modifiers: sidebarToggleModifiers(shift: true, command: false, option: true))
+            modifiers: sidebarToggleModifiers(shift: false, command: false, option: true))
         #expect(out == [second])
         #expect(!out.contains(parent))
+    }
+
+    @Test("a Shift+Option click extends the range and removes nothing")
+    func shiftOptionClickIsARange() {
+        let first = SidebarDestination.document("first")
+        let second = SidebarDestination.document("second")
+        let third = SidebarDestination.document("third")
+        let out = sidebarFallbackProposal(
+            clicked: third, current: [first], anchor: first, orderedSiblings: [first, second, third],
+            modifiers: sidebarToggleModifiers(shift: true, command: false, option: true))
+        #expect(out == [first, second, third])
     }
 }
