@@ -209,15 +209,19 @@ extension SidebarView {
         }
         let clock = ContinuousClock()
         let started = clock.now
+        sidebarRemoveRowsBeforeDelete(documents, from: library.documentStore)  // all go together (#6535)
+        var deleted = 0
         do {
             try await UndoableChange.batch(
                 documents,
                 named: { UndoableChange.named("Move", count: $0, one: "Item to Trash", many: "Items to Trash") },
                 service: library.actionsService, steps: windowState.steps,
-                afterEach: { await library.documentStore.refresh() },
+                afterEach: { await library.documentStore.refresh() },  // after an undo or redo of the step
                 change: { doc in
-                    [try await library.actionsService.invokeAction(
-                        name: "document.delete", params: DocumentDeleteActionParams(docId: doc.id)).auditId]
+                    let auditId = try await library.actionsService.invokeAction(
+                        name: "document.delete", params: DocumentDeleteActionParams(docId: doc.id)).auditId
+                    deleted += 1
+                    return [auditId]
                 }
             )
             logger.info("Delete successful: \(documents.count) items in one step")
@@ -228,12 +232,14 @@ extension SidebarView {
         // #6537: a begin line before each step that can stall; a begin with no "took" names the step that did.
         let batchMs = elapsedMs(clock.now - started)
         logger.info("⏱ delete batch: \(documents.count) item(s) took \(batchMs, format: .fixed(precision: 1))ms")
-        rebuildCaches(for: libraryId)  // a batch that failed part-way has already moved some rows
-        logger.info("⏱ delete batch: final refresh begins")
+        rebuildCaches(for: libraryId)
+        // A batch that failed part-way: the rows the engine kept come back.
+        guard sidebarDeleteNeedsRefresh(deleted: deleted, asked: documents.count) else { return }
+        logger.info("⏱ delete batch: \(deleted) of \(documents.count) deleted; refresh begins")
         let refreshStarted = clock.now
         await library.documentStore.refresh()
         let refreshMs = elapsedMs(clock.now - refreshStarted)
-        logger.info("⏱ delete batch: final refresh took \(refreshMs, format: .fixed(precision: 1))ms")
+        logger.info("⏱ delete batch: refresh took \(refreshMs, format: .fixed(precision: 1))ms")
     }
 
     // Perform the actual deletion
@@ -312,19 +318,20 @@ extension SidebarView {
     private func deleteDocumentItem(_ doc: Document, library: LibraryManager.LibraryReference) async throws {
         let clock = ContinuousClock()
         let started = clock.now
+        sidebarRemoveRowsBeforeDelete([doc], from: library.documentStore)  // the row goes at once (#6535)
         logger.info("⏱ delete: engine call begins")
-        try await UndoableChange.invoke(
-            "document.delete", params: DocumentDeleteActionParams(docId: doc.id), named: "Move to Trash",
-            service: library.actionsService, steps: windowState.steps,
-            afterEach: { await library.documentStore.refresh() }
-        )
-        let invoked = clock.now
-        let invokeMs = elapsedMs(invoked - started)
-        logger.info("⏱ delete: engine call + its refresh took \(invokeMs, format: .fixed(precision: 1))ms")
-        logger.info("⏱ delete: second refresh begins")
-        await library.documentStore.refresh()
-        let refreshMs = elapsedMs(clock.now - invoked)
-        logger.info("⏱ delete: second refresh took \(refreshMs, format: .fixed(precision: 1))ms")
+        do {
+            try await UndoableChange.invoke(
+                "document.delete", params: DocumentDeleteActionParams(docId: doc.id), named: "Move to Trash",
+                service: library.actionsService, steps: windowState.steps,
+                afterEach: { await library.documentStore.refresh() }  // after an undo or redo of the step
+            )
+        } catch {
+            await library.documentStore.refresh()  // the engine kept it: the row comes back
+            throw error
+        }
+        let invokeMs = elapsedMs(clock.now - started)
+        logger.info("⏱ delete: engine call took \(invokeMs, format: .fixed(precision: 1))ms")
     }
 
     private func deleteSimpleItem(
