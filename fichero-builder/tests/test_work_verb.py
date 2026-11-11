@@ -694,6 +694,21 @@ def test_a_guard_data_stop_the_added_routes_rule_clears_runs_the_ladder_again_wi
     assert chain() != 0 and seen == [()], "anything else still stops for the manager"
 
 
+def test_a_guard_data_approval_narrower_than_the_batch_proposes_the_widened_approval_not_a_plain_red(chain, monkeypatch, capsys):
+    """An approve named one known-gaps file; the batch then changed two. The chain asked a plain red (the manager re-read the ladder by
+    hand). Correct: one guard-data alert naming the UNION, so an approve at this head widens it."""
+    (chain.tmp / "harness.toml").write_text(RULES.replace('[check]\n', '[check]\ncheck_paths = ["scripts/"]\n'))
+    monkeypatch.setattr(work, "r_since", lambda repo, branch: "b" * 40)
+    monkeypatch.setattr(work, "_git", lambda repo, *args: types.SimpleNamespace(stdout="scripts/check_x_known_gaps.json\nscripts/check_y_known_gaps.json\n", returncode=0))
+    monkeypatch.setattr(work, "do_check", lambda a, repo, since, head, ladder: {"ok": False, "failed": "guards", "rungs": []})
+    real = work._chain
+    monkeypatch.setattr(work, "_chain", lambda a: (setattr(a, "guard_data", ("scripts/check_x_known_gaps.json",)), real(a))[1])  # the queue's approve
+    assert chain() == 2
+    out = capsys.readouterr().out
+    assert out.startswith("QUESTION: guards red") and "scripts/check_y_known_gaps.json" in out and "scripts/check_x_known_gaps.json" in out, out
+    assert "widened" in out and "the check is red" not in out
+
+
 BAKE = "import hashlib, pathlib; pathlib.Path('ident.txt').write_text(hashlib.sha256(pathlib.Path('contract.json').read_bytes()).hexdigest() + chr(10))"
 
 
