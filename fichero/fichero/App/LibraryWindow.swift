@@ -375,7 +375,8 @@ struct LibraryWindow: View {
     }
 
     var body: some View {
-        libraryWindowSheets
+        BodyCount.tick("LibraryWindow")
+        return libraryWindowSheets
         // React to currentLibraryId changes (from Finder open, etc.)
         // Safari model: switch current window to the new library
         .onChange(of: libraryManager.currentLibraryId) { _, newId in

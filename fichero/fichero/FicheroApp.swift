@@ -66,6 +66,7 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
         guard !isRunningXCTests() else { return }
         guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" else { return }
         LaunchProfile.milestone("applicationDidFinishLaunching")
+        ResizeProfile.install()
         // Windows are restored by now; a fresh start skips restoring for that one launch only.
         UserDefaults.standard.removeObject(forKey: StartFresh.ignoreSavedStateKey)
     }

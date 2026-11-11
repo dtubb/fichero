@@ -37,7 +37,8 @@ func sidebarRowAccessibilityHint(canBeRenamed: Bool) -> String {
 
 extension SidebarItemRow {
     var body: some View {
-        bodyContent
+        BodyCount.tick("SidebarItemRow")
+        return bodyContent
             // NO per-row TapGesture fallback any more (removed 2026-08-08,
             // #4571). The #645-era fallback predates textSelection(.disabled)
             // and the allowsHitTesting(false) pass-throughs that now let

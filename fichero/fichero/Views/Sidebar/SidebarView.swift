@@ -155,6 +155,7 @@ struct SidebarView: View {
     var body: some View {
         // Opt-in (FICHERO_PRINT_CHANGES=1): names the property that re-evaluated this body (#5228).
         if RenderDiagnostics.printChanges { Self._printChanges() }
+        BodyCount.tick("SidebarView")
         return sidebarObserved
             .sidebarFocusedValues(config: SidebarFocusedValuesConfig(
                 selectedItem: selectedItem,
