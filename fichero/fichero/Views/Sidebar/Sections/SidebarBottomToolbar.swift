@@ -2,10 +2,10 @@ import SwiftUI
 
 // MARK: - Sidebar Bottom Toolbar
 
-/// Compact bottom toolbar for sidebar with common actions.
-///
-/// Modeled after macOS Preview/Finder bottom toolbars with small, icon-only buttons.
-/// Layout: [+new menu] [−delete] [export] [import menu] [workflow] (#2309)
+/// The sidebar's bottom bar, laid out like Xcode's navigator (Daniel, 2026-11-11):
+/// [+ new item] [− remove] [filter field in a capsule] [new workflow]. Plain icons, no bar of
+/// glass around them; the filter is the one shaped control. Import is not here: it is the
+/// Import submenu of the + menu (`AddItemMenu`), so a second icon for it was a duplicate.
 struct SidebarBottomToolbar: View {
     // Feature manager to hide buttons
     let featureManager = FeatureManager.shared
@@ -14,17 +14,12 @@ struct SidebarBottomToolbar: View {
     /// the SAME registry/FocusedValue-driven list the Data menu uses — so the
     /// items, gating, and tier badges can never drift between surfaces again.
     let itemRegistry: ItemTypeRegistry
-    let importFiles: (IngestMode) -> Void
-    // Optional automation creation callbacks
     // Selection-dependent actions (#2309)
     var deleteItem: (() -> Void)?
     var hasSelection: Bool = false
-    /// Sidebar filter text (#4061). The filter field lives inside this bottom
-    /// toolbar — one unified bottom toolbar owns the filter + the
-    /// sidebar-scoped actions — so there is no standalone filter chrome above
-    /// the bar. Bound straight to `SidebarView.sidebarFilterText`, which
-    /// drives `filteredLibraryHeaders`; rows keep stable identity so the list
-    /// updates in place rather than re-rendering wholesale on filter change.
+    /// Sidebar filter text (#4061). Bound straight to `SidebarView.sidebarFilterText`, which
+    /// drives `filteredLibraryHeaders`; rows keep stable identity so the list updates in place
+    /// rather than re-rendering wholesale on filter change.
     var sidebarFilterText: Binding<String>
     /// Every open project's knowledge-row counts (#5413): the show/hide control is drawn only
     /// when at least one of them has a non-empty row.
@@ -46,45 +41,34 @@ struct SidebarBottomToolbar: View {
         #endif
     }
 
-    var body: some View {
-        // The filter field sits BESIDE the adaptive row, never inside it
-        // (#5293). `AdaptiveMiniToolbarRow` is a `ViewThatFits` ladder: each
-        // rung is a separate copy of its content, and a field's ideal width
-        // grows as you type, so typing moved the row to the next rung, which
-        // mounted a NEW unfocused field — the next key beeped. Out here the
-        // field is one view for the life of the bar. The row takes priority
-        // so it picks its rung from the full width less the field's minimum;
-        // the field gets whatever is left.
-        PaneFilterBar {
-            filterField
-                .frame(minWidth: Self.filterFieldMinWidth)
-            adaptiveActionRow
-                .layoutPriority(1)
-        }
-    }
-
     /// Room for the magnifier and a few typed characters in the narrowest sidebar.
     private static var filterFieldMinWidth: CGFloat { 60 }
 
-    /// The action row on the shared AdaptiveMiniToolbarRow (#3058, parent #2670):
-    /// essential verbs inline, secondary verbs into a trailing '…' menu when the
-    /// sidebar is narrow or on compact width — no more overrun.
-    private var adaptiveActionRow: some View {
-        AdaptiveMiniToolbarRow {
-            essentialButtons
-        } secondary: {
-            secondaryButtons
-        } overflowMenu: {
-            overflowMenu
+    var body: some View {
+        // No `ViewThatFits` ladder and no field inside one (#5293): the field is one view for the
+        // life of the bar, so typing never remounts it. The verbs are few enough to stay inline.
+        HStack(spacing: 4) {
+            newItemMenu
+            removeButton
+            // Show/hide every project's non-empty knowledge rows (#5413); absent while no
+            // project has one, since there would be nothing for it to do.
+            if SidebarKnowledgeRows.toggleIsShown(knowledgeRowStores) {
+                SidebarKnowledgeRowsToggle(font: iconFont, side: metrics.touchTargetSide)
+            }
+            filterField
+                .frame(minWidth: Self.filterFieldMinWidth)
+            if featureManager.isWorkflowsEnabled {
+                newWorkflowButton
+            }
         }
+        .padding(.horizontal, 8)
+        .frame(height: PaneFilterBar<EmptyView>.height)
+        .frame(maxWidth: .infinity)
     }
 
-    /// The sidebar filter field, integrated into the bottom toolbar (#4061),
-    /// leading the action row. Replaces the old standalone `sidebarFilterBar` so the
-    /// sidebar has one unified bottom toolbar owning the filter + actions,
-    /// matching the shared Surface Chrome pattern. The clear button appears
-    /// only when there's text to clear — a small in-place update, no list
-    /// re-render (rows keep stable identity via `filteredLibraryHeaders`).
+    /// The sidebar filter field in its capsule (#4061). The clear button appears only when
+    /// there's text to clear — a small in-place update, no list re-render (rows keep stable
+    /// identity via `filteredLibraryHeaders`).
     private var filterField: some View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass")
@@ -104,143 +88,64 @@ struct SidebarBottomToolbar: View {
                 .accessibilityLabel("Clear filter")
             }
         }
+        .padding(.horizontal, 8)
+        .frame(minHeight: metrics.touchTargetSide)
+        .background(.fill.tertiary, in: Capsule())
     }
 
-    /// Essential verbs — always inline (#3058): the New-item menu + Delete.
-    /// No text field in here: every rung of the ladder is its own copy (#5293).
-    @ViewBuilder
-    private var essentialButtons: some View {
-        // New item menu (dropdown) — ONE source of truth (#4121).
+    /// New item menu (dropdown) — ONE source of truth (#4121); Import is its submenu.
+    private var newItemMenu: some View {
         Menu {
-                AddItemMenu(registry: itemRegistry, style: .contextual)
-            } label: {
-                Image(systemName: "plus")
-                    .font(iconFont)
-                    .frame(minWidth: metrics.touchTargetSide, minHeight: metrics.touchTargetSide)
-                    .contentShape(Rectangle())
-            }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .help("New Item")
-            .accessibilityLabel("New Item")
-
-            // Remove / delete selected item
-            Button {
-                deleteItem?()
-            } label: {
-                Image(systemName: "minus")
-                    .font(iconFont)
-                    .frame(minWidth: metrics.touchTargetSide, minHeight: metrics.touchTargetSide)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.borderless)
-            .disabled(!hasSelection)
-            .help("Remove selected item")
-            .accessibilityLabel("Remove selected item")
-
-            // Show/hide every project's non-empty knowledge rows (#5413); absent while no
-            // project has one, since there would be nothing for it to do.
-            if SidebarKnowledgeRows.toggleIsShown(knowledgeRowStores) {
-                SidebarKnowledgeRowsToggle(font: iconFont, side: metrics.touchTargetSide)
-            }
-    }
-
-    /// Secondary verbs — inline when they fit, else the '…' overflow (macOS narrow)
-    /// or menu-only (compact iPhone) (#3058): Import menu, New Workflow.
-    ///
-    /// Export used to sit here as a permanently `.disabled(true)` button whose
-    /// own `.help` read "Export (not yet wired)" (#4100). A control that can
-    /// never do anything is placeholder chrome, and the dead-simple-UX rule is
-    /// that a feature is ON or OFF — a greyed button that never ungreys reads
-    /// as "broken", not "coming".
-    ///
-    /// Nothing is lost: File ▸ Export already exports (BibTeX, Markdown static
-    /// site), library-scoped and working. #2309 tracks a SIDEBAR-scoped export
-    /// handler, and the button comes back when there is something behind it.
-    @ViewBuilder
-    private var secondaryButtons: some View {
-            // Import menu
-            Menu {
-                Button(
-                    action: { importFiles(.link) },
-                    label: {
-                        Label(IngestMode.link.displayName, systemImage: IngestMode.link.icon)
-                    }
-                )
-
-                Button(
-                    action: { importFiles(.copy) },
-                    label: {
-                        Label(IngestMode.copy.displayName, systemImage: IngestMode.copy.icon)
-                    }
-                )
-
-                Button(
-                    action: { importFiles(.move) },
-                    label: {
-                        Label(IngestMode.move.displayName, systemImage: IngestMode.move.icon)
-                    }
-                )
-            } label: {
-                Image(systemName: "square.and.arrow.down")
-                    .font(iconFont)
-                    .frame(minWidth: metrics.touchTargetSide, minHeight: metrics.touchTargetSide)
-                    .contentShape(Rectangle())
-            }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .help("Import Files (⌘I)")
-            .accessibilityLabel("Import Files")
-
-            // Run workflow on selection (only shown when workflows feature is enabled)
-            if featureManager.isWorkflowsEnabled {
-                Button {
-                    itemRegistry.createWorkflow?()
-                } label: {
-                    Image(systemName: "bolt")
-                        .font(iconFont)
-                        .frame(minWidth: metrics.touchTargetSide, minHeight: metrics.touchTargetSide)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.borderless)
-                .disabled(!hasSelection)
-                .help("New Workflow")
-                .accessibilityLabel("New Workflow")
-            }
-    }
-
-    /// `Label`-based mirror of the secondary verbs for the overflow '…' menu
-    /// (#3058) — same actions + disabled logic, menu-item presentation.
-    @ViewBuilder
-    private var overflowMenu: some View {
-        // Export intentionally absent — see `secondaryButtons` (#4100). The
-        // overflow menu mirrors the inline verbs, so a dead entry here would
-        // reintroduce the same never-enabled control one menu deeper.
-
-        // Import submenu (link / copy / move), mirroring the inline Import menu.
-        Menu {
-            Button { importFiles(.link) } label: {
-                Label(IngestMode.link.displayName, systemImage: IngestMode.link.icon)
-            }
-            Button { importFiles(.copy) } label: {
-                Label(IngestMode.copy.displayName, systemImage: IngestMode.copy.icon)
-            }
-            Button { importFiles(.move) } label: {
-                Label(IngestMode.move.displayName, systemImage: IngestMode.move.icon)
-            }
+            AddItemMenu(registry: itemRegistry, style: .contextual)
         } label: {
-            Label("Import Files", systemImage: "square.and.arrow.down")
+            Image(systemName: "plus")
+                .font(iconFont)
+                .frame(minWidth: metrics.touchTargetSide, minHeight: metrics.touchTargetSide)
+                .contentShape(Rectangle())
         }
+        // A SwiftUI-drawn menu, not `.borderlessButton`: that one is an AppKit pop-up that ignores
+        // the label's font, so the + came out larger and darker than the − beside it.
+        .menuStyle(.button)
+        .buttonStyle(.borderless)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("New Item")
+        .accessibilityLabel("New Item")
+    }
 
-        if featureManager.isWorkflowsEnabled {
-            Button {
-                itemRegistry.createWorkflow?()
-            } label: {
-                Label("New Workflow", systemImage: "bolt")
-            }
-            .disabled(!hasSelection)
+    /// Remove / delete selected item
+    private var removeButton: some View {
+        Button {
+            deleteItem?()
+        } label: {
+            Image(systemName: "minus")
+                .font(iconFont)
+                .frame(minWidth: metrics.touchTargetSide, minHeight: metrics.touchTargetSide)
+                .contentShape(Rectangle())
         }
+        .buttonStyle(.borderless)
+        .disabled(!hasSelection)
+        .help("Remove selected item")
+        .accessibilityLabel("Remove selected item")
+    }
+
+    /// New workflow (only shown when the workflows feature is enabled).
+    ///
+    /// Export used to sit beside this as a permanently `.disabled(true)` button whose own `.help`
+    /// read "Export (not yet wired)" (#4100). A control that can never do anything is placeholder
+    /// chrome; File ▸ Export already exports, and #2309 tracks a SIDEBAR-scoped export handler.
+    private var newWorkflowButton: some View {
+        Button {
+            itemRegistry.createWorkflow?()
+        } label: {
+            Image(systemName: "bolt")
+                .font(iconFont)
+                .frame(minWidth: metrics.touchTargetSide, minHeight: metrics.touchTargetSide)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .disabled(!hasSelection)
+        .help("New Workflow")
+        .accessibilityLabel("New Workflow")
     }
 }

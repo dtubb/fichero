@@ -2,11 +2,9 @@
 import SwiftUI
 import XCTest
 
-/// Source-surface test for the sidebar bottom toolbar's mini-toolbar
-/// unification (#3058, parent #2670): the bar routes through the shared
-/// `AdaptiveMiniToolbarRow` with an overflow menu mirroring the secondary
-/// actions, using the shared PaneFilterBar chrome on every platform.
-/// Mirrors `WorkflowImportExportSurfaceTests` (deterministic, token-free).
+/// Source-surface test for the sidebar bottom toolbar's layout (2026-11-11): Xcode's navigator
+/// order, [+] [−] [filter capsule] [workflow], as plain icons. Mirrors
+/// `WorkflowImportExportSurfaceTests` (deterministic, token-free).
 final class SidebarBottomToolbarSurfaceTests: XCTestCase {
     private static func appSource(_ relativePath: String) throws -> String {
         let url = try AppSource.root()
@@ -14,40 +12,42 @@ final class SidebarBottomToolbarSurfaceTests: XCTestCase {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
-    func testBottomBarRoutesThroughAdaptiveMiniToolbarRow() throws {
-        let source = try Self.appSource("Views/Sidebar/Sections/SidebarBottomToolbar.swift")
-        XCTAssertTrue(source.contains("AdaptiveMiniToolbarRow {"))
-        XCTAssertTrue(source.contains("overflowMenu: {"))
-        XCTAssertTrue(source.contains("private var overflowMenu: some View"))
-        // PaneFilterBar owns the shared Liquid Glass/material chrome.
-        XCTAssertTrue(source.contains("PaneFilterBar {"))
+    private static func bodyBlock(of source: String) throws -> String {
+        let start = try XCTUnwrap(source.range(of: "var body: some View"))
+        let end = try XCTUnwrap(source.range(of: "private var filterField: some View"))
+        return String(source[start.upperBound..<end.lowerBound])
     }
 
-    func testOverflowMirrorsSecondaryActions() throws {
+    func testBarOrderIsNewRemoveFilterWorkflow() throws {
         let source = try Self.appSource("Views/Sidebar/Sections/SidebarBottomToolbar.swift")
-        // These `Label(...)` forms are unique to the overflow (the inline bar uses
-        // icon-only `Image` labels), so they prove the overflow mirrors secondary.
-        //
-        // Export is deliberately NOT here (#4100): it was removed from BOTH
-        // tiers, so the mirror property still holds — the overflow reflects the
-        // inline verbs, and there are now two rather than three.
-        XCTAssertTrue(source.contains("Label(\"Import Files\", systemImage: \"square.and.arrow.down\")"))
-        XCTAssertTrue(source.contains("Label(\"New Workflow\", systemImage: \"bolt\")"))
+        let body = try Self.bodyBlock(of: source)
+        let order = ["newItemMenu", "removeButton", "filterField", "newWorkflowButton"]
+        let positions = try order.map { try XCTUnwrap(body.range(of: $0), "\($0) missing from the bar").lowerBound }
+        XCTAssertEqual(positions, positions.sorted(), "bar order must be \(order)")
+    }
+
+    func testBarIsPlainIconsNotAFloatingGlassBar() throws {
+        let source = try Self.appSource("Views/Sidebar/Sections/SidebarBottomToolbar.swift")
+        XCTAssertFalse(source.contains("PaneFilterBar {"), "the verbs no longer float in a glass bar")
+        XCTAssertFalse(source.contains("AdaptiveMiniToolbarRow"), "no overflow ladder: the four controls stay inline")
+        XCTAssertTrue(source.contains("Capsule()"), "the filter is the one shaped control")
+    }
+
+    /// Import is the + menu's own submenu (`AddItemMenu`), so the bar has no second icon for it.
+    func testImportIsOnlyInThePlusMenu() throws {
+        let source = try Self.appSource("Views/Sidebar/Sections/SidebarBottomToolbar.swift")
+        XCTAssertFalse(source.contains("square.and.arrow.down"))
+        XCTAssertFalse(source.contains("Import Files"))
+        XCTAssertFalse(source.contains("importFiles"))
+        let menu = try Self.appSource("App/Menus/AddItemMenu.swift")
+        XCTAssertTrue(menu.contains("Menu(\"Import\")"), "the + menu must still offer Import")
     }
 
     /// #4100: the sidebar shipped an Export button that was permanently
     /// `.disabled(true)`, with `.help("Export (not yet wired)")` saying so out
-    /// loud, in both the inline bar and the overflow menu.
-    ///
-    /// A control that can never do anything is placeholder chrome. Per the
-    /// dead-simple-UX rule a feature is ON or OFF, and a greyed button that
-    /// never ungreys reads as "broken", not "coming". File ▸ Export already
-    /// exports (BibTeX, Markdown static site); #2309 tracks the sidebar-scoped
-    /// handler, and the control returns when there is something behind it.
-    ///
-    /// Asserted on BOTH tiers because the overflow mirrors the inline bar —
-    /// putting it back in only one is how a dead control survives half a fix.
-    func testNoDeadExportControlInEitherTier() throws {
+    /// loud. A control that can never do anything is placeholder chrome; File ▸
+    /// Export already exports, and #2309 tracks the sidebar-scoped handler.
+    func testNoDeadExportControl() throws {
         let source = try Self.appSource("Views/Sidebar/Sections/SidebarBottomToolbar.swift")
         let code = source
             .split(separator: "\n", omittingEmptySubsequences: false)
@@ -55,22 +55,13 @@ final class SidebarBottomToolbarSurfaceTests: XCTestCase {
             .joined(separator: "\n")
 
         XCTAssertFalse(code.contains("not yet wired"), "no shipped control may advertise itself as unwired")
-        XCTAssertFalse(code.contains("Label(\"Export\""), "the overflow Export entry is dead chrome")
+        XCTAssertFalse(code.contains("Label(\"Export\""), "the Export entry is dead chrome")
         XCTAssertFalse(code.contains(".disabled(true)"), "a permanently disabled control must not ship")
 
         // The guard must not have gone blind on a moved or emptied file: the
         // verbs that DO belong here are still present.
-        XCTAssertTrue(code.contains("Label(\"Import Files\""))
         XCTAssertTrue(code.contains("New Workflow"))
-    }
-
-    func testEssentialTierHoldsNewItemAndDelete() throws {
-        let source = try Self.appSource("Views/Sidebar/Sections/SidebarBottomToolbar.swift")
-        let start = try XCTUnwrap(source.range(of: "private var essentialButtons: some View"))
-        let end = try XCTUnwrap(source.range(of: "private var secondaryButtons: some View"))
-        let block = String(source[start.upperBound..<end.lowerBound])
-        XCTAssertTrue(block.contains("New Item"))
-        XCTAssertTrue(block.contains("Remove selected item"))
+        XCTAssertTrue(code.contains("New Item"))
     }
 
     /// #4061: the sidebar filter field lives inside the shared bottom
@@ -84,19 +75,16 @@ final class SidebarBottomToolbarSurfaceTests: XCTestCase {
         // The toolbar holds a binding to the filter text — same state/bindings
         // as the old standalone filter bar (no logic change, just relocation).
         XCTAssertTrue(source.contains("var sidebarFilterText: Binding<String>"))
-        // The filter field is a member of the toolbar, in the essential tier.
+        // The filter field is a member of the toolbar.
         XCTAssertTrue(source.contains("private var filterField: some View"))
         XCTAssertTrue(source.contains("TextField(\"Filter\", text: sidebarFilterText)"))
         XCTAssertTrue(source.contains("accessibilityIdentifier(\"sidebarFilterField\")"))
         // The clear button is part of the same field, shown only with text.
         XCTAssertTrue(source.contains("help(\"Clear filter\")"))
         XCTAssertTrue(source.contains("accessibilityLabel(\"Clear filter\")"))
-        // The New-item / Delete verbs stay in the essential tier of the same bar.
-        let essentialStart = try XCTUnwrap(source.range(of: "private var essentialButtons: some View"))
-        let essentialEnd = try XCTUnwrap(source.range(of: "private var secondaryButtons: some View"))
-        let essentialBlock = String(source[essentialStart.upperBound..<essentialEnd.lowerBound])
-        XCTAssertTrue(essentialBlock.contains("New Item"), "New Item verb stays in the essential tier")
-        XCTAssertTrue(essentialBlock.contains("Remove selected item"), "Delete verb stays in the essential tier")
+        // The New-item / Delete verbs are in the same bar.
+        XCTAssertTrue(source.contains("help(\"New Item\")"))
+        XCTAssertTrue(source.contains("help(\"Remove selected item\")"))
     }
 
     /// #4061: the standalone sidebar filter chrome is gone. The old
@@ -138,7 +126,6 @@ final class SidebarFilterFieldKeepsFocusTests: XCTestCase {
         var body: some View {
             SidebarBottomToolbar(
                 itemRegistry: ItemTypeRegistry(),
-                importFiles: { _ in },
                 sidebarFilterText: $text
             )
             .frame(width: width)

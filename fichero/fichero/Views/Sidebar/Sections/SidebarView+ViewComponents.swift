@@ -25,7 +25,6 @@ extension SidebarView {
             if shouldShowBottomToolbar {
                 SidebarBottomToolbar(
                     itemRegistry: itemRegistry,
-                    importFiles: importFiles,
                     deleteItem: handleDeleteSelection,
                     hasSelection: selectedItem != nil,
                     sidebarFilterText: $sidebarFilterText,
