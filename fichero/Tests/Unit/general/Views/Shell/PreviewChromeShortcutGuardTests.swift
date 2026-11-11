@@ -277,8 +277,8 @@ struct PreviewMarkupSelectionVerbGuardTests {
 /// mark the markup row drew saved correctly and rendered invisible.
 struct PreviewWhatToShowMenuGuardTests {
     /// Five since 2026-09-27 (Q2, ruled: the switches are LAYERS -- the image on or off, the overlays
-    /// on or off; af98d696b added Show Image).
-    @Test("the menu offers exactly the five display switches: the image and the four overlays")
+    /// on or off; af98d696b added Show Image). Seven now: Show Bounding Box and Show Order Numbers.
+    @Test("the menu offers exactly the seven display switches: the image and the six overlays")
     func fiveSwitchesByName() throws {
         let toolbar = try String(
             contentsOf: AppSource.root().appendingPathComponent(
@@ -286,12 +286,13 @@ struct PreviewWhatToShowMenuGuardTests {
             ), encoding: .utf8
         )
         for title in [
-            "Show Image", "Show Annotations", "Show Word Bounding Boxes", "Show Regions", "Show Text Inline"
+            "Show Image", "Show Annotations", "Show Word Bounding Boxes", "Show Regions", "Show Text Inline",
+            "Show Bounding Box", "Show Order Numbers"
         ] {
             #expect(toolbar.contains("Toggle(\"\(title)\", isOn:"), "missing \(title)")
         }
         let toggles = toolbar.components(separatedBy: "Toggle(\"Show ").count - 1
-        #expect(toggles == 5, "the what-to-show menu grew or lost a switch (\(toggles))")
+        #expect(toggles == 7, "the what-to-show menu grew or lost a switch (\(toggles))")
     }
 
     @Test("annotation overlays default to ON")
