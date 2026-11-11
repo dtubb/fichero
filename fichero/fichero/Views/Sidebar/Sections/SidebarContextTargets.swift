@@ -24,17 +24,12 @@ func sidebarFallbackTapActs(_ item: SidebarItem, _ expanded: Bool) -> Bool {
     !sidebarBuildsChildRows(item, isExpanded: expanded)
 }
 
-/// The modifiers `sidebarFallbackProposal` reads for a sidebar click: Shift is a continuous range; Command or Option adds
-/// or removes the one clicked row. Option is a toggle only on its own, so Shift+Option stays a range (#6534).
-func sidebarToggleModifiers(shift: Bool, command: Bool, option: Bool) -> (shift: Bool, command: Bool) {
-    (shift, command || (option && !shift))
-}
-
 #if os(macOS)
+/// The modifiers of a sidebar click, as Finder reads them: Shift is a continuous range, Command adds or removes the one
+/// clicked row. Option has no selection meaning in Finder, and none here (#6534).
 func sidebarClickModifiers() -> (shift: Bool, command: Bool) {
     let flags = NSEvent.modifierFlags
-    return sidebarToggleModifiers(
-        shift: flags.contains(.shift), command: flags.contains(.command), option: flags.contains(.option))
+    return (flags.contains(.shift), flags.contains(.command))
 }
 #endif
 
