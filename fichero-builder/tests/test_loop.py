@@ -1385,3 +1385,29 @@ def test_a_guard_data_approval_is_bound_to_the_known_gaps_files_content_and_hold
     (wt / "scripts" / "check_x_known_gaps.json").write_text('{"gaps": ["a", "b"]}')
     g(wt, "add", "."), g(wt, "commit", "-qm", "more gaps")
     assert queue.guard_data_for({**s, "head": g(wt, "rev-parse", "HEAD"), "approved_head": head_a}, str(wt)) == (), "changed content: the manager's call again"
+
+
+def test_a_retry_keeps_the_steps_head_and_reruns_the_check_from_the_failed_rung_instead_of_a_fresh_session(state):
+    """2026-11-11: `retry` on lane-ie's blocked step re-queued it 'at no head' (a worker lane's step records a head only when green):
+    a fresh session on the tree, the finished green work judged from scratch. A retry of a step whose check ran keeps that head, goes
+    to `done` (the chain again, green rungs reused: `retry_rungs`), and starts no session; a step with no check behind it is still re-queued."""
+    lane(state)
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "red", "why": "ladder red", "findings": "t", "head": "h1.1"}] * (queue.ROUNDS + 1)})
+    seen = []
+    base_chain = fake.procs.chain
+    fake.procs.chain = lambda lane_, step, stage: seen.append(bool(step.get("retry_rungs"))) or base_chain(lane_, step, stage)
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)  # red, every fix round, red again: blocked
+    assert steps()["1.1"]["state"] == "blocked" and len(fake.starts) == 1
+    a = _alerts()[-1]
+    assert queue.answer(a["id"], "retry")[0] == 0
+    s = steps()["1.1"]
+    assert s["state"] == "done" and s["head"] == "h1.1" and s["retry_rungs"] is True
+    assert [r["detail"] for r in journal.read() if r.get("state") == "retry"][-1].startswith("same head (h1.1)"), "the row names the head, never 'no head'"
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert seen[queue.ROUNDS + 1] is True and steps()["1.1"]["state"] == "landed", "the chain again, the green rungs reusable"
+    assert [s for s in fake.starts if s[1] == "1.1"] == [("m1", "1.1", 1)], "no new session for the retried step"
+    queue.add("m2", "/w/m2", "1.1", str(state / "bad"), [9])
+    (state / "bad").write_text("gh issue view 1\n")
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)  # blocked before any check: the brief preflight
+    assert queue.answer(_alerts()[-1]["id"], "retry")[0] == 0
+    assert next(x for x in queue.load() if x["id"] == "m2")["steps"][0]["state"] == "queued", "no check behind it: re-queued as before"

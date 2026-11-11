@@ -243,7 +243,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     def block(s, why, actions=ACTIONS, evidence="", auto_send_back=False):
         q = journal.STATE / f"question-{lane['id']}-{s['step']}.txt"
         q.write_text(f"QUESTION: {why}\n")
-        s["red_head"], s["red_at"] = s.get("head", ""), time.strftime("%Y-%m-%dT%H:%M:%S")  # #6506: a retry of the same head says so
+        s["red_head"], s["red_at"] = s.get("head") or s.get("checked_head", ""), time.strftime("%Y-%m-%dT%H:%M:%S")  # #6506: a retry of the same head says so
         if auto_send_back:
             s["auto_sb"] = s.get("auto_sb", 0) + 1  # before the move, which stores it
         s["blocked_at"] = _now()  # the watchdog's clock (#6466)
@@ -453,8 +453,11 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     # outcome below (landed, blocked, a fix brief) can overwrite a newer head, and no unlocked read decides anything (review -92/-94/-96).
     if not r["ok"] or not r.get("head"):
         s["settling"] = True
+        if r.get("head"):
+            s["checked_head"] = r["head"]  # the head the check judged: a retry re-runs it from the failed rung instead of a fresh session (2026-11-11)
     else:
         s["head"], s["settling"] = r["head"], True
+    s.pop("retry_rungs", None)
     if not store(lane, expect=(s["step"], h0)):
         journal.append("queue", lane=lane["id"], step=s["step"], state="stale-result", detail=f"the check of {h0[:9]} ended after a newer head took the step: dropped")
         return True
@@ -818,14 +821,17 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
             save(lanes)
         if action in ("retry", "approve", "send-back"):
             # an external lane has no worker to send a step to: retry and approve re-take its snapshot; send-back waits for its done
-            again = "done" if action == "approve" or (lane.get("kind") == "external" and action == "retry" and s.get("head")) else "queued"
+            head_ = s.get("head") or s.get("checked_head", "")  # a worker lane's step records a head only when green: the checked one counts (2026-11-11)
+            again = "done" if action == "approve" or (action == "retry" and head_) else "queued"
             said = f"{a.get('what', '')}\n{s.get('why', '')}"
             s.update(state=again, rounds=0, restarts=0, why="")
+            if action == "retry" and head_:  # the same head, the chain again from the failed rung: green rungs stand, no fresh session
+                s["head"], s["retry_rungs"] = head_, True
             if action == "retry":  # #6506: the retried head goes behind fresh dones; an unchanged head is said to be one
-                s["retry_of"] = s.get("head", "")
-                same = s.get("head") and s.get("red_head") == s.get("head")
-                journal.append("queue", lane=a["lane"], step=a["step"], state="retry", detail=(f"same head ({s['head'][:9]}) and same rules as the red at {s.get('red_at', '')[11:16]}: "
-                               "it answers the same unless the base or the harness changed" if same else f"retried at {s.get('head', '')[:9] or 'no head'}"))
+                s["retry_of"] = head_
+                same = head_ and s.get("red_head") == head_
+                journal.append("queue", lane=a["lane"], step=a["step"], state="retry", detail=(f"same head ({head_[:9]}) and same rules as the red at {s.get('red_at', '')[11:16]}: "
+                               "it answers the same unless the base or the harness changed" if same else f"retried at {head_[:9]} from the failed rung" if head_ else "retried: no check behind it, a session again"))
             if action == "approve" and s.get("approve_kind") == "guard-data" and s.get("head") and lane is not None:
                 repo_ = s.get("land_tree") or lane["worktree"]  # bound to the files' content: a later head with the same blobs is approved by itself (alert 541)
                 s["approved_guard_blobs"] = {f: blob_at(repo_, s["head"], f) for f in re.findall(r"[\w./-]+\.json", said)}
@@ -1462,7 +1468,7 @@ def real_procs(root) -> Procs:
                                      maintainer=_approved(step, "maintainer") or bool(lane.get("maintainer")), approve_weakened=_approved(step, "approve_weakened"),
                                      external=lane.get("kind") == "external", approve_red=_approved(step, "approve_red") and (tuple(f for f in step.get("approved_tests") or () if f.endswith(".py")) or True),
                                      approve_pinned_new=_approved(step, "approve_pinned_new"),
-                                     guard_data=guard_data_for(step, tree),
+                                     guard_data=guard_data_for(step, tree), retry=bool(step and step.get("retry_rungs")),
                                      reviewer_fast=reviewer if lane["id"] in opus_lanes else reviewer_fast, opus_paths=opus_paths,
                                      last_step=bool(step) and lane.get("kind") != "external" and bool(lane.get("steps")) and step is lane["steps"][-1])
 
