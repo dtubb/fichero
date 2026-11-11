@@ -102,6 +102,9 @@ struct SidebarItemRow: View {
 
     /// An automation verb changed a schedule, trigger or batch: the sidebar reads them again (#5712).
     var onAutomationChanged: (() -> Void)?
+    /// The click fallback for this row's own name while it is expanded (`sidebarExpandedLabelTapActs`); the code that
+    /// builds the row supplies it, since only it knows the siblings a ⇧-click ranges over.
+    var onExpandedLabelTap: (() -> Void)?
 
     /// This row's automation verbs (#5712): the engine's own actions, the same items Project › Workflows ▸ renders;
     /// nil for a row that is not a schedule, trigger or batch.

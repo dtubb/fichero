@@ -226,7 +226,8 @@ extension SidebarItemRow {
                 mergeSelectionAbove: childSelected && index > 0
                     && selectedDestinations.contains(children[index - 1].destination),
                 mergeSelectionBelow: childSelected && index + 1 < children.count
-                    && selectedDestinations.contains(children[index + 1].destination)
+                    && selectedDestinations.contains(children[index + 1].destination),
+                onExpandedLabelTap: { childFallbackTap(child, among: children) }
             )
             .contentShape(Rectangle())
             // `.draggable` BEFORE `.tag` so NSTableView's row-drag

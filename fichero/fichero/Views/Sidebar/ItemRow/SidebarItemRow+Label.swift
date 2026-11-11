@@ -278,26 +278,33 @@ extension SidebarItemRow {
     func childClickFallback(_ child: SidebarItem, among siblings: [SidebarItem]) -> some Gesture {
         TapGesture().onEnded {
             guard sidebarFallbackTapActs(child, expandedItems.contains(child.id)) else { return }
-            #if os(macOS)
-            let modifiers = sidebarClickModifiers()
-            if modifiers.shift || modifiers.command, let onSelectionProposal {
-                let proposal = sidebarFallbackProposal(
-                    clicked: child.destination,
-                    current: selectedDestinations,
-                    anchor: selectedItemId.flatMap(SidebarDestination.init(serializedID:)),
-                    orderedSiblings: siblings.map(\.destination),
-                    modifiers: modifiers
-                )
-                let ids = proposal.map(\.serializedID).sorted().joined(separator: ",")
-                sidebarRowLogger.debug("""
-                    child fallback tap on \(child.id, privacy: .public) shift=\(modifiers.shift) \
-                    command=\(modifiers.command) proposal=\(ids, privacy: .public)
-                    """)
-                onSelectionProposal(proposal)
-                return
-            }
-            #endif
-            selectedItemId = child.id
+            childFallbackTap(child, among: siblings)
         }
+    }
+
+    /// A child row's click as Finder reads it: ⇧ extends a continuous range over its siblings, ⌘ adds or removes it,
+    /// a plain click selects it. Called by the whole-row gesture while the child is collapsed, and by the child's own
+    /// label while it is expanded (`sidebarExpandedLabelTapActs`).
+    func childFallbackTap(_ child: SidebarItem, among siblings: [SidebarItem]) {
+        #if os(macOS)
+        let modifiers = sidebarClickModifiers()
+        if modifiers.shift || modifiers.command, let onSelectionProposal {
+            let proposal = sidebarFallbackProposal(
+                clicked: child.destination,
+                current: selectedDestinations,
+                anchor: selectedItemId.flatMap(SidebarDestination.init(serializedID:)),
+                orderedSiblings: siblings.map(\.destination),
+                modifiers: modifiers
+            )
+            let ids = proposal.map(\.serializedID).sorted().joined(separator: ",")
+            sidebarRowLogger.debug("""
+                child fallback tap on \(child.id, privacy: .public) shift=\(modifiers.shift) \
+                command=\(modifiers.command) proposal=\(ids, privacy: .public)
+                """)
+            onSelectionProposal(proposal)
+            return
+        }
+        #endif
+        selectedItemId = child.id
     }
 }

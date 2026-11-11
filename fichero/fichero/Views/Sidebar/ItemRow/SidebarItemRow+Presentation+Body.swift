@@ -178,6 +178,11 @@ extension SidebarItemRow {
                                           mergeAbove: mergeSelectionAbove, mergeBelow: mergeSelectionBelow)
                     // The row's own menu, always: an expanded group does not carry one (#6528, below).
                     .contextMenu { SidebarDeferredMenuContent { rowContextMenu } }
+                    // A click on an expanded folder's own name selects it (`sidebarExpandedLabelTapActs`).
+                    .simultaneousGesture(TapGesture().onEnded {
+                        guard sidebarExpandedLabelTapActs(item, expandedItems.contains(item.id)) else { return }
+                        onExpandedLabelTap?()
+                    })
             }
             .modifier(SidebarRowDropGate(enabled: rowIsDropTarget, delegate: rowDropDelegate))
             // #4544: menu built at OPEN, not per render — see

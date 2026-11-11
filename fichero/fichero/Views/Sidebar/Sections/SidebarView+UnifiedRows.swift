@@ -226,7 +226,8 @@ extension SidebarView {
                     await loadAutomationData()
                     await loadActivityData()
                 }
-            }
+            },
+            onExpandedLabelTap: expandedLabelTap(on: item, orderedSiblings: orderedSiblings)
         )
         .contentShape(Rectangle())
         // Full payload (#4123): document rows export a real file copy + RTF
@@ -256,35 +257,13 @@ extension SidebarView {
         // (applySidebarSelectionProposal), so there is still one write path.
         row
             .simultaneousGesture(TapGesture().onEnded {
-                // #145 widened the fallback to MODIFIER clicks: on rows whose
-                // drag payload owns label presses, ⇧/⌘ on the NAME never
-                // reached List either ('you shift click on the name of the
-                // next line, it isn't added' / 'ditto for command click').
-                // Same Finder semantics, same ONE commit seam.
-                let proposal = sidebarFallbackProposal(
-                    clicked: item.destination,
-                    current: selectionState.selectedDestinations,
-                    anchor: selectionState.selectedDestination,
-                    orderedSiblings: orderedSiblings,
-                    modifiers: sidebarClickModifiers()
-                )
                 guard sidebarFallbackTapActs(item, sidebarState.expandedItems.contains(item.id)) else { return }
-                logFallbackTap(on: item, proposal: proposal)
-                guard proposal != selectionState.selectedDestinations else { return }
-                applySidebarSelectionProposal(proposal)
+                fallbackTap(on: item, orderedSiblings: orderedSiblings)
             })
         #else
         row
         #endif
     }
-
-    #if os(macOS)
-    /// #6534: child rows sit inside an expanded row's tap gesture; this says whose handler fired.
-    private func logFallbackTap(on item: SidebarItem, proposal: Set<SidebarDestination>) {
-        let ids = proposal.map(\.serializedID).sorted().joined(separator: ",")
-        sidebarRowLogger.debug("fallback tap on \(item.id, privacy: .public) proposal=\(ids, privacy: .public)")
-    }
-    #endif
 
     /// Cross-hierarchy insert: reparent dragged docs to library root
     /// and drop them at position `offset` in the root's children.

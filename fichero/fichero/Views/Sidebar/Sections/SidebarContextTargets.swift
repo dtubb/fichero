@@ -24,6 +24,14 @@ func sidebarFallbackTapActs(_ item: SidebarItem, _ expanded: Bool) -> Bool {
     !sidebarBuildsChildRows(item, isExpanded: expanded)
 }
 
+/// Whether an expanded row's LABEL takes the fallback tap: exactly when the whole-row handler above stands down. Its
+/// name sits over the drag machinery like any other row's, so with neither handler a click on an expanded folder's
+/// name selected nothing (only the strip to its left did). The label holds none of the child rows, so a click on a
+/// child still never reaches the parent. One of the two acts for any row, never both, so a ⌘-click toggles once.
+func sidebarExpandedLabelTapActs(_ item: SidebarItem, _ expanded: Bool) -> Bool {
+    sidebarBuildsChildRows(item, isExpanded: expanded)
+}
+
 #if os(macOS)
 /// The modifiers of a sidebar click, as Finder reads them: Shift is a continuous range, Command adds or removes the one
 /// clicked row. Option has no selection meaning in Finder, and none here (#6534).
