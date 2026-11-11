@@ -62,6 +62,7 @@ Both issues are already on this milestone (#291); no new issues were needed.
   clicked. Distinct from `read.tree.shows-all` (which is about an EXPANDED folder's children
   rendering) — this is about the disclosure affordance existing before expansion is even
   attempted.
+- `read.click-and-expand-are-timed-in-steps` — **[PARTIAL]** (#4228) a folder click and a chevron expand each log one `⏱` line split into steps, so a slow one names its slow part: the content load as fetch (engine, transport and decode; the engine's own time is its `PERF library.get_children` line), splice and render; the expand as fetch, wake (the sidebar observer), build (`SidebarItemBuilder`), index and render. Render is timed to the main thread's next turn, after the commit that draws the change. Only a document selection opens the selection → content interval: Trash, chat, a workflow and the rest never reach its end point, and one left open until the next click was logged as a 40 s click; an interval that is superseded now says it never reached its end point. *Test:* `InteractionProfileLapsTests`. The first reading in the real app is owed.
 - `read.filter-never-hides-selection` — **[GAP]** (#4099) applying a sidebar filter must never
   hide the currently-selected row, even when the row no longer matches the filter text —
   losing the selected row out from under the user reads as the app forgetting what was open.

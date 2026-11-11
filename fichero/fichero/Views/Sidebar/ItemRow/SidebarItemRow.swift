@@ -259,6 +259,7 @@ struct SidebarItemRow: View {
                     // Idempotent + cheap when everything is cached:
                     // cacheSidebarChildren returns the cache hit and
                     // containersNeedingChildren comes back empty.
+                    InteractionProfile.begin(.sidebarExpand, detail: document.id)
                     Task { await store.loadSidebarChildren(of: document) }
                 } else {
                     expandedItems.remove(item.id)

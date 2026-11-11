@@ -45,7 +45,9 @@ extension SidebarView {
         // (#4228). Handing straight from one interval to the next means the two
         // bars in Instruments abut, so a gap between them is a real gap.
         InteractionProfile.end(.selectionCommit)
-        InteractionProfile.begin(.selectionToContent, detail: destination.serializedID)
+        if InteractionProfile.selectionReachesContentHook(destination) {
+            InteractionProfile.begin(.selectionToContent, detail: destination.serializedID)
+        }
     }
 
     /// Drives a restored/persisted `selectedItemId` into the view mode when it
