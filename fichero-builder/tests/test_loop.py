@@ -1427,10 +1427,10 @@ def test_a_brief_written_before_dispatch_is_made_worker_safe_before_the_prefligh
     brief.write_text("Read ~/Desktop/crash.txt as the owner.\nFix it.\nSubmit with done m1\n")
     queue.add("m1", "/w/m1", "1.1", str(brief), [7])
     fake = Fake()
-    fake.procs.owner_home = str(tmp_path / "owner-Desktop").rsplit("/", 1)[0]
+    fake.procs.inline_paths = (str(crash.parent),)  # the owner's allowlist: the hand-written brief may inline from here
     import fichero_builder.brief_tool as bt
     real = bt.for_worker
-    bt.for_worker = lambda text, lane_id, **k: real(text.replace("~/Desktop/crash.txt", str(crash)), lane_id, owner_paths=re.compile(rf"(?<![\w/])(?:~/[\w./-]+|{re.escape(str(tmp_path))}/[\w./-]+)"))
+    bt.for_worker = lambda text, lane_id, **k: real(text.replace("~/Desktop/crash.txt", str(crash)), lane_id, owner_paths=re.compile(rf"(?<![\w/])(?:~/[\w./-]+|{re.escape(str(tmp_path))}/[\w./-]+)"), allow=k.get("allow", ()))
     try:
         queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
     finally:
@@ -1440,3 +1440,31 @@ def test_a_brief_written_before_dispatch_is_made_worker_safe_before_the_prefligh
     (row,) = [r for r in journal.read() if r.get("state") == "brief-inlined"]
     assert "inlined crash.txt" in row["detail"] and "cut 1 `done m1`" in row["detail"]
     assert _alerts() == []
+
+
+def test_a_fix_brief_built_from_findings_never_inlines_an_owner_file_even_under_the_allowlist(state, tmp_path):
+    """Security (2026-11-11): a fix brief carries the worker's own failing-test output; a path in it must never be read by the loop,
+    allowlisted folder or not. Only the owner's hand-written brief (the step's own `brief`) is inlined from."""
+    home = tmp_path / "home"
+    (home / "Desktop" / "crash").mkdir(parents=True)
+    (home / "Desktop" / "crash" / "a.crash").write_text("owner crash text")
+    brief = state / "b-own"
+    brief.write_text("do the step\n")
+    queue.add("m1", "/w/m1", "1.1", str(brief), [7])
+    fix = state / "fix-m1-1.1-1.txt"
+    fix.write_text(f"do the step\n\nFIX round 1: the test printed {home}/Desktop/crash/a.crash\n")
+    lanes = queue.load()
+    lanes[0]["steps"][0]["resume_brief"] = str(fix)
+    queue.save(lanes)
+    fake = Fake()
+    fake.procs.inline_paths = (str(home / "Desktop" / "crash"),)
+    import fichero_builder.brief_tool as bt
+    rx = re.compile(rf"(?<![\w/])(?:~/[\w./-]+|{re.escape(str(home))}/[\w./-]+)")
+    real = bt.for_worker
+    bt.for_worker = lambda text, lane_id, **k: real(text, lane_id, owner_paths=rx, **k)
+    try:
+        queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    finally:
+        bt.for_worker = real
+    assert "owner crash text" not in fix.read_text() and "not readable by workers" in fix.read_text()
+    assert fake.starts == [("m1", "1.1", 1)]
