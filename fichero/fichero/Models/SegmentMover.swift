@@ -34,7 +34,7 @@ enum SegmentMover {
     }
 
     /// Move `segments` into `parent` (nil: out to the page): nil when it was sent, else why not, never silent.
-    static func run(
+    static func run( // swiftlint:disable:this function_parameter_count
         _ segments: [Segment], into parent: String?, documentId: String, store: SegmentStore,
         actionsService: ActionsService?, steps: WindowSteps?
     ) async -> String? {
