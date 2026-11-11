@@ -7,6 +7,18 @@ import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ChainService")
 
+/// When a chains load that was cancelled is asked again (`models.chains.load-retries-a-cancelled-request`, #6479).
+enum ChainLoadRetry {
+    static let attempts = 3
+
+    /// Seconds to wait before asking again, or nil to stop: only a request the engine's first-launch adoption
+    /// cancelled is retried (never a cancelled task, never another error), at most `attempts` times.
+    static func wait(afterAttempt attempt: Int, requestCancelled: Bool, taskCancelled: Bool) -> Double? {
+        guard requestCancelled, !taskCancelled, attempt <= attempts else { return nil }
+        return 0.5 * Double(attempt)
+    }
+}
+
 /// Service for managing workflow chains via the backend API.
 /// Observers should use Combine to subscribe to $chains instead of NotificationCenter.
 ///
@@ -64,8 +76,10 @@ class ChainService {
                 break
             } catch {
                 attempt += 1
-                if error.isCancellationError, !Task.isCancelled, attempt <= 3 {
-                    try? await Task.sleep(for: .seconds(0.5 * Double(attempt)))
+                if let wait = ChainLoadRetry.wait(
+                    afterAttempt: attempt, requestCancelled: error.isCancellationError, taskCancelled: Task.isCancelled
+                ) {
+                    try? await Task.sleep(for: .seconds(wait))
                     continue
                 }
                 if !error.isCancellationError {

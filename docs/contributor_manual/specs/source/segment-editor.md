@@ -1820,7 +1820,8 @@ a parent's outline visible under its children. This design keeps the nesting and
 from the region instead of the role.
 
 - `source.editor.colour.region-hue` — **[PARTIAL]** (#5426) every region on a page is drawn in its own
-  palette hue, assigned in the working pass's region order; its lines, words and letters take that
+  palette hue, a fixed hash of the region's id (owner 2026-11-08), so deleting or adding another region
+  never recolours it; two regions can share a hue (the palette has 12); its lines, words and letters take that
   hue; a region's set colour replaces it. The Segments list's swatches and the Reader's region rules take
   the same tone (2026-10-05). Built and pinned by `RegionColoursTests` and
   `BoxColourThroughTheStoreTests` (through `SegmentStore` and `SegmentDisplay.selected`); not yet seen in
@@ -1830,14 +1831,13 @@ from the region instead of the role.
   pane's chosen order, else as written); moving a line in the order changes its shade. Replaces the
   two-tint alternation. Built on the as-written order and pinned by `RegionColoursTests` (a reordered
   order moves the shade); not yet seen in the app, and the Preview does not yet read the pane's chosen order.
-- `source.editor.colour.never-random` — **[PARTIAL]** (#5463) no box's colour comes from a hash of its
-  own id: the same page draws in the same colours every time, and no line is coloured apart from its
-  region. Built (the hash is deleted) and pinned by `RegionColoursTests` (renaming every id changes no
-  colour) and `BoxColourThroughTheStoreTests` (the Inspector's row is the Preview box's colour); not yet
+- `source.editor.colour.never-random` — **[PARTIAL]** (#5463) no colour is random: the same page draws in
+  the same colours every time, across launches, and no line is coloured apart from its region. Only a
+  REGION's hue comes from its id (a fixed hash, `colour.region-hue`); a line or word takes its region's.
+  Built and pinned by `RegionColoursTests` (renaming a region re-hashes that region only) and `BoxColourThroughTheStoreTests` (the Inspector's row is the Preview box's colour); not yet
   seen in the app.
 - `source.editor.colour.regionless-lines-are-one-region` — **[PARTIAL]** (#5463) lines with no region
-  ancestor are one implicit region of the page: one hue, placed in the region order where their first
-  line falls, with the gradient along their reading order. Built and pinned by `RegionColoursTests` and
+  ancestor are one implicit region of the page: one hue, always the palette's first (hue 0), with the gradient along their reading order. Built and pinned by `RegionColoursTests` and
   `BoxColourThroughTheStoreTests`; not yet seen in the app.
 - `source.editor.hierarchy.children-drawn-as-children` — **[PARTIAL]** (#5426) a child draws inside its
   parent, in its parent's colour, lighter than it; showing words or letters never hides the lines

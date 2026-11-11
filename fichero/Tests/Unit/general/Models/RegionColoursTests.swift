@@ -30,13 +30,12 @@ struct RegionColoursTests {
         ]
     }
 
-    @Test("source.editor.colour.region-hue: each region its own hue, in reading order; its lines and words take it")
+    @Test("source.editor.colour.region-hue: each region its hue, a fixed hash of its id; its lines and words take it")
     func regionHue() throws {
         let tones = RegionColours.tones(of: page)
         let first = try #require(tones["r1"]), second = try #require(tones["r2"])
-        #expect(first.hue != second.hue, "two regions on a page never share a hue")
         #expect([first.hue, second.hue] == [RegionColours.hue(ofRegion: "r1"), RegionColours.hue(ofRegion: "r2")],
-                "a region's hue is a fixed hash of its id, not its place")
+                "a region's hue is a fixed hash of its id, not its place (a collision in the 12 slots is accepted)")
         #expect(["l1", "w1", "l2", "l3"].allSatisfy { tones[$0]?.hue == first.hue }, "a region's lines and words are its hue")
         #expect(tones["l4"]?.hue == second.hue)
         #expect(tones["w1"] == tones["l1"], "a word takes its line's shade")
@@ -74,10 +73,10 @@ struct RegionColoursTests {
         #expect(off["l2"]?.hue == shaded["l2"]?.hue, "the region's hue is unchanged")
     }
 
-    @Test("source.editor.colour.never-random + regionless-lines-are-one-region: region-less lines share the page's one hue")
+    @Test("source.editor.colour.region-hue + regionless-lines-are-one-region: region-less lines share the page's one hue")
     func regionlessLinesAreOneRegion() throws {
-        // A page whose lines have no region, after a region: the implicit region takes the next hue, at the
-        // place its first line falls, and its lines grade along their order.
+        // A page whose lines have no region, after a region: the implicit region has its own fixed hue (0), and
+        // its lines grade along their order.
         let loose = [
             segment("r1", kind: "region", at: 0),
             segment("l1", kind: "line", parent: "r1", at: 1),
@@ -87,17 +86,21 @@ struct RegionColoursTests {
         ]
         let tones = RegionColours.tones(of: loose)
         let hues = Set(["a", "b", "c"].compactMap { tones[$0]?.hue })
-        #expect(hues == [1], "every region-less line is one hue: the page's implicit region, next after r1")
+        #expect(hues == [0], "every region-less line is one hue: the page's implicit region, always hue 0")
         let shades = ["a", "b", "c"].compactMap { tones[$0]?.strength }
         #expect(shades == shades.sorted(by: <) && Set(shades).count == 3, "graded along the reading order, light to dark")
         #expect(RegionColours.tones(of: Array(loose.reversed())) == tones, "the same page draws the same every time")
-        // The ids that used to pick colours by hash pick nothing now: renaming them changes no colour.
+        // Renaming a region re-hashes only that region; the implicit region's hue is fixed.
         let renamed = loose.map { (segment: Segment) -> Segment in
             var copy = segment
-            copy.id = "x-" + segment.id
-            copy.parentSegmentId = segment.parentSegmentId.map { "x-" + $0 }
+            if copy.id == "r1" { copy.id = "x-r1" }
+            if copy.parentSegmentId == "r1" { copy.parentSegmentId = "x-r1" }
             return copy
         }
+        let renamedTones = RegionColours.tones(of: renamed)
+        #expect(["a", "b", "c"].map { tones[$0] } == ["a", "b", "c"].map { renamedTones[$0] }, "region-less lines keep their colour")
+        #expect(renamedTones["x-r1"]?.hue == RegionColours.hue(ofRegion: "x-r1"), "a renamed region takes the hash of its new id")
+    }
         let renamedTones = RegionColours.tones(of: renamed)
         #expect(["a", "b", "c", "r1", "l1"].map { tones[$0] } == ["a", "b", "c", "r1", "l1"].map { renamedTones["x-" + $0] })
     }
