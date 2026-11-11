@@ -54,7 +54,7 @@ struct SegmentVerbMenu: View {
         let note = onNote
         Task {
             note(await SegmentMover.run(
-                segments, into: parent, documentId: documentId, store: store, actionsService: actionsService, steps: steps
+                segments, into: parent, documentId: documentId, store: store, services: (actionsService, steps)
             ))
         }
     }

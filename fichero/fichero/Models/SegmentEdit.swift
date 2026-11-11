@@ -225,13 +225,21 @@ struct SegmentDeleteRequest: Encodable, Equatable {
     }
 }
 
+private enum ReparentItemKeys: String, CodingKey {
+    case segmentId = "segment_id", expectedVersion = "expected_version"
+}
+
 /// `segment.reparent`: move segments under another segment, each with the version it was read at.
 struct SegmentReparentRequest: Encodable, Equatable {
     struct Item: Encodable, Equatable {
         let segmentId: String
         let expectedVersion: Int
-        // swiftlint:disable:next nesting
-        enum CodingKeys: String, CodingKey { case segmentId = "segment_id", expectedVersion = "expected_version" }
+
+        func encode(to encoder: any Encoder) throws {
+            var container = encoder.container(keyedBy: ReparentItemKeys.self)
+            try container.encode(segmentId, forKey: .segmentId)
+            try container.encode(expectedVersion, forKey: .expectedVersion)
+        }
     }
 
     let segments: [Item]

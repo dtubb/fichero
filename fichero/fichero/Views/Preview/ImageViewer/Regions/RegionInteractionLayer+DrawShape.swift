@@ -4,7 +4,8 @@ import SwiftUI
 
 /// The Shape tool's polygon and baseline in Edit Segments (`source.editor.draw-shapes`): each click adds
 /// a point; for a polygon a click on the first point closes it, and for either a double-click finishes.
-/// Return finishes it too (`ZoomableImagePreviewMac.finishShapeDrawingFromKey`). Escape abandons it (`WindowState.abandonDrawing`). The finished points go to the host
+/// Return finishes it too (`ZoomableImagePreviewMac.finishShapeDrawingFromKey`). Escape abandons it
+/// (`WindowState.abandonDrawing`). The finished points go to the host
 /// (`onDrawShapeCommit`), which makes the segment with ⌘Z. A box is
 /// still the band's drag, unchanged: this takes no event while the tool draws boxes.
 extension RegionInteractionLayer {

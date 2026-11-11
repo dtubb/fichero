@@ -5,7 +5,7 @@ import SwiftUI
 /// lists the order (ruled 2026-09-27, Q5): the Inspector's Source section and the Reader both
 /// mount this, and every move goes through `ReadingOrderStore`, so a drag and a key, in either
 /// place, are the same engine call, undoable with ⌘Z.
-struct ReadingOrderList: View { // swiftlint:disable:this type_body_length
+struct ReadingOrderList: View {
     let documentId: String
     /// List this segment's children (a block's lines, a line's words) instead of the page's top level
     ///
@@ -26,12 +26,12 @@ struct ReadingOrderList: View { // swiftlint:disable:this type_body_length
     var nests = false
 
     @Environment(ReadingOrderService.self) private var service: ReadingOrderService?
-    @Environment(SegmentService.self) private var segmentService: SegmentService?
-    @Environment(ActionStore.self) private var actionStore: ActionStore?
-    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
+    @Environment(SegmentService.self) var segmentService: SegmentService?
+    @Environment(ActionStore.self) var actionStore: ActionStore?
+    @Environment(WindowSteps.self) var windowSteps: WindowSteps?
     @Environment(WindowState.self) private var windowState: WindowState?
 
-    @State private var store: ReadingOrderStore?
+    @State var store: ReadingOrderStore?
 
     init(
         documentId: String, parentSegmentId: String? = nil, hidesWhenEmpty: Bool = false,
@@ -52,7 +52,7 @@ struct ReadingOrderList: View { // swiftlint:disable:this type_body_length
     }
 
     /// The selected line, by segment id.
-    @State private var picks: Set<String> = []
+    @State var picks: Set<String> = []
     /// The one selected row; nil with none or several (the verbs that act on one row ask this; Shift, ⌘ and ⌥ click
     /// pick several, Finder style, and the list's Delete and the shared selection take them all).
     private var selection: String? {
@@ -61,13 +61,13 @@ struct ReadingOrderList: View { // swiftlint:disable:this type_body_length
     }
     /// Whether the list itself has keyboard focus: its ⌥⌘ keys exist only then, so with the Reader
     /// focused the same keys reach the Reader's caret line (`ReaderLineMove`), not this list.
-    @FocusState private var listFocused: Bool
+    @FocusState var listFocused: Bool
     /// The line being renamed in place (Return, Finder style; Step 1.25) and the words typed so far.
     @State private var renaming: String?
     @State private var draft = ""
     @FocusState private var renameFocused: Bool
     /// The region a drag is over, lit as a drop target.
-    @State private var dropTarget: String?
+    @State var dropTarget: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -131,7 +131,8 @@ struct ReadingOrderList: View { // swiftlint:disable:this type_body_length
         // And back: what another surface selects (the Reader, the Preview) is selected here too.
         .onChange(of: sharedIds) { _, now in if Set(now) != picks { picks = Set(now) } }
         .onChange(of: picks) { _, picked in
-            guard !picked.isEmpty, Set(sharedIds) != picked, let focused = windowState?.sharedRegionSelection, let segmentService else { return }
+            guard !picked.isEmpty, Set(sharedIds) != picked,
+                  let focused = windowState?.sharedRegionSelection, let segmentService else { return }
             // In the list's own order, so the shared selection reads top to bottom.
             let inOrder = (store?.shown.map(\.segmentId) ?? []).filter(picked.contains)
             onSelected?(InspectorPath.select(
@@ -166,7 +167,7 @@ struct ReadingOrderList: View { // swiftlint:disable:this type_body_length
 
     /// The list's selection as Page › Segments' verbs see it (#5652): Correct This Line… on the selected line, and
     /// Create Named Order while the page has none.
-    private var lineVerbs: LineVerbsTarget {
+    var lineVerbs: LineVerbsTarget {
         var target = LineVerbsTarget(segment: selection.flatMap(segment))
         // A line is corrected IN PLACE here (Return, the menu): one verb, not a rename and a correct (Step 1.25).
         if let line = target.segment, CorrectLine.offers(line) { target.correct = { _ = beginRename(line.id) } }
@@ -185,7 +186,7 @@ struct ReadingOrderList: View { // swiftlint:disable:this type_body_length
 
     /// A row's menu: Correct This Line on one line (#5499).
     @ViewBuilder
-    private func lineMenu(_ ids: Set<String>) -> some View {
+    func lineMenu(_ ids: Set<String>) -> some View {
         CorrectThisLineButton(segment: ids.count == 1 ? ids.first.flatMap(segment) : nil) { _ = beginRename($0.id) }
         if ids.count == 1 { Button(LineVerbs.revealTitle) { reveal(ids) } }
         SegmentVerbMenu(ids: movedIds(named: ids), documentId: documentId, onNote: { createNote = $0 })
@@ -195,9 +196,9 @@ struct ReadingOrderList: View { // swiftlint:disable:this type_body_length
     }
 
     /// Delete (the key, the row menu) on the row named or highlighted: that row, or the focused Source view's selection
-    /// (a multi-selection made in the Preview) when it contains the row (`SegmentDeleter.ids`). ONE audited `segment.delete` batch, one ⌘Z
-    /// (`source.editor.delete-selected-lines`); why it did not happen is said under the list, never silent.
-    private func deleteLines(_ named: Set<String>?) {
+    /// (a multi-selection made in the Preview) when it contains the row (`SegmentDeleter.ids`). ONE audited `segment.delete`
+    /// batch, one ⌘Z (`source.editor.delete-selected-lines`); why it did not happen is said under the list, never silent.
+    func deleteLines(_ named: Set<String>?) {
         guard let segmentService else { return }
         let store = SegmentStore.shared(for: segmentService)
         let focused = windowState?.sharedRegionSelection
@@ -262,7 +263,7 @@ struct ReadingOrderList: View { // swiftlint:disable:this type_body_length
 
     /// The list's one primary action runs on a double-click AND on Return: Return (a key event) corrects the one
     /// selected line in place, as Finder renames; a double-click, or Return on a segment with no edit yet, reveals.
-    private func primaryAction(_ ids: Set<String>) {
+    func primaryAction(_ ids: Set<String>) {
         #if os(macOS)
         if NSApp.currentEvent?.type == .keyDown, ids.count == 1, let id = ids.first, beginRename(id) == .handled { return }
         #endif
@@ -279,7 +280,7 @@ struct ReadingOrderList: View { // swiftlint:disable:this type_body_length
     }
 
     /// Why Create Named Order did not happen; nil after it did.
-    @State private var createNote: String?
+    @State var createNote: String?
 
     /// The level shown, as the page holds it, for a page with no named order: the WORKING pass's
     /// segments only (`SegmentStore.workingSegments`, #5467), never the top level of every pass.
@@ -297,108 +298,6 @@ struct ReadingOrderList: View { // swiftlint:disable:this type_body_length
     /// The page's working pass as the engine names it; nil until the page is read.
     private var workingPassId: String? {
         segmentService.flatMap { SegmentStore.shared(for: $0).workingPass(documentId: documentId)?.id }
-    }
-
-    /// The order's name, at the top of the list in every state (#6482).
-    private var layoutOrderHead: some View {
-        // The order's name sits at the top, like the renditions: always there, even with no named order, so it is
-        // plain what a layout order is and where to make one (#6482). The words live in the tooltip, not the menu.
-        HStack(spacing: 6) {
-            Image(systemName: "list.number").foregroundStyle(.secondary).accessibilityHidden(true)
-            Menu {
-                CreateNamedOrderMenuItem(target: lineVerbs)
-                    .accessibilityIdentifier("readingOrder.createNamedOrder")
-            } label: {
-                Text("Layout Order").font(.headline)
-            }
-            .fixedSize()
-            .help("The order this page's segments are read in. Now it is the order the layout found them; make a named order to rearrange it.")
-            Spacer(minLength: 4)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-    }
-
-    /// A page with no named order: its segments as written, selectable like the order's rows, and the one
-    /// verb that gives it an order. No move keys: there is no order to move in.
-    private func unordered(_ ids: [String]) -> some View {
-        VStack(spacing: 0) {
-            layoutOrderHead
-            Divider()
-            let nested = nestedRows(top: ids)
-            List(selection: $picks) {
-                ForEach(Array(ids.enumerated()), id: \.element) { index, segmentId in
-                    entryRow(segmentId, at: index, nesting: nested)
-                }
-            }
-            .contextMenu(forSelectionType: String.self, menu: lineMenu, primaryAction: primaryAction)
-            #if os(macOS)
-            .onDeleteCommand { deleteLines(nil) }
-            #endif
-            .focused($listFocused)
-            if let createNote {
-                Text(createNote).font(.caption).foregroundStyle(.secondary).padding(4)
-            }
-        }
-    }
-
-    /// The page's boxes become segments and its `as-written` order is made from them: one action, ⌘Z
-    /// puts the page back as it was. The order and the segments are re-read after it and after each undo.
-    private func createNamedOrder() async {
-        guard let actionsService = actionStore?.actionsService, let store else {
-            createNote = "This window cannot make an order."
-            return
-        }
-        let documentId = documentId
-        let segmentService = segmentService
-        do {
-            try await AuditedAction.run(
-                "segment.convert_and_edit", params: ConvertPageRequest(documentId: documentId),
-                actionName: LineVerbs.createNamedOrderTitle, actionsService: actionsService, steps: windowSteps,
-                afterChange: {
-                    if let segmentService {
-                        await SegmentStore.shared(for: segmentService).load(documentId: documentId, force: true)
-                    }
-                    try? await store.load(documentId: documentId)
-                }
-            )
-            createNote = nil
-        } catch {
-            createNote = "The order could not be made: \(error.localizedDescription)"
-        }
-    }
-
-    /// What the nested rows hold and the tones their swatches take, made ONCE per list from the working pass's
-    /// segments (per row it would be quadratic on a page of thousands of lines). Nil when the list does not nest.
-    private func nestedRows(top: [String]) -> (rows: [String: SegmentsPane.OutlineRow], tones: [String: RegionColours.Tone])? {
-        guard nests, let segmentService else { return nil }
-        let segments = SegmentStore.shared(for: segmentService).workingSegments(documentId: documentId)
-        let rows = SegmentsPane.outline(segments, top: top)
-        return (Dictionary(rows.map { ($0.segmentId, $0) }, uniquingKeysWith: { first, _ in first }),
-                RegionColours.tones(of: segments))
-    }
-
-    /// A row of the level shown: flat, or
-    /// with its swatch. Rows are keyed by segment id, so a segment event redraws its row, never the list.
-    @ViewBuilder
-    private func entryRow(
-        _ segmentId: String, at index: Int,
-        nesting: (rows: [String: SegmentsPane.OutlineRow], tones: [String: RegionColours.Tone])?
-    ) -> some View {
-        if let nesting, let node = nesting.rows[segmentId] {
-            SegmentOutlineRow(
-                node: node, index: index, tones: nesting.tones,
-                content: { id, position in AnyView(row(id, at: position)) },
-                wrap: { id, view in AnyView(movable(id, view)) }, lit: dropTarget
-            )
-        } else if nesting != nil {
-            // Folded under its region by `SegmentsPane.outline`: shown there, not again beside it (#6425).
-            // Kept in the ForEach (not filtered out) so `onMove` offsets still index `store.shown`.
-            EmptyView()
-        } else {
-            movable(segmentId, row(segmentId, at: index)).tag(segmentId)
-                .listRowBackground(dropTarget == segmentId ? Color.accentColor.opacity(0.25) : Color.clear)
-        }
     }
 }
 
@@ -625,7 +524,7 @@ extension ReadingOrderList {
         Task {
             createNote = await SegmentMover.run(
                 SegmentDeleter.segments(ids, documentId: documentId, store: store), into: parent,
-                documentId: documentId, store: store, actionsService: actionsService, steps: steps
+                documentId: documentId, store: store, services: (actionsService, steps)
             )
         }
     }
@@ -661,7 +560,7 @@ extension ReadingOrderList {
     }
 
     /// A row: its words, and
-    private func row(_ segmentId: String, at index: Int) -> some View {
+    func row(_ segmentId: String, at index: Int) -> some View {
         rowContent(segmentId, at: index)
     }
 

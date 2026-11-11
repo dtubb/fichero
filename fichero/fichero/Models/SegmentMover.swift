@@ -34,10 +34,11 @@ enum SegmentMover {
     }
 
     /// Move `segments` into `parent` (nil: out to the page): nil when it was sent, else why not, never silent.
-    static func run( // swiftlint:disable:this function_parameter_count
+    static func run(
         _ segments: [Segment], into parent: String?, documentId: String, store: SegmentStore,
-        actionsService: ActionsService?, steps: WindowSteps?
+        services: (actions: ActionsService?, steps: WindowSteps?)
     ) async -> String? {
+        let (actionsService, steps) = services
         guard let actionsService else { return "This window cannot edit." }
         switch SegmentEdit.reparent(segments, into: parent) {
         case .failure(let refusal):
