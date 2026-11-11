@@ -126,3 +126,18 @@ func sidebarContextDeleteTargets(clicked: SidebarItem, selection: [SidebarItem])
     let deletable = sidebarDeletableItems(selection)
     return deletable.isEmpty ? [clicked] : deletable
 }
+
+/// A sidebar delete takes all its rows out of the store BEFORE the engine calls (#6535), so a multi-selection goes
+/// together, as in Finder, instead of row by row as each `document.delete` lands. Local only; a row the engine then
+/// refuses comes back with the refresh `sidebarDeleteNeedsRefresh` asks for.
+@MainActor
+func sidebarRemoveRowsBeforeDelete(_ documents: [Document], from store: DocumentStore) {
+    store.removeDocuments(ids: Set(documents.map(\.id)))
+}
+
+/// Whether a sidebar delete re-reads the store afterwards (#6535): only when the engine took fewer than it was asked
+/// to. When every delete lands the rows are already gone and the change stream reports the rest, so the full refresh
+/// (3.6 s on a two-item delete, reloading the parent level) is not run.
+func sidebarDeleteNeedsRefresh(deleted: Int, asked: Int) -> Bool {
+    deleted < asked
+}

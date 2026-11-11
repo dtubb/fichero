@@ -115,3 +115,24 @@ extension SidebarDeleteTests {
         #expect(sidebarTrashDropRoots(["doc:a"], parentOf: { parents[$0] }) == ["a"])
     }
 }
+
+/// `delete.multi-selection-goes-together` (#6535)
+@MainActor
+extension SidebarDeleteTests {
+    @Test func aMultiSelectionLeavesTheStoreTogetherBeforeTheEngineIsAsked() {
+        let store = DocumentStore(apiClient: APIClient())
+        let first = Document(id: "first", parentId: "parent", docType: .folder, name: "First")
+        let second = Document(id: "second", parentId: "parent", docType: .folder, name: "Second")
+        let kept = Document(id: "kept", parentId: "parent", docType: .folder, name: "Kept")
+        store.childrenCache["parent"] = [first, second, kept]
+        sidebarRemoveRowsBeforeDelete([first, second], from: store)
+        #expect(store.childrenCache["parent"]?.map(\.id) == ["kept"])
+        #expect(store.recentlyDeletedDocumentIds.isSuperset(of: ["first", "second"]))
+    }
+
+    @Test func theStoreIsReadAgainOnlyWhenTheEngineKeptSomething() {
+        #expect(!sidebarDeleteNeedsRefresh(deleted: 2, asked: 2))
+        #expect(sidebarDeleteNeedsRefresh(deleted: 1, asked: 2))
+        #expect(sidebarDeleteNeedsRefresh(deleted: 0, asked: 1))
+    }
+}
