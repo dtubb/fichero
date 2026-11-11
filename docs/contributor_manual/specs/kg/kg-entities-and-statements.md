@@ -427,6 +427,7 @@ values alone; never a batch rewrite of a person's work.
   record, the mention on a segment stretch; `source_document_ids` is derived from the mentions;
   a claim's `entity_ids` is the names whose mention lies within the claim's span, computed by
   the engine, never the alias scan; the done-check counts pages by the mentions a run wrote.
+- `kg.one.mention-links-segments-and-translations` — **[GAP]** (#5488; owner 2026-11-11: "link from an entity to the segments, or even the entity to the translation". Code: `KnowledgeClaim` anchors to a document and character offsets; its `source_segment_id` is not a Segment id; no mention row keys a segment or a reading) a mention names the segments it lies on (ordered segment ids with character ranges in each one's reading) and may lie on a TRANSLATION reading, resolved to source segments through `reading_alignments` (`source.editor.translation-aligned-by-clause-to-line-ranges`, #6463); the entity's page lists its mentions with the segment's picture, and a click selects the segment everywhere. *Test:* `test_mention_links_segments_and_translations.py` (not yet written).
 - `kg.one.names-not-aliases` — **[GAP]** (#1688) `names` (each form with language and script)
   is the record of a name's forms; `aliases` is derived from it until it is dropped; adding or
   removing a form is one audited action on `names`.
@@ -496,7 +497,7 @@ The owner asked (2026-11-07) how Fichero should find names, relations, coreferen
 - Size: M
 
 #### Step 1.5 — The mention is the link; entity_ids and source pages derived (#5488, #1562)
-- Behaviours: `kg.one.mention-is-the-link`, `kg.one.names-not-aliases`
+- Behaviours: `kg.one.mention-is-the-link`, `kg.one.names-not-aliases`, `kg.one.mention-links-segments-and-translations`
 - Tests: fichero-server/tests/unit/kg/test_mention_is_the_one_link.py, fichero-server/tests/unit/kg/test_entity_ids_from_mentions_not_alias_scan.py, fichero-server/tests/unit/kg/test_names_field_is_the_record.py
 - Depends on: 1.2
 - Size: M
