@@ -274,6 +274,7 @@ extension SidebarView {
                         command: NSEvent.modifierFlags.contains(.command)
                     )
                 )
+                guard sidebarFallbackTapActs(item, sidebarState.expandedItems.contains(item.id)) else { return }
                 logFallbackTap(on: item, proposal: proposal)
                 guard proposal != selectionState.selectedDestinations else { return }
                 applySidebarSelectionProposal(proposal)
