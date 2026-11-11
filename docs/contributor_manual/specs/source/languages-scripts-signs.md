@@ -224,6 +224,7 @@ Language and script
 - `source.lang.says-where-from` — **[OK]** (→ #4938) a shown value says which level it came from
   (`LanguageResolution.level`, the same `LEVEL_*` constants `language_meta` stores). Tested by
   `tests/unit/llm/test_language_cascade_levels.py::TestTheLevelIsTheRungTheAnswerCameFrom::test_a_fallback_reports_the_rung_it_came_from_not_the_one_that_asked`.
+- `source.lang.cascade-walks-the-parent-segments` — **[GAP]** (→ #4938; owner 2026-11-11: a value set on the page or a region is "inherited by the word", and the user should see where it comes from. Code: `_stated_fact` reads the one holder, so the segment rung asks only the segment itself; only direction for neutral lines takes its block's or page's (`settle_neutral_directions`)) the segment rung walks UP the segment's parents (word → line → region → page segment) before the document rung, and `LanguageResolution` names the segment that answered as well as its level, so the app can say "from region 2". One answer per page carries every segment's resolved script, language and direction with their source (`source.editor.segment-row-shows-its-facts-as-icons`). *Test:* `tests/unit/llm/test_language_cascade_levels.py` gains a case per parent level (not yet written).
 - `source.lang.reading-overrides` — **[OK]** (→ #4938) a reading's own language and script win for
   that reading — a transliterated reading of a Latin-script line is in Arabic script and the line is
   not. Tested by
