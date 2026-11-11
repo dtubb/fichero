@@ -1532,6 +1532,14 @@ def _scratch_tree(root, head: str, pinned, cfg: Config, overlay: bool = True, da
     # no repo hook runs as the owner. A whole checkout at load 100 with Defender scanning every write took over git's default 60 s and
     # was killed (2026-11-07: 'reset died of signal 9', then an empty reason): the checkout gets SCRATCH_CHECKOUT_S
     r = _git(root, "-c", "core.hooksPath=/dev/null", "worktree", "add", "--detach", "-q", tree, sha, timeout_s=SCRATCH_CHECKOUT_S)
+    if not r["ok"] and "Permission denied" in r["stderr_tail"]:
+        # 2026-11-11: the manager's `builder done` cannot add a worktree to the worker's clone (its .git/worktrees is the jail user's):
+        # a shared clone instead, every new file the invoking user's, the objects by alternates, the remote refs the checks diff against
+        os.rmdir(tree)
+        r = _git(root, "clone", "-q", "--shared", "--no-checkout", str(root), tree, timeout_s=SCRATCH_CHECKOUT_S)
+        if r["ok"]:
+            _git(tree, "fetch", "-q", str(root), "+refs/remotes/*:refs/remotes/*", timeout_s=SCRATCH_CHECKOUT_S)
+            r = _git(tree, "-c", "core.hooksPath=/dev/null", "checkout", "-q", "--detach", sha, timeout_s=SCRATCH_CHECKOUT_S)
     if not r["ok"]:
         why = r["stderr_tail"].strip() or (f"timed out after {SCRATCH_CHECKOUT_S:g} s" if r.get("timed_out") else f"exit {r.get('exit_code')}")
         raise RuntimeError(f"scratch tree failed: {why}")
@@ -1550,9 +1558,20 @@ def _scratch_tree(root, head: str, pinned, cfg: Config, overlay: bool = True, da
                 dest.write_bytes(src.read_bytes())
                 dest.chmod(src.stat().st_mode)
     except (RuntimeError, OSError):
-        _git(root, "worktree", "remove", "--force", tree)  # a refusal leaves no half-made worktree behind (review -89)
+        drop_tree(root, tree)  # a refusal leaves no half-made worktree behind (review -89)
         raise
     return tree
+
+
+def drop_tree(root, tree: str) -> None:
+    """Remove a scratch tree, a worktree of `root` or a shared clone (2026-11-11): git forgets it, then the directory goes."""
+    if not tree:
+        return
+    if os.path.isdir(os.path.join(tree, ".git")):  # a clone: not a worktree of root; its own dir holds everything
+        shutil.rmtree(tree, ignore_errors=True)
+        return
+    _git(root, "worktree", "remove", "--force", tree)
+    shutil.rmtree(tree, ignore_errors=True)
 
 
 class EmptyRange(RuntimeError):
@@ -1672,8 +1691,8 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
             ("build", lambda: build(tree, build_names(root, since, head), cfg)),
         ])
     finally:
-        _git(root, "worktree", "remove", "--force", tree)
-        _git(root, "worktree", "remove", "--force", own)
+        drop_tree(root, tree)
+        drop_tree(root, own)
     return {**out, "rungs": [ok_pin, *out["rungs"]]}
 
 

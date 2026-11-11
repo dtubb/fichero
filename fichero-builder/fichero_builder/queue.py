@@ -1317,7 +1317,7 @@ def build_head(root, lane_id: str, w=None) -> tuple[int, str]:
     finally:
         check_tool._jail_exit()
         if tree:
-            check_tool._git(repo, "worktree", "remove", "--force", tree)
+            check_tool.drop_tree(repo, tree)
     res = (r.get("results") or [{}])[0]
     journal.append("build-check", lane=lane_id, head=head, ok=bool(r["ok"]), seconds=res.get("seconds"), reused=bool(res.get("reused")),
                    log=res.get("log", ""))
@@ -1644,8 +1644,7 @@ def presubmit(lane_id: str, sha: str, pinned=None) -> tuple[bool, str]:
         except RuntimeError as e:  # the scratch tree refused the lane's tree (a symlink out, ...): the ladder would too (review -89)
             return False, f"presubmit refused: {e}"
         finally:
-            if tree:
-                subprocess.run(g + ["worktree", "remove", "--force", tree], capture_output=True)
+            check_tool.drop_tree(wt, tree)  # a worktree of the lane's repo, or the shared clone made when its git dir was not writable
     step = lane["steps"][lane["cursor"]] if lane["cursor"] < len(lane["steps"]) else None
     ok, said = run(guard_data_for({**step, "head": want} if step else None, str(wt)))  # a guard-data approval bound to the files' content holds here too
     if not ok and not said.startswith(("presubmit refused", "presubmit timed out")):
