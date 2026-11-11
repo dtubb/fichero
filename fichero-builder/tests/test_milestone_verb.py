@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shlex
 import stat
 import sys
 import types
@@ -168,24 +170,26 @@ def test_the_where_list_uses_the_code_map_when_the_repo_is_indexed_and_drops_wha
     repo = _repo(tmp_path)
     (repo / "tests_here").mkdir()
     (repo / "tests_here" / "test_x.py").write_text("def test_x(): pass\n")
+    # A shebang cannot hold an interpreter path with a space (the gate disk's), so the server is a sh wrapper around a script.
+    script = tmp_path / "server.py"
     server = tmp_path / "server"
-    server.write_text(f"""#!{sys.executable}
-import json, sys
+    server.write_text(f"#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(script))}\n")
+    script.write_text("""import json, sys
 for line in sys.stdin:
     m = json.loads(line)
     if "id" not in m:
         continue
     if m["method"] == "initialize":
-        result = {{}}
+        result = {}
     else:
         name, args = m["params"]["name"], m["params"]["arguments"]
-        data = {{"resolve_repo": {{"indexed": True, "repo": "r"}},
-                "get_file_outline": {{"results": [{{"file": "pkg/other.py", "symbols": [{{"name": "helper", "line": 3}}]}},
-                                                  {{"file": "pkg/readers/runner.py", "symbols": [{{"name": "run_enhancement", "line": 1}}]}},
-                                                  {{"file": "tests_here/test_x.py", "symbols": [{{"name": "test_x", "line": 1}}]}},
-                                                  {{"file": "docs/spec.md", "symbols": []}}]}}}}[name]
-        result = {{"content": [{{"type": "text", "text": json.dumps(data)}}]}}
-    print(json.dumps({{"jsonrpc": "2.0", "id": m["id"], "result": result}}), flush=True)
+        data = {"resolve_repo": {"indexed": True, "repo": "r"},
+                "get_file_outline": {"results": [{"file": "pkg/other.py", "symbols": [{"name": "helper", "line": 3}]},
+                                                  {"file": "pkg/readers/runner.py", "symbols": [{"name": "run_enhancement", "line": 1}]},
+                                                  {"file": "tests_here/test_x.py", "symbols": [{"name": "test_x", "line": 1}]},
+                                                  {"file": "docs/spec.md", "symbols": []}]}}[name]
+        result = {"content": [{"type": "text", "text": json.dumps(data)}]}
+    print(json.dumps({"jsonrpc": "2.0", "id": m["id"], "result": result}), flush=True)
 """)
     server.chmod(0o755)
     issues = [{"body": "Where: pkg/other.py, gone/stale.py\nTests: tests_here/test_x.py, pkg/readers/runner.py"}]
@@ -276,3 +280,23 @@ def test_list_issues_runs_gh_in_the_repo_so_a_launchd_cwd_still_resolves_the_rem
     seen = {}
     monkeypatch.setattr(milestone.subprocess, "run", lambda argv, **k: seen.update(k) or type("R", (), {"returncode": 0, "stdout": "[]", "stderr": ""})())
     assert milestone.list_issues("m1", gh="gh", cwd=str(tmp_path)) == [] and seen["cwd"] == str(tmp_path)
+
+
+def test_a_brief_for_a_worker_lane_inlines_an_owner_file_and_drops_its_own_done_line_instead_of_blocking(tmp_path):
+    """Alert 544 (2026-11-11): a milestone brief named a crash log on the owner's Desktop and ended with `done <lane>`, so the brief
+    preflight blocked the step. At generation (and before a start, for briefs written earlier) an owner-path file reference becomes the
+    file's contents (an excerpt capped in size, owner paths inside it rewritten); a directory or unreadable path is rewritten to say so;
+    a `done <lane>` line for the lane is cut. What a worker can read is left alone."""
+    from fichero_builder import brief_tool
+    home = tmp_path / "owner"
+    (home / "Desktop" / "crash").mkdir(parents=True), (home / "code").mkdir()
+    (home / "Desktop" / "crash" / "crash.txt").write_text("Thread 0 crashed\nat /Users/someone/code/x.swift:3\n" + "y" * 10_000)
+    text = (f"Read {home}/Desktop/crash/crash.txt as the owner's user.\nAlso see {home}/code (a folder) and /Users/Shared/fichero-worker/notes.txt.\n"
+            "Fix it.\nSubmit with done lane-ie\nThen builder done lane-ie too.\n")
+    out, notes = brief_tool.for_worker(text, "lane-ie", owner_paths=re.compile(rf"(?<![\w/])(?:~/[\w./-]+|{re.escape(str(home))}/[\w./-]+|/Users/(?!Shared/)[\w./-]+)"))
+    assert str(home) not in out and "Thread 0 crashed" in out and "at <an owner path>:3" in out, "the file's text is in the brief, owner paths inside it rewritten"
+    assert "crash.txt" in out and "truncated to" in out and len(out) < 6_000, "an excerpt, capped"
+    assert "<an owner path, a folder: code>" in out and "/Users/Shared/fichero-worker/notes.txt" in out, "a folder is named, not inlined; the jail's own paths stay"
+    assert "done lane-ie" not in out and "Fix it." in out, "its own done line is cut, the rest stays"
+    assert notes == ["inlined crash.txt (excerpt)", "rewrote a folder path: code", "cut 2 `done lane-ie` line(s)"]
+    assert brief_tool.for_worker("plain brief\n", "x")[0] == "plain brief\n" and brief_tool.for_worker("plain brief\n", "x")[1] == []

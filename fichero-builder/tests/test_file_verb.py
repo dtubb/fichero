@@ -3,6 +3,7 @@ and writes nothing on --dry-run. A fake `gh` keeps state in a JSON file."""
 from __future__ import annotations
 
 import json
+import shlex
 import sys
 
 import pytest
@@ -10,8 +11,7 @@ import pytest
 from fichero_builder import __main__ as cli
 from fichero_builder import journal
 
-FAKE_GH = """#!{py}
-import json, sys
+FAKE_GH = """import json, sys
 from pathlib import Path
 state = Path({state!r})
 db = json.loads(state.read_text()) if state.exists() else {{"milestones": [], "issues": [], "labels": [], "calls": []}}
@@ -45,7 +45,9 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(journal, "STATE", tmp_path / "s")
     state = tmp_path / "gh.json"
     gh = tmp_path / "gh"
-    gh.write_text(FAKE_GH.format(py=sys.executable, state=str(state)))
+    # A shebang cannot hold an interpreter path with a space (the gate disk's): an sh wrapper runs the script instead.
+    gh.with_suffix(".py").write_text(FAKE_GH.format(state=str(state)))
+    gh.write_text(f"#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(gh.with_suffix('.py')))} \"$@\"\n")
     gh.chmod(0o755)
     body = tmp_path / "body.md"
     body.write_text("Write the spec.\n")

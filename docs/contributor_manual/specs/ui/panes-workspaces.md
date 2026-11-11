@@ -1599,6 +1599,9 @@ Creative director, running the app (the one-renderer + old split/close wiring st
   hidden" survives that architecture, or whether the issue's 2026-06-08 framing predates it and
   needs re-scoping to "never auto-collapsed below a size threshold" specifically, is a real
   open question — reshaped, needs maintainer triage, not decided by this pass.
+  Built: on the Mac the window can no longer be narrowed below its open panes (see the Built
+  note on `m2p.window-minimum-ignores-measured-width`), so resizing there no longer reaches the
+  collapse width; it still applies where the platform sets the width (iOS).
 - `panes.head.names-its-own-window` — **[PARTIAL]** (fixed 82ae96b9b; #4860 stays open for the
   maintainer to confirm on screen) a pane head names the library ITS OWN window (or, once
   panes carry their own scope, its own pane) is showing — never an app-wide pointer that any

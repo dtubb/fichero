@@ -3,6 +3,7 @@ review -> landed --push -> the next step; a red goes back to the worker; every t
 from __future__ import annotations
 
 import os
+import re
 import time
 
 import pytest
@@ -1257,13 +1258,16 @@ def test_a_brief_a_managed_worker_cannot_carry_out_is_refused_before_a_session_i
     assert steps()["1.1"]["state"] == "blocked"
     a = [r for r in journal.read() if r["event"] == "alert"]
     assert len(a) == 1 and a[0]["actions"] == ["retry", "park"]
-    assert "~/Desktop/crash/crash.txt" in a[0]["what"] and "gh issue view" in a[0]["what"] and "done m1" in a[0]["what"], a[0]["what"]
-    assert "paste" in a[0]["what"] and "DONE" in a[0]["what"], "the alert says what to put in the brief instead"
+    assert "gh issue view" in a[0]["what"] and "paste" in a[0]["what"], "the alert says what to put in the brief instead"
+    # alert 544: the owner path and the done line are no longer the alert's: rewritten before the preflight (the file is not there: said so)
+    text = (state / "bad").read_text()
+    assert "~/Desktop" not in a[0]["what"] and "done m1" not in a[0]["what"]
+    assert ("<an owner path" in text or "crash.txt (an owner file" in text) and "done m1" not in text, text
     assert queue.answer(a[0]["id"], "retry")[0] == 0
     queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
     assert fake.starts == [] and steps()["1.1"]["state"] == "blocked", "the same brief is never re-sent"
     assert queue.brief_preflight("brief 1.1: fix scripts/x.py; see /Users/Shared/fichero-worker/notes.txt", "m1") == []
-    assert queue.brief_preflight("read /Users/danieltubb/x", "m1") and queue.brief_preflight("gh pr list", "m1") and queue.brief_preflight("builder done m1 now", "m1")
+    assert queue.brief_preflight("read ~/x", "m1") and queue.brief_preflight("gh pr list", "m1") and queue.brief_preflight("builder done m1 now", "m1")
     assert queue.brief_preflight("gh issue view 7", "m1", gh_ok=True) == [], "[jail].gh = true: the jail has a token"
 
 
@@ -1333,3 +1337,106 @@ def test_a_done_with_no_new_commit_this_session_still_counts_when_the_tree_is_ah
     fake.procs.ahead_of_origin = lambda lane_: False
     queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
     assert next(x for x in queue.load() if x["id"] == "m2")["steps"][0]["state"] == "blocked"
+
+
+def test_a_pinned_diff_approved_once_is_approved_by_itself_at_a_later_head_with_the_same_diff_and_a_changed_diff_still_alerts(state, tmp_path):
+    """Alerts 539/543 (2026-11-11): the same nine-file pinned diff re-alerted at every new head of the ux lane. An approve binds to
+    the diff's content (git patch-id), not the head: a later refusal whose diff has the same patch-id is approved by itself with an
+    `auto-approve` row and no alert; a diff that changed is the alert as before."""
+    lane(state)
+    diff, other = tmp_path / "pinned-m1.diff", tmp_path / "pinned-m1-other.diff"
+    diff.write_text("diff --git a/scripts/x.py b/scripts/x.py\nindex 1111111..2222222 100644\n--- a/scripts/x.py\n+++ b/scripts/x.py\n@@ -1 +1 @@\n-a\n+b\n")
+    other.write_text("diff --git a/scripts/x.py b/scripts/x.py\nindex 1111111..3333333 100644\n--- a/scripts/x.py\n+++ b/scripts/x.py\n@@ -1 +1 @@\n-a\n+c\n")
+    refusal = {"ok": False, "kind": "needs-maintainer", "why": "pinned-checks at abc1234ef: scripts/x.py: a pinned check file was changed", "approvals": ["maintainer"]}
+    fake = Fake(chains={"1.1": [{**refusal, "evidence": str(diff)}, {**refusal, "evidence": str(diff), "head": "h1.1b"}],
+                        "1.2": [{**refusal, "evidence": str(other)}]})
+    seen = []
+    base_chain = fake.procs.chain
+    fake.procs.chain = lambda lane_, step, stage: seen.append((step["step"], bool(step.get("maintainer")))) or base_chain(lane_, step, stage)
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    assert cli.main(["alert", a["id"], "approve", "--state", str(state / "s")]) == 0
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "landed" and seen[:3] == [("1.1", False), ("1.1", True), ("1.1", True)], "the second refusal (same diff, another head) ran again as the maintainer by itself"
+    assert [r["detail"] for r in journal.read() if r.get("state") == "auto-approve"] == ["the pinned diff is the one approved at abc1234ef (same patch-id): approved by itself"]
+    assert len(_alerts()) == 2 and _alerts()[-1]["step"] == "1.2", "a different pinned diff is still the manager's call"
+
+
+def test_a_guard_data_approval_is_bound_to_the_known_gaps_files_content_and_holds_at_a_later_head_with_the_same_content(state, tmp_path):
+    """Alert 541 (2026-11-11): the guard-data approve was bound to the old head, so the next head asked again and the presubmit refused
+    'NOT READY' with the approval in hand. The approve records each named .json file's blob; a later head whose blobs are the same gets
+    HEAD's copies under the pinned guards by itself (an `auto` row); a changed file is the manager's call again."""
+    wt, g = _ext_repo(tmp_path, commits=1)
+    (wt / "scripts").mkdir()
+    (wt / "scripts" / "check_x_known_gaps.json").write_text('{"gaps": ["a"]}')
+    g(wt, "add", "."), g(wt, "commit", "-qm", "gaps")
+    head_a = g(wt, "rev-parse", "HEAD")
+    queue.add("ext", str(wt), "batch-1", str(state / "b1.1"), [7], kind="external")
+    assert cli.main(["done", "ext", head_a, "--state", str(state / "s")]) == 0
+    fake = Fake(chains={"batch-1": [{"ok": False, "kind": "guard-data", "approvals": ["approve_guard_data"], "evidence": "/s/gd.diff",
+                                     "why": f"guards red at {head_a[:9]} with guard data changed by the batch: scripts/check_x_known_gaps.json; approve lays HEAD's copy"}]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    assert cli.main(["alert", a["id"], "approve", "--state", str(state / "s")]) == 0
+    s = next(x for x in queue.load() if x["id"] == "ext")["steps"][0]
+    blob = g(wt, "rev-parse", f"{head_a}:scripts/check_x_known_gaps.json")
+    assert s["approved_guard_blobs"] == {"scripts/check_x_known_gaps.json": blob}
+    (wt / "other").write_text("o")
+    g(wt, "add", "."), g(wt, "commit", "-qm", "later, same gaps")
+    head_b = g(wt, "rev-parse", "HEAD")
+    assert queue.guard_data_for({**s, "head": head_b, "approved_head": head_a}, str(wt)) == ("scripts/check_x_known_gaps.json",), "same content at a later head: approved by itself"
+    assert [r["rule"] for r in journal.read() if r["event"] == "auto"] == ["guard-data-same-content"]
+    (wt / "scripts" / "check_x_known_gaps.json").write_text('{"gaps": ["a", "b"]}')
+    g(wt, "add", "."), g(wt, "commit", "-qm", "more gaps")
+    assert queue.guard_data_for({**s, "head": g(wt, "rev-parse", "HEAD"), "approved_head": head_a}, str(wt)) == (), "changed content: the manager's call again"
+
+
+def test_a_retry_keeps_the_steps_head_and_reruns_the_check_from_the_failed_rung_instead_of_a_fresh_session(state):
+    """2026-11-11: `retry` on lane-ie's blocked step re-queued it 'at no head' (a worker lane's step records a head only when green):
+    a fresh session on the tree, the finished green work judged from scratch. A retry of a step whose check ran keeps that head, goes
+    to `done` (the chain again, green rungs reused: `retry_rungs`), and starts no session; a step with no check behind it is still re-queued."""
+    lane(state)
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "red", "why": "ladder red", "findings": "t", "head": "h1.1"}] * (queue.ROUNDS + 1)})
+    seen = []
+    base_chain = fake.procs.chain
+    fake.procs.chain = lambda lane_, step, stage: seen.append(bool(step.get("retry_rungs"))) or base_chain(lane_, step, stage)
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)  # red, every fix round, red again: blocked
+    assert steps()["1.1"]["state"] == "blocked" and len(fake.starts) == 1
+    a = _alerts()[-1]
+    assert queue.answer(a["id"], "retry")[0] == 0
+    s = steps()["1.1"]
+    assert s["state"] == "done" and s["head"] == "h1.1" and s["retry_rungs"] is True
+    assert [r["detail"] for r in journal.read() if r.get("state") == "retry"][-1].startswith("same head (h1.1)"), "the row names the head, never 'no head'"
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert seen[queue.ROUNDS + 1] is True and steps()["1.1"]["state"] == "landed", "the chain again, the green rungs reusable"
+    assert [s for s in fake.starts if s[1] == "1.1"] == [("m1", "1.1", 1)], "no new session for the retried step"
+    queue.add("m2", "/w/m2", "1.1", str(state / "bad"), [9])
+    (state / "bad").write_text("gh issue view 1\n")
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)  # blocked before any check: the brief preflight
+    assert queue.answer(_alerts()[-1]["id"], "retry")[0] == 0
+    assert next(x for x in queue.load() if x["id"] == "m2")["steps"][0]["state"] == "queued", "no check behind it: re-queued as before"
+
+
+def test_a_brief_written_before_dispatch_is_made_worker_safe_before_the_preflight_so_an_owner_file_no_longer_blocks(state, tmp_path):
+    """Alert 544: lane-ie's brief was written for the owner's session before the lane was dispatched. Before the preflight the brief is
+    rewritten in place for the worker (the owner file inlined, the lane's done line cut): one `brief-inlined` row, the session starts."""
+    crash = tmp_path / "owner-Desktop" / "crash.txt"
+    crash.parent.mkdir()
+    crash.write_text("it crashed here\n")
+    brief = state / "b-ie"
+    brief.write_text("Read ~/Desktop/crash.txt as the owner.\nFix it.\nSubmit with done m1\n")
+    queue.add("m1", "/w/m1", "1.1", str(brief), [7])
+    fake = Fake()
+    fake.procs.owner_home = str(tmp_path / "owner-Desktop").rsplit("/", 1)[0]
+    import fichero_builder.brief_tool as bt
+    real = bt.for_worker
+    bt.for_worker = lambda text, lane_id, **k: real(text.replace("~/Desktop/crash.txt", str(crash)), lane_id, owner_paths=re.compile(rf"(?<![\w/])(?:~/[\w./-]+|{re.escape(str(tmp_path))}/[\w./-]+)"))
+    try:
+        queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    finally:
+        bt.for_worker = real
+    assert fake.starts == [("m1", "1.1", 1)], "the session started: nothing left for the preflight to refuse"
+    assert "it crashed here" in brief.read_text() and "done m1" not in brief.read_text(), "rewritten in place, so a fix round carries the same text"
+    (row,) = [r for r in journal.read() if r.get("state") == "brief-inlined"]
+    assert "inlined crash.txt" in row["detail"] and "cut 1 `done m1`" in row["detail"]
+    assert _alerts() == []

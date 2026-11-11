@@ -628,7 +628,7 @@ def test_stop_kills_the_lanes_windows_by_id_once_its_run_is_gone_and_start_refus
                                         '[models]\nproviders = ["claude-code"]\nbuilder = { provider = "claude-code", model = "sonnet" }\nreviewer = { provider = "claude-code", model = "opus" }\n')
     (state / "wr").mkdir(), (state / "feed").mkdir()
     calls, alive = [], [True]
-    monkeypatch.setattr(queue, "tmux_as_worker", lambda j, *a: calls.append(a) or ("@0\tm1\n@1\tm1\n@2\tother\n" if a[0] == "list-windows" else ""))
+    monkeypatch.setattr(queue, "tmux_as_worker", lambda j, *a: calls.append(a) or ("@0\tm1\tclaude\n@1\tm1\tclaude\n@2\tother\tzsh\n" if a[0] == "list-windows" else ""))
     monkeypatch.setattr(queue, "run_alive", lambda j, feed: alive[0])
     monkeypatch.setattr(queue.work, "ensure_pinned", lambda root, brief, base: str(state))
     monkeypatch.setattr(queue.land_tool, "resolve_branch", lambda repo, branch: "d" * 40)
@@ -640,6 +640,30 @@ def test_stop_kills_the_lanes_windows_by_id_once_its_run_is_gone_and_start_refus
     procs.stop(the_lane)
     assert [a for a in calls if a[0] == "kill-window"] == [("kill-window", "-t", "@0"), ("kill-window", "-t", "@1")], "by id, never by the ambiguous name"
     with pytest.raises(RuntimeError, match=r"@0.*m1|m1.*@0"):
+        procs.start(the_lane, {"step": "1.1", "brief": str(state / "b1.1"), "issues": [7]})
+
+
+def test_start_closes_an_idle_window_of_its_own_name_itself_and_refuses_only_one_with_a_live_session(state, monkeypatch):
+    """Alert 540 (2026-11-11): a step could not start because an idle tmux window of its lane's name was still up, and a person had to
+    run `queue stop` and retry. An idle window (its pane runs a shell) is closed by start itself, then the start goes on; a window whose
+    pane runs a live session is still the refusal."""
+    (state / "harness.toml").write_text('[check]\nengine_repo = "/e"\n[land]\nbranch = "integration"\n[jail]\nuser = "wu"\nworkroot = "' + str(state / "wr") + '"\n'
+                                        '[models]\nproviders = ["claude-code"]\nbuilder = { provider = "claude-code", model = "sonnet" }\nreviewer = { provider = "claude-code", model = "opus" }\n')
+    (state / "wr").mkdir()
+    calls, windows = [], ["@0\tm1\tzsh\n@2\tother\tclaude\n"]
+    monkeypatch.setattr(queue, "tmux_as_worker", lambda j, *a: calls.append(a) or (windows[0] if a[0] == "list-windows" else ""))
+    monkeypatch.setattr(queue, "run_alive", lambda j, feed: False)
+    monkeypatch.setattr(queue.work, "ensure_pinned", lambda root, brief, base: str(state))
+    monkeypatch.setattr(queue.land_tool, "resolve_branch", lambda repo, branch: "d" * 40)
+    monkeypatch.setattr(queue.work, "as_worker", lambda a, s: type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})())
+    monkeypatch.setattr(queue.subprocess, "Popen", lambda argv, **k: object())
+    procs = queue.real_procs(state)
+    the_lane = {"id": "m1", "worktree": str(state / "wr" / "wt-m1"), "seq": 3}
+    procs.start(the_lane, {"step": "1.1", "brief": str(state / "b1.1"), "issues": [7]})
+    assert [a for a in calls if a[0] == "kill-window"] == [("kill-window", "-t", "@0")], "the idle window was closed; the start went on"
+    assert [r["detail"] for r in journal.read() if r.get("state") == "window-closed"] == ["an idle tmux window named m1 (@0, zsh) was closed before the start"]
+    windows[0] = "@1\tm1\tclaude\n"
+    with pytest.raises(RuntimeError, match=r"live session"):
         procs.start(the_lane, {"step": "1.1", "brief": str(state / "b1.1"), "issues": [7]})
 
 

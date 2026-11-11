@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from fichero_builder import check_tool, codemap, jail, journal, land_tool, models, work
+from fichero_builder import brief_tool, check_tool, codemap, jail, journal, land_tool, models, work
 
 ROUNDS, RESTARTS = 2, 2
 DISPATCH: list = [()]  # [loop].dispatch: external lanes the loop runs itself, as managed worker lanes (#6466); the verb sets it
@@ -243,7 +243,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     def block(s, why, actions=ACTIONS, evidence="", auto_send_back=False):
         q = journal.STATE / f"question-{lane['id']}-{s['step']}.txt"
         q.write_text(f"QUESTION: {why}\n")
-        s["red_head"], s["red_at"] = s.get("head", ""), time.strftime("%Y-%m-%dT%H:%M:%S")  # #6506: a retry of the same head says so
+        s["red_head"], s["red_at"] = s.get("head") or s.get("checked_head", ""), time.strftime("%Y-%m-%dT%H:%M:%S")  # #6506: a retry of the same head says so
         if auto_send_back:
             s["auto_sb"] = s.get("auto_sb", 0) + 1  # before the move, which stores it
         s["blocked_at"] = _now()  # the watchdog's clock (#6466)
@@ -368,7 +368,12 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             return False
         s["trees"], s["trees_at"] = procs.trees(_others(lane, handles, procs)), time.strftime("%Y-%m-%dT%H:%M:%S")  # before the worker can move anything
         try:
-            if bad := brief_preflight(Path(s.get("resume_brief") or s["brief"]).read_text(), lane["id"], procs.jail_gh):  # #6495: before a session is spent
+            bp = Path(s.get("resume_brief") or s["brief"])
+            fixed, notes = brief_tool.for_worker(bp.read_text(), lane["id"])  # alert 544: a brief written for the owner's session, made the worker's
+            if notes:
+                bp.write_text(fixed)  # in place, so a fix round appends to the same text
+                journal.append("queue", lane=lane["id"], step=s["step"], state="brief-inlined", detail="; ".join(notes)[:300])
+            if bad := brief_preflight(fixed, lane["id"], procs.jail_gh):  # #6495: before a session is spent
                 return block(s, "the brief asks for what a managed worker cannot do; " + " / ".join(bad), actions=("retry", "park"))
             if h is None:
                 if len(handles) >= workers_n:
@@ -453,8 +458,11 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     # outcome below (landed, blocked, a fix brief) can overwrite a newer head, and no unlocked read decides anything (review -92/-94/-96).
     if not r["ok"] or not r.get("head"):
         s["settling"] = True
+        if r.get("head"):
+            s["checked_head"] = r["head"]  # the head the check judged: a retry re-runs it from the failed rung instead of a fresh session (2026-11-11)
     else:
         s["head"], s["settling"] = r["head"], True
+    s.pop("retry_rungs", None)
     if not store(lane, expect=(s["step"], h0)):
         journal.append("queue", lane=lane["id"], step=s["step"], state="stale-result", detail=f"the check of {h0[:9]} ended after a newer head took the step: dropped")
         return True
@@ -491,6 +499,15 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             journal.append("queue", lane=lane["id"], step=s["step"], state="auto-approve", detail=f"pinned diff of {', '.join(files)} matches [loop.approved_pinned]: approved by itself")
             move(s, "done", "pinned diff matches [loop.approved_pinned]: the check runs again as the maintainer")
             return True
+    if (r.get("kind") in ("needs-maintainer", "weakened-tests", "pinned-new") and s.get("approved_diff")
+            and patch_id(r.get("evidence", "")) == s["approved_diff"]):  # the diff the manager approved, at another head: approved by itself
+        for k in r.get("approvals") or ["maintainer"]:
+            s[k] = True
+        s["approved_head"] = s.get("head", "")
+        journal.append("queue", lane=lane["id"], step=s["step"], state="auto-approve",
+                       detail=f"the pinned diff is the one approved at {s.get('approved_diff_head', '')[:9]} (same patch-id): approved by itself")
+        move(s, "done", "the pinned diff is the one already approved: the check runs again with that approval")
+        return True
     if r.get("kind") in ("needs-maintainer", "weakened-tests", "red-on-base", "pinned-new", "guard-data"):  # a pinned check or a test changed on purpose: the manager's call
         s["approve_kind"] = r["kind"]
         s["approvals"] = r.get("approvals") or []  # every reason the refusal listed: one approve sets them all
@@ -745,6 +762,19 @@ def alert(lane_id: str, step: str, why: str, evidence: str, actions: list[str]) 
     return aid
 
 
+def patch_id(diff_path: str) -> str:
+    """The content identity of a diff file (`git patch-id --stable`: line numbers and index lines left out); '' when unreadable or empty.
+    An approval bound to it holds at any head whose diff of the same files is the same (2026-11-11: alerts 539/543 re-asked for one diff)."""
+    try:
+        text = Path(diff_path).read_bytes()
+    except OSError:
+        return ""
+    if not text.strip():
+        return ""
+    r = subprocess.run(["git", "patch-id", "--stable"], input=text, capture_output=True)
+    return r.stdout.decode().split(" ")[0] if r.returncode == 0 and r.stdout else hashlib.sha256(text).hexdigest()
+
+
 def _alert_kind(r: dict) -> tuple:
     """What makes two alerts the same alert for Dismiss: lane, step, and the text before its first `;`, its numbers masked."""
     return (r.get("lane"), r.get("step"), re.sub(r"\d+", "N", str(r.get("what", "")).split(";")[0]).strip())
@@ -796,14 +826,23 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
             save(lanes)
         if action in ("retry", "approve", "send-back"):
             # an external lane has no worker to send a step to: retry and approve re-take its snapshot; send-back waits for its done
-            again = "done" if action == "approve" or (lane.get("kind") == "external" and action == "retry" and s.get("head")) else "queued"
+            head_ = s.get("head") or s.get("checked_head", "")  # a worker lane's step records a head only when green: the checked one counts (2026-11-11)
+            again = "done" if action == "approve" or (action == "retry" and head_) else "queued"
             said = f"{a.get('what', '')}\n{s.get('why', '')}"
             s.update(state=again, rounds=0, restarts=0, why="")
+            if action == "retry" and head_:  # the same head, the chain again from the failed rung: green rungs stand, no fresh session
+                s["head"], s["retry_rungs"] = head_, True
             if action == "retry":  # #6506: the retried head goes behind fresh dones; an unchanged head is said to be one
-                s["retry_of"] = s.get("head", "")
-                same = s.get("head") and s.get("red_head") == s.get("head")
-                journal.append("queue", lane=a["lane"], step=a["step"], state="retry", detail=(f"same head ({s['head'][:9]}) and same rules as the red at {s.get('red_at', '')[11:16]}: "
-                               "it answers the same unless the base or the harness changed" if same else f"retried at {s.get('head', '')[:9] or 'no head'}"))
+                s["retry_of"] = head_
+                same = head_ and s.get("red_head") == head_
+                journal.append("queue", lane=a["lane"], step=a["step"], state="retry", detail=(f"same head ({head_[:9]}) and same rules as the red at {s.get('red_at', '')[11:16]}: "
+                               "it answers the same unless the base or the harness changed" if same else f"retried at {head_[:9]} from the failed rung" if head_ else "retried: no check behind it, a session again"))
+            if action == "approve" and s.get("approve_kind") == "guard-data" and s.get("head") and lane is not None:
+                repo_ = s.get("land_tree") or lane["worktree"]  # bound to the files' content: a later head with the same blobs is approved by itself (alert 541)
+                s["approved_guard_blobs"] = {f: blob_at(repo_, s["head"], f) for f in re.findall(r"[\w./-]+\.json", said)}
+            if action == "approve" and s.get("approve_kind") in ("needs-maintainer", "weakened-tests", "pinned-new") and (pid := patch_id(a.get("evidence", ""))):
+                at = re.search(r"\bat ([0-9a-f]{7,40})\b", a.get("what", ""))  # a refused chain stores no head on a worker lane's step: the alert names it
+                s["approved_diff"], s["approved_diff_head"] = pid, at.group(1) if at else s.get("head", "")  # bound to the diff's content, not the head
             if action == "approve":  # manager 2026-11-02: an approve binds to this head and the tests the alert named; a new head clears it
                 # one head's approvals ACCUMULATE (manager 2026-11-03: sharing bb3 was asked about the same test three times,
                 # each approve replacing the last one's files); a new head starts empty
@@ -1283,7 +1322,7 @@ def build_head(root, lane_id: str, w=None) -> tuple[int, str]:
     finally:
         check_tool._jail_exit()
         if tree:
-            check_tool._git(repo, "worktree", "remove", "--force", tree)
+            check_tool.drop_tree(repo, tree)
     res = (r.get("results") or [{}])[0]
     journal.append("build-check", lane=lane_id, head=head, ok=bool(r["ok"]), seconds=res.get("seconds"), reused=bool(res.get("reused")),
                    log=res.get("log", ""))
@@ -1363,6 +1402,27 @@ def carry_in_lane(step: dict, lane: dict, branch: str, auto) -> bool:
     return carry_approvals(step, step.get("land_tree") or lane["worktree"], f"origin/{branch}", auto)
 
 
+def blob_at(repo: str, head: str, path: str) -> str:
+    r = subprocess.run(["git", "-c", "safe.directory=*", "-C", repo, "rev-parse", "--verify", "-q", f"{head}:{path}"], capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def guard_data_for(step: dict | None, repo: str) -> tuple:
+    """The guard DATA files (.json under a check path) whose HEAD copy the pinned guards judge against: the approve's files at the head it
+    was given on, or (2026-11-11, alert 541) at any later head where each file's blob is the one approved (`approved_guard_blobs`): one
+    `auto` row. A file whose content changed: nothing, the manager's call again."""
+    if not step:
+        return ()
+    if _approved(step, "approve_guard_data"):
+        return tuple(f for f in step.get("approved_tests", ()) if f.endswith(".json"))
+    blobs, head = step.get("approved_guard_blobs") or {}, step.get("head", "")
+    if blobs and head and all(blob_at(repo, head, f) == b for f, b in blobs.items()):
+        journal.append("auto", rule="guard-data-same-content", head=head, file=", ".join(sorted(blobs)),
+                       detail=f"the guard data approved at {step.get('approved_head', '')[:9]} is unchanged at this head: HEAD's copies under the pinned guards")
+        return tuple(sorted(blobs))
+    return ()
+
+
 def _approved(step: dict | None, key: str) -> bool:
     """An approve counts only for the head it was given on (defect 2026-11-02: alert -36's approve_red excused a later head)."""
     # a worker lane's step has no head until a chain is green: its approve is recorded with head "" and holds while it still has none
@@ -1386,9 +1446,12 @@ def run_alive(j, feed: str) -> bool:
     return r.returncode == 0
 
 
-def worker_windows(j, name: str) -> list[str]:
-    """#6496: the ids of the windows named `name` on the workers' server (a name is ambiguous to tmux once there are two)."""
-    return [i for i, _, n in (ln.partition("\t") for ln in tmux_as_worker(j, "list-windows", "-a", "-F", "#{window_id}\t#{window_name}").splitlines()) if n == name]
+def worker_windows(j, name: str, with_command: bool = False) -> list:
+    """#6496: the ids of the windows named `name` on the workers' server (a name is ambiguous to tmux once there are two);
+    `with_command`: (id, the pane's current command) pairs, so an idle shell can be told from a live session (alert 540)."""
+    rows = [ln.split("\t") for ln in tmux_as_worker(j, "list-windows", "-a", "-F", "#{window_id}\t#{window_name}\t#{pane_current_command}").splitlines()]
+    hits = [(r[0], (r[2] if len(r) > 2 else "")) for r in rows if len(r) > 1 and r[1] == name]
+    return hits if with_command else [i for i, _ in hits]
 
 
 def real_procs(root) -> Procs:
@@ -1410,7 +1473,7 @@ def real_procs(root) -> Procs:
                                      maintainer=_approved(step, "maintainer") or bool(lane.get("maintainer")), approve_weakened=_approved(step, "approve_weakened"),
                                      external=lane.get("kind") == "external", approve_red=_approved(step, "approve_red") and (tuple(f for f in step.get("approved_tests") or () if f.endswith(".py")) or True),
                                      approve_pinned_new=_approved(step, "approve_pinned_new"),
-                                     guard_data=tuple(f for f in (step or {}).get("approved_tests", ()) if f.endswith(".json")) if _approved(step, "approve_guard_data") else (),
+                                     guard_data=guard_data_for(step, tree), retry=bool(step and step.get("retry_rungs")),
                                      reviewer_fast=reviewer if lane["id"] in opus_lanes else reviewer_fast, opus_paths=opus_paths,
                                      last_step=bool(step) and lane.get("kind") != "external" and bool(lane.get("steps")) and step is lane["steps"][-1])
 
@@ -1419,8 +1482,12 @@ def real_procs(root) -> Procs:
         a.pinned = work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))  # #6466: the worker imports fichero_builder from here
         a.root = a.pinned  # #6466: the worker reads harness.toml from --root; the owner's checkout is unreadable to it, the pinned copy is not
         j = work._jail(a)
-        if wins := worker_windows(j, lane["id"]):  # #6496: a second session of one name is unreachable by name; the old one is ended first
-            raise RuntimeError(f"a tmux window named {lane['id']} is still up ({', '.join(wins)}): `builder queue stop {lane['id']}` ends it, then retry")
+        for wid, cmd in worker_windows(j, lane["id"], with_command=True):  # #6496: a second session of one name is unreachable by name
+            if cmd.lstrip("-") in SHELLS or not cmd:  # alert 540: an idle window (a shell, no session) is closed here, never a person's `queue stop`
+                tmux_as_worker(j, "kill-window", "-t", wid)
+                journal.append("queue", lane=lane["id"], step=step["step"], state="window-closed", detail=f"an idle tmux window named {lane['id']} ({wid}, {cmd or 'no command'}) was closed before the start")
+            else:
+                raise RuntimeError(f"a tmux window named {lane['id']} holds a live session ({wid}, {cmd}): `builder queue stop {lane['id']}` ends it, then retry")
         if lane.get("fresh") and not Path(a.worktree).exists() and step.get("head"):  # a retried batch: its head (in the engine repo) travels as a bundle
             bundle, ref = work.shared_state(a) / f"base-{lane['id']}.bundle", f"base-lane-{lane['id']}"  # the ref ensure_worktree fetches
             r = work._git(repo, "update-ref", f"refs/heads/{ref}", step["head"])
@@ -1582,9 +1649,9 @@ def presubmit(lane_id: str, sha: str, pinned=None) -> tuple[bool, str]:
         except RuntimeError as e:  # the scratch tree refused the lane's tree (a symlink out, ...): the ladder would too (review -89)
             return False, f"presubmit refused: {e}"
         finally:
-            if tree:
-                subprocess.run(g + ["worktree", "remove", "--force", tree], capture_output=True)
-    ok, said = run()
+            check_tool.drop_tree(wt, tree)  # a worktree of the lane's repo, or the shared clone made when its git dir was not writable
+    step = lane["steps"][lane["cursor"]] if lane["cursor"] < len(lane["steps"]) else None
+    ok, said = run(guard_data_for({**step, "head": want} if step else None, str(wt)))  # a guard-data approval bound to the files' content holds here too
     if not ok and not said.startswith(("presubmit refused", "presubmit timed out")):
         # a batch that changes guard DATA (a known-gaps entry for a new route) is red under the pinned copy by design: run again with
         # head's copy of exactly those files, as the ladder's guard-data approve does. Green then = the data was the only cause: the done

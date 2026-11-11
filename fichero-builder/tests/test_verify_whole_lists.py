@@ -37,8 +37,12 @@ def test_every_engine_test_using_the_scan_helper_runs_daily_and_the_ones_that_sc
     helper is in [check].daily_tests; one that scans repo paths is under a [check.whole_tests] prefix (a temp-dir-only one
     may be daily only, listed here by name)."""
     import subprocess
-    found = set(subprocess.run(["git", "-C", str(ROOT), "grep", "-l", "_scan_files", "--", "fichero-server/tests/**/*.py"],
-                               capture_output=True, text=True).stdout.split())
+    if (ROOT / ".git").exists():
+        found = set(subprocess.run(["git", "-C", str(ROOT), "grep", "-l", "_scan_files", "--", "fichero-server/tests/**/*.py"],
+                                   capture_output=True, text=True).stdout.split())
+    else:  # a gate copy (the M4 run dir) has no repo: read the tree itself
+        found = {p.relative_to(ROOT).as_posix() for p in (ROOT / "fichero-server" / "tests").rglob("*.py")
+                 if "_scan_files" in p.read_text(errors="replace")}
     cfg = check_tool.load(ROOT)
     assert found and not found - set(cfg.daily_tests), sorted(found - set(cfg.daily_tests))
     per_batch = {t for v in cfg.whole_tests.values() if not isinstance(v, str) for t in v}

@@ -272,7 +272,7 @@ def do_check(a, repo: str, branch: str, head: str, ladder: str) -> dict:
     check_tool.GUARD_CACHE[0] = journal.STATE / "guard-cache.json"  # speed 5
     pin_new = bool(getattr(a, "approve_pinned_new", False))  # the manager approved a new file under a pinned path
     guard_data = tuple(getattr(a, "guard_data", ()) or ())
-    approved = maintainer or approve or bool(red_ok) or pin_new or bool(guard_data)
+    approved = maintainer or approve or bool(red_ok) or pin_new or bool(guard_data) or bool(getattr(a, "retry", False))  # a retry resumes at the failed rung too (2026-11-11)
     check_tool.REUSE[0] = green_before_approve(ladder, since, head, a.pinned) if approved else None
     try:
         r = check_tool.ladder_over(repo, since, head, a.pinned, getattr(a, "ids", []), maintainer=maintainer, approve_weakened=approve, approve_red=red_ok,

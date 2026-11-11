@@ -102,7 +102,6 @@ extension ContentView {
     }
 
     static func shellWindowMinWidth(
-        windowWidth: Double?,
         horizontalSizeClass: UserInterfaceSizeClass?,
         sidebarVisible: Bool,
         inspectorVisible: Bool,
@@ -119,22 +118,13 @@ extension ContentView {
             return 0
         }
 
-        let policy = shellCollapsePolicy(
-            windowWidth: windowWidth,
-            horizontalSizeClass: horizontalSizeClass,
-            sidebarVisible: sidebarVisible,
-            inspectorVisible: inspectorVisible,
-            detailMinWidth: detailMinWidth
-        )
-        let effectiveInspectorVisible = inspectorVisible && !policy.collapseInspector
-
-        if policy.collapseSidebar {
-            return detailMinWidth
-        }
-
+        // The window's minimum is the floor of the panes the person chose and takes NO measured width (#6447, second
+        // repro): a minimum that dropped when the window narrowed past a collapse threshold (the inspector, then the
+        // sidebar) changed the split view's column size inside its own constraints pass, the SIGABRT. The collapse
+        // policy still decides what is SHOWN at a width; it no longer decides how narrow the window may be.
         return windowMinWidth(
             sidebarVisible: sidebarVisible,
-            inspectorVisible: effectiveInspectorVisible,
+            inspectorVisible: inspectorVisible,
             detailMinWidth: detailMinWidth
         )
     }

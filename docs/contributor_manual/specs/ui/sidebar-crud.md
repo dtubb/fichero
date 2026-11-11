@@ -143,6 +143,7 @@ Both issues are already on this milestone (#291); no new issues were needed.
   PARTIAL, not OK: the arity limit itself is solved and two real columns are back, but the
   `artifacts` question is still open and no test was found pinning either the restored columns
   or the arity workaround itself.
+- `sidebar.table-chevron-level-with-first-line` — **[PARTIAL]** (#6473) in the Library Documents table a row's disclosure chevron sits level with the icon and the name's first line, whatever the row's height; it is not centred in a tall row. A row too short for the 3 pt icon inset keeps it centred. Test: `fichero/Tests/Unit/general/Views/LibraryTableDisclosureAlignmentTests.swift` (`chevronIsLevelWithIconTopOnOneAndFourLineRows`, the arithmetic only). Not built or run: the AppKit probe (`LibraryTableDisclosureAligner`) that moves the system's disclosure button is unseen, and the 3 pt inset is an estimate to check by eye.
 
 ### Delete
 - `delete.subtree-only` — **[PARTIAL]** (#4697) deleting a folder cascades to exactly its

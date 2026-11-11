@@ -95,19 +95,19 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         XCTAssertFalse(policy.collapseInspector)
     }
 
-    func testNarrowWindowDropsShellMinWidthToDetailWidth() {
+    func testNarrowWindowKeepsTheFullShellMinWidth() {
+        // #6447 (second repro): the minimum no longer drops with the measured width; the collapse policy decides what
+        // is shown, not how narrow the window may be.
         let detailWidth = 600.0
-        let narrowWidth = ContentView.sidebarMinWidth + detailWidth - 1
 
         XCTAssertEqual(
             ContentView.shellWindowMinWidth(
-                windowWidth: narrowWidth,
                 horizontalSizeClass: .regular,
                 sidebarVisible: true,
                 inspectorVisible: true,
                 detailMinWidth: detailWidth
             ),
-            detailWidth
+            ContentView.windowMinWidth(sidebarVisible: true, inspectorVisible: true, detailMinWidth: detailWidth)
         )
     }
 
@@ -118,7 +118,6 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         // detail minimum, and independent of window width.
         XCTAssertEqual(
             ContentView.shellWindowMinWidth(
-                windowWidth: 400,
                 horizontalSizeClass: .compact,
                 sidebarVisible: true,
                 inspectorVisible: true,
@@ -131,11 +130,8 @@ final class AdaptiveShellPolicyTests: XCTestCase {
     func testRegularShellMinWidthUnchangedByTheCompactGuard() {
         // The compact guard must not touch the regular (Mac / iPad) path.
         let detailWidth = 600.0
-        let roomyWidth =
-            ContentView.sidebarMinWidth + detailWidth + ContentView.inspectorMinWidth + 40
         XCTAssertNotEqual(
             ContentView.shellWindowMinWidth(
-                windowWidth: roomyWidth,
                 horizontalSizeClass: .regular,
                 sidebarVisible: true,
                 inspectorVisible: true,
@@ -147,12 +143,9 @@ final class AdaptiveShellPolicyTests: XCTestCase {
 
     func testRoomyWindowKeepsFullShellMinWidthForMacAndiPadLayouts() {
         let detailWidth = 600.0
-        let roomyWidth =
-            ContentView.sidebarMinWidth + detailWidth + ContentView.inspectorMinWidth + 40
 
         XCTAssertEqual(
             ContentView.shellWindowMinWidth(
-                windowWidth: roomyWidth,
                 horizontalSizeClass: .regular,
                 sidebarVisible: true,
                 inspectorVisible: true,
@@ -166,7 +159,7 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         )
     }
 
-    func testInspectorCollapseBandRelaxesShellMinWidthToSidebarAndDetail() {
+    func testInspectorCollapseBandKeepsTheFullShellMinWidth() {
         let detailWidth = 600.0
         let inspectorBandWidth =
             ContentView.sidebarMinWidth + detailWidth + ContentView.inspectorMinWidth - 1
@@ -183,13 +176,12 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         XCTAssertTrue(policy.collapseInspector)
         XCTAssertEqual(
             ContentView.shellWindowMinWidth(
-                windowWidth: inspectorBandWidth,
                 horizontalSizeClass: .regular,
                 sidebarVisible: true,
                 inspectorVisible: true,
                 detailMinWidth: detailWidth
             ),
-            ContentView.sidebarMinWidth + detailWidth
+            ContentView.windowMinWidth(sidebarVisible: true, inspectorVisible: true, detailMinWidth: detailWidth)
         )
     }
 

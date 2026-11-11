@@ -3,6 +3,7 @@ sha first, with the PINNED script and guards laid over a scratch tree of that sh
 its own ready script cannot pass its own presubmit."""
 from __future__ import annotations
 
+import os
 import subprocess
 
 import pytest
@@ -156,3 +157,61 @@ def test_the_scratch_trees_git_trusts_the_lanes_tree_whoever_owns_it(tmp_path):
     _git(tmp_path, "init", "-q")
     argv = check_tool._git_argv(tmp_path, ["worktree", "add", "x"])
     assert "safe.directory=*" in argv and argv.index("safe.directory=*") < argv.index("worktree")
+
+
+def test_the_presubmit_honours_a_guard_data_approval_bound_to_the_files_content(lane, tmp_path, capsys):
+    """Alert 541 (2026-11-11): `builder done` refused a head as NOT READY although the guard-data approval for its known-gaps files
+    existed (bound to the old head). With the approval bound to the files' blobs, the presubmit lays HEAD's copies under the pinned
+    guards from the start and is plainly green; without it the second run still only says what approve would be needed."""
+    pinned = tmp_path / "pinned"
+    _git(lane, "update-ref", "refs/remotes/origin/integration", "HEAD")  # the base the presubmit diffs the data files against
+    for d, text in ((pinned, "old"), (lane, "new")):
+        (d / "scripts" / "x_known_gaps.json").write_text(text)
+        (d / "scripts" / "lane_ready_check.sh").write_text("#!/bin/bash\ngrep -q new scripts/x_known_gaps.json && { echo READY; exit 0; }\necho 'FAIL: scripts/check_x.py: 1 new gap'; exit 1\n")
+        _git(d, "add", "."), _git(d, "commit", "-qm", "gaps")
+    head = _git(lane, "rev-parse", "HEAD")
+    assert cli.main(["done", "ext", head, "--state", str(journal.STATE)]) == 0
+    assert [r["state"] for r in journal.read() if r["event"] == "presubmit"] == ["guard-data"], "no approval: green only under head's data, said so"
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="queued", approved_guard_blobs={"scripts/x_known_gaps.json": _git(lane, "rev-parse", f"{head}:scripts/x_known_gaps.json")})
+    queue.save(lanes)
+    (lane / "z").write_text("z")
+    _git(lane, "add", "."), _git(lane, "commit", "-qm", "later")
+    assert cli.main(["done", "ext", _git(lane, "rev-parse", "HEAD"), "--state", str(journal.STATE)]) == 0
+    assert [r["state"] for r in journal.read() if r["event"] == "presubmit"][-1] == "green", "the approval holds at the later head: plainly green"
+
+
+def test_the_presubmit_makes_its_scratch_tree_as_a_shared_clone_when_the_lanes_git_dir_is_not_writable(lane, tmp_path, capsys):
+    """2026-11-11: `builder done` run by the manager could not add a worktree to the worker's clone ('could not create directory of
+    .../.git/worktrees/...: Permission denied'). When `git worktree add` is refused, the scratch tree is a shared clone of the lane's repo
+    (objects by alternates, every new file the invoking user's) at the same sha, with the remote refs the checks diff against, and it is
+    removed after; a presubmit judges the same tree either way."""
+    from fichero_builder import check_tool
+    (lane / "ok").write_text("x")
+    _git(lane, "add", "."), _git(lane, "commit", "-qm", "work")
+    _git(lane, "update-ref", "refs/remotes/origin/integration", "HEAD~1")
+    head = _git(lane, "rev-parse", "HEAD")
+    gitdir = lane / ".git"
+    worktrees = gitdir / "worktrees"
+    worktrees.mkdir(exist_ok=True)
+    worktrees.chmod(0o555)
+    made = []
+    real = check_tool._scratch_tree
+
+    def spy(*a, **k):
+        tree = real(*a, **k)
+        made.append(tree)
+        return tree
+    try:
+        import fichero_builder.check_tool as ct
+        ct._scratch_tree, orig = spy, ct._scratch_tree
+        try:
+            ok, said = queue.presubmit("ext", head)  # the presubmit alone: the land tree `done` makes after it is the lane's own repo's business
+            assert ok, said
+        finally:
+            ct._scratch_tree = orig
+    finally:
+        worktrees.chmod(0o755)
+    assert [r["state"] for r in journal.read() if r["event"] == "presubmit"] == ["green"]
+    assert made and not os.path.exists(made[0]), "the scratch clone is removed after the presubmit"
+    assert not list(worktrees.iterdir()), "nothing was written into the lane's own git dir"
