@@ -47,6 +47,7 @@ struct SidebarTrashRow: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .help(isExpanded.wrappedValue ? "Hide what is in the Trash" : "Show what is in the Trash")
                 .accessibilityLabel(isExpanded.wrappedValue ? "Hide what is in the Trash" : "Show what is in the Trash")
             }
         }

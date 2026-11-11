@@ -3,13 +3,12 @@ import SwiftUI
 // MARK: - Sidebar Bottom Toolbar
 
 /// The sidebar's bottom bar, laid out like Xcode's navigator (Daniel, 2026-11-11):
-/// [+ new item] [− remove] [filter field in a capsule] [new workflow]. Plain icons, no bar of
-/// glass around them; the filter is the one shaped control. Import is not here: it is the
-/// Import submenu of the + menu (`AddItemMenu`), so a second icon for it was a duplicate.
+/// [+ new item] [− remove] [filter field in a capsule]. Plain icons, no bar of glass around
+/// them; the filter is the one shaped control. Import and New Workflow are not here: both are
+/// entries of the + menu (`AddItemMenu`), so a second icon for either was a duplicate, and the
+/// workflow icon read as "run a workflow" when it created one. Every control here carries a
+/// tooltip.
 struct SidebarBottomToolbar: View {
-    // Feature manager to hide buttons
-    let featureManager = FeatureManager.shared
-
     /// One shared creation menu (#4121): the + dropdown renders AddItemMenu —
     /// the SAME registry/FocusedValue-driven list the Data menu uses — so the
     /// items, gating, and tier badges can never drift between surfaces again.
@@ -57,9 +56,6 @@ struct SidebarBottomToolbar: View {
             }
             filterField
                 .frame(minWidth: Self.filterFieldMinWidth)
-            if featureManager.isWorkflowsEnabled {
-                newWorkflowButton
-            }
         }
         .padding(.horizontal, 8)
         .frame(height: PaneFilterBar<EmptyView>.height)
@@ -91,6 +87,7 @@ struct SidebarBottomToolbar: View {
         .padding(.horizontal, 8)
         .frame(minHeight: metrics.touchTargetSide)
         .background(.fill.tertiary, in: Capsule())
+        .help("Filter the sidebar by name")
     }
 
     /// New item menu (dropdown) — ONE source of truth (#4121); Import is its submenu.
@@ -127,25 +124,5 @@ struct SidebarBottomToolbar: View {
         .disabled(!hasSelection)
         .help("Remove selected item")
         .accessibilityLabel("Remove selected item")
-    }
-
-    /// New workflow (only shown when the workflows feature is enabled).
-    ///
-    /// Export used to sit beside this as a permanently `.disabled(true)` button whose own `.help`
-    /// read "Export (not yet wired)" (#4100). A control that can never do anything is placeholder
-    /// chrome; File ▸ Export already exports, and #2309 tracks a SIDEBAR-scoped export handler.
-    private var newWorkflowButton: some View {
-        Button {
-            itemRegistry.createWorkflow?()
-        } label: {
-            Image(systemName: "bolt")
-                .font(iconFont)
-                .frame(minWidth: metrics.touchTargetSide, minHeight: metrics.touchTargetSide)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.borderless)
-        .disabled(!hasSelection)
-        .help("New Workflow")
-        .accessibilityLabel("New Workflow")
     }
 }

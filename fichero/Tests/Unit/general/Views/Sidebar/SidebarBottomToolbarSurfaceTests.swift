@@ -3,7 +3,7 @@ import SwiftUI
 import XCTest
 
 /// Source-surface test for the sidebar bottom toolbar's layout (2026-11-11): Xcode's navigator
-/// order, [+] [−] [filter capsule] [workflow], as plain icons. Mirrors
+/// order, [+] [−] [filter capsule], as plain icons. Mirrors
 /// `WorkflowImportExportSurfaceTests` (deterministic, token-free).
 final class SidebarBottomToolbarSurfaceTests: XCTestCase {
     private static func appSource(_ relativePath: String) throws -> String {
@@ -18,10 +18,10 @@ final class SidebarBottomToolbarSurfaceTests: XCTestCase {
         return String(source[start.upperBound..<end.lowerBound])
     }
 
-    func testBarOrderIsNewRemoveFilterWorkflow() throws {
+    func testBarOrderIsNewRemoveFilter() throws {
         let source = try Self.appSource("Views/Sidebar/Sections/SidebarBottomToolbar.swift")
         let body = try Self.bodyBlock(of: source)
-        let order = ["newItemMenu", "removeButton", "filterField", "newWorkflowButton"]
+        let order = ["newItemMenu", "removeButton", "filterField"]
         let positions = try order.map { try XCTUnwrap(body.range(of: $0), "\($0) missing from the bar").lowerBound }
         XCTAssertEqual(positions, positions.sorted(), "bar order must be \(order)")
     }
@@ -33,14 +33,32 @@ final class SidebarBottomToolbarSurfaceTests: XCTestCase {
         XCTAssertTrue(source.contains("Capsule()"), "the filter is the one shaped control")
     }
 
-    /// Import is the + menu's own submenu (`AddItemMenu`), so the bar has no second icon for it.
-    func testImportIsOnlyInThePlusMenu() throws {
+    /// Import and New Workflow are entries of the + menu (`AddItemMenu`), so the bar has no second
+    /// icon for either. The bolt read as "run a workflow" when it created one.
+    func testImportAndNewWorkflowAreOnlyInThePlusMenu() throws {
         let source = try Self.appSource("Views/Sidebar/Sections/SidebarBottomToolbar.swift")
         XCTAssertFalse(source.contains("square.and.arrow.down"))
         XCTAssertFalse(source.contains("Import Files"))
         XCTAssertFalse(source.contains("importFiles"))
+        XCTAssertFalse(source.contains("\"bolt\""), "no workflow icon in the bar")
+        XCTAssertFalse(source.contains("createWorkflow"), "the bar does not create workflows itself")
         let menu = try Self.appSource("App/Menus/AddItemMenu.swift")
         XCTAssertTrue(menu.contains("Menu(\"Import\")"), "the + menu must still offer Import")
+        XCTAssertTrue(menu.contains("\"New Workflow\""), "the + menu must still offer New Workflow")
+    }
+
+    /// Every icon-only control in the sidebar's bottom bar, and the Trash row's expand chevron,
+    /// names itself on hover.
+    func testEveryIconControlHasATooltip() throws {
+        let bar = try Self.appSource("Views/Sidebar/Sections/SidebarBottomToolbar.swift")
+        let labels = bar.components(separatedBy: ".accessibilityLabel(").count - 1
+        let helps = bar.components(separatedBy: ".help(").count - 1
+        XCTAssertGreaterThan(labels, 0, "the guard went blind")
+        XCTAssertGreaterThanOrEqual(helps, labels, "a labelled control in the bottom bar has no .help tooltip")
+
+        let trash = try Self.appSource("Views/Sidebar/Trash/SidebarTrashRow.swift")
+        XCTAssertTrue(trash.contains(".help(isExpanded.wrappedValue ? \"Hide what is in the Trash\""),
+                      "the Trash row's expand chevron needs its tooltip")
     }
 
     /// #4100: the sidebar shipped an Export button that was permanently
@@ -60,8 +78,8 @@ final class SidebarBottomToolbarSurfaceTests: XCTestCase {
 
         // The guard must not have gone blind on a moved or emptied file: the
         // verbs that DO belong here are still present.
-        XCTAssertTrue(code.contains("New Workflow"))
         XCTAssertTrue(code.contains("New Item"))
+        XCTAssertTrue(code.contains("Remove selected item"))
     }
 
     /// #4061: the sidebar filter field lives inside the shared bottom
