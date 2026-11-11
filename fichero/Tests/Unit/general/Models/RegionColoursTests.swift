@@ -101,9 +101,6 @@ struct RegionColoursTests {
         #expect(["a", "b", "c"].map { tones[$0] } == ["a", "b", "c"].map { renamedTones[$0] }, "region-less lines keep their colour")
         #expect(renamedTones["x-r1"]?.hue == RegionColours.hue(ofRegion: "x-r1"), "a renamed region takes the hash of its new id")
     }
-        let renamedTones = RegionColours.tones(of: renamed)
-        #expect(["a", "b", "c", "r1", "l1"].map { tones[$0] } == ["a", "b", "c", "r1", "l1"].map { renamedTones["x-" + $0] })
-    }
 
     @Test("a page of one-line regions (Kraken's) steps through the hues in order, not a scatter")
     func oneLineRegionsStep() {
