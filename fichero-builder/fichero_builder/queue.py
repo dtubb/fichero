@@ -826,6 +826,9 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
                 same = s.get("head") and s.get("red_head") == s.get("head")
                 journal.append("queue", lane=a["lane"], step=a["step"], state="retry", detail=(f"same head ({s['head'][:9]}) and same rules as the red at {s.get('red_at', '')[11:16]}: "
                                "it answers the same unless the base or the harness changed" if same else f"retried at {s.get('head', '')[:9] or 'no head'}"))
+            if action == "approve" and s.get("approve_kind") == "guard-data" and s.get("head") and lane is not None:
+                repo_ = s.get("land_tree") or lane["worktree"]  # bound to the files' content: a later head with the same blobs is approved by itself (alert 541)
+                s["approved_guard_blobs"] = {f: blob_at(repo_, s["head"], f) for f in re.findall(r"[\w./-]+\.json", said)}
             if action == "approve" and s.get("approve_kind") in ("needs-maintainer", "weakened-tests", "pinned-new") and (pid := patch_id(a.get("evidence", ""))):
                 at = re.search(r"\bat ([0-9a-f]{7,40})\b", a.get("what", ""))  # a refused chain stores no head on a worker lane's step: the alert names it
                 s["approved_diff"], s["approved_diff_head"] = pid, at.group(1) if at else s.get("head", "")  # bound to the diff's content, not the head
@@ -1388,6 +1391,27 @@ def carry_in_lane(step: dict, lane: dict, branch: str, auto) -> bool:
     return carry_approvals(step, step.get("land_tree") or lane["worktree"], f"origin/{branch}", auto)
 
 
+def blob_at(repo: str, head: str, path: str) -> str:
+    r = subprocess.run(["git", "-c", "safe.directory=*", "-C", repo, "rev-parse", "--verify", "-q", f"{head}:{path}"], capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def guard_data_for(step: dict | None, repo: str) -> tuple:
+    """The guard DATA files (.json under a check path) whose HEAD copy the pinned guards judge against: the approve's files at the head it
+    was given on, or (2026-11-11, alert 541) at any later head where each file's blob is the one approved (`approved_guard_blobs`): one
+    `auto` row. A file whose content changed: nothing, the manager's call again."""
+    if not step:
+        return ()
+    if _approved(step, "approve_guard_data"):
+        return tuple(f for f in step.get("approved_tests", ()) if f.endswith(".json"))
+    blobs, head = step.get("approved_guard_blobs") or {}, step.get("head", "")
+    if blobs and head and all(blob_at(repo, head, f) == b for f, b in blobs.items()):
+        journal.append("auto", rule="guard-data-same-content", head=head, file=", ".join(sorted(blobs)),
+                       detail=f"the guard data approved at {step.get('approved_head', '')[:9]} is unchanged at this head: HEAD's copies under the pinned guards")
+        return tuple(sorted(blobs))
+    return ()
+
+
 def _approved(step: dict | None, key: str) -> bool:
     """An approve counts only for the head it was given on (defect 2026-11-02: alert -36's approve_red excused a later head)."""
     # a worker lane's step has no head until a chain is green: its approve is recorded with head "" and holds while it still has none
@@ -1435,7 +1459,7 @@ def real_procs(root) -> Procs:
                                      maintainer=_approved(step, "maintainer") or bool(lane.get("maintainer")), approve_weakened=_approved(step, "approve_weakened"),
                                      external=lane.get("kind") == "external", approve_red=_approved(step, "approve_red") and (tuple(f for f in step.get("approved_tests") or () if f.endswith(".py")) or True),
                                      approve_pinned_new=_approved(step, "approve_pinned_new"),
-                                     guard_data=tuple(f for f in (step or {}).get("approved_tests", ()) if f.endswith(".json")) if _approved(step, "approve_guard_data") else (),
+                                     guard_data=guard_data_for(step, tree),
                                      reviewer_fast=reviewer if lane["id"] in opus_lanes else reviewer_fast, opus_paths=opus_paths,
                                      last_step=bool(step) and lane.get("kind") != "external" and bool(lane.get("steps")) and step is lane["steps"][-1])
 
@@ -1609,7 +1633,8 @@ def presubmit(lane_id: str, sha: str, pinned=None) -> tuple[bool, str]:
         finally:
             if tree:
                 subprocess.run(g + ["worktree", "remove", "--force", tree], capture_output=True)
-    ok, said = run()
+    step = lane["steps"][lane["cursor"]] if lane["cursor"] < len(lane["steps"]) else None
+    ok, said = run(guard_data_for({**step, "head": want} if step else None, str(wt)))  # a guard-data approval bound to the files' content holds here too
     if not ok and not said.startswith(("presubmit refused", "presubmit timed out")):
         # a batch that changes guard DATA (a known-gaps entry for a new route) is red under the pinned copy by design: run again with
         # head's copy of exactly those files, as the ladder's guard-data approve does. Green then = the data was the only cause: the done

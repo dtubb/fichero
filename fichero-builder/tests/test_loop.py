@@ -1356,3 +1356,32 @@ def test_a_pinned_diff_approved_once_is_approved_by_itself_at_a_later_head_with_
     assert steps()["1.1"]["state"] == "landed" and seen[:3] == [("1.1", False), ("1.1", True), ("1.1", True)], "the second refusal (same diff, another head) ran again as the maintainer by itself"
     assert [r["detail"] for r in journal.read() if r.get("state") == "auto-approve"] == ["the pinned diff is the one approved at abc1234ef (same patch-id): approved by itself"]
     assert len(_alerts()) == 2 and _alerts()[-1]["step"] == "1.2", "a different pinned diff is still the manager's call"
+
+
+def test_a_guard_data_approval_is_bound_to_the_known_gaps_files_content_and_holds_at_a_later_head_with_the_same_content(state, tmp_path):
+    """Alert 541 (2026-11-11): the guard-data approve was bound to the old head, so the next head asked again and the presubmit refused
+    'NOT READY' with the approval in hand. The approve records each named .json file's blob; a later head whose blobs are the same gets
+    HEAD's copies under the pinned guards by itself (an `auto` row); a changed file is the manager's call again."""
+    wt, g = _ext_repo(tmp_path, commits=1)
+    (wt / "scripts").mkdir()
+    (wt / "scripts" / "check_x_known_gaps.json").write_text('{"gaps": ["a"]}')
+    g(wt, "add", "."), g(wt, "commit", "-qm", "gaps")
+    head_a = g(wt, "rev-parse", "HEAD")
+    queue.add("ext", str(wt), "batch-1", str(state / "b1.1"), [7], kind="external")
+    assert cli.main(["done", "ext", head_a, "--state", str(state / "s")]) == 0
+    fake = Fake(chains={"batch-1": [{"ok": False, "kind": "guard-data", "approvals": ["approve_guard_data"], "evidence": "/s/gd.diff",
+                                     "why": f"guards red at {head_a[:9]} with guard data changed by the batch: scripts/check_x_known_gaps.json; approve lays HEAD's copy"}]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    assert cli.main(["alert", a["id"], "approve", "--state", str(state / "s")]) == 0
+    s = next(x for x in queue.load() if x["id"] == "ext")["steps"][0]
+    blob = g(wt, "rev-parse", f"{head_a}:scripts/check_x_known_gaps.json")
+    assert s["approved_guard_blobs"] == {"scripts/check_x_known_gaps.json": blob}
+    (wt / "other").write_text("o")
+    g(wt, "add", "."), g(wt, "commit", "-qm", "later, same gaps")
+    head_b = g(wt, "rev-parse", "HEAD")
+    assert queue.guard_data_for({**s, "head": head_b, "approved_head": head_a}, str(wt)) == ("scripts/check_x_known_gaps.json",), "same content at a later head: approved by itself"
+    assert [r["rule"] for r in journal.read() if r["event"] == "auto"] == ["guard-data-same-content"]
+    (wt / "scripts" / "check_x_known_gaps.json").write_text('{"gaps": ["a", "b"]}')
+    g(wt, "add", "."), g(wt, "commit", "-qm", "more gaps")
+    assert queue.guard_data_for({**s, "head": g(wt, "rev-parse", "HEAD"), "approved_head": head_a}, str(wt)) == (), "changed content: the manager's call again"

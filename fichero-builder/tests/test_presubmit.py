@@ -156,3 +156,25 @@ def test_the_scratch_trees_git_trusts_the_lanes_tree_whoever_owns_it(tmp_path):
     _git(tmp_path, "init", "-q")
     argv = check_tool._git_argv(tmp_path, ["worktree", "add", "x"])
     assert "safe.directory=*" in argv and argv.index("safe.directory=*") < argv.index("worktree")
+
+
+def test_the_presubmit_honours_a_guard_data_approval_bound_to_the_files_content(lane, tmp_path, capsys):
+    """Alert 541 (2026-11-11): `builder done` refused a head as NOT READY although the guard-data approval for its known-gaps files
+    existed (bound to the old head). With the approval bound to the files' blobs, the presubmit lays HEAD's copies under the pinned
+    guards from the start and is plainly green; without it the second run still only says what approve would be needed."""
+    pinned = tmp_path / "pinned"
+    _git(lane, "update-ref", "refs/remotes/origin/integration", "HEAD")  # the base the presubmit diffs the data files against
+    for d, text in ((pinned, "old"), (lane, "new")):
+        (d / "scripts" / "x_known_gaps.json").write_text(text)
+        (d / "scripts" / "lane_ready_check.sh").write_text("#!/bin/bash\ngrep -q new scripts/x_known_gaps.json && { echo READY; exit 0; }\necho 'FAIL: scripts/check_x.py: 1 new gap'; exit 1\n")
+        _git(d, "add", "."), _git(d, "commit", "-qm", "gaps")
+    head = _git(lane, "rev-parse", "HEAD")
+    assert cli.main(["done", "ext", head, "--state", str(journal.STATE)]) == 0
+    assert [r["state"] for r in journal.read() if r["event"] == "presubmit"] == ["guard-data"], "no approval: green only under head's data, said so"
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="queued", approved_guard_blobs={"scripts/x_known_gaps.json": _git(lane, "rev-parse", f"{head}:scripts/x_known_gaps.json")})
+    queue.save(lanes)
+    (lane / "z").write_text("z")
+    _git(lane, "add", "."), _git(lane, "commit", "-qm", "later")
+    assert cli.main(["done", "ext", _git(lane, "rev-parse", "HEAD"), "--state", str(journal.STATE)]) == 0
+    assert [r["state"] for r in journal.read() if r["event"] == "presubmit"][-1] == "green", "the approval holds at the later head: plainly green"
