@@ -481,7 +481,6 @@ final class DocumentStore {
         // caused by main-thread work apart from one caused by the engine —
         // the distinction both of those issues asked for and could not make.
         InteractionProfile.begin(.contentDataLoad, detail: document.id)
-        defer { InteractionProfile.end(.contentDataLoad, detail: document.id) }
 
         let libraryPath = self.api.currentLibraryPath ?? "nil"
         logger.info("loadChildren called for document: \(document.id), library path: \(libraryPath)")
@@ -499,10 +498,14 @@ final class DocumentStore {
                     )
                 }
             )
+            InteractionProfile.lap(.contentDataLoad, "fetch")  // engine + transport + decode
             self.childrenCache[document.id] = children
             self.currentDocuments = children
+            InteractionProfile.lap(.contentDataLoad, "splice")
+            InteractionProfile.endAfterNextRender(.contentDataLoad, detail: "\(document.id), \(children.count) rows")
             logger.info("loadChildren succeeded, got \(children.count) children")
         } catch {
+            InteractionProfile.end(.contentDataLoad, detail: "\(document.id), \(error.isCancellationError ? "cancelled" : "failed")")
             // Superseded/cancelled load is not a failure — keep current documents
             // and skip the error state, but still clear `isLoadingChildren` below.
             if !error.isCancellationError {
