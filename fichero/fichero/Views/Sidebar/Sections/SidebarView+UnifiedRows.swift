@@ -274,6 +274,7 @@ extension SidebarView {
                         command: NSEvent.modifierFlags.contains(.command)
                     )
                 )
+                logFallbackTap(on: item, proposal: proposal)
                 guard proposal != selectionState.selectedDestinations else { return }
                 applySidebarSelectionProposal(proposal)
             })
@@ -281,6 +282,14 @@ extension SidebarView {
         row
         #endif
     }
+
+    #if os(macOS)
+    /// #6534: child rows sit inside an expanded row's tap gesture; this says whose handler fired.
+    private func logFallbackTap(on item: SidebarItem, proposal: Set<SidebarDestination>) {
+        let ids = proposal.map(\.serializedID).sorted().joined(separator: ",")
+        sidebarRowLogger.debug("fallback tap on \(item.id, privacy: .public) proposal=\(ids, privacy: .public)")
+    }
+    #endif
 
     /// Cross-hierarchy insert: reparent dragged docs to library root
     /// and drop them at position `offset` in the root's children.
