@@ -207,7 +207,9 @@ extension ContentView {
 
                     // Chat is a ROW pane (Daniel 2026-08-12: "there is no button
                     // to turn it on and off") — fourth member of the pane group,
-                    // same grammar as preview/reading.
+                    // same grammar as preview/reading. On the Mac it moved to the
+                    // far-left `sidebarButtons` pair (2026-11-11).
+                    #if !os(macOS)
                     Button {
                         setChatPaneVisible(!showChatPane)
                     } label: {
@@ -216,6 +218,7 @@ extension ContentView {
                             .toolbarSurfaceLit(showChatPane)
                     }
                     .help(showChatPane ? "Hide the Chat" : "Show the Chat")
+                    #endif
                 }
             }
 
@@ -250,6 +253,45 @@ extension ContentView {
         // (#4407): the controls now live in the library's own mini toolbar, so
         // they follow their pane — including in the compact flow — and there is
         // nothing left to except. See `LibraryView+MiniToolbar`.
+    }
+
+    // MARK: Sidebar buttons
+
+    /// The two far-left buttons, as in Xcode (Daniel, 2026-11-11). Attached to the SIDEBAR column's
+    /// toolbar, which is what puts them beside the window controls rather than in the detail
+    /// column beside Back/Forward. They replace the system sidebar toggle and the sparkles toggle.
+    #if os(macOS)
+    @ToolbarContentBuilder
+    var sidebarToolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .navigation) {
+            sidebarButtons
+        }
+    }
+    #endif
+
+    /// Folder tree and chat conversations, side by side. Each lights while its part is up; the
+    /// rules live in `SidebarColumnState`.
+    var sidebarButtons: some View {
+        let state = sidebarColumnState
+        return HStack(spacing: 2) {
+            Button {
+                applySidebarColumnState(state.togglingTree())
+            } label: {
+                Label(state.treeLit ? "Hide Sidebar" : "Show Sidebar", systemImage: "list.bullet")
+                    .labelStyle(.iconOnly)
+                    .toolbarSurfaceLit(state.treeLit)
+            }
+            .help(state.treeLit ? "Hide the sidebar" : "Show the sidebar")
+            Button {
+                applySidebarColumnState(state.togglingChat())
+            } label: {
+                Label(state.chatLit ? "Hide Chat" : "Show Chat", systemImage: ToolbarSymbols.chatPane)
+                    .labelStyle(.iconOnly)
+                    .toolbarSurfaceLit(state.chatLit)
+            }
+            .help(state.chatLit ? "Hide the Chat" : "Show the Chat")
+        }
+        .padding(.horizontal, 5)
     }
 
     // MARK: Library pane toggle (#4288)

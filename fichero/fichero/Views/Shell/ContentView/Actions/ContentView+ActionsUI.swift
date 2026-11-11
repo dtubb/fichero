@@ -16,6 +16,20 @@ extension ContentView {
         }
     }
 
+    /// The left column as the two far-left toolbar buttons see it.
+    var sidebarColumnState: SidebarColumnState {
+        SidebarColumnState(columnShown: showSidebar, treeHidden: windowState.sidebarTreeHidden, chatOn: showChatPane)
+    }
+
+    func applySidebarColumnState(_ state: SidebarColumnState) {
+        withAnimation(FrameAnimation.snappy) {
+            windowState.sidebarTreeHidden = state.treeHidden
+            if state.chatOn != showChatPane { setChatPaneVisible(state.chatOn) }
+            showSidebar = state.columnShown
+            updateColumnVisibility()
+        }
+    }
+
     func handleWindowWidthChange(_ newWidth: Double) {
         guard newWidth > 0 else { return }
         // Views audit B3: a divider drag changes pane geometry every frame;
