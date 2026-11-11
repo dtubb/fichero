@@ -82,8 +82,9 @@ extension ReadingOrderList {
                 RegionColours.tones(of: segments))
     }
 
-    /// A row of the level shown: flat, or
-    /// with its swatch. Rows are keyed by segment id, so a segment event redraws its row, never the list.
+    /// A row of the level shown: flat, or -- nesting -- holding its children (`SegmentsPane.outline`),
+    /// each with its swatch. Rows are keyed by segment id, so a segment event redraws its row, never
+    /// the list.
     @ViewBuilder
     func entryRow(
         _ segmentId: String, at index: Int,

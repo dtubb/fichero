@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A document's reading order as a list you can rearrange
+/// A document's reading order as a list you can rearrange -- by drag, and by ⌥⌘↑ / ⌥⌘↓ and
 /// ⌥⌘⇞ / ⌥⌘⇟ (to the start / end) on the selected line. ONE list view for every place that
 /// lists the order (ruled 2026-09-27, Q5): the Inspector's Source section and the Reader both
 /// mount this, and every move goes through `ReadingOrderStore`, so a drag and a key, in either
@@ -8,7 +8,7 @@ import SwiftUI
 struct ReadingOrderList: View {
     let documentId: String
     /// List this segment's children (a block's lines, a line's words) instead of the page's top level
-    ///
+    /// -- the Inspector's Order section at the inspected level.
     var parentSegmentId: String?
     /// Show nothing at all for an empty level (ruled: a section with nothing to say is hidden).
     var hidesWhenEmpty = false
@@ -271,7 +271,7 @@ struct ReadingOrderList: View {
     }
 
     /// A double-click on a row (Return renames): reveal it in the linked Preview, selected, scrolled and
-    /// zoomed to (#5424)
+    /// zoomed to (#5424) -- the one reveal the Reader's line click makes too.
     private func reveal(_ ids: Set<String>) {
         guard let segmentId = ids.first, let windowState, let segmentService else { return }
         onSelected?(windowState.revealSegments(
@@ -372,7 +372,8 @@ extension ReadingOrderList {
 
 /// One row of the nested Segments list (hierarchy A, #5426, `source.editor.hierarchy.segments-list-nests`): the
 /// swatch of the colour its box is drawn in (`SelectionStyle.regionSwatch`, the one colour path), its words, and
-/// its children disclosed under it, indented
+/// its children disclosed under it, indented -- a region open on its lines, a line closed on its
+/// words.
 struct SegmentOutlineRow: View {
     let node: SegmentsPane.OutlineRow
     let index: Int
@@ -559,7 +560,7 @@ extension ReadingOrderList {
         return true
     }
 
-    /// A row: its words, and
+    /// A row: its words, and -- in the Segments pane -- a control that opens it to its children.
     func row(_ segmentId: String, at index: Int) -> some View {
         rowContent(segmentId, at: index)
     }
