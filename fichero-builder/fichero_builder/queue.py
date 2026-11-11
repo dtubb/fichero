@@ -1435,9 +1435,12 @@ def run_alive(j, feed: str) -> bool:
     return r.returncode == 0
 
 
-def worker_windows(j, name: str) -> list[str]:
-    """#6496: the ids of the windows named `name` on the workers' server (a name is ambiguous to tmux once there are two)."""
-    return [i for i, _, n in (ln.partition("\t") for ln in tmux_as_worker(j, "list-windows", "-a", "-F", "#{window_id}\t#{window_name}").splitlines()) if n == name]
+def worker_windows(j, name: str, with_command: bool = False) -> list:
+    """#6496: the ids of the windows named `name` on the workers' server (a name is ambiguous to tmux once there are two);
+    `with_command`: (id, the pane's current command) pairs, so an idle shell can be told from a live session (alert 540)."""
+    rows = [ln.split("\t") for ln in tmux_as_worker(j, "list-windows", "-a", "-F", "#{window_id}\t#{window_name}\t#{pane_current_command}").splitlines()]
+    hits = [(r[0], (r[2] if len(r) > 2 else "")) for r in rows if len(r) > 1 and r[1] == name]
+    return hits if with_command else [i for i, _ in hits]
 
 
 def real_procs(root) -> Procs:
@@ -1468,8 +1471,12 @@ def real_procs(root) -> Procs:
         a.pinned = work.ensure_pinned(str(root), step["brief"], land_tool.resolve_branch(repo, branch))  # #6466: the worker imports fichero_builder from here
         a.root = a.pinned  # #6466: the worker reads harness.toml from --root; the owner's checkout is unreadable to it, the pinned copy is not
         j = work._jail(a)
-        if wins := worker_windows(j, lane["id"]):  # #6496: a second session of one name is unreachable by name; the old one is ended first
-            raise RuntimeError(f"a tmux window named {lane['id']} is still up ({', '.join(wins)}): `builder queue stop {lane['id']}` ends it, then retry")
+        for wid, cmd in worker_windows(j, lane["id"], with_command=True):  # #6496: a second session of one name is unreachable by name
+            if cmd.lstrip("-") in SHELLS or not cmd:  # alert 540: an idle window (a shell, no session) is closed here, never a person's `queue stop`
+                tmux_as_worker(j, "kill-window", "-t", wid)
+                journal.append("queue", lane=lane["id"], step=step["step"], state="window-closed", detail=f"an idle tmux window named {lane['id']} ({wid}, {cmd or 'no command'}) was closed before the start")
+            else:
+                raise RuntimeError(f"a tmux window named {lane['id']} holds a live session ({wid}, {cmd}): `builder queue stop {lane['id']}` ends it, then retry")
         if lane.get("fresh") and not Path(a.worktree).exists() and step.get("head"):  # a retried batch: its head (in the engine repo) travels as a bundle
             bundle, ref = work.shared_state(a) / f"base-{lane['id']}.bundle", f"base-lane-{lane['id']}"  # the ref ensure_worktree fetches
             r = work._git(repo, "update-ref", f"refs/heads/{ref}", step["head"])
