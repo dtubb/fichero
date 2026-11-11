@@ -4,6 +4,12 @@ import SwiftUI
 /// Structured logger for sidebar action operations
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "SidebarActions")
 
+/// A duration in milliseconds, for the delete timing lines (#6537).
+private func elapsedMs(_ duration: Duration) -> Double {
+    let parts = duration.components
+    return Double(parts.seconds) * 1000 + Double(parts.attoseconds) / 1e15
+}
+
 /// Raised when a delete reaches the action layer for a type that cannot be
 /// deleted (#4454). Surfaced in the sidebar's Delete Failed alert.
 enum SidebarDeleteError: LocalizedError {
@@ -232,10 +238,20 @@ extension SidebarView {
         // #4805: read the neighbours BEFORE the row leaves the tree.
         let next = selectionAfterDelete(
             deleted: item.id, siblings: siblingIds(of: item, in: library), parent: parentId(of: item))
+        let clock = ContinuousClock()
+        let started = clock.now
         do {
             try await performDeleteAction(item.itemType, library: library)
+            let acted = clock.now
             logger.info("Delete successful")
             rebuildCaches(for: libraryId)
+            // #6537: where a delete spends its time, so a reload that never finishes shows which step stopped.
+            let actionMs = elapsedMs(acted - started)
+            let rebuildMs = elapsedMs(clock.now - acted)
+            logger.info("""
+                ⏱ delete action+refresh \(actionMs, format: .fixed(precision: 1))ms \
+                rebuildCaches \(rebuildMs, format: .fixed(precision: 1))ms
+                """)
             selectedItemId = selectedItemId == item.id ? next : nil
             deleteState.inheritedSelectionId = selectedItemId  // only a place to look until the next click (#6175)
         } catch {
@@ -285,12 +301,20 @@ extension SidebarView {
     /// through the engine, which writes the inverse row, so Redo moves it to the Trash again. The old
     /// closure called `restoreDocument` behind the engine's back and had no redo.
     private func deleteDocumentItem(_ doc: Document, library: LibraryManager.LibraryReference) async throws {
+        let clock = ContinuousClock()
+        let started = clock.now
+        logger.info("⏱ delete: engine call begins")
         try await UndoableChange.invoke(
             "document.delete", params: DocumentDeleteActionParams(docId: doc.id), named: "Move to Trash",
             service: library.actionsService, steps: windowState.steps,
             afterEach: { await library.documentStore.refresh() }
         )
+        let invoked = clock.now
+        let invokeMs = elapsedMs(invoked - started)
+        logger.info("⏱ delete: engine call + its refresh took \(invokeMs, format: .fixed(precision: 1))ms")
         await library.documentStore.refresh()
+        let refreshMs = elapsedMs(clock.now - invoked)
+        logger.info("⏱ delete: second refresh took \(refreshMs, format: .fixed(precision: 1))ms")
     }
 
     private func deleteSimpleItem(

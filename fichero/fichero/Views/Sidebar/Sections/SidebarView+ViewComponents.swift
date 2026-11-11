@@ -1,4 +1,7 @@
+import OSLog
 import SwiftUI
+
+private let selectionLogger = Logger(subsystem: "app.fichero.fichero", category: "SidebarSelection")
 
 // MARK: - View Components
 
@@ -196,6 +199,11 @@ extension SidebarView {
     /// interval, primary derivation. Extracted from the binding setter so the
     /// fallback cannot drift from the native path.
     func applySidebarSelectionProposal(_ proposed: Set<SidebarDestination>) {
+        // Every selection proposal, for "why did this row get selected" (#6528 follow-up): debug level, so it costs
+        // nothing unless streamed (`log stream --level debug --predicate 'category == "SidebarSelection"'`).
+        let proposedIds = proposed.map(\.serializedID).sorted().joined(separator: ",")
+        let currentIds = selectionState.selectedDestinations.map(\.serializedID).sorted().joined(separator: ",")
+        selectionLogger.debug("proposed=\(proposedIds, privacy: .public) current=\(currentIds, privacy: .public)")
             // A click that triggers the lazy child load rebuilds the tree,
             // and while the clicked row is momentarily absent from the
             // rendered rows the List writes the selection back WITHOUT it
