@@ -7,18 +7,6 @@ import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ChainService")
 
-/// When a chains load that was cancelled is asked again (`models.chains.load-retries-a-cancelled-request`, #6479).
-enum ChainLoadRetry {
-    static let attempts = 3
-
-    /// Seconds to wait before asking again, or nil to stop: only a request the engine's first-launch adoption
-    /// cancelled is retried (never a cancelled task, never another error), at most `attempts` times.
-    static func wait(afterAttempt attempt: Int, requestCancelled: Bool, taskCancelled: Bool) -> Double? {
-        guard requestCancelled, !taskCancelled, attempt <= attempts else { return nil }
-        return 0.5 * Double(attempt)
-    }
-}
-
 /// Service for managing workflow chains via the backend API.
 /// Observers should use Combine to subscribe to $chains instead of NotificationCenter.
 ///
@@ -66,7 +54,6 @@ class ChainService {
     func loadChains() async {
         isLoading = true
         error = nil
-
         // A load the engine's first-launch adoption cancels is asked again (#6479); a cancelled TASK stops, as before.
         var attempt = 0
         while true {
@@ -76,13 +63,12 @@ class ChainService {
                 break
             } catch {
                 attempt += 1
-                if let wait = ChainLoadRetry.wait(
-                    afterAttempt: attempt, requestCancelled: error.isCancellationError, taskCancelled: Task.isCancelled
-                ) {
+                let cancelled = error.isCancellationError
+                if let wait = ChainLoadRetry.wait(afterAttempt: attempt, requestCancelled: cancelled, taskCancelled: Task.isCancelled) {
                     try? await Task.sleep(for: .seconds(wait))
                     continue
                 }
-                if !error.isCancellationError {
+                if !cancelled {
                     self.error = error.localizedDescription
                     logger.error("Failed to load chains: \(error.localizedDescription)")
                 }
