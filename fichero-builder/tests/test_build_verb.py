@@ -22,7 +22,7 @@ def root(tmp_path, monkeypatch):
     (r / "fichero" / "Configs" / "Version.xcconfig").write_text("MARKETING_VERSION = 2026.11.1\n")
     (r / "harness.toml").write_text("[check]\n")
     script = r / "scripts" / "build-release-dmg.sh"
-    script.write_text(f"""#!{sys.executable}
+    script.write_text(f"""#!/usr/bin/env python3
 import json, os, sys
 keep = ("FICHERO_RELEASE_TIER", "FICHERO_RELEASE_VERSION", "FICHERO_DMG_PATH", "PATH")
 open(os.environ["FICHERO_DMG_PATH"] + ".seen", "w").write(json.dumps({{"argv": sys.argv[1:], "env": {{k: os.environ.get(k) for k in keep}}, "cwd": os.getcwd()}}))
@@ -119,7 +119,7 @@ def test_the_heavy_lock_is_held_only_for_the_app_build_and_packaging_runs_outsid
         log.open("a").write("lock-off\n")
     monkeypatch.setattr(journal, "heavy", heavy)
     script = root / "scripts" / "build-release-dmg.sh"
-    script.write_text(f"""#!{sys.executable}
+    script.write_text(f"""#!/usr/bin/env python3
 import os, sys
 open("{log}", "a").write(f"{{sys.argv[1:]}} stop={{os.environ.get('FICHERO_DMG_STOP_AFTER_APP_BUILD')}}\\n")
 if "--skip-app-build" in sys.argv:

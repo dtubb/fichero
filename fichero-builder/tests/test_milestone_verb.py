@@ -169,7 +169,7 @@ def test_the_where_list_uses_the_code_map_when_the_repo_is_indexed_and_drops_wha
     (repo / "tests_here").mkdir()
     (repo / "tests_here" / "test_x.py").write_text("def test_x(): pass\n")
     server = tmp_path / "server"
-    server.write_text(f"""#!{sys.executable}
+    server.write_text(f"""#!/usr/bin/env python3
 import json, sys
 for line in sys.stdin:
     m = json.loads(line)

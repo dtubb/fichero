@@ -15,7 +15,7 @@ def gh(tmp_path, monkeypatch):
     monkeypatch.setattr(journal, "STATE", tmp_path / "s")
     log = tmp_path / "gh.log"
     g = tmp_path / "gh"
-    g.write_text(f"#!{sys.executable}\nimport json, sys\nopen({str(log)!r}, 'a').write(json.dumps(sys.argv[1:]) + chr(10))\n")
+    g.write_text(f"#!/usr/bin/env python3\nimport json, sys\nopen({str(log)!r}, 'a').write(json.dumps(sys.argv[1:]) + chr(10))\n")
     g.chmod(0o755)
     return g, log
 
