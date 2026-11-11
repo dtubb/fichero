@@ -3,6 +3,7 @@ review -> landed --push -> the next step; a red goes back to the worker; every t
 from __future__ import annotations
 
 import os
+import time
 
 import pytest
 
@@ -797,8 +798,17 @@ def test_a_draining_loop_starts_no_new_chain_so_it_can_re_exec_between_chains(st
     try:
         queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
         assert set(chains) == {"pool"} and steps()["1.1"]["state"] != "landed", "no chain was submitted"
+        held = [r for r in journal.read() if r["event"] == "queue" and r.get("state") == "drain-held"]
+        assert len(held) == 1 and held[0]["lane"] == "ext", "the wait is one row (2026-11-11: ux's retry and done sat 5 h with no row)"
+        queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
+        assert len([r for r in journal.read() if r.get("state") == "drain-held"]) == 1, "one row per head, not per tick"
+        queue.DRAIN_SINCE[0] = time.time() - queue.DRAIN_MAX_S - 1  # a live worker session held the re-exec off past the cap
+        queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains=chains)
+        assert "ext" in chains, "past the cap the chain runs on the loop's current code"
+        assert [r["state"] for r in journal.read() if r.get("state") in ("drain-held", "drain-expired")] == ["drain-held", "drain-expired"]
     finally:
         queue.DRAIN[0] = False
+        queue.DRAIN_SINCE[0] = 0.0
         chains["pool"].shutdown()
 
 

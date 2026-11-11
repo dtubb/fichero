@@ -412,7 +412,16 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         r = chain()
     elif fut is None:
         if DRAIN[0]:  # new code waits: no new chain starts, so the loop can re-exec between chains
-            return True
+            DRAIN_SINCE[0] = DRAIN_SINCE[0] or time.time()
+            if time.time() - DRAIN_SINCE[0] < DRAIN_MAX_S:
+                if lane.get("drain_head") != s.get("head"):  # one row per head: the wait is visible (2026-11-11: ux's retry and done sat 5 h with no row)
+                    lane["drain_head"] = s.get("head")
+                    journal.append("queue", lane=lane["id"], step=s["step"], state="drain-held",
+                                   detail=f"new code on disk: the chain waits for the loop's re-exec (at most {DRAIN_MAX_S // 60} min; a live worker session holds it off)")
+                    store(lane, expect=(s["step"], s.get("head", "")))
+                return True
+            # ponytail: past the cap the chain runs on this process's code, as every chain did before the drain existed; the re-exec comes after it
+            journal.append("queue", lane=lane["id"], step=s["step"], state="drain-expired", detail=f"waited {DRAIN_MAX_S // 60} min for a re-exec a live session holds off: the chain runs on the loop's current code")
         if (hold := journal.manual_hold()) and touches_build(lane, s, getattr(procs, "root", None)):
             # owner 2026-11-06: a held Xcode build rung sat on the only chain worker for an hour; a batch that would build waits HERE,
             # holding no worker, one `held` row per head, and starts by itself once the person's hold ends
@@ -1116,6 +1125,8 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
 
 
 DRAIN: list = [False]
+DRAIN_MAX_S = 15 * 60  # 2026-11-11: a live worker session held the re-exec off 5 h; every other lane's check waited, silently, for a hand restart
+DRAIN_SINCE: list = [0.0]
 BUILDS: list = []  # the post-landing dev builds' threads: a re-exec waits for them
 
 
@@ -1170,6 +1181,8 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
         # new code (soak 2026-11-02: a hand restart is a defect): between ticks, nothing in flight, the loop execs itself, same args.
         # ponytail: a live worker session holds the restart off (a restart would lose its handle); it runs at the next quiet tick
         DRAIN[0] = heartbeat and code_mark(root) != mark  # serial chains never left a gap: stop starting them until it re-execs
+        if not DRAIN[0]:
+            DRAIN_SINCE[0] = 0.0
         if heartbeat and code_mark(root) != mark and not handles and not any(not f.done() for k, f in (chains or {}).items() if k != "pool") and not any(t.is_alive() for t in BUILDS):
             journal.append("loop", state="restarted", detail="loop restarted for new code", pid=os.getpid(), argv=sys.argv[1:])
             reexec()
