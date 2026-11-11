@@ -211,11 +211,23 @@ extension SidebarItemRow {
             // Contiguous-selection merging (2026-08-09): a block selection
             // reads as ONE squircle — merged edges square off.
             let childSelected = selectedDestinations.contains(child.destination)
-            let mergeAbove = childSelected && index > 0
-                && selectedDestinations.contains(children[index - 1].destination)
-            let mergeBelow = childSelected && index + 1 < children.count
-                && selectedDestinations.contains(children[index + 1].destination)
-            skippableChildRow(child, mergeAbove: mergeAbove, mergeBelow: mergeBelow)
+            SidebarItemRow(
+                item: child,
+                lookupItem: lookupItem,
+                expandedItems: $expandedItems,
+                selectedItemId: $selectedItemId,
+                selectedDestinations: selectedDestinations,
+                renameState: renameState,
+                deleteState: deleteState,
+                sidebarState: sidebarState,
+                libraryManager: libraryManager,
+                onOpenChatWithCurrentScope: onOpenChatWithCurrentScope,
+                onSelectionProposal: onSelectionProposal,
+                mergeSelectionAbove: childSelected && index > 0
+                    && selectedDestinations.contains(children[index - 1].destination),
+                mergeSelectionBelow: childSelected && index + 1 < children.count
+                    && selectedDestinations.contains(children[index + 1].destination)
+            )
             .contentShape(Rectangle())
             // `.draggable` BEFORE `.tag` so NSTableView's row-drag
             // mechanism arms the Transferable at the row level before
