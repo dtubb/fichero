@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 import os
 import stat
-import sys
 import types
 from pathlib import Path
 
@@ -35,6 +34,8 @@ ISSUES = [{"number": 7, "title": "m1 Step 1.1: the base", "body": ""},
           {"number": 8, "title": "on top", "body": "Step: 1.2\nmore"},
           {"number": 9, "title": "a stray bug", "body": "no step here"}]
 
+
+SHEBANG = "/usr/bin/env python3"  # not sys.executable: the M4 gate path has a space, which breaks a shebang
 
 def test_steps_come_from_the_guards_parser_and_issues_name_their_step(tmp_path):
     (tmp_path / "spec.md").write_text(SPEC)
@@ -169,7 +170,7 @@ def test_the_where_list_uses_the_code_map_when_the_repo_is_indexed_and_drops_wha
     (repo / "tests_here").mkdir()
     (repo / "tests_here" / "test_x.py").write_text("def test_x(): pass\n")
     server = tmp_path / "server"
-    server.write_text(f"""#!/usr/bin/env python3
+    server.write_text(f"""#!{SHEBANG}
 import json, sys
 for line in sys.stdin:
     m = json.loads(line)
