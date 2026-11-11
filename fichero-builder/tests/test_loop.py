@@ -289,6 +289,16 @@ def test_stop_tells_the_worker_closes_its_session_after_the_grace_and_resume_sta
     assert cli.main(["queue", "stop", "--lane", "nope", "--state", str(state / "s")]) == 1
 
 
+def test_stop_on_an_idle_lane_closes_its_window_too(state):
+    """2026-11-11: `queue stop` on a lane with no live handle (idle between steps, or a loop restarted since) left its tmux window
+    open; the owner killed it by hand as the jail user. The grace path closes the lane's session whether the loop holds a handle."""
+    lane(state)
+    fake = Fake()
+    assert cli.main(["queue", "stop", "--lane", "m1", "--grace", "0", "--state", str(state / "s")]) == 0
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert fake.stops == ["m1"] and "stop_at" not in queue.load()[0] and fake.starts == []
+
+
 def test_weakened_tests_are_an_alert_with_the_test_diff_and_approve_reruns_recording_the_approval(state):
     """Manager 2026-11-02: weakened tests had no approve path. Now: the same alert as needs-maintainer (evidence the test
     files' diff, actions approve|send-back); approve re-runs the step's check with approve_weakened, not --maintainer."""

@@ -266,8 +266,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
 
     h = handles.get(lane["id"])
     if lane.get("stop_at") and (h is None or not procs.alive(h) or time.time() >= lane["stop_at"]):  # `queue stop`: the grace is over
+        procs.stop(lane)  # with or without a handle: an idle lane's window (or one a restarted loop lost) is closed too (2026-11-11)
         if h is not None:
-            procs.stop(lane)
             del handles[lane["id"]]
         lane["feed"] = ""
         lane.pop("stop_at")
