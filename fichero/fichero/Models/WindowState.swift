@@ -107,6 +107,9 @@ class WindowState {
     var readerVersionsAllOpen = false
     var readerVersionsStamp = 0
 
+    /// The folder tree is hidden while the chat stands alone in the left column (`SidebarColumnState`).
+    var sidebarTreeHidden = false
+
     /// The Preview's mode (`PreviewWorkMode`): Read, Segments or Image. Segments IS `isEditingSegments`; each is set from
     /// the other, so the head's three-way control and the older Edit Segments entries never disagree.
     var previewMode: PreviewWorkMode = .read {

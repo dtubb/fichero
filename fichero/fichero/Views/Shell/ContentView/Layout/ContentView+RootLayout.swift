@@ -307,12 +307,8 @@ extension ContentView {
         // of the content/library list and clips its leading edge. `.balanced`
         // keeps the sidebar as a real column beside the content, fully visible.
         .navigationSplitViewStyle(.balanced)
-        // #4970: the sidebar toggle is the SYSTEM one. A hand-placed item at
-        // `.navigation` shared a toolbar section with Back/Forward and drew as
-        // one capsule over the content. ponytail: NavigationSplitView already
-        // places its toggle correctly in both sidebar states. If it falls into
-        // the overflow chevron under pressure again, file that against the
-        // system toggle; do not re-add a hand-placed one.
+        // The sidebar toggle is the system one on iOS. On the Mac the far-left
+        // pair replaces it (see `sidebarContent`).
         .navigationTitle(toolbarTitle)
         // No proxy icon here (removed 2026-10-11): a modifier that is present for a document and absent without one
         // changes the whole split view's identity when the window's project or item changes, so SwiftUI tore down
