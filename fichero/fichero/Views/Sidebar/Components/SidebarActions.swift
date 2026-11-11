@@ -207,6 +207,8 @@ extension SidebarView {
             logger.error("Could not find library for deletion")
             return
         }
+        let clock = ContinuousClock()
+        let started = clock.now
         do {
             try await UndoableChange.batch(
                 documents,
@@ -223,8 +225,15 @@ extension SidebarView {
             logger.error("Failed to delete: \(error.localizedDescription)")
             deleteState.showError(message: error.localizedDescription)
         }
+        // #6537: a begin line before each step that can stall; a begin with no "took" names the step that did.
+        let batchMs = elapsedMs(clock.now - started)
+        logger.info("⏱ delete batch: \(documents.count) item(s) took \(batchMs, format: .fixed(precision: 1))ms")
         rebuildCaches(for: libraryId)  // a batch that failed part-way has already moved some rows
+        logger.info("⏱ delete batch: final refresh begins")
+        let refreshStarted = clock.now
         await library.documentStore.refresh()
+        let refreshMs = elapsedMs(clock.now - refreshStarted)
+        logger.info("⏱ delete batch: final refresh took \(refreshMs, format: .fixed(precision: 1))ms")
     }
 
     // Perform the actual deletion
@@ -312,6 +321,7 @@ extension SidebarView {
         let invoked = clock.now
         let invokeMs = elapsedMs(invoked - started)
         logger.info("⏱ delete: engine call + its refresh took \(invokeMs, format: .fixed(precision: 1))ms")
+        logger.info("⏱ delete: second refresh begins")
         await library.documentStore.refresh()
         let refreshMs = elapsedMs(clock.now - invoked)
         logger.info("⏱ delete: second refresh took \(refreshMs, format: .fixed(precision: 1))ms")
