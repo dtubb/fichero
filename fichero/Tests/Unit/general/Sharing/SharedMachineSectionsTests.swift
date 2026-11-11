@@ -3,20 +3,21 @@ import Testing
 
 @testable import Fichero
 
-/// The Mac sidebar lists every paired Mac (`sharing.guest.machines-group`, #6459).
+/// The Mac sidebar lists every paired Mac (`sharing.guest.machines-group`, #6459), and nothing until one is paired
+/// (`sharing.guest.no-section-until-paired`).
 @MainActor
 struct SharedMachineSectionsTests {
     /// A paired Mac that shared nothing yet is still listed, with its own sentence, and is not "no Macs yet".
     @Test func aPairedMacThatSharedNothingIsListedWithItsOwnSentence() {
         let machines = [PairedMachine(id: "https://a:8765", name: "a", libraries: [])]
-        #expect(!SharedMachineSections.showsHowToPair(machines))
         let sections = SharedMachineSections.sections(machines)
         #expect(sections.map(\.machine.name) == ["a"])
         #expect(sections.first?.rows == [.nothingShared("a hasn't shared any project yet")])
     }
 
-    @Test func noPairedMacShowsHowToPair() {
-        #expect(SharedMachineSections.showsHowToPair([]))
+    /// No paired Mac, no section: the sidebar draws no "Shared Libraries" heading and no how-to-pair sentence.
+    @Test func noPairedMacMeansNoSections() {
+        #expect(SharedMachineSections.sections([]).isEmpty)
     }
 
     @Test func eachPairedMacKeepsItsOwnLibrariesInOrder() {
