@@ -61,7 +61,4 @@ enum SharedMachineSections {
                 ? [.nothingShared("\(machine.name) hasn't shared any project yet")] : machine.libraries.map(Row.library))
         }
     }
-
-    /// The how-to-pair sentence is for a device with no paired Mac at all.
-    static func showsHowToPair(_ machines: [PairedMachine]) -> Bool { machines.isEmpty }
 }

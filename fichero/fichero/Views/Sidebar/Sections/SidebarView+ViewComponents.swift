@@ -100,9 +100,8 @@ extension SidebarView {
                         .truncationMode(.middle)
                 }
             }
-            if SharedMachineSections.showsHowToPair(libraryManager.pairedMachines) {
-                Section { PairedMachinesEmptyView() } header: { Text("Shared Libraries") }
-            }
+            // No "Shared Libraries" section until a Mac is paired (`sharing.guest.no-section-until-paired`);
+            // File > Connect to Library… is the way in.
             // App-level destinations pinned once at the bottom, not repeated
             // under every library (#1456).
             pinnedGlobalNavigationRows()
