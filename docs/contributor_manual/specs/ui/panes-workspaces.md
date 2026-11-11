@@ -1592,7 +1592,10 @@ Creative director, running the app (the one-renderer + old split/close wiring st
   workflow), never disappearing so a user loses their place. Verified NOT true today:
   `ShellLayoutPolicy.swift` takes an `inspectorVisible: Bool` and a `collapseInspector` policy
   that together hide the inspector below a width threshold (`:80-127`) — the inspector is
-  conditionally hidden by design, not a bug that slipped through. **Open design tension, not
+  conditionally hidden by design, not a bug that slipped through. On the Mac the window can no
+  longer be narrowed below its open panes (see the Built note on `m2p.window-minimum-ignores-measured-width`),
+  so that threshold is not reached by resizing there; it still applies where the width is
+  set by the platform (iOS). **Open design tension, not
   decided here:** under the current "one system, every pane is a `PaneList` leaf" architecture
   (`workspaces.one-system` above), the inspector is itself just one pane kind among many — a
   user can already close or rearrange it like any other pane. Whether "always visible, never
