@@ -2,8 +2,7 @@ import SwiftUI
 
 // MARK: - Sidebar preview catalog (Daniel, 2026-08-08)
 //
-// REAL components, inert dependencies — unlike SidebarItemRow+Preview's
-// static look-alike, these render the actual `SidebarItemRow` (and the
+// REAL components, inert dependencies — these render the actual `SidebarItemRow` (and the
 // actual drop-highlight modifier), so selection colors, badges, locks and
 // spinners can be judged in the canvas or via `mcp__xcode__RenderPreview`
 // without launching the app. Each part gets its own #Preview so a change
@@ -80,6 +79,35 @@ private enum SidebarPreviewFixtures {
         .environment(WindowState(libraryId: libraryId))
         .tag(item.destination)
     }
+}
+
+// MARK: Project top level — what a project opens on
+//
+// Replaces SidebarItemRow+Preview's static look-alike, which drew a seeded
+// "Inbox" long after nothing creates one (ruling 2026-08-31). Real rows only:
+// the engine's Sources folder, selected as a window opens on it
+// (`OpeningSelection`), then ordinary folders and files.
+
+#Preview("Project top level") {
+    let sources = SidebarPreviewFixtures.doc(
+        OpeningSelection.sourcesFolderName, type: .folder, childCount: 12
+    )
+    let letters = SidebarPreviewFixtures.doc("Letters 1893", type: .folder, childCount: 4)
+    let diary = SidebarPreviewFixtures.doc("Diary.pdf", fileType: .pdf, childCount: 10)
+    let scan = SidebarPreviewFixtures.doc("scan_001.tif", fileType: .image)
+    let sourcesItem = SidebarPreviewFixtures.item(sources, icon: "folder")
+    let selection: Set<SidebarDestination> = SidebarDestination(
+        serializedID: sourcesItem.id
+    ).map { [$0] } ?? []
+
+    return List(selection: .constant(selection)) {
+        SidebarPreviewFixtures.row(sourcesItem, selectedId: sourcesItem.id)
+        SidebarPreviewFixtures.row(SidebarPreviewFixtures.item(letters, icon: "folder"))
+        SidebarPreviewFixtures.row(SidebarPreviewFixtures.item(diary, icon: "doc.richtext"))
+        SidebarPreviewFixtures.row(SidebarPreviewFixtures.item(scan, icon: "photo"))
+    }
+    .listStyle(.sidebar)
+    .frame(width: 280, height: 220)
 }
 
 // MARK: Row states — every visual state of the REAL row
