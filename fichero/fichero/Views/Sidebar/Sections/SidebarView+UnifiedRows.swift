@@ -198,36 +198,7 @@ extension SidebarView {
         // inside SidebarItemRow's body — so NSTableView's native
         // row-drag picks up the Transferable uniformly across the
         // whole row (including taps on the inner icon/name).
-        let row = SidebarItemRow(
-            item: item,
-            // O(1) id lookup against the cached index — never hand rows the
-            // whole forest to copy (#4545).
-            lookupItem: { cachedItem(id: $0) },
-            expandedItems: Binding(
-                get: { sidebarState.expandedItems },
-                set: { sidebarState.expandedItems = $0 }
-            ),
-            selectedItemId: Binding(
-                get: { selectionState.selectedItemId },
-                set: { selectionState.selectedItemId = $0 }
-            ),
-            selectedDestinations: selectionState.selectedDestinations,
-            renameState: renameState,
-            deleteState: deleteState,
-            sidebarState: sidebarState,
-            libraryManager: libraryManager,
-            onOpenChatWithCurrentScope: onOpenChatWithCurrentScope,
-            onSelectionProposal: { applySidebarSelectionProposal($0) },
-            mergeSelectionAbove: mergeAbove,
-            mergeSelectionBelow: mergeBelow,
-            // A schedule, trigger or batch changed by its own verb: read them again (#5712).
-            onAutomationChanged: {
-                Task { @MainActor in
-                    await loadAutomationData()
-                    await loadActivityData()
-                }
-            }
-        )
+        let row = skippableRow(for: item, mergeAbove: mergeAbove, mergeBelow: mergeBelow)
         .contentShape(Rectangle())
         // Full payload (#4123): document rows export a real file copy + RTF
         // transcript to other apps; the in-process id flavor is unchanged.
