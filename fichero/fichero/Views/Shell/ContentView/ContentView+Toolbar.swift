@@ -4,6 +4,7 @@ import SwiftUI
 
 enum ContentToolbarID {
     static let engineStatus = "fichero.engineStatus"
+    static let sidebarButtons = "fichero.sidebarButtons"
     static let navigationBack = "fichero.nav.back"
     static let navigationForward = "fichero.nav.forward"
     static let inspectorToggle = "fichero.inspectorToggle"
@@ -62,6 +63,20 @@ extension ContentView {
         // second `.keyboardShortcut` here double-minted the same chord, which
         // `MenuShortcutUniquenessTests` now catches). Hiding the toolbar
         // button never removes the menu command or its chord.
+        //
+        // The Sidebar/Chat pair, only while the sidebar is hidden: then this is the window's far
+        // left, beside the traffic lights, as in Xcode. While it is up the pair is drawn in the
+        // sidebar column's own toolbar section (`sidebarToolbarContent`). The fixed spacer keeps it out of
+        // Back/Forward's glass capsule (#4970).
+        #if os(macOS)
+        if !showSidebar {
+            ToolbarItem(id: ContentToolbarID.sidebarButtons, placement: .navigation) {
+                sidebarButtonsIsland
+            }
+            .sharedBackgroundVisibility(.hidden)
+            ToolbarSpacer(.fixed, placement: .navigation)
+        }
+        #endif
         if toolbarVisibility.showNavigation {
             ToolbarItem(id: ContentToolbarID.navigationBack, placement: .navigation) {
                 Button {
@@ -255,44 +270,8 @@ extension ContentView {
         // nothing left to except. See `LibraryView+MiniToolbar`.
     }
 
-    // MARK: Sidebar buttons
-
-    /// The two far-left buttons, as in Xcode (Daniel, 2026-11-11). Attached to the SIDEBAR column's
-    /// toolbar, which is what puts them beside the window controls rather than in the detail
-    /// column beside Back/Forward. They replace the system sidebar toggle and the sparkles toggle.
-    #if os(macOS)
-    @ToolbarContentBuilder
-    var sidebarToolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .navigation) {
-            sidebarButtons
-        }
-    }
-    #endif
-
-    /// Folder tree and chat conversations, side by side. Each lights while its part is up; the
-    /// rules live in `SidebarColumnState`.
-    var sidebarButtons: some View {
-        let state = sidebarColumnState
-        return HStack(spacing: 2) {
-            Button {
-                applySidebarColumnState(state.togglingTree())
-            } label: {
-                Label(state.treeLit ? "Hide Sidebar" : "Show Sidebar", systemImage: "list.bullet")
-                    .labelStyle(.iconOnly)
-                    .toolbarSurfaceLit(state.treeLit)
-            }
-            .help(state.treeLit ? "Hide the sidebar" : "Show the sidebar")
-            Button {
-                applySidebarColumnState(state.togglingChat())
-            } label: {
-                Label(state.chatLit ? "Hide Chat" : "Show Chat", systemImage: ToolbarSymbols.chatPane)
-                    .labelStyle(.iconOnly)
-                    .toolbarSurfaceLit(state.chatLit)
-            }
-            .help(state.chatLit ? "Hide the Chat" : "Show the Chat")
-        }
-        .padding(.horizontal, 5)
-    }
+    // The Sidebar/Chat pair (`sidebarButtons`, `sidebarToolbarContent`) lives in
+    // ContentView+SidebarButtons.swift.
 
     // MARK: Library pane toggle (#4288)
 
