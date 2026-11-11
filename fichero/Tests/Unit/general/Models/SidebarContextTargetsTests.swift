@@ -48,6 +48,21 @@ struct SidebarContextTargetsTests {
         #expect(sidebarFallbackTapActs(makeItem("leaf"), true))
     }
 
+    /// `sidebar.selection.an-expanded-folder-selects-from-its-name`
+    @Test("an expanded folder's name takes the click the whole row gives up, and exactly one handler acts")
+    func expandedFolderNameTakesTheClick() {
+        let parent = makeItem("parent", children: [makeItem("child")])
+        let leaf = makeItem("leaf")
+        #expect(sidebarExpandedLabelTapActs(parent, true))
+        #expect(!sidebarExpandedLabelTapActs(parent, false))
+        #expect(!sidebarExpandedLabelTapActs(leaf, true))
+        for item in [parent, leaf] {
+            for expanded in [true, false] {
+                #expect(sidebarExpandedLabelTapActs(item, expanded) != sidebarFallbackTapActs(item, expanded))
+            }
+        }
+    }
+
     @Test("a Command click on a selected child takes it out, and the parent stays out")
     func commandClickOnSelectedChildDeselectsIt() {
         let parent = SidebarDestination.document("parent")
