@@ -25,6 +25,8 @@ struct SegmentsPaneView: View {
     @State private var proposedMatches = 0
     /// The bar under the list (`source.editor.segments-list-has-a-filter-bar`, #6476); cleared with the page.
     @State private var filter = SegmentsFilter()
+    /// Which facts a row shows after its words, per window ("Show in Rows", #6482); every one by default.
+    @SceneStorage("segments.rowFacts") private var rowFactsRaw = "all"
 
     /// What the filter leaves, nil while it is off: the same rows in every lens.
     private var filtered: SegmentsFilter.Result? {
@@ -123,7 +125,8 @@ struct SegmentsPaneView: View {
                     },
                     // Lines under their region's row with its swatch, words disclosed under their line (#5426).
                     nests: true,
-                    filter: filtered
+                    filter: filtered,
+                    rowAccessory: rowFacts
                 )
             }
         case .loading:
@@ -196,8 +199,39 @@ struct SegmentsPaneView: View {
             currentKind: .segments, lenses: SegmentsPane.Lens.allCases,
             lensTitle: { (lens: SegmentsPane.Lens) in lens.title },
             lensIcon: { (lens: SegmentsPane.Lens) in lens.icon },
+            extraLensMenu: { AnyView(showInRowsMenu) },
             lens: $lens
         )
+    }
+
+    /// The pane's view menu picks which facts a row shows (#6482), saved per window.
+    private var showInRowsMenu: some View {
+        Menu("Show in Rows") {
+            ForEach(SegmentRowFacts.Shown.allCases) { fact in
+                Toggle(fact.title, isOn: Binding(
+                    get: { SegmentRowFacts.Shown.decode(rowFactsRaw).contains(fact) },
+                    set: { isOn in
+                        var shown = SegmentRowFacts.Shown.decode(rowFactsRaw)
+                        if isOn { shown.insert(fact) } else { shown.remove(fact) }
+                        rowFactsRaw = SegmentRowFacts.Shown.encode(shown)
+                    }
+                ))
+            }
+        }
+    }
+
+    /// The row facts, made once per list from the page's segments (`SegmentRowFacts.all`), not per row.
+    private var rowFacts: ((String) -> AnyView)? {
+        let shown = SegmentRowFacts.Shown.decode(rowFactsRaw)
+        guard !shown.isEmpty else { return nil }
+        let all = SegmentRowFacts.all(in: segments)
+        let byId = Dictionary(segments.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return { id in
+            guard let facts = all[id] else { return AnyView(EmptyView()) }
+            return AnyView(SegmentRowFactsView(facts: facts, shown: shown, source: { from in
+                byId[from].map { "its \($0.kind)" } ?? "a parent segment"
+            }))
+        }
     }
 
     private var pageHead: some View {

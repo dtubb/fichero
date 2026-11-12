@@ -10,17 +10,17 @@ struct SegmentRowFacts: Equatable {
 
         var short: String {
             switch self {
-            case .lines(let n): "\(n) ln"
-            case .words(let n): "\(n) w"
-            case .characters(let n): "\(n) ch"
+            case .lines(let number): "\(number) ln"
+            case .words(let number): "\(number) w"
+            case .characters(let number): "\(number) ch"
             }
         }
 
         var words: String {
             switch self {
-            case .lines(let n): n == 1 ? "1 line" : "\(n) lines"
-            case .words(let n): n == 1 ? "1 word" : "\(n) words"
-            case .characters(let n): n == 1 ? "1 character" : "\(n) characters"
+            case .lines(let number): number == 1 ? "1 line" : "\(number) lines"
+            case .words(let number): number == 1 ? "1 word" : "\(number) words"
+            case .characters(let number): number == 1 ? "1 character" : "\(number) characters"
             }
         }
     }
@@ -65,6 +65,49 @@ struct SegmentRowFacts: Equatable {
             script: stated(segment, byId: byId, \.script),
             reading: reading(segment, floor: confidenceFloor)
         )
+    }
+
+    /// Every segment's facts in one pass, keyed by id: the rows of a page of thousands of lines, where calling `of` per
+    /// row would scan the page once per row.
+    static func all(in segments: [Segment], confidenceFloor: Double = confidenceFloor) -> [String: SegmentRowFacts] {
+        let byId = Dictionary(segments.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let byParent = Dictionary(grouping: segments.filter { $0.parentSegmentId != nil }, by: { $0.parentSegmentId ?? "" })
+        var facts: [String: SegmentRowFacts] = [:]
+        for segment in segments {
+            facts[segment.id] = SegmentRowFacts(
+                count: count(segment, children: byParent[segment.id] ?? []),
+                direction: stated(segment, byId: byId, \.direction),
+                language: stated(segment, byId: byId, \.language),
+                script: stated(segment, byId: byId, \.script),
+                reading: reading(segment, floor: confidenceFloor)
+            )
+        }
+        return facts
+    }
+
+    /// The facts a row can show; the Segments pane's "Show in Rows" menu picks which, saved per window.
+    enum Shown: String, CaseIterable, Identifiable {
+        case count, direction, language, script, reading
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .count: "Count"
+            case .direction: "Direction"
+            case .language: "Language"
+            case .script: "Script"
+            case .reading: "Reading"
+            }
+        }
+
+        /// The saved choice: every fact by default; an unknown name in it is ignored.
+        static func decode(_ raw: String) -> Set<Shown> {
+            raw == "all" ? Set(allCases) : Set(raw.split(separator: ",").compactMap { Shown(rawValue: String($0)) })
+        }
+
+        static func encode(_ shown: Set<Shown>) -> String {
+            shown == Set(allCases) ? "all" : allCases.filter(shown.contains).map(\.rawValue).joined(separator: ",")
+        }
     }
 
     private static func count(_ segment: Segment, children: [Segment]) -> Count? {
