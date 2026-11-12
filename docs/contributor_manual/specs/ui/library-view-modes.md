@@ -93,6 +93,7 @@ Surfaces: `ViewDisplayMode` (`App/ViewDisplayMode.swift`), `LibraryView
   substitute. Pinned:
   `LibraryPaneSurfaceGuardTests.oneBottomBarForEveryMode`,
   `LibraryPaneSurfaceGuardTests.showControlIsNotModeSwapped`.
+- `library.chrome.every-mode-menu-matches-the-menu-bar` — **[GAP]** (#6542) every view mode (List, Icon, Table, Columns, Canvas, Space, the dataset views) offers a right-click menu whose commands are the menu bar's: the same names, shortcuts and enabled state, from the one shared builder below. Known: #4585.
 - `library.chrome.one-row-menu-builder` — **[OK]** every browse mode (icon/list/table/
   columns) and both canvases build a row's context menu from the ONE shared builder — the
   canvases add at most one verb of their own and defer the rest — and every dataset renderer
@@ -378,6 +379,7 @@ may be why it still reads as broken to whoever tests it next.
   which columns the table view shows (name, dates, type, entity count, size, etc.),
   persisted per view. Not verified as built.
 - `library.table.columns-resize-and-remember` — **[GAP]** (#6540; owner 2026-11-11) every column's width can be changed by dragging its header edge, the pointer turns into the resize cursor over that edge so it is clear the columns resize, and a width once set is remembered app-wide: every folder, every Table pane and every window, across relaunch. Today the pointer does not change over a column edge, and widths are kept per window (`@SceneStorage("library.tableColumns")`). That same storage ping-pongs with `LibraryView` (26 rounds in one session, #4228), so where it lives is also a speed question.
+- `library.table.disclosure-by-the-icon` — **[GAP]** (#6541) a disclosure chevron in the item table sits beside the row's icon and name at the top of the row, as the top-aligned cells do (#5279); today the system table keeps it at the row's vertical centre, halfway down an 85 pt row.
 - `library.table.every-column-selects` — **[OK]** (#6538) a click anywhere in a table row
   selects it, the Name column included: a click selects, ⇧-click selects a range, ⌘-click
   adds or removes one row, and a double-click opens. No cell carries a drag source (a
@@ -887,6 +889,8 @@ Engine none: a PDF's pages are already its children in order. Order inside the s
 - `library.perf.page-click-never-stalls-main` — **[PARTIAL]** (#4280, #4574) clicking between PDF pages never blocks the main thread over ~1s and a superseded load costs nothing; cancel-superseded and single-flight images landed (31c6756f1, 7a189c2b0) but the latest baseline worst is 1860 ms.
 - `views.space-shares-canvas-position` — **[GAP]** (#2391) the Space (3D) mode zooms in as far as Canvas and shares one xpos/ypos per node with it.
 - `library.chrome.clear-data-for-selection` — **[GAP]** (#4581) a selection of documents offers one audited, undoable Clear Data action that removes extracted text, entity links (orphaned entities deleted), artifacts and dates for those pages, with no per-kind picker (ruled 2026-08-19).
+- `library.drag.move-from-and-to-every-mode` — **[GAP]** (#6543) a drag out of List, Icon, Table, Columns or Canvas carries the whole multi-selection, and a drop onto a folder in any mode or onto a sidebar folder moves it (⌥ copies, ⌘⌥ makes an alias). No `.draggable` or tap gesture sits inside a Table or List cell; the drag belongs to the row (#6538).
+- `library.a-click-or-double-click-opens-at-once` — **[GAP]** (#6544; owner 2026-11-11) a click on an item, and a double-click on a folder to go inside it, answer without a visible wait; today each takes about a second (the item-list half of `read.a-click-shows-its-folder-at-once`, #4228).
 - `library.drag.across-libraries-copies-and-out-to-finder` — **[GAP]** (#4311) dragging items to another library copies them (never moves, through the audited layer under the acting user, respecting permissions), and dragging to the Desktop or Finder exports regular files.
 - `library.drop-and-select-show-feedback-immediately` — **[GAP]** (#4235) dropping a folder or selecting one shows something the same frame (placeholder or selection), then streams data, with no dead interval.
 - `library.list.scroll-is-smooth` — **[GAP]** (#4593) list rows compute nothing per frame (date formatting, thumbnail decode, filters hoisted or cached) so scrolling holds frame rate.

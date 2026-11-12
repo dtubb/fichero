@@ -349,6 +349,7 @@ Two more issues, redirected from the legacy "Library View" milestone while foldi
 `library-view-modes.md`'s pass 2 (neither is a view-MODE question; both are window/pane
 behavior this spec already owns):
 
+- `ui.window.resizes-smoothly` — **[GAP]** (#6548; owner 2026-11-11) a live window resize keeps up with the pointer: every frame under 16 ms. Measured 2026-11-11 (`⏱ window live resize`): 62 frames averaging 87.6 ms, slowest 1554.9 ms; another drag averaging 371.2 ms, slowest 1893.0 ms.
 - `panes.double-click-focuses-current-window` — **[GAP]** (#3364) double-clicking a
   sidebar/library item should focus/navigate in the CURRENT window by default; opening in a
   new window or tab stays reachable only from an explicit contextual command. Not verified
