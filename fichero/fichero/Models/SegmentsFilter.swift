@@ -83,6 +83,27 @@ struct SegmentsFilter: Equatable {
         }
     }
 
+    /// The values the page's segments hold, own or inherited, for the facet menu: only what can match.
+    struct Options: Equatable {
+        var kinds: [String] = []
+        var languages: [String] = []
+        var scripts: [String] = []
+        var directions: [String] = []
+    }
+
+    static func options(in segments: [Segment]) -> Options {
+        var kinds = Set<String>(), languages = Set<String>(), scripts = Set<String>(), directions = Set<String>()
+        for segment in segments {
+            kinds.insert(segment.kind.lowercased())
+            let facts = SegmentRowFacts.of(segment, in: segments)
+            if let value = facts.language?.value { languages.insert(value) }
+            if let value = facts.script?.value { scripts.insert(value) }
+            if let value = facts.direction?.value { directions.insert(value) }
+        }
+        return Options(kinds: kinds.sorted(), languages: languages.sorted(),
+                       scripts: scripts.sorted(), directions: directions.sorted())
+    }
+
     /// "12 of 34": how many rows match, of how many the page holds at the levels listed.
     static func countLine(matched: Int, of total: Int) -> String { "\(matched) of \(total)" }
 }

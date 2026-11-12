@@ -24,6 +24,9 @@ struct ReadingOrderList: View {
     /// its box is drawn in (hierarchy A, #5426): the Segments pane's and the page's Order tab (#5505). The
     /// Inspector's list of one segment's children stays one level.
     var nests = false
+    /// The Segments pane's filter (#6476): only these rows show, the ones that only hold a match dimmed, every group
+    /// open, and no reordering while it is on (a move among hidden rows would land somewhere unseen). Nil shows all.
+    var filter: SegmentsFilter.Result?
 
     @Environment(ReadingOrderService.self) private var service: ReadingOrderService?
     @Environment(SegmentService.self) var segmentService: SegmentService?
@@ -36,7 +39,8 @@ struct ReadingOrderList: View {
     init(
         documentId: String, parentSegmentId: String? = nil, hidesWhenEmpty: Bool = false,
         store: ReadingOrderStore? = nil, onOpen: ((String) -> Void)? = nil, opens: ((String) -> Bool)? = nil,
-        rowLabel: ((String, Int) -> String)? = nil, onSelected: (([String]) -> Void)? = nil, nests: Bool = false
+        rowLabel: ((String, Int) -> String)? = nil, onSelected: (([String]) -> Void)? = nil, nests: Bool = false,
+        filter: SegmentsFilter.Result? = nil
     ) {
         self.documentId = documentId
         self.parentSegmentId = parentSegmentId
@@ -46,6 +50,7 @@ struct ReadingOrderList: View {
         self.rowLabel = rowLabel
         self.onSelected = onSelected
         self.nests = nests
+        self.filter = filter
         // A store handed in (a preview's, over a fixture transport) is used as is; otherwise the
         // library's service makes one.
         _store = State(initialValue: store)
@@ -82,12 +87,12 @@ struct ReadingOrderList: View {
                     ForEach(Array(store.shown.enumerated()), id: \.element.segmentId) { index, entry in
                         entryRow(entry.segmentId, at: index, nesting: nested)
                     }
-                    .onMove { offsets, destination in
+                    .onMove(perform: filter != nil ? nil : { offsets, destination in
                         guard let from = offsets.first else { return }
                         let segmentId = store.shown[from].segmentId
                         let target = ReadingOrderMove.finalIndex(fromOffset: from, toOffset: destination)
                         Task { await record(store.move(segmentId, to: target), in: store) }
-                    }
+                    })
                 }
                 .contextMenu(forSelectionType: String.self, menu: lineMenu, primaryAction: primaryAction)
                 #if os(macOS)
@@ -300,6 +305,116 @@ struct ReadingOrderList: View {
     private var workingPassId: String? {
         segmentService.flatMap { SegmentStore.shared(for: $0).workingPass(documentId: documentId)?.id }
     }
+
+    /// The order's name, at the top of the list in every state (#6482).
+    private var layoutOrderHead: some View {
+        // The order's name sits at the top, like the renditions: always there, even with no named order, so it is
+        // plain what a layout order is and where to make one (#6482). The words live in the tooltip, not the menu.
+        HStack(spacing: 6) {
+            Image(systemName: "list.number").foregroundStyle(.secondary).accessibilityHidden(true)
+            Menu {
+                CreateNamedOrderMenuItem(target: lineVerbs)
+                    .accessibilityIdentifier("readingOrder.createNamedOrder")
+            } label: {
+                Text("Layout Order").font(.headline)
+            }
+            .fixedSize()
+            .help("The order this page's segments are read in. Now it is the order the layout found them; make a named order to rearrange it.")
+            Spacer(minLength: 4)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+    }
+
+    /// A page with no named order: its segments as written, selectable like the order's rows, and the one
+    /// verb that gives it an order. No move keys: there is no order to move in.
+    private func unordered(_ ids: [String]) -> some View {
+        VStack(spacing: 0) {
+            layoutOrderHead
+            Divider()
+            let nested = nestedRows(top: ids)
+            List(selection: $picks) {
+                ForEach(Array(ids.enumerated()), id: \.element) { index, segmentId in
+                    entryRow(segmentId, at: index, nesting: nested)
+                }
+            }
+            .contextMenu(forSelectionType: String.self, menu: lineMenu, primaryAction: primaryAction)
+            #if os(macOS)
+            .onDeleteCommand { deleteLines(nil) }
+            #endif
+            .focused($listFocused)
+            if let createNote {
+                Text(createNote).font(.caption).foregroundStyle(.secondary).padding(4)
+            }
+        }
+    }
+
+    /// The page's boxes become segments and its `as-written` order is made from them: one action, ⌘Z
+    /// puts the page back as it was. The order and the segments are re-read after it and after each undo.
+    private func createNamedOrder() async {
+        guard let actionsService = actionStore?.actionsService, let store else {
+            createNote = "This window cannot make an order."
+            return
+        }
+        let documentId = documentId
+        let segmentService = segmentService
+        do {
+            try await AuditedAction.run(
+                "segment.convert_and_edit", params: ConvertPageRequest(documentId: documentId),
+                actionName: LineVerbs.createNamedOrderTitle, actionsService: actionsService, steps: windowSteps,
+                afterChange: {
+                    if let segmentService {
+                        await SegmentStore.shared(for: segmentService).load(documentId: documentId, force: true)
+                    }
+                    try? await store.load(documentId: documentId)
+                }
+            )
+            createNote = nil
+        } catch {
+            createNote = "The order could not be made: \(error.localizedDescription)"
+        }
+    }
+
+    /// What the nested rows hold and the tones their swatches take, made ONCE per list from the working pass's
+    /// segments (per row it would be quadratic on a page of thousands of lines). Nil when the list does not nest.
+    private func nestedRows(top: [String]) -> (rows: [String: SegmentsPane.OutlineRow], tones: [String: RegionColours.Tone])? {
+        guard nests, let segmentService else { return nil }
+        let segments = SegmentStore.shared(for: segmentService).workingSegments(documentId: documentId)
+        let rows = SegmentsPane.pruned(SegmentsPane.outline(segments, top: top), keeping: filter?.shown)
+        return (Dictionary(rows.map { ($0.segmentId, $0) }, uniquingKeysWith: { first, _ in first }),
+                RegionColours.tones(of: segments))
+    }
+
+    /// A row of the level shown: flat, or
+    /// with its swatch. Rows are keyed by segment id, so a segment event redraws its row, never the list.
+    @ViewBuilder
+    private func entryRow(
+        _ segmentId: String, at index: Int,
+        nesting: (rows: [String: SegmentsPane.OutlineRow], tones: [String: RegionColours.Tone])?
+    ) -> some View {
+        if let filter, !filter.shown.contains(segmentId) {
+            // Filtered out (#6476); kept in the ForEach so the offsets still index the order.
+            EmptyView()
+        } else if let nesting, let node = nesting.rows[segmentId] {
+            SegmentOutlineRow(
+                node: node, index: index, tones: nesting.tones,
+                content: { id, position in AnyView(row(id, at: position).opacity(dims(id) ? 0.45 : 1)) },
+                wrap: { id, view in AnyView(movable(id, view)) }, lit: dropTarget, opensAll: filter != nil
+            )
+        } else if nesting != nil {
+            // Folded under its region by `SegmentsPane.outline`: shown there, not again beside it (#6425).
+            // Kept in the ForEach (not filtered out) so `onMove` offsets still index `store.shown`.
+            EmptyView()
+        } else {
+            movable(segmentId, row(segmentId, at: index).opacity(dims(segmentId) ? 0.45 : 1)).tag(segmentId)
+                .listRowBackground(dropTarget == segmentId ? Color.accentColor.opacity(0.25) : Color.clear)
+        }
+    }
+
+    /// A row shown only because it holds a match (its region, its line) is dimmed under a filter.
+    private func dims(_ segmentId: String) -> Bool {
+        filter.map { !$0.matched.contains(segmentId) } ?? false
+    }
 }
 
 // MARK: - Key rows and the step control
@@ -385,16 +500,19 @@ struct SegmentOutlineRow: View {
     let wrap: (String, AnyView) -> AnyView
     /// The row lit as a drop target: the WHOLE row's background (the list row), not the words' width.
     var lit: String?
+    /// Every group open, as while a filter is on: a match must never sit inside a closed group (#6476).
+    var opensAll = false
 
     @State private var expanded: Bool
 
     init(
         node: SegmentsPane.OutlineRow, index: Int, tones: [String: RegionColours.Tone],
         content: @escaping (String, Int) -> AnyView, wrap: @escaping (String, AnyView) -> AnyView = { _, view in view },
-        lit: String? = nil
+        lit: String? = nil, opensAll: Bool = false
     ) {
         self.wrap = wrap
         self.lit = lit
+        self.opensAll = opensAll
         self.node = node
         self.index = index
         self.tones = tones
@@ -413,9 +531,11 @@ struct SegmentOutlineRow: View {
         if node.children.isEmpty {
             labelled
         } else {
-            DisclosureGroup(isExpanded: $expanded) {
+            DisclosureGroup(isExpanded: opensAll ? .constant(true) : $expanded) {
                 ForEach(Array(node.children.enumerated()), id: \.element.id) { position, child in
-                    SegmentOutlineRow(node: child, index: position, tones: tones, content: content, wrap: wrap, lit: lit)
+                    SegmentOutlineRow(
+                        node: child, index: position, tones: tones, content: content, wrap: wrap, lit: lit, opensAll: opensAll
+                    )
                 }
             } label: {
                 labelled
