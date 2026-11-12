@@ -76,6 +76,7 @@ Both issues are already on this milestone (#291); no new issues were needed.
   commit on the editor's current text and `cancelRename()` on failure paths, but no test
   drives Return-commits / Esc-cancels — it's SwiftUI row state, and #4697 confirms zero
   sidebar UI tests exist.
+- `rename.editable-at-once` — **[GAP]** (#6546; owner 2026-11-11) after Rename, the name is editable at once; today the text changes colour and only much later takes the caret.
 - `rename.rejects-empty` — **[GAP]** (#4697) `commitRename` does
   `guard !newName.isEmpty else { renameState.cancelRename(); return }` — the guard is real,
   but untested; same zero-UI-tests gap.
@@ -106,6 +107,7 @@ Both issues are already on this milestone (#291); no new issues were needed.
   `TestDocumentMoveAction.test_move_into_descendant_rejected`
   (`fichero-server/tests/unit/api/test_document_actions.py`).
 
+- `move.drop-on-a-project-moves` — **[GAP]** (#6547; owner 2026-11-11, needs a decision) a plain drop of a folder onto its own project's header moves it to the project's root; only ⌥ copies. One such drop ran `document.duplicate`, then the sidebar re-rendered for a long time (279 rows in one turn); whether ⌥ was held is the open question.
 - `move.self-drop-is-a-noop` — **[PARTIAL]** (#4980 stays open for the highlight half; refusal built in 13a34a779) dropping an item on itself is a drag that
   slipped, not a request (Finder does the same): no move is attempted, no alert is raised, and one
   log line (`DragDropLog.refused`) records it. `processFolderDropItem` refuses at validation with the
@@ -197,6 +199,7 @@ While folding `library-view-modes.md`'s pass 2, three sidebar-structure issues f
 legacy milestone were re-read against this spec instead — sidebar row mechanics and the
 sidebar's own code health, not a Library view-mode question:
 
+- `sidebar.rows.drag-from-the-row` — **[GAP]** (#6545) a sidebar row's drag comes from the row itself (a row-level item provider, as the Table's since #6538), so the List owns every click on a row's name and the hand-written fallback taps (#145, #6534, `fallbackTap`, `childFallbackTap`) can go.
 - `sidebar.drag-session-consistent-across-row` — **[GAP]** (#713) dragging a row's icon/name
   versus dragging elsewhere on the row body should produce the SAME drag session inside a
   `DisclosureGroup` — today they diverge. Not verified as built.
