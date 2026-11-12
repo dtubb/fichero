@@ -248,7 +248,6 @@ struct CanvasSceneView: View {
             // A scope being switched to keeps the old board hidden until the new one has settled.
             .opacity(board == nil ? 0 : 1)
             .highPriorityGesture(resizeDrag(in: geo.size), isEnabled: !spaceHeld)
-            .highPriorityGesture(nodeDrag(in: geo.size), isEnabled: !spaceHeld)
             .highPriorityGesture(tapSelect)
             .onReceive(NotificationCenter.default.publisher(for: .canvasFocusZoomToggle)) { note in
                 guard let id = note.object as? String else { return }
@@ -275,7 +274,8 @@ struct CanvasSceneView: View {
             // selection and node drag are untouched.
             #if os(macOS)
             .overlay {
-                CanvasScrollPanView(onSecondaryClick: { secondaryClick(at: $0, in: geo.size) }, onScroll: { delta in
+                CanvasScrollPanView(onSecondaryClick: { secondaryClick(at: $0, in: geo.size) },
+                                    onPrimaryPress: { finishLeftoverDrag() }, onScroll: { delta in
                     // Raw-delta mapping (user, 2026-08-20, trackpad + Magic
                     // Mouse both verified against the ortho (x, −y)
                     // projection).
@@ -437,11 +437,11 @@ extension CanvasSceneView {
     /// Tinderbox-style canvas the plain drag has to belong to the card under the
     /// pointer, and a camera pan competing for it is why moving items didn't work.
     ///
-    /// `minimumDistance` is deliberately LOOSER than `nodeDrag`'s 2pt: the card
-    /// drag therefore activates first and sets `draggingNodeId`, so the guard
-    /// below is decided rather than racing whichever handler SwiftUI runs first.
+    /// The ONE drag on the board (#4601): a press on a card moves it (`pressMovesCard`, the canvas's own hit test),
+    /// anywhere else rubber-bands. The entity-targeted card drag that raced it is gone, so 3 points is enough to tell a
+    /// drag from a click.
     private func panOrMarquee(in size: CGSize) -> some Gesture {
-        DragGesture(minimumDistance: 6)
+        DragGesture(minimumDistance: 3)
             .updating($marqueeRect) { value, state, _ in
                 // A live resize is a drag too, and it starts on a handle rather
                 // than on a card — so `draggingNodeId` is nil and the marquee
@@ -531,6 +531,7 @@ extension CanvasSceneView {
                   let world = renderer.worldPosition(of: id) else { return false }
             pressDragging = true
             draggingNodeId = id
+            CanvasDragLog.began(id)
             dragStartScene = Canvas2DProjection.scenePosition(world)
             dragOriginWorld = world
             // Pressing one card of a multiple selection moves the whole selection.
@@ -560,10 +561,11 @@ extension CanvasSceneView {
         }
         renderer.setHoverTarget(renderer.dropTargetId(nearWorld: world, excluding: id))
         controller?.dispatch(.dragMoved(id: id, position: world))
+        CanvasDragLog.moved()
         return true
     }
 
-    /// Drop the card: the same end, save and undo as the entity-targeted `nodeDrag`.
+    /// Drop the card: its end, save and undo.
     private func endPressDrag(_ value: DragGesture.Value, in size: CGSize) {
         defer {
             pressDragging = false
@@ -582,6 +584,7 @@ extension CanvasSceneView {
         }
         renderer.setHoverTarget(nil)
         let target = dropTarget(near: world, dragged: id)
+        CanvasDragLog.ended(id, dropTarget: target.map { "\($0)" })
         let modifiers: CanvasDropModifiers = optionHeld ? .forceLink : []
         controller?.dispatch(.dragEnded(id: id, position: world, dropTarget: target, modifiers: modifiers))
         if target == nil, let controller, let origin = dragOriginWorld {

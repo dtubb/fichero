@@ -24,6 +24,9 @@ struct CanvasScrollPanView: NSViewRepresentable {
     /// the context menu opens, so the canvas can select the card under it first (#5632). The click
     /// itself is passed on untouched: the menu still opens.
     var onSecondaryClick: ((CGPoint) -> Void)?
+    /// A left mouse-down inside the view, before any gesture sees it (#4601): the board finishes a drag SwiftUI
+    /// cancelled without `onEnded`, so the new press never continues the old one.
+    var onPrimaryPress: (() -> Void)?
     /// Scroll delta in view POINTS, already corrected for scroll direction.
     /// Shaped like a drag translation so the caller can hand it to the same
     /// conversion a drag uses.
@@ -38,6 +41,7 @@ struct CanvasScrollPanView: NSViewRepresentable {
         view.onScroll = onScroll
         view.onZoom = onZoom
         view.onSecondaryClick = onSecondaryClick
+        view.onPrimaryPress = onPrimaryPress
         return view
     }
 
@@ -45,6 +49,7 @@ struct CanvasScrollPanView: NSViewRepresentable {
         (nsView as? CanvasScrollCaptureView)?.onScroll = onScroll
         (nsView as? CanvasScrollCaptureView)?.onZoom = onZoom
         (nsView as? CanvasScrollCaptureView)?.onSecondaryClick = onSecondaryClick
+        (nsView as? CanvasScrollCaptureView)?.onPrimaryPress = onPrimaryPress
     }
 }
 
@@ -53,6 +58,7 @@ final class CanvasScrollCaptureView: NSView {
     /// (deltaY, cursor offset from the view CENTER in points, y-down).
     var onZoom: ((CGFloat, CGPoint) -> Void)?
     var onSecondaryClick: ((CGPoint) -> Void)?
+    var onPrimaryPress: (() -> Void)?
     private var monitor: Any?
     private var clickMonitor: Any?
     /// Times a left click or drag on the board (`CanvasBoardProfile`); passes every event on.
@@ -81,7 +87,10 @@ final class CanvasScrollCaptureView: NSView {
             guard let self, event.window === self.window else { return event }
             switch event.type {
             case .leftMouseDown:
-                if self.bounds.contains(self.convert(event.locationInWindow, from: nil)) { CanvasBoardProfile.mouse(.pressed) }
+                if self.bounds.contains(self.convert(event.locationInWindow, from: nil)) {
+                    CanvasBoardProfile.mouse(.pressed)
+                    self.onPrimaryPress?()
+                }
             case .leftMouseDragged: CanvasBoardProfile.mouse(.dragged)
             default: CanvasBoardProfile.mouse(.released)
             }

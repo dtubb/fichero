@@ -251,4 +251,24 @@ struct CanvasInteractionControllerTests {
         #expect(layout.savedItems?.first?.x == 3.0)
         #expect(!controller.isDragging("d"))
     }
+
+    @Test("a drag cut short still selects the card it grabbed, as its release would have (#4601)")
+    func flushSelectsTheGrabbedCard() async {
+        let layout = SpyLayoutStore(), box = Box<Set<String>>(["other"])
+        let controller = makeController(layout: layout, items: SpyItemStore(), selection: box)
+
+        controller.beginDrag("d")
+        controller.dragMoved(id: "d", position: SIMD3<Double>(3, 3, 0))
+        await controller.flushActiveDrag()
+        #expect(box.value == ["d"])
+        #expect(controller.selectWhenDropped == nil)
+
+        // A press that never moved: nothing saved, the card still selected, no drag left.
+        let still = Box<Set<String>>([])
+        let pressed = makeController(layout: SpyLayoutStore(), items: SpyItemStore(), selection: still)
+        pressed.beginDrag("e")
+        await pressed.flushActiveDrag()
+        #expect(still.value == ["e"])
+        #expect(!pressed.isDragging("e"))
+    }
 }

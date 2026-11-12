@@ -83,51 +83,30 @@ extension CanvasSceneView {
             }
     }
 
-    /// Drag a card → move it live and persist a single snapped row on release
-    /// (#3084). The controller suppresses store echoes for the dragged id
-    /// mid-drag, so the gesture is never fought.
-    func nodeDrag(in size: CGSize) -> some Gesture {
-        DragGesture(minimumDistance: 2)
-            .targetedToAnyEntity()
-            .onChanged { value in
-                let id = value.entity.name
-                guard !id.isEmpty else { CanvasDragLog.refused("no card under the pointer"); return }
-                // A drag that started on a resize handle belongs to
-                // `resizeDrag`. Without this the same gesture would ALSO move
-                // the card, so resizing would drag the thing being resized.
-                guard !CanvasSelectionFrame.isDecoration(id) else { CanvasDragLog.refused("a decoration: \(id)"); return }
-                if draggingNodeId == nil {
-                    CanvasDragLog.began(id)
-                    draggingNodeId = id
-                    let startScene = value.entity.position(relativeTo: nil)
-                    dragStartScene = startScene
-                    dragOriginWorld = Canvas2DProjection.worldPosition(startScene)
-                    controller?.dispatch(.dragBegan(id: id))
-                }
-                guard let start = dragStartScene else { return }
-                let world = draggedWorld(start: start, translation: value.translation, viewHeight: size.height, id: id)
-                renderer.liveMove(id: id, toWorld: world)
-                renderer.setHoverTarget(renderer.dropTargetId(nearWorld: world, excluding: id))
-                controller?.dispatch(.dragMoved(id: id, position: world))
-                CanvasDragLog.moved()
-            }
-            .onEnded { value in
-                guard let id = draggingNodeId, let start = dragStartScene else { return }
-                let world = draggedWorld(start: start, translation: value.translation, viewHeight: size.height, id: id)
-                renderer.setHoverTarget(nil)
-                let target = dropTarget(near: world, dragged: id)
-                CanvasDragLog.ended(id, dropTarget: target.map { "\($0)" })
-                let modifiers: CanvasDropModifiers = optionHeld ? .forceLink : []
-                controller?.dispatch(.dragEnded(id: id, position: world, dropTarget: target, modifiers: modifiers))
-                // Only a plain place (no drop target) registers a move-undo — a
-                // move-into / link is undone through its own action's audit trail.
-                if target == nil, let controller, let origin = dragOriginWorld {
-                    controller.registerMoveUndo(id: id, origin: origin, destination: world, undoManager: undoManager)
-                }
-                draggingNodeId = nil
-                dragStartScene = nil
-                dragOriginWorld = nil
-            }
+    /// A new press finds a drag SwiftUI cancelled without `onEnded` (#4601): finish it before the press is read, so
+    /// a click selects instead of moving the previously dragged card. One card is saved where it was left and
+    /// selected as its release would have; a carried selection goes back where it started.
+    func finishLeftoverDrag() {
+        switch CanvasLeftoverDrag.at(press: draggingNodeId, carried: groupDragOrigins.count) {
+        case .none:
+            return
+        case .single(let id):
+            CanvasDragLog.ended(id, dropTarget: "nothing: the gesture was cancelled, finished at the next press")
+            renderer.setHoverTarget(nil)
+            if let controller { Task { await controller.flushActiveDrag() } }
+        case .group(let id):
+            CanvasDragLog.ended(id, dropTarget: "nothing: the gesture was cancelled, the selection put back")
+            if let origin = dragOriginWorld { renderer.liveMove(id: id, toWorld: origin) }
+            for (other, otherOrigin) in groupDragOrigins { renderer.liveMove(id: other, toWorld: otherOrigin) }
+            for (page, pageOrigin) in nestedDragOrigins { renderer.liveMove(id: page, toWorld: pageOrigin) }
+            renderer.setGroupDragging(false)
+        }
+        pressDragging = false
+        draggingNodeId = nil
+        dragStartScene = nil
+        dragOriginWorld = nil
+        groupDragOrigins = [:]
+        nestedDragOrigins = [:]
     }
 
     // MARK: - Marquee overlay

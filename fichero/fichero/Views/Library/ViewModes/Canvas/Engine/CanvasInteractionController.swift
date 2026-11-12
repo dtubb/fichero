@@ -307,11 +307,12 @@ final class CanvasInteractionController {
 
     /// Mid-drag flush when the view disappears (gesture `.onEnded` never fires).
     func flushActiveDrag() async {
-        guard let id = draggingId, let position = dragCurrentPosition else { return }
-        let origin = dragOriginPosition
-        draggingId = nil
-        dragOriginPosition = nil
-        dragCurrentPosition = nil
+        // A drag cut short (the view went, or a cancelled gesture met a new press, #4601) still selects its card.
+        defer { if let pending = selectWhenDropped { select(pending) }; selectWhenDropped = nil }
+        guard let id = draggingId else { return }
+        let (origin, position) = (dragOriginPosition, dragCurrentPosition)
+        (draggingId, dragOriginPosition, dragCurrentPosition) = (nil, nil, nil)
+        guard let position else { return }
         await persistSingleRow(id: id, to: snap(position), rollbackTo: origin)
     }
 
