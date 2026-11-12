@@ -319,6 +319,12 @@ extension LibraryManager {
             startAccessing: false
         )
 
+        // The library this replaces may already be live (its window started the Activity poll and the change stream with the
+        // guest's own local path, #6555): stop them, or they keep sending that path to the remote host every two seconds.
+        for replaced in openLibraries where replaced.id == Self.globalLibraryId {
+            replaced.activityStore.stop()
+            replaced.changeStream.stop()
+        }
         openLibraries.removeAll { $0.id == Self.globalLibraryId }
         openLibraries.insert(library, at: 0)
         currentLibraryId = library.id

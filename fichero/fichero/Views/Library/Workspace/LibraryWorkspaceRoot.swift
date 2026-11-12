@@ -78,7 +78,7 @@ struct LibraryWorkspaceRoot: View {
             // omission is #4448, and it is the only boundary that has ever
             // actually bitten here.
             .modifier(LibraryTreeEnvironment(library: library, windowState: windowState, executionObserver: executionObserver))
-            .task(id: "\(library.id.uuidString)-\(appState.isBackendRunning)") {
+            .task(id: "\(library.id.uuidString)-\(library.url.path)-\(appState.isBackendRunning)") {
                 if windowState.libraryId != library.id {
                     windowState.libraryId = library.id
                 }
