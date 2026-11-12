@@ -491,6 +491,10 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
     /// reading. Played through the REAL image preview in the library window's tree: all 48 line boxes are
     /// drawn, in the page's one implicit region (one hue, shaded along the order), the unread lines dashed.
     func testAKrakenLineOnlyPageDrawsEveryLineIncludingTheUnread() async throws {
+        // The Display menu's Shade by Reading Order is on, whatever this machine's defaults say.
+        let shade = UserDefaults.standard.object(forKey: RegionColours.shadeKey)
+        UserDefaults.standard.set(true, forKey: RegionColours.shadeKey)
+        defer { UserDefaults.standard.set(shade, forKey: RegionColours.shadeKey) }
         let library = try hostedLibrary()
         let pageId = "a15216e202f745dbae9e85eed095dc74"
         RecordedEngine.body = try Data(
@@ -525,8 +529,11 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let tones = drawn.compactMap(\.tone)
         XCTAssertEqual(tones.count, 48, "each line takes a tone")
         XCTAssertEqual(Set(tones.map(\.hue)), [0], "the page's one implicit region: one hue")
-        XCTAssertEqual(tones.first?.strength, 1)
-        XCTAssertLessThan(tones.last?.strength ?? 1, tones.first?.strength ?? 0, "shaded along the order")
+        // Light to dark along the order (owner 2026-11-10): the first line lightest, the last at full strength.
+        let strengths = tones.map(\.strength)
+        XCTAssertEqual(strengths.min() ?? 0, RegionColours.lightestStrength, accuracy: 0.001)
+        XCTAssertEqual(strengths.max(), 1)
+        XCTAssertGreaterThan(Set(strengths).count, 1, "shaded along the order")
         let imageRect = DrawnImageFrame.drawnRect(in: try XCTUnwrap(view.superview))
         XCTAssertEqual(view.overlay.boxes(in: .infinite, imageRect: imageRect).count, 48, "all 48 are painted on the image")
     }
@@ -1932,9 +1939,10 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             "order-0003"
         )
 
-        let neighbours = try await service.neighbours(orderId: "order-0003", segmentId: "seg-0014")
-        XCTAssertEqual(RecordedEngine.neighboursQuery, "segment_id=seg-0014")
-        XCTAssertEqual(neighbours, ReadingOrderChoice.Neighbours(previous: "seg-0018", next: "seg-next-0001"))
+        // The flow's last line on this page, as the fixture regenerated 2026-11-08 records it.
+        let neighbours = try await service.neighbours(orderId: "order-0003", segmentId: "seg-0018")
+        XCTAssertEqual(RecordedEngine.neighboursQuery, "segment_id=seg-0018")
+        XCTAssertEqual(neighbours, ReadingOrderChoice.Neighbours(previous: "seg-0016", next: "seg-next-0001"))
         let target = try XCTUnwrap(ReadingOrderChoice.target(neighbours, forward: true))
         XCTAssertFalse(segments.contains { $0.id == target }, "Next leaves this page")
         let fetched = try await SegmentService(ficheroClient: try XCTUnwrap(storeClient)).segment(id: target)
