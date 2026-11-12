@@ -233,7 +233,10 @@ struct LibraryListModeGuardTests {
         // #4202 split it out of `outlineNameCell` — same modifiers, so the
         // drag now reads `for: document` rather than `for: node.document`.
         #expect(columns.contains("func documentNameCell(for document: Document)"))
-        #expect(columns.contains(".draggable(libraryItemDrag(for: document))"))
+        // The ROW drags, never a cell (#6538): a drag source in a cell took the mouse-down, so the name column
+        // stopped selecting its row on a click.
+        #expect(!columns.contains(".draggable("))
+        #expect(columns.contains("TableRow(node).itemProvider { outlineRowDragProvider(for: node) }"))
         #expect(columns.contains("libraryTableRow."))
         #expect(!columns.contains("LibraryRowHoverWash"))
         // Thumbnails without prefetch = one image fetch per row on scroll (#4202).
@@ -241,9 +244,9 @@ struct LibraryListModeGuardTests {
         // Child outline ids resolve to their parent doc for Return/Space (G2).
         let nav = try appSource("Views/Library/LibraryView+ArrowNavigation.swift")
         #expect(nav.contains("id.firstIndex(of: \":\")"))
-        // Column layout persists (was window-lifetime @State — audit G5).
+        // Column layout persists (was window-lifetime @State — audit G5), app-wide since #6540.
         let root = try appSource("Views/Library/LibraryView.swift")
-        #expect(root.contains("@SceneStorage(\"library.tableColumns\")"))
+        #expect(root.contains("LibraryTableColumns.shared.binding"))
     }
 
     @Test("entity lozenge block reserves real height while loading")
