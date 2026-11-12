@@ -1,5 +1,10 @@
 import Foundation
 import Testing
+#if canImport(UIKit)
+import UIKit
+#else
+import AppKit
+#endif
 
 @testable import Fichero
 
@@ -26,5 +31,16 @@ struct SharedMachineSectionsTests {
         let sections = SharedMachineSections.sections(machines)
         #expect(sections.first?.rows == [.library("/x/One"), .library("/x/Two")])
         #expect(sections.count == 2)
+    }
+
+    /// A shared Mac's library row carries a project's symbol, as the Mac's project rows do, and the symbol is one the
+    /// system draws: no sidebar row is bare on the iPad (#6557).
+    @Test func aSharedLibraryRowCarriesTheProjectSymbol() {
+        #expect(SharedLibraryRowView.systemImage == LibrarySectionHeader.systemImage)
+        #if canImport(UIKit)
+        #expect(UIImage(systemName: SharedLibraryRowView.systemImage) != nil)
+        #else
+        #expect(NSImage(systemSymbolName: SharedLibraryRowView.systemImage, accessibilityDescription: nil) != nil)
+        #endif
     }
 }

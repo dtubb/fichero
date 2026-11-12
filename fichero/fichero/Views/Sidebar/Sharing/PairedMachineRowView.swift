@@ -2,6 +2,9 @@ import SwiftUI
 
 /// One library a paired Mac shared with this person, labelled by that Mac; choosing it opens Connect to Library.
 struct SharedLibraryRowView: View {
+    /// The row's symbol: a project's, as on the Mac's project rows, so no sidebar row is drawn bare (#6557).
+    nonisolated static let systemImage = LibrarySectionHeader.systemImage
+
     let machine: String
     let library: String
     /// Set when the host answered and no longer lists this library: the row is greyed with one sentence and does not open.
@@ -10,11 +13,21 @@ struct SharedLibraryRowView: View {
 
     var body: some View {
         Button(action: onOpen) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(URL(fileURLWithPath: library).lastPathComponent).lineLimit(1).truncationMode(.middle)
-                if !machine.isEmpty { Text(machine).font(.caption).foregroundStyle(.secondary) }
-                if let unavailableSentence { Text(unavailableSentence).font(.caption).foregroundStyle(.secondary) }
+            // Icon and name at the node rows' spacing and icon width (`SidebarNodeLabel`), so the name lines up
+            // with the folders' names; the caption lines sit under the name, not the icon.
+            HStack(alignment: .firstTextBaseline, spacing: SidebarNodeLabel.spacing) {
+                Image(systemName: Self.systemImage)
+                    .frame(width: SidebarNodeLabel.iconWidth, alignment: .center)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(URL(fileURLWithPath: library).lastPathComponent).lineLimit(1).truncationMode(.middle)
+                    if !machine.isEmpty { Text(machine).font(.caption).foregroundStyle(.secondary) }
+                    if let unavailableSentence {
+                        Text(unavailableSentence).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(unavailableSentence != nil)

@@ -34,6 +34,9 @@ func sidebarLibraryHeaderAccessibilityValue(isCurrent: Bool) -> String {
 /// and routing them by capability rather than by the id they carry is what made
 /// a move into a copy (#4401).
 struct LibrarySectionHeader: View {
+    /// A project's symbol in the sidebar: this row's, and a shared Mac's library rows' (#6557).
+    nonisolated static let systemImage = "books.vertical"
+
     let library: LibraryManager.LibraryReference
     let itemCount: Int
     var isCurrentLibrary: Bool = false
@@ -132,7 +135,7 @@ struct LibrarySectionHeader: View {
     @ViewBuilder
     private var headerContent: some View {
         HStack(spacing: 6) {
-            Image(systemName: "books.vertical")
+            Image(systemName: Self.systemImage)
                 // White over the solid accent drop platter — the same
                 // inversion rule as the item rows (rowContentColor, #4568).
                 .foregroundStyle(
