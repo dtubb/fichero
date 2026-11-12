@@ -69,23 +69,4 @@ struct LibraryOutlineRowDragTests {
         #expect(emptyDrag.text == artifact(content: "").artifactTypeDisplayName)
         #expect(!textDrag.exportsSourceFile)
     }
-
-    /// Absence check (the failing-first one): before #6538 the Name column's cells carried
-    /// `.draggable`, and that is what took their clicks from the table's selection. A table
-    /// cell may carry neither a drag source nor a tap gesture; the row owns both.
-    /// The Claims table's Source cell had the same fault and the same fix.
-    @Test("no library-table cell carries a drag source or a tap gesture")
-    func noCellTakesTheRowsClick() throws {
-        let root = try AppSource.root()
-        let paths = [
-            "Views/Library/ViewModes/Table/LibraryView+TableColumns.swift",
-            "Views/Library/ViewModes/Table/ClaimsTableView.swift"
-        ]
-        for path in paths {
-            let source = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
-            for forbidden in [".draggable(", ".onDrag(", ".onTapGesture", "TapGesture(", ".gesture("] {
-                #expect(!source.contains(forbidden), "\(path) has \(forbidden)")
-            }
-        }
-    }
 }

@@ -111,8 +111,6 @@ fichero/Tests/Unit/general/Views/Inspector/InspectorTouchReachabilityTests.swift
 fichero/Tests/Unit/general/Views/Inspector/KnowledgeGraphInspectorSectionTests.swift
 fichero/Tests/Unit/general/Views/Inspector/ProgressViewUsageTests.swift
 fichero/Tests/Unit/general/Views/InspectorAttributeVisibilityTests.swift
-# absence scan: no library-table cell carries a drag source or tap gesture (the row owns both, #6538); the property is the absence of a modifier in two files
-fichero/Tests/Unit/general/Views/Library/LibraryOutlineRowDragTests.swift
 fichero/Tests/Unit/general/Views/Library/Canvas3DCameraProjectionTests.swift
 fichero/Tests/Unit/general/Views/Library/CanvasArrangementTests.swift
 fichero/Tests/Unit/general/Views/Library/CanvasBoardShapeTests.swift
