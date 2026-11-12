@@ -1,5 +1,5 @@
-@testable import Fichero
 import AppKit
+@testable import Fichero
 import FicheroAPIClient
 import Foundation
 import PDFKit

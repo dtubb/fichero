@@ -145,7 +145,8 @@ struct ReadingOrderList: View { // swiftlint:disable:this type_body_length
         // And back: what another surface selects (the Reader, the Preview) is selected here too.
         .onChange(of: sharedIds) { _, now in if Set(now) != picks { picks = Set(now) } }
         .onChange(of: picks) { _, picked in
-            guard !picked.isEmpty, Set(sharedIds) != picked, let focused = windowState?.sharedRegionSelection, let segmentService else { return }
+            guard !picked.isEmpty, Set(sharedIds) != picked,
+                  let focused = windowState?.sharedRegionSelection, let segmentService else { return }
             // Written first, the callback told after: `onSelected?(select(...))` skipped the write with no callback.
             let chosen = InspectorPath.selectListPicks(
                 picked, order: store?.shown.map(\.segmentId) ?? [], into: focused, documentId: documentId,
@@ -328,7 +329,8 @@ struct ReadingOrderList: View { // swiftlint:disable:this type_body_length
                 Text("Layout Order").font(.headline)
             }
             .fixedSize()
-            .help("The order this page's segments are read in. Now it is the order the layout found them; make a named order to rearrange it.")
+            .help("The order this page's segments are read in. Now it is the order the layout found them; "
+                + "make a named order to rearrange it.")
             Spacer(minLength: 4)
         }
         .padding(.horizontal, 8)
