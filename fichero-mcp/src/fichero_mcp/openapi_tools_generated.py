@@ -6070,7 +6070,7 @@ def fichero_pairing_set_multiuser(
     *,
     enabled: Annotated[bool, Field(description='Enabled.')],
 ) -> Any:
-    "Set Multiuser\n\nSet the persisted Multi-user switch through the audited action layer (#5751); the Settings\nswitch, the CLI and MCP share this route. While Multi-user is off only the owner's signed-in session may\n(`multiuser.owner-session-sets-the-switch`, #5908): never the start-up credential.\nApp-wide, so no library header is needed (`sharing.multiuser-switch-needs-no-library`): the audit row goes to the\nglobal library package, as the known-library registry's actions do; the Settings window sends no library.\n\nRoute: PUT /api/pair/multiuser (toolset `pairing`; changes data, as the agent account when one exists)."
+    "Set Multiuser\n\nSet the persisted Multi-user switch through the audited action layer (#5751); the Settings\nswitch, the CLI and MCP share this route. Only a request over the engine's Unix socket may (the Mac's own app, its\nstart-up credential, no key session needed); any TCP request is refused, an owner session included\n(`multiuser.owner-session-sets-the-switch`, owner ruling 2026-11-12).\nApp-wide, so no library header is needed (`sharing.multiuser-switch-needs-no-library`): the audit row goes to the\nglobal library package, as the known-library registry's actions do; the Settings window sends no library.\n\nRoute: PUT /api/pair/multiuser (toolset `pairing`; changes data, as the agent account when one exists)."
     return _rt.call("PUT", "/api/pair/multiuser", json=_rt.body({"enabled": enabled}))
 
 

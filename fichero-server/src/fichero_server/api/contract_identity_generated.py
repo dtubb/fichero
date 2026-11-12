@@ -7,5 +7,5 @@ of the contract shares byte-for-byte -- including the one the Swift client
 is generated from, so both ends hash the same document.
 """
 
-CONTRACT_VERSION = "2026.10.30"
-CONTRACT_SHA256 = "a75797742c062aa844e551e267db761a6fa22b3904940b9ab0470fadb8b1222a"
+CONTRACT_VERSION = "2026.11.12"
+CONTRACT_SHA256 = "962301742e85d42bf9c39f33de9faade088404400ccaea4cf2ef45d497a9507c"

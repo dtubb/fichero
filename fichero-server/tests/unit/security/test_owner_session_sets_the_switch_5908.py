@@ -38,6 +38,18 @@ def test_the_mac_app_over_the_socket_sets_the_switch_with_no_key_session(harness
     assert harness.app_db.get_setting("multiuser.enabled") == "false"
 
 
+def test_the_start_up_key_is_refused_for_both_steps(harness, monkeypatch):
+    """Over TCP (loopback plus the bootstrap token) the start-up key still sets neither: the owner ruling of 2026-11-12
+    gives the switch to the Mac's own app over its Unix socket only (#6565)."""
+    owner, _ann = _people(harness, monkeypatch)
+    app = harness.host()  # loopback plus the bootstrap token
+    password = app.patch(f"/api/users/{owner.id}", json={"password": "p"})
+    assert (password.status_code, password.json()["detail"]) == (409, "multi-user auth is disabled"), "the guard's own refusal, not a routing 404"
+    switch = app.put("/api/pair/multiuser", json={"enabled": True})
+    assert (switch.status_code, switch.json()["detail"]) == (403, "only this Mac's own app can change Multi-user")
+    assert harness.app_db.get_setting("multiuser.enabled") != "true"
+
+
 def test_a_tcp_caller_is_refused_the_switch_even_as_the_signed_in_owner(harness, monkeypatch):
     owner, _ann = _people(harness, monkeypatch)
     harness.app_db.set_password(owner.id, accounts.hash_password("a chosen one"))
