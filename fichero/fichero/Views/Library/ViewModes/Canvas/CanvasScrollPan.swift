@@ -75,7 +75,7 @@ final class CanvasScrollCaptureView: NSView {
     /// user, live 2026-08-19: "you have to use Space"). A LOCAL monitor sees
     /// the event stream before dispatch; we act on scrolls inside our bounds
     /// and pass every event through untouched.
-    override func viewDidMoveToWindow() {
+    override func viewDidMoveToWindow() { // swiftlint:disable:this cyclomatic_complexity
         super.viewDidMoveToWindow()
         if let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
         if let clickMonitor { NSEvent.removeMonitor(clickMonitor); self.clickMonitor = nil }

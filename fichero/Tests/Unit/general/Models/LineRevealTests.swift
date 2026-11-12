@@ -1,6 +1,6 @@
 @testable import Fichero
-import FicheroAPIClient
 import AppKit
+import FicheroAPIClient
 import Foundation
 import PDFKit
 import Testing
