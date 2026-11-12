@@ -25,6 +25,8 @@ final class DocumentOverlayView: NSView {
     private var hovered: CGRect? {
         didSet { if hovered != oldValue { needsDisplay = true } }
     }
+    /// The box under the pointer: its region's hue colours the hover and lights its region (#6422).
+    private var hoveredBox: DocumentOverlay.Box?
 
     override var isFlipped: Bool { false }  // the image view's own space: y grows upward
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
@@ -96,18 +98,22 @@ final class DocumentOverlayView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        hovered = boxRect(at: point)
+        let found = box(at: point)
+        hoveredBox = found?.box
+        hovered = found?.rect
     }
 
-    override func mouseExited(with event: NSEvent) { hovered = nil }
+    override func mouseExited(with event: NSEvent) {
+        hoveredBox = nil
+        hovered = nil
+    }
 
     /// The smallest box containing `point` -- the same "smallest wins" the click path uses, and the hover
     /// label's (`DocumentOverlay.smallestContaining`, #5411).
-    private func boxRect(at point: CGPoint) -> CGRect? {
+    private func box(at point: CGPoint) -> (box: DocumentOverlay.Box, rect: CGRect)? {
         guard let imageRect else { return nil }
-        let rects = overlay.boxes(in: CGRect(origin: point, size: CGSize(width: 0.001, height: 0.001)),
-                                  imageRect: imageRect).map(\.rect)
-        return DocumentOverlay.smallestContaining(point, in: rects).map { rects[$0] }
+        let found = overlay.boxes(in: CGRect(origin: point, size: CGSize(width: 0.001, height: 0.001)), imageRect: imageRect)
+        return DocumentOverlay.smallestContaining(point, in: found.map(\.rect)).map { found[$0] }
     }
 
     /// The ONE rule for where the image sits in its view, the same one the pointer path uses.
@@ -295,12 +301,14 @@ final class DocumentOverlayView: NSView {
         }
     }
 
-    /// The hovered box: its wash and outline -- a fill only here and on selection, never at rest (#5207).
-    private func drawHover(_ rect: CGRect, line: CGFloat) {
+    /// The hovered box: its wash and outline in its region's hue (#6422) -- a fill only here and on selection, never at
+    /// rest (#5207).
+    private func drawHover(_ rect: CGRect, tone: RegionColours.Tone?, line: CGFloat) {
         let path = NSBezierPath(rect: rect)
-        SelectionStyle.hoverBase.withAlphaComponent(SelectionStyle.hoverWashAlpha).setFill()
+        let colour = SelectionStyle.hover(tone)
+        colour.withAlphaComponent(SelectionStyle.hoverWashAlpha).setFill()
         path.fill()
-        SelectionStyle.hoverBase.withAlphaComponent(SelectionStyle.hoverAlpha).setStroke()
+        colour.withAlphaComponent(SelectionStyle.hoverAlpha).setStroke()
         path.lineWidth = line
         path.stroke()
     }
@@ -315,15 +323,19 @@ extension DocumentOverlayView {
         in dirtyRect: NSRect, imageRect: CGRect, scale: CGFloat, line: CGFloat, emphasized: Bool
     ) {
         let selected = overlay.selected(in: dirtyRect, imageRect: imageRect)
+        let tones = overlay.selectedTones(in: dirtyRect, imageRect: imageRect)
+        // The region a hovered or selected line sits in lights with it, in its hue (#6422).
+        drawLitRegions(lighting: hoveredBox?.segmentId, in: dirtyRect, imageRect: imageRect, line: line)
         if let hovered, hovered.intersects(dirtyRect), !selected.contains(hovered) {
-            drawHover(hovered, line: line)
+            drawHover(hovered, tone: hoveredBox?.tone, line: line)
         }
+        // The Inspector's selected annotation and a box with no region: the selection's own accent.
         let stroke = SelectionStyle.stroke(emphasized: emphasized)
         let wash = SelectionStyle.washBase(emphasized: emphasized)
             .withAlphaComponent(SelectionStyle.washAlpha(emphasized: emphasized))
         // In Edit Segments the selection is Preview's marquee (#5215): dashed, with eight handles.
         let dashed = overlay.isEditing
-        let outline = { (rect: CGRect) in
+        let outline = { (rect: CGRect, stroke: NSColor, wash: NSColor) in
             let path = NSBezierPath(rect: rect)
             wash.setFill()
             path.fill()
@@ -335,12 +347,16 @@ extension DocumentOverlayView {
         // The Inspector's selected annotation: the same selection look as a selected box.
         if let bbox = overlay.selectedMark,
            let rect = DocumentBoxMapping.rect(normalized: bbox, imageRect: imageRect), rect.intersects(dirtyRect) {
-            outline(rect)
+            outline(rect, stroke, wash)
         }
         // Handles only for ONE selected box, as in Preview (#5236): with several, each is marked and the
         // set moves together; 27 boxes of 8 handles each was a wall of dots.
         let handles = overlay.isEditing && selected.count == 1
         for (index, rect) in selected.enumerated() {
+            // Each selected box in its region's hue (#6422).
+            let tone = tones.indices.contains(index) ? tones[index] : nil
+            let stroke = SelectionStyle.stroke(tone, emphasized: emphasized)
+            let wash = SelectionStyle.wash(tone, emphasized: emphasized)
             let shapes = overlay.selectedShapes.indices.contains(index) ? overlay.selectedShapes[index] : []
             if !shapes.isEmpty {
                 // Outlined as itself; in Edit Segments, a handle per point and one per side (Reshape).
@@ -360,21 +376,9 @@ extension DocumentOverlayView {
                 }
                 continue
             }
-            outline(rect)
+            outline(rect, stroke, wash)
             guard handles else { continue }  // handles only in Edit Segments, on a single selection
             drawFrameHandles(around: rect, scale: scale, line: line, stroke: stroke)
-        }
-    }
-
-    /// The eight resize handles of a selected box or shape frame, as Preview draws them.
-    private func drawFrameHandles(around rect: CGRect, scale: CGFloat, line: CGFloat, stroke: NSColor) {
-        for handle in SelectionStyle.handleRects(around: rect, side: SelectionStyle.handleSide / scale) {
-            let square = NSBezierPath(rect: handle)
-            SelectionStyle.handleFill.setFill()
-            square.fill()
-            stroke.setStroke()
-            square.lineWidth = line
-            square.stroke()
         }
     }
 }

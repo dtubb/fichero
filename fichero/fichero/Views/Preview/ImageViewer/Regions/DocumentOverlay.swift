@@ -141,6 +141,39 @@ struct DocumentOverlay: Equatable {
         }
     }
 
+    /// Each selected rect's region tone, parallel to `selected(in:imageRect:)`: a selection is drawn in its region's hue
+    /// (#6422, `colour.selection-takes-its-region-hue`); nil for a rect no box is drawn at (an artifact's geometry).
+    func selectedTones(in dirty: CGRect, imageRect: CGRect) -> [RegionColours.Tone?] {
+        let toneByBox = Dictionary(boxes.map { ($0.bbox, $0.tone) }, uniquingKeysWith: { first, _ in first })
+        return selected.compactMap { bbox -> RegionColours.Tone?? in
+            guard let rect = DocumentBoxMapping.rect(normalized: bbox, imageRect: imageRect), rect.intersects(dirty)
+            else { return nil }
+            return .some(toneByBox[bbox] ?? nil)
+        }
+    }
+
+    /// The region boxes that light with the hovered and selected segments (#6422): each segment's nearest region
+    /// ancestor drawn on the page, once each; a region itself lights nothing more.
+    func litRegions(for segmentIds: [String]) -> [Box] {
+        guard !segmentIds.isEmpty else { return [] }
+        let byId = Dictionary(boxes.compactMap { box in box.segmentId.map { ($0, box) } }, uniquingKeysWith: { first, _ in first })
+        var seen: Set<String> = []
+        var lit: [Box] = []
+        for id in segmentIds {
+            var cursor = byId[id]?.parentSegmentId
+            var hops = 0
+            while let current = cursor, hops < 16 {
+                if let box = byId[current], box.kind == "region" {
+                    if seen.insert(current).inserted { lit.append(box) }
+                    break
+                }
+                cursor = byId[current]?.parentSegmentId
+                hops += 1
+            }
+        }
+        return lit
+    }
+
     /// The selected rects a redraw of `dirty` must paint.
     func selected(in dirty: CGRect, imageRect: CGRect) -> [CGRect] {
         Self.rects(selected, in: dirty, imageRect: imageRect)
