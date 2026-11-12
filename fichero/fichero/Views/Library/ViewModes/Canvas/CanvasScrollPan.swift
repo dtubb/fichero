@@ -75,7 +75,7 @@ final class CanvasScrollCaptureView: NSView {
     /// user, live 2026-08-19: "you have to use Space"). A LOCAL monitor sees
     /// the event stream before dispatch; we act on scrolls inside our bounds
     /// and pass every event through untouched.
-    override func viewDidMoveToWindow() { // swiftlint:disable:this cyclomatic_complexity
+    override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
         if let clickMonitor { NSEvent.removeMonitor(clickMonitor); self.clickMonitor = nil }
@@ -83,37 +83,46 @@ final class CanvasScrollCaptureView: NSView {
         guard window != nil else { return }
         pressMonitor = NSEvent.addLocalMonitorForEvents(
             matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]
-        ) { [weak self] event in
-            guard let self, event.window === self.window else { return event }
-            switch event.type {
-            case .leftMouseDown:
-                if self.bounds.contains(self.convert(event.locationInWindow, from: nil)) {
-                    CanvasBoardProfile.mouse(.pressed)
-                    self.onPrimaryPress?()
-                }
-            case .leftMouseDragged: CanvasBoardProfile.mouse(.dragged)
-            default: CanvasBoardProfile.mouse(.released)
-            }
-            return event
-        }
-        clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown, .leftMouseDown]) { [weak self] event in
-            guard let self, let window = self.window, event.window === window, let onSecondaryClick = self.onSecondaryClick,
-                  event.type == .rightMouseDown || event.modifierFlags.contains(.control) else { return event }
-            let inView = self.convert(event.locationInWindow, from: nil)
-            if self.bounds.contains(inView) {
-                onSecondaryClick(CGPoint(x: inView.x, y: self.isFlipped ? inView.y : self.bounds.height - inView.y))
-            }
-            return event
-        }
+        ) { [weak self] event in self?.pressed(event) ?? event }
+        clickMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.rightMouseDown, .leftMouseDown]
+        ) { [weak self] event in self?.secondaryClicked(event) ?? event }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-            guard let self, let window = self.window, event.window === window else { return event }
-            let inView = self.convert(event.locationInWindow, from: nil)
-            if self.bounds.contains(inView) {
-                self.scrollWheel(with: event)
-                return nil  // consumed — the canvas owns this scroll
-            }
-            return event
+            guard let self else { return event }
+            return self.scrolled(event)
         }
+    }
+
+    private func pressed(_ event: NSEvent) -> NSEvent {
+        guard event.window === window else { return event }
+        switch event.type {
+        case .leftMouseDown:
+            if bounds.contains(convert(event.locationInWindow, from: nil)) {
+                CanvasBoardProfile.mouse(.pressed)
+                onPrimaryPress?()
+            }
+        case .leftMouseDragged: CanvasBoardProfile.mouse(.dragged)
+        default: CanvasBoardProfile.mouse(.released)
+        }
+        return event
+    }
+
+    private func secondaryClicked(_ event: NSEvent) -> NSEvent {
+        guard let window, event.window === window, let onSecondaryClick,
+              event.type == .rightMouseDown || event.modifierFlags.contains(.control) else { return event }
+        let inView = convert(event.locationInWindow, from: nil)
+        if bounds.contains(inView) {
+            onSecondaryClick(CGPoint(x: inView.x, y: isFlipped ? inView.y : bounds.height - inView.y))
+        }
+        return event
+    }
+
+    /// nil = consumed: the canvas owns a scroll over it.
+    private func scrolled(_ event: NSEvent) -> NSEvent? {
+        guard let window, event.window === window else { return event }
+        guard bounds.contains(convert(event.locationInWindow, from: nil)) else { return event }
+        scrollWheel(with: event)
+        return nil
     }
 
     // No deinit teardown: `monitor` is non-Sendable, so a nonisolated deinit

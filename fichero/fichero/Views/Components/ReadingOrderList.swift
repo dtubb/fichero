@@ -5,7 +5,7 @@ import SwiftUI
 /// lists the order (ruled 2026-09-27, Q5): the Inspector's Source section and the Reader both
 /// mount this, and every move goes through `ReadingOrderStore`, so a drag and a key, in either
 /// place, are the same engine call, undoable with ⌘Z.
-struct ReadingOrderList: View { // swiftlint:disable:this type_body_length
+struct ReadingOrderList: View {
     let documentId: String
     /// List this segment's children (a block's lines, a line's words) instead of the page's top level
     /// -- the Inspector's Order section at the inspected level.
@@ -233,6 +233,13 @@ struct ReadingOrderList: View { // swiftlint:disable:this type_body_length
 
     private var documentStore: SegmentStore? { segmentService.map { SegmentStore.shared(for: $0) } }
 
+    /// Why Create Named Order did not happen; nil after it did.
+    @State var createNote: String?
+}
+
+// MARK: - Keys, rename, reveal and the level shown
+
+extension ReadingOrderList {
     /// Shift+Up/Down (#6457): only Shift extends; a plain arrow stays the List's own (`InspectorPath.extendPlaces`).
     /// ⌥↑ / ⌥↓ move the selected line one place, the same call as the Move buttons (Finder keeps plain arrows for the
     /// selection). Nil for any other chord, so the arrows keep their meaning.
@@ -294,9 +301,6 @@ struct ReadingOrderList: View { // swiftlint:disable:this type_body_length
         )
         onSelected?(revealed)
     }
-
-    /// Why Create Named Order did not happen; nil after it did.
-    @State var createNote: String?
 
     /// The level shown, as the page holds it, for a page with no named order: the WORKING pass's
     /// segments only (`SegmentStore.workingSegments`, #5467), never the top level of every pass.
