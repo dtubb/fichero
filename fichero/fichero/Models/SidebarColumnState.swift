@@ -47,3 +47,17 @@ struct SidebarColumnState: Equatable {
         return next
     }
 }
+
+/// Where the Sidebar/Chat pair is drawn (#6563). While the column is up it is an item of the sidebar column's own bar,
+/// beside the window controls on the Mac and at the top of the iPad's sidebar; while the column is hidden it moves to
+/// the content's bar, ahead of Back/Forward, so it can bring the column back. A compact iPhone, whose split view is a
+/// single stack, has no pair: the column is the stack's root and Back returns to it.
+enum SidebarPairHome: Equatable {
+    case sidebarColumn
+    case contentBar
+
+    static func home(columnShown: Bool, isCompact: Bool) -> SidebarPairHome? {
+        if isCompact { return nil }
+        return columnShown ? .sidebarColumn : .contentBar
+    }
+}

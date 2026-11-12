@@ -60,4 +60,20 @@ struct SidebarColumnStateTests {
         #expect(!both.togglingChat().togglingTree().columnShown)
         #expect(!both.togglingTree().togglingChat().columnShown)
     }
+
+    @Test("the pair sits in the sidebar's own bar while the column is up (Mac and iPad, #6563)")
+    func pairInSidebarWhileShown() {
+        #expect(SidebarPairHome.home(columnShown: true, isCompact: false) == .sidebarColumn)
+    }
+
+    @Test("the pair moves to the content bar while the column is hidden, so it can bring it back (#6563)")
+    func pairInContentBarWhileHidden() {
+        #expect(SidebarPairHome.home(columnShown: false, isCompact: false) == .contentBar)
+    }
+
+    @Test("a compact iPhone has no pair; its split view is one stack (#6563)")
+    func noPairWhenCompact() {
+        #expect(SidebarPairHome.home(columnShown: true, isCompact: true) == nil)
+        #expect(SidebarPairHome.home(columnShown: false, isCompact: true) == nil)
+    }
 }

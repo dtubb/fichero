@@ -117,10 +117,10 @@ extension ContentView {
         // section with Back/Forward. On the Mac that is reversed on purpose (Daniel, 2026-11-11):
         // the Sidebar/Chat pair is a toolbar item of this column, beside the window controls, and the
         // system toggle is removed from this same column view, where Apple's docs apply the modifier.
-        #if os(macOS)
-        .toolbar(removing: .sidebarToggle)
+        // The iPad does the same (#6563): the pair replaces the system toggle wherever the pair is drawn, and a compact
+        // iPhone, which has no pair, keeps the system's own (`SidebarPairHome`).
+        .toolbar(removing: sidebarPairHome == nil ? nil : .sidebarToggle)
         .toolbar { sidebarToolbarContent }
-        #endif
         // NOTE: \.showInspector is published from the detail column in
         // ContentView.navigationSplitColumn (always present), NOT here — the
         // sidebar leaves the hierarchy when collapsed, which disabled ⌘⌥I

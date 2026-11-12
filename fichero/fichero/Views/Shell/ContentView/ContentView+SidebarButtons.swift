@@ -86,15 +86,22 @@ extension ContentView {
         SidebarPairButtons(state: sidebarColumnState, apply: applySidebarColumnState)
     }
 
-    #if os(macOS)
+    /// Where this window draws the pair (#6563, `SidebarPairHome`).
+    var sidebarPairHome: SidebarPairHome? {
+        SidebarPairHome.home(columnShown: showSidebar, isCompact: horizontalSizeClass == .compact)
+    }
+
     /// The pair as a real toolbar item of the SIDEBAR column, placed `.automatic`: Apple's docs place those "in the
     /// current toolbar section in order of leading to trailing", so it starts beside the window controls. The earlier
     /// attempts failed: `.navigation` is hoisted into the detail toolbar beside Back/Forward, and drawing the pair
     /// over the title bar left part of it inside the strip macOS keeps for dragging the window, so clicks missed.
+    /// On the iPad it is the top of the sidebar, where the system toggle was (#6563).
     @ToolbarContentBuilder
     var sidebarToolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .automatic) {
-            sidebarButtons
+        if sidebarPairHome == .sidebarColumn {
+            ToolbarItem(placement: .automatic) {
+                sidebarButtons
+            }
         }
     }
 
@@ -107,7 +114,6 @@ extension ContentView {
             .padding(.vertical, 4)
             .glassEffect(.regular, in: Capsule())
     }
-    #endif
 }
 
 #if DEBUG
