@@ -67,11 +67,19 @@ struct SidebarSourceOpen: Equatable {
     let opensPreview: Bool
 
     /// nil when `doc` is not a source: folders, groups, pages and workflow mirrors keep their own
-    /// routes (a folder lists its contents; a page moves the cursor).
+    /// routes (a folder lists its contents; a page moves the cursor). A PDF with pages is not a
+    /// source here either (owner ruling 2026-11-11, #6539, `read.selecting-a-pdf-shows-its-pages`):
+    /// the Library pane lists its pages, as a folder lists its contents. A PDF not split into
+    /// pages yet still opens in its folder, so the pane never lists an empty PDF.
     static func plan(for doc: Document, previewShowing: Bool) -> SidebarSourceOpen? {
-        guard doc.docType == .file, !doc.isWorkflowNode else { return nil }
+        guard doc.docType == .file, !doc.isWorkflowNode, !listsItsPages(doc) else { return nil }
         let parentId = doc.parentId.flatMap { $0.isEmpty ? nil : $0 }
         return SidebarSourceOpen(folderId: parentId, selection: [doc.id], opensPreview: !previewShowing)
+    }
+
+    /// A PDF the Library pane opens onto, page by page, rather than showing selected in its folder.
+    static func listsItsPages(_ doc: Document) -> Bool {
+        doc.fileType == .pdf && doc.childCount > 0
     }
 
     /// The sidebar id of the node the Library pane lists, which keys its per-folder canvas and

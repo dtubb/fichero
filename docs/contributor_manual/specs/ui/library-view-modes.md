@@ -550,7 +550,9 @@ homeless until a map-view UI spec exists (#5128).
     across zooms).
 - `library.modes.the-view-follows-the-node` — **[PARTIAL]** (#5428; built 33310028f, tested in
   `fichero/Tests/Unit/general/Views/Library/LibraryViewFollowsNodeTests.swift`, not yet seen in the
-  app) Ruled 2026-10-04, Finder-like: clicking a source (an image or a PDF, the same rule) in the
+  app) Ruled 2026-10-04, Finder-like: clicking a source (an image or a PDF, the same rule; since the
+  owner's ruling of 2026-11-11, a PDF with pages is the exception and lists its pages as a folder lists
+  its contents, `read.selecting-a-pdf-shows-its-pages`, #6539) in the
   sidebar shows its parent folder in the Library pane, in that pane's saved view mode (canvas, table,
   …), with the source selected there; the linked Preview shows the source. If the window has no
   Preview pane, one opens. Clicking the folder shows the folder, still in its saved mode. This
