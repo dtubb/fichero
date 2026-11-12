@@ -1,8 +1,8 @@
 import Foundation
 
-/// The lens title that says what is showing (#6458, `source.editor.pane-title-says-what-is-showing`). Three forms for the pane head's
-/// `ViewThatFits` to choose the longest that fits: full "Content · Claude Sonnet · as written" and a check symbol, middle "Content · Claude Sonnet",
-/// short "Content". The full form is always the tooltip and the accessibility label.
+/// The lens title that says what is showing (#6458, `source.editor.pane-title-says-what-is-showing`). Three forms for the pane
+/// head's `ViewThatFits` to choose the longest that fits: full "Content · Claude Sonnet · as written" with the basis symbol after it,
+/// middle "Content · Claude Sonnet", short "Content". The full form is always the tooltip and the accessibility label.
 struct PaneTitleForms: Equatable {
     /// Why the shown reading counts: a person chose or wrote it, a machine's is not yet checked, or none counts.
     enum Basis: Equatable {
