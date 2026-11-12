@@ -405,7 +405,7 @@ struct InspectorTextSection: View {
 
     private var sections: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Text").font(.headline)
+            Text("Readings").font(.headline)
             ForEach(text.kinds, id: \.self) { kind in
                 VStack(alignment: .leading, spacing: 6) {
                     Text(kind.capitalized).font(.subheadline).foregroundStyle(.secondary)
