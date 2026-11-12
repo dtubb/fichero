@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// The Trash as a plain folder in the tree (`safety.trash.is-a-folder-in-the-sidebar`, owner design 2026-11-05): the Trash row
-/// with a chevron that opens what is in it as rows beneath, each with Put Back on its menu. The row itself still opens the
-/// Trash pane (`SidebarDestination.trash`), where Put Back and Empty Trash work on a selection.
+/// The Trash as a plain folder in the tree (`safety.trash.is-a-folder-in-the-sidebar`, owner design 2026-11-05): the Trash
+/// row with a chevron on its leading edge (#6536) that opens what is in it as rows beneath, each with Put Back on its menu.
+/// The row itself still opens the Trash pane (`SidebarDestination.trash`), where Put Back and Empty Trash work on a selection.
 struct SidebarTrashNode: View {
     /// The most children drawn under the row; the rest are one "more in the Trash" row, since the pane lists them all.
     nonisolated static let childLimit = 50
@@ -20,43 +20,59 @@ struct SidebarTrashNode: View {
     var onOpen: () -> Void = {}
     @State private var isExpanded = false
 
+    /// Whether the Trash row opens: only while it holds something, as a folder with children does.
+    nonisolated static func opens(isEmpty: Bool) -> Bool { !isEmpty }
+
+    /// A real disclosure group, so the List draws the chevron on the leading edge and indents the children, as for every
+    /// folder (owner ruling 2026-11-11, #6536); it was a button at the row's trailing edge, with the children indented by
+    /// hand. The tag sits on the group, not inside its label: the List reads the selection from the row itself.
     var body: some View {
-        SidebarTrashRow(
-            store: store, libraryId: libraryId, isSelected: isSelected, onDropIds: onDropIds,
-            isExpanded: store.isEmpty ? nil : $isExpanded
-        )
-        if isExpanded && !store.isEmpty {
-            let drawn = Self.shown(store.entries)
-            ForEach(drawn.entries) { entry in
-                SidebarTrashChildRow(entry: entry, onOpen: onOpen) {
-                    Task { await store.putBack([entry.id]) }
+        Group {
+            if Self.opens(isEmpty: store.isEmpty) {
+                DisclosureGroup(isExpanded: $isExpanded) {
+                    children
+                } label: {
+                    row
                 }
+            } else {
+                row
             }
-            if drawn.hidden > 0 {
-                Text("\(drawn.hidden) more in the Trash")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, SidebarTrashChildRow.indent)
-                    .listRowInsets(SidebarRowMetrics.insets(.libraryItem))
-                    .contentShape(Rectangle())
-                    .onTapGesture(perform: onOpen)
+        }
+        .tag(SidebarDestination.trash(libraryId: libraryId))
+    }
+
+    private var row: some View {
+        SidebarTrashRow(store: store, libraryId: libraryId, isSelected: isSelected, onDropIds: onDropIds)
+    }
+
+    @ViewBuilder
+    private var children: some View {
+        let drawn = Self.shown(store.entries)
+        ForEach(drawn.entries) { entry in
+            SidebarTrashChildRow(entry: entry, onOpen: onOpen) {
+                Task { await store.putBack([entry.id]) }
             }
+        }
+        if drawn.hidden > 0 {
+            Text("\(drawn.hidden) more in the Trash")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .listRowInsets(SidebarRowMetrics.insets(.libraryItem))
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onOpen)
         }
     }
 }
 
-/// One thing in the Trash, under the Trash row: its name, and Put Back on the menu. A click opens the Trash pane.
+/// One thing in the Trash, under the Trash row: its name, and Put Back on the menu. A click opens the Trash pane. The
+/// List indents it under the Trash row, as it indents a folder's children.
 struct SidebarTrashChildRow: View {
-    /// How far a child sits in from the Trash row's name.
-    nonisolated static let indent: CGFloat = 18
-
     let entry: TrashEntry
     let onOpen: () -> Void
     let onPutBack: () -> Void
 
     var body: some View {
         SidebarNodeLabel(name: entry.name, systemImage: entry.isFolder ? "folder" : "doc")
-            .padding(.leading, Self.indent)
             .listRowInsets(SidebarRowMetrics.insets(.libraryItem))
             .contentShape(Rectangle())
             .onTapGesture(perform: onOpen)
