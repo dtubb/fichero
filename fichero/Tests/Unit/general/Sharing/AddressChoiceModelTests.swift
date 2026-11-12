@@ -136,4 +136,18 @@ struct AddressChoiceModelTests {
         let rows = AddressChoiceModel.rows(sharingAddress: "https://10.10.10.1", tailnetURL: nil, tailnetForward: "none")
         #expect(AddressChoiceModel.root(for: .thisNetwork, rows: rows)?.absoluteString == "https://10.10.10.1:8765")
     }
+
+    @Test("each address is one line: name, host, and where it works or why it cannot (#6554)")
+    func oneLinePerAddress() {
+        let rows = AddressChoiceModel.rows(sharingAddress: "https://studio.local:8765",
+                                           tailnetURL: "https://studio.tail1234.ts.net", tailnetForward: "unknown")
+        #expect(rows.map(AddressChoiceModel.line) == [
+            "This network, studio.local: \(AddressChoiceModel.thisNetworkReach)",
+            "Tailscale, studio.tail1234.ts.net: \(AddressChoiceModel.tailscaleUnchecked)"
+        ])
+        // A Tailscale the engine could not ask, with a tailnet name it knows, is offered (#6554), never greyed.
+        #expect(rows[1].isEnabled)
+        let off = AddressChoiceModel.rows(sharingAddress: "https://studio.local:8765", tailnetURL: nil, tailnetForward: "none")
+        #expect(AddressChoiceModel.line(off[1]) == "Tailscale: \(AddressChoiceModel.tailscaleOff)")
+    }
 }

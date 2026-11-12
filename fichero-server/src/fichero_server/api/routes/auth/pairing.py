@@ -191,7 +191,9 @@ def _tailnet_serve_command() -> str | None:
 
     from fichero_server.security import tailscale_serve  # lazy: app-import budget (#3950)
 
-    if not tailscale_serve.tailnet_url():
+    # The name the engine knows without asking Tailscale (#6554): a sandboxed engine cannot run the CLI, so the person is
+    # shown the one command that makes the forward rather than nothing.
+    if not tailscale_serve.known_tailnet_url():
         return None
     from fichero_server.security.bind_host import listen_port
 

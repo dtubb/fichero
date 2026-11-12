@@ -60,6 +60,13 @@ enum AddressChoiceModel {
             + "Run \(conflict.freeWith), then turn Sharing off and on."
     }
 
+    /// The one line a row is on the Add Device sheet (#6554: each address had been said three times): its name, its host,
+    /// and where it works, or why it cannot. The row's Copy sits beside it; nothing else names the address.
+    static func line(_ row: AddressRow) -> String {
+        let name = row.hostText.map { "\(row.title), \($0)" } ?? row.title
+        return "\(name): \(row.disabledReason ?? row.reach)"
+    }
+
     /// Whether the campus note is worth showing: no Tailscale address to offer, so nothing but the local network works.
     static func showsCampusNote(rows: [AddressRow]) -> Bool {
         rows.contains { $0.choice == .tailscale && $0.url == nil }

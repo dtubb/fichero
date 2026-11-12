@@ -58,17 +58,55 @@ def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(args, capture_output=True, check=True, text=True, timeout=20)
 
 
-def detected_tailnet_url(cli: str | None = None, *, run=None) -> str:
+def _ts_net_origin(host: str) -> str:
+    host = host.strip().rstrip(".").lower()
+    return f"https://{host}" if host.endswith(".ts.net") and not host.startswith("*") else ""
+
+
+def known_tailnet_url(env: Mapping[str, str] | None = None, *, cert_names=None, storage_dirs=None) -> str:
+    """This Mac's tailnet origin as the engine already knows it, without asking Tailscale (`sharing.tailnet-name-known-
+    without-the-cli`, #6554): the `.ts.net` sharing address, else a `.ts.net` name the serving certificate carries, else a
+    Remote Access folder named for one (`<host>-<port>-<hash>`). "" when none. ``cert_names``/``storage_dirs`` stand in
+    for the certificate and the folder listing in tests. Never raises."""
+    source = env if env is not None else os.environ
+    explicit = tailnet_url(source)
+    if explicit:
+        return _ts_net_origin(urlparse(explicit).hostname or "") or explicit
+    certfile = (source.get("FICHERO_TLS_CERTFILE") or "").strip()
+    if cert_names is None:
+        from fichero_server.security.sharing_report import _certificate_names  # lazy: reads the certificate
+
+        cert_names = _certificate_names() if certfile else []
+    for name in cert_names:
+        if origin := _ts_net_origin(name):
+            return origin
+    if storage_dirs is None:
+        try:
+            storage_dirs = sorted(p.name for p in os.scandir(os.path.dirname(os.path.dirname(certfile))) if p.is_dir()) \
+                if certfile else []
+        except OSError:
+            storage_dirs = []
+    for folder in storage_dirs:
+        if origin := _ts_net_origin(folder.rsplit("-", 2)[0] if folder.count("-") >= 2 else ""):
+            return origin
+    return ""
+
+
+def detected_tailnet_url(cli: str | None = None, *, run=None, known=None) -> str:
     """The https address of this Mac on the tailnet (``https://<host>.<tailnet>.ts.net``), or "" when
     Tailscale is missing, stopped or not logged in. For the share sheet to offer instead of a typed
-    address (#5318). Never raises."""
+    address (#5318). A Tailscale that cannot be asked (the sandboxed engine runs the CLI and reads no JSON, #6554) is not
+    a stopped one: the name the engine already knows is offered (`known_tailnet_url`; ``known`` stands in for it in
+    tests). Never raises."""
     cli = cli or tailscale_cli()
     if cli is None:
         return ""
     try:
         status = json.loads((run or _run)([cli, "status", "--json"]).stdout or "{}")
     except (OSError, ValueError, subprocess.SubprocessError):
-        return ""
+        status = {}
+    if not status.get("BackendState"):
+        return known_tailnet_url() if known is None else known
     if status.get("BackendState") != "Running":
         return ""
     name = str((status.get("Self") or {}).get("DNSName") or "").rstrip(".").lower()

@@ -60,12 +60,6 @@ extension ShareSettingsView {
                 ProgressView("Finishing setup…")
             case .ready, .notReady:
                 addressRowsView
-                // The key a guest that typed this Mac's address is shown at first contact (`HostKeyFingerprint`), to compare.
-                if let key = HostKeyFingerprint.text(ofPin: spkiPin) {
-                    Text("This Mac's key: \(key)").font(.caption.monospaced()).foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                        .accessibilityIdentifier("sharing.host.key-fingerprint")
-                }
                 if let image = qrImage {
                     Image(platformImage: image)
                         .interpolation(.none)
@@ -108,25 +102,31 @@ extension ShareSettingsView {
         .onChange(of: inviteLinkString) { _, _ in copyNote = nil }
     }
 
-    /// The addresses this Mac can be reached at, the chosen one feeding the QR and Copy Link, each with its own Copy
-    /// (`sharing.share-sheet-offers-both-addresses`, #5318). A row that cannot work says why and cannot be chosen.
+    /// The addresses this Mac can be reached at, ONE line each (#6554): name, host, where it works or why it cannot, and its
+    /// own Copy (`sharing.share-sheet-offers-both-addresses`, #5318). Clicking a line that can work makes it the one the QR
+    /// and Copy Link carry, ticked; nothing else on the sheet repeats an address.
     @ViewBuilder
     var addressRowsView: some View {
         let rows = addressRows
         if rows.count > 1 || rows.contains(where: { !$0.isEnabled }) {
+            let chosen = AddressChoiceModel.shownChoice(addressChoice, rows: rows)
             VStack(alignment: .leading, spacing: 6) {
-                Picker("Address", selection: Binding(
-                    get: { AddressChoiceModel.shownChoice(addressChoice, rows: rows) ?? .thisNetwork },
-                    set: { addressChoice = $0 })) {
-                    ForEach(rows.filter(\.isEnabled)) { row in Text(row.title).tag(row.choice) }
-                }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("sharing.address.picker")
                 ForEach(rows) { row in
                     HStack(spacing: 6) {
-                        Text(row.hostText.map { "\(row.title): \($0)" } ?? row.title)
-                            .font(.caption).foregroundStyle(row.isEnabled ? .primary : .secondary)
-                        Text(row.disabledReason ?? row.reach).font(.caption).foregroundStyle(.secondary)
+                        Button { addressChoice = row.choice } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: row.choice == chosen ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(row.isEnabled ? Color.accentColor : Color.secondary)
+                                    .accessibilityHidden(true)
+                                Text(AddressChoiceModel.line(row))
+                                    .font(.caption).foregroundStyle(row.isEnabled ? .primary : .secondary)
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!row.isEnabled)
+                        .accessibilityAddTraits(row.choice == chosen ? .isSelected : [])
                         Spacer()
                         if row.isEnabled {
                             Button("Copy") { copyInvite(for: row.choice) }
@@ -136,7 +136,7 @@ extension ShareSettingsView {
                     }
                     .accessibilityIdentifier("sharing.address.row.\(row.choice.rawValue)")
                 }
-                HostAddressList(records: hostAddresses)
+                TailnetServeCommandLine(command: sharingState?.tailnetServeCommand)
                 if AddressChoiceModel.showsCampusNote(rows: rows) {
                     Text(AddressChoiceModel.campusNote).font(.caption).foregroundStyle(.secondary)
                         .accessibilityIdentifier("sharing.address.campus-note")
