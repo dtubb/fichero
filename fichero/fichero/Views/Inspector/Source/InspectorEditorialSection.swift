@@ -8,6 +8,10 @@ struct InspectorEditorialSection: View {
     let segmentId: String
     /// The counting transcription: what a Mark covers. Nil when no reading counts.
     let reading: InspectorText.Reading?
+    /// The grouped Inspector hides this section while it holds nothing (#6413); its verb is then in the head's Add menu.
+    var hidesWhenEmpty = false
+    /// Told after each read whether the section holds nothing.
+    var onEmpty: ((Bool) -> Void)?
 
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
@@ -18,33 +22,35 @@ struct InspectorEditorialSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Certainty and Damage").font(.headline)
-                Spacer()
-                markMenu
-            }
-            if !answer.facts.isEmpty, let drawn = answer.drawn {
-                Text(drawn).font(.body).textSelection(.enabled)
-                    .accessibilityLabel("The text as the editor prints it: \(drawn)")
-            }
-            ForEach(InspectorEditorial.rows(answer.facts)) { row in
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(row.title).font(.body)
-                        Text(row.detail).font(.caption).foregroundStyle(.secondary)
-                    }
+            if !(hidesWhenEmpty && answer.facts.isEmpty) {
+                HStack {
+                    Text("Certainty and Damage").font(.headline)
                     Spacer()
-                    Button("Withdraw") {
-                        run("editorial.withdraw", EditorialFactRequest(factId: row.factId), "Withdraw Editorial Fact")
-                    }
-                    .buttonStyle(.borderless)
-                    .font(.caption)
-                    .help("Withdraw this fact; it is kept in the record, not deleted")
+                    markMenu
                 }
-                .accessibilityElement(children: .combine)
-            }
-            if answer.facts.isEmpty {
-                Text("Nothing is recorded about the state of this text.").font(.caption).foregroundStyle(.secondary)
+                if !answer.facts.isEmpty, let drawn = answer.drawn {
+                    Text(drawn).font(.body).textSelection(.enabled)
+                        .accessibilityLabel("The text as the editor prints it: \(drawn)")
+                }
+                ForEach(InspectorEditorial.rows(answer.facts)) { row in
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(row.title).font(.body)
+                            Text(row.detail).font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("Withdraw") {
+                            run("editorial.withdraw", EditorialFactRequest(factId: row.factId), "Withdraw Editorial Fact")
+                        }
+                        .buttonStyle(.borderless)
+                        .font(.caption)
+                        .help("Withdraw this fact; it is kept in the record, not deleted")
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+                if answer.facts.isEmpty {
+                    Text("Nothing is recorded about the state of this text.").font(.caption).foregroundStyle(.secondary)
+                }
             }
         }
         .task(id: segmentId) { await reload() }
@@ -71,6 +77,7 @@ struct InspectorEditorialSection: View {
     private func reload() async {
         guard let service else { return }
         answer = (try? await service.facts(segmentId: segmentId)) ?? InspectorEditorial.Answer(facts: [], drawn: nil)
+        onEmpty?(answer.facts.isEmpty)
     }
 
     private func run<Params: Encodable>(_ name: String, _ params: Params, _ actionName: String) {

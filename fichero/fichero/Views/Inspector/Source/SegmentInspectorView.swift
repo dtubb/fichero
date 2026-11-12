@@ -34,6 +34,9 @@ struct SegmentInspectorView: View {
     @State private var multiNote: String?
     /// The inspected segment's resolved direction (the engine's cascade), which the editor lays out in.
     @State private var direction: String?
+    /// The sections that hold nothing, hidden behind the head's Add menu (#6413), and those the person asked for.
+    @State private var emptySections: Set<InspectorSegmentLayout.Addition> = []
+    @State private var revealedSections: Set<InspectorSegmentLayout.Addition> = []
 
     /// What the sections describe: the selection itself, a crumb the person clicked, or the page.
     enum Level: Equatable {
@@ -118,60 +121,57 @@ struct SegmentInspectorView: View {
                             confirm: { Task { await flags.confirm(segmentId: inspected, documentId: documentId) } }
                         )
                     }
-                    if let text, !text.readings.isEmpty {
-                        InspectorTextSection(
-                            text: text, onChoose: { reading in choose(reading, in: text) },
-                            onEdit: inspected == nil ? nil : { reading in
-                                editing = (reading, reading.content)
-                                editNote = nil
-                            }
-                        )
-                        if let editing {
-                            InspectorReadingEditor(
-                                text: Binding(get: { editing.words }, set: { self.editing?.words = $0 }),
-                                layout: InspectorReadingEdit.layout(direction: direction),
-                                save: { Task { await saveEdit() } },
-                                cancel: { self.editing = nil }
-                            )
-                        }
-                        if let editNote {
-                            Text(editNote).font(.caption).foregroundStyle(.secondary)
-                        }
-                    } else if text != nil, let inspected,
-                              let segment = segments.first(where: { $0.id == inspected }), SegmentsPane.lacksReading(segment) {
-                        // Left without a reading: said, and typing one offered (deleting-words-keeps-ink).
-                        InspectorNoReadingSection(segmentId: inspected, documentId: documentId) { await reloadText() }
+                    if let inspected, !isMulti {
+                        InspectorSegmentPicture(segmentId: inspected)
                     }
-                    if !language.isEmpty {
-                        InspectorLanguageSection(rows: language)
+                    if hasReadingsGroup {
+                        InspectorGroupBox(group: .readings) { readingsGroup }
                     }
                     if !isMulti, let inspected {
-                        // Who wrote the ink, and who judged so (#5161).
-                        InspectorHandsSection(segmentId: inspected)
-                        // What the editor knows about the state of the text (5.5).
-                        InspectorEditorialSection(
-                            segmentId: inspected, reading: text?.countingReading(ofKind: "transcription")
-                        )
-                        // Declared signs, and a character's letterform (5.6).
-                        InspectorSignsSection(
-                            segmentId: inspected, reading: text?.countingContent(ofKind: "transcription")
-                        )
-                        // Typed links, both ways, and the segment's reference (5.7).
-                        InspectorLinksSection(segmentId: inspected, documentId: documentId, selectedIds: selectedIds)
-                        // What is said about it: claims and mentions whose anchor names it (5.7), each
-                        // corrected in place (#5602); a name's words are fixed on the line's counted text.
-                        InspectorStatementsSection(
-                            segmentId: inspected, documentId: documentId, lineText: lineText(of: inspected)
-                        )
-                        // What applies here, from the library down (5.8).
-                        InspectorRightsSection(targetKind: "segment", targetId: inspected, pageId: documentId)
-                        // Its picture, baseline and own history, with Restore (#5163).
-                        InspectorSegmentMakingSection(segmentId: inspected, documentId: documentId)
+                        InspectorGroupBox(group: .details) {
+                            if !language.isEmpty {
+                                InspectorDetailsLine(rows: language)
+                            }
+                            // Who wrote the ink, and who judged so (#5161); hidden while none is named.
+                            InspectorHandsSection(
+                                segmentId: inspected, hidesWhenEmpty: hides(.hand), onEmpty: { noted(.hand, empty: $0) }
+                            )
+                            // What the editor knows about the state of the text (5.5); hidden while nothing is.
+                            InspectorEditorialSection(
+                                segmentId: inspected, reading: text?.countingReading(ofKind: "transcription"),
+                                hidesWhenEmpty: hides(.certaintyMark), onEmpty: { noted(.certaintyMark, empty: $0) }
+                            )
+                            // Declared signs, and a character's letterform (5.6).
+                            InspectorSignsSection(
+                                segmentId: inspected, reading: text?.countingContent(ofKind: "transcription")
+                            )
+                        }
+                        InspectorGroupBox(group: .history) {
+                            // Its baseline and own history, with Restore (#5163); the picture is in the head.
+                            InspectorSegmentMakingSection(segmentId: inspected, documentId: documentId, grouped: true)
+                        }
+                        InspectorGroupBox(group: .linksAndRights) {
+                            // Typed links, both ways, and the segment's reference (5.7).
+                            InspectorLinksSection(
+                                segmentId: inspected, documentId: documentId, selectedIds: selectedIds, quietWhenEmpty: true
+                            )
+                            // What is said about it: claims and mentions whose anchor names it (5.7), each
+                            // corrected in place (#5602); a name's words are fixed on the line's counted text.
+                            InspectorStatementsSection(
+                                segmentId: inspected, documentId: documentId, lineText: lineText(of: inspected)
+                            )
+                            // What applies here, from the library down (5.8).
+                            InspectorRightsSection(targetKind: "segment", targetId: inspected, pageId: documentId)
+                        }
+                    } else if !language.isEmpty {
+                        InspectorGroupBox(group: .details) { InspectorDetailsLine(rows: language) }
                     }
                     if level == .page {
                         // Page level: how the page's passes were made (#5149).
-                        InspectorMakingSection(documentId: documentId)
-                        InspectorRightsSection(targetKind: "document", targetId: documentId, pageId: documentId)
+                        InspectorGroupBox(group: .history) { InspectorMakingSection(documentId: documentId) }
+                        InspectorGroupBox(group: .linksAndRights) {
+                            InspectorRightsSection(targetKind: "document", targetId: documentId, pageId: documentId)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -186,6 +186,8 @@ struct SegmentInspectorView: View {
         }
         .task(id: inspected) {
             text = nil
+            emptySections = []
+            revealedSections = []
             editing = nil
             editNote = nil
             await reloadText()
@@ -315,6 +317,48 @@ struct SegmentInspectorView: View {
     }
 }
 
+// MARK: - The Readings group
+
+extension SegmentInspectorView {
+    /// The Readings group shows when the segment has readings, or has none and says so with Type a Reading….
+    private var hasReadingsGroup: Bool {
+        if let text, !text.readings.isEmpty { return true }
+        return noReadingSegmentId != nil
+    }
+
+    /// The inspected segment, when it was left without a reading (deleting-words-keeps-ink).
+    private var noReadingSegmentId: String? {
+        guard text != nil, let inspected,
+              let segment = segments.first(where: { $0.id == inspected }), SegmentsPane.lacksReading(segment) else { return nil }
+        return inspected
+    }
+
+    @ViewBuilder private var readingsGroup: some View {
+        if let text, !text.readings.isEmpty {
+            InspectorTextSection(
+                text: text, onChoose: { reading in choose(reading, in: text) },
+                onEdit: inspected == nil ? nil : { reading in
+                    editing = (reading, reading.content)
+                    editNote = nil
+                }
+            )
+            if let editing {
+                InspectorReadingEditor(
+                    text: Binding(get: { editing.words }, set: { self.editing?.words = $0 }),
+                    layout: InspectorReadingEdit.layout(direction: direction),
+                    save: { Task { await saveEdit() } },
+                    cancel: { self.editing = nil }
+                )
+            }
+            if let editNote {
+                Text(editNote).font(.caption).foregroundStyle(.secondary)
+            }
+        } else if let segmentId = noReadingSegmentId {
+            InspectorNoReadingSection(segmentId: segmentId, documentId: documentId) { await reloadText() }
+        }
+    }
+}
+
 // MARK: - The path head
 
 extension SegmentInspectorView {
@@ -326,6 +370,7 @@ extension SegmentInspectorView {
                 self.crumb(crumb.label, selected: inspected == crumb.segmentId) { level = .segment(crumb.segmentId) }
             }
             Spacer(minLength: 0)
+            addMenu
             // Verbs on the SELECTION (ruled: the Inspector offers verbs, never typing a reading).
             SegmentAttributeMenu(apply: { setAttribute($0) }, askForCode: { askingFor = $0; code = "" })
                 .menuStyle(.button)
@@ -352,149 +397,34 @@ extension SegmentInspectorView {
             .foregroundStyle(selected ? .primary : .secondary)
     }
 
+    /// ONE Add menu (#6413): each section hidden while it holds nothing, shown again to use its own verbs.
+    @ViewBuilder private var addMenu: some View {
+        let hidden = InspectorSegmentLayout.addMenu(empty: emptySections, revealed: revealedSections)
+        if !isMulti, inspected != nil, !hidden.isEmpty {
+            Menu("Add") {
+                ForEach(hidden) { addition in
+                    Button("\(addition.title)…") { revealedSections.insert(addition) }
+                }
+            }
+            .menuStyle(.button)
+            .buttonStyle(.borderless)
+            .fixedSize()
+            .font(.caption)
+            .help("Add a hand or a certainty mark to this segment")
+        }
+    }
+
+    private func hides(_ addition: InspectorSegmentLayout.Addition) -> Bool {
+        InspectorSegmentLayout.hides(addition, empty: emptySections, revealed: revealedSections)
+    }
+
+    private func noted(_ addition: InspectorSegmentLayout.Addition, empty: Bool) {
+        if empty { emptySections.insert(addition) } else { emptySections.remove(addition) }
+    }
+
     private var countsLine: String {
         InspectorPath.kindCounts(selectedIds, in: segments)
             .map { "\($0.count) \($0.count == 1 ? $0.kind : $0.kind + "s")" }
             .joined(separator: ", ")
     }
 }
-
-/// Language, script, direction and encoding for the inspected segment, each saying where it came from
-/// (#5158). A fallback says it is one.
-struct InspectorLanguageSection: View {
-    let rows: [InspectorLanguage.Row]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Language & Script").font(.headline)
-            ForEach(rows) { row in
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(row.title).font(.subheadline).foregroundStyle(.secondary)
-                        Spacer(minLength: 8)
-                        Text(row.value).font(.body).textSelection(.enabled)
-                    }
-                    Text(row.origin).font(.caption).foregroundStyle(.secondary)
-                        .help(row.basis)
-                }
-                .accessibilityElement(children: .combine)
-            }
-        }
-    }
-}
-
-/// Every live reading, grouped by kind; the one that counts is marked with WHY it counts.
-struct InspectorTextSection: View {
-    let text: InspectorText
-    /// "Make This Count" on a reading that does not count; nil shows no verb (a preview, a reader).
-    var onChoose: ((InspectorText.Reading) -> Void)?
-    /// "Edit…" on the reading that counts (#5201); nil shows no verb.
-    var onEdit: ((InspectorText.Reading) -> Void)?
-    /// The run whose trace "View Run" shows.
-    @State private var traceRun: TraceRunSelection?
-
-    private struct TraceRunSelection: Identifiable {
-        let threadId: String
-        var id: String { threadId }
-    }
-
-    var body: some View {
-        sections
-            .sheet(item: $traceRun) { RunTraceSheet(threadId: $0.threadId) }
-    }
-
-    private var sections: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Readings").font(.headline)
-            ForEach(text.kinds, id: \.self) { kind in
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(kind.capitalized).font(.subheadline).foregroundStyle(.secondary)
-                    ForEach(text.readings(ofKind: kind)) { reading in
-                        row(reading)
-                    }
-                    if let counting = text.counting[kind], counting.readingId == nil {
-                        Text(counting.why.label).font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-            }
-        }
-    }
-
-    private func row(_ reading: InspectorText.Reading) -> some View {
-        let counts = text.counts(reading)
-        return VStack(alignment: .leading, spacing: 2) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Image(systemName: counts ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(counts ? Color.accentColor : .secondary)
-                    .accessibilityLabel(counts ? "Counts" : "Does not count")
-                if let role = reading.pairRole {
-                    Text(role).font(.caption.monospaced()).foregroundStyle(.secondary)
-                }
-                Text(reading.content).font(BundledFonts.shared.font(.body)).textSelection(.enabled)
-            }
-            HStack(spacing: 8) {
-                Text(detail(reading, counts: counts)).font(.caption).foregroundStyle(.secondary)
-                if reading.producerRunId != nil {
-                    Button("View Run") {
-                        guard let threadId = RunTraceLink.threadId(reading.producerRunId) else { return }
-                        traceRun = TraceRunSelection(threadId: threadId)
-                    }
-                    .buttonStyle(.borderless)
-                    .font(.caption)
-                    .help("View the trace of the run that made this reading")
-                }
-                if !counts, let onChoose {
-                    Button("Make This Count") { onChoose(reading) }
-                        .buttonStyle(.borderless)
-                        .font(.caption)
-                        .help("Choose this reading as the one that counts for \(reading.kind)")
-                }
-                if counts, reading.kind == "transcription", let onEdit {
-                    Button("Edit\u{2026}") { onEdit(reading) }
-                        .buttonStyle(.borderless)
-                        .font(.caption)
-                        .help("Correct this reading; saved as your correction of it, as typing in the Reader is")
-                }
-            }
-        }
-    }
-
-    /// Who made it, who wrote it down, the guideline, and -- for the one that counts -- why.
-    private func detail(_ reading: InspectorText.Reading, counts: Bool) -> String {
-        var parts = [reading.whoRead ?? reading.maker.capitalized]
-        if let step = reading.producerStep { parts.append(step) }
-        if let author = reading.author { parts.append(author) }
-        if let created = reading.createdAt {
-            parts.append(created.formatted(.relative(presentation: .named, unitsStyle: .abbreviated)))
-        }
-        if let guideline = reading.guideline { parts.append(guideline) }
-        if let level = reading.level { parts.append("level \(level)") }
-        if let confidence = reading.machineConfidence { parts.append("confidence \(Int((confidence * 100).rounded()))%") }
-        if reading.correctsId != nil { parts.append("a correction") }
-        if reading.readFromRenditionId != nil { parts.append("read from another image") }
-        if counts, let why = text.counting[reading.kind]?.why { parts.append(why.label) }
-        return parts.joined(separator: " · ")
-    }
-}
-
-#if DEBUG
-#Preview("Text: a machine reading, a person's correction that counts, a sic / corr pair") {
-    let reading = { (id: String, content: String, maker: String, pair: String?, role: String?) in
-        InspectorText.Reading(
-            id: id, kind: "transcription", content: content, maker: maker, author: maker == "human" ? "dtubb" : nil,
-            guideline: "diplomatic", pairId: pair, pairRole: role
-        )
-    }
-    InspectorTextSection(text: InspectorText(
-        readings: [
-            reading("r1", "Tlie qnick brown fox", "workflow", nil, nil),
-            reading("r2", "The quick brown fox", "human", nil, nil),
-            reading("r3", "recieve", "human", "p1", "sic"),
-            reading("r4", "receive", "human", "p1", "corr")
-        ],
-        counting: ["transcription": .init(readingId: "r2", why: .chosen)]
-    ))
-    .padding()
-    .frame(width: 320)
-}
-#endif

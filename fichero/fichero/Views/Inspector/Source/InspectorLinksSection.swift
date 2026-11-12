@@ -8,6 +8,8 @@ struct InspectorLinksSection: View {
     let documentId: String
     /// The focused pane's selection, in the order picked: the Link menu's two ends.
     let selectedIds: [String]
+    /// The grouped Inspector says nothing for no links (#6413): the head keeps Link and Copy Reference.
+    var quietWhenEmpty = false
 
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
@@ -50,7 +52,7 @@ struct InspectorLinksSection: View {
                 }
                 .accessibilityElement(children: .combine)
             }
-            if links.isEmpty {
+            if links.isEmpty, !quietWhenEmpty {
                 Text("No links.").font(.caption).foregroundStyle(.secondary)
             }
         }
