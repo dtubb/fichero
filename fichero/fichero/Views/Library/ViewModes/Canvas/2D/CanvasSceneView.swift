@@ -289,7 +289,7 @@ struct CanvasSceneView: View {
                     // put while the scale changes — pan by the anchor times
                     // the world-per-point change, same mapping the pan uses.
                     let oldScale = renderer.orthoScale
-                    renderer.setOrthoScale(oldScale * Float(1 + delta * 0.005), live: true)
+                    renderer.setOrthoScale(oldScale * Float(CanvasScrollZoom.factor(delta: delta)), live: true)
                     renderer.settleZoomSoon()
                     let wppOld = Canvas2DProjection.worldPerPoint(
                         orthoScale: oldScale, viewHeight: geo.size.height

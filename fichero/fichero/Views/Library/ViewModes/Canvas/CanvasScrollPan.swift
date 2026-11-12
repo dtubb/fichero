@@ -134,7 +134,8 @@ final class CanvasScrollCaptureView: NSView {
 
         guard deltaX != 0 || deltaY != 0 else { return }
         if event.modifierFlags.contains(.command), let onZoom {
-            if deltaY != 0 {
+            // The zoom follows the fingers: the momentum glide after they lift does not zoom (#4601).
+            if deltaY != 0, CanvasScrollZoom.zooms(isMomentum: !event.momentumPhase.isEmpty) {
                 // Cursor offset from the view center, y-DOWN (screen sense) —
                 // the anchor for zoom-into-the-cursor (user, 2026-08-20:
                 // "pinch and ⌘-scroll zoom must zoom INTO THE CURSOR").
