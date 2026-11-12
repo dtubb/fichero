@@ -566,6 +566,14 @@ homeless until a map-view UI spec exists (#5128).
   measured by the same card rectangle a click hits; a card the band does not touch stays out. Until
   2026-11-11 a card was caught only when the band covered its centre, so a band had to sweep most of
   a card to take it. *Test:* `Canvas2DMarqueeTouchTests`. PARTIAL until seen in the app.
+- `library.canvas.click-and-drag-are-timed` — **[PARTIAL]** (#5253) a click on the 2D board logs one
+  `⏱ canvas click took N ms` line, from the mouse-down to the frame after the release: how long the
+  button was held, how long from the release to that frame, and how many times the board was
+  resolved and reconciled in between and how long each took altogether. A drag logs one
+  `⏱ canvas drag took N ms` line on release with the same counts, plus its moves and their average
+  and slowest wait for the next frame. A slow click or drag on the board then says whether the time
+  went into resolving the board, reconciling it, or neither. *Test:* `CanvasBoardProfileTests`. The
+  first reading in the real app is owed.
 - `library.canvas.a-board-remembers-its-camera` — **[OK]** (572719bca) a board opens fitted to the pane
   with margin; coming back to a folder returns to the centre and zoom the person left it at (kept per
   Mac, not in the library).

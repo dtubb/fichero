@@ -213,7 +213,7 @@ struct CanvasSceneView: View {
             // items loaded and its first page shapes known. Drawn earlier, the first frame showed the
             // default grid and the cards then slid to their saved places.
             let board = CanvasOpenGate.mayDraw(settledScope: settledScope, scope: scopeKey, viewport: geo.size)
-                ? resolvedState(in: geo.size) : nil
+                ? CanvasBoardProfile.timing(.resolve) { resolvedState(in: geo.size) } : nil
             RealityView { content in
                 // BEFORE the first reconcile (first-load fix, 2026-08-22, same
                 // as CanvasSpaceView): configureController runs in `.task`,
@@ -235,7 +235,7 @@ struct CanvasSceneView: View {
                 renderer.storageService = storageService
                 renderer.setFaces(faces)
                 renderer.detailTier = CanvasDetailTier.forZoomScale(renderer.reportedZoomScale)
-                renderer.reconcile(to: board)
+                CanvasBoardProfile.timing(.reconcile) { renderer.reconcile(to: board) }
             }
             // Plain drag on a card MOVES the card (#4290). It is disabled only
             // while Space is held, which is the deliberate "move the view"

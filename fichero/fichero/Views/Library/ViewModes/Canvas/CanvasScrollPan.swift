@@ -55,6 +55,8 @@ final class CanvasScrollCaptureView: NSView {
     var onSecondaryClick: ((CGPoint) -> Void)?
     private var monitor: Any?
     private var clickMonitor: Any?
+    /// Times a left click or drag on the board (`CanvasBoardProfile`); passes every event on.
+    private var pressMonitor: Any?
 
     /// Transparent to every other input: this view exists only to receive
     /// scroll, so clicks, drags and taps must continue to the SwiftUI content
@@ -71,7 +73,20 @@ final class CanvasScrollCaptureView: NSView {
         super.viewDidMoveToWindow()
         if let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
         if let clickMonitor { NSEvent.removeMonitor(clickMonitor); self.clickMonitor = nil }
+        if let pressMonitor { NSEvent.removeMonitor(pressMonitor); self.pressMonitor = nil }
         guard window != nil else { return }
+        pressMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]
+        ) { [weak self] event in
+            guard let self, event.window === self.window else { return event }
+            switch event.type {
+            case .leftMouseDown:
+                if self.bounds.contains(self.convert(event.locationInWindow, from: nil)) { CanvasBoardProfile.mouse(.pressed) }
+            case .leftMouseDragged: CanvasBoardProfile.mouse(.dragged)
+            default: CanvasBoardProfile.mouse(.released)
+            }
+            return event
+        }
         clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown, .leftMouseDown]) { [weak self] event in
             guard let self, let window = self.window, event.window === window, let onSecondaryClick = self.onSecondaryClick,
                   event.type == .rightMouseDown || event.modifierFlags.contains(.control) else { return event }
