@@ -354,27 +354,28 @@ extension LibraryView {
 
     func saveSortSettings(for id: String?) {
         let key = sortKey(for: id)
-
-        var fields: [String: String] = [:]
-        if let fieldsData = sortFieldsByFolderJSON.data(using: .utf8),
-           let decoded = try? JSONDecoder().decode([String: String].self, from: fieldsData) {
-            fields = decoded
-        }
-        fields[key] = sortFieldRaw
-        if let encoded = try? JSONEncoder().encode(fields),
-           let json = String(data: encoded, encoding: .utf8) {
+        // Written only when this folder's sort actually changed (#4228): this runs on every
+        // folder change, and each `PaneStorage` write, even of an equal value, posts a
+        // UserDefaults change that re-evaluates every stored-setting view in the window.
+        if let json = Self.sortJSON(sortFieldsByFolderJSON, setting: key, to: sortFieldRaw) {
             sortFieldsByFolderJSON = json
         }
-
-        var ascendingValues: [String: Bool] = [:]
-        if let ascendingData = sortAscendingByFolderJSON.data(using: .utf8),
-           let decoded = try? JSONDecoder().decode([String: Bool].self, from: ascendingData) {
-            ascendingValues = decoded
-        }
-        ascendingValues[key] = sortAscending
-        if let encoded = try? JSONEncoder().encode(ascendingValues),
-           let json = String(data: encoded, encoding: .utf8) {
+        if let json = Self.sortJSON(sortAscendingByFolderJSON, setting: key, to: sortAscending) {
             sortAscendingByFolderJSON = json
         }
+    }
+
+    /// The per-folder sort map with `key` set to `value`, as JSON with sorted keys; nil when the
+    /// stored map already holds that value for that key, so there is nothing to write. An
+    /// unreadable stored map counts as empty, as it did before.
+    nonisolated static func sortJSON<Value: Codable & Equatable>(
+        _ stored: String, setting key: String, to value: Value
+    ) -> String? {
+        var map = stored.data(using: .utf8).flatMap { try? JSONDecoder().decode([String: Value].self, from: $0) } ?? [:]
+        guard map[key] != value else { return nil }
+        map[key] = value
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        return (try? encoder.encode(map)).flatMap { String(data: $0, encoding: .utf8) }
     }
 }
