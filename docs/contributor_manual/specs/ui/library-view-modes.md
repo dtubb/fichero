@@ -577,6 +577,12 @@ homeless until a map-view UI spec exists (#5128).
 - `library.canvas.a-board-remembers-its-camera` — **[OK]** (572719bca) a board opens fitted to the pane
   with margin; coming back to a folder returns to the centre and zoom the person left it at (kept per
   Mac, not in the library).
+- `library.canvas.camera-is-saved-when-it-rests` — **[PARTIAL]** (#4601) the camera a board
+  remembers is written to this Mac's preferences once, when a pan or zoom has rested for a moment,
+  never on every scroll tick. Measured 2026-11-11: every two-finger pan event wrote the preferences,
+  and every write re-ran each `@AppStorage` view in the window, so one turn during a board gesture
+  re-evaluated 291 view bodies (210 of them sidebar rows, 8 preference writes) and a move waited
+  1.08 s for its frame. *Test:* `CanvasCameraSaveRestsTests`.
 - `library.canvas.zoom-out-stops-near-fit` — **[PARTIAL]** (built, not yet compiled or run; #6368; owner 2026-11-06, two screenshots) on
   every 2D canvas pane (the Library's Canvas mode and the folder canvas in a Preview pane, one canvas,
   `library.canvas.one-canvas-everywhere`) zooming out stops a little past fit-to-content: the minimum

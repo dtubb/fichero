@@ -197,6 +197,8 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
 
     /// Called after every camera move with the new pose; the host remembers it per folder.
     var onCameraChange: (((position: SIMD3<Float>, scale: Float)) -> Void)?
+    /// The camera save waiting for the camera to rest (`cameraDidChange`).
+    var pendingCameraSave: DispatchWorkItem?
 
     /// Reconcile the live scene to `newState` via the minimal diff against the
     /// last applied state — the view calls this whenever the resolved scene

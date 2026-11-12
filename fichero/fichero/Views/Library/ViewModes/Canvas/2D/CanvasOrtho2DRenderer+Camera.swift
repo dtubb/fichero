@@ -1,3 +1,4 @@
+import Foundation
 import RealityKit
 import simd
 
@@ -49,10 +50,30 @@ extension CanvasOrtho2DRenderer {
 
     /// Tell the host where the camera now is, once the board has content, so it can remember where
     /// this person left this folder's board (2026-09-30).
+    ///
+    /// Saved once the camera has rested for `cameraSaveDelay`, never per scroll tick
+    /// (`library.canvas.camera-is-saved-when-it-rests`): every save is a preferences write, and every
+    /// preferences write re-runs each `@AppStorage` view in the window. The pose and the folder's
+    /// callback are taken now, so a board switched away before the save still saves its own camera.
     func cameraDidChange() {
         guard !placeablesById.isEmpty, let onCameraChange else { return }
         // A move the person made: from here the camera is theirs, remembered, never re-fitted.
         cameraIsAutoFit = false
-        onCameraChange(cameraSnapshot())
+        pendingCameraSave?.cancel()
+        let snapshot = cameraSnapshot()
+        let save = DispatchWorkItem { onCameraChange(snapshot) }
+        pendingCameraSave = save
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.cameraSaveDelay, execute: save)
+    }
+
+    /// How long a pan or zoom must rest before its camera is saved.
+    static let cameraSaveDelay: TimeInterval = 0.3
+
+    /// Save a pending camera now rather than when it rests; nothing when none is pending.
+    func saveCameraNow() {
+        guard let save = pendingCameraSave else { return }
+        pendingCameraSave = nil
+        save.perform()
+        save.cancel()
     }
 }
