@@ -29,6 +29,8 @@ struct ReadingOrderList: View {
     var filter: SegmentsFilter.Result?
     /// What a row shows after its words: the Segments pane's facts (#6482); nil shows nothing more.
     var rowAccessory: ((String) -> AnyView)?
+    /// What a row shows under its words: the Segments pane's other readings (#6492); nil shows nothing more.
+    var rowFooter: ((String) -> AnyView)?
 
     @Environment(ReadingOrderService.self) private var service: ReadingOrderService?
     @Environment(SegmentService.self) var segmentService: SegmentService?
@@ -42,7 +44,8 @@ struct ReadingOrderList: View {
         documentId: String, parentSegmentId: String? = nil, hidesWhenEmpty: Bool = false,
         store: ReadingOrderStore? = nil, onOpen: ((String) -> Void)? = nil, opens: ((String) -> Bool)? = nil,
         rowLabel: ((String, Int) -> String)? = nil, onSelected: (([String]) -> Void)? = nil, nests: Bool = false,
-        filter: SegmentsFilter.Result? = nil, rowAccessory: ((String) -> AnyView)? = nil
+        filter: SegmentsFilter.Result? = nil, rowAccessory: ((String) -> AnyView)? = nil,
+        rowFooter: ((String) -> AnyView)? = nil
     ) {
         self.documentId = documentId
         self.parentSegmentId = parentSegmentId
@@ -54,6 +57,7 @@ struct ReadingOrderList: View {
         self.nests = nests
         self.filter = filter
         self.rowAccessory = rowAccessory
+        self.rowFooter = rowFooter
         // A store handed in (a preview's, over a fixture transport) is used as is; otherwise the
         // library's service makes one.
         _store = State(initialValue: store)
@@ -702,6 +706,15 @@ extension ReadingOrderList {
     }
 
     private func rowContent(_ segmentId: String, at index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            rowLine(segmentId, at: index)
+            if let rowFooter, renaming != segmentId {
+                rowFooter(segmentId)
+            }
+        }
+    }
+
+    private func rowLine(_ segmentId: String, at index: Int) -> some View {
         HStack {
             if renaming == segmentId {
                 TextField("Words", text: $draft)
