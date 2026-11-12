@@ -25,7 +25,8 @@ struct PaneTitleSaysWhatIsShowingTests {
     @Test("a machine's unchecked reading shows the hollow circle, none counting shows a dash")
     func basisGlyphs() {
         #expect(PaneTitleForms(lens: "Lines", makers: ["kraken"], level: nil, basis: .machine).full == "Lines · kraken · as written ○")
-        #expect(PaneTitleForms(lens: "Lines", makers: ["kraken"], level: "modernised", basis: .none).full == "Lines · kraken · modernised –")
+        let none = PaneTitleForms(lens: "Lines", makers: ["kraken"], level: "modernised", basis: .none)
+        #expect(none.full == "Lines · kraken · modernised –")
     }
 
     @Test("a lens with no reading says only its name at every width")

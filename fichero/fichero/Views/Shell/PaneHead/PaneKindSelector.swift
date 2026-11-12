@@ -227,7 +227,8 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
         .accessibilityLabel(titleForms.map { "View: \($0.tooltip)" }
             ?? shownLabel.map { "View: \(lensTitle(lens)), showing \($0)" }
             ?? "View: \(lensTitle(lens))")
-        .help(titleForms.map { "\($0.tooltip). Click to change." } ?? shownLabel.map { "\(lensTitle(lens)) — showing \($0). Click to change." }
+        .help(titleForms.map { "\($0.tooltip). Click to change." }
+            ?? shownLabel.map { "\(lensTitle(lens)) — showing \($0). Click to change." }
             ?? "Choose what this pane shows")
     }
 
