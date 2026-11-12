@@ -217,7 +217,7 @@ struct SpaceSceneView: View {
                 // move closer, matching the pinch gesture's distance model.
                 // Legacy SceneKit view: center-anchored (retired at #3087
                 // cutover; cursor anchoring lives in the RealityKit hosts).
-                cameraDistance = min(max(cameraDistance * (1 - delta * 0.005), 0.5), 60)
+                cameraDistance = min(max(cameraDistance * CanvasScrollZoom.factor(delta: -delta), 0.5), 60)
                 persistViewport()
             })
             .allowsHitTesting(false)

@@ -245,7 +245,7 @@ struct CanvasSpaceView: View {
                     // shifts so the content under the pointer stays put as
                     // the camera closes in.
                     let oldDistance = renderer.currentDistance
-                    renderer.setDistance(oldDistance * Float(1 - delta * 0.005))
+                    renderer.setDistance(oldDistance * Float(CanvasScrollZoom.factor(delta: -delta)))
                     renderer.shiftLookAtForCursorZoom(anchor: anchor, oldDistance: oldDistance)
                 })
                 .allowsHitTesting(false)

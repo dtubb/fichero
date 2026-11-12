@@ -500,6 +500,13 @@ homeless until a map-view UI spec exists (#5128).
   still moves it in. A card under the drag lights only where the drop will act on it (`DropOutcome.lightsTarget`), on
   the 2D and 3D boards. Tested in `CanvasDropTests` (`leaf`, `lightsOnlyWhereItActs`) and
   `CanvasInteractionControllerTests.dropCreatesLink`.
+- `library.canvas.command-scroll-zooms-evenly` — **[PARTIAL]** (#4601; built 2026-11-11, tested, not yet seen in the
+  app; owner: with ⌘ and a Magic Mouse the zoom "goes too fast, then stops, and you can't zoom out". Cause: each event
+  multiplied the scale by `1 + delta × 0.005`; a flick's momentum sends deltas past ±200, so the factor reached zero or
+  below and the scale snapped to its near limit) ⌘ + two-finger scroll zooms into the pointer by an exponential factor
+  of each event's delta, capped at 40 points an event, so zooming in and out go at the same speed and nothing snaps;
+  the momentum glide after the fingers lift does not zoom (`CanvasScrollZoom`), on the 2D and 3D boards. Tested in
+  `CanvasScrollZoomTests`.
 - `library.canvas.a-click-never-continues-the-last-drag` — **[PARTIAL]** (#4601; built 2026-11-11, tested, not yet seen in
   the app; owner: "a click sometimes moves the previously dragged card and doesn't select") a click on the board selects
   what is under it and never moves the card dragged before it. Cause: the board kept its drag in `@State`, and SwiftUI
