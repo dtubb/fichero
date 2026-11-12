@@ -77,31 +77,33 @@ extension ReadingOrderList {
     func nestedRows(top: [String]) -> (rows: [String: SegmentsPane.OutlineRow], tones: [String: RegionColours.Tone])? {
         guard nests, let segmentService else { return nil }
         let segments = SegmentStore.shared(for: segmentService).workingSegments(documentId: documentId)
-        let rows = SegmentsPane.outline(segments, top: top)
+        let rows = SegmentsPane.pruned(SegmentsPane.outline(segments, top: top), keeping: filter?.shown)
         return (Dictionary(rows.map { ($0.segmentId, $0) }, uniquingKeysWith: { first, _ in first }),
                 RegionColours.tones(of: segments))
     }
 
-    /// A row of the level shown: flat, or -- nesting -- holding its children (`SegmentsPane.outline`),
-    /// each with its swatch. Rows are keyed by segment id, so a segment event redraws its row, never
-    /// the list.
+    /// A row of the level shown: flat, or
+    /// with its swatch. Rows are keyed by segment id, so a segment event redraws its row, never the list.
     @ViewBuilder
     func entryRow(
         _ segmentId: String, at index: Int,
         nesting: (rows: [String: SegmentsPane.OutlineRow], tones: [String: RegionColours.Tone])?
     ) -> some View {
-        if let nesting, let node = nesting.rows[segmentId] {
+        if let filter, !filter.shown.contains(segmentId) {
+            // Filtered out (#6476); kept in the ForEach so the offsets still index the order.
+            EmptyView()
+        } else if let nesting, let node = nesting.rows[segmentId] {
             SegmentOutlineRow(
                 node: node, index: index, tones: nesting.tones,
-                content: { id, position in AnyView(row(id, at: position)) },
-                wrap: { id, view in AnyView(movable(id, view)) }, lit: dropTarget
+                content: { id, position in AnyView(row(id, at: position).opacity(dims(id) ? 0.45 : 1)) },
+                wrap: { id, view in AnyView(movable(id, view)) }, lit: dropTarget, opensAll: filter != nil
             )
         } else if nesting != nil {
             // Folded under its region by `SegmentsPane.outline`: shown there, not again beside it (#6425).
             // Kept in the ForEach (not filtered out) so `onMove` offsets still index `store.shown`.
             EmptyView()
         } else {
-            movable(segmentId, row(segmentId, at: index)).tag(segmentId)
+            movable(segmentId, row(segmentId, at: index).opacity(dims(segmentId) ? 0.45 : 1)).tag(segmentId)
                 .listRowBackground(dropTarget == segmentId ? Color.accentColor.opacity(0.25) : Color.clear)
         }
     }
