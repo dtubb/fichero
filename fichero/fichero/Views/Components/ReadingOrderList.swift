@@ -608,14 +608,10 @@ extension ReadingOrderList {
     /// The lines a move on `named` means: the row, or the focused selection when it holds the row (one rule with Delete).
     private func movedIds(named: Set<String>?) -> [String] {
         guard let store = documentStore else { return [] }
-        // The list's own picks, when the menu was opened on several: they are the selection, whatever the shared one holds
-        // (it can lag behind a pick, which moved only the first of four).
-        if let named, named.count > 1 {
-            let order = (self.store?.shown.map(\.segmentId) ?? []).filter(named.contains)
-            return order.isEmpty ? Array(named) : order
-        }
+        // The rows the menu was opened on, else the list's own picks (Delete, the menu bar): they are the selection,
+        // whatever the shared one holds (it can lag behind a pick, which moved only the first of four).
         let held = SegmentDeleter.selectedIds(windowState?.sharedRegionSelection, documentId: documentId, store: store)
-        return SegmentDeleter.ids(row: named?.first ?? selection, held: held)
+        return SegmentDeleter.listRows(picked: named ?? picks, order: self.store?.shown.map(\.segmentId) ?? [], held: held)
     }
 
     /// ONE audited `segment.reparent`, one ⌘Z; why it did not happen is said under the list, never silent.

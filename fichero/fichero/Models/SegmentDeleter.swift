@@ -29,6 +29,15 @@ enum SegmentDeleter {
         return held.contains(row) ? held : [row]
     }
 
+    /// The rows a list's Delete or Move acts on: the list's OWN picks, in its order, when it holds several (the shared
+    /// selection can lag behind them or not hold them at all, and Delete on four did nothing, #6476); with one or none,
+    /// the `ids(row:held:)` rule.
+    static func listRows(picked: Set<String>, order: [String], held: [String]) -> [String] {
+        guard picked.count > 1 else { return ids(row: picked.first, held: held) }
+        let inOrder = order.filter(picked.contains)
+        return inOrder.isEmpty ? picked.sorted() : inOrder
+    }
+
     /// Why nothing was sent, in words.
     static func problem(_ refusal: SegmentEdit.Refusal) -> String {
         switch refusal {
