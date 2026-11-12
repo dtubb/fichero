@@ -365,6 +365,37 @@ class TestDocumentViewRoute:
         assert pages[1]["has_content"] is False
         assert transcript_text(pages) == "Page 1\nonly text"
 
+    def test_a_page_level_reading_with_no_segment_fills_an_empty_page(self):
+        """#6470: a Regularised reading stored on the page itself (segment_id None) is the page's
+        shown reading; the Reader said "No transcription yet" because only line-derived text counted."""
+        from fichero_server.api.routes.system.views import with_page_level_readings
+        from fichero_server.models import ContentRepresentation, SourceAnchor
+
+        pages = [
+            {"id": "a", "number": 1, "content": "", "has_content": False},
+            {"id": "b", "number": 2, "content": "from lines", "has_content": True},
+            {"id": "c", "number": 3, "content": "", "has_content": False},
+        ]
+        def reading(doc, text, level, **kw):
+            return ContentRepresentation(document_id=doc, segment_id=None, kind="transcription",
+                                         content=text, level=level, **kw,
+                                         source_anchor=SourceAnchor(document_id=doc, granularity="page"))
+        readings = [
+            reading("a", "regularised page", "regularised"),
+            reading("a", "as written page", "as_written"),
+            reading("b", "ignored", "regularised"),
+            reading("c", "   ", "regularised"),
+        ]
+        shown = with_page_level_readings(pages, readings)
+        assert shown[0]["content"] == "as written page"
+        assert shown[0]["has_content"] is True
+        assert shown[0]["reading_level"] == "as_written"
+        assert shown[1]["content"] == "from lines"
+        assert shown[2]["has_content"] is False
+        only_regularised = with_page_level_readings(pages[:1], readings[:1])
+        assert only_regularised[0]["content"] == "regularised page"
+        assert only_regularised[0]["reading_level"] == "regularised"
+
     def test_transcript_pages_of_leaf_document_is_its_own_page(self):
         from fichero_server.api.routes.system.views import transcript_pages
 

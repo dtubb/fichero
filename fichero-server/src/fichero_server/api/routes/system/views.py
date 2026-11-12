@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse
 from fichero_server.api.main import get_library_database, whole_library_reader_only
 from fichero_server.db import Database
 from fichero_server.models.knowledge import Annotation, KnowledgeClaim, KnowledgeEntity
-from fichero_server.models import Artifact, DocType, Document, FileType, Segment
+from fichero_server.models import Artifact, ContentRepresentation, DocType, Document, FileType, Segment
 from fichero_server.core.off_loop import off_loop
 
 router = APIRouter(prefix="/view", tags=["views"])
@@ -654,6 +654,38 @@ def transcript_pages(document: Document, child_pages: list[Document]) -> list[di
     return pages
 
 
+def with_page_level_readings(
+    pages: list[dict[str, object]], readings: list[ContentRepresentation]
+) -> list[dict[str, object]]:
+    """An empty page shows the reading stored on the PAGE itself (#6470).
+
+    A page-level reading (``segment_id`` None: a Regularised version of the whole sheet) belongs to
+    no line, so the line-derived ``page_content`` never holds it and the Reader said "No transcription
+    yet" beside a table that showed the text. A page with text from its lines is left alone. Of a
+    page's own readings the one at ``as_written`` comes first, then the shipped levels in order; a
+    person's over a machine's; the newest. ``reading_level`` says which one is shown. Pure."""
+    from fichero_server.api.routes.document.segment_readings import _level_rank
+    from fichero_server.models import ProvenanceKind
+    from fichero_server.models.readings import counting_level
+
+    by_page: dict[str, list[ContentRepresentation]] = {}
+    for row in readings:
+        if row.segment_id is None and row.kind == "transcription" and row.retracted_at is None \
+                and row.content and row.content.strip():
+            by_page.setdefault(str(row.document_id), []).append(row)
+    result: list[dict[str, object]] = []
+    for page in pages:
+        rows = by_page.get(str(page["id"]))
+        if page["has_content"] or not rows:
+            result.append(page)
+            continue
+        best_level = min((counting_level(r.level) for r in rows), key=_level_rank)
+        at_level = [r for r in rows if counting_level(r.level) == best_level]
+        chosen = max(at_level, key=lambda r: (r.provenance_kind == ProvenanceKind.human, r.created_at, r.id))
+        result.append({**page, "content": chosen.content, "has_content": True, "reading_level": best_level})
+    return result
+
+
 def page_line_map(db: Database, page_id: str, content: str) -> list[dict[str, object]]:
     """Which LINE each stretch of a page's text came from, as offsets into `content`
     (Q5, 3c part c: the Reader finds the line under its caret without wrapping any line in an
@@ -905,6 +937,11 @@ def document_view(
             document = db.get(Document, document.id) or document
         child_pages = [db.get(Document, p.id) or p if p.id in refreshed else p for p in child_pages]
     pages = transcript_pages(document, child_pages)
+    if pages and any(not page["has_content"] for page in pages):
+        # A reading stored on the page itself belongs to no line (#6470).
+        pages = with_page_level_readings(
+            pages, db.query_in(ContentRepresentation, "document_id", [str(p["id"]) for p in pages])
+        )
     annotations_payload: list[dict[str, object]] | None = None
     compare_payload: dict[str, object] | None = None
     if artifact_id:
@@ -946,7 +983,7 @@ def document_view(
     if not artifact_id and representation in (None, "", "content"):
         # The line map (3c part c): a sidecar, never a change to the text or its markup.
         for page in pages:
-            if page.get("has_content") and page.get("id"):
+            if page.get("has_content") and page.get("id") and "reading_level" not in page:
                 page["lines"] = page_line_map(db, str(page["id"]), str(page["content"]))
     # Two sources, and which one applied decides whether the transcript has to
     # travel at all. When it comes from the page children it is `transcript_text`
