@@ -41,13 +41,16 @@ struct TurnOnAccountsSheet: View {
         let host = LiveAccountsOnHost(appState: appState, store: store, identityStore: identityStore)
         switch await AccountsOnSequence.run(host: host, password: asksPassword ? password : nil) {
         case .turnedOn: done()
-        case .needsPassword: asksPassword = true
+        case .needsPassword:
+            // Asking again with the field already showing would look like nothing happened: say what is wanted.
+            if asksPassword { failure = NewPasswordRule.hint }
+            asksPassword = true
         case .failed(let sentence): failure = sentence
         }
     }
 }
 
-/// This Mac's engine behind the sequence: the audited switch (`MultiuserSwitch`), the owner's password PATCH, then a re-read.
+/// This Mac's engine behind the sequence: the audited switch (`MultiuserSwitch`), the owner's local password call, then a re-read.
 @MainActor
 struct LiveAccountsOnHost: AccountsOnSequence.Host {
     let appState: AppState

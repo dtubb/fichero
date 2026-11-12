@@ -2624,6 +2624,49 @@
         }
       }
     },
+    "/api/auth/owner-password": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Set Owner Password",
+        "description": "The owner of THIS Mac chooses their password (`multiuser.turning-on-needs-an-owner-password`, #6565).\n\nFirst-run gives the owner a key and a random password nobody chose, and an owner who already has a key cannot\nregister another through first-run or migrate-owner, so the app had no way to ask for a password. Local only\n(the Unix socket), and only the local owner: the app's own start-up credential, or the owner's signed-in session.\nWorks with Multi-user off (the point) or on. The 8-character rule applies; audited before the change.",
+        "operationId": "set_owner_password_api_auth_owner_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/local-clients/switches": {
       "get": {
         "tags": [
@@ -83835,6 +83878,20 @@
         ],
         "title": "OutputSchema",
         "description": "JSON Schema for structured output from LLM nodes.\n\nWhen specified, the LLM will be instructed to return\ndata matching this schema exactly (using structured output mode).\n\nExample for named entity extraction:\n{\n    \"type\": \"object\",\n    \"properties\": {\n        \"people\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"organizations\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"dates\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}\n    },\n    \"required\": [\"people\", \"organizations\", \"dates\"]\n}"
+      },
+      "OwnerPasswordRequest": {
+        "properties": {
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "password"
+        ],
+        "title": "OwnerPasswordRequest"
       },
       "PageExportResponse": {
         "properties": {

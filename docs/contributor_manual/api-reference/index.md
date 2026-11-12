@@ -456,6 +456,16 @@ exposes them.
 - Response: `200` with the owner `user` and the registered `client`. `401` for a missing or wrong launch secret, `403`
   over TCP, `404` when no owner exists (use first-run), `409` when the owner already has a key, `422` for a non-P-256 key.
 
+`POST /api/auth/owner-password`
+
+- Purpose: the owner of this Mac chooses their password (`multiuser.turning-on-needs-an-owner-password`, #6565), so
+  Multi-user can be turned on even when the owner already has a key and first-run and migrate-owner both answer `409`.
+  Local only (the engine's Unix socket) and only the local owner (the app's start-up credential, or the owner's own
+  signed-in session). Audited before the change; the password is never in the audit row.
+- Request: body `password` (at least 8 characters). Response: `200` with `status`. `403` over TCP or for anyone but the
+  owner, `409` when the library has several owners, `422` for a password under 8 characters. It records the chosen
+  password, so the Multi-user switch no longer refuses for the missing password.
+
 `POST /api/auth/invites/redeem`
 
 - Purpose: accept an invite with a password, or with the person's own key (`multiuser.invite-registers-public-key`,

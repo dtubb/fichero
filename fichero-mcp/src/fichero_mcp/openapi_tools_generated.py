@@ -916,6 +916,14 @@ def fichero_auth_migrate_owner(
     return _rt.call("POST", "/api/auth/migrate-owner", json=_rt.body({"client": client, "public_key_pem": public_key_pem}))
 
 
+def fichero_auth_set_owner_password(
+    *,
+    password: Annotated[str, Field(description='Password.')],
+) -> Any:
+    "Set Owner Password\n\nThe owner of THIS Mac chooses their password (`multiuser.turning-on-needs-an-owner-password`, #6565).\n\nFirst-run gives the owner a key and a random password nobody chose, and an owner who already has a key cannot\nregister another through first-run or migrate-owner, so the app had no way to ask for a password. Local only\n(the Unix socket), and only the local owner: the app's own start-up credential, or the owner's signed-in session.\nWorks with Multi-user off (the point) or on. The 8-character rule applies; audited before the change.\n\nRoute: POST /api/auth/owner-password (toolset `auth`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/auth/owner-password", json=_rt.body({"password": password}))
+
+
 def fichero_auth_list_sessions(
 ) -> Any:
     'List Sessions\n\nRoute: GET /api/auth/sessions (toolset `auth`; reads).'
@@ -9597,6 +9605,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_auth_logout", "auth", "POST", "/api/auth/logout", fichero_auth_logout),
     GeneratedTool("fichero_auth_me", "auth", "GET", "/api/auth/me", fichero_auth_me),
     GeneratedTool("fichero_auth_migrate_owner", "auth", "POST", "/api/auth/migrate-owner", fichero_auth_migrate_owner),
+    GeneratedTool("fichero_auth_set_owner_password", "auth", "POST", "/api/auth/owner-password", fichero_auth_set_owner_password),
     GeneratedTool("fichero_auth_list_sessions", "auth", "GET", "/api/auth/sessions", fichero_auth_list_sessions),
     GeneratedTool("fichero_auth_revoke_session", "auth", "POST", "/api/auth/sessions/{session_id}/revoke", fichero_auth_revoke_session),
     GeneratedTool("fichero_auth_sign_in", "auth", "POST", "/api/auth/sign-in", fichero_auth_sign_in),

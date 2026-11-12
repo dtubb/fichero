@@ -2022,6 +2022,23 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("set-owner-password")
+    def auth_set_owner_password_post(
+        ctx: typer.Context,
+        password: str = typer.Option(..., '--password', help='Password.'),
+    ) -> None:
+        """Set Owner Password (POST /api/auth/owner-password)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/owner-password"
+            params = None
+            payload = _build_json_payload({
+                "password": password,
+            }, {
+                "password": {'type': 'string', 'minLength': 1, 'title': 'Password', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-sessions")
     def auth_list_sessions_get(
         ctx: typer.Context,

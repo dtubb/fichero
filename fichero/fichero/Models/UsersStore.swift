@@ -129,15 +129,11 @@ final class UsersStore {
         await reload()
     }
 
-    /// The owner chooses a password (`sharing.multiuser-off-says-so`: before Multi-user can be turned on). A refusal keeps the
-    /// engine's status and words for `AccountsOnSequence`.
+    /// The owner of this Mac chooses their password (`sharing.multiuser-off-says-so`: before Multi-user can be turned on),
+    /// through the local-only `POST /api/auth/owner-password` (#6565): it needs neither the owner's list of people (refused
+    /// while Multi-user is off) nor a key session. A refusal keeps the engine's status and words for `AccountsOnSequence`.
     func setOwnerPassword(_ password: String) async throws {
-        guard let owner = currentUser?.id ?? users.first(where: { $0.isOwner })?.id else {
-            throw AccountsOnSequence.Refusal(status: 404, detail: "Sign in as the owner first.")
-        }
-        let response = try await client.api.updateUserApiUsersUserIdPatch(
-            .init(path: .init(userId: owner), body: .json(.init(password: password)))
-        )
+        let response = try await client.api.setOwnerPasswordApiAuthOwnerPasswordPost(body: .json(.init(password: password)))
         guard case .ok = response else {
             if case .undocumented(let status, let payload) = response {
                 throw AccountsOnSequence.Refusal(status: status, detail: await EngineErrorDetail.message(from: payload))

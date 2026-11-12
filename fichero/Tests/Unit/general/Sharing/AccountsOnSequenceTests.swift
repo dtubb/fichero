@@ -41,6 +41,23 @@ struct AccountsOnSequenceTests {
         #expect(await AccountsOnSequence.run(host: host, password: nil) == .needsPassword)
     }
 
+    @Test func aPasswordRefusalAfterTypingOneIsWordsNotAnotherPrompt() async {
+        let host = FakeHost()
+        host.gap = "owner_password_gap"
+        host.switchRefusal = .init(status: 409, detail: "Multi-user needs the owner's account to have a password first")
+        let result = await AccountsOnSequence.run(host: host, password: "a chosen one")
+        guard case .failed(let text) = result else { Issue.record("expected failed, got \(result)"); return }
+        #expect(text.contains("password"), "the engine's words reach the person")
+    }
+
+    @Test func thePromptDecisionIsPureAndA403KeepsTheEnginesReason() {
+        #expect(AccountsOnSequence.needsPasswordPrompt(blocker: "Multi-user needs a Password first", typed: nil))
+        #expect(!AccountsOnSequence.needsPasswordPrompt(blocker: "Multi-user needs a Password first", typed: "x"))
+        #expect(!AccountsOnSequence.needsPasswordPrompt(blocker: nil, typed: nil))
+        let said = AccountsOnSequence.sentence(for: .init(status: 403, detail: "sign in as the owner to change Multi-user"))
+        #expect(said == "sign in as the owner to change Multi-user")
+    }
+
     @Test func otherRefusalsBecomeASentenceNeverACode() async {
         let host = FakeHost()
         host.switchRefusal = .init(status: 403, detail: nil)

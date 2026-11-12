@@ -1111,6 +1111,45 @@ def migrate_owner(
     return FirstRunResponse(user=_to_public_user(owner), client=SignInClient(id=client.id, kind=client.kind, name=client.name))
 
 
+class OwnerPasswordRequest(BaseModel):
+    password: str = Field(min_length=1)
+
+
+@auth_router.post("/owner-password", response_model=StatusResponse)
+def set_owner_password(
+    body: OwnerPasswordRequest,
+    request: Request,
+    app_db: AppDatabase = Depends(get_app_database),
+) -> StatusResponse:
+    """The owner of THIS Mac chooses their password (`multiuser.turning-on-needs-an-owner-password`, #6565).
+
+    First-run gives the owner a key and a random password nobody chose, and an owner who already has a key cannot
+    register another through first-run or migrate-owner, so the app had no way to ask for a password. Local only
+    (the Unix socket), and only the local owner: the app's own start-up credential, or the owner's signed-in session.
+    Works with Multi-user off (the point) or on. The 8-character rule applies; audited before the change."""
+    if request.scope.get("fichero.transport") != "uds":
+        raise HTTPException(status_code=403, detail="this route is local only")
+    session_user = _current_session_user(request)
+    if getattr(request.state, "bootstrap_auth", False):
+        owners = [user for user in app_db.list_users() if user.is_owner and user.active]
+        if not owners:
+            raise HTTPException(status_code=404, detail="this library has no owner yet")
+        if len(owners) > 1:
+            raise HTTPException(status_code=409, detail="this library has several owners; none is chosen for you")
+        owner = owners[0]
+    elif session_user is not None and session_user.is_owner and session_user.active:
+        owner = session_user
+    else:
+        raise HTTPException(status_code=403, detail="owner access required")
+    _require_new_password_length(body.password)
+    _audit(request, app_db, "owner.set_password", owner.id)
+    app_db.set_password(owner.id, accounts.hash_password(body.password))
+    from fichero_server.security.multiuser import note_owner_password_set
+
+    note_owner_password_set(app_db)
+    return StatusResponse(status="ok")
+
+
 # --- Local CLI/MCP clients (multiuser.first-connection-asks-the-person, slice 6a) --------------------------------
 # A local client asks over the Unix socket; the owner, signed in in the app, allows it; the client then registers
 # its OWN public key. Nothing here is on until the owner turns a switch on (default off). The transport stamps

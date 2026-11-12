@@ -1401,6 +1401,16 @@
         "response_model": "FirstRunResponse"
       },
       {
+        "method": "POST",
+        "path": "/auth/owner-password",
+        "operation_id": "set_owner_password_api_auth_owner_password_post",
+        "summary": "Set Owner Password",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "OwnerPasswordRequest",
+        "response_model": "StatusResponse"
+      },
+      {
         "method": "GET",
         "path": "/auth/sessions",
         "operation_id": "list_sessions_api_auth_sessions_get",

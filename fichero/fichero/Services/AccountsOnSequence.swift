@@ -34,11 +34,25 @@ enum AccountsOnSequence {
         func reload() async
     }
 
+    /// What to do next, from what the engine says and what the person has typed: ask for a password only when none was
+    /// chosen and none has been typed. Pure, so the decision is tested without a host (#6565).
+    static func needsPasswordPrompt(blocker: String?, typed: String?) -> Bool {
+        typed == nil && blocker?.lowercased().contains("password") == true
+    }
+
+    /// The sentence for a refusal. A refusal that names the password after the person typed one is shown as words, never as
+    /// another prompt (that was a silent loop), and a 403 carries the engine's own reason when it gave one.
+    static func sentence(for refusal: Refusal) -> String {
+        let said = (refusal.detail ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if refusal.status == 403, !said.isEmpty { return said }
+        return PersonFacingError.message(for: refusal.status, detail: refusal.detail)
+    }
+
     @MainActor
     static func run(host: some Host, password: String?) async -> Result {
         do {
-            let gap = (try await host.blocker())?.lowercased().contains("password") == true
-            if gap, password == nil { return .needsPassword }
+            let blocker = try await host.blocker()
+            if needsPasswordPrompt(blocker: blocker, typed: password) { return .needsPassword }
             if let password {
                 guard password.count >= NewPasswordRule.minimumLength else { return .needsPassword }
                 try await host.setOwnerPassword(password)
@@ -47,8 +61,10 @@ enum AccountsOnSequence {
             await host.reload()
             return .turnedOn
         } catch let refusal as Refusal {
-            if refusal.status == 409, refusal.detail?.lowercased().contains("password") == true { return .needsPassword }
-            return .failed(PersonFacingError.message(for: refusal.status, detail: refusal.detail))
+            if password == nil, refusal.status == 409, refusal.detail?.lowercased().contains("password") == true {
+                return .needsPassword
+            }
+            return .failed(sentence(for: refusal))
         } catch {
             return .failed(error.localizedDescription)
         }
