@@ -50,20 +50,15 @@ extension ShareSettingsView {
                     }
                 }
 
-                if let command = sharingState?.tailnetServeCommand {
-                    // The sandboxed app cannot run the Tailscale CLI: one command to paste (#5317).
-                    Text("Run once in Terminal:")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    HStack {
-                        Text(command)
-                            .font(.caption.monospaced())
-                            .textSelection(.enabled)
-                        Button("Copy") {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(command, forType: .string)
-                        }
-                    }
+                // The sandboxed app cannot run the Tailscale CLI: one command to paste (#5317).
+                TailnetServeCommandLine(command: sharingState?.tailnetServeCommand)
+
+                // The key a guest that typed this Mac's address is shown at first contact (`HostKeyFingerprint`), to
+                // compare: here, not on Add Device, whose lines are the addresses alone (#6554).
+                if let key = HostKeyFingerprint.text(ofPin: spkiPin) {
+                    Text("This Mac's key: \(key)").font(.caption.monospaced()).foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .accessibilityIdentifier("sharing.host.key-fingerprint")
                 }
 
                 // The only invite-rotation affordance in the app: mints a fresh

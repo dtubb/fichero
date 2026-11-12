@@ -345,7 +345,10 @@ address answered while the link named `.local`.
 
 - `sharing.share-sheet-offers-both-addresses` — **[PARTIAL]** (#5318; slice M2 written 2026-10-31, not yet built: `AddressChoiceModel` rows/default/root, the Add Device sheet's segmented choice with a Copy per row, the project Share sheet's choice; `SharingStateRecord` carries `publicBaseURL`, `lanIP`, `tailnetForward`) the Add Device sheet and the project Share sheet show the
   addresses as a choice above the QR: **"This network"** (`<name>.local`) and **"Tailscale"** (`<machine>.<tailnet>.ts.net`), each with
-  its one-line reach ("same Wi-Fi only, when the network allows it" / "anywhere your Tailscale is on"). The chosen row is what the QR
+  its one-line reach ("same Wi-Fi only, when the network allows it" / "anywhere your Tailscale is on"). On the Mac's Add Device sheet
+  each address is ONE line, said once (#6554, seen 2026-11-12: the picker, the row and the engine's host list each named it, with the
+  key line under them): a mark for the chosen one, its name and host, where it works or why it cannot, and its **Copy**; clicking a
+  line that can work chooses it. No segmented picker, no second address list; "This Mac's key" moves to Settings › Sharing › Advanced. The chosen row is what the QR
   shows and what **Copy Link** copies; each row also has its own **Copy** so both links can be sent at once. The pin follows the row
   (`RemoteClientPairing.invitePin(_:for:)` already decides by host: `.ts.net` carries no pin, the rest carry the one SPKI pin); the code
   is the same in both links (one mint, two addresses). The default row is Tailscale when the engine reports a tailnet address and its
@@ -358,6 +361,18 @@ address answered while the link named `.local`.
   (Swift Testing, written with the slice): rows from a `SharingStateRecord` with and without a tailnet address; default row; the payload for
   each row carries the right pin; both links carry the same code. UI: `SharingPaneUITests/testAddDeviceSheetShowsBothAddressRows` in
   `fichero-ui-mac` (seeded sharing state).
+- `sharing.tailnet-name-known-without-the-cli` — **[PARTIAL]** (#6554; seen 2026-11-12 on the Pro, Dev DMG) engine. A sandboxed
+  engine runs the Tailscale CLI and reads nothing, so it could not name this Mac's tailnet address and the Tailscale row was greyed
+  ("This build cannot ask Tailscale"). When Tailscale cannot be asked (no answer, or not JSON), the engine names the tailnet address it
+  already knows: the `.ts.net` sharing address, else a `.ts.net` name on its serving certificate, else a Remote Access folder named for
+  one; the row is then offered, not first, with the "cannot ask" line. A Tailscale that answers "stopped" or "logged out" still names
+  nothing. *Built:* `tailscale_serve.known_tailnet_url`, used by `detected_tailnet_url`. *Not built:* a look on the Pro.
+  *Tests:* `fichero-server/tests/unit/security/test_tailnet_name_known_without_the_cli_to_spec.py`.
+- `sharing.tailnet-serve-command-on-the-sheet` — **[PARTIAL]** (#6554) app and engine. When the engine knows the tailnet name but
+  cannot make the forward itself (sandboxed), `tailnet_serve_command` is the one `tailscale serve --bg --https=<port>
+  https+insecure://127.0.0.1:<port>` command to paste, and the Add Device sheet shows it under the addresses with its Copy (as
+  Settings › Sharing › Advanced already did; one view, `TailnetServeCommandLine`). Nothing when the forward is already Fichero's.
+  *Not built:* a look on the Pro. *Tests:* `test_tailnet_name_known_without_the_cli_to_spec.py`, `Sharing/AddressChoiceModelTests.swift`.
 - `sharing.state-names-every-address` — **[OK]** (#5318; engine, slice E2, 2026-10-31: `public_base_url`, `lan_ip`, `tailnet_forward`; contract regenerated) `GET /api/pair/sharing` gains `public_base_url` (the sharing
   address the engine was started with), `lan_ip` and `tailnet_forward: "ours" | "foreign" | "none"`, so the app, the CLI and a tester read
   the host's addresses from one place instead of guessing (the first step of `sharing.address-choice`, §4, which stays the fuller design).
