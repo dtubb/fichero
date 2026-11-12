@@ -98,6 +98,12 @@ Tags: [OK] built · [PARTIAL] partly built · [MISSING] not built.
   line map is still editable. The edit is one page-level reading by the person that corrects the
   text shown, through `representation.create` with no segment. The page has no boxes before and
   none after.
+- `reader.content.a-page-shows-its-own-reading` [OK] (#6470) — a page with no text from its lines
+  but a reading stored on the page itself (no segment) shows that reading in the Content view, not
+  "No transcription yet". Of the page's own readings the one as written comes first, then the
+  shipped levels in order; a person's over a machine's; the newest. The page says which level it
+  shows (`reading_level`), and a page shown this way has no line map, since no line carries it.
+  A page with text from its lines is never replaced.
 - `reader.edit.no-second-writer` [MISSING] (#5289) — the native page pane's Edit saves through
   the same runner as the Reader. Nothing writes a page's text to the document directly.
   (`source.lineeditor.one-path`, #5209, says the same of every home.)

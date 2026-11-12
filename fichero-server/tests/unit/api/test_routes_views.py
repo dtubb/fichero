@@ -396,6 +396,27 @@ class TestDocumentViewRoute:
         assert only_regularised[0]["content"] == "regularised page"
         assert only_regularised[0]["reading_level"] == "regularised"
 
+    def test_the_document_view_shows_a_pages_own_reading_without_a_line_map(self, client, db):
+        """`reader.content.a-page-shows-its-own-reading` (#6470): the wiring, not just the helper."""
+        from fichero_server.models import ContentRepresentation, SourceAnchor
+
+        doc = _make_document(doc_id="own-doc", name="Deed.pdf", doc_type=DocType.file, file_type=FileType.pdf)
+        db.save(doc)
+        for number in (1, 2):
+            db.save(_make_document(doc_id=f"own-p{number}", name=f"Page {number}", doc_type=DocType.page,
+                                   parent_id=doc.id, sequence=number))
+        db.save(ContentRepresentation(
+            document_id="own-p1", segment_id=None, kind="transcription", content="regularised page one",
+            level="regularised", source_anchor=SourceAnchor(document_id="own-p1", granularity="page")))
+        response = client.get(f"/view/document/{doc.id}")
+        pages = json.loads(re.search(r"const documentData = (\{.*?\});\n", response.text, re.S).group(1))["pages"]
+        assert pages[0]["content"] == "regularised page one"
+        assert pages[0]["has_content"] is True
+        assert pages[0]["reading_level"] == "regularised"
+        assert "lines" not in pages[0]
+        assert pages[1]["has_content"] is False
+        assert "reading_level" not in pages[1]
+
     def test_transcript_pages_of_leaf_document_is_its_own_page(self):
         from fichero_server.api.routes.system.views import transcript_pages
 

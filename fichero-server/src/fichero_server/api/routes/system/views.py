@@ -670,8 +670,8 @@ def with_page_level_readings(
 
     by_page: dict[str, list[ContentRepresentation]] = {}
     for row in readings:
-        if row.segment_id is None and row.kind == "transcription" and row.retracted_at is None \
-                and row.content and row.content.strip():
+        is_page_reading = row.segment_id is None and row.kind == "transcription"
+        if is_page_reading and row.retracted_at is None and row.content and row.content.strip():
             by_page.setdefault(str(row.document_id), []).append(row)
     result: list[dict[str, object]] = []
     for page in pages:
