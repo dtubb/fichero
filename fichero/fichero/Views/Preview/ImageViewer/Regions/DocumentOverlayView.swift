@@ -16,6 +16,7 @@ final class DocumentOverlayView: NSView {
         didSet {
             guard overlay != oldValue else { return }
             needsDisplay = true
+            InteractionProfile.lap(.regionPress, "overlay")
             setAccessibilityIdentifier(overlay.documentId.map { SegmentBoxAccessibility.pagePrefix + $0 })
         }
     }
@@ -190,6 +191,7 @@ final class DocumentOverlayView: NSView {
         if overlay.showsOrderNumbers { drawOrderNumbers(in: dirtyRect, imageRect: imageRect, scale: scale) }
         drawMarquees(in: dirtyRect, imageRect: imageRect, scale: scale)
         drawSelection(in: dirtyRect, imageRect: imageRect, scale: scale, line: line, emphasized: emphasized)
+        InteractionProfile.lap(.regionPress, "draw")
     }
 
     private func drawWashes(in dirtyRect: NSRect, imageRect: CGRect, scale: CGFloat, emphasized: Bool) {
@@ -374,27 +376,6 @@ extension DocumentOverlayView {
             square.lineWidth = line
             square.stroke()
         }
-    }
-}
-
-/// A drawn segment box as an accessibility element (#5192): the image overlay and a PDF page make
-/// them the same way, so a test or a script asks both surfaces one question.
-enum SegmentBoxAccessibility {
-    static let identifierPrefix = "SegmentBox-"
-    /// The view a page's boxes are drawn in, named for its page (#5193).
-    static let pagePrefix = "SegmentPage-"
-
-    static func element(
-        segmentId: String, kind: String, frame: CGRect, in parent: NSView, selected: Bool
-    ) -> NSAccessibilityElement {
-        let element = NSAccessibilityElement()
-        element.setAccessibilityRole(.group)
-        element.setAccessibilityIdentifier(identifierPrefix + segmentId)
-        element.setAccessibilityLabel(kind.capitalized)
-        element.setAccessibilityParent(parent)
-        element.setAccessibilityFrameInParentSpace(frame)
-        element.setAccessibilitySelected(selected)
-        return element
     }
 }
 #endif

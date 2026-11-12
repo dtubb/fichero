@@ -64,6 +64,11 @@ enum InteractionProfile {
         /// publishes the image, so the bar is the whole wait the user sees.
         case siblingStepToImage
 
+        /// A press on the Preview image → the frame that shows what it did (#5253). Begun by
+        /// `PreviewPointerProfile` as the pointer feed receives the mouse-down; lapped by the region
+        /// layer (dispatch, select) and the document overlay (overlay, draw).
+        case regionPress
+
         /// Signpost names must be `StaticString` (a dynamic name collapses every
         /// interval into one indistinguishable lane in Instruments), so the
         /// mapping is a switch rather than a raw value.
@@ -74,6 +79,7 @@ enum InteractionProfile {
             case .contentDataLoad: return "sidebar content data load"
             case .sidebarExpand: return "sidebar expand"
             case .siblingStepToImage: return "preview swipe → image"
+            case .regionPress: return "preview region press"
             }
         }
     }

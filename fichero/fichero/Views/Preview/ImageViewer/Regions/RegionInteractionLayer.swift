@@ -142,7 +142,7 @@ struct RegionInteractionLayer: View {
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
             .onChange(of: pointer?.sequence) { _, _ in
                 guard let event = pointer?.latest else { return }
-                handlePointer(event, in: geo.size)
+                PreviewPointerProfile.handling(event.phase) { handlePointer(event, in: geo.size) }
             }
         }
     }

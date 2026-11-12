@@ -220,7 +220,7 @@ extension ZoomableImagePreview {
                         coordinator: $imageCoordinator,
                         onPointer: { pointerFeed.publish($0) },
                         imageVisible: imageVisible,
-                        documentOverlay: documentOverlay
+                        documentOverlay: PreviewPointerProfile.timingOverlay { documentOverlay }
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .overlay(alignment: .topLeading) {
