@@ -107,7 +107,8 @@ extension ContentView {
         WindowWorkspaceStore.shared.toolbarVisibility
     }
 
-    /// TRAILING zone: the compact inspector toggle, and nothing else.
+    /// TRAILING zone: the iOS inspector toggle, and nothing else. Every iOS width, docked or not: an iPad's docked
+    /// inspector column has no bar of its own to hold it (#6561, `InspectorToggleHome`).
     ///
     /// Activity status lives in the centre status island (hosted inside the
     /// `ContentToolbarID.breadcrumb` principal item, #4519) beside the title, and
@@ -134,7 +135,7 @@ extension ContentView {
     #if !os(macOS)
     @ToolbarContentBuilder
     var trailingToolbarContent: some ToolbarContent {
-        if showInspectorToggle && !usesDockedInspector {
+        if showInspectorToggle && inspectorToggleHome == .detailBar {
             ToolbarItem(id: ContentToolbarID.compactInspectorToggle, placement: .topBarTrailing) {
                 inspectorToggleButton
             }
