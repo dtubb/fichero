@@ -154,4 +154,15 @@ struct SegmentsFilterTests {
         #expect(SegmentRowFactsView.tooltip("Language es", .init(value: "es", fromSegmentId: "r1"), { _ in "its region" })
             == "Language es, from its region")
     }
+
+    @Test("a region is numbered among the page's regions in every list; any other row by its place (#6476)")
+    func oneRegionNumbering() {
+        let page = [segment("r1", kind: "region"), segment("l1", kind: "line", parent: "r1"),
+                    segment("l2", kind: "line", parent: "r1"), segment("r2", kind: "region")]
+        #expect(SegmentsPane.numberingPlace(of: page[3], at: 3, among: page) == 1)
+        #expect(SegmentsPane.rowLabel(page[3], at: SegmentsPane.numberingPlace(of: page[3], at: 3, among: page))
+                .hasPrefix("Region 2"))
+        #expect(SegmentsPane.numberingPlace(of: page[2], at: 5, among: page) == 5)
+        #expect(SegmentsPane.numberingPlace(of: nil, at: 4, among: page) == 4)
+    }
 }

@@ -146,6 +146,14 @@ enum SegmentsPane {
     /// `direction` is the segment's resolved one (#5199): its words are an isolate in it, so a Syriac line
     /// reads right to left after the Latin kind and never reorders it. A caption stays one row, so a
     /// vertical line's words are isolated as written rather than stacked.
+    /// The place a row's number counts from (#6476: one numbering everywhere): a region among the page's regions -- lines
+    /// folded under an earlier region would otherwise make the second one "Region 25" -- any other row by its place.
+    static func numberingPlace(of segment: Segment?, at index: Int, among segments: [Segment]) -> Int {
+        guard let segment, segment.kind == "region",
+              let place = segments.filter({ $0.kind == "region" }).firstIndex(where: { $0.id == segment.id }) else { return index }
+        return place
+    }
+
     static func rowLabel(_ segment: Segment?, at index: Int, direction: String? = nil, numbered: Bool = true) -> String {
         let kind = segment.map(InspectorPath.name(of:)) ?? "Segment"
         let named = segment?.cell != nil ? kind : "\(kind) \(index + 1)"
