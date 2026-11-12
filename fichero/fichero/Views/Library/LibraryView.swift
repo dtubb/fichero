@@ -55,6 +55,9 @@ struct LibraryView: View {
     /// Pin to current view (Daniel, 2026-08-23): the host freezes/thaws the
     /// browsed set. nil hides the pin row.
     var isPanePinned: Binding<Bool>?
+    /// False where another pane head already holds this view's choice: a folder in the Source pane is chosen in the Source
+    /// head's "Show folder as" (`library.preview.folder-view-one-head`, #6562), so its rows draw no second head under it.
+    var showsPaneHead = true
 
     let folderId: String?  // Current folder ID for per-folder sort persistence
     var onRequestFocus: () -> Void = {}  // Called on tap to pull keyboard focus into content area

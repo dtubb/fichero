@@ -201,7 +201,7 @@ Surfaces: `ViewDisplayMode` (`App/ViewDisplayMode.swift`), `LibraryView
   `DocumentStoreAndSidebarTypesTests`).
 
 - `library.preview.folder-view-per-pane` — **[PARTIAL]** (#6365; owner 2026-11-06; built, not yet compiled or run) each Preview pane
-  chooses how it shows a selected folder: **Canvas**, **List** or **Table**. The choice belongs
+  chooses how it shows a selected folder: **List**, **Table**, **Icons** or **Canvas** (Icons added for #6562). The choice belongs
   to the pane, not the window: two Preview panes side by side can show the same folder one as a
   table and one as its canvas, and choosing in one changes nothing in the other. Acceptance: with
   two Preview panes split side by side and a folder selected, choosing Table in the left pane
@@ -209,17 +209,23 @@ Surfaces: `ViewDisplayMode` (`App/ViewDisplayMode.swift`), `LibraryView
   *Decided here:* the three views are the Library's own List and Table modes (`LibraryView`
   `.list`/`.table`) and the folder canvas (`FolderContentsPreview`), scoped to the folder, so
   there is one row renderer and one canvas, not a second copy (`library.canvas.one-canvas-
-  everywhere`); Icons is not offered because the owner named three and it is a one-line add later.
+  everywhere`); Icons is the Library's `.icon` mode, added when the owner asked for it in the one head (#6562).
+- `library.preview.folder-view-one-head` — **[PARTIAL]** (#6562; owner 2026-11-12) a folder in the Source pane shows
+  ONE pane head, the Source pane's own: the embedded List, Table or Icons view draws no head of its own under it
+  (no second ✕, kind, view menu, Documents menu or +), and the view is chosen only in that head's "Show folder as".
+  Seen 2026-11-12: the Source head, then directly under it the embedded Library head, as if two panes were stacked
+  in one. *Built:* `LibraryView.showsPaneHead`, false from `FolderRowsPreview`; the canvas view never drew one.
+  *Not built:* a look on screen. *Tests:* `PreviewFolderViewPerPaneTests.swift`.
 - `library.preview.folder-view-picker-in-the-head` — **[PARTIAL]** (#6365; built, not yet compiled or run) the picker sits in the
   Preview pane head's existing selector menu (`PaneKindSelector`, `ContentView+PreviewPaneHead.swift:61`),
-  as a section titled "Show folder as" under the Preview/Edit lens, with the three views in the
-  order Canvas, List, Table; it moves with the rest of that menu into the pane menu's View ▸ when
+  as a section titled "Show folder as" under the Preview/Edit lens, with the four views in the
+  order List, Table, Icons, Canvas; it moves with the rest of that menu into the pane menu's View ▸ when
   `panes.chrome.one-pane-menu` (#5435) lands. Acceptance: the head of a Preview pane showing a
-  folder offers Canvas, List and Table in one menu and nowhere else on the head; the chosen one
+  folder offers List, Table, Icons and Canvas in one menu and nowhere else on the head; the chosen one
   is marked; no new control is added to the head. *Decided here:* one existing menu, no new
   chrome, following the 2026-10-04 ruling that there is too much window chrome
   (`panes-workspaces.md` §G). a11y ids: `previewHeadFolderView` (the menu),
-  `previewHeadFolderView.canvas` / `.list` / `.table` (its entries).
+  `previewHeadFolderView.list` / `.table` / `.icons` / `.canvas` (its entries).
 - `library.preview.folder-view-defaults` — **[PARTIAL]** (#6365; built, not yet compiled or run) a pane that has never been given a
   choice opens a folder as a **Table**, the default #6172 ruled (owner 2026-10-26); a file, a page
   or a multiple selection is shown as today (the document canvas, the PDF, the stack) whatever
@@ -869,7 +875,7 @@ resolved and moved; the other three's status is corrected below.
 ## Build order
 
 #### Step 1.1 — each Preview pane chooses its folder view: Canvas, List or Table, remembered per pane (#6365)
-- Behaviours: `library.preview.folder-view-per-pane`, `library.preview.folder-view-picker-in-the-head`, `library.preview.folder-view-defaults`, `library.preview.folder-view-persists-per-pane`, `library.preview.folder-view-cannot-show-says-so`
+- Behaviours: `library.preview.folder-view-per-pane`, `library.preview.folder-view-picker-in-the-head`, `library.preview.folder-view-one-head`, `library.preview.folder-view-defaults`, `library.preview.folder-view-persists-per-pane`, `library.preview.folder-view-cannot-show-says-so`
 - Tests: PreviewFolderViewPerPaneTests.swift, PreviewFolderViewPerPaneUITests.swift
 - Size: M
 

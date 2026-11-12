@@ -48,14 +48,29 @@ struct PreviewFolderViewPerPaneTests {
         #expect(PreviewFolderView.effective("canvas") == .canvas)
         #expect(PreviewFolderView.effective("list") == .list)
         #expect(PreviewFolderView.effective("table") == .table)
-        #expect(PreviewFolderView.allCases.map(\.rawValue) == ["canvas", "list", "table"])
+        #expect(PreviewFolderView.effective("icons") == .icons)
+        #expect(PreviewFolderView.allCases.map(\.rawValue) == ["list", "table", "icons", "canvas"])
     }
 
-    @Test("Canvas is the folder canvas; List and Table are the Library's own rows")
+    @Test("Canvas is the folder canvas; List, Table and Icons are the Library's own views")
     func displayModes() {
         #expect(PreviewFolderView.canvas.displayMode == nil)
         #expect(PreviewFolderView.list.displayMode == .list)
         #expect(PreviewFolderView.table.displayMode == .table)
+        #expect(PreviewFolderView.icons.displayMode == .icon)
+        #expect(PreviewFolderView.icons.title == "Icons")
+    }
+
+    /// `library.preview.folder-view-one-head` (#6562): the folder's rows under the Source head draw no head of their own,
+    /// while a Library pane keeps its head.
+    @Test("a folder in the Source pane has one pane head: the embedded rows draw none")
+    func folderRowsDrawNoSecondHead() {
+        #expect(FolderRowsPreview.showsLibraryHead == false)
+        let library = LibraryView(
+            documents: [], contentCollection: .documents, isLoading: false, isConnected: true, errorMessage: nil,
+            onRetry: {}, libraryToolbar: LibraryToolbarState(), selection: .constant([]), detailDocument: .constant(nil),
+            defaultDisplayMode: .table, folderId: nil)
+        #expect(library.showsPaneHead)
     }
 
     @Test("choosing in one Preview pane changes nothing in the other")
