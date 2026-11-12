@@ -23,9 +23,15 @@ enum RemoteAccessConfig {
         defaults.bool(forKey: bonjourEnabledKey)
     }
 
-    /// The `.local` address the engine listens on while Sharing is on (`sharing.listener`).
+    /// The network address the engine listens on while Sharing is on (`sharing.listener`): a `.local` name, or an IPv4
+    /// address such as the Thunderbolt bridge's 10.10.10.1. Naming only `.local` left a saved IP with a loopback-only
+    /// engine that refused every pairing code. Never a `.ts.net` name (Tailscale serves the loopback port) or loopback.
     static func lanListenerHost(publicHost: String?) -> String? {
-        guard let publicHost, publicHost.hasSuffix(".local") else { return nil }
+        guard let publicHost else { return nil }
+        if publicHost.hasSuffix(".local") { return publicHost }
+        var address = in_addr()
+        guard publicHost.withCString({ inet_pton(AF_INET, $0, &address) }) == 1,
+              !publicHost.hasPrefix("127.") else { return nil }
         return publicHost
     }
 
