@@ -103,7 +103,7 @@ Tags: [OK] built · [PARTIAL] partly built · [MISSING] not built.
   "No transcription yet". Of the page's own readings the one as written comes first, then the
   shipped levels in order; a person's over a machine's; the newest. The page says which level it
   shows (`reading_level`), and a page shown this way has no line map, since no line carries it.
-  A page with text from its lines is never replaced.
+  A page with text from its lines is never replaced. Test: `fichero-server/tests/unit/api/test_routes_views.py`.
 - `reader.edit.no-second-writer` [MISSING] (#5289) — the native page pane's Edit saves through
   the same runner as the Reader. Nothing writes a page's text to the document directly.
   (`source.lineeditor.one-path`, #5209, says the same of every home.)
