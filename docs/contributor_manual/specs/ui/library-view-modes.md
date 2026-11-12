@@ -110,7 +110,7 @@ Surfaces: `ViewDisplayMode` (`App/ViewDisplayMode.swift`), `LibraryView
   `SelectAllVisibleSurfaceTests` (four cases spanning dataset filtering and the 3D board's
   cap), `LibraryMenuParityTests.selectAllHasOneOwner` (`"⌘A has one owner — canvas
   defers to the menu command (M1 resolved)"`).
-- `ui.select-all.never-the-sidebar` — **[OK]** (#6364) ⌘A never selects the whole sidebar. Over the item list, the reader, the
+- `ui.select-all.never-the-sidebar` — **[BROKEN]** (#6364; owner, on screen, 2026-11-11: ⌘A in the sidebar still selects every project, folder and workflow. The route knows the sidebar has focus only from a tap, so with no hint, or another pane's hint and nothing there to select, Select All disables itself and ⌘A falls through to the outline's own select-all. A guard on the List's modifier chain crashed `SidebarView.body` and was not committed.) ⌘A never selects the whole sidebar. Over the item list, the reader, the
   preview and the inspector it works as before (`library.chrome.select-all-follows-the-visible-surface`); with the sidebar
   focused the chord is taken and does nothing, so it is neither a selection nor left to fall through to the system's own list,
   which would select every row. Typing in a sidebar rename still gives ⌘A to the caret. This replaces the ruling of 2026-08-23
@@ -377,6 +377,7 @@ may be why it still reads as broken to whoever tests it next.
 - `library.table.column-customization` — **[GAP]** (#3698) a column picker should choose
   which columns the table view shows (name, dates, type, entity count, size, etc.),
   persisted per view. Not verified as built.
+- `library.table.columns-resize-and-remember` — **[GAP]** (#6540; owner 2026-11-11) every column's width can be changed by dragging its header edge, the pointer turns into the resize cursor over that edge so it is clear the columns resize, and a width once set is remembered app-wide: every folder, every Table pane and every window, across relaunch. Today the pointer does not change over a column edge, and widths are kept per window (`@SceneStorage("library.tableColumns")`). That same storage ping-pongs with `LibraryView` (26 rounds in one session, #4228), so where it lives is also a speed question.
 - `library.table.every-column-selects` — **[OK]** (#6538) a click anywhere in a table row
   selects it, the Name column included: a click selects, ⇧-click selects a range, ⌘-click
   adds or removes one row, and a double-click opens. No cell carries a drag source (a
