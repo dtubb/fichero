@@ -61,3 +61,23 @@ extension GuestLibraryChoiceTests {
         #expect(GuestLibraryChoice.current(after: other, dropped: [local], hostLibraries: []) == nil)
     }
 }
+
+extension GuestLibraryChoiceTests {
+    @Test("a remote host with a paired library loads only that library, never the guest's own (#6555)")
+    func remoteLoadsOnlyPaired() {
+        let paired = "/Volumes/Archive/Sources/Diaries Full.fichero"
+        #expect(GuestLibraryChoice.mayLoad(libraryPath: phone, remoteHost: true, pairedPath: paired) == false)
+        #expect(GuestLibraryChoice.mayLoad(libraryPath: paired, remoteHost: true, pairedPath: paired))
+        #expect(GuestLibraryChoice.mayLoad(libraryPath: phone, remoteHost: false, pairedPath: paired))
+        #expect(GuestLibraryChoice.mayLoad(libraryPath: phone, remoteHost: true, pairedPath: " "))
+    }
+
+    @Test("a host refusing the library is not retried; a blip is")
+    func refusalStopsRetry() {
+        let refusal = AccessError.forbidden(reason: AccessError.outsideAllowedLocations, message: "outside")
+        #expect(GuestLibraryChoice.isLibraryRefusal(refusal))
+        #expect(GuestLibraryChoice.isLibraryRefusal(URLError(.timedOut)) == false)
+        #expect(GuestLibraryChoice.isLibraryRefusal(nil) == false)
+        #expect(GuestLibraryChoice.isLibraryRefusal(AccessError.forbidden(reason: nil, message: nil)) == false)
+    }
+}

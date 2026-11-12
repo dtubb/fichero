@@ -117,6 +117,9 @@ extension LibraryManager {
         // Flip readiness before any library work so restore's registry writes
         // cannot race the engine's socket bind.
         backendIsReady = true
+        // The paired host's library BEFORE anything loads (#6555): adopting it after `backendDidBecomeReady` let the guest's own
+        // local `global.fichero` load first, a path the remote host rejects (403) and the load retried.
+        adoptPairedRemoteLibrary()
         restoreSavedLibraries()
         LaunchProfile.milestone("saved libraries restored")
         // The libraries the app restored load NOW, beside the registry fetch, not after it (#5228):
@@ -380,6 +383,11 @@ extension LibraryManager {
               !loadingLibraryIds.contains(library.id) else {
             return
         }
+        // A remote host serves only its own library (#6555): never load the guest's local one against it.
+        guard GuestLibraryChoice.mayLoad(
+            libraryPath: library.url.path, remoteHost: EngineConfig.requiresExternalBackendConnection,
+            pairedPath: RemoteAccessConfig.pairedLibraryPath
+        ) else { return }
 
         loadingLibraryIds.insert(library.id)
         defer { loadingLibraryIds.remove(library.id) }
@@ -427,6 +435,8 @@ extension LibraryManager {
                 \(Self.loadFailureReason(error: store.error, isConnected: store.isConnected), privacy: .public)
                 """
             )
+            // The host refused this library: another try sends the same path (#6555). Stop, and say so.
+            if GuestLibraryChoice.isLibraryRefusal(store.error) { guestLibraryProblem = GuestLibraryChoice.refusedWords; return }
             scheduleLoadRetry(for: library)
             return
         }
