@@ -251,7 +251,8 @@ extension SidebarView {
             // selection returns the same primary, so this is a no-op and the
             // detail pane stays put while the selection is built.
             if selectionState.selectedDestination != primary {
-                selectionState.selectedDestination = primary
+                // The highlight is drawn first, the routing after (`routeAfterHighlight`).
+                selectionState.routeAfterHighlight(primary)
             } else {
                 // No reroute — `.onChange` will not fire, so close the
                 // interval here rather than leaving it open until the next

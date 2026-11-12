@@ -290,10 +290,36 @@ class SidebarSelectionState {
     /// didSet that force-synced them would clobber the multi-row set.
     var selectedDestination: SidebarDestination?
 
+    /// How long a click's routing waits after its highlight (`routeAfterHighlight`). A timer, not a
+    /// plain main-queue block: a block queued while AppKit handles the click can run before that
+    /// turn's drawing commit, while a timer fires only after the run loop has drawn and slept.
+    nonisolated static let routingDelay: TimeInterval = 0.01
+
+    /// The latest click's routing; an older one that is still waiting does nothing.
+    @ObservationIgnored private var routingToken = 0
+
+    /// A click's highlight first, its routing after (#4228, `sidebar.selection.highlight-first`).
+    /// The caller has already written `selectedDestinations`, which is all the List needs to draw
+    /// the highlight; writing `selectedDestination` here sets off the routing (the view mode, the
+    /// detail document, the folder load), which re-renders most of the window. Deferring it lets
+    /// the highlight reach the screen first. Only the latest click routes.
+    func routeAfterHighlight(_ primary: SidebarDestination?) {
+        routingToken &+= 1
+        let token = routingToken
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.routingDelay) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.routingToken == token else { return }
+                InteractionProfile.lap(.selectionCommit, "highlight")
+                if self.selectedDestination != primary { self.selectedDestination = primary }
+            }
+        }
+    }
+
     var selectedItemId: String? {
         get { selectedDestination?.serializedID }
         set {
             let dest = newValue.flatMap(SidebarDestination.init(serializedID:))
+            routingToken &+= 1  // a programmatic selection overrides any click still waiting to route
             selectedDestination = dest
             // Programmatic single-selection (or clear) drives the highlight to
             // match: exactly this row, or nothing.
