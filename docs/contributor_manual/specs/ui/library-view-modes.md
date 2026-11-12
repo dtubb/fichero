@@ -561,7 +561,7 @@ homeless until a map-view UI spec exists (#5128).
   drags it or (twice) zooms it; a press on the empty board draws a rubber band; pressing one card of a
   multiple selection moves the whole selection. Built 572719bca from the canvas's own hit test (the
   entity-targeted gestures stopped reaching the cards); the resize handles are not on it yet.
-- `library.canvas.rubber-band-selects-what-it-touches` — **[PARTIAL]** (#5305) a rubber band on the
+- `library.canvas.rubber-band-selects-what-it-touches` — **[PARTIAL]** (#4601) a rubber band on the
   board selects every card whose drawn rectangle it touches, however little of the card it covers,
   measured by the same card rectangle a click hits; a card the band does not touch stays out. Until
   2026-11-11 a card was caught only when the band covered its centre, so a band had to sweep most of
