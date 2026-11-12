@@ -43,6 +43,7 @@ import re
 
 from dataclasses import dataclass, field
 from functools import lru_cache
+from collections.abc import Sequence
 from typing import Any, Literal
 
 # Resolution statuses. RESOLVED carries a concrete language; UNKNOWN means the
@@ -166,6 +167,11 @@ class LanguageResolution:
     #: carries unknown and the two must not begin to overlap: a resolution can
     #: be unknown and still say which rung established that.
     level: str | None = None
+    #: WHICH SEGMENT answered, when the segment rung did (#4938,
+    #: `source.lang.cascade-walks-the-parent-segments`): the segment itself, or
+    #: the parent it inherited the value from, so a caller can say "from region
+    #: 2". `None` for an answer from any other rung.
+    segment_id: str | None = None
 
     @property
     def is_known(self) -> bool:
@@ -433,7 +439,8 @@ def script_is_private_use(code: str | None) -> bool:
 
 
 def _stated_fact(
-    holder: Any, *, value_field: str, meta_field: str, level: str, noun: str
+    holder: Any, *, value_field: str, meta_field: str, level: str, noun: str,
+    owner: str | None = None, segment_id: str | None = None,
 ) -> LanguageResolution | None:
     """What one record says about one fact, or None if it says nothing.
 
@@ -445,23 +452,41 @@ def _stated_fact(
     """
     value = _doc_get(holder, value_field)
     meta = _doc_get(holder, meta_field) or {}
+    # Who holds it, in words: "this segment" for the segment asked about, "its region" for a parent it inherits from.
+    owner = owner or f"this {noun}"
     if value:
         return LanguageResolution(
             language=value,
             status=RESOLVED,
             source=meta.get("source") or SOURCE_METADATA,
-            basis=f"recorded on this {noun}",
+            basis=f"recorded on {owner}",
             level=level,
+            segment_id=segment_id,
         )
     if meta.get("status") == STATUS_UNKNOWN:
         return LanguageResolution(
             language=None,
             status=UNKNOWN,
             source=meta.get("source") or SOURCE_DETECTED,
-            basis=f"this {noun} was examined and its {value_field} could not be determined",
+            basis=f"{owner} was examined and its {value_field} could not be determined",
             level=level,
+            segment_id=segment_id,
         )
     return None
+
+
+def _segment_rungs(segment: Any, ancestors: Sequence[Any]) -> list[tuple[Any, str, str | None]]:
+    """The segment rung as a walk UP its parents (#4938, `source.lang.cascade-walks-the-parent-segments`): the
+    segment itself, then each parent nearest first (word -> line -> region), each with how it is named in a basis
+    ("this segment", "its region") and its id. A value set on a region is inherited by its lines and words; the first
+    that states something answers, and an examined-and-undetermined one stops the walk as at any rung."""
+    if segment is None:
+        return []
+    rungs: list[tuple[Any, str, str | None]] = [(segment, "this segment", _doc_get(segment, "id"))]
+    for parent in ancestors:
+        kind = _doc_get(parent, "kind") or "parent segment"
+        rungs.append((parent, f"its {kind}", _doc_get(parent, "id")))
+    return rungs
 
 
 #: Unicode character names whose first word is not their script's ISO 15924 English name.
@@ -527,6 +552,7 @@ def resolve_script(
     document: Any = None,
     project: Any = None,
     text: str | None = None,
+    ancestors: Sequence[Any] = (),
 ) -> LanguageResolution:
     """Which script a thing is written in, and which rung said so (#4938).
 
@@ -559,11 +585,21 @@ def resolve_script(
             level=None,
         )
 
+    if reading is not None:
+        stated = _stated_fact(reading, value_field="script", meta_field="script_meta", level=LEVEL_READING, noun="reading")
+        if stated is not None:
+            return stated
+    # The segment, then its parents (#4938): a script set on a region is its words' too.
+    for holder, owner, segment_id in _segment_rungs(segment, ancestors):
+        stated = _stated_fact(
+            holder, value_field="script", meta_field="script_meta", level=LEVEL_SEGMENT, noun="segment",
+            owner=owner, segment_id=segment_id,
+        )
+        if stated is not None:
+            return stated
     for holder, level, noun in (
-        (reading, LEVEL_READING, "reading"),
-        (segment, LEVEL_SEGMENT, "segment"),
         (document, LEVEL_DOCUMENT, "document"),
-        # The PROJECT rung. A plain holder like the three above -- a
+        # The PROJECT rung. A plain holder like the one above -- a
         # `ProjectFacts` record read once by the caller -- so adding a level cost
         # this walk one line and no new way of reading a fact. There is still no
         # project SCRIPT POLICY: the project states a script or it does not.
@@ -595,7 +631,9 @@ def resolve_script(
     )
 
 
-def _segment_stated_language(segment: Any) -> LanguageResolution | None:
+def _segment_stated_language(
+    segment: Any, owner: str = "this segment", segment_id: str | None = None
+) -> LanguageResolution | None:
     """What a segment says about its own language, or None if it says nothing.
 
     `None` is the answer for a segment that has never been examined, and it is
@@ -610,8 +648,9 @@ def _segment_stated_language(segment: Any) -> LanguageResolution | None:
             language=language,
             status=RESOLVED,
             source=meta.get("source") or SOURCE_METADATA,
-            basis="recorded on this segment",
+            basis=f"recorded on {owner}",
             level=LEVEL_SEGMENT,
+            segment_id=segment_id,
         )
     if meta.get("status") == STATUS_UNKNOWN:
         # Examined and undetermined AT THIS LEVEL. It does not fall through:
@@ -621,8 +660,9 @@ def _segment_stated_language(segment: Any) -> LanguageResolution | None:
             language=None,
             status=UNKNOWN,
             source=meta.get("source") or SOURCE_DETECTED,
-            basis="this segment was examined and its language could not be determined",
+            basis=f"{owner} was examined and its language could not be determined",
             level=LEVEL_SEGMENT,
+            segment_id=segment_id,
         )
     return None
 
@@ -638,8 +678,11 @@ def resolve_language(
     script: str | None = None,
     guess_english: bool = True,
     project_language: str | None = None,
+    ancestors: Sequence[Any] = (),
 ) -> LanguageResolution:
     """Resolve the language to use for one document, or one segment of one.
+
+    `ancestors` (#4938): the segment's parents, nearest first; a language set on a region is its lines' and words'.
 
     `project_language` (#5708): the project's own language (Set Up's answer, `project_facts`). Below anything the
     document or the policy states, and above detecting: a page is another language only when its text says so
@@ -702,8 +745,8 @@ def resolve_language(
     # segment actually states a language: `Segment.language` is `None` until
     # something determines one, and `None` means never determined, so falling
     # through is correct rather than a missed case.
-    if segment is not None:
-        segment_language = _segment_stated_language(segment)
+    for holder, owner, segment_id in _segment_rungs(segment, ancestors):
+        segment_language = _segment_stated_language(holder, owner, segment_id)
         if segment_language is not None:
             return segment_language
 
@@ -1031,8 +1074,11 @@ def resolve_direction(
     script: str | None = None,
     text: str | None = None,
     lines_are_vertical: bool | None = None,
+    ancestors: Sequence[Any] = (),
 ) -> LanguageResolution:
     """Which direction a thing is written in, and which rung said so (#4938).
+
+    `ancestors`: the segment's parents, nearest first, walked after the segment itself.
 
     `source` is the nearest document ABOVE the page that states a direction
     (`stated_direction_source`): a direction set on a file or folder reaches its pages'
@@ -1073,9 +1119,20 @@ def resolve_direction(
             level=None,
         )
 
+    if reading is not None:
+        stated = _stated_fact(
+            reading, value_field="direction", meta_field="direction_meta", level=LEVEL_READING, noun="reading"
+        )
+        if stated is not None:
+            return stated
+    for holder, owner, segment_id in _segment_rungs(segment, ancestors):
+        stated = _stated_fact(
+            holder, value_field="direction", meta_field="direction_meta", level=LEVEL_SEGMENT, noun="segment",
+            owner=owner, segment_id=segment_id,
+        )
+        if stated is not None:
+            return stated
     for holder, level, noun in (
-        (reading, LEVEL_READING, "reading"),
-        (segment, LEVEL_SEGMENT, "segment"),
         (document, LEVEL_DOCUMENT, "document"),
         (source, LEVEL_DOCUMENT, "source"),
         (project, LEVEL_PROJECT, "project"),
@@ -1092,7 +1149,7 @@ def resolve_direction(
     script_from_letters = False
     if script is None:
         resolved_script = resolve_script(
-            reading=reading, segment=segment, document=document, project=project, text=text
+            reading=reading, segment=segment, document=document, project=project, text=text, ancestors=ancestors
         )
         script = resolved_script.language
         # A script READ FROM THE LETTERS (#5176) is the letters' evidence, not a statement: the

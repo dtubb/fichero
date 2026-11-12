@@ -440,3 +440,57 @@ def test_the_value_cascade_and_the_direction_cascade_share_one_ancestor_walk():
     a = SimpleNamespace(id="a", parent_id="b")
     b = SimpleNamespace(id="b", parent_id="a")
     assert node_prototypes.nearest_ancestor(a, {"a": a, "b": b}.get, lambda x: False) is None
+
+
+class TestTheSegmentRungWalksUpItsParents:
+    """`source.lang.cascade-walks-the-parent-segments` (#4938; owner 2026-11-11: a value set on the page or a region is
+    "inherited by the word", and the person should see where it comes from). The segment rung asked only the segment
+    itself, so a word in a Latin region of a Spanish page read Spanish."""
+
+    @staticmethod
+    def _seg(id_, kind, **facts):
+        blank = {"language": None, "language_meta": None, "script": None, "script_meta": None,
+                 "direction": None, "direction_meta": None}
+        return SimpleNamespace(id=id_, kind=kind, **{**blank, **facts})
+
+    def test_a_word_takes_its_regions_language_and_says_so(self):
+        from fichero_server.llm.language_policy import resolve_script
+
+        word = self._seg("w1", "word")
+        line = self._seg("l1", "line")
+        region = self._seg("r1", "region", language="la", script="Latn")
+        page = _document("es")
+        language = resolve_language(segment=word, ancestors=[line, region], document=page, policy=DOCUMENT_POLICY,
+                                    detect=False)
+        assert (language.language, language.level, language.segment_id) == ("la", LEVEL_SEGMENT, "r1")
+        assert language.basis == "recorded on its region"
+        script = resolve_script(segment=word, ancestors=[line, region])
+        assert (script.language, script.segment_id, script.basis) == ("Latn", "r1", "recorded on its region")
+
+    def test_the_nearest_parent_that_states_it_wins_and_the_segments_own_beats_them_all(self):
+        line = self._seg("l1", "line", language="es")
+        region = self._seg("r1", "region", language="la")
+        assert resolve_language(segment=self._seg("w1", "word"), ancestors=[line, region], detect=False,
+                                policy=DOCUMENT_POLICY).segment_id == "l1"
+        own = self._seg("w2", "word", language="ar")
+        answer = resolve_language(segment=own, ancestors=[line, region], detect=False, policy=DOCUMENT_POLICY)
+        assert (answer.language, answer.segment_id, answer.basis) == ("ar", "w2", "recorded on this segment")
+
+    def test_a_parent_examined_and_undetermined_stops_the_walk_before_the_page(self):
+        region = self._seg("r1", "region", language_meta={"status": STATUS_UNKNOWN, "source": "detected"})
+        answer = resolve_language(segment=self._seg("l1", "line"), ancestors=[region], document=_document("es"),
+                                  policy=DOCUMENT_POLICY, detect=False)
+        assert answer.status == "unknown" and answer.segment_id == "r1"
+        assert answer.basis == "its region was examined and its language could not be determined"
+
+    def test_with_no_parent_stating_anything_the_page_answers_as_before(self):
+        answer = resolve_language(segment=self._seg("l1", "line"), ancestors=[self._seg("r1", "region")],
+                                  document=_document("es"), policy=DOCUMENT_POLICY, detect=False)
+        assert (answer.language, answer.level, answer.segment_id) == ("es", LEVEL_DOCUMENT, None)
+
+    def test_a_direction_set_on_the_region_reaches_its_lines(self):
+        from fichero_server.llm.language_policy import resolve_direction
+
+        region = self._seg("r1", "region", direction="rtl", direction_meta={"source": "user"})
+        answer = resolve_direction(segment=self._seg("l1", "line"), ancestors=[region], text="abc")
+        assert (answer.language, answer.segment_id, answer.basis) == ("rtl", "r1", "recorded on its region")
