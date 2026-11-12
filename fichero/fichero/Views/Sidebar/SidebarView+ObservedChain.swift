@@ -130,8 +130,10 @@ extension SidebarView {
                 // route the cross-library selection that asked for the switch.
                 routePendingCrossLibrarySelection(landedLibraryId: landedLibraryId)
             }
-            .onChange(of: libraryManager.openLibraries.count) { _, _ in
-                // Rebuild when libraries are added/removed
+            .onChange(of: libraryManager.openLibraries.map { ObjectIdentifier($0) }) { _, _ in
+                // Rebuild when libraries are added/removed OR replaced (#6555): adopting the paired library swaps the global
+                // reference for another with the same id, so a count never changed and the sidebar kept watching the
+                // stores of the library that was gone.
                 rebuildCaches()
 
                 // Resubscribe to service changes for new libraries
