@@ -22,7 +22,13 @@ struct ConnectionRowsView: View {
                     if let problem = row.problem, let fix = row.fix {
                         HStack {
                             Text(problem).font(.caption).foregroundStyle(.orange)
-                            Button(fix.title) { onFix(row) }.buttonStyle(.link).font(.caption)
+                            Button(fix.title) { onFix(row) }
+                                #if os(macOS)
+                                .buttonStyle(.link)
+                                #else
+                                .buttonStyle(.borderless)
+                                #endif
+                                .font(.caption)
                         }
                     }
                 }

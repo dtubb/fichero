@@ -62,7 +62,7 @@ struct ReaderVersionsTriangle: View {
     let count: Int
 
     @Environment(WindowState.self) private var windowState: WindowState?
-    /// ⌥ held? Tracked via `onModifierKeysChanged` (pure SwiftUI, so the iOS build and a hardware keyboard see it too).
+    /// ⌥ held? Tracked via `onModifierKeysChanged`, which is macOS-only: on iOS ⌥-click opens just the one line.
     @State private var optionHeld = false
 
     var isOpen: Bool { Self.isOpen(own: own, allOpen: windowState?.readerVersionsAllOpen ?? false,
@@ -92,7 +92,9 @@ struct ReaderVersionsTriangle: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        #if os(macOS)
         .onModifierKeysChanged(mask: .option) { _, modifiers in optionHeld = modifiers.contains(.option) }
+        #endif
         .help(isOpen ? "Hide this line's versions (⌥-click: every line)" : "Show this line's \(count) versions (⌥-click: every line)")
         .accessibilityLabel(isOpen ? "Hide \(count) versions" : "Show \(count) versions")
     }
