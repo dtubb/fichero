@@ -15,7 +15,7 @@
 > `Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift`, `PaneSpec` =
 > `Views/Shell/ContentView/Layout/PaneSpec.swift`, `Plan` = `Views/Shell/PaneContentPlan.swift`,
 > `Mods` = `Views/Shell/ContentView/ContentViewModifiers.swift`, `SelH` =
-> `Views/Sidebar/Sections/SidebarView+SelectionHandling.swift`. Paths are relative to
+> `Views/Sidebar/Sections/Selection/SidebarView+SelectionHandling.swift`. Paths are relative to
 > `fichero/fichero/` unless stated otherwise.
 >
 > Tags: **[OK]** true today · **[BROKEN]** regression, code contradicts the ruling ·

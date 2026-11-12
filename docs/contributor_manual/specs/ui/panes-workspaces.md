@@ -235,10 +235,9 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
   `ToolbarTogglePolicyTests`.
 - `panes.claim.source-is-document` — **[OK]** (fixed b7be99143) the Claims Source column shows
   the document NAME (resolved over ALL loaded docs, not just the folder scope — the id-fallback
-  bug), is **draggable** (shared `LibraryItemDrag` payload, carried by the ROW since #6538 so a
-  click on the Source cell still selects the claim), and **clicks through** to the source
+  bug), is **draggable** (shared `LibraryItemDrag` payload), and **clicks through** to the source
   (the existing `ClaimSourceRequest.request(for:)` cursor entity statements use). Pinned:
-  `ClaimSourceLabelTests`, `LibraryOutlineRowDragTests.noCellTakesTheRowsClick`.
+  `ClaimSourceLabelTests`. Was: the drag payload is carried by the ROW since #6538, so a click on the Source cell still selects the claim (`fichero/Tests/Unit/general/Views/Library/LibraryOutlineRowDragTests.swift`).
 
 ### Legacy milestone fold — toolbar and shared chrome (#125 UX - Toolbars & Mini Toolbars,
 ### #251 Surface Chrome - Shared Components; both milestones had no spec of their own)

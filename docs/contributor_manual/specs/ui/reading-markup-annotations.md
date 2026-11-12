@@ -185,7 +185,7 @@ says how that layer is switched and shown on the canvases.
 - Engine: `fichero-server/src/fichero_server/models/knowledge.py` (AnnotationKind/Annotation), `api/routes/document/annotations.py`,
   `api/routes/system/views.py` (annotations representation), `api/routes/document/documents.py` (jsonld export)
 - Client: `fichero/fichero/Models/AnnotationStore.swift`, `Services/AnnotationService+*.swift`,
-  `Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Annotations.swift` (check cycle)
+  `Views/Preview/ImageViewer/Regions/Zoomable/ZoomableImagePreviewMac+Annotations.swift` (check cycle)
 
 ## Triaged from the backlog (2026-10-04)
 - `markup.image-annotations-like-pdf` — **[GAP]** (#1745) highlight, underline and note work on image pages through the same annotation model and UI as PDF pages, anchored with the W3C selector.
