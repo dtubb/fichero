@@ -48,13 +48,15 @@ extension LibraryView {
             // "Starting engine…" alone read as a stall (Daniel, 2026-08-25:
             // "it's a server, and maybe say it might take a few moments") —
             // name what is actually happening and set the time expectation.
+            let words = ConnectionPresentation.startingWords(
+                ownership: ConnectionPresentation.EngineOwnership.current(), host: EngineConfig.host.host)
             VStack(spacing: 10) {
                 ProgressView()
                     .controlSize(.small)
-                Text("Starting the Fichero server…")
+                Text(words.title)
                     .font(.callout)
                     .foregroundStyle(.secondary)
-                Text("Your projects run on a local server. This can take a few moments.")
+                Text(words.detail)
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }

@@ -448,3 +448,19 @@ struct ConnectionPresentationTests {
         #expect(!source.contains("Loading Documents..."))
     }
 }
+
+@Suite("Waiting-for-engine words (#6555)")
+struct StartingWordsTests {
+    @Test("an iPad or a remote host says it is connecting to the Mac, never starting a server")
+    func remoteSaysConnecting() {
+        let remote = ConnectionPresentation.startingWords(ownership: .remote, host: "studio.local")
+        #expect(remote.title == "Connecting to studio.local…")
+        #expect(!remote.detail.contains("local server"))
+        #expect(ConnectionPresentation.startingWords(ownership: .remote, host: nil).title == "Connecting…")
+    }
+
+    @Test("the app that owns its engine still says it is starting the server")
+    func ownedSaysStarting() {
+        #expect(ConnectionPresentation.startingWords(ownership: .appManaged, host: "x").title == "Starting the Fichero server…")
+    }
+}
