@@ -76,6 +76,16 @@ enum SegmentsPane {
         var id: String { segmentId }
     }
 
+    /// The outline with only the rows a filter shows (`SegmentsFilter.Result.shown`, #6476); nil keeps every row.
+    /// A row the filter hides takes its children with it: the filter always shows a match's ancestors, so a shown
+    /// row never sits under a hidden one.
+    static func pruned(_ rows: [OutlineRow], keeping shown: Set<String>?) -> [OutlineRow] {
+        guard let shown else { return rows }
+        return rows.filter { shown.contains($0.segmentId) }.map {
+            OutlineRow(segmentId: $0.segmentId, kind: $0.kind, children: pruned($0.children, keeping: shown))
+        }
+    }
+
     /// The rows under `top` (the level the list shows, in its order), each holding its children as written,
     /// to any depth. An id not on the page is a row with no children.
     static func outline(_ segments: [Segment], top: [String]) -> [OutlineRow] {

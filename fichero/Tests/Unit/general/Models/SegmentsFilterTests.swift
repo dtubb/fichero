@@ -111,4 +111,21 @@ struct SegmentsFilterTests {
     func countLine() {
         #expect(SegmentsFilter.countLine(matched: 12, of: 34) == "12 of 34")
     }
+
+    @Test("the outline keeps only the rows the filter shows, nested as before")
+    func outlineIsPruned() {
+        let shown = SegmentsFilter(query: "ataud").apply(to: page).shown
+        let rows = SegmentsPane.pruned(SegmentsPane.outline(page, top: ["r1", "r2"]), keeping: shown)
+        #expect(rows.map(\.segmentId) == ["r1"])
+        #expect(rows.first?.children.map(\.segmentId) == ["l2"])
+        #expect(SegmentsPane.pruned(SegmentsPane.outline(page, top: ["r1", "r2"]), keeping: nil).count == 2)
+    }
+
+    @Test("the facet menu offers only the values the page holds")
+    func optionsComeFromThePage() {
+        let options = SegmentsFilter.options(in: page)
+        #expect(options.kinds == ["line", "region", "word"])
+        #expect(options.languages == ["es", "la"])
+        #expect(options.directions == ["ltr"])
+    }
 }

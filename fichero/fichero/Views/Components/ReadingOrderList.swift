@@ -24,6 +24,9 @@ struct ReadingOrderList: View { // swiftlint:disable:this type_body_length
     /// its box is drawn in (hierarchy A, #5426): the Segments pane's and the page's Order tab (#5505). The
     /// Inspector's list of one segment's children stays one level.
     var nests = false
+    /// The Segments pane's filter (#6476): only these rows show, the ones that only hold a match dimmed, every group
+    /// open, and no reordering while it is on (a move among hidden rows would land somewhere unseen). Nil shows all.
+    var filter: SegmentsFilter.Result?
 
     @Environment(ReadingOrderService.self) private var service: ReadingOrderService?
     @Environment(SegmentService.self) private var segmentService: SegmentService?
@@ -36,7 +39,8 @@ struct ReadingOrderList: View { // swiftlint:disable:this type_body_length
     init(
         documentId: String, parentSegmentId: String? = nil, hidesWhenEmpty: Bool = false,
         store: ReadingOrderStore? = nil, onOpen: ((String) -> Void)? = nil, opens: ((String) -> Bool)? = nil,
-        rowLabel: ((String, Int) -> String)? = nil, onSelected: (([String]) -> Void)? = nil, nests: Bool = false
+        rowLabel: ((String, Int) -> String)? = nil, onSelected: (([String]) -> Void)? = nil, nests: Bool = false,
+        filter: SegmentsFilter.Result? = nil
     ) {
         self.documentId = documentId
         self.parentSegmentId = parentSegmentId
@@ -46,6 +50,7 @@ struct ReadingOrderList: View { // swiftlint:disable:this type_body_length
         self.rowLabel = rowLabel
         self.onSelected = onSelected
         self.nests = nests
+        self.filter = filter
         // A store handed in (a preview's, over a fixture transport) is used as is; otherwise the
         // library's service makes one.
         _store = State(initialValue: store)
@@ -82,12 +87,12 @@ struct ReadingOrderList: View { // swiftlint:disable:this type_body_length
                     ForEach(Array(store.shown.enumerated()), id: \.element.segmentId) { index, entry in
                         entryRow(entry.segmentId, at: index, nesting: nested)
                     }
-                    .onMove { offsets, destination in
+                    .onMove(perform: filter != nil ? nil : { offsets, destination in
                         guard let from = offsets.first else { return }
                         let segmentId = store.shown[from].segmentId
                         let target = ReadingOrderMove.finalIndex(fromOffset: from, toOffset: destination)
                         Task { await record(store.move(segmentId, to: target), in: store) }
-                    }
+                    })
                 }
                 .contextMenu(forSelectionType: String.self, menu: lineMenu, primaryAction: primaryAction)
                 #if os(macOS)
@@ -375,7 +380,7 @@ struct ReadingOrderList: View { // swiftlint:disable:this type_body_length
     private func nestedRows(top: [String]) -> (rows: [String: SegmentsPane.OutlineRow], tones: [String: RegionColours.Tone])? {
         guard nests, let segmentService else { return nil }
         let segments = SegmentStore.shared(for: segmentService).workingSegments(documentId: documentId)
-        let rows = SegmentsPane.outline(segments, top: top)
+        let rows = SegmentsPane.pruned(SegmentsPane.outline(segments, top: top), keeping: filter?.shown)
         return (Dictionary(rows.map { ($0.segmentId, $0) }, uniquingKeysWith: { first, _ in first }),
                 RegionColours.tones(of: segments))
     }
@@ -387,20 +392,28 @@ struct ReadingOrderList: View { // swiftlint:disable:this type_body_length
         _ segmentId: String, at index: Int,
         nesting: (rows: [String: SegmentsPane.OutlineRow], tones: [String: RegionColours.Tone])?
     ) -> some View {
-        if let nesting, let node = nesting.rows[segmentId] {
+        if let filter, !filter.shown.contains(segmentId) {
+            // Filtered out (#6476); kept in the ForEach so the offsets still index the order.
+            EmptyView()
+        } else if let nesting, let node = nesting.rows[segmentId] {
             SegmentOutlineRow(
                 node: node, index: index, tones: nesting.tones,
-                content: { id, position in AnyView(row(id, at: position)) },
-                wrap: { id, view in AnyView(movable(id, view)) }, lit: dropTarget
+                content: { id, position in AnyView(row(id, at: position).opacity(dims(id) ? 0.45 : 1)) },
+                wrap: { id, view in AnyView(movable(id, view)) }, lit: dropTarget, opensAll: filter != nil
             )
         } else if nesting != nil {
             // Folded under its region by `SegmentsPane.outline`: shown there, not again beside it (#6425).
             // Kept in the ForEach (not filtered out) so `onMove` offsets still index `store.shown`.
             EmptyView()
         } else {
-            movable(segmentId, row(segmentId, at: index)).tag(segmentId)
+            movable(segmentId, row(segmentId, at: index).opacity(dims(segmentId) ? 0.45 : 1)).tag(segmentId)
                 .listRowBackground(dropTarget == segmentId ? Color.accentColor.opacity(0.25) : Color.clear)
         }
+    }
+
+    /// A row shown only because it holds a match (its region, its line) is dimmed under a filter.
+    private func dims(_ segmentId: String) -> Bool {
+        filter.map { !$0.matched.contains(segmentId) } ?? false
     }
 }
 
@@ -486,16 +499,19 @@ struct SegmentOutlineRow: View {
     let wrap: (String, AnyView) -> AnyView
     /// The row lit as a drop target: the WHOLE row's background (the list row), not the words' width.
     var lit: String?
+    /// Every group open, as while a filter is on: a match must never sit inside a closed group (#6476).
+    var opensAll = false
 
     @State private var expanded: Bool
 
     init(
         node: SegmentsPane.OutlineRow, index: Int, tones: [String: RegionColours.Tone],
         content: @escaping (String, Int) -> AnyView, wrap: @escaping (String, AnyView) -> AnyView = { _, view in view },
-        lit: String? = nil
+        lit: String? = nil, opensAll: Bool = false
     ) {
         self.wrap = wrap
         self.lit = lit
+        self.opensAll = opensAll
         self.node = node
         self.index = index
         self.tones = tones
@@ -514,9 +530,11 @@ struct SegmentOutlineRow: View {
         if node.children.isEmpty {
             labelled
         } else {
-            DisclosureGroup(isExpanded: $expanded) {
+            DisclosureGroup(isExpanded: opensAll ? .constant(true) : $expanded) {
                 ForEach(Array(node.children.enumerated()), id: \.element.id) { position, child in
-                    SegmentOutlineRow(node: child, index: position, tones: tones, content: content, wrap: wrap, lit: lit)
+                    SegmentOutlineRow(
+                        node: child, index: position, tones: tones, content: content, wrap: wrap, lit: lit, opensAll: opensAll
+                    )
                 }
             } label: {
                 labelled

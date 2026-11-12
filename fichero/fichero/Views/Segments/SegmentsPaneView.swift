@@ -23,6 +23,19 @@ struct SegmentsPaneView: View {
     @State private var pendingSelect: (documentId: String, segmentId: String)?
     /// How many matches on this page wait for review; the head offers them when there are any (#5165).
     @State private var proposedMatches = 0
+    /// The bar under the list (`source.editor.segments-list-has-a-filter-bar`, #6476); cleared with the page.
+    @State private var filter = SegmentsFilter()
+
+    /// What the filter leaves, nil while it is off: the same rows in every lens.
+    private var filtered: SegmentsFilter.Result? {
+        guard filter.isActive else { return nil }
+        var flagged: Set<String> = []
+        if let document, let segmentService,
+           let flags = FlaggedLineStore.shared(for: segmentService).flagsByDocument[document.id] {
+            flagged = Set(flags.keys)
+        }
+        return filter.apply(to: segments, flagged: flagged)
+    }
 
     /// The page's segments the pane lists: the working pass's only (`SegmentStore.workingSegments`, #5467).
     private var segments: [Segment] {
@@ -44,8 +57,10 @@ struct SegmentsPaneView: View {
                 SegmentsGatheredList(gather: gather, open: open)
             } else if let document, lens != .list {
                 SegmentsPictureGrid(
-                    // With no named order, the pictures come as written, as the list does (#5204).
-                    segmentIds: SegmentsPane.shownOrAsWritten(orders?.shown.map(\.segmentId), segments, under: parentId),
+                    // With no named order, the pictures come as written, as the list does (#5204); the filter keeps
+                    // the same rows the list keeps.
+                    segmentIds: SegmentsPane.shownOrAsWritten(orders?.shown.map(\.segmentId), segments, under: parentId)
+                        .filter { filtered?.shown.contains($0) ?? true },
                     segments: Dictionary(segments.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }),
                     isStrip: lens == .strip, selected: picked,
                     pick: { id in pick(id, on: document.id) },
@@ -56,11 +71,20 @@ struct SegmentsPaneView: View {
             } else {
                 listHalf
             }
+            if document != nil, windowState?.segmentsGather == nil {
+                Divider()
+                let result = filtered
+                SegmentsFilterBar(
+                    filter: $filter, options: SegmentsFilter.options(in: segments),
+                    count: result.map { ($0.matched.count, segments.count) }
+                )
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: "\(document?.id ?? "")/\(parentId ?? "")/\(workingPassId ?? "")") { await showLevel() }
         .task(id: document?.id) {
             parentId = nil
+            filter = SegmentsFilter()
             guard let document, let segmentService else { return }
             let store = SegmentStore.shared(for: segmentService)
             await store.load(documentId: document.id)
@@ -98,7 +122,8 @@ struct SegmentsPaneView: View {
                         )
                     },
                     // Lines under their region's row with its swatch, words disclosed under their line (#5426).
-                    nests: true
+                    nests: true,
+                    filter: filtered
                 )
             }
         case .loading:
