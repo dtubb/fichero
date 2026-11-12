@@ -110,7 +110,7 @@ struct SearchScopeAndToolbarOptionsTests {
         let toolbar = try Self.appSource(
             "Views/Shell/ContentView/ContentView+ToolbarSearch.swift"
         )
-        #expect(toolbar.contains("accessibilityId: \"toolbar.search.optionsMenu\""))
+        #expect(toolbar.contains(".accessibilityIdentifier(\"toolbar.search.optionsMenu\")"))
     }
 
     // MARK: - The reader's stream follows the visible list

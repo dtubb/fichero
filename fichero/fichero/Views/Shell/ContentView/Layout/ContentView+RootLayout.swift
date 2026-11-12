@@ -192,7 +192,8 @@ extension ContentView {
     /// this expression in reasonable time").
     @ViewBuilder
     private var detailColumn: some View {
-        detailShellColumn
+        // iOS's search field belongs to this column, whose bar draws its item (#6563).
+        iOSToolbarSearchable(detailShellColumn)
             // The capability bar spans the CONTENT and not the sidebar or
             // inspector, because it acts on the content selection (2026-08-28).
             // One tiny property, per this file's type-checker budget.
@@ -367,7 +368,11 @@ extension ContentView {
         .onChange(of: showInspectorSidebar) { _, _ in
             updateColumnVisibility()
         }
+        // The Mac's window toolbar draws items attached to the split view itself; an iPad's bars do not, so on iOS the
+        // same leading items are in the content column's bar instead (`detailToolbarContent`, #6563).
+        #if !os(iOS)
         .toolbar { mainToolbarContent }
+        #endif
         .onChange(of: viewSettings.previewMode) { _, newPreviewMode in
             handlePreviewModeChange(newPreviewMode)
         }

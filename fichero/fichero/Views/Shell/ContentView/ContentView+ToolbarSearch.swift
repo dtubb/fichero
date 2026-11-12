@@ -55,12 +55,10 @@ extension ContentView {
         )
     }
 
-    /// The search behaviour on the detail/inspector content: Esc, and on iOS
-    /// the system `.searchable` registration (internal — `private` is
-    /// file-scoped).
+    /// The search behaviour on the detail/inspector content: Esc (internal — `private` is file-scoped).
     func nativeToolbarSearch<Content: View>(_ content: Content) -> some View {
-        let dismissable = content
-            // Esc IS Done (Daniel, 2026-09-01): the gesture every other
+        content
+            // Esc IS Done (2026-09-01): the gesture every other
             // transient state answers to, next to the field it clears.
             .modifier(SearchEscapeDismiss(
                 isPresenting: activeSearchQuery != nil || !toolbarSearchText.isEmpty,
@@ -69,8 +67,13 @@ extension ContentView {
                     clearTransientSearch()
                 }
             ))
+    }
+
+    /// iOS: the system search field, registered on the content column, whose bar draws its item far right (#6563).
+    /// It was on the docked Inspector's content, whose column has no bar on the iPad, so the item was never drawn.
+    func iOSToolbarSearchable<Content: View>(_ content: Content) -> some View {
         #if os(iOS)
-        return dismissable
+        content
             .searchable(text: $toolbarSearchText, placement: .toolbar, prompt: "Search")
             .onSubmit(of: .search) {
                 runToolbarSearch(toolbarSearchText)
@@ -78,7 +81,7 @@ extension ContentView {
             // Mail-style: a magnifier until tapped, then the field expands.
             .searchToolbarBehavior(.minimize)
         #else
-        return dismissable
+        content
         #endif
     }
 
@@ -94,20 +97,25 @@ extension ContentView {
         .frame(minWidth: 120, idealWidth: 200, maxWidth: 280)
     }
     #else
-    /// iOS: the options loupe beside the system search item.
-    var searchOptionsToolbarButton: some View {
+    /// iOS: the search options as a titled submenu of the bar's overflow menu (#6563). They were a second loupe beside
+    /// the system search item, which read as a duplicate and took the centre island's room.
+    var searchOptionsOverflowMenu: some View {
         let options = toolbarSearchOptions
-        return SearchFieldOptionsMenuButton(
-            mode: options.$mode,
-            scopeIsFolder: options.$scopeIsFolder,
-            searchType: options.$searchType,
-            libraryName: options.libraryName,
-            contextFolder: options.contextFolder,
-            reviewedEntityCount: options.reviewedEntityCount,
-            canSave: options.canSave,
-            onSave: options.onSave,
-            accessibilityId: "toolbar.search.optionsMenu"
-        )
+        return Menu {
+            SearchFieldOptionsMenu(
+                mode: options.$mode,
+                scopeIsFolder: options.$scopeIsFolder,
+                searchType: options.$searchType,
+                libraryName: options.libraryName,
+                contextFolder: options.contextFolder,
+                reviewedEntityCount: options.reviewedEntityCount,
+                canSave: options.canSave,
+                onSave: options.onSave
+            )
+        } label: {
+            Label("Search Options", systemImage: "magnifyingglass")
+        }
+        .accessibilityIdentifier("toolbar.search.optionsMenu")
     }
     #endif
 }

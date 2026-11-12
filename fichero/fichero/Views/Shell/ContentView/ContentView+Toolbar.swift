@@ -48,8 +48,9 @@ extension ContentView {
 
     /// LEADING zone: engine status + back/forward history navigation in the
     /// content-column toolbar.
+    /// Internal, not private: on iOS the content column's bar carries it (`detailToolbarContent`, #6563).
     @ToolbarContentBuilder
-    private var leadingToolbarContent: some ToolbarContent {
+    var leadingToolbarContent: some ToolbarContent {
         // Engine status now lives in the center status island (hosted inside
         // the `ContentToolbarID.breadcrumb` principal item, #4519) beside the
         // title, not here in the leading zone.
@@ -68,15 +69,13 @@ extension ContentView {
         // left, beside the traffic lights, as in Xcode. While it is up the pair is drawn in the
         // sidebar column's own toolbar section (`sidebarToolbarContent`). The fixed spacer keeps it out of
         // Back/Forward's glass capsule (#4970).
-        #if os(macOS)
-        if !showSidebar {
+        if sidebarPairHome == .contentBar {
             ToolbarItem(id: ContentToolbarID.sidebarButtons, placement: .navigation) {
                 sidebarButtonsIsland
             }
             .sharedBackgroundVisibility(.hidden)
             ToolbarSpacer(.fixed, placement: .navigation)
         }
-        #endif
         if toolbarVisibility.showNavigation {
             ToolbarItem(id: ContentToolbarID.navigationBack, placement: .navigation) {
                 Button {
@@ -139,7 +138,22 @@ extension ContentView {
             ToolbarItem(id: ContentToolbarID.compactInspectorToggle, placement: .topBarTrailing) {
                 inspectorToggleButton
             }
+            #if os(iOS)
+            .visibilityPriority(.high)
+            #endif
         }
+        // Search last, at the far right as on the Mac (#6563): the system item with its options loupe beside it.
+        // What a narrow iPad bar keeps: the Inspector toggle, search and the centre island stay; the model chip, the
+        // bars capsule and the Workspaces menu overflow first (`visibilityPriority`, iOS 27).
+        #if os(iOS)
+        DefaultToolbarItem(kind: .search, placement: .primaryAction)
+            .visibilityPriority(.high)
+        // The options in the bar's overflow menu, as a titled submenu (#6563): the Mac keeps them in the field's own
+        // magnifier menu; a second loupe beside the field read as a duplicate and took the centre island's room.
+        ToolbarOverflowMenu {
+            searchOptionsOverflowMenu
+        }
+        #endif
     }
     #endif
 
@@ -224,16 +238,19 @@ extension ContentView {
                     // Chat is a ROW pane (Daniel 2026-08-12: "there is no button
                     // to turn it on and off") — fourth member of the pane group,
                     // same grammar as preview/reading. On the Mac it moved to the
-                    // far-left `sidebarButtons` pair (2026-11-11).
+                    // far-left `sidebarButtons` pair (2026-11-11), and so did the iPad's (#6563): only an iPhone, which has no
+                    // pair, keeps it here.
                     #if !os(macOS)
-                    Button {
-                        setChatPaneVisible(!showChatPane)
-                    } label: {
-                        Label(showChatPane ? "Hide Chat" : "Show Chat",
-                              systemImage: ToolbarSymbols.chatPane)
-                            .toolbarSurfaceLit(showChatPane)
+                    if sidebarPairHome == nil {
+                        Button {
+                            setChatPaneVisible(!showChatPane)
+                        } label: {
+                            Label(showChatPane ? "Hide Chat" : "Show Chat",
+                                  systemImage: ToolbarSymbols.chatPane)
+                                .toolbarSurfaceLit(showChatPane)
+                        }
+                        .help(showChatPane ? "Hide the Chat" : "Show the Chat")
                     }
-                    .help(showChatPane ? "Hide the Chat" : "Show the Chat")
                     #endif
                 }
             }
@@ -261,6 +278,9 @@ extension ContentView {
             ToolbarItem(id: ContentToolbarID.workspacesMenu, placement: .automatic) {
                 workspacesMenu
             }
+            #if os(iOS)
+            .visibilityPriority(.low)
+            #endif
         }
 
         // Sort and filter used to sit here, outside the split-pane block, with
@@ -322,6 +342,18 @@ extension ContentView {
     /// Layout: [Library Name] > [item icon + title] [search current content]
     /// The whole breadcrumb sits in a subtle rounded-rect lozenge with
     /// extra horizontal padding so it reads as a single interactive label.
+    /// Where the island's neighbours sit: the model chip, the bars capsule and the engine/activity capsule (#6563). On the
+    /// Mac they flank the island in the centre. An iPad's bar draws one centre item, the first declared, so there the
+    /// island takes the centre alone and its neighbours are secondary actions, kept in the bar while it has room and
+    /// in the overflow menu when it does not.
+    static var islandNeighbourPlacement: ToolbarItemPlacement {
+        #if os(iOS)
+        .secondaryAction
+        #else
+        .principal
+        #endif
+    }
+
     @ToolbarContentBuilder
     var principalToolbarContent: some ToolbarContent {
         // The breadcrumb lozenge + fixed 220pt search field is Mac/iPad window
@@ -346,11 +378,16 @@ extension ContentView {
             // 2026-08-28: the island says what is selected, so the model
             // belongs beside it). Its own item + spacer so it gets its own
             // Liquid Glass section rather than fusing into the island capsule.
-            ToolbarItem(id: ContentToolbarID.modelChip, placement: .principal) {
+            ToolbarItem(id: ContentToolbarID.modelChip, placement: Self.islandNeighbourPlacement) {
                 ModelChipToolbarItem(prefersVision: selectionPrefersVisionModel)
                     .padding(.horizontal, 5)
             }
+            #if os(iOS)
+            .visibilityPriority(.low)
+            #endif
+            #if !os(iOS)
             ToolbarSpacer(.fixed, placement: .principal)
+            #endif
             ToolbarItem(id: ContentToolbarID.breadcrumb, placement: .principal) {
                 // NO location breadcrumb here any more (Daniel, 2026-08-23):
                 // every pane carries its own crumb, so the island answers only
@@ -391,29 +428,39 @@ extension ContentView {
                     )
                 }
             }
+            #if os(iOS)
+            .visibilityPriority(.high)
+            #endif
             // Engine + activity are their OWN items (Daniel, 2026-08-23: the
             // island must separate from server status and activity): each gets
             // its own Liquid Glass section instead of fusing into the island's
             // capsule. ToolbarSpacer is what actually BREAKS the glass group —
             // adjacent items share one capsule without it (Daniel's 2026-08-24
             // screenshot: still fused). Unconditional, content-only variance.
+            #if !os(iOS)
             ToolbarSpacer(.fixed, placement: .principal)
+            #endif
             // The BARS capsule (Daniel, 2026-08-30): the workflow-bar toggle
             // and the annotation pencil share one item — "that way we know
             // it's a bar". Same capsule, two bars.
-            ToolbarItem(id: ContentToolbarID.workflowSuggest, placement: .principal) {
+            ToolbarItem(id: ContentToolbarID.workflowSuggest, placement: Self.islandNeighbourPlacement) {
                 HStack(spacing: 2) {
                     workflowSuggestButton
                     annotationBarToggle
                 }
                 .padding(.horizontal, 5)
             }
+            #if os(iOS)
+            .visibilityPriority(.low)
+            #endif
+            #if !os(iOS)
             ToolbarSpacer(.fixed, placement: .principal)
+            #endif
             // Server + Activity share ONE capsule (Daniel, 2026-08-30:
             // "maybe combine server and network") — both are "how is the
             // machinery", one glass section. The 2026-08-23 separation was
             // from the ISLAND, which stays its own item.
-            ToolbarItem(id: ContentToolbarID.engineStatus, placement: .principal) {
+            ToolbarItem(id: ContentToolbarID.engineStatus, placement: Self.islandNeighbourPlacement) {
                 HStack(spacing: 5) {
                     EngineStatusToolbarItem()
                     ActivityStatusToolbarItem(
