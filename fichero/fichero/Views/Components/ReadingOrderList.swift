@@ -636,10 +636,7 @@ extension ReadingOrderList {
     }
 
     private func dragPayload(_ segmentId: String) -> SegmentDrag {
-        let held = (store?.shown.map(\.segmentId) ?? []).filter(picks.contains)
-        let ids = picks.contains(segmentId) && !held.isEmpty ? held : [segmentId]
-        let text = ids.compactMap { segment($0)?.text }.joined(separator: "\n")
-        return SegmentDrag(ids: ids, text: text)
+        SegmentDrag.forRow(segmentId) { segment($0)?.text }
     }
 
     private func dropped(_ ids: [String], onto regionId: String) -> Bool {
@@ -666,16 +663,15 @@ extension ReadingOrderList {
     }
 
     /// The whole row, swatch and all, is the drag handle and the drop target, lit like the sidebar's: a drag carries the
-    /// selection when it holds this row, else the row; dropped on a region it moves them in.
+    /// selection when it holds this row, else the row; dropped on a region it moves them in. The drag is the ROW's
+    /// (`itemProvider`), never a `.draggable` on its content: that took the mouse-down, so a click on a row's words did
+    /// not select it, only a click beside them (#6476). With the List seeing the click it also takes the keyboard, so
+    /// Delete and the arrows come here without a tap gesture of our own.
     func movable(_ segmentId: String, _ view: some View) -> some View {
         view
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(.rect)
-            .draggable(dragPayload(segmentId))
-            // A click on a row gives this list the keyboard (#6476, `source.editor.focused-pane-is-plain`): the drag
-            // source took the click, so Delete and the arrows stayed with the item list. A click only, never a
-            // selection arriving from another pane, so a pick in the Preview does not steal its focus.
-            .simultaneousGesture(TapGesture().onEnded { listFocused = true })
+            .itemProvider { dragPayload(segmentId).itemProvider() }
             .dropDestination(for: SegmentDrag.self, action: { drags, _ in
                 let ids = drags.flatMap(\.ids)
                 // On a region it moves them in; anywhere else it puts the dragged line in this row's place.
