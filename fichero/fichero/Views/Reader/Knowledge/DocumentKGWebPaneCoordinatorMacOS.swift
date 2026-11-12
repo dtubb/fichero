@@ -510,22 +510,23 @@ extension DocumentKGWebPaneCoordinatorMacOS {
         store.wentAway(reason)
     }
 
-    /// The Reader's caret line becomes the focused Source view's selection (#5155), revealed there:
-    /// scrolled and zoomed to (#5424), by the same one action as the Order list's double-click.
+    /// The Reader's caret line becomes the window's shared selection (#5155, #6482), revealed in a focused Preview:
+    /// scrolled and zoomed to (#5424), and shown in the Inspector -- the Lines view's click, one action.
     @MainActor
     func focusLine(_ focus: ReaderLineSelection.Focus) {
         guard let library else { return }
-        windowState?.revealSegments(
+        windowState?.pickInReader(
             [focus.segmentId], documentId: focus.pageId, store: SegmentStore.shared(for: library.segmentService)
         )
     }
 
-    /// The focused Source view's selection, shown in the Reader's text (#5155). Sent only on change.
+    /// The window's shared selection -- the focused Preview's, else the window's own -- shown in the Reader's text (#5155,
+    /// #6482). Sent only on change.
     @MainActor
     func syncSelectedLines(into webView: WKWebView) {
         guard let library else { return }
         var ids: [String] = []
-        if let selection = windowState?.focusedRegionSelection, let pageId = selection.documentId {
+        if let selection = windowState?.sharedRegionSelection, let pageId = selection.documentId {
             ids = InspectorPath.selectedSegmentIds(
                 selection: selection, documentId: pageId, store: SegmentStore.shared(for: library.segmentService)
             )

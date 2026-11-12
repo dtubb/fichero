@@ -89,9 +89,9 @@ struct ReaderLinesView: View {
         return .handled
     }
 
-    /// A click on a line's picture: the one line (revealed in the Preview), or -- with ⌘ or ⇧ -- a set made as Finder
-    /// makes it (`ReaderLines.picked`), written into the one shared selection so the Preview, the Order list and the
-    /// Segments list show the same lines.
+    /// A click on a line's picture: the one line (selected, revealed in the Preview, shown in the Inspector), or --
+    /// with ⌘ or ⇧ -- a set made as Finder makes it (`ReaderLines.picked`), written into the one shared selection so the
+    /// Preview, the Order list and the Segments list show the same lines.
     private func pick(_ segmentId: String, among lines: [Segment], store: SegmentStore) {
         #if os(macOS)
         let flags = NSEvent.modifierFlags
@@ -110,8 +110,9 @@ struct ReaderLinesView: View {
         }
     }
 
+    /// A plain click: the one line, selected for the whole window, zoomed to in the Preview, shown in the Inspector (#6482).
     private func reveal(_ segmentId: String, store: SegmentStore) {
-        windowState?.revealSegments([segmentId], documentId: documentId, store: store)
+        windowState?.pickInReader([segmentId], documentId: documentId, store: store)
     }
 }
 
