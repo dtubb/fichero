@@ -111,6 +111,8 @@ struct ReadingOrderList: View {
                 .onKeyPress(.downArrow, phases: .down) { press in optionMove(.downward, press) ?? extend(1, press, store: documentStore) }
                 // Return renames the one selected line in place; a double-click reveals (Step 1.25).
                 .onKeyPress(.return, phases: .down) { _ in beginRename(selection) }
+                // Tab and Shift-Tab indent and outdent the selected rows in the nested list (#6476).
+                .onKeyPress(keys: [.tab, KeyEquivalent("\u{19}")], phases: .down) { press in indent(press) }
                 Divider()
                 keyRow(store)
                 if let refusal = store.lastRefusal {
@@ -646,6 +648,23 @@ extension ReadingOrderList {
                 documentId: documentId, store: store, services: (actionsService, steps)
             )
         }
+    }
+
+    /// Tab: into the row above at the same level; Shift-Tab (or the back-tab character): out of the parent. Ignored when
+    /// the list is flat, nothing is selected, or the move has nowhere to go, so Tab still moves the focus.
+    private func indent(_ press: KeyPress) -> KeyPress.Result {
+        guard nests, let store, filter == nil, !picks.isEmpty else { return .ignored }
+        let outline = SegmentsPane.outline(pageSegments, top: store.shown.map(\.segmentId))
+        let ids = OrderDrop.inOutlineOrder(picks, outline: outline)
+        let outdents = press.modifiers.contains(.shift) || press.characters == "\u{19}"
+        if outdents {
+            guard let out = OrderDrop.outdentTarget(ids, in: pageSegments) else { return .ignored }
+            moveLines(ids, into: out.parent)
+        } else {
+            guard let target = OrderDrop.indentTarget(ids, outline: outline, in: pageSegments) else { return .ignored }
+            moveLines(ids, into: target)
+        }
+        return .handled
     }
 
     private func canTake(_ regionId: String) -> Bool {
