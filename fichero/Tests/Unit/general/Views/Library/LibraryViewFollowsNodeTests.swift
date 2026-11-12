@@ -12,7 +12,12 @@ struct LibraryViewFollowsNodeTests {
     private let folder = Document(id: "fold", docType: .folder, name: "Letters")
     private let image = Document(id: "img-1", parentId: "fold", docType: .file, fileType: .image, name: "0970.jpg")
     private let image2 = Document(id: "img-2", parentId: "fold", docType: .file, fileType: .image, name: "0971.jpg")
+    /// A PDF not split into pages yet: still a source, opened in its folder.
     private let pdf = Document(id: "pdf-1", parentId: "fold", docType: .file, fileType: .pdf, name: "Diary.pdf")
+    /// A PDF with its pages: listed as a folder lists its contents (#6539).
+    private let pagedPdf = Document(
+        id: "pdf-2", parentId: "fold", docType: .file, fileType: .pdf, name: "Ledger.pdf", childCount: 12
+    )
     private var children: [Document] { [image, image2, pdf] }
 
     /// What the window shows after a sidebar click on `doc`: the folder the Library pane lists and
@@ -55,9 +60,17 @@ struct LibraryViewFollowsNodeTests {
         #expect(settings.libraryLayout == .canvas)
     }
 
-    // WHY: the ruling makes a PDF the same as an image. If this fails, a PDF still opens its pages
-    // as the Library listing instead of sitting selected in its folder.
-    @Test("a PDF opens in its folder, selected; Preview shows the PDF")
+    // WHY: the owner's ruling of 2026-11-11 (#6539): clicking a PDF should show its contents as a
+    // folder does, not the level it sits in. If this fails, a PDF with pages opens in its folder
+    // again, or one without pages lists an empty set instead of sitting selected in its folder.
+    @Test("a PDF with pages lists its pages, as a folder lists its contents")
+    func pagedPdfListsItsPages() {
+        #expect(SidebarSourceOpen.listsItsPages(pagedPdf))
+        #expect(SidebarSourceOpen.plan(for: pagedPdf, previewShowing: true) == nil)
+        #expect(pagedPdf.isNavigableContainer)
+    }
+
+    @Test("a PDF not split into pages yet opens in its folder, selected; Preview shows the PDF")
     func pdfOpensInItsFolder() throws {
         let selection = SidebarSelectionState()
         let shown = try click(pdf, selection)
