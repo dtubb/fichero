@@ -128,4 +128,30 @@ struct SegmentsFilterTests {
         #expect(options.languages == ["es", "la"])
         #expect(options.directions == ["ltr"])
     }
+
+    @Test("every row's facts in one pass are the same as each row's own")
+    func allMatchesEach() throws {
+        let all = SegmentRowFacts.all(in: page)
+        for segment in page {
+            #expect(all[segment.id] == SegmentRowFacts.of(segment, in: page))
+        }
+    }
+
+    @Test("the Show in Rows choice: every fact by default, saved by name, unknown names ignored")
+    func shownRoundTrips() {
+        #expect(SegmentRowFacts.Shown.decode("all") == Set(SegmentRowFacts.Shown.allCases))
+        #expect(SegmentRowFacts.Shown.decode("count,reading,bogus") == [.count, .reading])
+        #expect(SegmentRowFacts.Shown.encode([.reading, .count]) == "count,reading")
+        #expect(SegmentRowFacts.Shown.encode(Set(SegmentRowFacts.Shown.allCases)) == "all")
+        #expect(SegmentRowFacts.Shown.decode(SegmentRowFacts.Shown.encode([])) == [])
+    }
+
+    @Test("a row's direction arrow and a doubtful reading's percent")
+    func factWords() {
+        #expect(SegmentRowFactsView.arrow("rtl") == "arrow.left")
+        #expect(SegmentRowFactsView.arrow("ltr") == "arrow.right")
+        #expect(SegmentRowFactsView.percent(0.424) == "42%")
+        #expect(SegmentRowFactsView.tooltip("Language es", .init(value: "es", fromSegmentId: "r1"), { _ in "its region" })
+            == "Language es, from its region")
+    }
 }

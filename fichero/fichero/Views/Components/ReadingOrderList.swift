@@ -27,6 +27,8 @@ struct ReadingOrderList: View {
     /// The Segments pane's filter (#6476): only these rows show, the ones that only hold a match dimmed, every group
     /// open, and no reordering while it is on (a move among hidden rows would land somewhere unseen). Nil shows all.
     var filter: SegmentsFilter.Result?
+    /// What a row shows after its words: the Segments pane's facts (#6482); nil shows nothing more.
+    var rowAccessory: ((String) -> AnyView)?
 
     @Environment(ReadingOrderService.self) private var service: ReadingOrderService?
     @Environment(SegmentService.self) var segmentService: SegmentService?
@@ -40,7 +42,7 @@ struct ReadingOrderList: View {
         documentId: String, parentSegmentId: String? = nil, hidesWhenEmpty: Bool = false,
         store: ReadingOrderStore? = nil, onOpen: ((String) -> Void)? = nil, opens: ((String) -> Bool)? = nil,
         rowLabel: ((String, Int) -> String)? = nil, onSelected: (([String]) -> Void)? = nil, nests: Bool = false,
-        filter: SegmentsFilter.Result? = nil
+        filter: SegmentsFilter.Result? = nil, rowAccessory: ((String) -> AnyView)? = nil
     ) {
         self.documentId = documentId
         self.parentSegmentId = parentSegmentId
@@ -51,6 +53,7 @@ struct ReadingOrderList: View {
         self.onSelected = onSelected
         self.nests = nests
         self.filter = filter
+        self.rowAccessory = rowAccessory
         // A store handed in (a preview's, over a fixture transport) is used as is; otherwise the
         // library's service makes one.
         _store = State(initialValue: store)
@@ -715,6 +718,10 @@ extension ReadingOrderList {
                     .lineLimit(2)
                     // An unread line says what to do (#5505).
                     .help(SegmentsPane.rowHelp(segment(segmentId)) ?? "")
+                if let rowAccessory {
+                    Spacer(minLength: 4)
+                    rowAccessory(segmentId)
+                }
             }
             // A line the teacher-line check flagged (#5446): marked, its scores on hover.
             if let line = flags?.flag(segmentId: segmentId, documentId: documentId) {
