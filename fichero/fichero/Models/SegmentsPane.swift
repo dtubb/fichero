@@ -156,6 +156,14 @@ enum SegmentsPane {
         return "\(numbered ? named : kind) · \(SegmentLabel.layout(text, direction: horizontal).text)"
     }
 
+    /// The segment with the words its row shows (#6492): the counting reading's when the page's compare answer has one,
+    /// else its own text.
+    static func showing(_ shown: String?, on segment: Segment?) -> Segment? {
+        guard let shown, var segment else { return segment }
+        segment.text = shown
+        return segment
+    }
+
     /// What an unread row's help says to do (#5505); nil for a row with a reading or of a kind that has none.
     static func rowHelp(_ segment: Segment?) -> String? {
         guard let segment, lacksReading(segment) else { return nil }

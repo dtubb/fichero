@@ -27,6 +27,10 @@ struct SegmentsPaneView: View {
     @State private var filter = SegmentsFilter()
     /// Which facts a row shows after its words, per window ("Show in Rows", #6482); every one by default.
     @SceneStorage("segments.rowFacts") private var rowFactsRaw = "all"
+    /// The page's readers and their words, from its one compare answer (#6492); nil until it arrives.
+    @State private var otherReadings: SegmentOtherReadings?
+    /// The readers whose words show under each row, by label, per window ("Other Readings", #6492); none by default.
+    @SceneStorage("segments.otherReaders") private var otherReadersRaw = ""
 
     /// What the filter leaves, nil while it is off: the same rows in every lens.
     private var filtered: SegmentsFilter.Result? {
@@ -93,6 +97,11 @@ struct SegmentsPaneView: View {
             proposedMatches = (try? await segmentService.proposedMatches(documentId: document.id).count) ?? 0
             // The teacher-line check's flags (#5446), for the strip and grid as well as the list.
             await FlaggedLineStore.shared(for: segmentService).load(documentId: document.id)
+            // The page's other readings (#6492): one compare answer per page, for the menu and the rows.
+            otherReadings = nil
+            let compare = CompareReadersStore(client: segmentService.client, pageId: document.id, platform: .mac)
+            await compare.load()
+            if !Task.isCancelled, let answer = compare.answer { otherReadings = SegmentOtherReadings(answer: answer) }
             // A gathered row's page has arrived: select its segment in the focused Source view.
             if let pending = pendingSelect, pending.documentId == document.id,
                let selection = windowState?.sharedRegionSelection {
@@ -117,7 +126,7 @@ struct SegmentsPaneView: View {
                     onOpen: { parentId = $0 }, opens: { SegmentsPane.hasChildren($0, in: segments) },
                     rowLabel: { id, index in
                         SegmentsPane.rowLabel(
-                            segments.first { $0.id == id }, at: index,
+                            SegmentsPane.showing(otherReadings?.shown(id), on: segments.first { $0.id == id }), at: index,
                             direction: segmentService.flatMap {
                                 SegmentStore.shared(for: $0).direction(of: id, documentId: document.id)
                             }
@@ -126,7 +135,8 @@ struct SegmentsPaneView: View {
                     // Lines under their region's row with its swatch, words disclosed under their line (#5426).
                     nests: true,
                     filter: filtered,
-                    rowAccessory: rowFacts
+                    rowAccessory: rowFacts,
+                    rowFooter: SegmentsOtherReadingsMenu.lines(otherReadings, raw: otherReadersRaw)
                 )
             }
         case .loading:
@@ -199,7 +209,7 @@ struct SegmentsPaneView: View {
             currentKind: .segments, lenses: SegmentsPane.Lens.allCases,
             lensTitle: { (lens: SegmentsPane.Lens) in lens.title },
             lensIcon: { (lens: SegmentsPane.Lens) in lens.icon },
-            extraLensMenu: { AnyView(showInRowsMenu) },
+            extraLensMenu: { AnyView(Group { showInRowsMenu; SegmentsOtherReadingsMenu(readings: otherReadings, raw: $otherReadersRaw) }) },
             lens: $lens
         )
     }

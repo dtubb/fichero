@@ -16,6 +16,8 @@ final class CompareReadersStore {
     /// The image the boxes are drawn on (`frame`): the edited image when the page has saved edits.
     private(set) var frame: Components.Schemas.CompareFrame?
     private(set) var failure: String?
+    /// The engine's answer as it came, for a reader of it other than the compare view (the Segments list, #6492).
+    private(set) var answer: Components.Schemas.CompareReadersResponse?
 
     /// The iPhone opens on Overlay, the Mac and iPad side by side.
     private let platform: CompareViewModel.Platform
@@ -33,6 +35,7 @@ final class CompareReadersStore {
                 path: .init(pageId: pageId), query: .init(tryStage: tryStage)) {
             case .ok(let success):
                 let answer = try success.body.json
+                self.answer = answer
                 let mode = model?.mode
                 model = CompareViewModel(answer: answer, platform: platform)
                 if let mode { model?.mode = mode }
