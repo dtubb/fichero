@@ -2,6 +2,15 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.11.12
+What changed since 2026.10.30.
+
+- iPad and iPhone: the app launches again, a device paired to a Mac opens that Mac's library, and the iOS build compiles again.
+- Segments, Reader and Inspector: a filter bar, facts after each row, other readers' words under each row, the Inspector in grouped boxes, and region-coloured hover in the Preview.
+- Sidebar and library: a faster folder click, the Trash as a disclosure group, and table column widths remembered across windows.
+- Canvas: a click never continues the last drag, one rubber band everywhere, and ⌘-scroll zoom that never snaps.
+- Sharing: the pane title says what it shows.
+
 ## 2026.10.30
 What changed since 2026.10.28.
 

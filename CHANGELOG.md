@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-12
+
+- iPad and iPhone: launch crash fixed, a view type too deep for the iOS stack (#6553); a device paired to a Mac opens that Mac's library and stops asking for its own (#6555); the iOS build compiles again.
+- Segments, Reader and Inspector: filter bar, row facts, other readings under rows, grouped Inspector boxes, region-coloured hover (#6476, #6482, #6492, #6413, #6422).
+- Sidebar and library: faster folder click, Trash as a disclosure group, table column widths remembered (#4228, #6536, #6540).
+- Canvas: clicks never continue the last drag, one rubber band, ⌘-scroll zoom without snapping (#4601).
+- Sharing: the pane title says what it shows (#6458).
+
 ## 2026-10-30
 
 - Reading at scale: provider batch service for 100+ page steps at the batch price; next batch sent ahead; Slurm array per stage; restarts and failed rows no longer cancel a read still out (#5540, #5940, #5642).
