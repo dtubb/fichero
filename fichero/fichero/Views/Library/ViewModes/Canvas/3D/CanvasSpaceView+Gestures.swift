@@ -134,7 +134,9 @@ extension CanvasSpaceView {
                 #endif
                 let world = start + renderer.worldDragDelta(screenTranslation: value.translation, moveInZ: moveInZ)
                 renderer.liveMove(id: id, toWorld: world)
-                renderer.setHoverTarget(renderer.dropTargetId(nearWorld: world, excluding: id))
+                // Lit only where the drop will act on it (#4601): into a container, or a link with ⌥.
+                let under = dropTarget(near: world, dragged: id)
+                renderer.setHoverTarget(DropOutcome.lightsTarget(under, modifiers: optionHeld ? .forceLink : []) ? under?.id : nil)
                 controller?.dispatch(.dragMoved(id: id, position: world))
             }
             .onEnded { value in

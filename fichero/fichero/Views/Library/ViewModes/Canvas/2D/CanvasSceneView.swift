@@ -559,7 +559,8 @@ extension CanvasSceneView {
                 renderer.liveMove(id: page, toWorld: pageOrigin + (world - origin))
             }
         }
-        renderer.setHoverTarget(renderer.dropTargetId(nearWorld: world, excluding: id))
+        let under = dropTarget(near: world, dragged: id)
+        renderer.setHoverTarget(DropOutcome.lightsTarget(under, modifiers: optionHeld ? .forceLink : []) ? under?.id : nil)
         controller?.dispatch(.dragMoved(id: id, position: world))
         CanvasDragLog.moved()
         return true
