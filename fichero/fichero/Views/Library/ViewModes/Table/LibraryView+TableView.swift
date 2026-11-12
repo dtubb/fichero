@@ -223,7 +223,7 @@ extension LibraryView {
             of: LibraryOutlineNode.self,
             selection: $selection,
             sortOrder: outlineSortOrder,
-            columnCustomization: $tableColumnCustomization
+            columnCustomization: tableColumnCustomization
         ) {
             outlineColumns
         } rows: {

@@ -257,12 +257,12 @@ struct LibraryView: View {
 
     /// Mac-native column customization for the table view (right-click on
     /// any column header → show/hide menu, drag to reorder, drag-resize).
-    /// Backed by SwiftUI's TableColumnCustomization API. Persisted via
-    /// @SceneStorage (the follow-up the old @State comment promised, #519/
-    /// #4160): resize/reorder/show-hide now survive relaunch, per window —
-    /// matching how sort already persists.
-    @SceneStorage("library.tableColumns")
-    var tableColumnCustomization: TableColumnCustomization<LibraryOutlineNode> = .init()
+    /// Backed by SwiftUI's TableColumnCustomization API, remembered APP-WIDE
+    /// (#6540; was per window, #519/#4160): every folder, Table pane and window,
+    /// across relaunch, through the one `LibraryTableColumns` store.
+    var tableColumnCustomization: Binding<TableColumnCustomization<LibraryOutlineNode>> {
+        LibraryTableColumns.shared.binding
+    }
 
     /// Drives the expandable outline Table (#2258). Lazily created on
     /// first appear (needs the library's entity service from the
