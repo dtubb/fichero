@@ -165,4 +165,14 @@ struct SegmentsFilterTests {
         #expect(SegmentsPane.numberingPlace(of: page[2], at: 5, among: page) == 5)
         #expect(SegmentsPane.numberingPlace(of: nil, at: 4, among: page) == 4)
     }
+
+    @Test("the list starts with the page: its name and what it holds, at the top level only (#6415)")
+    func pageRowComesFirst() {
+        let page = [segment("r1", kind: "region"), segment("l1", kind: "line", parent: "r1"),
+                    segment("l2", kind: "line", parent: "r1")]
+        #expect(SegmentsPane.pageRow(name: "7_Hoja_4_Recto.JPG", segments: page, parentId: nil)
+                == .init(title: "7_Hoja_4_Recto.JPG", detail: "2 lines, 1 region"))
+        #expect(SegmentsPane.pageRow(name: "p", segments: page, parentId: "r1") == nil, "not inside a region")
+        #expect(SegmentsPane.pageRow(name: "p", segments: [], parentId: nil) == nil, "nothing listed, no page row")
+    }
 }

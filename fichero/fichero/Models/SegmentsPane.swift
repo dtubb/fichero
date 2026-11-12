@@ -146,6 +146,18 @@ enum SegmentsPane {
     /// `direction` is the segment's resolved one (#5199): its words are an isolate in it, so a Syriac line
     /// reads right to left after the Latin kind and never reorders it. A caption stays one row, so a
     /// vertical line's words are isolated as written rather than stacked.
+    /// The Segments list's first row (#6415, `source.editor.segments-list-starts-at-the-page-with-its-orders`): the page
+    /// by its name, and what it holds ("19 lines, 2 regions"); shown only at the page's top level.
+    struct PageRow: Equatable {
+        let title: String
+        let detail: String
+    }
+
+    static func pageRow(name: String?, segments: [Segment], parentId: String?) -> PageRow? {
+        guard parentId == nil, !segments.isEmpty else { return nil }
+        return PageRow(title: name ?? "Page", detail: InspectorMaking.counts(segments))
+    }
+
     /// The place a row's number counts from (#6476: one numbering everywhere): a region among the page's regions -- lines
     /// folded under an earlier region would otherwise make the second one "Region 25" -- any other row by its place.
     static func numberingPlace(of segment: Segment?, at index: Int, among segments: [Segment]) -> Int {
