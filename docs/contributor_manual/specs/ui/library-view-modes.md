@@ -493,6 +493,13 @@ homeless until a map-view UI spec exists (#5128).
   icon grid, the Preview's region band (no longer a dashed accent box) and the image editor's marquee; the items it
   crosses light as it sweeps, as before. The table and list keep the system's own band. Tested in
   `RubberBandEverywhereTests`.
+- `library.canvas.a-drop-links-only-with-option` — **[PARTIAL]** (#4601; built 2026-11-11, tested, not yet seen in the
+  app; owner: "lines appear between cards". Cause: a drop within reach of another card that is not a container linked
+  the two, `DropOutcome.classify` .leaf → .link, so tidying a board drew lines) a card dropped on or beside another card
+  is placed there; a link is made only with ⌥ held (`.forceLink`), and a drop on a folder or a document with pages
+  still moves it in. A card under the drag lights only where the drop will act on it (`DropOutcome.lightsTarget`), on
+  the 2D and 3D boards. Tested in `CanvasDropTests` (`leaf`, `lightsOnlyWhereItActs`) and
+  `CanvasInteractionControllerTests.dropCreatesLink`.
 - `library.canvas.a-click-never-continues-the-last-drag` — **[PARTIAL]** (#4601; built 2026-11-11, tested, not yet seen in
   the app; owner: "a click sometimes moves the previously dragged card and doesn't select") a click on the board selects
   what is under it and never moves the card dragged before it. Cause: the board kept its drag in `@State`, and SwiftUI

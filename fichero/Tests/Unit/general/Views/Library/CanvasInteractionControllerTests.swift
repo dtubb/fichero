@@ -181,7 +181,7 @@ struct CanvasInteractionControllerTests {
         #expect(layout.savedItems == nil)   // move-into does not persist a canvas row here
     }
 
-    @Test("dropping on a leaf creates a link and persists the dragged row")
+    @Test("⌥-dropping on a leaf creates a link and persists the dragged row")
     func dropCreatesLink() async {
         let layout = SpyLayoutStore(), items = SpyItemStore()
         let controller = makeController(layout: layout, items: items, selection: Box([]))
@@ -189,7 +189,7 @@ struct CanvasInteractionControllerTests {
         controller.beginDrag("drag")
         await controller.endDrag(
             id: "drag", position: SIMD3<Double>(1, 1, 0),
-            dropTarget: CanvasDropTarget(id: "target", kind: .leaf), modifiers: []
+            dropTarget: CanvasDropTarget(id: "target", kind: .leaf), modifiers: .forceLink
         )
 
         #expect(items.links == [.init(source: "drag", target: "target")])
