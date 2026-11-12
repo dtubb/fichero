@@ -785,7 +785,7 @@ struct ContentView: View {
     @State var transientSearchType = "hybrid"
     @State var transientSearchSortBy = "relevance"
     @State var transientSearchSortDirection = "desc"
-    @State var navigationHistory = AppNavigationHistory()
+    @State var navigationHistory = NavigationHistoryModel()
     @State var isRestoringNavigationHistory = false
 
     // Injected from the window host (DocumentTabView) rather than grabbed as
