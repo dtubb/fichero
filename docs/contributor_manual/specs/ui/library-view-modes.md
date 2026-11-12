@@ -561,6 +561,11 @@ homeless until a map-view UI spec exists (#5128).
   drags it or (twice) zooms it; a press on the empty board draws a rubber band; pressing one card of a
   multiple selection moves the whole selection. Built 572719bca from the canvas's own hit test (the
   entity-targeted gestures stopped reaching the cards); the resize handles are not on it yet.
+- `library.canvas.rubber-band-selects-what-it-touches` — **[PARTIAL]** (#5305) a rubber band on the
+  board selects every card whose drawn rectangle it touches, however little of the card it covers,
+  measured by the same card rectangle a click hits; a card the band does not touch stays out. Until
+  2026-11-11 a card was caught only when the band covered its centre, so a band had to sweep most of
+  a card to take it. *Test:* `Canvas2DMarqueeTouchTests`. PARTIAL until seen in the app.
 - `library.canvas.a-board-remembers-its-camera` — **[OK]** (572719bca) a board opens fitted to the pane
   with margin; coming back to a folder returns to the centre and zoom the person left it at (kept per
   Mac, not in the library).
