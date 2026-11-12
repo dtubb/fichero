@@ -148,7 +148,10 @@ struct SelectAllVisibleSurfaceTests {
         // The widening must not change a plain library window's behaviour: no
         // hint at all still routes to the library.
         let button = try code(at: "App/Menus/FocusedCommands/FocusedCommandButtons+SelectAll.swift")
-        let tail = try #require(button.components(separatedBy: "private var focusedSurface").last)
+        // The pane hint's surface is `paneSurface`; `focusedSurface` puts the sidebar's keyboard
+        // focus first (`SelectAllSidebarGuard`, #6364) and otherwise answers with it.
+        #expect(button.contains("paneSurface: paneSurface"))
+        let tail = try #require(button.components(separatedBy: "private var paneSurface").last)
         let body = try #require(tail.components(separatedBy: "\n    }").first)
         #expect(body.contains("default:"))
         #expect(body.contains("librarySelectAll?.isEnabled == true ? .libraryRows : nil"))
