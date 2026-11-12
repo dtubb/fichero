@@ -100,7 +100,8 @@ extension ContentView {
     var sidebarToolbarContent: some ToolbarContent {
         if sidebarPairHome == .sidebarColumn {
             ToolbarItem(placement: .automatic) {
-                sidebarButtons
+                // The island's breathing room here too: the column's glass pill hugged the pair, the sparkle on its edge.
+                sidebarButtons.padding(.horizontal, 6)
             }
         }
     }
