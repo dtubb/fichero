@@ -7,6 +7,8 @@ import SwiftUI
 struct InspectorSegmentMakingSection: View {
     let segmentId: String
     let documentId: String
+    /// The grouped Inspector draws the picture in its head and titles this group History (#6413).
+    var grouped = false
 
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
@@ -20,8 +22,10 @@ struct InspectorSegmentMakingSection: View {
         // Always present, so the load below runs; empty until the segment has been read.
         VStack(alignment: .leading, spacing: 8) {
             if let live {
-                Text("Making").font(.headline)
-                if let picture, let image = PlatformImage(data: picture) {
+                if !grouped {
+                    Text("Making").font(.headline)
+                }
+                if !grouped, let picture, let image = PlatformImage(data: picture) {
                     Image(platformImage: image)
                         .resizable()
                         .scaledToFit()

@@ -5,6 +5,10 @@ import SwiftUI
 /// attribution. Each verb is one audited action, undoable with ⌘Z.
 struct InspectorHandsSection: View {
     let segmentId: String
+    /// The grouped Inspector hides this section while it holds nothing (#6413); its verb is then in the head's Add menu.
+    var hidesWhenEmpty = false
+    /// Told after each read whether the section holds nothing.
+    var onEmpty: ((Bool) -> Void)?
 
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
@@ -19,36 +23,38 @@ struct InspectorHandsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Hands").font(.headline)
-                Spacer()
-                attributeMenu
-            }
-            ForEach(InspectorHands.rows(attributions, hands: hands)) { row in
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(row.ink).font(.body)
-                        if !row.record.isEmpty {
-                            Text(row.record).font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
+            if !(hidesWhenEmpty && attributions.isEmpty) {
+                HStack {
+                    Text("Hands").font(.headline)
                     Spacer()
-                    Button("Everything in This Hand") {
-                        windowState?.segmentsGather = .hand(id: row.handId, label: row.ink)
-                    }
-                        .buttonStyle(.borderless)
-                        .font(.caption)
-                        .help("List every segment attributed to this hand, across sources, in the Segments pane")
-                    Button("Withdraw") {
-                        run("hand.unattribute", HandUnattributeRequest(attributionId: row.attributionId), "Withdraw Attribution")
-                    }
-                        .buttonStyle(.borderless)
-                        .font(.caption)
-                        .help("Withdraw this attribution; it is kept in the record, not deleted")
+                    attributeMenu
                 }
-            }
-            if attributions.isEmpty {
-                Text("No hand is named for this segment.").font(.caption).foregroundStyle(.secondary)
+                ForEach(InspectorHands.rows(attributions, hands: hands)) { row in
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(row.ink).font(.body)
+                            if !row.record.isEmpty {
+                                Text(row.record).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                        Button("Everything in This Hand") {
+                            windowState?.segmentsGather = .hand(id: row.handId, label: row.ink)
+                        }
+                            .buttonStyle(.borderless)
+                            .font(.caption)
+                            .help("List every segment attributed to this hand, across sources, in the Segments pane")
+                        Button("Withdraw") {
+                            run("hand.unattribute", HandUnattributeRequest(attributionId: row.attributionId), "Withdraw Attribution")
+                        }
+                            .buttonStyle(.borderless)
+                            .font(.caption)
+                            .help("Withdraw this attribution; it is kept in the record, not deleted")
+                    }
+                }
+                if attributions.isEmpty {
+                    Text("No hand is named for this segment.").font(.caption).foregroundStyle(.secondary)
+                }
             }
         }
         .task(id: segmentId) { await reload() }
@@ -79,6 +85,7 @@ struct InspectorHandsSection: View {
         guard let handService else { return }
         hands = (try? await handService.hands()) ?? []
         attributions = (try? await handService.attributions(segmentId: segmentId)) ?? []
+        onEmpty?(attributions.isEmpty)
     }
 
     private func run<Params: Encodable>(_ name: String, _ params: Params, _ actionName: String) {
