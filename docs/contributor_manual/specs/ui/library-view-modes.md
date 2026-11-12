@@ -487,6 +487,17 @@ homeless until a map-view UI spec exists (#5128).
     has a size, so a zoom moves the camera and no card. Tested in
     `fichero/Tests/Unit/general/Views/Library/CanvasZoomKeepsTheCardsTests.swift` (the real view, store
     and renderer), not yet seen in the app.
+- `library.canvas.a-click-never-continues-the-last-drag` — **[PARTIAL]** (#4601; built 2026-11-11, tested, not yet seen in
+  the app; owner: "a click sometimes moves the previously dragged card and doesn't select") a click on the board selects
+  what is under it and never moves the card dragged before it. Cause: the board kept its drag in `@State`, and SwiftUI
+  never calls `onEnded` on a cancelled drag (a competing recognizer, the window losing focus), so the next press
+  continued the old drag; an entity-targeted card drag also raced the board's own. Now every left mouse-down first
+  finishes what is left (`CanvasLeftoverDrag`, via `CanvasScrollPanView.onPrimaryPress`): one card is saved where it
+  was left and selected as its release would have (`CanvasInteractionController.flushActiveDrag` applies the
+  select-on-drop), a carried selection goes back where it started; the duplicate drag is gone and a drag starts after
+  3 points, not 6. Selecting still waits for the drop (selecting mid-drag hung the drag, 2026-10-09). Tested in
+  `CanvasLeftoverDragTests`, `CanvasInteractionControllerTests.flushSelectsTheGrabbedCard`,
+  `CanvasInteractionPolicyGuardTests.itemDragOwnsThePlainDrag`.
 - `library.canvas.cards-move-only-when-asked` — **[PARTIAL]** (#5629; tested, not yet seen in the app)
   Ruled 2026-10-09: on the Canvas and in Space a card moves only when a person moves it: a drag, an
   Arrange, or a move made in another window (someone's drag too). The board opens with every card

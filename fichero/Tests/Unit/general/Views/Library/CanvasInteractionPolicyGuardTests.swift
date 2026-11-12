@@ -36,10 +36,16 @@ struct CanvasInteractionPolicyGuardTests {
         #expect(!source.contains("if shiftHeld {"))
     }
 
-    @Test("the item drag stays enabled for plain drags and yields only to Space")
+    @Test("a plain drag on a card moves it through the board's one drag, which yields only to Space")
     func itemDragOwnsThePlainDrag() throws {
         let source = try appSource(sceneViewPath)
-        #expect(source.contains("nodeDrag(in: geo.size), isEnabled: !spaceHeld"))
+        // #4601 (2026-11-11): the entity-targeted card drag raced the board's own and left stale state; the one
+        // drag is `panOrMarquee`, whose press on a card moves it (`pressMovesCard`), and every press first
+        // finishes a drag SwiftUI cancelled.
+        #expect(!source.contains("nodeDrag(in: geo.size)"))
+        #expect(source.contains("if pressMovesCard(value, in: size) { return }"))
+        #expect(source.contains("DragGesture(minimumDistance: 3)"))
+        #expect(source.contains("onPrimaryPress: { finishLeftoverDrag() }"))
     }
 
     @Test("the pan/marquee gesture stands down while a card drag is live")
