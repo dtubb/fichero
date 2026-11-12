@@ -188,9 +188,10 @@ struct LibraryMiniToolbarTests {
         let inspector = try Self.appSource(
             "Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"
         )
-        #expect(inspector.contains("DefaultToolbarItem(kind: .search"))
         #expect(inspector.contains("nativeToolbarSearch(detailView)"))
+        // The native search item moved to the window toolbar with the iPad's bars (81c6d74, #6561).
         let toolbar = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
+        #expect(toolbar.contains("DefaultToolbarItem(kind: .search"))
         #expect(!toolbar.contains(".searchable("))
         for source in [toolbar, inspector] {
             #expect(
