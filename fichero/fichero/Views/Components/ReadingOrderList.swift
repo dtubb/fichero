@@ -467,16 +467,10 @@ extension ReadingOrderList {
     /// once a line has a reading.
     private func label(for segmentId: String, at index: Int) -> String {
         guard segmentService != nil else { return "Segment \(index + 1)" }
-        // A region is numbered among the page's regions, not by its row among the entries (lines folded under an
-        // earlier region would make the second one "Region 25"): the number every other surface gives it.
-        if let found = segment(segmentId), found.kind == "region", let segmentService {
-            let regions = SegmentStore.shared(for: segmentService).workingSegments(documentId: documentId)
-                .filter { $0.kind == "region" }
-            if let place = regions.firstIndex(where: { $0.id == segmentId }) {
-                return SegmentsPane.rowLabel(found, at: place)
-            }
-        }
-        return SegmentsPane.rowLabel(segment(segmentId), at: index)
+        // A region is numbered among the page's regions, the number every other surface gives it.
+        let found = segment(segmentId)
+        let working = segmentService.map { SegmentStore.shared(for: $0).workingSegments(documentId: documentId) } ?? []
+        return SegmentsPane.rowLabel(found, at: SegmentsPane.numberingPlace(of: found, at: index, among: working))
     }
 
     private func segment(_ segmentId: String) -> Segment? {

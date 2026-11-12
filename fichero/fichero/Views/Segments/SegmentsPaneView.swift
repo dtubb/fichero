@@ -125,8 +125,10 @@ struct SegmentsPaneView: View {
                     documentId: document.id, parentSegmentId: parentId, store: orders,
                     onOpen: { parentId = $0 }, opens: { SegmentsPane.hasChildren($0, in: segments) },
                     rowLabel: { id, index in
-                        SegmentsPane.rowLabel(
-                            SegmentsPane.showing(otherReadings?.shown(id), on: segments.first { $0.id == id }), at: index,
+                        let found = segments.first { $0.id == id }
+                        return SegmentsPane.rowLabel(
+                            SegmentsPane.showing(otherReadings?.shown(id), on: found),
+                            at: SegmentsPane.numberingPlace(of: found, at: index, among: segments),
                             direction: segmentService.flatMap {
                                 SegmentStore.shared(for: $0).direction(of: id, documentId: document.id)
                             }
