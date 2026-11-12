@@ -17,9 +17,9 @@ import XCTest
 @MainActor
 final class PreviewFolderViewPerPaneUITests: FicheroUISessionTests {
 
-    private static let entries = ["canvas", "list", "table"].map { "previewHeadFolderView.\($0)" }
+    private static let entries = ["list", "table", "icons", "canvas"].map { "previewHeadFolderView.\($0)" }
 
-    /// Compare mounts two Preview panes; each head's selector menu carries the three folder views.
+    /// Compare mounts two Preview panes; each head's selector menu carries the four folder views.
     func testEveryPreviewPaneHeadOffersCanvasListAndTable() throws {
         waitForLibraryReady()
         applyWorkspace("Compare")

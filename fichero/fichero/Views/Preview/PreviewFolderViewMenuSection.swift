@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The "Show folder as" section of the Preview head's selector menu: Canvas, List, Table, the pane's
+/// The "Show folder as" section of the Preview head's selector menu: List, Table, Icons, Canvas, the pane's
 /// current one ticked (`library.preview.folder-view-picker-in-the-head`). Dimmed while the selection
 /// is not a single folder; the choice is kept either way. Absent outside a pane slot, where a pick
 /// would have nowhere to land.

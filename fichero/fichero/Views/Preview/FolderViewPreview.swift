@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// The Preview's folder branch: this pane's chosen view of the folder (`PreviewFolderView`, stored
-/// on the pane, `library.preview.folder-view-per-pane`). Canvas is the folder canvas, List and Table
-/// are the Library's rows scoped to the folder. The choice is read, never rewritten, here.
+/// on the pane, `library.preview.folder-view-per-pane`). Canvas is the folder canvas, List, Table and
+/// Icons are the Library's own views scoped to the folder, under the Source head alone (#6562). The choice is read, never rewritten, here.
 struct FolderViewPreview: View {
     let folderId: String
     /// False for a group, which is always its pages on its own board.

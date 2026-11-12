@@ -1,10 +1,14 @@
 import SwiftUI
 
-/// A selected folder in a Preview pane shown as the Library's own List or Table, scoped to the
+/// A selected folder in a Preview pane shown as the Library's own List, Table or Icons, scoped to the
 /// folder (`library.preview.folder-view-per-pane`): one row renderer, not a second copy. A click on
 /// a row makes that item the Inspector's and Reader's subject while the pane keeps the rows, exactly
 /// as a canvas card does (`onFolderCanvasFocus`, #5305); a double-click opens the item here.
 struct FolderRowsPreview: View {
+    /// The rows draw no pane head of their own: the Source head's "Show folder as" is where the view is chosen
+    /// (`library.preview.folder-view-one-head`, #6562); a second head under it read as two panes stacked in one.
+    static let showsLibraryHead = false
+
     let folderId: String
     let mode: ViewDisplayMode
     var onNavigateToDocument: ((String) -> Void)?
@@ -31,6 +35,7 @@ struct FolderRowsPreview: View {
             detailDocument: $detail,
             defaultDisplayMode: mode,
             availableDisplayModes: [mode],
+            showsPaneHead: Self.showsLibraryHead,
             folderId: folderId,
             onNavigateInto: { onNavigateToDocument?($0.id) }
         )
