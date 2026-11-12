@@ -257,6 +257,7 @@ struct ReaderToolbar: View {
                 Toggle("Show Bounding Box", isOn: boundingBoxesEnabled)
                     .accessibilityIdentifier("previewShowBoundingBoxes")
             }
+            if textBoxesEnabled != nil || regionsEnabled != nil { TextReadoutToggles() }
             if let orderNumbersEnabled {
                 Toggle("Show Order Numbers", isOn: orderNumbersEnabled)
                     .accessibilityIdentifier("previewShowOrderNumbers")

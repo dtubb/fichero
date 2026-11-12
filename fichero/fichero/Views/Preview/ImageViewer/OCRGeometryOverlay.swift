@@ -31,6 +31,11 @@ struct OCRGeometryOverlay: View {
     @PaneStorage("imagePreview.inlineTextEnabled") private var inlineTextEnabled = false
 
     @State private var hoverPoint: CGPoint?
+    /// Where the pointer last came to rest: the hover label waits for it (`HoverReadout.restDelay`, #6422).
+    @State private var restedPoint: CGPoint?
+    /// The Display menu's readout switches (#6422), observed so turning one on shows at once.
+    @AppStorage(HoverReadout.hoverKey) private var showsOnHover = false
+    @AppStorage(HoverReadout.selectionKey) private var showsSelection = false
     @Environment(\.colorScheme) private var colorScheme
 
     /// Every level at once, each lighter than its parent (hierarchy A, #5426). The set lives on
@@ -149,24 +154,31 @@ struct OCRGeometryOverlay: View {
                     .frame(width: geo.size.width, height: geo.size.height)
                 #endif
 
-                if let hit = hoveredBox(at: hoverPoint, in: geo.size),
-                   !hit.box.text.isEmpty {
-                    let label = SegmentLabel.layout(hit.box.text, direction: labelDirection?(hit.box))
-                    Text(label.text)
-                        .font(BundledFonts.shared.font(.caption))
-                        .multilineTextAlignment(label.vertical ? .center : (label.rightToLeft ? .trailing : .leading))
-                        .environment(\.layoutDirection, label.rightToLeft ? .rightToLeft : .leftToRight)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 4))
-                        .fixedSize()
-                        // A column's label stands beside it, reading down; a row's sits above it.
-                        .offset(x: label.vertical ? hit.rect.maxX + 4 : hit.rect.minX,
-                                y: label.vertical ? hit.rect.minY : max(0, hit.rect.minY - 26))
+                // Show Text of the Selection (Display menu, #6422): the selected boxes' words, no hover needed.
+                ForEach(Array(HoverReadout.labelledSelection(
+                    boxes, selected: selectedSegmentIds, enabled: showsSelection,
+                    id: \.segmentId, text: \.text
+                ).enumerated()), id: \.offset) { _, box in
+                    if let rect = BoundingBoxGeometry.viewRect(normalized: box.bbox, in: geo.size, visible: visible) {
+                        readout(box, at: rect)
+                    }
+                }
+                // Show Text on Hover (Display menu, off by default, #6422): once the pointer rests.
+                if HoverReadout.showsHover(enabled: showsOnHover, pointer: hoverPoint, rested: restedPoint),
+                   let hit = hoveredBox(at: hoverPoint, in: geo.size),
+                   !hit.box.text.isEmpty, !(showsSelection && hit.box.segmentId.map(selectedSegmentIds.contains) == true) {
+                    readout(hit.box, at: hit.rect)
                 }
             }
             // Top-leading: the hover label is placed by `.offset` from the origin (#5214's class).
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+        }
+        // The pointer rests: after a help tag's wait, the hover label may show where it stopped.
+        .task(id: hoverPoint) {
+            restedPoint = nil
+            guard hoverPoint != nil, showsOnHover else { return }
+            try? await Task.sleep(for: HoverReadout.restDelay)
+            if !Task.isCancelled { restedPoint = hoverPoint }
         }
         // The layer is ON by default (#4418). On a dense page the boxes cover
         // most of the image, and each has an opaque `.background`, so an
@@ -177,6 +189,21 @@ struct OCRGeometryOverlay: View {
         // cursor via an NSTrackingArea, which AppKit delivers by geometry
         // regardless of hit-testing.
         .allowsHitTesting(false)
+    }
+
+    /// One box's words in a small label: a column's beside it, reading down; a row's above it.
+    private func readout(_ box: OCRGeometryBox, at rect: CGRect) -> some View {
+        let label = SegmentLabel.layout(box.text, direction: labelDirection?(box))
+        return Text(label.text)
+            .font(BundledFonts.shared.font(.caption))
+            .multilineTextAlignment(label.vertical ? .center : (label.rightToLeft ? .trailing : .leading))
+            .environment(\.layoutDirection, label.rightToLeft ? .rightToLeft : .leftToRight)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 4))
+            .fixedSize()
+            .offset(x: label.vertical ? rect.maxX + 4 : rect.minX,
+                    y: label.vertical ? rect.minY : max(0, rect.minY - 26))
     }
 
     private func hoveredBox(
