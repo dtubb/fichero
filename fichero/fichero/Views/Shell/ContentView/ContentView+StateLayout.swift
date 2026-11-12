@@ -183,6 +183,11 @@ extension ContentView {
         inspectorPlacement != .sheet
     }
 
+    /// Where this window's Show/Hide Inspector button sits (#6561).
+    var inspectorToggleHome: InspectorToggleHome {
+        InspectorToggleHome.current(usesDockedInspector: usesDockedInspector)
+    }
+
     var paneAwareDetailMinWidth: Double {
         guard supportsReadingWorkspace else {
             return ContentView.contentMinWidth

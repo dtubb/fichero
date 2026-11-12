@@ -25,6 +25,28 @@ enum InspectorPlacement: String, CaseIterable, Sendable {
     case sheet
 }
 
+/// Which toolbar carries the Show/Hide Inspector button (#6561). On the Mac a docked inspector's toggle is an item of
+/// the inspector column's own toolbar section, at the window's far right. An iPad's docked inspector column has no
+/// navigation bar of its own, so an item put there was never drawn and the inspector could not be closed; on iOS the
+/// toggle is in the content's navigation bar, beside the pane toggles, whether the inspector is docked or not.
+enum InspectorToggleHome: Equatable, Sendable {
+    case inspectorColumn
+    case detailBar
+
+    nonisolated static func home(usesDockedInspector: Bool, isMac: Bool) -> InspectorToggleHome {
+        isMac && usesDockedInspector ? .inspectorColumn : .detailBar
+    }
+
+    /// This platform's answer.
+    nonisolated static func current(usesDockedInspector: Bool) -> InspectorToggleHome {
+        #if os(macOS)
+        home(usesDockedInspector: usesDockedInspector, isMac: true)
+        #else
+        home(usesDockedInspector: usesDockedInspector, isMac: false)
+        #endif
+    }
+}
+
 /// The concrete presentation the adaptive inspector uses at runtime.
 ///
 /// Keep this separate from `InspectorPlacement`: the placement is the logical

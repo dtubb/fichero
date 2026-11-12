@@ -61,7 +61,8 @@ extension ContentView {
                 // toggle remains visible even when the inspector is closed
                 // — same mechanism as the sidebar-section buttons (#2309).
                 .toolbar {
-                    if showInspectorToggle {
+                    // The Mac's place for it; iOS draws it in the content's bar (#6561, `InspectorToggleHome`).
+                    if showInspectorToggle && inspectorToggleHome == .inspectorColumn {
                         ToolbarItem(id: ContentToolbarID.inspectorToggle, placement: .primaryAction) {
                             inspectorToggleButton
                         }
