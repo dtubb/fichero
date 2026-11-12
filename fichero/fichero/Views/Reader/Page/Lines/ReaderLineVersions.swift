@@ -92,11 +92,11 @@ struct ReaderVersionsTriangle: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .help(isOpen ? "Hide this line's versions (⌥-click: every line)" : "Show this line's \(count) versions (⌥-click: every line)")
+        .accessibilityLabel(isOpen ? "Hide \(count) versions" : "Show \(count) versions")
         #if os(macOS)
         .onModifierKeysChanged(mask: .option) { _, modifiers in optionHeld = modifiers.contains(.option) }
         #endif
-        .help(isOpen ? "Hide this line's versions (⌥-click: every line)" : "Show this line's \(count) versions (⌥-click: every line)")
-        .accessibilityLabel(isOpen ? "Hide \(count) versions" : "Show \(count) versions")
     }
 }
 

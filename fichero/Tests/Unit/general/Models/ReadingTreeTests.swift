@@ -3,6 +3,7 @@ import Foundation
 import Testing
 
 /// `source.editor.reader-line-discloses-its-versions` (#6492): a line's readings as a tree.
+@MainActor
 struct ReadingTreeTests {
     private func reading(
         _ id: String, at minute: Double, from: String? = nil, corrects: String? = nil
