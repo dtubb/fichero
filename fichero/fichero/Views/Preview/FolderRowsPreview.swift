@@ -7,7 +7,7 @@ import SwiftUI
 struct FolderRowsPreview: View {
     /// The rows draw no pane head of their own: the Source head's "Show folder as" is where the view is chosen
     /// (`library.preview.folder-view-one-head`, #6562); a second head under it read as two panes stacked in one.
-    static let showsLibraryHead = false
+    nonisolated static let showsLibraryHead = false
 
     let folderId: String
     let mode: ViewDisplayMode
