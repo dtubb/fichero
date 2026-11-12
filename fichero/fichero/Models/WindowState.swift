@@ -177,6 +177,20 @@ class WindowState {
         )
     }
 
+    /// A line picked in the Reader -- a plain click in Lines, the caret in Content (#6482, `reader.order.reveal-line-in-preview`,
+    /// owner 2026-11-11): it becomes the SHARED selection whether or not a Preview is open, the focused Preview zooms to it,
+    /// and, when the selection changed, the Inspector shows its Content tab, where the line's Segment pane is. Answers the
+    /// ids selected.
+    @discardableResult
+    func pickInReader(_ segmentIds: [String], documentId: String, store: SegmentStore) -> [String] {
+        let before = InspectorPath.selectedSegmentIds(selection: sharedRegionSelection, documentId: documentId, store: store)
+        let picked = focusedRegionSelection != nil
+            ? revealSegments(segmentIds, documentId: documentId, store: store)
+            : InspectorPath.select(segmentIds: segmentIds, into: windowSelection, documentId: documentId, store: store)
+        if !picked.isEmpty, picked != before { request(.showInspectorTab(.content)) }
+        return picked
+    }
+
     /// A pane appeared: it becomes the focus only if nothing is focused yet, so opening a second
     /// Preview does not steal the Inspector from the one a person is working in.
     func offerRegionSelection(_ selection: RegionSelection) {

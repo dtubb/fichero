@@ -190,11 +190,38 @@ struct LineRevealTests {
     /// would pass every test above and still drift. Each surface's handler must call the one action.
     @Test func everySurfaceCallsTheOneRevealAction() throws {
         #expect(try AppSource.code("Views/Components/ReadingOrderList.swift").contains("windowState.revealSegments("))
+        // The Reader's two surfaces pick through `pickInReader`, which reveals through the one action (#6482).
         #expect(try AppSource.code("Views/Reader/Knowledge/DocumentKGWebPaneCoordinatorMacOS.swift")
-            .contains("windowState?.revealSegments("))
+            .contains("windowState?.pickInReader("))
+        #expect(try AppSource.code("Views/Reader/Page/Lines/ReaderLinesView.swift").contains("windowState?.pickInReader("))
+        #expect(try AppSource.code("Models/WindowState.swift").contains("? revealSegments(segmentIds"))
         #expect(try AppSource.code("Views/Preview/ImageViewer/ZoomableImagePreviewMac.swift")
             .contains("zoomToNormalizedRegion(rect)"))
         #expect(try AppSource.code("Views/Preview/PDFViewer/PDFPageWithToolbar.swift")
             .contains("zoom.zoom(toNormalized: rect)"))
+    }
+
+    /// WHY (owner 2026-11-11, #6482): a click on a line in the Reader with no Preview open did nothing the
+    /// Inspector could see. It must select the line for the whole window and show the Inspector's Content tab;
+    /// with a Preview focused it also zooms there; picking the same line again asks nothing more.
+    @Test func aReaderPickSelectsForTheWindowAndShowsTheInspector() async throws {
+        let store = try await loadedStore()
+        let lines = store.segments(documentId: "doc-0001").filter { $0.kind == "line" }
+        let line = try #require(lines.first)
+
+        let bare = WindowState(libraryId: UUID())
+        #expect(bare.pickInReader([line.id], documentId: "doc-0001", store: store) == [line.id])
+        #expect(InspectorPath.selectedSegmentIds(selection: bare.sharedRegionSelection, documentId: "doc-0001", store: store)
+                == [line.id], "the window's own selection holds it with no Preview open")
+        #expect(bare.uiVerbRequest?.action == .showInspectorTab(.content))
+        let token = bare.uiVerbRequest?.token
+        bare.pickInReader([line.id], documentId: "doc-0001", store: store)
+        #expect(bare.uiVerbRequest?.token == token, "the same line again does not ask again")
+
+        let preview = RegionSelection()
+        let linked = window(linkedTo: preview)
+        #expect(linked.pickInReader([line.id], documentId: "doc-0001", store: store) == [line.id])
+        #expect(preview.revealCount == 1, "a focused Preview zooms to it")
+        #expect(linked.uiVerbRequest?.action == .showInspectorTab(.content))
     }
 }
