@@ -49,4 +49,23 @@ enum GuestLibraryChoice {
         }
         return paths.first.map(Choice.path) ?? .none
     }
+
+    /// Whether a library may be loaded from the host now (#6555): when the host is remote and the pairing named its library, only
+    /// that library is addressed. The guest's own local `global.fichero` is a path the host rejects (403), so loading it first
+    /// spun on the refusal. With no paired path yet nothing is gated here (the host is asked for its libraries instead).
+    static func mayLoad(libraryPath: String, remoteHost: Bool, pairedPath: String) -> Bool {
+        let paired = pairedPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard remoteHost, !paired.isEmpty else { return true }
+        return URL(fileURLWithPath: libraryPath).standardizedFileURL.path == URL(fileURLWithPath: paired).standardizedFileURL.path
+    }
+
+    /// Whether a failed load is the host refusing the library itself (outside what it may open, or not a package): trying the
+    /// same path again cannot succeed, so the load stops and says so (#6555).
+    static func isLibraryRefusal(_ error: Error?) -> Bool {
+        guard let error, case .forbidden(let reason, _) = AccessError.classify(error) else { return false }
+        return reason == AccessError.outsideAllowedLocations || reason == "library_not_a_package"
+    }
+
+    /// What the guest says when the host refused the library it sent, in words.
+    static let refusedWords = "The Mac you are connected to would not open this project. Pair this device again from that Mac."
 }
