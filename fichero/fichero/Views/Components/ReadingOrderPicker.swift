@@ -23,19 +23,25 @@ struct ReadingOrderPicker: View {
 
     private var shown: ReadingOrderSummary? { store.orders.first { $0.id == store.orderId } }
 
+    /// The working pass's orders, then the other passes', each titled with its pass (#6421).
+    private var sections: ReadingOrderChoice.PickerSections {
+        ReadingOrderChoice.sections(
+            store.orders, workingPassId: store.workingPassId,
+            passes: segmentService.map { SegmentStore.shared(for: $0).passes(documentId: documentId) } ?? []
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
                 // The order's name is a plain heading with its glyph, not a small subtitle menu (#6482).
                 Image(systemName: "list.number").foregroundStyle(.secondary).accessibilityHidden(true)
+                let sections = sections
                 Menu {
-                    ForEach(store.orders) { order in
-                        Button { Task { try? await store.choose(order.id) } } label: {
-                            if order.id == store.orderId {
-                                Label(ReadingOrderChoice.title(order), systemImage: "checkmark")
-                            } else {
-                                Text(ReadingOrderChoice.title(order))
-                            }
+                    ForEach(sections.thisPass) { orderButton($0) }
+                    if !sections.otherPasses.isEmpty {
+                        Section("From other passes") {
+                            ForEach(sections.otherPasses) { orderButton($0) }
                         }
                     }
                     Divider()
@@ -43,7 +49,7 @@ struct ReadingOrderPicker: View {
                     Button("New Flow…") { name = ""; naming = .flow }
                     continueFlowMenu
                 } label: {
-                    Text(shown.map(ReadingOrderChoice.title) ?? "Order").font(.headline)
+                    Text(sections.title(of: store.orderId) ?? shown.map(ReadingOrderChoice.title) ?? "Order").font(.headline)
                 }
                 .fixedSize()
                 .help(ReadingOrderChoice.help(shown))
@@ -75,6 +81,16 @@ struct ReadingOrderPicker: View {
             Text(naming == .flow
                  ? "A flow starts with this page's segments and can continue onto other pages."
                  : "A new order starts as a copy of this page's order, to rearrange.")
+        }
+    }
+
+    private func orderButton(_ item: ReadingOrderChoice.PickerItem) -> some View {
+        Button { Task { try? await store.choose(item.id) } } label: {
+            if item.id == store.orderId {
+                Label(item.title, systemImage: "checkmark")
+            } else {
+                Text(item.title)
+            }
         }
     }
 
