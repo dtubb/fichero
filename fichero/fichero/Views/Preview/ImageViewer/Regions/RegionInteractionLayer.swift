@@ -120,8 +120,8 @@ struct RegionInteractionLayer: View {
                     liveReshape(in: geo.size)
                     liveDrawing(in: geo.size)
                     if let rect = liveBandRect {
-                        RoundedRectangle(cornerRadius: 2).stroke(Color.accentColor, style: StrokeStyle(lineWidth: 1.5, dash: [4]))
-                            .background(Color.accentColor.opacity(0.12))
+                        // The one rubber band (#4601), not a dashed accent box.
+                        RubberBand()
                             .frame(width: rect.width, height: rect.height)
                             // Measured INSIDE the offset, so the frame is where the band is drawn
                             // after the offset and the layer's alignment, not where layout put it.
