@@ -37,6 +37,7 @@ final class PreviewPointerFeed {
     private(set) var sequence: Int = 0
 
     func publish(_ event: PreviewPointerEvent) {
+        PreviewPointerProfile.pointer(event.phase)
         latest = event
         sequence &+= 1
     }

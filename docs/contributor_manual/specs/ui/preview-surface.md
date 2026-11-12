@@ -260,6 +260,18 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   timings: timing assertions on a shared build machine are flaky). Timed on screen by the
   `preview swipe → image` signpost (`InteractionProfile`). PARTIAL until timed on screen.
 
+### F. Clicking and dragging on the page
+
+- `preview.page-click-and-drag-are-timed` — **[PARTIAL]** (#5253; owner: the app) A click on the
+  Preview image logs one `⏱ preview region press took N ms` line, split into steps: dispatch (the
+  AppKit mouse-down reaching the region layer), select (the layer's verb), overlay (the document
+  overlay handed its new boxes and selection), draw (the overlay's draw) and render (the main
+  thread's next turn, after the commit). A drag on the image (a move, a band, a reshape) logs one
+  `⏱ preview region drag took N ms` line on release: how many moves, the average and slowest wait
+  from a move to the frame after it, and how many times the overlay was rebuilt and how long that
+  took altogether, so a slow drag says whether the time went into the overlay. *Test:*
+  `PreviewPointerProfileTests`. The first reading in the real app is owed.
+
 ## PASS 2 — the fold (9 waiting issues, every body read fresh)
 
 None redirect elsewhere and none need maintainer triage — all nine are genuinely this spec's
