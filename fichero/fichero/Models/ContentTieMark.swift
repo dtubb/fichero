@@ -36,6 +36,10 @@ enum ContentTieMark: Equatable {
         }
     }
 
+    var isDoubtful: Bool {
+        if case .doubtful = self { true } else { false }
+    }
+
     /// The tooltip and accessibility words.
     var help: String {
         switch self {
