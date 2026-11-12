@@ -43,6 +43,7 @@ struct SidebarPairButtons: View {
                 .toolbarSurfaceLit(isLit)
         }
         .buttonStyle(SidebarPairButtonStyle(isLit: isLit, size: Self.buttonSize))
+        .accessibilityLabel(title)
         .help(help)
     }
 }

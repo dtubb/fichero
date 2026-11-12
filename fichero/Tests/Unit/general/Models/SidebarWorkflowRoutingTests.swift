@@ -56,7 +56,7 @@ final class SidebarWorkflowRoutingTests: XCTestCase {
     /// falling back to the library view, and route them to the workflows
     /// surface through the shared pure helper.
     func testSelectionHandlerRoutesWorkflowMirrorsToTheEditor() throws {
-        let source = try appSource("Views/Sidebar/Sections/SidebarView+SelectionHandling.swift")
+        let source = try appSource("Views/Sidebar/Sections/Selection/SidebarView+SelectionHandling.swift")
         let mirrorBranch = source.range(of: "if doc.isWorkflowNode {")
         let libraryFallback = source.range(of: "viewMode = .library(doc)")
         XCTAssertNotNil(mirrorBranch, "#4292: workflow mirror rows need their own routing branch")

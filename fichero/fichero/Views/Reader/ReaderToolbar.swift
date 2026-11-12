@@ -275,7 +275,7 @@ struct ReaderToolbar: View {
                     }
                     Toggle("Shade by Reading Order", isOn: Binding(
                         get: { RegionColours.shadesByOrder },
-                        set: { UserDefaults.standard.set($0, forKey: RegionColours.shadeKey) }
+                        set: { EngineConfig.defaults.set($0, forKey: RegionColours.shadeKey) }
                     ))
                     .accessibilityIdentifier("previewShadeByOrder")
                 }

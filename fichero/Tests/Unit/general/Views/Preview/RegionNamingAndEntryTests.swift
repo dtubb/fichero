@@ -99,7 +99,7 @@ struct RegionNamingAndEntryTests {
     @Test("entering a region opens its child node, and only zooms as a fallback")
     func openRegionPrefersTheChildNode() throws {
         let entry = try source(
-            "Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+RegionEntry.swift"
+            "Views/Preview/ImageViewer/Regions/Zoomable/ZoomableImagePreviewMac+RegionEntry.swift"
         )
         // The child is matched by the rect it names in the PARENT's frame —
         // a rect measured on another rendition would place a plausible node
@@ -114,7 +114,7 @@ struct RegionNamingAndEntryTests {
     @Test("a just-promoted region is enterable immediately, not after a reload")
     func freshChildIsEnterable() throws {
         let entry = try source(
-            "Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+RegionEntry.swift"
+            "Views/Preview/ImageViewer/Regions/Zoomable/ZoomableImagePreviewMac+RegionEntry.swift"
         )
         // The parent's children cache predates the new child; `children(of:)`
         // answers from that cache, so it must be dropped at creation or the
@@ -129,7 +129,7 @@ struct RegionNamingAndEntryTests {
     @Test("both naming routes commit through one promote path")
     func bothRoutesShareOnePromote() throws {
         let regions = try source(
-            "Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Regions.swift"
+            "Views/Preview/ImageViewer/Regions/Zoomable/ZoomableImagePreviewMac+Regions.swift"
         )
         // The right-click verb ARMS naming rather than promoting immediately.
         #expect(regions.contains("RegionNamingRequest.shared.arm(documentId: documentId, marqueeIndex: nil)"))
@@ -143,7 +143,7 @@ struct RegionNamingAndEntryTests {
     @Test("the name rides the rename path, because no create request carries one")
     func nameRidesTheRenamePath() throws {
         let entry = try source(
-            "Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+RegionEntry.swift"
+            "Views/Preview/ImageViewer/Regions/Zoomable/ZoomableImagePreviewMac+RegionEntry.swift"
         )
         #expect(entry.contains("service.cropChild("))
         #expect(entry.contains("documentStore.renameDocumentById(childId, to: name)"))

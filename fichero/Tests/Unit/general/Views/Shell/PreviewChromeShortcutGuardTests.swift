@@ -257,7 +257,7 @@ struct PreviewMarkupSelectionVerbGuardTests {
     @Test("selection marks snap to one strip per line, from either selection seam")
     func selectionResolvesLikeHighlight() throws {
         let canvas = try source(
-            "Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Annotations.swift"
+            "Views/Preview/ImageViewer/Regions/Zoomable/ZoomableImagePreviewMac+Annotations.swift"
         )
         // Region selection first, reader text selection second — the two
         // seams a highlight already knew about.
@@ -341,7 +341,7 @@ struct JoinIsTheOneNameGuardTests {
     private static let files = [
         "Views/Shell/PaneHead/PreviewMarkupToolsRow.swift",
         "Views/Inspector/Artifacts/ArtifactPanel+Regions.swift",
-        "Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Regions.swift",
+        "Views/Preview/ImageViewer/Regions/Zoomable/ZoomableImagePreviewMac+Regions.swift",
         "Views/Reader/ReaderToolbar.swift"
     ]
 
@@ -386,7 +386,7 @@ struct DocumentOverlayWiringGuardTests {
         #expect(overlays.contains("drawsBoxes: false"))
         #expect(overlays.contains("drawsGeometricMarks: false"))
         #expect(overlays.contains("drawsInlineText: false"))
-        let regions = try source("Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Regions.swift")
+        let regions = try source("Views/Preview/ImageViewer/Regions/Zoomable/ZoomableImagePreviewMac+Regions.swift")
         #expect(regions.contains("drawsSelection: false"))
         let tracking = try source("Views/Preview/ImageViewer/CursorTracking/ImageWithCursorTrackingMac.swift")
         #expect(tracking.contains("syncDocumentOverlay(documentOverlay, in: trackingView)"))

@@ -428,3 +428,8 @@ extension SegmentInspectorView {
             .joined(separator: ", ")
     }
 }
+
+#Preview("Segment inspector: two lines selected") {
+    SegmentInspectorView(documentId: "doc-1", selectedIds: ["line-1", "line-2"], onOrderSelected: nil)
+        .frame(width: 320, height: 480)
+}

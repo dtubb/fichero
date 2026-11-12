@@ -5,9 +5,9 @@ import SwiftUI
 /// yet). ONE look for every band: the 2D and 3D boards, the icon grid, the Preview's region band and the image
 /// editor. Semantic colours only, so it follows Dark Mode and Increase Contrast.
 struct RubberBand: View {
-    static let fill: Color = .secondary.opacity(0.12)
-    static let border: Color = .secondary.opacity(0.5)
-    static let lineWidth: CGFloat = 1
+    nonisolated static let fill: Color = .secondary.opacity(0.12)
+    nonisolated static let border: Color = .secondary.opacity(0.5)
+    nonisolated static let lineWidth: CGFloat = 1
 
     var body: some View {
         Rectangle()

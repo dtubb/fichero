@@ -67,7 +67,7 @@ final class SidebarWorkspaceNodeTests: XCTestCase {
     /// `routeDocumentSelection` at all; a workspace document falls through
     /// to the SAME generic library branch every other document/folder gets.
     func testWorkspaceSelectionNoLongerDivertsToResearch() throws {
-        let source = try appSource("Views/Sidebar/Sections/SidebarView+SelectionHandling.swift")
+        let source = try appSource("Views/Sidebar/Sections/Selection/SidebarView+SelectionHandling.swift")
         XCTAssertFalse(
             source.contains("if doc.isWorkspace {"),
             "#4812: a workspace is an ordinary folder now — no dedicated routing branch"

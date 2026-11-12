@@ -55,3 +55,12 @@ struct SidebarGroupContextMenu<MenuItems: View>: ViewModifier {
         }
     }
 }
+
+#Preview("Sidebar context targets") {
+    let selection = ["a", "b", "c"]
+    VStack(alignment: .leading, spacing: 6) {
+        Text("Right-click b in {a, b, c}: \(sidebarContextTargetIds(clicked: "b", selection: selection).joined(separator: ", "))")
+        Text("Right-click z outside it: \(sidebarContextTargetIds(clicked: "z", selection: selection).joined(separator: ", "))")
+    }
+    .padding()
+}

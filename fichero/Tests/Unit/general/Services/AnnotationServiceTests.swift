@@ -174,7 +174,7 @@ final class AnnotationServiceTests: XCTestCase {
             Self.appSource("Views/Preview/ImageViewer/ZoomableImagePreviewMac.swift"),
             // loadAnnotations moved with the annotation verbs (2026-08-29
             // file-length split).
-            Self.appSource("Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Annotations.swift")
+            Self.appSource("Views/Preview/ImageViewer/Regions/Zoomable/ZoomableImagePreviewMac+Annotations.swift")
         ].joined(separator: "\n")
 
         XCTAssertTrue(documentReader.contains("await annotationStore.loadAnnotations(for: .document(document.id), force: true)"))

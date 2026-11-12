@@ -492,9 +492,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
     /// drawn, in the page's one implicit region (one hue, shaded along the order), the unread lines dashed.
     func testAKrakenLineOnlyPageDrawsEveryLineIncludingTheUnread() async throws {
         // The Display menu's Shade by Reading Order is on, whatever this machine's defaults say.
-        let shade = UserDefaults.standard.object(forKey: RegionColours.shadeKey)
-        UserDefaults.standard.set(true, forKey: RegionColours.shadeKey)
-        defer { UserDefaults.standard.set(shade, forKey: RegionColours.shadeKey) }
+        let shade = EngineConfig.defaults.object(forKey: RegionColours.shadeKey)
+        EngineConfig.defaults.set(true, forKey: RegionColours.shadeKey)
+        defer { EngineConfig.defaults.set(shade, forKey: RegionColours.shadeKey) }
         let library = try hostedLibrary()
         let pageId = "a15216e202f745dbae9e85eed095dc74"
         RecordedEngine.body = try Data(

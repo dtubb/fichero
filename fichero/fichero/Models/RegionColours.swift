@@ -24,7 +24,7 @@ nonisolated enum RegionColours {
 
     /// The display option "Shade by Reading Order" (Display menu); on unless a person turned it off.
     static let shadeKey = "preview.shadeByReadingOrder"
-    static var shadesByOrder: Bool { UserDefaults.standard.object(forKey: shadeKey) as? Bool ?? true }
+    static var shadesByOrder: Bool { EngineConfig.defaults.object(forKey: shadeKey) as? Bool ?? true }
 
     /// Each segment's tone (`colour.region-hue`, `colour.reading-order-gradient`, `colour.never-random`,
     /// `colour.regionless-lines-are-one-region`).

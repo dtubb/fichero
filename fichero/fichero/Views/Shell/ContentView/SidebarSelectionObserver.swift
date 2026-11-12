@@ -29,3 +29,18 @@ struct SidebarSelectionObserver: View {
             .onChange(of: selection.revealGeneration) { _, _ in onReveal() }
     }
 }
+
+#Preview("Sidebar selection observer") {
+    let selection = SidebarSelectionState()
+    VStack(alignment: .leading, spacing: 8) {
+        Text("\(selection.selectedDestinations.count) rows selected")
+        SidebarSelectionObserver(
+            selection: selection,
+            onDestinationsChange: { _ in },
+            onReopen: {},
+            onSelectedItemIdChange: { _ in },
+            onReveal: {}
+        )
+    }
+    .padding()
+}

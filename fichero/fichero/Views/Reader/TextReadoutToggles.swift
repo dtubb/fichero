@@ -13,3 +13,11 @@ struct TextReadoutToggles: View {
             .accessibilityIdentifier("previewShowTextOfSelection")
     }
 }
+
+#Preview("Text readout toggles") {
+    Form {
+        TextReadoutToggles()
+    }
+    .formStyle(.grouped)
+    .frame(width: 320)
+}

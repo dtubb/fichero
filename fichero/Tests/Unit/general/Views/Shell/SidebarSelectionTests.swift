@@ -360,7 +360,7 @@ struct SidebarSelectionTests {
         // stays stamped as handled, reconcileRestoredSelection() never
         // re-drives it and the restored row never routes to its detail view.
         // The routing moved into SidebarView+SelectionRouting.swift (a split of the handling file).
-        let handlingSource = try appSource("Views/Sidebar/Sections/SidebarView+SelectionRouting.swift")
+        let handlingSource = try appSource("Views/Sidebar/Sections/Selection/SidebarView+SelectionRouting.swift")
         // The lookup moved from a findItemById tree walk to the O(1)
         // cachedItem(id:) index (#4228 perf lane); the un-stamp contract after
         // a failed resolution is what this test pins, not the lookup mechanism.

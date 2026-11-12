@@ -25,7 +25,7 @@ final class TranscriptionFontWiringShapeTests: XCTestCase {
 
     func testSurfacesReadTheLibrarysFamily() throws {
         XCTAssertTrue(try AppSource.code("Views/Reader/Page/ReaderLinesView.swift").contains("family: transcriptionFont?.family"))
-        XCTAssertTrue(try AppSource.code("Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Regions.swift")
+        XCTAssertTrue(try AppSource.code("Views/Preview/ImageViewer/Regions/Zoomable/ZoomableImagePreviewMac+Regions.swift")
             .contains("overlay.transcriptionFamily = transcriptionFont?.family"))
         XCTAssertTrue(try AppSource.code("Views/Preview/ImageViewer/Regions/DocumentOverlayView.swift")
             .contains("family: overlay.transcriptionFamily"))

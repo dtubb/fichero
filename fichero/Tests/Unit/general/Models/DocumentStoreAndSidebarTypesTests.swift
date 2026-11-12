@@ -170,7 +170,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         // in SidebarView+SelectionHandling.swift (browser(.entities) case); the
         // `case .browser(.entities):` mapping itself lives in SidebarStateManagers.swift.
         let source = try [
-            Self.appSource("Views/Sidebar/Sections/SidebarView+SelectionHandling.swift"),
+            Self.appSource("Views/Sidebar/Sections/Selection/SidebarView+SelectionHandling.swift"),
             Self.appSource("Views/Sidebar/State/SidebarStateManagers.swift")
         ].joined(separator: "\n")
 

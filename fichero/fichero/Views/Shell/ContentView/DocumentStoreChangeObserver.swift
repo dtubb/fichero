@@ -26,3 +26,17 @@ struct DocumentStoreChangeObserver: View {
             .onChange(of: store.revision) { _, _ in onRevisionChange() }
     }
 }
+
+#Preview("Document store change observer") {
+    let store = DocumentStore.preview
+    VStack(alignment: .leading, spacing: 8) {
+        Text("\(store.collections.count) collections, revision \(store.revision)")
+        DocumentStoreChangeObserver(
+            store: store,
+            onCollectionsChange: { _, _ in },
+            onCurrentDocumentsChange: { _ in },
+            onRevisionChange: {}
+        )
+    }
+    .padding()
+}

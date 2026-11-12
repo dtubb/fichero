@@ -74,7 +74,7 @@ struct SegmentRowFactsView: View {
     }
 
     /// The arrow a writing direction reads in: left to right, right to left, top to bottom, bottom to top.
-    static func arrow(_ direction: String) -> String {
+    nonisolated static func arrow(_ direction: String) -> String {
         switch direction.lowercased() {
         case "rtl": "arrow.left"
         case "ttb": "arrow.down"
@@ -84,12 +84,12 @@ struct SegmentRowFactsView: View {
     }
 
     /// "Language es" for its own value; "Language es, from its region" for an inherited one.
-    static func tooltip(_ what: String, _ stated: SegmentRowFacts.Stated, _ source: (String) -> String) -> String {
+    nonisolated static func tooltip(_ what: String, _ stated: SegmentRowFacts.Stated, _ source: (String) -> String) -> String {
         guard let from = stated.fromSegmentId else { return what }
         return "\(what), from \(source(from))"
     }
 
-    static func percent(_ confidence: Double) -> String { "\(Int((confidence * 100).rounded()))%" }
+    nonisolated static func percent(_ confidence: Double) -> String { "\(Int((confidence * 100).rounded()))%" }
 }
 
 #Preview("Segment row facts: own and inherited, doubtful and a person's") {
