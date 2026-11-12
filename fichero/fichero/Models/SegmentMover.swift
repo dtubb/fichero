@@ -66,6 +66,22 @@ struct SegmentDrag: Codable, Transferable, Equatable {
         CodableRepresentation(contentType: .segmentDrag)
         ProxyRepresentation(exporting: \.text)
     }
+
+    /// What ONE row carries: that row alone. A List drags every selected row and asks each for its own item, so a row
+    /// that carried the whole selection made four Desktop clippings of all four lines from a drag of four (#6476); a drop
+    /// on a region gathers the rows' ids again. `text` gives the row's words for the drag out of the app.
+    static func forRow(_ segmentId: String, text: (String) -> String?) -> SegmentDrag {
+        SegmentDrag(ids: [segmentId], text: text(segmentId) ?? "")
+    }
+
+    /// This drag as a List row's item provider (`View.itemProvider`). The ROW drags, not its content: a `.draggable`
+    /// on a row's words takes the mouse-down before the List sees it, so a click on the words never selected the row
+    /// (#6476, the Library table's same fault in #6538).
+    func itemProvider() -> NSItemProvider {
+        let provider = NSItemProvider()
+        provider.register(self)
+        return provider
+    }
 }
 
 extension UTType {
