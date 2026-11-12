@@ -119,6 +119,10 @@ struct SegmentsPaneView: View {
         ) {
         case .list:
             if let document, let orders {
+                if let row = SegmentsPane.pageRow(name: document.name, segments: segments, parentId: parentId) {
+                    SegmentsPageRow(row: row, selected: pageIsSelected(document.id)) { selectPage() }
+                    Divider()
+                }
                 // Only once the ONE store exists: the list keeps the store it is first given, so handing
                 // it nil would make it build a second one the strip and grid would not see.
                 ReadingOrderList(
@@ -164,6 +168,20 @@ struct SegmentsPaneView: View {
         if let segmentService { await SegmentStore.shared(for: segmentService).load(documentId: document.id) }
         try? await orders?.loadFollowing(documentId: document.id, workingPassId: workingPassId)
         await orders?.show(childrenOf: parentId)
+    }
+
+    /// The page row is lit while nothing on the page is selected: the Inspector is showing the page.
+    private func pageIsSelected(_ documentId: String) -> Bool {
+        guard let selection = windowState?.sharedRegionSelection, let segmentService else { return true }
+        return InspectorPath.selectedSegmentIds(
+            selection: selection, documentId: documentId, store: SegmentStore.shared(for: segmentService)
+        ).isEmpty
+    }
+
+    /// The page row clicked: nothing on the page stays selected, so the Inspector shows the page (#6415).
+    private func selectPage() {
+        picked = nil
+        windowState?.sharedRegionSelection.clear()
     }
 
     /// A picture picked: the focused Source view's selection, as a list row's is (#5155).
