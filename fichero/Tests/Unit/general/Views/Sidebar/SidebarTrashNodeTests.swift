@@ -31,4 +31,23 @@ struct SidebarTrashNodeTests {
         let drawn = SidebarTrashNode.shown([])
         #expect(drawn.entries.isEmpty && drawn.hidden == 0)
     }
+
+    /// `safety.trash.is-a-folder-in-the-sidebar`, owner ruling 2026-11-11 (#6536): the chevron is on the leading edge, as
+    /// for every folder, so the Trash is a real disclosure group, and only while it holds something.
+    @Test func theTrashOpensOnlyWhileItHoldsSomething() {
+        #expect(SidebarTrashNode.opens(isEmpty: false))
+        #expect(!SidebarTrashNode.opens(isEmpty: true))
+    }
+
+    @Test func theTrashIsARealDisclosureGroupTaggedOnTheGroup() throws {
+        let node = try AppSource.code("Views/Sidebar/Trash/SidebarTrashNode.swift")
+        let row = try AppSource.code("Views/Sidebar/Trash/SidebarTrashRow.swift")
+        #expect(node.contains("DisclosureGroup(isExpanded: $isExpanded)"))
+        // The List reads the selection from the row itself: the tag is on the group, not inside its label.
+        #expect(node.contains(".tag(SidebarDestination.trash(libraryId: libraryId))"))
+        #expect(!row.contains(".tag("))
+        // No hand-drawn chevron at the trailing edge, and no hand-made indent for the children.
+        #expect(!row.contains("chevron"))
+        #expect(!node.contains("padding(.leading"))
+    }
 }
