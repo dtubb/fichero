@@ -192,3 +192,139 @@ enum SelectAllRoutingPolicy {
         }
     }
 }
+
+// MARK: - Select All (#4376)
+
+/// ⌘A — Select All, routed by what actually has focus.
+///
+/// The library published a `librarySelectAll` focused action but nothing in the
+/// menu ever consumed it, and the app declared no ⌘A of its own. So ⌘A went to
+/// the system Select All, down the responder chain, to a SwiftUI
+/// `ScrollView`+`LazyVStack` that implements no `selectAll(_:)` — and did
+/// nothing at all. The action existed; the command never reached it.
+///
+/// This is the ⌘Z shape from #4354, reusing its `FocusedTextResponder` probe
+/// rather than inventing a second answer to "what has focus". One place decides;
+/// each command asks it.
+///
+/// The disabled case matters as much as the enabled ones: when neither a text
+/// editor nor the library holds focus — the reader, which is a WebKit surface —
+/// this item disables so the key equivalent falls through to the system Select
+/// All and the web view selects its own text. Claiming ⌘A there and guessing
+/// would be the #4354 bug in a new costume.
+@MainActor
+struct SelectAllButton: View {
+    @FocusedValue(\.librarySelectAll) private var librarySelectAll
+    @FocusedValue(\.inspectorSelectAll) private var inspectorSelectAll
+    @FocusedValue(\.focusedPaneKind) private var focusedPane
+    @FocusedValue(\.previewSelectAll) private var previewSelectAll
+
+    var body: some View {
+        Button("Select All") {
+            performSelectAll()
+        }
+        .keyboardShortcut("a", modifiers: .command)
+        .disabled(route == .none)
+    }
+
+    /// Recomputed on every body evaluation — which is when AppKit rebuilds and
+    /// validates the menu, immediately before display and before a key
+    /// equivalent fires. That is the moment the focus probe has to be read.
+    private var route: SelectAllRoute {
+        SelectAllRoutingPolicy.route(
+            isTextEditing: FocusedTextResponder.isEditing,
+            focusedSurface: focusedSurface
+        )
+    }
+
+    /// The surface that both HOLDS focus and has rows to select.
+    ///
+    /// Both halves are required. A publication alone is not focus — these are
+    /// scene-scoped, so the library's is live whenever a library pane is on
+    /// screen — and focus alone is not rows, since an empty list must decline
+    /// so the key equivalent can fall through.
+    private var focusedSurface: SelectAllSurface? {
+        SelectAllSidebarGuard.surface(
+            sidebarHoldsKeyboardFocus: SidebarKeyboardFocus.isSidebarFocused,
+            paneSurface: paneSurface
+        )
+    }
+
+    /// The surface the pane-focus hint names. The hint comes only from taps, so it can name
+    /// another pane (or none) while the sidebar outline holds the keyboard; `focusedSurface`
+    /// checks the keyboard first.
+    private var paneSurface: SelectAllSurface? {
+        switch focusedPane {
+        case .inspector:
+            return inspectorSelectAll?.isEnabled == true ? .inspectorList : nil
+        case .sidebar:
+            // Focus alone is enough here: the sidebar is never selected whole (#6364), so the chord is taken and ignored
+            // rather than declined, which would let the system's own select-all take the sidebar's rows.
+            return .sidebar
+        case .preview:
+            return previewSelectAll?.isEnabled == true ? .previewImage : nil
+        case .reading:
+            // DELIBERATELY nil: the reader is WebKit and selecting its text is
+            // the web view's own job, so this route declines and the key
+            // equivalent falls through. Spelled out rather than left to the
+            // default branch, because "the reader works" was previously an
+            // accident of the library's enablement rather than a decision.
+            return nil
+        case .segments:
+            // DELIBERATELY nil: the Segments pane's list is a SwiftUI List whose own selection answers
+            // ⌘A; the library must not take it just because it is the default owner (#4942).
+            return nil
+        default:
+            // The library is the default owner, as it was before the inspector
+            // could answer: no pane hint at all still means the library, which
+            // is what keeps a plain library window behaving exactly as it did.
+            return librarySelectAll?.isEnabled == true ? .libraryRows : nil
+        }
+    }
+
+    private func performSelectAll() {
+        switch route {
+        case .none:
+            return
+        case .focusedTextEditor:
+            // Hand it back to the editor that has focus — the shape the
+            // responder chain would have produced if a key equivalent had not
+            // matched first (#4354/#4376).
+            FocusedTextResponder.selectAll()
+        case .libraryRows:
+            librarySelectAll?.run()
+        case .inspectorList:
+            inspectorSelectAll?.run()
+        case .sidebarIgnored:
+            return
+        case .previewImage:
+            previewSelectAll?.run()
+        }
+    }
+}
+
+/// ⌘A never selects the whole sidebar (`ui.select-all.never-the-sidebar`, #6364). When the
+/// sidebar's outline holds the keyboard, ⌘A is taken and ignored, whatever the tap-based pane
+/// hint says: a hint naming another pane, or none, let Select All disable itself, and ⌘A then fell
+/// through to the system's Select All, which the outline answers by selecting every project,
+/// folder and workflow.
+enum SelectAllSidebarGuard {
+    static func surface(sidebarHoldsKeyboardFocus: Bool, paneSurface: SelectAllSurface?) -> SelectAllSurface? {
+        sidebarHoldsKeyboardFocus ? .sidebar : paneSurface
+    }
+}
+
+/// Whether the key window's first responder sits inside the sidebar's list: the view carrying
+/// `SidebarAccessibilityID.list`, or one of its subviews. AppKit only; false elsewhere.
+@MainActor
+enum SidebarKeyboardFocus {
+    static var isSidebarFocused: Bool {
+        #if canImport(AppKit)
+        guard let responder = NSApp.keyWindow?.firstResponder as? NSView else { return false }
+        return sequence(first: responder, next: \.superview)
+            .contains { $0.accessibilityIdentifier() == SidebarAccessibilityID.list }
+        #else
+        return false
+        #endif
+    }
+}
