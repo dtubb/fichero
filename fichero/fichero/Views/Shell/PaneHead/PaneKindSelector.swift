@@ -40,6 +40,9 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
     /// the pane has nothing more specific to say than its lens icon, and the
     /// selector renders exactly as it did before.
     var shownLabel: String?
+    /// #6458: the lens title in three forms (full, reader, lens name); the longest that fits is shown, the full form is the
+    /// tooltip and accessibility label. nil = the title is the lens name plus `shownLabel`, as before.
+    var titleForms: PaneTitleForms?
     /// Extra rows appended to the LENS menu below a divider — the reader's
     /// "Showing" submenu of representations and artifacts (Daniel,
     /// 2026-09-02: the View menu "should gain a submenu listing the artifacts
@@ -191,6 +194,16 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
                 Label(lensTitle(lens), systemImage: lensIcon(lens))
                     .font(.callout)
                     .labelStyle(.iconOnly)
+            } else if let titleForms {
+                ViewThatFits(in: .horizontal) {
+                    ForEach([titleForms.full, titleForms.middle, titleForms.short], id: \.self) { form in
+                        Label(form, systemImage: lensIcon(lens))
+                            .font(.callout)
+                            .labelStyle(.titleAndIcon)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
+                }
             } else {
                 // Icon plus label plus, when the pane says what it is
                 // showing, its name too (#4880's "icon plus label plus
@@ -211,9 +224,10 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
                 }
             }
         }
-        .accessibilityLabel(shownLabel.map { "View: \(lensTitle(lens)), showing \($0)" }
+        .accessibilityLabel(titleForms.map { "View: \($0.tooltip)" }
+            ?? shownLabel.map { "View: \(lensTitle(lens)), showing \($0)" }
             ?? "View: \(lensTitle(lens))")
-        .help(shownLabel.map { "\(lensTitle(lens)) — showing \($0). Click to change." }
+        .help(titleForms.map { "\($0.tooltip). Click to change." } ?? shownLabel.map { "\(lensTitle(lens)) — showing \($0). Click to change." }
             ?? "Choose what this pane shows")
     }
 
