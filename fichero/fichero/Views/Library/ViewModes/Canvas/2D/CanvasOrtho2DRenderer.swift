@@ -389,25 +389,6 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         if let id { placeablesRoot.findEntity(named: id)?.scale = SIMD3<Float>(repeating: 1.12) }
     }
 
-    /// The placeables whose projected screen point falls inside `rect` — the
-    /// marquee hit-test. Uses the SAME `worldPerPoint` calibration as pan/drag,
-    /// so tuning one tunes all three.
-    func placeableIds(inScreenRect rect: CGRect, viewSize: CGSize) -> Set<String> {
-        var result: Set<String> = []
-        for (id, placeable) in placeablesById {
-            let scene = Canvas2DProjection.scenePosition(placeable.position)
-            let point = Canvas2DProjection.screenPoint(
-                scene: scene,
-                cameraX: camera.position.x,
-                cameraY: camera.position.y,
-                orthoScale: orthoScale,
-                viewSize: viewSize
-            )
-            if rect.contains(point) { result.insert(id) }
-        }
-        return result
-    }
-
     private func applyOrthoScale() {
         var ortho = OrthographicCameraComponent()
         ortho.scale = orthoScale

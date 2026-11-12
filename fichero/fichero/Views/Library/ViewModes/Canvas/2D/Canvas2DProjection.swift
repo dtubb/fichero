@@ -98,6 +98,21 @@ enum Canvas2DProjection {
         )
     }
 
+    /// A card's drawn rectangle on screen: centred on its projected point, its world size divided by
+    /// `worldPerPoint`. Empty (zero size, at the centre) when the camera has no scale yet.
+    static func cardScreenRect(center: CGPoint, width: Float, height: Float, worldPerPoint: Float) -> CGRect {
+        guard worldPerPoint > 0 else { return CGRect(origin: center, size: .zero) }
+        let size = CGSize(width: CGFloat(width / worldPerPoint), height: CGFloat(height / worldPerPoint))
+        return CGRect(x: center.x - size.width / 2, y: center.y - size.height / 2, width: size.width, height: size.height)
+    }
+
+    /// Whether a rubber band takes a card: it touches the card anywhere, however little of it it covers.
+    /// Grown by half a point first, because a band dragged dead level is a zero-height rectangle, and
+    /// `intersects` never matches an empty one.
+    static func bandTouches(_ band: CGRect, card: CGRect) -> Bool {
+        band.insetBy(dx: -0.5, dy: -0.5).intersects(card)
+    }
+
     /// Pinch → ortho scale: magnify > 1 means zoom IN, which is a SMALLER ortho
     /// scale. Clamped away from zero so a degenerate magnification can't divide
     /// the camera into infinity.
