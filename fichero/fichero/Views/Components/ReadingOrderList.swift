@@ -131,14 +131,13 @@ struct ReadingOrderList: View {
         // And back: what another surface selects (the Reader, the Preview) is selected here too.
         .onChange(of: sharedIds) { _, now in if Set(now) != picks { picks = Set(now) } }
         .onChange(of: picks) { _, picked in
-            guard !picked.isEmpty, Set(sharedIds) != picked,
-                  let focused = windowState?.sharedRegionSelection, let segmentService else { return }
-            // In the list's own order, so the shared selection reads top to bottom.
-            let inOrder = (store?.shown.map(\.segmentId) ?? []).filter(picked.contains)
-            onSelected?(InspectorPath.select(
-                segmentIds: inOrder.isEmpty ? Array(picked) : inOrder, into: focused, documentId: documentId,
+            guard !picked.isEmpty, Set(sharedIds) != picked, let focused = windowState?.sharedRegionSelection, let segmentService else { return }
+            // Written first, the callback told after: `onSelected?(select(...))` skipped the write with no callback.
+            let chosen = InspectorPath.selectListPicks(
+                picked, order: store?.shown.map(\.segmentId) ?? [], into: focused, documentId: documentId,
                 store: SegmentStore.shared(for: segmentService)
-            ))
+            )
+            onSelected?(chosen)
         }
         // The working pass is in the key (#5465): when a run's result becomes the page's working pass (a
         // pass event re-reads this page in `SegmentStore`), the list re-reads this page's orders.
@@ -274,9 +273,11 @@ struct ReadingOrderList: View {
     /// zoomed to (#5424) -- the one reveal the Reader's line click makes too.
     private func reveal(_ ids: Set<String>) {
         guard let segmentId = ids.first, let windowState, let segmentService else { return }
-        onSelected?(windowState.revealSegments(
+        // Revealed first, then told: inside `onSelected?(...)` the reveal never ran when no callback was given.
+        let revealed = windowState.revealSegments(
             [segmentId], documentId: documentId, store: SegmentStore.shared(for: segmentService)
-        ))
+        )
+        onSelected?(revealed)
     }
 
     /// Why Create Named Order did not happen; nil after it did.

@@ -113,6 +113,21 @@ struct InspectorPath: Equatable {
         return picked.map(\.0)
     }
 
+    /// The rows a LIST picked (the Segments pane, the Order tab), made the shared selection in the list's own order so it
+    /// reads top to bottom. Always written: the Segments pane's pick never reached the Preview or the Inspector because
+    /// the list called `onSelected?(select(...))`, and an optional call with no callback never evaluates its argument
+    /// (#6476). Answers the ids selected.
+    @MainActor
+    @discardableResult
+    static func selectListPicks(
+        _ picked: Set<String>, order: [String], into selection: RegionSelection, documentId: String, store: SegmentStore
+    ) -> [String] {
+        let inOrder = order.filter(picked.contains)
+        return select(
+            segmentIds: inOrder.isEmpty ? picked.sorted() : inOrder, into: selection, documentId: documentId, store: store
+        )
+    }
+
     /// Up/Down over the selected segments (#6457): the selection moves one place in reading order, as Finder's does, and
     /// Shift adds the next one beyond the far end. The edge stops it (no wrap). Answers the ids now selected, or nil when
     /// nothing moves (an id not in the order, or the edge), so the key keeps its other job.
