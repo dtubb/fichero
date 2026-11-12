@@ -8,15 +8,17 @@ import Testing
 /// furthest zoom-out is the fit pose's scale over 0.9, follows the pane and the board, and an empty
 /// board has a one-cell floor instead of the old fixed 200.
 struct CanvasZoomFloorTests {
-    private let margin: Float = 50
-    private let emptyScale: Float = 140
+    // The board's own units (a cell is about 1.15 x 0.9, `CanvasGridPlacement`): in the 100-point units this test
+    // first used, a 4x3 board's fit (270) was past the renderer's ceiling (200) and the rule answered the ceiling.
+    private let margin: Float = 0.5
+    private let emptyScale: Float = 0.63
     private let ceiling: Float = 200
 
-    /// 12 cards of 100x140 in a 4x3 grid, pitch 150.
+    /// 12 cards of 1.0x1.4 in a 4x3 grid, pitch 1.5.
     private var board: [CanvasCameraFit.Card] {
         (0..<12).map { index in
             CanvasCameraFit.Card(
-                center: SIMD2(Float(index % 4) * 150, Float(index / 4) * 150), size: SIMD2(100, 140)
+                center: SIMD2(Float(index % 4) * 1.5, Float(index / 4) * 1.5), size: SIMD2(1.0, 1.4)
             )
         }
     }
@@ -51,7 +53,7 @@ struct CanvasZoomFloorTests {
     @Test("adding a card that widens the board raises the furthest zoom-out")
     func floorFollowsTheBoard() {
         let viewport = CGSize(width: 1000, height: 700)
-        let wider = board + [CanvasCameraFit.Card(center: SIMD2(2000, 0), size: SIMD2(100, 140))]
+        let wider = board + [CanvasCameraFit.Card(center: SIMD2(20, 0), size: SIMD2(1.0, 1.4))]
         #expect(farthest(wider, viewport) > farthest(board, viewport))
     }
 
