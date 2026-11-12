@@ -142,6 +142,8 @@ extension ContentView {
     /// Handles `.onChange(of: detailDocument)`.
     /// Keeps documentStore.selectedDocument in sync and records navigation.
     func handleDetailDocumentChange(from oldDoc: Document?, to newDoc: Document?) {
+        // Each detail write that changed it, in order (#4228: a click wrote it twice).
+        NavTrace.log("detail.changed", "\(oldDoc?.id ?? "nil") -> \(newDoc?.id ?? "nil")")
         // Keep documentStore.selectedDocument in sync so WorkflowEditor
         // toolbar button sees the current document at run time.
         documentStore.selectedDocument = newDoc
