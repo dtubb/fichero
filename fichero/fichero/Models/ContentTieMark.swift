@@ -5,7 +5,7 @@ import Foundation
 /// yellow when doubtful; a line with no counting reading shows the dash.
 enum ContentTieMark: Equatable {
     case anchored
-    case tied(percent: Int, reader: String)
+    case tied(percent: Int?, reader: String)
     case doubtful(percent: Int, reader: String)
     case empty
 
@@ -18,12 +18,16 @@ enum ContentTieMark: Equatable {
             self = .empty
             return
         }
-        guard reading.derivedFromArtifactId != nil, let confidence = reading.machineConfidence else {
+        guard reading.derivedFromArtifactId != nil else {
             self = .anchored
             return
         }
-        let percent = Int((confidence * 100).rounded())
         let reader = reading.producerModel ?? "page"
+        guard let confidence = reading.machineConfidence else {
+            self = .tied(percent: nil, reader: reader)
+            return
+        }
+        let percent = Int((confidence * 100).rounded())
         self = confidence < Self.doubtfulBelow ? .doubtful(percent: percent, reader: reader) : .tied(percent: percent, reader: reader)
     }
 
@@ -44,7 +48,7 @@ enum ContentTieMark: Equatable {
     var help: String {
         switch self {
         case .anchored: "read line by line"
-        case let .tied(percent, reader): "tied from \(reader)'s page read · \(percent) %"
+        case let .tied(percent, reader): "tied from \(reader)'s page read" + (percent.map { " · \($0) %" } ?? "")
         case let .doubtful(percent, reader): "doubtful tie from \(reader)'s page read · \(percent) %"
         case .empty: "no reading counts for this line"
         }

@@ -50,6 +50,14 @@ struct PaneTitleForms: Equatable {
         symbol = nil
     }
 
+    /// A lens and the one thing it is pointed at (a representation or artifact), until the per-line reading summary is fed:
+    /// "Content · Transcription", then the lens name. Says nothing about a level or basis it does not know.
+    static func showing(lens: String, what: String) -> PaneTitleForms {
+        guard what != lens else { return PaneTitleForms(full: lens, middle: lens, short: lens) }
+        let both = "\(lens) · \(what)"
+        return PaneTitleForms(full: both, middle: both, short: lens)
+    }
+
     /// The disagreement lens: "Where the Readers Disagree · 3 readers · 82 %", then "3 readers · 82 %", then the lens name.
     static func disagreement(lens: String, readers: Int, agreementPercent: Int) -> PaneTitleForms {
         let figures = "\(readers) readers · \(agreementPercent) %"

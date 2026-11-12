@@ -196,13 +196,14 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
                     .labelStyle(.iconOnly)
             } else if let titleForms {
                 ViewThatFits(in: .horizontal) {
-                    ForEach([titleForms.full, titleForms.middle, titleForms.short], id: \.self) { form in
-                        Label(form, systemImage: lensIcon(lens))
-                            .font(.callout)
-                            .labelStyle(.titleAndIcon)
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
+                    HStack(spacing: 3) {
+                        titleLabel(titleForms.full)
+                        if let symbol = titleForms.symbol {
+                            Image(systemName: symbol).font(.caption)
+                        }
                     }
+                    titleLabel(titleForms.middle)
+                    titleLabel(titleForms.short)
                 }
             } else {
                 // Icon plus label plus, when the pane says what it is
@@ -230,6 +231,14 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
         .help(titleForms.map { "\($0.tooltip). Click to change." }
             ?? shownLabel.map { "\(lensTitle(lens)) — showing \($0). Click to change." }
             ?? "Choose what this pane shows")
+    }
+
+    private func titleLabel(_ form: String) -> some View {
+        Label(form, systemImage: lensIcon(lens))
+            .font(.callout)
+            .labelStyle(.titleAndIcon)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
     }
 
     private func lensMenuContent<L: View>(

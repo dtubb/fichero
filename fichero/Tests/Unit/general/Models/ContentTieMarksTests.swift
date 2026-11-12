@@ -29,6 +29,13 @@ struct ContentTieMarksTests {
         #expect(mark.help == "tied from gemini's page read · 80 %")
     }
 
+    @Test("a tied line with no score is still a tie, with no figure")
+    func unscored() {
+        let mark = ContentTieMark(counting: reading(from: "page", model: "gemini"))
+        #expect(mark == .tied(percent: nil, reader: "gemini"))
+        #expect(mark.help == "tied from gemini's page read")
+    }
+
     @Test("a tied line under the doubt line shows the yellow link")
     func doubtful() {
         let mark = ContentTieMark(counting: reading(from: "page", confidence: 0.4, model: "gemini"))

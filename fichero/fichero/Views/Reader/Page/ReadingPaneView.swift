@@ -448,6 +448,7 @@ struct ReadingPaneView: View {
             // named artifact — and the View menu carries the "Showing"
             // submenu those choices used to need two extra head menus for.
             shownLabel: readerShownLabel,
+            titleForms: .showing(lens: readerLensBinding.wrappedValue.title, what: readerShownLabel),
             extraLensMenu: { self.readerShowingMenu() },
             lens: readerLensBinding
         )

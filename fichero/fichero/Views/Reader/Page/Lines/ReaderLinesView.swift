@@ -272,15 +272,6 @@ struct ReaderLineRow: View {
                         .help(label.help)
                         .accessibilityLabel("\(label.text), \(label.help)")
                 }
-                // #6458: how this line ties to the page text, from the same counting reading.
-                let mark = ContentTieMark(counting: editor.reading)
-                if let glyph = mark.glyph {
-                    Image(systemName: glyph)
-                        .font(.caption)
-                        .foregroundStyle(mark.isDoubtful ? Color.yellow : Color.secondary)
-                        .help(mark.help)
-                        .accessibilityLabel(mark.help)
-                }
             }
             field
             if ReadingTree.discloses(editor.versions), versionsOpen {

@@ -49,4 +49,13 @@ struct PaneTitleSaysWhatIsShowingTests {
         #expect(title.short == "Where the Readers Disagree")
         #expect(title.tooltip == title.full)
     }
+
+    @Test("a lens pointed at one named thing says it, and only the lens name when that is all there is")
+    func showing() {
+        let title = PaneTitleForms.showing(lens: "Content", what: "Transcription")
+        #expect(title.full == "Content · Transcription")
+        #expect(title.short == "Content")
+        #expect(title.symbol == nil)
+        #expect(PaneTitleForms.showing(lens: "Content", what: "Content").full == "Content")
+    }
 }
