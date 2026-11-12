@@ -350,18 +350,16 @@ extension ContentView {
             // "Cross-window handoff" extension.
             kgFocusState.consumePendingHandoff()
         }
-        .onChange(of: documentStore.collections) { old, new in
-            handleCollectionsChange(old: old, new: new)
-        }
-        .onChange(of: documentStore.currentDocuments) { _, newDocs in
-            handleCurrentDocumentsChange(newDocs)
-        }
-        // Change-stream splices for page children land in childrenCache /
-        // collections, not currentDocuments — refresh the focused snapshots
-        // from the store's full-container lookup too (#4318).
-        .onChange(of: documentStore.revision) { _, _ in
-            handleDocumentRevisionChange()
-        }
+        // The store's roots, the shown folder's documents, and change-stream splices for page
+        // children (which land in childrenCache / collections, not currentDocuments, #4318), each
+        // refresh the focused snapshots. Watched by a child view so a folder load does not
+        // re-evaluate this whole window (#4228, `DocumentStoreChangeObserver`).
+        .background(DocumentStoreChangeObserver(
+            store: documentStore,
+            onCollectionsChange: { old, new in handleCollectionsChange(old: old, new: new) },
+            onCurrentDocumentsChange: { handleCurrentDocumentsChange($0) },
+            onRevisionChange: { handleDocumentRevisionChange() }
+        ))
         // Inspector visibility is per-window (@SceneStorage). It is NOT mirrored
         // into the app-wide ViewSettings any more — doing so flipped the
         // inspector in every open window at once (#1451). The View menu reaches

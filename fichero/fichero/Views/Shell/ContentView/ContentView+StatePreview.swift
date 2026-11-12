@@ -131,7 +131,7 @@ extension ContentView {
 
     // MARK: - onChange Handlers — Mode & Display
 
-    /// Handles `.onChange(of: documentStore.collections)`.
+    /// Handles a change to `documentStore.collections` (`DocumentStoreChangeObserver`).
     /// Re-restores view mode once data loads (collections arrive after API responds).
     func handleCollectionsChange(
         old oldCollections: [Document],
@@ -168,7 +168,7 @@ extension ContentView {
         }
     }
 
-    /// Handles `.onChange(of: documentStore.currentDocuments)`.
+    /// Handles a change to `documentStore.currentDocuments` (`DocumentStoreChangeObserver`).
     /// Populates and keeps detailDocument in sync when the document list refreshes.
     func handleCurrentDocumentsChange(_ newDocs: [Document]) {
         // Populate preview from restored selection whenever documents load
@@ -204,7 +204,7 @@ extension ContentView {
         return newDocs.first(where: { $0.id == current.id }) ?? current
     }
 
-    /// Handles `.onChange(of: documentStore.revision)` (#4318).
+    /// Handles a change to `documentStore.revision` (#4318, `DocumentStoreChangeObserver`).
     ///
     /// `handleCurrentDocumentsChange` only fires when `currentDocuments`
     /// itself changes — but a change-stream splice for a page child lands in
