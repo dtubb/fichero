@@ -670,12 +670,13 @@ def set_multiuser(
     ctx: ActionContext = Depends(app_action_context),
 ) -> SharingStateResponse:
     """Set the persisted Multi-user switch through the audited action layer (#5751); the Settings
-    switch, the CLI and MCP share this route. While Multi-user is off only the owner's signed-in session may
-    (`multiuser.owner-session-sets-the-switch`, #5908): never the start-up credential.
+    switch, the CLI and MCP share this route. Only a request over the engine's Unix socket may (the Mac's own app, its
+    start-up credential, no key session needed); any TCP request is refused, an owner session included
+    (`multiuser.owner-session-sets-the-switch`, owner ruling 2026-11-12).
     App-wide, so no library header is needed (`sharing.multiuser-switch-needs-no-library`): the audit row goes to the
     global library package, as the known-library registry's actions do; the Settings window sends no library."""
-    if not _use_multiuser_auth() and getattr(request.state, "session", None) is None:
-        raise HTTPException(status_code=403, detail="sign in as the owner to change Multi-user")
+    if request.scope.get("fichero.transport") != "uds":  # owner ruling 2026-11-12: only this Mac's own app, over its socket
+        raise HTTPException(status_code=403, detail="only this Mac's own app can change Multi-user")
     _owner_only(request, app_db)
     from fichero_server.api.routes.library.registry import get_global_database  # lazy: routes import each other
 

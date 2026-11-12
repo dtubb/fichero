@@ -7,6 +7,8 @@ Multi-user setting.
 
 from __future__ import annotations
 
+import pytest
+
 from tests.unit.transport.test_two_macs_end_to_end_to_spec import _bearer, two_macs  # noqa: F401
 
 
@@ -65,11 +67,23 @@ def test_revoked_devices_are_not_counted(two_macs, monkeypatch):  # noqa: F811
     assert after == before - 1
 
 
-def test_an_environment_setting_wins_and_says_so(two_macs, monkeypatch):  # noqa: F811
+def test_an_environment_setting_wins_and_says_so(test_package, app_db, monkeypatch):
+    from fichero_server.actions import ActionContext, registry
+    from fichero_server.actions.registry import ActionRefused
+    from fichero_server.db import db_manager
+
+    _an_owner_with_a_chosen_password(app_db)
     monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    ctx = ActionContext(actor="owner", library_path=str(test_package), is_bootstrap=True)
+    with pytest.raises(ActionRefused):
+        registry.invoke(db_manager.get_database(test_package), "sharing.set_multiuser", {"enabled": False}, ctx)
+
+
+def test_a_tcp_caller_cannot_set_the_switch_even_as_a_signed_in_owner(two_macs, monkeypatch):  # noqa: F811
+    """Owner ruling 2026-11-12: only the Mac's own app, over its Unix socket, turns Multi-user on or off."""
     a = two_macs["a"]
-    r = a.put("/api/pair/multiuser", json={"enabled": False}, headers=_owner(a))
-    assert r.status_code == 409
+    refused = a.put("/api/pair/multiuser", json={"enabled": False}, headers=_owner(a))
+    assert refused.status_code == 403, refused.text
 
 
 def test_a_missing_tailnet_forward_comes_with_the_one_command_to_paste(app_db, monkeypatch):
@@ -115,7 +129,7 @@ def test_the_multiuser_answer_names_the_audit_row_for_undo(test_package, app_db,
     _an_owner_with_a_chosen_password(app_db)
     monkeypatch.setattr(pairing, "_pairing_user", lambda *_: SimpleNamespace(is_owner=True))
     ctx = ActionContext(actor="owner", library_path=str(test_package), is_bootstrap=True)
-    owner_session = SimpleNamespace(state=SimpleNamespace(session=object()))  # the route wants the owner's signed-in session (#5908)
+    owner_session = SimpleNamespace(scope={"fichero.transport": "uds"}, state=SimpleNamespace())  # the Mac's own app over its socket (2026-11-12)
     # The route is app-wide and opens the global package itself (`sharing.multiuser-switch-needs-no-library`).
     answer = pairing.set_multiuser(owner_session, pairing.MultiuserRequest(enabled=True), app_db, ctx)
     assert answer.audit_id

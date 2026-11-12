@@ -36,8 +36,7 @@ def test_the_local_owner_chooses_a_password_then_the_switch_follows(harness, mon
     assert harness.app_db.get_setting(OWNER_PASSWORD_SET_KEY) == "true"
     assert owner_password_gap(harness.app_db) is None
     assert accounts.verify_password("a chosen one", harness.app_db.get_user(owner.id).password_hash)
-    who = signed_in_client(harness, owner)
-    on = harness.client().put("/api/pair/multiuser", json={"enabled": True}, headers=who.headers)
+    on = _app(harness).put("/api/pair/multiuser", json={"enabled": True})
     assert on.status_code == 200, on.text
 
 

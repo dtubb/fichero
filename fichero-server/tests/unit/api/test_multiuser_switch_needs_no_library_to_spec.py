@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from fichero_server.security import accounts
-from tests.signed_in import signed_in_client
+from tests.signed_in import signed_in_client, uds_client
 from tests.unit.security.test_sharing_probe_2026_10_01 import (  # noqa: F401  # the probe's fixture and helpers
     _bearer,
     _login,
@@ -21,10 +21,12 @@ from tests.unit.security.test_sharing_probe_2026_10_01 import (  # noqa: F401  #
 # ruff: noqa: F811  -- pytest fixtures are passed by name; the parameter shadows the imported fixture on purpose
 
 
-def _settings_window(harness, headers: dict[str, str]) -> TestClient:
-    """A client exactly like the Settings pane's: the owner's key session and NO library header."""
-    return TestClient(harness.app, base_url="http://testserver", client=("testclient", 5000),
-                      headers={"Authorization": headers["Authorization"]})
+def _settings_window(harness, headers: dict[str, str] | None = None) -> TestClient:
+    """A client exactly like the Settings pane's: the Mac's own app over its Unix socket, the start-up credential, NO library header."""
+    window = uds_client(harness)
+    window.headers.pop("X-Fichero-Library-Path", None)
+    window.headers["Authorization"] = f"Bearer {harness.bootstrap}"
+    return window
 
 
 def _owner(harness, monkeypatch):
@@ -34,15 +36,14 @@ def _owner(harness, monkeypatch):
 
 
 def test_the_switch_flips_with_no_library_header(harness, monkeypatch):
-    owner = _owner(harness, monkeypatch)
-    who = signed_in_client(harness, owner)
-    window = _settings_window(harness, who.headers)
+    _owner(harness, monkeypatch)
+    window = _settings_window(harness)
 
     first = window.put("/api/pair/multiuser", json={"enabled": True})
     assert first.status_code == 409, f"the password gap, not a library complaint: {first.status_code} {first.text}"
     assert "password" in first.json()["detail"]
 
-    assert window.patch(f"/api/users/{owner.id}", json={"password": "a chosen one"}).status_code == 200
+    assert window.post("/api/auth/owner-password", json={"password": "a chosen one"}).status_code == 200
     on = window.put("/api/pair/multiuser", json={"enabled": True})
     assert on.status_code == 200, on.text
     assert on.json()["multiuser_enabled"] is True and on.json()["audit_id"]
@@ -63,8 +64,8 @@ def test_the_switchs_audit_row_is_undone_from_a_library_window(harness, monkeypa
     Undo of an app-wide step must still work from a library window, the CLI or MCP (`sharing.set_multiuser` is undoable)."""
     owner = _owner(harness, monkeypatch)
     who = signed_in_client(harness, owner)
-    window = _settings_window(harness, who.headers)
-    assert window.patch(f"/api/users/{owner.id}", json={"password": "a chosen one"}).status_code == 200
+    window = _settings_window(harness)
+    assert window.post("/api/auth/owner-password", json={"password": "a chosen one"}).status_code == 200
     on = window.put("/api/pair/multiuser", json={"enabled": True})
     assert on.status_code == 200, on.text
     assert harness.app_db.get_setting("multiuser.enabled") == "true"
