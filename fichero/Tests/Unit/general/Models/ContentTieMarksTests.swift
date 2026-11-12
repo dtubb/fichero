@@ -18,7 +18,7 @@ struct ContentTieMarksTests {
 
     @Test("a line read per segment is anchored and shows no mark")
     func anchored() {
-        #expect(ContentTieMark(counting: reading(model: "kraken")) == .none)
+        #expect(ContentTieMark(counting: reading(model: "kraken")) == .anchored)
     }
 
     @Test("a line tied from a page read shows a link with the words and the figure")

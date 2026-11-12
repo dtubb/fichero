@@ -4,7 +4,7 @@ import Foundation
 /// line's counting reading: a reading made per segment is anchored and shows nothing; one tied from a page read shows the link,
 /// yellow when doubtful; a line with no counting reading shows the dash.
 enum ContentTieMark: Equatable {
-    case none
+    case anchored
     case tied(percent: Int, reader: String)
     case doubtful(percent: Int, reader: String)
     case empty
@@ -19,7 +19,7 @@ enum ContentTieMark: Equatable {
             return
         }
         guard reading.derivedFromArtifactId != nil, let confidence = reading.machineConfidence else {
-            self = .none
+            self = .anchored
             return
         }
         let percent = Int((confidence * 100).rounded())
@@ -30,7 +30,7 @@ enum ContentTieMark: Equatable {
     /// The SF Symbol; nil when the line shows nothing.
     var glyph: String? {
         switch self {
-        case .none: nil
+        case .anchored: nil
         case .tied, .doubtful: "link"
         case .empty: "minus"
         }
@@ -39,7 +39,7 @@ enum ContentTieMark: Equatable {
     /// The tooltip and accessibility words.
     var help: String {
         switch self {
-        case .none: "read line by line"
+        case .anchored: "read line by line"
         case let .tied(percent, reader): "tied from \(reader)'s page read · \(percent) %"
         case let .doubtful(percent, reader): "doubtful tie from \(reader)'s page read · \(percent) %"
         case .empty: "no reading counts for this line"
