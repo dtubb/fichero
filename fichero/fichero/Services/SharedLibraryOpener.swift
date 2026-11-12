@@ -56,5 +56,18 @@ enum SharedLibraryOpener {
         libraryManager.reconfigureGeneratedClientsForCurrentHost()
         libraryManager.adoptPairedRemoteLibrary()
         await reconnect()
+        // Already connected to this host: the connect above changes nothing, so the chosen library loads here (#6555).
+        if libraryManager.backendIsReady, let library = libraryManager.globalLibrary {
+            await libraryManager.loadLibraryDataIfNeeded(for: library)
+        }
+    }
+
+    /// Lets a sidebar row of a paired Mac's library open it on iPhone and iPad (#6555). Only the Mac installed this, so on the
+    /// iPad the row set a "connect" request no sheet answers and tapping it did nothing.
+    static func installOnDevice(libraryManager: LibraryManager, appState: AppState, reconnect: @escaping () async -> Void) {
+        libraryManager.openSharedLibrary = { machine, path in
+            await openOnDevice(
+                hostRoot: machine.id, libraryPath: path, appState: appState, libraryManager: libraryManager, reconnect: reconnect)
+        }
     }
 }

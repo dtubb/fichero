@@ -68,6 +68,7 @@ extension GuestLibraryChoiceTests {
         let paired = "/Users/ana/Fichero Sources/Istmina/Istmina Full.fichero"
         #expect(GuestLibraryChoice.mayLoad(libraryPath: phone, remoteHost: true, pairedPath: paired) == false)
         #expect(GuestLibraryChoice.mayLoad(libraryPath: paired, remoteHost: true, pairedPath: paired))
+        #expect(GuestLibraryChoice.mayLoad(libraryPath: paired + "/", remoteHost: true, pairedPath: paired))
         #expect(GuestLibraryChoice.mayLoad(libraryPath: phone, remoteHost: false, pairedPath: paired))
         #expect(GuestLibraryChoice.mayLoad(libraryPath: phone, remoteHost: true, pairedPath: " "))
     }

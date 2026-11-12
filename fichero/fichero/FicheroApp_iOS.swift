@@ -178,6 +178,10 @@ private struct FicheroSharedPlatformRoot: View {
         .background { Color.clear.sheet(isPresented: $showingChooser) { NavigationStack { chooser } } }
         // A host stopped sharing, or a shared library would not open: one alert (Step 8.8).
         .background { Color.clear.failureAlert(Bindable(libraryManager).sharingFailure) }
+        .task {
+            SharedLibraryOpener.installOnDevice(
+                libraryManager: libraryManager, appState: appState, reconnect: { await reconnectToConfiguredHost() })
+        }
         .onOpenURL { url in
             // Account invite link (#3157): route to the redeem gate. The token
             // is a secret query param, so it is never logged.
