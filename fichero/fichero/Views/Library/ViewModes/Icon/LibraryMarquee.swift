@@ -270,17 +270,14 @@ struct MarqueeOverlayHost: View {
     }
 }
 
-/// The translucent accent sweep rectangle.
+/// The sweep rectangle: the one rubber band (#4601), Finder's grey.
 struct MarqueeRectangle: View {
     let rect: CGRect
 
     var body: some View {
-        Rectangle()
-            .fill(Color.accentColor.opacity(0.15))
-            .overlay(Rectangle().stroke(Color.accentColor.opacity(0.6), lineWidth: 1))
+        RubberBand()
             .frame(width: rect.width, height: rect.height)
             .offset(x: rect.minX, y: rect.minY)
-            .allowsHitTesting(false)
     }
 }
 

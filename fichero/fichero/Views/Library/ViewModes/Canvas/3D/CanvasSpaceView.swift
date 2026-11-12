@@ -217,12 +217,10 @@ struct CanvasSpaceView: View {
             }
             .overlay {
                 if let rect = marqueeScreenRect {
-                    Rectangle()
-                        .fill(Color.accentColor.opacity(0.12))
-                        .overlay(Rectangle().stroke(Color.accentColor, lineWidth: 1))
+                    // The one rubber band (#4601).
+                    RubberBand()
                         .frame(width: rect.width, height: rect.height)
                         .position(x: rect.midX, y: rect.midY)
-                        .allowsHitTesting(false)
                 }
             }
             // Sibling background-clear tap — same fix as the 2D canvas: an

@@ -21,15 +21,10 @@ struct ImageMarqueeOverlay: View {
             Color.clear.contentShape(Rectangle())
 
             if let rect = displayRect {
-                ZStack(alignment: .topLeading) {
-                    Rectangle()
-                        .fill(Color.accentColor.opacity(0.15))
-                    Rectangle()
-                        .strokeBorder(Color.accentColor, lineWidth: 1.5)
-                }
-                .frame(width: rect.width, height: rect.height)
-                .offset(x: rect.minX, y: rect.minY)
-                .allowsHitTesting(false)
+                // The one rubber band (#4601).
+                RubberBand()
+                    .frame(width: rect.width, height: rect.height)
+                    .offset(x: rect.minX, y: rect.minY)
             }
         }
         .contentShape(Rectangle())

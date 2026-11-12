@@ -487,6 +487,12 @@ homeless until a map-view UI spec exists (#5128).
     has a size, so a zoom moves the camera and no card. Tested in
     `fichero/Tests/Unit/general/Views/Library/CanvasZoomKeepsTheCardsTests.swift` (the real view, store
     and renderer), not yet seen in the app.
+- `library.selection.one-rubber-band` — **[PARTIAL]** (#4601; built 2026-11-11, seen in its preview, not yet in the app;
+  owner: a Finder-style band everywhere, neutral grey, not the accent, which may be yellow) every rubber band is the one
+  `RubberBand`: a translucent grey fill and a thin grey border, semantic colours only, on the 2D and 3D boards, the
+  icon grid, the Preview's region band (no longer a dashed accent box) and the image editor's marquee; the items it
+  crosses light as it sweeps, as before. The table and list keep the system's own band. Tested in
+  `RubberBandEverywhereTests`.
 - `library.canvas.a-click-never-continues-the-last-drag` — **[PARTIAL]** (#4601; built 2026-11-11, tested, not yet seen in
   the app; owner: "a click sometimes moves the previously dragged card and doesn't select") a click on the board selects
   what is under it and never moves the card dragged before it. Cause: the board kept its drag in `@State`, and SwiftUI
