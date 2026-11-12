@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 
 // MARK: - Select All (#4376)
 
@@ -51,6 +54,16 @@ struct SelectAllButton: View {
     /// screen — and focus alone is not rows, since an empty list must decline
     /// so the key equivalent can fall through.
     private var focusedSurface: SelectAllSurface? {
+        SelectAllSidebarGuard.surface(
+            sidebarHoldsKeyboardFocus: SidebarKeyboardFocus.isSidebarFocused,
+            paneSurface: paneSurface
+        )
+    }
+
+    /// The surface the pane-focus hint names. The hint comes only from taps, so it can name
+    /// another pane (or none) while the sidebar outline holds the keyboard; `focusedSurface`
+    /// checks the keyboard first.
+    private var paneSurface: SelectAllSurface? {
         switch focusedPane {
         case .inspector:
             return inspectorSelectAll?.isEnabled == true ? .inspectorList : nil
@@ -97,5 +110,31 @@ struct SelectAllButton: View {
         case .previewImage:
             previewSelectAll?.run()
         }
+    }
+}
+
+/// ⌘A never selects the whole sidebar (`ui.select-all.never-the-sidebar`, #6364). When the
+/// sidebar's outline holds the keyboard, ⌘A is taken and ignored, whatever the tap-based pane
+/// hint says: a hint naming another pane, or none, let Select All disable itself, and ⌘A then fell
+/// through to the system's Select All, which the outline answers by selecting every project,
+/// folder and workflow.
+enum SelectAllSidebarGuard {
+    static func surface(sidebarHoldsKeyboardFocus: Bool, paneSurface: SelectAllSurface?) -> SelectAllSurface? {
+        sidebarHoldsKeyboardFocus ? .sidebar : paneSurface
+    }
+}
+
+/// Whether the key window's first responder sits inside the sidebar's list: the view carrying
+/// `SidebarAccessibilityID.list`, or one of its subviews. AppKit only; false elsewhere.
+@MainActor
+enum SidebarKeyboardFocus {
+    static var isSidebarFocused: Bool {
+        #if canImport(AppKit)
+        guard let responder = NSApp.keyWindow?.firstResponder as? NSView else { return false }
+        return sequence(first: responder, next: \.superview)
+            .contains { $0.accessibilityIdentifier() == SidebarAccessibilityID.list }
+        #else
+        return false
+        #endif
     }
 }
