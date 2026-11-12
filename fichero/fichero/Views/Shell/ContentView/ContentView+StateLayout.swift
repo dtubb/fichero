@@ -138,16 +138,12 @@ extension ContentView {
         }
     }
 
-    /// The width the sidebar/inspector collapse policy sees. iOS passes 0 (unknown, so no forced
-    /// collapse): the user and the system own `columnVisibility` there, and `.inspector` collapses
-    /// itself. The measured-width feedback loop is Mac window behavior only (iOS I1).
-    var shellCollapseWidth: Double {
-        #if os(macOS)
-        measuredWindowWidth
-        #else
-        0
-        #endif
-    }
+    /// The width the sidebar/inspector collapse policy sees: 0 (unknown, so no forced collapse) everywhere. iOS: the user
+    /// and the system own `columnVisibility` there, and `.inspector` collapses itself (iOS I1). macOS: the window cannot be
+    /// narrower than `shellWindowMinWidth`, the sum of the open panes, so a collapse by measured width could only fire on
+    /// a stale reading (the settle delay) and would hide the inspector inside the split view's own constraints pass
+    /// (#6447, second repro, SIGABRT).
+    var shellCollapseWidth: Double { 0 }
 
     var shellCollapsePolicy: ShellCollapsePolicy {
         Self.shellCollapsePolicy(

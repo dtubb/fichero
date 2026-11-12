@@ -12,8 +12,8 @@ final class IOSNoMeasuredCollapseTests: XCTestCase {
                 "Views/Shell/ContentView/ContentView+StateLayout.swift"),
             encoding: .utf8)
         XCTAssertTrue(
-            source.contains("var shellCollapseWidth: Double {\n        #if os(macOS)\n        measuredWindowWidth\n        #else\n        0\n        #endif"),
-            "shellCollapseWidth must be the measured width on macOS and 0 elsewhere (iOS I1).")
+            source.contains("var shellCollapseWidth: Double { 0 }"),
+            "shellCollapseWidth must be 0 on every platform: iOS I1, and on the Mac the window cannot be narrower than its minimum (#6447).")
         XCTAssertTrue(
             source.contains("windowWidth: shellCollapseWidth,"),
             "shellCollapsePolicy must read shellCollapseWidth, never measuredWindowWidth directly.")
