@@ -54,4 +54,23 @@ struct ReadingTreeTests {
         #expect(ReadingTree.build(text.allReadings, retracted: retracted).map(\.id) == ["kraken"])
         #expect(ReadingTree.build(text.allReadings, retracted: retracted, showsWithdrawn: true).map(\.id) == ["kraken", "old"])
     }
+
+    @Test("a line's own click wins only while it matches the window's last ⌥-click; after one, the window's choice holds")
+    func triangleOpensByOwnClickThenByTheWindow() {
+        #expect(ReaderVersionsTriangle.isOpen(own: nil, allOpen: false, stamp: 0) == false)
+        #expect(ReaderVersionsTriangle.isOpen(own: nil, allOpen: true, stamp: 3) == true)
+        #expect(ReaderVersionsTriangle.isOpen(own: (open: true, stamp: 2), allOpen: false, stamp: 2) == true)
+        #expect(ReaderVersionsTriangle.isOpen(own: (open: false, stamp: 2), allOpen: true, stamp: 2) == false)
+        #expect(ReaderVersionsTriangle.isOpen(own: (open: true, stamp: 1), allOpen: false, stamp: 2) == false)
+    }
+
+    @Test("the versions list is the tree depth first, each row one deeper than its parent")
+    func versionsFlattenDepthFirst() {
+        let roots = ReadingTree.build([
+            reading("kraken", at: 1), reading("fix", at: 3, corrects: "kraken"), reading("google", at: 2)
+        ])
+        let rows = ReaderLineVersions.flattened(roots)
+        #expect(rows.map(\.id) == ["kraken", "fix", "google"])
+        #expect(rows.map(\.depth) == [0, 1, 0])
+    }
 }
