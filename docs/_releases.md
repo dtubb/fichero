@@ -1,9 +1,28 @@
-### 2026.10.30
+### 2026.11.13
 
-What changed since 2026.10.28.
+What changed since 2026.11.12.
 
 <details markdown>
 <summary>Show more releases</summary>
+
+- Sharing: Settings › Sharing switches on again on a Mac whose address is a plain IP; Add Device and Share Library show each address on one line, a greyed Tailscale line included; with Multi-user on, a Mac is shared by its Tailscale address and an account.
+- Multi-user: only this Mac's own app turns it on and sets the owner's password, so Turn On Accounts no longer loops.
+- iPad: the Inspector button and the Sidebar/Chat pair, Back/Forward and search are in the navigation bar; a shared Mac's library row has its symbol.
+- Mac: View Full Screen in the Preview head; a folder in the Source pane has one pane head; the sidebar pill has room for its buttons.
+
+### 2026.11.12
+
+What changed since 2026.10.30.
+
+- iPad and iPhone: the app launches again, a device paired to a Mac opens that Mac's library, and the iOS build compiles again.
+- Segments, Reader and Inspector: a filter bar, facts after each row, other readers' words under each row, the Inspector in grouped boxes, and region-coloured hover in the Preview.
+- Sidebar and library: a faster folder click, the Trash as a disclosure group, and table column widths remembered across windows.
+- Canvas: a click never continues the last drag, one rubber band everywhere, and ⌘-scroll zoom that never snaps.
+- Sharing: the pane title says what it shows.
+
+### 2026.10.30
+
+What changed since 2026.10.28.
 
 - Reading at scale: a step of 100 pages or more can go to the provider's batch service (Anthropic, OpenAI, Gemini) at the batch price; the next batch is sent ahead while this Mac works; a cluster read is one Slurm array per stage; a restart or a failed row no longer cancels or re-sends a read that is still out.
 - Catalogue: each folder read in full gets its catalogue even when another batch failed, and the skipped folders are named; a folder's run catalogues only that folder (it used to take the whole project); the catalogue is a folder's own record; dates are normalised as intervals and many Spanish forms are read.
