@@ -160,6 +160,7 @@ extension SidebarView {
             }
         }
         cachedItemIndex = sidebarItemIndex(cachedLibraryHeaders)
+        lastTreeRebuildAt = Date()  // the window in which a dropped row is a rebuild gap (`sidebar.deselect-always-works`)
 
         // Drop derived state for libraries that are no longer open. Without
         // this, closing a library leaves its buckets and — since the index
@@ -191,6 +192,7 @@ extension SidebarView {
         // just rebuilt anyway; a per-library index would have to be merged on
         // every lookup, which is the cost we are removing.
         cachedItemIndex = sidebarItemIndex(cachedLibraryHeaders)
+        lastTreeRebuildAt = Date()  // the window in which a dropped row is a rebuild gap (`sidebar.deselect-always-works`)
         InteractionProfile.lap(.sidebarExpand, "index")
         InteractionProfile.endAfterNextRender(.sidebarExpand, detail: "rebuilt for \(reason)")
     }
