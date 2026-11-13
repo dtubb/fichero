@@ -106,11 +106,31 @@ class ReadLine(str):
 
     confidence: float | None
     char_confidences: list[float] | None
+    #: Where each character starts along the line's baseline, 0 to 1 (`segment-editor.char-positions-kept`); None when
+    #: the reader gave no cuts.
+    char_positions: list[float] | None
 
-    def __new__(cls, text: str, *, confidence: float | None = None, char_confidences: list[float] | None = None):
+    def __new__(cls, text: str, *, confidence: float | None = None, char_confidences: list[float] | None = None,
+                char_positions: list[float] | None = None):
         made = super().__new__(cls, text)
-        made.confidence, made.char_confidences = confidence, char_confidences
+        made.confidence, made.char_confidences, made.char_positions = confidence, char_confidences, char_positions
         return made
+
+
+def char_positions(record: object) -> list[float] | None:
+    """`segment-editor.char-positions-kept`: where each character of a Kraken baseline record starts along its
+    baseline, as a fraction of the baseline's length, from the record's raw cuts (each a (start, end) distance along
+    the baseline in pixels). None, never a guess, when the record has no cuts, or not one per character."""
+    cuts = getattr(record, "_cuts", None)
+    length = float(getattr(record, "_bl_length", 0.0) or 0.0)
+    text = str(getattr(record, "prediction", "") or "")
+    if not cuts or length <= 0 or len(cuts) != len(text):
+        return None
+    try:
+        starts = [min(float(cut[0]), float(cut[1])) for cut in cuts]
+    except (TypeError, ValueError, IndexError):
+        return None
+    return [round(min(max(start / length, 0.0), 1.0), 4) for start in starts]
 
 #: Kraken's pinned version and its missing-package list live in
 #: `pyproject.toml`'s `[tool.fichero.kraken_bundle]` table -- the build step
@@ -1440,6 +1460,7 @@ def _recognize_raw(image_path: str | Path, model_path: str, direction: str | Non
         record = predictions[index] if index < len(predictions) else None
         line["text"] = "" if record is None else str(getattr(record, "prediction", record) or "")
         line["confidence"] = None if record is None else _line_confidence(record)
+        line["char_positions"] = None if record is None else char_positions(record)
     return {"width": width, "height": height, "lines": lines, "regions": _raw_regions(segmentation)}
 
 
@@ -1514,7 +1535,7 @@ def _read_given_raw(image_path: str | Path, model_path: str, lines: list[dict[st
             predictions = list(net.predict(image, segmentation, _reader_config(RecognitionInferenceConfig)))
     read = {str(ln["id"]): ReadLine(str(getattr(r, "prediction", r) or ""), confidence=_line_confidence(r),
                                      char_confidences=[round(float(c), 4) for c in getattr(r, "confidences", None) or []]
-                                     or None)
+                                     or None, char_positions=char_positions(r))
             for ln, r in zip(usable, predictions)}
     return [read.get(str(ln["id"]), ReadLine("")) for ln in lines]
 
@@ -2035,3 +2056,16 @@ __all__ = [
     "segment_lines",
     "segment_to_geometry",
 ]
+
+
+def polygonal_environment(image: object, baselines: list[list[tuple[int, int]]],
+                          bounds: list[list[tuple[int, int]]] | None) -> list[object] | None:
+    """Kraken's polygonal-environment routine (`calculate_polygonal_environment`, eScriptorium's "recalculate masks"):
+    an outline for each baseline on the page image, the `bounds` baselines kept outside every one. None when Kraken
+    is not installed, so the caller falls back. The one place outside a read that touches Kraken, kept behind this
+    seam like every other (`segment-editor.regenerate-polygon-from-baseline`). No model is loaded."""
+    try:
+        from kraken.lib.segmentation import calculate_polygonal_environment
+    except Exception:  # pragma: no cover - the bundle decides
+        return None
+    return list(calculate_polygonal_environment(image, baselines=baselines, suppl_obj=bounds or None))

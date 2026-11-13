@@ -24,14 +24,6 @@ _INK_SHARE = 0.01
 Points = list[list[float]]
 
 
-def kraken_available() -> bool:
-    try:
-        from kraken.lib.segmentation import calculate_polygonal_environment  # noqa: F401
-    except Exception:  # pragma: no cover - the bundle decides
-        return False
-    return True
-
-
 def has_ink(gray: Any, polygon: Points) -> bool:
     """Whether the outline holds ink: more than `_INK_SHARE` of its pixels darker than mid-grey."""
     import cv2
@@ -67,22 +59,24 @@ def outlines(image: Any, baselines: list[Points], bounds: list[Points], fixed_he
 
     `image` is the page as a PIL image; `bounds` are the neighbouring baselines, which no outline crosses.
     """
-    found: list[Points | None] = [None] * len(baselines)
-    if kraken_available() and baselines:
-        from kraken.lib.segmentation import calculate_polygonal_environment
+    from fichero_server.llm import kraken_runtime
 
+    found: list[Points | None] = [None] * len(baselines)
+    drawn = None
+    if baselines:
         try:
-            drawn = calculate_polygonal_environment(
+            drawn = kraken_runtime.polygonal_environment(
                 image.convert("L"),
-                baselines=[[(int(round(x)), int(round(y))) for x, y in line] for line in baselines],
-                suppl_obj=[[(int(round(x)), int(round(y))) for x, y in line] for line in bounds] or None,
+                [[(int(round(x)), int(round(y))) for x, y in line] for line in baselines],
+                [[(int(round(x)), int(round(y))) for x, y in line] for line in bounds],
             )
-            found = [
-                [[float(x), float(y)] for x, y in polygon] if polygon is not None and len(polygon) >= 3 else None
-                for polygon in drawn
-            ]
         except Exception as why:  # Kraken refuses some pages outright (no ink, a degenerate line)
             logger.info("outline from baseline: kraken drew nothing (%s)", why)
+    if drawn is not None:
+        found = [
+            [[float(x), float(y)] for x, y in polygon] if polygon is not None and len(polygon) >= 3 else None
+            for polygon in drawn
+        ]
         # On a page with no ink Kraken still answers, with an outline that runs to the page's edge; an outline
         # holding (almost) no dark pixels measured nothing and is not kept.
         gray = image.convert("L")
