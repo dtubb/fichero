@@ -74,6 +74,8 @@ final class ImageWithCursorTrackingIOSCoordinator: NSObject, UIScrollViewDelegat
         let insetX = max(0, (viewSize.width - scaledW) / 2)
         let insetY = max(0, (viewSize.height - scaledH) / 2)
         scrollView.contentInset = UIEdgeInsets(top: insetY, left: insetX, bottom: insetY, right: insetX)
+        // Every zoom change passes through here, so this is where the fitted page stops scrolling (#6559).
+        syncPanningToZoom()
     }
 
     func updateVisibleRect() {
@@ -187,6 +189,60 @@ final class ImageWithCursorTrackingIOSCoordinator: NSObject, UIScrollViewDelegat
         let targetX = min(max(0, visibleRect.origin.x + deltaX), maxX) - scrollView.contentInset.left
         let targetY = min(max(0, visibleRect.origin.y + deltaY), maxY) - scrollView.contentInset.top
         scrollView.setContentOffset(CGPoint(x: targetX, y: targetY), animated: false)
+    }
+}
+
+// MARK: - Page swipe (#6559)
+
+extension ImageWithCursorTrackingIOSCoordinator: UIGestureRecognizerDelegate {
+    /// A fitted page does not scroll, so a sideways swipe on it turns the page instead of nudging the image; a
+    /// zoomed-in page pans as before. The pinch is a separate recognizer, so zooming works either way. The full-screen
+    /// view has no pages to turn, so its pinch floor is set here too.
+    func syncPanningToZoom() {
+        guard let scrollView else { return }
+        let fit = calculateFitScale()
+        scrollView.minimumZoomScale = PageSwipe.minimumZoom(
+            fitScale: fit, floorsAtFit: owner.floorsZoomAtFit, minScale: owner.minScale
+        )
+        let zoomedIn = PageSwipe.isZoomedIn(scale: scrollView.zoomScale, fitScale: fit)
+        if scrollView.isScrollEnabled != zoomedIn { scrollView.isScrollEnabled = zoomedIn }
+    }
+
+    /// The page-swipe recognizer, on the scroll view itself: a SwiftUI drag over the representable lost to the
+    /// scroll view's own pan.
+    func installPageSwipe(on scrollView: UIScrollView) {
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePageSwipe(_:)))
+        pan.delegate = self
+        pan.maximumNumberOfTouches = 1
+        scrollView.addGestureRecognizer(pan)
+    }
+
+    @objc func handlePageSwipe(_ pan: UIPanGestureRecognizer) {
+        guard pan.state == .ended, let view = pan.view else { return }
+        let translation = pan.translation(in: view)
+        let size = CGSize(width: translation.x, height: translation.y)
+        let step = PageSwipe.step(
+            translation: size,
+            predictedEnd: PageSwipe.predictedEnd(translation: size, velocity: pan.velocity(in: view)),
+            isZoomedIn: false
+        )
+        if let step { owner.onPageStep?(step) }
+    }
+
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
+              pan !== scrollView?.panGestureRecognizer else { return true }
+        guard owner.onPageStep != nil, let scrollView else { return false }
+        let zoomedIn = PageSwipe.isZoomedIn(scale: scrollView.zoomScale, fitScale: calculateFitScale())
+        return PageSwipe.claimsDrag(velocity: pan.velocity(in: pan.view), isZoomedIn: zoomedIn)
+    }
+
+    /// The pinch and the image's tap still see the touches.
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+        true
     }
 }
 

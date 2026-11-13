@@ -20,4 +20,23 @@ enum PageSwipe {
         guard let fitScale, fitScale > 0 else { return false }
         return scale > fitScale * 1.05
     }
+
+    /// Where a drag released at `velocity` (points per second) would come to rest, for `step`'s `predictedEnd`: UIKit's
+    /// pan recognizer gives a velocity, not SwiftUI's predicted end.
+    static func predictedEnd(translation: CGSize, velocity: CGPoint) -> CGSize {
+        CGSize(width: translation.width + velocity.x * 0.2, height: translation.height + velocity.y * 0.2)
+    }
+
+    /// Whether a drag starting at `velocity` is the page swipe's to take: sideways, on a fitted page. A vertical drag
+    /// is left to whatever else wants it (the full-screen view's swipe down to close).
+    static func claimsDrag(velocity: CGPoint, isZoomedIn: Bool) -> Bool {
+        !isZoomedIn && abs(velocity.x) > abs(velocity.y)
+    }
+
+    /// The smallest zoom a pinch may reach. The full-screen view floors it at the fitted size, so a pinch out springs
+    /// back to the whole page instead of shrinking it to a speck; the inline preview keeps `minScale`.
+    static func minimumZoom(fitScale: CGFloat?, floorsAtFit: Bool, minScale: CGFloat) -> CGFloat {
+        guard floorsAtFit, let fitScale, fitScale > 0 else { return minScale }
+        return max(minScale, fitScale)
+    }
 }

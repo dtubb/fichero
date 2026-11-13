@@ -127,7 +127,11 @@ struct ZoomableImagePreview: View {
                             loupeLocked: loupeLocked,
                             loupeMagnification: $loupeMagnification,
                             loupeSize: $loupeSize,
-                            coordinator: $imageCoordinator
+                            coordinator: $imageCoordinator,
+                            onPageStep: { step in
+                                if step == -1 { previousAction?() }
+                                if step == 1 { nextAction?() }
+                            }
                         )
                     } else {
                         ContentUnavailableView(
@@ -148,9 +152,8 @@ struct ZoomableImagePreview: View {
                     }
                 }
                 // A horizontal swipe on a fitted page turns to the previous or next image in the folder, as in Photos
-                // (#6559); it replaced the blue prev/next buttons (#2420). Simultaneous, so a zoomed-in page still pans.
-                .simultaneousGesture(pageSwipeGesture)
-                // VoiceOver's way to the same steps, now that the buttons are gone.
+                // (#6559, `onPageStep` above, read on the image's own scroll view); it replaced the blue prev/next
+                // buttons (#2420). VoiceOver's way to the same steps, now that the buttons are gone.
                 .accessibilityAction(named: "Previous image") { previousAction?() }
                 .accessibilityAction(named: "Next image") { nextAction?() }
 
@@ -243,19 +246,6 @@ struct ZoomableImagePreview: View {
         .fullScreenCover(isPresented: $showingFullScreen) {
             FullScreenImagePreview(url: url, renderedImage: renderedImage)
         }
-    }
-
-    /// The swipe that turns pages (`PageSwipe`).
-    var pageSwipeGesture: some Gesture {
-        DragGesture(minimumDistance: 20)
-            .onEnded { value in
-                let zoomedIn = PageSwipe.isZoomedIn(scale: scale, fitScale: imageCoordinator?.calculateFitScale())
-                let step = PageSwipe.step(
-                    translation: value.translation, predictedEnd: value.predictedEndTranslation, isZoomedIn: zoomedIn
-                )
-                if step == -1 { previousAction?() }
-                if step == 1 { nextAction?() }
-            }
     }
 
     // MARK: - Event Handlers

@@ -48,7 +48,8 @@ struct FullScreenImagePreview: View {
                     loupeLocked: false,
                     loupeMagnification: $loupeMagnification,
                     loupeSize: $loupeSize,
-                    coordinator: $imageCoordinator
+                    coordinator: $imageCoordinator,
+                    floorsZoomAtFit: true
                 )
                 .ignoresSafeArea()
             } else {
