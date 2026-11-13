@@ -45,6 +45,7 @@ _ORDER_ACTIONS = frozenset({"reading_order.place", "reading_order.restore_place"
 _MEMBERSHIP_ACTIONS = frozenset({
     "segment.create", "segment.create_many", "segment.delete", "segment.undelete",
     "segment.merge", "segment.unmerge", "segment.split", "segment.unsplit", "segment.unsplit_many",
+    "segment.cut_words", "segment.uncut_words",
     "segment.uncombine", "segment.restore_version", "segment.restore_versions",
     "segment.pass_create", "segment.pass_delete", "segment.pass_restore",
 })

@@ -367,7 +367,7 @@ See section 7.2 below for what exists. The design:
   `cut: measured` (not for right-to-left lines yet: their positions run along the baseline as
   drawn). *Not built:* the full-page read's writer, the app's `Reading` model. *Tests:*
   `test_kraken_char_positions.py`.
-- `segment-editor.cut-words-from-positions` — **[GAP]** (→ #5212; engine + app) **Cut Words** (⌘⇧W) on selected lines, or
+- `segment-editor.cut-words-from-positions` — **[PARTIAL]** (→ #5212; engine + app) **Cut Words** (⌘⇧W) on selected lines, or
   a page, derives word segments from the counting reading: each space in the text is a gap
   between two characters; the cut is the point on the baseline midway between the end of the
   character before and the start of the one after; the line's outline is cut across the
@@ -379,23 +379,35 @@ See section 7.2 below for what exists. The design:
   has both, the word layer shows the words cut from the positions and Vision's boxes stay in
   their packed row for the missed-words check; a hand-drawn word is kept and matched by overlap,
   never duplicated. Only lines with a reading and positions are cut this way; the rest fall to
-  the ink-gap fallback and say so.
+  the ink-gap fallback and say so. *Built (2026-11-13):* `segment.cut_words` (one action for the
+  lines given, undo `segment.uncut_words`, redo through its own invert; a machine's earlier words
+  are replaced, a person's kept and not duplicated; the page's text is unchanged); it runs after
+  every Kraken read-given-lines read on the lines with positions (`cut_words_after_read`, never
+  failing the read); Edit › Segments ▸ Cut Words (⇧⌘W), which says how many lines it could not
+  cut. *Not built:* the full-page read's hook, a word's own reading (the word carries its
+  `reading_span` into the line's reading), right-to-left lines from positions (they take the
+  ink-gap path), Vision's packed row beside them. *Tests:* `test_segment_cut_words.py`;
+  `CutWordsTests` in `SegmentSimplifyTests.swift`.
 - `segment-editor.cut-characters` — **[GAP]** (→ #5212; engine + app) **Cut Characters** does the same inside a word
   from its character positions, giving `character` children; offered only at a zoom where a
   character is at least 24 pt tall on screen.
-- `segment-editor.cut-fallback-ink-gaps` — **[GAP]** (→ #5212; engine) a line with a reading and no positions is
+- `segment-editor.cut-fallback-ink-gaps` — **[OK]** (→ #5212; engine) a line with a reading and no positions is
   cut by the ink-gap projection profile along its baseline: the dark pixels of the current
   image inside the outline are summed across the baseline, gaps wider than a fraction of the
   line's height are candidate cuts, and the N widest gaps are taken for N spaces in the reading.
   It is much less reliable and is marked so (`cut_source: ink-gap`, confidence from the gap's
   width against the median, capped low). **Kept** (owner 2026-11-13): the fallback stays, with
   its source and its low confidence on every cut it makes. A line with no reading cannot be cut
-  into words at all and says why.
-- `segment-editor.cut-records-source-and-confidence` — **[GAP]** (→ #5212; engine) every word and character made by a cut
+  into words at all and says why. *Built (2026-11-13):* `line_cut.cuts_from_ink_gaps` (the profile
+  along the chord of the baseline, gaps a seventh of the line's height, confidence at most 0.4);
+  a line with too few gaps is left alone and named. *Tests:* `test_segment_cut_words.py::TestFallback`.
+- `segment-editor.cut-records-source-and-confidence` — **[PARTIAL]** (→ #5212; engine) every word and character made by a cut
   carries `cut_source` (`ctc`, `ink-gap`, `person`), `cut_confidence` (0 to 1; the recogniser's
   character confidence at the cut for `ctc`, the gap measure for `ink-gap`, 1 for `person`) and
   the reading it was cut from, in the segment's metadata, so a later pass, the Check lens and an
   export can tell a measured cut from a guessed one and a person's from a machine's.
+  *Built (2026-11-13):* `cut_source` (`ctc`, `ink-gap`), `cut_confidence`, `cut_from_representation_id`
+  and `reading_span` on every word `segment.cut_words` makes. *Not built:* `person` (the cut marks).
 - `segment-editor.cut-marks-editable` — **[GAP]** (→ #5212; app + engine) in the word layer each cut is a short mark
   across the baseline: drag it to move the cut (one `segment.update` of the two words' anchors
   and spans, `cut_source: person`); click on the baseline between two words to add a cut
