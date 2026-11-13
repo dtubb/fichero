@@ -243,7 +243,8 @@ struct WorkspaceSplitStack: View {
     /// it is RESIZABLE (default extent, floored at its own value), not exempt.
     @ViewBuilder private func arranged(total: CGFloat) -> some View {
         let resolved = Self.resolvedExtents(
-            children.map(\.sizing), storedOverrides: storedOverrides(total: Double(total)), total: Double(total)
+            children.map(\.sizing), storedOverrides: storedOverrides(total: Double(total)), total: Double(total),
+            minPerPane: Self.minPerPane(onIOS: Self.runsOnIOS), flexMinimum: Self.flexMinimum(onIOS: Self.runsOnIOS)
         )
         let flexIndex = children.firstIndex { child in
             if case .flex = child.sizing { return true }
@@ -299,7 +300,7 @@ struct WorkspaceSplitStack: View {
         ForEach(plans, id: \.id) { plan in
             switch plan.layout {
             case .flex:
-                plan.view.frame(maxWidth: .infinity, maxHeight: .infinity)
+                flexing(plan.view)
             case let .resizable(binding, display, dividerBefore, minWidth):
                 if dividerBefore { divider(binding, edge: .trailing, total: total, minWidth: minWidth) }
                 sized(plan.view, value: display)
@@ -331,12 +332,48 @@ struct WorkspaceSplitStack: View {
     /// maxHeight:)` mixes two frame overloads and won't compile; the stacked
     /// `.frame(width:).frame(maxHeight:)` pair is the one that fed the unbounded proposal into
     /// AppKit and crashed. This is neither.)
-    @ViewBuilder private func sized(_ view: AnyView, value: Double) -> some View {
+    /// The flexing child. `minWidth`/`minHeight: 0`: it takes exactly what its siblings leave, whatever its content asks
+    /// for. Without it, content wider than the remainder (an iPad with both side columns open) grew the whole row past
+    /// this stack's frame, which centred it and slid the first pane under the sidebar (#6564).
+    @ViewBuilder private func flexing(_ view: AnyView) -> some View {
         if axis == .horizontal {
-            view.frame(minWidth: value, maxWidth: value, maxHeight: .infinity)
+            view.frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity).clipped()
         } else {
-            view.frame(maxWidth: .infinity, minHeight: value, maxHeight: value)
+            view.frame(maxWidth: .infinity, minHeight: 0, maxHeight: .infinity).clipped()
         }
+    }
+
+    @ViewBuilder private func sized(_ view: AnyView, value: Double) -> some View {
+        // Clipped, as the flexing pane is: a pane squeezed below its content's width (an iPad with both side columns
+        // open) keeps its content inside its own frame instead of drawing over the sidebar and its neighbour.
+        if axis == .horizontal {
+            view.frame(minWidth: value, maxWidth: value, maxHeight: .infinity).clipped()
+        } else {
+            view.frame(maxWidth: .infinity, minHeight: value, maxHeight: value).clipped()
+        }
+    }
+
+    /// What the flexing pane keeps however the sized panes ask (#6564). On the Mac the window's own minimum
+    /// width keeps every pane usable, so the stack only keeps 48 points. An iPad's content column is what is left
+    /// between the sidebar and the Inspector (about 670 points on an iPad mini), and with the Read workspace's Preview
+    /// share the flexing Items/Reader column was left about 85 points wide, so iOS keeps 220.
+    nonisolated static func flexMinimum(onIOS: Bool) -> Double {
+        onIOS ? 220 : 48
+    }
+
+    /// The narrowest a sized pane is drawn. 48 points on the Mac; on iOS 160, the width a pane's own head and bottom bar
+    /// need: Browse's icon strip, seeded at 15% of the row, was about 80 points on an iPad mini and its head and bar
+    /// were cut off.
+    nonisolated static func minPerPane(onIOS: Bool) -> Double {
+        onIOS ? 160 : 48
+    }
+
+    nonisolated static var runsOnIOS: Bool {
+        #if os(iOS)
+        true
+        #else
+        false
+        #endif
     }
 
     /// Resolve every child's on-screen extent for a stack of `total` points along its axis: a
