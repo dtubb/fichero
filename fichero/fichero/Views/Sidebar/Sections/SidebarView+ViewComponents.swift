@@ -55,7 +55,12 @@ extension SidebarView {
             // Its own section with no heading, so the Projects section after it is a peer, as Finder's
             // Favourites and Locations are (Daniel, 2026-10-11): a sidebar list draws a section's heading
             // between sections.
-            if let top = sections.top {
+            if let top = sections.top,
+               SidebarProjectSections.showsAlwaysThere(
+                   requiresExternalEngine: EngineConfig.requiresExternalBackendConnection,
+                   alwaysTherePath: libraryManager.globalLibrary?.url.path,
+                   pairedLibraryPath: RemoteAccessConfig.pairedLibraryPath
+               ) {
                 Section {
                     alwaysThereProjectItems(top)
                 }

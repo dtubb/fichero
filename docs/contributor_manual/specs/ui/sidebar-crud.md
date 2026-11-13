@@ -303,6 +303,8 @@ NOT this PR.
 ## Sharing rows (ruled 2026-10-17)
 Shared libraries appear in PROJECTS, not in a section of their own; the three behaviours live in `transport/library-sharing.md`: `sharing.sidebar.guest-row`, `sharing.sidebar.host-mark`, `sharing.sidebar.off-greys-row` (all [GAP] until built).
 
+- `sidebar.guest-has-no-library-of-its-own` — **[PARTIAL]** (#6556; manager, 2026-11-12) a device whose engine is always another Mac's (an iPad or iPhone paired to a host) has no library of its own, so its sidebar shows only the host's: the always-there section is drawn only while it holds the host's paired library (`LibraryManager.adoptPairedRemoteLibrary`), never the device's own global package, which no engine serves. A Mac always draws its own. *Built:* `SidebarProjectSections.showsAlwaysThere`. *Test:* `AlwaysThereOnAGuestTests`. *Not seen:* the unpaired or not-yet-adopted iPad on screen; and the host's own always-there library still appears in the shared Mac's list, which `sharing.guest.machines-group`'s open-libraries rule (#6556) covers.
+
 ## Triaged from the backlog (2026-10-04)
 - `sidebar.drag-identity-edges` — **[GAP]** (#4530) a foreign plain-text drag is not blamed as internal, a user folder named fichero-drag-* is not swallowed, and canonicalLibraryKey matching is case-insensitive.
 - `sidebar.drop-on-content-pane-silent` — **[GAP]** (#4551) releasing an in-app library drag on the content pane is a silent no-op, never a modal Import Error (message still in ContentView+ActionsImport.swift).

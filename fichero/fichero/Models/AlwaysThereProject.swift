@@ -68,4 +68,16 @@ enum SidebarProjectSections {
         let projects = items.filter { libraryId($0) != alwaysThereId }
         return (top, projects)
     }
+
+    /// Whether the always-there project's section is drawn. A device whose engine is always another Mac's (an iPad or
+    /// iPhone paired to a host) has no library of its own: its always-there slot shows a library only once the slot
+    /// holds the host's paired library (`LibraryManager.adoptPairedRemoteLibrary`). Until then the slot is the
+    /// device's own global package, which no engine serves, and drawing it put a library the iPad does not have in its
+    /// sidebar. A Mac always draws its own.
+    static func showsAlwaysThere(requiresExternalEngine: Bool, alwaysTherePath: String?, pairedLibraryPath: String) -> Bool {
+        guard requiresExternalEngine else { return true }
+        guard let alwaysTherePath, !pairedLibraryPath.isEmpty else { return false }
+        let key: (String) -> String = { URL(fileURLWithPath: $0).standardizedFileURL.path }
+        return key(alwaysTherePath) == key(pairedLibraryPath)
+    }
 }
