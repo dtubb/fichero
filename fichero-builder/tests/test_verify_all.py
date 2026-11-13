@@ -20,7 +20,7 @@ def world(tmp_path, monkeypatch):
     monkeypatch.setattr(check_tool, "_scratch_tree", lambda r, sha, p, cfg, overlay=True: str(root))
     monkeypatch.setattr(check_tool, "guards", lambda tree, cfg: (seen.append("guards"), {"ok": ok["guards"], "reason": "a guard red"})[1])
     monkeypatch.setattr(check_tool, "green_runs", lambda tree, files, whole, cfg, t: (seen.append(("suite", files, whole)), {"ok": ok["suite"]})[1])
-    monkeypatch.setattr(check_tool, "build", lambda tree, names, cfg, landed=False: (seen.append(("build", names)), landed or seen.append("not-landed"), {"ok": ok["build"], "skipped": False})[1])
+    monkeypatch.setattr(check_tool, "build", lambda tree, names, cfg, landed=False: (seen.append(("build", names)), landed or seen.append("not-landed"), {"ok": ok["build"], "skipped": False})[2])
     monkeypatch.setattr(build, "main", lambda a: (seen.append("dmg"), 0)[1])
     monkeypatch.setattr(verify.jail, "load", lambda r: None)
     return root, seen, ok
