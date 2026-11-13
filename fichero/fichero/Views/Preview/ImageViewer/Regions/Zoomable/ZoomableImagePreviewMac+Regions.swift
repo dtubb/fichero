@@ -503,6 +503,7 @@ extension ZoomableImagePreview {
             canSelectAll: ocrGeometry?.boxes.isEmpty == false, selectAll: { selectAllGeometryForArmedTool() },
             delete: { deleteSelectedRegions() }, join: { combineSelectedRegions() },
             selectionHasBaselines: selectionHasBaselines, redraw: { redrawSelectedOutlines() },
+            splitAtPoint: { splitSelectedLineAtLastPoint() },
             apply: { setSelectedSegments($0) }
         )
     }

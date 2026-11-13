@@ -37,6 +37,57 @@ extension SegmentEdit {
         ))
     }
 
+    /// SPLIT one line at a point (`segment-editor.split-at-a-point`): the Knife's call with a two-point stroke through
+    /// the point's foot on the baseline, at right angles to it, reaching past the line's box on both sides.
+    static func splitAtPoint(_ line: Segment, at point: [Double]) -> Result<Call, Refusal> {
+        guard let baseline = line.baseline, baseline.count >= 2 else { return .failure(.noBaseline) }
+        guard point.count >= 2, let foot = footOnBaseline(baseline, point) else { return .failure(.tooFew) }
+        guard let version = line.version else { return .failure(.versionUnknown) }
+        let height = max(line.anchor.rect.flatMap { $0.count >= 4 ? $0[3] : nil } ?? 0.02, 0.01)
+        let reach = height * 2
+        let stroke = [
+            [foot.pointX - foot.normalX * reach, foot.pointY - foot.normalY * reach],
+            [foot.pointX + foot.normalX * reach, foot.pointY + foot.normalY * reach]
+        ]
+        return .success(Call(
+            action: "segment.split", params: .knife(SegmentKnifeRequest(cutPath: stroke, expectedVersions: [line.id: version]))
+        ))
+    }
+
+    /// The point on a baseline nearest a given point, and the unit normal of the stretch it lies on.
+    struct BaselineFoot {
+        let pointX: Double, pointY: Double, normalX: Double, normalY: Double
+        let distance: Double
+    }
+
+    /// The point on the baseline nearest `point`, and the unit normal of the stretch it lies on.
+    static func footOnBaseline(_ baseline: [[Double]], _ point: [Double]) -> BaselineFoot? {
+        var best: BaselineFoot?
+        for (start, end) in zip(baseline, baseline.dropFirst()) where start.count >= 2 && end.count >= 2 {
+            let deltaX = end[0] - start[0], deltaY = end[1] - start[1]
+            let length = hypot(deltaX, deltaY)
+            guard length > 0 else { continue }
+            let along = min(max(((point[0] - start[0]) * deltaX + (point[1] - start[1]) * deltaY) / (length * length), 0), 1)
+            let footX = start[0] + deltaX * along, footY = start[1] + deltaY * along
+            let distance = hypot(point[0] - footX, point[1] - footY)
+            if distance < (best?.distance ?? .infinity) {
+                best = BaselineFoot(pointX: footX, pointY: footY, normalX: -deltaY / length, normalY: deltaX / length, distance: distance)
+            }
+        }
+        return best
+    }
+
+    /// What the Knife says when it is done: how many lines it cut, and how many under the stroke it left alone
+    /// (crossed nowhere on the baseline, or no baseline to cut); nil when there is nothing worth saying.
+    static func knifeNotice(cut: Int, leftAlone: Int) -> String? {
+        guard leftAlone > 0 else { return nil }
+        let cutWords = cut == 1 ? "Cut 1 line" : "Cut \(cut) lines"
+        let aloneWords = leftAlone == 1
+            ? "1 line the stroke did not cross was left alone"
+            : "\(leftAlone) lines the stroke did not cross were left alone"
+        return "\(cutWords); \(aloneWords)"
+    }
+
     /// `[minX, minY, maxX, maxY]` of some points; nil for none.
     private static func bounds(of points: [[Double]]) -> [Double]? {
         let lefts = points.compactMap { $0.first }, tops = points.compactMap { $0.count > 1 ? $0[1] : nil }

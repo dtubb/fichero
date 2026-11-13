@@ -332,6 +332,15 @@ struct SegmentEditRunner {
         _ call: SegmentEdit.Call, documentId: String, actionName: String, steps: WindowSteps?,
         afterChange: @escaping @MainActor () async -> Void = {}
     ) async throws -> String {
+        try await runAnswering(call, documentId: documentId, actionName: actionName, steps: steps, afterChange: afterChange)
+            .auditId
+    }
+
+    /// `run`, answering the engine's whole result (the Knife says how many lines it cut and left alone).
+    func runAnswering(
+        _ call: SegmentEdit.Call, documentId: String, actionName: String, steps: WindowSteps?,
+        afterChange: @escaping @MainActor () async -> Void = {}
+    ) async throws -> ActionInvokeResult {
         let store = store
         let result = try await AuditedAction.run(
             call.action, params: call.params, actionName: actionName, actionsService: actionsService, steps: steps,
@@ -341,7 +350,7 @@ struct SegmentEditRunner {
                 NotificationCenter.default.post(name: SegmentEditRunner.didChange, object: documentId)
             }
         )
-        return result.auditId
+        return result
     }
 }
 

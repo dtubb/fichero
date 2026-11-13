@@ -173,3 +173,13 @@ def reading_offsets(cuts: list[float], length: int, char_positions: list[float] 
     if offsets and (offsets[-1] >= length or any(b <= a for a, b in zip(offsets, offsets[1:]))):
         return [], not known
     return offsets, not known
+
+
+def part_holding(point: Point, polygons: list[list[Point]]) -> int:
+    """The index of the part whose outline holds `point`, or the nearest one when none does
+    (`segment-editor.edge.knife-through-words`: a word goes with the part its centre falls in)."""
+    probe = (float(point[0]) * _GRID, float(point[1]) * _GRID)
+    distances = [
+        cv2.pointPolygonTest(np.array(_cells(polygon), dtype=np.float32), probe, True) for polygon in polygons
+    ]
+    return int(np.argmax(distances))

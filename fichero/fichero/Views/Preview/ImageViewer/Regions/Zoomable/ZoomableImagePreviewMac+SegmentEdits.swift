@@ -186,6 +186,18 @@ extension ZoomableImagePreview {
         guard let documentId, let store = segmentEditStore else { return }
         runSegmentEdit(
             SegmentEdit.knife(stroke, over: store.segments(documentId: documentId)), documentId: documentId, name: "Cut Lines"
+        ) { result in
+            windowState?.segmentNotice = SegmentEdit.knifeNotice(
+                cut: result.resultListCounts["splits"] ?? 0, leftAlone: result.resultListCounts["left_alone"] ?? 0
+            )
+        }
+    }
+
+    /// SPLIT the one selected line where it was last clicked (`segment-editor.split-at-a-point`, ⌘⇧K).
+    func splitSelectedLineAtLastPoint() {
+        guard let documentId, let line = selectedSegments(documentId).first, let pressed = pointerFeed.latest?.point else { return }
+        runSegmentEdit(
+            SegmentEdit.splitAtPoint(line, at: [Double(pressed.x), Double(pressed.y)]), documentId: documentId, name: "Split Line"
         )
     }
 
@@ -216,7 +228,8 @@ extension ZoomableImagePreview {
     }
 
     private func runSegmentEdit(
-        _ planned: Result<SegmentEdit.Call, SegmentEdit.Refusal>, documentId: String, name: String
+        _ planned: Result<SegmentEdit.Call, SegmentEdit.Refusal>, documentId: String, name: String,
+        answered: @escaping @MainActor (ActionInvokeResult) -> Void = { _ in }
     ) {
         guard case .success(let call) = planned else {
             if case .failure(let refusal) = planned {
@@ -228,10 +241,11 @@ extension ZoomableImagePreview {
         let runner = SegmentEditRunner(actionsService: actionsService, store: store)
         Task {
             do {
-                try await runner.run(
+                let result = try await runner.runAnswering(
                     call, documentId: documentId, actionName: name, steps: windowSteps,
                     afterChange: { await loadOCRGeometry() }
                 )
+                answered(result)
             } catch {
                 Self.logger.error("\(name, privacy: .public) failed: \(String(describing: error), privacy: .public)")
             }
