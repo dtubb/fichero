@@ -339,6 +339,12 @@ starting a new one.
   something (notes, citations, entities) keeps its count. *Built:* `DocumentInspector.withInspectorBar` passes no
   status, `InspectorBottomMiniToolbar` draws none when it is empty. *Not built:* a look on screen. *Tests:*
   `Views/Inspector/InspectorBottomBarStatusTests.swift`.
+- `panes.chrome.command-scroll-zooms` — **[PARTIAL]** (owner 2026-11-13) ⌘ + the scroll wheel, or a Magic Mouse's swipe,
+  zooms the view under the pointer wherever the view zooms by pinch: the Canvas already did (`CanvasScrollPan`, into the
+  cursor), the page image too (`ScrollWheelZoom`), and now the Items' Icon grid (one 0.1 step per scroll, in the pinch's
+  range). Without ⌘ a scroll is a scroll. One modifier, `View.commandScrollZoom` (`CommandScrollZoom`), for any view
+  that joins. *Not built:* List and Table row size, the Source pane's folder views' zoom button (#26), the pinch lag
+  the owner saw on the Canvas. *Tests:* `Views/Components/CommandScrollZoomTests.swift`.
 - `panes.chrome.one-filter-pattern` — **[GAP]** (owner 2026-11-13, screenshots of every bar; supersedes the toolbar
   prompt's items 13 and 14) every list of items has ONE bottom bar, the same five controls in the same order:
   **+ · 🗑 · Metadata · Sort · Filter**. That is the sidebar, the Items pane in every view (List, Table, Icons,
