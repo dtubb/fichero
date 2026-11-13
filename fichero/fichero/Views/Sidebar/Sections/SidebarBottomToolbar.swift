@@ -41,10 +41,10 @@ struct SidebarBottomToolbar: View {
     }
 
     /// One hairline above the bar on macOS (`panes.chrome.bar-hairline-rule`); the glass on touch needs none.
-    static var drawsHairlineAbove: Bool { PaneBarStyle.barsDrawHairline }
+    nonisolated static var drawsHairlineAbove: Bool { PaneBarStyle.barsDrawHairline }
 
     /// Room for the magnifier and a few typed characters in the narrowest sidebar.
-    private static var filterFieldMinWidth: CGFloat { 60 }
+    nonisolated private static var filterFieldMinWidth: CGFloat { 60 }
 
     var body: some View {
         // No `ViewThatFits` ladder and no field inside one (#5293): the field is one view for the
