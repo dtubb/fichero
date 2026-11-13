@@ -98,6 +98,27 @@ def _region_children(db: Database, document: Document) -> list[Document]:
     return regions
 
 
+#: The `region_in_parent.method` of a hand-drawn crop (`crop_image_child_impl`): an edit of the page's
+#: picture, never a section of its text (#6579).
+USER_CROP_METHOD = "user-crop"
+
+
+def region_sections(regions: list[Document]) -> list[Document]:
+    """The regions a page READS AS, or none: then the page reads as itself (#6579, owner 2026-11-13).
+
+    A page with no page children used to list every region child as a Reader section, so an image
+    page's crops showed as "Page 1 … crop — No transcription yet", "Page 2 …", and the page's own text,
+    from its lines, was never shown. A hand-drawn crop is never a section; other regions (diary
+    entries, splits) are the sections only when one of them has text of its own. Pure."""
+    sections = [
+        region
+        for region in regions
+        if region.region_in_parent is None or region.region_in_parent.method != USER_CROP_METHOD
+    ]
+    has_text = any(region.page_content and region.page_content.strip() for region in sections)
+    return sections if has_text else []
+
+
 def region_cohort(regions: list[Document], anchor: Document) -> list[Document]:
     """ALL regions of the anchor's view — never just the one (2026-08-29).
 
@@ -931,7 +952,7 @@ def document_view(
     if document is not requested:
         child_pages = region_cohort(_region_children(db, document), requested)
     elif not child_pages:
-        child_pages = _region_children(db, document)
+        child_pages = region_sections(_region_children(db, document))
     if selected_page_ids is not None:
         child_pages = [p for p in child_pages if p.id in selected_page_ids]
     region_scoped = any(p.region_in_parent is not None for p in child_pages)
@@ -945,11 +966,30 @@ def document_view(
             document = db.get(Document, document.id) or document
         child_pages = [db.get(Document, p.id) or p if p.id in refreshed else p for p in child_pages]
     pages = transcript_pages(document, child_pages)
-    if pages and any(not page["has_content"] for page in pages):
-        # A reading stored on the page itself belongs to no line (#6470).
-        pages = with_page_level_readings(
-            pages, db.query_in(ContentRepresentation, "document_id", [str(p["id"]) for p in pages])
+    # A leaf with no stored text is still looked at as its one page: its lines may have readings (#6579).
+    candidate_ids = [str(p["id"]) for p in pages] if pages or child_pages else [document.id]
+    shown_empty = (
+        set(candidate_ids) if not pages else {str(p["id"]) for p in pages if not p["has_content"]}
+    )
+    if shown_empty:
+        readings = db.query_in(ContentRepresentation, "document_id", candidate_ids)
+        # The stored text is a cache of the lines' readings; one that is empty while the lines have
+        # readings (a write that missed the refresh) is derived now, with its line map (#6579).
+        missed = sorted(
+            shown_empty
+            & {
+                str(r.document_id)
+                for r in readings
+                if r.segment_id is not None and r.retracted_at is None and r.content and r.content.strip()
+            }
         )
+        if missed and ensure_current(db, missed, even_if_stamped=True):
+            document = db.get(Document, document.id) or document
+            child_pages = [db.get(Document, p.id) or p for p in child_pages]
+            pages = transcript_pages(document, child_pages)
+        if pages:
+            # A reading stored on the page itself belongs to no line (#6470).
+            pages = with_page_level_readings(pages, readings)
     annotations_payload: list[dict[str, object]] | None = None
     compare_payload: dict[str, object] | None = None
     if artifact_id:

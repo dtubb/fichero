@@ -104,6 +104,15 @@ Tags: [OK] built · [PARTIAL] partly built · [MISSING] not built.
   shipped levels in order; a person's over a machine's; the newest. The page says which level it
   shows (`reading_level`), and a page shown this way has no line map, since no line carries it.
   A page with text from its lines is never replaced. Test: `fichero-server/tests/unit/api/test_routes_views.py`.
+- `reader.content.a-page-reads-its-own-lines` [OK] (#6579; owner 2026-11-13) — the Content view of
+  a page shows that page's text in its reading order, built from its working lines' counting
+  readings: the text the segment list and the Inspector's Order tab show. A page whose stored text
+  is empty while its lines have readings has its text derived from those lines when it is shown,
+  and shows it with its line map. A page's crops and its regions are not its pages: a hand-drawn
+  crop is never a section of the Reader, and a page's regions are its sections only when one of
+  them has text of its own; otherwise the page reads as itself, never as a list of empty "Page N
+  … crop — No transcription yet" sections. A request for one region still lists that region's
+  cohort. Test: `fichero-server/tests/unit/api/test_reader_content_reads_the_lines.py`.
 - `reader.edit.no-second-writer` [MISSING] (#5289) — the native page pane's Edit saves through
   the same runner as the Reader. Nothing writes a page's text to the document directly.
   (`source.lineeditor.one-path`, #5209, says the same of every home.)
