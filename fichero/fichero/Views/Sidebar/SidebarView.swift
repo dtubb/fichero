@@ -73,6 +73,8 @@ struct SidebarView: View {
     // selection path used to answer "which item is this?" with a recursive walk
     // of the whole forest, ~4× per body pass — see `sidebarItemIndex`.
     @State var cachedItemIndex: [String: SidebarItem] = [:]
+    /// When `cachedItemIndex` was last rebuilt (`sidebar.deselect-always-works`).
+    @State var lastTreeRebuildAt: Date = .distantPast
     @State var sidebarFilterText = ""
 
     // Chain service for workflows sidebar (global - not per-library yet)

@@ -194,6 +194,14 @@ Both issues are already on this milestone (#291); no new issues were needed.
   gone, Empty Trash naming moved items, knowledge on trashed pages hidden not deleted), the
   Trash that `source/moving-between-projects.md`'s moves send their source to.
 
+- `sidebar.deselect-always-works` — **[PARTIAL]** (owner 2026-11-13: "impossible to deselect a selected folder") a
+  deselect the person makes (⌘-click on the selected row, a click in the empty list) always takes. The guard that keeps
+  a row the List drops while the tree rebuilds (#4297) applies only just after a rebuild (within a second of the item
+  index being rebuilt): a row its index cannot resolve outside that window (a deep folder whose rows were loaded
+  lazily) is a real deselect, not a rebuild gap, and drops out. *Built:* `SidebarView.droppedRowIsMomentarilyMissing`
+  takes whether the tree was rebuilt recently (`SidebarView.rebuiltRecently`, stamped where the index is rebuilt).
+  *Not built:* a look on screen. *Tests:* `Views/Sidebar/SidebarSelectionResilienceTests.swift`.
+
 ### Bottom bar (owner 2026-11-13, Xcode's navigator as the reference)
 
 - `sidebar.bottom-bar.flush-in-sidebar-material` — **[PARTIAL]** (owner 2026-11-13) the sidebar's bottom bar sits at

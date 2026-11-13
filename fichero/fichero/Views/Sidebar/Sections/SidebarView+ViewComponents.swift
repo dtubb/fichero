@@ -239,7 +239,8 @@ extension SidebarView {
                     SidebarView.droppedRowIsMomentarilyMissing(
                         destination,
                         cachedItemMissing: cachedItem(id: destination.serializedID) == nil,
-                        wasRecentlyDeleted: recentlyDeleted.contains(destination.serializedID)
+                        wasRecentlyDeleted: recentlyDeleted.contains(destination.serializedID),
+                        rebuiltRecently: SidebarView.rebuiltRecently(at: lastTreeRebuildAt)
                     )
                 }
             )
@@ -316,14 +317,24 @@ extension SidebarView {
     static func droppedRowIsMomentarilyMissing(
         _ destination: SidebarDestination,
         cachedItemMissing: Bool,
-        wasRecentlyDeleted: Bool
+        wasRecentlyDeleted: Bool,
+        rebuiltRecently: Bool = true
     ) -> Bool {
+        // Outside a rebuild a dropped row is the person's deselect, whatever the index holds
+        // (`sidebar.deselect-always-works`, owner 2026-11-13): a lazily loaded folder the index could not
+        // resolve was restored on every deselect, so it could never be deselected.
+        guard rebuiltRecently else { return false }
         switch destination {
         case .library, .browser, .run, .knowledgeCollection, .trainedModel, .trash:
             return false
         default:
             return cachedItemMissing && !wasRecentlyDeleted
         }
+    }
+
+    /// Whether the tree's item index was rebuilt within the moment a List takes to reconcile its rows (#4297).
+    nonisolated static func rebuiltRecently(at rebuilt: Date, now: Date = Date()) -> Bool {
+        now.timeIntervalSince(rebuilt) < 1.0
     }
 }
 
