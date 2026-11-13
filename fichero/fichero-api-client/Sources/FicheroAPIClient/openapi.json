@@ -4761,6 +4761,49 @@
         }
       }
     },
+    "/api/segments/document/{doc_id}/validate": {
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Validate Document Segments",
+        "description": "What is wrong with the page's segments, per pass, before an export (`segment-editor.validate-before-export`):\nreads, writes nothing. An empty list is a page with nothing to fix.",
+        "operationId": "validate_document_segments_api_segments_document__doc_id__validate_get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentValidation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/segments/document/{doc_id}": {
       "get": {
         "tags": [
@@ -5377,6 +5420,61 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Reparent Segments Api Segments Reparent Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/segments/regenerate-outline": {
+      "post": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Regenerate Outline",
+        "operationId": "regenerate_outline_api_segments_regenerate_outline_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SegmentRegenerateOutlineParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Regenerate Outline Api Segments Regenerate Outline Post"
                 }
               }
             }
@@ -91287,6 +91385,22 @@
             "type": "string",
             "nullable": true,
             "title": "Producer Tool"
+          },
+          "char_positions": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Char Positions"
+          },
+          "char_confidences": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Char Confidences"
           }
         },
         "additionalProperties": false,
@@ -95787,6 +95901,18 @@
             "type": "object",
             "title": "Expected Versions",
             "description": "Each segment's version as last read, {segment_id: version}; a changed segment is refused."
+          },
+          "join_geometry": {
+            "type": "boolean",
+            "title": "Join Geometry",
+            "description": "Join the outlines and baselines onto the kept segment, in reading order.",
+            "default": false
+          },
+          "move_into_region": {
+            "type": "boolean",
+            "title": "Move Into Region",
+            "description": "Move members in other regions into the kept segment's region rather than refusing.",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -96016,6 +96142,49 @@
         ],
         "title": "SegmentPassCreateParams"
       },
+      "SegmentProblem": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "no-shape, self-crossing, no-baseline, line-outside-regions, empty-region, overlap, order-repeat, order-gap, order-missing or words-do-not-tile."
+          },
+          "segment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Segment Ids"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "pass_id": {
+            "type": "string",
+            "title": "Pass Id"
+          },
+          "order_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Order Id"
+          },
+          "share": {
+            "type": "number",
+            "nullable": true,
+            "title": "Share"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "segment_ids",
+          "detail",
+          "pass_id"
+        ],
+        "title": "SegmentProblem",
+        "description": "One thing wrong with a page's segments (`segment-editor.validate-before-export`)."
+      },
       "SegmentRead": {
         "properties": {
           "id": {
@@ -96167,6 +96336,42 @@
           "segment_id"
         ],
         "title": "SegmentReferenceResponse"
+      },
+      "SegmentRegenerateOutlineParams": {
+        "properties": {
+          "segment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Segment Ids",
+            "description": "The lines whose outlines are drawn again from their baselines."
+          },
+          "expected_versions": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Expected Versions",
+            "description": "Each segment's version as last read, {segment_id: version}; a changed segment is refused."
+          },
+          "fixed_height": {
+            "type": "number",
+            "exclusiveMinimum": true,
+            "nullable": true,
+            "title": "Fixed Height",
+            "description": "A band this many image pixels tall over the baseline, for a line with no ink to measure.",
+            "minimum": 0.0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "segment_ids",
+          "expected_versions"
+        ],
+        "title": "SegmentRegenerateOutlineParams",
+        "description": "`segment-editor.regenerate-polygon-from-baseline`: Redraw Outline from Baseline (\u2318\u21e7R)."
       },
       "SegmentReparentItem": {
         "properties": {
@@ -96334,8 +96539,9 @@
         "properties": {
           "segment_id": {
             "type": "string",
+            "nullable": true,
             "title": "Segment Id",
-            "description": "The segment to split."
+            "description": "The segment to split (not with cut_path)."
           },
           "parts": {
             "items": {
@@ -96354,16 +96560,34 @@
           },
           "expected_version": {
             "type": "integer",
+            "nullable": true,
             "title": "Expected Version",
-            "description": "The segment's version as last read; a changed segment is refused."
+            "description": "The segment's version as last read; a changed segment is refused (not with cut_path)."
+          },
+          "cut_path": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Cut Path",
+            "description": "A knife stroke: split every named line whose baseline it crosses, at the crossings."
+          },
+          "expected_versions": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Expected Versions",
+            "description": "With cut_path: the lines the stroke may cross, {segment_id: version as last read}.",
+            "default": {}
           }
         },
         "additionalProperties": false,
         "type": "object",
-        "required": [
-          "segment_id",
-          "expected_version"
-        ],
         "title": "SegmentSplitParams"
       },
       "SegmentSplitPart": {
@@ -96578,6 +96802,27 @@
         ],
         "title": "SegmentUpdateParams",
         "description": "`document_id`/`pass_id` are deliberately absent (`extra=\"forbid\"`\nrefuses them outright) -- a segment never moves pass or document\n(`source.pass.never-overwrites`); that is a merge, not an update."
+      },
+      "SegmentValidation": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "problems": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentProblem"
+            },
+            "type": "array",
+            "title": "Problems"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "problems"
+        ],
+        "title": "SegmentValidation"
       },
       "SegmentVersion": {
         "properties": {

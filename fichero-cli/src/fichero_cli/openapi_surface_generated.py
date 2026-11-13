@@ -4495,6 +4495,8 @@ def register_generated_openapi_commands(
     @target_app.command("create-route")
     def content_representations_create_route_post(
         ctx: typer.Context,
+        char_confidences: Optional[list[str]] = typer.Option(None, '--char-confidences', help='Char Confidences. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        char_positions: Optional[list[str]] = typer.Option(None, '--char-positions', help='Char Positions. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         content: str = typer.Option(..., '--content', help='Content.'),
         corrects_representation_id: Optional[str] = typer.Option(None, '--corrects-representation-id', help='Corrects Representation Id.'),
         derived_from_artifact_id: Optional[str] = typer.Option(None, '--derived-from-artifact-id', help='Derived From Artifact Id.'),
@@ -4520,6 +4522,8 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/content-representations"
             params = None
             payload = _build_json_payload({
+                "char_confidences": char_confidences,
+                "char_positions": char_positions,
                 "content": content,
                 "corrects_representation_id": corrects_representation_id,
                 "derived_from_artifact_id": derived_from_artifact_id,
@@ -4540,6 +4544,8 @@ def register_generated_openapi_commands(
                 "segment_id": segment_id,
                 "source_anchor": source_anchor,
             }, {
+                "char_confidences": {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Char Confidences', 'x-cli-required': False},
+                "char_positions": {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Char Positions', 'x-cli-required': False},
                 "content": {'type': 'string', 'title': 'Content', 'x-cli-required': True},
                 "corrects_representation_id": {'type': 'string', 'nullable': True, 'title': 'Corrects Representation Id', 'x-cli-required': False},
                 "derived_from_artifact_id": {'type': 'string', 'nullable': True, 'title': 'Derived From Artifact Id', 'x-cli-required': False},
@@ -16825,6 +16831,18 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("validate-document")
+    def segments_validate_document_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+    ) -> None:
+        """Validate Document Segments (GET /api/segments/document/{doc_id}/validate)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/document/{doc_id}/validate"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-document-text")
     def segments_get_document_text_get(
         ctx: typer.Context,
@@ -16900,7 +16918,9 @@ def register_generated_openapi_commands(
     def segments_merge_post(
         ctx: typer.Context,
         expected_versions: str = typer.Option(..., '--expected-versions', help="Each segment's version as last read, {segment_id: version}; a changed segment is refused. JSON."),
+        join_geometry: Optional[bool] = typer.Option(None, '--join-geometry/--no-join-geometry', help='Join the outlines and baselines onto the kept segment, in reading order. Default: false.'),
         keep_id: str = typer.Option(..., '--keep-id', help='The segment that survives the merge.'),
+        move_into_region: Optional[bool] = typer.Option(None, '--move-into-region/--no-move-into-region', help="Move members in other regions into the kept segment's region rather than refusing. Default: false."),
         segment_ids: list[str] = typer.Option(..., '--segment-ids', help='The segments to merge. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Merge Segments (POST /api/segments/merge)."""
@@ -16909,11 +16929,15 @@ def register_generated_openapi_commands(
             params = None
             payload = _build_json_payload({
                 "expected_versions": expected_versions,
+                "join_geometry": join_geometry,
                 "keep_id": keep_id,
+                "move_into_region": move_into_region,
                 "segment_ids": segment_ids,
             }, {
                 "expected_versions": {'additionalProperties': {'type': 'integer'}, 'type': 'object', 'title': 'Expected Versions', 'description': "Each segment's version as last read, {segment_id: version}; a changed segment is refused.", 'x-cli-required': True},
+                "join_geometry": {'type': 'boolean', 'title': 'Join Geometry', 'description': 'Join the outlines and baselines onto the kept segment, in reading order.', 'default': False, 'x-cli-required': False},
                 "keep_id": {'type': 'string', 'title': 'Keep Id', 'description': 'The segment that survives the merge.', 'x-cli-required': True},
+                "move_into_region": {'type': 'boolean', 'title': 'Move Into Region', 'description': "Move members in other regions into the kept segment's region rather than refusing.", 'default': False, 'x-cli-required': False},
                 "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Segment Ids', 'description': 'The segments to merge.', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
@@ -16990,6 +17014,29 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("regenerate-outline")
+    def segments_regenerate_outline_post(
+        ctx: typer.Context,
+        expected_versions: str = typer.Option(..., '--expected-versions', help="Each segment's version as last read, {segment_id: version}; a changed segment is refused. JSON."),
+        fixed_height: Optional[float] = typer.Option(None, '--fixed-height', help='A band this many image pixels tall over the baseline, for a line with no ink to measure.'),
+        segment_ids: list[str] = typer.Option(..., '--segment-ids', help='The lines whose outlines are drawn again from their baselines. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Regenerate Outline (POST /api/segments/regenerate-outline)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/regenerate-outline"
+            params = None
+            payload = _build_json_payload({
+                "expected_versions": expected_versions,
+                "fixed_height": fixed_height,
+                "segment_ids": segment_ids,
+            }, {
+                "expected_versions": {'additionalProperties': {'type': 'integer'}, 'type': 'object', 'title': 'Expected Versions', 'description': "Each segment's version as last read, {segment_id: version}; a changed segment is refused.", 'x-cli-required': True},
+                "fixed_height": {'type': 'number', 'exclusiveMinimum': True, 'nullable': True, 'title': 'Fixed Height', 'description': 'A band this many image pixels tall over the baseline, for a line with no ink to measure.', 'minimum': 0.0, 'x-cli-required': False},
+                "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Segment Ids', 'description': 'The lines whose outlines are drawn again from their baselines.', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("reparent")
     def segments_reparent_post(
         ctx: typer.Context,
@@ -17014,9 +17061,11 @@ def register_generated_openapi_commands(
     def segments_split_post(
         ctx: typer.Context,
         at_offset: Optional[int] = typer.Option(None, '--at-offset', help="Split at this character of the line's reading instead of giving parts."),
-        expected_version: int = typer.Option(..., '--expected-version', help="The segment's version as last read; a changed segment is refused."),
+        cut_path: Optional[str] = typer.Option(None, '--cut-path', help='A knife stroke: split every named line whose baseline it crosses, at the crossings. JSON.'),
+        expected_version: Optional[int] = typer.Option(None, '--expected-version', help="The segment's version as last read; a changed segment is refused (not with cut_path)."),
+        expected_versions: Optional[str] = typer.Option(None, '--expected-versions', help='With cut_path: the lines the stroke may cross, {segment_id: version as last read}. Default: {}. JSON.'),
         parts: Optional[str] = typer.Option(None, '--parts', help='The parts to split it into, each with its own anchor (or give at_offset). Default: []. JSON.'),
-        segment_id: str = typer.Option(..., '--segment-id', help='The segment to split.'),
+        segment_id: Optional[str] = typer.Option(None, '--segment-id', help='The segment to split (not with cut_path).'),
     ) -> None:
         """Split Segment (POST /api/segments/split)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17024,14 +17073,18 @@ def register_generated_openapi_commands(
             params = None
             payload = _build_json_payload({
                 "at_offset": at_offset,
+                "cut_path": cut_path,
                 "expected_version": expected_version,
+                "expected_versions": expected_versions,
                 "parts": parts,
                 "segment_id": segment_id,
             }, {
                 "at_offset": {'type': 'integer', 'nullable': True, 'title': 'At Offset', 'description': "Split at this character of the line's reading instead of giving parts.", 'x-cli-required': False},
-                "expected_version": {'type': 'integer', 'title': 'Expected Version', 'description': "The segment's version as last read; a changed segment is refused.", 'x-cli-required': True},
+                "cut_path": {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Cut Path', 'description': 'A knife stroke: split every named line whose baseline it crosses, at the crossings.', 'x-cli-required': False},
+                "expected_version": {'type': 'integer', 'nullable': True, 'title': 'Expected Version', 'description': "The segment's version as last read; a changed segment is refused (not with cut_path).", 'x-cli-required': False},
+                "expected_versions": {'additionalProperties': {'type': 'integer'}, 'type': 'object', 'title': 'Expected Versions', 'description': 'With cut_path: the lines the stroke may cross, {segment_id: version as last read}.', 'default': {}, 'x-cli-required': False},
                 "parts": {'items': {'$ref': '#/components/schemas/SegmentSplitPart'}, 'type': 'array', 'title': 'Parts', 'description': 'The parts to split it into, each with its own anchor (or give at_offset).', 'default': [], 'x-cli-required': False},
-                "segment_id": {'type': 'string', 'title': 'Segment Id', 'description': 'The segment to split.', 'x-cli-required': True},
+                "segment_id": {'type': 'string', 'nullable': True, 'title': 'Segment Id', 'description': 'The segment to split (not with cut_path).', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
