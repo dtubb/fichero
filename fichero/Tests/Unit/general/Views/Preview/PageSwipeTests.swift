@@ -47,9 +47,24 @@ struct PageSwipeTests {
         #expect(!PageSwipe.claimsDrag(velocity: CGPoint(x: -400, y: 0), isZoomedIn: true))
     }
 
-    @Test func fullScreenStopsZoomingOutAtTheFittedSize() {
-        #expect(PageSwipe.minimumZoom(fitScale: 0.4, floorsAtFit: true, minScale: 0.01) == 0.4)
-        #expect(PageSwipe.minimumZoom(fitScale: 0.4, floorsAtFit: false, minScale: 0.01) == 0.01)
-        #expect(PageSwipe.minimumZoom(fitScale: nil, floorsAtFit: true, minScale: 0.01) == 0.01)
+    @Test func theSpinnerShowsUntilTheAskedForPageIsDrawn() {
+        #expect(PageSwipe.isLoadingPage(requested: "b", shown: "a"))
+        #expect(!PageSwipe.isLoadingPage(requested: "b", shown: "b"))
+        #expect(!PageSwipe.isLoadingPage(requested: nil, shown: "a"))
+        #expect(!PageSwipe.isLoadingPage(requested: "b", shown: nil))
+    }
+
+    @Test func aPageThatIsntZoomedInRestsCentred() {
+        // A tall page in a wide view: centred sideways inside its inset, flush top and bottom.
+        let tall = PageSwipe.restingOffset(scaledContent: CGSize(width: 300, height: 500), viewSize: CGSize(width: 700, height: 500))
+        #expect(tall == CGPoint(x: -200, y: 0))
+        // Just past fit (below the zoomed-in threshold): the overhang is split evenly.
+        let over = PageSwipe.restingOffset(scaledContent: CGSize(width: 720, height: 520), viewSize: CGSize(width: 700, height: 500))
+        #expect(over == CGPoint(x: 10, y: 10))
+    }
+
+    @Test func zoomingOutStopsAtTheFittedSize() {
+        #expect(PageSwipe.minimumZoom(fitScale: 0.4, minScale: 0.01) == 0.4)
+        #expect(PageSwipe.minimumZoom(fitScale: nil, minScale: 0.01) == 0.01)
     }
 }

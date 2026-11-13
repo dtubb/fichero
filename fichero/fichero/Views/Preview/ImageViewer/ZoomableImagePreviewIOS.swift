@@ -60,6 +60,13 @@ struct ZoomableImagePreview: View {
 
     /// Drives the iPhone true-full-screen presentation (#2607). Compact only.
     @State var showingFullScreen = false
+    /// The document whose image is drawn. The canvas hands down the next page's id at once and its image when it has
+    /// loaded; until then the spinner shows (#6559), whichever way the page was turned.
+    @State var shownDocumentId: String?
+
+    var isTurningPage: Bool {
+        PageSwipe.isLoadingPage(requested: documentId, shown: shownDocumentId)
+    }
 
     let minScale: CGFloat = 0.01
     let maxScale: CGFloat = 10.0
@@ -128,10 +135,7 @@ struct ZoomableImagePreview: View {
                             loupeMagnification: $loupeMagnification,
                             loupeSize: $loupeSize,
                             coordinator: $imageCoordinator,
-                            onPageStep: { step in
-                                if step == -1 { previousAction?() }
-                                if step == 1 { nextAction?() }
-                            }
+                            onPageStep: turnPage
                         )
                     } else {
                         ContentUnavailableView(
@@ -156,6 +160,7 @@ struct ZoomableImagePreview: View {
                 // buttons (#2420). VoiceOver's way to the same steps, now that the buttons are gone.
                 .accessibilityAction(named: "Previous image") { previousAction?() }
                 .accessibilityAction(named: "Next image") { nextAction?() }
+                .overlay { if isTurningPage { PageTurnSpinner() } }
 
             }
 
@@ -243,9 +248,21 @@ struct ZoomableImagePreview: View {
             }
         }
         .task(id: documentId) { await preloadImages() }
+        // The page arrived (or the load gave up and this view goes): the spinner goes.
+        .onAppear { shownDocumentId = documentId }
+        .onChange(of: renderedImage.map(ObjectIdentifier.init)) { shownDocumentId = documentId }
+        .onChange(of: url) { shownDocumentId = documentId }
         .fullScreenCover(isPresented: $showingFullScreen) {
-            FullScreenImagePreview(url: url, renderedImage: renderedImage)
+            FullScreenImagePreview(
+                url: url, renderedImage: renderedImage, onPageStep: turnPage, isTurningPage: isTurningPage
+            )
         }
+    }
+
+    /// A sideways swipe's step (`PageSwipe`): -1 for the previous image in the folder, +1 for the next; at either end
+    /// of the folder nothing happens.
+    func turnPage(_ step: Int) {
+        (step < 0 ? previousAction : nextAction)?()
     }
 
     // MARK: - Event Handlers
@@ -271,7 +288,9 @@ extension ZoomableImagePreview {
     func zoomOut() {
         imageCoordinator?.markManualZoom()
         withAnimation(.easeInOut(duration: 0.2)) {
-            scale = max(scale / 1.25, minScale)
+            // Not past the fitted size, as a pinch can't go (#6559).
+            let floor = PageSwipe.minimumZoom(fitScale: imageCoordinator?.calculateFitScale(), minScale: minScale)
+            scale = max(scale / 1.25, floor)
         }
     }
 
@@ -280,6 +299,8 @@ extension ZoomableImagePreview {
         // resize keeps the image fitted (#4279).
         imageCoordinator?.resetZoomOwnershipForNewItem()
         if let fitScale = imageCoordinator?.calculateFitScale() {
+            // Applied here: with the automatic fit owning the zoom again, the binding no longer drives it.
+            imageCoordinator?.scrollView?.zoomScale = fitScale
             scale = fitScale
             imageCoordinator?.noteAutoFitApplied()
             DispatchQueue.main.async {
