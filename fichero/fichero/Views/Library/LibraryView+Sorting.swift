@@ -128,6 +128,13 @@ enum LibrarySortField: String, CaseIterable, Identifiable {
             // date listing wants the undated rows moved to the end.
             return field.ordersOnServer ? groupingUndatedLast(documents) : documents
         }
+        if field == .name {
+            // Name is Finder's order (numbers by value), not `String <`'s code-point order.
+            let descending = comparators.first?.order == .reverse
+            return documents.sorted {
+                descending ? $1.name.finderOrder($0.name) : $0.name.finderOrder($1.name)
+            }
+        }
         return documents.sorted(using: comparators)
     }
 

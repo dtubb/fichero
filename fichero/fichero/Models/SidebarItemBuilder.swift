@@ -71,7 +71,7 @@ enum SidebarItemBuilder {
     ///      been reordered has every doc at `sortOrder == 0`; in that case
     ///      the comparison ties and falls through to the next key.
     ///   2. `sequence` on PDF page children (keeps page order stable).
-    ///   3. Case-insensitive name.
+    ///   3. Name in Finder's order (`String.finderOrder`: numbers by value).
     static func childOrder(_ lhs: Document, _ rhs: Document) -> Bool {
         if lhs.sortOrder != rhs.sortOrder {
             return lhs.sortOrder < rhs.sortOrder
@@ -79,7 +79,7 @@ enum SidebarItemBuilder {
         if let lSeq = lhs.sequence, let rSeq = rhs.sequence {
             return lSeq < rSeq
         }
-        return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        return lhs.name.finderOrder(rhs.name)
     }
 
     /// Build hierarchical library items from documents using parentId.

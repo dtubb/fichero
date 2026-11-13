@@ -37,7 +37,7 @@ struct IOSLibraryPickerMenu: View {
         }
         return byPath
             .map { (path: $0.key, name: $0.value) }
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            .sorted { $0.name.finderOrder($1.name) }
     }
 
     var body: some View {

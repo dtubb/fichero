@@ -299,7 +299,7 @@ extension DynamicConfigView {
         let allFolders = documents
             .filter { $0.docType == .folder }
             .sorted { lhs, rhs in
-                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                lhs.name.finderOrder(rhs.name)
             }
 
         let validFolderIds = Set(allFolders.map(\.id))
@@ -312,7 +312,7 @@ extension DynamicConfigView {
 
         for key in childrenMap.keys {
             childrenMap[key]?.sort { lhs, rhs in
-                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                lhs.name.finderOrder(rhs.name)
             }
         }
 
@@ -322,7 +322,7 @@ extension DynamicConfigView {
                 folder.parentId == nil && folder.name != "Inbox"
             }
             .sorted { lhs, rhs in
-                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                lhs.name.finderOrder(rhs.name)
             }
         let orderedRoots = inboxRoots + otherRoots
 

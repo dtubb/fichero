@@ -379,7 +379,7 @@ extension SidebarItemRow {
                 $0.docType == .folder
                     && SidebarMovePolicy.isValidTarget(sourceId: document.id, targetId: $0.id, documents: all)
             }
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            .sorted { $0.name.finderOrder($1.name) }
     }
 
     // Run Workflow submenu body lives in the shared `RunWorkflowSubmenuItems`
