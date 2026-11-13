@@ -204,17 +204,17 @@ rather than defaulting to the pessimistic prior.
   references (`documents_as: "refs"`), the date tool loads each page by id, and its own output
   is one short line per page (the full record stays on the page and its `dates` artifact). The
   8 MB workflow-state cap is unchanged. Pinned:
-  `test_diary_dates_5518.py::test_one_run_over_a_whole_project_stays_under_the_state_cap`.
+  `fichero-server/tests/unit/workflows/test_diary_dates_5518.py::test_one_run_over_a_whole_project_stays_under_the_state_cap`.
 - `histnorm.dates.every-page-in-scope` — **[OK]** (#5518) running on a folder reaches every
   page document under it: pages in a group ("Stack of 10"), the halves a spread was split into
   (filed under the spread's page), never a diary entry or a region under a page. Pinned:
-  `test_diary_dates_5518.py::test_folder_expansion_reaches_every_page_under_the_scope`.
+  `fichero-server/tests/unit/workflows/test_diary_dates_5518.py::test_folder_expansion_reaches_every_page_under_the_scope`.
 - `histnorm.dates.numeric-order-from-stated-language` — **[OK]** (#5518) the language an import
   states in a page's metadata (`metadata.language`) is the page's own language when none is
   recorded, so it settles a numeric date's order: en-US month/day, every other language
   day/month, bare `en` (what those diary pages carry) and unknown both readings, undated.
-  Pinned: `test_diary_dates_5518.py::test_the_language_in_imported_metadata_is_the_documents_own`,
-  `test_diary_dates_5518.py::test_extract_date_reads_the_numeric_order_from_metadata_language`.
+  Pinned: `fichero-server/tests/unit/workflows/test_diary_dates_5518.py::test_the_language_in_imported_metadata_is_the_documents_own`,
+  `fichero-server/tests/unit/workflows/test_diary_dates_5518.py::test_extract_date_reads_the_numeric_order_from_metadata_language`.
 - `histnorm.dates.heading-shapes` — **[OK]** (#5518) a page's heading is read where diaries put
   it: closing a line after a running header ("Seattle Office. Vice-Consul. WEDNESDAY, APRIL 24,
   1940"), with a page number after the year ("MAY 13. 1918 12", unless the weekday then fits no
@@ -232,7 +232,7 @@ rather than defaulting to the pessimistic prior.
   1919, shown with the year in brackets, the written year kept beside it (`written_year`,
   `year_overruled`). A written year inside the volume, or with no volume year, is never
   overruled; the disagreement is flagged instead. Pinned:
-  `test_diary_dates_5518.py::test_an_overruled_year_is_kept_and_shown_as_supplied`,
+  `fichero-server/tests/unit/workflows/test_diary_dates_5518.py::test_an_overruled_year_is_kept_and_shown_as_supplied`,
   the redating-rules test in `fichero-server/tests/unit/workflows/test_diary_dates_5518.py`.
 - `histnorm.dates.year-follows-page-order` — **[OK]** (#5557) in a volume spanning several
   years, a heading with no year takes the year of the dated page before it in the volume's

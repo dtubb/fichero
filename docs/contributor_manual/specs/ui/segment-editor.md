@@ -199,7 +199,7 @@ targets are at least 44 pt.
   wrote; `segment.merge` gains the move.) *Built:* `segment.merge` with forwarding and undo;
   `SegmentEditCommand.mergePlan`; ⌘J on the head. *Not built:* the engine's joined outline and
   baseline (merge keeps the kept row's geometry today), the joined reading, the key wired to the
-  plan, the move across regions. *Tests:* `tests/unit/api/test_segment_merge_lines.py` (union,
+  plan, the move across regions. *Tests:* `test_segment_merge_lines.py` (to write: union,
   hull, baseline order, across regions is one action and one undo); `SegmentJoinTests.swift`.
 - `segment-editor.merge-regions` — **[GAP]** (→ #4941; engine) two or more selected regions and ⌘J become one region
   whose outline is the union; their lines become the kept region's lines, interleaved into its
@@ -282,7 +282,7 @@ targets are at least 44 pt.
 
 - `segment-editor.baseline-independent` — **[OK]** (app + engine) a baseline is reshaped on its own and
   sent on its own (`segment.update` with `baseline` only); the outline does not change until
-  asked. Pinned by `ImportedPageDrawsItsBoxesTests.testReshapingABaselineSendsItAloneAndTheRefusalsHold`.
+  asked. Pinned by `fichero/Tests/Unit/general/Models/ImportedPageDrawsItsBoxesTests.swift::testReshapingABaselineSendsItAloneAndTheRefusalsHold`.
 - `segment-editor.regenerate-polygon-from-baseline` — **[GAP]** (→ #4941; engine + app) with one or more lines
   selected, **Redraw Outline from Baseline** (⌘⇧R) asks the engine for a new outline for each
   from its baseline and the page image: `segment.regenerate_outline`, which runs Kraken's
@@ -638,9 +638,11 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
 - `segment-editor.edge.knife-through-words` — **[GAP]** (→ #4941; engine) a knife split of a line that already has
   words assigns each word to the part its centre falls in and splits a word the stroke crosses.
 - `segment-editor.edge.merge-across-passes` — **[OK]** (engine) refused in words by
-  `SegmentPassMismatchError`; the app offers nothing across passes but a match.
+  `SegmentPassMismatchError`; the app offers nothing across passes but a match. Pinned by
+  `fichero-server/tests/unit/api/test_segments_matches_forwarding.py`.
 - `segment-editor.edge.stale` — **[OK]** (engine) every action here is refused when the row changed
-  since it was read; the app reloads the row and shows what changed.
+  since it was read; the app reloads the row and shows what changed. Pinned by
+  `fichero-server/tests/unit/api/test_segment_update_many.py::test_one_stale_line_refuses_the_whole_edit`.
 - `segment-editor.edge.rtl-vertical` — **[GAP]** (→ #5154; engine) a knife cut, a word cut and an order
   sequence follow the line's resolved direction: "before the cut" is the right part of a
   right-to-left line and the upper part of a vertical one (`estimated_cut` already does this
@@ -700,104 +702,104 @@ hand, so the cut marks on such a line are the fallback's and say so.
 ### Stage 1 — Structure: merge, split, regenerate (engine first)
 #### Step 1.1 — Merge joins geometry and readings (#TBD)
 - Behaviours: `segment-editor.merge-lines`, `segment-editor.merge-regions`
-- Tests: fichero-server/tests/unit/api/test_segment_merge_lines.py, fichero/Tests/Unit/general/Views/Source/SegmentJoinTests.swift
+- Tests: test_segment_merge_lines.py, SegmentJoinTests.swift
 - Size: M
 #### Step 1.2 — Regenerate an outline from a baseline (#TBD)
 - Behaviours: `segment-editor.regenerate-polygon-from-baseline`, `segment-editor.edge.no-baseline`, `segment-editor.edge.self-intersecting`
-- Tests: fichero-server/tests/unit/api/test_regenerate_outline.py, fichero/Tests/Unit/general/Views/Source/RedrawOutlineTests.swift
+- Tests: test_regenerate_outline.py, RedrawOutlineTests.swift
 - Depends on: 1.1
 - Size: M
 #### Step 1.3 — The knife (#TBD)
 - Behaviours: `segment-editor.split-knife`, `segment-editor.split-at-a-point`, `segment-editor.edge.knife-through-words`, `segment-editor.edge.rtl-vertical`
-- Tests: fichero-server/tests/unit/api/test_segment_split_knife.py, fichero/Tests/Unit/general/Views/Source/KnifeStrokeTests.swift
+- Tests: test_segment_split_knife.py, KnifeStrokeTests.swift
 - Depends on: 1.2
 - Size: M
 
 ### Stage 2 — Selecting, moving, reassigning
 #### Step 2.1 — Selection: shift, lasso, all, same kind (#TBD)
 - Behaviours: `segment-editor.select-marquee-lasso`, `segment-editor.select-shift-toggles`
-- Tests: fichero/Tests/Unit/general/Views/Source/SegmentSelectionGesturesTests.swift
+- Tests: SegmentSelectionGesturesTests.swift
 - Size: S
 #### Step 2.2 — Group move, nudge, vertices and simplify (#TBD)
 - Behaviours: `segment-editor.group-drag`, `segment-editor.nudge`, `segment-editor.vertices`
-- Tests: fichero-server/tests/unit/api/test_segment_simplify.py, fichero/Tests/Unit/general/Views/Source/GroupMoveAndNudgeTests.swift
+- Tests: test_segment_simplify.py, GroupMoveAndNudgeTests.swift
 - Size: M
 #### Step 2.3 — Reassign a line by drag (#TBD)
 - Behaviours: `segment-editor.reassign-by-drag`, `segment-editor.edge.overlapping-regions`
-- Tests: fichero-server/tests/unit/api/test_segment_reassign_by_drag.py, fichero/Tests/Unit/general/Views/Source/ReassignDragTests.swift
+- Tests: test_segment_reassign_by_drag.py, ReassignDragTests.swift
 - Size: M
 #### Step 2.4 — Brush selection (#TBD)
 - Behaviours: `segment-editor.select-brush`
-- Tests: fichero/Tests/Unit/general/Views/Source/BrushSelectTests.swift
+- Tests: BrushSelectTests.swift
 - Size: S
 
 ### Stage 3 — Drawing tools
 #### Step 3.1 — The marker (#TBD)
 - Behaviours: `segment-editor.marker`
-- Tests: fichero-server/tests/unit/api/test_segment_create_from_stroke.py, fichero/Tests/Unit/general/Views/Source/MarkerToolTests.swift
+- Tests: test_segment_create_from_stroke.py, MarkerToolTests.swift
 - Size: M
 #### Step 3.2 — The paintbrush (#TBD)
 - Behaviours: `segment-editor.paintbrush`
-- Tests: fichero-server/tests/unit/api/test_segment_create_from_brush.py, fichero/Tests/Unit/general/Views/Source/PaintbrushToolTests.swift
+- Tests: test_segment_create_from_brush.py, PaintbrushToolTests.swift
 - Depends on: 3.1
 - Size: M
 #### Step 3.3 — Tools, modes, cursors and the shortcut map (#TBD)
 - Behaviours: `segment-editor.shortcuts-for-everything`, `segment-editor.every-edit-lands-at-once`
-- Tests: fichero/Tests/Unit/general/Menus/MenuShortcutUniquenessTests.swift, fichero/Tests/Unit/general/Views/Source/ToolModesTests.swift
+- Tests: fichero/Tests/Unit/general/Views/Shell/MenuShortcutUniquenessTests.swift, ToolModesTests.swift
 - Size: S
 
 ### Stage 4 — Order, kinds, layers
 #### Step 4.1 — Order by clicking and the overlay (#TBD)
 - Behaviours: `segment-editor.order-by-clicking`, `segment-editor.order-overlay`
-- Tests: fichero-server/tests/unit/api/test_reading_order_renumber_by_clicks.py, fichero/Tests/Unit/general/Views/Source/OrderToolTests.swift
+- Tests: test_reading_order_renumber_by_clicks.py, OrderToolTests.swift
 - Size: M
 #### Step 4.2 — Kinds by key and layers (#TBD)
 - Behaviours: `segment-editor.type-by-key`, `segment-editor.layers`, `segment-editor.edge.empty-region`
-- Tests: fichero/Tests/Unit/general/Views/Source/KindKeysAndLayersTests.swift
+- Tests: KindKeysAndLayersTests.swift
 - Size: S
 
 ### Stage 5 — Words and characters
 #### Step 5.1 — Keep Kraken's character positions (#TBD)
 - Behaviours: `segment-editor.char-positions-kept`
-- Tests: fichero-server/tests/unit/llm/test_kraken_char_positions.py
+- Tests: test_kraken_char_positions.py
 - Size: S
 #### Step 5.2 — Cut words and characters, with provenance (#TBD)
 - Behaviours: `segment-editor.cut-words-from-positions`, `segment-editor.cut-characters`, `segment-editor.cut-fallback-ink-gaps`, `segment-editor.cut-records-source-and-confidence`, `segment-editor.edge.word-across-lines`
-- Tests: fichero-server/tests/unit/api/test_segment_cut_words.py
+- Tests: test_segment_cut_words.py
 - Depends on: 5.1
 - Size: L (split: positions path / ink-gap path)
 #### Step 5.3 — Cut marks and the word view (#TBD)
 - Behaviours: `segment-editor.cut-marks-editable`, `segment-editor.word-view`
-- Tests: fichero/Tests/Unit/general/Views/Source/CutMarksTests.swift, fichero/Tests/Unit/general/Views/Source/WordViewSelectionTests.swift
+- Tests: CutMarksTests.swift, WordViewSelectionTests.swift
 - Depends on: 5.2
 - Size: M
 
 ### Stage 6 — Helpers and integration
 #### Step 6.1 — Validate before export, and export carries every edit (#TBD)
 - Behaviours: `segment-editor.validate-before-export`, `segment-editor.export-carries-every-edit`
-- Tests: fichero-server/tests/unit/api/test_segments_validate.py, fichero-server/tests/unit/formats/test_cuts_in_page_and_alto.py
+- Tests: test_segments_validate.py, test_cuts_in_page_and_alto.py
 - Size: M
 #### Step 6.2 — Coordinates: draw on a rendition, store on the photograph (#TBD)
 - Behaviours: `segment-editor.coordinates-one-frame`, `segment-editor.provenance-on-every-segment`
-- Tests: fichero-server/tests/unit/api/test_segment_drawn_on_a_rendition.py, fichero/Tests/Unit/general/Views/Source/DrawnFrameTests.swift
+- Tests: test_segment_drawn_on_a_rendition.py, DrawnFrameTests.swift
 - Size: M
 #### Step 6.3 — Find lines here, the low-confidence lens (#TBD)
 - Behaviours: `segment-editor.rerun-on-area`, `segment-editor.low-confidence-lens`
-- Tests: fichero-server/tests/unit/workflows/test_find_lines_scoped.py, fichero/Tests/Unit/general/Views/Source/DoubtfulLensTests.swift
+- Tests: test_find_lines_scoped.py, DoubtfulLensTests.swift
 - Size: M
 #### Step 6.4 — Templates and training (#TBD)
 - Behaviours: `segment-editor.batch-apply-template`, `segment-editor.corrections-train`
-- Tests: fichero-server/tests/unit/api/test_region_template_proposals.py, fichero-server/tests/unit/training/test_kraken_set_words_and_regions.py
+- Tests: test_region_template_proposals.py, test_kraken_set_words_and_regions.py
 - Size: M
 
 ### Stage 7 — iPad
 #### Step 7.1 — One input seam (#TBD)
 - Behaviours: `segment-editor.one-input-seam`, `segment-editor.touch-pinch-pan`
-- Tests: fichero/Tests/Unit/general/Views/Source/InputSeamTests.swift, fichero/Tests/UI/ipad/SegmentEditorTouchTests.swift
+- Tests: InputSeamTests.swift, SegmentEditorTouchTests.swift
 - Size: L (split: the seam / the iOS layer)
 #### Step 7.2 — Pencil, palm, two-finger undo (#TBD)
 - Behaviours: `segment-editor.pencil-draws-finger-pans`, `segment-editor.palm-rejection`, `segment-editor.two-finger-tap-undo`
-- Tests: fichero/Tests/UI/ipad/SegmentEditorPencilTests.swift
+- Tests: SegmentEditorPencilTests.swift
 - Depends on: 7.1
 - Size: M
 
@@ -809,11 +811,11 @@ hand, so the cut marks on such a line are the fallback's and say so.
 | Availability (Swift) | y | every verb reachable in Edit Segments | same |
 | Backend (pytest) | y | every new action and parameter, inverses, refusals | `fichero-server/tests/unit/api/test_segment_*.py` |
 | MCP | y | the new actions map | `fichero-mcp/tests/test_mcp_generated.py` |
-| CLI | y | the new actions wire | `fichero-cli/tests/test_segments.py` |
-| Click-around (XCUITest, Mac) | y | merge, knife, redraw end to end | `fichero/Tests/UI/SegmentEditorUITests.swift` |
+| CLI | y | the new actions wire | `test_segments.py` |
+| Click-around (XCUITest, Mac) | y | merge, knife, redraw end to end | `SegmentEditorUITests.swift` |
 | iPhone (iOS) | n (iPad first) | — | — |
 | iPad | y | Pencil and finger paths | `fichero/Tests/UI/ipad/` |
-| Load (#4634) | y | regenerate over a page, cut words over a page, bounded | `fichero-server/tests/perf/test_segment_editor_load.py` |
+| Load (#4634) | y | regenerate over a page, cut words over a page, bounded | `test_segment_editor_load.py` |
 
 ## Accessibility identifiers
 

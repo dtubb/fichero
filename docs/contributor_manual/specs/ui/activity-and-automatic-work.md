@@ -2440,7 +2440,7 @@ app, which shows the engine's `words` and the `report` fix, never nothing.
   the toolbar glyph and the popover's recent errors (#5666, `ActivityStatusToolbarItem.swift:55-61`).
   *Not built:* the alert. *Tests (to write):* a run that ends `out-of-credit` raises one alert whose
   words are the engine's and whose buttons are the kind's fixes; a run that ends `done` with failed
-  pages raises none; a stopped run raises none (`fichero/Tests/Unit/general/Models/ActivityFailureAlertTests.swift`).
+  pages raises none; a stopped run raises none (`ActivityFailureAlertTests.swift`).
 - `activity.failure.kind-is-typed-in-the-engine` — **[PARTIAL]** (#6354; #5944 review ## 950; engine)
   one typed field on the job: `BackgroundJob.failure`, `JobTree.failure` and the run's `RunAccount.failure`
   carry the same object, `{kind, provider, model, words, fixes: [{action, label, url}], at}`, in the
@@ -2458,21 +2458,21 @@ app, which shows the engine's `words` and the `report` fix, never nothing.
   runner's eleven text categories on the SSE event only (`runner.py:502-566`, `:2744-2755`), the
   recipe's words (`recipes/runner.py:537`). *Not built:* the field, the enum, the typed carry
   through `SystemicErrorDetected`, the recipe runner setting it from its child run's. *Tests (to
-  write):* `fichero-server/tests/unit/jobs/test_failure_kind_is_typed_6354.py` (a 402 from a
+  write):* `test_failure_kind_is_typed_6354.py` (a 402 from a
   provider stub ends the run with `failure.kind == "out-of-credit"`, the provider's name, the
   `add-credit` fix with the catalogue's billing url, and `reason == failure.words`; a 401 is
   `key-refused`; an `ENOSPC` is `disk-full`; a bare `RuntimeError` is `unknown` with `report`);
-  `fichero-server/tests/unit/recipes/test_recipe_run_carries_its_steps_failure_6354.py` (the recipe
+  `test_recipe_run_carries_its_steps_failure_6354.py` (the recipe
   row's `failure` is its failed step's).
 - `activity.failure.fixed-table` — **[GAP]** (#6354; engine) the table above is ONE module
-  (`workflows/failure_kinds.py`, proposed), the only place a kind, its words and its fixes are
+  (`failure_kinds.py` under workflows, proposed), the only place a kind, its words and its fixes are
   written; `runner._classify_provider_error`'s eleven categories (`runner.py:502-566`) and
   `circuit_breaker`'s three causes map into it and the module replaces the runner's text table
   (the file-unavailable and iCloud rows become `input-unreadable`, `egress_refused` becomes
   `refused-by-a-rule`, `server` becomes `provider-down`, `auth` becomes `key-refused`). The CLI and
   MCP (`fichero_activity`, `fichero_recipes_run_status`) print `words` and the fixes' labels from
   the same field. A kind is never invented at a call site: an exception no row claims is `unknown`.
-  *Not built:* all of it. *Tests (to write):* `fichero-server/tests/unit/workflows/test_failure_kinds_table_6354.py`
+  *Not built:* all of it. *Tests (to write):* `test_failure_kinds_table_6354.py`
   (every kind has words and at least one fix or is `none`; every exception type the runtimes raise
   maps to a kind; the MCP status prints the same words the jobs list carries).
 - `activity.failure.app-only-displays` — **[GAP]** (#6354; app) the app never classifies: it
@@ -2517,7 +2517,7 @@ app, which shows the engine's `words` and the `report` fix, never nothing.
   failure row reads "Paused: <words>" and offers the first fix as its one button
   (`activity.window.one-button`: Resume, or Add credit when that is the fix), a failed row reads
   "<words>" with Retry. The CLI's `fichero activity` and the MCP status print the same sentence.
-  *Not built.* *Tests (to write):* `fichero/Tests/Unit/general/Models/ActivityTableTests.swift`
+  *Not built.* *Tests:* `fichero/Tests/Unit/general/Models/ActivityTableTests.swift`
   (a row with `failure` shows its words and its first fix; the strip shows the same words).
 - `activity.failure.reaches-the-person-off-window` — **[GAP]** (#6354; app, Mac and iOS) when the
   app is not frontmost, or the Activity window is closed, the alert is ALSO a system notification
@@ -2533,7 +2533,7 @@ app, which shows the engine's `words` and the `report` fix, never nothing.
   alert (`activity.failure.one-alert-per-run`), none for a stopped run, none for a page.
   *Built:* the Mac notifier for a streamed thread, Mac only. *Not built:* posting from the jobs
   list, the iOS half, the tap that opens the row. *Tests (to write):*
-  `fichero/Tests/Unit/general/Models/ActivityFailureNotificationTests.swift` (the notification's
+  `ActivityFailureNotificationTests.swift` (the notification's
   request is built from the jobs list's failure with the run's name and `words`; a stopped run
   builds none; the same key twice builds one; the preference off builds none).
 - `activity.failure.cancelled-is-not-a-failure` — **[PARTIAL]** (#6354; #6005, #4402; engine +
@@ -2562,10 +2562,10 @@ app, which shows the engine's `words` and the `report` fix, never nothing.
   checkpoint (#5933), park on a paused step. *Not built:* settling `paused` on a fatal provider
   error (today `SystemicErrorDetected` → `failed`, `runner.py:2710`), the recipe parking on it,
   the `failure` on a paused row. *Tests (to write):*
-  `fichero-server/tests/unit/jobs/test_out_of_credit_pauses_the_run_6354.py` (a 402 on page 4 of
+  `test_out_of_credit_pauses_the_run_6354.py` (a 402 on page 4 of
   10 leaves the run `paused` with `failure.kind == "out-of-credit"`, three pages done and kept,
   and Resume after the stub recovers reads pages 4 to 10 only and ends `done`);
-  `fichero-server/tests/unit/recipes/test_recipe_parks_on_a_paused_step_6354.py` (the recipe row
+  `test_recipe_parks_on_a_paused_step_6354.py` (the recipe row
   reads paused with the step's words and takes the step up again on Resume).
 - `activity.failure.partial-results-kept` — **[PARTIAL]** (#6354; #5937, #5758, #4315) whatever a
   run finished before it failed or paused is kept and shown: the pages read stay read, their
@@ -2585,7 +2585,7 @@ app, which shows the engine's `words` and the `report` fix, never nothing.
   file names outside the project, no keys); the person sees what is sent before it goes. Unknown
   never falls through to silence. *Built:* the words rule for a job of its own (#6212). *Not
   built:* `unknown` as a kind, the report bundle route (`GET /api/activity/jobs/{id}/report`,
-  proposed), the button. *Tests (to write):* `fichero-server/tests/unit/api/test_failure_report_bundle_6354.py`
+  proposed), the button. *Tests (to write):* `test_failure_report_bundle_6354.py`
   (the bundle has the run id, log, versions; a page's text and a key never appear in it).
 
 ### Migration order
@@ -3130,24 +3130,24 @@ tested against a real provider stub on the M4.
 
 #### Step 7.1 — The engine classifies: one typed field, one table (#6354)
 - Behaviours: `activity.failure.kind-is-typed-in-the-engine`, `activity.failure.fixed-table`, `activity.failure.cancelled-is-not-a-failure`
-- Tests: fichero-server/tests/unit/jobs/test_failure_kind_is_typed_6354.py, fichero-server/tests/unit/workflows/test_failure_kinds_table_6354.py, fichero-server/tests/unit/recipes/test_recipe_run_carries_its_steps_failure_6354.py
+- Tests: test_failure_kind_is_typed_6354.py, test_failure_kinds_table_6354.py, test_recipe_run_carries_its_steps_failure_6354.py
 - Size: M
 
 #### Step 7.2 — The alert on the Mac: one per run, the engine's words, the engine's fixes (#6354)
 - Behaviours: `activity.failure.never-silent`, `activity.failure.app-only-displays`, `activity.failure.one-alert-per-run`, `activity.failure.alert-names-the-fix`, `activity.failure.row-says-the-same`
-- Tests: fichero/Tests/Unit/general/Models/ActivityFailureAlertTests.swift, fichero/Tests/Unit/general/Models/ActivityTableTests.swift
+- Tests: ActivityFailureAlertTests.swift, fichero/Tests/Unit/general/Models/ActivityTableTests.swift
 - Depends on: 7.1
 - Size: M
 
 #### Step 7.3 — Off-window and on iPhone and iPad: the notification; the unknown kind's report (#6354)
 - Behaviours: `activity.failure.reaches-the-person-off-window`, `activity.failure.unknown-offers-a-report`
-- Tests: fichero/Tests/Unit/general/Models/ActivityFailureNotificationTests.swift, fichero-server/tests/unit/api/test_failure_report_bundle_6354.py
+- Tests: ActivityFailureNotificationTests.swift, test_failure_report_bundle_6354.py
 - Depends on: 7.2
 - Size: M
 
 #### Step 7.4 — Out of credit pauses the run and keeps its pages; Resume carries on (#6354, #5933)
 - Behaviours: `activity.failure.credit-exhausted-pauses`, `activity.failure.partial-results-kept`
-- Tests: fichero-server/tests/unit/jobs/test_out_of_credit_pauses_the_run_6354.py, fichero-server/tests/unit/recipes/test_recipe_parks_on_a_paused_step_6354.py, fichero-server/tests/unit/jobs/test_partial_is_said_on_a_done_row_5937.py
+- Tests: test_out_of_credit_pauses_the_run_6354.py, test_recipe_parks_on_a_paused_step_6354.py, fichero-server/tests/unit/jobs/test_partial_is_said_on_a_done_row_5937.py
 - Depends on: 7.1
 - Size: M
 

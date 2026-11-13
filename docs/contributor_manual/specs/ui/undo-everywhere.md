@@ -322,7 +322,7 @@ part is to show that sentence (`undo.refusal`).
   A, and B's row changes.
 - `undo.cross-project` — **[PARTIAL]** (#5658) a step stays tied to its project. If the window has
   switched to another project, Command-Z still reverses the step in the project it was made
-  in (`undo.naming.other-project`). *Test:* pure Swift with two fake projects. Built (slice 1, app, 2026-10-11): a step keeps its project's path and finds that project's live service when taken back, whatever the window shows now. *Not built: `undo.naming.other-project`.*
+  in (`undo.naming.other-project`). *Test:* pure Swift with two fake projects. Built (slice 1, app, 2026-10-11): a step keeps its project's path and finds that project's live service when taken back, whatever the window shows now. *Still a gap: the title naming a step's other project (the naming bullet above).*
 - `undo.steps-end` — **[PARTIAL]** (#5658) a window's steps end with the window, the app, their
   project (closed or returned to a snapshot) and the signed-in person, as "When steps end"
   says; they stay in the history list. *Test:* pure Swift: close project P, and its steps are
