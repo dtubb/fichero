@@ -90261,7 +90261,7 @@
           "user"
         ],
         "title": "RegionConfidence",
-        "description": "How much a region's rect is actually worth.\n\nThe Marshall sidecars carry ``\"method\": \"nominal-even-split\"`` with the\nnote that \"the fold was not measured\" \u2014 a 50/50 guess at where an opening\ndivides. That is a different fact from a measured fold, and collapsing them\nwould make a guess indistinguishable from a measurement. Same three-way\nhonesty ``date_meta`` and ``language_meta`` already use."
+        "description": "How much a region's rect is actually worth.\n\nThe diary sidecars carry ``\"method\": \"nominal-even-split\"`` with the\nnote that \"the fold was not measured\" \u2014 a 50/50 guess at where an opening\ndivides. That is a different fact from a measured fold, and collapsing them\nwould make a guess indistinguishable from a measurement. Same three-way\nhonesty ``date_meta`` and ``language_meta`` already use."
       },
       "RegionEditOp": {
         "type": "string",

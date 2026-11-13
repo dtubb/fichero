@@ -293,7 +293,7 @@ def shapes_bound(shapes: list[AnchorShape] | None) -> list[float] | None:
 class RegionConfidence(str, Enum):
     """How much a region's rect is actually worth.
 
-    The Marshall sidecars carry ``"method": "nominal-even-split"`` with the
+    The diary sidecars carry ``"method": "nominal-even-split"`` with the
     note that "the fold was not measured" — a 50/50 guess at where an opening
     divides. That is a different fact from a measured fold, and collapsing them
     would make a guess indistinguishable from a measurement. Same three-way

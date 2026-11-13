@@ -838,7 +838,7 @@ cards and sheet rows gain Run Workflow and exclusion menus.
 transcripts as each page's text, deduped entities, renditions — with real
 progress counts, thumbnails, and the corpus landing under the folder you
 dropped it on. Re-dropping an already-imported corpus repairs it instead
-of silently doing nothing. All 29 Marshall diaries are staged and ready.
+of silently doing nothing. All 29 diary volumes are staged and ready.
 
 **Sidecars carry their own facts.** A `x.jpg.transcript.txt` beside an
 image becomes its text on any plain folder drop; an `.iffy.json` stating
