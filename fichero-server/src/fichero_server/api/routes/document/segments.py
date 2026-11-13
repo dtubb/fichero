@@ -3372,6 +3372,93 @@ def _action_regenerate_outline(db: Database, params: SegmentRegenerateOutlinePar
     return {"segment_ids": [row.id for row in rows], "versions": after_versions}, spec
 
 
+class SegmentSimplifyParams(BaseModel):
+    """`segment-editor.vertices`: Simplify (⌥⌘S): fewer points on each outline and baseline."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    segment_ids: list[str] = Field(description="The segments whose outlines and baselines are simplified.")
+    expected_versions: dict[str, int] = Field(description="Each segment's version as last read, {segment_id: version}; a changed segment is refused.")
+    tolerance: float = Field(gt=0, description="How far, in image pixels, the simpler shape may stray from the one drawn.")
+
+
+@action(
+    "segment.simplify",
+    SegmentSimplifyParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_many_via_previous_version,
+)
+def _action_simplify(db: Database, params: SegmentSimplifyParams, ctx: ActionContext):
+    """Douglas-Peucker on each segment's outline (closed) and baseline (open), in the page image's pixels, so the
+    tolerance means the same on every page; one action, one undo. A segment already as simple as the tolerance allows
+    is left as it is and not bumped. An outline is never brought below three points, a baseline below two."""
+    import cv2
+    import numpy as np
+
+    from fichero_server.media import line_join
+
+    if not params.segment_ids:
+        raise HTTPException(status_code=422, detail="segment_ids is empty: nothing to simplify")
+    _refuse_repeated_ids(params.segment_ids)
+    rows: list[Segment] = []
+    for segment_id in params.segment_ids:
+        _assert_not_provisional_http(segment_id, what="segment_id")
+        rows.append(_live_current_row(db, segment_id, _require_expected_version(params.expected_versions, segment_id)))
+    if len({(row.document_id, row.pass_id) for row in rows}) > 1:
+        raise _as_http_error(SegmentPassMismatchError("the segments being simplified are not all in the same pass and document"))
+    elsewhere = [row.id for row in rows if row.anchor is not None and row.anchor.rendition_id]
+    if elsewhere:
+        raise HTTPException(status_code=422, detail=f"segments measured on another image cannot be simplified here: {elsewhere}")
+
+    document = db.get(Document, rows[0].document_id)
+    _image, forward, back = _page_image_for_lines(db, document)
+
+    def fewer(points: list[list[float]], closed: bool, least: int) -> list[list[float]] | None:
+        pixels = np.array(forward(points), dtype=np.float32).reshape(-1, 1, 2)
+        kept = cv2.approxPolyDP(pixels, params.tolerance, closed).reshape(-1, 2).tolist()
+        if len(kept) < least or len(kept) >= len(points):
+            return None
+        return [[round(x, 6), round(y, 6)] for x, y in back(kept)]
+
+    audit_id = uuid.uuid4().hex
+    after_versions, simplified_ids = [], []
+    for row in rows:
+        polygon = fewer(row.anchor.polygon, True, 3) if row.anchor is not None and row.anchor.polygon else None
+        baseline = fewer(row.baseline, False, 2) if row.baseline and len(row.baseline) > 2 else None
+        if polygon is None and baseline is None:
+            continue
+        snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        if polygon is not None:
+            polygon, _crossed = line_join.simple_outline(polygon)  # dropping points can make an outline cross itself
+            xs, ys = [p[0] for p in polygon], [p[1] for p in polygon]
+            row.anchor = row.anchor.model_copy(update={
+                "polygon": polygon, "rect": [min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)],
+            })
+            bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(row.anchor)
+            row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
+        if baseline is not None:
+            row.baseline = baseline
+        db.save(row)
+        after_versions.append({"segment_id": row.id, "version": row.version})
+        simplified_ids.append(row.id)
+    if not simplified_ids:
+        raise HTTPException(status_code=422, detail="the shapes are already as simple as that tolerance allows")
+
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=simplified_ids,
+        before=None,
+        after={"versions": after_versions},
+        emit_type="segment.updated",
+        segment_ids=simplified_ids,
+        pass_ids=[rows[0].pass_id],
+        document_ids=[rows[0].document_id],
+    )
+    return {"segment_ids": simplified_ids, "versions": after_versions}, spec
+
+
 # --- readings across a split and a merge (slice 8, #4934) ----------------
 #
 # OWED BY SLICE 8 SO IT IS NOT RETROFITTED. Once a segment has readings,

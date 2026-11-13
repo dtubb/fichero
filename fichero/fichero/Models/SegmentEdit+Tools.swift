@@ -88,6 +88,23 @@ extension SegmentEdit {
         return "\(cutWords); \(aloneWords)"
     }
 
+    /// The tolerance Simplify uses from the menu, in image pixels: enough to drop a traced staircase, not the ink's
+    /// shape.
+    static let simplifyTolerance = 2.0
+
+    /// SIMPLIFY the selected segments' outlines and baselines (`segment-editor.vertices`): one `segment.simplify`,
+    /// one undo. The engine leaves a shape already that simple as it is.
+    static func simplify(_ segments: [Segment], tolerance: Double = simplifyTolerance) -> Result<Call, Refusal> {
+        guard !segments.isEmpty else { return .failure(.tooFew) }
+        guard let versions = versions(of: segments) else { return .failure(.versionUnknown) }
+        return .success(Call(
+            action: "segment.simplify",
+            params: .simplify(SegmentSimplifyRequest(
+                segmentIds: segments.map(\.id), expectedVersions: versions, tolerance: tolerance
+            ))
+        ))
+    }
+
     /// `[minX, minY, maxX, maxY]` of some points; nil for none.
     private static func bounds(of points: [[Double]]) -> [Double]? {
         let lefts = points.compactMap { $0.first }, tops = points.compactMap { $0.count > 1 ? $0[1] : nil }
@@ -118,4 +135,15 @@ struct SegmentKnifeRequest: Encodable, Equatable {
     let expectedVersions: [String: Int]
 
     enum CodingKeys: String, CodingKey { case cutPath = "cut_path", expectedVersions = "expected_versions" }
+}
+
+/// `segment.simplify`: fewer points on each outline and baseline, within `tolerance` image pixels.
+struct SegmentSimplifyRequest: Encodable, Equatable {
+    let segmentIds: [String]
+    let expectedVersions: [String: Int]
+    let tolerance: Double
+
+    enum CodingKeys: String, CodingKey {
+        case segmentIds = "segment_ids", expectedVersions = "expected_versions", tolerance
+    }
 }

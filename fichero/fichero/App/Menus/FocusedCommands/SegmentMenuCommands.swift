@@ -16,6 +16,8 @@ struct SegmentMenuTarget {
     let redraw: () -> Void
     /// Split Line at Point (⌘⇧K): the one selected line, cut at right angles to its baseline where it was last clicked.
     var splitAtPoint: () -> Void = {}
+    /// Simplify Outline: fewer points on the selection's outlines and baselines.
+    var simplify: () -> Void = {}
     let apply: (SegmentEdit.Attribute) -> Void
 }
 
@@ -55,6 +57,9 @@ struct SegmentMenuContent: View {
         Button("Split Line at Point") { target?.splitAtPoint() }
             .keyboardShortcut("k", modifiers: [.command, .shift])
             .disabled(!Self.canSplitAtPoint(selected: count, hasBaselines: target?.selectionHasBaselines == true))
+        // No chord yet: the spec's ⌥⌘S is the markup row's (`PreviewMarkupToolsRow`).
+        Button("Simplify Outline") { target?.simplify() }
+            .disabled(count == 0)
         Divider()
         SegmentAttributeMenu.Items(apply: { target?.apply($0) })
             .disabled(count == 0)
