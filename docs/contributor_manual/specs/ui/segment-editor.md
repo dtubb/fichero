@@ -238,7 +238,7 @@ targets are at least 44 pt.
   case where a stroke is more than is needed; the same engine call with a two-point `cut_path`.
   *Built (2026-11-13):* Edit › Segments ▸ Split Line at Point (⌘⇧K), at the point last pressed on the
   page (the Preview tracks presses, not hover), `SegmentEdit.splitAtPoint`. *Tests:*
-  `KnifeStrokeTests.splitAtAPoint`.
+  `fichero/Tests/Unit/general/Views/Source/KnifeStrokeTests.swift::splitAtAPoint`.
 - `segment-editor.reassign-by-drag` — **[GAP]** (→ #4941; app + engine) dragging a line (or a selection of lines)
   onto another region, in Select, makes them that region's lines: `segment.update_many` with
   `parent_segment_id`, and a `reading_order.place` for each into the region's lines by page
