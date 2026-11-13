@@ -1128,6 +1128,133 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
   component; Preview's quiet bar (image and PDF) and every other footer are removed, their
   entries living in the pane menu.
 
+### H. Bars like Xcode, one filter component, Focus mode (owner 2026-11-13, Mac first)
+
+> The owner, after a day in the window (2026-11-13): the Mac's pane heads and bottom bars should
+> sit like Xcode's (its heights and insets; a flat bar in the pane's own material with one
+> hairline; small controls that show a bezel only on hover; a thin head row over the Library and
+> the Reader); the sidebar's bottom bar becomes + − and a Filter field like Xcode's navigator,
+> with ⋯ for overflow (`sidebar-crud.md`, "The bottom bar"); every view's bottom bar is the same
+> shape with the same filter/options component; and any pane can take the whole screen on its own
+> (#6575). The iPad and iPhone keep their floating glass. These entries extend section G: nothing
+> here moves a control the pane menu (`panes.chrome.one-pane-menu`) already owns, and the pane
+> menu's What to Show ▸ stays a second door to the same switches the bar shows.
+
+- `panes.chrome.mac-bars-like-xcode` — **[GAP]** (#5435, #4880; owner 2026-11-13) app, macOS. A pane head and a bottom bar are flat bars in the pane's own material (no glass capsule, no second material) with ONE hairline between the bar and the content; their heights and insets are Xcode's: a bottom bar's controls are centred in its height and inset from the window's edge so nothing crowds the corner, and a pane head's buttons are inset from the top edge so they are not jammed against it. The numbers live in one metrics table (`PaneHeadMetrics`, `MiniToolbarMetrics`) that every bar reads; no bar pads itself. *Built:* nothing of this: every head is a 40 pt floating glass capsule over a reserved row (`PaneHead.swift`, `PaneHeadMetrics`); the Library's action bar and the sidebar's bar each carry their own padding. *Tests:* `PaneBarMetricsTests` (to write: one table, every bar reads it; a Mac bar is flat with one hairline, an iPad bar is glass).
+- `panes.chrome.bar-buttons-hover-bezel` — **[GAP]** (#5435; owner 2026-11-13) app, macOS. A button on a pane head or a bottom bar is an accessory-bar button: a small plain glyph (the `.small` control size) with no border at rest, a light bezel on hover and a pressed look on click, as Xcode's jump-bar and filter-bar buttons; a menu button adds its chevron the same way. ONE button style for every bar (`PaneBarButtonStyle`), so no bar draws its own. *Tests:* `PaneBarButtonStyleTests` (to write: the one style on every bar button; rest, hover and pressed as a pure table).
+- `panes.chrome.library-and-reader-head-is-28pt` — **[GAP]** (#4974; owner 2026-11-13; narrows `panes.chrome.head-floats-or-is-a-row`) app, macOS. The thin row above the Items (Library) pane and the Reader is 28 pt tall, the height of Xcode's jump bar, with small controls; the Preview and canvas heads keep floating and fading. *Tests:* `PaneBarMetricsTests` (to write: 28 for Items and Reader on the Mac).
+- `panes.chrome.ipad-keeps-floating-glass` — **[GAP]** (#5435; owner 2026-11-13) app, iPadOS and iOS. On the iPad and the iPhone the heads and bars stay floating glass, as iPadOS's own toolbars are; the Xcode bars are the Mac's alone, chosen by the one metrics table, never by a platform check inside a view. *Tests:* `PaneBarMetricsTests` (to write: the same table answers glass for the iPad).
+- `panes.bar.one-filter-and-options-component` — **[GAP]** (#4856, #4966; owner 2026-11-13) app. Items, Source, Reader and Segments share ONE bottom-bar shape and ONE filter/metadata/options component (`PaneFilterBar`, extended): on the left the view's own verbs (Items: +; the others none), in the centre the Filter field (`panes.bar.filter-field-like-xcode`) whose menu lists that view's filters as check-marked toggles, on the right the Options menu listing what the view's rows show, and ⋯ only when the bar overflows. A word means one thing: a **Filter** narrows the rows, an **Option** changes what a row shows, and a toggle with one name does the same thing in every view that has it. So Items' "Filter Entities" (today a KG popover plus an entity menu, `LibraryView+BottomActionBar.swift`) becomes the filter **Has Entities**, and the Reader's empty Filter menu ("No filters yet", `ReaderToolbar.swift`) and its Display menu become the Reader's filters and options of the table below; the Segments pane's own bar (`SegmentsFilterBar`, `source.editor.segments-list-has-a-filter-bar`) is this component, not a second one; the Source pane gains the bar. The table is the inventory; each view's own spec owns what an entry means. *Tests:* `PaneFilterBarInventoryTests` (to write: the four views mount the one component; a name is in at most one of Filter and Options per view; the Mac and the iPad render the same inventory).
+- `panes.bar.filter-field-like-xcode` — **[GAP]** (#4061; owner 2026-11-13; the sidebar's is `sidebar.bar.filter-field-like-xcode`) app. The Filter field is Xcode's: a rounded field; inside it on the left a line-in-circle filter glyph (`line.3.horizontal.decrease.circle`) with a small menu chevron that opens the view's filter toggles; the typed text filters by name as it does today; a clear button on the right only while there is text. One component serves the sidebar, Items, Reader, Segments and Source. *Tests:* `PaneFilterFieldTests` (to write: the glyph, the chevron's menu, the clear button's presence as a pure function of the text).
+
+| View | Filter (narrows the rows; the field's menu) | Options (what a row shows; the Options menu) |
+|---|---|---|
+| Items | typed name; Kind (document type); Has Entities, Has Claims (today's KG filter); Date; Tagged; Flagged; Not Read Yet | the view mode (Icons, List, Columns, Canvas); Sort (`library.sort.names-in-finder-order`, #6571, on its own branch); Group By; Thumbnails; Counts |
+| Source | typed segment label; Kind (Region, Line, Word); Has a Reading, No Reading; Flagged; Low Confidence (the Segments pane's facets) | the Display switches (`source.editor.display-menu-has-order-switches`): Image, Regions, Word Boxes, Text Inline, Shade by Reading Order, Order Numbers; Names, Statements, Notes (`layers-on-the-source.md`); Reading Order (`reader.order.switchable`'s picker) |
+| Reader | typed text (find in page); Kind; Has a Reading; Flagged; Low Confidence | Neighbouring Pages, Segments, Notes, Readings (`reader.content.options-in-the-bottom-bar`); Names, Statements, Translation (`layers.toggle.one-menu-per-surface`); Reading Order (`reader.order.switchable`) |
+| Segments | the facets of `source.editor.segments-list-has-a-filter-bar` | List, Strip, Grid; Pictures; Other Readings; Reading Order (the same picker) |
+
+- `panes.focus.any-pane-fills-the-screen` — **[GAP]** (#6575; owner 2026-11-13) app, macOS. Every pane (Source, Reader, Segments, Preview, and the canvas and Chat kinds) can go to the window's REAL macOS full screen on its own: a **Focus** button on the pane head (the viewfinder glyph the Preview head's View Full Screen uses today, `preview.full-screen-page`) and **View › Focus on Pane** (⌃⌘R, the chord that today opens the full-window reader; Focus on the Preview IS that reader, so the chord keeps its meaning and gains every other pane). In Focus the window enters full screen (its own Space, the menu bar hidden), the sidebar, the Inspector and every other pane are hidden, the focused pane fills the screen, and a page view (Preview, Source, the Reader's lines) draws on black. The pane keeps its own state: zoom, page, selection, filter. *Built:* the Preview's View Full Screen into `ImmersiveReaderView`, which fills the window only. *Not built:* the window's own full screen; Focus on any other pane; the menu item. *Tests:* `PaneFocusTests` (to write: which pane kinds offer Focus; the pane list the window shows in Focus is the one pane; the item's title and chord; Focus on the Preview takes the existing immersive route).
+- `panes.focus.esc-restores-exactly` — **[GAP]** (#6575; owner 2026-11-13) app, macOS. Esc, the head's ✕, or View › Focus on Pane again leaves Focus and restores the window exactly: the pane list, the sidebar and the Inspector, every pane's scroll and zoom, and the window's full-screen state as it was: a window that was already in full screen stays in full screen and only the hidden panes return; one that was not leaves full screen. Entering and leaving save nothing to the workspace. *Tests:* `PaneFocusTests` (to write: a saved pane list round-trips through Focus unchanged; the full-screen flag is read before and restored after).
+- `panes.focus.preview-keeps-its-chrome-and-paging` — **[GAP]** (#6575, #6560; owner 2026-11-13) app, macOS. Focus on a Preview showing a page keeps `ImmersiveReaderView`'s fading chrome and its ← → paging (`preview.full-screen-page`); Focus on any other pane shows that pane's own head as a fading overlay holding only its navigation and Focus's ✕. *Tests:* `PreviewFullScreenTests` (extended, to write: the immersive route under Focus; the overlay head's contents per kind).
+
+**Open questions for the owner (2026-11-13; each answerable in a word or two):**
+
+1. Mac Preview and canvas heads: still floating and fading, or flat like the other bars? (float / flat)
+2. The "?" glyph that goes: the one on the sidebar's bar, the "?" badge on rows, or both? (bar / rows / both)
+3. Sources shows folders only: does a PDF split into pages count as a folder (shown) or a page (hidden)? (shown / hidden)
+4. The Metadata section: keep the proposed rows (Document Types, Tags, Languages, Dates), or name others? (keep / list them)
+5. Hosts: the shared Macs only, or the compute hosts (clusters) too? (shared / both)
+6. The two words: "Filter" narrows rows, "Options" changes what rows show; keep both words? (yes / other words)
+7. Focus on Pane takes ⌃⌘R from the Preview's full-window reader (same key, wider meaning), or gets a new chord? (same / new)
+8. Focus on every pane kind (Chat, Items, canvas too), or only Source, Reader, Segments, Preview? (all / four)
+9. Reader with one page selected, Segments off: the rows are still line by line (one editable row per line), and the Segments option adds the ink strips? (yes / prose only)
+10. Picking an order in the Reader: this pane only, or it also sets the page order? (pane / page)
+11. Combining orders from different passes (Kraken's is on Kraken's pass, a model's on its own): refuse, or compose a pass first (#5232)? (refuse / compose)
+12. Combine's default rule: interleave by position on the page, or take the first then the next? (interleave / take)
+13. Near-duplicate orders fold under the first: identical sequences only, or a subset too? (identical / subsets)
+14. Drawing a region: the name field opens after the draw (Esc keeps the region), or no field at all? (field / none)
+15. A pass that lands empty clears the drawn lines even when an older pass still has lines? (clear / keep older)
+16. Order titles carry source and date ("Layout Order · Kraken, 13 Nov"): keep the word "Layout Order", or "As Written"? (Layout / As Written)
+17. After a Combine, the sources fold under the result as near-duplicates, or are they deleted (one undo brings them back)? (fold / delete)
+
+## Build order (owner 2026-11-13, Mac first; each slice one reviewable commit with its tests)
+
+### Stage 1 — the bars
+
+#### Step 1.1 — Xcode's bars on the Mac: one metrics table, flat bars, hover bezels, the 28 pt head (#5435)
+- Behaviours: `panes.chrome.mac-bars-like-xcode`, `panes.chrome.bar-buttons-hover-bezel`, `panes.chrome.library-and-reader-head-is-28pt`, `panes.chrome.ipad-keeps-floating-glass`
+- Tests: PaneBarMetricsTests.swift (not yet written), PaneBarButtonStyleTests.swift (not yet written)
+- Size: M
+
+The worker items already drafted for these are the build; this step names them. Swift only. The iPad is proven by the same table answering glass.
+
+#### Step 1.2 — the sidebar's bar: + − Filter ⋯, the filter menu's toggles, per window (#5413)
+- Behaviours: `sidebar.bar.plus-minus-filter-overflow`, `sidebar.bar.filter-field-like-xcode`, `sidebar.bar.filter-menu-toggles-what-the-sidebar-shows`, `sidebar.bar.toggles-are-per-window`
+- Tests: SidebarBottomToolbarTests.swift (not yet written), SidebarFilterMenuTests.swift (not yet written)
+- Depends on: 1.1
+- Size: M
+
+The entries live in `sidebar-crud.md`, "The bottom bar". Questions 2, 3 and 5 are answered before the menu's last two toggles are built; the rest does not wait.
+
+#### Step 1.3 — one filter/options component on Items, Source, Reader and Segments (#4856, #4966)
+- Behaviours: `panes.bar.one-filter-and-options-component`, `panes.bar.filter-field-like-xcode`
+- Tests: PaneFilterBarInventoryTests.swift (not yet written), PaneFilterFieldTests.swift (not yet written)
+- Depends on: 1.2
+- Size: M
+
+The inventory table above is the acceptance. Question 6 names the two words first.
+
+#### Step 1.4 — the Metadata section (after question 4)
+- Behaviours: `sidebar.bar.metadata-section`
+- Tests: test_stats_facets.py (not yet written), SidebarMetadataRowsTests.swift (not yet written)
+- Depends on: 1.2
+- Size: S
+
+### Stage 2 — Focus
+
+#### Step 2.1 — Focus on Pane: real full screen for any pane, Esc restores exactly, the Preview keeps its chrome (#6575)
+- Behaviours: `panes.focus.any-pane-fills-the-screen`, `panes.focus.esc-restores-exactly`, `panes.focus.preview-keeps-its-chrome-and-paging`
+- Tests: PaneFocusTests.swift (not yet written), fichero/Tests/Unit/general/Models/PreviewFullScreenTests.swift
+- Depends on: 1.1
+- Size: M
+
+Questions 7 and 8 first; the Preview's route is the existing one.
+
+### Stage 3 — the Reader's content and the orders it follows (`reader-view.md`, `segment-editor-crud.md`)
+
+#### Step 3.1 — one page by default, the whole document for a document, the options in the bar (#6579)
+- Behaviours: `reader.content.page-only-by-default`, `reader.content.options-in-the-bottom-bar`
+- Tests: ReaderContentScopeTests.swift (not yet written), ReaderOptionsTests.swift (not yet written)
+- Depends on: 1.3
+- Size: M
+
+#### Step 3.2 — the Reader line by line as the Compare view is, each row in its region's colour (#6576)
+- Behaviours: `reader.content.one-line-per-segment-like-compare`, `reader.content.line-carries-its-region-colour`
+- Tests: ReaderContentRowsTests.swift (not yet written), fichero/Tests/Unit/general/Views/Reader/ReaderLinesTests.swift
+- Depends on: 3.1
+- Size: M
+
+#### Step 3.3 — the order the Reader follows, switched with the one picker; one default, near-duplicates folded (#6576, #6421)
+- Behaviours: `reader.order.switchable`, `source.editor.orders.one-default-not-near-duplicates`
+- Tests: ReaderOrderFollowTests.swift (not yet written), test_orders_same_as.py (not yet written), ReadingOrderPickerDefaultTests.swift (not yet written)
+- Depends on: 3.2
+- Size: M
+
+Engine first (`same_as` in the list answer), then the picker in the Reader's bar. Questions 10 and 13.
+
+#### Step 3.4 — Combine two or more orders into one, named and chosen, one undo (#6421)
+- Behaviours: `source.editor.orders.combined-and-edited-on-the-page`
+- Tests: test_combine_orders_6421.py (not yet written), OrderOverlayEditTests.swift (not yet written)
+- Depends on: 3.3
+- Size: M
+
+This is `segment-editor-crud.md` Step 1.14's combine half, re-scoped by the owner 2026-11-13 (two or more, named, chosen, one undo); the overlay editing half stays there. Questions 11 and 12 first.
+
+### Stage 4 — the segments stay true (`segment-editor-crud.md` Steps 1.31 and 1.32; bug fixes, so they may run first)
+
+The list, the Order tab and the drawing refresh on the page's change event (#6574), a drawn region is always made (#6580), and the drag of a line into a region is restored (#6577) are specified and ordered in `segment-editor-crud.md`.
+
 ## Known bugs to fix (already observed by the creative director)
 
 1. ~~**Claims don't reset on library change**~~ — **FIXED 5b709aca0** (F5): Claims + Entities

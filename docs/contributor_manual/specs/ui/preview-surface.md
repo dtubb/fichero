@@ -269,6 +269,9 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   `PreviewFullScreen.canEnter`, `PreviewHeadLensControls.onEnterFullScreen` (macOS), `ContentView.enterImmersiveReading(showing:)`,
   `KeyboardPageStep` in `KeyboardExitCatcher`. *Not built:* a look on screen; a trackpad swipe in full screen; the window's
   own macOS full screen (the reader fills the window, as ⌃⌘R always did). *Tests:* `Models/PreviewFullScreenTests.swift`.
+  *Owner 2026-11-13 (#6575): the window's own macOS full screen is now Focus mode for EVERY pane,
+  `panes.focus.any-pane-fills-the-screen` (`ui/panes-workspaces.md` H); this entry keeps the Preview's
+  fading chrome and arrow paging under it (`panes.focus.preview-keeps-its-chrome-and-paging`).*
 
 ### F. Clicking and dragging on the page
 
