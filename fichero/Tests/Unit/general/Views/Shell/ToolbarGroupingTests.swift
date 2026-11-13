@@ -145,6 +145,8 @@ struct ToolbarGroupingTests {
             .replacingOccurrences(of: "EngineStatusToolbarItem(", with: "")
             .replacingOccurrences(of: "ActivityStatusToolbarItem(", with: "")
             .replacingOccurrences(of: "ModelChipToolbarItem(", with: "")
+            // The system search item (iOS) carries the system's own identity (com.apple.SwiftUI.search, #3163).
+            .replacingOccurrences(of: "DefaultToolbarItem(", with: "")
         let itemDeclarations = source.components(separatedBy: "ToolbarItem(").count - 1
         let identifiedItems = source.components(separatedBy: "ToolbarItem(id: ").count - 1
         #expect(itemDeclarations > 0, "no ToolbarItem declarations found — wrong file?")
