@@ -24,6 +24,10 @@ struct ImageWithCursorTracking: UIViewRepresentable {
     @Binding var loupeMagnification: CGFloat
     @Binding var loupeSize: CGFloat
     @Binding var coordinator: Coordinator?
+    /// A horizontal swipe on the fitted page: -1 for the previous page, +1 for the next (#6559). Nil: no pages to turn.
+    var onPageStep: ((Int) -> Void)?
+    /// The full-screen view's pinch stops at the fitted size instead of shrinking the page further (#6559).
+    var floorsZoomAtFit = false
 
     func makeUIView(context: Context) -> UIScrollView {
         let scrollView = makeScrollView(delegate: context.coordinator)
@@ -32,6 +36,7 @@ struct ImageWithCursorTracking: UIViewRepresentable {
         scrollView.addSubview(imageView)
         context.coordinator.scrollView = scrollView
         context.coordinator.imageView = imageView
+        context.coordinator.installPageSwipe(on: scrollView)
 
         // Override images are already decoded; a URL is decoded OFF-main (#3864).
         context.coordinator.currentOverrideImage = overrideImage
