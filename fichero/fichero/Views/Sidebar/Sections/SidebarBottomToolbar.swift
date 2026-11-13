@@ -49,48 +49,21 @@ struct SidebarBottomToolbar: View {
     var body: some View {
         // No `ViewThatFits` ladder and no field inside one (#5293): the field is one view for the
         // life of the bar, so typing never remounts it. The verbs are few enough to stay inline.
+        // + · 🗑 · Metadata · Filter, in one row (`sidebar.bottom-bar.plus-trash-filter`, owner 2026-11-13): no Sort,
+        // the sidebar keeps its own order; the knowledge rows' switch (#5413) is in the Filter's menu.
         HStack(spacing: 4) {
             newItemMenu
             removeButton
-            // Show/hide every project's non-empty knowledge rows (#5413); absent while no
-            // project has one, since there would be nothing for it to do.
-            if SidebarKnowledgeRows.toggleIsShown(knowledgeRowStores) {
-                SidebarKnowledgeRowsToggle(font: iconFont, side: metrics.touchTargetSide)
+            PaneMetadataButton { SidebarMetadataMenu() }
+            PaneFilterField(text: sidebarFilterText, accessibilityID: "sidebarFilterField") {
+                SidebarFilterMenu(knowledgeRowStores: knowledgeRowStores)
             }
-            filterField
-                .frame(minWidth: Self.filterFieldMinWidth)
+            .frame(minWidth: Self.filterFieldMinWidth)
+            .help("Filter the sidebar by name")
         }
         .padding(.horizontal, 8)
         .frame(height: PaneFilterBar<EmptyView>.height)
         .frame(maxWidth: .infinity)
-    }
-
-    /// The sidebar filter field in its capsule (#4061). The clear button appears only when
-    /// there's text to clear — a small in-place update, no list re-render (rows keep stable
-    /// identity via `filteredLibraryHeaders`).
-    private var filterField: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-            TextField("Filter", text: sidebarFilterText)
-                .textFieldStyle(.plain)
-                .accessibilityIdentifier("sidebarFilterField")
-            if !sidebarFilterText.wrappedValue.isEmpty {
-                Button {
-                    sidebarFilterText.wrappedValue = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help("Clear filter")
-                .accessibilityLabel("Clear filter")
-            }
-        }
-        .padding(.horizontal, 8)
-        .frame(minHeight: metrics.touchTargetSide)
-        .background(.fill.tertiary, in: Capsule())
-        .help("Filter the sidebar by name")
     }
 
     /// New item menu (dropdown) — ONE source of truth (#4121); Import is its submenu.
@@ -113,19 +86,34 @@ struct SidebarBottomToolbar: View {
         .accessibilityLabel("New Item")
     }
 
-    /// Remove / delete selected item
+    /// Move the selection to the Trash: the trash icon, as it says what happens (`sidebar.bottom-bar.plus-trash-filter`).
     private var removeButton: some View {
         Button {
             deleteItem?()
         } label: {
-            Image(systemName: "minus")
+            Image(systemName: "trash")
                 .font(iconFont)
                 .frame(minWidth: metrics.touchTargetSide, minHeight: metrics.touchTargetSide)
                 .contentShape(Rectangle())
         }
         .paneBarButtonStyle()
         .disabled(!hasSelection)
-        .help("Remove selected item")
-        .accessibilityLabel("Remove selected item")
+        .help("Move to Trash")
+        .accessibilityLabel("Move to Trash")
+    }
+}
+
+/// The sidebar Filter's menu (`sidebar.filter-menu.shows-toggles`): what the sidebar shows. Entities and Claims (the
+/// project knowledge rows, #5413) while any project has one; the other kinds named by the spec are not built yet.
+struct SidebarFilterMenu: View {
+    var knowledgeRowStores: [KnowledgeRowCountsStore] = []
+    @AppStorage(SidebarKnowledgeRows.shownKey) private var knowledgeShown = true
+
+    var body: some View {
+        if SidebarKnowledgeRows.toggleIsShown(knowledgeRowStores) {
+            Toggle("Entities and Claims", isOn: $knowledgeShown)
+        } else {
+            Text("Nothing to filter yet")
+        }
     }
 }
