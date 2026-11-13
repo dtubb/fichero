@@ -2694,6 +2694,14 @@ class SegmentMergeParams(BaseModel):
     #: concurrent edit to the kept segment is still something that changed
     #: since the caller last read it.
     expected_versions: dict[str, int] = Field(description="Each segment's version as last read, {segment_id: version}; a changed segment is refused.")
+    #: `segment-editor.merge-lines`: the kept line takes the members' joined outline (their union,
+    #: bridged across a gap) and their baselines end to end, and the readings join, all in the page's
+    #: reading order. Off, the kept row keeps its own shape, as the region-edit combine needs.
+    join_geometry: bool = Field(False, description="Join the outlines and baselines onto the kept segment, in reading order.")
+    #: `segment-editor.merge-lines`, owner 2026-11-13: members in other regions are moved into the kept
+    #: segment's region and merged in the same action. Off, a merge across regions is refused, as the
+    #: Reader's backspace join needs (`source.textedit.backspace-joins-in-reading-order`).
+    move_into_region: bool = Field(False, description="Move members in other regions into the kept segment's region rather than refusing.")
 
 
 def _invert_merge(before, after, ctx: ActionContext):
@@ -2722,6 +2730,11 @@ def _invert_merge(before, after, ctx: ActionContext):
             },
             "representation_ids": after.get("representation_ids", []),
             "order_entries": after.get("order_entries", []),
+            # The kept row's shape before a joined-geometry merge, restored from its snapshot.
+            **({"keep_restore": {
+                "segment_id": after["kept_id"], "version": after["kept_version"],
+                "expected_version": current_versions[after["kept_id"]],
+            }} if after.get("kept_version") is not None else {}),
         },
     )
 
@@ -2776,7 +2789,7 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
     # including one set and one unset), and merging across that boundary
     # would silently splice two unrelated passages into one segment.
     for row in rows.values():
-        if row.parent_segment_id != first.parent_segment_id:
+        if row.parent_segment_id != first.parent_segment_id and not params.move_into_region:
             raise _as_http_error(
                 SegmentRegionMismatchError(
                     "segments being merged are not all in the same region"
@@ -2833,6 +2846,14 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
     readings_by_member = {
         segment_id: _counting_readings(db, segment_id) for segment_id in params.segment_ids
     }
+    # `segment-editor.merge-lines`: with the geometry joined, everything joins in the PAGE's reading
+    # order (the engine's, not the click order), and the readings with the script's separator.
+    join_ids = list(params.segment_ids)
+    separator = " "
+    joined_shape = None
+    if params.join_geometry:
+        joined_shape = _joined_line_shape(db, rows, keep_row, readings_by_member)
+        join_ids, separator = joined_shape["order"], joined_shape["separator"]
 
     audit_id = uuid.uuid4().hex
     absorbed_versions: dict[str, int] = {}
@@ -2850,6 +2871,8 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
         snapshot_segment_version(db, row, deleted=True, actor=ctx.actor, audit_id=audit_id)
         row.deleted_at = now
         row.deleted_by = ctx.actor
+        # Moved into the kept line's region (`move_into_region`); the snapshot holds where it was.
+        row.parent_segment_id = keep_row.parent_segment_id
         db.save(row)
         absorbed_versions[absorbed_id] = pre_merge_version
         after_versions[absorbed_id] = row.version
@@ -2881,7 +2904,7 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
     for kind in sorted(joined_kinds):
         pieces = [
             readings_by_member[segment_id][kind][1]
-            for segment_id in params.segment_ids
+            for segment_id in join_ids
             if kind in readings_by_member[segment_id]
         ]
         if len(pieces) < 2:
@@ -2892,10 +2915,25 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
                 document_id=keep_row.document_id,
                 segment_id=params.keep_id,
                 kind=kind,
-                content=" ".join(pieces),
+                content=separator.join(pieces),
                 ctx=ctx,
             )
         )
+
+    # `segment-editor.merge-lines`: the kept line takes the joined shape, versioned like any reshape, so
+    # its undo restores the snapshot written here.
+    kept_version = None
+    if joined_shape is not None:
+        kept_version = keep_row.version
+        snapshot_segment_version(db, keep_row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        keep_row.anchor = keep_row.anchor.model_copy(update={
+            "polygon": joined_shape["outline"], "rect": joined_shape["rect"], "shapes": None,
+        })
+        keep_row.baseline = joined_shape["baseline"]
+        bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(keep_row.anchor)
+        keep_row.bbox_x, keep_row.bbox_y, keep_row.bbox_w, keep_row.bbox_h, keep_row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
+        db.save(keep_row)
+        after_versions[params.keep_id] = keep_row.version
 
     # The absorbed segments leave every reading order; unmerge writes the same rows back (2026-09-28).
     from fichero_server.api.routes.document.reading_orders import remove_segment_entries
@@ -2918,6 +2956,8 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
             # freshen a replayed merge's `expected_versions` on redo, and
             # `_invert_merge` reads it to give `unmerge` a live token.
             "versions": after_versions,
+            # The kept row's version before its shape was joined; None when it kept its own.
+            "kept_version": kept_version,
         },
         emit_type="segment.merged",
         segment_ids=[params.keep_id, *absorbed_ids],
@@ -2928,9 +2968,49 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
         {
             "kept_id": params.keep_id, "forwarding_ids": forwarding_ids,
             "representation_ids": merge_representation_ids,
+            **({"version": keep_row.version, "order": join_ids} if joined_shape is not None else {}),
         },
         spec,
     )
+
+
+def _joined_line_shape(
+    db: Database, rows: dict[str, Segment], keep_row: Segment, readings: dict[str, dict[str, tuple[str, str]]]
+) -> dict[str, Any]:
+    """`segment-editor.merge-lines`: the members' order on the page, their joined outline and baseline,
+    and the reading separator -- refused, before anything is written, when the shapes cannot be joined."""
+    from fichero_server.api.routes.document.segment_readings import (
+        _direction_of,
+        _lines_are_vertical,
+        direction_rungs,
+    )
+    from fichero_server.media import line_join
+
+    frames = {(row.anchor.rendition_id, row.anchor.space) for row in rows.values() if row.anchor is not None}
+    if len(frames) > 1:
+        raise HTTPException(status_code=422, detail="the segments are drawn on different images, so their shapes cannot be joined")
+    outlines = {sid: line_join.outline_of(row.anchor) for sid, row in rows.items()}
+    shapeless = [sid for sid, outline in outlines.items() if outline is None]
+    if shapeless:
+        raise HTTPException(status_code=422, detail=f"segments with no shape cannot be joined: {shapeless}")
+    document = db.get(Document, keep_row.document_id)
+    shapes = [row for row in db.query(Segment, pass_id=keep_row.pass_id) if row.deleted_at is None]
+    counted = readings.get(keep_row.id) or {}
+    _rid, text = counted.get("transcription") or next(iter(counted.values()), (None, ""))
+    direction, _level = _direction_of(
+        keep_row, document, text, _lines_are_vertical(shapes, document), direction_rungs(db, document)
+    )
+    ids = list(rows)
+    order = [ids[i] for i in line_join.join_order([outlines[sid] for sid in ids], direction)]
+    outline = line_join.joined_outline([outlines[sid] for sid in order], direction)
+    x0, y0, x1, y1 = line_join.bounds(outline)
+    return {
+        "order": order,
+        "outline": outline,
+        "rect": [x0, y0, x1 - x0, y1 - y0],
+        "baseline": line_join.joined_baseline([rows[sid].baseline for sid in order], direction),
+        "separator": line_join.reading_separator(keep_row.script),
+    }
 
 
 class SegmentUnmergeParams(BaseModel):
@@ -2958,6 +3038,9 @@ class SegmentUnmergeParams(BaseModel):
     #: The absorbed segments' order entries the merge took out, written back where they were. Only
     #: entries OF segments being restored are accepted.
     order_entries: list[SegmentOrderEntryParams] = Field(default_factory=list)
+    #: `segment-editor.merge-lines`: the kept segment's shape before a joined-geometry merge, as
+    #: `segment.restore_version`'s own three numbers, restored in this same action.
+    keep_restore: Optional[SegmentRestoreVersionParams] = None
 
 
 @action("segment.unmerge", SegmentUnmergeParams, domains=["segment"], undoable=False)
@@ -2965,6 +3048,20 @@ def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionConte
     strangers = [entry.segment_id for entry in params.order_entries if entry.segment_id not in params.versions]
     if strangers:
         raise HTTPException(status_code=422, detail=f"order_entries name segments not being restored: {strangers}")
+    keep_target = None
+    if params.keep_restore is not None:
+        keep_row = db.get(Segment, params.keep_restore.segment_id)
+        if not keep_row:
+            raise HTTPException(status_code=404, detail=f"Segment not found: {params.keep_restore.segment_id}")
+        if keep_row.version != params.keep_restore.expected_version:
+            raise _as_http_error(SegmentStale(
+                keep_row.id, params.keep_restore.expected_version, keep_row.version,
+                _stale_changed_fields(db, keep_row.id, params.keep_restore.expected_version, keep_row),
+            ))
+        found = db.query(SegmentVersion, segment_id=keep_row.id, version=params.keep_restore.version)
+        if not found:
+            raise HTTPException(status_code=404, detail=f"segment {keep_row.id!r} has no version {params.keep_restore.version}")
+        keep_target = (keep_row, found[0])
     audit_id = uuid.uuid4().hex
     # Slice 8 (#4934): the join this merge wrote stops counting again.
     _retract_readings(db, params.representation_ids)
@@ -3034,6 +3131,13 @@ def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionConte
         after_versions[segment_id] = row.version
         document_ids.add(row.document_id)
         pass_ids.add(row.pass_id)
+    if keep_target is not None:
+        keep_row, target = keep_target
+        snapshot_segment_version(db, keep_row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        _copy_version_onto_row(keep_row, target)
+        db.save(keep_row)
+        restored_ids.append(keep_row.id)
+        after_versions[keep_row.id] = keep_row.version
     from fichero_server.api.routes.document.reading_orders import restore_segment_entries
 
     restore_segment_entries(db, [entry.model_dump() for entry in params.order_entries])
@@ -3049,6 +3153,126 @@ def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionConte
         document_ids=list(document_ids),
     )
     return {"segment_ids": restored_ids}, spec
+
+
+# --- redraw an outline from its baseline (segment-editor) -----------------
+
+
+class SegmentRegenerateOutlineParams(BaseModel):
+    """`segment-editor.regenerate-polygon-from-baseline`: Redraw Outline from Baseline (⌘⇧R)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    segment_ids: list[str] = Field(description="The lines whose outlines are drawn again from their baselines.")
+    expected_versions: dict[str, int] = Field(description="Each segment's version as last read, {segment_id: version}; a changed segment is refused.")
+    fixed_height: Optional[float] = Field(
+        default=None, gt=0,
+        description="A band this many image pixels tall over the baseline, for a line with no ink to measure.",
+    )
+
+
+def _page_image_for_lines(db: Database, document: Document):
+    """The current page image as a PIL image, and the maps from the stored fractions (of the upright
+    photograph) to its pixels and back."""
+    from PIL import Image
+
+    from fichero_server.media.current_image import ORIGINAL, current_page_image
+    from fichero_server.media.upright import FRAME_UPRIGHT, open_in_frame
+
+    found = current_page_image(db, document)
+    if found is None:
+        raise HTTPException(status_code=422, detail="the page has no image to draw outlines on")
+    found = found.for_geometry()
+    image = open_in_frame(found.path, FRAME_UPRIGHT) if found.kind == ORIGINAL else Image.open(found.path)
+    width, height = image.size
+    to_image = found.to_image
+
+    def forward(points):
+        carried = to_image.carry(points) if to_image is not None else points
+        return [[x * width, y * height] for x, y in carried]
+
+    def back(points):
+        fractions = [[x / width, y / height] for x, y in points]
+        return to_image.inverse().carry(fractions) if to_image is not None else fractions
+
+    return image, forward, back
+
+
+@action(
+    "segment.regenerate_outline",
+    SegmentRegenerateOutlineParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_many_via_previous_version,
+)
+def _action_regenerate_outline(db: Database, params: SegmentRegenerateOutlineParams, ctx: ActionContext):
+    """Each line's outline drawn again from its baseline and the current page image, the page's other
+    baselines as bounds so outlines do not overlap; one action, one undo. All or nothing: a line with no
+    baseline, or one no outline could be drawn for, refuses the whole call and says which."""
+    from fichero_server.media import outline_from_baseline
+
+    if not params.segment_ids:
+        raise HTTPException(status_code=422, detail="segment_ids is empty: nothing to redraw")
+    _refuse_repeated_ids(params.segment_ids)
+    rows: list[Segment] = []
+    for segment_id in params.segment_ids:
+        _assert_not_provisional_http(segment_id, what="segment_id")
+        rows.append(_live_current_row(db, segment_id, _require_expected_version(params.expected_versions, segment_id)))
+    if len({(row.document_id, row.pass_id) for row in rows}) > 1:
+        raise _as_http_error(SegmentPassMismatchError("the lines being redrawn are not all in the same pass and document"))
+    # `segment-editor.edge.no-baseline`: said, never guessed around; Add Baseline is the way on.
+    no_baseline = [row.id for row in rows if not row.baseline or len(row.baseline) < 2]
+    if no_baseline:
+        raise HTTPException(status_code=422, detail=f"lines with no baseline cannot be redrawn from one: {no_baseline}")
+    elsewhere = [row.id for row in rows if row.anchor is not None and row.anchor.rendition_id]
+    if elsewhere:
+        raise HTTPException(status_code=422, detail=f"lines measured on another image cannot be redrawn on this one: {elsewhere}")
+
+    document = db.get(Document, rows[0].document_id)
+    image, forward, back = _page_image_for_lines(db, document)
+    chosen = {row.id for row in rows}
+    neighbours = [
+        row.baseline for row in db.query(Segment, pass_id=rows[0].pass_id)
+        if row.deleted_at is None and row.id not in chosen and row.baseline and len(row.baseline) >= 2
+    ]
+    fixed = params.fixed_height
+    drawn = outline_from_baseline.outlines(
+        image, [forward(row.baseline) for row in rows], [forward(line) for line in neighbours], fixed,
+    )
+    undrawn = [row.id for row, outline in zip(rows, drawn) if outline is None]
+    if undrawn:
+        raise HTTPException(
+            status_code=422,
+            detail=f"no outline could be drawn for {undrawn}: no ink was found along the baseline; give a fixed height",
+        )
+
+    audit_id = uuid.uuid4().hex
+    before_versions, after_versions = [], []
+    for row, outline in zip(rows, drawn):
+        polygon = [[round(x, 6), round(y, 6)] for x, y in back(outline)]
+        xs, ys = [p[0] for p in polygon], [p[1] for p in polygon]
+        before_versions.append({"segment_id": row.id, "version": row.version})
+        snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        row.anchor = row.anchor.model_copy(update={
+            "polygon": polygon, "rect": [min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)], "shapes": None,
+        })
+        bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(row.anchor)
+        row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
+        db.save(row)
+        after_versions.append({"segment_id": row.id, "version": row.version})
+
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=[row.id for row in rows],
+        before={"versions": before_versions},
+        after={"versions": after_versions},
+        emit_type="segment.updated",
+        segment_ids=[row.id for row in rows],
+        pass_ids=[rows[0].pass_id],
+        document_ids=[rows[0].document_id],
+    )
+    return {"segment_ids": [row.id for row in rows], "versions": after_versions}, spec
 
 
 # --- readings across a split and a merge (slice 8, #4934) ----------------
@@ -4147,6 +4371,22 @@ async def reparent_segments(
         result = registry.invoke(db, "segment.reparent", params.model_dump(mode="json"), ctx)
     except Exception as exc:
         raise _as_http_error(exc) from exc
+    return {**result.result, "audit_id": result.audit_id}
+
+
+@router.post("/regenerate-outline")
+async def regenerate_outline(
+    params: SegmentRegenerateOutlineParams,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(default=None, alias="X-Fichero-Origin-Window"),
+    actor: str = Depends(request_actor),
+) -> dict[str, Any]:
+    ctx = _resolve_action_ctx(
+        actor=actor, library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window, db=db,
+    )
+    result = registry.invoke(db, "segment.regenerate_outline", params.model_dump(mode="json"), ctx)
     return {**result.result, "audit_id": result.audit_id}
 
 
