@@ -19,7 +19,7 @@ Status words: **built** (behaviours mostly [OK]), **partly built**, **specced** 
 | 4. Cleaning and post-correction | `source/historical-text-normalization.md`, `source/readings-and-apparatus.md` (editorial facts), `source/formats-and-training.md` (TEI) | partly built | **character-level post-correction** (ByT5-class) as a job, with its A/B; add to the registry |
 | 5. Entities, relations, time, place | `kg/*`, `source/historical-text-normalization.md` (dates), `explore/time.md`, `explore/place.md` | partly built | **project gazetteer and canonical name list** (see below) |
 | 6. Grounding and maps | `source/maps-and-georeference.md`, `kg/kg-enrichment.md` | partly built | Wikidata and gazetteer enrichment at project level (below) |
-| 7. Curation and editing | `source/segment-editor.md`, `source/line-editor.md`, `source/editable-reader.md`, `safety/*` | partly built | none new |
+| 7. Curation and editing | `source/segment-editor.md`, `ui/segment-editor.md` (the tools: merge, knife, reassign, marker, paintbrush, outline from baseline, order, word and character cuts; DRAFT 2026-11-13), `source/line-editor.md`, `source/editable-reader.md`, `safety/*` | partly built | none new |
 | 8. Model adaptation | `compute/distillation.md`, `compute/jobs-and-fine-tuning.md`, `compute/remote-compute.md` | specced | **the projects harness and the improvement loop** (below) |
 | 9. Knowledge and search | `kg/*`, `ui/search.md`, `explore/meaning.md`, `explore/networks.md` | partly built | graph embeddings as proposals: fold into `explore/networks.md` |
 | 10. Natural-language generation | `kg/kg-readable-representation.md` | partly built | **summaries that show, not tell** (below) |

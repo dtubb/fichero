@@ -443,6 +443,7 @@ nav:
               - Readings & Apparatus: contributor_manual/specs/source/readings-and-apparatus.md
               - Languages, Scripts & Signs: contributor_manual/specs/source/languages-scripts-signs.md
               - Segment Editor: contributor_manual/specs/source/segment-editor.md
+              - Segment Editor Tools (Source pane & lines): contributor_manual/specs/ui/segment-editor.md
               - Editable Reader (draft): contributor_manual/specs/source/editable-reader.md
               - Line Editor: contributor_manual/specs/source/line-editor.md
               - Formats & Training: contributor_manual/specs/source/formats-and-training.md

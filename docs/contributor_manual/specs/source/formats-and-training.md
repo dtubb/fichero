@@ -490,6 +490,8 @@ Training
   and readings.
 - `source.train.line-pictures` — **[GAP]** (#4947) line pictures are cut to the polygon and straightened on the
   baseline.
+  A hand-corrected page's words and characters, and how their cuts reach ALTO, PAGE and the training set,
+  are `../ui/segment-editor.md` (`segment-editor.export-carries-every-edit`, `segment-editor.corrections-train`).
 - `source.train.human-checked-by-default` — **[GAP]** (#4947) only human-checked readings are included by
   default; including others is deliberate and is recorded row by row in the set.
 - `source.train.ground-truth` — **[GAP]** (#4947) a fully corrected page can be marked as ground truth.
