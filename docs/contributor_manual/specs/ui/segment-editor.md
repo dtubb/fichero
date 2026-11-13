@@ -188,7 +188,7 @@ targets are at least 44 pt.
 
 ### Structure: merge, split, reassign
 
-- `segment-editor.merge-lines` — **[PARTIAL]** (→ #4941; app + engine; builds on `source.editor.join-is-easy`, #6182) two or
+- `segment-editor.merge-lines` — **[OK]** (→ #4941; app + engine; builds on `source.editor.join-is-easy`, #6182) two or
   more selected lines and ⌘J become one line: the first picked keeps its id; the outlines are
   joined into one polygon (their union, hulled across the gap when they do not touch); the
   baselines are joined end to end in the page's reading order; the readings join with the
@@ -196,16 +196,19 @@ targets are at least 44 pt.
   leave forwarding notes. **Across different regions (owner 2026-11-13):** the other lines are
   moved into the first line's region and merged in the same action, one undo; the merged line
   is that region's line in its order. (This overrides the refusal `source.editor.join-is-easy`
-  wrote; `segment.merge` gains the move.) *Built:* `segment.merge` with forwarding and undo;
-  `SegmentEditCommand.mergePlan`; ⌘J on the head. *Not built:* the engine's joined outline and
-  baseline (merge keeps the kept row's geometry today), the joined reading, the key wired to the
-  plan, the move across regions. *Tests:* `tests/unit/api/test_segment_merge_lines.py` (union,
+  wrote; `segment.merge` gains the move.) *Built (2026-11-13):* `segment.merge` with `join_geometry`
+  and `move_into_region` (off by default, so the Reader's join is unchanged): the union on a raster,
+  hulled across a gap (`media/line_join.py`), the baselines end to end in reading order, the readings
+  joined with the script's separator, the move across regions, one undo (`unmerge` with
+  `keep_restore`) and redo; the Preview's Join sends both flags (`SegmentEdit.join(_:asLines:)`).
+  The key is ⌥⌘J, the owner's ruling of 2026-11-08 in menus-and-commands.md, not the ⌘J written
+  here (open question). Lines measured on another image are refused, not carried. *Tests:* `tests/unit/api/test_segment_merge_lines.py` (union,
   hull, baseline order, across regions is one action and one undo); `SegmentJoinTests.swift`.
 - `segment-editor.merge-regions` — **[GAP]** (→ #4941; engine) two or more selected regions and ⌘J become one region
   whose outline is the union; their lines become the kept region's lines, interleaved into its
   order by page position (`layout_order`), with the result shown before it lands as a
   highlighted order overlay for two seconds.
-- `segment-editor.split-knife` — **[GAP]** (→ #4941; app + engine; refines `source.editor.cut`) a Knife stroke, a
+- `segment-editor.split-knife` — **[PARTIAL]** (→ #4941; app + engine; refines `source.editor.cut`) a Knife stroke, a
   polyline drawn across one or many lines, splits every line it crosses at the crossing: the
   engine (`segment.split` gains `cut_path`, points in the frame of the image drawn on) cuts each
   outline along the stroke, cuts each baseline where the stroke crosses it, and gives each part
@@ -213,7 +216,14 @@ targets are at least 44 pt.
   grazes (no baseline crossing) is left alone and said so in the answer. The reading is cut at
   the character whose position is nearest the crossing when positions are known
   (`segment-editor.char-positions-kept`), else in proportion and marked `cut: estimated` as
-  today. One stroke over many lines is one action, one undo. *Tests:* `test_segment_split_knife.py`
+  today. One stroke over many lines is one action, one undo. *Built (2026-11-13):* `segment.split`
+  with `cut_path` and `expected_versions` (the lines the stroke may cross), `media/line_cut.py`
+  (crossings, baseline pieces, the outline cut along the stroke on a raster), the reading cut at the
+  nearest `char_positions` else in proportion, `left_alone` naming grazed lines and lines with no
+  baseline, the undo `segment.unsplit_many`; the app holds the Knife while K is down in Edit
+  Segments and sends the stroke once on release (`SegmentEdit.knife`, `RegionInteractionLayer+Knife`).
+  *Not built:* the Knife tool button and K to arm it, saying `left_alone` in the app, the Pencil.
+  *Tests:* `test_segment_split_knife.py`
   (two crossings, graze, rtl, vertical); `KnifeStrokeTests.swift` (the stroke is sent once,
   in the drawn frame, with versions).
 - `segment-editor.split-at-a-point` — **[GAP]** (→ #4941; app) with one line selected, ⌘⇧K splits it under the
@@ -283,7 +293,7 @@ targets are at least 44 pt.
 - `segment-editor.baseline-independent` — **[OK]** (app + engine) a baseline is reshaped on its own and
   sent on its own (`segment.update` with `baseline` only); the outline does not change until
   asked. Pinned by `ImportedPageDrawsItsBoxesTests.testReshapingABaselineSendsItAloneAndTheRefusalsHold`.
-- `segment-editor.regenerate-polygon-from-baseline` — **[GAP]** (→ #4941; engine + app) with one or more lines
+- `segment-editor.regenerate-polygon-from-baseline` — **[PARTIAL]** (→ #4941; engine + app) with one or more lines
   selected, **Redraw Outline from Baseline** (⌘⇧R) asks the engine for a new outline for each
   from its baseline and the page image: `segment.regenerate_outline`, which runs Kraken's
   polygonal-environment routine (`kraken.lib.segmentation.calculate_polygonal_environment`)
@@ -292,8 +302,15 @@ targets are at least 44 pt.
   to measure; the old outline is the version before, so one undo restores it. A selection of
   lines is one action. It is also what the Marker and the knife use for a part with a baseline
   and no good outline, and it is offered on a line whose outline is missing or invalid
-  (`segment-editor.edge.no-baseline`). *Tests:* `test_regenerate_outline.py` (a tilted line, two
-  close lines do not overlap, a line with no ink gets the fixed height, undo restores).
+  (`segment-editor.edge.no-baseline`). *Built (2026-11-13):* `segment.regenerate_outline` and
+  `POST /api/segments/regenerate-outline` (`media/outline_from_baseline.py`, with an ink check
+  because Kraken answers a blank page with an outline to the page edge, and the fixed-height band
+  as the fallback); Edit › Segments ▸ Redraw Outline from Baseline and the Preview's context menu,
+  which say why for a line with no baseline. *Not built:* the ⌘⇧R chord (it is Run Workflow on
+  Selection's today), the fixed height in the app, the background helper for a whole page.
+  *Tests:* `test_regenerate_outline.py` (a tilted line, two
+  close lines do not overlap, a line with no ink gets the fixed height, undo restores);
+  `RedrawOutlineTests.swift`.
 
 ### Semantics: reading order and kinds
 
@@ -626,11 +643,12 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
   imported one is reported by the validator and offered Redraw from Baseline.
 - `segment-editor.edge.empty-region` — **[GAP]** (→ #4941; engine + app) a region with no lines is kept (a person
   may draw into it), drawn with its label only, and listed by the validator as empty before export.
-- `segment-editor.edge.no-baseline` — **[GAP]** (→ #4941; app + engine) a line with no baseline (a box from an older
+- `segment-editor.edge.no-baseline` — **[PARTIAL]** (→ #4941; app + engine) a line with no baseline (a box from an older
   result, an Apple Vision line) cannot be cut by the knife, redrawn or cut into words by
   positions; the tools say so and offer **Add Baseline**, which proposes one through the box's
   middle in its direction (`segment.update` with `baseline`, marked estimated) for the person to
-  drag onto the ink.
+  drag onto the ink. *Built (2026-11-13):* Redraw refuses such a line in the engine and the menu says
+  why; the knife leaves it alone and names it (`left_alone`, `no-baseline`). *Not built:* Add Baseline.
 - `segment-editor.edge.word-across-lines` — **[GAP]** (→ #5212; engine) a word broken at a line end is one segment with
   two shapes (`source.segment.shape-kinds`); Cut Words on both lines makes the two pieces and
   offers to join them as one word when the second line's reading starts without a space and the
@@ -641,10 +659,11 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
   `SegmentPassMismatchError`; the app offers nothing across passes but a match.
 - `segment-editor.edge.stale` — **[OK]** (engine) every action here is refused when the row changed
   since it was read; the app reloads the row and shows what changed.
-- `segment-editor.edge.rtl-vertical` — **[GAP]** (→ #5154; engine) a knife cut, a word cut and an order
+- `segment-editor.edge.rtl-vertical` — **[PARTIAL]** (→ #5154; engine) a knife cut, a word cut and an order
   sequence follow the line's resolved direction: "before the cut" is the right part of a
   right-to-left line and the upper part of a vertical one (`estimated_cut` already does this
-  for the proportional case).
+  for the proportional case). *Built (2026-11-13):* the knife (`test_segment_split_knife.py`, rtl and
+  vertical). *Not built:* the word cut and the order sequence.
 
 ## 7.2 — Does Fichero keep Kraken's per-character positions today?
 

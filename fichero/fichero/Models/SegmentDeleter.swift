@@ -43,6 +43,7 @@ enum SegmentDeleter {
         switch refusal {
         case .tooFew: "Select a line to delete."
         case .versionUnknown: "These lines are not saved yet, so they cannot be deleted."
+        case .noBaseline: "A line with no baseline cannot be redrawn from one."
         }
     }
 

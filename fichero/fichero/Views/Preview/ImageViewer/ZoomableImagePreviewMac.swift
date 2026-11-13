@@ -496,6 +496,8 @@ extension ZoomableImagePreview {
             .onDeleteCommand { handleRegionDeleteKey() }
             .onExitCommand { clearEphemeralRegionState() }
             .onKeyPress(.return, phases: .down) { _ in finishShapeDrawingFromKey() }
+            // Hold K for the Knife, one stroke (`segment-editor.split-knife`); letting go puts the tool back.
+            .onKeyPress(.init("k"), phases: [.down, .up]) { press in holdKnife(press) }
             // Daniel's ruling (2026-08-10, audit 3c): left/right mean
             // PREVIOUS/NEXT item, up/down pan the current image. ←/→ pan
             // only when the zoomed image can actually travel horizontally;

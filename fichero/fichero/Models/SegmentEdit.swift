@@ -26,6 +26,10 @@ enum SegmentEdit {
         case baseline(SegmentBaselineRequest)
         /// The Shape tool's polygon or baseline (`SegmentShapes.create`).
         case create(SegmentCreateRequest)
+        /// Redraw Outline from Baseline (`segment.regenerate_outline`).
+        case regenerateOutline(SegmentRegenerateOutlineRequest)
+        /// The Knife's stroke (`segment.split` with `cut_path`).
+        case knife(SegmentKnifeRequest)
 
         func encode(to encoder: any Encoder) throws {
             switch self {
@@ -36,6 +40,8 @@ enum SegmentEdit {
             case .merge(let params): try params.encode(to: encoder)
             case .updateMany(let params): try params.encode(to: encoder)
             case .reparent(let params): try params.encode(to: encoder)
+            case .regenerateOutline(let params): try params.encode(to: encoder)
+            case .knife(let params): try params.encode(to: encoder)
             }
         }
     }
@@ -73,6 +79,8 @@ enum SegmentEdit {
         case versionUnknown
         /// Join needs two or more; delete needs one.
         case tooFew
+        /// A line with no baseline has nothing to redraw its outline from (`segment-editor.edge.no-baseline`).
+        case noBaseline
     }
 
     /// MOVE: the box goes to `rect`, and its outline and every extra shape move by the same offset, so
@@ -178,7 +186,7 @@ enum SegmentEdit {
         return moved
     }
 
-    private static func versions(of segments: [Segment]) -> [String: Int]? {
+    static func versions(of segments: [Segment]) -> [String: Int]? {
         var versions: [String: Int] = [:]
         for segment in segments {
             guard let version = segment.version else { return nil }

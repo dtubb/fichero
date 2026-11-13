@@ -11,7 +11,7 @@ struct SegmentEditMenuTests {
     private func target(selected: Int, onDelete: @escaping () -> Void = {}, onSelectAll: @escaping () -> Void = {}) -> SegmentMenuTarget {
         SegmentMenuTarget(
             isEditing: false, selectionCount: selected, toggleEditing: {}, canSelectAll: true,
-            selectAll: onSelectAll, delete: onDelete, join: {}, apply: { _ in }
+            selectAll: onSelectAll, delete: onDelete, join: {}, selectionHasBaselines: true, redraw: {}, apply: { _ in }
         )
     }
 

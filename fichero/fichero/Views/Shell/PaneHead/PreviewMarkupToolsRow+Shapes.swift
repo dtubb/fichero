@@ -13,6 +13,26 @@ extension PreviewMarkupToolsRow {
                         help: "Polygon — click points; the first point or a double-click closes it")
             shapeButton(.baseline, label: "Line", icon: "line.diagonal", key: nil,
                         help: "Line — click points along the text, double-click to finish")
+            knifeButton
+        }
+    }
+
+    /// The Knife (`segment-editor.split-knife`): drag across lines to cut each where the stroke crosses its baseline.
+    /// Chosen, it stays until another tool is chosen; holding K gives it for one stroke.
+    private var knifeButton: some View {
+        let armed = windowState?.knifeArmed == true
+        return labeled("Knife") {
+            Button {
+                if !armed { windowState?.activeMarkupTool = .select }
+                windowState?.knifeArmed = !armed
+            } label: {
+                Image(systemName: "scissors")
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(armed ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
+            .help("Knife — drag across lines to cut them where the stroke crosses (hold K for one stroke)")
+            .accessibilityLabel("Knife")
+            .accessibilityIdentifier("segmentEditor.tool.knife")
         }
     }
 
@@ -23,6 +43,7 @@ extension PreviewMarkupToolsRow {
         return labeled(label) {
             Button {
                 if armed { windowState?.activeMarkupTool = nil; return }
+                windowState?.knifeArmed = false
                 windowState?.shapeKind = kind
                 windowState?.activeMarkupTool = .drawRegion
                 NotificationCenter.default.post(name: .previewRegionVerb, object: PreviewRegionVerb.draw.rawValue)
