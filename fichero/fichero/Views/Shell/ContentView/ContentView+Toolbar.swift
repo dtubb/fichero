@@ -147,30 +147,31 @@ extension ContentView {
     #if !os(macOS)
     @ToolbarContentBuilder
     var trailingToolbarContent: some ToolbarContent {
-        // The Inspector toggle beside search, after the pane group and its overflow menu, as the Mac keeps the two
-        // together over the Inspector (owner, 2026-11-13); the spacer gives the pair a capsule of their own.
+        // Workspaces in a capsule of its own, then the Inspector toggle, then search at the far right (owner,
+        // 2026-11-13). iPadOS keeps the bar's "…" overflow button with search and draws the item before them in the
+        // same capsule: no spacer, placement or pin parted the Inspector toggle from search.
         #if os(iOS)
-        ToolbarSpacer(.fixed, placement: .primaryAction)
+        ToolbarSpacer(.fixed, placement: .automatic)
         #endif
         if showInspectorToggle && inspectorToggleHome == .detailBar {
-            ToolbarItem(id: ContentToolbarID.compactInspectorToggle, placement: .primaryAction) {
+            ToolbarItem(id: ContentToolbarID.compactInspectorToggle, placement: .automatic) {
                 inspectorToggleButton
             }
             #if os(iOS)
             .visibilityPriority(.high)
             #endif
         }
-        // Search last, at the far right as on the Mac (#6563): the system item with its options loupe beside it.
-        // What a narrow iPad bar keeps: the Inspector toggle, search and the centre island stay; the model chip, the
-        // bars capsule and the Workspaces menu overflow first (`visibilityPriority`, iOS 27).
+        // What a narrow iPad bar keeps: the Inspector toggle, search and the centre island stay; the model chip and the
+        // bars capsule overflow first (`visibilityPriority`, iOS 27).
         #if os(iOS)
-        DefaultToolbarItem(kind: .search, placement: .primaryAction)
-            .visibilityPriority(.high)
-        // The options in the bar's overflow menu, as a titled submenu (#6563): the Mac keeps them in the field's own
+        // The search options as a titled submenu of the overflow menu (#6563): the Mac keeps them in the field's own
         // magnifier menu; a second loupe beside the field read as a duplicate and took the centre island's room.
         ToolbarOverflowMenu {
             searchOptionsOverflowMenu
         }
+        // Search last, at the far right as on the Mac (#6563).
+        DefaultToolbarItem(kind: .search, placement: .primaryAction)
+            .visibilityPriority(.high)
         #endif
     }
     #endif
@@ -215,7 +216,8 @@ extension ContentView {
             // `(placement:content:)`. The group is positional; customisation
             // identity belongs to the items a user can reorder, and these three
             // move as one by construction.
-            if toolbarVisibility.showPaneToggles {
+            // On iOS the three are the Workspaces menu's first section instead (`PaneToggleHome`, #6563).
+            if toolbarVisibility.showPaneToggles && PaneToggleHome.current == .toolbarGroup {
                 ToolbarItemGroup(placement: .automatic) {
                     libraryPaneToggleButton
 
@@ -296,9 +298,6 @@ extension ContentView {
             ToolbarItem(id: ContentToolbarID.workspacesMenu, placement: .automatic) {
                 workspacesMenu
             }
-            #if os(iOS)
-            .visibilityPriority(.low)
-            #endif
         }
 
         // Sort and filter used to sit here, outside the split-pane block, with
