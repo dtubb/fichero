@@ -34,17 +34,15 @@ struct PaneFilterBar<Content: View>: View {
     }
 
     let placement: MiniToolbarPlacement
-    /// Draw the hairline between the bar and the pane content. Default OFF (CD 2026-09-16): the
-    /// floating Liquid-Glass bar defines its own edge, so the extra `Divider()` was the "line" that
-    /// made library/reader/chat look heavier than the clean Preview pane. The rule the CD likes —
-    /// no line, glass, a bar only when it earns one — is the default; a caller can still ask for the
-    /// separator where a hard edge genuinely reads better.
+    /// Draw the hairline between the bar and the pane content. On macOS the bar is flush in the pane's material, so it
+    /// draws its one line by default, as Xcode's bars do (`panes.chrome.bar-hairline-rule`, owner 2026-11-13); on touch
+    /// the floating glass defines its own edge and there is no line (CD 2026-09-16).
     let showsSeparator: Bool
     let content: Content
 
     init(
         placement: MiniToolbarPlacement = .bottom,
-        showsSeparator: Bool = false,
+        showsSeparator: Bool = PaneBarStyle.barsDrawHairline,
         @ViewBuilder content: () -> Content
     ) {
         self.placement = placement
@@ -57,25 +55,13 @@ struct PaneFilterBar<Content: View>: View {
             if placement == .bottom && showsSeparator {
                 Divider()
             }
-            #if os(visionOS)
             HStack(spacing: 6) {
                 content
             }
             .padding(.horizontal, 8)
             .frame(height: Self.height)
             .frame(maxWidth: .infinity)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-            #else
-            GlassEffectContainer {
-                HStack(spacing: 6) {
-                    content
-                }
-                .padding(.horizontal, 8)
-                .frame(height: Self.height)
-                .frame(maxWidth: .infinity)
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
-            }
-            #endif
+            .paneBarSurface()  // flat on macOS, glass on touch (`panes.chrome.bars-flush-on-mac`)
             if placement == .top && showsSeparator {
                 Divider()
             }

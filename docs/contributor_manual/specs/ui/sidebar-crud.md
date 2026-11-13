@@ -194,6 +194,15 @@ Both issues are already on this milestone (#291); no new issues were needed.
   gone, Empty Trash naming moved items, knowledge on trashed pages hidden not deleted), the
   Trash that `source/moving-between-projects.md`'s moves send their source to.
 
+### Bottom bar (owner 2026-11-13, Xcode's navigator as the reference)
+
+- `sidebar.bottom-bar.flush-in-sidebar-material` — **[PARTIAL]** (owner 2026-11-13) the sidebar's bottom bar sits at
+  the sidebar's bottom edge inside the sidebar's own material, and the list scrolls under it: the bar is the list's
+  bottom safe-area bar (`safeAreaBar(edge: .bottom)`), not a row stacked after the list, so the last rows pass beneath
+  it and its grey is the sidebar's. On macOS one hairline above it and a hard scroll edge, as Xcode's navigator;
+  iPad and iPhone keep their glass. *Built:* `SidebarView.standardSidebarContent`. *Not built:* a look on screen
+  (scroll a long tree: rows pass under the bar). *Tests:* `Views/Sidebar/SidebarBottomBarPlacementTests.swift`.
+
 ### Legacy milestone fold — three issues redirected from "UX - Library & Reading Surface"
 
 While folding `library-view-modes.md`'s pass 2, three sidebar-structure issues from that

@@ -41,7 +41,7 @@ struct PaneChromeMenu: View {
                 Image(systemName: "plus")
                     .foregroundStyle(Color.secondary)
             }
-            .menuStyle(.borderlessButton)
+            .paneBarMenuStyle()
             .menuIndicator(.hidden)
             .fixedSize()
             .help("Pane menu")

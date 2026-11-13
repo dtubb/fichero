@@ -106,15 +106,8 @@ extension View {
 }
 
 private struct SurfaceGlassStrip: ViewModifier {
+    /// Flat on macOS, glass on touch (`panes.chrome.bars-flush-on-mac`).
     func body(content: Content) -> some View {
-        #if os(visionOS)
-        content
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-        #else
-        GlassEffectContainer {
-            content
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
-        }
-        #endif
+        content.paneBarSurface()
     }
 }

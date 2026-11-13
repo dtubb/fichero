@@ -325,6 +325,26 @@ starting a new one.
   chrome without re-deriving it. Verified at HEAD: no `SurfaceChrome`-named type exists
   anywhere under `fichero/fichero/` — `MiniToolbar`/`PaneFilterBar` are shared, but the tab-bar
   half of the pattern is not yet extracted.
+- `panes.chrome.bar-buttons-accessory-style` — **[PARTIAL]** (owner 2026-11-13, Xcode 26 as the reference) on macOS
+  every button and menu in a pane head or a bottom bar wears the accessory-bar style, a bezel on hover and a fill
+  while pressed, as Xcode's navigator filter bar and jump bar do; iPad and iPhone keep today's borderless look. One
+  choice for all of them, `View.paneBarButtonStyle()` / `paneBarMenuStyle()` (`PaneBarStyle.swift`), used by the
+  sidebar bottom bar, the Library bottom bar, `PaneHead`, `PaneChromeMenu` and the Preview head's controls.
+  *Built:* the two modifiers and their call sites. *Not built:* a look on screen (hover the sidebar + and −, the
+  Library + and import, a pane head ✕ and +). *Tests:* `Views/Shell/PaneHead/PaneBarStyleTests.swift`.
+- `panes.chrome.bars-flush-on-mac` — **[PARTIAL]** (owner 2026-11-13) on macOS the bottom bars and the inspector strip
+  are flat and opaque, in the pane's own background: no Liquid Glass island, no corner radius and nothing
+  translucent, so rows scrolling beneath never show through the controls (owner 2026-11-13, a screenshot of the
+  Items bar with its rows showing through) and the sidebar, Library and inspector bars read as one flat strip
+  each, as Xcode's do; iPad and iPhone keep the floating glass. One rule,
+  `PaneBarStyle.barIsFlush`, read by `PaneFilterBar`, `MiniToolbar`, the Library bottom bar and `SurfaceTabBar`.
+  *Built:* the rule and its four readers. *Not built:* a look on screen. *Tests:* `PaneBarStyleTests.swift`.
+- `panes.chrome.bar-hairline-rule` — **[PARTIAL]** (owner 2026-11-13) on macOS every bottom bar draws exactly one
+  hairline above it and every top strip one below it, always: `PaneFilterBar` draws its own by default on the Mac
+  (`PaneBarStyle.barsDrawHairline`), the sidebar's bottom bar one above it, the Library's bottom bar keeps its one
+  `Divider` (the line it had; removing it would leave that bar with none), the inspector strip's line is unchanged.
+  On touch the glass island needs no line. *Built:* the default and the sidebar's line. *Not built:* a look on
+  screen (one line above each bottom bar, one below the inspector strip). *Tests:* `PaneBarStyleTests.swift`.
 
 Needs maintainer triage, not folded as a behavior here: **#3540** ("DECISIONS NEEDED —
 surface-consistency, fourteen open questions for the maintainer") asks which surfaces adopt `SurfaceChrome` and

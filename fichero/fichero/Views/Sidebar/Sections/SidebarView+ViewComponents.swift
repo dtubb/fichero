@@ -21,19 +21,26 @@ extension SidebarView {
             // switching to Research keeps the shell sidebar like Knowledge Graph,
             // Activity, etc. (sidebar-persistence fix).
             unifiedContent
-
-            // Bottom toolbar — owns the sidebar filter field + sidebar-scoped
-            // actions as one unified bottom toolbar (#4061). No standalone
-            // filter chrome above the bar.
-            if shouldShowBottomToolbar {
-                SidebarBottomToolbar(
-                    itemRegistry: itemRegistry,
-                    deleteItem: handleDeleteSelection,
-                    hasSelection: selectedItem != nil,
-                    sidebarFilterText: $sidebarFilterText,
-                    knowledgeRowStores: libraryManager.openLibraries.map(\.knowledgeRowCountsStore)
-                )
-            }
+                // Bottom toolbar — owns the sidebar filter field + sidebar-scoped actions as one unified bottom
+                // toolbar (#4061). The list's bottom bar, not a row after it, so the rows scroll under it in the
+                // sidebar's own material (`sidebar.bottom-bar.flush-in-sidebar-material`, owner 2026-11-13).
+                .safeAreaBar(edge: .bottom, spacing: 0) {
+                    if shouldShowBottomToolbar {
+                        VStack(spacing: 0) {
+                            if SidebarBottomToolbar.drawsHairlineAbove { Divider() }
+                            SidebarBottomToolbar(
+                                itemRegistry: itemRegistry,
+                                deleteItem: handleDeleteSelection,
+                                hasSelection: selectedItem != nil,
+                                sidebarFilterText: $sidebarFilterText,
+                                knowledgeRowStores: libraryManager.openLibraries.map(\.knowledgeRowCountsStore)
+                            )
+                        }
+                    }
+                }
+                #if os(macOS)
+                .scrollEdgeEffectStyle(.hard, for: .bottom)  // Xcode's navigator edge, not the soft fade
+                #endif
         }
     }
 

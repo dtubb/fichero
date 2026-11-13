@@ -44,66 +44,63 @@ extension LibraryView {
         VStack(spacing: 0) {
             Divider()
 
-            // Translucent Liquid Glass background, matching the sidebar mini-toolbars
-            // (SidebarModeBar / SidebarBottomToolbar / PaneFilterBar) for a consistent
-            // glass look across the window chrome (#2550).
-            GlassEffectContainer {
-                // AnyView is load-bearing (#4331): the bar's four-slot toolbar row is the deepest generic type under
-                // LibraryView.bottomInsetContent; on the iPad's 1MB main stack its metadata walk overflowed at launch (2026-11-12).
-                AnyView(AdaptiveMiniToolbarRow {
-                    essentialBarButtons
-                } secondary: {
-                    secondaryBarButtons
-                    // The sort/filter/metadata cluster folded in (Daniel,
-                    // 2026-08-23: one bottom mini toolbar, not stacked rows).
-                    libraryMiniToolbar
-                } condensed: {
-                    // The rung between "everything inline" and "everything in
-                    // the ellipsis" (Daniel, 2026-08-31: "the ellipsis is too
-                    // greedy"). The same controls, wearing icons instead of
-                    // words — the bar buys back the width the two text-bearing
-                    // controls cost before it hides anything at all.
-                    condensedBarButtons
-                    libraryMiniToolbar(condensed: true)
-                } overflowMenu: {
-                    bottomBarOverflowMenu
-                    // The sort/filter cluster survives narrow widths here
-                    // (Daniel, 2026-08-23: "we want them there"). The
-                    // metadata control used to VANISH at narrow widths —
-                    // its popover cannot live in a menu — so it now has a
-                    // submenu coat over the same binding (Daniel,
-                    // 2026-08-29: "loses some of the filter options when
-                    // it's too narrow").
+            // Flat on macOS like Xcode's bars, the Liquid Glass island on touch (#2550,
+            // `panes.chrome.bars-flush-on-mac`).
+            // AnyView is load-bearing (#4331): the bar's four-slot toolbar row is the deepest generic type under
+            // LibraryView.bottomInsetContent; on the iPad's 1MB main stack its metadata walk overflowed at launch (2026-11-12).
+            AnyView(AdaptiveMiniToolbarRow {
+                essentialBarButtons
+            } secondary: {
+                secondaryBarButtons
+                // The sort/filter/metadata cluster folded in (Daniel,
+                // 2026-08-23: one bottom mini toolbar, not stacked rows).
+                libraryMiniToolbar
+            } condensed: {
+                // The rung between "everything inline" and "everything in
+                // the ellipsis" (Daniel, 2026-08-31: "the ellipsis is too
+                // greedy"). The same controls, wearing icons instead of
+                // words — the bar buys back the width the two text-bearing
+                // controls cost before it hides anything at all.
+                condensedBarButtons
+                libraryMiniToolbar(condensed: true)
+            } overflowMenu: {
+                bottomBarOverflowMenu
+                // The sort/filter cluster survives narrow widths here
+                // (Daniel, 2026-08-23: "we want them there"). The
+                // metadata control used to VANISH at narrow widths —
+                // its popover cannot live in a menu — so it now has a
+                // submenu coat over the same binding (Daniel,
+                // 2026-08-29: "loses some of the filter options when
+                // it's too narrow").
+                Divider()
+                // LABELLED coats (Daniel, 2026-08-31): these rendered as
+                // bare `⇅` chevron rows here, because the bar's icon-only
+                // Menu label carries into a menu as a submenu with no name
+                // at all. A menu row has room for a word and needs one.
+                librarySortMenu(iconOnly: false)
+                libraryShowMenu(iconOnly: false)
+                libraryFilterToggleButton(iconOnly: false)
+                LibraryRowAttributesMenu(raw: $rowAttributesRaw, contentLines: $rowContentLinesRaw)
+                // Mode clusters reachable at narrow widths too (the gap
+                // the consolidation design named): dataset facets and the
+                // canvas channels as titled submenus.
+                if displayMode.group == .dataset {
                     Divider()
-                    // LABELLED coats (Daniel, 2026-08-31): these rendered as
-                    // bare `⇅` chevron rows here, because the bar's icon-only
-                    // Menu label carries into a menu as a submenu with no name
-                    // at all. A menu row has room for a word and needs one.
-                    librarySortMenu(iconOnly: false)
-                    libraryShowMenu(iconOnly: false)
-                    libraryFilterToggleButton(iconOnly: false)
-                    LibraryRowAttributesMenu(raw: $rowAttributesRaw, contentLines: $rowContentLinesRaw)
-                    // Mode clusters reachable at narrow widths too (the gap
-                    // the consolidation design named): dataset facets and the
-                    // canvas channels as titled submenus.
-                    if displayMode.group == .dataset {
-                        Divider()
-                        DatasetFilterClusterMenu(store: datasetStore, documentStore: documentStore)
-                    }
-                    if displayMode.group == .canvas {
-                        Divider()
-                        CanvasControlStripMenu()
-                    }
+                    DatasetFilterClusterMenu(store: datasetStore, documentStore: documentStore)
                 }
-                .padding(.horizontal, 10)
-                .frame(height: bottomBarHeight)
-                // ONE control size for the whole bar (Daniel, 2026-08-24:
-                // the +/− size is the right one; the sort/metadata cluster
-                // rendered .regular). Environment value — every child
-                // inherits; the per-button repeats are deleted.
-                .controlSize(.small)
-                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8)))
-            }
+                if displayMode.group == .canvas {
+                    Divider()
+                    CanvasControlStripMenu()
+                }
+            })
+            .padding(.horizontal, 10)
+            .frame(height: bottomBarHeight)
+            // ONE control size for the whole bar (Daniel, 2026-08-24:
+            // the +/− size is the right one; the sort/metadata cluster
+            // rendered .regular). Environment value — every child
+            // inherits; the per-button repeats are deleted.
+            .controlSize(.small)
+            .paneBarSurface()
         }
         // The ONE picker presenter for every import affordance in this view
         // (#4449) — the bottom-bar button below AND the folder contextual
@@ -206,7 +203,7 @@ extension LibraryView {
         } label: {
             Label(kgContentFilterType?.capitalized ?? "All types", systemImage: "tag")
         }
-        .menuStyle(.borderlessButton)
+        .paneBarMenuStyle()
         .fixedSize()
     }
 
@@ -225,7 +222,7 @@ extension LibraryView {
             Image(systemName: "line.3.horizontal.decrease.circle")
                 .accessibilityLabel(effectiveContentKind == .claims ? "Filter claims" : "Filter entities")
         }
-        .buttonStyle(.borderless)
+        .paneBarButtonStyle()
         .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
         .contentShape(Rectangle())
         .help(effectiveContentKind == .claims ? "Filter claims" : "Filter entities")
@@ -253,7 +250,7 @@ extension LibraryView {
             Image(systemName: "plus")
                 .accessibilityLabel(addButtonLabel)
         }
-        .buttonStyle(.borderless)
+        .paneBarButtonStyle()
         .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
         .contentShape(Rectangle())
         .help(addButtonHelp)
@@ -265,7 +262,7 @@ extension LibraryView {
             Image(systemName: "minus")
                 .accessibilityLabel("Delete")
         }
-        .buttonStyle(.borderless)
+        .paneBarButtonStyle()
         .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
         .contentShape(Rectangle())
         .help("Delete selection")
@@ -284,7 +281,7 @@ extension LibraryView {
             Image(systemName: "square.and.arrow.down")
                 .accessibilityLabel("Import")
         }
-        .buttonStyle(.borderless)
+        .paneBarButtonStyle()
         .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
         .contentShape(Rectangle())
         .help("Import files")
@@ -340,7 +337,7 @@ extension LibraryView {
             Image(systemName: "square.and.arrow.up")
         }
         .accessibilityLabel("Export BibTeX")
-        .buttonStyle(.borderless)
+        .paneBarButtonStyle()
         .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
         .contentShape(Rectangle())
         .help("Export selection as BibTeX")
@@ -355,7 +352,7 @@ extension LibraryView {
             Image(systemName: "bolt")
                 .accessibilityLabel("Run Workflow")
         }
-        .buttonStyle(.borderless)
+        .paneBarButtonStyle()
         .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
         .contentShape(Rectangle())
         .help("Run workflow on selection")

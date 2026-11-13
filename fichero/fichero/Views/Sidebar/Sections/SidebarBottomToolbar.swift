@@ -40,6 +40,9 @@ struct SidebarBottomToolbar: View {
         #endif
     }
 
+    /// One hairline above the bar on macOS (`panes.chrome.bar-hairline-rule`); the glass on touch needs none.
+    static var drawsHairlineAbove: Bool { PaneBarStyle.barsDrawHairline }
+
     /// Room for the magnifier and a few typed characters in the narrowest sidebar.
     private static var filterFieldMinWidth: CGFloat { 60 }
 
@@ -103,7 +106,7 @@ struct SidebarBottomToolbar: View {
         // A SwiftUI-drawn menu, not `.borderlessButton`: that one is an AppKit pop-up that ignores
         // the label's font, so the + came out larger and darker than the − beside it.
         .menuStyle(.button)
-        .buttonStyle(.borderless)
+        .paneBarButtonStyle()
         .menuIndicator(.hidden)
         .fixedSize()
         .help("New Item")
@@ -120,7 +123,7 @@ struct SidebarBottomToolbar: View {
                 .frame(minWidth: metrics.touchTargetSide, minHeight: metrics.touchTargetSide)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.borderless)
+        .paneBarButtonStyle()
         .disabled(!hasSelection)
         .help("Remove selected item")
         .accessibilityLabel("Remove selected item")

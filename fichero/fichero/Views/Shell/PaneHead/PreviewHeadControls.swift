@@ -32,7 +32,7 @@ struct PreviewHeadSelectorGroup: View {
                 Image(systemName: "arrow.turn.left.up")
                     .font(.callout)
             }
-            .buttonStyle(.borderless)
+            .paneBarButtonStyle()
             // No key binding for the three nav controls here: ⌘[ / ⌘] belong
             // to `CanvasMenuCommands` and ⌘⌥[ / ⌘⌥] to the magnifier's zoom
             // in `ImagePreviewMenuCommands`. A second view binding the same
@@ -59,7 +59,7 @@ struct PreviewHeadSelectorGroup: View {
         } label: {
             Image(systemName: "chevron.left").font(.callout)
         }
-        .buttonStyle(.borderless)
+        .paneBarButtonStyle()
         .disabled(nav.map { !$0.canGoPrevious } ?? false)
         .help("Previous page in this document")
         .accessibilityLabel("Previous page")
@@ -79,7 +79,7 @@ struct PreviewHeadSelectorGroup: View {
         } label: {
             Image(systemName: "chevron.right").font(.callout)
         }
-        .buttonStyle(.borderless)
+        .paneBarButtonStyle()
         .disabled(nav.map { !$0.canGoNext } ?? false)
         .help("Next page in this document")
         .accessibilityLabel("Next page")
@@ -114,7 +114,7 @@ struct PreviewHeadLensControls: View {
             Button(action: onEnterFullScreen) {
                 Image(systemName: "viewfinder")
             }
-            .buttonStyle(.borderless)
+            .paneBarButtonStyle()
             .help("View Full Screen (⌃⌘R)")
             .accessibilityLabel("View full screen")
             .accessibilityIdentifier("previewHeadFullScreen")
@@ -135,7 +135,7 @@ struct PreviewHeadLensControls: View {
             } label: {
                 Image(systemName: "chevron.up").font(.callout)
             }
-            .buttonStyle(.borderless)
+            .paneBarButtonStyle()
             .disabled(chrome.renditionIndex <= 0)
             .help("Previous rendition of this page (swipe up)")
             .accessibilityLabel("Previous rendition")
@@ -146,7 +146,7 @@ struct PreviewHeadLensControls: View {
             } label: {
                 Image(systemName: "chevron.down").font(.callout)
             }
-            .buttonStyle(.borderless)
+            .paneBarButtonStyle()
             .disabled(chrome.renditionIndex >= chrome.renditionNames.count - 1)
             .help("Next rendition of this page (swipe down)")
             .accessibilityLabel("Next rendition")
@@ -172,7 +172,7 @@ struct PreviewHeadLensControls: View {
             // tint says whether the cluster is on.
             Image(systemName: "plus.magnifyingglass")
         }
-        .buttonStyle(.borderless)
+        .paneBarButtonStyle()
         .foregroundStyle(zoomControlsVisible ? Color.accentColor : Color.secondary)
         // Not ⌘⌥Z: any "z" key equivalent outside the Edit menu trips the
         // ⌘Z single-owner guard (#4354).
@@ -204,7 +204,7 @@ struct PreviewHeadLensControls: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            .menuStyle(.borderlessButton)
+            .paneBarMenuStyle()
             .fixedSize()
             .help("Which rendition of this page is showing — original, enhanced, deskewed…")
             .accessibilityLabel("Renditions")
