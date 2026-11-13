@@ -25,16 +25,12 @@ extension ShareLibrarySheet {
     @ViewBuilder
     var shareLinkSection: some View {
         Section("Share Link") {
-            // Which address the link carries (`sharing.share-sheet-offers-both-addresses`): Tailscale when it can work.
+            // Which address the link carries (`sharing.share-sheet-offers-both-addresses`): Tailscale when it can work. The
+            // same lines as Add Device, shown with one usable address too, so a greyed Tailscale line says why (#6554).
             let rows = addressRows
-            if rows.filter(\.isEnabled).count > 1 {
-                Picker("Address", selection: Binding(
-                    get: { AddressChoiceModel.shownChoice(addressChoice, rows: rows) ?? .thisNetwork },
-                    set: { addressChoice = $0 })) {
-                    ForEach(rows.filter(\.isEnabled)) { row in Text(row.title).tag(row.choice) }
-                }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("share.address.picker")
+            if AddressLines.shows(rows) {
+                AddressLines(rows: rows, chosen: AddressChoiceModel.shownChoice(addressChoice, rows: rows),
+                             onChoose: { addressChoice = $0 }, serveCommand: sharingState?.tailnetServeCommand)
             }
             if let pairingLink {
                 LabeledContent("Link") {

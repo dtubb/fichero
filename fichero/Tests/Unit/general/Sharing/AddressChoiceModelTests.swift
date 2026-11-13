@@ -5,6 +5,7 @@ import Testing
 /// `sharing.share-sheet-offers-both-addresses` (docs/contributor_manual/specs/source/sharing-two-macs.md §10.1, #5318): the
 /// pairing link and QR offer This network and Tailscale, Tailscale first when it can work, the pin following the row.
 /// Written 2026-10-31, not yet built (no Xcode run on this Mac).
+@MainActor
 struct AddressChoiceModelTests {
     private let local = "https://macbook-air-m1.local:8765"
     private let tail = "https://macbook-air-m1.tail1234.ts.net"
@@ -149,5 +150,15 @@ struct AddressChoiceModelTests {
         #expect(rows[1].isEnabled)
         let off = AddressChoiceModel.rows(sharingAddress: "https://studio.local:8765", tailnetURL: nil, tailnetForward: "none")
         #expect(AddressChoiceModel.line(off[1]) == "Tailscale: \(AddressChoiceModel.tailscaleOff)")
+    }
+
+    @Test("the lines show with one usable address when another is greyed, so its reason is seen on both sheets (#6554)")
+    func linesShowAGreyedRow() {
+        let off = AddressChoiceModel.rows(sharingAddress: "https://studio.local:8765", tailnetURL: nil, tailnetForward: "none")
+        #expect(off.filter(\.isEnabled).count == 1)
+        #expect(AddressLines.shows(off))
+        let tailnetOnly = AddressChoiceModel.rows(sharingAddress: "https://studio.tail1234.ts.net:8765", tailnetURL: nil,
+                                                  tailnetForward: "ours")
+        #expect(!AddressLines.shows(tailnetOnly))
     }
 }

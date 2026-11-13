@@ -33,6 +33,19 @@ enum AddDeviceSheetModel {
         }
     }
 
+    /// With Multi-user on, a device signs in with an account at the Mac's Tailscale address (`sharing.multiuser-shares-by-
+    /// address`, #6568): the words under that address, in place of the code and QR.
+    static let signInNote = "On the other device, choose Connect to Another Mac, paste this address and sign in with an account."
+
+    /// The address a device signs in at, when the sheet shows it alone: Multi-user on and a Tailscale line that can work (its
+    /// `.ts.net` host has a public certificate, so no pin is needed). Nil keeps the pinned link, its QR and the code.
+    static func signInAddress(multiuser: Bool, rows: [AddressRow]) -> AddressRow? {
+        guard multiuser else { return nil }
+        return rows.first { row in
+            row.choice == .tailscale && row.isEnabled && (row.url?.host?.lowercased().hasSuffix(".ts.net") ?? false)
+        }
+    }
+
     /// "482 913": the code in two groups so it reads aloud.
     static func codeText(_ code: String) -> String {
         let digits = code.filter { !$0.isWhitespace }

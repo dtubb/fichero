@@ -49,49 +49,28 @@ extension ShareSettingsView {
     }
 
     /// Add Device: asks for nothing: the QR, the code, when it expires, Copy Link and Done (`sharing.settings.add-device-sheet`).
+    /// With Multi-user on and a Tailscale address that can work, the address and how to sign in, alone (#6568).
     @ViewBuilder
     var addDeviceSheet: some View {
         let phase = AddDeviceSheetModel.phase(
             blocker: pairingBlocker, hasCode: pairingCode != nil, hasLink: inviteLinkString != nil,
             isWorking: isApplyingChange || isGeneratingCode)
+        let signIn = pairingBlocker == nil && !isApplyingChange
+            ? AddDeviceSheetModel.signInAddress(multiuser: backendMultiuser, rows: addressRows) : nil
         VStack(spacing: 12) {
-            switch phase {
-            case .finishing:
-                ProgressView("Finishing setup…")
-            case .ready, .notReady:
-                addressRowsView
-                if let image = qrImage {
-                    Image(platformImage: image)
-                        .interpolation(.none)
-                        .resizable()
-                        .frame(width: 220, height: 220)
-                        .accessibilityLabel("Pairing QR code")
-                }
-                if let code = pairingCode {
-                    Text(AddDeviceSheetModel.codeText(code.code))
-                        .font(.title2.monospacedDigit())
-                    Text(AddDeviceSheetModel.expiresText(expiresAt: code.expiresAt))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                if phase == .notReady {
-                    Text("Not ready yet").font(.caption).foregroundStyle(.secondary)
-                }
-            case .finishSetup:
-                Button("Finish Setup") { if let blocker = pairingBlocker { Task { await resolve(blocker) } } }
-                    .buttonStyle(.borderedProminent)
-            case .start:
-                Button("Start") { if let blocker = pairingBlocker { Task { await resolve(blocker) } } }
-                    .buttonStyle(.borderedProminent)
-            case .failed(let line):
-                Text(line).foregroundStyle(.secondary)
+            if let signIn {
+                signInAddressView(signIn)
+            } else {
+                pairingPhaseView(phase)
             }
             if let note = copyNote {
                 Text(note).font(.caption).foregroundStyle(.red)
             }
             HStack {
-                Button(copiedInvite ? "Link Copied" : "Copy Link", action: copyInvite)
-                    .disabled(phase != .ready)
+                if signIn == nil {
+                    Button(copiedInvite ? "Link Copied" : "Copy Link", action: copyInvite)
+                        .disabled(phase != .ready)
+                }
                 Spacer()
                 Button("Done") { showAddDevice = false; Task { await refreshDevices() } }
                     .keyboardShortcut(.defaultAction)
@@ -102,41 +81,63 @@ extension ShareSettingsView {
         .onChange(of: inviteLinkString) { _, _ in copyNote = nil }
     }
 
+    /// Multi-user on (#6568): the Tailscale address with its Copy, and the one line on signing in; no code, no QR.
+    private func signInAddressView(_ row: AddressRow) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            AddressLines(rows: [row], chosen: row.choice, onChoose: { _ in }, onCopy: { _ in
+                if let url = row.url?.absoluteString { PlatformPasteboard.writeString(url) }
+            })
+            Text(AddDeviceSheetModel.signInNote).font(.caption).foregroundStyle(.secondary)
+                .accessibilityIdentifier("sharing.address.sign-in-note")
+        }
+    }
+
+    @ViewBuilder
+    private func pairingPhaseView(_ phase: AddDeviceSheetModel.Phase) -> some View {
+        switch phase {
+        case .finishing:
+            ProgressView("Finishing setup…")
+        case .ready, .notReady:
+            addressRowsView
+            if let image = qrImage {
+                Image(platformImage: image)
+                    .interpolation(.none)
+                    .resizable()
+                    .frame(width: 220, height: 220)
+                    .accessibilityLabel("Pairing QR code")
+            }
+            if let code = pairingCode {
+                Text(AddDeviceSheetModel.codeText(code.code))
+                    .font(.title2.monospacedDigit())
+                Text(AddDeviceSheetModel.expiresText(expiresAt: code.expiresAt))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if phase == .notReady {
+                Text("Not ready yet").font(.caption).foregroundStyle(.secondary)
+            }
+        case .finishSetup:
+            Button("Finish Setup") { if let blocker = pairingBlocker { Task { await resolve(blocker) } } }
+                .buttonStyle(.borderedProminent)
+        case .start:
+            Button("Start") { if let blocker = pairingBlocker { Task { await resolve(blocker) } } }
+                .buttonStyle(.borderedProminent)
+        case .failed(let line):
+            Text(line).foregroundStyle(.secondary)
+        }
+    }
+
     /// The addresses this Mac can be reached at, ONE line each (#6554): name, host, where it works or why it cannot, and its
     /// own Copy (`sharing.share-sheet-offers-both-addresses`, #5318). Clicking a line that can work makes it the one the QR
     /// and Copy Link carry, ticked; nothing else on the sheet repeats an address.
     @ViewBuilder
     var addressRowsView: some View {
         let rows = addressRows
-        if rows.count > 1 || rows.contains(where: { !$0.isEnabled }) {
-            let chosen = AddressChoiceModel.shownChoice(addressChoice, rows: rows)
+        if AddressLines.shows(rows) {
             VStack(alignment: .leading, spacing: 6) {
-                ForEach(rows) { row in
-                    HStack(spacing: 6) {
-                        Button { addressChoice = row.choice } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: row.choice == chosen ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(row.isEnabled ? Color.accentColor : Color.secondary)
-                                    .accessibilityHidden(true)
-                                Text(AddressChoiceModel.line(row))
-                                    .font(.caption).foregroundStyle(row.isEnabled ? .primary : .secondary)
-                                    .lineLimit(2)
-                                    .multilineTextAlignment(.leading)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(!row.isEnabled)
-                        .accessibilityAddTraits(row.choice == chosen ? .isSelected : [])
-                        Spacer()
-                        if row.isEnabled {
-                            Button("Copy") { copyInvite(for: row.choice) }
-                                .controlSize(.small)
-                                .accessibilityIdentifier("sharing.address.copy.\(row.choice.rawValue)")
-                        }
-                    }
-                    .accessibilityIdentifier("sharing.address.row.\(row.choice.rawValue)")
-                }
-                TailnetServeCommandLine(command: sharingState?.tailnetServeCommand)
+                AddressLines(rows: rows, chosen: AddressChoiceModel.shownChoice(addressChoice, rows: rows),
+                             onChoose: { addressChoice = $0 }, onCopy: { copyInvite(for: $0) },
+                             serveCommand: sharingState?.tailnetServeCommand)
                 if AddressChoiceModel.showsCampusNote(rows: rows) {
                     Text(AddressChoiceModel.campusNote).font(.caption).foregroundStyle(.secondary)
                         .accessibilityIdentifier("sharing.address.campus-note")
