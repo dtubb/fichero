@@ -35,4 +35,11 @@ struct SignInWithoutCodeTests {
         #expect(notes.contains { $0.contains("username and password") })
         #expect(!notes.contains { $0.contains("single-use code") })
     }
+
+    /// `sharing.multiuser-shares-by-address` (#6568): the project Share sheet, as Add Device, gives the address and an account.
+    @Test func atTheTailscaleAddressTheShareSheetNamesConnectAndTheAccount() {
+        let notes = ShareLibrarySheet.linkNotes(person: "Maya", atAddress: true)
+        #expect(notes.contains { $0.contains("Connect to Another Mac") && $0.contains("username and password") })
+        #expect(!notes.contains { $0.contains("link") })
+    }
 }
