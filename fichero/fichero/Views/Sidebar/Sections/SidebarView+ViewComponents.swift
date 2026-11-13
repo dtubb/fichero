@@ -234,7 +234,8 @@ extension SidebarView {
                         destination,
                         cachedItemMissing: cachedItem(id: destination.serializedID) == nil,
                         wasRecentlyDeleted: recentlyDeleted.contains(destination.serializedID),
-                        rebuiltRecently: SidebarView.rebuiltRecently(at: lastTreeRebuildAt)
+                        rebuiltRecently: SidebarView.rebuiltRecently(
+                            at: max(lastTreeRebuildAt, selectionState.programmaticSelectionAt))
                     )
                 }
             )
