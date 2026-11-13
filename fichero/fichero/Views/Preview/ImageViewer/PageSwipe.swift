@@ -33,10 +33,24 @@ enum PageSwipe {
         !isZoomedIn && abs(velocity.x) > abs(velocity.y)
     }
 
-    /// The smallest zoom a pinch may reach. The full-screen view floors it at the fitted size, so a pinch out springs
-    /// back to the whole page instead of shrinking it to a speck; the inline preview keeps `minScale`.
-    static func minimumZoom(fitScale: CGFloat?, floorsAtFit: Bool, minScale: CGFloat) -> CGFloat {
-        guard floorsAtFit, let fitScale, fitScale > 0 else { return minScale }
+    /// Where a page that isn't zoomed in rests: centred in the view along both axes. One formula for both cases: a
+    /// page smaller than the view sits inside its centring inset (a negative offset), and one up to the zoomed-in
+    /// threshold larger is split evenly. A new page must start here, not at the last page's scroll position.
+    static func restingOffset(scaledContent: CGSize, viewSize: CGSize) -> CGPoint {
+        CGPoint(x: (scaledContent.width - viewSize.width) / 2, y: (scaledContent.height - viewSize.height) / 2)
+    }
+
+    /// Whether the page asked for (by a swipe, the pane's arrows or a key) is not the one drawn yet, so the spinner
+    /// shows over the old one until it arrives.
+    static func isLoadingPage(requested: String?, shown: String?) -> Bool {
+        guard let requested, let shown else { return false }
+        return requested != shown
+    }
+
+    /// The smallest zoom a pinch or Zoom Out may reach: the fitted size, so a pinch out springs back to the whole page
+    /// instead of shrinking it to a speck. `minScale` until the page can be measured.
+    static func minimumZoom(fitScale: CGFloat?, minScale: CGFloat) -> CGFloat {
+        guard let fitScale, fitScale > 0 else { return minScale }
         return max(minScale, fitScale)
     }
 }

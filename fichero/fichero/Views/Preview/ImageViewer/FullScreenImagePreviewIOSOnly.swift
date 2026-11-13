@@ -15,6 +15,9 @@ import SwiftUI
 struct FullScreenImagePreview: View {
     let url: URL?
     let renderedImage: PlatformImage?
+    /// A sideways swipe turns the page here too, as in the inline preview (#6559).
+    var onPageStep: ((Int) -> Void)?
+    var isTurningPage = false
 
     @Environment(\.dismiss) var dismiss
 
@@ -29,6 +32,10 @@ struct FullScreenImagePreview: View {
 
     let minScale: CGFloat = 0.01
     let maxScale: CGFloat = 10.0
+
+    var isZoomedIn: Bool {
+        PageSwipe.isZoomedIn(scale: scale, fitScale: imageCoordinator?.calculateFitScale())
+    }
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -49,9 +56,10 @@ struct FullScreenImagePreview: View {
                     loupeMagnification: $loupeMagnification,
                     loupeSize: $loupeSize,
                     coordinator: $imageCoordinator,
-                    floorsZoomAtFit: true
+                    onPageStep: onPageStep
                 )
                 .ignoresSafeArea()
+                .overlay { if isTurningPage { PageTurnSpinner() } }
             } else {
                 ContentUnavailableView(
                     "Image Preview",
@@ -82,12 +90,13 @@ struct FullScreenImagePreview: View {
         .gesture(
             DragGesture(minimumDistance: 20)
                 .onChanged { value in
-                    if value.translation.height > 0 {
+                    // A zoomed-in page pans; only a fitted one follows the finger down to close (#6559).
+                    if value.translation.height > 0, !isZoomedIn {
                         dragOffset = value.translation.height
                     }
                 }
                 .onEnded { value in
-                    if value.translation.height > 120 {
+                    if value.translation.height > 120, !isZoomedIn {
                         dismiss()
                     } else {
                         withAnimation(.spring(response: 0.3)) { dragOffset = 0 }
@@ -97,6 +106,25 @@ struct FullScreenImagePreview: View {
         #if os(iOS)
         .statusBarHidden(true)
         #endif
+    }
+}
+
+/// Shown over the current page while the next one loads (#6559): a large image from a shared Mac can
+/// take a moment. It waits a beat first, so a page already in memory doesn't flash it.
+struct PageTurnSpinner: View {
+    @State private var isVisible = false
+
+    var body: some View {
+        ProgressView()
+            .controlSize(.large)
+            .padding(16)
+            .background(.ultraThinMaterial, in: Circle())
+            .opacity(isVisible ? 1 : 0)
+            .accessibilityLabel("Loading page")
+            .task {
+                try? await Task.sleep(for: .milliseconds(200))
+                withAnimation(.easeIn(duration: 0.15)) { isVisible = true }
+            }
     }
 }
 

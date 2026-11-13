@@ -49,11 +49,21 @@ final class ImageWithCursorTrackingIOSCoordinator: NSObject, UIScrollViewDelegat
 
     func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
         onScaleChanged?(scale)
+        settleToFitIfFitted()
         Task { @MainActor [weak self] in
             // Yield so the binding-write task scheduled inside `onScaleChanged`
             // runs before we reopen the gate, mirroring the macOS guard (#748).
             await Task.yield()
             self?.isUserMagnifying = false
+        }
+    }
+
+    /// The scroll view laid out: apply a fit that was waiting for a size, or a re-fit after a resize (#6559, #4279).
+    func layoutDidChange() {
+        guard let scrollView else { return }
+        let hasImage = (imageView as? UIImageView)?.image != nil
+        if owner.applyAutomaticFit(scrollView: scrollView, coordinator: self, hasImage: hasImage) != nil {
+            centerContent()
         }
     }
 
@@ -196,16 +206,43 @@ final class ImageWithCursorTrackingIOSCoordinator: NSObject, UIScrollViewDelegat
 
 extension ImageWithCursorTrackingIOSCoordinator: UIGestureRecognizerDelegate {
     /// A fitted page does not scroll, so a sideways swipe on it turns the page instead of nudging the image; a
-    /// zoomed-in page pans as before. The pinch is a separate recognizer, so zooming works either way. The full-screen
-    /// view has no pages to turn, so its pinch floor is set here too.
+    /// zoomed-in page pans as before. The pinch is a separate recognizer, so zooming works either way. The pinch's
+    /// floor, the fitted size, is kept here too.
     func syncPanningToZoom() {
         guard let scrollView else { return }
         let fit = calculateFitScale()
-        scrollView.minimumZoomScale = PageSwipe.minimumZoom(
-            fitScale: fit, floorsAtFit: owner.floorsZoomAtFit, minScale: owner.minScale
-        )
+        scrollView.minimumZoomScale = PageSwipe.minimumZoom(fitScale: fit, minScale: owner.minScale)
         let zoomedIn = PageSwipe.isZoomedIn(scale: scrollView.zoomScale, fitScale: fit)
         if scrollView.isScrollEnabled != zoomedIn { scrollView.isScrollEnabled = zoomedIn }
+        // A page that isn't zoomed in always rests centred: a new page, a fit, a pinch back out. Without this a page
+        // kept the last one's scroll position and could sit off to the left or out of view. Not mid-pinch, where
+        // the pinch owns the offset.
+        guard !zoomedIn, !scrollView.isZooming, !scrollView.isZoomBouncing,
+              let image = (imageView as? UIImageView)?.image else { return }
+        let zoom = scrollView.zoomScale
+        let resting = PageSwipe.restingOffset(
+            scaledContent: CGSize(width: image.size.width * zoom, height: image.size.height * zoom),
+            viewSize: scrollView.bounds.size
+        )
+        if abs(scrollView.contentOffset.x - resting.x) > 0.5 || abs(scrollView.contentOffset.y - resting.y) > 0.5 {
+            scrollView.contentOffset = resting
+        }
+    }
+
+    /// A pinch that ends at or near the fitted size springs back to exactly the whole page, centred, as in Photos
+    /// (#6559). Scrolling is off there, so a page left off-centre would otherwise stay stuck where the pinch let go.
+    func settleToFitIfFitted() {
+        guard let scrollView, let fit = calculateFitScale(),
+              !PageSwipe.isZoomedIn(scale: scrollView.zoomScale, fitScale: fit) else { return }
+        // centerContent puts the offset at the resting point too (syncPanningToZoom).
+        UIView.animate(withDuration: 0.25, delay: 0, options: [.curveEaseOut, .allowUserInteraction]) {
+            scrollView.zoomScale = fit
+            self.centerContent()
+        }
+        // Back at fit, the automatic fit owns the zoom again, so a resize re-fits (#4279).
+        userHasZoomedManually = false
+        noteAutoFitApplied()
+        onScaleChanged?(fit)
     }
 
     /// The page-swipe recognizer, on the scroll view itself: a SwiftUI drag over the representable lost to the
