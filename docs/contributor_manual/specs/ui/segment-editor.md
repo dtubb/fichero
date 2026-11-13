@@ -222,13 +222,18 @@ targets are at least 44 pt.
   nearest `char_positions` else in proportion, `left_alone` naming grazed lines and lines with no
   baseline, the undo `segment.unsplit_many`; the app holds the Knife while K is down in Edit
   Segments and sends the stroke once on release (`SegmentEdit.knife`, `RegionInteractionLayer+Knife`).
-  *Not built:* the Knife tool button and K to arm it, saying `left_alone` in the app, the Pencil.
+  The Knife button (scissors) in the segment editor's tool row stays on until another tool is
+  chosen; when it leaves lines alone the page says how many for five seconds
+  (`SegmentEdit.knifeNotice`). *Not built:* a bare K press to arm it (K is held for one stroke), the Pencil.
   *Tests:* `test_segment_split_knife.py`
   (two crossings, graze, rtl, vertical); `KnifeStrokeTests.swift` (the stroke is sent once,
   in the drawn frame, with versions).
-- `segment-editor.split-at-a-point` — **[GAP]** (→ #4941; app) with one line selected, ⌘⇧K splits it under the
+- `segment-editor.split-at-a-point` — **[OK]** (→ #4941; app) with one line selected, ⌘⇧K splits it under the
   pointer (a vertical cut through that point at right angles to the baseline), for the common
   case where a stroke is more than is needed; the same engine call with a two-point `cut_path`.
+  *Built (2026-11-13):* Edit › Segments ▸ Split Line at Point (⌘⇧K), at the point last pressed on the
+  page (the Preview tracks presses, not hover), `SegmentEdit.splitAtPoint`. *Tests:*
+  `KnifeStrokeTests.splitAtAPoint`.
 - `segment-editor.reassign-by-drag` — **[GAP]** (→ #4941; app + engine) dragging a line (or a selection of lines)
   onto another region, in Select, makes them that region's lines: `segment.update_many` with
   `parent_segment_id`, and a `reading_order.place` for each into the region's lines by page
@@ -653,8 +658,10 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
   two shapes (`source.segment.shape-kinds`); Cut Words on both lines makes the two pieces and
   offers to join them as one word when the second line's reading starts without a space and the
   first's ends with a hyphen; the join is `segment.merge` keeping both shapes.
-- `segment-editor.edge.knife-through-words` — **[GAP]** (→ #4941; engine) a knife split of a line that already has
+- `segment-editor.edge.knife-through-words` — **[PARTIAL]** (→ #4941; engine) a knife split of a line that already has
   words assigns each word to the part its centre falls in and splits a word the stroke crosses.
+  *Built (2026-11-13):* words go with the part holding their centre, and undo puts them back
+  (`moved_children`; `test_segment_split_knife.py::TestWords`). *Not built:* splitting a word the stroke crosses.
 - `segment-editor.edge.merge-across-passes` — **[OK]** (engine) refused in words by
   `SegmentPassMismatchError`; the app offers nothing across passes but a match.
 - `segment-editor.edge.stale` — **[OK]** (engine) every action here is refused when the row changed

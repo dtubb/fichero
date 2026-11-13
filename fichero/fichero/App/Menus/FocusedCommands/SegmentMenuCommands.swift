@@ -14,6 +14,8 @@ struct SegmentMenuTarget {
     /// Whether every selected line has a baseline to redraw its outline from (`segment-editor.edge.no-baseline`).
     let selectionHasBaselines: Bool
     let redraw: () -> Void
+    /// Split Line at Point (⌘⇧K): the one selected line, cut at right angles to its baseline where it was last clicked.
+    var splitAtPoint: () -> Void = {}
     let apply: (SegmentEdit.Attribute) -> Void
 }
 
@@ -50,6 +52,9 @@ struct SegmentMenuContent: View {
         if count > 0, let reason = Self.redrawReason(selected: count, hasBaselines: target?.selectionHasBaselines == true) {
             Text(reason)
         }
+        Button("Split Line at Point") { target?.splitAtPoint() }
+            .keyboardShortcut("k", modifiers: [.command, .shift])
+            .disabled(!Self.canSplitAtPoint(selected: count, hasBaselines: target?.selectionHasBaselines == true))
         Divider()
         SegmentAttributeMenu.Items(apply: { target?.apply($0) })
             .disabled(count == 0)
@@ -69,6 +74,9 @@ struct SegmentMenuContent: View {
         if selected == 0 { return "Select lines to redraw" }
         return hasBaselines ? nil : "Lines with no baseline cannot be redrawn: draw a baseline first"
     }
+
+    /// Split Line at Point acts on ONE line with a baseline (`segment-editor.split-at-a-point`).
+    static func canSplitAtPoint(selected: Int, hasBaselines: Bool) -> Bool { selected == 1 && hasBaselines }
 
     /// Why the segments' verbs cannot act, said once under Edit Segments; nil when they can.
     static func reason(hasPage: Bool, selected: Int) -> String? {

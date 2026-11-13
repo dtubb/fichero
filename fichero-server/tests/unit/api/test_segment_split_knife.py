@@ -246,6 +246,28 @@ class TestTheReading:
         assert _texts(db, result, line) == ["一二三四", "五六七八九十"]
 
 
+class TestWords:
+    def test_each_word_goes_with_the_part_its_centre_falls_in_and_undo_puts_it_back(self, db, client):
+        doc, pass_id = _page(db, client)
+        line = _line(client, doc, pass_id, polygon=_box(0.1, 0.2, 0.8, 0.05), baseline=[[0.1, 0.24], [0.9, 0.24]])
+        words = []
+        for x in (0.15, 0.35, 0.55, 0.75):
+            response = client.post("/api/segments", json={
+                "document_id": doc.id, "pass_id": pass_id, "kind": "word", "parent_segment_id": line,
+                "anchor": {"document_id": doc.id, "rect": [x, 0.205, 0.08, 0.04]},
+            })
+            assert response.status_code == 200, response.text
+            words.append(response.json()["id"])
+
+        result = _knife(db, [line], [[0.5, 0.15], [0.5, 0.3]])
+
+        kept, rest = _parts(result, line)
+        assert [db.get(Segment, word).parent_segment_id for word in words] == [kept, kept, rest, rest]
+        response = client.post(f"/api/actions/audit/{result.audit_id}/undo")
+        assert response.status_code == 200, response.text
+        assert [db.get(Segment, word).parent_segment_id for word in words] == [line] * 4
+
+
 class TestRefusals:
     def test_a_changed_line_refuses_the_whole_stroke(self, db, client):
         doc, pass_id = _page(db, client)

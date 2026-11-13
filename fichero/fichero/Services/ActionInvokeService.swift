@@ -58,7 +58,8 @@ extension ActionLibraryService {
                 succeeded: json.ok,
                 auditId: json.auditId,
                 changedDomains: json.changedDomains,
-                resultId: (json.result.value as? [String: (any Sendable)?])?["id"] as? String
+                resultId: (json.result.value as? [String: (any Sendable)?])?["id"] as? String,
+                resultListCounts: ActionInvokeResult.listCounts(json.result.value)
             )
             invokeLogger.info("invokeAction(\(name)) ok — audit \(result.auditId)")
             return result
@@ -229,6 +230,19 @@ struct ActionInvokeResult: Decodable {
     /// `result.id` when the action made or named one row (`representation.create`'s new reading) --
     /// the Reader tells the page the reading it just made, so the next run is based on it.
     var resultId: String?
+    /// How many entries each list in the answer holds (`splits`, `left_alone` for the Knife), so a surface can say what
+    /// the action did without decoding its whole answer.
+    var resultListCounts: [String: Int] = [:]
+
+    /// The list lengths of an answer's top level; empty for anything that is not an object.
+    static func listCounts(_ value: Any?) -> [String: Int] {
+        guard let object = value as? [String: (any Sendable)?] else { return [:] }
+        var counts: [String: Int] = [:]
+        for (key, entry) in object {
+            if let list = entry as? [Any] { counts[key] = list.count }
+        }
+        return counts
+    }
 
     enum CodingKeys: String, CodingKey {
         case succeeded = "ok"

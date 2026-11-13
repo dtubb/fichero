@@ -95,4 +95,32 @@ struct KnifeStrokeTests {
         window.activeMarkupTool = .drawRegion
         #expect(!window.knifeArmed)
     }
+
+    @Test("Split Line at Point is the Knife's call: a short stroke through the point's foot, across the baseline")
+    func splitAtAPoint() throws {
+        let call = try SegmentEdit.splitAtPoint(
+            line("l1", version: 4, rect: [0.1, 0.2, 0.8, 0.05], baseline: [[0.1, 0.24], [0.9, 0.24]]), at: [0.4, 0.21]
+        ).get()
+        let params = try json(call)
+        #expect(call.action == "segment.split")
+        #expect(params["expected_versions"] as? [String: Int] == ["l1": 4])
+        let stroke = try #require(params["cut_path"] as? [[Double]])
+        #expect(stroke.count == 2)
+        #expect(stroke.allSatisfy { abs($0[0] - 0.4) < 1e-9 }, "at right angles to a level baseline, through x = 0.4")
+        #expect(stroke.map { $0[1] }.min()! < 0.24 && stroke.map { $0[1] }.max()! > 0.24, "it crosses the baseline")
+        #expect(SegmentEdit.splitAtPoint(
+            line("l1", version: 4, rect: [0.1, 0.2, 0.8, 0.05], baseline: [[0.1, 0.24]]), at: [0.4, 0.21]
+        ) == .failure(.noBaseline))
+        #expect(!SegmentMenuContent.canSplitAtPoint(selected: 2, hasBaselines: true))
+        #expect(SegmentMenuContent.canSplitAtPoint(selected: 1, hasBaselines: true))
+    }
+
+    @Test("the Knife says how many lines it left alone, and says nothing when it cut every line it reached")
+    func notice() {
+        #expect(SegmentEdit.knifeNotice(cut: 2, leftAlone: 0) == nil)
+        #expect(SegmentEdit.knifeNotice(cut: 1, leftAlone: 1) == "Cut 1 line; 1 line the stroke did not cross was left alone")
+        #expect(SegmentEdit.knifeNotice(cut: 0, leftAlone: 3)?.contains("3 lines") == true)
+        #expect(ActionInvokeResult.listCounts(["splits": [1, 2], "left_alone": [Int](), "id": "x"] as [String: (any Sendable)?])
+            == ["splits": 2, "left_alone": 0])
+    }
 }

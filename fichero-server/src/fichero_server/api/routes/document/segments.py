@@ -3476,6 +3476,7 @@ def _unsplit_params(split: dict) -> dict:
             new_id: current_versions[new_id] for new_id in new_segment_ids if new_id in current_versions
         },
         "representation_ids": split.get("representation_ids", []),
+        "moved_children": split.get("moved_children", {}),
     }
 
 
@@ -3621,9 +3622,11 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
 def _split_one(
     db: Database, original: Segment, parts: list[SegmentSplitPart], *, estimated: bool,
     readings_before_split: dict[str, tuple[str, str]], ctx: ActionContext, audit_id: str,
+    children_by_part: list[list[Segment]] | None = None,
 ) -> dict:
     """One line split into `parts`, the first kept on the line's own id, under `audit_id`; the record its
-    undo needs. Shared by a split at given parts and a knife stroke over many lines."""
+    undo needs. Shared by a split at given parts and a knife stroke over many lines. `children_by_part`, one list
+    per part, moves the line's words onto the part they fall in (`segment-editor.edge.knife-through-words`)."""
     pre_split_version = original.version
     # #4923: every action that changes a segment writes the version
     # snapshot (preimage) and bumps `Segment.version` -- named explicitly
@@ -3675,6 +3678,14 @@ def _split_one(
 
         place_after(db, original.id, new_ids)
 
+    moved_children: dict[str, int] = {}
+    for part_id, children in zip(new_ids, (children_by_part or [])[1:]):
+        for child in children:
+            snapshot_segment_version(db, child, deleted=False, actor=ctx.actor, audit_id=audit_id)
+            child.parent_segment_id = part_id
+            db.save(child)
+            moved_children[child.id] = child.version
+
     # Slice 8 (#4934): each part that named a stretch gets its own reading,
     # derived from the one that counted. The kept part is `original.id`
     # and the new parts are `new_ids`, in the order the caller gave them.
@@ -3722,6 +3733,7 @@ def _split_one(
         "pre_split_version": pre_split_version,
         "versions": {original.id: original.version, **{new_id: 1 for new_id in new_ids}},
         "representation_ids": split_representation_ids,
+        "moved_children": moved_children,
     }
 
 
@@ -3765,7 +3777,7 @@ def _knife_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
     document = db.get(Document, rows[0].document_id)
     shapes = [row for row in db.query(Segment, pass_id=rows[0].pass_id) if row.deleted_at is None]
     vertical, rungs = _lines_are_vertical(shapes, document), direction_rungs(db, document)
-    planned: list[tuple[Segment, list[SegmentSplitPart], bool, dict]] = []
+    planned: list[tuple[Segment, list[SegmentSplitPart], bool, dict, list[list[Segment]]]] = []
     left_alone: list[dict] = []
     for row in rows:
         if not row.baseline or len(row.baseline) < 2:
@@ -3800,7 +3812,20 @@ def _knife_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
                 baseline=piece,
                 reading_span=[bounds[index], bounds[index + 1]] if bounds else None,
             ))
-        planned.append((row, parts, bool(text) and estimated and bounds is not None, counted if bounds else {}))
+        # `segment-editor.edge.knife-through-words`: each word goes with the part its centre falls in.
+        children_by_part: list[list[Segment]] = [[] for _ in polygons]
+        for child in shapes:
+            if child.parent_segment_id != row.id or child.id in params.expected_versions:
+                continue
+            child_outline = line_join.outline_of(child.anchor)
+            if child_outline is None:
+                children_by_part[0].append(child)
+                continue
+            x0, y0, x1, y1 = line_join.bounds(child_outline)
+            children_by_part[line_cut.part_holding([(x0 + x1) / 2, (y0 + y1) / 2], polygons)].append(child)
+        planned.append((
+            row, parts, bool(text) and estimated and bounds is not None, counted if bounds else {}, children_by_part,
+        ))
     if not planned:
         raise HTTPException(
             status_code=422,
@@ -3811,8 +3836,9 @@ def _knife_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
     splits = [
         _split_one(
             db, row, parts, estimated=estimated, readings_before_split=readings, ctx=ctx, audit_id=audit_id,
+            children_by_part=children,
         )
-        for row, parts, estimated, readings in planned
+        for row, parts, estimated, readings, children in planned
     ]
     touched = [segment_id for split in splits for segment_id in (split["kept_id"], *split["new_segment_ids"])]
     change_spec = ChangeSpec(
@@ -3831,7 +3857,8 @@ def _knife_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
     )
     answer = {
         "splits": [
-            {key: split[key] for key in ("kept_id", "new_segment_ids", "representation_ids")} for split in splits
+            {key: split[key] for key in ("kept_id", "new_segment_ids", "representation_ids", "moved_children")}
+            for split in splits
         ],
         "left_alone": left_alone,
     }
@@ -3863,6 +3890,9 @@ class SegmentUnsplitParams(BaseModel):
     #: Slice 8 (#4934): the readings the split ADDED, to retract. Named by the
     #: acting row's own `after`, never replayed from an earlier call's params.
     representation_ids: list[str] = []
+    #: `segment-editor.edge.knife-through-words`: the words a knife moved onto a new part, {id: version as the
+    #: split left it}; put back under the kept line before the parts go.
+    moved_children: dict[str, int] = {}
 
 
 @action("segment.unsplit", SegmentUnsplitParams, domains=["segment"], undoable=False)
@@ -3969,6 +3999,14 @@ def _unsplit_checked(db: Database, params: SegmentUnsplitParams) -> tuple[Segmen
                 _stale_changed_fields(db, new_id, expected, new_row),
             ))
         live_new_rows[new_id] = new_row
+    for child_id, expected in params.moved_children.items():
+        child = db.get(Segment, child_id)
+        if child is None or child.deleted_at is not None:
+            raise _as_http_error(SegmentPartGone(child_id))
+        if child.version != expected:
+            raise _as_http_error(SegmentStale(
+                child_id, expected, child.version, _stale_changed_fields(db, child_id, expected, child),
+            ))
     return row, target, live_new_rows
 
 
@@ -3984,6 +4022,12 @@ def _unsplit_apply(
     # transaction's worth of writes in one readable place; the order does not
     # matter, because a retraction touches the reading and nothing else.
     _retract_readings(db, params.representation_ids)
+    # The words the knife moved go back under the kept line before their parts are deleted.
+    for child_id in params.moved_children:
+        child = db.get(Segment, child_id)
+        snapshot_segment_version(db, child, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        child.parent_segment_id = params.segment_id
+        db.save(child)
 
     # SOFT delete, with a forwarding note for each part (#4957 owed item).
     # This was the ONE hard delete left in the segment store, and it took

@@ -145,6 +145,10 @@ class WindowState {
     /// The Knife chosen from the tool row: every stroke cuts until another tool is chosen.
     var knifeArmed = false
 
+    /// A short word from the segment editor about the edit just made (the Knife's lines left alone), shown over the page
+    /// for a few seconds; nil when there is nothing to say.
+    var segmentNotice: String?
+
     /// The Knife's stroke so far, in the page's fractions, while it is being drawn.
     var knifeStroke: [[Double]] = []
 

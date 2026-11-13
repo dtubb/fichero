@@ -26,6 +26,24 @@ extension RegionInteractionLayer {
         return true
     }
 
+    /// The segment editor's word about the edit just made, over the top of the page; it clears itself.
+    @ViewBuilder
+    func segmentNotice() -> some View {
+        if let notice = windowState?.segmentNotice {
+            Text(notice)
+                .font(.callout)
+                .padding(.horizontal, 10).padding(.vertical, 4)
+                .background(.regularMaterial, in: Capsule())
+                .frame(maxWidth: .infinity, alignment: .top)
+                .padding(.top, 8)
+                .accessibilityIdentifier("segmentEditor.notice")
+                .task(id: notice) {
+                    try? await Task.sleep(for: .seconds(5))
+                    if windowState?.segmentNotice == notice { windowState?.segmentNotice = nil }
+                }
+        }
+    }
+
     /// The stroke so far, drawn over the page.
     @ViewBuilder
     func liveKnife(in size: CGSize) -> some View {
