@@ -1128,7 +1128,7 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
   component; Preview's quiet bar (image and PDF) and every other footer are removed, their
   entries living in the pane menu.
 
-### H. Bars like Xcode, one filter component, Focus mode (owner 2026-11-13, Mac first)
+### H. Bars like Xcode, one filter component, Focus mode (owner 2026-11-13, Mac first; APPROVED by the owner 2026-11-13 with its rulings below)
 
 > The owner, after a day in the window (2026-11-13): the Mac's pane heads and bottom bars should
 > sit like Xcode's (its heights and insets; a flat bar in the pane's own material with one
@@ -1158,25 +1158,27 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
 - `panes.focus.esc-restores-exactly` — **[GAP]** (#6575; owner 2026-11-13) app, macOS. Esc, the head's ✕, or View › Focus on Pane again leaves Focus and restores the window exactly: the pane list, the sidebar and the Inspector, every pane's scroll and zoom, and the window's full-screen state as it was: a window that was already in full screen stays in full screen and only the hidden panes return; one that was not leaves full screen. Entering and leaving save nothing to the workspace. *Tests:* `PaneFocusTests` (to write: a saved pane list round-trips through Focus unchanged; the full-screen flag is read before and restored after).
 - `panes.focus.preview-keeps-its-chrome-and-paging` — **[GAP]** (#6575, #6560; owner 2026-11-13) app, macOS. Focus on a Preview showing a page keeps `ImmersiveReaderView`'s fading chrome and its ← → paging (`preview.full-screen-page`); Focus on any other pane shows that pane's own head as a fading overlay holding only its navigation and Focus's ✕. *Tests:* `PreviewFullScreenTests` (extended, to write: the immersive route under Focus; the overlay head's contents per kind).
 
-**Open questions for the owner (2026-11-13; each answerable in a word or two):**
+**Rulings (owner 2026-11-13; section H and its entries in `sidebar-crud.md`, `reader-view.md` and
+`segment-editor-crud.md` APPROVED with the recommended answer to each of the seventeen questions; the
+questions are closed and folded into the entries):**
 
-1. Mac Preview and canvas heads: still floating and fading, or flat like the other bars? (float / flat)
-2. The "?" glyph that goes: the one on the sidebar's bar, the "?" badge on rows, or both? (bar / rows / both)
-3. Sources shows folders only: does a PDF split into pages count as a folder (shown) or a page (hidden)? (shown / hidden)
-4. The Metadata section: keep the proposed rows (Document Types, Tags, Languages, Dates), or name others? (keep / list them)
-5. Hosts: the shared Macs only, or the compute hosts (clusters) too? (shared / both)
-6. The two words: "Filter" narrows rows, "Options" changes what rows show; keep both words? (yes / other words)
-7. Focus on Pane takes ⌃⌘R from the Preview's full-window reader (same key, wider meaning), or gets a new chord? (same / new)
-8. Focus on every pane kind (Chat, Items, canvas too), or only Source, Reader, Segments, Preview? (all / four)
-9. Reader with one page selected, Segments off: the rows are still line by line (one editable row per line), and the Segments option adds the ink strips? (yes / prose only)
-10. Picking an order in the Reader: this pane only, or it also sets the page order? (pane / page)
-11. Combining orders from different passes (Kraken's is on Kraken's pass, a model's on its own): refuse, or compose a pass first (#5232)? (refuse / compose)
-12. Combine's default rule: interleave by position on the page, or take the first then the next? (interleave / take)
-13. Near-duplicate orders fold under the first: identical sequences only, or a subset too? (identical / subsets)
-14. Drawing a region: the name field opens after the draw (Esc keeps the region), or no field at all? (field / none)
-15. A pass that lands empty clears the drawn lines even when an older pass still has lines? (clear / keep older)
-16. Order titles carry source and date ("Layout Order · Kraken, 13 Nov"): keep the word "Layout Order", or "As Written"? (Layout / As Written)
-17. After a Combine, the sources fold under the result as near-duplicates, or are they deleted (one undo brings them back)? (fold / delete)
+1. Mac Preview and canvas heads: **float** and fade (the 2026-10-04 ruling stands); only the Items and Reader heads are the 28 pt row.
+2. The "?" glyph: **both**: no help glyph on the sidebar's bar, and the "?" fallback badge on rows (`SidebarRowLabelCore`) gives way to the kind's own icon.
+3. Sources, folders only: a PDF split into pages is **shown** (it lists its pages as a folder does, `read.selecting-a-pdf-shows-its-pages`); its pages are hidden.
+4. The Metadata section: **keep** the proposed rows (Document Types, Tags, Languages, Dates).
+5. Hosts: **both**, the shared Macs and the compute hosts.
+6. The two words: **yes**: Filter narrows the rows, Options changes what a row shows.
+7. Focus on Pane: the **same** chord, ⌃⌘R, with the wider meaning.
+8. Focus on **all** pane kinds.
+9. Reader with a page selected and Segments off: **yes**: one editable row per line, as the Compare view; the Segments option adds the ink strips.
+10. Picking an order in the Reader: the **pane** only; the page order is chosen in the Order tab.
+11. Combining orders of different passes: **refuse**, naming both passes and offering to compose a pass first (#5232).
+12. Combine's default rule: **interleave** by position on the page; take-then is the other choice.
+13. Near-duplicates: identical sequences and **subsets** too.
+14. Drawing a region: the name **field** opens after the draw; Esc keeps the region.
+15. A pass that lands empty: **keep the older** lines drawn and listed, and say the new pass found none.
+16. Order titles keep the word **Layout Order**, with source and date.
+17. After a Combine the sources **fold** under the new order, hidden; one undo restores them beside it.
 
 ## Build order (owner 2026-11-13, Mac first; each slice one reviewable commit with its tests)
 
@@ -1195,7 +1197,7 @@ The worker items already drafted for these are the build; this step names them. 
 - Depends on: 1.1
 - Size: M
 
-The entries live in `sidebar-crud.md`, "The bottom bar". Questions 2, 3 and 5 are answered before the menu's last two toggles are built; the rest does not wait.
+The entries live in `sidebar-crud.md`, "The bottom bar". Rulings 2, 3 and 5 settle the "?", the paged PDF and Hosts.
 
 #### Step 1.3 — one filter/options component on Items, Source, Reader and Segments (#4856, #4966)
 - Behaviours: `panes.bar.one-filter-and-options-component`, `panes.bar.filter-field-like-xcode`
@@ -1203,7 +1205,7 @@ The entries live in `sidebar-crud.md`, "The bottom bar". Questions 2, 3 and 5 ar
 - Depends on: 1.2
 - Size: M
 
-The inventory table above is the acceptance. Question 6 names the two words first.
+The inventory table above is the acceptance; ruling 6 fixes the two words.
 
 #### Step 1.4 — the Metadata section (after question 4)
 - Behaviours: `sidebar.bar.metadata-section`
@@ -1219,7 +1221,7 @@ The inventory table above is the acceptance. Question 6 names the two words firs
 - Depends on: 1.1
 - Size: M
 
-Questions 7 and 8 first; the Preview's route is the existing one.
+Rulings 7 and 8: ⌃⌘R, every pane kind; the Preview's route is the existing one.
 
 ### Stage 3 — the Reader's content and the orders it follows (`reader-view.md`, `segment-editor-crud.md`)
 
@@ -1241,7 +1243,7 @@ Questions 7 and 8 first; the Preview's route is the existing one.
 - Depends on: 3.2
 - Size: M
 
-Engine first (`same_as` in the list answer), then the picker in the Reader's bar. Questions 10 and 13.
+Engine first (`same_as` in the list answer), then the picker in the Reader's bar. Rulings 10 (the pane's choice) and 13 (subsets fold too).
 
 #### Step 3.4 — Combine two or more orders into one, named and chosen, one undo (#6421)
 - Behaviours: `source.editor.orders.combined-and-edited-on-the-page`
@@ -1249,7 +1251,7 @@ Engine first (`same_as` in the list answer), then the picker in the Reader's bar
 - Depends on: 3.3
 - Size: M
 
-This is `segment-editor-crud.md` Step 1.14's combine half, re-scoped by the owner 2026-11-13 (two or more, named, chosen, one undo); the overlay editing half stays there. Questions 11 and 12 first.
+This is `segment-editor-crud.md` Step 1.14's combine half, re-scoped by the owner 2026-11-13 (two or more, named, chosen, one undo); the overlay editing half stays there. Rulings 11 (cross-pass refused, compose offered), 12 (interleave by default) and 17 (the sources fold under the result).
 
 ### Stage 4 — the segments stay true (`segment-editor-crud.md` Steps 1.31 and 1.32; bug fixes, so they may run first)
 
