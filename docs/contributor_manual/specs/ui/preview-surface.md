@@ -264,10 +264,11 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   offers **View Full Screen** (a viewfinder button beside the zoom-controls toggle) while it shows one page or image; it opens
   that page in the full-window reader ⌃⌘R already opens (`ImmersiveReaderView`, `markup.immersive-full-screen-reading`): the
   page on black, the chrome fading, no second viewer. ← and → turn to the previous and next page whether the chrome shows or
-  not (no modifier: ⌘← stays the system's), and Esc or its ✕ leaves to the Preview on the page last shown. A folder, a
+  not (no modifier: ⌘← stays the system's), a two-finger swipe left or right does the same while the page is not zoomed
+  past the window (owner 2026-11-13), and Esc or its ✕ leaves to the Preview on the page last shown. A folder, a
   multiple selection or a non-page file offers no button. The iPad keeps its own button on the image bar. *Built:*
   `PreviewFullScreen.canEnter`, `PreviewHeadLensControls.onEnterFullScreen` (macOS), `ContentView.enterImmersiveReading(showing:)`,
-  `KeyboardPageStep` in `KeyboardExitCatcher`. *Not built:* a look on screen; a trackpad swipe in full screen; the window's
+  `KeyboardPageStep` in `KeyboardExitCatcher`, the swipe in `ImmersiveReaderView` (`PreviewFullScreen.windowTakesTheSwipe`). *Not built:* a look on screen; the window's
   own macOS full screen (the reader fills the window, as ⌃⌘R always did). *Tests:* `Models/PreviewFullScreenTests.swift`.
   *Owner 2026-11-13 (#6575): the window's own macOS full screen is now Focus mode for EVERY pane,
   `panes.focus.any-pane-fills-the-screen` (`ui/panes-workspaces.md` H); this entry keeps the Preview's

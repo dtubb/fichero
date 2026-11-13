@@ -32,6 +32,12 @@ struct PreviewFullScreenTests {
         #expect(!PreviewFullScreen.canEnter(shown: nil, selectionCount: 0))
     }
 
+    @Test("a swipe turns one page: the reader's while it is up, the window's otherwise")
+    func oneOwnerForTheSwipe() {
+        #expect(!PreviewFullScreen.windowTakesTheSwipe(readerIsUp: true))
+        #expect(PreviewFullScreen.windowTakesTheSwipe(readerIsUp: false))
+    }
+
     #if canImport(AppKit)
     @Test("← is the previous page and → the next; with a modifier, or any other key, the key is not ours")
     func arrowKeysTurnThePage() {
