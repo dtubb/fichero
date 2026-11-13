@@ -1080,9 +1080,12 @@ plan's peak memory across steps. Ready shows none of it.
   `GET /api/activity/jobs/{id}` carries `stages`, its reason says what it waits for (another recipe run,
   memory), and `/api/recipes/project/runs[/{id}]` carry the same accounts with `waiting_for`; a stage's
   run changing re-reads the recipe run's tree, so the details follow live. Pinned as above.
-  **Built 2026-10-08 (app), not yet seen:** the project window shows the run itself, in a strip along the
-  bottom of the content column (beneath the library's bottom bar; `ProjectRunStripView`, the detail
-  column's bottom inset). The project's `ActivityStore` follows the first recipe run its jobs poll
+  **Ruled 2026-11-13 (owner): no strip in the project window.** A recipe run is Activity's: the bottom strip
+  (`ProjectRunStripView`) is removed, and what only it offered, Change Caps… for a run paused at a spend cap, is in
+  the run's Activity details (`ActivityDetailsCapStop`). The account below stays the store's and the details'
+  (`ProjectRunStrip`'s words still feed Set Up's Run Again). Before the ruling, **built 2026-10-08:** the project
+  window showed the run itself, in a strip along the bottom of the content column (beneath the library's bottom
+  bar, the detail column's bottom inset). The project's `ActivityStore` follows the first recipe run its jobs poll
   (`GET /api/activity/jobs`, the one poll Activity already makes) lists running, waiting or paused
   (`projectRunId`; never the `waiting:run-a-recipe` row that stands for several), reads its tree once
   (`GET /api/activity/jobs/{id}`), and re-reads it as its row, a stage run's row or the change stream
