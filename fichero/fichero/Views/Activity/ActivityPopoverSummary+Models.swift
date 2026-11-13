@@ -46,3 +46,36 @@ extension ActivityPopoverSummary {
         var cost: String?
     }
 }
+
+extension ActivityPopoverSummary {
+    /// The work lines the popover names at most (`activity.popover.at-most-five`, owner 2026-11-13); the rest are Activity's.
+    static let workShown = 5
+
+    /// How many of each work list the popover draws, in order (live blocks, runs in hand, background kinds, running
+    /// items), at most `limit` lines in all, and how many it leaves to the Activity monitor.
+    struct WorkCap: Equatable {
+        let blocks: Int
+        let runs: Int
+        let background: Int
+        let running: Int
+        let hidden: Int
+
+        init(blocks: Int, runs: Int, background: Int, running: Int, limit: Int = ActivityPopoverSummary.workShown) {
+            var left = max(limit, 0)
+            func take(_ count: Int) -> Int {
+                let taken = min(max(count, 0), left)
+                left -= taken
+                return taken
+            }
+            self.blocks = take(blocks)
+            self.runs = take(runs)
+            self.background = take(background)
+            self.running = take(running)
+            hidden = max(blocks, 0) + max(runs, 0) + max(background, 0) + max(running, 0)
+                - (self.blocks + self.runs + self.background + self.running)
+        }
+
+        /// "3 more in Activity"; nil when nothing is left out.
+        var moreLine: String? { hidden > 0 ? "\(hidden) more in Activity" : nil }
+    }
+}

@@ -1157,6 +1157,13 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   `testActivityPopoverSummary_saysThisMacsStateAndHidesAReadingTheEngineCouldNotTake`). Not yet
   seen in the app. Still a gap (#5415): nothing reads the GPU.
   *Superseded by Ruled 2026-10-19 in part:* what the popover shows, and that it reads the window's summary, is `activity.popover.same-summary`.
+- `activity.popover.at-most-five` — **[PARTIAL]** (owner 2026-11-13) the popover names at most five pieces of work: the
+  engine's live blocks first, then the runs in hand, then the background kinds, then the running items, in that order,
+  five lines in all; the rest are one line, "N more in Activity", which opens the Activity monitor as Open Activity
+  does. Seen 2026-11-13: every local workflow run was listed and the popover filled up. Up next, waiting, held back,
+  the Mac's state and the errors (already capped at three) are not work lines and keep their places.
+  *Built:* `ActivityPopoverSummary.workShown`, `ActivityPopoverSummary.WorkCap`, the view's cap and its line.
+  *Not built:* a look on screen. *Tests:* `Views/Activity/ActivityPopoverWorkCapTests.swift`.
 - `activity.popover.mac-state-row` — **[PARTIAL]** (#5635, ruled 2026-10-09) the popover shows this
   Mac's state as one compact row of symbols with short values, not a column of text: memory
   (`memorychip`: OK, High, Critical), heat (`thermometer.medium`: OK, Warm, Hot, Critical), power

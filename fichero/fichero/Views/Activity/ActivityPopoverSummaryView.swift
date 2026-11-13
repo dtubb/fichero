@@ -9,6 +9,19 @@ struct ActivityPopoverSummaryView: View {
     var openDetails: (String) -> Void = { _ in }
     /// The engine is not answering its health pings: busy, said, never acted on (#6176).
     var engineBusy: String?
+    /// "N more in Activity" was pressed: open the Activity monitor, as Open Activity does.
+    var openActivity: () -> Void = {}
+
+    /// The runs not already said by a block, so a run is never named twice.
+    private var unsaidRuns: [ActivityPopoverSummary.Run] {
+        summary.runs.filter { run in !summary.blocks.contains { $0.id == run.id } }
+    }
+
+    /// At most five work lines (`activity.popover.at-most-five`).
+    private var cap: ActivityPopoverSummary.WorkCap {
+        .init(blocks: summary.blocks.count, runs: unsaidRuns.count, background: summary.background.count,
+              running: summary.running.count)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -18,14 +31,15 @@ struct ActivityPopoverSummaryView: View {
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("activity.popover.engineBusy")
             }
-            ForEach(summary.blocks) { block in
+            let cap = cap
+            ForEach(summary.blocks.prefix(cap.blocks)) { block in
                 ActivityPopoverBlockView(block: block)
             }
             // A run the engine's summary already shows as a block is not said twice.
-            ForEach(summary.runs.filter { run in !summary.blocks.contains { $0.id == run.id } }) { run in
+            ForEach(unsaidRuns.prefix(cap.runs)) { run in
                 ActivityPopoverRunView(run: run)
             }
-            ForEach(summary.background) { line in
+            ForEach(summary.background.prefix(cap.background)) { line in
                 Label(line.waiting.map { "\(line.text) · \($0)" } ?? line.text,
                       systemImage: line.waiting == nil ? "arrow.triangle.2.circlepath" : "clock")
                     .font(.callout)
@@ -38,8 +52,14 @@ struct ActivityPopoverSummaryView: View {
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("activity.popover.upNext")
             }
-            ForEach(summary.running) { item in
+            ForEach(summary.running.prefix(cap.running)) { item in
                 ActivityPopoverRunningRow(item: item)
+            }
+            if let more = cap.moreLine {
+                Button(more, action: openActivity)
+                    .buttonStyle(.link)
+                    .font(.callout)
+                    .accessibilityIdentifier("activity.popover.more")
             }
             if summary.waitingCount > 0 {
                 Label(waitingText, systemImage: "clock")
