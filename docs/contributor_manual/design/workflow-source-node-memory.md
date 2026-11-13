@@ -19,7 +19,7 @@ Folder source over N pages of 40 KB of text each, and prints peak RSS.
 | 500   | 20,480,000 B            | 21,154,500 B                | +44.7 MB        | M4 iMac (lane-sharing a55ee5d28c) |
 
 Growth is linear in pages and is the page text carried in state; 500 pages already overshoot the 8 MB state cap, and
-the 4,292-page Marshall Diaries would hold about 175 MB of text for the whole run.
+a multi-volume handwritten diary of about 4,300 pages would hold about 175 MB of text for the whole run.
 
 ## Decision
 

@@ -233,7 +233,7 @@ layers *in place*:
 
 ## 7. Risks
 
-- **Embedding migration:** stamping + reindex must not nuke real Marshall-diaries
+- **Embedding migration:** stamping + reindex must not nuke real diary
   vectors; needs an idempotent backfill (per migration policy, rule #9 retired).
 - **`LLMConfig` blast radius:** it's a god-node; perimeter checks should wrap call
   sites, not change `LLMConfig`'s shape.
