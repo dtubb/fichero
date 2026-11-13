@@ -95,6 +95,12 @@ extension LibraryView {
     /// a gesture is live, the persisted one otherwise.
     private var effectiveIconScale: Double { liveIconScale ?? iconViewScale }
 
+    /// One ⌘-scroll step of the icon size: 0.1 per step, kept in the pinch's range (0.5 up to the pane's maximum).
+    nonisolated static func iconScale(after step: Int, from scale: Double, maximum: Double) -> Double {
+        let next = ((scale + Double(step) * 0.1) * 20).rounded() / 20
+        return max(0.5, min(maximum, next))
+    }
+
     var iconsView: some View {
         // Parsed ONCE per render, not twice per tile (2026-08-31 perf): the
         // raw @AppStorage string was re-split into a Set inside the ForEach
@@ -376,6 +382,11 @@ extension LibraryView {
                             pinchBaseScale = iconViewScale
                         }
                 )
+                // ⌘ + scroll zooms the icons too, as pinch does (`panes.chrome.command-scroll-zooms`, owner 2026-11-13).
+                .commandScrollZoom { step in
+                    iconViewScale = Self.iconScale(after: step, from: iconViewScale, maximum: pinchMax)
+                    pinchBaseScale = iconViewScale
+                }
                 .onChange(of: geometry.size.width) { _, newWidth in
                     // #4966: the SAME pane-clamped minimum the grid itself
                     // renders with, not a second, parallel formula — this is
