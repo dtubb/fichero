@@ -475,10 +475,11 @@ def convert_new_results(db: Any, document_id: str, *, run_id: str | None = None,
     """
     try:
         outcome = _convert_one_page(db, document_id, run_id)
-        if outcome == "converted" and tie:
-            _queue_tie(db, document_id)
+        tie_note = ""
+        if outcome == "converted" and tie and not _queue_tie(db, document_id):
+            tie_note = " (its reading was not tied to the new lines; Tie Page Text to Lines does it)"
         # One line per page, so "text but no boxes" can be answered from the log: did this page's result become a pass?
-        logger.info("A new result on page %s: %s", document_id, outcome)
+        logger.info("A new result on page %s: %s%s", document_id, outcome, tie_note)
         return outcome
     except Exception as exc:  # noqa: BLE001 -- the result is saved; the next open retries it
         logger.error(
@@ -490,15 +491,18 @@ def convert_new_results(db: Any, document_id: str, *, run_id: str | None = None,
         return "failed"
 
 
-def _queue_tie(db: Any, document_id: str) -> None:
+def _queue_tie(db: Any, document_id: str) -> bool:
     """Lines just became the page's: a page reading already saved is tied to them (`tie_text.after_lines`, #5558), the
-    other order of the tie queued after a reading. Never raises: the lines are saved either way."""
+    other order of the tie queued after a reading. Never raises: the lines are saved either way. False when the tie
+    could not be queued, so the caller's page line says so."""
     try:
         from fichero_server.checking.tie_text import after_lines
 
         after_lines(db, document_id)
+        return True
     except Exception:  # noqa: BLE001 -- the tie is background work; the lines are already the page's
         logger.warning("Could not queue the tie of page %s's reading to its new lines", document_id, exc_info=True)
+        return False
 
 
 #: How long an unfinished run may go untouched before another opening may take
