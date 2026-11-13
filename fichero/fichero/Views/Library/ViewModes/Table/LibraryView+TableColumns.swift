@@ -69,6 +69,7 @@ extension LibraryView {
             // name cell hosts the activity indicator (DocumentStore) and the
             // thumbnail well (StorageService).
             outlineNameCell(for: node)
+                .truncationMode(.middle)  // #6571: a long name loses its middle, as in the list and icon views
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)  // #5279
                 .modifier(tableCellServiceInjection)
         }
