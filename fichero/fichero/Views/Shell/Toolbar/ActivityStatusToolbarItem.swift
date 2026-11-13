@@ -167,7 +167,12 @@ struct ActivityStatusToolbarItem: View {
                     ActivityWindowSelectionState.shared.select(ActivitySelection(jobId: jobId, libraryId: libraryId))
                     openWindow(id: ActivityWindowSelectionState.detailWindowID)
                 },
-                engineBusy: appState?.engineBusySentence
+                engineBusy: appState?.engineBusySentence,
+                openActivity: {
+                    showPopover = false
+                    ActivityWindowSelectionState.shared.selectLibrary(libraryId)
+                    openWindow(id: ActivityWindowSelectionState.monitorWindowID)
+                }
             )
 
             Divider()
