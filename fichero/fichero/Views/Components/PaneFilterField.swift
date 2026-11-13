@@ -7,10 +7,24 @@ struct PaneFilterField<MenuContent: View>: View {
     @Binding var text: String
     var prompt = "Filter"
     var accessibilityID = "paneFilterField"
+    /// ⌘F's target, where the pane has one (the Items list's `filterFieldFocused`).
+    var focus: FocusState<Bool>.Binding?
     @ViewBuilder var menu: () -> MenuContent
 
     /// The filter icon every bar shows, Xcode's navigator filter.
     static var symbol: String { "line.3.horizontal.decrease.circle" }
+
+    @ViewBuilder
+    private var field: some View {
+        let plain = TextField(prompt, text: $text)
+            .textFieldStyle(.plain)
+            .accessibilityIdentifier(accessibilityID)
+        if let focus {
+            plain.focused(focus)
+        } else {
+            plain
+        }
+    }
 
     var body: some View {
         HStack(spacing: 4) {
@@ -19,7 +33,7 @@ struct PaneFilterField<MenuContent: View>: View {
             } label: {
                 HStack(spacing: 1) {
                     Image(systemName: Self.symbol)
-                    Image(systemName: "chevron.down").font(.system(size: 7, weight: .semibold))
+                    Image(systemName: "chevron.down").font(.caption2.weight(.semibold)).imageScale(.small)
                 }
                 .foregroundStyle(.secondary)
             }
@@ -29,9 +43,7 @@ struct PaneFilterField<MenuContent: View>: View {
             .fixedSize()
             .help("What this list shows")
             .accessibilityLabel("Filter options")
-            TextField(prompt, text: $text)
-                .textFieldStyle(.plain)
-                .accessibilityIdentifier(accessibilityID)
+            field
             if !text.isEmpty {
                 Button {
                     text = ""

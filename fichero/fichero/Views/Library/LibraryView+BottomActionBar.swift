@@ -64,7 +64,6 @@ extension LibraryView {
                 condensedBarButtons
                 libraryMiniToolbar(condensed: true)
             } overflowMenu: {
-                bottomBarOverflowMenu
                 // The sort/filter cluster survives narrow widths here
                 // (Daniel, 2026-08-23: "we want them there"). The
                 // metadata control used to VANISH at narrow widths —
@@ -77,9 +76,8 @@ extension LibraryView {
                 // bare `⇅` chevron rows here, because the bar's icon-only
                 // Menu label carries into a menu as a submenu with no name
                 // at all. A menu row has room for a word and needs one.
-                librarySortMenu(iconOnly: false)
-                libraryShowMenu(iconOnly: false)
-                libraryFilterToggleButton(iconOnly: false)
+                // The Show kinds are in the Filter field's menu now (`panes.chrome.one-filter-pattern`).
+                if Self.barShowsSort(displayMode) { librarySortMenu(iconOnly: false) }
                 LibraryRowAttributesMenu(raw: $rowAttributesRaw, contentLines: $rowContentLinesRaw)
                 // Mode clusters reachable at narrow widths too (the gap
                 // the consolidation design named): dataset facets and the
@@ -125,15 +123,6 @@ extension LibraryView {
         } message: {
             Text(importErrorMessage ?? "")
         }
-        // #4966: ONE popover presenter for the KG filter, attached to the
-        // bar's own outer container so it survives whichever `ViewThatFits`
-        // rung (condensed button or overflow-menu row) actually triggered
-        // it — attaching it to either trigger individually would vanish
-        // along with that trigger the moment the OTHER rung renders instead.
-        .popover(isPresented: $showingKgFilterPopover) {
-            HStack(spacing: 6) { kgContentFilterControls }
-                .padding(10)
-        }
     }
 
     /// #4856: ONE add control, content-aware — a folder in Documents, an
@@ -172,69 +161,6 @@ extension LibraryView {
         }
     }
 
-    /// #4856: the filter slot — the SAME text field + type menu
-    /// `EntitiesLibraryContent`/`ClaimsLibraryContent` used to draw in their
-    /// own second bar, now filled into this ONE bar instead. The content
-    /// view still owns the filter's MEANING (it reports `onAvailableTypesChanged`
-    /// and reads `filterText`/`filterType` back) — only where the controls
-    /// DRAW has moved.
-    ///
-    /// #4966: moved OUT of the always-inline essential tier — a 220pt
-    /// `TextField` cannot shrink, so leaving it essential would make it the
-    /// one thing in this bar that still overflows a narrow pane. It now
-    /// lives in the secondary/condensed/overflow rungs below, the same
-    /// ladder `entityFilterMenu` already rode for list mode.
-    @ViewBuilder
-    private var kgContentFilterControls: some View {
-        Image(systemName: "line.3.horizontal.decrease.circle")
-            .foregroundStyle(.secondary)
-        TextField(
-            effectiveContentKind == .claims ? "Filter claims" : "Filter entities",
-            text: $kgContentFilterText
-        )
-        .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 220)
-        Menu {
-            Button("All types") { kgContentFilterType = nil }
-            Divider()
-            ForEach(kgContentAvailableTypes, id: \.self) { type in
-                Button(type.capitalized) { kgContentFilterType = type }
-            }
-        } label: {
-            Label(kgContentFilterType?.capitalized ?? "All types", systemImage: "tag")
-        }
-        .paneBarMenuStyle()
-        .fixedSize()
-    }
-
-    /// #4966: the filter's CONDENSED coat — a live `TextField` cannot fold
-    /// into an icon (nothing to show) or a menu row (AppKit doesn't host an
-    /// editable field inside a `Menu`'s content the way it hosts a `Menu`
-    /// inside one), so this rung and the overflow rung both collapse to ONE
-    /// button that opens the exact same `kgContentFilterControls` in a
-    /// popover — the "a filter button that opens a popover" shape, reusing
-    /// the ladder's existing `condensed`/`overflowMenu` slots rather than a
-    /// second collapse mechanism.
-    private var kgContentFilterPopoverButton: some View {
-        Button {
-            showingKgFilterPopover = true
-        } label: {
-            Image(systemName: "line.3.horizontal.decrease.circle")
-                .accessibilityLabel(effectiveContentKind == .claims ? "Filter claims" : "Filter entities")
-        }
-        .paneBarButtonStyle()
-        .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
-        .contentShape(Rectangle())
-        .help(effectiveContentKind == .claims ? "Filter claims" : "Filter entities")
-        // The popover itself is NOT attached here (#4966): `ViewThatFits`
-        // mounts only ONE ladder rung at a time, so a `.popover` on a
-        // condensed-only button would vanish from the tree — and with it,
-        // its anchor — the moment the overflow rung renders instead. It is
-        // attached once, on the bar's own outer container in
-        // `libraryBottomActionBar`, which is mounted regardless of which
-        // rung is showing.
-    }
-
     /// Essential verbs — always inline (#3057): the add control, Delete, Import.
     /// The trailing Spacer keeps them left-aligned with the secondary/overflow on
     /// the right, preserving the bar's existing Finder-style layout.
@@ -244,11 +170,22 @@ extension LibraryView {
         // Delete/Export/Run-Workflow's existing content-aware `.disabled`
         // rules below) should HIDE rather than grey for a KG content kind
         // they don't apply to — left exactly as they behave today.
-        Button {
-            performAdd()
-        } label: {
-            Image(systemName: "plus")
-                .accessibilityLabel(addButtonLabel)
+        // + adds: New Folder and Import Files… (the separate import button is gone, `panes.chrome.one-filter-pattern`).
+        Group {
+            if effectiveContentKind == .documents {
+                Menu {
+                    Button("New Folder", systemImage: "folder.badge.plus") { performAdd() }
+                    Button("Import Files…", systemImage: "square.and.arrow.down") { openImportPicker() }
+                } label: {
+                    Image(systemName: "plus").accessibilityLabel("Add")
+                }
+                .menuStyle(.button)
+                .menuIndicator(.hidden)
+            } else {
+                Button { performAdd() } label: {
+                    Image(systemName: "plus").accessibilityLabel(addButtonLabel)
+                }
+            }
         }
         .paneBarButtonStyle()
         .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
@@ -259,32 +196,14 @@ extension LibraryView {
         Button {
             promptDeleteSelected()
         } label: {
-            Image(systemName: "minus")
-                .accessibilityLabel("Delete")
+            Image(systemName: "trash")
+                .accessibilityLabel("Move to Trash")
         }
         .paneBarButtonStyle()
         .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
         .contentShape(Rectangle())
-        .help("Delete selection")
+        .help("Move the selection to the Trash")
         .disabled(isShowingEntitiesCollection || selection.isEmpty)
-
-        Button {
-            // Targets the folder this pane is currently showing, never the
-            // library root (#4449) — `folderId` is nil only when browsing
-            // the library's own top level, which IS the root. Explicit
-            // `.link` (#4452 added Copy/Move via the Data menu) — this
-            // button has always meant "link in place".
-            fileImportMode = .link
-            fileImportTargetFolderId = folderId
-            showingFileImporter = true
-        } label: {
-            Image(systemName: "square.and.arrow.down")
-                .accessibilityLabel("Import")
-        }
-        .paneBarButtonStyle()
-        .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
-        .contentShape(Rectangle())
-        .help("Import files")
 
         Spacer()
     }
@@ -292,146 +211,17 @@ extension LibraryView {
     /// Secondary verbs — inline on Mac when they fit, else the `…` menu; menu-only
     /// on compact (#3057): the KG content filter (Entities/Claims), the
     /// entity filter (list mode), Export BibTeX, Run Workflow.
-    @ViewBuilder
-    private var secondaryBarButtons: some View {
-        if effectiveContentKind != .documents {
-            kgContentFilterControls
-        }
+    /// Nothing between the left verbs and the Metadata · Sort · Filter cluster (`panes.chrome.one-filter-pattern`):
+    /// Export is File › Export, Run Workflow left the bar, the filters are in the Filter field's menu.
+    private var secondaryBarButtons: some View { EmptyView() }
 
-        if displayMode == .list {
-            entityFilterMenu
-        }
+    private var condensedBarButtons: some View { EmptyView() }
 
-        exportBibtexBarButton
-
-        runWorkflowBarButton
-    }
-
-    /// The condensed mirror of the secondary tier — the SAME buttons, with the
-    /// entity filter's words dropped and the KG filter folded to its popover
-    /// button (#4966: a `TextField` has no icon-only coat to drop into). The
-    /// export/workflow verbs are already icon-only, so they are shared
-    /// outright rather than copied: one action, one definition (#3057's rule,
-    /// kept).
-    @ViewBuilder
-    private var condensedBarButtons: some View {
-        if effectiveContentKind != .documents {
-            kgContentFilterPopoverButton
-        }
-
-        if displayMode == .list {
-            entityFilterMenu
-                .labelStyle(.iconOnly)
-                .accessibilityLabel("Filter by Entity")
-        }
-
-        exportBibtexBarButton
-
-        runWorkflowBarButton
-    }
-
-    private var exportBibtexBarButton: some View {
-        Button {
-            Task { await exportSelectedBibtex() }
-        } label: {
-            Image(systemName: "square.and.arrow.up")
-        }
-        .accessibilityLabel("Export BibTeX")
-        .paneBarButtonStyle()
-        .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
-        .contentShape(Rectangle())
-        .help("Export selection as BibTeX")
-        .disabled(isShowingEntitiesCollection || selection.isEmpty)
-    }
-
-    private var runWorkflowBarButton: some View {
-        Button {
-            selectedDocumentIdsForBatch = Array(selection)
-            showWorkflowPicker = true
-        } label: {
-            Image(systemName: "bolt")
-                .accessibilityLabel("Run Workflow")
-        }
-        .paneBarButtonStyle()
-        .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
-        .contentShape(Rectangle())
-        .help("Run workflow on selection")
-        .disabled(isShowingEntitiesCollection || selection.isEmpty || !featureManager.isWorkflowRunOnSelectionEnabled)
-    }
-
-    /// `Label`-based mirror of the secondary verbs for the overflow `…` menu
-    /// (#3057) — same actions + disabled logic, menu-item presentation. The
-    /// KG filter survives here too (#4856's "we want them there" for the
-    /// sort/filter cluster, and #4966's own note that a live `TextField`
-    /// cannot live inside a `Menu`'s content the way `entityFilterMenu`,
-    /// itself a `Menu`, can) — as the same popover-opening button the
-    /// condensed rung uses, not a menu row.
-    @ViewBuilder
-    private var bottomBarOverflowMenu: some View {
-        if effectiveContentKind != .documents {
-            Button {
-                showingKgFilterPopover = true
-            } label: {
-                Label(
-                    effectiveContentKind == .claims ? "Filter Claims" : "Filter Entities",
-                    systemImage: "line.3.horizontal.decrease.circle"
-                )
-            }
-        }
-
-        if displayMode == .list {
-            entityFilterMenu
-        }
-
-        Button {
-            Task { await exportSelectedBibtex() }
-        } label: {
-            Label("Export BibTeX", systemImage: "square.and.arrow.up")
-        }
-        .disabled(isShowingEntitiesCollection || selection.isEmpty)
-
-        Button {
-            selectedDocumentIdsForBatch = Array(selection)
-            showWorkflowPicker = true
-        } label: {
-            Label("Run Workflow", systemImage: "bolt")
-        }
-        .disabled(isShowingEntitiesCollection || selection.isEmpty || !featureManager.isWorkflowRunOnSelectionEnabled)
-    }
-
-    private func exportSelectedBibtex() async {
-        guard !selection.isEmpty else { return }
-        let documentIds = Array(selection)
-        guard let library = libraryManager.getLibrary(id: windowState.libraryId) else { return }
-
-        do {
-            // Route through the service wrapper instead of raw ficheroClient.api
-            // (observable-data-layer, #3258); it owns the response handling.
-            let bib = try await library.entityService.exportBibliographyBib(documentIds: documentIds)
-            guard let saveURL = await presentBibtexSavePanel() else { return }
-            try Data(bib.utf8).write(to: saveURL, options: .atomic)
-        } catch {
-            bottomBarLogger.error("Failed to export selected BibTeX: \(error.localizedDescription)")
-        }
-    }
-
-    private func presentBibtexSavePanel() async -> URL? {
-        #if canImport(AppKit)
-        await withCheckedContinuation { continuation in
-            let savePanel = NSSavePanel()
-            savePanel.nameFieldStringValue = "selection.bib"
-            if let bibType = UTType(filenameExtension: "bib") {
-                savePanel.allowedContentTypes = [bibType]
-            }
-            savePanel.allowsOtherFileTypes = false
-            savePanel.canCreateDirectories = true
-            savePanel.begin { result in
-                continuation.resume(returning: result == .OK ? savePanel.url : nil)
-            }
-        }
-        #else
-        return nil
-        #endif
+    /// The import picker, for the folder this pane shows (never the library root, #4449); `.link` keeps files in place.
+    func openImportPicker() {
+        fileImportMode = .link
+        fileImportTargetFolderId = folderId
+        showingFileImporter = true
     }
 
     private func handleCreateNewFolder() {

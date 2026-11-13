@@ -97,72 +97,60 @@ extension LibraryView {
             // the level — see `DatasetFilterCluster` for why that swap is gone.
             // The reading level is a library-wide question (`documentStore
             // .libraryLevel`), so the library-wide control is the one that asks it.
-            libraryLevelToggle
+            // Metadata · Sort · Filter (`panes.chrome.one-filter-pattern`, owner 2026-11-13): the Show kinds (the old
+            // 🗎 control) and the entity filter are in the Filter's menu; the filter is one inline field, no second
+            // row. Sort is left out on the Map, where position is the place.
+            if Self.barShowsSort(displayMode) { librarySortMenu }
 
-            librarySortMenu
-
-            libraryFilterToggleButton(iconOnly: condensed)
+            // The control still asks the feature flag rather than assuming it.
+            if featureManager.isLibraryFilterToolbarEnabled {
+                PaneFilterField(text: $searchText, accessibilityID: "libraryFilterField", focus: $filterFieldFocused) {
+                    libraryFilterMenuContent
+                }
+                .frame(minWidth: 90, maxWidth: 200)
+            }
+        } else {
+            // Claims and Entities: the same field over their own list (#4856's filter, one control).
+            PaneFilterField(
+                text: $kgContentFilterText,
+                prompt: effectiveContentKind == .claims ? "Filter claims" : "Filter entities",
+                accessibilityID: "kgContentFilterField"
+            ) {
+                Button("All types") { kgContentFilterType = nil }
+                Divider()
+                ForEach(kgContentAvailableTypes, id: \.self) { type in
+                    Button(type.capitalized) { kgContentFilterType = type }
+                }
+            }
+            .frame(minWidth: 90, maxWidth: 200)
         }
     }
 
-    /// Spreads ↔ Pages (2026-08-22). Daniel: "I want to be able to show
-    /// spreads, or show single pages."
-    ///
-    /// A diary folder legitimately holds BOTH — openings whose two pages moved
-    /// beneath them, and pages that were never split — so the folder's
-    /// contents are a genuinely ambiguous question that only the reader can
-    /// answer. It sits with sort and filter because it acts on this list and
-    /// only this list, the same rule the rest of this bar encodes.
-    ///
-    /// Always shown, like sort. It is a VIEW MODE, not a contextual action:
-    /// the reader's answer to "spreads or pages" is a standing preference, and
-    /// a control that appears and disappears as they move between folders is
-    /// harder to find than one that is simply always there.
-    ///
-    /// Deliberately NOT hidden when a folder has no containers. Deciding that
-    /// client-side would mean either hard-coding "opening" — the exact thing
-    /// the engine-side resolver avoids by reading a prototype attribute — or
-    /// guessing from child counts, which mis-fires on a PDF whose pages the
-    /// engine will not expand. A wrong guess would hide the control in folders
-    /// where it works, or show a dead one where it does not.
-    /// Extended to FOUR kinds (Daniel, 2026-08-31): Spreads, Pages, Regions,
-    /// Extracted Data — "so the listing can show just pages, just regions".
-    /// `LibraryShowKind` owns the mapping; see its doc comment for why two of
-    /// the four are an engine tier and two are a client-side narrowing.
-    var libraryLevelToggle: some View {
-        libraryShowMenu(iconOnly: true)
-    }
+    /// Whether the Items bar shows Sort in a view: everywhere but the Map (`panes.chrome.one-filter-pattern`).
+    nonisolated static func barShowsSort(_ mode: ViewDisplayMode) -> Bool { mode != .geoMap }
 
-    /// The Show menu. `iconOnly` is the bar's coat; the overflow `…` menu asks
-    /// for the LABELLED coat, because a bare `⇅` chevron row inside a menu says
-    /// nothing at all about what it opens (Daniel, 2026-08-31).
+    /// The Items Filter's menu: what the list shows (the Show kinds), and in List the entity filter.
     @ViewBuilder
-    func libraryShowMenu(iconOnly: Bool) -> some View {
+    var libraryFilterMenuContent: some View {
         let current = libraryShowKind
-        Menu {
+        Section("Show") {
             ForEach(LibraryShowKind.allCases) { kind in
                 Button {
                     setLibraryShowKind(kind)
                 } label: {
                     Label(kind.title, systemImage: kind.systemImage)
-                    if current == kind {
-                        Image(systemName: "checkmark")
-                    }
+                    if current == kind { Image(systemName: "checkmark") }
                 }
                 .accessibilityLabel(kind.help)
             }
-        } label: {
-            if iconOnly {
-                Label("Show: \(current.title)", systemImage: current.systemImage)
-                    .labelStyle(.iconOnly)
-            } else {
-                Label("Show: \(current.title)", systemImage: current.systemImage)
-            }
         }
-        .menuIndicator(.hidden)
-        .help(current.help)
-        .accessibilityIdentifier("libraryLevelToggle")
+        if displayMode == .list {
+            entityFilterMenu
+        }
     }
+
+    /// Spreads ↔ Pages ↔ Regions ↔ Extracted Data (2026-08-22, 2026-08-31): the Show kinds are the first section of the
+    /// Filter field's menu (`libraryFilterMenuContent`, owner 2026-11-13), in every mode, never swapped out by one.
 
     /// What the Show control currently reads, derived rather than stored twice.
     ///
@@ -262,43 +250,6 @@ extension LibraryView {
             } else {
                 Label("Sort By: \(model.label)", systemImage: model.systemImage)
             }
-        }
-    }
-
-    /// Reveals the inline per-view filter row — the narrowing filter over rows
-    /// already loaded, NOT the engine search above.
-    ///
-    /// The feature flag is untouched on purpose (#4374 finding 4): it defaults
-    /// to `false` and `resetToV001()` sets it `false` again, so Filter is
-    /// switched OFF rather than broken. Moving the control does not decide
-    /// whether to enable it.
-    var libraryFilterToggleButton: some View {
-        libraryFilterToggleButton(iconOnly: false)
-    }
-
-    /// `iconOnly` drops the word "Filter" for the condensed rung of the bar's
-    /// fit ladder; the `.help` still names it, so nothing becomes unnameable.
-    @ViewBuilder
-    func libraryFilterToggleButton(iconOnly: Bool) -> some View {
-        let model = LibraryFilterToggleModel(
-            isAvailable: featureManager.isLibraryFilterToolbarEnabled,
-            isActive: showFilterBar
-        )
-        if model.isAvailable {
-            Toggle(isOn: Binding(
-                get: { model.isActive },
-                set: { showFilterBar = $0 }
-            )) {
-                if iconOnly {
-                    Label(model.title, systemImage: model.systemImage)
-                        .labelStyle(.iconOnly)
-                } else {
-                    Label(model.title, systemImage: model.systemImage)
-                }
-            }
-            .toggleStyle(.button)
-            .help(model.help)
-            .accessibilityLabel(model.title)
         }
     }
 

@@ -33,12 +33,12 @@ extension LibraryView {
     /// - Dismissing clears the query, so rows are never left silently filtered
     ///   out with no visible field to explain why — the stuck-filter trap the
     ///   Escape and Clear Filter buttons already guard against.
+    /// ⌘F (and the other "show the filter" asks) is a FOCUS request now: the field is always in the bar
+    /// (`panes.chrome.one-filter-pattern`), so it is focused and the request reset, ready for the next ⌘F.
     func filterBarVisibilityChanged(_ isShown: Bool) {
-        if isShown {
-            filterFieldFocused = true
-        } else if !searchText.isEmpty {
-            searchText = ""
-        }
+        guard isShown else { return }
+        filterFieldFocused = true
+        showFilterBar = false
     }
 
     // MARK: - Filtered Documents
@@ -214,60 +214,6 @@ extension LibraryView {
     }
 
     // MARK: - Filter Bar
-
-    /// Xcode-navigator-style filter bar pinned to the BOTTOM of the library
-    /// list pane (mounted via `.safeAreaInset(edge: .bottom)` in `LibraryView`).
-    /// Thin, subtle `.bar` material with a top divider; binds `searchText`,
-    /// which drives `filteredDocuments`, so it quick-narrows the visible rows
-    /// client-side. The toolbar filter toggle / ⌘F controls visibility;
-    /// Escape hides the bar (and clears the filter so no rows stay hidden).
-    var filterBarView: some View {
-        VStack(spacing: 0) {
-            Divider()
-
-            // Translucent Liquid Glass background, matching the sidebar mini-toolbars
-            // and the library action bar for a consistent glass look (#2550).
-            GlassEffectContainer {
-                HStack(spacing: 6) {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
-                        .foregroundStyle(.secondary)
-                        .font(.body)
-                        .imageScale(.small)
-
-                    TextField("Filter", text: $searchText)
-                        .textFieldStyle(.plain)
-                        .font(.callout)
-                        .focused($filterFieldFocused)
-
-                    if !searchText.isEmpty {
-                        Button {
-                            searchText = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Clear filter")
-                        .accessibilityLabel("Clear Filter")
-                    }
-                }
-                .padding(.horizontal, 10)
-                .frame(height: 30)
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
-            }
-        }
-        // Escape hides the bottom filter bar and clears the filter so no rows
-        // are left silently hidden once the bar disappears.
-        .background(
-            Button("") {
-                searchText = ""
-                showFilterBar = false
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcut(.escape, modifiers: [])
-            .hidden()
-        )
-    }
 
     // MARK: - Empty State
 

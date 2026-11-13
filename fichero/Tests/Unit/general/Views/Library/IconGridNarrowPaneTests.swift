@@ -92,13 +92,14 @@ final class LibraryHeaderFooterCollapseAgreementTests: XCTestCase {
         try AppSource.code(relativePath)
     }
 
-    func testKgFilterHasACondensedAndAnOverflowCoatInTheSharedFooter() throws {
-        let source = try source("Views/Library/LibraryView+BottomActionBar.swift")
-        // The filter is no longer essential-tier-only (#4966: a 220pt TextField cannot shrink) —
-        // it must appear in the secondary, condensed, and overflow rungs, the same three rungs
-        // `entityFilterMenu` already rides for list mode.
-        XCTAssertTrue(source.contains("kgContentFilterControls"))
-        XCTAssertTrue(source.contains("kgContentFilterPopoverButton"))
+    func testKgFilterIsTheSharedFilterFieldInTheFooter() throws {
+        // owner 2026-11-13 (`panes.chrome.one-filter-pattern`): the Claims/Entities filter is the one shared field in
+        // the footer's right-hand cluster, which every rung of the ladder draws; no separate KG controls or popover.
+        let mini = try source("Views/Library/LibraryView+MiniToolbar.swift")
+        XCTAssertTrue(mini.contains("kgContentFilterField"))
+        let bar = try source("Views/Library/LibraryView+BottomActionBar.swift")
+        XCTAssertFalse(bar.contains("kgContentFilterPopoverButton"))
+        XCTAssertTrue(bar.contains("libraryMiniToolbar(condensed: true)"))
     }
 }
 
