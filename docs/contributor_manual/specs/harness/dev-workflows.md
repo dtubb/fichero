@@ -699,6 +699,13 @@ the write path would produce.
   error; the Air down is `not-run`, never a red, and waits the day. Tests
   `fichero-server/tests/unit/workflows/test_check_tool.py::test_the_daily_builds_run_each_named_command_on_the_build_remote_with_its_own_derived_data_and_never_here`,
   `fichero-builder/tests/test_queue_verb.py::test_the_daily_builds_run_once_a_day_busy_lanes_or_not_and_a_red_one_is_an_alert`.
+  Built 2026-11-13 (owner-approved; the daily build failed `unable to read tree`, alerts 576 and 590 read `verify-all after the
+  landing ... NOT VERIFIED`): the build tree is a worktree of `[check].engine_repo`, but `verify-all` and the daily builds ran with
+  the harness checkout as root, whose HEAD is a harness merge commit the engine repo does not have. Both now pass `landed`: when the
+  root's HEAD is not in the engine repo, the build tree is checked out at the engine repo's landed head (`[check].base_ref`, else
+  `integration`) after a best-effort `git fetch origin` there; a head the engine repo has is built as is, and the lane build rung
+  is unchanged. Neither ever checks out the harness checkout's HEAD. No landed head to build = a refusal naming the sha. Tests
+  `fichero-server/tests/unit/workflows/test_check_tool.py::test_the_daily_build_and_verify_all_build_the_engine_repos_landed_head_never_the_harness_checkouts`.
   Built 2026-11-08 (manager: five tree-scanning guardrail tests sat red on integration for hours, `test_db_access_guardrail`
   among them, because a batch runs only the test files it changes): `[check.whole_tests]` may map a prefix to a LIST, and a
   `.py` entry runs engine-shaped beside the changed tests in the green run. Each of the 55 tests that scan the repo through

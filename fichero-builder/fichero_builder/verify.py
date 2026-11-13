@@ -63,7 +63,7 @@ def verify(root, cfg=None, *, jail_required: bool = True) -> dict:
         with contextlib.ExitStack() as held:
             for slot in journal.ladder_slots(cfg.parallel):
                 held.enter_context(journal.Lock(slot, what="the verification's app build"))
-            return check_tool.build(judged, list(cfg.build_paths), cfg)
+            return check_tool.build(judged, list(cfg.build_paths), cfg, landed=True)
 
     journal.append("activity", kind="verify", key=key, state="start")
     try:

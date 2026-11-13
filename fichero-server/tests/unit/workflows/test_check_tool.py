@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from dataclasses import replace
 import sys
 from pathlib import Path
 
@@ -1614,3 +1615,30 @@ def test_a_base_tree_that_cannot_be_made_is_an_infra_error_never_a_red_to_approv
         ct.red_on_base(tmp_path, "base0", "HEAD", ["tests/test_x.py"], ct.Config())
     assert "could not make the base tree" in str(e.value) and "timed out" in str(e.value)
     assert ("worktree", ct.SCRATCH_CHECKOUT_S) in seen
+
+
+def test_the_daily_build_and_verify_all_build_the_engine_repos_landed_head_never_the_harness_checkouts(tmp_path, monkeypatch):
+    """2026-11-13: the build tree is a worktree of the engine repo; the harness checkout's merge commit is not in it."""
+    repo, wr, g, log, cfg, scratch = _build_world(tmp_path, monkeypatch)
+    engine = tmp_path / "engine"
+    subprocess.run(["git", "clone", "-q", str(repo), str(engine)], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(engine), "checkout", "-q", "-b", "integration"], check=True, capture_output=True)
+    landed = subprocess.run(["git", "-C", str(engine), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    (repo / "harness.toml").write_text("[check]\nharness = 1\n")  # a harness-only commit the engine repo never sees
+    g("commit", "-qam", "harness merge")
+    cfg = replace(cfg, engine_repo=str(engine), base_ref="")
+    root = scratch()
+    harness_head = subprocess.run(["git", "-C", root, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    assert harness_head != landed
+    src = ct._stable_build_tree(root, cfg, landed=True)
+    assert subprocess.run(["git", "-C", src, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip() == landed
+    assert ct._stable_build_tree(root, cfg, landed=True) == src  # again over the existing tree (the checkout branch)
+    # the daily build and verify-all's build pass landed=True
+    seen = []
+    monkeypatch.setattr(ct, "_stable_build_tree", lambda r, c, landed=False: seen.append(landed) or str(repo))
+    monkeypatch.setattr(ct, "_ssh", lambda *a, **k: subprocess.CompletedProcess([], 255, b"", b""))
+    ct.daily_builds(root, replace(cfg, build_remote="air:x", daily_builds={"t": ("true",)}))
+    monkeypatch.setattr(ct, "_build_key", lambda *a, **k: "")
+    monkeypatch.setattr(ct, "_run", lambda *a, **k: {"ok": True})
+    ct.build(root, ["fichero/App.swift"], replace(cfg, build_remote=""), landed=True)
+    assert seen == [True, True]

@@ -879,18 +879,18 @@ SOURCE_ERROR = re.compile(r"\.swift:\d+:\d+: error: ")
 BUILD_RETRY_WAIT_S = 30  # ponytail: one fixed wait; the other build's end is not watched
 
 
-def build(root, changed: list[str], cfg: Config) -> dict:
+def build(root, changed: list[str], cfg: Config, landed: bool = False) -> dict:
     """The project's build-only compile, only when the diff touches its build paths; one at a time under the lock
     (owner 2026-11-01: a Swift change nobody compiled reached the land gate; builds stay serial on this machine). The skip is decided
     BEFORE the heavy lock (2026-11-06: a docs-only or harness batch waited hours on the owner's Xcode hold just to learn it builds nothing)."""
     if not cfg.build or not any(f.startswith(cfg.build_paths) for f in changed):
         return {"ok": True, "skipped": True, "results": []}
-    if cfg.build_remote and (r := _remote_build(root, cfg)) is not None:
+    if cfg.build_remote and (r := _remote_build(root, cfg, landed=landed)) is not None:
         return r
-    return _build_locked(root, changed, cfg)  # ponytail: the remote down under the owner's hold waits here, holding its slot
+    return _build_locked(root, changed, cfg, landed)  # ponytail: the remote down under the owner's hold waits here, holding its slot
 
 
-def _remote_build(root, cfg: Config, cmd: tuple = (), name: str = "build") -> dict | None:
+def _remote_build(root, cfg: Config, cmd: tuple = (), name: str = "build", landed: bool = False) -> dict | None:
     """The build rung on `[check].build_remote` (manager 2026-11-06 t88: the M1 Air, so the Pro stays the owner's; the first step of
     the machine pool, #6356): the stable build tree rsynced (mtimes kept, removed files removed, no .git) to <dir>/build-tree there,
     xcodebuild there with <dir>/derived as its derived data, under that Mac's own one-heavy-job lock. Everything lives under the
@@ -910,14 +910,14 @@ def _remote_build(root, cfg: Config, cmd: tuple = (), name: str = "build") -> di
         lock = open(lp, "a")
         fcntl.flock(lock, fcntl.LOCK_EX)
     try:
-        return _remote_build_locked(root, cfg, host, rbase, cmd, name)
+        return _remote_build_locked(root, cfg, host, rbase, cmd, name, landed)
     finally:
         if lock is not None:
             lock.close()
 
 
-def _remote_build_locked(root, cfg: Config, host: str, rbase: str, cmd: tuple = (), name: str = "build") -> dict | None:
-    src = _stable_build_tree(root, cfg) if cfg.build_tree else str(root)
+def _remote_build_locked(root, cfg: Config, host: str, rbase: str, cmd: tuple = (), name: str = "build", landed: bool = False) -> dict | None:
+    src = _stable_build_tree(root, cfg, landed) if cfg.build_tree else str(root)
     key = _build_key(src, cfg, cmd)
     if key and (hit := _build_results().get(key)):
         journal.append("check", state="build-reused", rung=name, detail=f"green at {hit.get('head', '?')[:9]} {hit.get('ts', '')}: {key[:12]}")
@@ -959,10 +959,10 @@ def daily_builds(root, cfg: Config) -> list[tuple[str, dict | None]]:
     Never on this Mac (the owner's): no remote = nothing runs."""
     if not cfg.build_remote:
         return []
-    return [(name, _remote_build(root, cfg, tuple(argv), name)) for name, argv in cfg.daily_builds.items()]
+    return [(name, _remote_build(root, cfg, tuple(argv), name, landed=True)) for name, argv in cfg.daily_builds.items()]
 
 @_heavy("xcodebuild (the build rung)")
-def _build_locked(root, changed: list[str], cfg: Config) -> dict:
+def _build_locked(root, changed: list[str], cfg: Config, landed: bool = False) -> dict:
     lock = None
     if cfg.build_lock:  # ~ = the owner's own state dir (review 1 N3); the owner's process takes it, the build itself runs jailed
         lp = Path(os.path.expanduser(cfg.build_lock))
@@ -971,7 +971,7 @@ def _build_locked(root, changed: list[str], cfg: Config) -> dict:
     try:
         if lock is not None:
             fcntl.flock(lock, fcntl.LOCK_EX)
-        src = _stable_build_tree(root, cfg) if cfg.build_tree else str(root)
+        src = _stable_build_tree(root, cfg, landed) if cfg.build_tree else str(root)
         key = _build_key(src, cfg)
         if key and (hit := _build_results().get(key)):  # the same fichero/ tree, command and Xcode built green before: reused
             journal.append("check", state="build-reused", rung="build", detail=f"green at {hit.get('head', '?')[:9]} {hit.get('ts', '')}: {key[:12]}")
@@ -1029,7 +1029,7 @@ def known_gaps_added_only(repo, since: str, head: str, f: str, cfg: Config) -> s
             return f"{k!r} gives no issue (#N) or step in its reason"
     return ""
 
-def _stable_build_tree(root, cfg: Config) -> str:
+def _stable_build_tree(root, cfg: Config, landed: bool = False) -> str:
     """`[check].build_tree`: ONE worktree of the engine repo at a fixed path (the jail's workroot), checked out at the scratch
     tree's head and cleaned, so xcodebuild's records (absolute paths) match the last build and it compiles only what changed
     (2026-11-03: every ladder built in a new path, median 8.5 min for any change). Only the build rung and build-check use it,
@@ -1037,6 +1037,16 @@ def _stable_build_tree(root, cfg: Config) -> str:
     sha = (_lines(root, "rev-parse", "HEAD") or [""])[0]
     common = (_lines(root, "rev-parse", "--path-format=absolute", "--git-common-dir") or [""])[0]
     repo = str(Path(common).parent) if common.endswith("/.git") else common
+    if landed and cfg.engine_repo:
+        # verify-all and the daily builds only (`landed`): the build tree is a worktree of the ENGINE repo: a commit it lacks (the harness checkout's merge commit, 2026-11-13: `unable to
+        # read tree`) is never checked out; the landed head of the engine repo is built instead, fetched there first when the sha is missing
+        repo = cfg.engine_repo
+        if not _git(repo, "cat-file", "-e", f"{sha}^{{commit}}")["ok"]:
+            _git(repo, "fetch", "-q", "origin", timeout_s=SCRATCH_CHECKOUT_S)  # best effort: a mirror with no origin keeps what it has
+            landed = next((x for ref in (cfg.base_ref, "integration") if ref and (x := (_lines(repo, "rev-parse", "--verify", "-q", f"{ref}^{{commit}}") or [""])[0])), "")
+            if not landed:
+                raise RuntimeError(f"build tree: {sha[:9]} is not in the engine repo and it has no {cfg.base_ref or 'integration'} to build instead")
+            sha = landed
     tree = Path(cfg.build_tree)
     if not (tree / ".git").exists():
         tree.parent.mkdir(parents=True, exist_ok=True)
