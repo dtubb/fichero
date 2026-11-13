@@ -4,7 +4,7 @@ While Multi-user is off the owner's key session may still choose the owner's pas
 from __future__ import annotations
 
 from fichero_server.security import accounts
-from tests.signed_in import signed_in_client, uds_client
+from tests.signed_in import mac_app_client, signed_in_client, tcp_app_client, uds_client
 from tests.unit.security.test_sharing_probe_2026_10_01 import harness  # noqa: F401
 
 # ruff: noqa: F811  -- pytest fixtures are passed by name; the parameter shadows the imported fixture on purpose
@@ -20,9 +20,7 @@ def _people(harness, monkeypatch):
 
 
 def _app(harness):
-    http = uds_client(harness)
-    http.headers["Authorization"] = f"Bearer {harness.bootstrap}"
-    return http
+    return mac_app_client(harness)
 
 
 def test_the_mac_app_over_the_socket_sets_the_switch_with_no_key_session(harness, monkeypatch):
@@ -59,7 +57,7 @@ def test_a_tcp_caller_is_refused_the_switch_even_as_the_signed_in_owner(harness,
     who = signed_in_client(harness, owner)
     over_tcp_session = harness.client().put("/api/pair/multiuser", json={"enabled": True}, headers=who.headers)
     assert (over_tcp_session.status_code, over_tcp_session.json()["detail"]) == (403, "only this Mac's own app can change Multi-user")
-    over_tcp_app = harness.host().put("/api/pair/multiuser", json={"enabled": True})
+    over_tcp_app = tcp_app_client(harness).put("/api/pair/multiuser", json={"enabled": True})
     assert over_tcp_app.status_code == 403
     assert harness.app_db.get_setting("multiuser.enabled") != "true"
 

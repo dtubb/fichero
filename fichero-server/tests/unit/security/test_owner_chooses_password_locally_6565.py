@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from fichero_server.security import accounts
 from fichero_server.security.multiuser import OWNER_PASSWORD_SET_KEY, owner_password_gap
-from tests.signed_in import signed_in_client, uds_client
+from tests.signed_in import mac_app_client, signed_in_client, tcp_app_client, uds_client
 from tests.unit.security.test_sharing_probe_2026_10_01 import harness  # noqa: F401
 
 # ruff: noqa: F811  -- pytest fixtures are passed by name; the parameter shadows the imported fixture on purpose
@@ -23,9 +23,7 @@ def _people(harness, monkeypatch):
 
 def _app(harness):
     """The app's own socket: Unix transport plus the start-up credential."""
-    http = uds_client(harness)
-    http.headers["Authorization"] = f"Bearer {harness.bootstrap}"
-    return http
+    return mac_app_client(harness)
 
 
 def test_the_local_owner_chooses_a_password_then_the_switch_follows(harness, monkeypatch):
@@ -49,7 +47,7 @@ def test_the_eight_character_rule_is_the_engines(harness, monkeypatch):
 
 def test_it_is_refused_off_the_socket_and_for_anyone_but_the_owner(harness, monkeypatch):
     _owner, ann = _people(harness, monkeypatch)
-    over_tcp = harness.host().post(ROUTE, json={"password": "a chosen one"})
+    over_tcp = tcp_app_client(harness).post(ROUTE, json={"password": "a chosen one"})
     assert over_tcp.status_code == 403
     theirs = signed_in_client(harness, ann)
     other = uds_client(harness).post(ROUTE, json={"password": "a chosen one"}, headers=theirs.headers)
