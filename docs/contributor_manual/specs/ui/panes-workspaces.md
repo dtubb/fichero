@@ -361,7 +361,15 @@ starting a new one.
   window it opened (neither worked: the header's search did not), and any second filter row ("☰ Filter … ⚙").
   Reader, Segments and the Inspector take the same Filter field and Metadata button where they list things. One
   component for the field and its menu (`PaneFilterField`), one for the Metadata button, so a bar cannot drift.
-  *Not built.* *Tests:* to come with the component (the order of the five, the toggles' meaning, no second row).
+  *Built (Items and the sidebar, 2026-11-13):* `PaneFilterField` / `PaneMetadataButton` (Views/Components); the Items
+  bar's + is a menu (New Folder, Import Files…), − is 🗑, the Show kinds and List's entity filter are the Filter's menu,
+  Claims/Entities filter through the same field, ⌘F focuses the inline field (the second row is gone), Sort is left
+  out on the Map; Export BibTeX (File › Export), the ⚡ bar button and the KG popover are gone from the bar. *Not built:*
+  the Run Workflow picker sheet itself (still opened by the toolbar and menu; its search is the owner's complaint),
+  Sort arranging the Canvas and the Space, Reader, Segments and Inspector fields, a look on screen. `LibraryFilterToggleModel`
+  is unused by the app now (its tests remain). *Tests:* `Views/Library/ItemsBottomBarPatternTests.swift`,
+  `Views/Sidebar/SidebarBottomBarPatternTests.swift`, and the updated `LibraryMiniToolbarTests`,
+  `LibraryPaneSurfaceGuardTests`, `ToolbarGroupingTests`, `IconGridNarrowPaneTests`.
 - `panes.chrome.items-head-has-no-kind-menu` — **[PARTIAL]** (owner 2026-11-13, a screenshot) the Items pane head has no
   Documents / Claims / Entities menu: what the Items list shows is not a top-level choice of its head. Claims and
   Entities are reached through their own rows in the sidebar (the project's Entities and Claims,

@@ -112,7 +112,7 @@ struct ToolbarGroupingTests {
         #expect(!source.contains("libraryFilterToggleButton"))
         let mini = try Self.appSource("Views/Library/LibraryView+MiniToolbar.swift")
         #expect(mini.contains("librarySortMenu"))
-        #expect(mini.contains("libraryFilterToggleButton"))
+        #expect(mini.contains("PaneFilterField("))  // the inline field (owner 2026-11-13), not the old toggle
     }
 
     /// The per-item identifiers the toggles used to carry are gone: leaving
