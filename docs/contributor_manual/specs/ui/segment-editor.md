@@ -204,10 +204,15 @@ targets are at least 44 pt.
   The key is ⌥⌘J, the owner's ruling of 2026-11-08 in menus-and-commands.md, not the ⌘J written
   here (open question). Lines measured on another image are refused, not carried. *Tests:* `tests/unit/api/test_segment_merge_lines.py` (union,
   hull, baseline order, across regions is one action and one undo); `SegmentJoinTests.swift`.
-- `segment-editor.merge-regions` — **[GAP]** (→ #4941; engine) two or more selected regions and ⌘J become one region
+- `segment-editor.merge-regions` — **[PARTIAL]** (→ #4941; engine) two or more selected regions and ⌘J become one region
   whose outline is the union; their lines become the kept region's lines, interleaved into its
   order by page position (`layout_order`), with the result shown before it lands as a
   highlighted order overlay for two seconds.
+  *Built (2026-11-13):* `segment.merge` with `join_geometry` moves what the absorbed members held
+  (a region's lines, a line's words) to the kept one, placed in every order that held them by
+  page position (`place_in_page_order`), and `unmerge` puts parents and entries back; the
+  Preview's Join on selected regions sends it. *Not built:* the two-second order overlay.
+  *Tests:* `test_segment_merge_lines.py::TestMergeRegions`.
 - `segment-editor.split-knife` — **[PARTIAL]** (→ #4941; app + engine; refines `source.editor.cut`) a Knife stroke, a
   polyline drawn across one or many lines, splits every line it crosses at the crossing: the
   engine (`segment.split` gains `cut_path`, points in the frame of the image drawn on) cuts each

@@ -2730,6 +2730,9 @@ def _invert_merge(before, after, ctx: ActionContext):
             },
             "representation_ids": after.get("representation_ids", []),
             "order_entries": after.get("order_entries", []),
+            "moved_children": after.get("moved_children", {}),
+            "moved_children_parents": after.get("moved_children_parents", {}),
+            "child_order_entries": after.get("child_order_entries", []),
             # The kept row's shape before a joined-geometry merge, restored from its snapshot.
             **({"keep_restore": {
                 "segment_id": after["kept_id"], "version": after["kept_version"],
@@ -2855,6 +2858,15 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
         joined_shape = _joined_line_shape(db, rows, keep_row, readings_by_member)
         join_ids, separator = joined_shape["order"], joined_shape["separator"]
 
+    # `segment-editor.merge-regions`: what the absorbed members held (a region's lines, a line's words) becomes the
+    # kept one's, placed into its order by page position; read before anything is written.
+    absorbed_set = set(absorbed_ids)
+    children = (
+        [row for row in db.query(Segment, pass_id=keep_row.pass_id)
+         if row.deleted_at is None and row.parent_segment_id in absorbed_set]
+        if params.join_geometry else []
+    )
+
     audit_id = uuid.uuid4().hex
     absorbed_versions: dict[str, int] = {}
     after_versions: dict[str, int] = {params.keep_id: keep_row.version}
@@ -2939,6 +2951,7 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
     from fichero_server.api.routes.document.reading_orders import remove_segment_entries
 
     order_entries = remove_segment_entries(db, absorbed_ids)
+    moved_children, moved_children_parents, child_order_entries = _move_children_into(db, keep_row, children, ctx, audit_id)
     spec = ChangeSpec(
         audit_id=audit_id,
         domains=["segment"],
@@ -2956,6 +2969,10 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
             # freshen a replayed merge's `expected_versions` on redo, and
             # `_invert_merge` reads it to give `unmerge` a live token.
             "versions": after_versions,
+            # The members' children moved to the kept segment, their parents before, and their order entries.
+            "moved_children": moved_children,
+            "moved_children_parents": moved_children_parents,
+            "child_order_entries": child_order_entries,
             # The kept row's version before its shape was joined; None when it kept its own.
             "kept_version": kept_version,
         },
@@ -3041,6 +3058,41 @@ class SegmentUnmergeParams(BaseModel):
     #: `segment-editor.merge-lines`: the kept segment's shape before a joined-geometry merge, as
     #: `segment.restore_version`'s own three numbers, restored in this same action.
     keep_restore: Optional[SegmentRestoreVersionParams] = None
+    #: `segment-editor.merge-regions`: the children the merge moved to the kept segment, {id: version as the merge
+    #: left it}, the parent each had, and their order entries before; all put back.
+    moved_children: dict[str, int] = {}
+    moved_children_parents: dict[str, Optional[str]] = {}
+    child_order_entries: list[SegmentOrderEntryParams] = Field(default_factory=list)
+
+
+def _move_children_into(
+    db: Database, keep_row: Segment, children: list[Segment], ctx: ActionContext, audit_id: str,
+) -> tuple[dict[str, int], dict[str, Optional[str]], list[dict]]:
+    """The absorbed members' children made the kept segment's, under `audit_id`, and placed in every order that held
+    them by page position among the kept segment's own (`segment-editor.merge-regions`). Answers their versions, their
+    parents before, and the order entries they had, for the undo."""
+    if not children:
+        return {}, {}, []
+    from fichero_server.api.routes.document.reading_orders import place_in_page_order, remove_segment_entries
+    from fichero_server.models.reading_orders import ReadingOrder
+
+    entries = remove_segment_entries(db, [child.id for child in children])
+    parents: dict[str, Optional[str]] = {}
+    versions: dict[str, int] = {}
+    for child in children:
+        parents[child.id] = child.parent_segment_id
+        snapshot_segment_version(db, child, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        child.parent_segment_id = keep_row.id
+        db.save(child)
+        versions[child.id] = child.version
+    for order_id in dict.fromkeys(entry["order_id"] for entry in entries):
+        order = db.get(ReadingOrder, order_id)
+        if order is None or order.deleted_at is not None:
+            continue
+        for child in children:
+            if any(entry["order_id"] == order_id and entry["segment_id"] == child.id for entry in entries):
+                place_in_page_order(db, order, child)
+    return versions, parents, entries
 
 
 @action("segment.unmerge", SegmentUnmergeParams, domains=["segment"], undoable=False)
@@ -3062,6 +3114,16 @@ def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionConte
         if not found:
             raise HTTPException(status_code=404, detail=f"segment {keep_row.id!r} has no version {params.keep_restore.version}")
         keep_target = (keep_row, found[0])
+    moved_rows: list[Segment] = []
+    for child_id, expected in params.moved_children.items():
+        child = db.get(Segment, child_id)
+        if child is None or child.deleted_at is not None:
+            raise _as_http_error(SegmentPartGone(child_id))
+        if child.version != expected:
+            raise _as_http_error(SegmentStale(
+                child_id, expected, child.version, _stale_changed_fields(db, child_id, expected, child),
+            ))
+        moved_rows.append(child)
     audit_id = uuid.uuid4().hex
     # Slice 8 (#4934): the join this merge wrote stops counting again.
     _retract_readings(db, params.representation_ids)
@@ -3141,6 +3203,15 @@ def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionConte
     from fichero_server.api.routes.document.reading_orders import restore_segment_entries
 
     restore_segment_entries(db, [entry.model_dump() for entry in params.order_entries])
+    if moved_rows:
+        from fichero_server.api.routes.document.reading_orders import remove_segment_entries
+
+        remove_segment_entries(db, [child.id for child in moved_rows])
+        for child in moved_rows:
+            snapshot_segment_version(db, child, deleted=False, actor=ctx.actor, audit_id=audit_id)
+            child.parent_segment_id = params.moved_children_parents.get(child.id)
+            db.save(child)
+        restore_segment_entries(db, [entry.model_dump() for entry in params.child_order_entries])
     spec = ChangeSpec(
         audit_id=audit_id,
         domains=["segment"],
