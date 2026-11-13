@@ -206,8 +206,7 @@ extension ContentView {
             // so it lands outermost — directly under the toolbar). Daniel,
             // 2026-08-30: Preview.app's markup bar, window-scoped.
             .safeAreaInset(edge: .top, spacing: 0) { annotationBarInset }
-            // The project's recipe run, live and then what it made (#5576, #5577).
-            .safeAreaInset(edge: .bottom, spacing: 0) { ProjectRunStripView(libraryId: windowState.libraryId) }
+            // No recipe-run strip along the bottom (owner 2026-11-13): a run is Activity's, not the main window's.
             .toolbar { detailToolbarContent }
             // The content-pane external drop (#4184), scoped to `detailColumn`
             // specifically — never the sidebar. Scope was the ONLY reason
