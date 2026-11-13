@@ -34,6 +34,8 @@ enum SegmentEdit {
         case simplify(SegmentSimplifyRequest)
         /// Cut Words (`segment.cut_words`).
         case cutWords(SegmentCutWordsRequest)
+        /// Add Baseline (`segment.add_baseline`).
+        case addBaseline(SegmentCutWordsRequest)
 
         func encode(to encoder: any Encoder) throws {
             switch self {
@@ -48,6 +50,7 @@ enum SegmentEdit {
             case .knife(let params): try params.encode(to: encoder)
             case .simplify(let params): try params.encode(to: encoder)
             case .cutWords(let params): try params.encode(to: encoder)
+            case .addBaseline(let params): try params.encode(to: encoder)
             }
         }
     }

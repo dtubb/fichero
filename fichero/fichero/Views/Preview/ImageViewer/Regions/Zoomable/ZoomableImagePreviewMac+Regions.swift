@@ -506,6 +506,7 @@ extension ZoomableImagePreview {
             splitAtPoint: { splitSelectedLineAtLastPoint() },
             simplify: { simplifySelectedSegments() },
             cutWords: { cutWordsOnSelectedLines() },
+            addBaseline: { addBaselineToSelectedLines() },
             apply: { setSelectedSegments($0) }
         )
     }
