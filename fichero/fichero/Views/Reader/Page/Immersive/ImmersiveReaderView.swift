@@ -74,7 +74,7 @@ struct ImmersiveReaderView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: markConfirmation)
-        .background(KeyboardExitCatcher { exit() })
+        .background(KeyboardExitCatcher(onExit: { exit() }, onPage: { navigate(by: $0) }))
         .task(id: document.id) {
             await loadTranslations()
             await loadRenditions()

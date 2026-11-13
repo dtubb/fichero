@@ -130,7 +130,7 @@ extension ContentView {
         // left as a follow-up rather than adding a dead menu item.
         .overlay { immersiveReadingOverlay }
         .background {
-            Button("Enter Full-Screen Reading", action: enterImmersiveReading)
+            Button("Enter Full-Screen Reading") { enterImmersiveReading() }
                 .keyboardShortcut("r", modifiers: [.command, .control])
                 .opacity(0)
                 .disabled(immersiveReadingDocument == nil)
@@ -168,7 +168,10 @@ extension ContentView {
         }
     }
 
-    private func enterImmersiveReading() {
+    /// ⌃⌘R reads the current page; the Preview head's full-screen button (#6560) names the page the Preview shows, which
+    /// becomes the detail document so the reader opens on it and pages on from there.
+    func enterImmersiveReading(showing shown: Document? = nil) {
+        if let shown, shown.id != immersiveReadingDocument?.id { detailDocument = shown }
         guard immersiveReadingDocument != nil else { return }
         isImmersiveReading = true
     }
