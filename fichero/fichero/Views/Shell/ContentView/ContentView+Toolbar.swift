@@ -48,6 +48,17 @@ extension ContentView {
 
     /// LEADING zone: engine status + back/forward history navigation in the
     /// content-column toolbar.
+    /// Where the leading zone sits. `.navigation` on the Mac. On the iPad, with the sidebar hidden, the bar's title takes
+    /// the leading edge and `.navigation` items were laid after the pane group, beside the Inspector toggle, so they
+    /// are pinned to the leading edge instead (owner, 2026-11-13, #6563).
+    static var leadingPlacement: ToolbarItemPlacement {
+        #if os(iOS)
+        .topBarLeading
+        #else
+        .navigation
+        #endif
+    }
+
     /// Internal, not private: on iOS the content column's bar carries it (`detailToolbarContent`, #6563).
     @ToolbarContentBuilder
     var leadingToolbarContent: some ToolbarContent {
@@ -70,14 +81,16 @@ extension ContentView {
         // sidebar column's own toolbar section (`sidebarToolbarContent`). The fixed spacer keeps it out of
         // Back/Forward's glass capsule (#4970).
         if sidebarPairHome == .contentBar {
-            ToolbarItem(id: ContentToolbarID.sidebarButtons, placement: .navigation) {
+            ToolbarItem(id: ContentToolbarID.sidebarButtons, placement: Self.leadingPlacement) {
                 sidebarButtonsIsland
             }
+            #if os(macOS)
             .sharedBackgroundVisibility(.hidden)
-            ToolbarSpacer(.fixed, placement: .navigation)
+            #endif
+            ToolbarSpacer(.fixed, placement: Self.leadingPlacement)
         }
         if toolbarVisibility.showNavigation {
-            ToolbarItem(id: ContentToolbarID.navigationBack, placement: .navigation) {
+            ToolbarItem(id: ContentToolbarID.navigationBack, placement: Self.leadingPlacement) {
                 Button {
                     navigateBack()
                 } label: {
@@ -87,7 +100,7 @@ extension ContentView {
                 .disabled(!navigationHistory.canGoBack)
             }
 
-            ToolbarItem(id: ContentToolbarID.navigationForward, placement: .navigation) {
+            ToolbarItem(id: ContentToolbarID.navigationForward, placement: Self.leadingPlacement) {
                 Button {
                     navigateForward()
                 } label: {
@@ -134,8 +147,13 @@ extension ContentView {
     #if !os(macOS)
     @ToolbarContentBuilder
     var trailingToolbarContent: some ToolbarContent {
+        // The Inspector toggle beside search, after the pane group and its overflow menu, as the Mac keeps the two
+        // together over the Inspector (owner, 2026-11-13); the spacer gives the pair a capsule of their own.
+        #if os(iOS)
+        ToolbarSpacer(.fixed, placement: .primaryAction)
+        #endif
         if showInspectorToggle && inspectorToggleHome == .detailBar {
-            ToolbarItem(id: ContentToolbarID.compactInspectorToggle, placement: .topBarTrailing) {
+            ToolbarItem(id: ContentToolbarID.compactInspectorToggle, placement: .primaryAction) {
                 inspectorToggleButton
             }
             #if os(iOS)
