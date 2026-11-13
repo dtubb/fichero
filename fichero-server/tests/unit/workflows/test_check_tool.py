@@ -1643,3 +1643,34 @@ def test_the_daily_build_and_verify_all_build_the_engine_repos_landed_head_never
     monkeypatch.setattr(ct, "_run", lambda *a, **k: {"ok": True})
     ct.build(root, ["fichero/App.swift"], replace(cfg, build_remote=""), landed=True)
     assert seen == [True, True]
+
+
+def test_a_version_only_pyproject_bump_is_heads_copy_under_the_pinned_guards_and_any_other_change_stays_pinned(tmp_path):
+    """2026-11-13: a release's bump (pyproject version + regenerated contract) could never pass the pinned version guard, which read
+    the pinned pyproject. Only `version = "YYYY.M.D"` lines are data; every other pyproject change stays pinned."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "harness.toml").write_text((work / "harness.toml").read_text().replace('"harness.toml"]', '"harness.toml", "pyproject.toml"]'))
+    (work / "pyproject.toml").write_text('[project]\nversion = "2026.10.30"\n\n[tool.pytest.ini_options]\n')
+    (work / "contract.txt").write_text("2026.10.30\n")
+    (work / "ci" / "lint_v.py").write_text("import pathlib, re, sys\nv = re.search(r'version = \"(.*)\"', pathlib.Path('pyproject.toml').read_text()).group(1)\n"
+                                           "sys.exit(0 if v == pathlib.Path('contract.txt').read_text().strip() else 1)\n")
+    g("add", "."), g("commit", "-q", "-m", "version guard")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+    subprocess.run(["git", "-C", str(pinned), "pull", "-q"], check=True, capture_output=True)
+    (work / "pyproject.toml").write_text('[project]\nversion = "2026.11.12"\n\n[tool.pytest.ini_options]\n')
+    (work / "contract.txt").write_text("2026.11.12\n")
+    g("add", "."), g("commit", "-q", "-m", "release: 2026.11.12")
+    cfg = ct.load(pinned)
+    assert ct.version_only_bumps(work, base, "HEAD", cfg) == ("pyproject.toml",)
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False, approve_red=True)  # the toy project has no red_paths: red-on-base is not the point here
+    assert r["ok"], [(x["name"], x.get("stderr_tail"), x.get("stdout_tail", "")[-200:]) for x in r["rungs"] if not x.get("ok")]
+    (work / "pyproject.toml").write_text('[project]\nversion = "2026.11.13"\ndependencies = ["evil"]\n\n[tool.pytest.ini_options]\n')
+    (work / "contract.txt").write_text("2026.11.13\n")
+    g("add", "."), g("commit", "-q", "-m", "bump plus a dependency")
+    assert ct.version_only_bumps(work, base, "HEAD", cfg) == ()
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert not r["ok"] and r["failed"] == "pinned-checks" and "pyproject.toml" in r["rungs"][0]["stderr_tail"]
+    g("reset", "-q", "--hard", "HEAD~1")
+    (work / "pyproject.toml").write_text('[project]\nversion = "2026.11.12"\n\n[tool.pytest.ini_options]\naddopts = "-k nothing"\n')
+    g("add", "."), g("commit", "-q", "-m", "pytest config")
+    assert ct.version_only_bumps(work, base, "HEAD", cfg) == (), "a pytest option is never data"

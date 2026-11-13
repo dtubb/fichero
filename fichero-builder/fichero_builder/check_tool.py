@@ -1445,7 +1445,26 @@ PINNED_NAMES = ("conftest.py", "pytest.ini", ".pytest.ini", "pytest.toml", ".pyt
                 "setup.cfg", ".gitattributes", "ruff.toml", ".ruff.toml")  # every name pytest's findpaths reads (review 6)
 
 
-def pinned_violations(root, since: str, head: str, cfg: Config, pinned) -> list[str]:
+_VERSION_ONLY = re.compile(r'^\s*version\s*=\s*"\d{4}\.\d{1,2}\.\d{1,2}"\s*$')
+
+
+def version_only_bumps(root, since: str, head: str, cfg: Config) -> tuple[str, ...]:
+    """The pyproject.toml files under a check path whose change in the batch is ONLY `version = "YYYY.M.D"` lines replaced by
+    others (2026-11-13: the version line is data; a release's bump could never pass the pinned openapi-version guard). Same line
+    count and every differing line a version line on both sides, else the file stays pinned."""
+    base = (_lines(root, "merge-base", since, head) or [since])[0]
+    out = []
+    for _s, _m, f in _changes(root, since, head, "--diff-filter=M"):
+        if Path(f).name != "pyproject.toml" or not f.startswith(cfg.check_paths):
+            continue
+        old, new = _lines(root, "show", f"{base}:{f}"), _lines(root, "show", f"{head}:{f}")
+        if old is not None and new is not None and len(old) == len(new) and all(
+                a == b or (_VERSION_ONLY.match(a) and _VERSION_ONLY.match(b)) for a, b in zip(old, new)):
+            out.append(f)
+    return tuple(out)
+
+
+def pinned_violations(root, since: str, head: str, cfg: Config, pinned, version_only: tuple = ()) -> list[str]:
     """What the diff may not do: change or delete a pinned check file, add or touch a file pytest or Python would
     obey before or instead of the checks (sitecustomize, .pth, a pinned NAME anywhere, a pytest.py / _pytest shadow, a
     dist-info plugin), add any symlink, or touch .claude/. Adding a new guard is allowed. Paths come from `git diff -z`."""
@@ -1454,6 +1473,8 @@ def pinned_violations(root, since: str, head: str, cfg: Config, pinned) -> list[
     for status, mode, f in _changes(root, since, head):
         parts = Path(f).parts
         name = parts[-1]
+        if f in version_only:
+            continue
         if f in pinned_set:
             bad.append(f"{f}: a pinned check file was {'deleted' if status == 'D' else 'changed'}")
         elif f.startswith(".claude/"):
@@ -1534,7 +1555,7 @@ def acceptance_changed(root, since: str, head: str, cfg: Config, ids) -> list[st
 SCRATCH_CHECKOUT_S = 600.0  # a scratch tree's `git worktree add`: minutes under load, never the 60 s other git calls get
 
 
-def _scratch_tree(root, head: str, pinned, cfg: Config, overlay: bool = True, data_from_head: tuple = ()) -> str:
+def _scratch_tree(root, head: str, pinned, cfg: Config, overlay: bool = True, data_from_head: tuple = (), head_files: tuple = ()) -> str:
     """A detached worktree of `head` with the pinned copy's check files laid over it: the checks judge the worker's
     committed code, never its uncommitted edits and never its own copies of the checks. overlay=False: head's own tree,
     for the pytest rungs (manager 2026-11-02: pinned copies JUDGE, they are not the code under test; a batch that changes a
@@ -1560,7 +1581,7 @@ def _scratch_tree(root, head: str, pinned, cfg: Config, overlay: bool = True, da
     try:
         for f in (_lines(pinned, "ls-files") or []) if overlay else []:
             if f.startswith(cfg.check_paths):
-                if f in data_from_head and f.endswith(".json"):
+                if (f in data_from_head and f.endswith(".json")) or f in head_files:  # head_files: a version-only pyproject bump
                     continue
                 src, dest = Path(pinned) / f, Path(tree) / f
                 if src.is_symlink():
@@ -1659,7 +1680,8 @@ RUNGS = ("ready", "diff-bound", "red-on-base", "guards", "contract-current", "si
 def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool = False,
                 approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = ()) -> dict:
     cfg = load(pinned)
-    bad = pinned_violations(root, since, head, cfg, pinned)
+    bumped = version_only_bumps(root, since, head, cfg)
+    bad = pinned_violations(root, since, head, cfg, pinned, bumped)
     noted = ""
     if maintainer:  # only "a pinned check file was changed/deleted" is noted; a symlink, sitecustomize/.pth, .claude/, a new pinned-path file still refuse
         changed = [b for b in bad if b.endswith((": a pinned check file was changed", ": a pinned check file was deleted")) or " is pinned by name anywhere (" in b]  # a conftest.py edit: the manager's approve excuses it (2026-11-02)
@@ -1689,7 +1711,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
     tests = [f for f in names if any(fnmatch.fnmatch(Path(f).name, g) for g in cfg.test_globs)]
     if cfg.base_ref and not _git(root, "rev-parse", "--verify", "-q", f"refs/remotes/{cfg.base_ref}")["ok"]:
         _git(root, "update-ref", f"refs/remotes/{cfg.base_ref}", since)  # a remote-less clone: ready checks diff against it
-    tree = _scratch_tree(root, head, pinned, cfg, data_from_head=tuple(guard_data))
+    tree = _scratch_tree(root, head, pinned, cfg, data_from_head=tuple(guard_data), head_files=bumped)
     own = _scratch_tree(root, head, pinned, cfg, overlay=False)  # the pytest rungs: head as it will land
     try:
         ok_pin = {"name": "pinned-checks", "argv": [], "exit_code": 0, "ok": True, "timed_out": False, "seconds": 0,

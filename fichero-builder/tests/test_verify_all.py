@@ -20,7 +20,7 @@ def world(tmp_path, monkeypatch):
     monkeypatch.setattr(check_tool, "_scratch_tree", lambda r, sha, p, cfg, overlay=True: str(root))
     monkeypatch.setattr(check_tool, "guards", lambda tree, cfg: (seen.append("guards"), {"ok": ok["guards"], "reason": "a guard red"})[1])
     monkeypatch.setattr(check_tool, "green_runs", lambda tree, files, whole, cfg, t: (seen.append(("suite", files, whole)), {"ok": ok["suite"]})[1])
-    monkeypatch.setattr(check_tool, "build", lambda tree, names, cfg: (seen.append(("build", names)), {"ok": ok["build"], "skipped": False})[1])
+    monkeypatch.setattr(check_tool, "build", lambda tree, names, cfg, landed=False: (seen.append(("build", names)), landed or seen.append("not-landed"), {"ok": ok["build"], "skipped": False})[1])
     monkeypatch.setattr(build, "main", lambda a: (seen.append("dmg"), 0)[1])
     monkeypatch.setattr(verify.jail, "load", lambda r: None)
     return root, seen, ok
@@ -36,7 +36,7 @@ def test_green_runs_every_part_writes_one_row_and_builds_the_dmg_only_with_build
                                                                        build_paths=("fichero/",)))
     assert verify.verify(root, jail_required=False)["ok"]
     assert "guards" in seen and ("suite", ["fichero-cli/tests", "fichero-server/tests"], ("fichero-builder/tests",)) in seen
-    assert ("build", ["fichero/"]) in seen and "dmg" not in seen
+    assert ("build", ["fichero/"]) in seen and "dmg" not in seen and "not-landed" not in seen, "verify-all builds the landed head"
     (row,) = [r for r in journal.read() if r["event"] == "verify"]
     assert row["ok"] and set(row["parts"]) == {"guards", "suite", "build"} and row["sha"] == "a" * 40
 

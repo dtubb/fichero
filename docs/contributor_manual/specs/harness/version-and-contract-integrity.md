@@ -47,6 +47,14 @@ never regresses, so it passes forever.
 The check must FAIL when it cannot read either input, never pass vacuously, and ship with a
 `--self-test` that synthesises a stale contract and asserts it is caught (AGENTS.md rule 0).
 
+**Version bump under the builder's pinned guards** (2026-11-13, owner-approved): the guards rung runs pinned copies of every check
+file, and a `pyproject.toml` under `[check].check_paths` is one, so this guard read the PINNED version while a release batch's
+regenerated contracts carried the new one, and a bump could never land. The version line is data, not check logic: when a batch's
+change to a `pyproject.toml` is exactly lines `version = "YYYY.M.D"` replaced by other such lines (same line count, no other line
+different, checked byte for byte), the ladder neither refuses it as a changed pinned file nor overlays the pinned copy: the guards
+read HEAD's file. Any other change to that file (a dependency, a pytest option, an added line) stays pinned and stays the
+maintainer's approve. Tests: `fichero-server/tests/unit/workflows/test_check_tool.py::test_a_version_only_pyproject_bump_is_heads_copy_under_the_pinned_guards_and_any_other_change_stays_pinned`.
+
 ### `contract.never-hand-edited` — a generated file is regenerated, never patched **[BROKEN]** (#5046)
 
 AGENTS.md rule 3 already forbids editing generated files. The rule needed strengthening
