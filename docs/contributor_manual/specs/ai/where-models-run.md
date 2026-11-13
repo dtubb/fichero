@@ -406,7 +406,12 @@ person, never silently (`ai.where.fallback-free-and-asked`).
   call runs under: the API sets it for every request that names a library (so the chat and the MCP, which reach the
   engine over HTTP), the workflow executor sets it for its nodes, and **every stored job runs under its own project**
   (`jobs._run`), so a bake-off, a reasons run or an NLP helper meets the same rule. **It fails closed:** a call under no
-  project is refused ("No project is open for this call"). *Named exemptions:* none is built, because none is needed:
+  project is refused ("No project is open for this call"). **A chained run keeps its project (owner 2026-11-13):** a
+  recipe's steps run in a chain on their own thread, which holds none of the request's context, so the chain binds the
+  library it was started in for every step (`api/routes/workflow/chains.py`, `_run_chain_steps`); the second step
+  ("then use") of a chain on a project's page is judged by that project, never by "No project is open". A project that
+  has not said yes still refuses it, in the same words. Tested in
+  `fichero-server/tests/unit/api/test_chain_step_project_and_refusal_6354.py`. *Named exemptions:* none is built, because none is needed:
   the chat requires a library, and the provider key test and the model lists reach a provider with a key, never a page,
   and meet no gate (a test pins that neither module calls a model). A global chat with no library would be the first
   exemption, and is added by name. *Existing projects (provisional, pending the owner):* a project saved before this
