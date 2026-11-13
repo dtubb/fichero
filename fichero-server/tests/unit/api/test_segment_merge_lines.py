@@ -238,3 +238,69 @@ class TestRefusals:
             _merge(db, [left, right], left)
         assert refused.value.status_code == 422
         assert db.get(Segment, right).deleted_at is None
+
+
+class TestMergeRegions:
+    """`segment-editor.merge-regions`: two regions joined become one region whose outline is the union; the other's
+    lines become the kept region's, placed in its order by page position; one undo puts every line back."""
+
+    def _page_with_two_regions(self, db, client):
+        doc, pass_id = _page(db, client)
+        left = _segment(client, doc, pass_id, kind="region", polygon=_box(0.05, 0.1, 0.4, 0.5))
+        right = _segment(client, doc, pass_id, kind="region", polygon=_box(0.55, 0.1, 0.4, 0.5))
+        lines = {
+            "l1": _segment(client, doc, pass_id, polygon=_box(0.06, 0.15, 0.38, 0.04), parent=left),
+            "l2": _segment(client, doc, pass_id, polygon=_box(0.06, 0.35, 0.38, 0.04), parent=left),
+            "r1": _segment(client, doc, pass_id, polygon=_box(0.56, 0.15, 0.38, 0.04), parent=right),
+            "r2": _segment(client, doc, pass_id, polygon=_box(0.56, 0.35, 0.38, 0.04), parent=right),
+        }
+        return doc, pass_id, left, right, lines
+
+    def _order(self, db, pass_id, region_id):
+        from fichero_server.api.routes.document.reading_orders import as_written_order, entries_in_sequence
+        from fichero_server.models.reading_orders import ReadingOrderEntry
+
+        order = as_written_order(db, pass_id)
+        region_entry = next(e for e in db.query(ReadingOrderEntry, order_id=order.id) if e.segment_id == region_id)
+        return [e.segment_id for e in entries_in_sequence(db, order.id, parent_entry_id=region_entry.id)]
+
+    def test_the_regions_become_one_and_the_lines_follow_in_page_order(self, db, client):
+        _doc, pass_id, left, right, lines = self._page_with_two_regions(db, client)
+        assert self._order(db, pass_id, left) == [lines["l1"], lines["l2"]]
+
+        _merge(db, [left, right], left)
+
+        kept = db.get(Segment, left)
+        x0, _y0, x1, _y1 = line_join.bounds(kept.anchor.polygon)
+        assert (x0, x1) == pytest.approx((0.05, 0.95), abs=2e-3)
+        assert all(db.get(Segment, line).parent_segment_id == left for line in lines.values())
+        assert db.get(Segment, right).deleted_at is not None
+        order = self._order(db, pass_id, left)
+        assert set(order) == set(lines.values())
+        assert order.index(lines["l1"]) < order.index(lines["l2"])
+        assert order.index(lines["r1"]) < order.index(lines["r2"])
+
+    def test_one_undo_puts_every_line_back_in_its_region_and_order(self, db, client):
+        _doc, pass_id, left, right, lines = self._page_with_two_regions(db, client)
+        before_right = self._order(db, pass_id, right)
+
+        merge = _merge(db, [left, right], left)
+        response = client.post(f"/api/actions/audit/{merge.audit_id}/undo")
+        assert response.status_code == 200, response.text
+
+        assert [db.get(Segment, lines[k]).parent_segment_id for k in ("l1", "l2", "r1", "r2")] == [left, left, right, right]
+        assert db.get(Segment, right).deleted_at is None
+        assert self._order(db, pass_id, right) == before_right
+        assert self._order(db, pass_id, left) == [lines["l1"], lines["l2"]]
+
+    def test_redo_merges_them_again(self, db, client):
+        _doc, _pass_id, left, right, lines = self._page_with_two_regions(db, client)
+        merge = _merge(db, [left, right], left)
+        undone = client.post(f"/api/actions/audit/{merge.audit_id}/undo")
+        assert undone.status_code == 200, undone.text
+        redone = client.post(f"/api/actions/audit/{undone.json()['audit_id']}/undo")
+        assert redone.status_code == 200, redone.text
+        assert all(db.get(Segment, line).parent_segment_id == left for line in lines.values())
+        again = client.post(f"/api/actions/audit/{redone.json()['audit_id']}/undo")
+        assert again.status_code == 200, again.text
+        assert db.get(Segment, lines["r1"]).parent_segment_id == right
