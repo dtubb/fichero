@@ -297,6 +297,9 @@ class SidebarSelectionState {
 
     /// The latest click's routing; an older one that is still waiting does nothing.
     @ObservationIgnored private var routingToken = 0
+    /// When the app last chose a row itself (`selectedItemId`'s setter): a List that cannot render that row yet drops it
+    /// at once, and that drop is not the person's deselect (`sidebar.deselect-always-works`).
+    @ObservationIgnored private(set) var programmaticSelectionAt: Date = .distantPast
 
     /// A click's highlight first, its routing after (#4228, `sidebar.selection.highlight-first`).
     /// The caller has already written `selectedDestinations`, which is all the List needs to draw
@@ -320,6 +323,7 @@ class SidebarSelectionState {
         set {
             let dest = newValue.flatMap(SidebarDestination.init(serializedID:))
             routingToken &+= 1  // a programmatic selection overrides any click still waiting to route
+            programmaticSelectionAt = Date()
             selectedDestination = dest
             // Programmatic single-selection (or clear) drives the highlight to
             // match: exactly this row, or nothing.
