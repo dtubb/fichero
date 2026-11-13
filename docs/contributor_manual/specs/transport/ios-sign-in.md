@@ -214,6 +214,8 @@ puts a secret in a file a sync service copies (`sharing.synced-project-names-its
 
 ## Open questions for the owner
 
+*Ruled by the owner 2026-11-12 (questions 1 and 2):* the DMG builds get the shared keychain group too, so method 1 is not limited to TestFlight and App Store builds; passkeys use `tubb.ca` as the relying-party id, provided it asks nothing of the owner: the app's `webcredentials` entry is added to tubb.ca's apple-app-site-association (today it carries only `applinks`) by the site deploy. Questions 3 to 5 stay open.
+
 1. **Keychain access group and team id** for method 1: the shared group (`<team id>.app.fichero.shared`) exists for the Dev
    build only; the DMG builds carry none (`multiuser.owner-key-kept-locally-without-keychain-entitlement`, #6374). Method 1
    needs the group on the Mac AND the iOS App Store profile. Give the DMG builds the group, or ship method 1 for the App
