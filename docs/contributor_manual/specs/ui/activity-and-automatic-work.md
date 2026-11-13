@@ -198,6 +198,16 @@ quarter: one thread on a 4-core Mac), at utility QoS since the 2026-10-20 ruling
   provider). Silent failure is bad design. The behaviours are section J (`activity.failure.*`,
   #6354); the engine classifies, the app only displays; a run that CAN pause instead of failing
   (no credit, a refused key) pauses and keeps what it finished.
+- **Answers (owner 2026-11-13, to open question 13):** (1) out of credit and a rate limit PAUSE the
+  run at its checkpoint, the finished pages are kept, Resume carries on, and the person is always
+  told by the alert: a pause is never silent either. (2) A provider that is down and a lost network
+  pause too. (3) When the app is frontmost, the alert is a sheet if the person is looking at that
+  project or at Activity, else a banner. (4) "Add credit" depends on the cause, and the engine's
+  kind tells the two apart: a spending cap set IN Fichero (the monthly or weekly limit) is
+  `cap-reached` and its fix is Settings › AI; a provider account with no credit is `out-of-credit`
+  and its fix is the provider's billing page. The manager's defaults, which the owner may change:
+  the same failure alerts again after ten minutes; an unknown kind's report is a file; iPhone and
+  iPad ask for notification permission at the first run start.
 
 ## Prior art (what we build on, and what we do differently)
 
@@ -2367,31 +2377,35 @@ has to parse. "Stopped by you" is in the table only to say it is NOT a failure.
 
 | `kind` | When | The words (the row, the popover, the alert) | The fix offered |
 |---|---|---|---|
-| `out-of-credit` | 402, `insufficient_quota`, a key limit, "credit balance" (`fatal_cause` = `quota`) | "<Provider> has no credit left for this key. The run is paused; the N pages it finished are kept." | **Add credit at <Provider>** (the provider's billing page from the catalogue), then **Resume**; or **Choose another model** |
+| `out-of-credit` | the PROVIDER's account has no credit: 402, `insufficient_quota`, a key limit, "credit balance" (`fatal_cause` = `quota`) | "<Provider> has no credit left for this key. The run is paused; the N pages it finished are kept." | **Add credit at <Provider>** (the provider's billing page from the catalogue), then **Resume**; or **Choose another model** |
+| `cap-reached` | a spending cap set IN Fichero stopped the call: the monthly or weekly limit, the project cap, the run cap (`ai.where.cloud-spend-cap`, `ai.where.run-cap-beside-the-project-cap`; owner 2026-11-13: never confused with the provider's credit) | "Fichero's <monthly/weekly/project> cap of $N is reached. The run is paused; the N pages it finished are kept." | **Open Settings › AI** (raise the cap; the `CloudCapFix` offers: raise to N, allow once, fewer pages), then **Resume** |
 | `rate-limited` | 429 after the retries are spent (`ai.where.one-retry-policy`: a 429 that backs off and answers is never a failure) | "<Provider> is asking us to slow down. The run is paused." | **Resume** (in a few minutes); or **Choose another model** |
 | `key-refused` | 401, an invalid key, a missing key for the chosen model (`fatal_cause` = `key`) | "<Provider> refused the API key." / "No API key for <Provider>." | **Open Settings › AI**, then **Resume** |
-| `provider-down` | 5xx, a dropped connection, a provider timeout after the retries are spent | "<Provider> is not answering." | **Retry**; or **Choose another model** |
+| `provider-down` | 5xx, a dropped connection, a provider timeout after the retries are spent | "<Provider> is not answering. The run is paused." | **Resume** (later); or **Choose another model** |
 | `model-not-found` | 404, `model_not_found`, a model the provider no longer serves; a local model not downloaded | "<Provider> does not have the model <id>." / "The model <name> is not downloaded." | **Choose another model**; **Open Settings › AI** (to download) |
-| `network` | DNS, no route, the Mac offline | "This Mac could not reach the internet." | **Retry** |
+| `network` | DNS, no route, the Mac offline | "This Mac could not reach the internet. The run is paused." | **Resume** (when back online) |
 | `disk-full` | `ENOSPC`, DuckDB out of space, the derivatives folder unwritable | "The disk is full: <free> left on <volume>." | **Free disk space**, then **Resume** |
 | `engine-crashed` | the engine died or was killed mid-run (`activity.durable.lease-not-fail`: an interrupted run) | "Fichero's engine stopped at HH:MM, before this run finished." | **Resume** |
 | `input-unreadable` | a page file missing, evicted to iCloud, undecodable, a locked PDF (`file_unavailable` today) | "<N> pages could not be read: <first name>, …" | **Retry** (the failed pages only, `activity.details.failed-pages-by-name`) |
-| `refused-by-a-rule` | the egress gate, a spend cap, the images rule (#6349, `ai.where.one-egress-gate`, `ai.where.cloud-spend-cap`) | the rule's own words (`CloudCapFix`) | the rule's own fixes (raise the cap, allow once, open Settings) |
+| `refused-by-a-rule` | the egress gate, the images rule (#6349, `ai.where.one-egress-gate`); a spend cap is `cap-reached` above | the rule's own words | the rule's own fixes (allow once, open Settings) |
 | `memory` | `MemoryShortError`, a local model that does not fit (`activity.throttle.hold-when-swapping` holds first; this is a hold that gave up) | "This Mac does not have the memory for <model> now." | **Resume** (later); or **Choose a smaller model** |
 | `unknown` | anything else: an exception in Fichero | "<Step> could not finish: an error in Fichero." (`execution/jobs.py:276`, `failed_reason`) | **Report** (the run id, the log, the app and engine versions; nothing private) and **Retry** |
 | *(not a failure)* `stopped-by-you` | Stop, Pause, or a stopped page (`cancelled`, "Stopped by you", #6005) | "Stopped by you" | nothing; no alert |
 
-A kind with a pause fix (`out-of-credit`, `rate-limited`, `key-refused`, `disk-full`, `memory`)
-pauses the run rather than failing it (`activity.failure.credit-exhausted-pauses`); the others end
-it `failed`. The words name the provider by its catalogue name (`circuit_breaker._provider_name`)
+A kind with a pause fix (`out-of-credit`, `cap-reached`, `rate-limited`, `key-refused`,
+`provider-down`, `network`, `disk-full`, `memory`; owner 2026-11-13) pauses the run rather than
+failing it (`activity.failure.credit-exhausted-pauses`); the others end it `failed`. A pause for a
+failure is told like a failure: the alert is raised for it too, never a silent pause. The words name the provider by its catalogue name (`circuit_breaker._provider_name`)
 and never the breaker's or the SDK's internals. A kind the engine adds later is unknown to an older
 app, which shows the engine's `words` and the `report` fix, never nothing.
 
 - `activity.failure.never-silent` — **[GAP]** (#6354; owner 2026-11-13; app + engine) every run, step
   or job of its own that ends `failed`, or pauses because of a failure, raises ONE alert to the person
-  that says what went wrong and what to do: a sheet or alert over the window when the app is
-  frontmost (the Activity row selected behind it), a system notification when it is not
-  (`activity.failure.reaches-the-person-off-window`). A page that fails inside a run that goes on is
+  that says what went wrong and what to do. When the app is frontmost it is a sheet if the person
+  is looking at that run's project or at Activity (the row selected behind it), else a banner
+  (owner 2026-11-13); when it is not frontmost, a system notification
+  (`activity.failure.reaches-the-person-off-window`). A run paused by a failure is told the same
+  way as one that failed (owner 2026-11-13: never a silent pause). A page that fails inside a run that goes on is
   not an alert: it is the row's count and the details view's list (`activity.details.failed-pages-by-name`),
   and the run's end says "Done with failures" (`activity.run.partial-said-on-a-done-row`). A run the
   person stopped is not a failure (`activity.failure.cancelled-is-not-a-failure`). *Built:* the row,
@@ -2455,8 +2469,11 @@ app, which shows the engine's `words` and the `report` fix, never nothing.
   way inside ten minutes → no second alert; a different kind → a second alert).
 - `activity.failure.alert-names-the-fix` — **[GAP]** (#6354; app) the alert's buttons are the
   engine's `fixes`, in its order, with its labels: `add-credit` opens the provider's billing page
-  (`url`) and leaves the run paused for Resume; `open-settings-ai` opens Settings › AI on that
-  provider's row (the same jump `ProviderKeyRefusedError`'s words promise); `retry` and `resume`
+  (`url`) and leaves the run paused for Resume, and is offered only for `out-of-credit` (the
+  provider's account); a cap set in Fichero (`cap-reached`) offers `open-settings-ai` instead, so
+  the person is never sent to pay a provider for a limit they set themselves (owner 2026-11-13);
+  `open-settings-ai` opens Settings › AI on that provider's row, or on the cap (the same jump
+  `ProviderKeyRefusedError`'s words promise); `retry` and `resume`
   are the row's own `POST /api/activity/jobs/{id}/retry` (`activity.retry.one-row`: the run
   carries on from the failed step over the pages it did not do); `choose-another-model` opens the
   run's Set Up on the step's model; `free-disk` reveals the volume in Finder; `report` files a
@@ -2500,9 +2517,10 @@ app, which shows the engine's `words` and the `report` fix, never nothing.
   no alert yet). *Tests (to write):* in `test_failure_kind_is_typed_6354.py`, a stopped run has
   `failure` null; in `ActivityFailureAlertTests.swift`, it raises nothing.
 - `activity.failure.credit-exhausted-pauses` — **[GAP]** (#6354, the pause half needs an issue of
-  its own under #6354; #5933, `recipes-run.control.pause-and-resume`; engine) a failure the person can
-  mend without losing the run (`out-of-credit`, `rate-limited`, `key-refused`, `disk-full`,
-  `memory`) PAUSES the run instead of failing it: the step's run settles `paused` at its
+  its own under #6354; #5933, `recipes-run.control.pause-and-resume`; engine; owner 2026-11-13) a
+  failure the person can mend, or that mends itself, without losing the run (`out-of-credit`,
+  `cap-reached`, `rate-limited`, `key-refused`, `provider-down`, `network`, `disk-full`, `memory`)
+  PAUSES the run instead of failing it, and the alert is raised for the pause: the step's run settles `paused` at its
   checkpoint with `failure` set (the same path a review step takes, `activity.run.review-step-pauses`,
   and the one the engine's shutdown takes), the pages already read are kept and counted
   (`activity.failure.partial-results-kept`), the recipe run parks on the paused step
@@ -3176,23 +3194,15 @@ Identifiers: `activity.window` · `activity.table` · `activity.row.<jobId>` · 
     job record, with the log under it; a page's row offers *Open the page*. **What does clicking a
     row open?** (from `ui/activity.md`, #1264, #1559) *Recommended before:* its detail below the
     table (§2); a page's row also offers "Open the page".
-13. **Failure alerts (section J, owner 2026-11-13, #6354), each answerable in a word or two:**
-    1. *Pause or fail on out-of-credit?* The spec says PAUSE with Resume (the pages done are kept and
-       the run is one row). The alternative is fail + Retry, which is what exists. *Recommend:* pause.
-    2. *Which kinds pause?* The spec: out of credit, rate limit, refused key, disk full, memory. Should
-       provider-down and network pause too (they mend themselves), or fail with Retry? *Recommend:*
-       pause those two as well.
-    3. *A modal sheet over the window, or a non-modal banner?* A sheet is what a person cannot miss; a
-       banner is what does not interrupt a page they are editing. *Recommend:* sheet when Activity
-       is open or the run is the selected project's, banner otherwise, notification always off-window.
-    4. *How long before the same failure alerts again?* The spec says ten minutes for the same run and
-       kind. *Recommend:* ten.
-    5. *Does "Add credit" open the provider's billing page in the browser, or only Settings › AI?*
-       *Recommend:* the billing page, with Settings as the second button.
-    6. *The bug report for an unknown kind: a GitHub issue draft in the browser, or a file to send?*
-       *Recommend:* a file (the engine's bundle), the issue draft later.
-    7. *Should iPhone and iPad ask for notification permission at first run start, or at first launch?*
-       *Recommend:* first run start.
+13. **Answered** (owner 2026-11-13; the answers are in "Ruled 2026-11-13" and section J). **Failure
+    alerts (section J, #6354):** (1) out of credit pauses with Resume, the pages kept, the alert
+    raised: *pause*. (2) provider-down and network pause too: *yes*. (3) sheet or banner: *sheet* when
+    the person is looking at that project or at Activity, *banner* otherwise, a notification
+    off-window. (4) the same failure alerts again after *ten minutes* (manager's default, open to
+    the owner). (5) "Add credit": *the provider's billing page* when the provider's account is out
+    (`out-of-credit`); *Settings › AI* when a cap set in Fichero stopped it (`cap-reached`); the
+    engine's kind tells them apart. (6) the unknown kind's report is *a file* (manager's default).
+    (7) iPhone and iPad ask for notification permission at *the first run start* (manager's default).
 
 ## Requests to other specs (for the manager to route)
 
