@@ -152,12 +152,18 @@ extension ContentView {
                     }
                 )
             },
-            controls: { PreviewHeadLensControls(chrome: self.previewChrome) },
+            controls: { PreviewHeadLensControls(chrome: self.previewChrome, onEnterFullScreen: previewFullScreenAction(shown)) },
             tools: { EmptyView() },
             canSplit: previewPaneCanSplit,
             switchableRoots: PaneCrumb.otherLibraries(than: windowState.libraryId)
         )
         .environment(\.offersTranscriptionFont, true)
+    }
+
+    /// The head's View Full Screen (#6560): the shown page or image in the full-window reader; nil where there is none.
+    private func previewFullScreenAction(_ shown: Document?) -> (() -> Void)? {
+        guard PreviewFullScreen.canEnter(shown: shown, selectionCount: browserSelection.count) else { return nil }
+        return { enterImmersiveReading(showing: shown) }
     }
 
     /// What the page is showing past the page itself (owner 2026-11-10): the region selected on it, and the

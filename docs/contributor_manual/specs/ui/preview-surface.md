@@ -260,6 +260,16 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   timings: timing assertions on a shared build machine are flaky). Timed on screen by the
   `preview swipe → image` signpost (`InteractionProfile`). PARTIAL until timed on screen.
 
+- `preview.full-screen-page` — **[PARTIAL]** (#6560; owner 2026-11-12: the iPad has it, the Mac had none) Mac. The Preview head
+  offers **View Full Screen** (a viewfinder button beside the zoom-controls toggle) while it shows one page or image; it opens
+  that page in the full-window reader ⌃⌘R already opens (`ImmersiveReaderView`, `markup.immersive-full-screen-reading`): the
+  page on black, the chrome fading, no second viewer. ← and → turn to the previous and next page whether the chrome shows or
+  not (no modifier: ⌘← stays the system's), and Esc or its ✕ leaves to the Preview on the page last shown. A folder, a
+  multiple selection or a non-page file offers no button. The iPad keeps its own button on the image bar. *Built:*
+  `PreviewFullScreen.canEnter`, `PreviewHeadLensControls.onEnterFullScreen` (macOS), `ContentView.enterImmersiveReading(showing:)`,
+  `KeyboardPageStep` in `KeyboardExitCatcher`. *Not built:* a look on screen; a trackpad swipe in full screen; the window's
+  own macOS full screen (the reader fills the window, as ⌃⌘R always did). *Tests:* `Models/PreviewFullScreenTests.swift`.
+
 ### F. Clicking and dragging on the page
 
 - `preview.page-click-and-drag-are-timed` — **[PARTIAL]** (#5253; owner: the app) A click on the

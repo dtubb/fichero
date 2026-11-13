@@ -91,6 +91,8 @@ struct PreviewHeadSelectorGroup: View {
 /// menu.
 struct PreviewHeadLensControls: View {
     let chrome: PreviewPaneChrome
+    /// Opens the shown page or image full screen (`preview.full-screen-page`, #6560); nil hides the button.
+    var onEnterFullScreen: (() -> Void)?
 
     /// Whether the floating magnification cluster (mini-map / zoom pill /
     /// loupe + magnifier toggles) is showing over the canvas.
@@ -98,8 +100,26 @@ struct PreviewHeadLensControls: View {
 
     var body: some View {
         zoomControlsToggle
+        fullScreenButton
         renditionSteppers
         renditionsMenu
+    }
+
+    /// The page full screen, as the iPad's viewfinder button opens it: the full-window reader ⌃⌘R opens, ← → for the
+    /// pages, Esc to leave. Mac only: the iPad has its own on the image's bar (`ZoomableImagePreviewIOS`).
+    @ViewBuilder
+    private var fullScreenButton: some View {
+        #if os(macOS)
+        if let onEnterFullScreen {
+            Button(action: onEnterFullScreen) {
+                Image(systemName: "viewfinder")
+            }
+            .buttonStyle(.borderless)
+            .help("View Full Screen (⌃⌘R)")
+            .accessibilityLabel("View full screen")
+            .accessibilityIdentifier("previewHeadFullScreen")
+        }
+        #endif
     }
 
     /// ▲▼ rendition stepping RIGHT of the breadcrumb (Daniel, 2026-09-02:
