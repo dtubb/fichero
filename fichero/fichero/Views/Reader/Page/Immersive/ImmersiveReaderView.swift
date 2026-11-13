@@ -75,6 +75,11 @@ struct ImmersiveReaderView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: markConfirmation)
         .background(KeyboardExitCatcher(onExit: { exit() }, onPage: { navigate(by: $0) }))
+        // A two-finger swipe left or right turns the page, as ← → do (#6560); the page's scroll view posts it only
+        // while the image cannot pan sideways, so a zoomed-in pan never turns the page.
+        .onReceive(NotificationCenter.default.publisher(for: .previewSiblingSwipe)) { note in
+            if let step = note.object as? Int { navigate(by: step) }
+        }
         .task(id: document.id) {
             await loadTranslations()
             await loadRenditions()
