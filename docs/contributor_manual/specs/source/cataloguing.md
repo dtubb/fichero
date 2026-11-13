@@ -155,7 +155,7 @@ row per item, one column per field), and into IIIF manifests' `metadata`.
 ## Test matrix
 
 To be filled at approval. Fixtures: real items from the maintainer's projects (a Jesuit letter, a
-1740 sale record, a Marshall diary entry), with the entry each should render and the EAD each
+1740 sale record, a diary entry), with the entry each should render and the EAD each
 should export.
 
 ## Open questions

@@ -518,7 +518,7 @@ this reaches the app until the whole programme is done.
 
 ### Lines the segmenter missed: a check after Find Lines (added 2026-10-29, #6185; design, not built)
 
-On the Istmina scans Kraken misses lines: a note in the margin, faint ink, writing close to the ruler or
+On the court-archive scans Kraken misses lines: a note in the margin, faint ink, writing close to the ruler or
 the border. It also misses **words inside the reading order**: a line box that stops short of its last
 words, a few words dropped from the middle of a line, a short line between two long ones. The owner's
 direction (2026-10-29, paraphrased, with the second ruling of the same day): after Find Lines, a step
@@ -1158,7 +1158,7 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
   **A close or shutdown before the conversion has begun is a stop, not a start** (→ #5562): a
   stop that arrives during the open-time steps (box origins, line readings) takes no snapshot and
   writes nothing; the next open starts it. It used to fall through to the snapshot anyway, so
-  Marshall's refusal was logged at engine SHUTDOWN, snapshotting a project whose jobs were being
+  The refusal of one diary project was logged at engine SHUTDOWN, snapshotting a project whose jobs were being
   stopped and whose connection was about to close. It still runs at open (20 s after, in the
   background); a run that has reached `convert_project` stops at a page boundary as before.
   Pinned by `test_conversion_snapshot_reads_back.py::test_closing_during_the_open_time_steps_takes_no_snapshot`.
@@ -1189,7 +1189,7 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
   rows are counted under the same locks as the copy, once before its checkpoint and once after,
   and the copy is retried (bounded, then refused as busy) when a connection outside the engine's
   locks -- the activity store, the workflow checkpointer -- committed in between. Before #5562 the
-  project was counted after the snapshot's exports and vector copy, and on clones of Marshall the
+  project was counted after the snapshot's exports and vector copy, and on clones of that diary project the
   rows written meanwhile (one dates artifact per page, live job, run and activity rows) read as a
   snapshot that "does not read back": no project in use could convert. The check is exactly as
   strict -- every table, exact counts -- and a copy missing rows the project had at the copy is

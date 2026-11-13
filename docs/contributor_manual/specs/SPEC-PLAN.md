@@ -23,7 +23,7 @@ Status words: **built** (behaviours mostly [OK]), **partly built**, **specced** 
 | 8. Model adaptation | `compute/distillation.md`, `compute/jobs-and-fine-tuning.md`, `compute/remote-compute.md` | specced | **the projects harness and the improvement loop** (below) |
 | 9. Knowledge and search | `kg/*`, `ui/search.md`, `explore/meaning.md`, `explore/networks.md` | partly built | graph embeddings as proposals: fold into `explore/networks.md` |
 | 10. Natural-language generation | `kg/kg-readable-representation.md` | partly built | **summaries that show, not tell** (below) |
-| 11. Publishing | `export/exporter.md`, `source/iiif.md` (published folders, static), `source/synced-folder.md` | partly built | **the Istmina public family-history site** (below) |
+| 11. Publishing | `export/exporter.md`, `source/iiif.md` (published folders, static), `source/synced-folder.md` | partly built | **a public family-history site from a regional archive** (below) |
 
 Running all of it: `ui/activity-and-automatic-work.md` (one job model, the workflow runner inside
 it, automatic reprocessing), `ai/local-runtimes.md` (how each model runs), and the recipe and
@@ -83,7 +83,7 @@ maintainer's step document (Mellel, to come) sets the order. Build next.
 1. **Projects harness and the improvement loop** (`~/code/fichero-projects/SPEC.md`, its own
    private repository). Fichero as the harness for real projects that train models: Sergio
    Mosquera's notebooks (one hand, about 400 pages, a Qwen-VL transcription to correct) and the
-   Marshall diary (one hand) first; then the Istmina archive (damaged, many hands, 1870s to 1980s);
+   a handwritten diary (one hand) first; then a regional court and civil archive (damaged, many hands, 1870s to 1980s);
    Spanish hands from the twenty-first century backwards. The loop:
    1. a frontier model drafts ground truth;
    2. a person checks it in Fichero;
@@ -109,7 +109,7 @@ maintainer's step document (Mellel, to come) sets the order. Build next.
 6. **The agents: MCP and the in-app agent.** Clean up and test the MCP surface used by Claude and
    other external agents, and the in-app agent (an external agent through the same audited
    actions is the likely path; a vendor's licence decides what can be embedded).
-7. **The Istmina public site** (DRAFT written 2026-10-03: `export/public-site.md`, #5381). A public, searchable site from the Istmina archive for people
+7. **The public archive site** (DRAFT written 2026-10-03: `export/public-site.md`, #5381). A public, searchable site from a regional archive for people
    there to look for family history: names, places, dates, the page images by IIIF, built by the
    publishing stage, with rights and consent respected (`source/rights-and-access.md`).
 

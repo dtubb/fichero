@@ -379,7 +379,7 @@ result cannot attach below the document even when it was made from a line.
    artifacts; the three historical presets even file a translation as `analysis` (`analyze.py:32`), so
    nothing that looks for a translation finds it. #3325 has the reading kind and no writer.
 4. **Attributes cite nothing.** `Document.attributes` is a plain dictionary; a judgment's judge,
-   parties and date (Istmina) or a catalogue field could be filled, but not tied to the words that say
+   parties and date (a court archive) or a catalogue field could be filled, but not tied to the words that say
    so, and the catalogue writes its narrative over the folder's own text (`catalogue.py:829`).
 5. **Nothing extracted is drawn on the page.** The Preview draws boxes, regions, marks and inline text
    (`layers.preview.draws-today`); names, statements, dates, entries' headings and table cells have no
@@ -703,7 +703,7 @@ level it was made for.
 5. **Layers and the Inspector** (`shown-as-layers`, `inspector-leads-to-ink`, `corrected-in-place`;
    #1659, #5418): needs 2 and 3.
 6. **Attributes that cite** (`attributes-cite`, `kinds-proposed-as-prototypes`; #5365, #5550): the
-   judgment's fields for Istmina, the catalogue's fields, Find the Documents' kinds.
+   judgment's fields for a court archive, the catalogue's fields, Find the Documents' kinds.
 7. **Units over segments** (`entries-are-units`, `account-lines-are-rows`, `tables-on-cells`; #5559,
    #5490): entries, inserted documents (`finddocs.inserts-are-ranges`) and table rows as logical units.
 8. **Run on any level, attach at that level** (`run-on-any-level`, `outputs-attach-at-their-level`;

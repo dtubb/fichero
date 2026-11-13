@@ -75,7 +75,7 @@ The question is asked **once per project** (ruled 2026-10-03). It is the same an
 records when it asks whether pages may leave this Mac (`source.project.stays-local`, #4951); if
 setup did not ask it, the sheet asks it at the project's first send. The sheet says:
 
-1. **What:** "412 page images and their transcriptions from *Marshall diaries, 1890s*", or
+1. **What:** "412 page images and their transcriptions from *a handwritten diary, 1890s*", or
    "a training set of 3,120 lines made from 96 pages you corrected".
 2. **How much:** the bytes that will actually travel (after subtracting what is already
    there).

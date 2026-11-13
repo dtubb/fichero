@@ -43,7 +43,7 @@ offers to train a detector on them; the detector replaces the default only when 
 
 The first test sets: Sergio Mosquera's notebooks (`fichero-projects/projects/sergio-notebooks`: 374
 photographs, 3000×2000, open spiral notebooks on a dark table, a ruler along the top, the left page often
-blank graph paper) and the Istmina scans (EAP1477 GHC_B12 Doc10 and Doc11: a wooden ruler down the left
+blank graph paper) and a court archive's scans (two documents of one box: a wooden ruler down the left
 edge, a grey colour card at the top, a wide dark border).
 
 ## What exists today

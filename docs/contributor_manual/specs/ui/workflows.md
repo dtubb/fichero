@@ -821,7 +821,7 @@ are out of scope for this table — see that spec's own behaviors, all already c
 | #1660 | Workflow node editor: make each node clear about what it consumes + produces | — | **UNCOVERED**, below-threshold pair with #2524 — node-editor structural clarity (2 issues, not clustered) |
 | #2524 | Workflow node editor: clickable/editable edges, editable fan-out, graph = actual execution | — | **UNCOVERED**, below-threshold pair with #1660 |
 | #257 | Resolve remaining blockers on the coherent AI layer | — | **UNCOVERED** — too vague/broad to be workflows-specific; recommend the manager re-scope or re-home |
-| #1594 | Real-data processing: Jesuit Mapping + Marshall Diaries — local CLI pipeline | — | **UNCOVERED** — a specific research project's data pipeline, not a general workflows behavior; recommend re-homing off this milestone |
+| #1594 | Real-data processing: Jesuit Mapping + a multi-volume diary — local CLI pipeline | — | **UNCOVERED** — a specific research project's data pipeline, not a general workflows behavior; recommend re-homing off this milestone |
 | #2094 | EPIC: All models managed in Settings → Models | — | **UNCOVERED** — a Settings/Models surface epic, not workflows; recommend re-homing |
 | #2591 | node-model: fold workspaces/tasks/issues/aliases/bookmarks/saved-searches into node types | — | **UNCOVERED** — the cross-cutting node-model EPIC (modes-to-panes/node-model territory); recommend re-homing, not a workflows sub-spec |
 | #4330 | Rendition model and two-axis navigation in Preview | — | **UNCOVERED** — reads as `panes-workspaces`/Preview rendition work; recommend re-homing |

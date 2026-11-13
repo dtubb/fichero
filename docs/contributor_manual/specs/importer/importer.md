@@ -294,13 +294,13 @@ is case-insensitive. Every count and list below is filtered by milestone NUMBER
   reporting one already in progress are two different capabilities. Not verified as built.
 - `importer.bilingual-content-does-not-duplicate-kg-rows` — **[GAP]** (#1798, redirected from
   the legacy "Importer - Source Archives" milestone) when a source's transcription duplicates
-  the same content in two languages (reported against the Marshall corpus specifically,
+  the same content in two languages (reported against a multi-volume diary corpus specifically,
   English + Spanish), the importer should not produce duplicate KG entities/claims from the
   translated duplicate. No dedup-by-language mechanism was found in
   `importers/`/`workflows/tools/` this pass. Stated as a generalizable defect class, not
-  assumed to be Marshall-specific plumbing — not independently reproduced against a second
+  assumed to be specific to that corpus — not independently reproduced against a second
   corpus this pass.
-  Checked 2026-10-17 on a scratch copy of the Marshall Diaries library (read-only): none of its 4,309
+  Checked 2026-10-17 on a scratch copy of a multi-volume diary library (read-only): none of its 4,309
   transcription artifacts carries an English block followed by a Spanish block (26 mix English with
   Spanish loanwords and names only), and no KG claim is Spanish (2,813 `en`, 388 unset). The reported
   duplication is not present in this library, so there is nothing to red-test; it stays a GAP until a
@@ -337,7 +337,7 @@ Two clusters, neither with a spec today:
   (from "Importer"), plus #1708, #1654 (from "Importer - Source Archives") — the IIIF/W3C
   annotation importer family (manifest/collection consumption, the old-format converter,
   cluster-output merge, its own OpenAPI/CLI test suite, the Andy→IIIF converter), the
-  pluggable image+sidecar corpus importer, the Tinderbox `.tbx` importer, the Marshall IIIF
+  pluggable image+sidecar corpus importer, the Tinderbox `.tbx` importer, a diary IIIF
   reliability EPIC, and the Black Pacific maps importer (whose image-region-anchoring half
   also touches `segment-representations.md`, noted but not split into two issues). Each is a
   DISTINCT importer implementation this general pipeline spec should not absorb — they need
@@ -360,7 +360,7 @@ Two clusters, neither with a spec today:
   cluster above, but framed as one-off data-loading projects for named collections rather than
   a generalizable capability — TRIAGE rather than folded into that waiting cluster, since
   grouping them together would understate how dataset-specific each one is.
-- **#1667** ("Marshall SMB staging logs missing 1928 enhanced image files during rsync") — an
+- **#1667** ("Diary SMB staging logs missing 1928 enhanced image files during rsync") — an
   operational/infrastructure bug in one collection's staging pipeline, not an app behavior.
 - **#1331** ("Black folder + Maps folder metadata fusion") — dataset-specific metadata work
   for one named collection.

@@ -18,7 +18,7 @@ forty years. Two things make the archive usable: **a gazetteer** of its places a
 name list** of its people and bodies, one of each per project, kept as good as the evidence allows.
 Each entry holds every form the sources use, with the passages; a preferred form; links to the
 world's authorities; and what those authorities add, kept apart from what the pages say.
-Families searching the Istmina archive will find their people through this list.
+Families searching the archive will find their people through this list.
 
 ## Prior art
 
@@ -85,7 +85,7 @@ authority URIs; and the static site's place and name pages.
 
 ## Test matrix
 
-To be filled at approval. Fixtures: places and people from the Istmina archive and the 1740 sale
+To be filled at approval. Fixtures: places and people from the archive and the 1740 sale
 records with known variant spellings, and their Wikidata and WHG matches.
 
 ## Open questions
@@ -95,5 +95,5 @@ records with known variant spellings, and their Wikidata and WHG matches.
 2. **Rate of automatic proposals:** propose links as mentions are found (in the background, as a
    recipe step), or only when a person opens the list? Recommendation: as a recipe step, throttled,
    because the worklist is what makes it improve.
-3. **Living people** in a public site (Istmina's later records reach the 1980s): withheld by default
+3. **Living people** in a public site (the archive's later records reach the 1980s): withheld by default
    under the rights record. Recommendation: yes, withhold the living and recently dead by default.

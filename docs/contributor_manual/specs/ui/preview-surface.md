@@ -216,7 +216,7 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   on screen on C01_005 and C01_052.
 - `ui.preview.draws-what-the-segments-list-lists` — **[PARTIAL]** (#5463; owner: the engine) With every
   box switch on, Preview draws every box of the page's working pass, the same pass the Segments list
-  lists and the page's text reads, whatever other result the page has beside it. On a Marshall diary
+  lists and the page's text reads, whatever other result the page has beside it. On a diary
   page the list showed Apple Vision's words and Preview drew none of them while a Detect Segments
   (Kraken) run was going: the segment list (`GET /api/segments/document/{id}`, which the canvas reads)
   counted a run's result not yet made a pass as a candidate for the working pass, and the Order list
@@ -233,7 +233,7 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   (`ReadingOrderStore.loadFollowing`). Pinned by
   `ImportedPageDrawsItsBoxesTests.testPreviewTheSegmentsListAndTheReaderNameTheSamePassOnAPageWithTwoPasses`
   and `.testAPassChangeEventMovesThatPagesSegmentsListToTheNewWorkingPassInPlace`.
-  PARTIAL until seen on screen on the Marshall page. Box colours are not part of this behaviour: they are
+  PARTIAL until seen on screen on a diary page. Box colours are not part of this behaviour: they are
   owned by `source/segment-editor.md`, "Box colour and the segment hierarchy" (ruled 2026-10-04:
   the region's hue, shaded along the working pass's reading order; #5426, #5463).
 

@@ -658,7 +658,7 @@ homeless until a map-view UI spec exists (#5128).
 **Groups are containers (2026-10-07, #5570, #5569).** A group is a document made of pages: a letter,
 a judgment, a register entry. It was made by Group as Stack and then drawn as a broken image
 ("Preview unavailable — Source file not available"), hidden from the sidebar, with its pages out of
-sight and its place lost to the name sort. The case that showed it: Istmina Full's '1948 Sentencias',
+sight and its place lost to the name sort. The case that showed it: a real box of 203 loose court pages,
 203 loose pages organised through the engine into 8 judgments of 6 to 62 pages each. The design, in
 one sentence: a group is a folder whose order matters and whose pages read as one document. Every
 surface that decides how a node renders by its type treats `DocType.group` as a container, never as
@@ -680,7 +680,7 @@ a file.
 - `library.group.previews-as-its-pages` — **[PARTIAL]** (#5570) a selected group shows in the Preview
   as its pages, on the group's own canvas (the same board as
   `library.canvas.a-folder-previews-as-its-canvas`, one layout per group): its saved layout when it
-  has one (each Istmina group holds an 8-column grid), else the default grid in page order. A click
+  has one (each group in that box holds an 8-column grid), else the default grid in page order. A click
   on a page selects it; a double-click shows that page. Never a missing-file message. Tested by
   `GroupsAreContainersTests.groupPreviewsAsItsCanvas` (the Preview's route).
 - `library.group.cover-is-its-first-page` — **[PARTIAL]** (#5570) the engine answers a group's

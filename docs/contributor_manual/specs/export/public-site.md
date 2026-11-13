@@ -1,4 +1,4 @@
-# Export — A public research site for an archive (first: Istmina) — Design Spec (#5381)
+# Export — A public research site for an archive (first: a regional court and civil archive) — Design Spec (#5381)
 
 > Milestone: public-site
 > Manual: TBD — a section, "Publishing an archive for the public", explaining what goes on the site,
@@ -12,11 +12,11 @@
 
 ## Intent
 
-The Istmina archive (Chocó, Colombia, 1870s to 1980s) holds the names of the people of a place,
-across generations. The people of Istmina should be able to search it, on a phone, for their
+A regional court and civil archive (1870s to 1980s) holds the names of the people of a place,
+across generations. The people of that place should be able to search it, on a phone, for their
 families: a name, a place, a year, and the pages that mention them. Fichero builds that site from
 the project, as a static website that needs no server, and keeps it up to date as the work goes
-on. The same publishing works for any archive; Istmina is the first.
+on. The same publishing works for any archive; a regional court and civil archive is the first.
 
 ## The design
 
@@ -68,7 +68,7 @@ person to review, never published directly.
 
 ## Test matrix
 
-To be filled at approval. Fixtures: a slice of the Istmina library with known living and dead
+To be filled at approval. Fixtures: a slice of the archive's library with known living and dead
 people, restricted documents, and name variants; the built site checked for absent material and
 for search by every variant.
 
