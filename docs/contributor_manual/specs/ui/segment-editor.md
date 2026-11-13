@@ -193,12 +193,14 @@ targets are at least 44 pt.
   joined into one polygon (their union, hulled across the gap when they do not touch); the
   baselines are joined end to end in the page's reading order; the readings join with the
   script's separator; the result sits where the first line sat in every order; the others
-  leave forwarding notes. Across different regions it refuses in words ("in two regions: move
-  the line first"). *Built:* `segment.merge` with forwarding and undo; `SegmentEditCommand.mergePlan`;
-  ⌘J on the head. *Not built:* the engine's joined outline and baseline (merge keeps the kept
-  row's geometry today), the joined reading, the key wired to the plan, the refusal in words.
-  *Tests:* `tests/unit/api/test_segment_merge_lines.py` (union, hull, baseline order, refusal);
-  `SegmentJoinTests.swift`.
+  leave forwarding notes. **Across different regions (owner 2026-11-13):** the other lines are
+  moved into the first line's region and merged in the same action, one undo; the merged line
+  is that region's line in its order. (This overrides the refusal `source.editor.join-is-easy`
+  wrote; `segment.merge` gains the move.) *Built:* `segment.merge` with forwarding and undo;
+  `SegmentEditCommand.mergePlan`; ⌘J on the head. *Not built:* the engine's joined outline and
+  baseline (merge keeps the kept row's geometry today), the joined reading, the key wired to the
+  plan, the move across regions. *Tests:* `tests/unit/api/test_segment_merge_lines.py` (union,
+  hull, baseline order, across regions is one action and one undo); `SegmentJoinTests.swift`.
 - `segment-editor.merge-regions` — **[GAP]** (→ #4941; engine) two or more selected regions and ⌘J become one region
   whose outline is the union; their lines become the kept region's lines, interleaved into its
   order by page position (`layout_order`), with the result shown before it lands as a
@@ -259,16 +261,18 @@ targets are at least 44 pt.
 ### Drawing
 
 - `segment-editor.marker` — **[GAP]** (→ #4941; app + engine) the Marker draws freehand: a stroke that ends near
-  where it began (within 12 pt) is a closed outline and makes a region or a line (the kind last
-  used); any other stroke is a baseline and makes a line with its outline regenerated from the
+  where it began (within 12 pt) is a closed outline and makes a region or a line of **the kind
+  last used** (owner 2026-11-13; the same rule for the Paintbrush); any other stroke is a
+  baseline and makes a line of that kind with its outline regenerated from the
   baseline (`segment-editor.regenerate-polygon-from-baseline`). The engine simplifies the
   stroke on the way in (`segment.create` with `stroke` and `smoothing`, 0 to 1, default the
   popover's) so the record never holds a point per pixel. The new segment lands in the region
   holding it and in the order by position, as the Shape tool's lines do (`source.editor.draw-shapes`).
 - `segment-editor.paintbrush` — **[GAP]** (→ #4941; app + engine) the Paintbrush paints along a line of ink with a
   finger, the pointer or the Pencil; the painted area is the outline, its centreline is the
-  baseline. The app sends the stroke as points with a width each (the slider's, or pressure
-  when switched on); the engine turns it into the polygon and the centreline (`segment.create`
+  baseline. The app sends the stroke as points with a width each (the slider's; pressure is
+  **off by default** and an option in the tool's popover turns it on, owner 2026-11-13); the
+  engine turns it into the polygon and the centreline (`segment.create`
   with `brush_stroke`). Strokes that overlap a line painted in the same session merge into that
   line (its outline grows, the baseline is recomputed) rather than making a second line; a
   stroke over an existing line that was not painted this session is a new line, never a silent
@@ -298,18 +302,19 @@ targets are at least 44 pt.
   them positions 1, 2, 3 … in the chosen named order; the first click starts at 1, ⇧-click
   continues from the selection's number, and clicking a numbered segment again removes its
   number. The engine takes the clicks as one `reading_order.renumber` on release of the mode
-  (Return, Escape or picking another tool), one undo for the whole sequence. Segments not
-  clicked keep their relative order after the clicked ones.
+  (Return, Escape or picking another tool), one undo for the whole sequence (confirmed, owner
+  2026-11-13: never per click). Segments not clicked keep their relative order after the clicked ones.
 - `segment-editor.order-overlay` — **[PARTIAL]** (→ #4941; app) the order is visible as the gradient the umbrella
   fixed (`source.editor.colour.reading-order-gradient`) and, with the overlay on, as numbers at
   each segment's start and a thin arrowed line from each to the next; the overlay is a layer
   (`segment-editor.layers`). *Built:* the gradient in the model. *Not built:* numbers, arrows.
 - `segment-editor.type-by-key` — **[PARTIAL]** (→ #4941; app; refines `source.editor.set-kind`) the selection's kind
-  is set from the context menu, the Inspector, or the number keys 1 to 9 bound to the project's
-  kind list in its order (main text, heading, marginalia, stamp, signature, table, picture,
-  damage, blank by default; a project can reorder the list). The key's label is shown in the
-  head as a reminder when a selection exists. *Built:* `SegmentEditCommand.plan` for `kind`.
-  *Not built:* the keys, the project list.
+  is set from a **Kind menu** (under Segment in the menu bar, in the context menu and the
+  Inspector) that lists the project's kinds in its order (main text, heading, marginalia, stamp,
+  signature, table, picture, damage, blank by default; a project can reorder the list); the
+  first nine carry menu shortcuts with a modifier, ⌃⌥1 … ⌃⌥9. **Never bare number keys**
+  (owner 2026-11-13). The menu shows each kind's shortcut as menus do. *Built:*
+  `SegmentEditCommand.plan` for `kind`. *Not built:* the menu, its shortcuts, the project list.
 
 ### Words and characters
 
@@ -327,9 +332,13 @@ See section 7.2 below for what exists. The design:
   character before and the start of the one after; the line's outline is cut across the
   baseline at right angles there; each piece is a `word` child of the line with its
   `reading_span`, made by `segment.cut_words` as one action per line (one undo per line, one
-  batch for a page). A word already present (an Apple Vision word, a hand-drawn one) is kept
-  and matched by overlap, never duplicated. Only lines with a reading and positions are cut
-  this way; the rest fall to the ink-gap fallback and say so.
+  batch for a page). **It runs by itself after every Kraken read** (owner 2026-11-13): the
+  words it makes are a machine's, marked `cut_source: ctc` with their confidence, and ⌘⇧W runs
+  it again by hand. **Positions win over Apple Vision's words** (owner 2026-11-13): where a line
+  has both, the word layer shows the words cut from the positions and Vision's boxes stay in
+  their packed row for the missed-words check; a hand-drawn word is kept and matched by overlap,
+  never duplicated. Only lines with a reading and positions are cut this way; the rest fall to
+  the ink-gap fallback and say so.
 - `segment-editor.cut-characters` — **[GAP]** (→ #5212; engine + app) **Cut Characters** does the same inside a word
   from its character positions, giving `character` children; offered only at a zoom where a
   character is at least 24 pt tall on screen.
@@ -338,7 +347,9 @@ See section 7.2 below for what exists. The design:
   image inside the outline are summed across the baseline, gaps wider than a fraction of the
   line's height are candidate cuts, and the N widest gaps are taken for N spaces in the reading.
   It is much less reliable and is marked so (`cut_source: ink-gap`, confidence from the gap's
-  width against the median). A line with no reading cannot be cut into words at all and says why.
+  width against the median, capped low). **Kept** (owner 2026-11-13): the fallback stays, with
+  its source and its low confidence on every cut it makes. A line with no reading cannot be cut
+  into words at all and says why.
 - `segment-editor.cut-records-source-and-confidence` — **[GAP]** (→ #5212; engine) every word and character made by a cut
   carries `cut_source` (`ctc`, `ink-gap`, `person`), `cut_confidence` (0 to 1; the recogniser's
   character confidence at the cut for `ctc`, the gap measure for `ink-gap`, 1 for `person`) and
@@ -382,8 +393,8 @@ See section 7.2 below for what exists. The design:
   characters, order.
 - `segment-editor.batch-apply-template` — **[GAP]** (→ #5382; app + engine) **Apply Regions to Similar Pages** takes the
   selected page's regions as a template and proposes them on the pages the person names (the
-  folder, a selection, pages whose image size and ink layout match within a tolerance, which the
-  engine measures); each target page gets a proposed pass (`proposed: true`, as the missed-lines
+  folder or a selection); the match is **by the page layout box only** (owner 2026-11-13: no
+  ink-layout similarity measure); each target page gets a proposed pass (`proposed: true`, as the missed-lines
   check does), reviewed in the Check lens, accepted per page or all at once. Regions are placed
   by the page box where one exists (`image.enhance.page-crop`) so a shift in the scan does not
   shift the template. A line correction has no template: lines are found, not copied.
@@ -447,12 +458,13 @@ See section 7.2 below for what exists. The design:
   before writing and carries stored shapes to the shown image before the app draws them, so a
   line drawn on a deskewed rendition sits on the ink when the person switches back to the
   original. An image whose transform is not known cannot be drawn on: the tools are disabled and
-  the head says why (`source.segment.no-guessing-across-images`). **Export** writes the
-  photograph frame by default, and an "on the prepared image" choice re-maps every shape to the
-  chosen rendition and writes that image beside the file, with the transform named in the loss
-  report, since ALTO and PAGE have no place for it. *Built:* storage in the upright frame; the
-  carry for Kraken, YOLO and crops. *Not built:* the app naming the shown rendition on a create or
-  update; the export choice.
+  the head says why (`source.segment.no-guessing-across-images`). **Export offers both frames
+  now** (owner 2026-11-13): the export sheet asks for the original photograph or the prepared
+  (deskewed, enhanced) image; the prepared choice re-maps every shape to that rendition and
+  writes the image beside the file; either way the loss report names the frame written and,
+  for the prepared one, the transform, since ALTO and PAGE have no place for it. *Built:*
+  storage in the upright frame; the carry for Kraken, YOLO and crops. *Not built:* the app
+  naming the shown rendition on a create or update; the export choice and its loss-report line.
 - `segment-editor.corrections-train` — **[PARTIAL]** (→ #4947; engine; ties to `../compute/training-and-evaluation.md`)
   a corrected page's working pass, with its lines, baselines, outlines, regions and order, is
   what the Kraken training set writes (`training/kraken_set.py`); word and character cuts made
@@ -505,7 +517,7 @@ Mac keys (every one is also a Segment menu item; ⌘ chords stay unique across t
 | Simplify outline | ⌘⌥S |
 | Cut Words / Cut Characters | ⌘⇧W / ⌘⌥W |
 | Find Lines Here | ⌘⇧F |
-| Set kind 1–9 | 1 … 9 |
+| Set kind (Kind menu, first nine of the project's list) | ⌃⌥1 … ⌃⌥9 |
 | Remove point / delete selection | ⌫ |
 | Nudge selection or point | ← ↑ → ↓ (⇧ ×10, ⌥⇧ ×100) |
 | Next / previous in reading order | Tab / ⇧Tab |
@@ -529,7 +541,7 @@ iPad gestures (finger unless said):
 | Switch tool ↔ Select | Pencil double-tap (system) |
 | Undo / redo | two-finger tap / three-finger tap (system) |
 | Tool popover | tap the tool button again |
-| Kind | long press › Kind, or an attached keyboard's 1–9 |
+| Kind | long press › Kind, or an attached keyboard's ⌃⌥1 … ⌃⌥9 |
 
 ## Data model and which operations are engine calls
 
@@ -822,17 +834,21 @@ hand, so the cut marks on such a line are the fallback's and say so.
 | `segment-editor.verb.cut-words` | Cut Words | Make word boxes from the reading's character positions (⌘⇧W) | `segmentEditor.verb.cutWords` | [MISSING] |
 | (every other control above) | its name | its one-line rule above with its key | `segmentEditor.*` | [MISSING] |
 
+## Rulings (owner 2026-11-13; the twelve questions of the first draft, all answered)
+
+1. **Merge across regions:** move the other lines into the first line's region and merge, one action, one undo (`segment-editor.merge-lines`).
+2. **A Marker or Paintbrush line takes the kind last used** (`segment-editor.marker`, `segment-editor.paintbrush`).
+3. **Paintbrush pressure on the iPad is off by default**; an option turns it on.
+4. **Kraken's character positions win over Apple Vision's words** when a line has both (`segment-editor.cut-words-from-positions`).
+5. **Cut Words runs after every Kraken read**; its words are a machine's, marked as such.
+6. **The ink-gap fallback stays**, marked with its source and a low confidence (`segment-editor.cut-fallback-ink-gaps`).
+7. **Export offers both frames now**, the original photograph and the prepared image, chosen at export, the loss report naming the frame (`segment-editor.coordinates-one-frame`).
+8. **Kinds are set from a menu whose shortcuts carry a modifier** (⌃⌥1 …), listing the project's kinds; never bare number keys (`segment-editor.type-by-key`).
+9. **The Order tool commits on leaving the mode**, one undo for the sequence.
+10. **Templates match by the page layout box only** (`segment-editor.batch-apply-template`).
+11. **The touch stage is iPad only** (Stage 7).
+12. **The build order stands as written**: merge, then redraw from baseline, then the knife, first.
+
 ## Open questions for the creative director
 
-1. **Merge across regions:** refuse (as written), or move the lines into the first line's region and merge in one step?
-2. **The default kind for a Marker or Paintbrush line:** always `line`, or the kind last set?
-3. **Paintbrush pressure:** on by default on the iPad, or off until switched on?
-4. **Words from Apple Vision vs from character positions:** when both exist for a line, which wins the word layer: Vision's boxes, the positions, or ask?
-5. **Cut Words on a page by default:** run it after every Kraken read (machine words, marked), or only when asked?
-6. **The ink-gap fallback:** offer it at all, or only positions and a person's hand?
-7. **Export frame choice:** photograph only (as written), or also "on the prepared image" in the first slice?
-8. **Numbering keys 1–9 for kinds:** acceptable, or keep digits free for something else?
-9. **Order tool commit:** on leaving the mode (as written), or per click?
-10. **Apply template matching:** by page box only, or also by ink layout similarity (an engine measure)?
-11. **iPad first or iPhone too** in Stage 7?
-12. **Build order:** Stage 1 (merge, regenerate, knife) first as written, then 5 (words) before 2–4, or the order as written?
+None outstanding; all twelve are answered (see Rulings).
