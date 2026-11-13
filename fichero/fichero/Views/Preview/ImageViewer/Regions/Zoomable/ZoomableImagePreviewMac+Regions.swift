@@ -504,6 +504,7 @@ extension ZoomableImagePreview {
             delete: { deleteSelectedRegions() }, join: { combineSelectedRegions() },
             selectionHasBaselines: selectionHasBaselines, redraw: { redrawSelectedOutlines() },
             splitAtPoint: { splitSelectedLineAtLastPoint() },
+            simplify: { simplifySelectedSegments() },
             apply: { setSelectedSegments($0) }
         )
     }

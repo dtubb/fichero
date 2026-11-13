@@ -193,6 +193,12 @@ extension ZoomableImagePreview {
         }
     }
 
+    /// SIMPLIFY the selected segments' outlines and baselines (`segment-editor.vertices`, ⌥⌘S): one ⌘Z.
+    func simplifySelectedSegments() {
+        guard let documentId else { return }
+        runSegmentEdit(SegmentEdit.simplify(selectedSegments(documentId)), documentId: documentId, name: "Simplify Outline")
+    }
+
     /// SPLIT the one selected line where it was last clicked (`segment-editor.split-at-a-point`, ⌘⇧K).
     func splitSelectedLineAtLastPoint() {
         guard let documentId, let line = selectedSegments(documentId).first, let pressed = pointerFeed.latest?.point else { return }

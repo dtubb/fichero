@@ -277,6 +277,12 @@ targets are at least 44 pt.
   tolerance in image pixels (Douglas-Peucker on the outline and the baseline), shown live as
   the slider moves and committed once on release. A dense outline from an import or a paint
   stroke comes down to a handful of points without the person touching one.
+  *Built (2026-11-13):* `segment.simplify` (Douglas-Peucker in the page image's pixels, outline closed
+  and baseline open, never below three and two points, re-checked for a self-crossing; a shape
+  already that simple is left alone; one undo through `segment.restore_versions`) and
+  Edit › Segments ▸ Simplify Outline at 2 px. *Not built:* the slider and live preview, ⌫ on a
+  pressed point, and the chord: ⌥⌘S is Star's in the markup row (`PreviewMarkupToolsRow`).
+  *Tests:* `test_segment_simplify.py`; `SegmentSimplifyTests.swift`.
 
 ### Drawing
 
