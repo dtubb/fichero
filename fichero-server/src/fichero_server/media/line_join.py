@@ -114,3 +114,45 @@ def joined_baseline(ordered: list[list[Point] | None], direction: str | None) ->
 def reading_separator(script: str | None) -> str:
     """What joins two lines' readings: a space, or nothing for a script written without spaces."""
     return "" if script in _UNSPACED_SCRIPTS else " "
+
+
+def _edges_cross(a: Point, b: Point, c: Point, d: Point) -> bool:
+    """Whether segment ab properly crosses segment cd (touching at an end is not a crossing)."""
+    def side(p: Point, q: Point, r: Point) -> float:
+        return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+    d1, d2, d3, d4 = side(c, d, a), side(c, d, b), side(a, b, c), side(a, b, d)
+    return d1 * d2 < 0 and d3 * d4 < 0
+
+
+def crosses_itself(polygon: list[Point]) -> bool:
+    """Whether a closed outline crosses itself: two edges that are not neighbours meet."""
+    count = len(polygon)
+    if count < 4:
+        return False
+    edges = [(polygon[i], polygon[(i + 1) % count]) for i in range(count)]
+    for i in range(count):
+        for j in range(i + 2, count):
+            if i == 0 and j == count - 1:
+                continue
+            if _edges_cross(*edges[i], *edges[j]):
+                return True
+    return False
+
+
+def simple_outline(polygon: list[Point]) -> tuple[list[Point], bool]:
+    """`segment-editor.edge.self-intersecting`: the outline as given when it is simple, else the outer boundary of
+    the area it covers (its union, drawn on the raster and traced back), and whether it had to be simplified."""
+    points = [[float(p[0]), float(p[1])] for p in polygon]
+    if not crosses_itself(points):
+        return points, False
+    cells = _cells(points)
+    origin = cells.min(axis=0) - 2
+    size = cells.max(axis=0) - origin + 3
+    mask = np.zeros((int(size[1]), int(size[0])), dtype=np.uint8)
+    # Every loop of a figure-eight is inside the shape, whichever way it winds.
+    cv2.fillPoly(mask, [cells - origin], 255)
+    cv2.polylines(mask, [cells - origin], True, 255, thickness=1)
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    hull = cv2.convexHull(np.concatenate(contours)) if len(contours) > 1 else max(contours, key=cv2.contourArea)
+    traced = cv2.approxPolyDP(hull, _TRACE_TOLERANCE, True).reshape(-1, 2) + origin
+    return [[round(float(x) / _GRID, 6), round(float(y) / _GRID, 6)] for x, y in traced], True
