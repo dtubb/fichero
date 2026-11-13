@@ -124,9 +124,9 @@ extension ContentView {
     /// the window has a pair, so a hidden-then-shown column keeps it (#6563).
     var showsSidebarPairInColumn: Bool {
         #if os(iOS)
-        sidebarPairHome != nil
+        SidebarPairHome.declaredInColumn(sidebarPairHome, onIOS: true)
         #else
-        sidebarPairHome == .sidebarColumn
+        SidebarPairHome.declaredInColumn(sidebarPairHome, onIOS: false)
         #endif
     }
 

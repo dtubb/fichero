@@ -76,4 +76,19 @@ struct SidebarColumnStateTests {
         #expect(SidebarPairHome.home(columnShown: true, isCompact: true) == nil)
         #expect(SidebarPairHome.home(columnShown: false, isCompact: true) == nil)
     }
+
+    @Test("the Mac's sidebar bar declares the pair only while the column is its home (#6558)")
+    func macDeclaresPairOnlyInItsHome() {
+        #expect(SidebarPairHome.declaredInColumn(.sidebarColumn, onIOS: false))
+        #expect(!SidebarPairHome.declaredInColumn(.contentBar, onIOS: false))
+        #expect(!SidebarPairHome.declaredInColumn(nil, onIOS: false))
+    }
+
+    @Test("the iPad's sidebar bar keeps the pair after a hide, and a compact iPhone has none (#6563)")
+    func iPadDeclaresPairWheneverThereIsOne() {
+        #expect(SidebarPairHome.declaredInColumn(.sidebarColumn, onIOS: true))
+        #expect(SidebarPairHome.declaredInColumn(.contentBar, onIOS: true))
+        #expect(!SidebarPairHome.declaredInColumn(nil, onIOS: true))
+    }
+
 }

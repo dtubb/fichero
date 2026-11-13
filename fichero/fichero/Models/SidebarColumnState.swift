@@ -60,4 +60,11 @@ enum SidebarPairHome: Equatable {
         if isCompact { return nil }
         return columnShown ? .sidebarColumn : .contentBar
     }
+
+    /// Whether the sidebar column's own bar declares the pair. The Mac declares it only while the column is its home
+    /// (#6558: the Mac removes a hidden column from the window, and the content bar carries the pair then). The iPad
+    /// declares it whenever the window has a pair, so a column hidden and shown again still has it at its top (#6563).
+    nonisolated static func declaredInColumn(_ home: SidebarPairHome?, onIOS: Bool) -> Bool {
+        onIOS ? home != nil : home == .sidebarColumn
+    }
 }
