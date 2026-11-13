@@ -40,7 +40,7 @@ struct SegmentMenuContent: View {
             .disabled(!Self.canDelete(selected: count))
         Button("Join") { target?.join() }
             .keyboardShortcut("j", modifiers: [.command, .option])
-            .disabled(count < 2)
+            .disabled(!Self.canJoin(selected: count))
         Divider()
         SegmentAttributeMenu.Items(apply: { target?.apply($0) })
             .disabled(count == 0)
@@ -50,6 +50,9 @@ struct SegmentMenuContent: View {
 
     /// Delete needs a selection and no mode (#6413: the gate is going).
     static func canDelete(selected: Int) -> Bool { selected > 0 }
+
+    /// Join needs two or more: one line joined to itself is not an edit (`segment-editor.merge-lines`).
+    static func canJoin(selected: Int) -> Bool { selected >= 2 }
 
     /// Why the segments' verbs cannot act, said once under Edit Segments; nil when they can.
     static func reason(hasPage: Bool, selected: Int) -> String? {

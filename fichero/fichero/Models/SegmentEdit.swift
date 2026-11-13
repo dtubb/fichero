@@ -149,14 +149,18 @@ enum SegmentEdit {
         ))
     }
 
-    /// JOIN the segments picked; the first picked is the one kept.
-    static func join(_ segments: [Segment]) -> Result<Call, Refusal> {
+    /// JOIN the segments picked; the first picked is the one kept. `asLines` is the segment editor's
+    /// Merge (`segment-editor.merge-lines`): the engine joins the outlines and baselines in reading order
+    /// and moves lines from other regions into the kept one's. Without it (the Reader's backspace join)
+    /// the kept shape stays and a join across regions is refused.
+    static func join(_ segments: [Segment], asLines: Bool = false) -> Result<Call, Refusal> {
         guard segments.count >= 2, let keep = segments.first else { return .failure(.tooFew) }
         guard let versions = versions(of: segments) else { return .failure(.versionUnknown) }
         return .success(Call(
             action: "segment.merge",
             params: .merge(SegmentMergeRequest(
-                segmentIds: segments.map(\.id), keepId: keep.id, expectedVersions: versions
+                segmentIds: segments.map(\.id), keepId: keep.id, expectedVersions: versions,
+                joinGeometry: asLines ? true : nil, moveIntoRegion: asLines ? true : nil
             ))
         ))
     }
@@ -259,9 +263,13 @@ struct SegmentMergeRequest: Encodable, Equatable {
     let segmentIds: [String]
     let keepId: String
     let expectedVersions: [String: Int]
+    /// Absent unless set, so every other join sends what it always sent.
+    var joinGeometry: Bool?
+    var moveIntoRegion: Bool?
 
     enum CodingKeys: String, CodingKey {
         case segmentIds = "segment_ids", keepId = "keep_id", expectedVersions = "expected_versions"
+        case joinGeometry = "join_geometry", moveIntoRegion = "move_into_region"
     }
 }
 

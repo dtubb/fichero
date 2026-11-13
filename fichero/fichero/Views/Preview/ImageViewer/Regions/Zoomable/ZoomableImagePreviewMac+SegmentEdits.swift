@@ -154,10 +154,13 @@ extension ZoomableImagePreview {
         return true
     }
 
-    /// JOIN the selected boxes on an artifact-less pass. True when handled here.
+    /// JOIN the selected boxes on an artifact-less pass. True when handled here. The segment editor's
+    /// Merge: outlines, baselines and readings joined in reading order, across regions (`segment-editor.merge-lines`).
     func joinSelectedSegments() -> Bool {
         guard shownArtifactlessPassId != nil, let documentId else { return false }
-        runSegmentEdit(SegmentEdit.join(selectedSegments(documentId)), documentId: documentId, name: "Join Segments")
+        runSegmentEdit(
+            SegmentEdit.join(selectedSegments(documentId), asLines: true), documentId: documentId, name: "Join Segments"
+        )
         regionSelection.clear()
         return true
     }
