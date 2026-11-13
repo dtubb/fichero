@@ -2520,7 +2520,7 @@ Jobs and chains
   not the lines' own text, a reading of the whole page with no lines of its own) queue the same one waiting job per
   page (`tie_text.after_lines`, the same job subject, so a page with both triggers makes one job), when a rough
   reader is available. The tie's own line-finding does not queue it again. Tested in
-  `fichero-server/tests/unit/check/test_tie_after_lines_5558.py` (a tie that cannot be queued leaves the lines saved and the page's conversion line says "its reading was not tied to the new lines; Tie Page Text to Lines does it"). Default taken 2026-10-05 (design lead),
+  `fichero-server/tests/unit/check/test_tie_after_lines_5558.py`. Default taken 2026-10-05 (design lead),
   awaiting the maintainer's ruling: the match threshold is 0.30, the line check's own-score floor. Tested
   in `fichero-server/tests/unit/check/test_tie_text_to_lines.py`,
   `fichero-server/tests/unit/check/test_which_reading_counts_after_the_tie.py` and

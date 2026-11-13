@@ -917,7 +917,7 @@ async def _record_step_run_accepted(db, thread_id: str, workflow, request) -> No
 async def _record_step_run_refused(db, thread_id: str, step, workflow, request, error: str) -> bool:
     """The run row of a step that was refused before it started: failed, with the refusal as its error (and so as its
     Activity row's reason). Never raises: the chain's own row carries the reason too. False when the row could not be
-    written, so the caller's step result says so."""
+    written."""
     from fichero_server.core.timeutil import utc_now  # noqa: PLC0415
     from fichero_server.workflows.activity import get_activity_tracker  # noqa: PLC0415
 
@@ -1087,8 +1087,7 @@ async def _run_chain_steps_bound(
         if error is not None:
             # A step refused before it ran still has its run row, with the refusal's words as its reason, so Activity and the
             # step's popover never say "No reason was recorded" (`activity.run.never-fails-silently`, #6354).
-            if not await _record_step_run_refused(db, thread_id, step, workflow, exec_request, error):
-                error = f"{error} (Activity could not record this step's run)"
+            await _record_step_run_refused(db, thread_id, step, workflow, exec_request, error)
             _note_chain(db, "set_parent", thread_id, execution_id)
 
         if error is None:

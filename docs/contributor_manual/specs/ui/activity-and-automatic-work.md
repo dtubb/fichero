@@ -1612,9 +1612,7 @@ and node, not by job); a retry action for failed pages.
 - `activity.run.refusal-is-recorded` — **[PARTIAL]** (#6354; a run never fails silently, owner 2026-11-13; engine) a step
   refused before it ran (the validation of its workflow: a model the project does not allow, a missing reader) has a run
   row of its own, `failed`, whose `error` and Activity reason are the refusal's words, so Activity and the step's popover
-  never say "No reason was recorded" for a refusal. A chain's refused step is recorded under the chain's row. If that row
-  cannot be written, the step's own error carries the refusal plus "(Activity could not record this step's run)", so the
-  chain's row still says why. Built for
+  never say "No reason was recorded" for a refusal. A chain's refused step is recorded under the chain's row. Built for
   a chain's steps (`chains._record_step_run_refused`), tested in
   `fichero-server/tests/unit/api/test_chain_step_project_and_refusal_6354.py`. *Not built: the alert the person sees when
   a run fails (separate work); a direct `POST /execute` refused by validation still answers 400 with the words and records
