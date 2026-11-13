@@ -303,9 +303,9 @@ extension LibraryView {
     }
 
     /// Switching kind clears the selection: a document-id selection must not leak
-    /// into the claims/entities list, where the ids mean something else. The
-    /// picker itself lives in the pane head (`LibraryContentKindControl`), beside
-    /// the view-mode picker; this is the binding it drives.
+    /// into the claims/entities list, where the ids mean something else. No head
+    /// control drives it any more (`panes.chrome.items-head-has-no-kind-menu`,
+    /// owner 2026-11-13); unused until a Filter option takes it.
     ///
     /// #4884: the chip now DISPLAYS the effective kind (so a pane that's
     /// following the window shows what it's actually following, not a stale

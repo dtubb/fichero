@@ -83,26 +83,13 @@ final class IconGridNarrowPaneTests: XCTestCase {
 /// #4966: the header's `PaneKindSelector` ladder and the footer's `AdaptiveMiniToolbarRow` ladder
 /// already share one primitive — `ViewThatFits(in: .horizontal)` — each measuring its OWN
 /// candidates against the SAME pane width, rather than a shared numeric breakpoint the two would
-/// have to keep in sync by hand. `LibraryContentKindControl`'s fix (this file's second half) joins
-/// that same primitive instead of adding a third. No mounted render exists in this target (checked
+/// have to keep in sync by hand. No mounted render exists in this target (checked
 /// before writing this), so these are structural checks: they prove there is ONE mechanism in the
 /// source, not that it visually collapses correctly at a given width — that needs a screen check.
 final class LibraryHeaderFooterCollapseAgreementTests: XCTestCase {
 
     private func source(_ relativePath: String) throws -> String {
         try AppSource.code(relativePath)
-    }
-
-    func testContentKindControlUsesViewThatFitsNotAFixedTruncation() throws {
-        let source = try source("Views/Library/ViewModes/Table/LibraryContentKindControl.swift")
-        XCTAssertTrue(
-            source.contains("ViewThatFits(in: .horizontal)"),
-            "the content-kind chip must collapse through the SAME ladder primitive the rest of the "
-                + "chrome uses, not truncate under .fixedSize()"
-        )
-        // Both rungs exist. (Not a ternary: the two label styles are two types and do not compile as one.)
-        XCTAssertTrue(source.contains(".labelStyle(.iconOnly)"))
-        XCTAssertTrue(source.contains(".labelStyle(.titleAndIcon)"))
     }
 
     func testKgFilterHasACondensedAndAnOverflowCoatInTheSharedFooter() throws {

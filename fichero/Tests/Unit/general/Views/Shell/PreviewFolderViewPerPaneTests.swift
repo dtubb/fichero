@@ -63,6 +63,15 @@ struct PreviewFolderViewPerPaneTests {
 
     /// `library.preview.folder-view-one-head` (#6562): the folder's rows under the Source head draw no head of their own,
     /// while a Library pane keeps its head.
+    /// `library.preview.folder-rows-open-in-place` (owner 2026-11-13): an item opened in the Source pane's rows opens
+    /// there, as a folder does; a cleared open opens nothing.
+    @Test("an item double-clicked in the Source pane's rows opens in that pane")
+    func folderRowsOpenInPlace() {
+        let page = Document(id: "p1", docType: .file, fileType: .image, name: "0970.jpg")
+        #expect(FolderRowsPreview.paneOpens(page) == "p1")
+        #expect(FolderRowsPreview.paneOpens(nil) == nil)
+    }
+
     @Test("a folder in the Source pane has one pane head: the embedded rows draw none")
     func folderRowsDrawNoSecondHead() {
         #expect(FolderRowsPreview.showsLibraryHead == false)

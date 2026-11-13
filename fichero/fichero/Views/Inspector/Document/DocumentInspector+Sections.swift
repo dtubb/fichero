@@ -39,12 +39,13 @@ extension DocumentInspector {
     /// (Daniel, 2026-08-23: "sometimes has one, sometimes doesn't, different
     /// heights — should be consistent"). Panes with their own bar (Artifacts,
     /// Notes, Annotations, KG, Citations) keep it; the rest get this shell
-    /// with the document as the status line.
+    /// with no status line: the head and toolbar already name the selection
+    /// (`panes.chrome.bars-do-not-name-the-selection`, owner 2026-11-13).
     @ViewBuilder
     private func withInspectorBar<C: View>(_ doc: Document, @ViewBuilder _ content: () -> C) -> some View {
         VStack(spacing: 0) {
             content()
-            InspectorBottomMiniToolbar(statusText: DocumentTitle.displayName(for: doc)) {
+            InspectorBottomMiniToolbar(statusText: "") {
                 EmptyView()
             }
         }

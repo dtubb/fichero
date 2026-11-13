@@ -52,7 +52,7 @@ extension LibraryView {
     }
 
     var libraryPaneHead: some View {
-        PaneHead<PaneKindSelector<ViewDisplayMode>, LibraryContentKindControl, EmptyView>(
+        PaneHead<PaneKindSelector<ViewDisplayMode>, EmptyView, EmptyView>(
             crumbs: libraryHeadCrumbs,
             onClose: onClosePane,
             isPinned: isPanePinned,
@@ -66,9 +66,9 @@ extension LibraryView {
                 paneCrumbDragPayload(crumb, store: documentStore, libraryId: windowState.libraryId)
             },
             selector: { self.librarySelector },
-            // The node-model axis (Documents / Claims / Entities) sits beside the
-            // view-mode picker: WHAT you browse next to HOW it's laid out.
-            controls: { LibraryContentKindControl(kind: contentKindBinding) },
+            // No Documents / Claims / Entities menu here (`panes.chrome.items-head-has-no-kind-menu`, owner
+            // 2026-11-13): Claims and Entities have their own sidebar rows.
+            controls: { EmptyView() },
             tools: { EmptyView() },
             switchableRoots: PaneCrumb.otherLibraries(than: windowState.libraryId)
         )

@@ -325,6 +325,26 @@ starting a new one.
   chrome without re-deriving it. Verified at HEAD: no `SurfaceChrome`-named type exists
   anywhere under `fichero/fichero/` — `MiniToolbar`/`PaneFilterBar` are shared, but the tab-bar
   half of the pattern is not yet extracted.
+- `panes.toolbar.sidebar-pair-once` — **[PARTIAL]** (owner 2026-11-13, a screenshot of two pairs) the Sidebar/Chat
+  pair (☰ ✦) is in the window toolbar ONCE: while the sidebar is up, in the sidebar column's own toolbar section
+  beside the window controls; while it is hidden, as its own island beside Back/Forward. Seen 2026-11-13: with the
+  sidebar hidden there were two pairs, because macOS moves the sidebar column's toolbar item into the window toolbar
+  when the column collapses, next to the island. *Built:* `ContentView.sidebarToolbarContent` offers its item only
+  while the sidebar is shown (`SidebarPairHome.declaredInColumn`, #6558). *Not built:* a look on screen. *Tests:*
+  `Models/SidebarColumnStateTests.swift`.
+- `panes.chrome.bars-do-not-name-the-selection` — **[PARTIAL]** (owner 2026-11-13, a screenshot) a pane's bottom bar never
+  repeats what is selected: the Inspector's Content, Info, Outline and Order bars carried the selected item's name
+  (`EAP1477_…_IMG_009.jpg`) as their status line, which the pane head and the toolbar already say. The bar stays
+  (every inspector sub-pane has one, the 2026-08-23 rule), with its controls and no name; a pane whose bar counts
+  something (notes, citations, entities) keeps its count. *Built:* `DocumentInspector.withInspectorBar` passes no
+  status, `InspectorBottomMiniToolbar` draws none when it is empty. *Not built:* a look on screen. *Tests:*
+  `Views/Inspector/InspectorBottomBarStatusTests.swift`.
+- `panes.chrome.items-head-has-no-kind-menu` — **[PARTIAL]** (owner 2026-11-13, a screenshot) the Items pane head has no
+  Documents / Claims / Entities menu: what the Items list shows is not a top-level choice of its head. Claims and
+  Entities are reached through their own rows in the sidebar (the project's Entities and Claims,
+  `SidebarDestination.knowledgeCollection`); a narrowing that makes sense in a list becomes a Filter option
+  (`panes.chrome.one-filter-pattern`). *Built:* the control (`LibraryContentKindControl`) is removed from
+  `LibraryView.libraryPaneHead`, and its file deleted. *Not built:* a look on screen.
 - `panes.chrome.bar-buttons-accessory-style` — **[PARTIAL]** (owner 2026-11-13, Xcode 26 as the reference) on macOS
   every button and menu in a pane head or a bottom bar wears the accessory-bar style, a bezel on hover and a fill
   while pressed, as Xcode's navigator filter bar and jump bar do; iPad and iPhone keep today's borderless look. One

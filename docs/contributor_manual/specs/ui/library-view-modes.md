@@ -216,6 +216,13 @@ Surfaces: `ViewDisplayMode` (`App/ViewDisplayMode.swift`), `LibraryView
   Seen 2026-11-12: the Source head, then directly under it the embedded Library head, as if two panes were stacked
   in one. *Built:* `LibraryView.showsPaneHead`, false from `FolderRowsPreview`; the canvas view never drew one.
   *Not built:* a look on screen. *Tests:* `PreviewFolderViewPerPaneTests.swift`.
+- `library.preview.folder-rows-open-in-place` — **[PARTIAL]** (owner 2026-11-13) in a Source pane showing a folder as
+  List, Table or Icons, a double-click (or Return) on an item opens that item in the same Source pane, and on a folder
+  goes into that folder there, and the Reader shows it too (the same open a card double-clicked on a folder's
+  canvas makes, `ContentView.selectDocument(withId:)`). Seen 2026-11-13: in Table a double-click on an item
+  did nothing, because the embedded rows' open wrote a detail document no one read. *Built:* `FolderRowsPreview` hands
+  every open to the pane (`onNavigateToDocument`). *Not built:* a look on screen. *Tests:*
+  `PreviewFolderViewPerPaneTests.swift`.
 - `library.preview.folder-view-picker-in-the-head` — **[PARTIAL]** (#6365; built, not yet compiled or run) the picker sits in the
   Preview pane head's existing selector menu (`PaneKindSelector`, `ContentView+PreviewPaneHead.swift:61`),
   as a section titled "Show folder as" under the Preview/Edit lens, with the four views in the
