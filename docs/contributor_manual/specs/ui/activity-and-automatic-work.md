@@ -189,6 +189,16 @@ for Kraken is half the performance cores (`compute_preferences.apply_to_this_thr
 quarter: one thread on a 4-core Mac), at utility QoS since the 2026-10-20 ruling. What is left is
 `activity.throttle.in-use-slows-to-half` (#6230) and `activity.lane.cores-are-used` (#6229).
 
+### Ruled 2026-11-13 (the owner, after a run failed quietly when a provider's credit ran out; paraphrased)
+
+- **A run never fails silently.** When a run, a step or a job of its own fails for any reason, the
+  person gets an alert that says what went wrong in plain words and what they need to do to fix it.
+  The case: a cloud provider's monthly credit ran out mid-run and the run simply stopped; the only
+  trace was a failed row in a window that was not open (the same event as #5459, a 402 from a
+  provider). Silent failure is bad design. The behaviours are section J (`activity.failure.*`,
+  #6354); the engine classifies, the app only displays; a run that CAN pause instead of failing
+  (no credit, a refused key) pauses and keeps what it finished.
+
 ## Prior art (what we build on, and what we do differently)
 
 - **macOS Spotlight indexing and Photos analysis.** The model for the whole feel. Both run at
@@ -2332,6 +2342,234 @@ How the list is laid out (a live block per project, a background group, finished
   what it made. Undecided: comparison is now panes and a diff lens (`modes-to-panes.md`), so whether
   a step opens that is open question 11.
 
+### J. Failure alerts: a run never fails silently (owner 2026-11-13, #6354)
+
+The owner's ruling of 2026-11-13 (above): when a run, a step or a job fails for any reason, the
+person is told what went wrong in plain words and what to do about it, wherever they are. This
+section owns the alert; the row's words (`activity.window.row-shows-lane-state-reason`), the
+popover's recent errors (#5666) and the details view's failed pages (#5561) stay where they are and
+read the same words. `ai/where-models-run.md` owns how a provider error is classified at the call
+(`ai.where.one-retry-policy`, `ai.where.dead-provider-says-why`); this section owns what the run
+records once the call has given up, and what the person sees.
+
+**How a run fails today when a provider is out of credit (verified 2026-11-13, file and line
+read, nothing run).** The call's 402 (or its `insufficient_quota` / "credit balance" words) is
+classed `fatal` and its cause `quota` by `workflows/circuit_breaker.py:159-211`
+(`classify_provider_error`, `fatal_cause`), the breaker opens and every later call for that
+provider raises `ProviderQuotaExhaustedError`, whose words are right ("<Provider> has no credit
+left for this key. Add credit at <Provider>, or choose another model in Settings.",
+`circuit_breaker.py:103-110`). From there the cause is lost as text: `workflows/builder.py:1445-1452`
+(a step) and `:2338-2343` (the fan-out) wrap it in `SystemicErrorDetected("Quota/rate-limit error in
+step '…': <words>")`; `execution/runner.py:2710-2770` catches that, re-reads the TEXT with
+`_classify_provider_error` (`runner.py:502-566`, a table of eleven categories with a message and
+an action each, keyed on words like "402" and "quota") and writes the run `failed` with
+`error = "Provider quota or rate limit reached. Top up account or switch provider/model. Details:
+<words>"` (`_systemic_failure_message`, `runner.py:634-648`); the category, message and action go
+out once on the SSE `systemic_error` event and nowhere else. Any other exception takes
+`runner.py:2775-2800`: `failed`, `error = str(e)`, no category. A recipe run's step reads its
+child run's outcome as a string (`recipes/runner.py:537-546`, `outcome_why`) and ends the recipe
+row `failed` or "Done with failures" with that string as its `reason` (`recipes/runner.py:1869-1877`;
+`execution/jobs.py:1192-1199`, `fail_run_rows`). The contract carries only words:
+`BackgroundJob.state` and `reason: Optional[str]` (`api/routes/system/activity.py:142-160`), and a
+page's one `reason` in `JobTree` (`activity.py:1221`); no row carries a kind. **The app:** the row
+goes to `ActivityStore.failedJobs` (`Models/ActivityStore.swift:370`); the toolbar's error glyph
+lights for a failure of the last hour (`Views/Shell/Toolbar/ActivityStatusToolbarItem.swift:55-61`)
+and the popover lists it once with its words (`:185-191`, `Models/ActivityErrorLedger.swift`); the
+window's State column shows the reason. That is all. A system notification exists but does not
+fire for this: `WorkflowCompletionNotifier` (`Models/WorkflowExecutionStore.swift:470-500`) posts
+"Failed — <raw error>" only for a thread the store streams, which is one the person selected or
+started from the workflow bar (`subscribe`, `:97-105`; a recipe run's child workflows are not
+subscribed), and only on macOS (`#if os(macOS)`): iPhone and iPad get nothing. The SSE
+`systemic_error` event is parsed (`Services/WorkflowStreamService+Parsing.swift:203`) but its
+`error_category`, `error_message` and `error_action` are dropped. So a recipe run whose provider
+ran out of credit ends as a failed row with the right words, in a window that is usually closed,
+with no alert, no notification, no button, and nothing on an iPad; a cap refusal already does
+better (`CloudCapFix`, typed fixes from the engine, #6295, #6349), which is the pattern to extend.
+
+**The fixed table of failure kinds.** One table, in the engine, the only source of a failure's
+kind, words and fix for the app, the command line and MCP (#6354: "one mapping … so the app, CLI
+and MCP all say the same thing"). Each row names the person's fix; a fix is one of a fixed set of
+actions the app knows how to offer (`add-credit`, `open-settings-ai`, `retry`, `resume`,
+`choose-another-model`, `free-disk`, `restart-engine`, `report`, `none`), never free text the app
+has to parse. "Stopped by you" is in the table only to say it is NOT a failure.
+
+| `kind` | When | The words (the row, the popover, the alert) | The fix offered |
+|---|---|---|---|
+| `out-of-credit` | 402, `insufficient_quota`, a key limit, "credit balance" (`fatal_cause` = `quota`) | "<Provider> has no credit left for this key. The run is paused; the N pages it finished are kept." | **Add credit at <Provider>** (the provider's billing page from the catalogue), then **Resume**; or **Choose another model** |
+| `rate-limited` | 429 after the retries are spent (`ai.where.one-retry-policy`: a 429 that backs off and answers is never a failure) | "<Provider> is asking us to slow down. The run is paused." | **Resume** (in a few minutes); or **Choose another model** |
+| `key-refused` | 401, an invalid key, a missing key for the chosen model (`fatal_cause` = `key`) | "<Provider> refused the API key." / "No API key for <Provider>." | **Open Settings › AI**, then **Resume** |
+| `provider-down` | 5xx, a dropped connection, a provider timeout after the retries are spent | "<Provider> is not answering." | **Retry**; or **Choose another model** |
+| `model-not-found` | 404, `model_not_found`, a model the provider no longer serves; a local model not downloaded | "<Provider> does not have the model <id>." / "The model <name> is not downloaded." | **Choose another model**; **Open Settings › AI** (to download) |
+| `network` | DNS, no route, the Mac offline | "This Mac could not reach the internet." | **Retry** |
+| `disk-full` | `ENOSPC`, DuckDB out of space, the derivatives folder unwritable | "The disk is full: <free> left on <volume>." | **Free disk space**, then **Resume** |
+| `engine-crashed` | the engine died or was killed mid-run (`activity.durable.lease-not-fail`: an interrupted run) | "Fichero's engine stopped at HH:MM, before this run finished." | **Resume** |
+| `input-unreadable` | a page file missing, evicted to iCloud, undecodable, a locked PDF (`file_unavailable` today) | "<N> pages could not be read: <first name>, …" | **Retry** (the failed pages only, `activity.details.failed-pages-by-name`) |
+| `refused-by-a-rule` | the egress gate, a spend cap, the images rule (#6349, `ai.where.one-egress-gate`, `ai.where.cloud-spend-cap`) | the rule's own words (`CloudCapFix`) | the rule's own fixes (raise the cap, allow once, open Settings) |
+| `memory` | `MemoryShortError`, a local model that does not fit (`activity.throttle.hold-when-swapping` holds first; this is a hold that gave up) | "This Mac does not have the memory for <model> now." | **Resume** (later); or **Choose a smaller model** |
+| `unknown` | anything else: an exception in Fichero | "<Step> could not finish: an error in Fichero." (`execution/jobs.py:276`, `failed_reason`) | **Report** (the run id, the log, the app and engine versions; nothing private) and **Retry** |
+| *(not a failure)* `stopped-by-you` | Stop, Pause, or a stopped page (`cancelled`, "Stopped by you", #6005) | "Stopped by you" | nothing; no alert |
+
+A kind with a pause fix (`out-of-credit`, `rate-limited`, `key-refused`, `disk-full`, `memory`)
+pauses the run rather than failing it (`activity.failure.credit-exhausted-pauses`); the others end
+it `failed`. The words name the provider by its catalogue name (`circuit_breaker._provider_name`)
+and never the breaker's or the SDK's internals. A kind the engine adds later is unknown to an older
+app, which shows the engine's `words` and the `report` fix, never nothing.
+
+- `activity.failure.never-silent` — **[GAP]** (#6354; owner 2026-11-13; app + engine) every run, step
+  or job of its own that ends `failed`, or pauses because of a failure, raises ONE alert to the person
+  that says what went wrong and what to do: a sheet or alert over the window when the app is
+  frontmost (the Activity row selected behind it), a system notification when it is not
+  (`activity.failure.reaches-the-person-off-window`). A page that fails inside a run that goes on is
+  not an alert: it is the row's count and the details view's list (`activity.details.failed-pages-by-name`),
+  and the run's end says "Done with failures" (`activity.run.partial-said-on-a-done-row`). A run the
+  person stopped is not a failure (`activity.failure.cancelled-is-not-a-failure`). *Built:* the row,
+  the toolbar glyph and the popover's recent errors (#5666, `ActivityStatusToolbarItem.swift:55-61`).
+  *Not built:* the alert. *Tests (to write):* a run that ends `out-of-credit` raises one alert whose
+  words are the engine's and whose buttons are the kind's fixes; a run that ends `done` with failed
+  pages raises none; a stopped run raises none (`fichero/Tests/Unit/general/Models/ActivityFailureAlertTests.swift`).
+- `activity.failure.kind-is-typed-in-the-engine` — **[PARTIAL]** (#6354; #5944 review ## 950; engine)
+  one typed field on the job: `BackgroundJob.failure`, `JobTree.failure` and the run's `RunAccount.failure`
+  carry the same object, `{kind, provider, model, words, fixes: [{action, label, url}], at}`, in the
+  OpenAPI contract (the regenerated client gives the app the enum; nothing is parsed from `reason`).
+  `kind` is one of the table above; `fixes` is the kind's row, in order, with `url` only for
+  `add-credit` (the provider's billing page from `llm/providers.py`); `words` is the sentence the
+  row shows. It is set once, where the run settles (`execution/runner.py:2710` and `:2775`, the
+  recipe runner's step outcome `recipes/runner.py:537`, `execution/jobs.py:276` `failed_reason` and
+  `:1192` `fail_run_rows`), from the exception's TYPE first (`ProviderQuotaExhaustedError`,
+  `ProviderKeyRefusedError`, `ProviderRateLimitedError`, `LocalModelNotInstalledError`,
+  `MemoryShortError`, `OSError(ENOSPC)`, …) and from words only for a wrapper that dropped the type;
+  `SystemicErrorDetected` carries the original exception so the type survives the builder
+  (`builder.py:1445`, `:2338`). `reason` stays and equals `words`, so an older app and the CLI read
+  as before. *Built:* the causes at the call (`circuit_breaker.py:63`, `:75-126`, `:159-211`), the
+  runner's eleven text categories on the SSE event only (`runner.py:502-566`, `:2744-2755`), the
+  recipe's words (`recipes/runner.py:537`). *Not built:* the field, the enum, the typed carry
+  through `SystemicErrorDetected`, the recipe runner setting it from its child run's. *Tests (to
+  write):* `fichero-server/tests/unit/jobs/test_failure_kind_is_typed_6354.py` (a 402 from a
+  provider stub ends the run with `failure.kind == "out-of-credit"`, the provider's name, the
+  `add-credit` fix with the catalogue's billing url, and `reason == failure.words`; a 401 is
+  `key-refused`; an `ENOSPC` is `disk-full`; a bare `RuntimeError` is `unknown` with `report`);
+  `fichero-server/tests/unit/recipes/test_recipe_run_carries_its_steps_failure_6354.py` (the recipe
+  row's `failure` is its failed step's).
+- `activity.failure.fixed-table` — **[GAP]** (#6354; engine) the table above is ONE module
+  (`workflows/failure_kinds.py`, proposed), the only place a kind, its words and its fixes are
+  written; `runner._classify_provider_error`'s eleven categories (`runner.py:502-566`) and
+  `circuit_breaker`'s three causes map into it and the module replaces the runner's text table
+  (the file-unavailable and iCloud rows become `input-unreadable`, `egress_refused` becomes
+  `refused-by-a-rule`, `server` becomes `provider-down`, `auth` becomes `key-refused`). The CLI and
+  MCP (`fichero_activity`, `fichero_recipes_run_status`) print `words` and the fixes' labels from
+  the same field. A kind is never invented at a call site: an exception no row claims is `unknown`.
+  *Not built:* all of it. *Tests (to write):* `fichero-server/tests/unit/workflows/test_failure_kinds_table_6354.py`
+  (every kind has words and at least one fix or is `none`; every exception type the runtimes raise
+  maps to a kind; the MCP status prints the same words the jobs list carries).
+- `activity.failure.app-only-displays` — **[GAP]** (#6354; app) the app never classifies: it
+  switches on `failure.kind` for the alert's icon and on `fixes[].action` for its buttons, shows
+  `words` verbatim, and has no table of its own words (today's `runLoadFailureMessage` is for the
+  app's own load failures, not a run's). A kind it does not know shows `words` and the `report`
+  fix. The same object drives the row's State column, the popover's recent-errors line, the
+  details view's heading and the alert, so the four never disagree
+  (`activity.failure.row-says-the-same`). *Not built.* *Tests (to write):* in
+  `ActivityFailureAlertTests.swift`, an unknown kind still shows the engine's words and Report.
+- `activity.failure.one-alert-per-run` — **[GAP]** (#6354; app) one alert per run, not per page,
+  per step or per poll: the alert is keyed by (run id, `failure.kind`, `failure.at`), kept in the
+  ledger that the popover already keeps (`ActivityErrorLedger`, `activity.popover.seenFailures`),
+  so a failure the person has seen (the alert dismissed, or the row opened) is not raised again on
+  the next poll, after a relaunch, or when the same run fails again the same way within ten
+  minutes (a retry storm: Resume → the same 402 → paused again shows the alert once and then only
+  updates its count). Several runs failing the same way at once (one provider out of credit, three
+  runs on it) raise ONE alert naming the provider and the runs, not three. A run that fails again
+  a different way, or after ten minutes, is a new failure and alerts again. *Not built.* *Tests
+  (to write):* `ActivityFailureAlertTests.swift` (three polls of one failed run → one alert; two
+  runs out of credit on one provider → one alert naming both; the same run failing again the same
+  way inside ten minutes → no second alert; a different kind → a second alert).
+- `activity.failure.alert-names-the-fix` — **[GAP]** (#6354; app) the alert's buttons are the
+  engine's `fixes`, in its order, with its labels: `add-credit` opens the provider's billing page
+  (`url`) and leaves the run paused for Resume; `open-settings-ai` opens Settings › AI on that
+  provider's row (the same jump `ProviderKeyRefusedError`'s words promise); `retry` and `resume`
+  are the row's own `POST /api/activity/jobs/{id}/retry` (`activity.retry.one-row`: the run
+  carries on from the failed step over the pages it did not do); `choose-another-model` opens the
+  run's Set Up on the step's model; `free-disk` reveals the volume in Finder; `report` files a
+  bug report with the run id, the person's log for that run (`activity.log.one-line-per-page`), the
+  app and engine versions and nothing private, the way the engine-crash report does; `none` is
+  Close. The last button is always *Show in Activity*, which selects the row. *Built:* the
+  cap refusal's typed fixes (`CloudCapFix.swift`, #6295) and Retry on a row (`activity.retry.one-row`).
+  *Not built:* the alert and every other button. *Tests (to write):* `ActivityFailureAlertTests.swift`
+  (an `out-of-credit` failure offers Add credit, Resume, Choose another model, Show in Activity, in
+  that order; `resume` posts the row's retry; the buttons come from `fixes` and not from the kind).
+- `activity.failure.row-says-the-same` — **[GAP]** (#6354; app) the Activity row, the popover,
+  the details view, the project's run strip and the alert all show `failure.words`; a paused-by-
+  failure row reads "Paused: <words>" and offers the first fix as its one button
+  (`activity.window.one-button`: Resume, or Add credit when that is the fix), a failed row reads
+  "<words>" with Retry. The CLI's `fichero activity` and the MCP status print the same sentence.
+  *Not built.* *Tests (to write):* `fichero/Tests/Unit/general/Models/ActivityTableTests.swift`
+  (a row with `failure` shows its words and its first fix; the strip shows the same words).
+- `activity.failure.reaches-the-person-off-window` — **[GAP]** (#6354; app, Mac and iOS) when the
+  app is not frontmost, or the Activity window is closed, the alert is ALSO a system notification
+  (`UserNotifications`, the one preference `notificationsEnabled` that `WorkflowCompletionNotifier`
+  already honours, default on) whose title is the run's name and whose body is `words`; opening it
+  brings the app forward on the Activity row with the alert up. The notifier posts for EVERY
+  failure the jobs list reports, not only a thread the store streams, so a recipe run's failure
+  reaches the person (today `WorkflowCompletionNotifier` fires only for a subscribed thread,
+  `WorkflowExecutionStore.swift:384-391`, and only on macOS, `:475`). On iPhone and iPad the same
+  notification is posted (the app may be in the background while a paired Mac runs the work,
+  `sharing.remote-run-in-host-activity`) and tapping it opens Activity on the row; the system
+  asks for permission once, the first time a run is started, not at launch. One notification per
+  alert (`activity.failure.one-alert-per-run`), none for a stopped run, none for a page.
+  *Built:* the Mac notifier for a streamed thread, Mac only. *Not built:* posting from the jobs
+  list, the iOS half, the tap that opens the row. *Tests (to write):*
+  `fichero/Tests/Unit/general/Models/ActivityFailureNotificationTests.swift` (the notification's
+  request is built from the jobs list's failure with the run's name and `words`; a stopped run
+  builds none; the same key twice builds one; the preference off builds none).
+- `activity.failure.cancelled-is-not-a-failure` — **[PARTIAL]** (#6354; #6005, #4402; engine +
+  app) a run, step or page the person stopped ends `cancelled` with "Stopped by you"
+  (`activity.run.stop-reaches-in-flight-calls`), carries no `failure`, lights no glyph, raises no
+  alert and no notification; so does a run paused by the person or by the engine's own shutdown
+  (`activity.run.quit-pauses`). A page a Stop skipped is not counted as failed. *Built:* the
+  `cancelled` state and its words. *Not built:* the rule that an alert never fires for it (there is
+  no alert yet). *Tests (to write):* in `test_failure_kind_is_typed_6354.py`, a stopped run has
+  `failure` null; in `ActivityFailureAlertTests.swift`, it raises nothing.
+- `activity.failure.credit-exhausted-pauses` — **[GAP]** (#6354, the pause half needs an issue of
+  its own under #6354; #5933, `recipes-run.control.pause-and-resume`; engine) a failure the person can
+  mend without losing the run (`out-of-credit`, `rate-limited`, `key-refused`, `disk-full`,
+  `memory`) PAUSES the run instead of failing it: the step's run settles `paused` at its
+  checkpoint with `failure` set (the same path a review step takes, `activity.run.review-step-pauses`,
+  and the one the engine's shutdown takes), the pages already read are kept and counted
+  (`activity.failure.partial-results-kept`), the recipe run parks on the paused step
+  (`recipes/runner.py` `ParkedOnStepRun`, #5933) and its row reads "Paused: <words>" with Resume,
+  and Resume carries on from the failed step over the pages that were not done, never re-reading a
+  done page (`activity.retry.one-row`, `activity.durable.idempotent`). The breaker stays open for
+  its 30 s, so a Resume pressed before credit is added fails fast again and the alert updates
+  rather than repeats. A failure of the other kinds ends the run `failed` as today, with the
+  partial results kept. The engine, not the app, decides which kinds pause: `pauses: true` on the
+  table's row. *Built:* a quota error is not page-retried (`builder.py:2192-2196`), pause at a
+  checkpoint (#5933), park on a paused step. *Not built:* settling `paused` on a fatal provider
+  error (today `SystemicErrorDetected` → `failed`, `runner.py:2710`), the recipe parking on it,
+  the `failure` on a paused row. *Tests (to write):*
+  `fichero-server/tests/unit/jobs/test_out_of_credit_pauses_the_run_6354.py` (a 402 on page 4 of
+  10 leaves the run `paused` with `failure.kind == "out-of-credit"`, three pages done and kept,
+  and Resume after the stub recovers reads pages 4 to 10 only and ends `done`);
+  `fichero-server/tests/unit/recipes/test_recipe_parks_on_a_paused_step_6354.py` (the recipe row
+  reads paused with the step's words and takes the step up again on Resume).
+- `activity.failure.partial-results-kept` — **[PARTIAL]** (#6354; #5937, #5758, #4315) whatever a
+  run finished before it failed or paused is kept and shown: the pages read stay read, their
+  entities and claims stay, the run's account counts them, and the row says how many ("The run is
+  paused; the 212 pages it finished are kept"). A failed run reverts only the pages it was in the
+  middle of to pending (`runner.py:2773`, `_finalize_documents("failed")`), never the done ones.
+  *Built:* the account's done count on a failed run (`activity.run.partial-said-on-a-done-row`,
+  `activity.run.step-honest-about-lost-pages`); the revert of in-flight pages (#4315). *Not
+  built:* the count in the words, pinned against a mid-run 402. *Tests:*
+  `fichero-server/tests/unit/jobs/test_partial_is_said_on_a_done_row_5937.py`; to write, in
+  `test_out_of_credit_pauses_the_run_6354.py`, the three done pages are still read after the pause.
+- `activity.failure.unknown-offers-a-report` — **[GAP]** (#6354; app + engine) a failure no row of
+  the table claims is `unknown`: its words say it is an error in Fichero, never the exception's
+  text alone (`execution/jobs.py:276`, `failed_reason`, is the rule), and its fix is `report`: the
+  alert offers to file a bug report with the run id, the person's log for that run, the engine's
+  last 200 lines for that run, the app and engine versions, and nothing private (no page text, no
+  file names outside the project, no keys); the person sees what is sent before it goes. Unknown
+  never falls through to silence. *Built:* the words rule for a job of its own (#6212). *Not
+  built:* `unknown` as a kind, the report bundle route (`GET /api/activity/jobs/{id}/report`,
+  proposed), the button. *Tests (to write):* `fichero-server/tests/unit/api/test_failure_report_bundle_6354.py`
+  (the bundle has the run id, log, versions; a page's text and a key never appear in it).
+
 ### Migration order
 
 Each step lands with the tests that pin it, under a new `jobs` test folder in the engine's unit
@@ -2865,6 +3103,36 @@ already name. Nothing here blocks Stages 1 to 5; a step burns down with its issu
 - Tests: fichero-server/tests/unit/api/test_chain_step_project_and_refusal_6354.py
 - Size: S
 
+### Stage 7 — A run never fails silently (owner 2026-11-13, #6354; section J)
+
+Engine first: the kind and its table are the contract the app displays, so the field lands and
+regenerates the client before any Swift. Then the alert on the Mac, then the notification off-window
+and on iOS, then the pause-and-resume on a mendable failure, which changes how a run settles and is
+tested against a real provider stub on the M4.
+
+#### Step 7.1 — The engine classifies: one typed field, one table (#6354)
+- Behaviours: `activity.failure.kind-is-typed-in-the-engine`, `activity.failure.fixed-table`, `activity.failure.cancelled-is-not-a-failure`
+- Tests: fichero-server/tests/unit/jobs/test_failure_kind_is_typed_6354.py, fichero-server/tests/unit/workflows/test_failure_kinds_table_6354.py, fichero-server/tests/unit/recipes/test_recipe_run_carries_its_steps_failure_6354.py
+- Size: M
+
+#### Step 7.2 — The alert on the Mac: one per run, the engine's words, the engine's fixes (#6354)
+- Behaviours: `activity.failure.never-silent`, `activity.failure.app-only-displays`, `activity.failure.one-alert-per-run`, `activity.failure.alert-names-the-fix`, `activity.failure.row-says-the-same`
+- Tests: fichero/Tests/Unit/general/Models/ActivityFailureAlertTests.swift, fichero/Tests/Unit/general/Models/ActivityTableTests.swift
+- Depends on: 7.1
+- Size: M
+
+#### Step 7.3 — Off-window and on iPhone and iPad: the notification; the unknown kind's report (#6354)
+- Behaviours: `activity.failure.reaches-the-person-off-window`, `activity.failure.unknown-offers-a-report`
+- Tests: fichero/Tests/Unit/general/Models/ActivityFailureNotificationTests.swift, fichero-server/tests/unit/api/test_failure_report_bundle_6354.py
+- Depends on: 7.2
+- Size: M
+
+#### Step 7.4 — Out of credit pauses the run and keeps its pages; Resume carries on (#6354, #5933)
+- Behaviours: `activity.failure.credit-exhausted-pauses`, `activity.failure.partial-results-kept`
+- Tests: fichero-server/tests/unit/jobs/test_out_of_credit_pauses_the_run_6354.py, fichero-server/tests/unit/recipes/test_recipe_parks_on_a_paused_step_6354.py, fichero-server/tests/unit/jobs/test_partial_is_said_on_a_done_row_5937.py
+- Depends on: 7.1
+- Size: M
+
 ## Test matrix
 
 | Leg | This surface? | Pins | File |
@@ -2953,6 +3221,23 @@ Identifiers: `activity.window` · `activity.table` · `activity.row.<jobId>` · 
     job record, with the log under it; a page's row offers *Open the page*. **What does clicking a
     row open?** (from `ui/activity.md`, #1264, #1559) *Recommended before:* its detail below the
     table (§2); a page's row also offers "Open the page".
+13. **Failure alerts (section J, owner 2026-11-13, #6354), each answerable in a word or two:**
+    1. *Pause or fail on out-of-credit?* The spec says PAUSE with Resume (the pages done are kept and
+       the run is one row). The alternative is fail + Retry, which is what exists. *Recommend:* pause.
+    2. *Which kinds pause?* The spec: out of credit, rate limit, refused key, disk full, memory. Should
+       provider-down and network pause too (they mend themselves), or fail with Retry? *Recommend:*
+       pause those two as well.
+    3. *A modal sheet over the window, or a non-modal banner?* A sheet is what a person cannot miss; a
+       banner is what does not interrupt a page they are editing. *Recommend:* sheet when Activity
+       is open or the run is the selected project's, banner otherwise, notification always off-window.
+    4. *How long before the same failure alerts again?* The spec says ten minutes for the same run and
+       kind. *Recommend:* ten.
+    5. *Does "Add credit" open the provider's billing page in the browser, or only Settings › AI?*
+       *Recommend:* the billing page, with Settings as the second button.
+    6. *The bug report for an unknown kind: a GitHub issue draft in the browser, or a file to send?*
+       *Recommend:* a file (the engine's bundle), the issue draft later.
+    7. *Should iPhone and iPad ask for notification permission at first run start, or at first launch?*
+       *Recommend:* first run start.
 
 ## Requests to other specs (for the manager to route)
 
