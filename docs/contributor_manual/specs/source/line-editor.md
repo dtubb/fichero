@@ -111,3 +111,5 @@ the Segments strip in the middle, and the Inspector follows the focused line.
 - A second writer for any home. The Reader's runner is the only path.
 - Recognising the line as you type (suggestions from a model). That is a later layer, #2056.
 - Keyboard layouts. The OS switches those; the palette only inserts characters.
+- Word boxes and cut marks on the page. The word layer and its link to the field's selection are
+  `../ui/segment-editor.md` (`segment-editor.word-view`).

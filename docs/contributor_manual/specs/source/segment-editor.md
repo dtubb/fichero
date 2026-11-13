@@ -7,6 +7,10 @@
 > code makes them pass. **Status: APPROVED 2026-10-26 by the maintainer.** A slice of the source model: read `source-model.md`
 > first. Evidence in `source-survey.md`. Every behaviour below is tagged **[GAP]** with its issue; everything
 > is design unless stated under "What exists today".
+> **The tools slice is `../ui/segment-editor.md`** (DRAFT 2026-11-13): merge, the knife, reassignment by
+> drag, lasso and brush selection, the marker and paintbrush, outlines regenerated from baselines, order by
+> clicking, word and character cuts from the recogniser's positions, the helpers, the full key and gesture
+> map, and the build order. This file stays the umbrella; that one refines its `source.editor.*` verbs.
 
 ## Intent
 
