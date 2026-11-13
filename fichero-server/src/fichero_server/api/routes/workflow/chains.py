@@ -914,6 +914,26 @@ async def _record_step_run_accepted(db, thread_id: str, workflow, request) -> No
     )
 
 
+async def _record_step_run_refused(db, thread_id: str, step, workflow, request, error: str) -> None:
+    """The run row of a step that was refused before it started: failed, with the refusal as its error (and so as its
+    Activity row's reason). Never raises: the chain's own row carries the reason too."""
+    from fichero_server.core.timeutil import utc_now  # noqa: PLC0415
+    from fichero_server.workflows.activity import get_activity_tracker  # noqa: PLC0415
+
+    try:
+        store = get_activity_tracker(str(db.path)).store
+        await store.save_workflow_run(
+            thread_id=thread_id,
+            workflow_id=step.workflow_id,
+            workflow_name=(getattr(workflow, "name", None) or step.name or step.workflow_id),
+            status="failed",
+            workflow_snapshot={"inputs": request.inputs if request is not None else {}},
+        )
+        await store.update_workflow_run(thread_id, status="failed", error=error, completed_at=utc_now())
+    except Exception:  # noqa: BLE001 -- the reason is also on the chain's row and the step's result
+        logger.warning("could not record why step %s was refused", thread_id, exc_info=True)
+
+
 async def _run_step_workflow(*, thread_id: str, workflow, request, db) -> None:
     """Passthrough to the REAL background runner — SSE events, pause/cancel,
     caches, document finalization — exactly as a direct run gets."""
@@ -989,6 +1009,27 @@ async def _run_chain_steps(
     library_path: str,
     canceller: _ChainStepsCanceller,
 ) -> None:
+    """Run the chain's steps under the project they were started in. The chain runs on its own thread and loop, which
+    holds none of the request's context, so the project every step's check and call is judged by (the cloud-consent gate,
+    `ai.where.one-egress-gate`, #5368) is bound here: a later step of a chain on a project's page is judged by that
+    project, not by "no project is open" (owner 2026-11-13)."""
+    from fichero_server.observability.episodes import _episode_library_path, set_library  # noqa: PLC0415
+
+    token = set_library(library_path)
+    try:
+        await _run_chain_steps_bound(execution_id, chain, step_threads, inputs, library_path, canceller)
+    finally:
+        _episode_library_path.reset(token)
+
+
+async def _run_chain_steps_bound(
+    execution_id: str,
+    chain: WorkflowChain,
+    step_threads: list[tuple[ChainStep, str]],
+    inputs: dict[str, Any],
+    library_path: str,
+    canceller: _ChainStepsCanceller,
+) -> None:
     """Run the chain's steps sequentially through the real workflow runner."""
     from fichero_server.api.routes.workflow_execution.schemas import (  # noqa: PLC0415
         ExecuteWorkflowRequest,
@@ -1040,6 +1081,11 @@ async def _run_chain_steps(
                 error = str(exc.detail)
             except Exception as exc:  # pragma: no cover - defensive
                 error = str(exc)
+        if error is not None:
+            # A step refused before it ran still has its run row, with the refusal's words as its reason, so Activity and the
+            # step's popover never say "No reason was recorded" (`activity.run.never-fails-silently`, #6354).
+            await _record_step_run_refused(db, thread_id, step, workflow, exec_request, error)
+            _note_chain(db, "set_parent", thread_id, execution_id)
 
         if error is None:
             _set_step_result(result, index, step, ChainStepStatus.RUNNING)
