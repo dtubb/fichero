@@ -48,6 +48,7 @@ extension ContentView {
                 // crashes on the next service (see LibraryServiceEnvironment).
                 if let library = libraryManager.getLibrary(id: windowState.libraryId) {
                     inspectorContainerView
+                        .columnBottomEdge(isCompact: horizontalSizeClass == .compact)
                         .libraryServiceEnvironment(library)
                         // The window/app-level objects don't cross the
                         // .inspector boundary either — re-inject everything
@@ -302,9 +303,12 @@ extension ContentView {
             columnVisibility: $columnVisibility,
             preferredCompactColumn: $preferredCompactColumn
         ) {
+            // Each column runs to the iPad's bottom edge (`BottomSafeAreaPolicy`).
             sidebarContent
+                .columnBottomEdge(isCompact: horizontalSizeClass == .compact)
         } detail: {
             detailColumn
+                .columnBottomEdge(isCompact: horizontalSizeClass == .compact)
         }
         // Force DISJOINT, side-by-side columns (#3069): the default `.automatic`
         // style can fall back to an OVERLAID sidebar on macOS that draws on top
