@@ -220,12 +220,12 @@ rather than defaulting to the pessimistic prior.
   1940"), with a page number after the year ("MAY 13. 1918 12", unless the weekday then fits no
   year), "Dec.4" with no space, and, when nothing near the top is a heading, the first line
   further down that leads with a date and a weekday. A margin label ("Mar. 23") gives way to the
-  full heading of the same day. Pinned: the redating-rules test in `test_diary_dates_5518.py`.
+  full heading of the same day. Pinned: the redating-rules test in `fichero-server/tests/unit/workflows/test_diary_dates_5518.py`.
 - `histnorm.dates.almanac-and-account-pages-undated` — **[OK]** (#5518) almanac and account
   pages give no diary date: "May Cash Account", "MOON'S PHASES", "LEGAL HOLIDAYS", the
   "CALENDAR. VALUES OF FOREIGN COINS" table; a week page with a cash column ("April 1914 Cash
   Account Received Paid") is still a month page. Pinned:
-  the redating-rules test in `test_diary_dates_5518.py`.
+  the redating-rules test in `fichero-server/tests/unit/workflows/test_diary_dates_5518.py`.
 - `histnorm.dates.weekday-and-volume-outvote-a-written-year` — **[OK]** (ruled by the
   maintainer for #5518) when the written weekday AND the volume's folder year agree against a
   written year, they win: the 1919 volume's "FRIDAY, JANUARY 24. 1918" is dated 24 January
@@ -233,7 +233,7 @@ rather than defaulting to the pessimistic prior.
   `year_overruled`). A written year inside the volume, or with no volume year, is never
   overruled; the disagreement is flagged instead. Pinned:
   `test_diary_dates_5518.py::test_an_overruled_year_is_kept_and_shown_as_supplied`,
-  the redating-rules test in `test_diary_dates_5518.py`.
+  the redating-rules test in `fichero-server/tests/unit/workflows/test_diary_dates_5518.py`.
 - `histnorm.dates.year-follows-page-order` — **[OK]** (#5557) in a volume spanning several
   years, a heading with no year takes the year of the dated page before it in the volume's
   reading order (sort order, sequence, then name, level by level, so a split spread's halves
