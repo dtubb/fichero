@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from fichero_server.security import accounts
-from tests.signed_in import mac_app_client, signed_in_client, uds_client
+from tests.signed_in import mac_app_client, signed_in_client
 from tests.unit.security.test_sharing_probe_2026_10_01 import (  # noqa: F401  # the probe's fixture and helpers
     _bearer,
     _login,
