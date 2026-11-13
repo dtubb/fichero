@@ -151,12 +151,8 @@ extension LibraryView {
     ///   3. the bottom action/status bar — the outermost thing, beneath all of it
     var bottomInsetContent: some View {
         VStack(spacing: 0) {
-            // ONE persistent bottom row (Daniel, 2026-08-23): the action bar
-            // hosts the sort/filter/metadata cluster too. The quick-filter
-            // field stays a transient reveal above it (⌘F).
-            if featureManager.isLibraryFilterToolbarEnabled && showFilterBar {
-                filterBarView
-            }
+            // ONE bottom row (`panes.chrome.one-filter-pattern`, owner 2026-11-13): the filter is the
+            // inline field in this bar; ⌘F focuses it. There is no second row to reveal.
             libraryBottomActionBar
             // The Finder-style path bar + status line are GONE (Daniel,
             // 2026-08-23): the breadcrumb lives in the pane HEAD, and status

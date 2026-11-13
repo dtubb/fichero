@@ -50,9 +50,11 @@ struct LibraryPaneSurfaceGuardTests {
             from under the user (Daniel, 2026-09-01).
             """
         )
-        #expect(bar.contains("libraryLevelToggle"))
+        // The Show kinds are the Filter menu's first section (owner 2026-11-13, `panes.chrome.one-filter-pattern`).
+        #expect(bar.contains("libraryFilterMenuContent"))
+        #expect(bar.contains("Section(\"Show\")"))
         #expect(bar.contains("librarySortMenu"))
-        #expect(bar.contains("libraryFilterToggleButton"))
+        #expect(bar.contains("PaneFilterField("))
     }
 
     @Test("the dataset cluster is an extra, not a second Show menu")
