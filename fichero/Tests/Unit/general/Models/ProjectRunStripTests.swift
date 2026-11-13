@@ -242,8 +242,10 @@ final class ProjectRunStripTests: XCTestCase {
         let strip = try XCTUnwrap(ProjectRunStrip(store: store))
         XCTAssertTrue(strip.isLive)
         XCTAssertEqual(strip.title, "Transcribe (Kraken) · stage 1 of 3", "the running stage by name, never an id")
-        XCTAssertEqual(strip.detail, "1 done · 0 failed · 1 left · \(ActivityMonitorRow.duration(120)) left · "
-                       + "Waiting: memory is tight", "the stage's run account, in the engine's words")
+        // The re-recorded tree (1a6dd1c06) carries the stage's note, "runs on all 2 pages": the engine's words too.
+        XCTAssertEqual(strip.detail, "1 done · 0 failed · 1 left · runs on all 2 pages · "
+                       + "\(ActivityMonitorRow.duration(120)) left · Waiting: memory is tight",
+                       "the stage's run account, in the engine's words")
         XCTAssertTrue(strip.failed.isEmpty)
 
         await store.refreshBackgroundJobs()
@@ -363,8 +365,10 @@ final class ProjectRunStripTests: XCTestCase {
         XCTAssertFalse(strip.isLive)
         XCTAssertEqual(strip.title, "Recipe run failed")
         // The recorded summary says where lines and regions were found first (58baaff4e, #5668).
+        // ...and, since the step timing (#6215), the slowest step it names.
         XCTAssertEqual(strip.detail, "Lines on 2 of 2 pages · regions on 0 of 2 pages · Read 2 of 2 pages · "
-                       + "Names: 1 People · 1 Places · 1 page dated · 1 date named · 1 statement")
+                       + "Names: 1 People · 1 Places · 1 page dated · 1 date named · 1 statement · "
+                       + "Slowest step: lines and read: 1.3 s")
     }
 
     func testRelaunch_aSummaryThePersonClosed_staysClosed() async throws {

@@ -1,4 +1,5 @@
 @testable import Fichero
+import FicheroAPIClient
 import Foundation
 import Testing
 
@@ -26,7 +27,8 @@ struct SignInWithoutCodeTests {
         let fields = try RemoteClientPairing.pairingFields(
             fromInviteOrPayload: RemoteClientPairing.inviteLinkString(from: payload))
         #expect(fields.pairCode.isEmpty)
-        #expect(fields.spkiPin == pin)
+        // The link's pin in its canonical form (a 32-byte value reads as a SHA-256 digest, `sha256/…`): the same key.
+        #expect(fields.spkiPin == (try RemoteCertificatePinning.validatedSPKIPin(pin)))
         #expect(fields.libraryPath == "/Volumes/Archive/Marshall")
     }
 
