@@ -150,4 +150,14 @@ struct AddressChoiceModelTests {
         let off = AddressChoiceModel.rows(sharingAddress: "https://studio.local:8765", tailnetURL: nil, tailnetForward: "none")
         #expect(AddressChoiceModel.line(off[1]) == "Tailscale: \(AddressChoiceModel.tailscaleOff)")
     }
+
+    @Test("the lines show with one usable address when another is greyed, so its reason is seen on both sheets (#6554)")
+    func linesShowAGreyedRow() {
+        let off = AddressChoiceModel.rows(sharingAddress: "https://studio.local:8765", tailnetURL: nil, tailnetForward: "none")
+        #expect(off.filter(\.isEnabled).count == 1)
+        #expect(AddressLines.shows(off))
+        let tailnetOnly = AddressChoiceModel.rows(sharingAddress: "https://studio.tail1234.ts.net:8765", tailnetURL: nil,
+                                                  tailnetForward: "ours")
+        #expect(!AddressLines.shows(tailnetOnly))
+    }
 }
