@@ -60,31 +60,6 @@ struct SidebarKnowledgeRowsNode: View {
     }
 }
 
-/// The bottom bar's control that shows or hides every project's non-empty knowledge rows. It
-/// remembers its setting; the bar draws it only when some project has such a row.
-struct SidebarKnowledgeRowsToggle: View {
-    let font: Font
-    let side: CGFloat
-
-    @AppStorage(SidebarKnowledgeRows.shownKey) private var shown = true
-
-    private var label: String { shown ? "Hide Knowledge Rows" : "Show Knowledge Rows" }
-
-    var body: some View {
-        Button {
-            shown.toggle()
-        } label: {
-            Image(systemName: shown ? "brain.head.profile.fill" : "brain.head.profile")
-                .font(font)
-                .frame(minWidth: side, minHeight: side)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.borderless)
-        .help(label)
-        .accessibilityLabel(label)
-    }
-}
-
 #Preview("Knowledge rows: entities and claims, citations hidden at 0") {
     let library = LibraryPreviewFixtures.library
     let store = KnowledgeRowCountsStore(
@@ -96,9 +71,4 @@ struct SidebarKnowledgeRowsToggle: View {
     }
     .listStyle(.sidebar)
     .frame(width: 260, height: 160)
-}
-
-#Preview("Knowledge rows toggle") {
-    SidebarKnowledgeRowsToggle(font: .caption, side: 24)
-        .padding()
 }

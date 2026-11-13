@@ -32,6 +32,8 @@ struct SidebarRowLabelCore: View, Equatable {
     /// so it compares equal to itself; the explicit == below keeps the
     /// contract visible and @State out of it).
     @State private var isPulsing = false
+    /// The sidebar Metadata's Run Progress switch (`sidebar.filter-menu.shows-toggles`): off, a row shows its icon only.
+    @AppStorage(SidebarMetadata.runProgress.storageKey) private var showsRunProgress = true
 
     // nonisolated: Equatable's requirement is nonisolated, and View types
     // inherit MainActor under the macOS 26 SDK. Safe — only immutable `let`
@@ -108,7 +110,7 @@ struct SidebarRowLabelCore: View, Equatable {
                 .frame(width: SidebarNodeLabel.iconWidth, alignment: .center)
                 .tint(.accentColor)
                 .accessibilityLabel("Loading items")
-        } else if workflowRunning {
+        } else if workflowRunning && showsRunProgress {
             ZStack {
                 Circle()
                     .fill(Color.purple.opacity(isPulsing ? 0.4 : 0.15))
@@ -125,7 +127,7 @@ struct SidebarRowLabelCore: View, Equatable {
             .frame(width: 20, height: 20)
             .onAppear { isPulsing = true }
             .onDisappear { isPulsing = false }
-        } else if documentProcessing {
+        } else if documentProcessing && showsRunProgress {
             // Per-doc / folder spinner — REPLACES the icon while in flight.
             // Earlier version was a tiny corner overlay that the user
             // couldn't see at glance ("spinner is not on the right of the
@@ -139,7 +141,7 @@ struct SidebarRowLabelCore: View, Equatable {
                 // See above (#4371): the List tint is a fill colour, not an
                 // accent, so progress restates its own.
                 .tint(.accentColor)
-        } else if let progress = containerProgress {
+        } else if showsRunProgress, let progress = containerProgress {
             // The container's CONTENTS are being worked on (#4417). A
             // determinate ring, deliberately unlike the leaf spinner: a
             // container is not being processed, and this is the one row where
