@@ -69,7 +69,7 @@ extension ContentView {
         // sidebar column's own toolbar section (`sidebarToolbarContent`). The fixed spacer keeps it out of
         // Back/Forward's glass capsule (#4970).
         #if os(macOS)
-        if !showSidebar {
+        if SidebarPairPlacement.placement(sidebarShown: showSidebar) == .windowIsland {
             ToolbarItem(id: ContentToolbarID.sidebarButtons, placement: .navigation) {
                 sidebarButtonsIsland
             }

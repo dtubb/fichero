@@ -81,6 +81,15 @@ private struct SidebarPairButtonStyle: ButtonStyle {
     }
 }
 
+/// Where the Sidebar/Chat pair sits in the window toolbar, ONCE (`panes.toolbar.sidebar-pair-once`): in the sidebar
+/// column's own section while the sidebar is up, as the window's island while it is hidden. macOS moves a collapsed
+/// column's toolbar item into the window toolbar, so the column must stop offering it when it hides, or there are two.
+enum SidebarPairPlacement: Equatable {
+    case sidebarColumn, windowIsland
+
+    static func placement(sidebarShown: Bool) -> Self { sidebarShown ? .sidebarColumn : .windowIsland }
+}
+
 extension ContentView {
     var sidebarButtons: some View {
         SidebarPairButtons(state: sidebarColumnState, apply: applySidebarColumnState)
@@ -93,8 +102,10 @@ extension ContentView {
     /// over the title bar left part of it inside the strip macOS keeps for dragging the window, so clicks missed.
     @ToolbarContentBuilder
     var sidebarToolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .automatic) {
-            sidebarButtons
+        if SidebarPairPlacement.placement(sidebarShown: showSidebar) == .sidebarColumn {
+            ToolbarItem(placement: .automatic) {
+                sidebarButtons
+            }
         }
     }
 

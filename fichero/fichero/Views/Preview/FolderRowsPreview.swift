@@ -49,11 +49,22 @@ struct FolderRowsPreview: View {
             onFolderCanvasFocus?(chosen.count == 1 ? chosen.first : nil)
             onFolderCanvasSelection?(chosen)
         }
+        // A double-click or Return on an item opens it HERE, in this Source pane, as a folder's does
+        // (`library.preview.folder-rows-open-in-place`, owner 2026-11-13): the rows' open writes `detail`,
+        // which no one else reads, so in Table a double-click on an item did nothing.
+        .onChange(of: detail) { _, opened in
+            guard let id = Self.paneOpens(opened) else { return }
+            detail = nil
+            onNavigateToDocument?(id)
+        }
         .onDisappear {
             onFolderCanvasFocus?(nil)
             onFolderCanvasSelection?([])
         }
     }
+
+    /// What an open in the rows shows in this pane: the opened document, folder or not; nothing when the open was cleared.
+    static func paneOpens(_ opened: Document?) -> String? { opened?.id }
 }
 
 #Preview("Table") {

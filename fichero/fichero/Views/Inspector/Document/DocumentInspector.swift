@@ -48,11 +48,16 @@ struct InspectorBottomMiniToolbar<Actions: View>: View {
         self.actions = actions()
     }
 
+    /// Whether the bar draws a status line: a count or state, never an empty one.
+    static func showsStatus(_ text: String) -> Bool { !text.trimmingCharacters(in: .whitespaces).isEmpty }
+
     var body: some View {
         MiniToolbar {
-            Text(statusText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if Self.showsStatus(statusText) {
+                Text(statusText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             Spacer()
 
