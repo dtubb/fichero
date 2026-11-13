@@ -65,6 +65,7 @@ struct ActivityDetailsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 ActivityDetailsHeading(details: details)
+                ActivityDetailsCapStop(jobId: details.jobId, libraryId: selection.libraryId)
                 let bar = ActivityStageBar.segments(of: details.stageCards)
                 if !bar.isEmpty { ActivityStageBar(segments: bar) }
                 if let counts = details.counts {

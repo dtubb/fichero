@@ -277,14 +277,7 @@ struct OnboardingScreenshotsTests {
             if let lines = compared.forStep(BakeoffStore.lineStep) { BakeoffSection(context: lines, setup: setup) }
             Spacer(minLength: 0)
         }.padding(22))
-        try await shot("12-run-strip-after-start.png", CGSize(width: 1100, height: 44), ProjectRunStripRow(
-            strip: ProjectRunStrip(
-                jobId: "recipe-run", isLive: true, title: "Find lines · stage 1 of 5",
-                detail: "12 done · 0 failed · 80 left · 9 min left · "
-                    + "Waiting for Qwen2.5-VL 7B (OCR) to download for step correct"),
-            failure: nil, readAgain: { .stage(threadId: $0, offer: $1, store: nil, report: { _ in }) },
-            onShowDetails: {}, onClose: {}
-        ).padding(.horizontal, 12).frame(maxHeight: .infinity))
+        // 12 (the run strip after Start) is gone with the strip (owner 2026-11-13): the run is Activity's.
         // The training section (#5660 item 9) is drawn in 07-ready-whole-plan; on its own it rendered as a clear picture.
         // A drop onto another project (#2397): the dry run's plan, before Move.
         try await shot("13-move-between-projects.png", CGSize(width: 440, height: 420),
