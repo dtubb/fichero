@@ -203,6 +203,17 @@ Both issues are already on this milestone (#291); no new issues were needed.
   iPad and iPhone keep their glass. *Built:* `SidebarView.standardSidebarContent`. *Not built:* a look on screen
   (scroll a long tree: rows pass under the bar). *Tests:* `Views/Sidebar/SidebarBottomBarPlacementTests.swift`.
 
+- `sidebar.bottom-bar.plus-trash-filter` — **[GAP]** (owner 2026-11-13) the sidebar's bottom bar is the shared item-list
+  bar (`panes.chrome.one-filter-pattern`) without Sort, as the sidebar keeps its own order (drag to arrange; owner
+  2026-11-13): **+ · 🗑 · Metadata · Filter**, in one row. The − is the 🗑; the
+  separate Entities button (◐) goes into the Filter menu; the filter is the shared field with the filter icon and its
+  chevron, not the search loupe. *Not built.*
+- `sidebar.filter-menu.shows-toggles` — **[GAP]** (owner 2026-11-13) the sidebar Filter's menu has toggles for what the
+  sidebar shows: Entities and Claims (the project rows), Sources (folders only), Workflows, Models, Hosts. Toggles
+  persist per window. The sidebar's **Metadata** (the bar's Metadata button) shows exactly three things, each
+  switchable (owner 2026-11-13): the item count beside a folder or project, a project's sharing state, and a run in
+  progress. Nothing else (no last-changed date). *Not built.*
+
 ### Legacy milestone fold — three issues redirected from "UX - Library & Reading Surface"
 
 While folding `library-view-modes.md`'s pass 2, three sidebar-structure issues from that
