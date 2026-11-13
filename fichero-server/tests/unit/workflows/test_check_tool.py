@@ -1636,7 +1636,8 @@ def test_the_daily_build_and_verify_all_build_the_engine_repos_landed_head_never
     # the daily build and verify-all's build pass landed=True
     seen = []
     monkeypatch.setattr(ct, "_stable_build_tree", lambda r, c, landed=False: seen.append(landed) or str(repo))
-    monkeypatch.setattr(ct, "_ssh", lambda *a, **k: subprocess.CompletedProcess([], 255, b"", b""))
+    monkeypatch.setattr(ct, "_ssh", lambda *a, **k: subprocess.CompletedProcess([], 0, b"/x\n", b""))
+    monkeypatch.setattr(ct, "run_command", lambda *a, **k: {"ok": False, "stderr_tail": ""})  # the rsync fails: only the tree choice matters
     ct.daily_builds(root, replace(cfg, build_remote="air:x", daily_builds={"t": ("true",)}))
     monkeypatch.setattr(ct, "_build_key", lambda *a, **k: "")
     monkeypatch.setattr(ct, "_run", lambda *a, **k: {"ok": True})

@@ -885,9 +885,9 @@ def build(root, changed: list[str], cfg: Config, landed: bool = False) -> dict:
     BEFORE the heavy lock (2026-11-06: a docs-only or harness batch waited hours on the owner's Xcode hold just to learn it builds nothing)."""
     if not cfg.build or not any(f.startswith(cfg.build_paths) for f in changed):
         return {"ok": True, "skipped": True, "results": []}
-    if cfg.build_remote and (r := _remote_build(root, cfg, landed=landed)) is not None:
+    if cfg.build_remote and (r := _remote_build(root, cfg, **({"landed": True} if landed else {}))) is not None:
         return r
-    return _build_locked(root, changed, cfg, landed)  # ponytail: the remote down under the owner's hold waits here, holding its slot
+    return _build_locked(root, changed, cfg, *([True] if landed else []))  # ponytail: the remote down under the owner's hold waits here, holding its slot
 
 
 def _remote_build(root, cfg: Config, cmd: tuple = (), name: str = "build", landed: bool = False) -> dict | None:
