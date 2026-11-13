@@ -36,6 +36,35 @@ struct SharedLibraryRowView: View {
     }
 }
 
+/// A paired Mac's section heading: the person's name for it, else the host's (#6556). Its context menu renames it; an
+/// empty name goes back to the host's own.
+struct SharedMachineHeader: View {
+    let machine: PairedMachine
+    let onRename: (String) -> Void
+    @State private var renaming = false
+    @State private var draft = ""
+
+    var body: some View {
+        Text(machine.shownName)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .help(machine.name)
+            .contextMenu {
+                Button("Rename…") {
+                    draft = machine.customName ?? ""
+                    renaming = true
+                }
+            }
+            .alert("Rename \(machine.shownName)", isPresented: $renaming) {
+                TextField(machine.name, text: $draft)
+                Button("Rename") { onRename(draft) }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("The name this Mac has in your sidebar. Leave it empty to use \(machine.name).")
+            }
+    }
+}
+
 /// The group's empty state: how to pair (`sharing.guest.empty-state-says-how-to-pair`).
 struct PairedMachinesEmptyView: View {
     #if os(macOS)

@@ -88,6 +88,8 @@ class LibraryManager {
     /// What each paired Mac's last answer said, for the connection popover's rows (#6434): answered, or did not.
     var hostStates: [String: ConnectionRows.State] = [:]
     var hostLastAnswered: [String: Date] = [:]
+    /// Per paired Mac, the libraries it has open now, once it has answered (#6556): its sidebar section lists only those.
+    var hostOpenLibraries: [String: Set<String>] = [:]
     /// File ▸ Connect to Library… and the machine rows set this; the app's window shows the connect sheet.
     var connectToLibraryRequested = false
     /// Set by the app's window: opens a shared library by switching to its host (`SharedLibraryOpener`).

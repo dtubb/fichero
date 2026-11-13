@@ -9,7 +9,7 @@ struct SharedLibraryChooserView: View {
     var body: some View {
         List {
             ForEach(machines) { machine in
-                Section(machine.name) {
+                Section(machine.shownName) {
                     ForEach(machine.libraries, id: \.self) { path in
                         SharedLibraryRowView(machine: "", library: path) { onOpen(machine, path) }
                     }

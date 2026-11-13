@@ -12,6 +12,9 @@ import Testing
 
 @MainActor
 struct SharedRowAvailabilityTests {
+    /// The host-state read in these tests: no network, no answer (#6556 added the read; unit tests never dial a host).
+    static let noHostState: (URL) async -> SharedRowAvailability.HostState = { _ in .init() }
+
     private let host = "https://studio.local:8765"
 
     @Test func aLibraryTheHostNoLongerListsIsGreyed() {
@@ -52,11 +55,11 @@ struct SharedRowAvailabilityTests {
         manager.hostRowsLastAsked = [:]
         manager.pairedMachines = [PairedMachine(id: host, name: "studio.local", libraries: ["/A", "/B"])]
         manager.greyedSharedRows = [SharedRowAvailability.key(host: host, library: "/A")]
-        await manager.checkSharedRows(now: Date()) { _ in ["/A"] }
+        await manager.checkSharedRows(now: Date(), read: { _ in ["/A"] }, readState: Self.noHostState)
         #expect(manager.greyedSharedRows == [SharedRowAvailability.key(host: host, library: "/B")])
 
         manager.hostRowsLastAsked = [:]
-        await manager.checkSharedRows(now: Date()) { _ in nil }
+        await manager.checkSharedRows(now: Date(), read: { _ in nil }, readState: Self.noHostState)
         #expect(manager.greyedSharedRows == [SharedRowAvailability.key(host: host, library: "/B")])  // unchanged
     }
 
@@ -73,11 +76,11 @@ struct SharedRowAvailabilityTests {
         }
         manager.hostRowsLastAsked = [:]
         manager.pairedMachines = [PairedMachine(id: host, name: "studio.local", libraries: ["/A"])]
-        await manager.checkSharedRows(now: Date()) { _ in ["/A", "/C"] }
+        await manager.checkSharedRows(now: Date(), read: { _ in ["/A", "/C"] }, readState: Self.noHostState)
         #expect(manager.pairedMachines.first?.libraries == ["/A", "/C"])
         #expect(PairedMachineStore.load().first { $0.id == host }?.libraries == ["/A", "/C"])
         manager.hostRowsLastAsked = [:]
-        await manager.checkSharedRows(now: Date()) { _ in nil }  // a failed read changes no list
+        await manager.checkSharedRows(now: Date(), read: { _ in nil }, readState: Self.noHostState)  // a failed read changes no list
         #expect(manager.pairedMachines.first?.libraries == ["/A", "/C"])
     }
 
@@ -98,22 +101,22 @@ struct SharedRowAvailabilityTests {
         manager.hostLastAnswered = [:]
         manager.pairedMachines = [PairedMachine(id: host, name: "studio.local", libraries: ["/A"])]
         let answered = Date(timeIntervalSince1970: 5_000)
-        await manager.checkSharedRows(now: answered) { _ in ["/A"] }
+        await manager.checkSharedRows(now: answered, read: { _ in ["/A"] }, readState: Self.noHostState)
         #expect(manager.hostStates[host] == .connected)
         #expect(manager.hostLastAnswered[host] == answered)
 
         // Asked a second ago: the throttle skips it, so nothing is read and the state stays.
-        await manager.checkSharedRows(now: answered.addingTimeInterval(1)) { _ in nil }
+        await manager.checkSharedRows(now: answered.addingTimeInterval(1), read: { _ in nil }, readState: Self.noHostState)
         #expect(manager.hostStates[host] == .connected)
 
         // Past the throttle a failed read is asleep and keeps the last time it answered.
-        await manager.checkSharedRows(now: answered.addingTimeInterval(61)) { _ in nil }
+        await manager.checkSharedRows(now: answered.addingTimeInterval(61), read: { _ in nil }, readState: Self.noHostState)
         #expect(manager.hostStates[host] == .asleep)
         #expect(manager.hostLastAnswered[host] == answered)
 
         // Reconnect clears the throttle for that host, so the next check asks at once.
         manager.hostRowsLastAsked[host] = Date()
-        await manager.askHostAgain(host, read: { _ in ["/A"] })
+        await manager.askHostAgain(host, read: { _ in ["/A"] }, readState: Self.noHostState)
         #expect(manager.hostStates[host] == .connected)
     }
 
