@@ -58,7 +58,10 @@ struct LiveAccountsOnHost: AccountsOnSequence.Host {
 
     func blocker() async throws -> String? { try await pairing.sharingState().multiuserBlocker }
 
-    func setOwnerPassword(_ password: String) async throws { try await store.setOwnerPassword(password) }
+    func setOwnerPassword(_ password: String) async throws {
+        let owner = identityStore.user.flatMap { $0.isOwner ? $0.id : nil }
+        try await store.setOwnerPassword(password, identityOwnerID: owner)
+    }
 
     func setMultiuser(_ enabled: Bool) async throws {
         do {

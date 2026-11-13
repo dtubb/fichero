@@ -130,9 +130,11 @@ final class UsersStore {
     }
 
     /// The owner chooses a password (`sharing.multiuser-off-says-so`: before Multi-user can be turned on). A refusal keeps the
-    /// engine's status and words for `AccountsOnSequence`.
-    func setOwnerPassword(_ password: String) async throws {
-        guard let owner = currentUser?.id ?? users.first(where: { $0.isOwner })?.id else {
+    /// engine's status and words for `AccountsOnSequence`. `identityOwnerID` is the owner `GET /api/auth/identity` names: with
+    /// Multi-user off this store holds no people (`/api/users` is refused), so without it the password was never sent.
+    func setOwnerPassword(_ password: String, identityOwnerID: String? = nil) async throws {
+        guard let owner = Self.ownerToSet(signedIn: currentUser?.id, listed: users.first(where: { $0.isOwner })?.id,
+                                          identity: identityOwnerID) else {
             throw AccountsOnSequence.Refusal(status: 404, detail: "Sign in as the owner first.")
         }
         let response = try await client.api.updateUserApiUsersUserIdPatch(
@@ -144,6 +146,11 @@ final class UsersStore {
             }
             throw AccountsOnSequence.Refusal(status: 422, detail: nil)
         }
+    }
+
+    /// Whose password the owner's PATCH sets: the signed-in person, else the listed owner, else identity's owner (#5908).
+    nonisolated static func ownerToSet(signedIn: String?, listed: String?, identity: String?) -> String? {
+        signedIn ?? listed ?? identity
     }
 
     // MARK: - Invites (#3157)
