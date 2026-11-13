@@ -11,6 +11,7 @@ from typing import Annotated, Any, Literal
 from fastapi import Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from fichero_server.core.naturalsort import natural_key
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action
 from fichero_server.api.main import assert_library_reads_every, get_library_database
 from fichero_server.api.library_header import require_library_path
@@ -326,7 +327,7 @@ def _batch_targets(db: Database, request: BatchPrepareRequest) -> tuple[list[tup
     targets: list[tuple[Document, int]] = []
     skipped: list[dict[str, str]] = []
     order = {doc_id: i for i, doc_id in enumerate(db.unit_of_work_ids())}  # the project's page order: first, middle, last mean it
-    for doc in sorted(_folder_images(db, request.folder_id), key=lambda d: (order.get(d.id, len(order)), d.name)):
+    for doc in sorted(_folder_images(db, request.folder_id), key=lambda d: (order.get(d.id, len(order)), natural_key(d.name))):
         if doc.id == request.source_document_id:
             continue
         chain = _get_chain(db, doc.id)

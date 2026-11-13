@@ -59,6 +59,7 @@ import os  # noqa: E402 — must follow the mimetypes.init() hack above
 import shutil  # noqa: E402 — must follow the mimetypes.init() hack above
 import time  # noqa: E402 — must follow the mimetypes.init() hack above
 from datetime import datetime  # noqa: E402 — must follow the mimetypes.init() hack above
+from fichero_server.core.naturalsort import natural_key  # noqa: E402 — must follow the mimetypes.init() hack above
 from fichero_server.core.timeutil import utc_now  # noqa: E402 — must follow the mimetypes.init() hack above
 from enum import Enum  # noqa: E402 — must follow the mimetypes.init() hack above
 from pathlib import Path  # noqa: E402 — must follow the mimetypes.init() hack above
@@ -1995,7 +1996,7 @@ def _adopt_openings(
             )
             counts["originals"] += 1
 
-        for part in sorted(parts, key=lambda d: (d.sequence or 0, d.name)):
+        for part in sorted(parts, key=lambda d: (d.sequence or 0, natural_key(d.name))):
             if part.parent_id == opening_doc.id:
                 continue
             part.parent_id = opening_doc.id

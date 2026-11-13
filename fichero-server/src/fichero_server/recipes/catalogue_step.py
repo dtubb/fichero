@@ -12,6 +12,7 @@ import unicodedata
 from pathlib import Path
 from typing import Any
 
+from fichero_server.core.naturalsort import natural_key
 from fichero_server.llm.catalogue_lint import FOLDER_DESCRIPTION_MAX_WORDS, MAX_WORDS, cut_to_cap
 
 logger = logging.getLogger(__name__)
@@ -52,7 +53,7 @@ def folders_covering(db: Any, page_ids: list[str], memo: dict | None = None) -> 
             depth[doc.id] = 0 if parent is None else 1 + level(parent)
         return depth[doc.id]
 
-    return sorted(seen.values(), key=lambda d: (-level(d), d.name))
+    return sorted(seen.values(), key=lambda d: (-level(d), natural_key(d.name)))
 
 
 #: What `_below`'s readers use of a node. Never `metadata`: a read page's line boxes are most of its row, and reading them
@@ -100,7 +101,7 @@ def _latest(db: Any, folder_id: str) -> Any | None:
 
 def _material(db: Any, folder: Any, child_folders: list[Any], leaves: list[Any]) -> str:
     """What the model is given: the facts, the subfolders' own descriptions, then the pages' readings (cut)."""
-    texts = [(d.name, (d.page_content or "").strip()) for d in sorted(leaves, key=lambda d: (d.sequence or 0, d.name))]
+    texts = [(d.name, (d.page_content or "").strip()) for d in sorted(leaves, key=lambda d: (d.sequence or 0, natural_key(d.name)))]
     with_text = [(n, t) for n, t in texts if t]
     parts = [f"Folder name: {folder.name}", f"Pages and files under it: {len(leaves)}; with a reading: {len(with_text)}"]
     if child_folders:

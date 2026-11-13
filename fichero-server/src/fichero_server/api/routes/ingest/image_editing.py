@@ -10,6 +10,7 @@ import hashlib
 import io
 import tempfile
 from datetime import datetime, timezone
+from fichero_server.core.naturalsort import natural_key
 from fichero_server.core.timeutil import utc_now
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Optional
@@ -1202,7 +1203,7 @@ async def segment_image(
 def _sample_pages(images: list[Document], db: Database, count: int) -> list[Document]:
     """`count` pages spread over the folder in the project's page order: 3 is the first, the middle and the last."""
     order = {doc_id: i for i, doc_id in enumerate(db.unit_of_work_ids())}
-    pages = sorted(images, key=lambda d: (order.get(d.id, len(order)), d.name))
+    pages = sorted(images, key=lambda d: (order.get(d.id, len(order)), natural_key(d.name)))
     if len(pages) <= count:
         return pages
     last = len(pages) - 1
