@@ -8,4 +8,8 @@ enum PreviewFullScreen {
         guard let shown, selectionCount <= 1 else { return false }
         return shown.fileType == .image || shown.docType == .page
     }
+
+    /// Who turns the page on a two-finger swipe: the full-screen reader while it is up (its own list, its page-turn), the
+    /// window's sibling step otherwise. Never both, or one swipe would turn two pages.
+    static func windowTakesTheSwipe(readerIsUp: Bool) -> Bool { !readerIsUp }
 }
