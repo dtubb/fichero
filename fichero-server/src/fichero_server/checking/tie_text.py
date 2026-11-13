@@ -26,7 +26,9 @@ better reader measured on this project, then the newest; so a rough re-read afte
 displace a better tied stretch, and an older machine reading stays as history.
 
 The tie runs by itself after a page reading is saved (`after_page_reading`, #5558): one waiting job per
-page with lines, on the local model lane; no recipe step needs to name it.
+page with lines, on the local model lane; no recipe step needs to name it. It runs whichever comes first,
+the reading or the lines: lines saved on a page that already has an eligible reading queue the same job
+(`after_lines`, from `convert_new_results`), so a page read whole and then segmented is tied too.
 
 The page's reading is ranked (`page_reading`): a person's, then a checked model reading, then the newest
 model transcription; never a flagged read, and never a reading that is the lines' own text (a reader's
@@ -308,14 +310,35 @@ def after_page_reading(db: Any, artifact: Any) -> str | None:
         return None
     if working_lines(db, artifact.document_id) is None:
         return None
+    return _queue(db, artifact.document_id)
+
+
+def _queue(db: Any, document_id: str) -> str | None:
+    """The one waiting tie job for a page, whichever of its two triggers came first (`after_page_reading`,
+    `after_lines`): the same subject, so a page with both a reading and lines new makes one job."""
     reader = rough_reader(db)
     if reader is None:
         return None
     register_job_kinds()
-    request = CheckRunRequest(layer="readings", scope_ids=[artifact.document_id], provider="kraken", model=reader,
-                              check=KIND)
-    return jobs.enqueue(db, KIND, f"{KIND}:after-reading:{artifact.document_id}", started_by=AUTOMATIC,
+    request = CheckRunRequest(layer="readings", scope_ids=[document_id], provider="kraken", model=reader, check=KIND)
+    return jobs.enqueue(db, KIND, f"{KIND}:after-reading:{document_id}", started_by=AUTOMATIC,
                         detail=json.dumps({"request": request.model_dump()}))
+
+
+def after_lines(db: Any, document_id: str) -> str | None:
+    """Queue the tie for a page whose lines were just saved (Detect Segments / Find Lines, any producer of
+    lines): the other order of `after_page_reading` (#5558, reading first and lines second). Only when the page
+    already has a reading eligible under `page_reading` (not flagged, not the lines' own text) that is a
+    reading of the whole page, with no lines of its own; the same one-per-page job, so both triggers make one.
+    Returns the job id, or None when nothing is queued."""
+    from fichero_server.llm.working_lines import working_lines
+
+    reading = page_reading(db, document_id)
+    if reading is None or (reading.ocr_geometry is not None and reading.ocr_geometry.boxes):  # raw-geometry-ok: has it lines?
+        return None
+    if working_lines(db, document_id) is None:
+        return None
+    return _queue(db, document_id)
 
 
 def _read_from_lines(artifact: Any) -> bool:
@@ -379,7 +402,7 @@ def _find_lines(db: Any, doc: Any, photo: Path, job_id: str, current: Any = None
         return
     db.save(Artifact(document_id=doc.id, source_document_id=doc.id, artifact_type="regions", content="",
                      ocr_geometry=geometry, provider=geometry.provider, model=geometry.model, run_id=job_id))
-    convert_new_results(db, doc.id, run_id=job_id)
+    convert_new_results(db, doc.id, run_id=job_id, tie=False)  # this job is the tie
 
 
 def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dict[str, Any]:

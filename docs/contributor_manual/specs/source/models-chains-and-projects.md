@@ -2514,7 +2514,13 @@ Jobs and chains
   lines' own text) on a page that has lines queues one waiting tie job for that page
   (`tie_text.after_page_reading`, started by `automatic`, on the local model lane, never run inline),
   read with the project recipe's Kraken reader, else the first catalogue reader on this Mac; a page
-  without lines, or a Mac with no Kraken reader, queues none. Default taken 2026-10-05 (design lead),
+  without lines, or a Mac with no Kraken reader, queues none. **Whichever comes first (owner 2026-11-13):** the
+  tie also runs when the LINES come second: lines saved on a page (Detect Segments, Find Lines, any producer of
+  lines, through `convert_new_results`) that already has a page reading eligible under `page_reading` (not flagged,
+  not the lines' own text, a reading of the whole page with no lines of its own) queue the same one waiting job per
+  page (`tie_text.after_lines`, the same job subject, so a page with both triggers makes one job), when a rough
+  reader is available. The tie's own line-finding does not queue it again. Tested in
+  `fichero-server/tests/unit/check/test_tie_after_lines_5558.py`. Default taken 2026-10-05 (design lead),
   awaiting the maintainer's ruling: the match threshold is 0.30, the line check's own-score floor. Tested
   in `fichero-server/tests/unit/check/test_tie_text_to_lines.py`,
   `fichero-server/tests/unit/check/test_which_reading_counts_after_the_tie.py` and

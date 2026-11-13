@@ -460,7 +460,7 @@ def _convert_one_page(db: Any, document_id: str, run_id: str | None) -> str:
     return "converted"
 
 
-def convert_new_results(db: Any, document_id: str, *, run_id: str | None = None) -> str:
+def convert_new_results(db: Any, document_id: str, *, run_id: str | None = None, tie: bool = True) -> str:
     """Make a page's new result its own pass now, in the run that produced it (#5222 part 2).
 
     `source.convert.a-new-result-is-a-pass-at-once`: every producer of boxes calls this right
@@ -475,6 +475,8 @@ def convert_new_results(db: Any, document_id: str, *, run_id: str | None = None)
     """
     try:
         outcome = _convert_one_page(db, document_id, run_id)
+        if outcome == "converted" and tie:
+            _queue_tie(db, document_id)
         # One line per page, so "text but no boxes" can be answered from the log: did this page's result become a pass?
         logger.info("A new result on page %s: %s", document_id, outcome)
         return outcome
@@ -486,6 +488,17 @@ def convert_new_results(db: Any, document_id: str, *, run_id: str | None = None)
             exc,
         )
         return "failed"
+
+
+def _queue_tie(db: Any, document_id: str) -> None:
+    """Lines just became the page's: a page reading already saved is tied to them (`tie_text.after_lines`, #5558), the
+    other order of the tie queued after a reading. Never raises: the lines are saved either way."""
+    try:
+        from fichero_server.checking.tie_text import after_lines
+
+        after_lines(db, document_id)
+    except Exception:  # noqa: BLE001 -- the tie is background work; the lines are already the page's
+        logger.warning("Could not queue the tie of page %s's reading to its new lines", document_id, exc_info=True)
 
 
 #: How long an unfinished run may go untouched before another opening may take
