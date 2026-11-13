@@ -401,6 +401,7 @@ struct ContentView: View {
     @State var activeSurfaceState = ActiveSurfaceState()
     /// Drives the distraction-free full-window reading overlay (#2520).
     @State var isImmersiveReading = false
+    @State var focusEnteredFullScreen = false  // `panes.focus-mode`: undo only what focus did
     /// Internal (not private): the toolbar's selection sync reads it from
     /// ContentView+Toolbar.swift, and `private` is file-scoped.
     @State var focusedDocument = FocusedDocument.shared

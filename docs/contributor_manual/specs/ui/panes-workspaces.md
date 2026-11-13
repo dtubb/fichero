@@ -1216,8 +1216,10 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
   exactly as they were: a window already full screen stays full screen, only the other panes come back. One shared
   mechanism, not one per pane: Focus on Pane in every pane menu (`panes.chrome.one-pane-menu`), View › Focus on Pane,
   ⌃⌘R. Inside the Preview's focus the reader's page behaviour stays (fading chrome, ← → and a two-finger swipe turn
-  pages). *Not built.* *Test:* the enter/leave/restore state (which panes were shown, whether the window was already
-  full screen), a Swift test.
+  pages). *Built (the Preview page, 2026-11-13):* the reader's focus (⌃⌘R, the head's viewfinder) takes the window into
+  its real full screen when it is not there and leaves it only if focus took it there (`FocusMode`,
+  `ContentView.focusModeChanged`). *Not built:* focus for Source, Reader and Segments (the other panes hidden and
+  restored, the pane menu's Focus on Pane), View › Focus on Pane. *Tests:* `Models/FocusModeTests.swift`.
 - `panes.chrome.every-view-has-head-and-footer` — **[GAP]** (owner 2026-11-13: "consistency") every view of every pane
   has a head and a footer, the same two components, with each control in its zone: the head's left moves through what
   the pane shows, its centre holds the view's tools, its right the pane menu (`panes.chrome.head-keeps-only-what-moves`,

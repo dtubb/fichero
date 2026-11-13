@@ -1,3 +1,6 @@
+#if canImport(AppKit)
+import AppKit
+#endif
 import SwiftUI
 // `UTType` for the content-pane drop's `.item` root type — a split file
 // inherits symbols, not imports (#4353).
@@ -130,6 +133,9 @@ extension ContentView {
         // ContentView.swift, outside this file's edit scope for this pass —
         // left as a follow-up rather than adding a dead menu item.
         .overlay { immersiveReadingOverlay }
+        // Focus is the window's real full screen (`panes.focus-mode`, owner 2026-11-13): in on entering, back out on leaving
+        // only if focus took it there.
+        .onChange(of: isImmersiveReading) { _, focused in focusModeChanged(focused) }
         .background {
             Button("Enter Full-Screen Reading") { enterImmersiveReading() }
                 .keyboardShortcut("r", modifiers: [.command, .control])
@@ -167,6 +173,22 @@ extension ContentView {
             )
             .transition(.opacity)
         }
+    }
+
+    private func focusModeChanged(_ focused: Bool) {
+        #if os(macOS)
+        guard let window = NSApp.keyWindow ?? NSApp.mainWindow else { return }
+        let isFullScreen = window.styleMask.contains(.fullScreen)
+        if focused {
+            focusEnteredFullScreen = FocusMode.entersFullScreen(windowIsFullScreen: isFullScreen)
+            if focusEnteredFullScreen { window.toggleFullScreen(nil) }
+        } else {
+            if FocusMode.leavesFullScreen(focusEnteredIt: focusEnteredFullScreen, windowIsFullScreen: isFullScreen) {
+                window.toggleFullScreen(nil)
+            }
+            focusEnteredFullScreen = false
+        }
+        #endif
     }
 
     /// ⌃⌘R reads the current page; the Preview head's full-screen button (#6560) names the page the Preview shows, which
