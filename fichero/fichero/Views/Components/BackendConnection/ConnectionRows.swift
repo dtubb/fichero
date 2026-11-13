@@ -52,7 +52,7 @@ enum ConnectionRows {
             let state = input.states[machine.id] ?? (input.openHosts.contains(machine.id) ? .connected : .asleep)
             let problem = problemLine(state)
             return Row(
-                id: machine.id, name: shortName(machine.name), state: state,
+                id: machine.id, name: shortName(machine.shownName), state: state,
                 library: machine.libraries.first.map { URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent },
                 address: addressKind(machine.id), lastAnswered: input.lastAnswered[machine.id].map { shortTime(since: $0, now: now) },
                 problem: problem, fix: problem == nil ? nil : .reconnect,

@@ -80,7 +80,9 @@ extension SidebarView {
             }
             // One section per paired Mac (one that shared nothing yet says so), titled by its name, below Projects
             // (owner 2026-11-06, `sharing.guest.machines-group`); one how-to-pair section when no Mac is paired.
-            ForEach(SharedMachineSections.sections(libraryManager.pairedMachines)) { section in
+            ForEach(SharedMachineSections.sections(
+                libraryManager.pairedMachines, openOnHost: libraryManager.hostOpenLibraries
+            )) { section in
                 let machine = section.machine
                 Section {
                     ForEach(section.rows, id: \.self) { row in
@@ -90,7 +92,7 @@ extension SidebarView {
                                 machine: "", library: path,
                                 unavailableSentence: libraryManager.greyedSharedRows
                                     .contains(SharedRowAvailability.key(host: machine.id, library: path))
-                                    ? "Not available: \(machine.name) no longer shares this" : nil
+                                    ? "Not available: \(machine.shownName) no longer shares this" : nil
                             ) {
                                 guard let open = libraryManager.openSharedLibrary else {
                                     libraryManager.connectToLibraryRequested = true
@@ -103,9 +105,8 @@ extension SidebarView {
                         }
                     }
                 } header: {
-                    Text(machine.name)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                    // The person's name for this Mac, with Rename… (#6556).
+                    SharedMachineHeader(machine: machine) { libraryManager.renamePairedMachine(machine.id, to: $0) }
                 }
             }
             // No "Shared Libraries" section until a Mac is paired (`sharing.guest.no-section-until-paired`);

@@ -1,5 +1,5 @@
-import Foundation
 @testable import Fichero
+import Foundation
 import Testing
 
 /// A shared Mac shows once, under the name the person gave it, listing only the libraries it has open
