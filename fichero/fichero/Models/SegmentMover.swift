@@ -30,6 +30,7 @@ enum SegmentMover {
         switch refusal {
         case .tooFew: "Select a line to move."
         case .versionUnknown: "These lines are not saved yet, so they cannot be moved."
+        case .noBaseline: "A line with no baseline cannot be redrawn from one."
         }
     }
 

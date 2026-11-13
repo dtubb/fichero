@@ -182,6 +182,7 @@ extension ZoomableImagePreview {
                 onReshapeCommit: { index, target, points in reshapeSegment(index: index, target, to: points) },
                 drawKind: windowState?.shapeKind ?? .box,
                 onDrawShapeCommit: { kind, points in drawSegmentShape(kind, points: points) },
+                onKnifeCommit: { stroke in knifeCut(stroke) },
                 selection: regionSelection
             )
             .contextMenu { regionContextMenu }
@@ -230,6 +231,9 @@ extension ZoomableImagePreview {
             if !selection.isEmpty {
                 // The Segment menu (#5157): kind, direction, text or furniture, on the selection.
                 SegmentAttributeMenu(apply: { setSelectedSegments($0) })
+                if selectionHasBaselines {
+                    Button("Redraw Outline from Baseline") { redrawSelectedOutlines() }
+                }
                 Button(
                     selection.count == 1 ? "Delete Region" : "Delete \(selection.count) Regions",
                     role: .destructive
@@ -498,6 +502,7 @@ extension ZoomableImagePreview {
             toggleEditing: { windowState?.isEditingSegments.toggle() },
             canSelectAll: ocrGeometry?.boxes.isEmpty == false, selectAll: { selectAllGeometryForArmedTool() },
             delete: { deleteSelectedRegions() }, join: { combineSelectedRegions() },
+            selectionHasBaselines: selectionHasBaselines, redraw: { redrawSelectedOutlines() },
             apply: { setSelectedSegments($0) }
         )
     }
@@ -510,6 +515,16 @@ extension ZoomableImagePreview {
         case .combine: combineSelectedRegions()
         case nil: break
         }
+    }
+
+    /// K down and up in Edit Segments: the Knife held for one stroke (`segment-editor.split-knife`). Ignored outside
+    /// Edit Segments and with a modifier held, so ⌘K and the rest keep their jobs.
+    func holdKnife(_ press: KeyPress) -> KeyPress.Result {
+        guard let windowState, let held = KnifeStroke.held(
+            pressed: press.phase == .down, modifiers: press.modifiers, isEditing: isEditingSegments, wasHeld: windowState.knifeHeld
+        ) else { return .ignored }
+        windowState.knifeHeld = held
+        return .handled
     }
 
     /// Return while a polygon or baseline is being drawn: finish it, as a click on its first point or a double-click does.

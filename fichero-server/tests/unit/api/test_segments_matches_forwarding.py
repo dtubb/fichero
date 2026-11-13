@@ -1788,6 +1788,17 @@ _ROUTE_ID_CHECKS: dict[tuple[str, str], list[tuple[str, Any]]] = {
                 {"anchor": {"document_id": doc_id, "rect": [0.5, 0.5, 0.1, 0.1]}},
             ]},
         )),
+        # The Knife (`segment-editor.split-knife`): the lines under the stroke are named by their versions.
+        ("expected_versions{} (cut_path)", lambda doc_id, pass_id: (
+            "POST", "/api/segments/split",
+            {"cut_path": [[0.5, 0.0], [0.5, 1.0]], "expected_versions": {"legacy:x": 1}},
+        )),
+    ],
+    ("POST", "/segments/regenerate-outline"): [
+        ("segment_ids[]", lambda doc_id, pass_id: (
+            "POST", "/api/segments/regenerate-outline",
+            {"segment_ids": ["legacy:x"], "expected_versions": {"legacy:x": 1}},
+        )),
     ],
     ("POST", "/segments/carry"): [],  # match_id is never provisional-shaped
     ("GET", "/segments/{segment_id}/reference"): [

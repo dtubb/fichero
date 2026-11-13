@@ -11,6 +11,9 @@ struct SegmentMenuTarget {
     let selectAll: () -> Void
     let delete: () -> Void
     let join: () -> Void
+    /// Whether every selected line has a baseline to redraw its outline from (`segment-editor.edge.no-baseline`).
+    let selectionHasBaselines: Bool
+    let redraw: () -> Void
     let apply: (SegmentEdit.Attribute) -> Void
 }
 
@@ -41,6 +44,12 @@ struct SegmentMenuContent: View {
         Button("Join") { target?.join() }
             .keyboardShortcut("j", modifiers: [.command, .option])
             .disabled(!Self.canJoin(selected: count))
+        // No chord yet: the spec's ⌘⇧R is Run Workflow on Selection's (`FocusedCommandButtons+Workflow`).
+        Button("Redraw Outline from Baseline") { target?.redraw() }
+            .disabled(Self.redrawReason(selected: count, hasBaselines: target?.selectionHasBaselines == true) != nil)
+        if count > 0, let reason = Self.redrawReason(selected: count, hasBaselines: target?.selectionHasBaselines == true) {
+            Text(reason)
+        }
         Divider()
         SegmentAttributeMenu.Items(apply: { target?.apply($0) })
             .disabled(count == 0)
@@ -53,6 +62,13 @@ struct SegmentMenuContent: View {
 
     /// Join needs two or more: one line joined to itself is not an edit (`segment-editor.merge-lines`).
     static func canJoin(selected: Int) -> Bool { selected >= 2 }
+
+    /// Why Redraw Outline from Baseline cannot act; nil when it can. A line with no baseline is said, not
+    /// guessed around: Add Baseline is the way on (`segment-editor.edge.no-baseline`).
+    static func redrawReason(selected: Int, hasBaselines: Bool) -> String? {
+        if selected == 0 { return "Select lines to redraw" }
+        return hasBaselines ? nil : "Lines with no baseline cannot be redrawn: draw a baseline first"
+    }
 
     /// Why the segments' verbs cannot act, said once under Edit Segments; nil when they can.
     static func reason(hasPage: Bool, selected: Int) -> String? {

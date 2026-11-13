@@ -3437,7 +3437,7 @@ def _parts_cut_at(db: Database, original: Segment, offset: int) -> list["Segment
 class SegmentSplitParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    segment_id: str = Field(description='The segment to split.')
+    segment_id: Optional[str] = Field(default=None, description='The segment to split (not with cut_path).')
     parts: list[SegmentSplitPart] = Field(default=[], description='The parts to split it into, each with its own anchor (or give at_offset).')
     #: Return in the Reader (#5154): split at this character of the line's counting reading,
     #: INSTEAD of giving `parts`. Nothing knows where a character sits on the image, so the box is
@@ -3449,7 +3449,34 @@ class SegmentSplitParams(BaseModel):
     #: the new parts are brand-new rows with nothing to compare yet, so
     #: only the one EXISTING id needs a token, the same shape
     #: `segment.update` already takes.
-    expected_version: int = Field(description="The segment's version as last read; a changed segment is refused.")
+    expected_version: Optional[int] = Field(
+        default=None, description="The segment's version as last read; a changed segment is refused (not with cut_path)."
+    )
+    #: The Knife (`segment-editor.split-knife`): a stroke, points in the fractions of the page the lines are
+    #: stored in, INSTEAD of `segment_id` and `parts`. Every line named in `expected_versions` whose baseline the
+    #: stroke crosses is cut there, its outline along the stroke; a line it does not cross is left alone and
+    #: named in the answer. One stroke over many lines is one action, one undo.
+    cut_path: Optional[list[list[float]]] = Field(
+        default=None, description="A knife stroke: split every named line whose baseline it crosses, at the crossings."
+    )
+    expected_versions: dict[str, int] = Field(
+        default={}, description="With cut_path: the lines the stroke may cross, {segment_id: version as last read}."
+    )
+
+
+def _unsplit_params(split: dict) -> dict:
+    """One split's record (`_split_one`) made into what `unsplit` takes to put it back."""
+    new_segment_ids = split.get("new_segment_ids", [])
+    current_versions = split["versions"]
+    return {
+        "segment_id": split["kept_id"], "version": split["pre_split_version"],
+        "expected_version": current_versions.get(split["kept_id"]),
+        "new_segment_ids": new_segment_ids,
+        "expected_versions": {
+            new_id: current_versions[new_id] for new_id in new_segment_ids if new_id in current_versions
+        },
+        "representation_ids": split.get("representation_ids", []),
+    }
 
 
 def _invert_split(before, after, ctx: ActionContext):
@@ -3461,6 +3488,9 @@ def _invert_split(before, after, ctx: ActionContext):
     `after` -- always fresh, whichever lap it is."""
     if not after:
         return None
+    if after.get("splits"):
+        # A knife stroke: every line it cut goes back in one step.
+        return ("segment.unsplit_many", {"splits": [_unsplit_params(split) for split in after["splits"]]})
     segment_id = after.get("kept_id")
     pre_split_version = after.get("pre_split_version")
     current_versions = after.get("versions")
@@ -3498,6 +3528,10 @@ def _invert_split(before, after, ctx: ActionContext):
     redo_via_own_invert=True,
 )
 def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
+    if params.cut_path is not None:
+        return _knife_split(db, params, ctx)
+    if params.segment_id is None or params.expected_version is None:
+        raise HTTPException(status_code=422, detail="split needs segment_id and expected_version, or a cut_path")
     _assert_not_provisional_http(params.segment_id, what="segment_id")
     original = db.get(Segment, params.segment_id)
     if not original:
@@ -3543,6 +3577,53 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
     )
 
     audit_id = uuid.uuid4().hex
+    split = _split_one(
+        db, original, params.parts, estimated=estimated, readings_before_split=readings_before_split,
+        ctx=ctx, audit_id=audit_id,
+    )
+    new_ids = split["new_segment_ids"]
+    split_representation_ids = split["representation_ids"]
+    pre_split_version = split["pre_split_version"]
+    forwarding_id = split["forwarding_id"]
+
+    change_spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=[params.segment_id, *new_ids],
+        before=None,
+        after={
+            "kept_id": params.segment_id, "new_segment_ids": new_ids,
+            "forwarding_id": forwarding_id, "pre_split_version": pre_split_version,
+            # #4957 follow-up 1: every touched id's version as THIS call
+            # left it -- the kept id (bumped) and every new part (starts
+            # at 1) -- so `_invert_split`/`_refresh_replay_expected_versions`
+            # always have a live token to hand `unsplit`.
+            "versions": split["versions"],
+            # Slice 8 (#4934): the readings THIS split added, so its inverse
+            # retracts exactly those and nothing else.
+            "representation_ids": split_representation_ids,
+        },
+        emit_type="segment.split",
+        segment_ids=[params.segment_id, *new_ids],
+        pass_ids=[original.pass_id],
+        document_ids=[original.document_id],
+    )
+    return (
+        {
+            "kept_id": params.segment_id, "new_segment_ids": new_ids,
+            "forwarding_id": forwarding_id,
+            "representation_ids": split_representation_ids,
+        },
+        change_spec,
+    )
+
+
+def _split_one(
+    db: Database, original: Segment, parts: list[SegmentSplitPart], *, estimated: bool,
+    readings_before_split: dict[str, tuple[str, str]], ctx: ActionContext, audit_id: str,
+) -> dict:
+    """One line split into `parts`, the first kept on the line's own id, under `audit_id`; the record its
+    undo needs. Shared by a split at given parts and a knife stroke over many lines."""
     pre_split_version = original.version
     # #4923: every action that changes a segment writes the version
     # snapshot (preimage) and bumps `Segment.version` -- named explicitly
@@ -3551,7 +3632,7 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
     # carries no geometry, only this version number.
     snapshot_segment_version(db, original, deleted=False, actor=ctx.actor, audit_id=audit_id)
 
-    first_part, *rest_parts = params.parts
+    first_part, *rest_parts = parts
     if estimated:
         original.metadata = {**(original.metadata or {}), "cut": "estimated"}
     original.anchor = first_part.anchor
@@ -3592,14 +3673,14 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
         # The parts follow the line they were cut from in every order that holds it; unsplit takes them out.
         from fichero_server.api.routes.document.reading_orders import place_after
 
-        place_after(db, params.segment_id, new_ids)
+        place_after(db, original.id, new_ids)
 
     # Slice 8 (#4934): each part that named a stretch gets its own reading,
-    # derived from the one that counted. The kept part is `params.segment_id`
+    # derived from the one that counted. The kept part is `original.id`
     # and the new parts are `new_ids`, in the order the caller gave them.
-    part_ids = [params.segment_id, *new_ids]
+    part_ids = [original.id, *new_ids]
     split_representation_ids: list[str] = []
-    for part, part_id in zip(params.parts, part_ids):
+    for part, part_id in zip(parts, part_ids):
         if part.reading_span is None:
             continue
         start, end = part.reading_span
@@ -3624,49 +3705,137 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
 
     forwarding = SegmentForwarding(
         document_id=original.document_id,
-        old_segment_id=params.segment_id,
+        old_segment_id=original.id,
         kind="split",
         # The original id "stays on one part" -- included here so a caller
         # resolving the pre-split id sees every resulting id, including its
         # own (`resolve_segment`/`_forwarding_walk` treat a self-reference
         # as live, never as a hop).
-        new_segment_ids=[params.segment_id, *new_ids],
+        new_segment_ids=[original.id, *new_ids],
         actor=ctx.actor,
         audit_id=audit_id,
         sequence=db.next_forwarding_sequence(),
     )
     db.save(forwarding)
+    return {
+        "kept_id": original.id, "new_segment_ids": new_ids, "forwarding_id": forwarding.id,
+        "pre_split_version": pre_split_version,
+        "versions": {original.id: original.version, **{new_id: 1 for new_id in new_ids}},
+        "representation_ids": split_representation_ids,
+    }
 
+
+def _reading_positions(db: Database, representation_id: str | None) -> list[float] | None:
+    """The recogniser's character positions on a reading, 0 to 1 along the line, when it gave them."""
+    if representation_id is None:
+        return None
+    row = db.get(ContentRepresentation, representation_id)
+    return row.char_positions if row is not None else None
+
+
+def _knife_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
+    """`segment-editor.split-knife`: every named line whose baseline the stroke crosses is split at each crossing,
+    its outline cut along the stroke and each part given its stretch of baseline; the reading is cut at the
+    character nearest the crossing when positions are known, else in proportion and marked `cut: estimated`.
+    A line the stroke does not cross is left alone and named in the answer. All lines in one action, one undo."""
+    from fichero_server.api.routes.document.segment_readings import (
+        _direction_of,
+        _lines_are_vertical,
+        direction_rungs,
+    )
+    from fichero_server.media import line_cut, line_join
+
+    if params.parts or params.at_offset is not None or params.segment_id is not None:
+        raise HTTPException(status_code=422, detail="give a cut_path alone: not with segment_id, parts or at_offset")
+    if len(params.cut_path) < 2 or any(len(point) < 2 for point in params.cut_path):
+        raise HTTPException(status_code=422, detail="cut_path needs two or more [x, y] points")
+    if not params.expected_versions:
+        raise HTTPException(status_code=422, detail="expected_versions is empty: name the lines the stroke may cross")
+    stroke = [[float(point[0]), float(point[1])] for point in params.cut_path]
+    rows = []
+    for segment_id, version in params.expected_versions.items():
+        _assert_not_provisional_http(segment_id, what="segment_id")
+        reason = segment_liveness_reason(db, segment_id)
+        if reason is not None:
+            raise _as_http_error(SegmentNotLive(segment_id, reason))
+        rows.append(_live_current_row(db, segment_id, version))
+    if len({(row.document_id, row.pass_id) for row in rows}) > 1:
+        raise _as_http_error(SegmentPassMismatchError("the lines under the stroke are not all in the same pass and document"))
+
+    document = db.get(Document, rows[0].document_id)
+    shapes = [row for row in db.query(Segment, pass_id=rows[0].pass_id) if row.deleted_at is None]
+    vertical, rungs = _lines_are_vertical(shapes, document), direction_rungs(db, document)
+    planned: list[tuple[Segment, list[SegmentSplitPart], bool, dict]] = []
+    left_alone: list[dict] = []
+    for row in rows:
+        if not row.baseline or len(row.baseline) < 2:
+            # `segment-editor.edge.no-baseline`: said, never guessed around.
+            left_alone.append({"segment_id": row.id, "reason": "no-baseline"})
+            continue
+        if row.anchor is None or row.anchor.rendition_id:
+            left_alone.append({"segment_id": row.id, "reason": "another-image"})
+            continue
+        counted = _counting_readings(db, row.id)
+        source_id, text = counted.get("transcription") or next(iter(counted.values()), (None, ""))
+        direction, _level = _direction_of(row, document, text, vertical, rungs)
+        baseline = line_cut.reading_baseline(row.baseline, direction)
+        cuts = line_cut.crossings(baseline, stroke)
+        if not cuts:
+            left_alone.append({"segment_id": row.id, "reason": "grazed"})
+            continue
+        pieces = line_cut.baseline_pieces(baseline, cuts)
+        polygons = line_cut.cut_outline(line_join.outline_of(row.anchor), pieces, stroke)
+        if polygons is None:
+            left_alone.append({"segment_id": row.id, "reason": "grazed"})
+            continue
+        offsets, estimated = line_cut.reading_offsets(cuts, len(text), _reading_positions(db, source_id))
+        bounds = [0, *offsets, len(text)] if offsets else None
+        parts = []
+        for index, (polygon, piece) in enumerate(zip(polygons, pieces)):
+            x0, y0, x1, y1 = line_join.bounds(polygon)
+            parts.append(SegmentSplitPart(
+                anchor=row.anchor.model_copy(update={
+                    "polygon": polygon, "rect": [x0, y0, x1 - x0, y1 - y0], "shapes": None,
+                }),
+                baseline=piece,
+                reading_span=[bounds[index], bounds[index + 1]] if bounds else None,
+            ))
+        planned.append((row, parts, bool(text) and estimated and bounds is not None, counted if bounds else {}))
+    if not planned:
+        raise HTTPException(
+            status_code=422,
+            detail={"message": "the stroke crosses no named line's baseline", "left_alone": left_alone},
+        )
+
+    audit_id = uuid.uuid4().hex
+    splits = [
+        _split_one(
+            db, row, parts, estimated=estimated, readings_before_split=readings, ctx=ctx, audit_id=audit_id,
+        )
+        for row, parts, estimated, readings in planned
+    ]
+    touched = [segment_id for split in splits for segment_id in (split["kept_id"], *split["new_segment_ids"])]
     change_spec = ChangeSpec(
         audit_id=audit_id,
         domains=["segment"],
-        target_ids=[params.segment_id, *new_ids],
+        target_ids=touched,
         before=None,
         after={
-            "kept_id": params.segment_id, "new_segment_ids": new_ids,
-            "forwarding_id": forwarding.id, "pre_split_version": pre_split_version,
-            # #4957 follow-up 1: every touched id's version as THIS call
-            # left it -- the kept id (bumped) and every new part (starts
-            # at 1) -- so `_invert_split`/`_refresh_replay_expected_versions`
-            # always have a live token to hand `unsplit`.
-            "versions": {params.segment_id: original.version, **{new_id: 1 for new_id in new_ids}},
-            # Slice 8 (#4934): the readings THIS split added, so its inverse
-            # retracts exactly those and nothing else.
-            "representation_ids": split_representation_ids,
+            "splits": splits,
+            "versions": {key: value for split in splits for key, value in split["versions"].items()},
         },
         emit_type="segment.split",
-        segment_ids=[params.segment_id, *new_ids],
-        pass_ids=[original.pass_id],
-        document_ids=[original.document_id],
+        segment_ids=touched,
+        pass_ids=[rows[0].pass_id],
+        document_ids=[rows[0].document_id],
     )
-    return (
-        {
-            "kept_id": params.segment_id, "new_segment_ids": new_ids,
-            "forwarding_id": forwarding.id,
-            "representation_ids": split_representation_ids,
-        },
-        change_spec,
-    )
+    answer = {
+        "splits": [
+            {key: split[key] for key in ("kept_id", "new_segment_ids", "representation_ids")} for split in splits
+        ],
+        "left_alone": left_alone,
+    }
+    return answer, change_spec
 
 
 class SegmentUnsplitParams(BaseModel):
@@ -3698,6 +3867,71 @@ class SegmentUnsplitParams(BaseModel):
 
 @action("segment.unsplit", SegmentUnsplitParams, domains=["segment"], undoable=False)
 def _action_unsplit(db: Database, params: SegmentUnsplitParams, ctx: ActionContext):
+    checked = _unsplit_checked(db, params)
+    audit_id = uuid.uuid4().hex
+    row, deleted_ids = _unsplit_apply(db, params, *checked, ctx=ctx, audit_id=audit_id)
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=[params.segment_id, *deleted_ids],
+        before=None,
+        # #4957 follow-up 1: singular `version` (not `versions`), matching
+        # `segment.update`/`.restore_version`'s own shared convention --
+        # `_refresh_replay_expected_versions` reads THIS key to freshen
+        # `segment.split`'s own singular `expected_version` when split is
+        # replayed for the FIRST redo (`unsplit` has no `invert` of its
+        # own, so that redo always takes the replay path, never own-invert).
+        after={"segment_id": params.segment_id, "version": row.version},
+        emit_type="segment.split",
+        segment_ids=[params.segment_id, *deleted_ids],
+        pass_ids=[row.pass_id],
+        document_ids=[row.document_id],
+    )
+    return {"segment_id": params.segment_id}, spec
+
+
+class SegmentUnsplitManyParams(BaseModel):
+    """Internal: a knife stroke's inverse only -- one `unsplit` per line the stroke cut, in one step."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    splits: list[SegmentUnsplitParams]
+
+
+@action("segment.unsplit_many", SegmentUnsplitManyParams, domains=["segment"], undoable=False)
+def _action_unsplit_many(db: Database, params: SegmentUnsplitManyParams, ctx: ActionContext):
+    """Every line a knife stroke cut put back. All of them are checked before any is touched, so a part
+    somebody has since edited refuses the whole undo rather than leaving half the stroke undone."""
+    if not params.splits:
+        raise HTTPException(status_code=422, detail="splits is empty: nothing to put back")
+    checked = [_unsplit_checked(db, split) for split in params.splits]
+    audit_id = uuid.uuid4().hex
+    touched: list[str] = []
+    versions: dict[str, int] = {}
+    rows = []
+    for split, found in zip(params.splits, checked):
+        row, deleted_ids = _unsplit_apply(db, split, *found, ctx=ctx, audit_id=audit_id)
+        touched.extend([split.segment_id, *deleted_ids])
+        versions[split.segment_id] = row.version
+        rows.append(row)
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=touched,
+        before=None,
+        # `versions`, so a redo's replay of the stroke compares against the lines as this undo left them.
+        after={"versions": versions},
+        emit_type="segment.split",
+        segment_ids=touched,
+        pass_ids=sorted({row.pass_id for row in rows}),
+        document_ids=sorted({row.document_id for row in rows}),
+    )
+    return {"segment_ids": list(versions)}, spec
+
+
+def _unsplit_checked(db: Database, params: SegmentUnsplitParams) -> tuple[Segment, Any, dict[str, Segment]]:
+    """Every refusal `unsplit` makes, before anything is written: the kept row, the version to restore it
+    to, and the live parts to fold back."""
     _assert_not_provisional_http(params.segment_id, what="segment_id")
     row = db.get(Segment, params.segment_id)
     if not row:
@@ -3735,8 +3969,14 @@ def _action_unsplit(db: Database, params: SegmentUnsplitParams, ctx: ActionConte
                 _stale_changed_fields(db, new_id, expected, new_row),
             ))
         live_new_rows[new_id] = new_row
+    return row, target, live_new_rows
 
-    audit_id = uuid.uuid4().hex
+
+def _unsplit_apply(
+    db: Database, params: SegmentUnsplitParams, row: Segment, target: Any, live_new_rows: dict[str, Segment],
+    *, ctx: ActionContext, audit_id: str,
+) -> tuple[Segment, list[str]]:
+    """One split put back under `audit_id`: its readings retracted, its parts folded into the kept row."""
     now = utc_now()
 
     # Slice 8 (#4934): the readings the split ADDED stop counting again. Done
@@ -3813,24 +4053,7 @@ def _action_unsplit(db: Database, params: SegmentUnsplitParams, ctx: ActionConte
         audit_id=audit_id,
         sequence=db.next_forwarding_sequence(),
     ))
-    spec = ChangeSpec(
-        audit_id=audit_id,
-        domains=["segment"],
-        target_ids=[params.segment_id, *deleted_ids],
-        before=None,
-        # #4957 follow-up 1: singular `version` (not `versions`), matching
-        # `segment.update`/`.restore_version`'s own shared convention --
-        # `_refresh_replay_expected_versions` reads THIS key to freshen
-        # `segment.split`'s own singular `expected_version` when split is
-        # replayed for the FIRST redo (`unsplit` has no `invert` of its
-        # own, so that redo always takes the replay path, never own-invert).
-        after={"segment_id": params.segment_id, "version": row.version},
-        emit_type="segment.split",
-        segment_ids=[params.segment_id, *deleted_ids],
-        pass_ids=[row.pass_id],
-        document_ids=[row.document_id],
-    )
-    return {"segment_id": params.segment_id}, spec
+    return row, deleted_ids
 
 
 # --- carry / uncarry -----------------------------------------------------

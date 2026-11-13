@@ -88,7 +88,10 @@ class WindowState {
     /// Select is ON from the first click (Daniel, 2026-09-02: "Selection
     /// should default on") — a window opens able to select regions without
     /// first opening the markup bar.
-    var activeMarkupTool: PreviewMarkupTool? = .select
+    var activeMarkupTool: PreviewMarkupTool? = .select {
+        // Another tool chosen puts the Knife down (`segment-editor.split-knife`).
+        didSet { if activeMarkupTool != oldValue { knifeArmed = false } }
+    }
 
     /// Segment editing is a MODE of the Source view (`source.editor.segment-focus`, #5114,
     /// ruled 2026-09-27). Off -- the default -- the page is for reading and nothing on it
@@ -134,6 +137,16 @@ class WindowState {
     /// The points of a polygon or baseline being drawn with the Shape tool, in the order clicked. Here,
     /// not in the canvas layer, so Escape (the preview's exit command) can abandon it.
     var drawingPoints: [[Double]] = []
+
+    /// K held in Edit Segments: the Knife, spring-loaded for one stroke (`segment-editor.split-knife`). Released,
+    /// the tool goes back to what it was.
+    var knifeHeld = false
+
+    /// The Knife chosen from the tool row: every stroke cuts until another tool is chosen.
+    var knifeArmed = false
+
+    /// The Knife's stroke so far, in the page's fractions, while it is being drawn.
+    var knifeStroke: [[Double]] = []
 
     /// Escape during a drawing: drop the points clicked so far and make nothing. True when there was a
     /// drawing to abandon -- that Escape does nothing else; the next one clears as it always has.

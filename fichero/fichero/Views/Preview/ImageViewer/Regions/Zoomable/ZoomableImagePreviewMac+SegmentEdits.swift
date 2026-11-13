@@ -154,15 +154,46 @@ extension ZoomableImagePreview {
         return true
     }
 
-    /// JOIN the selected boxes on an artifact-less pass. True when handled here. The segment editor's
-    /// Merge: outlines, baselines and readings joined in reading order, across regions (`segment-editor.merge-lines`).
+    /// JOIN the selected boxes when every one IS a segment: the segment editor's Merge, outlines, baselines and
+    /// readings joined in reading order, across regions (`segment-editor.merge-lines`). The same door Delete takes
+    /// (#6419), so a page that also has a result artifact joins its lines too, instead of the artifact's combine (a
+    /// union rectangle with the outline and baseline dropped). True when handled here.
     func joinSelectedSegments() -> Bool {
-        guard shownArtifactlessPassId != nil, let documentId else { return false }
-        runSegmentEdit(
-            SegmentEdit.join(selectedSegments(documentId), asLines: true), documentId: documentId, name: "Join Segments"
-        )
+        guard let documentId else { return false }
+        let segments = selectedSegments(documentId)
+        let onSegments = shownArtifactlessPassId != nil || PreviewRegionDelete.door(
+            selectionCount: regionSelection.count, segmentCount: segments.count,
+            versionedCount: segments.filter { $0.version != nil }.count
+        ) == .segments
+        guard onSegments else { return false }
+        runSegmentEdit(SegmentEdit.join(segments, asLines: true), documentId: documentId, name: "Join Segments")
         regionSelection.clear()
         return true
+    }
+
+    /// REDRAW the selected lines' outlines from their baselines (`segment-editor.regenerate-polygon-from-baseline`):
+    /// one audited `segment.regenerate_outline`, one ⌘Z.
+    func redrawSelectedOutlines() {
+        guard let documentId else { return }
+        runSegmentEdit(
+            SegmentEdit.redrawOutline(selectedSegments(documentId)), documentId: documentId, name: "Redraw Outline"
+        )
+    }
+
+    /// CUT every line the Knife's stroke crosses (`segment-editor.split-knife`): one `segment.split` with the
+    /// stroke and the versions of the page's lines it reaches, one ⌘Z. The engine says which lines it left alone.
+    func knifeCut(_ stroke: [[Double]]) {
+        guard let documentId, let store = segmentEditStore else { return }
+        runSegmentEdit(
+            SegmentEdit.knife(stroke, over: store.segments(documentId: documentId)), documentId: documentId, name: "Cut Lines"
+        )
+    }
+
+    /// Whether every selected segment has a baseline, so Redraw can act on the selection.
+    var selectionHasBaselines: Bool {
+        guard let documentId else { return false }
+        let segments = selectedSegments(documentId)
+        return !segments.isEmpty && segments.allSatisfy(SegmentEdit.hasBaseline)
     }
 
     /// The Segment menu on the selection (#5157), on any page whose boxes are segments: one audited
@@ -175,7 +206,7 @@ extension ZoomableImagePreview {
     }
 
     /// The selection as segments, in the order picked, through the Inspector's one resolution.
-    private func selectedSegments(_ documentId: String) -> [Segment] {
+    func selectedSegments(_ documentId: String) -> [Segment] {
         guard let store = segmentEditStore else { return [] }
         let ids = InspectorPath.selectedSegmentIds(selection: regionSelection, documentId: documentId, store: store)
         let byId = Dictionary(

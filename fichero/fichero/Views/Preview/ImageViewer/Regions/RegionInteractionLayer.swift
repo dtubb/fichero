@@ -82,6 +82,8 @@ struct RegionInteractionLayer: View {
     var drawKind: SegmentShapes.DrawKind = .box
     /// Commit a drawn polygon or baseline: (its kind, its points). Nil: the Shape tool drags boxes only.
     var onDrawShapeCommit: ((SegmentShapes.DrawKind, [[Double]]) -> Void)?
+    /// Commit a Knife stroke (K held): its points, in the page's fractions. Nil: no Knife here.
+    var onKnifeCommit: (([[Double]]) -> Void)?
 
     /// Sticky-tool + check-cycle seams (Daniel, 2026-08-30). Optional so
     /// headless hosts stay safe.
@@ -119,6 +121,7 @@ struct RegionInteractionLayer: View {
                     selectedRegionRects(in: geo.size)
                     liveReshape(in: geo.size)
                     liveDrawing(in: geo.size)
+                    liveKnife(in: geo.size)
                     if let rect = liveBandRect {
                         // The one rubber band (#4601), not a dashed accent box.
                         RubberBand()
@@ -298,7 +301,7 @@ extension RegionInteractionLayer {
         // Edit Segments on ONE selected shape: Reshape takes the press, the drag and the release.
         // An armed Polygon or Baseline tool owns the click first (#6476): a point placed inside a selected region
         // was taken by Reshape and the region, not the drawing, got it.
-        if handleDrawShape(event, in: size) || handleReshape(event, in: size) { return }
+        if handleKnife(event) || handleDrawShape(event, in: size) || handleReshape(event, in: size) { return }
         switch event.phase {
         case .pressed:
             handlePress(at: point, clickCount: event.clickCount, in: size)
