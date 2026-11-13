@@ -1062,6 +1062,21 @@ class TestArtifactView:
         assert result[0]["has_content"] is True
         assert result[0]["table"]["headers"] == ["x"]
 
+    def test_parent_anchored_artifact_does_not_crash_transcript_text(self, client, db):
+        """#6578: a document-level artifact (no listed page) gave an entry with no
+        "number" and the view 500'd with KeyError in transcript_text."""
+        from fichero_server.api.routes.system.views import transcript_text
+        from fichero_server.models import Artifact, DocType
+        doc = _make_document(doc_id="av-doc3", name="C.pdf", doc_type=DocType.file)
+        db.save(doc)
+        artifact = Artifact(document_id=doc.id, artifact_type="regularised", content="plain text")
+        db.save(artifact)
+        response = client.get(f"/view/document/{doc.id}", params={"artifact_id": artifact.id})
+        assert response.status_code == 200
+        assert "plain text" in response.text
+        assert transcript_text([{"id": "x", "content": "t", "has_content": True}]) == "Page 1\nt"
+        assert transcript_text([{"number": 3, "content": "t", "has_content": True}]) == "Page 3\nt"
+
     def test_route_404s_on_unknown_artifact(self, client, db):
         from fichero_server.models import DocType
         doc = _make_document(doc_id="av-doc", name="A.pdf", doc_type=DocType.file)

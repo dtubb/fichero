@@ -332,6 +332,12 @@ def artifact_pages(
     if not any(str(page["id"]) == owner for page in pages):
         entry: dict[str, object] = {
             "id": owner,
+            # The same keys every page entry carries (`transcript_pages`), so
+            # `transcript_text` and the reader never meet a short entry (#6578).
+            "number": None,
+            "label": artifact.step_name or artifact.artifact_type or "Artifact",
+            "title": artifact.step_name or artifact.artifact_type or "Artifact",
+            "is_region": False,
             "name": artifact.step_name or artifact.artifact_type or "Artifact",
             "page_label": None,
             "page_number": None,
@@ -772,9 +778,11 @@ def transcript_text(pages: list[dict[str, object]]) -> str:
     every stored offset. The reader renders from the structured page list; this
     text stays the offset-stable reading of the same document.
     """
+    # A page with no number (a document-level artifact, #6578) is joined under its
+    # title, or its position; pages that have numbers keep their text exactly.
     return "\n\n".join(
-        f"Page {page['number']}\n{page['content']}"
-        for page in pages
+        f"Page {page.get('number') or page.get('title') or page.get('label') or index}\n{page['content']}"
+        for index, page in enumerate(pages, start=1)
         if page["has_content"]
     )
 
