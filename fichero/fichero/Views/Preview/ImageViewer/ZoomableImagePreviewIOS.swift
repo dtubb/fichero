@@ -147,39 +147,13 @@ struct ZoomableImagePreview: View {
                         showingFullScreen = true
                     }
                 }
+                // A horizontal swipe on a fitted page turns to the previous or next image in the folder, as in Photos
+                // (#6559); it replaced the blue prev/next buttons (#2420). Simultaneous, so a zoomed-in page still pans.
+                .simultaneousGesture(pageSwipeGesture)
+                // VoiceOver's way to the same steps, now that the buttons are gone.
+                .accessibilityAction(named: "Previous image") { previousAction?() }
+                .accessibilityAction(named: "Next image") { nextAction?() }
 
-                // iOS touch prev/next overlay for folder image siblings (#2420).
-                if previousAction != nil || nextAction != nil {
-                    HStack(spacing: 16) {
-                        Button {
-                            previousAction?()
-                        } label: {
-                            Image(systemName: "chevron.left")
-                                .font(.title3.weight(.semibold))
-                                .frame(width: 40, height: 40)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(previousAction == nil)
-                        .help("Show the previous image in this folder")
-                        .accessibilityLabel("Previous image")
-                        .accessibilityIdentifier("folderImagePrev")
-
-                        Button {
-                            nextAction?()
-                        } label: {
-                            Image(systemName: "chevron.right")
-                                .font(.title3.weight(.semibold))
-                                .frame(width: 40, height: 40)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(nextAction == nil)
-                        .help("Show the next image in this folder")
-                        .accessibilityLabel("Next image")
-                        .accessibilityIdentifier("folderImageNext")
-                    }
-                    .padding(.bottom, 16)
-                    .padding(.horizontal, 24)
-                }
             }
 
             // Bottom-anchored mini-toolbar (#3060 / #2670): matches the macOS
@@ -269,6 +243,19 @@ struct ZoomableImagePreview: View {
         .fullScreenCover(isPresented: $showingFullScreen) {
             FullScreenImagePreview(url: url, renderedImage: renderedImage)
         }
+    }
+
+    /// The swipe that turns pages (`PageSwipe`).
+    var pageSwipeGesture: some Gesture {
+        DragGesture(minimumDistance: 20)
+            .onEnded { value in
+                let zoomedIn = PageSwipe.isZoomedIn(scale: scale, fitScale: imageCoordinator?.calculateFitScale())
+                let step = PageSwipe.step(
+                    translation: value.translation, predictedEnd: value.predictedEndTranslation, isZoomedIn: zoomedIn
+                )
+                if step == -1 { previousAction?() }
+                if step == 1 { nextAction?() }
+            }
     }
 
     // MARK: - Event Handlers

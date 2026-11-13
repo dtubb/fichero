@@ -282,6 +282,8 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   took altogether, so a slow drag says whether the time went into the overlay. *Test:*
   `PreviewPointerProfileTests`. The first reading in the real app is owed.
 
+- `preview.ios.swipe-turns-pages` — **[PARTIAL]** (#6559; owner, on an iPad mini, 2026-11-12) on the iPad and iPhone a horizontal swipe on a page image at its fitted size turns to the previous or next image in its folder, as in Photos; a zoomed-in page pans instead, and a short or mostly vertical drag does nothing. The blue prev/next buttons over the image (#2420) are gone on touch; VoiceOver keeps Previous image and Next image as actions. The Mac keeps its own controls. *Built:* `PageSwipe` (`ZoomableImagePreviewIOS`). *Test:* `PageSwipeTests`. *Not seen:* a swipe on the device; the Pro was unreachable when it was built.
+
 ## PASS 2 — the fold (9 waiting issues, every body read fresh)
 
 None redirect elsewhere and none need maintainer triage — all nine are genuinely this spec's
