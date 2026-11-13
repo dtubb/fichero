@@ -64,7 +64,7 @@ struct FolderRowsPreview: View {
     }
 
     /// What an open in the rows shows in this pane: the opened document, folder or not; nothing when the open was cleared.
-    static func paneOpens(_ opened: Document?) -> String? { opened?.id }
+    nonisolated static func paneOpens(_ opened: Document?) -> String? { opened?.id }
 }
 
 #Preview("Table") {

@@ -9,7 +9,7 @@ enum PaneBarStyle {
     }
 
     /// What this platform's bars wear.
-    static var kind: Kind {
+    nonisolated static var kind: Kind {
         #if os(macOS)
         .accessoryBar
         #else
@@ -19,7 +19,7 @@ enum PaneBarStyle {
 
     /// Whether a bottom bar or the inspector strip is flat in the pane's material (`panes.chrome.bars-flush-on-mac`):
     /// on macOS, as Xcode's; iPad and iPhone keep the floating glass island.
-    static var barIsFlush: Bool {
+    nonisolated static var barIsFlush: Bool {
         #if os(macOS)
         true
         #else
@@ -29,7 +29,7 @@ enum PaneBarStyle {
 
     /// Whether a bar draws its one hairline, above a bottom bar and below a top strip (`panes.chrome.bar-hairline-rule`):
     /// always on macOS, where the bar is flush; the glass island on touch needs none.
-    static var barsDrawHairline: Bool { barIsFlush }
+    nonisolated static var barsDrawHairline: Bool { barIsFlush }
 }
 
 /// A bar's surface: on macOS the pane's own opaque background, flat and edge to edge, so rows scrolling beneath never
