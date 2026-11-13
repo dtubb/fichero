@@ -110,3 +110,13 @@ def test_a_chain_on_a_project_that_keeps_pages_here_is_still_refused_and_says_wh
 def test_the_chain_names_no_project_open_only_when_it_truly_has_none(db):
     result = _run_chain(db, "")  # a chain started with no library at all: the old answer, still in words
     assert "No project is open" in (result.step_results[0].error or "")
+
+
+def test_a_refusal_that_cannot_be_recorded_says_so_to_the_chain(db):
+    """`_record_step_run_refused` never raises (the chain's row carries the reason) but answers False when the run row
+    cannot be written, so the step's error says Activity could not record it (#6354)."""
+    step = ChainStep(id="s1", workflow_id="wf", name="Read Lines")
+    with patch.object(chain_routes, "get_activity_tracker", side_effect=RuntimeError("store down"), create=True), \
+            patch("fichero_server.workflows.activity.get_activity_tracker", side_effect=RuntimeError("store down")):
+        recorded = asyncio.run(chain_routes._record_step_run_refused(db, "thread-x", step, None, None, "refused"))
+    assert recorded is False

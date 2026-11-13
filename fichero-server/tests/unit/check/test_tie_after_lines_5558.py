@@ -70,3 +70,17 @@ def test_lines_on_a_page_with_no_reading_queue_nothing(client, db, tmp_path, rea
     doc = _bare_page(db, tmp_path)
     assert _find_lines(db, doc) == "converted"  # lines, and no reading at all
     assert _tie_jobs(db) == []
+
+
+def test_a_tie_that_cannot_be_queued_says_so_to_its_caller(db, monkeypatch):
+    """`_queue_tie` never raises (the lines are saved either way) but answers False, so the page's line in the log
+    says the reading was not tied (#5558, #6354: a failure is never only a log line)."""
+    from fichero_server.maintenance import project_conversion
+
+    def boom(_db, _doc):
+        raise RuntimeError("jobs table is locked")
+
+    monkeypatch.setattr(tie_text, "after_lines", boom)
+    assert project_conversion._queue_tie(db, "page-1") is False
+    monkeypatch.setattr(tie_text, "after_lines", lambda _db, _doc: None)
+    assert project_conversion._queue_tie(db, "page-1") is True
