@@ -647,10 +647,15 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
   stamp over text is two regions); a line inside both belongs to the one that holds more of it,
   then the smaller (`SegmentShapes.containingRegion`'s rule, moved to the engine for the create
   and the reassignment); the validator reports overlaps over a tenth without refusing them.
-- `segment-editor.edge.self-intersecting` — **[GAP]** (→ #4941; engine) a self-crossing outline is never written: a
+- `segment-editor.edge.self-intersecting` — **[PARTIAL]** (→ #4941; engine) a self-crossing outline is never written: a
   reshape, a marker stroke or a merge that would make one is answered with the nearest simple
   polygon (the outer boundary of the shape's union) and the answer says it was simplified; an
   imported one is reported by the validator and offered Redraw from Baseline.
+  *Built (2026-11-13):* `segment.create` and `segment.update` store a self-crossing polygon as the
+  outer boundary of the area it covers (`line_join.simple_outline`), mark the row
+  `outline_simplified` and answer `simplified: true`; a merge's outline is traced from a raster and
+  is simple by construction. *Not built:* the validator's report on imported ones, `update_many`.
+  *Tests:* `test_segment_self_intersecting.py`.
 - `segment-editor.edge.empty-region` — **[GAP]** (→ #4941; engine + app) a region with no lines is kept (a person
   may draw into it), drawn with its label only, and listed by the validator as empty before export.
 - `segment-editor.edge.no-baseline` — **[PARTIAL]** (→ #4941; app + engine) a line with no baseline (a box from an older

@@ -1189,6 +1189,20 @@ def _invert_segment_create(before, after, ctx: ActionContext):
     )
 
 
+def _simple_anchor(anchor: SourceAnchor | None) -> tuple[SourceAnchor | None, bool]:
+    """`segment-editor.edge.self-intersecting`: a self-crossing outline is never written. The anchor with its polygon
+    made the outer boundary of the area it covers, and its rect the bound of that; and whether it was changed."""
+    from fichero_server.media import line_join
+
+    if anchor is None or not anchor.polygon or len(anchor.polygon) < 4:
+        return anchor, False
+    polygon, simplified = line_join.simple_outline(anchor.polygon)
+    if not simplified:
+        return anchor, False
+    x0, y0, x1, y1 = line_join.bounds(polygon)
+    return anchor.model_copy(update={"polygon": polygon, "rect": [x0, y0, x1 - x0, y1 - y0]}), True
+
+
 def _create_segment_impl(
     db: Database, params: SegmentCreateParams, ctx: ActionContext, *, segment_id: str | None = None,
 ) -> Segment:
@@ -1226,8 +1240,9 @@ def _create_segment_impl(
     except (SegmentPassMismatchError, SegmentParentMismatchError, SegmentAnchorMismatchError, SegmentPassNotLive, SegmentNotLive) as exc:
         raise _as_http_error(exc) from exc
 
+    anchor, simplified = _simple_anchor(params.anchor)
     spec_obj = SegmentSpec(
-        kind=params.kind, anchor=params.anchor, baseline=params.baseline,
+        kind=params.kind, anchor=anchor, baseline=params.baseline,
         parent_segment_id=params.parent_segment_id, kind_raw=params.kind_raw,
     )
     # test-audit F14, 2026-09-20: the maker is set by the engine from WHO
@@ -1238,6 +1253,8 @@ def _create_segment_impl(
         document_id=params.document_id, pass_id=params.pass_id, spec=spec_obj,
         actor=ctx.actor, provenance_kind=provenance_kind_from_ctx(ctx), id=segment_id,
     )
+    if simplified:
+        segment.metadata = {**(segment.metadata or {}), "outline_simplified": True}
     db.save(segment)
     _place_in_as_written(db, segment, ctx)
     return segment
@@ -1293,7 +1310,11 @@ def _action_segment_create(db: Database, params: SegmentCreateParams, ctx: Actio
         pass_ids=[segment.pass_id],
         document_ids=[segment.document_id],
     )
-    return {"segment_ids": [segment.id]}, change_spec
+    answer: dict = {"segment_ids": [segment.id]}
+    if (segment.metadata or {}).get("outline_simplified"):
+        # `segment-editor.edge.self-intersecting`: the answer says the outline was simplified.
+        answer["simplified"] = True
+    return answer, change_spec
 
 
 class SegmentCreateManyParams(BaseModel):
@@ -1829,8 +1850,9 @@ def _action_segment_update(db: Database, params: SegmentUpdateParams, ctx: Actio
     before_version = row.version
     snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
 
+    simplified = False
     if params.anchor is not None:
-        row.anchor = params.anchor
+        row.anchor, simplified = _simple_anchor(params.anchor)
         bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(row.anchor)
         row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
     if params.baseline is not None:
@@ -1864,7 +1886,11 @@ def _action_segment_update(db: Database, params: SegmentUpdateParams, ctx: Actio
         pass_ids=[row.pass_id],
         document_ids=[row.document_id],
     )
-    return {"segment_id": row.id, "version": row.version}, spec
+    answer: dict = {"segment_id": row.id, "version": row.version}
+    if simplified:
+        # `segment-editor.edge.self-intersecting`: a reshape that crossed itself is stored as its outer boundary.
+        answer["simplified"] = True
+    return answer, spec
 
 
 #: The three facts a segment can carry from the cascade, plus the region-only
