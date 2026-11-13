@@ -268,8 +268,9 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   past the window (owner 2026-11-13), and Esc or its ✕ leaves to the Preview on the page last shown. A folder, a
   multiple selection or a non-page file offers no button. The iPad keeps its own button on the image bar. *Built:*
   `PreviewFullScreen.canEnter`, `PreviewHeadLensControls.onEnterFullScreen` (macOS), `ContentView.enterImmersiveReading(showing:)`,
-  `KeyboardPageStep` in `KeyboardExitCatcher`, the swipe in `ImmersiveReaderView` (`PreviewFullScreen.windowTakesTheSwipe`). *Not built:* a look on screen. Not macOS's own full screen: the reader is its own
-  full-window mode, as ⌃⌘R always was (owner 2026-11-13). *Tests:* `Models/PreviewFullScreenTests.swift`.
+  `KeyboardPageStep` in `KeyboardExitCatcher`, the swipe in `ImmersiveReaderView` (`PreviewFullScreen.windowTakesTheSwipe`). *Not built:* a look on screen. Superseded in part (owner 2026-11-13, #6575): full screen becomes
+  `panes.focus-mode` (ui/panes-workspaces.md), the window's real macOS full screen for any pane, keeping this page
+  behaviour (fading chrome, ← → and the swipe) inside the Preview's focus. *Tests:* `Models/PreviewFullScreenTests.swift`.
 
 ### F. Clicking and dragging on the page
 

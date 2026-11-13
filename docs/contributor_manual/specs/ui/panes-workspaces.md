@@ -339,6 +339,29 @@ starting a new one.
   something (notes, citations, entities) keeps its count. *Built:* `DocumentInspector.withInspectorBar` passes no
   status, `InspectorBottomMiniToolbar` draws none when it is empty. *Not built:* a look on screen. *Tests:*
   `Views/Inspector/InspectorBottomBarStatusTests.swift`.
+- `panes.chrome.one-filter-pattern` — **[GAP]** (owner 2026-11-13, screenshots of every bar; supersedes the toolbar
+  prompt's items 13 and 14) every list of items has ONE bottom bar, the same five controls in the same order:
+  **+ · 🗑 · Metadata · Sort · Filter**. That is the sidebar, the Items pane in every view (List, Table, Icons,
+  Columns, Canvas, Space, Sheet, Cards, Timeline, Calendar, Map) and the Source pane's folder views.
+  - **+** adds: New Folder, New Item, Import (the old separate import button goes; it was already in +).
+  - **🗑** moves the selection to the Trash (the old **−**; the trash icon, as it says what happens).
+  - **Metadata** chooses what each row or card shows about an item (its attributes, `LibraryRowAttributesMenu`);
+    present in every bar, its menu empty where a view has nothing to show yet.
+  - **Sort** chooses the order (`librarySortMenu`); distinct from Metadata. On the Canvas and the 3D Space, where
+    position is the person's, Sort ARRANGES the cards in that order, once, as an action that can be undone (owner
+    2026-11-13), and the board then keeps whatever is moved by hand. Left out where order means nothing: the Map
+    (position is the place) shows four controls; and the sidebar, which keeps its own order (drag to arrange), has
+    no Sort.
+  - **Filter** is one rounded field, the filter icon (`line.3.horizontal.decrease.circle`) with a menu chevron inside
+    it, then the text: never a second row under the bar, never the search loupe, never a separate "Filter" button.
+    Its menu holds the toggles for what the list shows (for the Items list: Documents, which was its own 🗎 button,
+    and any Claims or Entities narrowing that makes sense; the sidebar's are `sidebar.filter-menu.shows-toggles`).
+    A toggle means the same thing in every pane.
+  Gone from the bars: Export (it is a menu command, File › Export), the ⚡ Run Workflow button with the header and
+  window it opened (neither worked: the header's search did not), and any second filter row ("☰ Filter … ⚙").
+  Reader, Segments and the Inspector take the same Filter field and Metadata button where they list things. One
+  component for the field and its menu (`PaneFilterField`), one for the Metadata button, so a bar cannot drift.
+  *Not built.* *Tests:* to come with the component (the order of the five, the toggles' meaning, no second row).
 - `panes.chrome.items-head-has-no-kind-menu` — **[PARTIAL]** (owner 2026-11-13, a screenshot) the Items pane head has no
   Documents / Claims / Entities menu: what the Items list shows is not a top-level choice of its head. Claims and
   Entities are reached through their own rows in the sidebar (the project's Entities and Claims,
@@ -1078,18 +1101,32 @@ the path (`PaneHead.swift:213-243`); only the Reader head has a whole-head conte
 breadcrumb was retired; the code has one again in every head, and the window title and subtitle
 also show the path (`ContentView+RootLayout.swift:311-317`).
 
-- `panes.chrome.one-pane-menu` — **[GAP]** (#5435) every pane head has a **+** that opens the
-  pane menu, and right-clicking anywhere on the pane head opens the same menu. Its entries, in
-  order: Split Right, Split Below; Show In This Pane ▸ (the kind); View ▸ (the kind's view mode
-  and lens); What to Show ▸ (the layers, `layers-on-the-source.md`); Pin; Link… / Unlink; Close
-  Pane. A kind that lacks an entry shows it disabled, never a different menu. Today the + offers
-  split only (`PaneChromeMenu.swift:14`) and What to show sits in Preview's footer.
-- `panes.chrome.head-keeps-only-what-moves` — **[GAP]** (#5435) a pane head keeps only the kind's
-  icon, the controls used constantly on that kind (Preview: up to parent and the page stepper),
-  pin and +. Everything else in the table above moves into the pane menu, and the more/overflow
-  capsule is retired. A footer that only repeats a head or menu entry (the PDF footer's close,
+- `panes.chrome.one-pane-menu` — **[GAP]** (#5435; ruled by the owner 2026-11-13) every pane head has ONE pane menu,
+  at its right end (as Xcode's Editor Options sits at the right of its jump bar), and right-clicking anywhere on the
+  head opens the same menu. Its button is the pane's current view's icon (⊞ for Icon, ☰ for List, …) with a menu
+  chevron, never a + (owner 2026-11-13), so the head still says how the pane is shown. Its entries, in order: **Show as ▸** (the kind's views, each with its icon,
+  the current one ticked: Icon, List, Table, Columns; Sheet, Cards, Timeline, Calendar, Map; Canvas, Space; for
+  Source its lenses Read, Segments, Image and "Show folder as"); **Pane ▸** (the kinds: Items, Source, Reader, …,
+  each with its icon, the current one ticked); What to Show ▸ (the layers, `layers-on-the-source.md`); **Split Pane ▸**
+  (Right, Below); **Focus on Pane** (⌃⌘R: this pane alone, full screen, `panes.focus-mode`; a page also keeps its
+  one-click viewfinder in the head's centre, being where it is used most); **Pin Pane** (ticked while pinned); Link… /
+  Unlink; **Close Pane**. A kind that lacks an entry
+  shows it disabled, never a different menu. It replaces, in every head, the ✕ at the left, the kind picker, the
+  view picker, the pin button and the bare +. Today the + offers split only (`PaneChromeMenu.swift`), the ✕, kind
+  and view pickers sit at the head's left (`PaneHead`, `PaneKindSelector`) and What to show sits in Preview's footer.
+- `panes.chrome.head-keeps-only-what-moves` — **[GAP]** (#5435; ruled by the owner 2026-11-13) with the pane menu on
+  the right, the head's LEFT is for moving through what the pane shows and nothing else: ‹ › previous and next,
+  ↑ up to the parent, the path, and the content's own controls where it has them (a page's rendition choice and page
+  count "9/110", the segment level). The head's CENTRE holds the current view's own tools (owner 2026-11-13): the
+  Canvas's (select, pan, zoom and fit, arrange, add) and the 3D Space's (orbit, reset the camera, zoom) live at the
+  very top of the pane, in its head, not floating over the view or in its bottom bar; a page's zoom and markup
+  toggle sit there too; a list may have none. So a head reads: left, moving through it; centre, this view's tools;
+  right, the pane menu. Everything else in the table above moves into the pane menu, and the
+  more/overflow capsule is retired. A footer that only repeats a head or menu entry (the PDF footer's close,
   title and pin) is removed. Prerequisite for `panes.chrome.head-and-footer-not-shared` (#4880),
-  since less chrome leaves one component to tune.
+  since less chrome leaves one component to tune. The path itself stays as `panes.chrome.breadcrumb-only-when-pinned`
+  says (owner 2026-11-13): on the Mac only a pinned pane shows it, the window toolbar shows the rest; every pane keeps
+  ‹ › ↑.
 - `panes.chrome.breadcrumb-only-when-pinned` — **[OK]** (#5437, macOS; iOS keeps the crumb, it has no toolbar path; pinned by `BreadcrumbOnlyWhenPinnedShapeTests`) the breadcrumb shows only on a
   pinned pane; on an unpinned pane it repeats the window toolbar and is hidden.
 - `panes.chrome.breadcrumb-opens-like-the-sidebar` — **[PARTIAL]** (#5633; implemented with unit
@@ -1158,12 +1195,33 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
    Chat's new chat), built on the one shared component; every other footer is removed
    (`panes.chrome.footer-only-for-list-actions`).
 
-- `panes.chrome.head-floats-or-is-a-row` — **[GAP]** (#4974, #5435) on Preview and canvas panes the head's
+- `panes.focus-mode` — **[GAP]** (#6575; owner 2026-11-13: real macOS full screen) any pane (Source, Reader, Segments,
+  the Preview) can go full screen as a FOCUS MODE: that one pane fills the screen in the window's real macOS full
+  screen (its own Space, the menu bar and toolbar hidden); the other panes, the sidebar and the Inspector are hidden;
+  a page sits on a plain dark ground. Esc, or Close in the pane's head, leaves and restores the window and panes
+  exactly as they were: a window already full screen stays full screen, only the other panes come back. One shared
+  mechanism, not one per pane: Focus on Pane in every pane menu (`panes.chrome.one-pane-menu`), View › Focus on Pane,
+  ⌃⌘R. Inside the Preview's focus the reader's page behaviour stays (fading chrome, ← → and a two-finger swipe turn
+  pages). *Not built.* *Test:* the enter/leave/restore state (which panes were shown, whether the window was already
+  full screen), a Swift test.
+- `panes.chrome.every-view-has-head-and-footer` — **[GAP]** (owner 2026-11-13: "consistency") every view of every pane
+  has a head and a footer, the same two components, with each control in its zone: the head's left moves through what
+  the pane shows, its centre holds the view's tools, its right the pane menu (`panes.chrome.head-keeps-only-what-moves`,
+  `panes.chrome.one-pane-menu`); the footer is the shared bar (`panes.chrome.one-filter-pattern` for a list of items,
+  the same field and Metadata button where a view lists anything). No head floats or fades over its content: the
+  Canvas's and the 3D Space's are a row at the very top, as every other view's. Ruled (owner 2026-11-13):
+  the window-wide markup bar under the toolbar goes, and a page's markup tools appear in the head's centre of the pane
+  showing that page (Source or Reader) when its pencil is on, the common tools inline and the rest under a ⋯, so with
+  two pages in two panes each set of tools sits above the page it marks. Supersedes the floating half of
+  `panes.chrome.head-floats-or-is-a-row` and `panes.chrome.footer-only-for-list-actions`. *Not built.*
+- `panes.chrome.head-floats-or-is-a-row` — **[SUPERSEDED in part]** by `panes.chrome.every-view-has-head-and-footer` (owner
+  2026-11-13: no head floats; every head is a row). (#4974, #5435) on Preview and canvas panes the head's
   remaining controls float over the content as a light overlay that fades when the pointer is
   idle and returns when it moves; on Library and Reader panes they are a thin row above the
   content. Today every head is a floating glass capsule bar 40 points high over a reserved row
   (`PaneHead.swift`, `PaneHeadMetrics` :495-512).
-- `panes.chrome.footer-only-for-list-actions` — **[GAP]** (#5435, #4880) a footer appears only on a
+- `panes.chrome.footer-only-for-list-actions` — **[SUPERSEDED]** by `panes.chrome.every-view-has-head-and-footer` (owner
+  2026-11-13: every view has a footer). (#5435, #4880) a footer appears only on a
   pane whose list has its own actions (Library: add; Chat: new chat), built on the one shared
   component; Preview's quiet bar (image and PDF) and every other footer are removed, their
   entries living in the pane menu.
