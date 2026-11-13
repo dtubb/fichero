@@ -203,7 +203,7 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
                         Image(systemName: "xmark")
                             .font(.caption.weight(.semibold))
                     }
-                    .buttonStyle(.borderless)
+                    .paneBarButtonStyle()
                     .accessibilityLabel(isInSplit ? "Close this split" : "Close pane")
                     .help(isInSplit ? "Close this split" : "Close this pane")
                     Divider().frame(height: PaneHeadMetrics.dividerHeight)
@@ -296,7 +296,7 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
                     Button { onCrumb(crumb) } label: {
                         Image(systemName: crumb.icon).foregroundStyle(crumb.tint)
                     }
-                    .buttonStyle(.borderless)
+                    .paneBarButtonStyle()
                     .help(crumb.title)
                     .accessibilityLabel(crumb.title)
                 } else {
@@ -397,7 +397,7 @@ extension PaneHead {
             let children = crumbChildren?(crumb) ?? []
             if children.isEmpty {
                 Button { onCrumb(crumb) } label: { label }
-                    .buttonStyle(.borderless)
+                    .paneBarButtonStyle()
                     .help("Go to \(crumb.title)")
             } else {
                 Menu {
@@ -451,7 +451,7 @@ extension PaneHead {
                         isPinned.wrappedValue ? Color.accentColor : Color.secondary
                     )
             }
-            .buttonStyle(.borderless)
+            .paneBarButtonStyle()
             .accessibilityIdentifier("paneHeadPinToggle")
             .accessibilityLabel(isPinned.wrappedValue
                 ? "Unpin this pane — follow selection"
@@ -501,7 +501,7 @@ extension PaneHead {
             } label: {
                 Image(systemName: toolsIcon)
             }
-            .buttonStyle(.borderless)
+            .paneBarButtonStyle()
             // Reads as toggled while its row is out (the pencil case
             // must show it is armed — Daniel, 2026-08-29).
             .foregroundStyle(showsTools ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.primary))

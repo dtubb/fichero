@@ -108,21 +108,19 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
         .frame(minWidth: 0, maxWidth: .infinity)
         .clipped()
         #else
-        GlassEffectContainer {
-            HStack(spacing: 12) {
-                content
-                if let actions = splitActions, shouldShowSplitButtons {
-                    splitButtonsView(for: actions)
-                }
-                trailing
+        HStack(spacing: 12) {
+            content
+            if let actions = splitActions, shouldShowSplitButtons {
+                splitButtonsView(for: actions)
             }
-            .padding(.horizontal, 12)
-            .frame(height: Self.standardHeight)
-            #if !os(macOS)
-            .controlSize(.regular)
-            #endif
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 10))
+            trailing
         }
+        .padding(.horizontal, 12)
+        .frame(height: Self.standardHeight)
+        #if !os(macOS)
+        .controlSize(.regular)
+        #endif
+        .paneBarSurface(cornerRadius: 10)  // flat on macOS, glass on touch (`panes.chrome.bars-flush-on-mac`)
         // Same width clamp as the visionOS branch above — see that comment.
         .frame(minWidth: 0, maxWidth: .infinity)
         .clipped()
