@@ -505,8 +505,10 @@ See section 7.2 below for what exists. The design:
   `segment.move_cut`. Adding a cut, in the engine: `segment.split` with a two-point `cut_path` across a word divides its
   stretch of the reading where a character begins nearest the cut and marks both pieces a person's (one undo puts the
   word back whole, its metadata with it; the moved cut's undo likewise puts the machine's cut back as the machine's,
-  `restore_versions` with `metadata`, since a version snapshot carries no metadata). *Not built:* the click that adds a
-  cut, ⌫ on a mark, the characters' marks, a dashed mark for a cut
+  `restore_versions` with `metadata`, since a version snapshot carries no metadata). A click on a mark picks it and ⌫
+  removes the cut: one `segment.merge` joining the two pieces, which then read from both their stretches (a person's
+  join; its undo puts the pieces' metadata back, `kept_metadata`). *Not built:* the click that adds a cut, the
+  characters' marks, a dashed mark for a cut
   under 0.5 (the box the page draws does not carry the cut's confidence yet). *Tests:*
   `fichero-server/tests/unit/api/test_segment_move_cut.py`; `fichero/Tests/Unit/general/Views/Source/CutMarksTests.swift`.
 - `segment-editor.word-view` — **[GAP]** (→ #5212; app; ties to `../source/line-editor.md`) with the word layer on, words

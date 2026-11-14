@@ -3184,6 +3184,7 @@ def _invert_merge(before, after, ctx: ActionContext):
             "moved_children": after.get("moved_children", {}),
             "moved_children_parents": after.get("moved_children_parents", {}),
             "child_order_entries": after.get("child_order_entries", []),
+            **({"kept_metadata": after["kept_metadata"]} if after.get("kept_metadata") is not None else {}),
             # The kept row's shape before a joined-geometry merge, restored from its snapshot.
             **({"keep_restore": {
                 "segment_id": after["kept_id"], "version": after["kept_version"],
@@ -3393,6 +3394,7 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
     # `segment-editor.merge-lines`: the kept line takes the joined shape, versioned like any reshape, so
     # its undo restores the snapshot written here.
     kept_version = None
+    kept_metadata = None
     if params.keep_shapes and joined_shape is None:
         outlines = [outline for outline in (_member_outline(rows[sid]) for sid in params.segment_ids) if outline]
         if outlines:
@@ -3419,6 +3421,14 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
         keep_row.baseline = joined_shape["baseline"]
         bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(keep_row.anchor)
         keep_row.bbox_x, keep_row.bbox_y, keep_row.bbox_w, keep_row.bbox_h, keep_row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
+        # `segment-editor.cut-marks-editable`: pieces cut from one reading (words, characters) joined across the cut
+        # removed read from every stretch they held; the record keeps who joined them.
+        spans = [(rows[sid].metadata or {}).get("reading_span") for sid in params.segment_ids]
+        sources = {(rows[sid].metadata or {}).get("cut_from_representation_id") for sid in params.segment_ids}
+        if all(isinstance(span, list) and len(span) == 2 for span in spans) and len(sources) == 1:
+            kept_metadata = dict(keep_row.metadata or {})
+            keep_row.metadata = {**kept_metadata, "reading_span": [min(a for a, _ in spans), max(b for _, b in spans)],
+                                 "cut_source": "person", "cut_confidence": 1.0}
         db.save(keep_row)
         after_versions[params.keep_id] = keep_row.version
 
@@ -3450,6 +3460,8 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
             "child_order_entries": child_order_entries,
             # The kept row's version before its shape was joined; None when it kept its own.
             "kept_version": kept_version,
+            # Its metadata before its stretch of the reading was joined (a snapshot carries none).
+            "kept_metadata": kept_metadata,
         },
         emit_type="segment.merged",
         segment_ids=[params.keep_id, *absorbed_ids],
@@ -3538,6 +3550,8 @@ class SegmentUnmergeParams(BaseModel):
     moved_children: dict[str, int] = {}
     moved_children_parents: dict[str, Optional[str]] = {}
     child_order_entries: list[SegmentOrderEntryParams] = Field(default_factory=list)
+    #: `segment-editor.cut-marks-editable`: the kept word's metadata before its stretch of the reading was joined.
+    kept_metadata: Optional[dict[str, Any]] = None
 
 
 def _move_children_into(
@@ -3672,6 +3686,8 @@ def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionConte
         keep_row, target = keep_target
         snapshot_segment_version(db, keep_row, deleted=False, actor=ctx.actor, audit_id=audit_id)
         _copy_version_onto_row(keep_row, target)
+        if params.kept_metadata is not None:
+            keep_row.metadata = params.kept_metadata  # a version snapshot carries no metadata
         db.save(keep_row)
         restored_ids.append(keep_row.id)
         after_versions[keep_row.id] = keep_row.version
