@@ -21,6 +21,8 @@ struct ActivityPaneView: View {
     var paneKey = "activity.window"
     /// A row to select when it is listed (Show in Activity).
     var reveal: ActivitySelection?
+    /// The documents whose file row to select, by File (Show in Activity on a page): the first one listed.
+    var revealFiles: [String]?
     /// The selected row, for the Inspector beside the pane; nil with none or several selected.
     var onSelect: (ActivityPaneSelection?) -> Void = { _ in }
 
@@ -112,7 +114,8 @@ struct ActivityPaneView: View {
         .onChange(of: selection) { _, _ in onSelect(selectedPick) }
         .onChange(of: shownRows.map(\.id)) { _, _ in onSelect(selectedPick); if selection.isEmpty { select(reveal) } }
         .onChange(of: reveal) { _, wanted in select(wanted) }
-        .onAppear { select(reveal) }
+        .onChange(of: revealFiles) { _, wanted in showFiles(wanted) }
+        .onAppear { select(reveal); showFiles(revealFiles) }
         .task(id: showArchived) { await readArchivedIfShown() }
         .task(id: refreshKey) { await refreshAll() }
         .confirmationDialog("Archive every finished run?", isPresented: $confirmingArchiveFinished) {
@@ -131,6 +134,13 @@ struct ActivityPaneView: View {
         } message: {
             Text("What they have done so far is discarded. Undo puts them back.")
         }
+    }
+
+    /// Show in Activity on a page: by File, its file row selected (`activity.pane.commands-through-the-table`).
+    private func showFiles(_ documentIds: [String]?) {
+        guard let documentIds, let id = ActivityPane.fileRowId(documentIds, in: ActivityPane.byFile(allRows)) else { return }
+        update { $0.grouping = .file }
+        selection = [id]
     }
 
     /// Switch the grouping, keeping a selected file selected (`activity.pane.group-by-run-or-by-file`).

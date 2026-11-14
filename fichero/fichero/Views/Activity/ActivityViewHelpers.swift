@@ -14,8 +14,14 @@ final class ActivityWindowSelectionState {
     /// The pane's selected row, for the Inspector.
     var pick: ActivityPaneSelection?
 
+    /// The documents whose file row Show in Activity asks for, in Group by File (a page, then its parent document).
+    var revealFiles: [String]?
+
     /// Show in Activity: the window selects this row (the caller then opens the window).
     func select(_ selection: ActivitySelection?) { reveal = selection }
+
+    /// Show in Activity on a page or a document: the window groups by File and selects its row.
+    func showFile(_ document: Document) { revealFiles = [document.id] + [document.parentId].compactMap { $0 } }
 }
 
 /// Shared helper functions for Activity views

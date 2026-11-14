@@ -80,6 +80,11 @@ enum ActivityPane {
         })
     }
 
+    /// The file row Show in Activity selects: the first of the documents (a page, then its parent) that has a row by File.
+    static func fileRowId(_ documentIds: [String], in fileRows: [ActivityMonitorRow]) -> String? {
+        documentIds.lazy.map { "file:\($0)" }.first { id in fileRows.contains { $0.id == id } }
+    }
+
     /// The page rows under a row, however deep (a run's steps hold its pages).
     static func leaves(of row: ActivityMonitorRow) -> [ActivityMonitorRow] {
         guard let children = row.children, !children.isEmpty else { return row.kind == .page ? [row] : [] }

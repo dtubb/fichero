@@ -8,7 +8,7 @@ struct ActivityMonitorWindow: View {
     @State private var showsInspector = true
 
     var body: some View {
-        ActivityPaneView(libraryId: nil, paneKey: "activity.window", reveal: selectionState.reveal,
+        ActivityPaneView(libraryId: nil, paneKey: "activity.window", reveal: selectionState.reveal, revealFiles: selectionState.revealFiles,
                          onSelect: { selectionState.pick = $0 })
             .inspector(isPresented: $showsInspector) {
                 ActivityInspectorSection(pick: selectionState.pick)
