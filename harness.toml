@@ -39,7 +39,8 @@ red_paths = ["fichero-server/src/", "fichero-cli/src/", "fichero-mcp/src/", "fic
 spec_dir = "docs/contributor_manual/specs"
 test_globs = ["test_*.py", "*_test.py"]
 # speed batch 1 (manager 2026-11-03): rule classes the ladder decides by itself, each an `auto` journal row the manager audits
-auto = ["red-on-base-trim-only", "red-on-base-timeout-only", "weakened-tests-of-a-deleted-module", "approval-carry-same-file-diffs", "guard-data-added-routes"]
+auto = ["red-on-base-trim-only", "red-on-base-timeout-only", "weakened-tests-of-a-deleted-module", "approval-carry-same-file-diffs", "guard-data-added-routes",
+        "allowlist-entries-only-removed"]
 routes_file = "fichero-server/tests/contracts/openapi.json"  # the engine's routes at head (guard-data-added-routes)
 # manager 2026-11-04: a rebase whose ONLY conflict is the generated contract identity takes upstream's and re-bakes it with the
 # project's own tool (#4705), never by hand
@@ -47,6 +48,10 @@ generated = ["fichero-server/src/fichero_server/api/contract_identity_generated.
              "fichero/fichero-api-client/Sources/FicheroAPIClient/ContractIdentity.generated.swift"]
 rebake = ["{python}", "fichero-server/scripts/export_openapi_schema.py", "--bake-identity-from", "fichero-server/tests/contracts/openapi.json"]
 rebake_issue = "#4705"
+# 2026-11-14: a rebase left the contracts and the engine embed list stale and the guards bounced the batch: after every rebase that moves a
+# managed lane these run in its worktree as the worker and a change is committed citing rebake_issue; an external lane's red names them
+regen = ["FICHERO_PYTHON_BIN={python} bash fichero-server/scripts/sync_openapi_schema.sh", "{python} scripts/regen_engine_embed_filelist.py",
+         "rm -rf fichero/fichero-api-client/.build"]
 # pytest runs with plugin autoload OFF, the pinned config, and only these plugins (module names in the worker venv).
 pytest_config = "fichero-server/pyproject.toml"
 # manager 2026-11-02 (the Pro is CPU-bound): the engine pytest runs go to the M4 iMac, then the M1 Air (added 2026-11-03; each venv

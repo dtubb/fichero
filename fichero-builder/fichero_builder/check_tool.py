@@ -75,6 +75,8 @@ class Config:
     generated: tuple = ()               # generated files a rebase may re-bake itself (the contract identity): never hand-merged
     rebake: tuple = ()                  # argv run in the worktree to re-bake them from the merged sources ("{python}" = [check].python)
     rebake_issue: str = ""              # the issue a re-bake commit cites, e.g. "#4705"
+    regen: tuple = ()                   # shell lines that regenerate every generated file (contracts, embed list), run after each rebase
+                                        # that moved the lane and committed when they changed a tracked file ("{python}" = [check].python)
     remote: str = ""                    # "host:dir": the engine pytest runs go over ssh to that machine ("" = here); unreachable = an alert, then the next in `remotes`, then here
     remotes: tuple = ()                 # [check].remote as a LIST ("imac:~/g", "air:~/g"): tried in order; one alert per runner that is down
     remote_python: str = ""             # the interpreter there ("" = <dir>/venv/bin/python)
@@ -118,7 +120,7 @@ def load(root) -> Config:
         pytest_config=c.get("pytest_config", d.pytest_config), pytest_plugins=tuple(c.get("pytest_plugins", d.pytest_plugins)), max_files=c.get("max_files", d.max_files),
         max_lines=c.get("max_lines", d.max_lines), max_commits=c.get("max_commits", d.max_commits), build_paths=tuple(c.get("build_paths", d.build_paths)), product_paths=tuple(c.get("product_paths", d.product_paths)),
         build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
-        build_lock=c.get("build_lock", d.build_lock), build_tree=c.get("build_tree", d.build_tree), build_remote=c.get("build_remote", d.build_remote), daily_builds={k: tuple(v) for k, v in c.get("daily_builds", {}).items()}, daily_tests=tuple(c.get("daily_tests", ())), routes_file=c.get("routes_file", d.routes_file), generated=tuple(c.get("generated", d.generated)), rebake=tuple(c.get("rebake", d.rebake)), rebake_issue=c.get("rebake_issue", d.rebake_issue), engine_repo=c.get("engine_repo", d.engine_repo),
+        build_lock=c.get("build_lock", d.build_lock), build_tree=c.get("build_tree", d.build_tree), build_remote=c.get("build_remote", d.build_remote), daily_builds={k: tuple(v) for k, v in c.get("daily_builds", {}).items()}, daily_tests=tuple(c.get("daily_tests", ())), routes_file=c.get("routes_file", d.routes_file), generated=tuple(c.get("generated", d.generated)), rebake=tuple(c.get("rebake", d.rebake)), rebake_issue=c.get("rebake_issue", d.rebake_issue), regen=tuple(c.get("regen", d.regen)), engine_repo=c.get("engine_repo", d.engine_repo),
         remote=(c["remote"][0] if c["remote"] else "") if isinstance(c.get("remote"), list) else c.get("remote", d.remote),
         remotes=tuple(c["remote"]) if isinstance(c.get("remote"), list) else d.remotes, remote_python=c.get("remote_python", d.remote_python),
         remote_guards=c.get("remote_guards", d.remote_guards), guard_inputs=dict(c.get("guard_inputs", {})), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb),
@@ -139,6 +141,9 @@ AUTO_RULES = {
     "approval-carry-same-file-diffs": "an approve (red-on-base, weakened tests, guard data) carries to the step's new head when each file it "
                                       "named has the same diff from its base (patch-id) at both heads: commits only added elsewhere, or a rebase "
                                       "whose range-diff of those files is empty; any other approval kind never carries",
+    "allowlist-entries-only-removed": "a pinned guard's allowlist (a top-level literal named KNOWN/ALLOW/BASELINE/EXEMPT/DEBT, or a "
+                                      "known-gaps/allowlist JSON) that only lost entries, every other statement identical, makes the guard "
+                                      "stricter: not a pinned-file refusal, and the ladder judges with head's copy of that file (2026-11-14)",
     "guard-data-added-routes": "a guard-data stop on a *_known_gaps.json keyed by routes resolves itself when the batch only ADDS entries "
                                "(no key removed, no existing text changed), each added key is a route in [check].routes_file at head, and "
                                "each added reason names an issue (#N) or a step",
@@ -1520,7 +1525,7 @@ def acceptance_changed(root, since: str, head: str, cfg: Config, ids) -> list[st
 SCRATCH_CHECKOUT_S = 600.0  # a scratch tree's `git worktree add`: minutes under load, never the 60 s other git calls get
 
 
-def _scratch_tree(root, head: str, pinned, cfg: Config, overlay: bool = True, data_from_head: tuple = ()) -> str:
+def _scratch_tree(root, head: str, pinned, cfg: Config, overlay: bool = True, data_from_head: tuple = (), stricter_from_head: tuple = ()) -> str:
     """A detached worktree of `head` with the pinned copy's check files laid over it: the checks judge the worker's
     committed code, never its uncommitted edits and never its own copies of the checks. overlay=False: head's own tree,
     for the pytest rungs (manager 2026-11-02: pinned copies JUDGE, they are not the code under test; a batch that changes a
@@ -1546,7 +1551,7 @@ def _scratch_tree(root, head: str, pinned, cfg: Config, overlay: bool = True, da
     try:
         for f in (_lines(pinned, "ls-files") or []) if overlay else []:
             if f.startswith(cfg.check_paths):
-                if f in data_from_head and f.endswith(".json"):
+                if (f in data_from_head and f.endswith(".json")) or f in stricter_from_head:  # stricter: see `stricter_files`
                     continue
                 src, dest = Path(pinned) / f, Path(tree) / f
                 if src.is_symlink():
@@ -1561,6 +1566,23 @@ def _scratch_tree(root, head: str, pinned, cfg: Config, overlay: bool = True, da
         drop_tree(root, tree)  # a refusal leaves no half-made worktree behind (review -89)
         raise
     return tree
+
+
+def stricter_files(root, since: str, head: str, cfg: Config) -> tuple:
+    """`allowlist-entries-only-removed` (2026-11-14: a guard on base reported a stale entry, "drop from the set", and the lane could not
+    drop it: any edit to a pinned guard was a refusal and the pinned copy kept saying stale): the check-path files whose only change is
+    allowlist entries removed. Each is one `auto` row; the ladder lays head's copy of exactly these over the pinned ones."""
+    if "allowlist-entries-only-removed" not in cfg.auto:
+        return ()
+    out = []
+    for _s, _m, f in _changes(root, since, head, "--diff-filter=M"):
+        if f.startswith(cfg.check_paths) and f.endswith((".py", ".json")):
+            from fichero_builder import autofix
+            before, after = ("\n".join(_lines(root, "show", f"{rev}:{f}") or []) for rev in (since, head))
+            if autofix.allowlist_only_removed(f, before, after):
+                journal.append("auto", rule="allowlist-entries-only-removed", head=head, file=f, detail="only allowlist entries removed: the guard is stricter; head's copy judges")
+                out.append(f)
+    return tuple(out)
 
 
 def drop_tree(root, tree: str) -> None:
@@ -1578,7 +1600,7 @@ class EmptyRange(RuntimeError):
     """since equals head: a landing branch that never got its commit judged green on nothing (2026-11-02)."""
 
 
-def ladder_over(root, since_sha: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool = False,
+def ladder_over(root, since_sha: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool | tuple = False,
                 approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = ()) -> dict:
     """The one way `builder check` and `builder work` run the ladder: an empty range is refused, never judged."""
     if since_sha == head:
@@ -1588,7 +1610,7 @@ def ladder_over(root, since_sha: str, head: str, pinned, protected_ids=(), maint
 
 
 def run_ladder(root, since: str, head: str, pinned, protected_ids=(), jail_required: bool = True, maintainer: bool = False,
-               approve_weakened: bool = False, approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = ()) -> dict:
+               approve_weakened: bool | tuple = False, approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = ()) -> dict:
     """The project's whole ladder over the diff since..head, judged by the PINNED copy (an engine-owned checkout
     outside the worker's tree; its harness.toml is the config): pinned-checks, ready, diff bound, red-on-base for
     the changed test files (its green run is the pytest rung), guards, contract. Stops at the first red.
@@ -1642,10 +1664,11 @@ def _no_red_row(tree, whole: tuple, cfg: Config) -> dict:
 RUNGS = ("ready", "diff-bound", "red-on-base", "guards", "contract-current", "since-guards", "build")  # the ladder below, in order
 
 
-def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool = False,
+def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool | tuple = False,
                 approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = ()) -> dict:
     cfg = load(pinned)
-    bad = pinned_violations(root, since, head, cfg, pinned)
+    stricter = stricter_files(root, since, head, cfg)
+    bad = [b for b in pinned_violations(root, since, head, cfg, pinned) if b.split(": ", 1)[0] not in stricter]
     noted = ""
     if maintainer:  # only "a pinned check file was changed/deleted" is noted; a symlink, sitecustomize/.pth, .claude/, a new pinned-path file still refuse
         changed = [b for b in bad if b.endswith((": a pinned check file was changed", ": a pinned check file was deleted")) or " is pinned by name anywhere (" in b]  # a conftest.py edit: the manager's approve excuses it (2026-11-02)
@@ -1660,11 +1683,13 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
         for f in [w for w in weak if weakened_by_a_deleted_module(root, since, head, w, gone)]:
             journal.append("auto", rule="weakened-tests-of-a-deleted-module", head=head, file=f, detail=f"its lost checks used {', '.join(sorted(gone))}, deleted by this diff")
             weak.remove(f)
-    if weak:
-        if approve_weakened:  # the manager answered the alert with approve (an owner ruling renamed or dropped them): recorded, not refused
-            noted = (noted + "; " if noted else "") + f"approved weakened tests: {', '.join(weak[:5])}"
-        else:
-            bad.append(f"the diff deletes or weakens existing tests ({', '.join(weak[:5])})")
+    # the manager answered the alert with approve (an owner ruling renamed or dropped them): recorded, not refused; a tuple of files
+    # (an approve bound to their content, ladder.approve-is-fingerprinted) excuses only those
+    excused = [w for w in weak if approve_weakened is True or (isinstance(approve_weakened, tuple) and w in approve_weakened)]
+    if excused:
+        noted = (noted + "; " if noted else "") + f"approved weakened tests: {', '.join(excused[:5])}"
+    if weak := [w for w in weak if w not in excused]:
+        bad.append(f"the diff deletes or weakens existing tests ({', '.join(weak[:5])})")
     bad += [f"the diff rewrites the item's own acceptance ({h})" for h in acceptance_changed(root, since, head, cfg, protected_ids)[:8]]
     if bad:
         r = {"name": "pinned-checks", "argv": [], "exit_code": 1, "ok": False, "timed_out": False, "seconds": 0,
@@ -1675,7 +1700,7 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
     tests = [f for f in names if any(fnmatch.fnmatch(Path(f).name, g) for g in cfg.test_globs)]
     if cfg.base_ref and not _git(root, "rev-parse", "--verify", "-q", f"refs/remotes/{cfg.base_ref}")["ok"]:
         _git(root, "update-ref", f"refs/remotes/{cfg.base_ref}", since)  # a remote-less clone: ready checks diff against it
-    tree = _scratch_tree(root, head, pinned, cfg, data_from_head=tuple(guard_data))
+    tree = _scratch_tree(root, head, pinned, cfg, data_from_head=tuple(guard_data), stricter_from_head=stricter)
     own = _scratch_tree(root, head, pinned, cfg, overlay=False)  # the pytest rungs: head as it will land
     try:
         ok_pin = {"name": "pinned-checks", "argv": [], "exit_code": 0, "ok": True, "timed_out": False, "seconds": 0,

@@ -1391,6 +1391,40 @@ def test_a_guard_data_approval_is_bound_to_the_known_gaps_files_content_and_hold
     assert queue.guard_data_for({**s, "head": g(wt, "rev-parse", "HEAD"), "approved_head": head_a}, str(wt)) == (), "changed content: the manager's call again"
 
 
+def test_a_red_on_base_approve_is_bound_to_the_test_files_blob_and_holds_at_every_later_head_while_it_is_unchanged(state, tmp_path):
+    """2026-11-14: a red-on-base approve was lost at every new head (a newer `done` clears the head's approvals) though the flagged test
+    file never changed. The approve records each named test file's blob; any later head where they match is approved by itself (one
+    `auto` row `approve-same-test-content`), only for those files; a changed test file is the manager's call again."""
+    wt, g = _ext_repo(tmp_path, commits=1)
+    (wt / "tests").mkdir()
+    (wt / "tests" / "test_x.py").write_text("def test_x():\n    assert True\n")
+    g(wt, "add", "."), g(wt, "commit", "-qm", "a test that passes on base")
+    head_a = g(wt, "rev-parse", "HEAD")
+    queue.add("ext", str(wt), "batch-1", str(state / "b1.1"), [7], kind="external")
+    assert cli.main(["done", "ext", head_a, "--state", str(state / "s")]) == 0
+    fake = Fake(chains={"batch-1": [{"ok": False, "kind": "red-on-base", "approvals": ["approve_red"], "evidence": "/s/ladder.json",
+                                     "why": f"red-on-base at {head_a[:9]}: NOT RED ON BASE: tests/test_x.py passes at abc123456"}]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    assert cli.main(["alert", a["id"], "approve", "--state", str(state / "s")]) == 0
+    lanes = queue.load()
+    s = lanes[0]["steps"][0]
+    assert s["approved_test_blobs"] == {"tests/test_x.py": g(wt, "rev-parse", f"{head_a}:tests/test_x.py")}
+    s["state"] = "checking"  # the chain is running when the lane's next done arrives: the new head supersedes it
+    queue.save(lanes)
+    (wt / "other").write_text("o")
+    g(wt, "add", "."), g(wt, "commit", "-qm", "later, same test")
+    head_b = g(wt, "rev-parse", "HEAD")
+    assert cli.main(["done", "ext", head_b, "--state", str(state / "s")]) == 0
+    s = queue.load()[0]["steps"][0]
+    assert "approve_red" not in s and s["head"] == head_b, "the head's own approvals ended with the superseded check"
+    assert queue.content_approvals(s, str(wt)) == {"approve_red": ("tests/test_x.py",), "approve_weakened": False}, "same blob: approved by itself"
+    assert [r["rule"] for r in journal.read() if r["event"] == "auto"] == ["approve-same-test-content"]
+    (wt / "tests" / "test_x.py").write_text("def test_x():\n    assert 1\n")
+    g(wt, "add", "."), g(wt, "commit", "-qm", "the test changed")
+    assert queue.content_approvals({**s, "head": g(wt, "rev-parse", "HEAD")}, str(wt))["approve_red"] is False, "changed test: asked again"
+
+
 def test_a_retry_keeps_the_steps_head_and_reruns_the_check_from_the_failed_rung_instead_of_a_fresh_session(state):
     """2026-11-11: `retry` on lane-ie's blocked step re-queued it 'at no head' (a worker lane's step records a head only when green):
     a fresh session on the tree, the finished green work judged from scratch. A retry of a step whose check ran keeps that head, goes

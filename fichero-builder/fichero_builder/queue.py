@@ -843,6 +843,16 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
             if action == "approve" and s.get("approve_kind") == "guard-data" and s.get("head") and lane is not None:
                 repo_ = s.get("land_tree") or lane["worktree"]  # bound to the files' content: a later head with the same blobs is approved by itself (alert 541)
                 s["approved_guard_blobs"] = {f: blob_at(repo_, s["head"], f) for f in re.findall(r"[\w./-]+\.json", said)}
+            if action == "approve" and lane is not None and ({s.get("approve_kind")} | set(s.get("approvals") or ())) & {"red-on-base", "weakened-tests", "approve_red", "approve_weakened"}:
+                # ladder.approve-is-fingerprinted (2026-11-14: a red-on-base approve was lost at every new head though the test file never
+                # changed): bound to each named test file's blob, so any later head with the same blobs is approved by itself
+                at = re.search(r"\bat ([0-9a-f]{7,40})\b", a.get("what", ""))
+                h, repo_ = s.get("head") or (at.group(1) if at else ""), s.get("land_tree") or lane["worktree"]
+                blobs = {f: b for f in re.findall(r"[\w./-]+\.py", said) if h and (b := blob_at(repo_, h, f))}
+                if blobs:
+                    s["approved_test_blobs"] = {**(s.get("approved_test_blobs") or {}), **blobs}
+                    s["approved_test_kinds"] = sorted(set(s.get("approved_test_kinds") or ()) | {
+                        "approve_weakened" if s.get("approve_kind") == "weakened-tests" or "approve_weakened" in (s.get("approvals") or ()) else "approve_red"})
             if action == "approve" and s.get("approve_kind") in ("needs-maintainer", "weakened-tests", "pinned-new") and (pid := patch_id(a.get("evidence", ""))):
                 at = re.search(r"\bat ([0-9a-f]{7,40})\b", a.get("what", ""))  # a refused chain stores no head on a worker lane's step: the alert names it
                 s["approved_diff"], s["approved_diff_head"] = pid, at.group(1) if at else s.get("head", "")  # bound to the diff's content, not the head
@@ -1426,6 +1436,28 @@ def guard_data_for(step: dict | None, repo: str) -> tuple:
     return ()
 
 
+def content_approvals(step: dict | None, repo: str) -> dict:
+    """The red-on-base and weakened-tests approvals the ladder runs with (ladder.approve-is-fingerprinted): the approve given at this head,
+    or at any later head where every test file the approve named has the blob it had then (`approved_test_blobs`; one `auto` row
+    `approve-same-test-content`). A changed test file: the manager's call again. {approve_red: False | True | (files), approve_weakened:
+    False | True | (files)}; a tuple excuses only refusals naming those files."""
+    out: dict = {"approve_red": False, "approve_weakened": False}
+    if not step:
+        return out
+    if _approved(step, "approve_red"):
+        out["approve_red"] = tuple(f for f in step.get("approved_tests") or () if f.endswith(".py")) or True
+    if _approved(step, "approve_weakened"):
+        out["approve_weakened"] = True
+    blobs, head = step.get("approved_test_blobs") or {}, step.get("head", "")
+    kinds = [k for k in step.get("approved_test_kinds") or () if not out.get(k)]
+    if blobs and head and kinds and all(blob_at(repo, head, f) == b for f, b in blobs.items()):
+        journal.append("auto", rule="approve-same-test-content", head=head, file=", ".join(sorted(blobs)),
+                       detail=f"{', '.join(kinds)} given at {step.get('approved_head', '')[:9]} holds: each named test file has the blob it had then")
+        for k in kinds:
+            out[k] = tuple(sorted(blobs))
+    return out
+
+
 def _approved(step: dict | None, key: str) -> bool:
     """An approve counts only for the head it was given on (defect 2026-11-02: alert -36's approve_red excused a later head)."""
     # a worker lane's step has no head until a chain is green: its approve is recorded with head "" and holds while it still has none
@@ -1473,8 +1505,8 @@ def real_procs(root) -> Procs:
         tree = (step or {}).get("land_tree") or lane["worktree"]  # an external lane's batch is taken from its land-<lane> snapshot
         return types.SimpleNamespace(worktree=tree, name=lane["id"], pinned=str(root), root=str(root), kind="claude", session="harness",
                                      tick=30.0, issues=step["issues"] if step else [], brief=brief, ids=[], repo=repo,
-                                     maintainer=_approved(step, "maintainer") or bool(lane.get("maintainer")), approve_weakened=_approved(step, "approve_weakened"),
-                                     external=lane.get("kind") == "external", approve_red=_approved(step, "approve_red") and (tuple(f for f in step.get("approved_tests") or () if f.endswith(".py")) or True),
+                                     maintainer=_approved(step, "maintainer") or bool(lane.get("maintainer")), **content_approvals(step, tree),
+                                     external=lane.get("kind") == "external",
                                      approve_pinned_new=_approved(step, "approve_pinned_new"),
                                      guard_data=guard_data_for(step, tree), retry=bool(step and step.get("retry_rungs")),
                                      reviewer_fast=reviewer if lane["id"] in opus_lanes else reviewer_fast, opus_paths=opus_paths,
@@ -1641,10 +1673,13 @@ def presubmit(lane_id: str, sha: str, pinned=None) -> tuple[bool, str]:
     except (ValueError, OSError) as e:  # the live loop's rules are newer than this code (a new key) or unreadable: said, never a traceback
         journal.append("presubmit", lane=lane_id, head=want, state="skipped", detail=f"the live rules could not be read by this code: {e}"[-300:])
         return True, f"presubmit skipped: the live rules could not be read by this code (update it): {e}"
+    base_ref = cfg.base_ref or "origin/integration"
+    stricter = check_tool.stricter_files(wt, base_ref, want, cfg)  # allowlist entries only removed: head's copy judges, as in the ladder
+
     def run(data: tuple = ()) -> tuple[bool, str]:
         tree = None
         try:
-            tree = check_tool._scratch_tree(wt, want, pinned, cfg, data_from_head=data)
+            tree = check_tool._scratch_tree(wt, want, pinned, cfg, data_from_head=data, stricter_from_head=stricter)
             r = subprocess.run(["bash", *ready], cwd=tree, capture_output=True, text=True,
                                timeout=PRESUBMIT_TIMEOUT_S, env={**os.environ, "FICHERO_PYTHON_BIN": sys.executable})
             return r.returncode == 0, (r.stdout + r.stderr).strip()
@@ -1662,11 +1697,62 @@ def presubmit(lane_id: str, sha: str, pinned=None) -> tuple[bool, str]:
         # goes through and the ladder raises the approve (manager 2026-11-04); any other red stays a refusal.
         base = subprocess.run(g + ["merge-base", want, "origin/integration"], capture_output=True, text=True).stdout.strip()
         files = subprocess.run(g + ["diff", "--no-ext-diff", "--name-only", base, want], capture_output=True, text=True).stdout.split() if base else []
-        data = tuple(f for f in files if f.endswith(".json") and f.startswith(tuple(cfg.check_paths)))
+        data = tuple(f for f in files if f.endswith(".json") and f.startswith(tuple(cfg.check_paths)) and f not in stricter)
         if data and run(data)[0]:
             ok, said = True, f"presubmit green but would need the guard-data approve for {', '.join(data)} (red under the pinned copy):\n{said}"
+    if not ok:  # the exact command for a mechanical red (2026-11-14): a stale allowlist entry, a missing Spec-change trailer, stale contracts
+        from fichero_builder import autofix
+        read = lambda f: subprocess.run(g + ["show", f"{want}:{f}"], capture_output=True, text=True).stdout  # noqa: E731
+        if fixes := autofix.fix_hints(said, read, work.regen_shown(cfg), tuple(cfg.contract_guards), cfg.rebake_issue):
+            said += "\nFix: " + "\nFix: ".join(fixes)
     journal.append("presubmit", lane=lane_id, head=want, state=("guard-data" if said.startswith("presubmit green but") else "green") if ok and not said.startswith("presubmit skipped") else "skipped" if ok else "red", detail=said[-1500:])
     return ok, said
+
+
+def precheck(root, worktree: str, head: str = "HEAD", pinned: str = "") -> tuple[int, str]:
+    """`builder precheck <worktree>` (2026-11-14: the manager's hand-run guards passed and the ladder bounced the batch twice: the scripts
+    find the repo from their own `__file__`, so a pinned script run from its own dir judges the PINNED tree, and the batch's own copy
+    misses what the base copy refuses). The ladder's own guard rungs (`guards`: every `[check].guard_glob` script not in `guard_skip`;
+    `contract-current`; `since-guards`) over a scratch tree of the worktree's `head` with the pinned check files laid over it, files whose
+    only change is removed allowlist entries kept as head's (`allowlist-entries-only-removed`). The pinned copy is `--pinned`, else the
+    one the ladder pins for origin/<[land].branch> now. Each red is printed with its output and, when mechanical, its exact fix. Unjailed,
+    as the caller: the worktree's code runs under the caller's account (the manager's own lanes). (exit code, text); one `precheck` row."""
+    from fichero_builder import check_tool
+    if not pinned:
+        rules = tomllib.loads((Path(root) / "harness.toml").read_text())
+        repo, branch = rules["check"]["engine_repo"], rules["land"]["branch"]
+        base_sha = land_tool.resolve_branch(repo, branch)
+        if not base_sha:
+            return 2, f"REFUSED: origin/{branch} is not known in {repo}: no pinned copy to judge with"
+        pinned = work.ensure_pinned(str(root), "", base_sha)
+    cfg = check_tool.load(pinned)
+    g = ["git", "-c", "safe.directory=*", "-C", str(worktree)]
+    want = subprocess.run(g + ["rev-parse", "--verify", "-q", f"{head}^{{commit}}"], capture_output=True, text=True).stdout.strip()
+    base = subprocess.run(g + ["merge-base", want, cfg.base_ref or "origin/integration"], capture_output=True, text=True).stdout.strip() if want else ""
+    if not want or not base:
+        return 2, f"REFUSED: {head} or its merge base with {cfg.base_ref or 'origin/integration'} is not in {worktree}"
+    names = subprocess.run(g + ["diff", "--name-only", "--diff-filter=AM", base, want], capture_output=True, text=True).stdout.split()
+    stricter = check_tool.stricter_files(worktree, base, want, cfg)
+    tree = check_tool._scratch_tree(worktree, want, pinned, cfg, stricter_from_head=stricter)
+    try:
+        rungs = [("guards", check_tool.guards(tree, cfg)), ("contract-current", check_tool.contract_current(tree, names, cfg)),
+                 ("since-guards", check_tool.since_guards(tree, base, names, cfg))]
+    finally:
+        check_tool.drop_tree(worktree, tree)
+    glob_dir = str(Path(cfg.guard_glob).parent) if cfg.guard_glob else "scripts"
+    red = [(n, x) for n, r in rungs for x in r.get("results") or [] if not x.get("ok")]
+    reasons = [f"{n}: {r['reason']}" for n, r in rungs if not r.get("ok") and r.get("reason")]
+    ran = sum(len(r.get("results") or []) for _, r in rungs)
+    text = "\n".join(f"FAIL: {glob_dir}/{x['name']}.py\n{(x.get('stdout_tail') or '').rstrip()}\n{(x.get('stderr_tail') or '').rstrip()}".rstrip() for _, x in red)
+    from fichero_builder import autofix
+    fixes = autofix.fix_hints(text, lambda f: subprocess.run(g + ["show", f"{want}:{f}"], capture_output=True, text=True).stdout,
+                              work.regen_shown(cfg), tuple(cfg.contract_guards), cfg.rebake_issue)
+    ok = not red and not reasons
+    journal.append("precheck", worktree=str(worktree), head=want, pinned=str(pinned), ok=ok, red=[x["name"] for _, x in red], fixes=fixes)
+    said = [f"precheck {want[:12]} with {pinned}: {ran} guard runs, " + ("all green" if ok else f"{len(red)} red"),
+            *([f"skipped (the ladder skips them too): {', '.join(sorted(cfg.guard_skip))}"] if cfg.guard_skip else []),
+            *reasons, *([text] if text else []), *(f"Fix: {f}" for f in fixes)]
+    return (0 if ok else 1), "\n".join(said)
 
 
 def refresh_live(root, branch: str, git=None) -> str:
