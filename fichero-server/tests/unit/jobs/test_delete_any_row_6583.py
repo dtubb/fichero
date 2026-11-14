@@ -67,6 +67,8 @@ def test_delete_takes_a_failed_a_paused_a_done_row_and_a_whole_group__and_skips_
     assert _state(held, paused) == ("cancelled", "Deleted by you", True)
     assert _state(held, done)[0] == "done" and _state(held, done)[2]
     assert all(_state(held, t) == ("cancelled", "Deleted by you", True) for t in thumbs)
+    # A cleared FAILED row is hidden (the list does list failures; a done row it never listed, so that is no proof).
+    assert failed not in {j["id"] for j in client.get("/api/activity/jobs").json()["jobs"]}
 
 
 def test_deleted_work_stays_gone_after_a_relaunch_and_a_retry_lists_it_again(held, client):
@@ -108,6 +110,20 @@ def test_clear_finished_takes_every_ended_job_of_its_own_and_leaves_the_rest(hel
     assert _state(held, waiting)[0] == "waiting" and not _state(held, waiting)[2], "work still to do is left"
     assert all(_state(held, d)[2] for d in done)
     assert client.post("/api/activity/jobs/delete", json={"states": ["done"]}).json()["count"] == 0, "nothing left"
+
+
+def test_a_group_member_that_started_meanwhile_is_skipped_and_named(held, client):
+    """Review 2026-11-13: the state is judged at receipt; a job of the group a lane thread took is skipped, not dropped."""
+    waiting = _row(held, GROUP_KIND, "g:w", "waiting")
+    taken = _row(held, GROUP_KIND, "g:r", "waiting")
+    jobs._scheduler.running_ids = lambda: [taken]
+    held.execute("UPDATE jobs SET state = 'running' WHERE id = ?", [taken])  # the lane took it as the click landed
+
+    body = client.post("/api/activity/jobs/delete", json={"ids": [f"waiting:{GROUP_KIND}"]}).json()
+
+    assert body["deleted_ids"] == [waiting]
+    assert body["skipped_ids"] == [taken], "named as skipped, never dropped in silence"
+    assert _state(held, taken)[0] == "running"
 
 
 def test_an_unknown_id_is_skipped_not_an_error(held, client):
