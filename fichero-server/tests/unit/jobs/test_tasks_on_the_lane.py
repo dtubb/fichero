@@ -54,6 +54,7 @@ def test_a_reindex_waits_in_the_queue_survives_a_restart_and_runs_on_the_model_l
     db_manager.close_database(test_package)  # quit
     monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())
     db = db_manager.get_database(test_package)
+    jobs.continue_after_quit(db, None)  # the open holds what the quit left; Continue All lets it go (owner 2026-11-13)
     assert client.get(f"/api/tasks/{first['task_id']}").json()["status"] == "pending"
     assert db.execute_fetchone("SELECT model FROM jobs WHERE id = ?", [first["task_id"]]) == ("embedder",)
 

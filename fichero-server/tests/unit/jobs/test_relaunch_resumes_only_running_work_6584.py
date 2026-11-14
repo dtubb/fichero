@@ -67,8 +67,8 @@ def test_nothing_carries_on_by_itself__failed_stays_failed_with_its_reason(held)
 
 
 def test_a_deleted_row_never_comes_back(held):
-    deleted = _row(held, "d:1", "running", None, cleared_at=jobs.utc_now())
-    deleted_waiting = _row(held, "d:2", "waiting", None, cleared_at=jobs.utc_now())
+    deleted = _row(held, "d:1", "running", None, cleared_at=jobs.utc_now(), deleted_at=jobs.utc_now())
+    deleted_waiting = _row(held, "d:2", "waiting", None, cleared_at=jobs.utc_now(), deleted_at=jobs.utc_now())
 
     jobs.resume(held)
 
