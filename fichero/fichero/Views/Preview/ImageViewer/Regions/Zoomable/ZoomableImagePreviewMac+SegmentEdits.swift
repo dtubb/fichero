@@ -177,10 +177,12 @@ extension ZoomableImagePreview {
     /// The Order tool left (`segment-editor.order-by-clicking`): its clicks as ONE `reading_order.sequence` in the pass's
     /// `as-written` order, one ⌘Z; the page says why when there is no such order.
     func sendOrderClicks() {
-        guard let windowState, let taken = windowState.takeOrderClicks(), let documentId,
-              let store = segmentEditStore, let readingOrderService else { return }
+        // Every Preview pane of the window hears the tool put down; only the one showing the clicked segments takes them.
+        guard let windowState, let documentId, let store = segmentEditStore, let readingOrderService,
+              let firstClick = windowState.orderClicks.first,
+              let passId = store.segments(documentId: documentId).first(where: { $0.id == firstClick })?.passId,
+              let taken = windowState.takeOrderClicks() else { return }
         let (clicks, after) = (taken.segmentIds, taken.after)
-        guard let passId = store.segments(documentId: documentId).first(where: { $0.id == clicks[0] })?.passId else { return }
         Task {
             do {
                 let orders = try await readingOrderService.orders(documentId: documentId)
