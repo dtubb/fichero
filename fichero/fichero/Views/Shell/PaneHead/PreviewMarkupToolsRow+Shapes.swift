@@ -153,7 +153,7 @@ extension PreviewMarkupToolsRow {
 
 /// Simplify's popover (`segment-editor.vertices`): a slider in image pixels. While it is held the page shows what the
 /// engine would make of the selection; let go, ONE `segment.simplify` at that tolerance, one ⌘Z.
-private struct SimplifySliderButton: View {
+extension PreviewMarkupToolsRow { struct SimplifySliderButton: View {
     let windowState: WindowState?
     @State private var showing = false
     @State private var tolerance = SegmentEdit.simplifyTolerance
@@ -186,7 +186,7 @@ private struct SimplifySliderButton: View {
                 .frame(width: 240)
             }
     }
-}
+} }
 
 // Both label modes, as `AnnotationBar` shows them. No `WindowState` is injected: the row reads
 // it optionally, so this is its no-window default (select tool, standard highlight style).
