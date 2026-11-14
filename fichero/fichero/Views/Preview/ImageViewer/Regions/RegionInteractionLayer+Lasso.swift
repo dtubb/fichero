@@ -59,6 +59,76 @@ extension RegionInteractionLayer {
         }
     }
 
+    /// The Brush in Edit Segments (`segment-editor.select-brush`): with B held, or the Brush chosen, a drag paints; letting
+    /// go selects every segment the paint touches at the level being edited (⇧ adds to the selection, ⌥ at the start
+    /// takes away). True while it is the Brush's stroke.
+    func handleBrush(_ event: PreviewPointerEvent, in size: CGSize) -> Bool {
+        guard let windowState, drawsSegments, artifactId != nil else { return false }
+        guard windowState.brushHeld || windowState.brushArmed || !windowState.brushStroke.isEmpty else { return false }
+        let point = [Double(event.point.x), Double(event.point.y)]
+        switch event.phase {
+        case .pressed:
+            windowState.brushStroke = [point]
+            bandCommand = event.command
+            brushSubtracts = event.option
+        case .dragged:
+            guard !windowState.brushStroke.isEmpty else { return true }
+            windowState.brushStroke.append(point)
+        case .released:
+            let stroke = windowState.brushStroke + [point]
+            windowState.brushStroke = []
+            if windowState.brushHeld { windowState.brushStrokedWhileHeld = true }
+            selectPainted(stroke, radius: brushRadius(in: size))
+        }
+        return true
+    }
+
+    /// The brush's radius in page fractions, across and down, for its size on screen.
+    func brushRadius(in size: CGSize) -> [Double] {
+        let half = (windowState?.brushSize ?? 24) / 2
+        guard size.width > 0, size.height > 0 else { return [0, 0] }
+        return [half / size.width * visible.width, half / size.height * visible.height]
+    }
+
+    private func selectPainted(_ stroke: [[Double]], radius: [Double]) {
+        guard let artifactId else { return }
+        let shown = boxes.map { SegmentSelectionGestures.Box(index: $0.index, bbox: $0.box.bbox, level: $0.box.level) }
+        let hits = SegmentSelectionGestures.touched(
+            by: stroke, radius: radius, boxes: shown, level: SegmentSelectionGestures.level(of: shown, commandHeld: bandCommand)
+        )
+        if brushSubtracts {
+            for index in hits where selection.isSelected(index, in: artifactId) {
+                selection.toggle(index, artifactId: artifactId, documentId: documentId, in: allBoxes)
+            }
+            return
+        }
+        guard !hits.isEmpty else { if !shiftHeldForBrush { selection.clear() }; return }
+        var remaining = hits[...]
+        if !shiftHeldForBrush {
+            selection.select(hits[0], artifactId: artifactId, documentId: documentId, in: allBoxes)
+            remaining = hits.dropFirst()
+        }
+        for index in remaining where !selection.isSelected(index, in: artifactId) {
+            selection.toggle(index, artifactId: artifactId, documentId: documentId, in: allBoxes)
+        }
+    }
+
+    /// The paint so far: a band as wide as the brush along the stroke, and the brush's circle where the pointer is.
+    @ViewBuilder
+    func liveBrush(in size: CGSize) -> some View {
+        let stroke = windowState?.brushStroke ?? []
+        if !stroke.isEmpty, visible.width > 0, visible.height > 0 {
+            let points = stroke.map {
+                CGPoint(x: ($0[0] - visible.minX) / visible.width * size.width,
+                        y: ($0[1] - visible.minY) / visible.height * size.height)
+            }
+            let width = windowState?.brushSize ?? 24
+            Path { path in path.addLines(points) }
+                .stroke(Color.accentColor.opacity(0.3), style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
+                .accessibilityIdentifier("segmentEditor.brush")
+        }
+    }
+
     /// The loop so far, drawn over the page.
     @ViewBuilder
     func liveLasso(in size: CGSize) -> some View {

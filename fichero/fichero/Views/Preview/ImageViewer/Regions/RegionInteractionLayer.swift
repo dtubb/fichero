@@ -114,6 +114,10 @@ struct RegionInteractionLayer: View {
     @State var bandCommand = false
     /// A live lasso (⌥-drag on empty page in Select): the loop so far, in the page's fractions.
     @State var lasso: [[Double]] = []
+    /// ⌥ held as a Brush stroke began: the stroke takes segments out of the selection (`segment-editor.select-brush`).
+    @State var brushSubtracts = false
+    /// ⇧ held, for the Brush's extension of the selection (read when the stroke ends).
+    var shiftHeldForBrush: Bool { shiftHeld }
     /// ⇧ held? Tracked via `onModifierKeysChanged` (pure SwiftUI — the §6b
     /// no-AppKit rule) because a tap gesture's value carries no modifiers.
     @State private var shiftHeld = false
@@ -139,6 +143,7 @@ struct RegionInteractionLayer: View {
                     liveDrawing(in: geo.size)
                     liveKnife(in: geo.size)
                     liveLasso(in: geo.size)
+                    liveBrush(in: geo.size)
                     liveOrderNumbers(in: geo.size)
                     liveSimplify(in: geo.size)
                     segmentNotice()
@@ -335,7 +340,7 @@ extension RegionInteractionLayer {
         // Edit Segments on ONE selected shape: Reshape takes the press, the drag and the release.
         // An armed Polygon or Baseline tool owns the click first (#6476): a point placed inside a selected region
         // was taken by Reshape and the region, not the drawing, got it.
-        if handleKnife(event) || handleMarker(event, in: size) || handleDrawShape(event, in: size)
+        if handleKnife(event) || handleMarker(event, in: size) || handleBrush(event, in: size) || handleDrawShape(event, in: size)
             || handleReshape(event, in: size) { return }
         if handleOrderClick(event, at: point, in: size) || handleLasso(event, at: point, in: size) { return }
         switch event.phase {

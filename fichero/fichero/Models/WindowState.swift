@@ -90,7 +90,9 @@ class WindowState {
     /// first opening the markup bar.
     var activeMarkupTool: PreviewMarkupTool? = .select {
         // Another tool chosen puts the Knife down (`segment-editor.split-knife`).
-        didSet { if activeMarkupTool != oldValue { knifeArmed = false; markerArmed = false; orderArmed = false } }
+        didSet {
+            if activeMarkupTool != oldValue { knifeArmed = false; markerArmed = false; orderArmed = false; brushArmed = false }
+        }
     }
 
     /// Segment editing is a MODE of the Source view (`source.editor.segment-focus`, #5114,
@@ -197,6 +199,38 @@ class WindowState {
     var focusedPaneLeaf: UUID?
     /// The sidebar's column visibility before Focus hid it, put back when Focus is left (`panes.focus.esc-restores-exactly`).
     var columnsBeforeFocus: NavigationSplitViewVisibility?
+
+    /// The Brush (`segment-editor.select-brush`), by the Knife's rules: B held paints one selection stroke, a tap of B
+    /// chooses it. The stroke is drawn locally and sent nowhere: selecting is not an action. `brushSize` is its diameter
+    /// in screen points, `[` and `]` change it.
+    var brushHeld = false
+    var brushArmed = false
+    var brushStrokedWhileHeld = false
+    var brushStroke: [[Double]] = []
+    var brushSize = 24.0
+
+    /// B pressed in Edit Segments.
+    func pressBrushKey() {
+        brushHeld = true
+        brushStrokedWhileHeld = false
+    }
+
+    /// B let go: after a stroke the Brush goes back; a tap chooses it.
+    func letGoOfBrushKey() {
+        if brushHeld, !brushStrokedWhileHeld {
+            activeMarkupTool = .select
+            knifeArmed = false
+            markerArmed = false
+            brushArmed = true
+        }
+        brushHeld = false
+        brushStrokedWhileHeld = false
+    }
+
+    /// `[` and `]`: the Brush smaller or larger, between 6 and 120 points.
+    func resizeBrush(larger: Bool) {
+        brushSize = min(max(brushSize * (larger ? 1.25 : 0.8), 6), 120)
+    }
 
     /// The Order tool (`segment-editor.order-by-clicking`): while it is chosen, segments clicked in turn are numbered
     /// 1, 2, 3 …; leaving it (O, Return, Esc, another tool) sends the clicks once as `reading_order.sequence`.
