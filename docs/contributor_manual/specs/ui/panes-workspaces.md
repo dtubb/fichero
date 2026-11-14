@@ -1228,8 +1228,9 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
   focuses that pane (`FocusMode.step`, `WindowState.focusedPaneLeaf`): the window shows that one pane
   (`PaneList.focusing`, a view of the stored list, which is never changed), hides the sidebar and the Inspector and goes
   full screen by the same rule; Esc or ⌃⌘R again puts the sidebar's column visibility back as it was, the Inspector
-  back, and leaves full screen only if Focus entered it. *Not built:* the pane menu's Focus on Pane, the View menu item,
-  the fading overlay head with ✕ and a dark ground for a focused page view. *Tests:* `Models/FocusModeTests.swift`;
+  back, and leaves full screen only if Focus entered it. View › Focus on Pane carries ⌃⌘R (Leave Focus while a pane is in
+  Focus, `FocusOnPaneButton`) and the pane menu has Focus on Pane (`panes.chrome.one-pane-menu`). *Not built:* the
+  fading overlay head with ✕ and a dark ground for a focused page view. *Tests:* `Models/FocusModeTests.swift`;
   `fichero/Tests/Unit/general/Models/PaneFocusTests.swift`.
 - `panes.chrome.every-view-has-head-and-footer` — **[GAP]** (#4880) (owner 2026-11-13: "consistency") every view of every pane
   has a head and a footer, the same two components, with each control in its zone: the head's left moves through what

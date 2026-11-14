@@ -136,11 +136,14 @@ extension ContentView {
         .onChange(of: windowState.focusedPaneLeaf) { old, new in
             if (old == nil) != (new == nil) { paneFocusChanged(new != nil) }
         }
+        // View › Focus on Pane (⌃⌘R) acts on this window (`panes.focus.any-pane-fills-the-screen`); on a Preview showing a
+        // page it is the page reader, as the chord always was.
+        .focusedSceneValue(\.focusOnPane, FocusedLibraryAction(
+            isEnabled: focusOnPaneStep != .nothing,
+            target: focusOnPaneStep == .leave ? "leave" : "enter",
+            run: { focusOnPane() }
+        ))
         .background {
-            // ⌃⌘R: Focus on Pane (`panes.focus.any-pane-fills-the-screen`); on a Preview, the page reader as before.
-            Button("Focus on Pane") { focusOnPane() }
-                .keyboardShortcut("r", modifiers: [.command, .control])
-                .opacity(0)
             if windowState.focusedPaneLeaf != nil {
                 Button("Leave Focus") { windowState.focusedPaneLeaf = nil }
                     .keyboardShortcut(.cancelAction)
@@ -149,12 +152,17 @@ extension ContentView {
         }
     }
 
-    /// ⌃⌘R, View › Focus on Pane: one chord, `FocusMode.step` decides.
-    func focusOnPane() {
-        switch FocusMode.step(
+    /// What ⌃⌘R would do now.
+    private var focusOnPaneStep: FocusMode.Step {
+        FocusMode.step(
             focusedNow: windowState.focusedPaneLeaf, focusedKind: (focusedPane ?? paneFocusHint)?.paneKind,
             focusedLeaf: focusedLeafID, hasPage: immersiveReadingDocument != nil
-        ) {
+        )
+    }
+
+    /// ⌃⌘R, View › Focus on Pane: one chord, `FocusMode.step` decides.
+    func focusOnPane() {
+        switch focusOnPaneStep {
         case .leave: windowState.focusedPaneLeaf = nil
         case .readPage: enterImmersiveReading()
         case .focus(let id): windowState.focusedPaneLeaf = id
