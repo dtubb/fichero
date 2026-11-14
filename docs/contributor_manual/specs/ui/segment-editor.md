@@ -401,7 +401,9 @@ targets are at least 44 pt.
   redo; both refresh the page's cached text. The Order tool in Edit Segments (O, or the tool row's
   Order): the page shows its order numbers, each click numbers a segment in an accent badge (a second
   click takes it away, ⇧ on the first continues after the selected segment), and leaving the tool
-  (O, Return, Esc, another tool) sends one `reading_order.sequence` in the pass's `as-written` order.
+  (O, Return, Esc, another tool) sends one `reading_order.sequence` in the pass's `as-written` order, through the
+  actions door (`POST /api/actions/invoke`, as every segment-editor tool's call: `SegmentEditRunner` → `AuditedAction`),
+  which has no route of its own.
   *Not built:* ordering a named order the Segments pane chose (the Preview knows only `as-written`); the page's numbers
   after the order is set (they follow the boxes' own order, `SegmentDisplay`, not `as-written`, so the new order shows in
   the text, the Order list and the export, not yet in the Preview's numbers).

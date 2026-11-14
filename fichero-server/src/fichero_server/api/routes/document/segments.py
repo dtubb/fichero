@@ -683,7 +683,7 @@ class SimplifyPreview(BaseModel):
 @off_loop
 def preview_simplify_segments(
     doc_id: str,
-    segment_ids: list[str] = Query(..., description="The segments the slider simplifies."),
+    segment_ids: list[str] = Query(..., min_length=1, description="The segments the slider simplifies."),
     tolerance: float = Query(..., gt=0, description="How far, in image pixels, the simpler shape may stray."),
     db: Database = Depends(get_library_database),
 ) -> SimplifyPreview:
@@ -2591,6 +2591,8 @@ def _put_entries_back(db: Database, entries: list[SegmentOrderEntryParams]) -> l
     for item in entries:
         entry = db.get(ReadingOrderEntry, item.id)
         if entry is None:
+            # Deleted since: written back whole. It is not in `was`, so a redo cannot move it again -- it is where it
+            # was before the reparent, which is the honest place for an entry the redo did not see.
             restore_segment_entries(db, [item.model_dump()])
             continue
         was.append({field: getattr(entry, field) for field in ENTRY_FIELDS})
@@ -3906,6 +3908,9 @@ def _simplified_shapes(
     nothing; rows it changes not at all are left out. The ONE computation `segment.simplify` writes and its preview
     shows (`segment-editor.vertices`). Writes nothing."""
     from fichero_server.media import line_join
+
+    if not rows:
+        return []
 
     if len({(row.document_id, row.pass_id) for row in rows}) > 1:
         raise _as_http_error(SegmentPassMismatchError("the segments being simplified are not all in the same pass and document"))
