@@ -315,7 +315,7 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   `fichero-server/tests/unit/jobs/test_row_says_what_ran_on_what_6441.py`; the existing
   `fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py`;
   not yet written: ActivityCostColumnTests.swift.
-- `activity.pane.row-actions-on-the-table` — **[PARTIAL]** (built #6441: the one verb list by the Mail rule, Stop then Delete after one confirmation, Undo for Delete, Archive and Put Back; #6441, #6583, decision 11; `activity.window.delete-any-row`,
+- `activity.pane.row-actions-on-the-table` — **[PARTIAL]** (built #6441: the one verb list by the Mail rule, published by the focused table; Stop then Delete after one confirmation, a running run stopped first; Delete, Archive and Put Back of jobs are the audited actions, one step on the window's stack, so Edit › Undo takes them back; not built: Undo of a run's delete (the engine's `workflow_run.delete` is not undoable), Archive of a run row (disabled until the engine archives runs); #6441, #6583, decision 11; `activity.window.delete-any-row`,
   `activity.pause.per-job`, `activity.retry.one-row`) the verbs live on the table: a row's one button (`activity.window.one-button`)
   shows the verb its state allows (the states table above), the context menu lists the one verb list, each enabled by the MAIL RULE (above: enabled when any selected row allows it,
   applied to those, the rest skipped and counted in the status bar), the Delete key and ⌘⌫ delete the selection, ⌘A selects all
