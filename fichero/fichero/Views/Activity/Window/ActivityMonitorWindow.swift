@@ -90,16 +90,9 @@ struct ActivityMonitorWindow: View {
         .navigationTitle("Activity")
         .frame(minWidth: 720, minHeight: 520)
         .accessibilityIdentifier("activity.window")
-        .toolbar {
-            // The one Start / Stop control (ruled 2026-10-09, `activity.mode.start-stop`): the mode is
-            // the Mac's, so any open project's store sets it; one that polls the jobs read shows it, so
-            // a change made in the main window or elsewhere reaches this button too (#5621).
-            ToolbarItem {
-                if let store = modeStore {
-                    ActivityModeButton(store: store)
-                }
-            }
-        }
+        // The window's copy of the background-mode button is gone (`activity.automatic.one-place`, owner 2026-11-13): Run
+        // Automatically is the setting in Settings › General; the toolbar status item keeps its control until the setting is
+        // seen in the app, then goes too.
         .task(id: showArchived) { await readArchivedIfShown() }
         .confirmationDialog("Archive every finished run?", isPresented: $confirmingClearFinished) {
             Button("Archive Finished") { Task { await clearFinished() } }
@@ -300,12 +293,6 @@ struct ActivityMonitorWindow: View {
         }
         openedID = nil
         notice = skipped > 0 ? "\(skipped) run\(skipped == 1 ? "" : "s") could not be cleared." : nil
-    }
-
-    /// The store the Start / Stop button reads: the first project's that polls
-    /// the jobs read, else the first project's.
-    private var modeStore: ActivityStore? {
-        (libraries.first { $0.activityStore.pollsJobs } ?? libraries.first)?.activityStore
     }
 
     /// Changes whenever the set of open libraries, any library's live
