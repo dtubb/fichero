@@ -4703,6 +4703,7 @@ def _invert_split(before, after, ctx: ActionContext):
                 new_id: current_versions[new_id] for new_id in new_segment_ids if new_id in current_versions
             },
             "representation_ids": after.get("representation_ids", []),
+            **({"kept_metadata": after["kept_metadata"]} if after.get("kept_metadata") is not None else {}),
         },
     )
 
@@ -4801,6 +4802,8 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
             # Slice 8 (#4934): the readings THIS split added, so its inverse
             # retracts exactly those and nothing else.
             "representation_ids": split_representation_ids,
+            # The kept line's metadata before its cut mark, which a version snapshot does not carry.
+            **({"kept_metadata": split["kept_metadata"]} if split.get("kept_metadata") is not None else {}),
         },
         emit_type="segment.split",
         segment_ids=[params.segment_id, *new_ids],
@@ -4836,6 +4839,8 @@ def _split_one(
     first_part, *rest_parts = parts
     # How the cut was placed: in proportion (`estimated`), or at the recogniser's own character position (`measured`).
     cut_mark = "estimated" if estimated else ("measured" if measured else None)
+    # A version snapshot carries no metadata: what the line had before the mark goes in the undo's record.
+    kept_metadata = dict(original.metadata or {}) if cut_mark else None
     if cut_mark:
         original.metadata = {**(original.metadata or {}), "cut": cut_mark}
     original.anchor = first_part.anchor
@@ -4934,6 +4939,7 @@ def _split_one(
         "versions": {original.id: original.version, **{new_id: 1 for new_id in new_ids}},
         "representation_ids": split_representation_ids,
         "moved_children": moved_children,
+        **({"kept_metadata": kept_metadata} if kept_metadata is not None else {}),
     }
 
 
@@ -5042,7 +5048,7 @@ def _knife_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
     ]
     for split in splits:
         kept_before = _divide_piece_spans(db, split, stroke)
-        if kept_before is not None:
+        if kept_before is not None and split.get("kept_metadata") is None:
             split["kept_metadata"] = kept_before
     touched = [segment_id for split in splits for segment_id in (split["kept_id"], *split["new_segment_ids"])]
     change_spec = ChangeSpec(
