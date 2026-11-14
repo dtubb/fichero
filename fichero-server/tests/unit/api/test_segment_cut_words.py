@@ -215,3 +215,23 @@ class TestExport:
         assert len(words) == 3
         assert {segment.foreign[CUT_FACTS]["source"] for segment in words} == {"ctc"}
         assert all(segment.foreign[CUT_FACTS]["confidence"] == pytest.approx(0.9) for segment in words)
+
+
+def test_words_a_second_cut_replaces_leave_forwarding_notes_and_its_undo_brings_them_back(db, client):
+    """Review of batch 16 (2026-11-14): the machine words a cut replaces are soft-deleted with a `deleted` note, as
+    `segment.delete` leaves, so a reference to one can say what became of it; the undo leaves `restored`."""
+    from fichero_server.models.segments import SegmentForwarding
+
+    doc, pass_id = _page(db, client)
+    line = _line(client, doc, pass_id)
+    _read(db, line, TEXT, POSITIONS)
+    _cut(db, [line])
+    first = [word.id for word in _words(db, line)]
+    again = _cut(db, [line])
+    notes = {(note.old_segment_id, note.kind) for note in db.all(SegmentForwarding)}
+    assert all((wid, "deleted") in notes for wid in first)
+
+    undone = client.post(f"/api/actions/audit/{again.audit_id}/undo")
+    assert undone.status_code == 200, undone.text
+    notes = {(note.old_segment_id, note.kind) for note in db.all(SegmentForwarding)}
+    assert all((wid, "restored") in notes for wid in first)
