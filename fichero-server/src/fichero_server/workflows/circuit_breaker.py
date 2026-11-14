@@ -38,7 +38,9 @@ from __future__ import annotations
 import asyncio
 import contextvars
 import logging
+import os
 import random
+import threading
 import time
 from dataclasses import dataclass
 
@@ -57,6 +59,45 @@ DEFAULT_MAX_DELAY = 30.0
 DEFAULT_JITTER = 0.25
 DEFAULT_BREAKER_THRESHOLD = 5
 DEFAULT_BREAKER_COOLDOWN = 30.0
+
+#: How many calls to ONE provider the whole engine has in flight at once, across every run, recipe, batch and automatic
+#: job (`activity.limits.one-cap-per-kind-across-everything`, owner 2026-11-13: never hammer a provider). Every cloud call
+#: passes through `call_with_breaker`, so the slot is held here. `FICHERO_CLOUD_CALLS_AT_ONCE` overrides until the setting
+#: exists (1-8).
+PROVIDER_CALLS_AT_ONCE = min(8, max(1, int(os.environ.get("FICHERO_CLOUD_CALLS_AT_ONCE", "3") or 3)))
+_PROVIDER_SLOTS: dict[str, threading.BoundedSemaphore] = {}
+_IN_FLIGHT: dict[str, int] = {}
+_SLOTS_LOCK = threading.Lock()
+
+
+def provider_slots(provider: str | None) -> threading.BoundedSemaphore:
+    """The one semaphore for `provider` (a threading one: the workflows' loops live on different threads)."""
+    key = provider or "unknown"
+    with _SLOTS_LOCK:
+        sem = _PROVIDER_SLOTS.get(key)
+        if sem is None:
+            sem = _PROVIDER_SLOTS[key] = threading.BoundedSemaphore(PROVIDER_CALLS_AT_ONCE)
+        return sem
+
+
+def calls_in_flight(provider: str | None) -> int:
+    """How many calls to `provider` hold a slot now (the waiting words: "3 of 3 OpenRouter calls in flight")."""
+    with _SLOTS_LOCK:
+        return _IN_FLIGHT.get(provider or "unknown", 0)
+
+
+async def _take_slot(provider: str | None) -> threading.BoundedSemaphore:
+    sem = provider_slots(provider)
+    await asyncio.to_thread(sem.acquire)  # off the loop: the loop keeps serving while this call waits its turn
+    with _SLOTS_LOCK:
+        _IN_FLIGHT[provider or "unknown"] = _IN_FLIGHT.get(provider or "unknown", 0) + 1
+    return sem
+
+
+def _give_slot(provider: str | None, sem: threading.BoundedSemaphore) -> None:
+    with _SLOTS_LOCK:
+        _IN_FLIGHT[provider or "unknown"] = max(0, _IN_FLIGHT.get(provider or "unknown", 0) - 1)
+    sem.release()
 
 
 #: Why a provider cannot answer: it asked us to slow down, it has no credit, or it refused the key.
@@ -392,7 +433,12 @@ async def call_with_breaker(
     while True:
         token = IN_RETRY_LAYER.set(True)  # the one layer: a call inside this one does not wrap itself again
         try:
-            result = await make_coro()
+            # One slot per provider across the whole engine: the send waits its turn, and lets go during a back-off.
+            slot = await _take_slot(provider)
+            try:
+                result = await make_coro()
+            finally:
+                _give_slot(provider, slot)
         except Exception as exc:
             kind = classify_provider_error(exc)
             if kind == "fatal":
