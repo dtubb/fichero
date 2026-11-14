@@ -15,12 +15,21 @@ from pydantic import BaseModel, Field
 from fichero_server.llm.refusal import CloudRefusal
 
 Kind = Literal["no-credit", "key-refused", "rate-limited", "cap-refused", "images-refused", "model-error", "model-missing",
-               "runtime-unavailable", "memory", "network", "files-unavailable", "unexpected"]
+               "runtime-unavailable", "memory", "network", "files-unavailable", "model-broken", "library-closed",
+               "export-folder-gone", "unexpected"]
 ActionKind = Literal["retry", "resume", "open-settings", "choose-model", "report-bug", "reconnect", "raise-to", "allow-everywhere",
                      "allow-project", "allow-once", "over-cap-once"]
 
 PROVIDERS_CONTROL = "settings.ai.providers"
 LOCAL_MODELS_CONTROL = "settings.ai.localModels"
+
+
+class ModelBrokenError(Exception):
+    """A model that is on this Mac but will not load (`model-broken`): `model` is its display name; the message is for the log."""
+
+    def __init__(self, model: str, message: str = "") -> None:
+        super().__init__(message or f"{model} could not be loaded")
+        self.model = model
 
 
 class FailureAction(BaseModel):
@@ -109,6 +118,12 @@ def _status(exc: BaseException | None, text: str) -> int | None:
     return int(found.group(1)) if found else None
 
 
+def _library_closed(exc: BaseException | None, text: str) -> bool:
+    """A job's project was closed under it: DuckDB's own words for a connection that is gone."""
+    low = (text or (str(exc) if exc is not None else "")).lower()
+    return "connection already closed" in low or ("the library" in low and "was closed" in low)
+
+
 def _provider_kind(exc: BaseException | None, text: str, status: int | None) -> str | None:
     """The kind for a provider that cannot answer, from its typed errors first, then its status and words."""
     from fichero_server.llm import ProviderQuotaError
@@ -158,6 +173,12 @@ def kind_of(exc: BaseException | None, text: str = "") -> tuple[str, CloudRefusa
         return "memory", None
     if isinstance(exc, LocalModelNotInstalledError):
         return "model-missing", None
+    if isinstance(exc, ModelBrokenError) or _of(exc, "EmbedderUnavailable"):
+        return "model-broken", None
+    if _of(exc, "ExportFolderGone"):
+        return "export-folder-gone", None
+    if _library_closed(exc, text):
+        return "library-closed", None
     if isinstance(exc, (StructuredDecodeError, StructuredCallEmptyError)):
         return "model-error", None  # before the runtime-missing types: a decode error is an AppleUnavailableError subclass
     if isinstance(exc, AppleUnavailableError) or _of(exc, "LocalInferenceRuntimeMissingError", "KrakenRuntimeMissingError"):
@@ -204,6 +225,9 @@ _ROW_WORDS: dict[str, str] = {
     "memory": "Not enough memory for {model}",
     "network": "Could not reach {name}",
     "files-unavailable": "Some pages' files could not be opened",
+    "model-broken": "{model} could not be loaded",
+    "library-closed": "Paused: the project closed",
+    "export-folder-gone": "The export folder is gone",
     "unexpected": "Something went wrong in Fichero",
 }
 
@@ -280,6 +304,16 @@ _WORDS: dict[str, Any] = {
     "files-unavailable": lambda *, detail, **_: _row(
         "Some pages' files could not be opened" + (f" ({detail})." if detail else "."),
         "Reconnect the folder, or download the pages from iCloud, then run it again.", _a("reconnect"), _a("retry")),
+    "model-broken": lambda *, model, **_: _row(
+        f"{model} is on this Mac but could not be loaded.",
+        "Download it again in Settings › AI › Local models, or choose another model.",
+        _a("open-settings", LOCAL_MODELS_CONTROL), _a("choose-model"), _a("retry")),
+    "library-closed": lambda **_: _row(
+        "The project was closed while this was running, so the work was paused.",
+        "Open the project again; the work continues from where it stopped.", _a("resume")),
+    "export-folder-gone": lambda **_: _row(
+        "The folder this export writes to is gone.",
+        "Reconnect the drive, or choose the export's folder again.", _a("reconnect"), _a("retry")),
     "unexpected": lambda *, step, kind_exc, stopped, **_: _row(
         f"Something went wrong inside Fichero while it ran {step} ({kind_exc}){stopped}.",
         "This is a bug in Fichero, not something you did. Send a bug report so it can be fixed; you can also try the run again.",

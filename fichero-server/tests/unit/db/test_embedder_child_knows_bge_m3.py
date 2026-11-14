@@ -101,20 +101,16 @@ def test_a_missing_download_still_backs_off_and_retries(monkeypatch):
     assert embeddings.load_failure_in_force("m")
 
 
-def test_a_load_defect_waits_out_the_hold_rather_than_failing_the_job(monkeypatch):
-    """Review L1: a failed embed job had nothing to requeue it when the hour ended, so its page stayed out of search. It
-    comes back after the hold, with the sentence as its reason, and no download is queued: none would mend it."""
-    from fichero_server.execution import jobs
+def test_a_load_defect_blocks_the_job_under_the_model_with_its_words(monkeypatch):
+    """#6593 (was: waits out the hold, review L1): a model this build cannot load BLOCKS the embed job under the model's
+    download (or its typed need), with the blocker's short words; it is never failed and never re-deferred every two minutes."""
     from fichero_server.importers import derivatives
+    from fichero_server.execution import jobs
 
-    back: list[tuple[str, float]] = []
-    monkeypatch.setattr(jobs, "come_back_after", lambda _db, job, seconds: back.append((job, seconds)))
-    monkeypatch.setattr(jobs._current, "job_id", "the-job", raising=False)
-    monkeypatch.setattr(derivatives, "_fetch_the_search_model", lambda _db: pytest.fail("no download mends a defect"))
+    monkeypatch.setattr(derivatives, "_fetch_the_search_model", lambda _db: "model:embeddings:X")
     words = embed_process.load_failure_words("ValueError: Model X is not supported in TextEmbedding.", cached=True)
-    with pytest.raises(jobs.JobDeferred, match="could not be loaded"):
+    with pytest.raises(jobs.JobBlocked, match="could not be loaded"):
         derivatives.wait_for_the_search_model(object(), words)
-    assert back == [("the-job", embeddings.DEFECT_BACKOFF_SECONDS)]
 
 
 # --- review M2: only a model this build cannot load is a defect, and even that hold ends ----------------------------

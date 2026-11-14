@@ -305,17 +305,55 @@ def finished_details(db: "Database", kind: str, limit: int) -> list[tuple[Any, A
         [kind, limit])
 
 
+# exceptions whose message is already the run's own words, written by Fichero for the row (not library text)
+_IN_WORDS_BY_NAME = frozenset({"RunEnded", "LocalModelServerStoppedError"})
+
+
 def failed_reason(kind: str, exc: BaseException) -> str:
-    """A failed job's reason in words (#6212, `recipes-run.engine.failure-in-words`), never `str(exc)` alone."""
+    """A failed job's reason: the failure kind's row words (at most eight, no full stop, no exception type, path, status or
+    bracket), never exception text (#6597, `activity.failure.no-raw-text-ever`). The full text is the row's detail
+    (`_with_error_detail`), for Copy Details. An exception that already carries the row's words (`in_words`, or
+    `MissingInWords`: "No local runtime installs model: X", b23, #6240) keeps them."""
     from fichero_server.core.failure_text import failure_text
 
-    if isinstance(exc, MissingInWords):
-        return str(
-            exc
-        )  # refused in words ("No local runtime installs model: X"), not a missing key (b23, #6240)
-    if isinstance(exc, _SLIPS):
-        return f"{kind_name(kind)} could not finish: an error in Fichero ({type(exc).__name__}: {failure_text(exc)})"
-    return failure_text(exc)
+    if isinstance(exc, MissingInWords) or getattr(exc, "in_words", False) or type(exc).__name__ in _IN_WORDS_BY_NAME:
+        return failure_text(exc)
+    from fichero_server.llm import failure
+
+    try:
+        classified = failure.classify(exc)
+        if classified.kind == "unexpected" and not isinstance(exc, _SLIPS):
+            from fichero_server import llm
+
+            said = failure_text(exc)  # a refusal already in words, kept only if it reads as row words
+            if _reads_as_row_words(said) or said in (llm.SERVER_STOPPED_REASON, llm.ENGINE_SHUTDOWN_REASON):
+                return said
+        return classified.row_words
+    except Exception:  # noqa: BLE001 -- classification never decides whether a job's end is written
+        return failure.row_words("unexpected")
+
+
+def _reads_as_row_words(text: str) -> bool:
+    """At most eight words, no full stop, no path, bracket, status code or exception type (`activity.failure.no-raw-text-ever`)."""
+    if not text or len(text.split()) > 8 or text.rstrip().endswith("."):
+        return False
+    return not re.search(r"[/\\\[\]{}]|\b\d{3}\b|\b\w*(Error|Exception)\b|Traceback", text)
+
+
+def _with_error_detail(db: "Database", job_id: str, exc: BaseException) -> None:
+    """A failed job keeps what the row does not say, for Copy Details: the full error text and its type, in its detail."""
+    from fichero_server.core.failure_text import failure_text
+
+    row = db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])
+    try:
+        detail = json.loads(row[0]) if row and row[0] else {}
+    except ValueError:
+        detail = {}
+    if not isinstance(detail, dict):
+        detail = {"request": detail}
+    detail["error"] = failure_text(exc)
+    detail["error_type"] = type(exc).__name__
+    db.execute("UPDATE jobs SET detail = ? WHERE id = ?", [json.dumps(detail), job_id])
 
 
 def register_kind(
@@ -5589,6 +5627,11 @@ class _Scheduler:
                 f"UPDATE jobs SET state = ?, reason = ?, finished_at = ?{_clear_waiting_on(current)} WHERE id = ?",
                 [state, reason, utc_now(), job_id],
             )
+            if state == "failed" and error is not None:
+                try:
+                    _with_error_detail(current, job_id, error)
+                except Exception:  # noqa: BLE001 -- the detail is the extra; the row's end is already written
+                    logger.warning("job %s: could not keep its error text", job_id, exc_info=True)
             if state == "done" and kind_name == "download-model":
                 unblock_on_download(current, job_id, subject)
         # (closed while it ran: the row stays `running` and resumes when the library opens)

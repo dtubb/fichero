@@ -830,6 +830,8 @@ def _open_stage_db(library: str, doc_id: str) -> "tuple[Database, Document] | No
 class SourceMissing(Exception):
     """A page's original is not where it was imported from; the message is the sentence the job row shows (#5818)."""
 
+    in_words = True  # its message is the row's words (`jobs.failed_reason`)
+
 
 #: True while a derivative stage runs as a JOB on the lane (`_embed_job`): a failure then ends the job failed in words. An
 #: import's inline pass (`generate_derivative`) runs with it False: the error is recorded and the import goes on.
@@ -840,6 +842,8 @@ class DerivativeFailed(Exception):
     """A thumbnail or an embed could not be made: the message is the plain sentence with its fix that the job row shows
     (owner 2026-11-13: never fail silently; `activity.run.failed-is-never-requeued-by-itself`). The raw error stays on the
     document's metadata for Copy Details."""
+
+    in_words = True  # its message is the row's words (`jobs.failed_reason`)
 
 
 def _thumbnail_stage(doc_id: str, library: str) -> Path | None:

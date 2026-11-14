@@ -73,6 +73,11 @@ class KeptExportRefused(ValueError):
     """An export that cannot be kept, or written, said in one sentence."""
 
 
+class ExportFolderGone(KeptExportRefused):
+    """The folder a kept export writes to is not there (an unplugged drive, a moved folder): its row says "The export folder is
+    gone"; the folder's path stays in the message, for Copy Details only (`activity.failure.no-raw-text-ever`)."""
+
+
 @dataclass
 class _Unit:
     key: str
@@ -351,7 +356,7 @@ def write(db: Any, subject: str) -> None:
     folder = Path(export["folder"])
     left_out: list[tuple[str, str]] = []
     if not folder.is_dir():
-        raise KeptExportRefused(f"{folder} is not there any more; choose the export's folder again.")
+        raise ExportFolderGone(f"{folder} is not there any more; choose the export's folder again.")
     _refuse_low_space(folder)
     for unit in _units(db, export):
         if key and unit.key != key and export["format"] not in WHOLE_FORMATS:

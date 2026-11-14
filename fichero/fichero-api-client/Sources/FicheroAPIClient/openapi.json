@@ -93824,6 +93824,9 @@
               "memory",
               "network",
               "files-unavailable",
+              "model-broken",
+              "library-closed",
+              "export-folder-gone",
               "unexpected"
             ],
             "title": "Kind"
