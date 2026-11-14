@@ -53,7 +53,7 @@ final class ToolbarActivityStoreInjectionTests: XCTestCase {
             source.contains(".environment(library.workflowExecutionStore)"),
             """
             DocumentTabView must forward library.workflowExecutionStore. \
-            ActivityBrowserView reads @Environment(WorkflowExecutionStore.self) \
+            ActivityPaneView's projects read their WorkflowExecutionStore \
             non-optionally under this host (#4448).
             """
         )
