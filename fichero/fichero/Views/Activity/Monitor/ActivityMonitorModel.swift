@@ -41,40 +41,48 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     }
 
     /// Unique across levels and projects.
-    let id: String
+    var id: String
     let kind: Kind
     let libraryId: UUID?
     /// The owning run's row id (`ActivityRun.id`): what Delete and the detail
     /// window act on from any row of its tree.
-    let runRowID: String?
+    var runRowID: String?
     /// The owning run's thread id: the key of its tree in `ActivityStore`.
-    let runThreadId: String?
+    var runThreadId: String?
     /// The job Pause and Stop act on (`/api/activity/jobs/{id}/…`); `nil` for
     /// a row with no job behind it, which shows no controls.
     let jobId: String?
-    let name: String
+    var name: String
     /// The project, shown before a run's name when rows are not grouped.
     let projectName: String?
-    let phase: Phase
+    var phase: Phase
     /// Why it failed, or what it is waiting for, in the engine's words.
     let reason: String?
     /// What a running row is working on now.
     let workingOn: String?
     let done: Int
     let total: Int
-    let started: Date?
+    var started: Date?
     /// How long it took, start to finish (or until the last read, while it runs).
     let seconds: Double?
     let costUsd: Double?
     let tokens: Int
     let errors: Int
-    let model: String?
+    var model: String?
     /// Live from this window's own executions: its time ticks as a timer.
     let isLive: Bool
     /// `nil` = a leaf (no disclosure triangle).
     var children: [ActivityMonitorRow]?
     /// An archived row shown by Show Archived (`activity.pane.archive-old-runs`): greyed, Put Back instead of Archive.
     var isArchived = false
+    /// The page's document, on a page row of a run's tree: what a FILE row groups by (`activity.pane.one-outline-table`).
+    var documentId: String?
+    /// The engine's estimate of what is left to spend, while it runs (`activity.pane.cost-per-row-and-totals`).
+    var costEstimateUsd: Double?
+    /// What it ran over, in words ("14 pages"), from the engine's `ran_on` (`activity.pane.row-says-what-ran-on-what`).
+    var ranOnText: String?
+    /// A version whose results count, in Group by File and the Inspector's versions (`activity.pane.versions-are-siblings`).
+    var counts = false
     /// The one progress line of a recipe run (`activity.pane.row-says-what-ran-on-what`): "Read ✓ → Names ▶ 3/12"; empty
     /// for a row with no stages.
     var trail = ""
