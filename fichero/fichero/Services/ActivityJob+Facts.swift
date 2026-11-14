@@ -32,5 +32,12 @@ extension ActivityJob {
         let kind: String
         let count: Int
         let name: String?
+
+        /// "Register 3 · 120 pages", "14 pages": what it ran over, never an id (`activity.pane.row-says-what-ran-on-what`).
+        var words: String {
+            let unit = kind == "folder" ? (count == 1 ? "file" : "files") : (count == 1 ? "page" : "pages")
+            let counted = count >= 1 ? "\(count) \(unit)" : ""
+            return [name ?? "", counted].filter { !$0.isEmpty }.joined(separator: " · ")
+        }
     }
 }

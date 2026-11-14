@@ -84,13 +84,17 @@ extension ActivityMonitorRow {
         )
         row.trail = ActivityTrail.text(job.stages)  // the one progress of a recipe run
         row.failure = job.failure
+        row.startedBy = job.startedBy
+        row.ended = job.finishedAt ?? job.failedAt
+        row.costEstimateUsd = job.costEstimateUsd
+        row.ranOnText = job.ranOn.map(\.words)
         return row
     }
 
     private static func node(_ node: ActivityJobNode, run: ActivityRun, library: String) -> ActivityMonitorRow {
         let children = node.children.map { self.node($0, run: run, library: library) }
         let isStep = node.kind == "workflow-step" || node.kind == "workflow" || node.kind == "batch"
-        return ActivityMonitorRow(
+        var row = ActivityMonitorRow(
             id: "\(library)|\(node.id)",
             kind: isStep ? .step : .page,
             libraryId: run.libraryId,
@@ -116,6 +120,10 @@ extension ActivityMonitorRow {
             unknownState: Phase(engineState: node.state) == .unknown ? node.state : nil,
             transientState: Phase.transientWord(node.state)
         )
+        row.documentId = node.documentId
+        row.started = node.startedAt
+        row.ended = node.finishedAt
+        return row
     }
 
     /// A step's subject is "<run id>:<step>"; a page's is what it read, named
