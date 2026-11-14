@@ -257,9 +257,21 @@ def fichero_activity_cleanup_old_activities(
 
 
 def fichero_activity_list_background_jobs(
+    *,
+    archived: Annotated[Optional[bool], Field(description='the ARCHIVED rows instead (Show Archived, `activity.pane.archive-old-runs`)')] = None,
 ) -> Any:
     'List Background Jobs\n\nThe SINGLE source of running background jobs, so every activity surface\n(toolbar popover AND full viewer) agrees (FIX 3). Merges:\n\n- the derivative/embed queue (embedding + importing/processing), from the\n  live in-memory progress map; and\n- workflow runs (Kraken Detect Regions / HTR, transcription, …) that are\n  RUNNING or recently FAILED — with the failure reason, so a run that died\n  on "Kraken not installed" shows a clear FAILED entry instead of vanishing.\n\nRead-only and cheap (a point-in-time read + recent-run query + one CPU\nsample), so the UI can poll it without adding load of its own. Per-library,\nmatching the rest of /activity.\n\nRoute: GET /api/activity/jobs (toolset `activity`; reads).'
-    return _rt.call("GET", "/api/activity/jobs")
+    return _rt.call("GET", "/api/activity/jobs", params={"archived": archived})
+
+
+def fichero_activity_archive_jobs(
+    *,
+    ids: Annotated[Optional[list[Any]], Field(description='ended rows to archive.')] = None,
+    older_than_days: Annotated[Optional[int], Field(description='with `states`: only rows that ended more than this many days ago.')] = None,
+    states: Annotated[Optional[list[Any]], Field(description='also every top-level ended job of its own in these states.')] = None,
+) -> Any:
+    'Archive Jobs\n\nArchive (`activity.pane.archive-old-runs`, #6583): an ended row leaves the table and keeps everything; Show Archived\n(`GET /api/activity/jobs?archived=true`) lists it; `POST …/unarchive` puts it back. A row still going is skipped and named.\n\nRoute: POST /api/activity/jobs/archive (toolset `activity`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/activity/jobs/archive", json=_rt.body({"ids": ids, "older_than_days": older_than_days, "states": states}))
 
 
 def fichero_activity_clear_failed_jobs(
@@ -301,6 +313,22 @@ def fichero_activity_set_background_paused(
 ) -> Any:
     'Set Background Paused\n\nPause or resume ALL background work on this Mac (`activity.pause.global`). Kept across\nrelaunch. While paused nothing is started by the queue; a job already running finishes.\n\nRoute: PUT /api/activity/jobs/paused (toolset `activity`; changes data, as the agent account when one exists).'
     return _rt.call("PUT", "/api/activity/jobs/paused", json=_rt.body({"paused": paused}))
+
+
+def fichero_activity_unarchive_jobs(
+    *,
+    ids: Annotated[list[Any], Field(description='Ids.')],
+) -> Any:
+    'Unarchive Jobs\n\nPut Back (`activity.pane.archive-old-runs`): the archived rows are listed again, unchanged.\n\nRoute: POST /api/activity/jobs/unarchive (toolset `activity`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/activity/jobs/unarchive", json=_rt.body({"ids": ids}))
+
+
+def fichero_activity_undelete_jobs(
+    *,
+    ids: Annotated[list[Any], Field(description='Ids.')],
+) -> Any:
+    'Undelete Jobs\n\nUndo of Delete (`activity.pane.archive-old-runs`, #6583): the deleted rows come back in the state they had.\n\nRoute: POST /api/activity/jobs/undelete (toolset `activity`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/activity/jobs/undelete", json=_rt.body({"ids": ids}))
 
 
 def fichero_activity_get_job_tree(
@@ -9611,11 +9639,14 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_activity_get_batch", "activity", "GET", "/api/activity/batch/{batch_id}", fichero_activity_get_batch),
     GeneratedTool("fichero_activity_cleanup_old_activities", "activity", "DELETE", "/api/activity/cleanup", fichero_activity_cleanup_old_activities),
     GeneratedTool("fichero_activity_list_background_jobs", "activity", "GET", "/api/activity/jobs", fichero_activity_list_background_jobs),
+    GeneratedTool("fichero_activity_archive_jobs", "activity", "POST", "/api/activity/jobs/archive", fichero_activity_archive_jobs),
     GeneratedTool("fichero_activity_clear_failed_jobs", "activity", "POST", "/api/activity/jobs/clear-failed", fichero_activity_clear_failed_jobs),
     GeneratedTool("fichero_activity_delete_jobs", "activity", "POST", "/api/activity/jobs/delete", fichero_activity_delete_jobs),
     GeneratedTool("fichero_activity_list_queued_items", "activity", "GET", "/api/activity/jobs/kind/{kind}/items", fichero_activity_list_queued_items),
     GeneratedTool("fichero_activity_set_background_mode", "activity", "PUT", "/api/activity/jobs/mode", fichero_activity_set_background_mode),
     GeneratedTool("fichero_activity_set_background_paused", "activity", "PUT", "/api/activity/jobs/paused", fichero_activity_set_background_paused),
+    GeneratedTool("fichero_activity_unarchive_jobs", "activity", "POST", "/api/activity/jobs/unarchive", fichero_activity_unarchive_jobs),
+    GeneratedTool("fichero_activity_undelete_jobs", "activity", "POST", "/api/activity/jobs/undelete", fichero_activity_undelete_jobs),
     GeneratedTool("fichero_activity_get_job_tree", "activity", "GET", "/api/activity/jobs/{job_id}", fichero_activity_get_job_tree),
     GeneratedTool("fichero_activity_post_job_bug_report", "activity", "POST", "/api/activity/jobs/{job_id}/bug-report", fichero_activity_post_job_bug_report),
     GeneratedTool("fichero_activity_cancel_job", "activity", "POST", "/api/activity/jobs/{job_id}/cancel", fichero_activity_cancel_job),

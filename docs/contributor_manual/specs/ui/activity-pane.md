@@ -299,7 +299,7 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   `fichero-server/tests/unit/jobs/test_every_state_takes_its_verbs_6583.py` (built 2026-11-13 night: the engine's verbs in every
   state of the table above, through the routes; the table is its fixture);
   not yet written: ActivityRowActionsTests.swift, test_delete_is_undoable_6583.py.
-- `activity.pane.archive-old-runs` — **[GAP]** (#6583; review 2026-11-13 night, item 1; the Trash-is-a-folder ruling: a PLACE with Put
+- `activity.pane.archive-old-runs` — **[PARTIAL]** (#6583; review 2026-11-13 night, item 1; the Trash-is-a-folder ruling: a PLACE with Put
   Back, not a mode) **Archive** hides a finished, failed, stopped or partial row from the table and keeps everything (results,
   cost, history, the record): Archive on one row or many (context menu, Project › Activity, multi-select), **Archive Finished…**
   (every ended row in every open project, one confirmation; replaces Clear Finished…) and **Archive Failed** (replaces Clear
@@ -317,10 +317,16 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   discarded and said so). Acceptance: a done run archived leaves the table, shows greyed under Show Archived with its cost and
   stages intact, Put Back lists it again unchanged; Archive Finished… after one confirmation archives every done, failed, stopped
   and partial row in two open projects and none still going; a failed row deleted is absent from the table, from Show Archived and
-  from `GET /api/activity/jobs?archived=true`, and Undo lists it again as failed with its reason. *Tests:*
-  `test_archive_old_runs_6583.py` (to write: archive keeps results and cost, unarchive restores, older-than, states, a running row
-  refused), `test_delete_is_undoable_6583.py` (to write: a deleted row is in no list and Undo restores its state),
-  `ActivityArchiveTests.swift` (to write).
+  from `GET /api/activity/jobs?archived=true`, and Undo lists it again as failed with its reason. **Built (2026-11-13 night,
+  engine):** `jobs.archive_jobs` (ids, states, older_than_days; a waiting, paused or running row and a kind's row skipped and
+  named), `unarchive_jobs`, `undelete_jobs` (a row Delete stopped remembers its state in `detail.deleted_from` and comes back
+  as it was), the `deleted_at` column applied like `cleared_at`; `delete_jobs` sets both marks; the audited, undoable
+  `job.archive` / `job.unarchive` / `job.delete` / `job.undelete` behind `POST /api/activity/jobs/archive`, `…/unarchive`,
+  `…/undelete`; `GET /api/activity/jobs?archived=true` lists the archived top-level rows; a deleted row refuses Retry and
+  is in neither list, after a relaunch too. Not built: the app's Archive, Put Back, Show Archived and Undo; a workflow run's
+  archive (its soft delete stands in); Archive Finished Older Than… in the menu; auto-archive (open question 9). *Tests:*
+  `fichero-server/tests/unit/jobs/test_archive_old_runs_6583.py`, `fichero-server/tests/unit/jobs/test_delete_any_row_6583.py`;
+  not yet written: ActivityArchiveTests.swift.
 - `activity.pane.automatic-runs-easy-to-delete` — **[PARTIAL]** (#6583, decision 11) an automatic run (started by the import, the
   schedule, a trigger, the derivative kinds) deletes like any other row, one at a time with the row's Delete or many at once:
   the filter token "Started by: automatic" plus ⌘A plus Delete, and **Archive Finished…** (which covers every ended row, runs AND

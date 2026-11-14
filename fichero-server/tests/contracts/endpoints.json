@@ -397,9 +397,25 @@
         "operation_id": "list_background_jobs_api_activity_jobs_get",
         "summary": "List Background Jobs",
         "path_params": [],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "archived",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
         "request_model": null,
         "response_model": "BackgroundJobsResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/activity/jobs/archive",
+        "operation_id": "archive_jobs_api_activity_jobs_archive_post",
+        "summary": "Archive Jobs",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ArchiveJobsParams",
+        "response_model": "ArchiveJobsResponse"
       },
       {
         "method": "POST",
@@ -463,6 +479,26 @@
         "query_params": [],
         "request_model": "BackgroundPauseRequest",
         "response_model": "BackgroundPauseResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/activity/jobs/unarchive",
+        "operation_id": "unarchive_jobs_api_activity_jobs_unarchive_post",
+        "summary": "Unarchive Jobs",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "JobIdsParams",
+        "response_model": "JobIdsResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/activity/jobs/undelete",
+        "operation_id": "undelete_jobs_api_activity_jobs_undelete_post",
+        "summary": "Undelete Jobs",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "JobIdsParams",
+        "response_model": "JobIdsResponse"
       },
       {
         "method": "GET",

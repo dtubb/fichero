@@ -318,6 +318,20 @@
         "summary": "List Background Jobs",
         "description": "The SINGLE source of running background jobs, so every activity surface\n(toolbar popover AND full viewer) agrees (FIX 3). Merges:\n\n- the derivative/embed queue (embedding + importing/processing), from the\n  live in-memory progress map; and\n- workflow runs (Kraken Detect Regions / HTR, transcription, \u2026) that are\n  RUNNING or recently FAILED \u2014 with the failure reason, so a run that died\n  on \"Kraken not installed\" shows a clear FAILED entry instead of vanishing.\n\nRead-only and cheap (a point-in-time read + recent-run query + one CPU\nsample), so the UI can poll it without adding load of its own. Per-library,\nmatching the rest of /activity.",
         "operationId": "list_background_jobs_api_activity_jobs_get",
+        "parameters": [
+          {
+            "name": "archived",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "the ARCHIVED rows instead (Show Archived, `activity.pane.archive-old-runs`)",
+              "default": false,
+              "title": "Archived"
+            },
+            "description": "the ARCHIVED rows instead (Show Archived, `activity.pane.archive-old-runs`)"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -325,6 +339,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BackgroundJobsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1169,6 +1193,201 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DeleteJobsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/activity/jobs/undelete": {
+      "post": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Undelete Jobs",
+        "description": "Undo of Delete (`activity.pane.archive-old-runs`, #6583): the deleted rows come back in the state they had.",
+        "operationId": "undelete_jobs_api_activity_jobs_undelete_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobIdsParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobIdsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/activity/jobs/archive": {
+      "post": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Archive Jobs",
+        "description": "Archive (`activity.pane.archive-old-runs`, #6583): an ended row leaves the table and keeps everything; Show Archived\n(`GET /api/activity/jobs?archived=true`) lists it; `POST \u2026/unarchive` puts it back. A row still going is skipped and named.",
+        "operationId": "archive_jobs_api_activity_jobs_archive_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveJobsParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveJobsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/activity/jobs/unarchive": {
+      "post": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Unarchive Jobs",
+        "description": "Put Back (`activity.pane.archive-old-runs`): the archived rows are listed again, unchanged.",
+        "operationId": "unarchive_jobs_api_activity_jobs_unarchive_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobIdsParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobIdsResponse"
                 }
               }
             }
@@ -53842,6 +54061,66 @@
         "title": "ApprovalState",
         "description": "State of an approval request."
       },
+      "ArchiveJobsParams": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Ids",
+            "description": "ended rows to archive"
+          },
+          "states": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "States",
+            "description": "also every top-level ended job of its own in these states"
+          },
+          "older_than_days": {
+            "type": "integer",
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Older Than Days",
+            "description": "with `states`: only rows that ended more than this many days ago"
+          }
+        },
+        "type": "object",
+        "title": "ArchiveJobsParams"
+      },
+      "ArchiveJobsResponse": {
+        "properties": {
+          "archived_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Archived Ids"
+          },
+          "skipped_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skipped Ids",
+            "description": "rows not archived: still waiting, paused or running, or unknown"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "archived_ids",
+          "skipped_ids",
+          "count"
+        ],
+        "title": "ArchiveJobsResponse"
+      },
       "ArrangeMove": {
         "properties": {
           "document_id": {
@@ -75693,6 +75972,44 @@
           "name"
         ],
         "title": "InvokeActionRequest"
+      },
+      "JobIdsParams": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "title": "JobIdsParams"
+      },
+      "JobIdsResponse": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Ids",
+            "description": "the rows the action reached"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ids",
+          "count"
+        ],
+        "title": "JobIdsResponse"
       },
       "JobInfo": {
         "properties": {
