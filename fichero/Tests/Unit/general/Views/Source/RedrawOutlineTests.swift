@@ -55,4 +55,18 @@ struct RedrawOutlineTests {
         #expect(SegmentMenuContent.redrawReason(selected: 0, hasBaselines: false) != nil)
         #expect(SegmentMenuContent.redrawReason(selected: 1, hasBaselines: false)?.contains("baseline") == true)
     }
+
+    @Test("Add Baseline sends only the lines that have none, as one segment.add_baseline")
+    func addBaseline() throws {
+        let call = try SegmentEdit.addBaseline([
+            line("boxed", version: 2, baseline: nil), line("drawn", version: 1, baseline: flat)
+        ]).get()
+        let data = try JSONEncoder().encode(call.params)
+        let params = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(call.action == "segment.add_baseline")
+        #expect(params["segment_ids"] as? [String] == ["boxed"])
+        #expect(params["expected_versions"] as? [String: Int] == ["boxed": 2])
+        #expect(SegmentEdit.addBaseline([line("drawn", version: 1, baseline: flat)]) == .failure(.tooFew))
+        #expect(SegmentMenuContent.redrawReason(selected: 1, hasBaselines: false)?.contains("Add Baseline") == true)
+    }
 }

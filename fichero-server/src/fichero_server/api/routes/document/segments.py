@@ -3735,6 +3735,85 @@ def _action_uncut_words(db: Database, params: SegmentUncutWordsParams, ctx: Acti
     return {"segment_ids": touched}, spec
 
 
+class SegmentAddBaselineParams(BaseModel):
+    """`segment-editor.edge.no-baseline`: Add Baseline on lines that have none."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    segment_ids: list[str] = Field(description="The lines to give a proposed baseline.")
+    expected_versions: dict[str, int] = Field(description="Each line's version as last read, {segment_id: version}; a changed line is refused.")
+
+
+def proposed_baseline(rect: list[float], direction: str | None) -> list[list[float]]:
+    """A baseline through a box in its line's direction, for a person to drag onto the ink: a quarter of the way up
+    from the bottom of a horizontal line (where letters stand), down the middle of a vertical one."""
+    x, y, w, h = rect
+    if direction in ("ttb", "btt"):
+        top, bottom = [x + w / 2, y], [x + w / 2, y + h]
+        return [top, bottom] if direction == "ttb" else [bottom, top]
+    standing = y + h * 0.75
+    left, right = [x, standing], [x + w, standing]
+    return [right, left] if direction == "rtl" else [left, right]
+
+
+@action(
+    "segment.add_baseline",
+    SegmentAddBaselineParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_many_via_previous_version,
+)
+def _action_add_baseline(db: Database, params: SegmentAddBaselineParams, ctx: ActionContext):
+    """Each named line with no baseline gets one proposed through its box in its direction, marked
+    `baseline: estimated`; a line that has one is left as it is. One action, one undo."""
+    from fichero_server.api.routes.document.segment_readings import (
+        _direction_of,
+        _lines_are_vertical,
+        direction_rungs,
+    )
+
+    if not params.segment_ids:
+        raise HTTPException(status_code=422, detail="segment_ids is empty: no line to give a baseline")
+    _refuse_repeated_ids(params.segment_ids)
+    rows = []
+    for segment_id in params.segment_ids:
+        _assert_not_provisional_http(segment_id, what="segment_id")
+        rows.append(_live_current_row(db, segment_id, _require_expected_version(params.expected_versions, segment_id)))
+    if len({(row.document_id, row.pass_id) for row in rows}) > 1:
+        raise _as_http_error(SegmentPassMismatchError("the lines are not all in the same pass and document"))
+    wanting = [row for row in rows if (not row.baseline or len(row.baseline) < 2) and row.anchor is not None and row.anchor.rect]
+    if not wanting:
+        raise HTTPException(status_code=422, detail="every line named has a baseline already, or no box to draw one in")
+    document = db.get(Document, rows[0].document_id)
+    shapes = [row for row in db.query(Segment, pass_id=rows[0].pass_id) if row.deleted_at is None]
+    vertical, rungs = _lines_are_vertical(shapes, document), direction_rungs(db, document)
+
+    audit_id = uuid.uuid4().hex
+    after_versions = []
+    for row in wanting:
+        counted = _counting_readings(db, row.id)
+        _rid, text = counted.get("transcription") or next(iter(counted.values()), (None, ""))
+        direction, _level = _direction_of(row, document, text, vertical, rungs)
+        snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        row.baseline = [[round(x, 6), round(y, 6)] for x, y in proposed_baseline(list(row.anchor.rect), direction)]
+        row.metadata = {**(row.metadata or {}), "baseline": "estimated"}
+        db.save(row)
+        after_versions.append({"segment_id": row.id, "version": row.version})
+
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=[row.id for row in wanting],
+        before=None,
+        after={"versions": after_versions},
+        emit_type="segment.updated",
+        segment_ids=[row.id for row in wanting],
+        pass_ids=[rows[0].pass_id],
+        document_ids=[rows[0].document_id],
+    )
+    return {"segment_ids": [row.id for row in wanting], "versions": after_versions}, spec
+
+
 # --- readings across a split and a merge (slice 8, #4934) ----------------
 #
 # OWED BY SLICE 8 SO IT IS NOT RETROFITTED. Once a segment has readings,

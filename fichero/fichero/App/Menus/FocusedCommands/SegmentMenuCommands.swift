@@ -20,6 +20,8 @@ struct SegmentMenuTarget {
     var simplify: () -> Void = {}
     /// Cut Words (⇧⌘W): the selected lines' readings cut into word segments.
     var cutWords: () -> Void = {}
+    /// Add Baseline: a proposed baseline on each selected line that has none.
+    var addBaseline: () -> Void = {}
     let apply: (SegmentEdit.Attribute) -> Void
 }
 
@@ -62,6 +64,8 @@ struct SegmentMenuContent: View {
         // No chord yet: the spec's ⌥⌘S is the markup row's (`PreviewMarkupToolsRow`).
         Button("Simplify Outline") { target?.simplify() }
             .disabled(count == 0)
+        Button("Add Baseline") { target?.addBaseline() }
+            .disabled(count == 0 || target?.selectionHasBaselines != false)
         Button("Cut Words") { target?.cutWords() }
             .keyboardShortcut("w", modifiers: [.command, .shift])
             .disabled(count == 0 || target?.selectionHasBaselines != true)
@@ -82,7 +86,7 @@ struct SegmentMenuContent: View {
     /// guessed around: Add Baseline is the way on (`segment-editor.edge.no-baseline`).
     static func redrawReason(selected: Int, hasBaselines: Bool) -> String? {
         if selected == 0 { return "Select lines to redraw" }
-        return hasBaselines ? nil : "Lines with no baseline cannot be redrawn: draw a baseline first"
+        return hasBaselines ? nil : "Lines with no baseline cannot be redrawn: choose Add Baseline first"
     }
 
     /// Split Line at Point acts on ONE line with a baseline (`segment-editor.split-at-a-point`).

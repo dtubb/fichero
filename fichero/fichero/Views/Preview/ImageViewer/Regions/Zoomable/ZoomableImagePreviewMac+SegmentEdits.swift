@@ -210,6 +210,12 @@ extension ZoomableImagePreview {
         }
     }
 
+    /// ADD BASELINE to the selected lines that have none (`segment-editor.edge.no-baseline`): one ⌘Z.
+    func addBaselineToSelectedLines() {
+        guard let documentId else { return }
+        runSegmentEdit(SegmentEdit.addBaseline(selectedSegments(documentId)), documentId: documentId, name: "Add Baseline")
+    }
+
     /// SPLIT the one selected line where it was last clicked (`segment-editor.split-at-a-point`, ⌘⇧K).
     func splitSelectedLineAtLastPoint() {
         guard let documentId, let line = selectedSegments(documentId).first, let pressed = pointerFeed.latest?.point else { return }

@@ -692,12 +692,16 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
 - `segment-editor.edge.empty-region` — **[PARTIAL]** (→ #4941; engine + app) a region with no lines is kept (a person
   may draw into it), drawn with its label only, and listed by the validator as empty before export.
   *Built (2026-11-13):* the validator lists it (`empty-region`). *Not built:* the label-only drawing.
-- `segment-editor.edge.no-baseline` — **[PARTIAL]** (→ #4941; app + engine) a line with no baseline (a box from an older
+- `segment-editor.edge.no-baseline` — **[OK]** (→ #4941; app + engine) a line with no baseline (a box from an older
   result, an Apple Vision line) cannot be cut by the knife, redrawn or cut into words by
   positions; the tools say so and offer **Add Baseline**, which proposes one through the box's
   middle in its direction (`segment.update` with `baseline`, marked estimated) for the person to
   drag onto the ink. *Built (2026-11-13):* Redraw refuses such a line in the engine and the menu says
-  why; the knife leaves it alone and names it (`left_alone`, `no-baseline`). *Not built:* Add Baseline.
+  why; the knife leaves it alone and names it (`left_alone`, `no-baseline`); Add Baseline
+  (`segment.add_baseline`, Edit › Segments ▸ Add Baseline) proposes one a quarter up from the
+  box's bottom along its direction (down the middle of a vertical line), marked
+  `baseline: estimated`, one undo. *Not built:* the offer on the tools' own refusal (the menu says
+  it). *Tests:* `test_segment_add_baseline.py`; `RedrawOutlineTests.addBaseline`.
 - `segment-editor.edge.word-across-lines` — **[GAP]** (→ #5212; engine) a word broken at a line end is one segment with
   two shapes (`source.segment.shape-kinds`); Cut Words on both lines makes the two pieces and
   offers to join them as one word when the second line's reading starts without a space and the
