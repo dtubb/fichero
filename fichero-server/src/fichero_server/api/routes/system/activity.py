@@ -198,6 +198,10 @@ class BackgroundJob(BaseModel):
     ran_on: Optional["RanOn"] = None
     stages: Optional[list["StageCount"]] = None
     model: Optional[str] = None
+    # Cost (`activity.pane.cost-per-row-and-totals`, #6441): the cloud dollars spent so far, null for local work or no priced
+    # call; and, while it runs, the estimate to finish at the run's own pace (spent per page done times the pages left).
+    cost_usd: Optional[float] = None
+    cost_estimate_usd: Optional[float] = None
 
 
 class RanOn(BaseModel):
@@ -973,12 +977,15 @@ async def list_background_jobs(
                 total = _recipe_pages_in_all(recipe_statuses[row["id"]], total)
         # What ran on what (`activity.pane.row-says-what-ran-on-what`): the stages' trail and the model for a recipe run; the
         # count of pages for any row (a group row stands for many).
-        stages = model = None
+        stages = model = cost = estimate = None
         if row["id"] in recipe_statuses:
             from fichero_server.recipes import live_stages
 
-            stages = [StageCount(**st) for st in live_stages.stage_counts(recipe_statuses[row["id"]])]
+            status = recipe_statuses[row["id"]]
+            stages = [StageCount(**st) for st in live_stages.stage_counts(status)]
             _where, model = await _stage_where_and_model(db, row["id"])
+            cost = live_stages.cost_so_far(status)
+            estimate = _cost_estimate(cost, stages, state)
         ran_on = RanOn(kind="pages" if total != 1 else "page", count=total)
         jobs.append(
             BackgroundJob(
@@ -999,7 +1006,7 @@ async def list_background_jobs(
                 finished_at=_utc(row.get("finished_at")),
                 started_by=row.get("started_by"),
                 remote=await asyncio.to_thread(_remote_row, db, row),  # a database read
-                ran_on=ran_on, stages=stages, model=model,
+                ran_on=ran_on, stages=stages, model=model, cost_usd=cost, cost_estimate_usd=estimate,
             )
         )
 
@@ -1117,6 +1124,17 @@ def _cut(node: dict[str, Any], depth: int) -> None:
         return
     for child in node["children"]:
         _cut(child, depth - 1)
+
+
+def _cost_estimate(spent: Optional[float], stages: "list[StageCount]", state: str) -> Optional[float]:
+    """What a live run may still cost, at its own pace: the running stage's spent-per-page times its pages left; None when
+    nothing priced has been spent yet, the run has ended, or no stage runs (`activity.pane.cost-per-row-and-totals`)."""
+    if not spent or state not in ("running", "waiting", "paused"):
+        return None
+    running = next((s for s in stages if s.state == "running" and s.done > 0 and s.total > s.done), None)
+    if running is None:
+        return None
+    return round(spent / running.done * (running.total - running.done), 4)
 
 
 def _recipe_progress(status: dict[str, Any], pages: int) -> tuple[int, int]:

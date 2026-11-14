@@ -42,6 +42,19 @@ def test_a_recipe_runs_row_carries_its_stages_and_the_pages_it_ran_over(held, cl
     assert row["ran_on"] == {"kind": "pages", "count": 120, "name": None}
     stages = row["stages"]
     assert [(s["title"], s["state"]) for s in stages] == [("Read", "done"), ("Names", "failed")], stages
+    # Cost (`activity.pane.cost-per-row-and-totals`): the keys are on every row; nothing priced here reads null, never "$0".
+    assert row["cost_usd"] is None and row["cost_estimate_usd"] is None
+
+
+def test_the_estimate_is_the_running_stages_pace_over_its_pages_left():
+    from fichero_server.api.routes.system.activity import StageCount, _cost_estimate
+
+    running = [StageCount(stage="read", title="Read", state="running", done=20, total=120, failed=0)]
+    assert _cost_estimate(0.40, running, "running") == 2.0, "20 pages cost $0.40: 100 more cost about $2.00"
+    assert _cost_estimate(0.40, running, "failed") is None, "an ended run has no estimate"
+    assert _cost_estimate(None, running, "running") is None, "nothing priced yet: no estimate"
+    assert _cost_estimate(0.40, [StageCount(stage="read", title="Read", state="done", done=120, total=120, failed=0)],
+                          "running") is None, "no stage running: nothing to estimate"
 
 
 def test_a_group_row_says_how_many_pages_it_stands_for(held, client):

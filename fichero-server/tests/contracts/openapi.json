@@ -55729,6 +55729,16 @@
             "type": "string",
             "nullable": true,
             "title": "Model"
+          },
+          "cost_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Usd"
+          },
+          "cost_estimate_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Estimate Usd"
           }
         },
         "type": "object",
