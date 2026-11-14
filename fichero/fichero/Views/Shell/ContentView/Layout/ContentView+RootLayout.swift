@@ -156,7 +156,9 @@ extension ContentView {
     private var focusOnPaneStep: FocusMode.Step {
         FocusMode.step(
             focusedNow: windowState.focusedPaneLeaf, focusedKind: (focusedPane ?? paneFocusHint)?.paneKind,
-            focusedLeaf: focusedLeafID, hasPage: immersiveReadingDocument != nil
+            // A page the reader can show (an image or a page), as its siblings are filtered: a folder is not one.
+            focusedLeaf: focusedLeafID,
+            hasPage: immersiveReadingDocument.map { $0.fileType == .image || $0.docType == .page } ?? false
         )
     }
 
