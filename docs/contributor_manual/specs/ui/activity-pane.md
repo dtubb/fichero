@@ -240,7 +240,9 @@ else moves a row out of paused, failed or stopped: not the open, not automatic w
   undoable: the mark is lifted and the cancelled rows go back to paused) and a Pause; Delete of a running row is skipped and said in
   the footer. Acceptance: with a failed, a paused and a running row selected the menu offers Delete (two) and Stop (three), not
   Continue; ⌘⌫ deletes two and the footer says one still runs; Undo lists the two again. *Tests:*
-  `fichero/Tests/Unit/general/Models/ActivityDeleteAnyRowTests.swift`, `fichero-server/tests/unit/jobs/test_delete_any_row_6583.py`;
+  `fichero/Tests/Unit/general/Models/ActivityDeleteAnyRowTests.swift`, `fichero-server/tests/unit/jobs/test_delete_any_row_6583.py`,
+  `fichero-server/tests/unit/jobs/test_every_state_takes_its_verbs_6583.py` (built 2026-11-13 night: the engine's verbs in every
+  state of the table above, through the routes);
   not yet written: ActivityRowActionsTests.swift, test_delete_is_undoable_6583.py.
 - `activity.pane.automatic-runs-easy-to-delete` — **[GAP]** (#6583, decision 11) an automatic run (started by the import, the
   schedule, a trigger, the derivative kinds) deletes like any other row, one at a time with the row's Delete or many at once:
