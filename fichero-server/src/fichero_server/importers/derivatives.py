@@ -119,6 +119,11 @@ def queue_derivatives(
         return []
 
     docs = list(docs)
+    if not arrived:
+        # The open's recovery of stranded pages (#6584, `activity.relaunch.only-running-work-resumes`): a page whose
+        # derivative already FAILED is not one the quit stranded. It said why (`derivative_error`), and its Retry runs it
+        # again; queued at every open it failed again at every open.
+        docs = [doc for doc in docs if "derivative_error" not in (doc.metadata or {})]
     taken: set[str] = set()
     if arrived and docs:
         # New material: after Start, a "just do it" project runs its recipe over it (`source.onboard.just-do-it`).
