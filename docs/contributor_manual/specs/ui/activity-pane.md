@@ -85,6 +85,7 @@ times by the engine stopping; set aside") is RETIRED: interruptions pause, they 
 |---|---|---|---|---|---|---|---|---|
 | queued | hollow circle | waiting its turn in its lane; nothing holds it | yes | yes | — | — | — | yes |
 | waiting for a slot | hollow circle, tooltip says for what | held by a cap (provider, model, memory, battery, thumbnails first) | yes | yes | — | — | — | yes |
+| blocked | `lock.circle`, tooltip names the blocker | waiting on something another row or a person must supply first (a model not downloaded or not loadable, a key, a folder); listed UNDER its blocker's row (`activity.pane.blocked-under-its-blocker`); never picked, never retried by itself | yes | yes | — | — | — | yes |
 | running | spinner | a lane thread works on it now | yes | yes | — | — | — | yes = Stop then Delete, one confirmation |
 | pausing | spinner + pause, "Pausing at its next step" | asked to pause; finishes the item it is on | — | yes | yes (cancels the pause) | — | — | yes = Stop then Delete |
 | paused | pause | held by a person ("Paused by you"), by the open ("Stopped when Fichero quit"), or for a cause (credit, cap, rate limit: that cause as its line) | — | yes | yes | — | — | yes |
@@ -447,6 +448,62 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   "Automatic work paused". *Tests:*
   `fichero/Tests/Unit/general/Models/RunAutomaticallySettingTests.swift`; the existing `ActivityTableTests` mode tests.
 
+### Ruled 2026-11-14 (owner, testing the 2026.11.14 release): a simple table that shows blockers, downloads that work
+
+What the release showed: a download of bge-m3 read "Running · 0 of 1" for minutes with no movement; it then FAILED to load
+(onnxruntime 1.29 refused `model.onnx_data` because huggingface_hub 1.33's sharded blob store put it in another folder than
+`model.onnx`) while Settings › AI › Downloads showed bge-m3 with a green check and 4.58 GB (the file is 2.27 GB); "Processing
+imported pages · 11 of 2618" and "Embed for search" kept being listed as waiting for "the search model … being fetched", a long
+sentence on four rows, after the fetch had failed; two rows showed raw text (the ONNX error; "Connection already closed: the
+library …/fichero.duckdb was closed"). The owner restated the goal: a much simpler table, hierarchical, that shows what is
+working, on which files, and what blocks it; the engine smarter about work that cannot run; models that download.
+
+- `activity.pane.blocked-under-its-blocker` — **[GAP]** (#6588; the `blocked` state in the states table) work that cannot run
+  until something else exists is BLOCKED, not waiting: the engine records on the row WHAT blocks it (`blocked_by`: another job's
+  id, or a typed need — a model `runtime:model`, a key for a provider, a folder) and the lane never picks a blocked row, so it
+  does not spin, re-check or re-queue. The table shows ONE row for the blocker (the download, or a need row "Search model bge-m3
+  · not loadable" when no job supplies it) and the blocked work as its CHILDREN under a disclosure, each with the `lock.circle`
+  glyph and no sentence ("Embed for search · 2,618 pages", "Prepare pages · Letters · 2,618"); the blocker's words are said once,
+  on the blocker. When the blocker ENDS done, its children become queued by themselves (that is the engine finishing what it
+  was asked, not a restart); when it ends FAILED, the children stay blocked and the blocker's row carries the fix (Download Again,
+  Choose Another Model…, Add Key…), and the person's fix unblocks them. Acceptance: with the search model missing, an import
+  queues its embeds blocked on the download; the lane picks none of them; the table has one download row with the embed rows
+  under it; the download fails: the embeds stay blocked, zero model calls, the row offers Download Again; it succeeds: the
+  embeds run. *Test:* not yet written: `test_blocked_work_waits_on_its_blocker_6588.py`, `ActivityBlockedRowsTests.swift`.
+- `activity.download.says-bytes-and-time-left` — **[GAP]** (#6588; supersedes "0 of 1" for a download) every model download, of
+  every runtime (Kraken, MLX, embeddings, Whisper, spaCy, YOLO, the MLX runtime), reports its bytes at least every
+  `PROGRESS_EVERY_SECONDS` (2) as typed fields on the row (`bytes_done`, `bytes_total`, never only words): through the library's
+  callback where it has one, else by measuring the model's download folder as it grows against the catalogue's size. The row's
+  bar is determinate on bytes and its one line reads "340 MB of 2.3 GB · 3 min left" (the text budget); before the first byte,
+  the spinner and "Connecting"; a stall of `READ_TIMEOUT_SECONDS` says "No data for 20 s, trying again". Acceptance: a stub
+  fetch for each runtime that writes 10 chunks reports at least 5 rising `bytes_done` values and the total; the row never reads
+  "0 of 1". *Test:* not yet written: `test_every_download_reports_bytes_6588.py`.
+- `activity.download.installed-means-it-loads` — **[GAP]** (#6588; `runtime.spacy.pipelines-download-as-data`) a model is
+  INSTALLED only once it LOADS: the download job ends by loading the model once (or the runtime's own check) and only then
+  says `model.installed`; a model whose files are present but which does not load is `broken`, shown in Settings with the red X,
+  one line ("bge-m3 could not be loaded") and **Download Again** (delete, fetch, check), never the green check; Settings' size
+  is the bytes on disk counted once (a link and its blob are one file). The engine fetches every model into ONE real folder
+  (`snapshot_download(local_dir=…)`, plain files) and loads it from there (fastembed's `specific_model_path`), so no loader's
+  path check depends on the cache's layout. Acceptance: a fixture snapshot whose `model.onnx` and `model.onnx_data` resolve to
+  different folders loads after the fix; a model whose load raises reads `broken` in `GET /api/models` and in Settings, never
+  installed; bge-m3's size reads 2.3 GB. *Test:* not yet written: `test_model_installed_means_it_loads_6588.py`,
+  `test_embeddings_load_from_one_folder_6588.py`.
+- `activity.pane.names-what-it-works-on` — **[GAP]** (#6588; `activity.pane.row-says-what-ran-on-what` made exact for jobs of
+  their own) a row names what it works on, never only its kind: "Prepare pages · Letters · 2,618" (the folder or project and the
+  count), not "Processing imported pages · 11 of 2618"; its children are the steps it holds (thumbnails, text, embed), each
+  with its own count, and under a step the files it is on NOW (at most the in-flight ones, named), so "which files" is one
+  disclosure away; an import's derivative work for one folder is ONE row, never one per step at the top level. Acceptance: an
+  import of a folder of 2,618 images lists one top-level row naming the folder and the count, three step children, and under
+  the running step the files in flight by name. *Test:* not yet written: `ActivityNamesWhatItWorksOnTests.swift`, the engine's
+  `test_row_says_what_ran_on_what_6441.py` extended.
+- `activity.failure.no-raw-text-ever` — **[GAP]** (#6588, #6354; `activity.pane.failure-with-its-fix-in-the-row`) the failure
+  table gains the kinds the release showed bare: a model that will not load (`model-broken`: "bge-m3 could not be loaded" ·
+  Download Again), a library closed under a running job (`library-closed`: the job is not failed but PAUSED, "Paused: the
+  project closed", Continue on reopen), a kept export whose folder is gone ("The export folder is gone" · Choose Folder…). A row,
+  alert or Settings line never shows an exception name, an absolute path or an engine message; those live in Copy Details.
+  Acceptance: the three stub failures list with those words and fixes, none containing `Error`, `/Users/` or `[`. *Test:*
+  `fichero-server/tests/unit/llm/test_every_failure_kind_has_a_fix_6354.py` extended.
+
 ## Build order
 
 ### Stage 1 — Activity as a pane
@@ -555,6 +612,28 @@ the step run is gone; the app's alert.
 - Tests: ActivityLessIsMoreTests.swift (not yet written), ActivityStepTrailTests.swift (not yet written), ActivityCostColumnTests.swift (not yet written), fichero/Tests/Unit/general/Models/ActivityPane/ActivityWindowIsAPaneTests.swift, fichero/Tests/Unit/general/Models/RunAutomaticallySettingTests.swift, fichero/Tests/Unit/general/Models/ActivityPane/ActivityRowActionsTests.swift, fichero/Tests/Unit/general/Models/ActivityTableTests.swift
 - Depends on: 1.2, 1.4, 2.5
 - Size: L
+
+### Stage 3 — blockers, downloads that work, names (owner 2026-11-14)
+
+#### Step 3.1 — models that download and load (#6588)
+- Behaviours: `activity.download.installed-means-it-loads`, `activity.download.says-bytes-and-time-left`
+- Tests: test_model_installed_means_it_loads_6588.py (not yet written), test_embeddings_load_from_one_folder_6588.py (not yet written), test_every_download_reports_bytes_6588.py (not yet written)
+- Depends on: none
+- Size: M
+
+First, because every new install hits it: one real folder per model, load-checked before installed, bytes on the row.
+
+#### Step 3.2 — blocked work under its blocker; no raw text (#6588)
+- Behaviours: `activity.pane.blocked-under-its-blocker`, `activity.failure.no-raw-text-ever`
+- Tests: test_blocked_work_waits_on_its_blocker_6588.py (not yet written), ActivityBlockedRowsTests.swift (not yet written), fichero-server/tests/unit/llm/test_every_failure_kind_has_a_fix_6354.py
+- Depends on: 3.1
+- Size: M
+
+#### Step 3.3 — the row names what it works on (#6588)
+- Behaviours: `activity.pane.names-what-it-works-on`
+- Tests: ActivityNamesWhatItWorksOnTests.swift (not yet written), fichero-server/tests/unit/jobs/test_row_says_what_ran_on_what_6441.py
+- Depends on: 2.5
+- Size: M
 
 ## Test matrix
 
