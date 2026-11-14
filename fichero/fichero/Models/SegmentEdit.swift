@@ -181,6 +181,11 @@ enum SegmentEdit {
         ))
     }
 
+    /// Whether a Join merges regions (so their lines move into the kept one and the order is shown after).
+    static func joinsRegions(_ segments: [Segment]) -> Bool {
+        segments.count >= 2 && segments.allSatisfy { $0.kind.lowercased() == "region" }
+    }
+
     /// One outline point moved; anything past x and y is kept as it was.
     /// A point carried from one box `[x, y, w, h]` to another: its place in the old box kept in the new.
     /// A box with no width or height keeps that axis's scale at one, so a flat baseline shifts cleanly.

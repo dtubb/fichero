@@ -180,6 +180,22 @@ class WindowState {
         simplifyRelease = SimplifyRelease(tolerance: tolerance)
     }
 
+    /// The page's reading-order numbers shown for a moment after regions are merged (`segment-editor.merge-regions`), so
+    /// the person sees where the moved lines now read. Off again by itself.
+    var orderOverlayFlash = false
+    private var orderOverlayStamp = UUID()
+
+    /// Show the order numbers for `seconds`; a second flash meanwhile restarts the clock.
+    func flashOrderOverlay(for seconds: Double = 2) {
+        let stamp = UUID()
+        orderOverlayStamp = stamp
+        orderOverlayFlash = true
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(seconds))
+            if self?.orderOverlayStamp == stamp { self?.orderOverlayFlash = false }
+        }
+    }
+
     /// A short word from the segment editor about the edit just made (the Knife's lines left alone), shown over the page
     /// for a few seconds; nil when there is nothing to say.
     var segmentNotice: String?
