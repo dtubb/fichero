@@ -302,7 +302,8 @@ struct ActivityJob: Identifiable, Equatable {
         self.costUsd = job.costUsd
         self.costEstimateUsd = job.costEstimateUsd
         self.failure = job.failure.map {
-            Failure(kind: $0.kind.rawValue, words: $0.words, fix: $0.fix, actions: $0.actions.map { $0.kind.rawValue })
+            Failure(kind: $0.kind.rawValue, words: $0.words, fix: $0.fix, actions: $0.actions.map { $0.kind.rawValue },
+                    rowWords: $0.rowWords ?? "")
         }
     }
 

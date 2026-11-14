@@ -38,4 +38,13 @@ struct ActivityErrorRowTests {
         #expect(row.failure?.fix == "Wait a few minutes, then continue the run.")
         #expect(!(row.failure?.words.contains("429") ?? true))
     }
+
+    @Test("the row's reason is the failure kind's row words when the engine sends them, else the engine's reason")
+    func rowWords() {
+        var job = ActivityJob(id: "j", taskType: "run-a-recipe", name: "Run", state: .failed, reason: "a long stored sentence.")
+        #expect(ActivityMonitorRow.job(job, libraryId: nil, projectName: nil).reason == "a long stored sentence.")
+        job.failure = ActivityJob.Failure(kind: "no-credit", words: "OpenRouter has no credit left.", fix: "Add credit.",
+                                          actions: ["open-settings"], rowWords: "Out of credit at OpenRouter")
+        #expect(ActivityMonitorRow.job(job, libraryId: nil, projectName: nil).reason == "Out of credit at OpenRouter")
+    }
 }

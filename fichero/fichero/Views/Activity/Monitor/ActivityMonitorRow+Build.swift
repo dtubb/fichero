@@ -62,7 +62,8 @@ extension ActivityMonitorRow {
             name: job.name,
             projectName: projectName,
             phase: Phase(job.state),
-            reason: job.remote?.words ?? job.reason,
+            // A failed row's words are the failure kind's ≤ 8-word line when the engine sends one, never a sentence cut short.
+            reason: (job.failure?.rowWords).flatMap { $0.isEmpty ? nil : $0 } ?? job.remote?.words ?? job.reason,
             workingOn: nil,
             done: job.current,
             total: job.total,
