@@ -127,6 +127,24 @@ def test_a_group_member_that_started_meanwhile_is_skipped_and_named(held, client
     assert _state(held, taken)[0] == "running"
 
 
+def test_a_row_a_lane_took_before_its_thread_is_listed_is_skipped_or_stopped_never_cancelled_under_it(held, client, monkeypatch):
+    """Review 2026-11-14: Delete read `running_ids()` once; a row a lane thread took after that read was running but not
+    in it, so it was cancelled under its thread without its Stop. The row's state is the truth."""
+    stopped: list[str] = []
+    monkeypatch.setitem(jobs.KINDS, "t-stoppable", jobs.Kind(run=lambda db, subject: None, model=None, name="A long job",
+                                                              cancel=lambda db, job_id: stopped.append(job_id) or "stopping"))
+    taken = jobs.enqueue(held, "t-stoppable", "race:1")
+    jobs._scheduler.running_ids = lambda: []  # the lane's thread has the row but is not listed yet
+    held.execute("UPDATE jobs SET state = 'running' WHERE id = ?", [taken])
+
+    plain = client.post("/api/activity/jobs/delete", json={"ids": [taken]}).json()
+    assert plain["skipped_ids"] == [taken] and _state(held, taken) == ("running", None, False), "skipped, untouched"
+    assert stopped == []
+
+    confirmed = client.post("/api/activity/jobs/delete", json={"ids": [taken], "stop_running": True}).json()
+    assert confirmed["deleted_ids"] == [taken] and stopped == [taken], "Stop then Delete goes through its kind's own Stop"
+
+
 def test_stop_then_delete_on_a_running_row_asks_it_to_stop_and_hides_it_at_once(held, client, monkeypatch):
     """`activity.pane.row-actions-on-the-table`: Delete on a running row is Stop then Delete after the person's one confirmation
     (`stop_running`); the row leaves every list now and ends under the mark when its lane thread returns."""

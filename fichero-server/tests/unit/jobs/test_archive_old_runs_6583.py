@@ -90,8 +90,24 @@ def test_delete_removes_the_row_from_the_table_the_archive_and_retry__undo_resto
     undone = client.post("/api/activity/jobs/undelete", json={"ids": [archived, paused]}).json()
     assert sorted(undone["ids"]) == sorted([archived, paused])
     assert _row_in_table(held, paused) == ("paused", jobs.PAUSED_REASON, False, False), "back as it was"
-    assert _row_in_table(held, archived) == ("failed", "no credit", False, False), "back in the table (the archive mark lifted too)"
-    assert archived in _listed(client) and paused in _listed(client)
+    assert _row_in_table(held, archived) == ("failed", "no credit", True, False), "back as it was: archived"
+    assert archived in _listed(client, archived=True) and paused in _listed(client)
+
+
+def test_undo_of_delete_keeps_an_archive_mark_a_row_under_it_had_before(held, client):
+    """Review 2026-11-14: Undo of Delete lifted `cleared_at` from every row under the deleted one, so a row archived before
+    the delete came back unarchived. Only the mark the delete set comes off."""
+    run = _row(held, "d:run", "failed", "1 page was not read")
+    page = _row(held, "d:run:page", "failed", "timed out", parent=run)
+    fresh = _row(held, "d:run:fresh", "done", parent=run)
+    client.post("/api/activity/jobs/archive", json={"ids": [page]})
+
+    client.post("/api/activity/jobs/delete", json={"ids": [run]})
+    assert client.post("/api/activity/jobs/undelete", json={"ids": [run]}).json()["ids"] == [run]
+
+    assert _row_in_table(held, run) == ("failed", "1 page was not read", False, False)
+    assert _row_in_table(held, fresh)[2:] == (False, False), "the delete's mark is lifted"
+    assert _row_in_table(held, page) == ("failed", "timed out", True, False), "archived before the delete: still archived"
 
 
 def test_archive_and_delete_are_undoable_audited_actions(held):

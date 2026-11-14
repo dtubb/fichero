@@ -3652,7 +3652,12 @@ def undelete_jobs(db: "Database", ids: list[str]) -> list[str]:
                     [before["state"], before.get("reason"), json.dumps(detail) if detail else None, rid],
                 )
         marks = ", ".join("?" for _ in under)
-        db.execute(f"UPDATE jobs SET deleted_at = NULL, cleared_at = NULL WHERE id IN ({marks})", [*under])
+        # Only the mark the delete set comes off: a row archived before the delete (`cleared_at` older) stays archived.
+        db.execute(
+            f"UPDATE jobs SET cleared_at = CASE WHEN cleared_at < deleted_at THEN cleared_at ELSE NULL END, deleted_at = NULL "
+            f"WHERE id IN ({marks})",
+            [*under],
+        )
         out.append(job_id)
     key = _key(db)
     db.add_after_commit_hook(lambda: _scheduler.wake(key))
@@ -3675,7 +3680,6 @@ def delete_jobs(db: "Database", ids: list[str], states: list[str] | None = None,
     if not _has_cleared_at(db):
         raise ValueError("This project's jobs table cannot mark deleted rows; see the engine log")
     has_deleted = _has_deleted_at(db)
-    live = set(_scheduler.running_ids())
     deleted: list[str] = []
     skipped: list[str] = []
     now = utc_now()
@@ -3697,12 +3701,14 @@ def delete_jobs(db: "Database", ids: list[str], states: list[str] | None = None,
                 continue
         for job_id, _state_when_asked in rows:
             # Judged at receipt (review 2026-11-13): a row that started between the person's click and this request is
-            # skipped and named, never deleted under its lane thread; `live` is this engine's guard, the row's state the truth.
+            # skipped and named, never deleted under its lane thread. The row's state is the truth: a row a lane thread took
+            # after any read of `running_ids()` reads running before its thread is listed, and is Stopped like the rest
+            # (review 2026-11-14: a snapshot of `running_ids()` let it be cancelled under its thread without its Stop).
             now_state = db.execute_fetchone("SELECT state FROM jobs WHERE id = ?", [job_id])
-            if now_state is None or (now_state[0] == "running" and job_id in live and not stop_running):
+            if now_state is None or (now_state[0] == "running" and not stop_running):
                 skipped.append(job_id)
                 continue
-            if now_state[0] == "running" and job_id in live:
+            if now_state[0] == "running":
                 # Stop then Delete (`activity.pane.row-actions-on-the-table`): the kind's own Stop; a page mid-read drops
                 # what it reads; the lane writes the row's end under the deleted mark set below, where no list reads it.
                 kind_now = db.execute_fetchone("SELECT kind FROM jobs WHERE id = ?", [job_id])[0]
@@ -3729,7 +3735,9 @@ def delete_jobs(db: "Database", ids: list[str], states: list[str] | None = None,
                 [DELETED_REASON, now, *under],
             )
             db.execute(
-                f"UPDATE jobs SET cleared_at = ?{', deleted_at = ?' if has_deleted else ''} WHERE id IN ({marks})",
+                # An archive mark already there is kept (its time older than the delete's), so Undo leaves that row archived.
+                f"UPDATE jobs SET cleared_at = COALESCE(cleared_at, ?){', deleted_at = ?' if has_deleted else ''} "
+                f"WHERE id IN ({marks})",
                 [now, *([now] if has_deleted else []), *under],
             )
             deleted.append(job_id)
