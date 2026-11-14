@@ -296,14 +296,20 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   not compiled here. Not built: the icon column and the filter tokens; cloud vs local needs the row's model. *Tests:*
   `fichero/Tests/Unit/general/Models/ActivityRowIconsTests.swift`; the existing
   `fichero/Tests/Unit/general/Models/ActivityRowStartedByTests.swift`.
-- `activity.pane.cost-per-row-and-totals` — **[GAP]** (#6441, decision 20; `activity.window.cost-column` built the per-node
+- `activity.pane.cost-per-row-and-totals` — **[PARTIAL]** (#6441, decision 20; `activity.window.cost-column` built the per-node
   `cost_usd`; `ai/cloud-permission-and-spend.md` keeps the records) the Cost column (default hidden, `activity.pane.default-columns`;
   shown in the Inspector always) shows per row the dollars SPENT so far and, while running, the ESTIMATE to finish ("$0.42 · ~$1.10
   more", from the plan's per-page estimate times the pages left, `spend.caps_now`'s basis); the run row totals its steps; the
   background section's line totals per provider for the day ("OpenRouter $3.20 today"); local work shows no cost and its time
   instead; "Not priced" when a call has no price, never "$0". Acceptance: the fixture run with two cloud steps and one local step
-  shows the two costs, the run's total, no cost on the local step, and the estimate falls as pages finish. *Tests:*
-  `ActivityCostColumnTests.swift` (to write), the existing `test_run_tree_rolls_up.py`.
+  shows the two costs, the run's total, no cost on the local step, and the estimate falls as pages finish. **Built
+  (2026-11-14, engine):** every list row carries `cost_usd` (a recipe run's cloud dollars so far, `live_stages.cost_so_far`;
+  null for local work or no priced call, never 0) and `cost_estimate_usd` (the running stage's spent-per-page times its pages
+  left, `_cost_estimate`; null when ended or nothing priced yet). Not built: the plan's per-page estimate as the basis before
+  the first page is priced; the per-provider daily total line; the app's column. *Tests:*
+  `fichero-server/tests/unit/jobs/test_row_says_what_ran_on_what_6441.py`; the existing
+  `fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py`;
+  not yet written: ActivityCostColumnTests.swift.
 - `activity.pane.row-actions-on-the-table` — **[GAP]** (#6441, #6583, decision 11; `activity.window.delete-any-row`,
   `activity.pause.per-job`, `activity.retry.one-row`) the verbs live on the table: a row's one button (`activity.window.one-button`)
   shows the verb its state allows (the states table above), the context menu lists the one verb list, each enabled by the MAIL RULE (above: enabled when any selected row allows it,
