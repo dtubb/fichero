@@ -320,11 +320,13 @@ enum ActivityPane {
         return ""
     }
 
-    /// The Cost cell: "$0.42 · ~$1.10 more" while it runs, "$0.42" once ended; blank for local work; "Not priced" when a
-    /// call under it had no price; never "$0".
+    /// The Cost cell: "$0.42 · ~$1.10 more" while it runs, "$0.42" once ended; blank for local work (the engine's null);
+    /// "Free" for cloud calls priced at $0 (the engine's 0.0, #6598); "Not priced" when a call under it had no price;
+    /// never "$0.00" (`activity.pane.row-and-inspector-agree`).
     static func costLine(_ row: ActivityMonitorRow) -> String {
         let text = ActivityTrail.cost(spentUsd: row.costUsd, estimateUsd: row.phase.isLive ? row.costEstimateUsd : nil)
         if !text.isEmpty { return text }
+        if row.costUsd == 0 { return "Free" }
         return row.costUsd == nil && row.tokens > 0 ? "Not priced" : ""
     }
 

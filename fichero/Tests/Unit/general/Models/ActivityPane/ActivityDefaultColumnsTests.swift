@@ -22,7 +22,7 @@ struct ActivityDefaultColumnsTests {
         #expect(ActivityPanePrefs.load(data, key: "pane").columns[visibility: ActivityPane.Column.model.rawValue] == .visible)
     }
 
-    @Test("cost: spent and the estimate while running, spent once ended, blank for local work, Not priced, never $0")
+    @Test("cost: spent and the estimate while running, spent once ended, blank for local work, Free at $0, Not priced")
     func cost() {
         var running = ActivityPaneFixture.row("r", .running, costUsd: 0.42)
         running.costEstimateUsd = 1.1
@@ -33,6 +33,6 @@ struct ActivityDefaultColumnsTests {
         #expect(ActivityPane.costLine(ActivityPaneFixture.row("local", .done)).isEmpty)
         let unpriced = ActivityPaneFixture.row("u", .done, tokens: 10)
         #expect(ActivityPane.costLine(unpriced) == "Not priced")
-        #expect(ActivityPane.costLine(ActivityPaneFixture.row("z", .done, costUsd: 0)).isEmpty, "never $0")
+        #expect(ActivityPane.costLine(ActivityPaneFixture.row("z", .done, costUsd: 0)) == "Free", "a $0 priced call, never $0.00")
     }
 }
