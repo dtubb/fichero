@@ -133,7 +133,7 @@ struct FocusedActivityRunButtons: View {
 
 /// Project › Activity's verbs on the focused Activity pane's selection (`activity.pane.commands-through-the-table`): the ONE
 /// verb list (`ActivityPaneVerb`), each enabled by the Mail rule and disabled, never hidden, when no selected row allows it.
-/// Stop is `FocusedActivityRunButtons`' one item. No chords: Delete is the table's own Delete key.
+/// Stop is `FocusedActivityRunButtons`' one item. Delete is the table's Delete key and Edit › Delete's ⌘⌫ (`FocusedDeleteButton`).
 struct FocusedActivityVerbButtons: View {
     @FocusedValue(\.activityVerbs) private var target
 
