@@ -2492,7 +2492,7 @@ def resume(db: "Database") -> None:
     # and pausing, or waiting to look at its pause again) was taken up and the run carried on; now it is the stored pause
     # (`pause_stored`), which Resume lets go. The row's own words stay, a "pausing" one now says paused.
     db.execute(
-        f"UPDATE jobs SET state = 'paused', reason = CASE WHEN reason = ? THEN ? ELSE reason END{_clear_waiting_on(db)} "
+        f"UPDATE jobs SET state = 'paused', run_after = NULL, reason = CASE WHEN reason = ? THEN ? ELSE reason END{_clear_waiting_on(db)} "
         f"WHERE state IN ('waiting', 'running') AND reason IN (?, ?, ?){not_live}",
         [PAUSING, PAUSED_REASON, PAUSING, PAUSED_WITH_RUN, PAUSED_BETWEEN_STEPS, *live],
     )
@@ -3564,8 +3564,8 @@ def delete_jobs(db: "Database", ids: list[str], states: list[str] | None = None)
         if asked.startswith(("waiting:", "paused:")):
             kind = asked.split(":", 1)[1]
             rows = db.execute_fetchall(
-                "SELECT id, state FROM jobs WHERE kind = ? AND parent_id IS NULL AND state IN ('waiting', 'paused') "
-                "AND cleared_at IS NULL ORDER BY created_at, id",
+                "SELECT id, state FROM jobs WHERE kind = ? AND parent_id IS NULL AND state IN ('waiting', 'paused', 'running') "
+                "AND cleared_at IS NULL ORDER BY created_at, id",  # a running one is skipped and named below
                 [kind],
             )
         else:
@@ -3573,8 +3573,11 @@ def delete_jobs(db: "Database", ids: list[str], states: list[str] | None = None)
             if not rows:
                 skipped.append(asked)
                 continue
-        for job_id, state in rows:
-            if state == "running" and job_id in live:
+        for job_id, _state_when_asked in rows:
+            # Judged at receipt (review 2026-11-13): a row that started between the person's click and this request is
+            # skipped and named, never deleted under its lane thread; `live` is this engine's guard, the row's state the truth.
+            now_state = db.execute_fetchone("SELECT state FROM jobs WHERE id = ?", [job_id])
+            if now_state is None or (now_state[0] == "running" and job_id in live):
                 skipped.append(job_id)
                 continue
             under = _under(db, job_id)

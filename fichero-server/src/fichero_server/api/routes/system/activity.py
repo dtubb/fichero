@@ -1642,7 +1642,7 @@ async def delete_jobs(
     return DeleteJobsResponse.model_validate(result.result)
 
 
-@action("job.delete", DeleteJobsParams, domains=["activity"])
+@action("job.delete", DeleteJobsParams, domains=["activity"], undoable=False)  # Undo comes with the archive/delete split (#6583)
 def _action_job_delete(db: Database, params: DeleteJobsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.execution import jobs as job_queue
 
