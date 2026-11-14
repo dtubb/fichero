@@ -1439,6 +1439,8 @@ BASE_REF = "origin/integration"  # ponytail: the land branch the presubmit diffs
 
 
 def test_fingerprint(repo: str, head: str, f: str, base_ref: str = BASE_REF) -> dict:
+    # the chain passes the ladder's own base COMMIT (the engine repo's land branch tip), never the lane repo's possibly stale origin
+    # ref; a commit the lane repo lacks gives {} (no match: the manager is asked again)
     """{base, head}: the file's blob at the merge base of `head` with `base_ref` and at `head` ('' = absent there); {} when git cannot say.
     Both, so a base that changed the file (new tests added upstream, the lane's copy kept) never matches an approve given before it."""
     r = subprocess.run(["git", "-c", "safe.directory=*", "-C", repo, "merge-base", base_ref, head], capture_output=True, text=True)
@@ -1464,6 +1466,8 @@ def content_approvals(step: dict | None, repo: str, base_ref: str = BASE_REF) ->
         return out
     held: dict = {}
     for f, fp in list(bound.items()):
+        if not isinstance(fp, dict):  # an older plain-blob entry: never matches, never raises
+            continue
         now = test_fingerprint(repo, head, f, base_ref)
         if now and now == {"base": fp.get("base"), "head": fp.get("head")}:
             held.setdefault(fp.get("kind", "approve_red"), []).append(f)
@@ -1524,7 +1528,7 @@ def real_procs(root) -> Procs:
         tree = (step or {}).get("land_tree") or lane["worktree"]  # an external lane's batch is taken from its land-<lane> snapshot
         return types.SimpleNamespace(worktree=tree, name=lane["id"], pinned=str(root), root=str(root), kind="claude", session="harness",
                                      tick=30.0, issues=step["issues"] if step else [], brief=brief, ids=[], repo=repo,
-                                     maintainer=_approved(step, "maintainer") or bool(lane.get("maintainer")), **content_approvals(step, tree, f"origin/{branch}"),
+                                     maintainer=_approved(step, "maintainer") or bool(lane.get("maintainer")), **content_approvals(step, tree, land_tool.resolve_branch(repo, branch) or f"origin/{branch}"),
                                      external=lane.get("kind") == "external",
                                      approve_pinned_new=_approved(step, "approve_pinned_new"),
                                      guard_data=guard_data_for(step, tree), retry=bool(step and step.get("retry_rungs")),
