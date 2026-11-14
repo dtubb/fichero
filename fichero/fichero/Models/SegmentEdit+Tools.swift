@@ -146,6 +146,18 @@ extension SegmentEdit {
         ))
     }
 
+    /// CUT CHARACTERS in the selected words (`segment-editor.cut-characters`): one `segment.cut_characters`, one undo.
+    /// The engine cuts each word at its character positions and says which words it could not cut.
+    static func cutCharacters(_ segments: [Segment]) -> Result<Call, Refusal> {
+        let words = segments.filter { $0.kind.lowercased() == "word" }
+        guard !words.isEmpty else { return .failure(.tooFew) }
+        guard let versions = versions(of: words) else { return .failure(.versionUnknown) }
+        return .success(Call(
+            action: "segment.cut_characters",
+            params: .cutCharacters(SegmentCutWordsRequest(segmentIds: words.map(\.id), expectedVersions: versions))
+        ))
+    }
+
     /// ADD BASELINE to the selected lines that have none (`segment-editor.edge.no-baseline`): the engine proposes one
     /// through each box in its direction, marked estimated, for the person to drag onto the ink. One undo.
     static func addBaseline(_ lines: [Segment]) -> Result<Call, Refusal> {

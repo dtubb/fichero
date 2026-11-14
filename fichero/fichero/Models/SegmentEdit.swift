@@ -36,6 +36,8 @@ enum SegmentEdit {
         case cutWords(SegmentCutWordsRequest)
         /// Add Baseline (`segment.add_baseline`).
         case addBaseline(SegmentCutWordsRequest)
+        /// Cut Characters (`segment.cut_characters`).
+        case cutCharacters(SegmentCutWordsRequest)
         /// Order by clicking (`reading_order.sequence`).
         case sequence(ReadingOrderSequenceRequest)
         /// The selection moved by one offset (`segment.translate`).
@@ -54,7 +56,7 @@ enum SegmentEdit {
             case .knife(let params): try params.encode(to: encoder)
             case .simplify(let params): try params.encode(to: encoder)
             case .cutWords(let params): try params.encode(to: encoder)
-            case .addBaseline(let params): try params.encode(to: encoder)
+            case .addBaseline(let params), .cutCharacters(let params): try params.encode(to: encoder)
             case .sequence(let params): try params.encode(to: encoder)
             case .translate(let params): try params.encode(to: encoder)
             }

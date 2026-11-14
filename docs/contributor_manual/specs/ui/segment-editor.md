@@ -459,9 +459,15 @@ See section 7.2 below for what exists. The design:
   `reading_span` into the line's reading), right-to-left lines from positions (they take the
   ink-gap path), Vision's packed row beside them. *Tests:* `test_segment_cut_words.py`;
   `CutWordsTests` in `SegmentSimplifyTests.swift`.
-- `segment-editor.cut-characters` — **[GAP]** (→ #5212; engine + app) **Cut Characters** does the same inside a word
+- `segment-editor.cut-characters` — **[PARTIAL]** (→ #5212; engine + app) **Cut Characters** does the same inside a word
   from its character positions, giving `character` children; offered only at a zoom where a
-  character is at least 24 pt tall on screen.
+  character is at least 24 pt tall on screen. *Built (2026-11-14):* `segment.cut_characters` (each word cut where
+  its next character starts, from the positions on its line's reading, across the line's baseline; `cut_source: ctc`,
+  the confidence at its cuts, the reading and its `reading_span`; a machine's earlier characters replaced, a person's
+  word left alone; a word with no positions, right-to-left or of one character left alone and named; one undo,
+  `segment.uncut_words`) and Edit › Segments ▸ Cut Characters on the selected words. *Not built:* the zoom gate,
+  an ink-gap fallback for characters. *Tests:* `fichero-server/tests/unit/api/test_segment_cut_characters.py`;
+  `fichero/Tests/Unit/general/Views/Source/SegmentSimplifyTests.swift::cutCharacters`.
 - `segment-editor.cut-fallback-ink-gaps` — **[OK]** (→ #5212; engine) a line with a reading and no positions is
   cut by the ink-gap projection profile along its baseline: the dark pixels of the current
   image inside the outline are summed across the baseline, gaps wider than a fraction of the

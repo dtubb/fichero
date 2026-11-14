@@ -522,6 +522,7 @@ extension ZoomableImagePreview {
             splitAtPoint: { splitSelectedLineAtLastPoint() },
             simplify: { simplifySelectedSegments() },
             cutWords: { cutWordsOnSelectedLines() },
+            cutCharacters: { cutCharactersInSelectedWords() },
             addBaseline: { addBaselineToSelectedLines() },
             apply: { setSelectedSegments($0) }
         )
