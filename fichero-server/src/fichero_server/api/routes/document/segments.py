@@ -552,6 +552,54 @@ def segments_on_a_rendition(doc_id: str, rendition_id: str, db: Database = Depen
     return segments_on_rendition(db, doc, rendition, db.query(Segment, document_id=doc_id))
 
 
+class SegmentProblem(BaseModel):
+    """One thing wrong with a page's segments (`segment-editor.validate-before-export`)."""
+
+    kind: str = Field(description="no-shape, self-crossing, no-baseline, line-outside-regions, empty-region, overlap, "
+                                  "order-repeat, order-gap, order-missing or words-do-not-tile.")
+    segment_ids: list[str]
+    detail: str
+    pass_id: str
+    order_id: Optional[str] = None
+    share: Optional[float] = None
+
+
+class SegmentValidation(BaseModel):
+    document_id: str
+    problems: list[SegmentProblem]
+
+
+@router.get("/document/{doc_id}/validate", response_model=SegmentValidation)
+@off_loop
+def validate_document_segments(doc_id: str, db: Database = Depends(get_library_database)) -> SegmentValidation:
+    """What is wrong with the page's segments, per pass, before an export (`segment-editor.validate-before-export`):
+    reads, writes nothing. An empty list is a page with nothing to fix."""
+    from fichero_server.media import segment_checks
+    from fichero_server.models.reading_orders import ReadingOrder, ReadingOrderEntry
+
+    if not db.get(Document, doc_id):
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    rows = [row for row in db.query(Segment, document_id=doc_id) if row.deleted_at is None]
+    problems: list[SegmentProblem] = []
+    for pass_id in sorted({row.pass_id for row in rows}):
+        in_pass = [row for row in rows if row.pass_id == pass_id]
+        orders = [
+            (order, list(db.query(ReadingOrderEntry, order_id=order.id)))
+            for order in db.query(ReadingOrder, pass_id=pass_id) if order.deleted_at is None
+        ]
+        texts = {}
+        for row in in_pass:
+            if row.kind == "line":
+                counted = _counting_readings(db, row.id)
+                _rid, text = counted.get("transcription") or next(iter(counted.values()), (None, ""))
+                if text:
+                    texts[row.id] = text
+        problems.extend(
+            SegmentProblem(pass_id=pass_id, **problem) for problem in segment_checks.check_pass(in_pass, orders, texts)
+        )
+    return SegmentValidation(document_id=doc_id, problems=problems)
+
+
 @router.get("/document/{doc_id}", response_model=SegmentListResponse)
 @off_loop
 def list_document_segments(
