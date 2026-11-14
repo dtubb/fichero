@@ -210,6 +210,7 @@ extension LibraryView {
                 ForEach(model.fields) { field in
                     Button {
                         libraryToolbar.apply(model.selecting(field))
+                        arrangeCanvasBySortIfShown()
                     } label: {
                         Label(field.rawValue, systemImage: field.icon)
                         if model.isSelected(field) {
@@ -223,6 +224,7 @@ extension LibraryView {
             Section {
                 Button {
                     libraryToolbar.apply(model.settingAscending(true))
+                    arrangeCanvasBySortIfShown()
                 } label: {
                     Label("Ascending", systemImage: "arrow.up")
                     if model.ascending {
@@ -232,6 +234,7 @@ extension LibraryView {
 
                 Button {
                     libraryToolbar.apply(model.settingAscending(false))
+                    arrangeCanvasBySortIfShown()
                 } label: {
                     Label("Descending", systemImage: "arrow.down")
                     if !model.ascending {

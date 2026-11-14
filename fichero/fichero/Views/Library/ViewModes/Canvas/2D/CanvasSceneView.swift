@@ -69,6 +69,11 @@ struct CanvasSceneView: View {
     var groupNodeIds: Set<String> = []
     /// A group's pages, in order, as page nodes; nil draws groups as empty frames.
     var pagesOfGroup: ((String) async -> [SpatialNode])?
+    /// Bumped by the bar's Sort while this board shows (`panes.chrome.one-filter-pattern`): each bump arranges the
+    /// cards in the new order, once, through `saveSortArrangement`.
+    var sortArrangeToken = 0
+    /// Saves an arranged board as ONE audited, undoable action (the host has the actions door).
+    var saveSortArrangement: ((_ scope: String, _ rows: [CanvasItemLayout]) -> Void)?
     /// Each loaded group's pages, keyed by group node id (`CanvasSceneView+Groups.swift`).
     @State var groupPages: [String: [SpatialNode]] = [:]
     /// The pages a dragged group carries, with where each started. Moved live, never saved: they
@@ -164,7 +169,9 @@ struct CanvasSceneView: View {
     /// a pane resize, a card arriving or a page shape landing changes the default grid, and must not
     /// move a card the person did not move. An arrangement (`savedRows` given) is a fresh layout the
     /// person asked for, so it is not held.
-    private func resolvedState(in viewportSize: CGSize, savedRows: [CanvasItemLayout]? = nil) -> CanvasSceneState {
+    private func resolvedState(
+        in viewportSize: CGSize, savedRows: [CanvasItemLayout]? = nil, arrangement: CanvasArrangement? = nil
+    ) -> CanvasSceneState {
         let rows = savedRows ?? layoutStore?.layout(for: scopeKey) ?? []
         let columns = CanvasGridPlacement.sharedColumnCount(
             itemCount: placeableCount, viewportSize: viewportSize, cell: gridCell
@@ -186,7 +193,7 @@ struct CanvasSceneView: View {
             // 1.0 × 0.75 (§18.1 defect 4): CanvasCardGeometry normalises on
             // area, so a double-spread is 1.22 wide and needs the room.
             gridCell: gridCell,
-            arrangement: CanvasArrangement.stored(arrangementRaw)
+            arrangement: arrangement ?? CanvasArrangement.stored(arrangementRaw)
         )
         if savedRows == nil {
             // Before nesting: a group's pages follow wherever the group is held.
@@ -354,6 +361,7 @@ struct CanvasSceneView: View {
             // card out in it and saves those places. As a default for unplaced cards only, it did
             // nothing to any card a person had moved, and once positions save that is all of them.
             .onChange(of: arrangementRaw) { _, raw in arrangeBoard(CanvasArrangement.stored(raw), in: geo.size) }
+            .onChange(of: sortArrangeToken) { arrangeBySort(in: geo.size) }
             .onDisappear { controller?.onMoveInto = nil }
             .task(id: folderScopeId) {
                 configureController()
@@ -622,6 +630,16 @@ extension CanvasSceneView {
 
     /// Lay every card out in `arrangement` and save those places: an action, like Finder's Clean
     /// Up By, and with a drag the only thing that moves a card (#5629).
+    /// Sort, on this board: every card at its As Filed slot -- the order the Sort just gave `nodes` -- whatever
+    /// Arrange by holds, saved once; the board then keeps whatever is moved by hand.
+    func arrangeBySort(in size: CGSize) {
+        guard let layoutStore, let saveSortArrangement else { return }
+        let rows = CanvasArrangement.rowsBySort(
+            resolvedState(in: size, savedRows: [], arrangement: .asFiled), keeping: layoutStore.layout(for: scopeKey)
+        )
+        saveSortArrangement(scopeKey, rows)
+    }
+
     func arrangeBoard(_ arrangement: CanvasArrangement, in size: CGSize) {
         guard arrangement != .free, let layoutStore else { return }
         let rows = CanvasArrangement.rowsPinning(
