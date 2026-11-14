@@ -32,3 +32,9 @@ struct SidebarMetadataMenu: View {
         Toggle(SidebarMetadata.runProgress.title, isOn: $runProgress)
     }
 }
+
+#Preview("Sidebar Metadata menu") {
+    Menu("Metadata") { SidebarMetadataMenu() }
+        .padding()
+        .frame(width: 200)
+}

@@ -332,7 +332,7 @@ starting a new one.
   when the column collapses, next to the island. *Built:* `ContentView.sidebarToolbarContent` offers its item only
   while the sidebar is shown (`SidebarPairHome.declaredInColumn`, #6558). *Not built:* a look on screen. *Tests:*
   `Models/SidebarColumnStateTests.swift`.
-- `panes.chrome.bars-do-not-name-the-selection` — **[PARTIAL]** (owner 2026-11-13, a screenshot) a pane's bottom bar never
+- `panes.chrome.bars-do-not-name-the-selection` — **[PARTIAL]** (#4880) (owner 2026-11-13, a screenshot) a pane's bottom bar never
   repeats what is selected: the Inspector's Content, Info, Outline and Order bars carried the selected item's name
   (`EAP1477_…_IMG_009.jpg`) as their status line, which the pane head and the toolbar already say. The bar stays
   (every inspector sub-pane has one, the 2026-08-23 rule), with its controls and no name; a pane whose bar counts
@@ -345,7 +345,7 @@ starting a new one.
   range). Without ⌘ a scroll is a scroll. One modifier, `View.commandScrollZoom` (`CommandScrollZoom`), for any view
   that joins. *Not built:* List and Table row size, the Source pane's folder views' zoom button (#26), the pinch lag
   the owner saw on the Canvas. *Tests:* `Views/Components/CommandScrollZoomTests.swift`.
-- `panes.chrome.one-filter-pattern` — **[GAP]** (owner 2026-11-13, screenshots of every bar; supersedes the toolbar
+- `panes.chrome.one-filter-pattern` — **[GAP]** (#4374) (owner 2026-11-13, screenshots of every bar; supersedes the toolbar
   prompt's items 13 and 14) every list of items has ONE bottom bar, the same five controls in the same order:
   **+ · 🗑 · Metadata · Sort · Filter**. That is the sidebar, the Items pane in every view (List, Table, Icons,
   Columns, Canvas, Space, Sheet, Cards, Timeline, Calendar, Map) and the Source pane's folder views.
@@ -376,27 +376,27 @@ starting a new one.
   is unused by the app now (its tests remain). *Tests:* `Views/Library/ItemsBottomBarPatternTests.swift`,
   `Views/Sidebar/SidebarBottomBarPatternTests.swift`, and the updated `LibraryMiniToolbarTests`,
   `LibraryPaneSurfaceGuardTests`, `ToolbarGroupingTests`, `IconGridNarrowPaneTests`.
-- `panes.chrome.items-head-has-no-kind-menu` — **[PARTIAL]** (owner 2026-11-13, a screenshot) the Items pane head has no
+- `panes.chrome.items-head-has-no-kind-menu` — **[PARTIAL]** (#4880) (owner 2026-11-13, a screenshot) the Items pane head has no
   Documents / Claims / Entities menu: what the Items list shows is not a top-level choice of its head. Claims and
   Entities are reached through their own rows in the sidebar (the project's Entities and Claims,
   `SidebarDestination.knowledgeCollection`); a narrowing that makes sense in a list becomes a Filter option
   (`panes.chrome.one-filter-pattern`). *Built:* the control (`LibraryContentKindControl`) is removed from
   `LibraryView.libraryPaneHead`, and its file deleted. *Not built:* a look on screen.
-- `panes.chrome.bar-buttons-accessory-style` — **[PARTIAL]** (owner 2026-11-13, Xcode 26 as the reference) on macOS
+- `panes.chrome.bar-buttons-accessory-style` — **[PARTIAL]** (#4880) (owner 2026-11-13, Xcode 26 as the reference) on macOS
   every button and menu in a pane head or a bottom bar wears the accessory-bar style, a bezel on hover and a fill
   while pressed, as Xcode's navigator filter bar and jump bar do; iPad and iPhone keep today's borderless look. One
   choice for all of them, `View.paneBarButtonStyle()` / `paneBarMenuStyle()` (`PaneBarStyle.swift`), used by the
   sidebar bottom bar, the Library bottom bar, `PaneHead`, `PaneChromeMenu` and the Preview head's controls.
   *Built:* the two modifiers and their call sites. *Not built:* a look on screen (hover the sidebar + and −, the
   Library + and import, a pane head ✕ and +). *Tests:* `Views/Shell/PaneHead/PaneBarStyleTests.swift`.
-- `panes.chrome.bars-flush-on-mac` — **[PARTIAL]** (owner 2026-11-13) on macOS the bottom bars and the inspector strip
+- `panes.chrome.bars-flush-on-mac` — **[PARTIAL]** (#4880) (owner 2026-11-13) on macOS the bottom bars and the inspector strip
   are flat and opaque, in the pane's own background: no Liquid Glass island, no corner radius and nothing
   translucent, so rows scrolling beneath never show through the controls (owner 2026-11-13, a screenshot of the
   Items bar with its rows showing through) and the sidebar, Library and inspector bars read as one flat strip
   each, as Xcode's do; iPad and iPhone keep the floating glass. One rule,
   `PaneBarStyle.barIsFlush`, read by `PaneFilterBar`, `MiniToolbar`, the Library bottom bar and `SurfaceTabBar`.
   *Built:* the rule and its four readers. *Not built:* a look on screen. *Tests:* `PaneBarStyleTests.swift`.
-- `panes.chrome.bar-hairline-rule` — **[PARTIAL]** (owner 2026-11-13) on macOS every bottom bar draws exactly one
+- `panes.chrome.bar-hairline-rule` — **[PARTIAL]** (#4880) (owner 2026-11-13) on macOS every bottom bar draws exactly one
   hairline above it and every top strip one below it, always: `PaneFilterBar` draws its own by default on the Mac
   (`PaneBarStyle.barsDrawHairline`), the sidebar's bottom bar one above it, the Library's bottom bar keeps its one
   `Divider` (the line it had; removing it would leave that bar with none), the inspector strip's line is unchanged.
@@ -1220,7 +1220,7 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
   its real full screen when it is not there and leaves it only if focus took it there (`FocusMode`,
   `ContentView.focusModeChanged`). *Not built:* focus for Source, Reader and Segments (the other panes hidden and
   restored, the pane menu's Focus on Pane), View › Focus on Pane. *Tests:* `Models/FocusModeTests.swift`.
-- `panes.chrome.every-view-has-head-and-footer` — **[GAP]** (owner 2026-11-13: "consistency") every view of every pane
+- `panes.chrome.every-view-has-head-and-footer` — **[GAP]** (#4880) (owner 2026-11-13: "consistency") every view of every pane
   has a head and a footer, the same two components, with each control in its zone: the head's left moves through what
   the pane shows, its centre holds the view's tools, its right the pane menu (`panes.chrome.head-keeps-only-what-moves`,
   `panes.chrome.one-pane-menu`); the footer is the shared bar (`panes.chrome.one-filter-pattern` for a list of items,
@@ -1230,13 +1230,13 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
   showing that page (Source or Reader) when its pencil is on, the common tools inline and the rest under a ⋯, so with
   two pages in two panes each set of tools sits above the page it marks. Supersedes the floating half of
   `panes.chrome.head-floats-or-is-a-row` and `panes.chrome.footer-only-for-list-actions`. *Not built.*
-- `panes.chrome.head-floats-or-is-a-row` — **[SUPERSEDED in part]** by `panes.chrome.every-view-has-head-and-footer` (owner
+- `panes.chrome.head-floats-or-is-a-row` — **[GAP]** **[SUPERSEDED in part]** by `panes.chrome.every-view-has-head-and-footer` (owner
   2026-11-13: no head floats; every head is a row). (#4974, #5435) on Preview and canvas panes the head's
   remaining controls float over the content as a light overlay that fades when the pointer is
   idle and returns when it moves; on Library and Reader panes they are a thin row above the
   content. Today every head is a floating glass capsule bar 40 points high over a reserved row
   (`PaneHead.swift`, `PaneHeadMetrics` :495-512).
-- `panes.chrome.footer-only-for-list-actions` — **[SUPERSEDED]** by `panes.chrome.every-view-has-head-and-footer` (owner
+- `panes.chrome.footer-only-for-list-actions` — **[GAP]** **[SUPERSEDED]** by `panes.chrome.every-view-has-head-and-footer` (owner
   2026-11-13: every view has a footer). (#5435, #4880) a footer appears only on a
   pane whose list has its own actions (Library: add; Chat: new chat), built on the one shared
   component; Preview's quiet bar (image and PDF) and every other footer are removed, their

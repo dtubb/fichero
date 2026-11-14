@@ -205,21 +205,21 @@ Both issues are already on this milestone (#291); no new issues were needed.
 
 ### Bottom bar (owner 2026-11-13, Xcode's navigator as the reference)
 
-- `sidebar.bottom-bar.flush-in-sidebar-material` — **[PARTIAL]** (owner 2026-11-13) the sidebar's bottom bar sits at
+- `sidebar.bottom-bar.flush-in-sidebar-material` — **[PARTIAL]** (#6526) (owner 2026-11-13) the sidebar's bottom bar sits at
   the sidebar's bottom edge inside the sidebar's own material, and the list scrolls under it: the bar is the list's
   bottom safe-area bar (`safeAreaBar(edge: .bottom)`), not a row stacked after the list, so the last rows pass beneath
   it and its grey is the sidebar's. On macOS one hairline above it and a hard scroll edge, as Xcode's navigator;
   iPad and iPhone keep their glass. *Built:* `SidebarView.standardSidebarContent`. *Not built:* a look on screen
   (scroll a long tree: rows pass under the bar). *Tests:* `Views/Sidebar/SidebarBottomBarPlacementTests.swift`.
 
-- `sidebar.bottom-bar.plus-trash-filter` — **[GAP]** (owner 2026-11-13) the sidebar's bottom bar is the shared item-list
+- `sidebar.bottom-bar.plus-trash-filter` — **[GAP]** (#6526) (owner 2026-11-13) the sidebar's bottom bar is the shared item-list
   bar (`panes.chrome.one-filter-pattern`) without Sort, as the sidebar keeps its own order (drag to arrange; owner
   2026-11-13): **+ · 🗑 · Metadata · Filter**, in one row. The − is the 🗑; the
   separate Entities button (◐) goes into the Filter menu; the filter is the shared field with the filter icon and its
   chevron, not the search loupe. *Built:* `SidebarBottomToolbar` with `PaneMetadataButton` and `PaneFilterField`
   (Views/Components/PaneFilterField.swift), the 🗑 for Move to Trash. *Not built:* a look on screen. *Tests:*
   `Views/Sidebar/SidebarBottomBarPatternTests.swift`.
-- `sidebar.filter-menu.shows-toggles` — **[GAP]** (owner 2026-11-13) the sidebar Filter's menu has toggles for what the
+- `sidebar.filter-menu.shows-toggles` — **[GAP]** (#6526) (owner 2026-11-13) the sidebar Filter's menu has toggles for what the
   sidebar shows: Entities and Claims (the project rows), Sources (folders only), Workflows, Models, Hosts. Toggles
   persist per window. The sidebar's **Metadata** (the bar's Metadata button) shows exactly three things, each
   switchable (owner 2026-11-13): the item count beside a folder or project, a project's sharing state, and a run in

@@ -32,3 +32,17 @@ struct ActivityDetailsCapStop: View {
         }
     }
 }
+
+#Preview("A run paused at the cloud spend cap") {
+    let store = ActivityStore(service: ActivityService(apiClient: APIClient()), projectKey: "preview")
+    if let status = try? JSONDecoder().decode(Components.Schemas.RecipeRunStatus.self, from: Data("""
+    {"job_id":"run-1","state":"waiting","reason":"Paused at the cloud spend cap: a call could cost up to $0.04","steps":[],"skipped":[],
+     "stopped_at_cap":true,"stopped_needs_cap_usd":1.04}
+    """.utf8)), let stop = CloudCapFix.Stop(status) {
+        store.recipeRunStoppedAtCap["run-1"] = stop
+    }
+    return ActivityDetailsCapStop(jobId: "run-1", libraryId: nil)
+        .environment(store)
+        .padding()
+        .frame(width: 420)
+}

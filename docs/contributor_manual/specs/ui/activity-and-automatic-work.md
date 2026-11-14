@@ -1157,7 +1157,7 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   `testActivityPopoverSummary_saysThisMacsStateAndHidesAReadingTheEngineCouldNotTake`). Not yet
   seen in the app. Still a gap (#5415): nothing reads the GPU.
   *Superseded by Ruled 2026-10-19 in part:* what the popover shows, and that it reads the window's summary, is `activity.popover.same-summary`.
-- `activity.popover.at-most-five` — **[PARTIAL]** (owner 2026-11-13) the popover names at most five pieces of work: the
+- `activity.popover.at-most-five` — **[PARTIAL]** (#5635) (owner 2026-11-13) the popover names at most five pieces of work: the
   engine's live blocks first, then the runs in hand, then the background kinds, then the running items, in that order,
   five lines in all; the rest are one line, "N more in Activity", which opens the Activity monitor as Open Activity
   does. Seen 2026-11-13: every local workflow run was listed and the popover filled up. Up next, waiting, held back,
@@ -3126,6 +3126,11 @@ already name. Nothing here blocks Stages 1 to 5; a step burns down with its issu
 #### Step 6.27 — A refused step records why, #6354
 - Behaviours: `activity.run.refusal-is-recorded`
 - Tests: fichero-server/tests/unit/api/test_chain_step_project_and_refusal_6354.py
+- Size: S
+
+#### Step 6.28 — The rest of #5635: the popover names at most five pieces of work
+- Behaviours: `activity.popover.at-most-five`
+- Tests: fichero/Tests/Unit/general/Views/Activity/ActivityPopoverWorkCapTests.swift
 - Size: S
 
 ### Stage 7 — A run never fails silently (owner 2026-11-13, #6354; section J)
