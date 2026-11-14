@@ -24,6 +24,8 @@ struct SegmentMenuTarget {
     var simplify: () -> Void = {}
     /// Cut Words (⇧⌘W): the selected lines' readings cut into word segments.
     var cutWords: () -> Void = {}
+    /// Cut Characters: the selected words cut into characters at their positions (`segment-editor.cut-characters`).
+    var cutCharacters: () -> Void = {}
     /// Add Baseline: a proposed baseline on each selected line that has none.
     var addBaseline: () -> Void = {}
     let apply: (SegmentEdit.Attribute) -> Void
@@ -79,6 +81,8 @@ struct SegmentMenuContent: View {
         Button("Cut Words") { target?.cutWords() }
             .keyboardShortcut("w", modifiers: [.command, .shift])
             .disabled(count == 0 || target?.selectionHasBaselines != true)
+        Button("Cut Characters") { target?.cutCharacters() }
+            .disabled(count == 0)
         Divider()
         SegmentAttributeMenu.Items(apply: { target?.apply($0) })
             .disabled(count == 0)

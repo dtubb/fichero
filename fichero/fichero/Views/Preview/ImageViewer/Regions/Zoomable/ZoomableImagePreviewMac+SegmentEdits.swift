@@ -338,6 +338,12 @@ extension ZoomableImagePreview {
         )
     }
 
+    /// CUT CHARACTERS in the selected words (`segment-editor.cut-characters`): one ⌘Z.
+    func cutCharactersInSelectedWords() {
+        guard let documentId else { return }
+        runSegmentEdit(SegmentEdit.cutCharacters(selectedSegments(documentId)), documentId: documentId, name: "Cut Characters")
+    }
+
     /// SIMPLIFY the selected segments' outlines and baselines (`segment-editor.vertices`, ⌥⌘S): one ⌘Z.
     func simplifySelectedSegments(tolerance: Double = SegmentEdit.simplifyTolerance) {
         guard let documentId else { return }

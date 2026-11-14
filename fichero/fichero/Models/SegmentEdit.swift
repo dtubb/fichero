@@ -36,6 +36,8 @@ enum SegmentEdit {
         case cutWords(SegmentCutWordsRequest)
         /// Add Baseline (`segment.add_baseline`).
         case addBaseline(SegmentCutWordsRequest)
+        /// Cut Characters (`segment.cut_characters`).
+        case cutCharacters(SegmentCutWordsRequest)
         /// Order by clicking (`reading_order.sequence`).
         case sequence(ReadingOrderSequenceRequest)
         /// The selection moved by one offset (`segment.translate`).

@@ -4035,6 +4035,133 @@ def _action_cut_words(db: Database, params: SegmentCutWordsParams, ctx: ActionCo
     return {"segment_ids": list(made), "replaced": replaced, "left_alone": left_alone}, spec
 
 
+class SegmentCutCharactersParams(BaseModel):
+    """`segment-editor.cut-characters`: Cut Characters on words."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    segment_ids: list[str] = Field(description="The words to cut into characters.")
+    expected_versions: dict[str, int] = Field(description="Each word's version as last read, {segment_id: version}; a changed word is refused.")
+
+
+@action(
+    "segment.cut_characters",
+    SegmentCutCharactersParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_cut_words,
+    redo_via_own_invert=True,
+)
+def _action_cut_characters(db: Database, params: SegmentCutCharactersParams, ctx: ActionContext):
+    """Each word cut into `character` children (`segment-editor.cut-characters`), as Cut Words does a line: from the
+    recogniser's character positions on its line's reading, between each two characters where the second starts, the
+    word's outline cut across its line's baseline there. Each character records its source (`ctc`), the confidence at
+    its cuts, the reading and its stretch of it. A word whose line has no positions (its words were cut from the ink),
+    a right-to-left word or a single character is left alone and named. A machine's earlier characters are replaced, a
+    person's kept. One action, one undo (`segment.uncut_words`)."""
+    from fichero_server.api.routes.document.reading_orders import remove_segment_entries
+    from fichero_server.media import line_cut, line_join
+
+    if not params.segment_ids:
+        raise HTTPException(status_code=422, detail="segment_ids is empty: nothing to cut into characters")
+    _refuse_repeated_ids(params.segment_ids)
+    words = [
+        _live_current_row(db, segment_id, _require_expected_version(params.expected_versions, segment_id))
+        for segment_id in params.segment_ids
+    ]
+    plans, left_alone = [], []
+    for word in words:
+        meta = word.metadata or {}
+        span, source_id = meta.get("reading_span"), meta.get("cut_from_representation_id")
+        line = db.get(Segment, word.parent_segment_id) if word.parent_segment_id else None
+        reading = db.get(ContentRepresentation, source_id) if source_id else None
+        outline = line_join.outline_of(word.anchor)
+        positions = reading.char_positions if reading is not None else None
+        if not span or line is None or reading is None or positions is None or len(positions) != len(reading.content):
+            left_alone.append({"segment_id": word.id, "reason": "no-positions"})
+            continue
+        if outline is None or not line.baseline or len(line.baseline) < 2 or not word.baseline:
+            left_alone.append({"segment_id": word.id, "reason": "no-outline-or-baseline"})
+            continue
+        start, end = span
+        if end - start < 2:
+            left_alone.append({"segment_id": word.id, "reason": "one-character"})
+            continue
+        if (meta.get("direction") or line.direction) == "rtl" or positions[end - 1] < positions[start]:
+            left_alone.append({"segment_id": word.id, "reason": "right-to-left"})
+            continue
+        x0, y0, x1, y1 = line_join.bounds(outline)
+        reach = max(x1 - x0, y1 - y0) * 4
+        strokes = [line_cut.across(line.baseline, positions[i], reach) for i in range(start + 1, end)]
+        fractions = [hit for stroke in strokes for hit in line_cut.crossings(word.baseline, stroke)[:1]]
+        if len(fractions) != len(strokes) or any(b <= a for a, b in zip(fractions, fractions[1:])):
+            left_alone.append({"segment_id": word.id, "reason": "cuts-outside-the-word"})
+            continue
+        pieces = line_cut.baseline_pieces(word.baseline, fractions)
+        polygons = line_cut.cut_outline_along(outline, pieces, strokes)
+        if polygons is None:
+            left_alone.append({"segment_id": word.id, "reason": "outline-not-cut"})
+            continue
+        confidences = reading.char_confidences if reading.char_confidences and len(reading.char_confidences) == len(reading.content) else None
+        plans.append((word, source_id, [
+            ((i, i + 1), polygon, piece, min(confidences[max(i - 1, start):i + 2]) if confidences else None)
+            for i, polygon, piece in zip(range(start, end), polygons, pieces)
+        ]))
+    if not plans:
+        raise HTTPException(status_code=422, detail={"message": "no word could be cut into characters", "left_alone": left_alone})
+
+    audit_id = uuid.uuid4().hex
+    now = utc_now()
+    made: dict[str, int] = {}
+    replaced: list[str] = []
+    replaced_entries: list[dict] = []
+    for word, source_id, characters in plans:
+        children = [
+            row for row in db.query(Segment, parent_segment_id=word.id)
+            if row.deleted_at is None and row.kind == "character"
+        ]
+        machine = [child for child in children if (child.metadata or {}).get("cut_source") in MACHINE_CUT_SOURCES]
+        if len(machine) < len(children):
+            left_alone.append({"segment_id": word.id, "reason": "a-person-cut-it"})
+            continue
+        for child in machine:
+            snapshot_segment_version(db, child, deleted=True, actor=ctx.actor, audit_id=audit_id, reason="cut characters again")
+            child.deleted_at, child.deleted_by = now, ctx.actor
+            db.save(child)
+            replaced.append(child.id)
+        replaced_entries.extend(remove_segment_entries(db, [child.id for child in machine]))
+        for (begin, stop), polygon, piece, sure in characters:
+            cx0, cy0, cx1, cy1 = line_join.bounds(polygon)
+            character = _create_segment_impl(db, SegmentCreateParams(
+                document_id=word.document_id, pass_id=word.pass_id, kind="character", parent_segment_id=word.id,
+                anchor=word.anchor.model_copy(update={
+                    "polygon": polygon, "rect": [cx0, cy0, cx1 - cx0, cy1 - cy0], "shapes": None,
+                    "granularity": "character",
+                }),
+                baseline=piece,
+            ), ctx)
+            character.metadata = {**(character.metadata or {}), "cut_source": "ctc", "cut_confidence": sure,
+                                  "cut_from_representation_id": source_id, "reading_span": [begin, stop]}
+            db.save(character)
+            made[character.id] = character.version
+    if not made:
+        raise HTTPException(status_code=422, detail={"message": "no word could be cut into characters", "left_alone": left_alone})
+
+    touched = [*made, *replaced]
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=touched,
+        before=None,
+        after={"made": made, "replaced": replaced, "order_entries": replaced_entries},
+        emit_type="segment.created",
+        segment_ids=touched,
+        pass_ids=sorted({word.pass_id for word in words}),
+        document_ids=sorted({word.document_id for word in words}),
+    )
+    return {"segment_ids": list(made), "replaced": replaced, "left_alone": left_alone}, spec
+
+
 class SegmentUncutWordsParams(BaseModel):
     """Internal: `segment.cut_words`' inverse only."""
 

@@ -102,4 +102,17 @@ struct CutWordsTests {
         )
         #expect(paths == [[[0, 0], [1, 0], [1, 1], [0, 0]], [[0, 0.5], [1, 0.5]]])
     }
+    /// `segment-editor.cut-characters`: Cut Characters sends the selected WORDS, with their versions, as one call.
+    @Test("Cut Characters is one segment.cut_characters on the selected words alone")
+    func cutCharacters() throws {
+        var word = line("w", version: 4)
+        word.kind = "word"
+        let call = try SegmentEdit.cutCharacters([line("l", version: 1), word]).get()
+        let data = try JSONEncoder().encode(call.params)
+        let params = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(call.action == "segment.cut_characters")
+        #expect(params["segment_ids"] as? [String] == ["w"])
+        #expect(params["expected_versions"] as? [String: Int] == ["w": 4])
+        #expect(SegmentEdit.cutCharacters([line("l", version: 1)]) == .failure(.tooFew))
+    }
 }
