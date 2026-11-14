@@ -488,6 +488,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/media/line_join.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/ocr_geometry.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/outline_from_baseline.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/page_split.py
+$(SRCROOT)/../fichero-server/src/fichero_server/media/paint_stroke.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/quartz_warm.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/region_crops.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/region_math.py
