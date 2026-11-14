@@ -19,6 +19,12 @@ Every subcommand is one thing the 2026.11.14 release needed a person for
     part NAME STATUS [REASON] record a lane part's outcome in the summary file
     summary                   print the one-line-per-part table
 
+  morning release (scripts/morning-release.sh):
+    lock PATH PID             take the run lock; exit 1 while a live run holds it
+    new-commits REF           commits on REF since the newest v* release tag
+    may-publish VERSION BUILD DMG...
+                              publish only if the DMG part is OK and every DMG smokes
+
 No subcommand ever deletes DerivedData, DMGs or anything else: the only disk
 action is `tmutil thinlocalsnapshots`.
 """
@@ -298,6 +304,59 @@ def summary_table(summary: Path) -> str:
     return "\n".join(f"{n:<{width}}  {s:<7}  {r}".rstrip() for n, s, r in rows)
 
 
+# ── 9. morning release ───────────────────────────────────────────────────────
+def pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def acquire_lock(path: Path, pid: int, *, alive=pid_alive) -> bool:
+    """One morning run at a time. A lock left by a dead run is taken over."""
+    try:
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        try:
+            holder = int(path.read_text().strip() or 0)
+        except (OSError, ValueError):
+            holder = 0
+        if holder and alive(holder):
+            return False
+        path.unlink(missing_ok=True)
+        return acquire_lock(path, pid, alive=lambda _p: True)
+    with os.fdopen(fd, "w") as fh:
+        fh.write(str(pid))
+    return True
+
+
+def new_commits(ref: str, *, run=Run) -> tuple[int, str]:
+    """(commits on REF since the newest release tag, that tag)."""
+    tags = run(["git", "-C", str(ROOT), "tag", "-l", "v*", "--sort=-creatordate"],
+               check=False, capture_output=True, text=True).stdout.split()
+    if not tags:
+        return -1, ""
+    out = run(["git", "-C", str(ROOT), "rev-list", "--count", f"{tags[0]}..{ref}"],
+              check=False, capture_output=True, text=True)
+    return (int(out.stdout.strip()) if out.returncode == 0 else -1), tags[0]
+
+
+def may_publish(rows: list[tuple[str, str, str]], dmgs: list[Path], version: str, build: str,
+                *, smoke_fn=smoke) -> tuple[bool, str]:
+    """The morning run publishes only a DMG that built and smokes clean;
+    a failed TestFlight part does not stop the publish."""
+    dmg = next((r for r in rows if r[0] == "DMG"), None)
+    if dmg is None or dmg[1] != "OK":
+        return False, f"DMG part {dmg[1] if dmg else 'missing'}: {dmg[2] if dmg else ''}".rstrip(": ")
+    problems = [p for d in dmgs if d.exists() or d.name == "Fichero.dmg" for p in smoke_fn(d, version, build)]
+    if problems:
+        return False, "smoke failed: " + "; ".join(problems)
+    return True, "DMG built and smoke clean"
+
+
 # ── CLI ──────────────────────────────────────────────────────────────────────
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -326,6 +385,14 @@ def main(argv: list[str] | None = None) -> int:
     pt.add_argument("status", choices=STATUSES)
     pt.add_argument("reason", nargs="?", default="")
     sub.add_parser("summary")
+    lk = sub.add_parser("lock")
+    lk.add_argument("path", type=Path)
+    lk.add_argument("pid", type=int)
+    sub.add_parser("new-commits").add_argument("ref")
+    mp = sub.add_parser("may-publish")
+    mp.add_argument("version")
+    mp.add_argument("build")
+    mp.add_argument("dmgs", type=Path, nargs="+")
     a = p.parse_args(argv)
     summary_file = Path(os.environ.get("FICHERO_RELEASE_SUMMARY", ROOT / "build" / "releases" / "summary.tsv"))
 
@@ -360,6 +427,15 @@ def main(argv: list[str] | None = None) -> int:
         summary_file.parent.mkdir(parents=True, exist_ok=True)
         record(summary_file, a.name, a.status, a.reason)
         return 0
+    elif a.cmd == "lock":
+        ok = acquire_lock(a.path, a.pid)
+        msg = "  lock taken" if ok else f"another morning release holds {a.path}; exiting"
+    elif a.cmd == "new-commits":
+        count, tag = new_commits(a.ref)
+        print(f"{count} {tag}")
+        return 0 if count >= 0 else 1
+    elif a.cmd == "may-publish":
+        ok, msg = may_publish(summary_rows(summary_file), a.dmgs, a.version, a.build)
     else:
         print(summary_table(summary_file))
         return 0
