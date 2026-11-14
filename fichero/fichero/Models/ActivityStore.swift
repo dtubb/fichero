@@ -111,6 +111,7 @@ final class ActivityStore: ChangeEventConsumer {
     // actually changes (no-wholesale-rerender): a steady 100%-idle poll never
     // invalidates the observing views.
     var backgroundJobs: [ActivityJob] = []
+    var archivedRuns: [ActivityRun] = []  // Show Archived's runs (`workflow_run.archive`), read with `archivedJobs`
     var archivedJobs: [ActivityJob] = []  // Show Archived's rows (`activity.pane.archive-old-runs`): read on request, never polled
     /// Counts the Find the Documents runs seen to end, a recipe's step among them (`finddocs.review.items`):
     /// Items and the Inspector read their proposals again when it moves.

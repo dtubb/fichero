@@ -229,7 +229,7 @@ extension ActivityStore {
     /// with the one engine-date parser (fractional seconds, any offset); a
     /// time it cannot read is `nil`, shown as unknown and logged, never
     /// replaced by "now", which made every row say "just now" (#5432).
-    private func historicalRun(
+    func historicalRun(
         from summary: Components.Schemas.WorkflowRunSummary,
         library: LibraryManager.LibraryReference
     ) -> ActivityRun {

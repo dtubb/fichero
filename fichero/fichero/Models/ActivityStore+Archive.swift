@@ -28,6 +28,10 @@ extension ActivityStore {
     func refreshArchivedJobs() async {
         do {
             archivedJobs = try await activityService.getBackgroundJobs(archived: true).jobs
+            if let library {
+                archivedRuns = try await activityService.listWorkflowRuns(limit: 200, archived: true).items
+                    .map { historicalRun(from: $0, library: library) }
+            }
         } catch {
             log.error("ActivityStore: archived jobs read failed \(error.localizedDescription, privacy: .public)")
         }
@@ -41,12 +45,14 @@ struct ActivityJobsOutcome: Equatable {
     var failure: String?
 }
 
-/// The parameters `job.delete`, `job.archive` and `job.unarchive` share: the rows, and Stop then Delete for a running one.
+/// The parameters `job.delete`, `job.archive` and `job.unarchive` share: the rows, and Stop then Delete for a running one;
+/// `workflow_run.archive` names its runs as `thread_ids`.
 struct ActivityJobIdsParams: Encodable, Equatable {
-    let ids: [String]
+    var ids: [String]?
+    var threadIds: [String]?
     var stopRunning: Bool?
 
-    enum CodingKeys: String, CodingKey { case ids, stopRunning = "stop_running" }
+    enum CodingKeys: String, CodingKey { case ids, threadIds = "thread_ids", stopRunning = "stop_running" }
 }
 
 extension ActivityStore {
@@ -56,7 +62,9 @@ extension ActivityStore {
     /// the archived one, are read again after it and after each undo and redo.
     func performUndoable(_ action: String, ids: [String], stopRunning: Bool = false, named: String,
                          actions: ActionsService, steps: WindowSteps?) async -> ActivityJobsOutcome {
-        let params = ActivityJobIdsParams(ids: ids, stopRunning: stopRunning ? true : nil)
+        let params = action == "workflow_run.archive"
+            ? ActivityJobIdsParams(threadIds: ids)
+            : ActivityJobIdsParams(ids: ids, stopRunning: stopRunning ? true : nil)
         do {
             let result = try await AuditedAction.run(
                 action, params: params, actionName: named, actionsService: actions, steps: steps,
@@ -64,6 +72,11 @@ extension ActivityStore {
                     guard let self else { return }
                     await refreshBackgroundJobs()
                     if !archivedJobs.isEmpty || action != "job.delete" { await refreshArchivedJobs() }
+                    if action != "job.delete" {
+                        // An archived run leaves the runs list, a put-back one returns: the first page is read again.
+                        runs.removeAll { !$0.isLive }
+                        historicalRunsFetched = 0
+                    }
                     refreshToken += 1
                 })
             let counts = result.resultListCounts

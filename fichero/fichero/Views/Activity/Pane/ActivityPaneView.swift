@@ -79,7 +79,11 @@ struct ActivityPaneView: View {
     private var archivedRows: [ActivityMonitorRow] {
         guard showArchived else { return [] }
         return libraries.flatMap { library in
-            library.activityStore.archivedJobs.map { job in
+            library.activityStore.archivedRuns.map { run in
+                var row = ActivityMonitorRow.run(run, tree: nil)
+                row.isArchived = true
+                return row
+            } + library.activityStore.archivedJobs.map { job in
                 var row = ActivityMonitorRow.job(job, libraryId: library.id, projectName: library.displayName)
                 row.isArchived = true
                 return row

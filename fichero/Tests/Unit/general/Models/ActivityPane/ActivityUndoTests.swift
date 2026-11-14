@@ -83,4 +83,17 @@ struct ActivityUndoTests {
         #expect(invoke.body["name"] as? String == "job.archive")
         #expect((invoke.body["params"] as? [String: Any])?["stop_running"] == nil)
     }
+
+    @Test("A run's Archive is the engine's run archive, naming its runs, never the runs delete")
+    func runArchiveSendsThreadIds() async throws {
+        let client = client()
+        let store = ActivityStore(service: ActivityService(ficheroClient: client), library: nil)
+        _ = await store.performUndoable("workflow_run.archive", ids: ["t1"], named: "Archive Row",
+                                        actions: ActionsService(client: client), steps: WindowSteps())
+        let invoke = try #require(ActivityUndoURLProtocol.seen.last { $0.path == "/api/actions/invoke" })
+        let params = invoke.body["params"] as? [String: Any]
+        #expect(invoke.body["name"] as? String == "workflow_run.archive")
+        #expect(params?["thread_ids"] as? [String] == ["t1"])
+        #expect(params?["ids"] == nil)
+    }
 }

@@ -103,7 +103,7 @@ extension ActivityPaneView {
             }
             var done = 0
             for row in targets {
-                if await act(verb, on: row) { done += 1 }
+                done += await act(verb, on: row) ? 1 : 0  // not `for … where await`: a where clause cannot await
             }
             notice = ActivityPaneVerb.outcome(verb, done: done, skipped: skipped + targets.count - done)
         }
@@ -188,28 +188,42 @@ extension ActivityPaneView {
         return RunDeleteOutcome(deletedIds: deleted, skippedIds: pending)
     }
 
-    /// Archive and Put Back: ended job rows through the audited `job.archive` / `job.unarchive`, one step on the window's
-    /// stack each, so Edit › Undo reverses it.
+    /// Archive and Put Back, one step on the window's stack each, so Edit › Undo reverses it: ended job rows through the
+    /// audited `job.archive` / `job.unarchive`, ended runs through `workflow_run.archive` (nothing deleted); a run is put
+    /// back by `job.unarchive` too, its id being its row's id in the engine's jobs.
     private func archive(_ verb: ActivityPaneVerb, _ rows: [ActivityMonitorRow]) async -> ActivityJobsOutcome {
         var total = ActivityJobsOutcome()
         let jobIdsByLibrary = Self.jobIdsByLibrary(rows)
         for library in libraries {
-            guard let jobIds = jobIdsByLibrary[library.id], !jobIds.isEmpty else { continue }
-            let outcome = await library.activityStore.performUndoable(
-                verb == .archive ? "job.archive" : "job.unarchive", ids: jobIds,
-                named: UndoableChange.named(verb.title, count: jobIds.count, one: "Row", many: "Rows"),
-                actions: library.actionsService, steps: windowSteps)
-            total.done += outcome.done
-            total.skipped += outcome.skipped
+            let jobIds = jobIdsByLibrary[library.id] ?? []
+            let runIds = rows.filter { $0.kind == .run && $0.libraryId == library.id }.compactMap(\.runThreadId)
+            let calls = verb == .archive
+                ? [("job.archive", jobIds), ("workflow_run.archive", runIds)]
+                : [("job.unarchive", jobIds + runIds)]
+            for (action, ids) in calls where !ids.isEmpty {
+                let outcome = await library.activityStore.performUndoable(
+                    action, ids: ids, named: UndoableChange.named(verb.title, count: ids.count, one: "Row", many: "Rows"),
+                    actions: library.actionsService, steps: windowSteps)
+                total.done += outcome.done
+                total.skipped += outcome.skipped
+            }
         }
         return total
     }
 
-    /// "Archive Finished…": every ended job in the pane's projects, after one confirmation (runs: once the engine archives them).
+    /// "Archive Finished…": every ended job and every ended run listed in the pane's projects, after one confirmation.
     func archiveFinished() async {
         var skipped = 0
         for library in libraries {
-            skipped += await library.activityStore.archiveJobs(ids: [], states: ["done", "failed", "cancelled"]).skippedIds.count
+            let store = library.activityStore
+            skipped += await store.archiveJobs(ids: [], states: ["done", "failed", "cancelled"]).skippedIds.count
+            let ended = store.runs.filter { ActivityRunStatus.finished.contains($0.status) }.map(\.runId)
+            if !ended.isEmpty {
+                skipped += await store.performUndoable(
+                    "workflow_run.archive", ids: ended,
+                    named: UndoableChange.named("Archive", count: ended.count, one: "Run", many: "Runs"),
+                    actions: library.actionsService, steps: windowSteps).skipped
+            }
         }
         selection = []
         notice = skipped > 0 ? "\(skipped) skipped" : nil
