@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from fichero_server.core.timeutil import ensure_utc, utc_now
+from fichero_server.core.timeutil import ensure_utc, same_version, utc_now
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
@@ -272,7 +272,7 @@ def patch_note_impl(
     before = note.model_dump(mode="json")
     updates = request.model_dump(exclude_unset=True)
     expected = updates.pop("expected_updated_at", None)
-    if expected is not None and ensure_utc(expected) != ensure_utc(note.updated_at):
+    if expected is not None and not same_version(expected, note.updated_at):
         raise HTTPException(status_code=409, detail={
             "reason": "stale",
             "message": ("this note was changed since you opened it; nothing was written. "

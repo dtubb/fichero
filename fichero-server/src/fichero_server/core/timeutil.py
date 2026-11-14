@@ -29,7 +29,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional, overload
 
-__all__ = ["ensure_utc", "naive_utc", "utc_now", "utc_now_iso"]
+__all__ = ["ensure_utc", "naive_utc", "same_version", "utc_now", "utc_now_iso"]
 
 
 def utc_now() -> datetime:
@@ -64,6 +64,16 @@ def ensure_utc(value: Optional[datetime]) -> Optional[datetime]:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
+
+
+def same_version(seen: datetime, current: datetime) -> bool:
+    """Whether a version an editor sends back (``expected_updated_at``) is the stored ``updated_at``.
+
+    Compared to the millisecond (#5348): the app's date transcoder keeps milliseconds only, so the engine's
+    microseconds come back cut to three digits. An exact compare refused every save as stale.
+    """
+    a, b = ensure_utc(seen), ensure_utc(current)
+    return a.replace(microsecond=a.microsecond // 1000 * 1000) == b.replace(microsecond=b.microsecond // 1000 * 1000)
 
 
 def naive_utc(value: Optional[datetime] = None) -> Optional[datetime]:
