@@ -117,7 +117,7 @@ struct WorkflowStepInspectPopover: View {
         let selected = activityStore?.runs.first { $0.threadId == threadId || $0.runId == threadId }?.selection
             ?? ActivitySelection(jobId: threadId, libraryId: nil)
         ActivityWindowSelectionState.shared.select(selected)
-        openWindow(id: ActivityWindowSelectionState.detailWindowID)
+        openWindow(id: ActivityWindowSelectionState.monitorWindowID)
     }
 
     @ViewBuilder

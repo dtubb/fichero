@@ -24,36 +24,39 @@ struct ActivityDeleteAnyRowTests {
         )
     }
 
-    @Test("a finished, failed, paused or queued job row and a kind's row are deletable; a running one and a step are not")
+    @Test("every run and job row is deletable (a running one by Stop then Delete); a step or a page goes with its run")
     func jobRowsAreDeletable() {
-        #expect(ActivityGroupsView.isDeletable(row("done", .done, kind: .job, jobId: "j1")))
-        #expect(ActivityGroupsView.isDeletable(row("failed", .failed, kind: .job, jobId: "j2")))
-        #expect(ActivityGroupsView.isDeletable(row("paused", .paused, kind: .job, jobId: "j3")))
-        #expect(ActivityGroupsView.isDeletable(row("queued", .waiting, kind: .job, jobId: "waiting:thumbnail")))
-        #expect(!ActivityGroupsView.isDeletable(row("running", .running, kind: .job, jobId: "j4")))
-        #expect(!ActivityGroupsView.isDeletable(row("step", .failed, kind: .step, jobId: "s")))
-        #expect(!ActivityGroupsView.isDeletable(row("page", .failed, kind: .page, jobId: "p")))
-        #expect(ActivityGroupsView.isDeletable(row("run", .failed, kind: .run, jobId: nil)))
-        #expect(!ActivityGroupsView.isDeletable(row("live-run", .running, kind: .run, jobId: nil)))
+        #expect(ActivityPaneVerb.delete.allows(row("done", .done, kind: .job, jobId: "j1")))
+        #expect(ActivityPaneVerb.delete.allows(row("failed", .failed, kind: .job, jobId: "j2")))
+        #expect(ActivityPaneVerb.delete.allows(row("paused", .paused, kind: .job, jobId: "j3")))
+        #expect(ActivityPaneVerb.delete.allows(row("queued", .waiting, kind: .job, jobId: "waiting:thumbnail")))
+        #expect(ActivityPaneVerb.delete.allows(row("running", .running, kind: .job, jobId: "j4")))
+        #expect(ActivityPaneVerb.deleteNeedsConfirmation([row("running", .running, kind: .job, jobId: "j4")]))
+        #expect(!ActivityPaneVerb.deleteNeedsConfirmation([row("paused", .paused, kind: .job, jobId: "j3")]))
+        #expect(!ActivityPaneVerb.delete.allows(row("step", .failed, kind: .step, jobId: "s")))
+        #expect(!ActivityPaneVerb.delete.allows(row("page", .failed, kind: .page, jobId: "p")))
+        #expect(ActivityPaneVerb.delete.allows(row("run", .failed, kind: .run, jobId: nil)))
+        #expect(ActivityPaneVerb.delete.allows(row("live-run", .running, kind: .run, jobId: nil)))
     }
 
     @Test("Archive takes only ended rows; an archived row offers Put Back, not Archive; a waiting or paused row neither")
     func archivable() {
-        #expect(ActivityGroupsView.isArchivable(row("done", .done, kind: .job, jobId: "j1")))
-        #expect(ActivityGroupsView.isArchivable(row("failed", .failed, kind: .run, jobId: nil)))
-        #expect(ActivityGroupsView.isArchivable(row("stopped", .cancelled, kind: .job, jobId: "j2")))
-        #expect(!ActivityGroupsView.isArchivable(row("paused", .paused, kind: .job, jobId: "j3")))
-        #expect(!ActivityGroupsView.isArchivable(row("queued", .waiting, kind: .job, jobId: "j4")))
-        #expect(!ActivityGroupsView.isArchivable(row("running", .running, kind: .job, jobId: "j5")))
+        #expect(ActivityPaneVerb.archive.allows(row("done", .done, kind: .job, jobId: "j1")))
+        #expect(ActivityPaneVerb.archive.allows(row("failed", .failed, kind: .run, jobId: nil)))
+        #expect(ActivityPaneVerb.archive.allows(row("stopped", .cancelled, kind: .job, jobId: "j2")))
+        #expect(!ActivityPaneVerb.archive.allows(row("paused", .paused, kind: .job, jobId: "j3")))
+        #expect(!ActivityPaneVerb.archive.allows(row("queued", .waiting, kind: .job, jobId: "j4")))
+        #expect(!ActivityPaneVerb.archive.allows(row("running", .running, kind: .job, jobId: "j5")))
         var archived = row("archived", .done, kind: .job, jobId: "j6")
         archived.isArchived = true
-        #expect(!ActivityGroupsView.isArchivable(archived), "already archived: Put Back is its verb")
+        #expect(!ActivityPaneVerb.archive.allows(archived), "already archived: Put Back is its verb")
+        #expect(ActivityPaneVerb.putBack.allows(archived))
     }
 
     @Test("Delete sends each project's job rows to that project's jobs delete, a kind's row by its own id")
     func jobIdsGoToTheirProject() {
         let one = UUID(), two = UUID()
-        let ids = ActivityMonitorWindow.jobIdsByLibrary([
+        let ids = ActivityPaneView.jobIdsByLibrary([
             row("a", .failed, kind: .job, jobId: "recipe-1", library: one),
             row("b", .waiting, kind: .job, jobId: "waiting:thumbnail", library: one),
             row("c", .done, kind: .job, jobId: "try-9", library: two),

@@ -373,7 +373,7 @@ extension FirstRunWindow {
         #if os(macOS)
         guard let selection = Self.startedRunSelection(jobId: store.startedRunJobId, projectId: project?.id) else { return }
         ActivityWindowSelectionState.shared.select(selection)
-        openWindow(id: ActivityWindowSelectionState.detailWindowID)
+        openWindow(id: ActivityWindowSelectionState.monitorWindowID)
         #endif
     }
 

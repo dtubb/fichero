@@ -233,7 +233,6 @@ extension ContentView {
         case .activity:
             #if os(macOS)
             // The Activity popover's "Open Activity".
-            ActivityWindowSelectionState.shared.selectLibrary(windowState.libraryId)
             openWindow(id: ActivityWindowSelectionState.monitorWindowID)
             #else
             sidebarMode = .activity

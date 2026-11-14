@@ -125,3 +125,19 @@ struct FocusedActivityRunButtons: View {
         target?.readAgainLabel ?? "Read Again"
     }
 }
+
+/// Project › Activity's verbs on the focused Activity pane's selection (`activity.pane.commands-through-the-table`): the ONE
+/// verb list (`ActivityPaneVerb`), each enabled by the Mail rule and disabled, never hidden, when no selected row allows it.
+/// Stop is `FocusedActivityRunButtons`' one item. No chords: Delete is the table's own Delete key.
+struct FocusedActivityVerbButtons: View {
+    @FocusedValue(\.activityVerbs) private var target
+
+    static let verbs: [ActivityPaneVerb] = [.pause, .resume, .retry, .archive, .putBack, .delete]
+
+    var body: some View {
+        ForEach(Self.verbs) { verb in
+            Button(verb.title) { target?.perform(verb) }
+                .disabled(!(target?.enabled.contains(verb) ?? false))
+        }
+    }
+}
