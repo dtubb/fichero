@@ -300,6 +300,26 @@ extension ZoomableImagePreview {
         regionSelection.selectAll(indices, artifactId: artifactId, documentId: documentId, in: all)
     }
 
+    /// Next Doubtful (⌘⌥N, `segment-editor.low-confidence-lens`): select the next line the engine is least sure of, from
+    /// the top again after the last. Selecting is not an action. The page says so when nothing is doubtful.
+    func selectNextDoubtful() {
+        guard let documentId, let segmentService, let artifactId = ocrGeometrySelectionScope else { return }
+        let current = selectedSegments(documentId).first?.id
+        Task {
+            do {
+                let doubtful = try await segmentService.doubtfulLines(documentId: documentId)
+                guard let next = SegmentSelectionGestures.nextDoubtful(after: current, in: doubtful),
+                      let all = ocrGeometry?.boxes, let index = all.firstIndex(where: { $0.segmentId == next }) else {
+                    windowState?.segmentNotice = "Nothing on this page is doubtful"
+                    return
+                }
+                regionSelection.select(index, artifactId: artifactId, documentId: documentId, in: all)
+            } catch {
+                Self.logger.error("Next Doubtful failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
     /// What letting the selection go at `point` does (`segment-editor.reassign-by-drag`): judged against the segments of
     /// the selection's own pass.
     func dropOfSelection(at point: [Double], command: Bool) -> SegmentMover.Drop {

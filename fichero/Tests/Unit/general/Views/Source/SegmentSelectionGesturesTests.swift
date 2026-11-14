@@ -66,3 +66,17 @@ struct SegmentSelectionGesturesTests {
         #expect(Gestures.sameKind(as: [4], kinds: kinds).isEmpty)
     }
 }
+
+/// Spec: docs/contributor_manual/specs/ui/segment-editor.md -- `segment-editor.low-confidence-lens`. Next Doubtful steps
+/// through the lens's order from the selection, from the top again after the last.
+struct NextDoubtfulTests {
+    @Test("Next Doubtful steps on from the selection, wraps, starts at the top off the list, and says nothing is doubtful")
+    func steps() {
+        let doubtful = ["c", "a", "b"]
+        #expect(SegmentSelectionGestures.nextDoubtful(after: nil, in: doubtful) == "c")
+        #expect(SegmentSelectionGestures.nextDoubtful(after: "c", in: doubtful) == "a")
+        #expect(SegmentSelectionGestures.nextDoubtful(after: "b", in: doubtful) == "c", "from the top again after the last")
+        #expect(SegmentSelectionGestures.nextDoubtful(after: "z", in: doubtful) == "c")
+        #expect(SegmentSelectionGestures.nextDoubtful(after: "c", in: []) == nil)
+    }
+}

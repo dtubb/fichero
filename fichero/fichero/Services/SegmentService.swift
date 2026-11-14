@@ -213,6 +213,17 @@ extension SegmentService {
         }
     }
 
+    /// The page's doubtful lines, least sure first (`segment-editor.low-confidence-lens`): the ids of the lines something
+    /// measured or found wrong, in the engine's order. A read.
+    func doubtfulLines(documentId: String) async throws -> [String] {
+        let response = try await client.api.doubtfulLinesApiSegmentsDocumentDocIdDoubtfulGet(path: .init(docId: documentId))
+        switch response {
+        case .ok(let okResponse): return try okResponse.body.json.lines.filter { $0.confidence != nil }.map(\.segmentId)
+        case .unprocessableContent: throw SegmentServiceError.serverError("the page's lines could not be read")
+        case .undocumented(let statusCode, _): throw SegmentServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
     /// What Simplify would make of `segmentIds` at `tolerance` image pixels, written nowhere (`segment-editor.vertices`):
     /// the paths the Shape popover's slider draws live. A shape the tolerance would not change is left out.
     func simplifyPreview(documentId: String, segmentIds: [String], tolerance: Double) async throws -> [[[Double]]] {

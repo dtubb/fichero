@@ -511,8 +511,11 @@ See section 7.2 below for what exists. The design:
   engine half, `GET /api/segments/document/{doc_id}/doubtful`: the working pass's lines, a validator finding first
   (confidence 0), then the least sure of the shape's confidence and its words' cut confidences, then lines nothing
   measured; each with its reasons in words ("shape 42%", "cut 30%", "no-baseline"); reads only. *Not built:* the
-  reading's confidence (a reading carries none today), the lens, Next Doubtful. *Tests:*
-  `fichero-server/tests/unit/api/test_segments_doubtful.py`.
+  reading's confidence (a reading carries none today), the lens's list. Edit › Segments ▸ Next Doubtful Line (⌘⌥N)
+  selects the next measured line in that order, from the top again after the last, and says when nothing is
+  doubtful (`SegmentSelectionGestures.nextDoubtful`); the head's button is not built. *Tests:*
+  `fichero-server/tests/unit/api/test_segments_doubtful.py`;
+  `fichero/Tests/Unit/general/Views/Source/SegmentSelectionGesturesTests.swift::NextDoubtfulTests`.
 - `segment-editor.layers` — **[PARTIAL]** (→ #5114; app; applies Q2 of the umbrella's rulings and `layers.toggle.one-menu-per-surface`)
   the What-to-show menu's segment entries are layers: regions, lines, baselines, words,
   characters, reading order, each on or off with an opacity, remembered per pane

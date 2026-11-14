@@ -80,6 +80,14 @@ enum SegmentSelectionGestures {
         }.map(\.index)
     }
 
+    /// Next Doubtful (`segment-editor.low-confidence-lens`): the doubtful line after `current` in the lens's order, from
+    /// the top again after the last; the first when the selection is not one of them; nil when nothing is doubtful.
+    static func nextDoubtful(after current: String?, in doubtful: [String]) -> String? {
+        guard !doubtful.isEmpty else { return nil }
+        guard let current, let index = doubtful.firstIndex(of: current) else { return doubtful[0] }
+        return doubtful[(index + 1) % doubtful.count]
+    }
+
     /// ⌘⇧A: every box whose segment is of a kind the selection holds (`kinds[i]` is box i's segment kind, nil for a
     /// box that is not a segment). Nothing selected selects nothing.
     static func sameKind(as selected: [Int], kinds: [String?]) -> [Int] {

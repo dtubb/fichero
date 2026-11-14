@@ -516,6 +516,7 @@ extension ZoomableImagePreview {
             toggleEditing: { windowState?.isEditingSegments.toggle() },
             canSelectAll: ocrGeometry?.boxes.isEmpty == false, selectAll: { selectAllGeometryForArmedTool() },
             selectSameKind: { selectSameKind() },
+            nextDoubtful: { selectNextDoubtful() },
             delete: { deleteSelectedRegions() }, join: { combineSelectedRegions() },
             selectionHasBaselines: selectionHasBaselines, redraw: { redrawSelectedOutlines() },
             splitAtPoint: { splitSelectedLineAtLastPoint() },
