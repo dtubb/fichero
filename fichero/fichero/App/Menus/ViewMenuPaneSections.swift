@@ -65,7 +65,35 @@ struct PaneVisibilitySection: View {
             )
             ShowMiniToolbarToggle()
             ShowWithdrawnReadingsToggle()
+            FocusOnPaneButton()
         }
+    }
+}
+
+/// View › Focus on Pane (⌃⌘R, `panes.focus.any-pane-fills-the-screen`): the focused window's one Focus verb, published by
+/// `ContentView` (`FocusMode.step` decides: the page reader on a Preview page, else the pane alone, or leave).
+struct FocusOnPaneButton: View {
+    @FocusedValue(\.focusOnPane) private var focusOnPane
+
+    var body: some View {
+        Button {
+            focusOnPane?.run()
+        } label: {
+            Label(focusOnPane?.target == "leave" ? "Leave Focus" : "Focus on Pane", systemImage: "viewfinder")
+        }
+        .keyboardShortcut("r", modifiers: [.command, .control])
+        .disabled(focusOnPane?.isEnabled != true)
+    }
+}
+
+struct FocusOnPaneKey: FocusedValueKey {
+    typealias Value = FocusedLibraryAction
+}
+
+extension FocusedValues {
+    var focusOnPane: FocusOnPaneKey.Value? {
+        get { self[FocusOnPaneKey.self] }
+        set { self[FocusOnPaneKey.self] = newValue }
     }
 }
 
