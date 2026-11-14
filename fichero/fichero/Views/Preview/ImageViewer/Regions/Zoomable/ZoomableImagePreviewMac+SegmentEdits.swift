@@ -211,6 +211,20 @@ extension ZoomableImagePreview {
         windowState?.lastDrawnKind = "line"
     }
 
+    /// MOVE A CUT by its mark (`segment-editor.cut-marks-editable`): one `segment.move_cut`, the cut a person's now. ⌘Z.
+    func moveCut(_ firstId: String, _ secondId: String, to place: Double) {
+        guard let documentId, let store = segmentEditStore else { return }
+        let versions = Dictionary(
+            store.segments(documentId: documentId).filter { $0.id == firstId || $0.id == secondId }
+                .compactMap { segment in segment.version.map { (segment.id, $0) } },
+            uniquingKeysWith: { first, _ in first }
+        )
+        runSegmentEdit(
+            SegmentEdit.moveCut(firstId: firstId, secondId: secondId, place: place, versions: versions),
+            documentId: documentId, name: "Move Cut"
+        )
+    }
+
     /// DELETE the selected boxes on an artifact-less pass. True when handled here.
     func deleteSelectedSegments() -> Bool {
         guard shownArtifactlessPassId != nil, let documentId else { return false }

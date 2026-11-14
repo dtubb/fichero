@@ -118,6 +118,15 @@ extension SegmentEdit {
         ))))
     }
 
+    /// MOVE A CUT (`segment-editor.cut-marks-editable`): the boundary between two pieces of a line, to `at` along the line's
+    /// baseline (`place`), as ONE `segment.move_cut`; the engine re-cuts both and marks the cut a person's. One undo.
+    static func moveCut(firstId: String, secondId: String, place: Double, versions: [String: Int]) -> Result<Call, Refusal> {
+        guard let first = versions[firstId], let second = versions[secondId] else { return .failure(.versionUnknown) }
+        return .success(Call(action: "segment.move_cut", params: .moveCut(SegmentMoveCutRequest(
+            firstId: firstId, secondId: secondId, place: place, expectedVersions: [firstId: first, secondId: second]
+        ))))
+    }
+
     /// ORDER BY CLICKING (`segment-editor.order-by-clicking`): the clicks, in one order, as one `reading_order.sequence`,
     /// one undo. The order is the pass's `as-written` (the order the page draws; a named order the Segments pane chose is
     /// not known here yet).
@@ -258,6 +267,7 @@ extension SegmentEdit.Params {
         case .addBaseline(let params): params
         case .sequence(let params): params
         case .translate(let params): params
+        case .moveCut(let params): params
         case .update, .baseline, .create, .delete, .merge, .updateMany: payload
         }
     }
@@ -270,4 +280,16 @@ struct SegmentTranslateRequest: Encodable, Equatable {
     let down: Double
 
     enum CodingKeys: String, CodingKey { case segments, across = "dx", down = "dy" }
+}
+
+/// `segment.move_cut`: a cut mark moved along its line's baseline.
+struct SegmentMoveCutRequest: Encodable, Equatable {
+    let firstId: String
+    let secondId: String
+    let place: Double
+    let expectedVersions: [String: Int]
+
+    enum CodingKeys: String, CodingKey {
+        case firstId = "first_id", secondId = "second_id", place = "at", expectedVersions = "expected_versions"
+    }
 }

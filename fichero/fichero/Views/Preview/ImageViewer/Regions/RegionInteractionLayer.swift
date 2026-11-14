@@ -88,6 +88,8 @@ struct RegionInteractionLayer: View {
     var onMarkerCommit: (([[Double]], Bool) -> Void)?
     /// Commit a Paintbrush stroke: its points in the page's fractions and the brush's width in image pixels.
     var onPaintCommit: (([[Double]], Double) -> Void)?
+    /// Move a cut (`segment-editor.cut-marks-editable`): the two pieces' ids and the new place along their line's baseline.
+    var onMoveCut: ((String, String, Double) -> Void)?
     /// What letting the selection go at a point (the page's fractions; ⌘ held?) would do (`segment-editor.reassign-by-drag`).
     /// Nil: a drag always moves.
     var lineDrop: (([Double], Bool) -> SegmentMover.Drop)?
@@ -118,6 +120,8 @@ struct RegionInteractionLayer: View {
     @State var lasso: [[Double]] = []
     /// ⌥ held as a Brush stroke began: the stroke takes segments out of the selection (`segment-editor.select-brush`).
     @State var brushSubtracts = false
+    /// A cut mark being dragged (`segment-editor.cut-marks-editable`).
+    @State var cutDrag: CutMarkDrag?
     /// ⇧ held, for the Brush's extension of the selection (read when the stroke ends).
     var shiftHeldForBrush: Bool { shiftHeld }
     /// ⇧ held? Tracked via `onModifierKeysChanged` (pure SwiftUI — the §6b
@@ -147,6 +151,7 @@ struct RegionInteractionLayer: View {
                     liveLasso(in: geo.size)
                     liveBrush(in: geo.size)
                     livePaint(in: geo.size)
+                    liveCutMarks(in: geo.size)
                     liveOrderNumbers(in: geo.size)
                     liveSimplify(in: geo.size)
                     segmentNotice()
@@ -368,7 +373,7 @@ extension RegionInteractionLayer {
     private func handleChosenTool(_ event: PreviewPointerEvent, at point: CGPoint, in size: CGSize) -> Bool {
         handleOrderClick(event, at: point, in: size)
             || handleKnife(event) || handleMarker(event, in: size) || handlePaint(event, in: size)
-            || handleBrush(event, in: size) || handleDrawShape(event, in: size)
+            || handleBrush(event, in: size) || handleDrawShape(event, in: size) || handleCutMark(event, in: size)
             || handleReshape(event, in: size) || handleLasso(event, at: point, in: size)
     }
 

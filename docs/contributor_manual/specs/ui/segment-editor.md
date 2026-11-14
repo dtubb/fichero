@@ -500,8 +500,11 @@ See section 7.2 below for what exists. The design:
   pieces of one line, a word's or a character's, their joined outline and baseline cut again across the line's
   baseline at the new place; both become `cut_source: person` with confidence 1; spans unchanged; a cut outside the
   two pieces refused; one undo), a new action rather than the `segment.update` named above, as one update cannot
-  change two rows. *Not built:* the marks, adding a cut by a click, ⌫ on a mark. *Tests:*
-  `fichero-server/tests/unit/api/test_segment_move_cut.py`.
+  change two rows. In Edit Segments the selection's line (a selected line, or a selected word's line) shows a mark
+  where each word after the first begins (`CutMarks`); dragging one moves it with the pointer and letting go sends one
+  `segment.move_cut`. *Not built:* adding a cut by a click, ⌫ on a mark, the characters' marks, a dashed mark for a cut
+  under 0.5 (the box the page draws does not carry the cut's confidence yet). *Tests:*
+  `fichero-server/tests/unit/api/test_segment_move_cut.py`; `fichero/Tests/Unit/general/Views/Source/CutMarksTests.swift`.
 - `segment-editor.word-view` — **[GAP]** (→ #5212; app; ties to `../source/line-editor.md`) with the word layer on, words
   are shown as alternating tints of the line's hue (two steps) or, by a setting, as outlines
   only; hovering a word shows its text; selecting a word selects its stretch of the reading in

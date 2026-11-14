@@ -42,6 +42,8 @@ enum SegmentEdit {
         case sequence(ReadingOrderSequenceRequest)
         /// The selection moved by one offset (`segment.translate`).
         case translate(SegmentTranslateRequest)
+        /// A cut mark moved (`segment.move_cut`).
+        case moveCut(SegmentMoveCutRequest)
 
         func encode(to encoder: any Encoder) throws {
             try payload.encode(to: encoder)
