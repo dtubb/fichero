@@ -21,7 +21,7 @@ final class ActivityStore: ChangeEventConsumer {
 
     // ─── Refresh signal (views observe this) ──────────────────────────────────
     /// Bumped whenever an activity SSE event arrives or a reconnect resync fires.
-    /// `ActivityBrowserView` observes this to reload its run list.
+    /// `ActivityPaneView` observes this to reload its run list.
     var refreshToken: Int = 0
     /// Coalesces activity-frame bursts into one refreshToken bump (see
     /// `applyActivityEvent`).
@@ -53,7 +53,7 @@ final class ActivityStore: ChangeEventConsumer {
     // MARK: - Run list (#3231, #4960)
     //
     // The store owns the live+history run-list merge (previously assembled
-    // inside ActivityBrowserView). Views observe `runs`/`runLoadFailures` and
+    // inside a view). Views observe `runs`/`runLoadFailures` and
     // call `rebuildRuns`, passing @Environment deps in. `runs` is patched
     // in place (`patchRun`) — no method here reassigns the whole array.
     var runs: [ActivityRun] = []

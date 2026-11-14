@@ -32,10 +32,11 @@ struct ActivityWindowIsAPaneTests {
     }
 
     @Test("the main window's Inspector shows the Activity section while the Activity pane holds the focus")
-    func mainInspector() throws {
-        let layout = try AppSource.code("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift")
-        #expect(layout.contains("if let pick = windowState.activityPick, inspectsActivity {"))
-        #expect(layout.contains("if paneFocusHint == .activity { return true }"))
+    func mainInspector() {
+        #expect(ContentView.inspectsActivity(focus: .activity, mode: .batches))
+        #expect(ContentView.inspectsActivity(focus: nil, mode: .activity(nil)), "the sidebar's Activity")
+        #expect(!ContentView.inspectsActivity(focus: .preview, mode: .batches), "another pane: the document's sections")
+        #expect(!ContentView.inspectsActivity(focus: nil, mode: .library(nil)))
     }
 
     @Test("Show in Activity selects its row in the one window")

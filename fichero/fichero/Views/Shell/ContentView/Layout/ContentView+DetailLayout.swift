@@ -554,10 +554,13 @@ extension ContentView {
         }
     }
 
-    /// The Activity pane holds the focus, or the window is on the sidebar's Activity.
-    private var inspectsActivity: Bool {
-        if paneFocusHint == .activity { return true }
-        if case .activity = viewMode { return true }
+    private var inspectsActivity: Bool { Self.inspectsActivity(focus: paneFocusHint, mode: viewMode) }
+
+    /// The Inspector shows the Activity section while the Activity pane holds the focus, or the window is on the sidebar's
+    /// Activity; any other pane taking the focus brings the document's sections back.
+    static func inspectsActivity(focus: PaneFocus?, mode: AppViewMode) -> Bool {
+        if focus == .activity { return true }
+        if case .activity = mode { return true }
         return false
     }
 

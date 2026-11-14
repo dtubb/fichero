@@ -40,22 +40,4 @@ struct ActivityPopoverUpNextTests {
         let blocks = ActivityPopoverSummary(jobs: [], paused: false, activity: summary).blocks
         #expect(blocks.map(\.subtitle) == ["Kraken · on this Mac", "in the cloud", nil])
     }
-
-    @Test("the window lists the engine's UP NEXT items that are not rows, in order, each with its run (two runs tell apart)")
-    func windowLines() throws {
-        let json = """
-        {"live": [], "background": [], "history": 0, "up_next": [
-          {"id": "row", "name": "A queued run", "why": "in the queue"},
-          {"id": "run-a:2", "name": "Describe", "stage": "Describe", "after": "Read", "why": "after Read", "run_id": "run-a"},
-          {"id": "run-b:2", "name": "Describe", "stage": "Describe", "after": "Read", "why": "after Read", "run_id": "run-b"}]}
-        """
-        let summary = try JSONDecoder().decode(Components.Schemas.ActivitySummary.self, from: Data(json.utf8))
-        let names = ["run-a": "Mosquera box", "run-b": "Marshall Diaries · Letters"]
-        let lines = ActivityPopoverSummary.upNextLines([summary], excluding: ["row"], runName: { names[$0] })
-        #expect(lines.map(\.id) == ["run-a:2", "run-b:2"])
-        #expect(lines.map(\.title) == ["Describe · Mosquera box", "Describe · Marshall Diaries · Letters"])
-        #expect(lines.first?.waiting == "after Read")
-        #expect(ActivityPopoverSummary.upNextLines([summary], excluding: []).count == 3)
-        #expect(ActivityPopoverSummary.upNextLines([summary], excluding: []).last?.title == "Describe", "no run known: the stage alone")
-    }
 }

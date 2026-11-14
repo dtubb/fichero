@@ -57,7 +57,7 @@ extension View {
             // (`inspectorContainerView` → `detailView`), so Activity and the
             // chain surfaces mount across this boundary too. All three were
             // missing here while `check_environment_forwarding` reported zero
-            // gaps — it only looked at DocumentTabView. `ActivityBrowserView`
+            // gaps — it only looked at DocumentTabView. `ActivityPaneView`
             // reads ActivityStore non-optionally: the next crash, already
             // loaded.
             .environment(library.activityStore)
