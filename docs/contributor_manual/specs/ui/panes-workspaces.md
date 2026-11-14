@@ -1115,7 +1115,7 @@ the path (`PaneHead.swift:213-243`); only the Reader head has a whole-head conte
 breadcrumb was retired; the code has one again in every head, and the window title and subtitle
 also show the path (`ContentView+RootLayout.swift:311-317`).
 
-- `panes.chrome.one-pane-menu` — **[GAP]** (#5435; ruled by the owner 2026-11-13) every pane head has ONE pane menu,
+- `panes.chrome.one-pane-menu` — **[PARTIAL]** (#5435; ruled by the owner 2026-11-13) every pane head has ONE pane menu,
   at its right end (as Xcode's Editor Options sits at the right of its jump bar), and right-clicking anywhere on the
   head opens the same menu. Its button is the pane's current view's icon (⊞ for Icon, ☰ for List, …) with a menu
   chevron, never a + (owner 2026-11-13), so the head still says how the pane is shown. Its entries, in order: **Show as ▸** (the kind's views, each with its icon,
@@ -1128,6 +1128,12 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
   shows it disabled, never a different menu. It replaces, in every head, the ✕ at the left, the kind picker, the
   view picker, the pin button and the bare +. Today the + offers split only (`PaneChromeMenu.swift`), the ✕, kind
   and view pickers sit at the head's left (`PaneHead`, `PaneKindSelector`) and What to show sits in Preview's footer.
+  *Built (2026-11-14):* the button is the pane's kind icon with a chevron (no +); the menu, and the head's
+  right-click, list Pane ▸ (the kinds, the current one ticked), Split, Focus on Pane (Leave Focus while that pane is in
+  Focus), Pin, Close (`PaneMenuEntries`). *Not built:* Show as ▸ and What to Show ▸ in the menu, Link…, removing the
+  head's ✕, kind and view pickers and pin button (the UI tests still find the ✕), and a Preview showing a page
+  focused from the menu opening the page reader as ⌃⌘R does (it shows the pane alone). *Tests:*
+  `fichero/Tests/Unit/general/Views/Shell/PaneMenuTests.swift`.
 - `panes.chrome.head-keeps-only-what-moves` — **[GAP]** (#5435; ruled by the owner 2026-11-13) with the pane menu on
   the right, the head's LEFT is for moving through what the pane shows and nothing else: ‹ › previous and next,
   ↑ up to the parent, the path, and the content's own controls where it has them (a page's rendition choice and page

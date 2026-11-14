@@ -287,9 +287,11 @@ extension ContentView {
             // is present. Inject it on the applied path so switching a pane's kind mutates THIS leaf
             // in the stored list (spec panes.head.kind-switch) — the same per-leaf seam as close.
             if let changeKind {
-                let switcher = PaneKindSwitcher(slotId: "pane-\(keyPath)-\(kind.rawValue)") { specKind in
-                    changeKind(id, paneKind(specKind))
-                }
+                let switcher = PaneKindSwitcher(
+                    slotId: "pane-\(keyPath)-\(kind.rawValue)",
+                    switchKind: { specKind in changeKind(id, paneKind(specKind)) },
+                    currentKind: paneSpecKind(kind)
+                )
                 leaf = AnyView(leaf.environment(\.paneKindSwitcher, switcher))
             }
             // The pane-head content-kind chip (#4884) is inert until a

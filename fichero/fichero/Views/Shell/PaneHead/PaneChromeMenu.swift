@@ -32,14 +32,20 @@ struct PaneChromeMenu: View {
     var isPinned: Binding<Bool>?
     var closeTitle: String?
     var onClose: (() -> Void)?
+    @Environment(\.paneKindSwitcher) private var kindSwitcher
+    @Environment(\.paneLeafId) private var leafId
 
     var body: some View {
-        if splitActions != nil || isPinned != nil || onClose != nil {
+        if splitActions != nil || isPinned != nil || onClose != nil || kindSwitcher != nil || leafId != nil {
             Menu {
                 PaneMenuEntries(splitActions: splitActions, isPinned: isPinned, closeTitle: closeTitle, onClose: onClose)
             } label: {
-                Image(systemName: "plus")
-                    .foregroundStyle(Color.secondary)
+                // The pane's own icon with a chevron, never a + (owner 2026-11-13), so the head still says what it shows.
+                HStack(spacing: 2) {
+                    Image(systemName: PaneMenuEntries.buttonIcon(kindSwitcher?.currentKind))
+                    Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
+                }
+                .foregroundStyle(Color.secondary)
             }
             .paneBarMenuStyle()
             .menuIndicator(.hidden)
@@ -50,8 +56,8 @@ struct PaneChromeMenu: View {
     }
 }
 
-/// The pane menu's rows, shared by the head's + and its right-click so both list the same entries in the
-/// same order: Split, Pin, Close.
+/// The pane menu's rows, shared by the head's button and its right-click so both list the same entries in the
+/// same order (`panes.chrome.one-pane-menu`): Pane ▸, Split, Focus on Pane, Pin, Close.
 struct PaneMenuEntries: View {
     var splitActions: SplitAxisActions?
     var isPinned: Binding<Bool>?
@@ -60,8 +66,30 @@ struct PaneMenuEntries: View {
     @Environment(\.offersTranscriptionFont) private var offersFont
     @Environment(TranscriptionFontStore.self) private var fontStore: TranscriptionFontStore?
     @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
+    @Environment(\.paneKindSwitcher) private var kindSwitcher
+    @Environment(\.paneLeafId) private var leafId
+    @Environment(WindowState.self) private var windowState: WindowState?
+
+    /// The menu button's glyph: the pane's kind icon; a generic pane glyph when the kind is not known.
+    static func buttonIcon(_ kind: PaneSpec.Kind?) -> String { kind?.icon ?? "rectangle.split.2x1" }
+
+    /// The Focus entry's title: Focus on Pane, or Leave Focus while this pane is the one in Focus.
+    static func focusTitle(leaf: UUID?, focused: UUID?) -> String {
+        leaf != nil && leaf == focused ? "Leave Focus" : "Focus on Pane"
+    }
 
     var body: some View {
+        if let kindSwitcher {
+            Menu("Pane") {
+                ForEach(PaneSpec.Kind.selectableKinds, id: \.rawValue) { kind in
+                    Button { kindSwitcher.switchKind(kind) } label: {
+                        // The current kind ticked, as the menu's other choices are.
+                        Label(kind.title, systemImage: kind == kindSwitcher.currentKind ? "checkmark" : kind.icon)
+                    }
+                }
+            }
+            Divider()
+        }
         if let actions = splitActions {
             // ADDITIONS only (Daniel, 2026-08-23): the "+" never
             // removes a split — the pane's X collapses it. A row
@@ -87,6 +115,14 @@ struct PaneMenuEntries: View {
                         systemImage: ToolbarSymbols.splitHorizontal
                     )
                 }
+            }
+        }
+        if let leafId, let windowState {
+            // ⌃⌘R from the keyboard; here for the pane it is chosen on (`panes.focus.any-pane-fills-the-screen`).
+            Button {
+                windowState.focusedPaneLeaf = windowState.focusedPaneLeaf == leafId ? nil : leafId
+            } label: {
+                Label(Self.focusTitle(leaf: leafId, focused: windowState.focusedPaneLeaf), systemImage: "viewfinder")
             }
         }
         if let isPinned {
