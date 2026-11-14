@@ -122,10 +122,14 @@ async def test_on_a_16_gb_mac_the_3b_reads_four_at_once(served, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_a_cloud_model_keeps_its_parallelism(served, monkeypatch):
+async def test_a_cloud_model_is_not_held_by_memory_but_by_the_provider_cap(served, monkeypatch):
+    """A cloud model's parallelism does not follow this Mac's memory; it follows the one cap per provider (owner 2026-11-13,
+    `activity.limits.one-cap-per-kind-across-everything`): eight pages at once reach the provider at most the cap at a time."""
+    from fichero_server.workflows import circuit_breaker as cb
+
     monkeypatch.setattr(kraken_runtime, "_physical_memory_bytes", _mac(8))
     await _eight_pages("openai", "gpt-4o")
-    assert served.peak == 8
+    assert served.peak == min(8, cb.PROVIDER_CALLS_AT_ONCE)
 
 
 @pytest.mark.asyncio
