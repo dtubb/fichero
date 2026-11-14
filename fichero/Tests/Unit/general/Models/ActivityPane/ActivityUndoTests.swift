@@ -23,7 +23,8 @@ private final class ActivityUndoURLProtocol: URLProtocol {
         Self.seen.append(Seen(path: path, body: body))
         let json: String = switch path {
         case "/api/actions/invoke":
-            #"{"ok":true,"audit_id":"audit-1","changed_domains":["activity"],"result":{"deleted_ids":["j1","j2"],"skipped_ids":["j3"],"count":2}}"#
+            #"{"ok":true,"audit_id":"audit-1","changed_domains":["activity"],"# +
+            #""result":{"deleted_ids":["j1","j2"],"skipped_ids":["j3"],"count":2}}"#
         case "/api/actions/audit/undo":
             #"{"ok":true,"audit_ids":["inverse-1"],"results":[],"changed_domains":["activity"]}"#
         default: "{}"
