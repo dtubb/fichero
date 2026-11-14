@@ -3662,6 +3662,16 @@ def unarchive_jobs(db: "Database", ids: list[str]) -> list[str]:
     return out
 
 
+def _write_unfinished_end(db: "Database", job_id: str, state: str, reason: str | None) -> None:
+    """The lane's end write for a deferred or out-of-reach job. A row Delete marked stays deleted
+    (`activity.engine.deleted-stays-deleted`): the write that arrives after the delete does not revive it."""
+    alive = " AND deleted_at IS NULL" if _has_deleted_at(db) else ""
+    db.execute(
+        f"UPDATE jobs SET state = ?, reason = ?{_clear_waiting_on(db)}, attempts = attempts - 1 WHERE id = ?{alive}",
+        [state, reason, job_id],
+    )
+
+
 def undelete_jobs(db: "Database", ids: list[str]) -> list[str]:
     """Undo of Delete (`activity.pane.archive-old-runs`): a deleted row and everything under it come back in the state they
     had (a row Delete stopped goes back to waiting or paused as it was). Returns the ids restored."""
@@ -3677,9 +3687,12 @@ def undelete_jobs(db: "Database", ids: list[str]) -> list[str]:
             detail = json.loads(db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [rid])[0] or "{}")
             before = detail.pop("deleted_from", None)
             if before:
+                state_back, reason_back = before["state"], before.get("reason")
+                if state_back == "running":  # Delete stopped it: no thread is behind it now (`undelete-running-is-a-phantom`)
+                    state_back, reason_back = "paused", "Stopped by you"
                 db.execute(
                     "UPDATE jobs SET state = ?, reason = ?, finished_at = NULL, detail = ? WHERE id = ?",
-                    [before["state"], before.get("reason"), json.dumps(detail) if detail else None, rid],
+                    [state_back, reason_back, json.dumps(detail) if detail else None, rid],
                 )
         marks = ", ".join("?" for _ in under)
         # Only the mark the delete set comes off: a row archived before the delete (`cleared_at` older) stays archived.
@@ -3749,6 +3762,8 @@ def delete_jobs(db: "Database", ids: list[str], states: list[str] | None = None,
                         cancel_job(db, job_id)
                     except (ValueError, KeyError):  # a kind with no Stop of its own finishes its item; the mark hides it
                         pass
+            if has_deleted and db.execute_fetchone("SELECT 1 FROM jobs WHERE id = ? AND deleted_at IS NOT NULL", [job_id]):
+                continue  # already deleted: not re-stamped, so one Undo still restores it (`deleted-stays-deleted`)
             under = _under(db, job_id)
             marks = ", ".join("?" for _ in under)
             # What Delete stops remembers its state, so Undo (`undelete_jobs`) puts it back as it was.
@@ -5448,10 +5463,7 @@ class _Scheduler:
                 key
             )  # the project's connection NOW: a reopen made a new one (Fable #8, #14)
             if current is not None:
-                current.execute(
-                    f"UPDATE jobs SET state = ?, reason = ?{_clear_waiting_on(current)}, attempts = attempts - 1 WHERE id = ?",
-                    [state, reason, job_id],
-                )
+                _write_unfinished_end(current, job_id, state, reason)
             if state == "waiting":
                 lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
                 # Its project has waiting work again: a scan while this job ran saw its row `running`, found
