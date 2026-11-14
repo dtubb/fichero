@@ -680,6 +680,7 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         ids: Optional[list[str]] = typer.Option(None, '--ids', help="job ids, or a kind's row (`waiting:<kind>`, `paused:<kind>`) A list: repeat the flag, or give the values comma-separated, or as JSON."),
         states: Optional[list[str]] = typer.Option(None, '--states', help='also every top-level job of its own in these states (Clear Finished…: done, failed, cancelled) A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        stop_running: Optional[bool] = typer.Option(None, '--stop-running/--no-stop-running', help='Stop then Delete (the person confirmed): a running row is asked to stop and deleted at once instead of skipped. Default: false.'),
     ) -> None:
         """Delete Jobs (POST /api/activity/jobs/delete)."""
         def op_call(client: FicheroClient) -> Any:
@@ -688,9 +689,11 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "ids": ids,
                 "states": states,
+                "stop_running": stop_running,
             }, {
                 "ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Ids', 'description': "job ids, or a kind's row (`waiting:<kind>`, `paused:<kind>`)", 'x-cli-required': False},
                 "states": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'States', 'description': 'also every top-level job of its own in these states (Clear Finished…: done, failed, cancelled)', 'x-cli-required': False},
+                "stop_running": {'type': 'boolean', 'title': 'Stop Running', 'description': 'Stop then Delete (the person confirmed): a running row is asked to stop and deleted at once instead of skipped', 'default': False, 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)

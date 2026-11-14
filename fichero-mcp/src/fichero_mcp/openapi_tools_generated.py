@@ -284,9 +284,10 @@ def fichero_activity_delete_jobs(
     *,
     ids: Annotated[Optional[list[Any]], Field(description="job ids, or a kind's row (`waiting:<kind>`, `paused:<kind>`)")] = None,
     states: Annotated[Optional[list[Any]], Field(description='also every top-level job of its own in these states (Clear Finished…: done, failed, cancelled)')] = None,
+    stop_running: Annotated[Optional[bool], Field(description='Stop then Delete (the person confirmed): a running row is asked to stop and deleted at once instead of skipped. Default: false.')] = None,
 ) -> Any:
     "Delete Jobs\n\nDelete in Activity (`activity.window.delete-any-row`, #6583): any row the jobs list shows, in any state, and a\nkind's row for the whole group. A waiting or paused job is cancelled first; a job running now is skipped and named.\nThe rows are kept (a tree, the record and a Retry still read them) and never listed again, after a relaunch too.\nWorkflow runs are deleted by `POST /api/workflow-execution/runs/delete`.\n\nRoute: POST /api/activity/jobs/delete (toolset `activity`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/activity/jobs/delete", json=_rt.body({"ids": ids, "states": states}))
+    return _rt.call("POST", "/api/activity/jobs/delete", json=_rt.body({"ids": ids, "states": states, "stop_running": stop_running}))
 
 
 def fichero_activity_list_queued_items(
