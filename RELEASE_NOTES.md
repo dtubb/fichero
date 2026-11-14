@@ -2,6 +2,17 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.11.14
+What changed since 2026.11.13.
+
+- Segment editor: Join merges lines on every page, Redraw Outline from Baseline, the Knife and Split Line at Point, merging regions takes their lines, no self-crossing outline is ever written, Simplify Outline, Cut Words from Kraken's positions or the ink, a check of a page's segments before an export, exports record how words were cut, and Add Baseline.
+- Reader: Reader Content shows the page's lines (crops are never empty pages), the Reader no longer fails with a server error, and Read Lines in a chain keeps its project.
+- Sharing: a text or note save is no longer refused as "changed on another Mac" when nobody else edited it.
+- Mac chrome: pane heads and bottom bars in the Xcode accessory style, one Sidebar/Chat pair, a + · Trash · Metadata · Filter bar in the sidebar and Items, ⌘-scroll zooms the Icon grid, and page focus is the window's real full screen.
+- Library: Finder-order sorting and middle truncation of long names; iPad swipe between pages.
+- Activity: the toolbar popover names at most five pieces of work; no recipe-run strip along the window's bottom.
+- Docs: private archive names removed from the published specs.
+
 ## 2026.11.12
 What changed since 2026.10.30.
 

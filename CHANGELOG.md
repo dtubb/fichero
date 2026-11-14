@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-14
+
+- Segment editor (#6582): join, redraw from baseline, knife, split at a point, merge regions takes lines, no self-crossing outline, simplify, Kraken character positions, Cut Words, the export check, word cuts in PAGE/ALTO, Add Baseline.
+- Reader: content shows lines (#6579), the Reader 500 fixed (#6578), Read Lines in a chain keeps its project (#6354, #5558).
+- Sharing: saves compare versions to the millisecond, so an unchanged text is not refused as stale (#5348).
+- Mac chrome: accessory-bar heads and flat bars (#4880), one Sidebar/Chat pair (#6558, #6563), sidebar and Items bars (#6526, #4374), ⌘-scroll zoom (#4412), focus is real full screen (#6575), sidebar deselect fixes (#4297).
+- Library: Finder-order sort and middle truncation (#6571); iPad swipe (#6559, #6560).
+- Activity: popover names at most five (#5635); no run strip in the window (#5576).
+- Docs: private archive names out of the specs and site (#6581).
+
 ## 2026-11-12
 
 - iPad and iPhone: launch crash fixed, a view type too deep for the iOS stack (#6553); a device paired to a Mac opens that Mac's library and stops asking for its own (#6555); the iOS build compiles again.
