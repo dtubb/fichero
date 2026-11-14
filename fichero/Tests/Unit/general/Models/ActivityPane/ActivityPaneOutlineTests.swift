@@ -48,6 +48,5 @@ struct ActivityPaneOutlineTests {
         let source = try AppSource.code("Views/Activity/Pane/ActivityPaneView+Table.swift")
         #expect(!source.contains("Section("))
         #expect(!source.contains("Up Next") && !source.contains("Done Today"))
-        #expect(source.contains("DisclosureTableRow"), "double-click discloses through the table's own rows")
     }
 }

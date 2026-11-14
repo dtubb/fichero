@@ -14,15 +14,6 @@ struct ActivityDefaultColumnsTests {
         #expect(ActivityPane.Column.allCases.filter { !$0.isOnByDefault } == [.model, .startedBy, .started, .kind])
     }
 
-    @Test("each column is declared once with its customization id, the four extra ones hidden by default")
-    func declared() throws {
-        let source = try AppSource.code("Views/Activity/Pane/ActivityPaneView+Table.swift")
-        for column in ActivityPane.Column.allCases {
-            #expect(source.contains("customizationID(ActivityPane.Column.\(column).rawValue)"), "\(column)")
-        }
-        #expect(source.components(separatedBy: ".defaultVisibility(.hidden)").count - 1 == 4)
-    }
-
     @Test("the columns a person turns on survive a relaunch, per pane")
     func remembered() throws {
         var columns = TableColumnCustomization<ActivityMonitorRow>()

@@ -125,9 +125,6 @@ DETACHED_SCENES: dict[str, str] = {
         "Injects libraryManager + the claim/KG focus states; resolves its own library services from those.",
     "Activity (Window)":
         "Injects libraryManager, appState (#5811) + the app execution observer; resolves the active library's stores itself.",
-    "Activity Detail (Window)":
-        "Injects libraryManager, appState (#5811), the execution observer, and the per-library stores its panes read "
-        "(activityStore/apiClient/documentStore/workflowExecutionStore/artifactService — #4513).",
     "Settings (Settings)":
         "Separate scene by construction; re-injects appState, backendService, libraryManager, "
         "viewSettings and FeatureManager.shared (see the comment on the scene).",

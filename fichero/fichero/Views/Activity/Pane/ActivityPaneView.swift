@@ -25,7 +25,7 @@ struct ActivityPaneView: View {
     var onSelect: (ActivityPaneSelection?) -> Void = { _ in }
 
     @Environment(LibraryManager.self) private var libraryManager
-    @Environment(\.undoManager) private var undoManager
+    @Environment(\.undoManager) var undoManager
     @State var selection: Set<ActivityMonitorRow.ID> = []
     /// The outcome of the last verb, said in the status bar ("Deleted 4 · 1 skipped").
     @State var notice: String?
