@@ -281,10 +281,12 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   `ran_on` the import's folder. **Built (2026-11-13 night, engine):** every row of `GET /api/activity/jobs` carries `ran_on`
   (`pages`/`page` with the count; a group row the pages it stands for), a recipe run its `stages` (Set Up's stages in
   order, each with title, state, done, failed, total: the same `StageCount` the live block draws) and `model` (the stage
-  running now, from the tree). Not built: `ran_on.name` (the folder or document named), the per-step model, the app's trail
-  cell. *Tests:* `fichero-server/tests/unit/jobs/test_row_says_what_ran_on_what_6441.py`; the existing
-  `fichero/Tests/Unit/general/Models/ActivityTableTests.swift`;
-  not yet written: ActivityStepTrailTests.swift.
+  running now, from the tree). App (2026-11-14, linted, not compiled): `ActivityJob` decodes `stages`, `ran_on`, `model`
+  and the costs; `ActivityTrail.text` builds the one trail line ("Import ✓ → Segment ✓ → Read ▶ 34/120 → Names ·"),
+  `ActivityTrail.statusBar` the one status line, `ActivityTrail.cost` the cost cell. Not built: `ran_on.name`, the per-step
+  model, the trail drawn in the table (Step 2.6). *Tests:* `fichero-server/tests/unit/jobs/test_row_says_what_ran_on_what_6441.py`,
+  `fichero/Tests/Unit/general/Models/ActivityStepTrailTests.swift`; the existing
+  `fichero/Tests/Unit/general/Models/ActivityTableTests.swift`.
 - `activity.pane.icons-say-source-and-kind` — **[PARTIAL]** (#6441, decision 12) ONE small icon column, two glyphs at most per row:
   the SOURCE (started by a person: `person`; automatic: `gearshape.arrow.triangle.2.circlepath`; a recipe's step: `list.bullet.rectangle`;
   a schedule or trigger: `clock`) and the KIND of step (read: `text.viewfinder`; segment or find lines: `rectangle.split.3x1`;

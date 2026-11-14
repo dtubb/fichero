@@ -258,6 +258,27 @@ struct ActivityJob: Identifiable, Equatable {
     /// The engine put this row in History (`group` is "earlier"): a run that ended, was stopped or was interrupted
     /// (`activity.window.history-group`, #5851). A live row, a queue beside it, is false.
     let isEarlier: Bool
+    /// What ran on what (`activity.pane.row-says-what-ran-on-what`): the stages' trail, the pages the row runs over,
+    /// the stage's model; and the cost (`activity.pane.cost-per-row-and-totals`). Empty or nil on an engine before these.
+    var stages: [Stage] = []
+    var ranOn: RanOn?
+    var model: String?
+    var costUsd: Double?
+    var costEstimateUsd: Double?
+
+    /// One of a recipe run's stages, as the engine counts it: Set Up's order, its state and its pages.
+    struct Stage: Equatable {
+        let title: String
+        let state: String
+        let done: Int
+        let total: Int
+    }
+
+    struct RanOn: Equatable {
+        let kind: String
+        let count: Int
+        let name: String?
+    }
 
     struct Remote: Equatable {
         let target: String
@@ -286,6 +307,11 @@ struct ActivityJob: Identifiable, Equatable {
             Remote(target: $0.target ?? "", farState: $0.farState, shards: $0.shards, pagesLanded: $0.pagesLanded ?? 0)
         }
         self.isEarlier = job.group?.rawValue == "earlier"
+        self.stages = (job.stages ?? []).map { Stage(title: $0.title, state: $0.state, done: $0.done ?? 0, total: $0.total ?? 0) }
+        self.ranOn = job.ranOn.map { RanOn(kind: $0.kind, count: $0.count ?? 0, name: $0.name) }
+        self.model = job.model
+        self.costUsd = job.costUsd
+        self.costEstimateUsd = job.costEstimateUsd
     }
 
     /// Test/preview seam — construct without the generated schema.
