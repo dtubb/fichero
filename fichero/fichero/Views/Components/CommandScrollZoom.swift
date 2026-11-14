@@ -12,8 +12,7 @@ enum CommandScrollZoom {
 }
 
 #if canImport(AppKit)
-import AppKit
-
+// NSEvent comes through SwiftUI on macOS; no AppKit import (check_appkit_imports).
 private struct CommandScrollZoomModifier: ViewModifier {
     let onStep: (Int) -> Void
     @State private var hovering = false

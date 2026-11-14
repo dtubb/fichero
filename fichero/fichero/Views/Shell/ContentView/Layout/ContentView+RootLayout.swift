@@ -1,6 +1,3 @@
-#if canImport(AppKit)
-import AppKit
-#endif
 import SwiftUI
 // `UTType` for the content-pane drop's `.item` root type — a split file
 // inherits symbols, not imports (#4353).
