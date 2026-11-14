@@ -57,7 +57,7 @@ struct ActivityPopoverSummaryView: View {
             }
             if let more = cap.moreLine {
                 Button(more, action: openActivity)
-                    .buttonStyle(.link)
+                    .buttonStyle(.borderless)  // .link is macOS-only; the iOS TestFlight build refused it
                     .font(.callout)
                     .accessibilityIdentifier("activity.popover.more")
             }

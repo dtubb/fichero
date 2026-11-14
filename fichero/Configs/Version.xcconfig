@@ -9,4 +9,4 @@
 // would leak verbatim into CFBundleShortVersionString.
 
 MARKETING_VERSION = 2026.11.14
-CURRENT_PROJECT_VERSION = 23
+CURRENT_PROJECT_VERSION = 24
