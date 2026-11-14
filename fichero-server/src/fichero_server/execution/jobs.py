@@ -3615,6 +3615,36 @@ def archive_jobs(db: "Database", ids: list[str], states: list[str] | None = None
     return archived, skipped
 
 
+#: A workflow run's record statuses it may be archived in: ended ones.
+RUN_ARCHIVABLE_STATUSES = ("completed", "failed", "cancelled")
+
+
+def archive_runs(db: "Database", thread_ids: list[str]) -> tuple[list[str], list[str]]:
+    """Archive of a workflow run (`activity.pane.archive-old-runs`, #6441): the run's own row in `jobs` (its id is the run's
+    thread id) and every row under it get the archive mark, so the runs list (`records.list_runs`) leaves it out and Show
+    Archived lists it; Put Back is `unarchive_jobs`. Nothing is deleted. A run still going, deleted, or with no row in
+    `jobs` (from before runs had one) is skipped. Returns (archived, skipped)."""
+    _ensure(db)
+    if not _has_cleared_at(db):
+        raise ValueError("This project's jobs table cannot mark archived rows; see the engine log")
+    from fichero_server.db.activity_records import RUNS
+
+    archived: list[str] = []
+    skipped: list[str] = []
+    now = utc_now()
+    for thread_id in dict.fromkeys(thread_ids):
+        run = db.execute_fetchone(f"SELECT status FROM {RUNS} WHERE id = ?", [thread_id])
+        row = db.execute_fetchone(f"SELECT 1 FROM jobs WHERE id = ?{_hidden_filter(db)}", [thread_id])
+        if run is None or run[0] not in RUN_ARCHIVABLE_STATUSES or row is None:
+            skipped.append(thread_id)
+            continue
+        under = _under(db, thread_id)
+        marks = ", ".join("?" for _ in under)
+        db.execute(f"UPDATE jobs SET cleared_at = ? WHERE id IN ({marks})", [now, *under])
+        archived.append(thread_id)
+    return archived, skipped
+
+
 def unarchive_jobs(db: "Database", ids: list[str]) -> list[str]:
     """Put Back: an archived row and everything under it are listed again, unchanged. Returns the ids put back."""
     _ensure(db)

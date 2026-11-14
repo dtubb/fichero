@@ -19602,6 +19602,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-runs-route")
     def workflow_execution_list_runs_route_get(
         ctx: typer.Context,
+        archived: Optional[bool] = typer.Option(None, '--archived/--no-archived', help='the ARCHIVED runs instead (Show Archived, `activity.pane.archive-old-runs`)'),
         limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
         offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
         status: Optional[list[str]] = typer.Option(None, '--status', help='Filter to these statuses (e.g. ?status=failed). Omit for every non-deleted run, newest first. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
@@ -19610,11 +19611,29 @@ def register_generated_openapi_commands(
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/workflow-execution/runs"
             params = {
+                "archived": archived,
                 "limit": limit,
                 "offset": offset,
                 "status": _list_values(status),
             }
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("archive-runs-route")
+    def workflow_execution_archive_runs_route_post(
+        ctx: typer.Context,
+        thread_ids: list[str] = typer.Option(..., '--thread-ids', help='ended runs to archive. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Archive Workflow Runs Route (POST /api/workflow-execution/runs/archive)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/workflow-execution/runs/archive"
+            params = None
+            payload = _build_json_payload({
+                "thread_ids": thread_ids,
+            }, {
+                "thread_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Thread Ids', 'description': 'ended runs to archive', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-runs-route")

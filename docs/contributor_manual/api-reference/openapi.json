@@ -36716,6 +36716,18 @@
               "default": 0,
               "title": "Offset"
             }
+          },
+          {
+            "name": "archived",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "the ARCHIVED runs instead (Show Archived, `activity.pane.archive-old-runs`)",
+              "default": false,
+              "title": "Archived"
+            },
+            "description": "the ARCHIVED runs instead (Show Archived, `activity.pane.archive-old-runs`)"
           }
         ],
         "responses": {
@@ -36789,6 +36801,70 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WorkflowRunDeleteResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflow-execution/runs/archive": {
+      "post": {
+        "tags": [
+          "workflow-execution"
+        ],
+        "summary": "Archive Workflow Runs Route",
+        "description": "Archive ended runs; `GET /runs?archived=true` lists them, `POST /api/activity/jobs/unarchive` puts them back.",
+        "operationId": "archive_workflow_runs_route_api_workflow_execution_runs_archive_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowRunArchiveParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRunArchiveResult"
                 }
               }
             }
@@ -108036,6 +108112,53 @@
         ],
         "title": "WorkflowResponse",
         "description": "Workflow definition response."
+      },
+      "WorkflowRunArchiveParams": {
+        "properties": {
+          "thread_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Thread Ids",
+            "description": "ended runs to archive"
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_ids"
+        ],
+        "title": "WorkflowRunArchiveParams"
+      },
+      "WorkflowRunArchiveResult": {
+        "properties": {
+          "archived_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Archived Ids"
+          },
+          "skipped_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skipped Ids",
+            "description": "runs not archived: still going, deleted, or unknown"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "archived_ids",
+          "skipped_ids",
+          "count"
+        ],
+        "title": "WorkflowRunArchiveResult"
       },
       "WorkflowRunArtifactResponse": {
         "properties": {

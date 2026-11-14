@@ -576,6 +576,7 @@ class ActivityStore:
         offset: int = 0,
         statuses: Optional[list[str]] = None,
         exclude_deleted: bool = True,
+        archived: bool = False,
     ) -> list[WorkflowRun]:
         """Runs newest first, paged and filtered in SQL (#4960: the cost does not grow with the runs a library holds),
         each in the light projection: no code, log, snapshot, node map or diagram (#5645: Activity polls this; read
@@ -583,7 +584,8 @@ class ActivityStore:
 
         def _list():
             rows = records.list_runs(self.db, workflow_id=workflow_id, statuses=statuses,
-                                     exclude_deleted=exclude_deleted, limit=limit, offset=offset)
+                                     exclude_deleted=exclude_deleted, limit=limit, offset=offset,
+                                     archived=archived)
             return [self._row_to_workflow_run(row) for row in rows]
 
         return await asyncio.to_thread(_list)

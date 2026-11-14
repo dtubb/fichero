@@ -306,5 +306,6 @@
   "POST /api/activity/jobs/{job_id}/bug-report": "the report of a failed run (run.fail.bug-report-route, #6354 step 1.3, engine): Send a Bug Report in the app is Step 2.3 (Swift, waits for an owner ruling on where the report goes); until then the CLI and MCP reach it (Step 1.4)",
   "POST /api/segments/reparent": "Move Into / Lift Out and the Order list's drop (#6476, Step 1.25): the app runs it as the audited action segment.reparent through POST /api/actions/invoke (SegmentMover, SegmentEditRunner), so ⌘Z holds it; this matrix counts a route by its operation name",
   "POST /api/segments/regenerate-outline": "Redraw Outline from Baseline (#6582, segment-editor.regenerate-polygon-from-baseline): the app runs it as the audited action segment.regenerate_outline through POST /api/actions/invoke (SegmentEdit+Tools), so ⌘Z holds it; this matrix counts a route by its operation name",
-  "GET /api/pair/addresses": "the app reads the Mac's addresses from GET /api/pair/sharing since #6554 (one line per address); the CLI still lists them"
+  "GET /api/pair/addresses": "the app reads the Mac's addresses from GET /api/pair/sharing since #6554 (one line per address); the CLI still lists them",
+  "POST /api/workflow-execution/runs/archive": "the app reaches workflow_run.archive through the generic /api/actions/invoke (one undoable step on the window's stack, #6441), not this route; the route is for the CLI and MCP"
 }

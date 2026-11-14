@@ -807,6 +807,7 @@ async def list_workflow_runs_route(
     ),
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    archived: bool = Query(default=False, description="the ARCHIVED runs instead (Show Archived, `activity.pane.archive-old-runs`)"),
 ) -> WorkflowRunListResponse:
     """List workflow runs from the runs table (#4960).
 
@@ -822,7 +823,7 @@ async def list_workflow_runs_route(
     """
     tracker = get_activity_tracker(str(db.path))
     runs = await tracker.store.list_workflow_runs(
-        limit=limit, offset=offset, statuses=status
+        limit=limit, offset=offset, statuses=status, archived=archived
     )
     items = [_run_to_summary(r) for r in runs]
     return WorkflowRunListResponse(items=items, count=len(items))
@@ -945,6 +946,43 @@ async def delete_workflow_runs_route(
     await run_check(http, library_path, db, request.thread_ids or [], write=True)
     result = registry.invoke(db, "workflow_run.delete", request.model_dump(), ctx)
     return WorkflowRunDeleteResult.model_validate(result.result)
+
+
+class WorkflowRunArchiveParams(BaseModel):
+    thread_ids: list[str] = Field(description="ended runs to archive")
+
+
+class WorkflowRunArchiveResult(BaseModel):
+    archived_ids: list[str]
+    skipped_ids: list[str] = Field(description="runs not archived: still going, deleted, or unknown")
+    count: int
+
+
+@action("workflow_run.archive", WorkflowRunArchiveParams, domains=["workflow_execution", "activity"], undoable=True,
+        invert=lambda before, after, ctx: ("job.unarchive", {"ids": list((after or {}).get("archived_ids") or [])}))
+def _action_archive_workflow_runs(db: Database, params: WorkflowRunArchiveParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    """Archive a run (`activity.pane.archive-old-runs`, #6441): an ended run leaves the runs list and keeps everything.
+    Undo and Put Back are `job.unarchive` of the same ids (a run's id is its row's id in `jobs`)."""
+    from fichero_server.execution import jobs as job_queue
+
+    archived, skipped = job_queue.archive_runs(db, params.thread_ids)
+    result = {"archived_ids": archived, "skipped_ids": skipped, "count": len(archived)}
+    return result, ChangeSpec(domains=["workflow_execution", "activity"], target_ids=archived,
+                              before=params.model_dump(), after=result, emit_type="workflow_run.archived")
+
+
+@router.post("/runs/archive", response_model=WorkflowRunArchiveResult)
+async def archive_workflow_runs_route(
+    request: WorkflowRunArchiveParams,
+    http: Request,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+    library_path: str = Depends(require_library_path),
+) -> WorkflowRunArchiveResult:
+    """Archive ended runs; `GET /runs?archived=true` lists them, `POST /api/activity/jobs/unarchive` puts them back."""
+    await run_check(http, library_path, db, request.thread_ids, write=True)
+    result = registry.invoke(db, "workflow_run.archive", request.model_dump(), ctx)
+    return WorkflowRunArchiveResult.model_validate(result.result)
 
 
 @router.get("/threads/{thread_id}/episodes")
