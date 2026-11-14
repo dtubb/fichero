@@ -1262,6 +1262,12 @@ class SegmentCreateParams(BaseModel):
     outline_from_baseline: bool = Field(
         default=False, description="Draw the line's outline from its baseline and the page's ink.",
     )
+    #: `segment-editor.edge.overlapping-regions`: with no parent given, the engine puts the segment in the region that
+    #: holds most of it.
+    place_in_region: bool = Field(
+        default=False,
+        description="With no parent given, put the segment in the region holding most of it (the smaller on a tie).",
+    )
 
 
 def _invert_segment_create(before, after, ctx: ActionContext):
@@ -1391,6 +1397,10 @@ def _place_in_as_written(db: Database, segment: Segment, ctx: ActionContext) -> 
 )
 def _action_segment_create(db: Database, params: SegmentCreateParams, ctx: ActionContext):
     params, outline = _marker_shapes(db, params)
+    if params.place_in_region and params.parent_segment_id is None and params.kind != "region":
+        region = _containing_region(db, params)
+        if region is not None:
+            params = params.model_copy(update={"parent_segment_id": region.id})
     segment = _create_segment_impl(db, params, ctx)
     change_spec = ChangeSpec(
         domains=["segment"],
@@ -1409,6 +1419,40 @@ def _action_segment_create(db: Database, params: SegmentCreateParams, ctx: Actio
         # `segment-editor.edge.self-intersecting`: the answer says the outline was simplified.
         answer["simplified"] = True
     return answer, change_spec
+
+
+def _containing_region(db: Database, params: SegmentCreateParams, minimum_span: float = 0.004) -> Segment | None:
+    """The live region of the pass that holds MOST (over half) of the new segment's bounds, the smaller on a tie
+    (`segment-editor.edge.overlapping-regions`, `SegmentShapes.containingRegion`'s rule); None when none does. A flat
+    baseline is padded to `minimum_span`, as it is drawn."""
+    from fichero_server.media import line_join
+
+    anchor = params.anchor
+    points = list(anchor.polygon or []) + list(params.baseline or [])
+    for shape in anchor.shapes or []:
+        points += list(shape.points or [])
+    if anchor.rect:
+        x, y, w, h = anchor.rect
+        points += [[x, y], [x + w, y + h]]
+    if not points:
+        return None
+    x0, y0, x1, y1 = line_join.bounds(points)
+    if x1 - x0 < minimum_span:
+        x0, x1 = (x0 + x1 - minimum_span) / 2, (x0 + x1 + minimum_span) / 2
+    if y1 - y0 < minimum_span:
+        y0, y1 = (y0 + y1 - minimum_span) / 2, (y0 + y1 + minimum_span) / 2
+    area = (x1 - x0) * (y1 - y0)
+    scored = []
+    for row in db.query(Segment, pass_id=params.pass_id):
+        if row.kind != "region" or row.deleted_at is not None or row.document_id != params.document_id:
+            continue
+        rx, ry, rw, rh = row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h
+        width = min(x1, rx + rw) - max(x0, rx)
+        height = min(y1, ry + rh) - max(y0, ry)
+        if width > 0 and height > 0:
+            scored.append((width * height / area, rw * rh, row))
+    held = [entry for entry in scored if entry[0] > 0.5]
+    return min(held, key=lambda entry: (-entry[0], entry[1]))[2] if held else None
 
 
 #: `segment-editor.marker`: the Douglas-Peucker tolerance, in image pixels, at smoothing 0 and 1.

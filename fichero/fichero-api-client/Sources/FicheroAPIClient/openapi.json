@@ -95677,6 +95677,12 @@
             "title": "Outline From Baseline",
             "description": "Draw the line's outline from its baseline and the page's ink.",
             "default": false
+          },
+          "place_in_region": {
+            "type": "boolean",
+            "title": "Place In Region",
+            "description": "With no parent given, put the segment in the region holding most of it (the smaller on a tie).",
+            "default": false
           }
         },
         "additionalProperties": false,
