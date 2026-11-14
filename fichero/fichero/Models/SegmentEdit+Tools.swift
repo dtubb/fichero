@@ -264,7 +264,7 @@ extension SegmentEdit.Params {
         case .knife(let params): params
         case .simplify(let params): params
         case .cutWords(let params): params
-        case .addBaseline(let params): params
+        case .addBaseline(let params), .cutCharacters(let params): params
         case .sequence(let params): params
         case .translate(let params): params
         case .moveCut(let params): params
