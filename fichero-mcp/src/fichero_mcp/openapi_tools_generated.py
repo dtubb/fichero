@@ -9245,12 +9245,21 @@ def fichero_workflow_execution_execute(
 
 def fichero_workflow_execution_list_runs_route(
     *,
+    archived: Annotated[Optional[bool], Field(description='the ARCHIVED runs instead (Show Archived, `activity.pane.archive-old-runs`)')] = None,
     limit: Annotated[Optional[int], Field(description='Limit')] = None,
     offset: Annotated[Optional[int], Field(description='Offset')] = None,
     status: Annotated[Optional[list[str]], Field(description='Filter to these statuses (e.g. ?status=failed). Omit for every non-deleted run, newest first.')] = None,
 ) -> Any:
     "List Workflow Runs Route\n\nList workflow runs from the runs table (#4960).\n\nThe SAME record the toolbar popover already reads (``/activity/jobs``\ncalls this store's ``list_workflow_runs`` too) — not the lossy event\nlog ``GET /activity`` reads, which is why the popover and the Activity\nwindow disagreed (verified: `agent-work/reviews/\nactivity-system-review-2026-09-20.md` §2). A run with no ``activities``\nrows at all still appears here, and paging/sorting/filtering are all\npushed to SQL (``ORDER BY started_at DESC, thread_id DESC LIMIT ...\nOFFSET ...`` in ``ActivityStore.list_workflow_runs``), so listing cost\ndoes not grow with the total number of runs in the library.\n\nRoute: GET /api/workflow-execution/runs (toolset `workflow-execution`; reads)."
-    return _rt.call("GET", "/api/workflow-execution/runs", params={"limit": limit, "offset": offset, "status": status})
+    return _rt.call("GET", "/api/workflow-execution/runs", params={"archived": archived, "limit": limit, "offset": offset, "status": status})
+
+
+def fichero_workflow_execution_archive_runs_route(
+    *,
+    thread_ids: Annotated[list[Any], Field(description='ended runs to archive.')],
+) -> Any:
+    'Archive Workflow Runs Route\n\nArchive ended runs; `GET /runs?archived=true` lists them, `POST /api/activity/jobs/unarchive` puts them back.\n\nRoute: POST /api/workflow-execution/runs/archive (toolset `workflow-execution`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/workflow-execution/runs/archive", json=_rt.body({"thread_ids": thread_ids}))
 
 
 def fichero_workflow_execution_delete_runs_route(
@@ -10562,6 +10571,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_workflow_execution_dry_run", "workflow-execution", "POST", "/api/workflow-execution/dry-run", fichero_workflow_execution_dry_run),
     GeneratedTool("fichero_workflow_execution_execute", "workflow-execution", "POST", "/api/workflow-execution/execute", fichero_workflow_execution_execute),
     GeneratedTool("fichero_workflow_execution_list_runs_route", "workflow-execution", "GET", "/api/workflow-execution/runs", fichero_workflow_execution_list_runs_route),
+    GeneratedTool("fichero_workflow_execution_archive_runs_route", "workflow-execution", "POST", "/api/workflow-execution/runs/archive", fichero_workflow_execution_archive_runs_route),
     GeneratedTool("fichero_workflow_execution_delete_runs_route", "workflow-execution", "POST", "/api/workflow-execution/runs/delete", fichero_workflow_execution_delete_runs_route),
     GeneratedTool("fichero_workflow_execution_list_threads", "workflow-execution", "GET", "/api/workflow-execution/threads", fichero_workflow_execution_list_threads),
     GeneratedTool("fichero_workflow_execution_delete_thread", "workflow-execution", "DELETE", "/api/workflow-execution/threads/{thread_id}", fichero_workflow_execution_delete_thread),
