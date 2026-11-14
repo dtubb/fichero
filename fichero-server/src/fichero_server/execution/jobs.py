@@ -58,7 +58,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, NoReturn
+from typing import TYPE_CHECKING, Any, Callable, Iterator, NoReturn
 
 from fichero_server.core.background_compute import set_background_qos, set_utility_qos
 from fichero_server.core.failure_text import MissingInWords
@@ -409,6 +409,8 @@ for _attached in (
 ):
     register_kind(_attached, None, model=None, qos=set_utility_qos)
 
+#: True inside `not_what_was_deleted`: the open's re-queue skips a subject a person deleted.
+_skip_deleted: ContextVar[bool] = ContextVar("_skip_deleted", default=False)
 #: True while this task holds a lane slot: a model call made inside work that already holds one
 #: (a vision page's own `llm.vision` call) does not ask for a second, which a one-wide lane could
 #: never grant.
@@ -1321,6 +1323,41 @@ def _clear_waiting_on(db: "Database") -> str:
     return ", waiting_on = NULL" if _has_column(db, "waiting_on") else ""
 
 
+def _not_deleted(db: "Database") -> str:
+    return " AND deleted_at IS NULL" if _has_deleted_at(db) else ""
+
+
+def _was_deleted(db: "Database", kind: str, subjects: list[str]) -> set[str]:
+    """The subjects among `subjects` that have a row of this kind a person deleted."""
+    if not _has_deleted_at(db):
+        return set()
+    found: set[str] = set()
+    for chunk in _chunks(list(subjects), 500):
+        marks = ", ".join("?" for _ in chunk)
+        found.update(r[0] for r in db.execute_fetchall(
+            f"SELECT DISTINCT subject FROM jobs WHERE kind = ? AND deleted_at IS NOT NULL AND subject IN ({marks})",
+            [kind, *chunk]))
+    return found
+
+
+def _live_row(db: "Database", kind: str, subject: str) -> bool:
+    """A waiting or paused, not deleted row of this kind and subject exists."""
+    return db.execute_fetchone(
+        f"SELECT 1 FROM jobs WHERE kind = ? AND subject = ? AND state IN ('waiting', 'paused'){_not_deleted(db)}",
+        [kind, subject]) is not None
+
+
+@contextlib.contextmanager
+def not_what_was_deleted() -> Iterator[None]:
+    """Inside it, `enqueue_many` does not queue a subject whose row of that kind a person deleted: the open's
+    re-queue of stranded work is not new material (`activity.engine.open-queues-nothing-twice`)."""
+    token = _skip_deleted.set(True)
+    try:
+        yield
+    finally:
+        _skip_deleted.reset(token)
+
+
 def enqueue(
     db: "Database",
     kind: str,
@@ -1338,11 +1375,17 @@ def enqueue(
     (`activity.throttle.watched-first`); a reused job becomes watched too. Returns the job id."""
     _ensure(db)
     row = db.execute_fetchone(
-        "SELECT id FROM jobs WHERE kind = ? AND subject = ? AND state = 'waiting'",
+        f"SELECT id FROM jobs WHERE kind = ? AND subject = ? AND state IN ('waiting', 'paused'){_not_deleted(db)}",
         [kind, subject],
     )
     if row:
         job_id = row[0]
+        if watched:  # a person waits on it: a row paused at quit (or by them) that it reuses runs again, never swallows the ask
+            db.execute(
+                f"UPDATE jobs SET state = 'waiting', reason = NULL, run_after = NULL{_clear_waiting_on(db)} "
+                "WHERE id = ? AND state = 'paused'",
+                [job_id],
+            )
     else:
         job_id = _insert(
             db, kind, subject, KINDS[kind].model if kind in KINDS else None, started_by
@@ -1692,11 +1735,15 @@ def enqueue_many(
         marks = ", ".join("?" for _ in chunk)
         ids.update(
             db.execute_fetchall(
-                f"SELECT subject, id FROM jobs WHERE kind = ? AND state = 'waiting' AND subject IN ({marks})",
+                f"SELECT subject, id FROM jobs WHERE kind = ? AND state IN ('waiting', 'paused') "
+                f"AND subject IN ({marks}){_not_deleted(db)}",
                 [kind, *chunk],
             )
         )
     new = [subject for subject in dict.fromkeys(subjects) if subject not in ids]
+    if new and _skip_deleted.get():
+        gone = _was_deleted(db, kind, new)
+        new = [subject for subject in new if subject not in gone]
     model = KINDS[kind].model if kind in KINDS else None
     now = utc_now()
     for chunk in _chunks(new, 200):
@@ -1711,7 +1758,7 @@ def enqueue_many(
                 for value in (job_id, kind, subject, model, started_by, now)
             ],
         )
-    futures = [_scheduler.watch(ids[subject]) for subject in subjects]
+    futures = [_scheduler.watch(ids[subject]) for subject in subjects if subject in ids]
     key = _key(db)
     db.add_after_commit_hook(lambda: _scheduler.wake(key))
     return futures
@@ -3615,6 +3662,36 @@ def archive_jobs(db: "Database", ids: list[str], states: list[str] | None = None
     return archived, skipped
 
 
+#: A workflow run's record statuses it may be archived in: ended ones.
+RUN_ARCHIVABLE_STATUSES = ("completed", "failed", "cancelled")
+
+
+def archive_runs(db: "Database", thread_ids: list[str]) -> tuple[list[str], list[str]]:
+    """Archive of a workflow run (`activity.pane.archive-old-runs`, #6441): the run's own row in `jobs` (its id is the run's
+    thread id) and every row under it get the archive mark, so the runs list (`records.list_runs`) leaves it out and Show
+    Archived lists it; Put Back is `unarchive_jobs`. Nothing is deleted. A run still going, deleted, or with no row in
+    `jobs` (from before runs had one) is skipped. Returns (archived, skipped)."""
+    _ensure(db)
+    if not _has_cleared_at(db):
+        raise ValueError("This project's jobs table cannot mark archived rows; see the engine log")
+    from fichero_server.db.activity_records import RUNS
+
+    archived: list[str] = []
+    skipped: list[str] = []
+    now = utc_now()
+    for thread_id in dict.fromkeys(thread_ids):
+        run = db.execute_fetchone(f"SELECT status FROM {RUNS} WHERE id = ?", [thread_id])
+        row = db.execute_fetchone(f"SELECT 1 FROM jobs WHERE id = ?{_hidden_filter(db)}", [thread_id])
+        if run is None or run[0] not in RUN_ARCHIVABLE_STATUSES or row is None:
+            skipped.append(thread_id)
+            continue
+        under = _under(db, thread_id)
+        marks = ", ".join("?" for _ in under)
+        db.execute(f"UPDATE jobs SET cleared_at = ? WHERE id IN ({marks})", [now, *under])
+        archived.append(thread_id)
+    return archived, skipped
+
+
 def unarchive_jobs(db: "Database", ids: list[str]) -> list[str]:
     """Put Back: an archived row and everything under it are listed again, unchanged. Returns the ids put back."""
     _ensure(db)
@@ -3632,6 +3709,16 @@ def unarchive_jobs(db: "Database", ids: list[str]) -> list[str]:
     return out
 
 
+def _write_unfinished_end(db: "Database", job_id: str, state: str, reason: str | None) -> None:
+    """The lane's end write for a deferred or out-of-reach job. A row Delete marked stays deleted
+    (`activity.engine.deleted-stays-deleted`): the write that arrives after the delete does not revive it."""
+    alive = " AND deleted_at IS NULL" if _has_deleted_at(db) else ""
+    db.execute(
+        f"UPDATE jobs SET state = ?, reason = ?{_clear_waiting_on(db)}, attempts = attempts - 1 WHERE id = ?{alive}",
+        [state, reason, job_id],
+    )
+
+
 def undelete_jobs(db: "Database", ids: list[str]) -> list[str]:
     """Undo of Delete (`activity.pane.archive-old-runs`): a deleted row and everything under it come back in the state they
     had (a row Delete stopped goes back to waiting or paused as it was). Returns the ids restored."""
@@ -3647,9 +3734,12 @@ def undelete_jobs(db: "Database", ids: list[str]) -> list[str]:
             detail = json.loads(db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [rid])[0] or "{}")
             before = detail.pop("deleted_from", None)
             if before:
+                state_back, reason_back = before["state"], before.get("reason")
+                if state_back == "running":  # Delete stopped it: no thread is behind it now (`undelete-running-is-a-phantom`)
+                    state_back, reason_back = "paused", "Stopped by you"
                 db.execute(
                     "UPDATE jobs SET state = ?, reason = ?, finished_at = NULL, detail = ? WHERE id = ?",
-                    [before["state"], before.get("reason"), json.dumps(detail) if detail else None, rid],
+                    [state_back, reason_back, json.dumps(detail) if detail else None, rid],
                 )
         marks = ", ".join("?" for _ in under)
         # Only the mark the delete set comes off: a row archived before the delete (`cleared_at` older) stays archived.
@@ -3719,6 +3809,8 @@ def delete_jobs(db: "Database", ids: list[str], states: list[str] | None = None,
                         cancel_job(db, job_id)
                     except (ValueError, KeyError):  # a kind with no Stop of its own finishes its item; the mark hides it
                         pass
+            if has_deleted and db.execute_fetchone("SELECT 1 FROM jobs WHERE id = ? AND deleted_at IS NOT NULL", [job_id]):
+                continue  # already deleted: not re-stamped, so one Undo still restores it (`deleted-stays-deleted`)
             under = _under(db, job_id)
             marks = ", ".join("?" for _ in under)
             # What Delete stops remembers its state, so Undo (`undelete_jobs`) puts it back as it was.
@@ -5418,10 +5510,7 @@ class _Scheduler:
                 key
             )  # the project's connection NOW: a reopen made a new one (Fable #8, #14)
             if current is not None:
-                current.execute(
-                    f"UPDATE jobs SET state = ?, reason = ?{_clear_waiting_on(current)}, attempts = attempts - 1 WHERE id = ?",
-                    [state, reason, job_id],
-                )
+                _write_unfinished_end(current, job_id, state, reason)
             if state == "waiting":
                 lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
                 # Its project has waiting work again: a scan while this job ran saw its row `running`, found

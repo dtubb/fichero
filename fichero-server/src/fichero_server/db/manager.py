@@ -108,6 +108,24 @@ def _open_cap() -> int:
         return 2
 
 
+def resume_pending_derivatives(db: "Database", package_path: str) -> None:
+    """The open's re-queue of stranded pages' derivatives (not new material: `arrived=False`). It queues nothing twice
+    (`activity.engine.open-queues-nothing-twice`): a row of the kind already waiting or paused is reused, and a page whose
+    row of that kind the person deleted is not queued again."""
+    try:
+        from fichero_server.execution import jobs
+        from fichero_server.importers.derivatives import queue_derivatives
+        from fichero_server.models import Document, Status
+
+        stranded = db.query(Document, status=Status.pending)
+        if stranded:
+            logger.info("Resuming derivatives for %d pending document(s)", len(stranded))
+            with jobs.not_what_was_deleted():
+                queue_derivatives(stranded, library_path=package_path, db=db, arrived=False)
+    except Exception:
+        logger.exception("Pending-derivative resume failed")
+
+
 class DatabaseManager:
     """Manages Database instances for package documents — ONE per package,
     shared across all threads (#2508).
@@ -351,21 +369,7 @@ class DatabaseManager:
                 # on open; the stages are idempotent (thumbnail is ensure-
                 # style, embed skips already-embedded rows).
                 if os.environ.get("FICHERO_SKIP_DERIVATIVE_RESUME") != "1":
-                    try:
-                        from fichero_server.importers.derivatives import (
-                            queue_derivatives,
-                        )
-                        from fichero_server.models import Document, Status
-
-                        stranded = db.query(Document, status=Status.pending)
-                        if stranded:
-                            logger.info(
-                                "Resuming derivatives for %d pending document(s)",
-                                len(stranded),
-                            )
-                            queue_derivatives(stranded, library_path=package_path, db=db, arrived=False)
-                    except Exception:
-                        logger.exception("Pending-derivative resume failed")
+                    resume_pending_derivatives(db, package_path)
 
                 # Runs the engine did not finish are marked interrupted, said with when (#5555): here,
                 # on every open, not left to the activity tracker's sweep, which is skipped when the

@@ -172,6 +172,7 @@ ALLOWED = {
     "llm/kraken_runtime.py::record_files": _OWN_FETCH,
     "llm/local_inference.py::get_json": _LOOPBACK,
     "llm/local_models.py::download_spacy_pipeline": _OWN_FETCH,
+    "llm/local_models.py::_fetch_into_folder": _HUB_FETCH,
     "llm/model_downloads.py::_open": _OWN_FETCH,
     "llm/model_types.py::_refresh_registry_cache": _OWN_FETCH,
     "llm/script_coverage.py::_http_get_bytes": _OWN_FETCH,

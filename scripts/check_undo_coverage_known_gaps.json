@@ -517,5 +517,6 @@
   "POST /api/activity/jobs/undelete": "the inverse of job.delete (audited, undoable, inverse job.delete); an engine-side undo pair, the app's registration follows (#6583)",
   "POST /api/activity/jobs/archive": "audited job.archive, undoable=True with inverse job.unarchive (Put Back) registered in the engine (#6583); the app's Edit › Undo registration follows",
   "POST /api/activity/jobs/unarchive": "Put Back, the inverse of job.archive (audited, undoable, inverse job.archive); an engine-side undo pair (#6583)",
-  "POST /api/activity/stopped-at-quit/continue": "Continue on the launch alert lets held rows run; its undo is Pause on the row (the states table: Pause has no Undo, Continue is its undo), so no undo registration (#6584)"
+  "POST /api/activity/stopped-at-quit/continue": "Continue on the launch alert lets held rows run; its undo is Pause on the row (the states table: Pause has no Undo, Continue is its undo), so no undo registration (#6584)",
+  "POST /api/workflow-execution/runs/archive": "audited workflow_run.archive, undoable=True with inverse job.unarchive (Put Back; a run's id is its row's id in jobs) (#6441); the app invokes the action through /api/actions/invoke and registers the step on the window's stack, not this route"
 }

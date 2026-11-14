@@ -47,6 +47,6 @@ def eta(status: dict[str, Any]) -> tuple[float | None, str | None]:
 
 
 def cost_so_far(status: dict[str, Any]) -> float | None:
-    """The run's cloud calls in dollars so far, summed over its stages; none when no stage has a priced call (a local run costs nothing to show)."""
-    costs = [s["timing"].cost_usd for s in status.get("steps") or [] if s.get("timing") is not None and s["timing"].cost_usd]
+    """The run's cloud calls in dollars so far, summed over its stages; none when no stage has a priced call (a local run costs nothing to show); a call priced at $0 reads 0.0, free, not null."""
+    costs = [s["timing"].cost_usd for s in status.get("steps") or [] if s.get("timing") is not None and s["timing"].cost_usd is not None]
     return round(sum(costs), 4) if costs else None

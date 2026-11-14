@@ -986,6 +986,8 @@ async def list_background_jobs(
             _where, model = await _stage_where_and_model(db, row["id"])
             cost = live_stages.cost_so_far(status)
             estimate = _cost_estimate(cost, stages, state)
+        elif row["count"] == 1:
+            cost = await asyncio.to_thread(_job_cost, db, row["id"])  # a job of its own: its cloud calls' dollars, else null
         ran_on = RanOn(kind="pages" if total != 1 else "page", count=total)
         jobs.append(
             BackgroundJob(
@@ -1124,6 +1126,26 @@ def _cut(node: dict[str, Any], depth: int) -> None:
         return
     for child in node["children"]:
         _cut(child, depth - 1)
+
+
+def _job_cost(db, job_id: str) -> Optional[float]:
+    """The dollars of the cloud calls under one job (`activity.pane.cost-per-row-and-totals`, #6598): a call priced at $0 reads
+    0.0 (free), local calls and a job with no calls read null. Calls recorded in each job's `detail["usage"]`."""
+    from fichero_server.execution.jobs import RUN_KINDS
+    from fichero_server.llm.usage import price_call
+
+    try:
+        rows = db.execute_fetchall(
+            "WITH RECURSIVE t AS (SELECT id, kind, detail FROM jobs WHERE id = ? "
+            "UNION ALL SELECT j.id, j.kind, j.detail FROM jobs j JOIN t ON j.parent_id = t.id) "
+            f"SELECT detail FROM t WHERE detail IS NOT NULL AND kind NOT IN ({', '.join('?' * len(RUN_KINDS))})",
+            [job_id, *RUN_KINDS], committed=True)
+        calls = [price_call(u) for (detail,) in rows for u in (json.loads(detail) or {}).get("usage", [])]
+    except Exception as exc:  # noqa: BLE001 -- the row stands without its cost
+        logger.warning("list_background_jobs: no cost for job %s: %s", job_id, exc)
+        return None
+    cloud = [c.cost_usd for c in calls if c.priced and not c.free]
+    return round(sum(cloud), 4) if cloud else None
 
 
 def _cost_estimate(spent: Optional[float], stages: "list[StageCount]", state: str) -> Optional[float]:

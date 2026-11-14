@@ -13220,6 +13220,11 @@
         "path_params": [],
         "query_params": [
           {
+            "name": "archived",
+            "required": false,
+            "type": "boolean"
+          },
+          {
             "name": "limit",
             "required": false,
             "type": "integer"
@@ -13237,6 +13242,16 @@
         ],
         "request_model": null,
         "response_model": "WorkflowRunListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/workflow-execution/runs/archive",
+        "operation_id": "archive_workflow_runs_route_api_workflow_execution_runs_archive_post",
+        "summary": "Archive Workflow Runs Route",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "WorkflowRunArchiveParams",
+        "response_model": "WorkflowRunArchiveResult"
       },
       {
         "method": "POST",

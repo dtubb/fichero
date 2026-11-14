@@ -279,11 +279,14 @@ def _queue_read(db: Any, folder_id: str, *, hold: bool = False) -> str:
     does (`activity.launch.nothing-starts-one-alert`): a rescan at open records nothing and starts no recipe run; the
     launch alert lists the folder and Continue brings its files in."""
     register_job_kinds()
+    if hold and jobs._was_deleted(db, READ_KIND, [folder_id]) and not jobs._live_row(db, READ_KIND, folder_id):
+        return ""  # a read the person deleted is not queued again by the open (`activity.engine.open-queues-nothing-twice`)
     job_id = jobs.enqueue(db, READ_KIND, folder_id, started_by="sync",
                           run_after=utc_now() + timedelta(seconds=QUIET_SECONDS))
-    if hold:
+    if hold:  # a row already paused (the last session's quit hold) is reused as it is: no twin, and its reason stays
         db.execute("UPDATE jobs SET state = 'paused', reason = ?, run_after = NULL WHERE id = ? AND state = 'waiting'",
                    [jobs.NEW_MATERIAL_REASON, job_id])
+        db.execute("UPDATE jobs SET run_after = NULL WHERE id = ? AND state = 'paused'", [job_id])
     return job_id
 
 

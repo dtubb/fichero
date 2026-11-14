@@ -248,9 +248,15 @@ def get_run_scope(db: Any, thread_id: str) -> Optional[tuple]:
 
 
 def list_runs(db: Any, *, workflow_id: Optional[str], statuses: Optional[list[str]], exclude_deleted: bool,
-              limit: int, offset: int) -> list[tuple]:
-    """Runs newest first, paged in SQL, each in the light projection (`LIST_COLUMNS`)."""
+              limit: int, offset: int, archived: bool = False) -> list[tuple]:
+    """Runs newest first, paged in SQL, each in the light projection (`LIST_COLUMNS`). An archived run (its row in
+    `jobs` has the archive mark, `jobs.archive_runs`) is left out, or with `archived` it is the only kind listed."""
     where, params = [], []
+    if db.execute_fetchone("SELECT 1 FROM information_schema.columns WHERE table_name = 'jobs' "
+                           "AND column_name = 'cleared_at'", committed=True):
+        where.append(f"id {'' if archived else 'NOT '}IN (SELECT id FROM jobs WHERE cleared_at IS NOT NULL)")
+    elif archived:
+        return []
     if workflow_id:
         where.append("workflow_id = ?")
         params.append(workflow_id)
