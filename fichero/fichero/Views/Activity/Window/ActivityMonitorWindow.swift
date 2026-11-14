@@ -228,19 +228,35 @@ struct ActivityMonitorWindow: View {
         }
     }
 
-    /// The ONE delete operation (#4960), routed per row's OWN library. Only
-    /// run rows delete; a still-running run is SKIPPED by the engine, and the
-    /// reader is told.
+    /// The ONE delete operation (#4960, #6583), routed per row's OWN library: run rows through the
+    /// runs delete, job rows of their own (a recipe run, a download, a kind's group) through the jobs
+    /// delete (`activity.window.delete-any-row`). A row still running is SKIPPED by the engine, and
+    /// the reader is told.
     private func deleteRuns(withIDs ids: Set<ActivityMonitorRow.ID>) async {
         var skippedCount = 0
+        let jobIdsByLibrary = Self.jobIdsByLibrary(allRows.filter { ids.contains($0.id) })
         for library in libraries {
             let threadIds = library.activityStore.runs.filter { ids.contains($0.id) }.map(\.runId)
-            guard !threadIds.isEmpty else { continue }
-            let outcome = await library.activityStore.deleteRuns(threadIds: threadIds)
-            skippedCount += outcome.skippedIds.count
+            if !threadIds.isEmpty {
+                skippedCount += await library.activityStore.deleteRuns(threadIds: threadIds).skippedIds.count
+            }
+            if let jobIds = jobIdsByLibrary[library.id], !jobIds.isEmpty {
+                skippedCount += await library.activityStore.deleteJobs(ids: jobIds).skippedIds.count
+            }
         }
         openedID = nil
-        notice = skippedCount > 0 ? "\(skippedCount) run\(skippedCount == 1 ? "" : "s") still running — not deleted." : nil
+        notice = skippedCount > 0 ? "\(skippedCount) item\(skippedCount == 1 ? "" : "s") still running — not deleted." : nil
+    }
+
+    /// The job ids Delete sends to each project's jobs delete: the selected job rows' own ids (a
+    /// kind's row keeps its `waiting:<kind>` id, which the engine reads as the whole group).
+    static func jobIdsByLibrary(_ rows: [ActivityMonitorRow]) -> [UUID: [String]] {
+        var out: [UUID: [String]] = [:]
+        for row in rows where row.kind == .job {
+            guard let libraryId = row.libraryId, let jobId = row.jobId else { continue }
+            out[libraryId, default: []].append(jobId)
+        }
+        return out
     }
 
     /// "Clear Failed" (#4960, #5634): every project's failed runs and failed

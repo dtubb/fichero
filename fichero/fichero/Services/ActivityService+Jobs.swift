@@ -152,6 +152,30 @@ extension ActivityService {
         }
     }
 
+    /// What a delete answered: the rows the engine deleted and the ones it left (running now, or unknown).
+    struct DeleteAnswer: Equatable {
+        let deletedIds: [String]
+        let skippedIds: [String]
+    }
+
+    /// Delete in Activity for jobs (the audited `job.delete`, #6583, `activity.window.delete-any-row`):
+    /// any job row in any state, or a kind's row (`waiting:<kind>`) for the whole group. A waiting or
+    /// paused job is cancelled first; one running now is skipped and named. The rows are kept by the
+    /// engine and never listed again. Workflow runs are `deleteWorkflowRuns(threadIds:)`.
+    func deleteJobs(ids: [String]) async throws -> DeleteAnswer {
+        let response = try await client.api.deleteJobsApiActivityJobsDeletePost(body: .json(.init(ids: ids)))
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.json
+            return DeleteAnswer(deletedIds: body.deletedIds, skippedIds: body.skippedIds)
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, let payload):
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
+        }
+    }
+
     /// Run a failed or stopped job again (the audited `job.retry`, #5356): it
     /// goes back to waiting and carries on from its own checkpoint. Returns the
     /// job's state after the request. A refusal (409: work a run hands in, a

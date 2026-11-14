@@ -806,6 +806,52 @@ final class ActivityTableTests: XCTestCase {
         XCTAssertEqual(outcome.notice, "Cleared 1 failed run and 1 failed job.")
     }
 
+    func testActivityWindowDelete_aJobRowAndAGroupAreDeletedThroughTheJobsRouteAndLeaveTheList() async throws {
+        // WHY (#6583, owner 2026-11-13): Delete acted only on workflow runs. A failed recipe run, a paused
+        // download or a queued group of thumbnails kept its row; now the store sends them to the jobs delete,
+        // splices the deleted rows out (the group's own row with them) and reports what the engine skipped.
+        let library = Self.testLibrary()
+        let store = Self.storeWithMockTransport(library: library)
+        let failedRun = #"{"id":"recipe-1","task_type":"run-a-recipe","name":"Run the recipe","library":"/tmp/x","#
+            + #""current":0,"total":3,"percent":0,"state":"failed","reason":"no credit left","parent_id":null}"#
+        let group = #"{"id":"waiting:thumbnail","task_type":"thumbnail","name":"Make thumbnails","library":"/tmp/x","#
+            + #""current":0,"total":12,"percent":0,"state":"waiting","reason":null,"parent_id":null}"#
+        let running = #"{"id":"dl-2","task_type":"model-download","name":"Downloading a model","library":"/tmp/x","#
+            + #""current":1,"total":2,"percent":50,"state":"running","reason":null,"parent_id":null}"#
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/activity/jobs", method: "GET", status: 200,
+                 body: Self.jobsJSON(extraJobs: [failedRun, group, running]))
+        ])
+        await store.refreshBackgroundJobs()
+        XCTAssertEqual(Set(store.backgroundJobs.map(\.id)), ["recipe-1", "waiting:thumbnail", "dl-2"])
+
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/activity/jobs/delete", method: "POST", status: 200,
+                 body: Data(#"{"deleted_ids":["recipe-1","t-1","t-2"],"skipped_ids":["dl-2"],"count":3}"#.utf8))
+        ])
+        let outcome = await store.deleteJobs(ids: ["recipe-1", "waiting:thumbnail", "dl-2"])
+
+        let request = try XCTUnwrap(MockTransportURLProtocol.recorded().last)
+        XCTAssertEqual("\(request.httpMethod ?? "") \(request.url?.path ?? "")", "POST /api/activity/jobs/delete")
+        let body = try XCTUnwrap(request.httpBody ?? request.httpBodyStream.map(Self.read))
+        let sent = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(sent["ids"] as? [String], ["recipe-1", "waiting:thumbnail", "dl-2"])
+        XCTAssertEqual(outcome.deletedIds, ["recipe-1", "t-1", "t-2"])
+        XCTAssertEqual(outcome.skippedIds, ["dl-2"], "the running download is left, and named")
+        XCTAssertEqual(store.backgroundJobs.map(\.id), ["dl-2"], "the failed run and the group's row leave the list")
+    }
+
+    func testActivityWindowDelete_aFailureIsSaidNotSwallowed() async {
+        let store = Self.storeWithMockTransport(library: Self.testLibrary())
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/activity/jobs/delete", method: "POST", status: 500, body: Data("boom".utf8))
+        ])
+        let outcome = await store.deleteJobs(ids: ["recipe-1"])
+        XCTAssertEqual(outcome.deletedIds, [])
+        XCTAssertEqual(outcome.skippedIds, ["recipe-1"])
+        XCTAssertNotNil(outcome.failure)
+    }
+
     func testActivityWindowClearFailed_aRunStillInMemoryDoesNotComeBack() async throws {
         // WHY (#5634): a run that failed in this session is also a live execution, and the next
         // rebuild patched it back into the list, so Clear Failed seemed to do nothing.
