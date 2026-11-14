@@ -3936,6 +3936,17 @@ def _simplified_shapes(
     return shapes
 
 
+def _note_forwarding(
+    db: Database, row: Segment, kind: str, ctx: ActionContext, audit_id: str, reason: str | None = None,
+) -> None:
+    """The forwarding note a soft delete ("deleted") or its undo ("restored") leaves, as `segment.delete` and
+    `segment.undelete` do, so a reference to the segment can say what became of it."""
+    db.save(SegmentForwarding(
+        document_id=row.document_id, old_segment_id=row.id, kind=kind, new_segment_ids=[], actor=ctx.actor,
+        audit_id=audit_id, reason=reason, sequence=db.next_forwarding_sequence(),
+    ))
+
+
 class SegmentCutWordsParams(BaseModel):
     """`segment-editor.cut-words-from-positions`: Cut Words on lines."""
 
@@ -4066,6 +4077,7 @@ def _action_cut_words(db: Database, params: SegmentCutWordsParams, ctx: ActionCo
             snapshot_segment_version(db, child, deleted=True, actor=ctx.actor, audit_id=audit_id, reason="cut words again")
             child.deleted_at, child.deleted_by = now, ctx.actor
             db.save(child)
+            _note_forwarding(db, child, "deleted", ctx, audit_id, reason="cut words again")
             replaced.append(child.id)
         replaced_entries.extend(remove_segment_entries(db, [child.id for child in machine]))
         kept_bounds = [line_join.bounds(o) for o in (line_join.outline_of(child.anchor) for child in kept) if o]
@@ -4293,6 +4305,7 @@ def _action_cut_characters(db: Database, params: SegmentCutCharactersParams, ctx
             snapshot_segment_version(db, child, deleted=True, actor=ctx.actor, audit_id=audit_id, reason="cut characters again")
             child.deleted_at, child.deleted_by = now, ctx.actor
             db.save(child)
+            _note_forwarding(db, child, "deleted", ctx, audit_id, reason="cut characters again")
             replaced.append(child.id)
         replaced_entries.extend(remove_segment_entries(db, [child.id for child in machine]))
         for (begin, stop), polygon, piece, sure in characters:
@@ -4372,6 +4385,7 @@ def _action_uncut_words(db: Database, params: SegmentUncutWordsParams, ctx: Acti
         snapshot_segment_version(db, word, deleted=True, actor=ctx.actor, audit_id=audit_id)
         word.deleted_at, word.deleted_by = None, None
         db.save(word)
+        _note_forwarding(db, word, "restored", ctx, audit_id)
         restored.append(word)
     restore_segment_entries(db, [entry.model_dump() for entry in params.order_entries])
     rows = made_rows + restored
