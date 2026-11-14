@@ -65,6 +65,11 @@ class PageExport:
     report: LossReport
 
 
+
+#: A cut word's source and confidence on its `PageSegment.foreign` (`segment-editor.export-carries-every-edit`):
+#: PAGE writes them in `custom`, ALTO writes the confidence as `WC` and reports the source lost.
+CUT_FACTS = "fichero:cut"
+
 def page_from_library(
     db: Any,
     document_id: str,
@@ -228,6 +233,11 @@ def page_from_library(
                 foreign=dict(row.metadata.get("foreign") or {}),
             )
         )
+        # `segment-editor.export-carries-every-edit`: how a cut word was cut, for the formats that can say it.
+        if row.metadata.get("cut_source"):
+            segments[-1].foreign[CUT_FACTS] = {
+                "source": row.metadata["cut_source"], "confidence": row.metadata.get("cut_confidence"),
+            }
         # Always set, empty or not: the library's facts are the record, so a writer drops whatever
         # the file's own marks said when it was imported (a fact a person withdrew stays withdrawn).
         # Imported here, not at module scope: format modules load on first use (#4038).

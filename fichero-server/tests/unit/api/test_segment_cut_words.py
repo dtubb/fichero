@@ -197,3 +197,21 @@ class TestAfterARead:
         assert len(made) == 3
         assert len(_words(db, read)) == 3 and _words(db, unread) == []
         assert cut_words_after_read(db, doc.id, [unread]) == [], "a line it cannot cut never fails the read"
+
+
+class TestExport:
+    def test_the_words_go_to_the_export_with_how_they_were_cut(self, db, client):
+        """`segment-editor.export-carries-every-edit`: the library's words reach the formats' page with their cut."""
+        from fichero_server.page_export import CUT_FACTS, page_from_library
+
+        doc, pass_id = _page(db, client)
+        line = _line(client, doc, pass_id)
+        _read(db, line, TEXT, POSITIONS, [0.9] * len(TEXT))
+        _cut(db, [line])
+
+        page, _choices = page_from_library(db, doc.id, pass_id=pass_id)
+
+        words = [segment for segment in page.segments if segment.kind == "word"]
+        assert len(words) == 3
+        assert {segment.foreign[CUT_FACTS]["source"] for segment in words} == {"ctc"}
+        assert all(segment.foreign[CUT_FACTS]["confidence"] == pytest.approx(0.9) for segment in words)
