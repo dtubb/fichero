@@ -95,6 +95,8 @@ struct PaneSpec: Identifiable, Equatable {
 struct PaneKindSwitcher: Equatable {
     let slotId: String
     let switchKind: @MainActor (PaneSpec.Kind) -> Void
+    /// The pane's kind now: the pane menu's button wears its icon and Pane ▸ ticks it (`panes.chrome.one-pane-menu`).
+    var currentKind: PaneSpec.Kind?
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.slotId == rhs.slotId }
 }
