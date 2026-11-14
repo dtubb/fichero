@@ -491,11 +491,14 @@ def _fastembed_hub_repo(fastembed_name: str) -> str | None:
     return None
 
 
-def _fetch_into_folder(repo: str, files: list[str], folder: Path) -> None:
-    """The Hub repo's named files as real files in `folder` (no cache, no links)."""
+def _fetch_into_folder(repo: str, files: list[str], embeddings_path: Path, model_id: str) -> None:
+    """The Hub repo's named files as real files in the model's one folder under the shared folder's `embeddings_path`
+    (no cache, no links)."""
     from huggingface_hub import snapshot_download
 
-    snapshot_download(repo_id=repo, local_dir=str(folder), allow_patterns=files)
+    from fichero_server.db import embed_process
+
+    snapshot_download(repo_id=repo, local_dir=str(embed_process.one_folder_path(embeddings_path, model_id)), allow_patterns=files)
 
 
 class LocalModelManager:
@@ -671,7 +674,7 @@ class LocalModelManager:
         folder = Path(embed_process.one_folder_path(self.embeddings_path, model_id))
         folder.mkdir(parents=True, exist_ok=True)
         (folder / embed_process.BROKEN_MARKER).unlink(missing_ok=True)
-        _fetch_into_folder(repo, embed_process.one_folder_files(model_id), folder)
+        _fetch_into_folder(repo, embed_process.one_folder_files(model_id), self.embeddings_path, model_id)
         try:
             embed_process.load_text_embedding(fastembed_name, str(self.embeddings_path), 1)
         except Exception as exc:  # noqa: BLE001 -- whatever the load raised is why this model is broken

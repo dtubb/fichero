@@ -642,7 +642,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   (the jobs' `finished_at`, the spend ledger `llm/spend.py`, the calls' usage), no new recording; the panel reads it once a
   minute and on the change stream. Acceptance: a fixture of 30 pages done over 10 minutes answers 10 buckets summing to 30; the
   Cost panel's today total equals the ledger's; nothing is drawn when there is no history ("No work in the last hour").
-  *Test:* not yet written: `fichero-server/tests/unit/api/test_activity_history_6588.py`, `ActivityBottomPanelTests.swift`.
+  *Test:* not yet written: `test_activity_history_6588.py`, `ActivityBottomPanelTests.swift`.
 - `activity.log.raw-always-rendered` — **[GAP]** (#6588; decision 27; `activity.window.log-levels`) the Inspector's Log is the
   RAW log of the row (every line the engine wrote, its time, level and text, monospaced, wrapped, selectable), rendered whole
   for every row that ran, a page row's log its own lines in its run's log; "Nothing written for this row yet" only for a row
@@ -669,7 +669,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   until the folder is chosen again or Write Now is pressed; a per-export switch **Keep up to date** (on by default) turns the
   automatic rewrite off, Write Now still writing. Acceptance: ten page edits queue one row naming ten pages; with the folder
   removed, ten more edits add no row and the one row is paused with the fix; switching Keep up to date off queues nothing on
-  an edit. *Test:* not yet written: `fichero-server/tests/unit/jobs/test_kept_export_one_row_6588.py`.
+  an edit. *Test:* not yet written: `test_kept_export_one_row_6588.py`.
 
 ## Build order
 

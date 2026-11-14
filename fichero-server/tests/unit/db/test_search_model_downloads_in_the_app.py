@@ -69,6 +69,8 @@ def test_a_refused_embed_is_done_once_the_model_arrives(db, monkeypatch):
 def test_offline_three_retries_make_one_download_row(db, monkeypatch):
     jobs.load_kinds()
     monkeypatch.setattr(embed_process, "_cached", lambda *a: False)
+    # This counts the download rows queued; a download a lane picks up must not write into the models folder.
+    monkeypatch.setattr(local_models.LocalModelManager, "_fetch_embeddings_into_one_folder", lambda *a, **k: None)
     for _ in range(3):  # three embed retries, 120 s apart, the Mac offline throughout
         derivatives._fetch_the_search_model(db)
     subject = f"embeddings:{embeddings.search_embedder()}"
