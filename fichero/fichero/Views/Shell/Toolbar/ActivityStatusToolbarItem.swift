@@ -30,6 +30,8 @@ struct ActivityStatusToolbarItem: View {
     let libraryId: UUID
     let libraryName: String
     @Binding var importError: String?
+    /// Show / Open Activity: an Activity pane already in this window takes the focus (true), else the Activity window opens.
+    var revealActivityPane: () -> Bool = { false }
 
     @State private var showPopover = false
     /// The failures the popover may show, fixed as it opens (#5666): the last hour, or since it was last opened.
@@ -62,12 +64,9 @@ struct ActivityStatusToolbarItem: View {
     }
 
     var body: some View {
-        // The Start / Stop control sits beside the indicator (ruled 2026-10-09,
-        // `activity.mode.start-stop`): its state at a glance, running, held or paused.
-        HStack(spacing: 6) {
-            ActivityModeButton(store: activityStore)
-            indicator
-        }
+        // Run Automatically is a SETTING (`activity.automatic.one-place`, #6441): the mode control left the toolbar; its
+        // two verbs are Project › Activity's Pause / Resume Automatic Work.
+        indicator
     }
 
     private var indicator: some View {
@@ -165,13 +164,12 @@ struct ActivityStatusToolbarItem: View {
                     // A failure's row opens Activity's details for that job.
                     showPopover = false
                     ActivityWindowSelectionState.shared.select(ActivitySelection(jobId: jobId, libraryId: libraryId))
-                    openWindow(id: ActivityWindowSelectionState.detailWindowID)
+                    openWindow(id: ActivityWindowSelectionState.monitorWindowID)
                 },
                 engineBusy: appState?.engineBusySentence,
                 openActivity: {
                     showPopover = false
-                    ActivityWindowSelectionState.shared.selectLibrary(libraryId)
-                    openWindow(id: ActivityWindowSelectionState.monitorWindowID)
+                    if !revealActivityPane() { openWindow(id: ActivityWindowSelectionState.monitorWindowID) }
                 }
             )
 
@@ -179,8 +177,7 @@ struct ActivityStatusToolbarItem: View {
 
             Button("Open Activity") {
                 showPopover = false
-                ActivityWindowSelectionState.shared.selectLibrary(libraryId)
-                openWindow(id: ActivityWindowSelectionState.monitorWindowID)
+                if !revealActivityPane() { openWindow(id: ActivityWindowSelectionState.monitorWindowID) }
             }
         }
         .padding(14)

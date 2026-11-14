@@ -30,7 +30,7 @@ struct ActivityRunMenuTarget: Equatable {
             stop: {
                 guard let store, let jobId else { return }
                 Task {
-                    report(await store.cancelJob(jobId: jobId, runThreadId: runThreadId)
+                    report(await stopJob(jobId: jobId, runThreadId: runThreadId, store: store)
                         .map { "Couldn't stop \(rowName): \($0)" })
                 }
             },
@@ -42,6 +42,11 @@ struct ActivityRunMenuTarget: Equatable {
                 }
             }
         )
+    }
+
+    /// The one Stop (`ActivityStore.cancelJob`), for the Activity pane's verbs on several rows too; nil when the engine took it.
+    static func stopJob(jobId: String, runThreadId: String?, store: ActivityStore) async -> String? {
+        await store.cancelJob(jobId: jobId, runThreadId: runThreadId)
     }
 
     /// One stage's failed pages (the details' stage cards and summary, the project window's run strip):
@@ -123,5 +128,64 @@ struct FocusedActivityRunButtons: View {
     /// The run's own offer when it has one, else the verb.
     nonisolated static func readAgainTitle(_ target: ActivityRunMenuTarget?) -> String {
         target?.readAgainLabel ?? "Read Again"
+    }
+}
+
+/// Project › Activity's verbs on the focused Activity pane's selection (`activity.pane.commands-through-the-table`): the ONE
+/// verb list (`ActivityPaneVerb`), each enabled by the Mail rule and disabled, never hidden, when no selected row allows it.
+/// Stop is `FocusedActivityRunButtons`' one item. Delete is the table's Delete key and Edit › Delete's ⌘⌫ (`FocusedDeleteButton`).
+struct FocusedActivityVerbButtons: View {
+    @FocusedValue(\.activityVerbs) private var target
+
+    static let verbs: [ActivityPaneVerb] = [.pause, .resume, .retry, .archive, .putBack, .delete]
+
+    var body: some View {
+        ForEach(Self.verbs) { verb in
+            Button(verb.title) { target?.perform(verb) }
+                .disabled(!(target?.enabled.contains(verb) ?? false))
+        }
+    }
+}
+
+/// Project › Activity › Pause Automatic Work / Resume Automatic Work (`activity.pane.run-automatically-is-a-setting`): the
+/// background lane's two verbs, on the front window's project, through the same engine action as the setting
+/// (`ActivityStore.setBackgroundMode`). The one the mode does not offer is disabled, never hidden.
+struct FocusedAutomaticWorkButtons: View {
+    @FocusedValue(\.projectMenu) private var project
+
+    var body: some View {
+        let store = project?.library?.activityStore
+        let offersPause = RunAutomaticallySetting.offersPause(store.map { ActivityModeIndicator(store: $0).mode })
+        Button(RunAutomaticallySetting.pauseCommand) { set(.paused, on: store) }
+            .disabled(offersPause != true)
+        Button(RunAutomaticallySetting.resumeCommand) { set(.automatic, on: store) }
+            .disabled(offersPause != false)
+    }
+
+    private func set(_ mode: ActivityMode, on store: ActivityStore?) {
+        guard let store else { return }
+        Task { _ = await store.setBackgroundMode(mode) }
+    }
+}
+
+/// View › Activity ▸ Group by Run / Group by File and Show Archived (`activity.pane.commands-through-the-table`), on the
+/// focused Activity pane: the same choices as its head's lens menu and its More menu. No chords.
+struct FocusedActivityViewButtons: View {
+    @FocusedValue(\.activityView) private var target
+
+    var body: some View {
+        ForEach(ActivityPane.Grouping.allCases) { grouping in
+            Toggle("Group by \(grouping.title)", isOn: Binding(
+                get: { target?.grouping == grouping },
+                set: { isOn in if isOn { target?.setGrouping(grouping) } }
+            ))
+        }
+        .disabled(target == nil)
+        Divider()
+        Toggle("Show Archived", isOn: Binding(
+            get: { target?.showsArchived ?? false },
+            set: { target?.setShowsArchived($0) }
+        ))
+        .disabled(target == nil)
     }
 }

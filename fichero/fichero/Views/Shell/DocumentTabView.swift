@@ -216,7 +216,7 @@ struct DocumentTabView: View {
                 // values a view under this host read non-optionally without
                 // being forwarded here. `StatusIslandToolbarItem` and
                 // `ActivityStatusToolbarItem` read ActivityStore, and
-                // `ActivityBrowserView` reads WorkflowExecutionStore; all three
+                // `ActivityPaneView` reads WorkflowExecutionStore; all three
                 // mount inside ContentView. They resolved only by inheritance
                 // past this explicit host — the same accident that produced
                 // #3350 and #1561 — and a toolbar item is the worst place to

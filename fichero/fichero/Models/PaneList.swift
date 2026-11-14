@@ -46,6 +46,9 @@ enum PaneKind: String, Codable, CaseIterable, Sendable, Hashable {
     case chat
     /// The Segments pane (#4942): a page's segments as a list beside the Preview.
     case segments
+    /// The Activity pane (#6441, `activity.pane.is-a-pane-kind`): the one table of runs and jobs; its scope's
+    /// `libraryId` says whose work it shows (nil: every open project).
+    case activity
 }
 
 /// What a pane is scoped to. All fields optional: a `nil` field means "follow the

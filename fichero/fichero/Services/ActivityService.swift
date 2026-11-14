@@ -154,10 +154,11 @@ class ActivityService {
     func listWorkflowRuns(
         status: [String]? = nil,
         limit: Int = 50,
-        offset: Int = 0
+        offset: Int = 0,
+        archived: Bool = false
     ) async throws -> Components.Schemas.WorkflowRunListResponse {
         let response = try await client.api.listWorkflowRunsRouteApiWorkflowExecutionRunsGet(
-            query: .init(status: status, limit: limit, offset: offset),
+            query: .init(status: status, limit: limit, offset: offset, archived: archived),
         )
 
         switch response {

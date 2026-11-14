@@ -270,9 +270,9 @@ struct SelectAllButton: View {
             // default branch, because "the reader works" was previously an
             // accident of the library's enablement rather than a decision.
             return nil
-        case .segments:
-            // DELIBERATELY nil: the Segments pane's list is a SwiftUI List whose own selection answers
-            // ⌘A; the library must not take it just because it is the default owner (#4942).
+        case .segments, .activity:
+            // DELIBERATELY nil: the Segments pane's List and the Activity pane's Table answer ⌘A with their own
+            // selection; the library must not take it just because it is the default owner (#4942).
             return nil
         default:
             // The library is the default owner, as it was before the inspector
