@@ -204,6 +204,17 @@ class TestTheReading:
         assert db.get(Segment, first).metadata.get("cut") == "estimated"
         assert db.get(Segment, second).metadata.get("cut") == "estimated"
 
+    def test_undoing_the_cut_takes_the_cut_mark_off_the_line_again(self, db, client):
+        """A version snapshot carries no metadata, so the undo puts the line's metadata back itself: the line is
+        not still marked `cut: estimated` once it is whole again (found 2026-11-14)."""
+        doc, pass_id = _page(db, client)
+        line = _line(client, doc, pass_id, polygon=_box(0.0, 0.2, 1.0, 0.05), baseline=[[0.0, 0.24], [1.0, 0.24]])
+        _read(db, line, "abcdefghij")
+        result = _knife(db, [line], [[0.3, 0.15], [0.3, 0.3]])
+        undone = client.post(f"/api/actions/audit/{result.audit_id}/undo")
+        assert undone.status_code == 200, undone.text
+        assert "cut" not in (db.get(Segment, line).metadata or {})
+
     def test_known_character_positions_cut_at_the_nearest_character_and_are_not_estimates(self, db, client):
         doc, pass_id = _page(db, client)
         line = _line(client, doc, pass_id, polygon=_box(0.0, 0.2, 1.0, 0.05), baseline=[[0.0, 0.24], [1.0, 0.24]])

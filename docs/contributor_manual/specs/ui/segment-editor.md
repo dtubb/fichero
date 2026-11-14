@@ -237,7 +237,8 @@ targets are at least 44 pt.
   chooses the Knife until another tool is chosen; Esc puts it down before it clears the selection
   (`WindowState.letGoOfKnifeKey`). *Not built:* the Pencil.
   *Tests:* `test_segment_split_knife.py`
-  (two crossings, graze, rtl, vertical); `KnifeStrokeTests.swift` (the stroke is sent once,
+  (two crossings, graze, rtl, vertical; the undo takes the `cut` mark off the line again, 2026-11-14, as a version
+  snapshot carries no metadata); `KnifeStrokeTests.swift` (the stroke is sent once,
   in the drawn frame, with versions; `aTapOfKChoosesTheKnife`).
 - `segment-editor.split-at-a-point` — **[OK]** (→ #4941; app) with one line selected, ⌘⇧K splits it under the
   pointer (a vertical cut through that point at right angles to the baseline), for the common
