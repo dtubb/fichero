@@ -528,9 +528,10 @@ See section 7.2 below for what exists. The design:
   gave one, the reading's confidence, a cut's confidence, and the validator's findings; a row
   selects the line on the page; the head's **Next Doubtful** (⌘⌥N) steps through them. *Built (2026-11-14):* the
   engine half, `GET /api/segments/document/{doc_id}/doubtful`: the working pass's lines, a validator finding first
-  (confidence 0), then the least sure of the shape's confidence and its words' cut confidences, then lines nothing
-  measured; each with its reasons in words ("shape 42%", "cut 30%", "no-baseline"); reads only. *Not built:* the
-  reading's confidence (a reading carries none today), the lens's list, the chord (⌘⌥N is the markup row's Note).
+  (confidence 0), then the least sure of the shape's confidence, its words' cut confidences and its counting
+  reading's (the mean of its characters' confidences, where the recogniser gave them), then lines nothing measured;
+  each with its reasons in words ("shape 42%", "cut 30%", "reading 50%", "no-baseline"); reads only. *Not built:* the
+  lens's list, the chord (⌘⌥N is the markup row's Note).
   Edit › Segments ▸ Next Doubtful Line selects the next measured line in that order, from the top again after the last, and says when nothing is
   doubtful (`SegmentSelectionGestures.nextDoubtful`); the head's button is not built. *Tests:*
   `fichero-server/tests/unit/api/test_segments_doubtful.py`;

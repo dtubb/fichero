@@ -602,7 +602,7 @@ def validate_document_segments(doc_id: str, db: Database = Depends(get_library_d
 
 class DoubtfulLine(BaseModel):
     segment_id: str
-    #: The lowest confidence the line has (its shape's, its words' cuts'); 0 with a validator finding; None when
+    #: The lowest confidence the line has (its shape's, its words' cuts', its reading's); 0 with a validator finding; None when
     #: nothing measured it.
     confidence: Optional[float] = None
     #: Why it is doubtful, in words: "shape 42%", "cut 30%", and each finding's kind ("no-baseline", …).
@@ -654,6 +654,13 @@ def doubtful_lines(doc_id: str, db: Database = Depends(get_library_database)) ->
         if row.id in cuts:
             measured.append(cuts[row.id])
             reasons.append(f"cut {round(cuts[row.id] * 100)}%")
+        reading_id = (_counting_readings(db, row.id).get("transcription") or (None, ""))[0]
+        reading = db.get(ContentRepresentation, reading_id) if reading_id else None
+        if reading is not None and reading.char_confidences:
+            # The reading's own certainty: the mean of its characters', as the recogniser gave them.
+            sure = sum(reading.char_confidences) / len(reading.char_confidences)
+            measured.append(sure)
+            reasons.append(f"reading {round(sure * 100)}%")
         confidence = 0.0 if findings.get(row.id) else (min(measured) if measured else None)
         lines.append(DoubtfulLine(segment_id=row.id, confidence=confidence, reasons=reasons))
     lines.sort(key=lambda line: (line.confidence is None, line.confidence or 0.0))
