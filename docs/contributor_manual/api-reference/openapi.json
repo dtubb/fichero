@@ -95663,6 +95663,20 @@
             "nullable": true,
             "title": "Kind Raw",
             "description": "The kind as the source format named it (e.g. a PAGE XML region type)."
+          },
+          "smoothing": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Smoothing",
+            "description": "Simplify the outline and baseline as drawn by hand: 0 keeps nearly every bend, 1 the fewest points."
+          },
+          "outline_from_baseline": {
+            "type": "boolean",
+            "title": "Outline From Baseline",
+            "description": "Draw the line's outline from its baseline and the page's ink.",
+            "default": false
           }
         },
         "additionalProperties": false,

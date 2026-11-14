@@ -112,6 +112,7 @@ extension ZoomableImagePreview {
             return
         }
         let onThePass = store.segments(documentId: documentId).filter { $0.passId == passId }
+        windowState?.lastDrawnKind = kind == .baseline ? "line" : "region"
         // A line lands in the region that holds most of it; none, and it stays at page level (no guessing).
         let region = kind == .baseline ? SegmentShapes.containingRegion(for: points, among: onThePass) : nil
         runSegmentEdit(
@@ -121,6 +122,26 @@ extension ZoomableImagePreview {
             ),
             documentId: documentId, name: "Draw \(kind.title)"
         )
+    }
+
+    /// DRAW with the Marker (`segment-editor.marker`): one `segment.create` on the shown pass, the stroke simplified by the
+    /// engine; closed, a segment of the kind last drawn; open, a line on it as a baseline, its outline from the ink, in
+    /// the region holding most of it. ⌘Z.
+    func drawMarkerStroke(_ stroke: [[Double]], closed: Bool) {
+        guard let passId = shownArtifactlessPassId, let documentId, let store = segmentEditStore else {
+            Self.logger.notice("Marker stroke not sent: the shown boxes are not a segment pass")
+            return
+        }
+        let onThePass = store.segments(documentId: documentId).filter { $0.passId == passId }
+        let kind = windowState?.lastDrawnKind ?? "region"
+        runSegmentEdit(
+            MarkerStroke.create(
+                stroke, closed: closed, closedKind: kind, documentId: documentId, passId: passId, onPass: onThePass.first,
+                parentSegmentId: closed ? nil : SegmentShapes.containingRegion(for: stroke, among: onThePass)?.id
+            ),
+            documentId: documentId, name: "Draw with Marker"
+        )
+        if !closed { windowState?.lastDrawnKind = "line" }
     }
 
     /// DELETE the selected boxes on an artifact-less pass. True when handled here.

@@ -14,6 +14,7 @@ extension PreviewMarkupToolsRow {
             shapeButton(.baseline, label: "Line", icon: "line.diagonal", key: nil,
                         help: "Line — click points along the text, double-click to finish")
             knifeButton
+            markerButton
             labeled("Simplify") { SimplifySliderButton(windowState: windowState) }
         }
     }
@@ -24,7 +25,7 @@ extension PreviewMarkupToolsRow {
         let armed = windowState?.knifeArmed == true
         return labeled("Knife") {
             Button {
-                if !armed { windowState?.activeMarkupTool = .select }
+                if !armed { windowState?.activeMarkupTool = .select; windowState?.markerArmed = false }
                 windowState?.knifeArmed = !armed
             } label: {
                 Image(systemName: "scissors")
@@ -37,6 +38,25 @@ extension PreviewMarkupToolsRow {
         }
     }
 
+    /// The Marker (`segment-editor.marker`): draw freehand; a stroke that closes on itself is an outline, any other a
+    /// baseline. Chosen, it stays until another tool is chosen; holding M gives it for one stroke.
+    private var markerButton: some View {
+        let armed = windowState?.markerArmed == true
+        return labeled("Marker") {
+            Button {
+                if !armed { windowState?.activeMarkupTool = .select; windowState?.knifeArmed = false }
+                windowState?.markerArmed = !armed
+            } label: {
+                Image(systemName: "pencil.tip")
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(armed ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
+            .help("Marker — draw freehand: close the stroke for an outline, leave it open for a baseline (hold M for one stroke)")
+            .accessibilityLabel("Marker")
+            .accessibilityIdentifier("segmentEditor.tool.marker")
+        }
+    }
+
     private func shapeButton(
         _ kind: SegmentShapes.DrawKind, label: String, icon: String, key: KeyEquivalent?, help: String
     ) -> some View {
@@ -45,6 +65,7 @@ extension PreviewMarkupToolsRow {
             Button {
                 if armed { windowState?.activeMarkupTool = nil; return }
                 windowState?.knifeArmed = false
+                windowState?.markerArmed = false
                 windowState?.shapeKind = kind
                 windowState?.activeMarkupTool = .drawRegion
                 NotificationCenter.default.post(name: .previewRegionVerb, object: PreviewRegionVerb.draw.rawValue)

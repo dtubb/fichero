@@ -313,7 +313,7 @@ targets are at least 44 pt.
 
 ### Drawing
 
-- `segment-editor.marker` — **[GAP]** (→ #4941; app + engine) the Marker draws freehand: a stroke that ends near
+- `segment-editor.marker` — **[PARTIAL]** (→ #4941; app + engine) the Marker draws freehand: a stroke that ends near
   where it began (within 12 pt) is a closed outline and makes a region or a line of **the kind
   last used** (owner 2026-11-13; the same rule for the Paintbrush); any other stroke is a
   baseline and makes a line of that kind with its outline regenerated from the
@@ -321,6 +321,15 @@ targets are at least 44 pt.
   stroke on the way in (`segment.create` with `stroke` and `smoothing`, 0 to 1, default the
   popover's) so the record never holds a point per pixel. The new segment lands in the region
   holding it and in the order by position, as the Shape tool's lines do (`source.editor.draw-shapes`).
+  *Built (2026-11-14):* `segment.create` takes `smoothing` (Douglas-Peucker in the page image's
+  pixels, 0.5 px at 0 to 5 px at 1, `MARKER_TOLERANCE_PX`) and `outline_from_baseline` (the line's
+  outline drawn from the ink as Redraw does; on no ink the line keeps its baseline alone and the
+  answer says `outline: none`). In Edit Segments, M held is the Marker for one stroke and a tap of M
+  (or the tool row's Marker) chooses it until another tool or Esc; a stroke ending within 12 points of
+  its start is an outline of the kind last drawn, any other a line on it as a baseline, in the
+  region holding most of it (`MarkerStroke`). *Not built:* the popover's smoothing (0.5 is sent),
+  the Pencil. *Tests:* `fichero-server/tests/unit/api/test_segment_create_from_stroke.py`;
+  `fichero/Tests/Unit/general/Views/Source/MarkerToolTests.swift`.
 - `segment-editor.paintbrush` — **[GAP]** (→ #4941; app + engine) the Paintbrush paints along a line of ink with a
   finger, the pointer or the Pencil; the painted area is the outline, its centreline is the
   baseline. The app sends the stroke as points with a width each (the slider's; pressure is

@@ -7904,11 +7904,13 @@ def fichero_segments_create(
     document_id: Annotated[str, Field(description='The document (page) the segment is on.')],
     kind: Annotated[str, Field(description="The segment's kind: region, line, word, ...")],
     kind_raw: Annotated[Optional[str], Field(description='The kind as the source format named it (e.g. a PAGE XML region type).')] = None,
+    outline_from_baseline: Annotated[Optional[bool], Field(description="Draw the line's outline from its baseline and the page's ink. Default: false.")] = None,
     parent_segment_id: Annotated[Optional[str], Field(description="The segment this one sits inside (a line's region).")] = None,
     pass_id: Annotated[str, Field(description='The pass (layer) the segment joins.')],
+    smoothing: Annotated[Optional[float], Field(description='Simplify the outline and baseline as drawn by hand: 0 keeps nearly every bend, 1 the fewest points.')] = None,
 ) -> Any:
     'Create Segment\n\nRoute: POST /api/segments (toolset `segments`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/segments", json=_rt.body({"anchor": anchor, "baseline": baseline, "document_id": document_id, "kind": kind, "kind_raw": kind_raw, "parent_segment_id": parent_segment_id, "pass_id": pass_id}))
+    return _rt.call("POST", "/api/segments", json=_rt.body({"anchor": anchor, "baseline": baseline, "document_id": document_id, "kind": kind, "kind_raw": kind_raw, "outline_from_baseline": outline_from_baseline, "parent_segment_id": parent_segment_id, "pass_id": pass_id, "smoothing": smoothing}))
 
 
 def fichero_segments_create_bulk(
