@@ -23,6 +23,19 @@ struct ActivityLaunchAlertTests {
         #expect(!many.contains("Run 6"))
     }
 
+    @Test("automatic work rolls into one line and a held folder read into another; the title counts the runs alone")
+    func rollups() {
+        let message = StoppedAtQuitAlert.message(items: [
+            ("Run the recipe: Letters", "run-a-recipe"),
+            ("Make thumbnails", "thumbnail"), ("Make thumbnails", "thumbnail"), ("Embed for search", "embedding"),
+            ("Read a synced folder", "read-from-folder")
+        ])
+        #expect(message.hasPrefix("Run the recipe: Letters\n"))
+        #expect(message.contains("and background work: 1 embeds, 2 thumbnails"))
+        #expect(message.contains("New files in a synced folder"))
+        #expect(!message.contains("Make thumbnails"), "no row per thumbnail")
+    }
+
     @Test("Leave Paused, the default, dismisses and sends nothing; with nothing stopped the alert never shows")
     func leavePausedIsTheDefault() async {
         let alert = StoppedAtQuitAlert()
