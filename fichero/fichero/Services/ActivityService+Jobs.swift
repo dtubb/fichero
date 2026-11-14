@@ -176,6 +176,39 @@ extension ActivityService {
         }
     }
 
+    /// One row the quit left unfinished and the open paused (`activity.launch.nothing-starts-one-alert`, #6584).
+    struct StoppedAtQuitItem: Equatable, Identifiable {
+        let id: String
+        let kind: String
+        let name: String
+    }
+
+    /// What the open paused because the quit stopped it: nothing of it runs until `continueAfterQuit`.
+    func stoppedAtQuit() async throws -> [StoppedAtQuitItem] {
+        let response = try await client.api.listStoppedAtQuitApiActivityStoppedAtQuitGet()
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items.map { StoppedAtQuitItem(id: $0.id, kind: $0.kind, name: $0.name) }
+        case .undocumented(let statusCode, let payload):
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
+        }
+    }
+
+    /// The launch alert's Continue: the chosen rows (or all) are let go. Returns the ids continued.
+    func continueAfterQuit(ids: [String]?, all: Bool) async throws -> [String] {
+        let response = try await client.api.continueAfterQuitApiActivityStoppedAtQuitContinuePost(
+            body: .json(.init(ids: ids, all: all)))
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.continuedIds
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, let payload):
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
+        }
+    }
+
     /// Run a failed or stopped job again (the audited `job.retry`, #5356): it
     /// goes back to waiting and carries on from its own checkpoint. Returns the
     /// job's state after the request. A refusal (409: work a run hands in, a

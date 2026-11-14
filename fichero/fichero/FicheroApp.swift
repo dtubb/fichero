@@ -406,6 +406,8 @@ struct FicheroApp: App {
             libraryWindowRoot(seed: nil)
                 // A host stopped sharing, or a shared library would not open: one alert (Step 8.8).
                 .background { Color.clear.failureAlert(Bindable(libraryManager).sharingFailure) }
+                // What the quit left unfinished: one alert, nothing runs until the person chooses (#6584).
+                .modifier(StoppedAtQuitAlertModifier(libraryManager: libraryManager))
                 .onOpenURL { url in
                     handleOpenURL(url)
                 }
