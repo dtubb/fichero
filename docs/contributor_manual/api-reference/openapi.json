@@ -1121,6 +1121,71 @@
         }
       }
     },
+    "/api/activity/jobs/delete": {
+      "post": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Delete Jobs",
+        "description": "Delete in Activity (`activity.window.delete-any-row`, #6583): any row the jobs list shows, in any state, and a\nkind's row for the whole group. A waiting or paused job is cancelled first; a job running now is skipped and named.\nThe rows are kept (a tree, the record and a Retry still read them) and never listed again, after a relaunch too.\nWorkflow runs are deleted by `POST /api/workflow-execution/runs/delete`.",
+        "operationId": "delete_jobs_api_activity_jobs_delete_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteJobsParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteJobsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/activity/stats": {
       "get": {
         "tags": [
@@ -64774,6 +64839,54 @@
         ],
         "title": "DegradedFailure",
         "description": "One thing the engine keeps failing at, in words (`engine.silent.health-lists-degraded`). Class and count only."
+      },
+      "DeleteJobsParams": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Ids",
+            "description": "job ids, or a kind's row (`waiting:<kind>`, `paused:<kind>`)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "title": "DeleteJobsParams"
+      },
+      "DeleteJobsResponse": {
+        "properties": {
+          "deleted_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Deleted Ids",
+            "description": "the rows deleted: kept in the table, never listed again"
+          },
+          "skipped_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skipped Ids",
+            "description": "the rows left: running now, or unknown"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted_ids",
+          "skipped_ids",
+          "count"
+        ],
+        "title": "DeleteJobsResponse"
       },
       "DeletedWithIdResponse": {
         "properties": {

@@ -412,6 +412,16 @@
         "response_model": "ClearFailedResponse"
       },
       {
+        "method": "POST",
+        "path": "/activity/jobs/delete",
+        "operation_id": "delete_jobs_api_activity_jobs_delete_post",
+        "summary": "Delete Jobs",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "DeleteJobsParams",
+        "response_model": "DeleteJobsResponse"
+      },
+      {
         "method": "GET",
         "path": "/activity/jobs/kind/{kind}/items",
         "operation_id": "list_queued_items_api_activity_jobs_kind__kind__items_get",
