@@ -160,7 +160,7 @@ else moves a row out of paused, failed or stopped: not the open, not automatic w
   fails after 6, retried, makes exactly 4 model calls and ends done with 10 results; a second recipe run over the same 10 pages with
   the same model makes 0 calls. *Tests:* `test_continue_makes_only_the_missing_calls_6584.py` (to
   write; a counting stub provider), the existing `test_embed_once_after_reading_6186.py`.
-- `activity.limits.one-cap-per-kind-across-everything` — **[GAP]** (#6584, decision 16; built in part: the lanes `LANES` in
+- `activity.limits.one-cap-per-kind-across-everything` — **[PARTIAL]** (#6584, decision 16; built in part: the lanes `LANES` in
   `jobs.py` cap jobs per lane (`remote` 2, `network` 4, `local-ml` 1 with `LOCAL_READS_CEILING` 4 for the loaded local
   model), `MemoryShortError` and the throttle hold local work by memory and battery; NOT built: a cap per PROVIDER across runs,
   batches (`batch.py` `max_concurrent` 5 is per batch) and the workflow fan-out (`builder.py` semaphores are per process,
@@ -172,8 +172,13 @@ else moves a row out of paused, failed or stopped: not the open, not automatic w
   "waiting for a slot: 3 of 3 OpenRouter calls in flight"; the pane's background line counts "N running · M waiting". Acceptance:
   500 queued Kraken page jobs → at most the cap running at any moment over the whole run; 50 cloud calls across 3 runs to one
   provider → at most the provider cap in flight at any instant (a stub provider that records concurrency); a second provider's
-  calls are not held by the first's cap. *Tests:* `test_one_cap_per_kind_6584.py` (to write), the
-  existing `test_kraken_page_gate_two_at_once.py`, `test_throttle.py`.
+  calls are not held by the first's cap. **Built (2026-11-13 night):** the per-PROVIDER cap, at the one retry layer every
+  cloud call passes through (`circuit_breaker.call_with_breaker`: a threading semaphore per provider across every loop and
+  thread, `PROVIDER_CALLS_AT_ONCE` 3, `FICHERO_CLOUD_CALLS_AT_ONCE` 1–8 until the setting exists; `calls_in_flight` for the
+  words). Not built: the Settings › AI control, the "waiting for a slot" words on the row, the Kraken and local caps beyond
+  today's lanes, the batch and fan-out semaphores folded onto this one. *Tests:*
+  `fichero-server/tests/unit/llm/test_one_cap_per_provider_6584.py`; the existing
+  `fichero-server/tests/unit/jobs/test_kraken_page_gate_two_at_once.py`, `fichero-server/tests/unit/jobs/test_throttle.py`.
 - `activity.limits.rate-limit-backs-off-then-pauses` — **[GAP]** (#6584, #6354, decision 16; consistent with `run-failure-alerts.md`
   decision 2 and its `rate-limited` kind; built in part: `circuit_breaker.call_with_breaker` backs off with jitter honouring
   Retry-After up to 120 s, `retry.py` marks the provider dead for 30 s; NOT built: the pause — today the page FAILS after the
@@ -241,7 +246,7 @@ else moves a row out of paused, failed or stopped: not the open, not automatic w
   done thumbnail rows and two user runs: the filter plus ⌘A plus Delete removes the forty and leaves the two; Clear Finished… after
   one confirmation removes every ended row in every open project. *Tests:* `ActivityClearFinishedShapeTests.swift`,
   `fichero-server/tests/unit/jobs/test_delete_any_row_6583.py`.
-- `activity.pane.failure-with-its-fix-in-the-row` — **[GAP]** (#6354, #6441, decision 19; `run.fail.kinds-table`,
+- `activity.pane.failure-with-its-fix-in-the-row` — **[PARTIAL]** (#6354, #6441, decision 19; `run.fail.kinds-table`,
   `activity.pane.error-row-shape`) a failed row shows IN THE TABLE a red X, ONE plain sentence of what happened and the FIX inline
   (a button that does it, or the exact step): "Out of credit on OpenRouter. [Add credit]", "OpenRouter is limiting how fast you
   can send. Fichero will try again in 2 minutes.", "Qwen 2 VL is not downloaded. [Download]", "2 GB of disk needed. [Free up
@@ -250,8 +255,10 @@ else moves a row out of paused, failed or stopped: not the open, not automatic w
   failure table (`failure.py` `_ROWS`) maps EVERY kind to its words and its fix; a kind with no fix is a spec gap listed under
   Open questions, never shown bare. Acceptance: every kind in the engine's table has non-empty words and at least one action with a
   label; a 429, a 402 and a `KeyError` from a provider stub each list with a sentence that contains no digit code and no
-  exception name, and with the fix above. *Tests:* `test_every_failure_kind_has_a_fix_6354.py` (to
-  write), `ActivityErrorRowTests.swift` (to write).
+  exception name, and with the fix above. **Built (2026-11-13 night):** the engine half of the test: every kind in the table
+  has words, a fix and an action, and names no status code or exception text (`unexpected` names the exception's type on
+  purpose, as the bug report's handle; open question 8). Not built: the row. *Tests:*
+  `fichero-server/tests/unit/llm/test_every_failure_kind_has_a_fix_6354.py`; not yet written: ActivityErrorRowTests.swift.
 - `activity.one-window` — **[GAP]** (#6441, decision 10; `activity.window.is-the-pane-plus-inspector`) ONE Activity window: the
   pane as its content, the selected row's details in the Inspector beside it, and nothing else of Activity's that opens a second
   window or a popover of its own. Inventory and what replaces each:
