@@ -257,13 +257,16 @@ else moves a row out of paused, failed or stopped: not the open, not automatic w
   `fichero-server/tests/unit/jobs/test_every_state_takes_its_verbs_6583.py` (built 2026-11-13 night: the engine's verbs in every
   state of the table above, through the routes);
   not yet written: ActivityRowActionsTests.swift, test_delete_is_undoable_6583.py.
-- `activity.pane.automatic-runs-easy-to-delete` — **[GAP]** (#6583, decision 11) an automatic run (started by the import, the
+- `activity.pane.automatic-runs-easy-to-delete` — **[PARTIAL]** (#6583, decision 11) an automatic run (started by the import, the
   schedule, a trigger, the derivative kinds) deletes like any other row, one at a time with the row's Delete or many at once:
   the filter token "Started by: automatic" plus ⌘A plus Delete, and **Clear Finished…** (which now covers every ended row, runs AND
   jobs of their own, through `job.delete` and `workflow_run.delete`; `activity.window.clear-finished` widened). Acceptance: forty
   done thumbnail rows and two user runs: the filter plus ⌘A plus Delete removes the forty and leaves the two; Clear Finished… after
-  one confirmation removes every ended row in every open project. *Tests:* `ActivityClearFinishedShapeTests.swift`,
-  `fichero-server/tests/unit/jobs/test_delete_any_row_6583.py`.
+  one confirmation removes every ended row in every open project. **Built (2026-11-13 night):** `job.delete` takes `states`
+  (every top-level job of its own in those states; workflow runs keep their delete), and the window's Clear Finished… sends
+  done, failed and cancelled jobs there beside the runs delete. Not built: the "Started by: automatic" filter token.
+  *Tests:* `fichero-server/tests/unit/jobs/test_delete_any_row_6583.py` (the states form); the existing
+  `ActivityClearFinishedShapeTests.swift`.
 - `activity.pane.failure-with-its-fix-in-the-row` — **[PARTIAL]** (#6354, #6441, decision 19; `run.fail.kinds-table`,
   `activity.pane.error-row-shape`) a failed row shows IN THE TABLE a red X, ONE plain sentence of what happened and the FIX inline
   (a button that does it, or the exact step): "Out of credit on OpenRouter. [Add credit]", "OpenRouter is limiting how fast you
