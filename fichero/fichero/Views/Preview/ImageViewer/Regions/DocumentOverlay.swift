@@ -133,6 +133,16 @@ struct DocumentOverlay: Equatable {
     /// The boxes a redraw of `dirty` (document coordinates) must paint, each with its document rect.
     /// AppKit asks for only the newly exposed strip when the page scrolls, and a box outside it is
     /// already on screen or not visible at all -- so a scroll of a 4,525-box page paints a handful.
+    /// The order overlay's arrows (`segment-editor.order-overlay`): from each numbered line's start (its box's top-left,
+    /// where its number sits) to the next number's, in number order. Page fractions.
+    func orderArrows() -> [(from: [Double], to: [Double])] {
+        let numbered = boxes.compactMap { box in box.orderNumber.map { ($0, box.bbox) } }
+            .filter { $0.1.count >= 2 }.sorted { $0.0 < $1.0 }
+        return zip(numbered, numbered.dropFirst()).compactMap { this, next in
+            next.0 == this.0 + 1 ? (Array(this.1.prefix(2)), Array(next.1.prefix(2))) : nil
+        }
+    }
+
     func boxes(in dirty: CGRect, imageRect: CGRect) -> [(box: Box, rect: CGRect)] {
         boxes.compactMap { box in
             guard let rect = DocumentBoxMapping.rect(normalized: box.bbox, imageRect: imageRect),

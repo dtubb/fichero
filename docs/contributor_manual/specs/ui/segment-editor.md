@@ -400,7 +400,11 @@ targets are at least 44 pt.
 - `segment-editor.order-overlay` — **[PARTIAL]** (→ #4941; app) the order is visible as the gradient the umbrella
   fixed (`source.editor.colour.reading-order-gradient`) and, with the overlay on, as numbers at
   each segment's start and a thin arrowed line from each to the next; the overlay is a layer
-  (`segment-editor.layers`). *Built:* the gradient in the model. *Not built:* numbers, arrows.
+  (`segment-editor.layers`). *Built:* the gradient in the model; the numbers (Show Order Numbers, each line's
+  number at its box's top-left). *Built (2026-11-14):* the arrows: with the numbers shown, a thin arrowed line from
+  each numbered line's start to the next number's (`DocumentOverlay.orderArrows`). *Not built:* the overlay as a
+  layer of its own (`segment-editor.layers`). *Tests:*
+  `fichero/Tests/Unit/general/Views/Preview/DocumentOverlayTests.swift::orderArrows`.
 - `segment-editor.type-by-key` — **[PARTIAL]** (→ #4941; app; refines `source.editor.set-kind`) the selection's kind
   is set from a **Kind menu** (under Segment in the menu bar, in the context menu and the
   Inspector) that lists the project's kinds in its order (main text, heading, marginalia, stamp,
