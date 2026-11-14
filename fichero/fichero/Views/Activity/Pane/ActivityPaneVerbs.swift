@@ -49,7 +49,9 @@ enum ActivityPaneVerb: String, CaseIterable, Identifiable {
         if row.transientState != nil { return (self == .stop && hasJob) || self == .delete }
         switch self {
         case .pause: return hasJob && (row.phase == .running || row.phase == .waiting)
-        case .resume: return hasJob && (row.phase == .paused || row.phase == .interrupted)
+        // A failure whose fix the engine says is to continue (a spend cap, a rate limit) continues too.
+        case .resume: return hasJob && (row.phase == .paused || row.phase == .interrupted
+                                        || (row.phase == .failed && row.failure?.actions.contains("resume") == true))
         case .stop: return hasJob && row.phase.isLive
         case .retry: return row.retryJobId != nil && [.failed, .cancelled, .partial].contains(row.phase)
         case .archive: return [.done, .failed, .cancelled, .partial].contains(row.phase)
