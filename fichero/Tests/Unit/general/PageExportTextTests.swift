@@ -70,4 +70,18 @@ struct PageExportTextTests {
         #expect(text.contains("which reading counts —"))
         #expect(!text.contains("which reading counts ×1"))
     }
+    /// Spec: docs/contributor_manual/specs/ui/segment-editor.md -- `segment-editor.validate-before-export`. The export
+    /// checks the page first and shows the count with each kind in words; a page with nothing wrong says nothing.
+    @Test("the problems before an export are counted per kind, in words, in the order met; none says nothing")
+    func problemsBeforeExport() {
+        #expect(PageExportRunner.Text.problems([]) == nil)
+        let text = PageExportRunner.Text.problems(["no-baseline", "overlap", "no-baseline", "made-up"])
+        #expect(text == """
+            4 segment problems on this page:
+            • a line with no baseline ×2
+            • outlines overlapping by more than a tenth
+            • made-up
+            """)
+        #expect(PageExportRunner.Text.problems(["empty-region"])?.hasPrefix("1 segment problem on this page") == true)
+    }
 }

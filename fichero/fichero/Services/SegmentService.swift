@@ -200,6 +200,19 @@ extension SegmentService {
 }
 
 extension SegmentService {
+    /// What is wrong with a page's segments before an export (`segment-editor.validate-before-export`): a read, nothing
+    /// written; empty when there is nothing to fix.
+    func problems(documentId: String) async throws -> [Components.Schemas.SegmentProblem] {
+        let response = try await client.api.validateDocumentSegmentsApiSegmentsDocumentDocIdValidateGet(
+            path: .init(docId: documentId)
+        )
+        switch response {
+        case .ok(let okResponse): return try okResponse.body.json.problems
+        case .unprocessableContent: throw SegmentServiceError.serverError("the page could not be checked")
+        case .undocumented(let statusCode, _): throw SegmentServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
     /// The language, script, direction and encoding the engine resolves for ONE segment, each with
     /// where it came from (#5158; `GET /api/source-settings/resolve`). Empty for an id it cannot find.
     func resolvedSettings(segmentId: String) async throws -> [InspectorLanguage.Setting] {

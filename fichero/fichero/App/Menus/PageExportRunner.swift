@@ -83,6 +83,34 @@ enum PageExportRunner {
             return parts.joined(separator: ", ")
         }
 
+        /// The page's segment problems in words, one line per kind with its count, in the order met
+        /// (`segment-editor.validate-before-export`); nil when there are none.
+        static func problems(_ kinds: [String]) -> String? {
+            guard !kinds.isEmpty else { return nil }
+            var counts: [String: Int] = [:]
+            let order = kinds.filter { counts[$0, default: 0] += 1; return counts[$0] == 1 }
+            let lines = order.map { kind -> String in
+                let times = counts[kind, default: 0] > 1 ? " ×\(counts[kind, default: 0])" : ""
+                return "• \(problemWords[kind] ?? kind)\(times)"
+            }
+            let count = kinds.count
+            return "\(count) segment problem\(count == 1 ? "" : "s") on this page:\n" + lines.joined(separator: "\n")
+        }
+
+        /// The validator's kinds (`media/segment_checks.py`), as a person reads them.
+        static let problemWords: [String: String] = [
+            "no-shape": "a segment with no shape",
+            "self-crossing": "an outline that crosses itself",
+            "no-baseline": "a line with no baseline",
+            "line-outside-regions": "a line outside every region",
+            "empty-region": "a region with no lines",
+            "overlap": "outlines overlapping by more than a tenth",
+            "order-repeat": "a segment twice in a reading order",
+            "order-gap": "a gap in a reading order",
+            "order-missing": "a segment missing from a reading order",
+            "words-do-not-tile": "words that do not cover their line's reading"
+        ]
+
         /// The losses, or the sentence that says there were none.
         ///
         /// "Nothing was lost" is said OUT LOUD rather than by showing an empty
@@ -110,6 +138,8 @@ enum PageExportRunner {
         logger.info("Page export is macOS-only; a document picker is needed on iOS.")
         #else
         do {
+            let (goOn, checked) = await checkedBeforeExport(documentId: documentId, library: library)
+            guard goOn else { return }
             let suggested = Text.filename(forDocumentNamed: documentName, format: format)
             guard let url = await ExportPresentation.savePanel(
                 suggestedName: suggested, contentType: UTType.xml
@@ -133,7 +163,7 @@ enum PageExportRunner {
             let losses = Text.losses(result.losses.map {
                 (what: $0.what, why: $0.why, count: Int($0.count))
             })
-            showReport(summary: summary, losses: losses, url: url)
+            showReport(summary: summary, losses: [checked, losses].compactMap { $0 }.joined(separator: "\n\n"), url: url)
         } catch {
             logger.error("Failed to export page: \(error.localizedDescription)")
             ExportPresentation.showError(error, title: "Page Export Failed")
@@ -151,6 +181,8 @@ enum PageExportRunner {
         logger.info("Page export is macOS-only; a document picker is needed on iOS.")
         #else
         do {
+            let (goOn, checked) = await checkedBeforeExport(documentId: documentId, library: library)
+            guard goOn else { return }
             let result = try await library.documentService.exportPage(
                 documentId: documentId, format: format.name, passId: passId
             )
@@ -163,7 +195,8 @@ enum PageExportRunner {
                     passName: choices.passName, passBasis: choices.passBasis, orderName: choices.orderName,
                     readingKind: choices.readingKind, segmentCount: Int(choices.segmentCount)
                 )),
-                losses: Text.losses(result.losses.map { (what: $0.what, why: $0.why, count: Int($0.count)) }),
+                losses: [checked, Text.losses(result.losses.map { (what: $0.what, why: $0.why, count: Int($0.count)) })]
+                    .compactMap { $0 }.joined(separator: "\n\n"),
                 url: url
             )
         } catch {
@@ -199,6 +232,31 @@ enum PageExportRunner {
     }
 
     #if os(macOS)
+    /// The page's segments checked before an export (`segment-editor.validate-before-export`): whether to go on (no
+    /// problems, or Export Anyway), and the line the report then carries: the problems exported anyway, or that the page
+    /// could not be checked (an export is never blocked by the check failing).
+    @MainActor
+    private static func checkedBeforeExport(
+        documentId: String, library: LibraryManager.LibraryReference
+    ) async -> (goOn: Bool, note: String?) {
+        let kinds: [String]
+        do {
+            kinds = try await library.segmentService.problems(documentId: documentId).map(\.kind)
+        } catch {
+            logger.error("Segment check before export failed: \(error.localizedDescription)")
+            return (true, "The page's segments were not checked before export: \(error.localizedDescription)")
+        }
+        guard let problems = Text.problems(kinds) else { return (true, nil) }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = kinds.count == 1 ? "This page has a segment problem" : "This page has \(kinds.count) segment problems"
+        alert.informativeText = problems
+        alert.addButton(withTitle: "Export Anyway")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return (false, nil) }
+        return (true, "Exported with " + problems)
+    }
+
     /// The report, in a modal the person dismisses deliberately.
     ///
     /// The losses go in a SELECTABLE accessory rather than the informative
