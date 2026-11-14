@@ -197,6 +197,21 @@ extension ZoomableImagePreview {
         }
     }
 
+    /// ⌘⇧A: every box on the page whose segment is of a kind the selection holds (`segment-editor.select-shift-toggles`).
+    /// Selecting is not an action: nothing is sent.
+    func selectSameKind() {
+        guard let artifactId = ocrGeometrySelectionScope, let all = ocrGeometry?.boxes, let documentId,
+              let store = segmentEditStore else { return }
+        let kindOf = Dictionary(
+            store.segments(documentId: documentId).map { ($0.id, $0.kind) }, uniquingKeysWith: { first, _ in first }
+        )
+        let indices = SegmentSelectionGestures.sameKind(
+            as: regionSelection.resolvedIndices(in: all), kinds: all.map { $0.segmentId.flatMap { kindOf[$0] } }
+        )
+        guard !indices.isEmpty else { return }
+        regionSelection.selectAll(indices, artifactId: artifactId, documentId: documentId, in: all)
+    }
+
     /// What letting the selection go at `point` does (`segment-editor.reassign-by-drag`): judged against the segments of
     /// the selection's own pass.
     func dropOfSelection(at point: [Double], command: Bool) -> SegmentMover.Drop {

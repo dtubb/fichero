@@ -268,12 +268,19 @@ targets are at least 44 pt.
 - `segment-editor.select-marquee-lasso` — **[PARTIAL]** (→ #4941; app) a drag on empty page is a band; ⌥-drag is a
   lasso (a drawn loop); both select every segment whose outline is mostly (over half its area)
   inside, at the level being edited (lines by default; regions when the band starts on nothing
-  and ⌘ is held). *Built:* the band on the Mac (`finishBand`, regions and words). *Not built:*
-  the lasso, the over-half rule, the level rule, touch.
+  and ⌘ is held). *Built:* the band on the Mac (`finishBand`, regions and words). *Built (2026-11-14):*
+  the lasso (⌥-drag from empty page in Select, drawn dashed), the over-half rule and the level rule
+  for the band and the lasso (`SegmentSelectionGestures.inside`, `level`: lines when the page shows
+  any, regions with ⌘, else what is shown). *Not built:* touch. *Tests:*
+  `fichero/Tests/Unit/general/Views/Source/SegmentSelectionGesturesTests.swift`.
 - `segment-editor.select-shift-toggles` — **[PARTIAL]** (→ #4941; app) ⇧-click and ⇧-band add to the selection;
   ⇧-click on a selected segment removes it; ⌘A selects every segment of the level shown; ⌘⇧A
   selects the same kind as the selection ("select the same kind" from the umbrella). *Built:*
-  ⇧-click and band on the Mac. *Not built:* removal by ⇧-click, ⌘A, same kind.
+  ⇧-click and band on the Mac, ⌘A (Edit › Segments ▸ Select All Segments: every box shown).
+  *Built (2026-11-14):* ⇧-click on a selected segment in Edit Segments removes it (it no longer starts
+  a move, `SegmentEditingMode.pressStartsMove`); Edit › Segments ▸ Select Same Kind (⌘⇧A,
+  `SegmentSelectionGestures.sameKind`). *Tests:*
+  `fichero/Tests/Unit/general/Views/Source/SegmentSelectionGesturesTests.swift`.
 - `segment-editor.select-brush` — **[GAP]** (→ #4941; app) the Brush paints a mask on the page; every segment the
   mask touches is selected when the stroke ends; ⌥ while painting subtracts; `[` and `]` change
   the size, shown as a circle under the pointer; on the iPad the size follows the slider and,
