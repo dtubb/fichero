@@ -523,13 +523,13 @@ extension ZoomableImagePreview {
         }
     }
 
-    /// K down and up in Edit Segments: the Knife held for one stroke (`segment-editor.split-knife`). Ignored outside
-    /// Edit Segments and with a modifier held, so ⌘K and the rest keep their jobs.
+    /// K down and up in Edit Segments: the Knife held for one stroke, or chosen by a tap (`segment-editor.split-knife`).
+    /// Ignored outside Edit Segments and with a modifier held, so ⌘K and the rest keep their jobs.
     func holdKnife(_ press: KeyPress) -> KeyPress.Result {
         guard let windowState, let held = KnifeStroke.held(
             pressed: press.phase == .down, modifiers: press.modifiers, isEditing: isEditingSegments, wasHeld: windowState.knifeHeld
         ) else { return .ignored }
-        windowState.knifeHeld = held
+        if held { windowState.pressKnifeKey() } else { windowState.letGoOfKnifeKey() }
         return .handled
     }
 
@@ -547,6 +547,8 @@ extension ZoomableImagePreview {
     func clearEphemeralRegionState() {
         // Escape during a polygon or baseline drawing abandons just the drawing, nothing else.
         if windowState?.abandonDrawing() == true { return }
+        // Then the Knife chosen by K or the tool row goes down, back to Select; the selection stays (one thing per press).
+        if windowState?.knifeArmed == true { windowState?.knifeArmed = false; return }
         isAddingRegion = false
         windowState?.previewMarquees.clear()
         regionSelection.clear()

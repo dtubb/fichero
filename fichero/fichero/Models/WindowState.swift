@@ -142,8 +142,28 @@ class WindowState {
     /// the tool goes back to what it was.
     var knifeHeld = false
 
-    /// The Knife chosen from the tool row: every stroke cuts until another tool is chosen.
+    /// The Knife chosen from the tool row, or by a tap of K: every stroke cuts until another tool is chosen or Esc.
     var knifeArmed = false
+
+    /// A Knife stroke was let go while K was held, so letting go of K puts the Knife back rather than choosing it.
+    var knifeStrokedWhileHeld = false
+
+    /// K pressed in Edit Segments: the Knife held, for a stroke or for a tap.
+    func pressKnifeKey() {
+        knifeHeld = true
+        knifeStrokedWhileHeld = false
+    }
+
+    /// K let go (`segment-editor.split-knife`): after a stroke the Knife goes back; a tap (no stroke while held) chooses it,
+    /// as the tool row's Knife does, until another tool is chosen or Esc.
+    func letGoOfKnifeKey() {
+        if knifeHeld, !knifeStrokedWhileHeld {
+            activeMarkupTool = .select
+            knifeArmed = true
+        }
+        knifeHeld = false
+        knifeStrokedWhileHeld = false
+    }
 
     /// A short word from the segment editor about the edit just made (the Knife's lines left alone), shown over the page
     /// for a few seconds; nil when there is nothing to say.

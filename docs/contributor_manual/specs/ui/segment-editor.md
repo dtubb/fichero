@@ -229,10 +229,12 @@ targets are at least 44 pt.
   Segments and sends the stroke once on release (`SegmentEdit.knife`, `RegionInteractionLayer+Knife`).
   The Knife button (scissors) in the segment editor's tool row stays on until another tool is
   chosen; when it leaves lines alone the page says how many for five seconds
-  (`SegmentEdit.knifeNotice`). *Not built:* a bare K press to arm it (K is held for one stroke), the Pencil.
+  (`SegmentEdit.knifeNotice`). *Built (2026-11-14):* a tap of K (pressed and let go with no stroke between)
+  chooses the Knife until another tool is chosen; Esc puts it down before it clears the selection
+  (`WindowState.letGoOfKnifeKey`). *Not built:* the Pencil.
   *Tests:* `test_segment_split_knife.py`
   (two crossings, graze, rtl, vertical); `KnifeStrokeTests.swift` (the stroke is sent once,
-  in the drawn frame, with versions).
+  in the drawn frame, with versions; `aTapOfKChoosesTheKnife`).
 - `segment-editor.split-at-a-point` — **[OK]** (→ #4941; app) with one line selected, ⌘⇧K splits it under the
   pointer (a vertical cut through that point at right angles to the baseline), for the common
   case where a stroke is more than is needed; the same engine call with a two-point `cut_path`.

@@ -85,6 +85,24 @@ struct KnifeStrokeTests {
         #expect(KnifeStroke.held(pressed: false, modifiers: [], isEditing: true, wasHeld: false) == nil)
     }
 
+    @Test("a tap of K (no stroke while held) chooses the Knife until another tool; K held for a stroke puts it back")
+    func aTapOfKChoosesTheKnife() {
+        let window = WindowState(libraryId: UUID())
+        window.activeMarkupTool = .drawRegion
+        window.pressKnifeKey()
+        window.letGoOfKnifeKey()
+        #expect(window.knifeArmed, "a bare K chooses the Knife")
+        #expect(window.activeMarkupTool == .select)
+        #expect(!window.knifeHeld)
+
+        window.knifeArmed = false
+        window.pressKnifeKey()
+        window.knifeStrokedWhileHeld = true  // what the layer sets when a stroke is let go with K down
+        window.letGoOfKnifeKey()
+        #expect(!window.knifeArmed, "after a stroke, letting go of K puts the Knife back")
+        #expect(!window.knifeHeld)
+    }
+
     @Test("the Knife chosen from the tool row stays until another tool is chosen")
     func choosingAnotherToolPutsTheKnifeDown() {
         let window = WindowState(libraryId: UUID())
