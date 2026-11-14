@@ -62,12 +62,9 @@ struct ActivityStatusToolbarItem: View {
     }
 
     var body: some View {
-        // The Start / Stop control sits beside the indicator (ruled 2026-10-09,
-        // `activity.mode.start-stop`): its state at a glance, running, held or paused.
-        HStack(spacing: 6) {
-            ActivityModeButton(store: activityStore)
-            indicator
-        }
+        // Run Automatically is a SETTING (`activity.automatic.one-place`, #6441): the mode control left the toolbar; its
+        // two verbs are Project › Activity's Pause / Resume Automatic Work.
+        indicator
     }
 
     private var indicator: some View {

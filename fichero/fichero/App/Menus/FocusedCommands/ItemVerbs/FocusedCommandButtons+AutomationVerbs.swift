@@ -17,7 +17,7 @@ enum AutomationVerb: String, CaseIterable, Equatable {
         switch self {
         case .pause: "Pause"
         case .resume: "Resume"
-        case .runNow: "Run Now"
+        case .runNow: "Run Schedule Now"  // never the background mode's words (`activity.automatic.one-place`)
         case .cancel: "Cancel Batch"
         }
     }

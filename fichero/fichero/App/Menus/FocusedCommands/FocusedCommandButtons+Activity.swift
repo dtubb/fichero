@@ -30,7 +30,7 @@ struct ActivityRunMenuTarget: Equatable {
             stop: {
                 guard let store, let jobId else { return }
                 Task {
-                    report(await store.cancelJob(jobId: jobId, runThreadId: runThreadId)
+                    report(await stop(jobId: jobId, runThreadId: runThreadId, store: store)
                         .map { "Couldn't stop \(rowName): \($0)" })
                 }
             },
@@ -42,6 +42,11 @@ struct ActivityRunMenuTarget: Equatable {
                 }
             }
         )
+    }
+
+    /// The one Stop (`ActivityStore.cancelJob`), for the Activity pane's verbs on several rows too; nil when the engine took it.
+    static func stop(jobId: String, runThreadId: String?, store: ActivityStore) async -> String? {
+        await store.cancelJob(jobId: jobId, runThreadId: runThreadId)
     }
 
     /// One stage's failed pages (the details' stage cards and summary, the project window's run strip):
@@ -139,5 +144,26 @@ struct FocusedActivityVerbButtons: View {
             Button(verb.title) { target?.perform(verb) }
                 .disabled(!(target?.enabled.contains(verb) ?? false))
         }
+    }
+}
+
+/// Project › Activity › Pause Automatic Work / Resume Automatic Work (`activity.pane.run-automatically-is-a-setting`): the
+/// background lane's two verbs, on the front window's project, through the same engine action as the setting
+/// (`ActivityStore.setBackgroundMode`). The one the mode does not offer is disabled, never hidden.
+struct FocusedAutomaticWorkButtons: View {
+    @FocusedValue(\.projectMenu) private var project
+
+    var body: some View {
+        let store = project?.library?.activityStore
+        let offersPause = RunAutomaticallySetting.offersPause(store.map { ActivityModeIndicator(store: $0).mode })
+        Button(RunAutomaticallySetting.pauseCommand) { set(.paused, on: store) }
+            .disabled(offersPause != true)
+        Button(RunAutomaticallySetting.resumeCommand) { set(.automatic, on: store) }
+            .disabled(offersPause != false)
+    }
+
+    private func set(_ mode: ActivityMode, on store: ActivityStore?) {
+        guard let store else { return }
+        Task { _ = await store.setBackgroundMode(mode) }
     }
 }

@@ -26,4 +26,23 @@ struct RunAutomaticallySettingTests {
         #expect(sentences.count == 1)
         #expect(!RunAutomaticallySetting.sentence.contains("Run Now"))
     }
+
+    @Test("Project › Activity offers Pause Automatic Work while it runs and Resume Automatic Work while paused; neither without a project")
+    func commands() {
+        #expect(RunAutomaticallySetting.pauseCommand == "Pause Automatic Work")
+        #expect(RunAutomaticallySetting.resumeCommand == "Resume Automatic Work")
+        #expect(RunAutomaticallySetting.offersPause(.automatic) == true)
+        #expect(RunAutomaticallySetting.offersPause(.started) == true)
+        #expect(RunAutomaticallySetting.offersPause(.paused) == false)
+        #expect(RunAutomaticallySetting.offersPause(nil) == nil)
+        // Neither reads as a row's verb.
+        for title in [RunAutomaticallySetting.pauseCommand, RunAutomaticallySetting.resumeCommand] {
+            #expect(!ActivityPaneVerb.allCases.map(\.title).contains(title))
+        }
+    }
+
+    @Test("a schedule's own button says Run Schedule Now, never the mode's Run Now")
+    func runScheduleNow() {
+        #expect(AutomationVerb.runNow.title == "Run Schedule Now")
+    }
 }
