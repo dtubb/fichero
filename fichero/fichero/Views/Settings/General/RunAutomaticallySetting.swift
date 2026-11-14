@@ -44,8 +44,7 @@ struct RunAutomaticallyToggle: View {
 #Preview("Run automatically") {
     Form {
         Section("Background Work") {
-            RunAutomaticallyToggle(
-                store: ActivityStore(service: ActivityService(ficheroClient: FicheroClient(libraryPath: nil)), library: nil))
+            RunAutomaticallyToggle(store: ActivityStore(service: ActivityService(apiClient: APIClient()), library: nil))
         }
     }
     .formStyle(.grouped).frame(width: 420)
