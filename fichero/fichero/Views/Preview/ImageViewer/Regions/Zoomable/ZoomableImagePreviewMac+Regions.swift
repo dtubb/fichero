@@ -508,6 +508,7 @@ extension ZoomableImagePreview {
             isEditing: isEditingSegments, selectionCount: regionSelection.count,
             toggleEditing: { windowState?.isEditingSegments.toggle() },
             canSelectAll: ocrGeometry?.boxes.isEmpty == false, selectAll: { selectAllGeometryForArmedTool() },
+            selectSameKind: { selectSameKind() },
             delete: { deleteSelectedRegions() }, join: { combineSelectedRegions() },
             selectionHasBaselines: selectionHasBaselines, redraw: { redrawSelectedOutlines() },
             splitAtPoint: { splitSelectedLineAtLastPoint() },

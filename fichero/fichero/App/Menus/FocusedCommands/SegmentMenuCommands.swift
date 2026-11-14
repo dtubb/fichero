@@ -9,6 +9,8 @@ struct SegmentMenuTarget {
     let toggleEditing: () -> Void
     let canSelectAll: Bool
     let selectAll: () -> Void
+    /// Select Same Kind (⌘⇧A): every segment of a kind the selection holds (`segment-editor.select-shift-toggles`).
+    var selectSameKind: () -> Void = {}
     let delete: () -> Void
     let join: () -> Void
     /// Whether every selected line has a baseline to redraw its outline from (`segment-editor.edge.no-baseline`).
@@ -45,6 +47,9 @@ struct SegmentMenuContent: View {
         Divider()
         Button("Select All Segments") { target?.selectAll() }
             .disabled(target?.canSelectAll != true)
+        Button("Select Same Kind") { target?.selectSameKind() }
+            .keyboardShortcut("a", modifiers: [.command, .shift])
+            .disabled(count == 0)
         // No chord of its own: Edit › Delete (⌘⌫) is the one keyed home and takes the segments when the Preview holds them
         // (`SegmentDeleteRoute`). A bare ⌫ here would take the key from every text field.
         Button(Self.deleteTitle(count), role: .destructive) { target?.delete() }

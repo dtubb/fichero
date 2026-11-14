@@ -49,9 +49,10 @@ enum SegmentEditingMode {
     static func shapeDrawsSegment(isEditing: Bool) -> Bool { isEditing }
 
     /// A press on a selected box starts a move only in the mode; while reading it is a
-    /// click, which re-selects.
-    static func pressStartsMove(isEditing: Bool, onSelectedBox: Bool) -> Bool {
-        isEditing && onSelectedBox
+    /// click, which re-selects. With ⇧ it is a ⇧-click, which takes the box out of the selection
+    /// (`segment-editor.select-shift-toggles`).
+    static func pressStartsMove(isEditing: Bool, onSelectedBox: Bool, shift: Bool = false) -> Bool {
+        isEditing && onSelectedBox && !shift
     }
 }
 

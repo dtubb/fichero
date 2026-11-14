@@ -108,9 +108,15 @@ struct RegionInteractionLayer: View {
     /// Live rubber-band corners (view points).
     @State private var bandStart: CGPoint?
     @State private var bandCurrent: CGPoint?
+    /// ⌘ held as the band or lasso began: it selects regions (`segment-editor.select-marquee-lasso`).
+    @State var bandCommand = false
+    /// A live lasso (⌥-drag on empty page in Select): the loop so far, in the page's fractions.
+    @State var lasso: [[Double]] = []
     /// ⇧ held? Tracked via `onModifierKeysChanged` (pure SwiftUI — the §6b
     /// no-AppKit rule) because a tap gesture's value carries no modifiers.
     @State private var shiftHeld = false
+    /// ⌘ held, from the same pointer event.
+    @State private var commandHeld = false
     /// Live Reshape: the box, what is reshaped, the point being dragged, and the points as they are now.
     @State var reshapeDrag: ReshapeDrag?
     /// Live Resize (#5215): the box, the handle pressed, and the box as it is now.
@@ -130,6 +136,7 @@ struct RegionInteractionLayer: View {
                     liveReshape(in: geo.size)
                     liveDrawing(in: geo.size)
                     liveKnife(in: geo.size)
+                    liveLasso(in: geo.size)
                     liveSimplify(in: geo.size)
                     segmentNotice()
                     if let rect = liveBandRect {
@@ -321,10 +328,12 @@ extension RegionInteractionLayer {
     private func handlePointer(_ event: PreviewPointerEvent, in size: CGSize) {
         guard let point = layerPoint(event.point, in: size) else { return }
         shiftHeld = event.shift
+        commandHeld = event.command
         // Edit Segments on ONE selected shape: Reshape takes the press, the drag and the release.
         // An armed Polygon or Baseline tool owns the click first (#6476): a point placed inside a selected region
         // was taken by Reshape and the region, not the drawing, got it.
         if handleKnife(event) || handleDrawShape(event, in: size) || handleReshape(event, in: size) { return }
+        if handleLasso(event, at: point, in: size) { return }
         switch event.phase {
         case .pressed:
             handlePress(at: point, clickCount: event.clickCount, in: size)
@@ -375,7 +384,7 @@ extension RegionInteractionLayer {
             return
         }
         if let hit = selectedBoxIndex(at: point, in: size),
-           SegmentEditingMode.pressStartsMove(isEditing: isEditing, onSelectedBox: true) {
+           SegmentEditingMode.pressStartsMove(isEditing: isEditing, onSelectedBox: true, shift: shiftHeld) {
             moveDrag = (hit, .zero)
             moveStart = point
             return
@@ -386,18 +395,19 @@ extension RegionInteractionLayer {
         if isBandSelecting, !hitsAnything(at: point, in: size) {
             bandStart = point
             bandCurrent = point
+            bandCommand = commandHeld
             return
         }
         handleTap(at: point, in: size)
     }
 
     /// The select tool armed (the DEFAULT since 2026-09-02)?
-    private var isBandSelecting: Bool {
+    var isBandSelecting: Bool {
         windowState?.activeMarkupTool == .select
     }
 
     /// Anything clickable under the point — a marquee or a displayed box.
-    private func hitsAnything(at location: CGPoint, in size: CGSize) -> Bool {
+    func hitsAnything(at location: CGPoint, in size: CGSize) -> Bool {
         if let marquees, marquees.documentId == documentId,
            RegionHitTesting.pick(
                at: location, boxes: marquees.rects, in: size, visible: visible
@@ -411,7 +421,7 @@ extension RegionInteractionLayer {
 
     /// Click = select; ⇧-click = add/toggle; click-away = deselect (regions
     /// AND marquees — the honest reading of "click-away clears").
-    private func handleTap(at location: CGPoint, in size: CGSize) {
+    func handleTap(at location: CGPoint, in size: CGSize) {
         let additive = shiftHeld
         // Marquees first: they are drawn on top and are what the user
         // most recently made.
@@ -504,18 +514,19 @@ extension RegionInteractionLayer {
         }
     }
 
-    /// Select (⇧ = extend) every DISPLAYED box the band touches — the select
-    /// tool's sweep, addressed exactly the way a click-select is.
+    /// Select (⇧ = extend) every DISPLAYED box the band holds mostly (over half), at the level being edited —
+    /// lines, or regions with ⌘ (`segment-editor.select-marquee-lasso`) — addressed the way a click-select is.
     private func selectRegions(inBand band: [Double]) {
+        selectRegions(inLoop: SegmentSelectionGestures.loop(ofBand: band))
+    }
+
+    /// Select (⇧ = extend) every DISPLAYED box the loop holds mostly, at the level being edited.
+    func selectRegions(inLoop loop: [[Double]]) {
         guard let artifactId else { return }
-        let bandRect = CGRect(x: band[0], y: band[1], width: band[2], height: band[3])
-        let hits = boxes.filter { entry in
-            let bbox = entry.box.bbox
-            guard bbox.count >= 4 else { return false }
-            return bandRect.intersects(
-                CGRect(x: bbox[0], y: bbox[1], width: bbox[2], height: bbox[3])
-            )
-        }.map(\.index)
+        let shown = boxes.map { SegmentSelectionGestures.Box(index: $0.index, bbox: $0.box.bbox, level: $0.box.level) }
+        let hits = SegmentSelectionGestures.inside(
+            loop, boxes: shown, level: SegmentSelectionGestures.level(of: shown, commandHeld: bandCommand)
+        )
         guard !hits.isEmpty else {
             if !shiftHeld { selection.clear() }
             return
