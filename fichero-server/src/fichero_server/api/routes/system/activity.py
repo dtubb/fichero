@@ -1590,6 +1590,41 @@ def _action_job_clear_failed(db: Database, params: ClearFailedParams, ctx: Actio
     )
 
 
+class DeleteJobsParams(BaseModel):
+    ids: list[str] = Field(description="job ids, or a kind's row (`waiting:<kind>`, `paused:<kind>`)")
+
+
+class DeleteJobsResponse(BaseModel):
+    deleted_ids: list[str] = Field(description="the rows deleted: kept in the table, never listed again")
+    skipped_ids: list[str] = Field(description="the rows left: running now, or unknown")
+    count: int
+
+
+@router.post("/jobs/delete", response_model=DeleteJobsResponse)
+async def delete_jobs(
+    params: DeleteJobsParams,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> DeleteJobsResponse:
+    """Delete in Activity (`activity.window.delete-any-row`, #6583): any row the jobs list shows, in any state, and a
+    kind's row for the whole group. A waiting or paused job is cancelled first; a job running now is skipped and named.
+    The rows are kept (a tree, the record and a Retry still read them) and never listed again, after a relaunch too.
+    Workflow runs are deleted by `POST /api/workflow-execution/runs/delete`."""
+    result = registry.invoke(db, "job.delete", params.model_dump(), ctx)
+    return DeleteJobsResponse.model_validate(result.result)
+
+
+@action("job.delete", DeleteJobsParams, domains=["activity"])
+def _action_job_delete(db: Database, params: DeleteJobsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.execution import jobs as job_queue
+
+    deleted, skipped = job_queue.delete_jobs(db, params.ids)
+    return {"deleted_ids": deleted, "skipped_ids": skipped, "count": len(deleted)}, ChangeSpec(
+        domains=["activity"], target_ids=deleted, before={"asked": params.ids},
+        after={"deleted": len(deleted), "skipped": skipped}, emit_type="job.updated",
+    )
+
+
 def _invert_job_pause(before: dict | None, after: dict | None, ctx: ActionContext):
     return ("job.pause", {"job_id": (after or {})["id"], "paused": (before or {}).get("state") == "paused"})
 

@@ -3271,23 +3271,24 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
         (g, kind): n
         for g, kind, n in db.execute_fetchall(
             f"SELECT CASE WHEN state IN ('waiting', 'running') AND {queued} THEN 'queue' ELSE state END AS g, kind, COUNT(*) "
-            f"FROM jobs WHERE state IN ('waiting', 'paused', 'running') AND {runs} GROUP BY g, kind",
+            f"FROM jobs WHERE state IN ('waiting', 'paused', 'running') AND {runs}{cleared_filter} GROUP BY g, kind",
             committed=True,
         )
     }
-    parts = [f"SELECT * FROM jobs WHERE state = 'running' AND {runs} AND NOT {queued}"]
+    # A deleted row (`cleared_at`, `activity.window.delete-any-row`) is listed in no state, and stands for no group.
+    parts = [f"SELECT * FROM jobs WHERE state = 'running' AND {runs} AND NOT {queued}{cleared_filter}"]
     params: list[Any] = []
     for g, kind in counts:
         if g == "queue":
             # The first row of the kind (running before waiting, then the lane's pick), and one job really going,
             # which makes the row Running.
             parts.append(
-                f"(SELECT * FROM jobs WHERE kind = ? AND {queued} AND state IN ('running', 'waiting') "
+                f"(SELECT * FROM jobs WHERE kind = ? AND {queued} AND state IN ('running', 'waiting'){cleared_filter} "
                 f"ORDER BY CASE state WHEN 'running' THEN 0 ELSE 1 END, "
                 f"CASE WHEN state = 'waiting' THEN -{_PERSON_RANK_SQL} ELSE 0 END, epoch_ms(created_at), rowid LIMIT 1)"
             )
             parts.append(
-                f"(SELECT * FROM jobs WHERE kind = ? AND {queued} AND state = 'running' AND {really_going} LIMIT 1)"
+                f"(SELECT * FROM jobs WHERE kind = ? AND {queued} AND state = 'running' AND {really_going}{cleared_filter} LIMIT 1)"
             )
             params += [kind, kind]
         elif g in ("waiting", "paused"):
@@ -3296,7 +3297,7 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
             # the kind stands for the kind's paused row; only waiting ones of a kind with its own rows are left here.
             own_only = f"AND NOT {queued} " if g == "waiting" else ""
             parts.append(
-                f"(SELECT * FROM jobs WHERE state = ? AND kind = ? {own_only}"
+                f"(SELECT * FROM jobs WHERE state = ? AND kind = ? {own_only}{cleared_filter} "
                 f"ORDER BY {first}epoch_ms(created_at), rowid LIMIT 1)"
             )
             params += [g, kind]
@@ -3527,6 +3528,61 @@ def clear_failed(db: "Database") -> list[str]:
             f"UPDATE jobs SET cleared_at = ? WHERE id IN ({marks})", [utc_now(), *ids]
         )
     return ids
+
+
+DELETED_REASON = "Deleted by you"
+
+
+def _under(db: "Database", job_id: str) -> list[str]:
+    """A row's id and every row's under it (its steps, pages, child runs), by `parent_id`."""
+    found, frontier = [job_id], [job_id]
+    while frontier:
+        marks = ", ".join("?" for _ in frontier)
+        frontier = [r[0] for r in db.execute_fetchall(f"SELECT id FROM jobs WHERE parent_id IN ({marks})", frontier)]
+        found.extend(frontier)
+    return found
+
+
+def delete_jobs(db: "Database", ids: list[str]) -> tuple[list[str], list[str]]:
+    """Delete in Activity (`activity.window.delete-any-row`, #6583): each id a job row, or a kind's row
+    (`waiting:<kind>`, `paused:<kind>`: every job of that kind not started). A row still running on a lane is skipped.
+    A waiting or paused row is cancelled first ("Deleted by you"), so no lane picks it; then the row and every row under
+    it are marked `cleared_at` (kept for the tree, the record and a Retry, never listed again; `resume` ends a marked
+    row instead of taking it up). Returns (the ids deleted, the ids skipped)."""
+    _ensure(db)
+    if not _has_cleared_at(db):
+        raise ValueError("This project's jobs table cannot mark deleted rows; see the engine log")
+    live = set(_scheduler.running_ids())
+    deleted: list[str] = []
+    skipped: list[str] = []
+    now = utc_now()
+    for asked in ids:
+        if asked.startswith(("waiting:", "paused:")):
+            kind = asked.split(":", 1)[1]
+            rows = db.execute_fetchall(
+                "SELECT id, state FROM jobs WHERE kind = ? AND parent_id IS NULL AND state IN ('waiting', 'paused') "
+                "AND cleared_at IS NULL ORDER BY created_at, id",
+                [kind],
+            )
+        else:
+            rows = db.execute_fetchall("SELECT id, state FROM jobs WHERE id = ?", [asked])
+            if not rows:
+                skipped.append(asked)
+                continue
+        for job_id, state in rows:
+            if state == "running" and job_id in live:
+                skipped.append(job_id)
+                continue
+            under = _under(db, job_id)
+            marks = ", ".join("?" for _ in under)
+            db.execute(
+                f"UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = COALESCE(finished_at, ?) "
+                f"WHERE id IN ({marks}) AND state IN ('waiting', 'paused', 'running')",
+                [DELETED_REASON, now, *under],
+            )
+            db.execute(f"UPDATE jobs SET cleared_at = ? WHERE id IN ({marks})", [now, *under])
+            deleted.append(job_id)
+    return deleted, skipped
 
 
 #: Kinds whose every job is a row of its own in Activity, however many are queued (`snapshot`).

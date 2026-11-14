@@ -649,6 +649,23 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("delete-jobs")
+    def activity_delete_jobs_post(
+        ctx: typer.Context,
+        ids: list[str] = typer.Option(..., '--ids', help="job ids, or a kind's row (`waiting:<kind>`, `paused:<kind>`) A list: repeat the flag, or give the values comma-separated, or as JSON."),
+    ) -> None:
+        """Delete Jobs (POST /api/activity/jobs/delete)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/jobs/delete"
+            params = None
+            payload = _build_json_payload({
+                "ids": ids,
+            }, {
+                "ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Ids', 'description': "job ids, or a kind's row (`waiting:<kind>`, `paused:<kind>`)", 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-queued-items")
     def activity_list_queued_items_get(
         ctx: typer.Context,
