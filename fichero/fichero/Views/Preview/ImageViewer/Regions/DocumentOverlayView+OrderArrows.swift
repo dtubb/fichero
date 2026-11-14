@@ -1,5 +1,5 @@
 #if os(macOS)
-import AppKit
+import SwiftUI
 
 extension DocumentOverlayView {
     /// A thin arrowed line from each numbered line to the next (`segment-editor.order-overlay`), under the numbers.
