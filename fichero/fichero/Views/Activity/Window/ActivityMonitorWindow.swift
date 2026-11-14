@@ -6,10 +6,13 @@ import SwiftUI
 struct ActivityMonitorWindow: View {
     @State private var selectionState = ActivityWindowSelectionState.shared
     @State private var showsInspector = true
+    /// The window's own step stack: Delete, Archive and Put Back here are undone by Edit › Undo in this window.
+    @State private var steps = WindowSteps()
 
     var body: some View {
-        ActivityPaneView(libraryId: nil, paneKey: "activity.window", reveal: selectionState.reveal, revealFiles: selectionState.revealFiles,
-                         onSelect: { selectionState.pick = $0 })
+        ActivityPaneView(libraryId: nil, paneKey: "activity.window", reveal: selectionState.reveal,
+                         revealFiles: selectionState.revealFiles, onSelect: { selectionState.pick = $0 },
+                         onRevealed: { selectionState.reveal = nil; selectionState.revealFiles = nil })
             .inspector(isPresented: $showsInspector) {
                 ActivityInspectorSection(pick: selectionState.pick)
                     .inspectorColumnWidth(min: 280, ideal: 380, max: 640)
@@ -18,6 +21,9 @@ struct ActivityMonitorWindow: View {
                 Button { showsInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
                     .help(showsInspector ? "Hide the Inspector" : "Show the Inspector")
             }
+            .environment(steps)
+            .focusedSceneValue(\.windowSteps, steps)
+            .overlay(alignment: .bottom) { UndoRefusalNotice(steps: steps) }
             .navigationTitle("Activity")
             .frame(minWidth: 720, minHeight: 520)
             .accessibilityIdentifier("activity.window")

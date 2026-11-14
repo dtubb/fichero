@@ -96,12 +96,16 @@ extension ActivityPaneView {
         if verb == .delete { requestDelete(rows); return }
         let (targets, skipped) = verb.split(rows)
         Task {
+            if verb == .archive || verb == .putBack {
+                let outcome = await archive(verb, targets)
+                notice = ActivityPaneVerb.outcome(verb, done: outcome.done, skipped: skipped + outcome.skipped)
+                return
+            }
             var done = 0
-            for row in targets where await act(verb, on: row) { done += 1 }
-            if verb == .archive || verb == .putBack { await archive(verb, targets) }
-            let failedHere = targets.count - done
-            notice = ActivityPaneVerb.outcome(verb, done: verb == .archive || verb == .putBack ? targets.count : done,
-                                              skipped: skipped + (verb == .archive || verb == .putBack ? 0 : failedHere))
+            for row in targets {
+                if await act(verb, on: row) { done += 1 }
+            }
+            notice = ActivityPaneVerb.outcome(verb, done: done, skipped: skipped + targets.count - done)
         }
     }
 
@@ -121,93 +125,90 @@ extension ActivityPaneView {
         }
     }
 
-    /// Delete: one confirmation when a running row is among them (Stop then Delete), else at once.
+    /// Delete: one confirmation when a running row is among them (Stop then Delete), else at once. The whole selection
+    /// goes on, so the rows Delete does not apply to are counted as skipped either way.
     func requestDelete(_ rows: [ActivityMonitorRow]) {
         let (targets, _) = ActivityPaneVerb.delete.split(rows)
         guard !targets.isEmpty else { return }
         if ActivityPaneVerb.deleteNeedsConfirmation(targets) {
-            confirmingDelete = targets
+            confirmingDelete = rows
         } else {
             Task { await delete(rows, stopRunning: false) }
         }
     }
 
-    /// The ONE delete (#6583), routed per row's own project: workflow runs through the runs delete, jobs of their own through
-    /// the jobs delete (Stop then Delete when confirmed). Undo puts the jobs back as they were (`job.undelete`).
+    /// The ONE delete (#6583), routed per row's own project: jobs of their own through the audited `job.delete` (Stop then
+    /// Delete when confirmed), one step on the window's stack so Edit › Undo puts them back (`job.undelete`); workflow runs
+    /// through the runs delete, stopped first when confirmed. A run's delete is not undoable in the engine.
     func delete(_ rows: [ActivityMonitorRow], stopRunning: Bool) async {
         let (targets, skippedByState) = ActivityPaneVerb.delete.split(rows)
         var deleted = 0, skipped = skippedByState
-        var undo: [(ActivityStore, [String])] = []
         let jobIdsByLibrary = Self.jobIdsByLibrary(targets)
         for library in libraries {
             let ids = Set(targets.map(\.id))
+            let runRows = targets.filter { $0.kind == .run && $0.libraryId == library.id }
             let threadIds = library.activityStore.runs.filter { ids.contains($0.id) }.map(\.runId)
             if !threadIds.isEmpty {
-                let outcome = await library.activityStore.deleteRuns(threadIds: threadIds)
+                let outcome = await deleteRuns(threadIds, stopping: stopRunning ? runRows.filter { $0.phase.isLive } : [],
+                                               store: library.activityStore)
                 deleted += outcome.deletedIds.count
                 skipped += outcome.skippedIds.count
             }
             if let jobIds = jobIdsByLibrary[library.id], !jobIds.isEmpty {
-                let outcome = await library.activityStore.deleteJobs(ids: jobIds, stopRunning: stopRunning)
-                deleted += outcome.deletedIds.count
-                skipped += outcome.skippedIds.count
-                if !outcome.deletedIds.isEmpty { undo.append((library.activityStore, outcome.deletedIds)) }
+                let outcome = await library.activityStore.performUndoable(
+                    "job.delete", ids: jobIds, stopRunning: stopRunning,
+                    named: UndoableChange.named("Delete", count: jobIds.count, one: "Row", many: "Rows"),
+                    actions: library.actionsService, steps: windowSteps)
+                deleted += outcome.done
+                skipped += outcome.skipped
             }
         }
         selection = []
         notice = ActivityPaneVerb.outcome(.delete, done: deleted, skipped: skipped)
-        registerUndo(undo, name: "Delete") { store, ids in _ = await store.undeleteJobs(ids: ids) }
     }
 
-    /// Archive and Put Back: ended job rows through `job.archive` / `job.unarchive`; ended run rows through the runs' soft
-    /// delete, which stands in for their archive. Undo reverses it.
-    private func archive(_ verb: ActivityPaneVerb, _ rows: [ActivityMonitorRow]) async {
-        var undo: [(ActivityStore, [String])] = []
+    /// The runs delete; Stop then Delete stops the running ones first (their job's Stop), then deletes again what the
+    /// engine still held as running. ponytail: up to ten one-second retries while the stop settles; a `stop_running` on
+    /// the runs delete would make it one call.
+    private func deleteRuns(_ threadIds: [String], stopping running: [ActivityMonitorRow],
+                            store: ActivityStore) async -> RunDeleteOutcome {
+        for row in running {
+            if let jobId = row.jobId { _ = await ActivityRunMenuTarget.stopJob(jobId: jobId, runThreadId: row.runThreadId, store: store) }
+        }
+        let first = await store.deleteRuns(threadIds: threadIds)
+        var deleted = first.deletedIds, pending = first.skippedIds
+        var tries = 0
+        while !running.isEmpty, !pending.isEmpty, tries < 10 {
+            try? await Task.sleep(for: .seconds(1))
+            tries += 1
+            let again = await store.deleteRuns(threadIds: pending)
+            deleted += again.deletedIds
+            pending = again.skippedIds
+        }
+        return RunDeleteOutcome(deletedIds: deleted, skippedIds: pending)
+    }
+
+    /// Archive and Put Back: ended job rows through the audited `job.archive` / `job.unarchive`, one step on the window's
+    /// stack each, so Edit › Undo reverses it.
+    private func archive(_ verb: ActivityPaneVerb, _ rows: [ActivityMonitorRow]) async -> ActivityJobsOutcome {
+        var total = ActivityJobsOutcome()
         let jobIdsByLibrary = Self.jobIdsByLibrary(rows)
         for library in libraries {
-            guard let jobIds = jobIdsByLibrary[library.id], !jobIds.isEmpty else {
-                if verb == .archive {
-                    let ids = Set(rows.map(\.id))
-                    let threadIds = library.activityStore.runs.filter { ids.contains($0.id) }.map(\.runId)
-                    if !threadIds.isEmpty { _ = await library.activityStore.deleteRuns(threadIds: threadIds) }
-                }
-                continue
-            }
-            if verb == .archive {
-                let outcome = await library.activityStore.archiveJobs(ids: jobIds)
-                if !outcome.deletedIds.isEmpty { undo.append((library.activityStore, outcome.deletedIds)) }
-            } else {
-                let back = await library.activityStore.unarchiveJobs(ids: jobIds)
-                if !back.isEmpty { undo.append((library.activityStore, back)) }
-            }
+            guard let jobIds = jobIdsByLibrary[library.id], !jobIds.isEmpty else { continue }
+            let outcome = await library.activityStore.performUndoable(
+                verb == .archive ? "job.archive" : "job.unarchive", ids: jobIds,
+                named: UndoableChange.named(verb.title, count: jobIds.count, one: "Row", many: "Rows"),
+                actions: library.actionsService, steps: windowSteps)
+            total.done += outcome.done
+            total.skipped += outcome.skipped
         }
-        if verb == .archive {
-            registerUndo(undo, name: "Archive") { store, ids in _ = await store.unarchiveJobs(ids: ids) }
-        } else {
-            registerUndo(undo, name: "Put Back") { store, ids in _ = await store.archiveJobs(ids: ids) }
-        }
+        return total
     }
 
-    /// Edit › Undo for Delete and Archive (in session; the engine's actions are undoable).
-    private func registerUndo(_ batches: [(ActivityStore, [String])], name: String,
-                              reverse: @escaping @MainActor (ActivityStore, [String]) async -> Void) {
-        guard let undoManager, !batches.isEmpty else { return }
-        for (store, ids) in batches {
-            undoManager.registerUndo(withTarget: store) { store in
-                Task { @MainActor in
-                    await reverse(store, ids)
-                    store.refreshToken += 1
-                }
-            }
-        }
-        undoManager.setActionName(name)
-    }
-
-    /// "Archive Finished…": every ended run and job in the pane's projects, after one confirmation.
+    /// "Archive Finished…": every ended job in the pane's projects, after one confirmation (runs: once the engine archives them).
     func archiveFinished() async {
         var skipped = 0
         for library in libraries {
-            skipped += await library.activityStore.deleteRuns(statuses: ActivityRunStatus.finishedEngineNames).skippedIds.count
             skipped += await library.activityStore.archiveJobs(ids: [], states: ["done", "failed", "cancelled"]).skippedIds.count
         }
         selection = []

@@ -25,9 +25,12 @@ struct ActivityPaneView: View {
     var revealFiles: [String]?
     /// The selected row, for the Inspector beside the pane; nil with none or several selected.
     var onSelect: (ActivityPaneSelection?) -> Void = { _ in }
+    /// A Show in Activity was answered (its row selected): the asker clears it, so a later refresh does not select it again.
+    var onRevealed: () -> Void = {}
 
     @Environment(LibraryManager.self) private var libraryManager
-    @Environment(\.undoManager) var undoManager
+    /// The window's step stack: Delete, Archive and Put Back are steps on it, so Edit › Undo takes them back.
+    @Environment(WindowSteps.self) var windowSteps: WindowSteps?
     @State var selection: Set<ActivityMonitorRow.ID> = []
     /// A column header's sort; empty keeps the state-then-start order.
     @State var sortOrder: [KeyPathComparator<ActivityMonitorRow>] = []
@@ -111,11 +114,6 @@ struct ActivityPaneView: View {
             statusBar
         }
         .accessibilityIdentifier("activity.pane")
-        .focusedSceneValue(\.activityRun, selectedRunTarget)
-        .focusedSceneValue(\.activityVerbs, verbTarget)
-        .focusedSceneValue(\.activityView, ActivityViewTarget(
-            grouping: prefs.grouping, showsArchived: showArchived,
-            setGrouping: group(by:), setShowsArchived: { showArchived = $0 }))
         .onChange(of: selection) { _, _ in onSelect(selectedPick) }
         .onChange(of: shownRows.map(\.id)) { _, _ in onSelect(selectedPick); if selection.isEmpty { select(reveal) } }
         .onChange(of: reveal) { _, wanted in select(wanted) }
@@ -146,6 +144,13 @@ struct ActivityPaneView: View {
         guard let documentIds, let id = ActivityPane.fileRowId(documentIds, in: ActivityPane.byFile(allRows)) else { return }
         update { $0.grouping = .file }
         selection = [id]
+        onRevealed()
+    }
+
+    /// What View › Activity ▸ acts on: this pane's grouping and archived switch.
+    var viewTarget: ActivityViewTarget {
+        ActivityViewTarget(grouping: prefs.grouping, showsArchived: showArchived,
+                           setGrouping: group(by:), setShowsArchived: { showArchived = $0 })
     }
 
     /// Switch the grouping, keeping a selected file selected (`activity.pane.group-by-run-or-by-file`).
@@ -160,7 +165,9 @@ struct ActivityPaneView: View {
     private func select(_ wanted: ActivitySelection?) {
         guard let wanted else { return }
         let ids = Set(allRows.filter { $0.selection == wanted }.map(\.id))
-        if !ids.isEmpty, ids != selection { selection = ids }
+        guard !ids.isEmpty else { return }
+        selection = ids
+        onRevealed()
     }
 
     // MARK: - Head, filter, status bar
