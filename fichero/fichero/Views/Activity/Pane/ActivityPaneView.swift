@@ -29,6 +29,8 @@ struct ActivityPaneView: View {
     @Environment(LibraryManager.self) private var libraryManager
     @Environment(\.undoManager) var undoManager
     @State var selection: Set<ActivityMonitorRow.ID> = []
+    /// A column header's sort; empty keeps the state-then-start order.
+    @State var sortOrder: [KeyPathComparator<ActivityMonitorRow>] = []
     /// The outcome of the last verb, said in the status bar ("Deleted 4 · 1 skipped").
     @State var notice: String?
     @State private var confirmingArchiveFinished = false
@@ -86,7 +88,7 @@ struct ActivityPaneView: View {
     var shownRows: [ActivityMonitorRow] {
         let filter = ActivityPaneFilter(prefs.filter)
         let grouped = prefs.grouping == .file ? ActivityPane.byFile(allRows) : ActivityPane.outline(allRows)
-        return filter.apply(grouped)
+        return filter.apply(ActivityPane.sorted(grouped, by: sortOrder))
     }
 
     var showsProject: Bool { Set(allRows.compactMap(\.projectName)).count > 1 }

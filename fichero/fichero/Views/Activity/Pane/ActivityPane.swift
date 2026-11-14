@@ -85,6 +85,12 @@ enum ActivityPane {
         documentIds.lazy.map { "file:\($0)" }.first { id in fileRows.contains { $0.id == id } }
     }
 
+    /// A column header's sort over the top-level rows; none chosen keeps the outline's state-then-start order, and a run's
+    /// files keep their tree order under it.
+    static func sorted(_ rows: [ActivityMonitorRow], by order: [KeyPathComparator<ActivityMonitorRow>]) -> [ActivityMonitorRow] {
+        order.isEmpty ? rows : rows.sorted(using: order)
+    }
+
     /// The page rows under a row, however deep (a run's steps hold its pages).
     static func leaves(of row: ActivityMonitorRow) -> [ActivityMonitorRow] {
         guard let children = row.children, !children.isEmpty else { return row.kind == .page ? [row] : [] }
@@ -324,4 +330,9 @@ enum ActivityPane {
         while text.hasSuffix(".") { text.removeLast() }
         return text
     }
+}
+
+extension ActivityMonitorRow {
+    /// The State column's sort key: the outline's state order.
+    var stateRankKey: Int { ActivityPane.stateRank(phase) }
 }

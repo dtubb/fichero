@@ -34,26 +34,26 @@ extension ActivityPaneView {
     // MARK: - The table
 
     var table: some View {
-        Table(of: ActivityMonitorRow.self, selection: $selection, columnCustomization: Binding(
+        Table(of: ActivityMonitorRow.self, selection: $selection, sortOrder: $sortOrder, columnCustomization: Binding(
             get: { prefs.columns }, set: { value in update { $0.columns = value } }
         )) {
             TableColumn("") { row in sourceCell(row) }
                 .width(22).customizationID(ActivityPane.Column.source.rawValue)
-            TableColumn(ActivityPane.Column.name.title) { row in nameCell(row) }
+            TableColumn(ActivityPane.Column.name.title, value: \.name) { row in nameCell(row) }
                 .width(min: 160, ideal: 260).customizationID(ActivityPane.Column.name.rawValue)
-            TableColumn(ActivityPane.Column.state.title) { row in stateCell(row) }
+            TableColumn(ActivityPane.Column.state.title, value: \.stateRankKey) { row in stateCell(row) }
                 .width(min: 60, ideal: 160).customizationID(ActivityPane.Column.state.rawValue)
             TableColumn(ActivityPane.Column.trail.title) { row in textCell(ActivityPane.progressLine(row)) }
                 .width(min: 80, ideal: 240).customizationID(ActivityPane.Column.trail.rawValue)
-            TableColumn(ActivityPane.Column.time.title) { row in textCell(ActivityPane.timeLine(row)) }
+            TableColumn(ActivityPane.Column.time.title, value: \.secondsKey) { row in textCell(ActivityPane.timeLine(row)) }
                 .width(min: 50, ideal: 80).customizationID(ActivityPane.Column.time.rawValue)
-            TableColumn(ActivityPane.Column.cost.title) { row in textCell(ActivityPane.costLine(row)) }
+            TableColumn(ActivityPane.Column.cost.title, value: \.costKey) { row in textCell(ActivityPane.costLine(row)) }
                 .width(min: 50, ideal: 110).customizationID(ActivityPane.Column.cost.rawValue)
-            TableColumn(ActivityPane.Column.model.title) { row in textCell(row.model ?? "") }
+            TableColumn(ActivityPane.Column.model.title, value: \.modelKey) { row in textCell(row.model ?? "") }
                 .customizationID(ActivityPane.Column.model.rawValue).defaultVisibility(.hidden)
             TableColumn(ActivityPane.Column.startedBy.title) { row in textCell(row.startedBy ?? "") }
                 .customizationID(ActivityPane.Column.startedBy.rawValue).defaultVisibility(.hidden)
-            TableColumn(ActivityPane.Column.started.title) { row in
+            TableColumn(ActivityPane.Column.started.title, value: \.startedKey) { row in
                 textCell(row.started.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "")
             }
             .customizationID(ActivityPane.Column.started.rawValue).defaultVisibility(.hidden)

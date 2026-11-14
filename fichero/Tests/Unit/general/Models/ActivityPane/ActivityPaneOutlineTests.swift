@@ -43,6 +43,17 @@ struct ActivityPaneOutlineTests {
         #expect(ActivityPanePrefs.load(data, key: "pane-b").expanded.isEmpty, "another pane keeps its own")
     }
 
+    @Test("a column header sorts the top-level rows and keeps each run's files in tree order; no sort keeps the outline's")
+    func sortedByAColumn() {
+        let outline = ActivityPane.outline([ActivityPaneFixture.letters, ActivityPaneFixture.names])
+        #expect(ActivityPane.sorted(outline, by: []).map(\.id) == outline.map(\.id))
+        let byName = ActivityPane.sorted(outline, by: [KeyPathComparator(\.name)])
+        #expect(byName.map(\.name) == ["Letters", "Names"])
+        #expect(ActivityPane.sorted(outline, by: [KeyPathComparator(\.name, order: .reverse)]).map(\.name) == ["Names", "Letters"])
+        #expect(byName.first?.children?.map(\.id) == outline.first { $0.id == "letters" }?.children?.map(\.id))
+        #expect(ActivityPane.sorted(outline, by: [KeyPathComparator(\.stateRankKey)]).first?.id == "names", "running sorts first")
+    }
+
     @Test("the pane draws no section header: the view has no Section and no Now / Up Next / Done Today")
     func noSectionRows() throws {
         let source = try AppSource.code("Views/Activity/Pane/ActivityPaneView+Table.swift")
