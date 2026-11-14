@@ -676,7 +676,7 @@ class LocalModelManager:
             embed_process.load_text_embedding(fastembed_name, str(self.embeddings_path), 1)
         except Exception as exc:  # noqa: BLE001 -- whatever the load raised is why this model is broken
             (folder / embed_process.BROKEN_MARKER).write_text(f"{type(exc).__name__}: {exc}"[:500])
-            raise RuntimeError(f"The search model {model_id} downloaded but does not load: {exc}") from exc
+            raise RuntimeError(f"The search model {model_id.split('/')[-1]} downloaded but does not load.") from exc  # why: the marker, Copy Details
 
     def delete_embeddings_model(self, model_id: str) -> int:
         """Delete a downloaded embeddings model.
