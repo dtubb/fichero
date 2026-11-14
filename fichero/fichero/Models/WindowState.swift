@@ -162,7 +162,7 @@ class WindowState {
     /// as the tool row's Knife does, until another tool is chosen or Esc.
     func letGoOfKnifeKey() {
         if knifeHeld, !knifeStrokedWhileHeld {
-            activeMarkupTool = .select
+            if activeMarkupTool != .select { activeMarkupTool = .select }  // no didSet flip of the tool just chosen
             markerArmed = false
             knifeArmed = true
         }
@@ -188,7 +188,7 @@ class WindowState {
     /// M let go: after a stroke the Marker goes back; a tap chooses it.
     func letGoOfMarkerKey() {
         if markerHeld, !markerStrokedWhileHeld {
-            activeMarkupTool = .select
+            if activeMarkupTool != .select { activeMarkupTool = .select }  // no didSet flip of the tool just chosen
             knifeArmed = false
             markerArmed = true
         }
@@ -220,7 +220,7 @@ class WindowState {
     /// B let go: after a stroke the Brush goes back; a tap chooses it.
     func letGoOfBrushKey() {
         if brushHeld, !brushStrokedWhileHeld {
-            activeMarkupTool = .select
+            if activeMarkupTool != .select { activeMarkupTool = .select }  // no didSet flip of the tool just chosen
             knifeArmed = false
             markerArmed = false
             brushArmed = true

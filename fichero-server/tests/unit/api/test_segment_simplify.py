@@ -159,3 +159,18 @@ def test_the_preview_refuses_a_segment_of_another_page(db, client):
         f"/api/segments/document/{other.id}/simplify-preview", params={"segment_ids": [line], "tolerance": 2.0},
     )
     assert response.status_code == 404, response.text
+
+
+def test_the_preview_with_no_segments_is_refused_not_a_crash(db, client):
+    """Review 2026-11-14: an empty `segment_ids` reached `rows[0]` and raised; it is a 422 now."""
+    doc, _pass_id = _page(db, client)
+    response = client.get(f"/api/segments/document/{doc.id}/simplify-preview", params={"tolerance": 2.0})
+    assert response.status_code == 422, response.text
+    response = client.get(f"/api/segments/document/{doc.id}/simplify-preview?segment_ids=&tolerance=2.0")
+    assert response.status_code in (404, 422), response.text
+
+
+def test_simplifying_nothing_answers_nothing():
+    from fichero_server.api.routes.document.segments import _simplified_shapes
+
+    assert _simplified_shapes(None, [], 2.0) == []
