@@ -79,6 +79,8 @@ def outlines(image: Any, baselines: list[Points], bounds: list[Points], fixed_he
             ]
         except Exception as why:  # Kraken refuses some pages outright (no ink, a degenerate line)
             logger.info("outline from baseline: kraken drew nothing (%s)", why)
+            # Nothing drawn: every line falls to the fixed-height band below, or stays None for the caller to report.
+            found = [None] * len(baselines)
         # On a page with no ink Kraken still answers, with an outline that runs to the page's edge; an outline
         # holding (almost) no dark pixels measured nothing and is not kept.
         gray = image.convert("L")
