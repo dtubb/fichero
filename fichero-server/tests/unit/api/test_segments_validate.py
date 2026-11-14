@@ -130,3 +130,16 @@ def test_words_that_do_not_tile_their_lines_reading_are_named(db, client):
     db.save(row)
 
     assert ("words-do-not-tile", (first, word)) in _kinds(_problems(client, doc))
+
+
+def test_a_line_whose_region_was_deleted_is_outside_every_region(db, client):
+    """Review of batch 16 (2026-11-14): a parent id alone was taken for a region; a line whose region is deleted is in
+    no region, with or without other regions on the page."""
+    from fichero_server.core.timeutil import utc_now
+
+    doc, pass_id, region, first, second = _clean_page(db, client)
+    row = db.get(Segment, region)
+    row.deleted_at = utc_now()
+    db.save(row)
+    kinds = _kinds(_problems(client, doc))
+    assert ("line-outside-regions", (first,)) in kinds and ("line-outside-regions", (second,)) in kinds
