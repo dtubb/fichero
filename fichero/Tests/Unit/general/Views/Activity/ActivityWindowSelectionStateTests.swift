@@ -8,7 +8,7 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         return try String(contentsOf: baseURL.appendingPathComponent(relativePath), encoding: .utf8)
     }
 
-    func testSelectReplacesSharedSelection() {
+    func testShowInActivityAsksTheWindowToSelectTheRow() {
         let state = ActivityWindowSelectionState()
         let selection = ActivitySelection(
             jobId: "thread-1",
@@ -17,31 +17,19 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
 
         state.select(selection)
 
-        XCTAssertEqual(state.selection, selection)
-        XCTAssertEqual(state.libraryId, selection.libraryId)
-    }
-
-    func testSelectCanClearSelection() {
-        let state = ActivityWindowSelectionState()
-        state.select(ActivitySelection(jobId: "thread-1", libraryId: nil))
-
+        XCTAssertEqual(state.reveal, selection)
         state.select(nil)
-
-        XCTAssertNil(state.selection)
+        XCTAssertNil(state.reveal)
     }
 
-    func testActivityWindowIDsStayStable() {
+    func testTheActivityWindowIDStaysStable() {
         XCTAssertEqual(ActivityWindowSelectionState.monitorWindowID, "activity-monitor")
-        XCTAssertEqual(ActivityWindowSelectionState.detailWindowID, "activity-detail")
     }
 
-    func testActivityUsesStandaloneMonitorAndDetailWindows() throws {
-        // ActivityDetailWindow now lives in its own file (Views/Activity/Window/ActivityDetailWindow.swift),
-        // so ActivityMonitorWindow.swift no longer contains the inlined detail view.
+    func testActivityIsOneWindowThePanePlusTheInspector() throws {
+        // `activity.one-window` (#6441): ONE Activity window, the pane plus the Inspector; no detail window.
         let appSource = try Self.appSource("FicheroApp.swift")
         let monitorSource = try Self.appSource("Views/Activity/Window/ActivityMonitorWindow.swift")
-        let detailSource = try Self.appSource("Views/Activity/Window/ActivityDetailWindow.swift")
-        let helpersSource = try Self.appSource("Views/Activity/ActivityViewHelpers.swift")
 
         // #4524: the Window menu entry is the Activity scene's AUTOMATIC item
         // (SwiftUI lists every `Window` scene's title in the Windows menu), so
@@ -96,27 +84,16 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         XCTAssertTrue(appSource.contains(
             "Window(\"Activity\", id: ActivityWindowSelectionState.monitorWindowID)"
         ))
-        XCTAssertTrue(appSource.contains(
-            "Window(\"Activity Detail\", id: ActivityWindowSelectionState.detailWindowID)"
-        ))
-        // The grouped list (NOW / UP NEXT / DONE TODAY) replaced the table: opening a row shows ITS
-        // details in the monitor window itself (`openedID`); the detail Window is still opened by the
-        // row's own ⓘ and double-click (ActivityViewHelpers, asserted below).
-        XCTAssertTrue(monitorSource.contains("open: { openedID = $0.id }"))
-        XCTAssertTrue(monitorSource.contains("let row = Self.find(id, in: allRows), let selection = row.selection"))
-        // The detail window injects the ONE shared chain now (#4284), which carries documentStore.
-        let serviceChain = try Self.appSource("Views/Shell/LibraryServiceEnvironment.swift")
-        XCTAssertTrue(
-            detailSource.contains(".environment(library.documentStore)")
-                || (detailSource.contains(".libraryServiceEnvironment(library)")
-                    && serviceChain.contains(".environment(library.documentStore)"))
-        )
-        XCTAssertTrue(detailSource.contains("selectionState.selection?.libraryId"))
-        XCTAssertTrue(helpersSource.contains("@Environment(WorkflowExecutionStore.self)"))
-        XCTAssertFalse(helpersSource.contains("@Environment(WorkflowExecutionObserver.self) private var executionObserver"))
-        XCTAssertTrue(detailSource.contains("ActivityDetailsView(selection: selection)"))
-        XCTAssertTrue(helpersSource.contains("openWindow(id: ActivityWindowSelectionState.detailWindowID)"))
-        XCTAssertTrue(helpersSource.contains(".onTapGesture(count: 2)"))
+        XCTAssertFalse(appSource.contains("Window(\"Activity Detail\""))
+        XCTAssertFalse(appSource.contains("detailWindowID"))
+        // The window is the pane plus the Inspector showing the selected row, not a view tree of its own.
+        XCTAssertTrue(monitorSource.contains("ActivityPaneView(libraryId: nil"))
+        XCTAssertTrue(monitorSource.contains(".inspector(isPresented: $showsInspector)"))
+        XCTAssertTrue(monitorSource.contains("ActivityInspectorSection(pick: selectionState.pick)"))
+        // The details view is mounted once, in the Inspector section, with the project's ONE service chain (#4284).
+        let section = try Self.appSource("Views/Activity/Pane/ActivityInspectorSection.swift")
+        XCTAssertTrue(section.contains("ActivityDetailsView(selection: pick.selection)"))
+        XCTAssertTrue(section.contains(".libraryServiceEnvironment(library)"))
     }
 
     /// The Activity scenes are `Window`, not `WindowGroup` — singleton by
@@ -135,8 +112,7 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
     func testActivityScenesAreSingletonWindowsNotGroups() throws {
         let appSource = try Self.appSource("FicheroApp.swift")
 
-        for id in ["ActivityWindowSelectionState.monitorWindowID",
-                   "ActivityWindowSelectionState.detailWindowID"] {
+        for id in ["ActivityWindowSelectionState.monitorWindowID"] {
             XCTAssertFalse(
                 appSource.contains("WindowGroup(\"Activity\", id: \(id))"),
                 "\(id) must not be a WindowGroup — the user could open unlimited copies"
@@ -153,14 +129,6 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
                 "\(id) is claimed by more than one scene"
             )
         }
-    }
-
-    func testActivityWindowDoesNotRepeatTitleOrCenterEmptyPlaceholder() throws {
-        let helpersSource = try Self.appSource("Views/Activity/ActivityViewHelpers.swift")
-
-        XCTAssertFalse(helpersSource.contains("Text(\"Activity\")"))
-        XCTAssertFalse(helpersSource.contains("ContentUnavailableView(\n                    \"No Runs Yet\""))
-        XCTAssertTrue(helpersSource.contains("Text(\"No runs yet\")"))
     }
 
     func testActivityIsRemovedFromSidebarEntryPoints() throws {

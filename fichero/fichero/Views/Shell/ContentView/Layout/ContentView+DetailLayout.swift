@@ -275,20 +275,11 @@ extension ContentView {
     /// The activity/run-history detail view.
     @ViewBuilder
     private func runHistoryContent(for mode: AppViewMode) -> some View {
-        if case .activity(let selectedRun) = mode {
-            Group {
-                if let selectedRun {
-                    // The SAME component the compact flow and
-                    // `ActivityDetailWindow.swift` already trust — replaces
-                    // the deleted `ActivityWindowLauncherView`'s separate
-                    // window.
-                    ActivityDetailsView(selection: selectedRun)
-                } else {
-                    PaneEmptyStateView(reason: "Select a run in the sidebar to see its details.")
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
+        if case .activity = mode {
+            // The details are mounted ONCE, in the Inspector (`activity.pane.inspector-shows-the-selected-row`, #6441).
+            PaneEmptyStateView(reason: "A selected row's details are in the Inspector.")
+                .frame(maxWidth: .infinity)
+                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
         }
     }
 
@@ -552,6 +543,24 @@ extension ContentView {
     /// Inspector/info sidebar view (rendered inside .inspector panel)
     @ViewBuilder
     var inspectorView: some View {
+        // The Activity pane's selected row, while that pane holds the focus (`activity.pane.inspector-shows-the-selected-row`):
+        // the one details view, mounted here; another pane taking the focus brings the document's sections back.
+        if let pick = windowState.activityPick, inspectsActivity {
+            ActivityInspectorSection(pick: pick)
+        } else {
+            documentInspectorView
+        }
+    }
+
+    /// The Activity pane holds the focus, or the window is on the sidebar's Activity.
+    private var inspectsActivity: Bool {
+        if paneFocusHint == .activity { return true }
+        if case .activity = viewMode { return true }
+        return false
+    }
+
+    @ViewBuilder
+    private var documentInspectorView: some View {
         switch viewMode {
         case .library:
             // Multi-selection interim (#146/#147, Daniel: 'this will be

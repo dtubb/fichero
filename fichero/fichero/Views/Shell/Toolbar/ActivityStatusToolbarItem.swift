@@ -165,12 +165,11 @@ struct ActivityStatusToolbarItem: View {
                     // A failure's row opens Activity's details for that job.
                     showPopover = false
                     ActivityWindowSelectionState.shared.select(ActivitySelection(jobId: jobId, libraryId: libraryId))
-                    openWindow(id: ActivityWindowSelectionState.detailWindowID)
+                    openWindow(id: ActivityWindowSelectionState.monitorWindowID)
                 },
                 engineBusy: appState?.engineBusySentence,
                 openActivity: {
                     showPopover = false
-                    ActivityWindowSelectionState.shared.selectLibrary(libraryId)
                     openWindow(id: ActivityWindowSelectionState.monitorWindowID)
                 }
             )
@@ -179,7 +178,6 @@ struct ActivityStatusToolbarItem: View {
 
             Button("Open Activity") {
                 showPopover = false
-                ActivityWindowSelectionState.shared.selectLibrary(libraryId)
                 openWindow(id: ActivityWindowSelectionState.monitorWindowID)
             }
         }

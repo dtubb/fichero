@@ -91,7 +91,7 @@ extension ContentView {
                 runningTitle: workflowRunRegistry.latestTitle,
                 onNewRun: { startNewChainComposition() },
                 onOpenActivity: {
-                    openWindow(id: ActivityWindowSelectionState.detailWindowID)
+                    openWindow(id: ActivityWindowSelectionState.monitorWindowID)
                 }
             )
             // On BOTH bars: labels follow the toolbar when only one is shown.
@@ -445,7 +445,7 @@ extension ContentView {
             ActivityWindowSelectionState.shared.select(
                 ActivitySelection(jobId: threadId, libraryId: windowState.libraryId)
             )
-            openWindow(id: ActivityWindowSelectionState.detailWindowID)
+            openWindow(id: ActivityWindowSelectionState.monitorWindowID)
             return
         }
 

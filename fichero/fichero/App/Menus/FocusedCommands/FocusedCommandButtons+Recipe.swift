@@ -147,7 +147,7 @@ struct FocusedStartRecipeButton: View {
         #if os(macOS)
         if let selection = FirstRunWindow.startedRunSelection(jobId: store.startedRunJobId, projectId: projectId) {
             ActivityWindowSelectionState.shared.select(selection)
-            openWindow(id: ActivityWindowSelectionState.detailWindowID)
+            openWindow(id: ActivityWindowSelectionState.monitorWindowID)
         }
         #endif
     }
@@ -223,7 +223,7 @@ struct RunRecipeOnFolderMenuItem: View {
         #if os(macOS)
         if let selection = FirstRunWindow.startedRunSelection(jobId: store.startedRunJobId, projectId: library.id) {
             ActivityWindowSelectionState.shared.select(selection)
-            openWindow(id: ActivityWindowSelectionState.detailWindowID)
+            openWindow(id: ActivityWindowSelectionState.monitorWindowID)
         }
         #endif
     }

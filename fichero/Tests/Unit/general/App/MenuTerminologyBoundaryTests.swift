@@ -231,14 +231,16 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
         let buttons = try Self.appSource("App/Menus/FocusedCommands/FocusedCommandButtons+Activity.swift")
         XCTAssertTrue(buttons.contains("ActivityStopMenuItem(target: target)"))
         XCTAssertTrue(buttons.contains("ActivityReadAgainMenuItem(target: target)"))
-        // The one-bar window (`activity.window.one-button`): the selected run's target reaches the menu bar from the groups
-        // view, whose row menu renders the shared Stop item; no hand-made Stop or Read Again button is left in it.
-        let window = try Self.appSource("Views/Activity/Window/ActivityGroupsView.swift")
-        XCTAssertTrue(window.contains(".focusedSceneValue(\\.activityRun, selectedRunTarget)"))
-        XCTAssertTrue(window.contains("rows.count == 1 ? rows.first.map(stopTarget) : nil"))
-        XCTAssertTrue(window.contains("ActivityStopMenuItem(target: stopTarget(row))"))
-        XCTAssertFalse(window.contains("Button(\"Stop\")"))
-        XCTAssertFalse(window.contains("Button(action: readAgain)"))
+        // The Activity pane (`activity.pane.commands-through-the-table`): the selected run's target and the verb list reach the
+        // menu bar from the pane; its row menu is the one verb list plus the shared Read Again; no hand-made Stop is left.
+        let pane = try Self.appSource("Views/Activity/Pane/ActivityPaneView.swift")
+        XCTAssertTrue(pane.contains(".focusedSceneValue(\\.activityRun, selectedRunTarget)"))
+        XCTAssertTrue(pane.contains(".focusedSceneValue(\\.activityVerbs, verbTarget)"))
+        let table = try Self.appSource("Views/Activity/Pane/ActivityPaneView+Table.swift")
+        XCTAssertTrue(table.contains("ForEach(ActivityPaneVerb.allCases)"))
+        XCTAssertTrue(table.contains("ActivityReadAgainMenuItem(target: runMenuTarget(for: row))"))
+        XCTAssertFalse(table.contains("Button(\"Stop\")"))
+        XCTAssertTrue(menus.contains("FocusedActivityVerbButtons()"))
     }
 
     /// Read became Page and the Segment menu folded into it (#5652 slice 2): the bar has no Read and no Segment menu;

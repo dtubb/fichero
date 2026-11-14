@@ -315,8 +315,8 @@ extension ActivityStore {
         if runTrees[old] != nil { runTrees[old] = nil }
         if projectRunId == old { projectRunId = new }
         let selection = ActivityWindowSelectionState.shared
-        if selection.selection?.jobId == old {
-            selection.select(ActivitySelection(jobId: new, libraryId: selection.selection?.libraryId))
+        if let picked = selection.pick?.selection, picked.jobId == old {
+            selection.select(ActivitySelection(jobId: new, libraryId: picked.libraryId))
         }
     }
 
