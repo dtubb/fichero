@@ -107,6 +107,11 @@ from a run with the error, the run and the versions, and nothing private; CLI/MC
 7. **Actions are typed, in one vocabulary with `CloudRefusalFix`** (`retry`, `resume`, `open-settings` with a control id,
    `choose-model`, `report-bug`, `reconnect`, plus the refusal's own), so the app's one switch grows by cases, not
    by alerts.
+8. **A pause for a cause survives a relaunch, and a failed run is never re-run by itself** (owner 2026-11-13, night;
+   #6584). Decision 2 pauses the run; the relaunch must not undo it: the recipe run's pause is stored on its row at the
+   open (`activity.relaunch.only-running-work-resumes` in `ui/activity-and-automatic-work.md`), so the run still reads
+   paused with its alert's cause, and only Resume (the alert's or Activity's) carries it on. A run that ended failed
+   stays failed with its reason and its Retry.
 
 ## The table (`run.fail.kinds-table`)
 
