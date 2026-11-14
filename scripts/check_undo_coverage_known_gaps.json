@@ -512,5 +512,10 @@
   "POST /api/activity/jobs/{job_id}/bug-report": "by design, nothing to undo: builds a failed run's bug report for review and writes nothing (#6354)",
   "POST /api/images/{document_id}/jobs": "the job runs an undoable image.<op> action, so Undo is that action's (the audit entry names it); the job row itself has none (#6384)",
   "POST /api/segments/reparent": "undoable in the engine (segment.reparent, audited, one undo step), undone from the audit row the result names; the Order list drag that calls it does not register the app-side undo yet (#6476)",
-  "POST /api/segments/regenerate-outline": "undoable in the engine (segment.regenerate_outline, audited, one undo step) and in the app through the actions door (SegmentEdit+Tools); this guard counts the route by its operation name (#6582)"
+  "POST /api/segments/regenerate-outline": "undoable in the engine (segment.regenerate_outline, audited, one undo step) and in the app through the actions door (SegmentEdit+Tools); this guard counts the route by its operation name (#6582)",
+  "POST /api/activity/jobs/delete": "audited job.delete, undoable=True with its inverse job.undelete registered in the engine (#6583); the app's Edit › Undo registration follows with the Activity table's Undo (activity.pane.row-actions-on-the-table)",
+  "POST /api/activity/jobs/undelete": "the inverse of job.delete (audited, undoable, inverse job.delete); an engine-side undo pair, the app's registration follows (#6583)",
+  "POST /api/activity/jobs/archive": "audited job.archive, undoable=True with inverse job.unarchive (Put Back) registered in the engine (#6583); the app's Edit › Undo registration follows",
+  "POST /api/activity/jobs/unarchive": "Put Back, the inverse of job.archive (audited, undoable, inverse job.archive); an engine-side undo pair (#6583)",
+  "POST /api/activity/stopped-at-quit/continue": "Continue on the launch alert lets held rows run; its undo is Pause on the row (the states table: Pause has no Undo, Continue is its undo), so no undo registration (#6584)"
 }

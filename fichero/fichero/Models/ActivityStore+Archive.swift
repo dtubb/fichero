@@ -9,6 +9,17 @@
 import Foundation
 
 extension ActivityStore {
+    /// Undo of Delete (`activity.pane.archive-old-runs`): the deleted rows come back as they were; the next poll lists them.
+    @discardableResult
+    func undeleteJobs(ids: [String]) async -> [String] {
+        do {
+            return try await activityService.undeleteJobs(ids: ids)
+        } catch {
+            log.error("ActivityStore: undeleteJobs failed \(error.localizedDescription, privacy: .public)")
+            return []
+        }
+    }
+
     /// Archive job rows of their own (`activity.pane.archive-old-runs`, #6583): the engine's `job.archive`; each archived
     /// row leaves `backgroundJobs` in place and is kept for Show Archived and Put Back. Skipped ids (still going) are returned.
     @discardableResult

@@ -261,7 +261,7 @@ struct ActivityJob: Identifiable, Equatable {
     /// What ran on what (`activity.pane.row-says-what-ran-on-what`): the stages' trail, the pages the row runs over,
     /// the stage's model; and the cost (`activity.pane.cost-per-row-and-totals`). Empty or nil on an engine before these.
     var stages: [Stage] = []
-    var ranOn: RanOn?
+    var ranOn: RanOver?
     var model: String?
     var costUsd: Double?
     var costEstimateUsd: Double?
@@ -297,7 +297,7 @@ struct ActivityJob: Identifiable, Equatable {
         }
         self.isEarlier = job.group?.rawValue == "earlier"
         self.stages = (job.stages ?? []).map { Stage(title: $0.title, state: $0.state, done: $0.done ?? 0, total: $0.total ?? 0) }
-        self.ranOn = job.ranOn.map { RanOn(kind: $0.kind, count: $0.count ?? 0, name: $0.name) }
+        self.ranOn = job.ranOn.map { RanOver(kind: $0.kind, count: $0.count ?? 0, name: $0.name) }
         self.model = job.model
         self.costUsd = job.costUsd
         self.costEstimateUsd = job.costEstimateUsd

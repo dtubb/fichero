@@ -99,8 +99,7 @@ struct ActivityMonitorWindow: View {
         } message: {
             Text("Completed, failed and stopped runs leave the list. Runs still going are kept.")
         }
-        .safeAreaInset(edge: .bottom) { statusBar }
-        .safeAreaInset(edge: .bottom) { footer }
+        .safeAreaInset(edge: .bottom) { VStack(spacing: 0) { statusBar; footer } }  // one inset: the two never stack (#4201)
         // The window owns the run-list load (Daniel, 2026-08-28).
         .task(id: refreshKey) { await refreshAll() }
     }
