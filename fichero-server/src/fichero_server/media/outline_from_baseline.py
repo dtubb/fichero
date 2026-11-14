@@ -14,6 +14,8 @@ import logging
 import math
 from typing import Any
 
+from fichero_server.llm import kraken_runtime
+
 logger = logging.getLogger(__name__)
 
 #: How far a fixed-height band reaches below the baseline, as a share of its height: the descenders.
@@ -25,11 +27,7 @@ Points = list[list[float]]
 
 
 def kraken_available() -> bool:
-    try:
-        from kraken.lib.segmentation import calculate_polygonal_environment  # noqa: F401
-    except Exception:  # pragma: no cover - the bundle decides
-        return False
-    return True
+    return kraken_runtime.polygonal_environment_available()
 
 
 def has_ink(gray: Any, polygon: Points) -> bool:
@@ -69,10 +67,8 @@ def outlines(image: Any, baselines: list[Points], bounds: list[Points], fixed_he
     """
     found: list[Points | None] = [None] * len(baselines)
     if kraken_available() and baselines:
-        from kraken.lib.segmentation import calculate_polygonal_environment
-
         try:
-            drawn = calculate_polygonal_environment(
+            drawn = kraken_runtime.calculate_polygonal_environment(
                 image.convert("L"),
                 baselines=[[(int(round(x)), int(round(y))) for x, y in line] for line in baselines],
                 suppl_obj=[[(int(round(x)), int(round(y))) for x, y in line] for line in bounds] or None,

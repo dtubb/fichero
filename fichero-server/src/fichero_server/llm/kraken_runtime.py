@@ -2005,7 +2005,26 @@ def train_recognition(argv: list[str], out: Path, *, on_batch: Callable[[], None
         kraken_train.KrakenTrainer = plain
 
 
+
+def polygonal_environment_available() -> bool:
+    """Whether Kraken's outline-from-baseline geometry can be imported (the segment editor's Redraw Outline)."""
+    try:
+        from kraken.lib.segmentation import calculate_polygonal_environment  # noqa: F401
+    except Exception:  # pragma: no cover - the bundle decides
+        return False
+    return True
+
+
+def calculate_polygonal_environment(*args: Any, **kwargs: Any) -> Any:
+    """Kraken's `calculate_polygonal_environment`, behind the seam (only this module imports kraken)."""
+    from kraken.lib.segmentation import calculate_polygonal_environment as _calculate
+
+    return _calculate(*args, **kwargs)
+
+
 __all__ = [
+    "calculate_polygonal_environment",
+    "polygonal_environment_available",
     "train_recognition",
     "release_resident_models",
     "KRAKEN_RECOGNITION_MODELS",
