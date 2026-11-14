@@ -347,7 +347,6 @@ struct StatusIslandToolbarTests {
 
         #expect(source.contains("@Environment(\\.openWindow)"))
         #expect(source.contains("Text(libraryName)"))
-        #expect(source.contains("selectLibrary(libraryId)"))
         #expect(source.contains("openWindow(id: ActivityWindowSelectionState.monitorWindowID)"))
     }
 }

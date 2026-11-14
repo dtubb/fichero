@@ -24,11 +24,11 @@ struct ActivityErrorRowTests {
     func primaryFix() {
         let credit = ActivityJob.Failure(kind: "no-credit", words: "OpenRouter has no credit left.", fix: "Add credit at OpenRouter.",
                                          actions: ["open-settings", "choose-model", "retry"])
-        #expect(failed(credit).oneButton == .fix)
+        #expect(failed(credit).paneButton == .settings)
         let cap = ActivityJob.Failure(kind: "cap-refused", words: "A cloud spend cap stopped this run.", fix: "Raise the cap.",
                                       actions: ["resume"])
-        #expect(failed(cap).oneButton == .resume)
-        #expect(failed(nil).oneButton == .retry)
+        #expect(failed(cap).paneButton == .verb(.resume))
+        #expect(failed(nil).paneButton == .verb(.retry))
     }
 
     @Test("the row carries the fix sentence and never a status code")
