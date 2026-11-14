@@ -1,1 +1,1 @@
-[2026.10.30](https://github.com/dtubb/fichero/releases/tag/v2026.10.30)
+[2026.11.14](https://github.com/dtubb/fichero/releases/tag/v2026.11.14)

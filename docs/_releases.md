@@ -1,9 +1,31 @@
-### 2026.10.30
+### 2026.11.14
 
-What changed since 2026.10.28.
+What changed since 2026.11.13.
 
 <details markdown>
 <summary>Show more releases</summary>
+
+- Segment editor: Join merges lines on every page, Redraw Outline from Baseline, the Knife and Split Line at Point, merging regions takes their lines, no self-crossing outline is ever written, Simplify Outline, Cut Words from Kraken's positions or the ink, a check of a page's segments before an export, exports record how words were cut, and Add Baseline.
+- Reader: Reader Content shows the page's lines (crops are never empty pages), the Reader no longer fails with a server error, and Read Lines in a chain keeps its project.
+- Sharing: a text or note save is no longer refused as "changed on another Mac" when nobody else edited it.
+- Mac chrome: pane heads and bottom bars in the Xcode accessory style, one Sidebar/Chat pair, a + · Trash · Metadata · Filter bar in the sidebar and Items, ⌘-scroll zooms the Icon grid, and page focus is the window's real full screen.
+- Library: Finder-order sorting and middle truncation of long names; iPad swipe between pages.
+- Activity: the toolbar popover names at most five pieces of work; no recipe-run strip along the window's bottom.
+- Docs: private archive names removed from the published specs.
+
+### 2026.11.12
+
+What changed since 2026.10.30.
+
+- iPad and iPhone: the app launches again, a device paired to a Mac opens that Mac's library, and the iOS build compiles again.
+- Segments, Reader and Inspector: a filter bar, facts after each row, other readers' words under each row, the Inspector in grouped boxes, and region-coloured hover in the Preview.
+- Sidebar and library: a faster folder click, the Trash as a disclosure group, and table column widths remembered across windows.
+- Canvas: a click never continues the last drag, one rubber band everywhere, and ⌘-scroll zoom that never snaps.
+- Sharing: the pane title says what it shows.
+
+### 2026.10.30
+
+What changed since 2026.10.28.
 
 - Reading at scale: a step of 100 pages or more can go to the provider's batch service (Anthropic, OpenAI, Gemini) at the batch price; the next batch is sent ahead while this Mac works; a cluster read is one Slurm array per stage; a restart or a failed row no longer cancels or re-sends a read that is still out.
 - Catalogue: each folder read in full gets its catalogue even when another batch failed, and the skipped folders are named; a folder's run catalogues only that folder (it used to take the whole project); the catalogue is a folder's own record; dates are normalised as intervals and many Spanish forms are read.
@@ -832,7 +854,7 @@ cards and sheet rows gain Run Workflow and exclusion menus.
 transcripts as each page's text, deduped entities, renditions — with real
 progress counts, thumbnails, and the corpus landing under the folder you
 dropped it on. Re-dropping an already-imported corpus repairs it instead
-of silently doing nothing. All 29 diaries are staged and ready.
+of silently doing nothing. All 29 diary volumes are staged and ready.
 
 **Sidecars carry their own facts.** A `x.jpg.transcript.txt` beside an
 image becomes its text on any plain folder drop; an `.iffy.json` stating
