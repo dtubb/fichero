@@ -94,6 +94,8 @@ NOT_A_STARTER = {
     "scripts/verify_python.sh": "boots on a base path from mktemp -d",
     "fichero-server/scripts/test_engine_harness.py": "boots on its own temp dir",
     "fichero-server/scripts/start_tailscale_backend.sh": "execs start_fichero_server.sh, which is guarded",
+    "scripts/dev_engine.sh": "names uvicorn only in its pgrep pattern; the start is start_dev_local_engine.sh's",
+    "scripts/test_dev_engine.sh": "a fake engine (a sleeping python whose argv mimics uvicorn) on a temp socket; no data",
     "scripts/smoke-release-embedded-backend.sh": "launches the installed app (its embedded engine is the app's); "
                                                  "it only pgreps/stops a dev engine on the container socket",
 }
