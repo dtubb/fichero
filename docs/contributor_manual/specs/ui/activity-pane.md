@@ -666,14 +666,18 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   person only for a person's own act; the engine's own starters (`kept export`, `synced folder`, `automatic`, a schedule, a
   trigger) are automatic. Acceptance: `started_by: "kept export"` maps to automatic. *Test:*
   `fichero/Tests/Unit/general/Models/ActivityRowIconsTests.swift` extended.
-- `activity.kept-export.one-row-per-export` — **[GAP]** (#6588; decision 28; `kept_export.py`) the work changing queues ONE job
+- `activity.kept-export.one-row-per-export` — **[PARTIAL]** (#6588; decision 28; `kept_export.py`) the work changing queues ONE job
   per kept export (subject the export's id, the pages to rewrite gathered in its detail), never one per page; while it waits,
   more changes join it and push its quiet period; its row reads "Update kept export · <folder name> · N pages". When the
   folder is gone the job ends PAUSED "The export folder is gone" with Choose Folder… and nothing more is queued for that export
   until the folder is chosen again or Write Now is pressed; a per-export switch **Keep up to date** (on by default) turns the
   automatic rewrite off, Write Now still writing. Acceptance: ten page edits queue one row naming ten pages; with the folder
   removed, ten more edits add no row and the one row is paused with the fix; switching Keep up to date off queues nothing on
-  an edit. *Test:* not yet written: `fichero-server/tests/unit/jobs/test_kept_export_one_row_6588.py`.
+  an edit. *Built 2026-11-14:* one row per export (subject the export's id, `pages` and `keys` in its detail, the
+  kind's `names` hook naming the row), a gone folder PAUSES it (`jobs._PAUSED_NOT_FAILED`; the path kept for Copy Details),
+  Continue writes what waited, Write Now joins the row and drops its quiet period. *Not yet:* the Choose Folder… fix (a
+  route to change an export's folder, a `choose-folder` action kind) and the Keep up to date switch. *Test:*
+  `fichero-server/tests/unit/jobs/test_kept_export_one_row_6588.py` (3, green).
 
 ## Build order
 

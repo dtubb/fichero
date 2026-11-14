@@ -275,6 +275,9 @@ class Kind:
     #: `STUCK_MODEL_JOB_SECONDS` means stuck. A kind without it (training: words at an epoch's end) is never let go by
     #: silence alone, only by a dead claim (#6213, #6000).
     says_per_item: bool = False
+    #: Names one of its rows by what it works on, `(db, subject, detail) -> words or None`, for a kind whose subject is
+    #: no document ("Update kept export · Letters · 12 pages", `activity.kept-export.one-row-per-export`).
+    names: Callable[["Database", str, dict[str, Any]], str | None] | None = None
 
 
 KINDS: dict[str, Kind] = {}
@@ -369,6 +372,7 @@ def register_kind(
     first: bool = False,
     no_retry: str | None = None,
     says_per_item: bool = False,
+    names: Callable[["Database", str, dict[str, Any]], str | None] | None = None,
 ) -> None:
     if lane not in LANES:
         raise ValueError(f"no lane {lane!r}")
@@ -383,6 +387,7 @@ def register_kind(
         first=first,
         no_retry=no_retry,
         says_per_item=says_per_item,
+        names=names,
     )
 
 
@@ -1045,6 +1050,8 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
             if is_page
             else _run_kind_name(node)
         )
+        if is_page and node["display_name"] is None:
+            node["display_name"] = _named_by_its_kind(db, node)
 
     now = utc_now()
 
@@ -1191,6 +1198,19 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
                 ensure_utc(node[key]).isoformat() if node[key] is not None else None
             )
     return root
+
+
+def _named_by_its_kind(db: "Database", node: dict[str, Any]) -> str | None:
+    """A row named by its kind's own `names` (a subject that is no document), or None."""
+    kind = KINDS.get(node["kind"])
+    if kind is None or kind.names is None:
+        return None
+    try:
+        detail = json.loads(node["detail"]) if node["detail"] else {}
+        return kind.names(db, node["subject"] or "", detail if isinstance(detail, dict) else {})
+    except Exception:  # noqa: BLE001 -- a name is the extra; the row is listed without it
+        logger.warning("could not name job %s", node["id"], exc_info=True)
+        return None
 
 
 def _run_kind_name(node: dict[str, Any]) -> str | None:
@@ -5581,8 +5601,9 @@ class _Scheduler:
             state, reason, error = "failed", failed_reason(kind_name, exc), exc
             from fichero_server.llm import failure as _failure
 
-            if _failure.kind_of(exc)[0] == "library-closed":  # its project closed under it: paused, never failed (#6596)
-                state, reason = "paused", PAUSED_PROJECT_CLOSED
+            paused_for = _PAUSED_NOT_FAILED.get(_failure.kind_of(exc)[0])
+            if paused_for is not None:  # a cause a person removes, then Continues: paused, never failed (#6596, #6588)
+                state, reason = "paused", paused_for
         finally:
             _current.job_id = None
             _current.lane = None
@@ -5631,7 +5652,7 @@ class _Scheduler:
                 f"UPDATE jobs SET state = ?, reason = ?, finished_at = ?{_clear_waiting_on(current)} WHERE id = ?",
                 [state, reason, None if state == "paused" else utc_now(), job_id],
             )
-            if state == "failed" and error is not None:
+            if state in ("failed", "paused") and error is not None:
                 try:
                     _with_error_detail(current, job_id, error)
                 except Exception:  # noqa: BLE001 -- the detail is the extra; the row's end is already written
@@ -5665,6 +5686,12 @@ CLOSE_WAIT_SECONDS = 15.0
 
 #: A row paused because its project closed under it (never a failure, never the library's path).
 PAUSED_PROJECT_CLOSED = "Paused: the project closed"
+#: A kept export's row paused because its folder is gone (`activity.kept-export.one-row-per-export`): one row waits for the
+#: folder, and the edits meanwhile join it, never a failed row per edit.
+PAUSED_EXPORT_FOLDER_GONE = "The export folder is gone"
+#: The failure kinds that PAUSE a job instead of failing it, and the paused row's words: the cause is outside the work
+#: (the project closed under it, the export's folder unplugged) and Continue carries on once it is put right.
+_PAUSED_NOT_FAILED = {"library-closed": PAUSED_PROJECT_CLOSED, "export-folder-gone": PAUSED_EXPORT_FOLDER_GONE}
 
 
 def _pause_for_close(db: "Database", live: list[str] | None) -> None:

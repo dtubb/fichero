@@ -21,16 +21,19 @@ person is told so when the export is set up), and a file already in the folder t
 did not write is left alone and listed (`in_the_way`). Nothing is ever deleted. A folder inside
 the project's package, a system folder, or one that is not there is refused in one sentence.
 
-Each write is one job (kind `write-kept-export`, the background `database` lane), so it is
-throttled, paused and shown in Activity like all background work. "Write now" queues the whole
-export. The work changing queues a rewrite of the pages it touched, after a quiet period, from two
-places: every audited action that touches a page (`sync_folder.queue_rewrites`, the synced
+Each export has ONE job at a time (kind `write-kept-export`, subject the export's id, the background `database` lane),
+so it is throttled, paused and shown in Activity like all background work, as one row: "Update kept export · Letters ·
+12 pages" (`activity.kept-export.one-row-per-export`). "Write now" asks it for the whole export. The work changing asks it
+to rewrite the pages it touched, after a quiet period; while it waits, more changes join it (its detail gathers them) and
+push the quiet period later. A folder that is gone PAUSES the row ("The export folder is gone"): the edits meanwhile join
+it, and Continue writes them once the folder is back. The work changing asks from two places: every audited action that touches a page (`sync_folder.queue_rewrites`, the synced
 folder's hook, which calls `queue_rewrites` here) and the end of each workflow step of a recipe
 run (`recipes.runner.run`), for the pages that step worked on. No file watcher.
 """
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import shutil
 import tempfile
@@ -137,7 +140,7 @@ def keep(db: Any, folder: str, fmt: str, per: str) -> str:
     export_id = uuid.uuid4().hex
     db.execute("INSERT INTO kept_exports (id, folder, format, per, created_at) VALUES (?, ?, ?, ?, ?)",
                [export_id, resolved, fmt, per, utc_now()])
-    jobs.enqueue(db, KIND, export_id, started_by="kept export")
+    _ask(db, export_id, everything=True)
     return export_id
 
 
@@ -153,7 +156,35 @@ def write_now(db: Any, export_id: str) -> str:
     if _export(db, export_id) is None:
         raise KeyError(export_id)
     register_job_kinds()
-    return jobs.enqueue(db, KIND, export_id, started_by="kept export", watched=True)
+    job_id = _ask(db, export_id, everything=True, watched=True)
+    db.execute("UPDATE jobs SET run_after = NULL WHERE id = ?", [job_id])  # a person waits: no quiet period
+    jobs.wake_lane(db)  # the lane may have read the quiet period already and slept until it ends
+    return job_id
+
+
+def _ask(db: Any, export_id: str, *, pages: list[str] | tuple[str, ...] = (), keys: list[str] | tuple[str, ...] = (), everything: bool = False,
+         run_after: Any = None, watched: bool = False) -> str:
+    """Queue the export's one job, or join the one waiting or paused: its detail gathers the `pages` changed and the
+    `keys` (pages or documents) to rewrite, or `everything` (its first write, Write Now). Returns the job id."""
+    job_id = jobs.enqueue(db, KIND, export_id, started_by="kept export", run_after=run_after, watched=watched)
+    row = db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])
+    detail = json.loads(row[0]) if row and row[0] else {}
+    detail["everything"] = bool(detail.get("everything")) or everything
+    detail["pages"] = list(dict.fromkeys([*detail.get("pages", []), *pages]))
+    detail["keys"] = list(dict.fromkeys([*detail.get("keys", []), *keys]))
+    db.execute("UPDATE jobs SET detail = ? WHERE id = ?", [json.dumps(detail), job_id])
+    return job_id
+
+
+def name_row(db: Any, subject: str, detail: dict[str, Any]) -> str | None:
+    """The row's words: "Update kept export · Letters · 12 pages", the folder by its name, never its path."""
+    export_id = subject.partition(":")[0]
+    row = db.execute_fetchone("SELECT folder FROM kept_exports WHERE id = ?", [export_id])
+    if row is None:
+        return None
+    count = len(detail.get("pages") or [])
+    what = "every page" if detail.get("everything") or not count else f"{count:,} page{'s' if count != 1 else ''}"
+    return f"{jobs.kind_name(KIND)} · {Path(row[0]).name} · {what}"
 
 
 def queue_rewrites(db: Any, document_ids: list[str], *, watched: bool = False) -> None:
@@ -173,9 +204,8 @@ def queue_rewrites(db: Any, document_ids: list[str], *, watched: bool = False) -
     after = utc_now() + timedelta(seconds=QUIET_SECONDS)
     for export in exports:
         keys = ids if export["per"] == "page" else [parents.get(i) or _TOP for i in ids if i in parents]
-        for key in dict.fromkeys(keys):
-            jobs.enqueue(db, KIND, f"{export['id']}:{key}", started_by="kept export", run_after=after,
-                         watched=watched)
+        if keys:
+            _ask(db, export["id"], pages=ids, keys=list(dict.fromkeys(keys)), run_after=after, watched=watched)
 
 
 def _stem(name: str | None, fallback: str) -> str:
@@ -347,9 +377,25 @@ def _input_hash(db: Any, export: dict[str, Any], unit: _Unit) -> str | None:
     return _sha("\0".join(parts).encode("utf-8"))
 
 
-def write(db: Any, subject: str) -> None:
-    """The job: write the export (subject `<id>`), or one of its files (`<id>:<page or document>`)."""
+def _asked_keys(db: Any, subject: str) -> set[str] | None:
+    """The pages or documents this job rewrites, or None for the whole export: an older row's `<id>:<key>` subject, or
+    the one row's detail (`_ask`); a write with no job (a test, the route's own) writes the whole export."""
     export_id, _, key = subject.partition(":")
+    if key:
+        return {key}
+    job_id = jobs.current_job_id()
+    row = db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id]) if job_id else None
+    detail = json.loads(row[0]) if row and row[0] else {}
+    if not isinstance(detail, dict) or detail.get("everything") or not detail.get("keys"):
+        return None
+    return set(detail["keys"])
+
+
+def write(db: Any, subject: str) -> None:
+    """The job: write the export (subject `<id>`), the whole of it or the pages its detail asks for (`_ask`); an older
+    row's subject `<id>:<page or document>` writes that one."""
+    export_id = subject.partition(":")[0]
+    keys = _asked_keys(db, subject)
     export = _export(db, export_id)
     if export is None:
         return  # removed meanwhile
@@ -359,11 +405,11 @@ def write(db: Any, subject: str) -> None:
         raise ExportFolderGone(f"{folder} is not there any more; choose the export's folder again.")
     _refuse_low_space(folder)
     for unit in _units(db, export):
-        if key and unit.key != key and export["format"] not in WHOLE_FORMATS:
+        if keys is not None and unit.key not in keys and export["format"] not in WHOLE_FORMATS:
             continue  # (the workbook is one file: any page's change rewrites it)
         seen, now = (export["id"], unit.key), _input_hash(db, export, unit)
         # a rewrite after a change skips a file whose input is the same and which is still there; "write now" always writes
-        if key and now is not None and _WRITTEN_INPUT.get(seen) == now and (folder / unit.filename).exists():
+        if keys is not None and now is not None and _WRITTEN_INPUT.get(seen) == now and (folder / unit.filename).exists():
             continue
         data = _render(db, export, unit, left_out)
         if data is not None:
@@ -395,4 +441,4 @@ def status(db: Any) -> list[dict[str, Any]]:
 def register_job_kinds() -> None:
     """Called by the scheduler before its first scan (`execution.jobs._KIND_MODULES`)."""
     if KIND not in jobs.KINDS:
-        jobs.register_kind(KIND, write, model=None, lane="database", name="Write a kept export")
+        jobs.register_kind(KIND, write, model=None, lane="database", name="Update kept export", names=name_row)
