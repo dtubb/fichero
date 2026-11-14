@@ -94,6 +94,47 @@ a point-in-time readiness snapshot. Shape:
 locally (step 5), and the design lead gives the verdict *before* anything goes public (GitHub,
 TestFlight, the site). The lane does not self-publish on a green build.
 
+## The lane runs unattended (owner, 2026-11-14)
+
+The 2026.11.14 release needed the manager by hand at eight points; each is now the lane's job.
+The logic lives in `scripts/release_guard.py` (one subcommand per point) so it is tested;
+`release-all.sh` only calls it. *Test:* `test_release_guard.py` for every line below.
+
+- `release.lane.disk-checked-before-heavy-stages` — **[OK]** before the engine build, each DMG,
+  each TestFlight archive and each export, free space is checked against
+  `FICHERO_RELEASE_MIN_FREE_GB` (default 20). Short, it thins Time Machine local snapshots once
+  (`tmutil thinlocalsnapshots / 40000000000 4`) and re-checks; still short, it refuses with the
+  stage and the numbers. It never deletes DerivedData, DMGs or any other file.
+- `release.update.build-number-bumped-and-above-published` — **[OK]** a run that builds a DMG
+  always stamps a new build number, pinned `FICHERO_RELEASE_VERSION` or not: one above both the
+  local `CURRENT_PROJECT_VERSION` and every published build (the live appcast's
+  `sparkle:version` values and the `(build N)` in each release tag's annotation). Before
+  anything is built it refuses a build number not above every published one, and refuses when
+  the live appcast cannot be read (blind is not green). A TestFlight-only or publish-only run
+  keeps the build number of the DMG it goes with.
+- `release.lane.ios-compile-preflight` — **[OK]** when iOS TestFlight is in the run, the
+  preflight builds the iOS scheme for `generic/platform=iOS` with signing off, and refuses with
+  the compiler's `error:` lines if it fails, before the engine or any DMG is built.
+- `release.lane.upload-watchdog-continues` — **[OK]** each TestFlight export/upload runs under a
+  watchdog: no output for `FICHERO_UPLOAD_IDLE_MINUTES` (default 30) kills it. A failed or
+  killed TestFlight part is marked FAILED and the run goes on to the remaining parts (the other
+  TestFlight, then the publish if requested); the run still exits non-zero.
+- `release.lane.asc-key-materialised` — **[OK]** the preflight refuses an App Store Connect
+  `.p8` that is missing; one that is an iCloud dataless placeholder is read once to download it
+  and re-checked.
+- `release.lane.smoke-before-publish` — **[OK]** before the GitHub release, each DMG to ship is
+  checked: `xcrun stapler validate`, mounted read-only, `codesign --verify --deep --strict` and
+  `spctl -a` on the app, and its `CFBundleShortVersionString`/`CFBundleVersion` equal the stamp.
+  Any failure refuses the publish.
+- `release.lane.notify-owner` — **[OK]** when a part goes live (the publish: GitHub release,
+  appcast and site; Mac TestFlight; iOS TestFlight) and when any part fails, the owner is texted
+  through Messages at the handle in `FICHERO_NOTIFY_IMESSAGE` (unset: no text). `osascript` runs
+  in the background `with timeout of 30 seconds`, reading the message as UTF-8 from a file, so
+  an AppleEvent timeout never blocks the lane. No handle is committed.
+- `release.lane.summary-table` — **[OK]** however the run ends, it prints one line per part
+  (Preflight, DMG, Mac TestFlight, iOS TestFlight, Publish; Engine when it fails) with
+  OK, FAILED or SKIPPED and the reason; a part the run never reached shows SKIPPED, not reached.
+
 ## Release notes — two artifacts, different owners
 
 Two files, two conventions — do not conflate them:
