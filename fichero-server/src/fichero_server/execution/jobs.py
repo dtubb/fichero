@@ -590,6 +590,9 @@ def _cancel_run(db: "Database", job_id: str) -> str:
 
 
 PAUSING = "Pausing at its next step"
+#: A recipe run off the lane while its pause holds (`recipes/runner.py`): parked on its paused step run, or between steps.
+PAUSED_WITH_RUN = "Paused with its run"
+PAUSED_BETWEEN_STEPS = "Paused between steps"
 STOPPING = "Stopping at its next step"
 #: A running page a person stopped: its result is dropped when it returns.
 STOPPING_PAGE = "Stopping: what it reads is not kept"
@@ -2490,6 +2493,22 @@ def resume(db: "Database") -> None:
         f"UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? "
         f"WHERE state = 'running' AND reason = ? AND kind NOT IN ({', '.join('?' for _ in RUN_KINDS)}){not_live}",
         [utc_now(), STOPPING, *RUN_KINDS, *live],
+    )
+    # Only work that was running at quit, and that nobody cancelled or deleted, carries on (owner 2026-11-13, #6584,
+    # `activity.relaunch.only-running-work-resumes`). A row deleted in Activity (`cleared_at`) ends instead of coming back.
+    if _has_cleared_at(db):
+        db.execute(
+            f"UPDATE jobs SET state = 'cancelled', reason = 'Deleted by you', finished_at = COALESCE(finished_at, ?) "
+            f"WHERE state IN ('waiting', 'running', 'paused') AND cleared_at IS NOT NULL{not_live}",
+            [utc_now(), *live],
+        )
+    # A pause asked before the quit is still a pause: a recipe run's pause was held only in memory, so its row (running
+    # and pausing, or waiting to look at its pause again) was taken up and the run carried on; now it is the stored pause
+    # (`pause_stored`), which Resume lets go. The row's own words stay, a "pausing" one now says paused.
+    db.execute(
+        f"UPDATE jobs SET state = 'paused', reason = CASE WHEN reason = ? THEN ? ELSE reason END{_clear_waiting_on(db)} "
+        f"WHERE state IN ('waiting', 'running') AND reason IN (?, ?, ?){not_live}",
+        [PAUSING, PAUSED_REASON, PAUSING, PAUSED_WITH_RUN, PAUSED_BETWEEN_STEPS, *live],
     )
     # (Same rule: only rows no live thread runs were left by an engine that is gone; owner, 2026-10-19.)
     db.execute(

@@ -431,9 +431,9 @@ def _adopt_step_run(thread_id: str, parent: str) -> tuple[str, str, str | None]:
 def _park(db: Any, job_id: str, detail: dict[str, Any], card: dict[str, Any], thread_id: str) -> None:
     """Park the recipe on a paused step run: remember the run, go back to waiting (off the lane), come back soon to look again."""
     detail["awaiting"] = {"card": card.get("id"), "child": thread_id}
-    jobs.save_detail(db, job_id, json.dumps(detail), reason="Paused with its run")
+    jobs.save_detail(db, job_id, json.dumps(detail), reason=jobs.PAUSED_WITH_RUN)
     jobs.come_back_after(db, job_id, PAUSED_LOOK_AGAIN_SECONDS)
-    raise jobs.JobDeferred("Paused with its run")
+    raise jobs.JobDeferred(jobs.PAUSED_WITH_RUN)
 
 
 def _wait_out_a_pause(db: Any, job_id: str) -> None:
@@ -443,7 +443,7 @@ def _wait_out_a_pause(db: Any, job_id: str) -> None:
 
     if pause_requested(job_id) and not _stop_asked(job_id):
         jobs.come_back_after(db, job_id, PAUSED_LOOK_AGAIN_SECONDS)
-        raise jobs.JobDeferred("Paused between steps")
+        raise jobs.JobDeferred(jobs.PAUSED_BETWEEN_STEPS)
 
 
 def _resume_step_run(db: Any, thread_id: str, recipe_id: str | None = None) -> None:
@@ -548,7 +548,7 @@ def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
         forget_cap_stop(child)
         if jobs._job_row(db, child)[1] == "paused":
             _resume_step_run(db, child, job_id)
-    document_tree.clear_job_reason_if(db, job_id, (jobs.PAUSING, "Paused with its run"))
+    document_tree.clear_job_reason_if(db, job_id, (jobs.PAUSING, jobs.PAUSED_WITH_RUN))
     document_tree.release_waiting_job(db, job_id)  # a parked recipe is taken up now
     jobs.wake_lane(db)
     return jobs._job_row(db, job_id)[1]
@@ -1343,7 +1343,7 @@ def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
         # Paused with its run: wait, and write nothing else. Re-picked every PAUSED_LOOK_AGAIN_SECONDS, a paused run that
         # did its work first submitted a page row each time for the lane to withdraw (437: ~17k rows overnight).
         jobs.come_back_after(db, job_id, PAUSED_LOOK_AGAIN_SECONDS)
-        raise jobs.JobDeferred("Paused with its run")
+        raise jobs.JobDeferred(jobs.PAUSED_WITH_RUN)
     row = jobs.read_job(db, job_id)
     # Said at once: working out each step's pages can take a while on a big project (#5610, #5606).
     jobs.save_detail(db, job_id, row["detail"] or "{}", reason="Getting ready: working out which pages each step needs")
@@ -1795,7 +1795,7 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
         except WorkflowPaused as paused:  # a page waiting for the lane was withdrawn by the run's Pause (#5863, 434)
             # The run is not done: the row goes back to waiting and resumes from its checkpoint, after a pause's grace.
             jobs.come_back_after(db, job_id, PAUSED_LOOK_AGAIN_SECONDS)
-            raise jobs.JobDeferred("Paused with its run") from paused
+            raise jobs.JobDeferred(jobs.PAUSED_WITH_RUN) from paused
         except WorkflowCancelled:  # withdrawn by the run's Stop: stopped, not failed
             child, (state, why) = None, ("cancelled", "Stopped by you")
         except Exception as exc:  # noqa: BLE001 -- the step fails alone, said in one line; the rest still run (#5684)
