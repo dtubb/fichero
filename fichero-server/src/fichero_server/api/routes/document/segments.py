@@ -2487,6 +2487,9 @@ class SegmentRestoreVersionsParams(BaseModel):
     #: `segment-editor.reassign-by-drag`: the order entries `segment.reparent` moved, written back as they were
     #: (by id) in this same action. None leaves every entry alone, as `segment.update_many`'s undo needs.
     order_entries: Optional[list[SegmentOrderEntryParams]] = None
+    #: `segment-editor.cut-marks-editable`: each row's metadata as it was, {segment_id: metadata}, written back (a
+    #: version snapshot does not carry metadata). None leaves metadata alone.
+    metadata: Optional[dict[str, dict[str, Any]]] = None
 
 
 def _live_current_row(
@@ -2557,9 +2560,8 @@ def _invert_many_via_previous_version(before, after, ctx: ActionContext):
     ]
     if not restores:
         return None
-    if after.get("order_entries") is not None:
-        return ("segment.restore_versions", {"restores": restores, "order_entries": after["order_entries"]})
-    return ("segment.restore_versions", {"restores": restores})
+    extra = {key: after[key] for key in ("order_entries", "metadata") if after.get(key) is not None}
+    return ("segment.restore_versions", {"restores": restores, **extra})
 
 
 def _reposition_entries(db: Database, rows: list[Segment]) -> list[dict[str, Any]]:
@@ -2848,6 +2850,14 @@ def _action_segment_restore_versions(
         db.save(row)
         after_versions.append({"segment_id": row.id, "version": row.version})
     entries_were = None if params.order_entries is None else _put_entries_back(db, params.order_entries)
+    metadata_was = None
+    if params.metadata is not None:
+        metadata_was = {}
+        for row, _target in pairs:
+            if row.id in params.metadata:
+                metadata_was[row.id] = dict(row.metadata or {})
+                row.metadata = params.metadata[row.id]
+                db.save(row)
     # Entries put back move lines in `as-written`, which the page's text follows.
     text_relevant = text_relevant or bool(params.order_entries)
 
@@ -2857,7 +2867,8 @@ def _action_segment_restore_versions(
         target_ids=[row.id for row, _target in pairs],
         before={"versions": before_versions},
         after={"versions": after_versions, "text_relevant": text_relevant,
-               **({"order_entries": entries_were} if entries_were is not None else {})},
+               **({"order_entries": entries_were} if entries_were is not None else {}),
+               **({"metadata": metadata_was} if metadata_was is not None else {})},
         emit_type="segment.updated",
         segment_ids=[row.id for row, _target in pairs],
         pass_ids=sorted({row.pass_id for row, _target in pairs}),
@@ -4142,6 +4153,7 @@ def _action_move_cut(db: Database, params: SegmentMoveCutParams, ctx: ActionCont
 
     audit_id = uuid.uuid4().hex
     before_versions, after_versions = [], []
+    metadata_before = {row.id: dict(row.metadata or {}) for row in (first, second)}
     for row, polygon, piece in zip((first, second), polygons, pieces):
         before_versions.append({"segment_id": row.id, "version": row.version})
         snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
@@ -4157,7 +4169,8 @@ def _action_move_cut(db: Database, params: SegmentMoveCutParams, ctx: ActionCont
         domains=["segment"],
         target_ids=[first.id, second.id],
         before={"versions": before_versions},
-        after={"versions": after_versions},
+        # The pieces' metadata before the move, so the undo puts the machine's cut back as the machine's.
+        after={"versions": after_versions, "metadata": metadata_before},
         emit_type="segment.updated",
         segment_ids=[first.id, second.id],
         pass_ids=[first.pass_id],
@@ -4642,6 +4655,7 @@ def _unsplit_params(split: dict) -> dict:
         },
         "representation_ids": split.get("representation_ids", []),
         "moved_children": split.get("moved_children", {}),
+        **({"kept_metadata": split["kept_metadata"]} if split.get("kept_metadata") is not None else {}),
     }
 
 
@@ -5010,6 +5024,10 @@ def _knife_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
         )
         for row, parts, estimated, readings, children in planned
     ]
+    for split in splits:
+        kept_before = _divide_piece_spans(db, split, stroke)
+        if kept_before is not None:
+            split["kept_metadata"] = kept_before
     touched = [segment_id for split in splits for segment_id in (split["kept_id"], *split["new_segment_ids"])]
     change_spec = ChangeSpec(
         audit_id=audit_id,
@@ -5033,6 +5051,37 @@ def _knife_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
         "left_alone": left_alone,
     }
     return answer, change_spec
+
+
+def _divide_piece_spans(db: Database, split: dict, stroke: list[list[float]]) -> dict[str, Any] | None:
+    """A word (or character) split by a cut a person drew (`segment-editor.cut-marks-editable`): its stretch of the line's
+    reading divided between the pieces where a character begins nearest each cut, from the line reading's positions,
+    and every piece marked a person's cut (confidence 1). A piece with no stretch, or a line with no positions, keeps
+    what it had: nothing is guessed. Answers the kept piece's metadata before, for the undo; None when nothing changed."""
+    from fichero_server.media import line_cut
+
+    kept = db.get(Segment, split["kept_id"])
+    meta = (kept.metadata or {}) if kept is not None else {}
+    span, source_id = meta.get("reading_span"), meta.get("cut_from_representation_id")
+    line = db.get(Segment, kept.parent_segment_id) if kept is not None and kept.parent_segment_id else None
+    reading = db.get(ContentRepresentation, source_id) if source_id else None
+    positions = reading.char_positions if reading is not None else None
+    if not span or line is None or not line.baseline or positions is None or len(positions) != len(reading.content):
+        return None
+    start, end = span
+    cuts = line_cut.crossings(line.baseline, stroke)
+    inside = list(range(start + 1, end))
+    boundaries = sorted({min(inside, key=lambda k: abs(positions[k] - at)) for at in cuts} if inside else set())
+    pieces = [kept, *(db.get(Segment, sid) for sid in split["new_segment_ids"])]
+    if len(boundaries) != len(pieces) - 1:
+        return None
+    kept_before = dict(meta)
+    edges = [start, *boundaries, end]
+    for piece, begin, stop in zip(pieces, edges, edges[1:]):
+        piece.metadata = {**(piece.metadata or {}), "reading_span": [begin, stop], "cut_source": "person",
+                          "cut_confidence": 1.0, "cut_from_representation_id": source_id}
+        db.save(piece)
+    return kept_before
 
 
 class SegmentUnsplitParams(BaseModel):
@@ -5063,6 +5112,9 @@ class SegmentUnsplitParams(BaseModel):
     #: `segment-editor.edge.knife-through-words`: the words a knife moved onto a new part, {id: version as the
     #: split left it}; put back under the kept line before the parts go.
     moved_children: dict[str, int] = {}
+    #: The kept piece's metadata before a cut a person drew divided its stretch (`_divide_piece_spans`), put back:
+    #: a version snapshot does not carry metadata.
+    kept_metadata: Optional[dict[str, Any]] = None
 
 
 @action("segment.unsplit", SegmentUnsplitParams, domains=["segment"], undoable=False)
@@ -5254,6 +5306,8 @@ def _unsplit_apply(
     row.parent_segment_id = target.parent_segment_id
     row.is_furniture = target.is_furniture
     row.mark_state = target.mark_state
+    if params.kept_metadata is not None:
+        row.metadata = params.kept_metadata
     bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(row.anchor)
     row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
     row.doc_kind = f"{row.document_id}:{row.kind}"
