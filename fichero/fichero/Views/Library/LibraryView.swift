@@ -284,6 +284,8 @@ struct LibraryView: View {
     // translated through `canvasSelectedNodeIds` (#4192, widened by #4409).
     @State var cachedLibraryProjection = SpatialLibraryProjection(nodes: [], links: [])
     @State var cachedLibraryFaces: [String: CanvasCardFace] = [:]
+    /// Bumped when the bar's Sort is used on the Canvas or the Space: the board arranges itself once.
+    @State var canvasSortArrangeToken = 0
 
     @State var isLoadingEntities = false
     @State var entityLoadErrorMessage: String?

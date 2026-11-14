@@ -1,4 +1,5 @@
 import FicheroAPIClient
+import OSLog
 import SwiftUI
 
 // MARK: - Canvas & spatial view modes (#4192)
@@ -125,7 +126,9 @@ extension LibraryView {
                 moveIntoContainer: moveCanvasNodeIntoContainer,
                 emphasis: canvasSearchEmphasis,
                 tint: canvasTint,
-                documentMenu: { AnyView(canvasDocumentMenu()) }
+                documentMenu: { AnyView(canvasDocumentMenu()) },
+                sortArrangeToken: canvasSortArrangeToken,
+                saveSortArrangement: saveSortArrangement
             )
         } else {
             SpaceSceneView(
@@ -177,7 +180,9 @@ extension LibraryView {
                 groupNodeIds: CanvasGroupNesting.groupNodeIds(in: filteredDocuments),
                 pagesOfGroup: { [documentStore] nodeId in
                     await documentStore.canvasPageNodes(ofGroupNode: nodeId)
-                }
+                },
+                sortArrangeToken: canvasSortArrangeToken,
+                saveSortArrangement: saveSortArrangement
             )
         } else {
             Spatial2DCanvas(
@@ -192,4 +197,44 @@ extension LibraryView {
             .contextMenu { legacyCanvasContextMenu() }
         }
     }
+
+    /// The bar's Sort on the Canvas or the Space (`panes.chrome.one-filter-pattern`, owner 2026-11-13): the new
+    /// order reaches the board's nodes now, then the board arranges its cards in it, once.
+    func arrangeCanvasBySortIfShown() {
+        guard displayMode.group == .canvas else { return }
+        recomputeFiltered()
+        refreshLibraryProjection()
+        canvasSortArrangeToken += 1
+    }
+
+    /// One `canvas.layout.save` through the actions door: audited, one ⌘Z step, the board re-read after it and
+    /// after each undo and redo.
+    func saveSortArrangement(scope: String, rows: [CanvasItemLayout]) {
+        guard !rows.isEmpty, let actionsService = activeLibraryReference?.actionsService else { return }
+        let layoutStore = canvasLayoutStore
+        Task {
+            do {
+                try await AuditedAction.run(
+                    CanvasLayoutSaveAction.name,
+                    params: CanvasLayoutSaveAction(folderId: scope, items: rows.map(\.asSaveItem)),
+                    actionName: "Arrange by Sort", actionsService: actionsService, steps: windowSteps,
+                    afterChange: { await layoutStore?.loadLayout(folderId: scope) }
+                )
+            } catch {
+                Self.canvasSortLogger.error("Arrange by Sort failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
+    static let canvasSortLogger = Logger(subsystem: "app.fichero.fichero", category: "CanvasSort")
+}
+
+/// `canvas.layout.save` through the actions door: the rows Sort arranged, as one audited step ⌘Z reverses.
+struct CanvasLayoutSaveAction: Encodable {
+    let folderId: String
+    let items: [Components.Schemas.CanvasLayoutItem]
+
+    static let name = "canvas.layout.save"
+
+    enum CodingKeys: String, CodingKey { case folderId = "folder_id", items }
 }
