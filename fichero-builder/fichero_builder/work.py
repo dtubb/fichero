@@ -139,9 +139,10 @@ def do_rebase(a, branch: str) -> str:
     rebase the identity is re-baked once more at HEAD and, if that changed it, committed citing `[check].rebake_issue` with the
     lane's own trailers. One `rebake` journal row each."""
     q, g, wt = shlex.quote, shlex.quote(jail_git()), shlex.quote(str(a.worktree))
+    before = as_worker(a, f"{g} -C {wt} rev-parse HEAD").stdout.strip()
     r = as_worker(a, f"{g} -C {wt} fetch -q origin && {g} -C {wt} rebase -q origin/{q(branch)}")
     if r.returncode == 0:
-        return ""
+        return regen(a, branch, before)
     cfg = check_tool.load(a.pinned)
     gen = set(cfg.generated)
     bake = " ".join(q(cfg.python if x == "{python}" else x) for x in cfg.rebake)
@@ -171,6 +172,33 @@ def do_rebase(a, branch: str) -> str:
         as_worker(a, f"cd {wt} && {bake} && {g} add -- {' '.join(q(p) for p in sorted(gen))} && "
                      f"({g} diff --cached --quiet || {g} commit -q -m {q(msg)} -m {q(trailers or 'Written-By: Claude')})")
         journal.append("rebake", lane=a.name, branch=branch, files=sorted(gen), detail=f"{rebaked} conflict(s) re-baked; HEAD checked")
+    return regen(a, branch, before)
+
+
+def regen(a, branch: str, before: str) -> str:
+    """run.rebase-rebakes-generated (2026-11-14: a rebase left the contracts and the engine embed list stale, and the guards bounced the
+    batch): after a rebase that moved the lane, each `[check].regen` line runs in the worktree as the worker, and a tracked file it
+    changed is committed citing `[check].rebake_issue` with the lane's own trailers. One `rebake` row when it committed; a regen line
+    that fails is said in a row and the guards judge as before (never a refusal of the rebase). Always ''."""
+    q, g, wt = shlex.quote, shlex.quote(jail_git()), shlex.quote(str(a.worktree))
+    cfg = check_tool.load(a.pinned)
+    if not cfg.regen or as_worker(a, f"{g} -C {wt} rev-parse HEAD").stdout.strip() == before:
+        return ""
+    env = f"PYTHONPATH={q(':'.join(cfg.python_path))} FICHERO_PYTHON_BIN={q(cfg.python)}" if cfg.python else ""
+    for line in cfg.regen:
+        r = as_worker(a, f"cd {wt} && {env} {line.replace('{python}', q(cfg.python or 'python3'))}")
+        if r.returncode:
+            journal.append("rebake", lane=a.name, branch=branch, files=[], detail=f"regen failed, the guards judge: {line}: {(r.stderr or r.stdout).strip()[-300:]}")
+            as_worker(a, f"{g} -C {wt} checkout -q -- . ")  # a half-run regen never reaches a commit
+            return ""
+    changed = as_worker(a, f"{g} -C {wt} diff --name-only").stdout.split()
+    if not changed:
+        return ""
+    trailers = "\n".join(ln for ln in as_worker(a, f"{g} -C {wt} log -1 --format=%B").stdout.splitlines()
+                          if ln.startswith(("Written-By:", "Directed-By:", "Co-Authored-By:")))
+    msg = f"chore(contract): regenerate the contracts and the engine embed list after the rebase onto origin/{branch} ({cfg.rebake_issue or 'generated files'})"
+    as_worker(a, f"cd {wt} && {g} add -u && {g} commit -q -m {q(msg)} -m {q(trailers or 'Written-By: Claude')}")
+    journal.append("rebake", lane=a.name, branch=branch, files=sorted(changed), detail="regenerated after the rebase and committed")
     return ""
 
 
@@ -264,7 +292,8 @@ def do_check(a, repo: str, branch: str, head: str, ladder: str) -> dict:
     if not since:
         raise RuntimeError(f"{branch!r} is not a branch in {repo}")
     maintainer = bool(getattr(a, "maintainer", False))  # the manager approved a pinned-file change (dev-workflows.run.loop-needs-maintainer)
-    approve = bool(getattr(a, "approve_weakened", False))  # the manager approved weakened tests (an alert's approve)
+    approve = getattr(a, "approve_weakened", False)  # the manager approved weakened tests (an alert's approve); a tuple: only those files
+    approve = approve if isinstance(approve, tuple) else bool(approve)
     red_ok = getattr(a, "approve_red", False)
     red_ok = red_ok if isinstance(red_ok, tuple) else bool(red_ok)  # a tuple: only the test files the approved alert named
     _LANE.name = a.name  # per chain thread: two ladders at once each write their own lane's rows (speed 3)
@@ -352,6 +381,27 @@ def _tail(r: dict) -> str:
     keys = ("reason", "stdout_tail", "stderr_tail", "errors", "log")  # errors and the log path LAST: the 3000-character cut keeps the end
     red = [f"{x.get('name')}: " + "\n".join(str(x[k]) for k in keys if x.get(k)) for x in last.get("results") or [] if not x.get("ok")]  # a guards rung
     return "\n".join([*(str(last[k]) for k in keys if last.get(k)), *red])[-3000:]
+
+
+def hints(r: dict, repo: str, head: str, cfg) -> list[str]:
+    """`autofix.fix_hints` over a red ladder's guard results (each as a `FAIL: <guard path>` block, the ready script's shape), files
+    read at `head` in `repo`."""
+    from fichero_builder import autofix
+    glob_dir = str(Path(cfg.guard_glob).parent) if cfg.guard_glob else "scripts"
+    blocks = []
+    for rung in r.get("rungs") or []:
+        for x in rung.get("results") or []:
+            if not x.get("ok"):
+                path = x["name"] if x["name"].endswith(".py") else f"{glob_dir}/{x['name']}.py"
+                blocks.append(f"FAIL: {path}\n{x.get('stdout_tail') or ''}\n{x.get('stderr_tail') or ''}")
+        if rung.get("name") == "ready" and not rung.get("ok"):
+            blocks.append(f"{rung.get('stdout_tail') or ''}\n{rung.get('stderr_tail') or ''}")
+    return autofix.fix_hints("\n".join(blocks), lambda f: _git(repo, "show", f"{head}:{f}").stdout, regen_shown(cfg), tuple(cfg.contract_guards), cfg.rebake_issue)
+
+
+def regen_shown(cfg) -> tuple:
+    """[check].regen as a lane runs it by hand: `{python}` is the lane's own engine venv."""
+    return tuple(x.replace("{python}", ".venv/bin/python") for x in cfg.regen)
 
 
 def r_since(repo: str, branch: str) -> str:
@@ -540,7 +590,8 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                     # union at this head, never a plain red (manager 2026-11-11).
                     cfg_now = check_tool.load(a.pinned)
                     have = tuple(getattr(a, "guard_data", ()) or ())
-                    data = [f for f in files if f.endswith(".json") and f.startswith(tuple(cfg_now.check_paths))]
+                    data = [f for f in files if f.endswith(".json") and f.startswith(tuple(cfg_now.check_paths))
+                            and f not in check_tool.stricter_files(repo, since_now, head, cfg_now)]  # only entries removed: judged by head's copy already
                     more = [f for f in data if f not in have]
                     if more and "guard-data-added-routes" in cfg_now.auto and not any(check_tool.known_gaps_added_only(repo, since_now, head, f, cfg_now) for f in more):
                         for f in more:  # speed: the rule decides; head's copy of exactly these files under the pinned guards, then the ladder again
@@ -554,7 +605,9 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                         widen = f" (the approval at this head named only {', '.join(have)}; widened to all of them)" if have else ""
                         return {**no("guard-data", f"guards red at {head[:9]} with guard data changed by the batch: {', '.join(union)}; approve lays HEAD's copy of "
                                      f"exactly these files under the pinned guards (the scripts stay pinned){widen}", _tail(r), str(diff)), "approvals": ["approve_guard_data"]}
-                return no("red", f"the check is red at {head[:9]} (failed: {r.get('failed') or '?'}); ladder in {ladder}", f"failed rung: {r.get('failed') or '?'}\n{_tail(r)}", ladder)
+                fixes = hints(r, repo, head, check_tool.load(a.pinned))  # the exact command for a mechanical red (2026-11-14)
+                fix = ("\nFix: " + "\nFix: ".join(fixes)) if fixes else ""
+                return no("red", f"the check is red at {head[:9]} (failed: {r.get('failed') or '?'}); ladder in {ladder}{fix}", f"failed rung: {r.get('failed') or '?'}\n{_tail(r)}{fix}", ladder)
             if moved < MOVES and since_now and _base_moved(a, branch, head):  # never review a range that cannot land
                 moved += 1
                 if early.get("proc"):

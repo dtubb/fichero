@@ -148,6 +148,10 @@ def main(argv=None) -> int:
     dn.add_argument("--no-presubmit", action="store_true", help="skip the lane's ready check with guards (the manager's call, e.g. a known-red guard)")
     cl = sub.add_parser("check-lane", help="the console's Run check (owner 2026-11-02): the pinned ladder over a lane's HEAD now, beside the loop; lands nothing")
     cl.add_argument("lane"), cl.add_argument("--root", default="."), cl.add_argument("--state", help="where the queue and the journal live")
+    pc = sub.add_parser("precheck", help="the ladder's guards (every pinned scripts/check_*.py the guards rung runs, the contract and since guards) over a worktree's HEAD in a scratch tree with the pinned copies laid over it, as the ladder does; each red with its exact fix when it is mechanical; lands nothing")
+    pc.add_argument("worktree"), pc.add_argument("--head", default="HEAD"), pc.add_argument("--root", default=".", help="the checkout holding harness.toml (its [check].engine_repo and [land])")
+    pc.add_argument("--pinned", default="", help="the pinned copy to judge with (default: the one the ladder uses for the current origin/<[land].branch>)")
+    pc.add_argument("--state", help="where the journal lives")
     bc = sub.add_parser("build-check", help="the app's build rung over a lane's HEAD now, before its done: every error line with file:line and the log; a green result is reused by the ladder's build rung for the same tree; lands nothing")
     bc.add_argument("lane"), bc.add_argument("--root", default="."), bc.add_argument("--state", help="where the queue and the journal live")
     va = sub.add_parser("verify-all", help="everything on a checkout's HEAD verified before a dev DMG: every guard, the full engine suite (on [check].remote), the app build; one `verify` row; --build makes the dev DMG only after a green verdict")
@@ -314,6 +318,13 @@ def main(argv=None) -> int:
 
         journal.STATE = Path(a.state) if a.state else journal.STATE
         return verify.main(a)
+    if a.cmd == "precheck":
+        from fichero_builder import queue
+
+        journal.STATE = Path(a.state) if a.state else journal.STATE
+        rc, msg = queue.precheck(a.root, a.worktree, a.head, a.pinned)
+        print(msg)
+        return rc
     if a.cmd == "build-check":
         from fichero_builder import queue
 
