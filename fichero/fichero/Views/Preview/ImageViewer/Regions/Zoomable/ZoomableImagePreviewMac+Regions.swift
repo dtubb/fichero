@@ -185,6 +185,7 @@ extension ZoomableImagePreview {
                 onKnifeCommit: { stroke in knifeCut(stroke) },
                 onMarkerCommit: { stroke, closed in drawMarkerStroke(stroke, closed: closed) },
                 onPaintCommit: { stroke, width in drawPaintStroke(stroke, widthPixels: width) },
+                onMoveCut: { first, second, place in moveCut(first, second, to: place) },
                 lineDrop: { point, command in dropOfSelection(at: point, command: command) },
                 onReassignCommit: { target in reassignSelectedLines(into: target) },
                 selection: regionSelection
