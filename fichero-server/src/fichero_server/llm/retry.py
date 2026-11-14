@@ -22,6 +22,31 @@ _DEAD: dict[str, tuple[float, str]] = {}  # provider -> (monotonic time until wh
 #: or fixed the key then replans; a call that succeeds clears the mark at once.
 PLAN_MEMORY_SECONDS = 900.0
 _SPENT: dict[str, int] = {}  # provider -> calls in a row whose retries were spent; K of them fail the provider fast
+#: run id -> {provider, retry_after_seconds}: the runs asked to pause because their provider is rate-limiting
+#: (`activity.limits.rate-limit-backs-off-then-pauses`, owner 2026-11-13): paused with that cause, never a failed page per 429.
+_PAUSED_FOR_RATE_LIMIT: dict[str, dict] = {}
+
+
+def paused_for_rate_limit(run_ids) -> dict | None:
+    """The rate-limit pause of the first of `run_ids` asked to pause for one: `{provider, retry_after_seconds}`, else None."""
+    return next((_PAUSED_FOR_RATE_LIMIT[r] for r in run_ids if r and r in _PAUSED_FOR_RATE_LIMIT), None)
+
+
+def forget_rate_limit_pause(run_id: str | None) -> None:
+    """The run goes on (Continue): it is no longer paused for a rate limit."""
+    if run_id:
+        _PAUSED_FOR_RATE_LIMIT.pop(run_id, None)
+
+
+def _pause_the_run_for(provider: str, exc: BaseException) -> None:
+    """The provider is rate-limiting: ask the run this call belongs to to pause at its next boundary, with the cause, so the
+    run reads paused with "<Provider> is limiting how fast Fichero can send" and its Continue, not a failed page per 429."""
+    from fichero_server.llm.spend import _ask_run_to_pause
+    from fichero_server.workflows.circuit_breaker import retry_after_seconds
+
+    run_id = _ask_run_to_pause()
+    if run_id:
+        _PAUSED_FOR_RATE_LIMIT[run_id] = {"provider": provider, "retry_after_seconds": retry_after_seconds(exc)}
 
 
 def dead_marks() -> dict[str, tuple[str, float]]:
@@ -55,10 +80,15 @@ async def resilient(make_coro: Callable[[], Awaitable[T]], config) -> T:
             _DEAD[provider] = (time.monotonic() + DEAD_FOR_SECONDS, fatal_cause(exc))
         elif breaker.is_open(provider):
             _DEAD[provider] = (time.monotonic() + DEAD_FOR_SECONDS, "rate-limit")
+            _pause_the_run_for(provider, exc)
         elif kind in ("slow-down", "transient"):  # the call's retries are spent: one failure of the provider's, K in a row open it
             _SPENT[provider] = _SPENT.get(provider, 0) + 1
             if _SPENT[provider] >= DEFAULT_BREAKER_THRESHOLD:
                 _DEAD[provider] = (time.monotonic() + DEAD_FOR_SECONDS, "rate-limit")
+            if kind == "slow-down":
+                # A rate limit that outlasted the back-off pauses the run (owner 2026-11-13): never a tight loop, never a
+                # failed page per 429; the provider's fail-fast mark keeps its K-in-a-row rule above.
+                _pause_the_run_for(provider, exc)
         raise
     _SPENT.pop(provider, None)
     _DEAD.pop(provider, None)  # it answered: whatever marked it dead is over

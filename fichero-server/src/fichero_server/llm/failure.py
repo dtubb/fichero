@@ -233,9 +233,9 @@ _WORDS: dict[str, Any] = {
         "Check the key in Settings › AI › Providers (paste it again, or make a new one), or switch this step to another provider.",
         _a("open-settings", PROVIDERS_CONTROL), _a("choose-model"), _a("retry")),
     "rate-limited": lambda *, name, stopped, **_: _row(
-        f"{name} asked Fichero to slow down more often than the run could wait{stopped}.",
-        f"Wait a few minutes and run it again. A higher plan at {name}, or another provider, avoids it.",
-        _a("retry"), _a("choose-model")),
+        f"{name} is limiting how fast Fichero can send{stopped}.",
+        f"Wait a few minutes, then continue the run. A higher plan at {name}, or another provider, avoids it.",
+        _a("resume"), _a("retry"), _a("choose-model")),
     "cap-refused": lambda **_: _row("A cloud spend cap stopped this run.", "Raise the cap, or run past it once.", _a("resume")),
     "images-refused": lambda **_: _row("This project keeps its pages on this Mac.",
                                        "Allow cloud models for the project, or choose a model on this Mac.", _a("resume")),
