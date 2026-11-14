@@ -287,8 +287,12 @@ targets are at least 44 pt.
   optionally, pressure. The mask is drawn locally and sent nowhere: selection is not an action.
 - `segment-editor.group-drag` — **[PARTIAL]** (→ #4941; app + engine) dragging one of several selected segments
   moves all of them by the same offset, as one `segment.update_many`, one undo. *Built:* a single
-  box moves (`finishMove`, `SegmentEdit.move`). *Not built:* the group, polygons and baselines
-  moving with the box (only a rect moves today).
+  box moves (`finishMove`, `SegmentEdit.move`). *Built (2026-11-14):* `segment.translate` (one offset for every
+  segment named: rect, outline, shapes and baseline, the offset held at the page's edge so the group keeps its shape,
+  all or nothing, one undo); a drag of a selected box whose selection is all saved segments sends it for the whole
+  selection (`SegmentEdit.translate`). *Not built:* the other selected boxes following the pointer while the drag is
+  live (they land on release). *Tests:* `fichero-server/tests/unit/api/test_segment_translate.py`;
+  `fichero/Tests/Unit/general/Views/Source/GroupMoveAndNudgeTests.swift`.
 - `segment-editor.nudge` — **[PARTIAL]** (→ #4941; app) with a selection and no pressed point, the arrow keys move
   the whole selection one image pixel, ⇧ ten, ⌥⇧ a hundred; with a pressed point, the point
   alone (built). A held key gathers into one action, committed when the key is released or

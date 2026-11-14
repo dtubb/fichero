@@ -273,6 +273,7 @@ extension ZoomableImagePreview {
     /// MOVE: committed on mouse-up. Indices are stable across a move, so the
     /// selection survives; the boxes re-render from the response geometry.
     func commitRegionMove(index: Int, bbox: [Double]) {
+        if moveSelectedSegments(draggedIndex: index, to: bbox) { return }   // the selection, as segments (group drag)
         if moveSegment(index: index, bbox: bbox) { return }   // an imported page (#5152)
         guard let artifactId = RegionEditTarget.forDirectEdit(shownArtifactId: ocrGeometryArtifactId),
               let documentId, let artifactService else { return }

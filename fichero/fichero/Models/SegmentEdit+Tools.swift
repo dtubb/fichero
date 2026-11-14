@@ -105,6 +105,19 @@ extension SegmentEdit {
         ))
     }
 
+    /// MOVE the selection by one offset (`segment-editor.group-drag`): ONE `segment.translate`, outlines, shapes and
+    /// baselines moving with their boxes, one ⌘Z. The engine holds the offset at the page's edge for the whole group.
+    static func translate(_ segments: [Segment], by offset: [Double]) -> Result<Call, Refusal> {
+        guard !segments.isEmpty, offset.count >= 2 else { return .failure(.tooFew) }
+        guard segments.allSatisfy({ $0.version != nil }) else { return .failure(.versionUnknown) }
+        return .success(Call(action: "segment.translate", params: .translate(SegmentTranslateRequest(
+            segments: segments.compactMap { segment in
+                segment.version.map { SegmentReparentRequest.Item(segmentId: segment.id, expectedVersion: $0) }
+            },
+            across: offset[0], down: offset[1]
+        ))))
+    }
+
     /// ORDER BY CLICKING (`segment-editor.order-by-clicking`): the clicks, in one order, as one `reading_order.sequence`,
     /// one undo. The order is the pass's `as-written` (the order the page draws; a named order the Segments pane chose is
     /// not known here yet).
@@ -214,7 +227,17 @@ extension SegmentEdit.Params {
         case .cutWords(let params): params
         case .addBaseline(let params): params
         case .sequence(let params): params
+        case .translate(let params): params
         case .update, .baseline, .create, .delete, .merge, .updateMany: payload
         }
     }
+}
+
+/// `segment.translate`: the selection moved by one offset in the page's fractions (`segment-editor.group-drag`).
+struct SegmentTranslateRequest: Encodable, Equatable {
+    let segments: [SegmentReparentRequest.Item]
+    let across: Double
+    let down: Double
+
+    enum CodingKeys: String, CodingKey { case segments, across = "dx", down = "dy" }
 }

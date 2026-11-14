@@ -2586,6 +2586,88 @@ def _action_segment_reparent(db: Database, params: SegmentReparentParams, ctx: A
     return {"versions": after_versions}, spec
 
 
+class SegmentTranslateParams(BaseModel):
+    """`segment-editor.group-drag`, `segment-editor.nudge`: the selection moved by one offset."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    segments: list[SegmentReparentItem] = Field(min_length=1, description="The segments to move, each with the version the caller saw.")
+    dx: float = Field(description="How far across, in fractions of the page.")
+    dy: float = Field(description="How far down, in fractions of the page.")
+
+
+def _anchor_points(row: Segment) -> list[list[float]]:
+    """Every point a segment is drawn by: its rect's corners, outline, shapes and baseline."""
+    anchor = row.anchor
+    points: list[list[float]] = list(row.baseline or [])
+    if anchor is not None:
+        if anchor.rect:
+            x, y, w, h = anchor.rect
+            points += [[x, y], [x + w, y + h]]
+        points += list(anchor.polygon or [])
+        for shape in anchor.shapes or []:
+            points += list(shape.points or [])
+    return points
+
+
+@action(
+    "segment.translate",
+    SegmentTranslateParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_many_via_previous_version,
+)
+def _action_segment_translate(db: Database, params: SegmentTranslateParams, ctx: ActionContext):
+    """Move every named segment by ONE offset (`segment-editor.group-drag`): its rect, outline, shapes and baseline
+    together, one action, one undo. All or nothing, like `segment.update_many`. The offset is held so the whole group
+    stays on the page, which keeps its shape (one offset for all, never one per segment)."""
+    _refuse_repeated_ids([item.segment_id for item in params.segments])
+    rows = [_live_current_row(db, item.segment_id, item.expected_version) for item in params.segments]
+    elsewhere = [row.id for row in rows if row.anchor is not None and row.anchor.rendition_id]
+    if elsewhere:
+        raise HTTPException(status_code=422, detail=f"segments measured on another image cannot be moved here: {elsewhere}")
+    points = [point for row in rows for point in _anchor_points(row)]
+    dx, dy = params.dx, params.dy
+    if points:
+        xs, ys = [p[0] for p in points], [p[1] for p in points]
+        dx = min(max(dx, -min(xs)), 1.0 - max(xs))
+        dy = min(max(dy, -min(ys)), 1.0 - max(ys))
+
+    def moved(pts):
+        return [[p[0] + dx, p[1] + dy, *p[2:]] for p in pts] if pts else pts
+
+    audit_id = uuid.uuid4().hex
+    before_versions, after_versions = [], []
+    for row in rows:
+        before_versions.append({"segment_id": row.id, "version": row.version})
+        snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        anchor = row.anchor
+        if anchor is not None:
+            update: dict[str, Any] = {"polygon": moved(anchor.polygon)}
+            if anchor.rect:
+                update["rect"] = [anchor.rect[0] + dx, anchor.rect[1] + dy, *anchor.rect[2:]]
+            if anchor.shapes:
+                update["shapes"] = [shape.model_copy(update={"points": moved(shape.points)}) for shape in anchor.shapes]
+            row.anchor = anchor.model_copy(update=update)
+            row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_and_tile_from_anchor(row.anchor)
+        row.baseline = moved(row.baseline)
+        db.save(row)
+        after_versions.append({"segment_id": row.id, "version": row.version})
+
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=[row.id for row in rows],
+        before={"versions": before_versions},
+        after={"versions": after_versions},
+        emit_type="segment.updated",
+        segment_ids=[row.id for row in rows],
+        pass_ids=sorted({row.pass_id for row in rows}),
+        document_ids=sorted({row.document_id for row in rows}),
+    )
+    return {"versions": after_versions, "dx": dx, "dy": dy}, spec
+
+
 @action(
     "segment.restore_versions",
     SegmentRestoreVersionsParams,
