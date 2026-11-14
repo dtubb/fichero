@@ -164,7 +164,8 @@ extension ContentView {
     }
 
     var effectiveShowInspectorSidebar: Bool {
-        showInspectorSidebar && !shellCollapsePolicy.collapseInspector
+        // Focus hides the Inspector without changing the window's choice, so leaving it brings it back.
+        showInspectorSidebar && !shellCollapsePolicy.collapseInspector && windowState.focusedPaneLeaf == nil
     }
 
     var shouldUseSplittablePane: Bool {

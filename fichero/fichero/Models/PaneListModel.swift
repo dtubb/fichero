@@ -110,6 +110,21 @@ struct PaneList: Codable, Sendable, Hashable {
         return found
     }
 
+    /// The list as Focus shows it (`panes.focus.any-pane-fills-the-screen`): the leaf `id` alone, wherever it sits; the list
+    /// itself when no leaf has that id. A view of the list, never stored: leaving Focus shows the stored list unchanged.
+    func focusing(_ id: UUID) -> PaneList {
+        var found: PaneNode?
+        func walk(_ node: PaneNode) {
+            guard found == nil else { return }
+            switch node {
+            case let .leaf(leafId, _, _, _): if leafId == id { found = node }
+            case let .split(_, _, children): children.forEach(walk)
+            }
+        }
+        nodes.forEach(walk)
+        return found.map { PaneList([$0]) } ?? self
+    }
+
     /// Every leaf id of `kind`, nested splits included (leading→trailing order).
     func leafIDs(of kind: PaneKind) -> [UUID] {
         var out: [UUID] = []

@@ -133,12 +133,46 @@ extension ContentView {
         // Focus is the window's real full screen (`panes.focus-mode`, owner 2026-11-13): in on entering, back out on leaving
         // only if focus took it there.
         .onChange(of: isImmersiveReading) { _, focused in focusModeChanged(focused) }
+        .onChange(of: windowState.focusedPaneLeaf) { old, new in
+            if (old == nil) != (new == nil) { paneFocusChanged(new != nil) }
+        }
         .background {
-            Button("Enter Full-Screen Reading") { enterImmersiveReading() }
+            // ⌃⌘R: Focus on Pane (`panes.focus.any-pane-fills-the-screen`); on a Preview, the page reader as before.
+            Button("Focus on Pane") { focusOnPane() }
                 .keyboardShortcut("r", modifiers: [.command, .control])
                 .opacity(0)
-                .disabled(immersiveReadingDocument == nil)
+            if windowState.focusedPaneLeaf != nil {
+                Button("Leave Focus") { windowState.focusedPaneLeaf = nil }
+                    .keyboardShortcut(.cancelAction)
+                    .opacity(0)
+            }
         }
+    }
+
+    /// ⌃⌘R, View › Focus on Pane: one chord, `FocusMode.step` decides.
+    func focusOnPane() {
+        switch FocusMode.step(
+            focusedNow: windowState.focusedPaneLeaf, focusedKind: (focusedPane ?? paneFocusHint)?.paneKind,
+            focusedLeaf: focusedLeafID, hasPage: immersiveReadingDocument != nil
+        ) {
+        case .leave: windowState.focusedPaneLeaf = nil
+        case .readPage: enterImmersiveReading()
+        case .focus(let id): windowState.focusedPaneLeaf = id
+        case .nothing: break
+        }
+    }
+
+    /// A pane's Focus entered or left: the window's full screen as the reader's Focus does it, and the sidebar hidden
+    /// and put back as it was. The Inspector follows `effectiveShowInspectorSidebar`.
+    private func paneFocusChanged(_ focused: Bool) {
+        if focused {
+            windowState.columnsBeforeFocus = columnVisibility
+            columnVisibility = .detailOnly
+        } else if let before = windowState.columnsBeforeFocus {
+            columnVisibility = before
+            windowState.columnsBeforeFocus = nil
+        }
+        focusModeChanged(focused)
     }
 
     private var immersiveReadingDocument: Document? {

@@ -1209,7 +1209,7 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
    Chat's new chat), built on the one shared component; every other footer is removed
    (`panes.chrome.footer-only-for-list-actions`).
 
-- `panes.focus-mode` — **[GAP]** (#6575; owner 2026-11-13: real macOS full screen) any pane (Source, Reader, Segments,
+- `panes.focus-mode` — **[PARTIAL]** (#6575; owner 2026-11-13: real macOS full screen) any pane (Source, Reader, Segments,
   the Preview) can go full screen as a FOCUS MODE: that one pane fills the screen in the window's real macOS full
   screen (its own Space, the menu bar and toolbar hidden); the other panes, the sidebar and the Inspector are hidden;
   a page sits on a plain dark ground. Esc, or Close in the pane's head, leaves and restores the window and panes
@@ -1218,8 +1218,13 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
   ⌃⌘R. Inside the Preview's focus the reader's page behaviour stays (fading chrome, ← → and a two-finger swipe turn
   pages). *Built (the Preview page, 2026-11-13):* the reader's focus (⌃⌘R, the head's viewfinder) takes the window into
   its real full screen when it is not there and leaves it only if focus took it there (`FocusMode`,
-  `ContentView.focusModeChanged`). *Not built:* focus for Source, Reader and Segments (the other panes hidden and
-  restored, the pane menu's Focus on Pane), View › Focus on Pane. *Tests:* `Models/FocusModeTests.swift`.
+  `ContentView.focusModeChanged`). *Built (2026-11-14):* ⌃⌘R on any other pane, or on a Source showing a folder,
+  focuses that pane (`FocusMode.step`, `WindowState.focusedPaneLeaf`): the window shows that one pane
+  (`PaneList.focusing`, a view of the stored list, which is never changed), hides the sidebar and the Inspector and goes
+  full screen by the same rule; Esc or ⌃⌘R again puts the sidebar's column visibility back as it was, the Inspector
+  back, and leaves full screen only if Focus entered it. *Not built:* the pane menu's Focus on Pane, the View menu item,
+  the fading overlay head with ✕ and a dark ground for a focused page view. *Tests:* `Models/FocusModeTests.swift`;
+  `fichero/Tests/Unit/general/Models/PaneFocusTests.swift`.
 - `panes.chrome.every-view-has-head-and-footer` — **[GAP]** (#4880) (owner 2026-11-13: "consistency") every view of every pane
   has a head and a footer, the same two components, with each control in its zone: the head's left moves through what
   the pane shows, its centre holds the view's tools, its right the pane menu (`panes.chrome.head-keeps-only-what-moves`,

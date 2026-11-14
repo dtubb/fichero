@@ -239,7 +239,8 @@ extension ContentView {
             // resolving a pane-head menu item's SF Symbol through CUICatalog mid-animation crashed
             // (-[NSCache objectForKey:] in CUICatalog, the ⌘⌥4 Compare crash the CD reported).
             // Switching workspaces is an instant composition change, not an animated one.
-            paneListRow(activePaneList)
+            // Focus shows one pane of the stored list, which it never changes (`panes.focus.esc-restores-exactly`).
+            paneListRow(windowState.focusedPaneLeaf.map { activePaneList.focusing($0) } ?? activePaneList)
         }
     }
 }
