@@ -470,9 +470,13 @@ See section 7.2 below for what exists. The design:
   with Fix (opens the lens) or Export Anyway; the loss report names what was exported invalid.
   MCP and the CLI get the same list. *Built (2026-11-13):* the checks (`media/segment_checks.py`,
   per pass, plus empty regions) behind `GET /api/segments/document/{doc_id}/validate` (beside the
-  other per-page segment reads rather than under `/api/documents`). *Not built:* the export
-  sheet's count, Fix and Export Anyway, the loss report's line, MCP and CLI. *Tests:*
-  `test_segments_validate.py`.
+  other per-page segment reads rather than under `/api/documents`). *Built (2026-11-14):* Export Page
+  As and the Inspector's per-pass Export check the page first (`PageExportRunner.checkedBeforeExport`):
+  problems show their count, each kind in words, with Export Anyway or Cancel, and the report then
+  begins "Exported with N segment problems"; a check that fails does not block the export and the
+  report says the page was not checked. *Not built:* Fix (there is no lens to open yet; Cancel
+  stands in), MCP and CLI. *Tests:* `test_segments_validate.py`;
+  `fichero/Tests/Unit/general/PageExportTextTests.swift::problemsBeforeExport`.
 - `segment-editor.every-edit-lands-at-once` — **[PARTIAL]** (→ #4957; app + engine) there is no autosave because
   there is nothing unsaved: a gesture is local until it ends, and its end is one action the
   engine has written before the app draws the result. The app holds no dirty state; closing
