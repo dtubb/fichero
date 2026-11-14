@@ -11613,6 +11613,16 @@
       },
       {
         "method": "POST",
+        "path": "/segments/regenerate-outline",
+        "operation_id": "regenerate_outline_api_segments_regenerate_outline_post",
+        "summary": "Regenerate Outline",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentRegenerateOutlineParams",
+        "response_model": null
+      },
+      {
+        "method": "POST",
         "path": "/segments/reparent",
         "operation_id": "reparent_segments_api_segments_reparent_post",
         "summary": "Reparent Segments",

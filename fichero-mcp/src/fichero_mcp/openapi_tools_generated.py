@@ -8011,11 +8011,13 @@ def fichero_segments_reject_match(
 def fichero_segments_merge(
     *,
     expected_versions: Annotated[dict[str, Any], Field(description="Each segment's version as last read, {segment_id: version}; a changed segment is refused.")],
+    join_geometry: Annotated[Optional[bool], Field(description='Join the outlines and baselines onto the kept segment, in reading order. Default: false.')] = None,
     keep_id: Annotated[str, Field(description='The segment that survives the merge.')],
+    move_into_region: Annotated[Optional[bool], Field(description="Move members in other regions into the kept segment's region rather than refusing. Default: false.")] = None,
     segment_ids: Annotated[list[Any], Field(description='The segments to merge.')],
 ) -> Any:
     'Merge Segments\n\nRoute: POST /api/segments/merge (toolset `segments`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/segments/merge", json=_rt.body({"expected_versions": expected_versions, "keep_id": keep_id, "segment_ids": segment_ids}))
+    return _rt.call("POST", "/api/segments/merge", json=_rt.body({"expected_versions": expected_versions, "join_geometry": join_geometry, "keep_id": keep_id, "move_into_region": move_into_region, "segment_ids": segment_ids}))
 
 
 def fichero_segments_create_pass(
@@ -8054,6 +8056,16 @@ def fichero_segments_get_pass_original(
     return _rt.call("GET", f"/api/segments/passes/{pass_id}/original")
 
 
+def fichero_segments_regenerate_outline(
+    *,
+    expected_versions: Annotated[dict[str, Any], Field(description="Each segment's version as last read, {segment_id: version}; a changed segment is refused.")],
+    fixed_height: Annotated[Optional[float], Field(description='A band this many image pixels tall over the baseline, for a line with no ink to measure.')] = None,
+    segment_ids: Annotated[list[Any], Field(description='The lines whose outlines are drawn again from their baselines.')],
+) -> Any:
+    'Regenerate Outline\n\nRoute: POST /api/segments/regenerate-outline (toolset `segments`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/segments/regenerate-outline", json=_rt.body({"expected_versions": expected_versions, "fixed_height": fixed_height, "segment_ids": segment_ids}))
+
+
 def fichero_segments_reparent(
     *,
     parent_segment_id: Annotated[Optional[str], Field(description='The segment they now sit inside (a line into a region); none lifts them out to the page.')] = None,
@@ -8066,12 +8078,14 @@ def fichero_segments_reparent(
 def fichero_segments_split(
     *,
     at_offset: Annotated[Optional[int], Field(description="Split at this character of the line's reading instead of giving parts.")] = None,
-    expected_version: Annotated[int, Field(description="The segment's version as last read; a changed segment is refused.")],
+    cut_path: Annotated[Optional[list[Any]], Field(description='A knife stroke: split every named line whose baseline it crosses, at the crossings.')] = None,
+    expected_version: Annotated[Optional[int], Field(description="The segment's version as last read; a changed segment is refused (not with cut_path).")] = None,
+    expected_versions: Annotated[Optional[dict[str, Any]], Field(description='With cut_path: the lines the stroke may cross, {segment_id: version as last read}. Default: {}.')] = None,
     parts: Annotated[Optional[list[Any]], Field(description='The parts to split it into, each with its own anchor (or give at_offset). Default: [].')] = None,
-    segment_id: Annotated[str, Field(description='The segment to split.')],
+    segment_id: Annotated[Optional[str], Field(description='The segment to split (not with cut_path).')] = None,
 ) -> Any:
     'Split Segment\n\nRoute: POST /api/segments/split (toolset `segments`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/segments/split", json=_rt.body({"at_offset": at_offset, "expected_version": expected_version, "parts": parts, "segment_id": segment_id}))
+    return _rt.call("POST", "/api/segments/split", json=_rt.body({"at_offset": at_offset, "cut_path": cut_path, "expected_version": expected_version, "expected_versions": expected_versions, "parts": parts, "segment_id": segment_id}))
 
 
 def fichero_segments_undelete(
@@ -10340,6 +10354,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_segments_delete_pass", "segments", "DELETE", "/api/segments/passes/{pass_id}", fichero_segments_delete_pass),
     GeneratedTool("fichero_segments_set_pass_ground_truth", "segments", "PUT", "/api/segments/passes/{pass_id}/ground-truth", fichero_segments_set_pass_ground_truth),
     GeneratedTool("fichero_segments_get_pass_original", "segments", "GET", "/api/segments/passes/{pass_id}/original", fichero_segments_get_pass_original),
+    GeneratedTool("fichero_segments_regenerate_outline", "segments", "POST", "/api/segments/regenerate-outline", fichero_segments_regenerate_outline),
     GeneratedTool("fichero_segments_reparent", "segments", "POST", "/api/segments/reparent", fichero_segments_reparent),
     GeneratedTool("fichero_segments_split", "segments", "POST", "/api/segments/split", fichero_segments_split),
     GeneratedTool("fichero_segments_undelete", "segments", "POST", "/api/segments/undelete", fichero_segments_undelete),

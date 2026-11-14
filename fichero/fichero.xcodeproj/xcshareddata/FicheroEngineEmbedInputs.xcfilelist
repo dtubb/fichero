@@ -483,7 +483,10 @@ $(SRCROOT)/../fichero-server/src/fichero_server/media/image_ops.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/image_prep_samples.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/image_reason.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/layout_order.py
+$(SRCROOT)/../fichero-server/src/fichero_server/media/line_cut.py
+$(SRCROOT)/../fichero-server/src/fichero_server/media/line_join.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/ocr_geometry.py
+$(SRCROOT)/../fichero-server/src/fichero_server/media/outline_from_baseline.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/page_split.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/quartz_warm.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/region_crops.py
