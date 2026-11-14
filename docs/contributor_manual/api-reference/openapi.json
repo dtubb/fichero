@@ -93783,6 +93783,12 @@
             "nullable": true,
             "title": "Pages Total"
           },
+          "row_words": {
+            "type": "string",
+            "title": "Row Words",
+            "description": "the table row's words: at most eight, never a sentence cut short",
+            "default": ""
+          },
           "exception_type": {
             "type": "string",
             "nullable": true,
