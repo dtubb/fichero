@@ -176,6 +176,23 @@ extension ActivityService {
         }
     }
 
+    /// Archive (the audited `job.archive`, #6583, `activity.pane.archive-old-runs`): ended rows leave the table and keep
+    /// everything; `GET /api/activity/jobs?archived=true` lists them, `unarchive` puts them back. Returns (archived, skipped).
+    func archiveJobs(ids: [String], states: [String]? = nil, olderThanDays: Int? = nil) async throws -> DeleteAnswer {
+        let response = try await client.api.archiveJobsApiActivityJobsArchivePost(
+            body: .json(.init(ids: ids, states: states, olderThanDays: olderThanDays)))
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.json
+            return DeleteAnswer(deletedIds: body.archivedIds, skippedIds: body.skippedIds)
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, let payload):
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
+        }
+    }
+
     /// One row the quit left unfinished and the open paused (`activity.launch.nothing-starts-one-alert`, #6584).
     struct StoppedAtQuitItem: Equatable, Identifiable {
         let id: String

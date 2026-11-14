@@ -82,8 +82,8 @@ struct ActivityGroupsView: View {
                         .accessibilityIdentifier("activity.doneToday.toggle")
                         Spacer()
                         Menu("Clear") {
-                            Button("Clear Failed", role: .destructive, action: clearFailed)
-                            Button("Clear Finished…", role: .destructive, action: clearFinished)
+                            Button("Archive Failed", action: clearFailed)
+                            Button("Archive Finished…", action: clearFinished)
                         }
                         .menuStyle(.borderlessButton)
                         .fixedSize()

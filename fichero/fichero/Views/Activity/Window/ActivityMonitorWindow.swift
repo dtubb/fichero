@@ -95,8 +95,8 @@ struct ActivityMonitorWindow: View {
                 }
             }
         }
-        .confirmationDialog("Remove every finished run?", isPresented: $confirmingClearFinished) {
-            Button("Clear Finished", role: .destructive) { Task { await clearFinished() } }
+        .confirmationDialog("Archive every finished run?", isPresented: $confirmingClearFinished) {
+            Button("Archive Finished") { Task { await clearFinished() } }
         } message: {
             Text("Completed, failed and stopped runs leave the list. Runs still going are kept.")
         }
@@ -270,14 +270,15 @@ struct ActivityMonitorWindow: View {
         notice = outcome.notice
     }
 
-    /// "Clear Finished" (#5016, widened #6583 `activity.pane.automatic-runs-easy-to-delete`): the same delete as Delete,
-    /// for every ended run AND every ended job of its own (done, failed, stopped: the automatic ones too) in every project.
+    /// "Archive Finished…" (#5016, #6583 `activity.pane.archive-old-runs`, `activity.pane.automatic-runs-easy-to-delete`): every
+    /// ended run (its soft delete stands in for its archive) AND every ended job of its own (done, failed, stopped: the
+    /// automatic ones too) in every project is ARCHIVED: hidden, kept, Put Back possible.
     private func clearFinished() async {
         var skipped = 0
         for library in libraries {
             let outcome = await library.activityStore.deleteRuns(statuses: ActivityRunStatus.finishedEngineNames)
             skipped += outcome.skippedIds.count
-            skipped += await library.activityStore.deleteJobs(ids: [], states: ["done", "failed", "cancelled"]).skippedIds.count
+            skipped += await library.activityStore.archiveJobs(ids: [], states: ["done", "failed", "cancelled"]).skippedIds.count
         }
         openedID = nil
         notice = skipped > 0 ? "\(skipped) run\(skipped == 1 ? "" : "s") could not be cleared." : nil
