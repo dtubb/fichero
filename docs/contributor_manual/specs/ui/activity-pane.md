@@ -313,7 +313,9 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   shows the two costs, the run's total, no cost on the local step, and the estimate falls as pages finish. **Built
   (2026-11-14, engine):** every list row carries `cost_usd` (a recipe run's cloud dollars so far, `live_stages.cost_so_far`;
   null for local work or no priced call, never 0) and `cost_estimate_usd` (the running stage's spent-per-page times its pages
-  left, `_cost_estimate`; null when ended or nothing priced yet). Not built: the plan's per-page estimate as the basis before
+  left, `_cost_estimate`; null when ended or nothing priced yet); then (917678a6f, #6598) every job row of its own carries
+  its priced cloud calls (`_job_cost`) and a call priced at $0 reads 0.0, not null. Not built: the day total (a contract field),
+  "Not priced" apart from local (a contract field); the plan's per-page estimate as the basis before
   the first page is priced; the per-provider daily total line; the app's column. *Tests:*
   `fichero-server/tests/unit/jobs/test_row_says_what_ran_on_what_6441.py`; the existing
   `fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py`;
@@ -471,15 +473,15 @@ working, on which files, and what blocks it; the engine smarter about work that 
   queues its embeds blocked on the download; the lane picks none of them; the table has one download row with the embed rows
   under it; the download fails: the embeds stay blocked, zero model calls, the row offers Download Again; it succeeds: the
   embeds run. *Test:* not yet written: `test_blocked_work_waits_on_its_blocker_6588.py`, `ActivityBlockedRowsTests.swift`.
-- `activity.download.says-bytes-and-time-left` — **[GAP]** (#6592, #6588; supersedes "0 of 1" for a download) every model download, of
+- `activity.download.says-bytes-and-time-left` — **[PARTIAL]** (built a6ab0bc7c: every runtime's bytes in the row's words and its detail, a folder watcher where the library has no callback; not built: the typed fields on the listed row (a contract change), the time left; #6592, #6588; supersedes "0 of 1" for a download) every model download, of
   every runtime (Kraken, MLX, embeddings, Whisper, spaCy, YOLO, the MLX runtime), reports its bytes at least every
   `PROGRESS_EVERY_SECONDS` (2) as typed fields on the row (`bytes_done`, `bytes_total`, never only words): through the library's
   callback where it has one, else by measuring the model's download folder as it grows against the catalogue's size. The row's
   bar is determinate on bytes and its one line reads "340 MB of 2.3 GB · 3 min left" (the text budget); before the first byte,
   the spinner and "Connecting"; a stall of `READ_TIMEOUT_SECONDS` says "No data for 20 s, trying again". Acceptance: a stub
   fetch for each runtime that writes 10 chunks reports at least 5 rising `bytes_done` values and the total; the row never reads
-  "0 of 1". *Test:* not yet written: `test_every_download_reports_bytes_6588.py`.
-- `activity.download.installed-means-it-loads` — **[GAP]** (#6591, #6588; `runtime.spacy.pipelines-download-as-data`) a model is
+  "0 of 1". *Test:* `fichero-server/tests/unit/llm/test_every_download_reports_bytes_6592.py`.
+- `activity.download.installed-means-it-loads` — **[PARTIAL]** (built a7ca0859c, 5a3a66b63: one real folder, a load check before installed, `broken` with a marker, the size counted once; not built: Settings' red X and Download Again, an old-layout model that does not load reads installed until deleted; #6591, #6588; `runtime.spacy.pipelines-download-as-data`) a model is
   INSTALLED only once it LOADS: the download job ends by loading the model once (or the runtime's own check) and only then
   says `model.installed`; a model whose files are present but which does not load is `broken`, shown in Settings with the red X,
   one line ("bge-m3 could not be loaded") and **Download Again** (delete, fetch, check), never the green check; Settings' size
@@ -487,8 +489,7 @@ working, on which files, and what blocks it; the engine smarter about work that 
   (`snapshot_download(local_dir=…)`, plain files) and loads it from there (fastembed's `specific_model_path`), so no loader's
   path check depends on the cache's layout. Acceptance: a fixture snapshot whose `model.onnx` and `model.onnx_data` resolve to
   different folders loads after the fix; a model whose load raises reads `broken` in `GET /api/models` and in Settings, never
-  installed; bge-m3's size reads 2.3 GB. *Test:* not yet written: `test_model_installed_means_it_loads_6588.py`,
-  `test_embeddings_load_from_one_folder_6588.py`.
+  installed; bge-m3's size reads 2.3 GB. *Test:* `fichero-server/tests/unit/llm/test_model_installed_means_it_loads_6591.py`.
 - `activity.pane.names-what-it-works-on` — **[GAP]** (#6588; `activity.pane.row-says-what-ran-on-what` made exact for jobs of
   their own) a row names what it works on, never only its kind: "Prepare pages · Letters · 2,618" (the folder or project and the
   count), not "Processing imported pages · 11 of 2618"; its children are the steps it holds (thumbnails, text, embed), each
@@ -563,16 +564,16 @@ window drops Time, Cost and the trail first as it narrows):
 
 **Known broken (the engine review, 2026-11-14, verified in code; each its own issue: #6594, #6595, #6596):**
 
-- `activity.engine.undelete-running-is-a-phantom` — **[BROKEN]** (#6594, #6588) Undo of a Stop-then-Delete restores a row as
+- `activity.engine.undelete-running-is-a-phantom` — **[OK]** (fixed 9847efc9e, #6594, #6588) Undo of a Stop-then-Delete restores a row as
   `running` with no thread (`undelete_jobs` writes `deleted_from.state` back as is): a row Delete stopped comes back
-  `paused` "Stopped by you", never `running`. *Test:* not yet written: `test_delete_is_undoable_6583.py`.
-- `activity.engine.deleted-stays-deleted` — **[BROKEN]** (#6594, #6588) a deleted row is never picked and never revived: the lane's
+  `paused` "Stopped by you", never `running`. *Test:* `fichero-server/tests/unit/jobs/test_delete_is_undoable_6583.py`.
+- `activity.engine.deleted-stays-deleted` — **[OK]** (fixed 9847efc9e, #6594, #6588) a deleted row is never picked and never revived: the lane's
   end write for a deferred or out-of-reach job skips a row with `deleted_at` set; a second Delete of a deleted row is a no-op
-  (it does not re-stamp `deleted_at`, so Undo still restores it). *Test:* not yet written: `test_deleted_stays_deleted_6588.py`.
-- `activity.engine.open-queues-nothing-twice` — **[BROKEN]** (#6595, #6588, #6584) the open's pending-derivative resume
+  (it does not re-stamp `deleted_at`, so Undo still restores it). *Test:* `fichero-server/tests/unit/jobs/test_deleted_stays_deleted_6588.py`.
+- `activity.engine.open-queues-nothing-twice` — **[OK]** (fixed 6c5dcd44b, 612773c7b: a paused row is reused, and a person's own request on it lets it run; #6595, #6588, #6584) the open's pending-derivative resume
   (`db/manager.py`) and every enqueue dedupe against a row of the same kind and subject that is waiting OR PAUSED (and not
-  deleted), so a relaunch never adds a twin and a deleted row's page is not queued again by the open. *Test:* not yet
-  written: `test_open_queues_nothing_twice_6588.py`.
+  deleted), so a relaunch never adds a twin and a deleted row's page is not queued again by the open. *Test:*
+  `fichero-server/tests/unit/jobs/test_open_queues_nothing_twice_6588.py`.
 - `activity.engine.close-pauses-running-work` — **[BROKEN]** (#6596, #6588) closing a project PAUSES the work running in it
   ("Paused: the project closed") and waits for it to let go of the connection before closing it; never a failure with the
   library's path in its words. *Test:* not yet written: `test_close_pauses_running_work_6588.py`.
