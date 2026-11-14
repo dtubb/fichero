@@ -11490,6 +11490,18 @@
       },
       {
         "method": "GET",
+        "path": "/segments/document/{doc_id}/validate",
+        "operation_id": "validate_document_segments_api_segments_document__doc_id__validate_get",
+        "summary": "Validate Document Segments",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SegmentValidation"
+      },
+      {
+        "method": "GET",
         "path": "/segments/document/{document_id}/text",
         "operation_id": "get_document_text_api_segments_document__document_id__text_get",
         "summary": "Get Document Text",
@@ -11610,6 +11622,16 @@
         "query_params": [],
         "request_model": null,
         "response_model": "PassOriginalResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/segments/regenerate-outline",
+        "operation_id": "regenerate_outline_api_segments_regenerate_outline_post",
+        "summary": "Regenerate Outline",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentRegenerateOutlineParams",
+        "response_model": null
       },
       {
         "method": "POST",
