@@ -4,6 +4,8 @@ import SwiftUI
 
 /// General application settings
 struct GeneralSettingsView: View {
+    /// The one place Run Automatically lives (`activity.automatic.one-place`); the Mac's store is the global library's.
+    @Environment(LibraryManager.self) private var libraryManager: LibraryManager?
     @AppStorage("thumbnailSize") private var thumbnailSize: Double = 120
     @AppStorage("defaultImportMode") private var defaultImportMode: String = IngestMode.link.rawValue
     @AppStorage("autoExtractText") private var autoExtractText: Bool = true
@@ -77,6 +79,12 @@ struct GeneralSettingsView: View {
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            }
+
+            if let store = libraryManager?.globalLibrary?.activityStore {
+                Section("Background Work") {
+                    RunAutomaticallyToggle(store: store)
+                }
             }
 
             Section("Ingestion") {

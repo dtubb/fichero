@@ -414,7 +414,7 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   Acceptance: the app has one `Window` scene for Activity; `detailWindowID` and every `openWindow` of it are gone; a double-click
   on a row selects it and fills the Inspector. *Tests:* `ActivityWindowIsAPaneTests.swift` (to
   write), the existing `ActivityWindowSelectionStateTests`.
-- `activity.automatic.one-place` — **[GAP]** (#6441, decision 21; `activity.pane.run-automatically-is-a-setting` made exact) the
+- `activity.automatic.one-place` — **[PARTIAL]** (#6441, decision 21; `activity.pane.run-automatically-is-a-setting` made exact) the
   Automatic and Run Now controls exist in ONE place. Inventory today and after:
 
   | Today | What it does there | After |
@@ -429,8 +429,12 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   The "run now" sense of the old mode (start everything queued regardless of battery and idle rules) becomes **Run Queued Work
   Now** in the Project › Activity menu and the pane's background line while automatic work is held ("Held: on battery · [Run
   Now]"), acting once, not a mode. Acceptance: `ActivityModeButton` has no mount; the setting exists in both places and the pane's
-  line follows it; a schedule's button reads Run Schedule Now. *Tests:* `RunAutomaticallySettingTests.swift`
-  (to write), the existing `ActivityTableTests` mode tests (rewritten to the setting).
+  line follows it; a schedule's button reads Run Schedule Now. **Built (2026-11-14, app, not compiled):** Settings › General
+  › Background Work: the one **Run automatically** toggle with its sentence (`RunAutomaticallyToggle`, on = automatic, off
+  = paused, bound to the Mac's store); the details view's and the Activity window's copies of `ActivityModeButton` are gone.
+  Not built: the toolbar status item's copy (kept until the setting is seen in the app, then it goes), the per-project
+  setting, "Run Schedule Now", "Run Queued Work Now", the pane's one line. *Tests:*
+  `fichero/Tests/Unit/general/Models/RunAutomaticallySettingTests.swift`; the existing `ActivityTableTests` mode tests.
 
 ## Build order
 

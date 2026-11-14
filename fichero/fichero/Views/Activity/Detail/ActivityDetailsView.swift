@@ -152,15 +152,8 @@ struct ActivityDetailsView: View {
     /// Background mode, a failed action, the remote run, the queued pages, then the Details and Log disclosures.
     @ViewBuilder
     private func footerSections(_ details: ActivityDetails) -> some View {
-        if details.isLive {
-            // The Start / Stop control (ruled 2026-10-09): go ahead although the Mac is in use, or
-            // pause all work; beside the row's own Pause and Stop (#5623).
-            HStack(spacing: 6) {
-                Text("Background work:").font(.callout).foregroundStyle(.secondary)
-                ActivityModeButton(store: store)
-            }
-            .controlSize(.small)
-        }
+        // The background-mode control left this view (`activity.automatic.one-place`, owner 2026-11-13): Run Automatically is
+        // the setting in Settings › General; the row's own Pause and Stop stay (#5623).
         if let actionFailure {
             Label(actionFailure, systemImage: "exclamationmark.triangle.fill")
                 .font(.callout)
