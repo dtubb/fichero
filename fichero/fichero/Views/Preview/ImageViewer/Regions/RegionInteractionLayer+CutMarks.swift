@@ -41,6 +41,7 @@ extension RegionInteractionLayer {
         switch event.phase {
         case .pressed:
             guard event.clickCount == 1, size.width > 0 else { return false }
+            windowState?.selectedCutMark = nil
             let reach = 6 / Double(size.width) * Double(visible.width)
             for shown in shownCutMarks {
                 if let mark = CutMarks.mark(near: point, marks: shown.marks, lineBaseline: shown.line, reach: reach) {
@@ -59,6 +60,9 @@ extension RegionInteractionLayer {
             cutDrag = nil
             if abs(drag.place - drag.mark.place) > 0.002 {
                 onMoveCut?(drag.mark.firstId, drag.mark.secondId, drag.place)
+            } else {
+                // A click, not a drag: the mark is picked, for ⌫ to remove the cut.
+                windowState?.selectedCutMark = [drag.mark.firstId, drag.mark.secondId]
             }
             return true
         }
@@ -83,6 +87,27 @@ extension RegionInteractionLayer {
             }
             .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2, lineCap: .round))
             .accessibilityIdentifier("segmentEditor.cutMarks")
+            pickedCutMark(shown, in: size)
+        }
+    }
+}
+
+extension RegionInteractionLayer {
+    /// The picked mark, drawn heavier so ⌫'s target can be seen.
+    @ViewBuilder
+    func pickedCutMark(_ shown: [(line: [[Double]], marks: [CutMarks.Mark])], in size: CGSize) -> some View {
+        if let picked = windowState?.selectedCutMark, picked.count == 2,
+           let found = shown.lazy.compactMap({ line in
+               line.marks.first { $0.firstId == picked[0] && $0.secondId == picked[1] }.map { (line.line, $0) }
+           }).first {
+            let foot = CutMarks.point(at: found.1.place, along: found.0)
+            let centre = CGPoint(x: (foot[0] - visible.minX) / visible.width * size.width,
+                                 y: (foot[1] - visible.minY) / visible.height * size.height)
+            Path { path in
+                path.move(to: CGPoint(x: centre.x, y: centre.y - 10))
+                path.addLine(to: CGPoint(x: centre.x, y: centre.y + 6))
+            }
+            .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
         }
     }
 }

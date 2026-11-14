@@ -96,3 +96,22 @@ def test_a_cut_added_inside_a_word_splits_its_stretch_of_the_reading_at_the_near
     assert undone.status_code == 200, undone.text
     assert db.get(Segment, kept.id).metadata["reading_span"] == [6, 12], "one undo puts the word back whole"
     assert db.get(Segment, new.id).deleted_at is not None
+
+
+def test_removing_a_cut_joins_the_two_words_and_their_stretches_and_one_undo_parts_them(db, client):
+    """`segment-editor.cut-marks-editable`: ⌫ on a mark removes the cut, a `segment.merge` of the two words with their
+    shapes joined; the word read from both their stretches; one undo gives back both words as they were."""
+    line, (_en, el, nombre) = _cut_page(db, client)
+    merged = registry.invoke(db, "segment.merge", {
+        "segment_ids": [el.id, nombre.id], "keep_id": el.id, "join_geometry": True,
+        "expected_versions": {el.id: db.get(Segment, el.id).version, nombre.id: db.get(Segment, nombre.id).version},
+    }, _person())
+
+    word = db.get(Segment, el.id)
+    assert word.metadata["reading_span"] == [3, 12]
+    assert db.get(Segment, nombre.id).deleted_at is not None
+
+    undone = client.post(f"/api/actions/audit/{merged.audit_id}/undo")
+    assert undone.status_code == 200, undone.text
+    assert db.get(Segment, el.id).metadata["reading_span"] == [3, 5]
+    assert db.get(Segment, nombre.id).deleted_at is None

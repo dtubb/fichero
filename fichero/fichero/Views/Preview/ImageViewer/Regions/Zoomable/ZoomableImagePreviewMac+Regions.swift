@@ -502,9 +502,11 @@ extension ZoomableImagePreview {
             marqueePicked: marquees?.selectedIndex != nil,
             selectionCount: regionSelection.count,
             pointPressed: isEditingSegments && windowState?.selectedShapePoint?.documentId == documentId
-                && windowState?.selectedShapePoint != nil
+                && windowState?.selectedShapePoint != nil,
+            cutMarkPicked: isEditingSegments && windowState?.selectedCutMark != nil
         ) {
         case .removeMarquee: marquees?.removeSelected()
+        case .removeCut: removeSelectedCut()
         case .removePoint: removeSelectedShapePoint()
         case .deleteRegions: deleteSelectedRegions()
         case .nothing: break
