@@ -209,6 +209,13 @@ enum ActivityPane {
         }
     }
 
+    /// The versions the Inspector shows for a selected row: its run's, read from the run as listed (with its steps), not
+    /// from the shown outline, whose run rows hold files.
+    static func versions(for row: ActivityMonitorRow, in allRows: [ActivityMonitorRow]) -> [StepVersions] {
+        let runId = row.kind == .run ? row.id : row.runRowID
+        return allRows.first { $0.id == runId }.map(versions(of:)) ?? []
+    }
+
     // MARK: - One glyph per state
 
     /// The state's ONE glyph (nil symbol = the system spinner), its word for the tooltip and VoiceOver, and whether it is

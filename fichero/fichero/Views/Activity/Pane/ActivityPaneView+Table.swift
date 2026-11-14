@@ -198,7 +198,6 @@ extension ActivityPaneView {
     /// The one selected row's details and its steps' versions; nil with none or several selected.
     var selectedPick: ActivityPaneSelection? {
         guard selection.count == 1, let id = selection.first, let row = find(id), let picked = row.selection else { return nil }
-        let run = row.kind == .run ? row : allRows.first { $0.id == row.runRowID }
-        return ActivityPaneSelection(selection: picked, versions: run.map(ActivityPane.versions(of:)) ?? [])
+        return ActivityPaneSelection(selection: picked, versions: ActivityPane.versions(for: row, in: allRows))
     }
 }
