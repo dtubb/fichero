@@ -11,4 +11,20 @@ enum FocusMode {
     static func leavesFullScreen(focusEnteredIt: Bool, windowIsFullScreen: Bool) -> Bool {
         focusEnteredIt && windowIsFullScreen
     }
+
+    /// What ⌃⌘R (View › Focus on Pane) does (`panes.focus.any-pane-fills-the-screen`, owner ruling 7: one chord, the wider
+    /// meaning): leave a pane's Focus; on a Preview showing a page (or with no pane focused) open the page reader, the
+    /// Preview's Focus; on any other pane, or a Source showing a folder, focus that pane.
+    enum Step: Equatable {
+        case leave
+        case readPage
+        case focus(UUID)
+        case nothing
+    }
+
+    static func step(focusedNow: UUID?, focusedKind: PaneKind?, focusedLeaf: UUID?, hasPage: Bool) -> Step {
+        if focusedNow != nil { return .leave }
+        if hasPage, focusedKind == .preview || focusedLeaf == nil { return .readPage }
+        return focusedLeaf.map(Step.focus) ?? .nothing
+    }
 }

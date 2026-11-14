@@ -192,6 +192,12 @@ class WindowState {
         markerStrokedWhileHeld = false
     }
 
+    /// The pane in Focus (`panes.focus.any-pane-fills-the-screen`): it alone fills the window, in its real full screen,
+    /// the sidebar and the Inspector hidden; nil when no pane is in Focus. Window state only: never saved to a workspace.
+    var focusedPaneLeaf: UUID?
+    /// The sidebar's column visibility before Focus hid it, put back when Focus is left (`panes.focus.esc-restores-exactly`).
+    var columnsBeforeFocus: NavigationSplitViewVisibility?
+
     /// The Order tool (`segment-editor.order-by-clicking`): while it is chosen, segments clicked in turn are numbered
     /// 1, 2, 3 …; leaving it (O, Return, Esc, another tool) sends the clicks once as `reading_order.sequence`.
     var orderArmed = false
