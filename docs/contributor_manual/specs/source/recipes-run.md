@@ -458,6 +458,10 @@ replaces the Kraken figure before #6212 is coded.
   Built: the reopen puts every claim no live thread runs back to waiting, and a running thumbnail row no thread runs is
   requeued by the next scan (`requeue_orphaned_first`), so the hold lifts. Left: the real kill-and-restart run on the M4
   that shows `Make thumbnails` reaching N of N. Test: fichero-server/tests/unit/jobs/test_thumbnail_claims_requeued_after_crash.py.
+  **SUPERSEDED in part (owner 2026-11-13 night, #6584):** the claims a dead process left go back to PAUSED ("Stopped when Fichero
+  quit"), not to waiting, and run when the person says so in the launch alert (`ui/activity-pane.md`
+  `activity.launch.nothing-starts-one-alert`, open question 3 on exempting the automatic kinds); the file-exists half and
+  `requeue_orphaned_first` for a LIVE engine's orphaned claim stand.
 - `recipes-run.restart.releases-lanes` — **[OK]** (#6213; `activity.durable.reopen-leaves-live-jobs` is
   the live half) a lane holder is a RUNNING row with a live worker thread of this engine; a row left
   running by a dead process holds no lane after the restart, so the next job of that kind in any project
