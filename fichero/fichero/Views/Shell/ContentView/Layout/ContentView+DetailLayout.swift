@@ -276,9 +276,11 @@ extension ContentView {
     @ViewBuilder
     private func runHistoryContent(for mode: AppViewMode) -> some View {
         if case .activity = mode {
-            // The details are mounted ONCE, in the Inspector (`activity.pane.inspector-shows-the-selected-row`, #6441).
-            PaneEmptyStateView(reason: "A selected row's details are in the Inspector.")
+            // The details are mounted ONCE, in the Inspector (`activity.pane.inspector-shows-the-selected-row`, #6441);
+            // empty here means blank (`activity.window.no-empty-prose`).
+            Color.clear
                 .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
                 .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
         }
     }
