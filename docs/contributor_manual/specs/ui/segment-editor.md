@@ -342,7 +342,7 @@ targets are at least 44 pt.
   region holding most of it (`MarkerStroke`). *Not built:* the popover's smoothing (0.5 is sent),
   the Pencil. *Tests:* `fichero-server/tests/unit/api/test_segment_create_from_stroke.py`;
   `fichero/Tests/Unit/general/Views/Source/MarkerToolTests.swift`.
-- `segment-editor.paintbrush` — **[GAP]** (→ #4941; app + engine) the Paintbrush paints along a line of ink with a
+- `segment-editor.paintbrush` — **[PARTIAL]** (→ #4941; app + engine) the Paintbrush paints along a line of ink with a
   finger, the pointer or the Pencil; the painted area is the outline, its centreline is the
   baseline. The app sends the stroke as points with a width each (the slider's; pressure is
   **off by default** and an option in the tool's popover turns it on, owner 2026-11-13); the
@@ -350,7 +350,11 @@ targets are at least 44 pt.
   with `brush_stroke`). Strokes that overlap a line painted in the same session merge into that
   line (its outline grows, the baseline is recomputed) rather than making a second line; a
   stroke over an existing line that was not painted this session is a new line, never a silent
-  merge. Width is remembered per window.
+  merge. Width is remembered per window. *Built (2026-11-14):* the engine half: `segment.create` with `brush_stroke`
+  (`[x, y, width]` per point, the width in image pixels) makes the line's outline from the painted area (discs joined
+  by bands, simplified) and its baseline from the path (`media/paint_stroke.py`), one undo. *Not built:* the tool in
+  the app, merging strokes painted in one session, pressure. *Tests:*
+  `fichero-server/tests/unit/api/test_segment_create_from_brush.py`.
 
 ### Lines and baselines
 

@@ -95678,6 +95678,18 @@
             "description": "Draw the line's outline from its baseline and the page's ink.",
             "default": false
           },
+          "brush_stroke": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Brush Stroke",
+            "description": "A Paintbrush stroke, [x, y, width] per point (width in image pixels): its painted area is the outline, its path the baseline."
+          },
           "place_in_region": {
             "type": "boolean",
             "title": "Place In Region",
