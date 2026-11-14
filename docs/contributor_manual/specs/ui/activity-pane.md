@@ -346,7 +346,20 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   `fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py`;
   not yet written: ActivityCostColumnTests.swift.
 - `activity.pane.row-actions-on-the-table` — **[GAP]** **[SUPERSEDED]** by `activity.pane.row-actions-mail-rule` (owner rulings 2026-11-14 afternoon) (#6441, #6583, decision 11; `activity.window.delete-any-row`,
-- `activity.pane.row-actions-mail-rule` — **[PARTIAL]** (built #6441: the one verb list by the Mail rule, published by the focused table; Stop then Delete after one confirmation, a running run stopped first; Delete, Archive and Put Back of jobs are the audited actions, one step on the window's stack, so Edit › Undo takes them back; a run row's Archive is the engine's `workflow_run.archive` (nothing deleted; Undo and Put Back are `job.unarchive`), test `fichero-server/tests/unit/jobs/test_archive_runs_6441.py`; not built: Undo of a run's delete (the engine's `workflow_run.delete` is not undoable); #6441, #6583, decision 11; `activity.window.delete-any-row`, Supersedes `activity.pane.row-actions-on-the-table`.
+  `activity.pause.per-job`, `activity.retry.one-row`) the verbs live on the table: a row's one button (`activity.window.one-button`)
+  shows the verb its state allows (the states table above), the context menu lists the one verb list, each enabled by the MAIL RULE (above: enabled when any selected row allows it,
+  applied to those, the rest skipped and counted in the status bar), the Delete key and ⌘⌫ delete the selection, ⌘A selects all
+  shown, and Edit › Undo undoes a Delete or an Archive (the engine's `job.delete`, `job.archive` and `workflow_run.delete` are
+  undoable: the row comes back in the state it had); Delete on a running row is Stop then Delete after one confirmation; a row that
+  ended between the click and the request is judged by the engine at receipt and answered skipped, and the app re-reads. Acceptance:
+  with a failed, a paused and a running row selected the menu enables Delete, Stop and Continue (the paused one allows it) and
+  disables Pause; ⌘⌫ asks once for the running one, deletes all three, and the status bar counts them; Undo lists them again in
+  their former states. The states table above is this behaviour's fixture. *Tests:*
+  `fichero/Tests/Unit/general/Models/ActivityDeleteAnyRowTests.swift`, `fichero-server/tests/unit/jobs/test_delete_any_row_6583.py`,
+  `fichero-server/tests/unit/jobs/test_every_state_takes_its_verbs_6583.py` (built 2026-11-13 night: the engine's verbs in every
+  state of the table above, through the routes; the table is its fixture);
+  not yet written: ActivityRowActionsTests.swift, test_delete_is_undoable_6583.py.
+- `activity.pane.row-actions-mail-rule` — **[PARTIAL]** (built #6441: the one verb list by the Mail rule, published by the focused table; Stop then Delete after one confirmation, a running run stopped first; Delete, Archive and Put Back of jobs are the audited actions, one step on the window's stack, so Edit › Undo takes them back; a run row's Archive is the engine's `workflow_run.archive` (nothing deleted; Undo and Put Back are `job.unarchive`), test `fichero-server/tests/unit/jobs/test_archive_runs_6441.py`; not built: Undo of a run's delete (the engine's `workflow_run.delete` is not undoable); #6441, #6583, decision 11; `activity.window.delete-any-row`,
   `activity.pause.per-job`, `activity.retry.one-row`) the verbs live on the table: a row's one button (`activity.window.one-button`)
   shows the verb its state allows (the states table above), the context menu lists the one verb list, each enabled by the MAIL RULE (above: enabled when any selected row allows it,
   applied to those, the rest skipped and counted in the status bar), the Delete key and ⌘⌫ delete the selection, ⌘A selects all
@@ -360,7 +373,7 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   `fichero-server/tests/unit/jobs/test_every_state_takes_its_verbs_6583.py` (built 2026-11-13 night: the engine's verbs in every
   state of the table above, through the routes; the table is its fixture), `fichero/Tests/Unit/general/Models/ActivityPane/ActivityRowActionsTests.swift`
   (the states table, the Mail rule, the one button);
-  not yet written: test_delete_is_undoable_6583.py.
+  not yet written: test_delete_is_undoable_6583.py. Supersedes `activity.pane.row-actions-on-the-table`.
 - `activity.pane.archive-old-runs` — **[PARTIAL]** (#6583; review 2026-11-13 night, item 1; the Trash-is-a-folder ruling: a PLACE with Put
   Back, not a mode) **Archive** hides a finished, failed, stopped or partial row from the table and keeps everything (results,
   cost, history, the record): Archive on one row or many (context menu, Project › Activity, multi-select), **Archive Finished…**
