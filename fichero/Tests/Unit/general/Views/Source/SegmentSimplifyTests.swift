@@ -76,4 +76,30 @@ struct CutWordsTests {
         #expect(SegmentEdit.cutWordsNotice(made: 9, leftAlone: 0) == nil)
         #expect(SegmentEdit.cutWordsNotice(made: 3, leftAlone: 2)?.contains("2 lines") == true)
     }
+    @Test("the slider shows the engine's shapes while held and, let go, asks for ONE simplify at its tolerance")
+    func theSlider() throws {
+        let window = WindowState(libraryId: UUID())
+        window.simplifyTolerance = 4
+        window.simplifyPreview = [[[0, 0], [1, 1]]]
+        window.letGoOfSimplifySlider(at: 4)
+        #expect(window.simplifyTolerance == nil)
+        #expect(window.simplifyPreview.isEmpty, "the live shapes go when the slider is let go")
+        let first = try #require(window.simplifyRelease)
+        #expect(first.tolerance == 4)
+        window.letGoOfSimplifySlider(at: 4)
+        #expect(window.simplifyRelease != first, "the same tolerance let go twice is two releases")
+
+        let call = try SegmentEdit.simplify([line("a", version: 2)], tolerance: 4).get()
+        let data = try JSONEncoder().encode(call.params)
+        let params = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(params["tolerance"] as? Double == 4)
+    }
+
+    @Test("the preview's outlines are drawn closed, its baselines open, and an unchanged shape not at all")
+    func thePreviewPaths() {
+        let paths = SimplifyRelease.paths(
+            polygons: [[[0, 0], [1, 0], [1, 1]], nil], baselines: [nil, [[0, 0.5], [1, 0.5]]]
+        )
+        #expect(paths == [[[0, 0], [1, 0], [1, 1], [0, 0]], [[0, 0.5], [1, 0.5]]])
+    }
 }

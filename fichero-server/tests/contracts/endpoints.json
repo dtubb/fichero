@@ -11490,6 +11490,29 @@
       },
       {
         "method": "GET",
+        "path": "/segments/document/{doc_id}/simplify-preview",
+        "operation_id": "preview_simplify_segments_api_segments_document__doc_id__simplify_preview_get",
+        "summary": "Preview Simplify Segments",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [
+          {
+            "name": "segment_ids",
+            "required": true,
+            "type": "array"
+          },
+          {
+            "name": "tolerance",
+            "required": true,
+            "type": "number"
+          }
+        ],
+        "request_model": null,
+        "response_model": "SimplifyPreview"
+      },
+      {
+        "method": "GET",
         "path": "/segments/document/{doc_id}/validate",
         "operation_id": "validate_document_segments_api_segments_document__doc_id__validate_get",
         "summary": "Validate Document Segments",

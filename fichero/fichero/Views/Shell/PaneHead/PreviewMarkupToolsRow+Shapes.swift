@@ -14,6 +14,7 @@ extension PreviewMarkupToolsRow {
             shapeButton(.baseline, label: "Line", icon: "line.diagonal", key: nil,
                         help: "Line — click points along the text, double-click to finish")
             knifeButton
+            labeled("Simplify") { SimplifySliderButton(windowState: windowState) }
         }
     }
 
@@ -57,6 +58,43 @@ extension PreviewMarkupToolsRow {
             .accessibilityLabel(label)
             .accessibilityIdentifier("previewMarkupShape\(kind.title)")
         }
+    }
+}
+
+/// Simplify's popover (`segment-editor.vertices`): a slider in image pixels. While it is held the page shows what the
+/// engine would make of the selection; let go, ONE `segment.simplify` at that tolerance, one ⌘Z.
+private struct SimplifySliderButton: View {
+    let windowState: WindowState?
+    @State private var showing = false
+    @State private var tolerance = SegmentEdit.simplifyTolerance
+
+    var body: some View {
+        Button { showing.toggle() } label: { Image(systemName: "point.3.connected.trianglepath.dotted") }
+            .buttonStyle(.borderless)
+            .foregroundStyle(.secondary)
+            .help("Simplify — fewer points on the selected outlines and baselines")
+            .accessibilityLabel("Simplify")
+            .accessibilityIdentifier("segmentEditor.tool.simplify")
+            .popover(isPresented: $showing) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Simplify the selection").font(.headline)
+                    Slider(value: $tolerance, in: 0.5...20) { editing in
+                        if editing {
+                            windowState?.simplifyTolerance = tolerance
+                        } else {
+                            windowState?.letGoOfSimplifySlider(at: tolerance)
+                        }
+                    }
+                    .onChange(of: tolerance) { _, value in
+                        if windowState?.simplifyTolerance != nil { windowState?.simplifyTolerance = value }
+                    }
+                    .accessibilityIdentifier("segmentEditor.simplify.slider")
+                    Text("Within \(tolerance, specifier: "%.1f") px of the shape drawn")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                .padding()
+                .frame(width: 240)
+            }
     }
 }
 

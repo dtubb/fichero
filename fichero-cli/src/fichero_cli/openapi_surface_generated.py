@@ -16831,6 +16831,23 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("preview-simplify")
+    def segments_preview_simplify_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        segment_ids: list[str] = typer.Option(..., '--segment-ids', help='The segments the slider simplifies. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        tolerance: float = typer.Option(..., '--tolerance', help='How far, in image pixels, the simpler shape may stray.'),
+    ) -> None:
+        """Preview Simplify Segments (GET /api/segments/document/{doc_id}/simplify-preview)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/document/{doc_id}/simplify-preview"
+            params = {
+                "segment_ids": _list_values(segment_ids),
+                "tolerance": tolerance,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("validate-document")
     def segments_validate_document_get(
         ctx: typer.Context,

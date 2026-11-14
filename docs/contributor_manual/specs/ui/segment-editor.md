@@ -291,9 +291,14 @@ targets are at least 44 pt.
   *Built (2026-11-13):* `segment.simplify` (Douglas-Peucker in the page image's pixels, outline closed
   and baseline open, never below three and two points, re-checked for a self-crossing; a shape
   already that simple is left alone; one undo through `segment.restore_versions`) and
-  Edit › Segments ▸ Simplify Outline at 2 px. *Not built:* the slider and live preview, ⌫ on a
-  pressed point, and the chord: ⌥⌘S is Star's in the markup row (`PreviewMarkupToolsRow`).
-  *Tests:* `test_segment_simplify.py`; `SegmentSimplifyTests.swift`.
+  Edit › Segments ▸ Simplify Outline at 2 px. *Built (2026-11-14):* the slider (0.5 to 20 px) in
+  Simplify's popover in the segment tools row, beside the shape tools (there is no Shape popover yet);
+  while it is held the page draws, dashed, what the engine would make of the selection
+  (`GET /api/segments/document/{doc_id}/simplify-preview`, the same computation the action writes,
+  writing nothing), and letting go sends one `segment.simplify` at that tolerance. *Not built:* ⌫ on
+  a pressed point, and the chord: ⌥⌘S is Star's in the markup row (`PreviewMarkupToolsRow`).
+  *Tests:* `fichero-server/tests/unit/api/test_segment_simplify.py` (the preview);
+  `fichero/Tests/Unit/general/Views/Source/SegmentSimplifyTests.swift` (`theSlider`, `thePreviewPaths`).
 
 ### Drawing
 

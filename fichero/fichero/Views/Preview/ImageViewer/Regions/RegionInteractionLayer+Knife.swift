@@ -45,6 +45,23 @@ extension RegionInteractionLayer {
         }
     }
 
+    /// What the Simplify slider would make of the selection (`segment-editor.vertices`), drawn over the page while held.
+    @ViewBuilder
+    func liveSimplify(in size: CGSize) -> some View {
+        let paths = windowState?.simplifyPreview ?? []
+        if !paths.isEmpty, visible.width > 0, visible.height > 0 {
+            Path { path in
+                for points in paths where points.count >= 2 {
+                    path.addLines(points.map {
+                        CGPoint(x: ($0[0] - visible.minX) / visible.width * size.width,
+                                y: ($0[1] - visible.minY) / visible.height * size.height)
+                    })
+                }
+            }
+            .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 1.5, lineJoin: .round, dash: [4, 3]))
+        }
+    }
+
     /// The stroke so far, drawn over the page.
     @ViewBuilder
     func liveKnife(in size: CGSize) -> some View {

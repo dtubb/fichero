@@ -7971,6 +7971,16 @@ def fichero_segments_on_a_rendition(
     return _rt.call("GET", f"/api/segments/document/{doc_id}/on-rendition/{rendition_id}")
 
 
+def fichero_segments_preview_simplify(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+    segment_ids: Annotated[list[str], Field(description='The segments the slider simplifies.')],
+    tolerance: Annotated[float, Field(description='How far, in image pixels, the simpler shape may stray.')],
+) -> Any:
+    "Preview Simplify Segments\n\nWhat `segment.simplify` would write at this tolerance, written nowhere (`segment-editor.vertices`): the Shape\npopover's slider draws it live and sends the action once on release. A shape it would not change is left out.\n\nRoute: GET /api/segments/document/{doc_id}/simplify-preview (toolset `segments`; reads)."
+    return _rt.call("GET", f"/api/segments/document/{doc_id}/simplify-preview", params={"segment_ids": segment_ids, "tolerance": tolerance})
+
+
 def fichero_segments_validate_document(
     *,
     doc_id: Annotated[str, Field(description='Doc Id')],
@@ -10355,6 +10365,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_segments_list_document", "segments", "GET", "/api/segments/document/{doc_id}", fichero_segments_list_document),
     GeneratedTool("fichero_segments_list_document_matches", "segments", "GET", "/api/segments/document/{doc_id}/matches", fichero_segments_list_document_matches),
     GeneratedTool("fichero_segments_on_a_rendition", "segments", "GET", "/api/segments/document/{doc_id}/on-rendition/{rendition_id}", fichero_segments_on_a_rendition),
+    GeneratedTool("fichero_segments_preview_simplify", "segments", "GET", "/api/segments/document/{doc_id}/simplify-preview", fichero_segments_preview_simplify),
     GeneratedTool("fichero_segments_validate_document", "segments", "GET", "/api/segments/document/{doc_id}/validate", fichero_segments_validate_document),
     GeneratedTool("fichero_segments_get_document_text", "segments", "GET", "/api/segments/document/{document_id}/text", fichero_segments_get_document_text),
     GeneratedTool("fichero_segments_propose_match", "segments", "POST", "/api/segments/matches", fichero_segments_propose_match),

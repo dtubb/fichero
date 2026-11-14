@@ -600,6 +600,40 @@ def validate_document_segments(doc_id: str, db: Database = Depends(get_library_d
     return SegmentValidation(document_id=doc_id, problems=problems)
 
 
+class SimplifiedShape(BaseModel):
+    segment_id: str
+    #: None: the outline (or baseline) is already as simple as the tolerance allows.
+    polygon: Optional[list[list[float]]] = None
+    baseline: Optional[list[list[float]]] = None
+
+
+class SimplifyPreview(BaseModel):
+    document_id: str
+    shapes: list[SimplifiedShape]
+
+
+@router.get("/document/{doc_id}/simplify-preview", response_model=SimplifyPreview)
+@off_loop
+def preview_simplify_segments(
+    doc_id: str,
+    segment_ids: list[str] = Query(..., description="The segments the slider simplifies."),
+    tolerance: float = Query(..., gt=0, description="How far, in image pixels, the simpler shape may stray."),
+    db: Database = Depends(get_library_database),
+) -> SimplifyPreview:
+    """What `segment.simplify` would write at this tolerance, written nowhere (`segment-editor.vertices`): the Shape
+    popover's slider draws it live and sends the action once on release. A shape it would not change is left out."""
+    rows = []
+    for segment_id in dict.fromkeys(segment_ids):
+        row = db.get(Segment, segment_id)
+        if row is None or row.deleted_at is not None or row.document_id != doc_id:
+            raise HTTPException(status_code=404, detail=f"Segment not found on this page: {segment_id}")
+        rows.append(row)
+    return SimplifyPreview(document_id=doc_id, shapes=[
+        SimplifiedShape(segment_id=row.id, polygon=polygon, baseline=baseline)
+        for row, polygon, baseline in _simplified_shapes(db, rows, tolerance)
+    ])
+
+
 @router.get("/document/{doc_id}", response_model=SegmentListResponse)
 @off_loop
 def list_document_segments(
@@ -3484,11 +3518,6 @@ def _action_simplify(db: Database, params: SegmentSimplifyParams, ctx: ActionCon
     """Douglas-Peucker on each segment's outline (closed) and baseline (open), in the page image's pixels, so the
     tolerance means the same on every page; one action, one undo. A segment already as simple as the tolerance allows
     is left as it is and not bumped. An outline is never brought below three points, a baseline below two."""
-    import cv2
-    import numpy as np
-
-    from fichero_server.media import line_join
-
     if not params.segment_ids:
         raise HTTPException(status_code=422, detail="segment_ids is empty: nothing to simplify")
     _refuse_repeated_ids(params.segment_ids)
@@ -3496,32 +3525,12 @@ def _action_simplify(db: Database, params: SegmentSimplifyParams, ctx: ActionCon
     for segment_id in params.segment_ids:
         _assert_not_provisional_http(segment_id, what="segment_id")
         rows.append(_live_current_row(db, segment_id, _require_expected_version(params.expected_versions, segment_id)))
-    if len({(row.document_id, row.pass_id) for row in rows}) > 1:
-        raise _as_http_error(SegmentPassMismatchError("the segments being simplified are not all in the same pass and document"))
-    elsewhere = [row.id for row in rows if row.anchor is not None and row.anchor.rendition_id]
-    if elsewhere:
-        raise HTTPException(status_code=422, detail=f"segments measured on another image cannot be simplified here: {elsewhere}")
-
-    document = db.get(Document, rows[0].document_id)
-    _image, forward, back = _page_image_for_lines(db, document)
-
-    def fewer(points: list[list[float]], closed: bool, least: int) -> list[list[float]] | None:
-        pixels = np.array(forward(points), dtype=np.float32).reshape(-1, 1, 2)
-        kept = cv2.approxPolyDP(pixels, params.tolerance, closed).reshape(-1, 2).tolist()
-        if len(kept) < least or len(kept) >= len(points):
-            return None
-        return [[round(x, 6), round(y, 6)] for x, y in back(kept)]
 
     audit_id = uuid.uuid4().hex
     after_versions, simplified_ids = [], []
-    for row in rows:
-        polygon = fewer(row.anchor.polygon, True, 3) if row.anchor is not None and row.anchor.polygon else None
-        baseline = fewer(row.baseline, False, 2) if row.baseline and len(row.baseline) > 2 else None
-        if polygon is None and baseline is None:
-            continue
+    for row, polygon, baseline in _simplified_shapes(db, rows, params.tolerance):
         snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
         if polygon is not None:
-            polygon, _crossed = line_join.simple_outline(polygon)  # dropping points can make an outline cross itself
             xs, ys = [p[0] for p in polygon], [p[1] for p in polygon]
             row.anchor = row.anchor.model_copy(update={
                 "polygon": polygon, "rect": [min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)],
@@ -3548,6 +3557,45 @@ def _action_simplify(db: Database, params: SegmentSimplifyParams, ctx: ActionCon
         document_ids=[rows[0].document_id],
     )
     return {"segment_ids": simplified_ids, "versions": after_versions}, spec
+
+
+def _simplified_shapes(
+    db: Database, rows: list[Segment], tolerance: float,
+) -> list[tuple[Segment, list[list[float]] | None, list[list[float]] | None]]:
+    """What Simplify makes of each row: (row, outline or None, baseline or None), None where the tolerance changes
+    nothing; rows it changes not at all are left out. The ONE computation `segment.simplify` writes and its preview
+    shows (`segment-editor.vertices`). Writes nothing."""
+    import cv2
+    import numpy as np
+
+    from fichero_server.media import line_join
+
+    if len({(row.document_id, row.pass_id) for row in rows}) > 1:
+        raise _as_http_error(SegmentPassMismatchError("the segments being simplified are not all in the same pass and document"))
+    elsewhere = [row.id for row in rows if row.anchor is not None and row.anchor.rendition_id]
+    if elsewhere:
+        raise HTTPException(status_code=422, detail=f"segments measured on another image cannot be simplified here: {elsewhere}")
+
+    document = db.get(Document, rows[0].document_id)
+    _image, forward, back = _page_image_for_lines(db, document)
+
+    def fewer(points: list[list[float]], closed: bool, least: int) -> list[list[float]] | None:
+        pixels = np.array(forward(points), dtype=np.float32).reshape(-1, 1, 2)
+        kept = cv2.approxPolyDP(pixels, tolerance, closed).reshape(-1, 2).tolist()
+        if len(kept) < least or len(kept) >= len(points):
+            return None
+        return [[round(x, 6), round(y, 6)] for x, y in back(kept)]
+
+    shapes = []
+    for row in rows:
+        polygon = fewer(row.anchor.polygon, True, 3) if row.anchor is not None and row.anchor.polygon else None
+        baseline = fewer(row.baseline, False, 2) if row.baseline and len(row.baseline) > 2 else None
+        if polygon is None and baseline is None:
+            continue
+        if polygon is not None:
+            polygon, _crossed = line_join.simple_outline(polygon)  # dropping points can make an outline cross itself
+        shapes.append((row, polygon, baseline))
+    return shapes
 
 
 class SegmentCutWordsParams(BaseModel):

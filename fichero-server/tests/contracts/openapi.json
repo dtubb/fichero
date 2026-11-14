@@ -4804,6 +4804,76 @@
         }
       }
     },
+    "/api/segments/document/{doc_id}/simplify-preview": {
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Preview Simplify Segments",
+        "description": "What `segment.simplify` would write at this tolerance, written nowhere (`segment-editor.vertices`): the Shape\npopover's slider draws it live and sends the action once on release. A shape it would not change is left out.",
+        "operationId": "preview_simplify_segments_api_segments_document__doc_id__simplify_preview_get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "segment_ids",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The segments the slider simplifies.",
+              "title": "Segment Ids"
+            },
+            "description": "The segments the slider simplifies."
+          },
+          {
+            "name": "tolerance",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "exclusiveMinimum": true,
+              "description": "How far, in image pixels, the simpler shape may stray.",
+              "title": "Tolerance",
+              "minimum": 0
+            },
+            "description": "How far, in image pixels, the simpler shape may stray."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimplifyPreview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/segments/document/{doc_id}": {
       "get": {
         "tags": [
@@ -97953,6 +98023,62 @@
           "cosine_score"
         ],
         "title": "SimilarEntity"
+      },
+      "SimplifiedShape": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "polygon": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Polygon"
+          },
+          "baseline": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Baseline"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id"
+        ],
+        "title": "SimplifiedShape"
+      },
+      "SimplifyPreview": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "shapes": {
+            "items": {
+              "$ref": "#/components/schemas/SimplifiedShape"
+            },
+            "type": "array",
+            "title": "Shapes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "shapes"
+        ],
+        "title": "SimplifyPreview"
       },
       "SkippedStep": {
         "properties": {
