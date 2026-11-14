@@ -162,8 +162,8 @@ extension ActivityService {
     /// any job row in any state, or a kind's row (`waiting:<kind>`) for the whole group. A waiting or
     /// paused job is cancelled first; one running now is skipped and named. The rows are kept by the
     /// engine and never listed again. Workflow runs are `deleteWorkflowRuns(threadIds:)`.
-    func deleteJobs(ids: [String]) async throws -> DeleteAnswer {
-        let response = try await client.api.deleteJobsApiActivityJobsDeletePost(body: .json(.init(ids: ids)))
+    func deleteJobs(ids: [String], states: [String]? = nil) async throws -> DeleteAnswer {
+        let response = try await client.api.deleteJobsApiActivityJobsDeletePost(body: .json(.init(ids: ids, states: states)))
         switch response {
         case .ok(let okResponse):
             let body = try okResponse.body.json

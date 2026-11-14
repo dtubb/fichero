@@ -1617,7 +1617,9 @@ def _action_job_clear_failed(db: Database, params: ClearFailedParams, ctx: Actio
 
 
 class DeleteJobsParams(BaseModel):
-    ids: list[str] = Field(description="job ids, or a kind's row (`waiting:<kind>`, `paused:<kind>`)")
+    ids: list[str] = Field(default_factory=list, description="job ids, or a kind's row (`waiting:<kind>`, `paused:<kind>`)")
+    states: Optional[list[str]] = Field(default=None, description=(
+        "also every top-level job of its own in these states (Clear Finished…: done, failed, cancelled)"))
 
 
 class DeleteJobsResponse(BaseModel):
@@ -1644,9 +1646,9 @@ async def delete_jobs(
 def _action_job_delete(db: Database, params: DeleteJobsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.execution import jobs as job_queue
 
-    deleted, skipped = job_queue.delete_jobs(db, params.ids)
+    deleted, skipped = job_queue.delete_jobs(db, params.ids, params.states)
     return {"deleted_ids": deleted, "skipped_ids": skipped, "count": len(deleted)}, ChangeSpec(
-        domains=["activity"], target_ids=deleted, before={"asked": params.ids},
+        domains=["activity"], target_ids=deleted, before={"asked": params.ids, "states": params.states},
         after={"deleted": len(deleted), "skipped": skipped}, emit_type="job.updated",
     )
 

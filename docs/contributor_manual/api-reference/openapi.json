@@ -64973,12 +64973,18 @@
             "type": "array",
             "title": "Ids",
             "description": "job ids, or a kind's row (`waiting:<kind>`, `paused:<kind>`)"
+          },
+          "states": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "States",
+            "description": "also every top-level job of its own in these states (Clear Finished\u2026: done, failed, cancelled)"
           }
         },
         "type": "object",
-        "required": [
-          "ids"
-        ],
         "title": "DeleteJobsParams"
       },
       "DeleteJobsResponse": {
