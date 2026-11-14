@@ -697,19 +697,8 @@ struct FicheroApp: App {
             }
         }
 
-        Window("Activity Detail", id: ActivityWindowSelectionState.detailWindowID) {
-            ActivityDetailWindow()
-                .environment(appState)  // ActivityDetailsView reads it; absent, the window traps (#5811)
-                .environment(libraryManager)
-                .environment(appExecutionObserver)
-        }
-        .defaultSize(width: 840, height: 640)
-        // The detail window shows whatever run the monitor's selection holds —
-        // opened by double-clicking a run, meaningless as a bare menu entry.
-        // `commandsRemoved()` ("Removes all commands defined by the modified
-        // scene", Scene docs) suppresses its automatic Window-menu item so the
-        // menu offers exactly one Activity entry (#4524).
-        .commandsRemoved()
+        // The Activity Detail window is gone (`activity.one-window`, #6441): the one Activity window's Inspector shows the
+        // selected row.
 
         // `Settings` is a SEPARATE Scene: environment objects injected into the
         // main WindowGroup do NOT flow into it. Every object a settings pane

@@ -293,7 +293,7 @@ class LibraryManager {
         @ObservationIgnored lazy var trashStore = TrashStore(client: ficheroClient)
 
         /// Per-library activity store (#2448). Wraps `activityService`, owns the
-        /// run-browser list, and signals `ActivityBrowserView` to refresh on
+        /// Activity pane's run list, and signals `ActivityPaneView` to refresh on
         /// `workflow.*` SSE events (best-effort until the backend emits dedicated
         /// `activity.*` events).
         @ObservationIgnored lazy var activityStore: ActivityStore = ActivityStore(service: activityService, library: self)

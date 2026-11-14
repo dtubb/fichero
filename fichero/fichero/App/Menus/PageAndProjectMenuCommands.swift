@@ -54,6 +54,9 @@ struct PageAndProjectMenuCommands: Commands {
 
             Section("Activity") {
                 FocusedActivityRunButtons()
+                FocusedActivityVerbButtons()
+                Divider()
+                FocusedAutomaticWorkButtons()
             }
 
             Divider()

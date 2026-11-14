@@ -377,23 +377,17 @@ extension ContentView {
                         set: { viewMode = .activity($0) }
                     )
                 ) {
-                    ActivityBrowserView(
-                        selectedRunId: selectedRun?.jobId,
-                        onSelectRun: { run in viewMode = .activity(run) }
-                    )
+                    // The same Activity pane; a picked row pushes its details (`activity.pane.is-a-pane-kind`).
+                    ActivityPaneView(libraryId: windowState.libraryId, paneKey: "activity.compact",
+                                     onSelect: { pick in if let pick { viewMode = .activity(pick.selection) } })
                 } detail: { run in
                     ActivityDetailsView(selection: run)
                 }
             } else {
-                // #4705 increment 4a: Library stays the navigator; the
-                // Preview pane mounts `ActivityDetailsView` directly (the
-                // SAME component the compact flow above and
-                // `ActivityDetailWindow.swift` already trust) instead of
-                // launching a separate window via the now-deleted
-                // `ActivityWindowLauncherView`.
-                LibrarySplitPaneHost(clearToken: libraryPinClearToken) { pinnedLibrary in
-                    libraryContentColumn(pinnedLibrary: pinnedLibrary)
-                }
+                // The sidebar's Activity shows the Activity pane where the Library stood (`activity.pane.is-a-pane-kind`,
+                // #6441); its selected row is the Inspector's (`activity.pane.inspector-shows-the-selected-row`).
+                ActivityPaneView(libraryId: windowState.libraryId, showsHead: false, paneKey: "activity.sidebar",
+                                 onSelect: { windowState.activityPick = $0 })
             }
 
         }

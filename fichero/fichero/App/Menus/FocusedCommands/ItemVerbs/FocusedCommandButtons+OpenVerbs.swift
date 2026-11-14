@@ -165,6 +165,7 @@ struct FocusedItemOpenButtons: View {
         MakeAliasMenuItem(target: target)
         FocusedItemOrganiseButtons.reason(ItemVerbs.makeAliasReason(target))
         FocusedRevealOriginalButton(target: target)
+        FocusedShowInActivityButton(target: target)
         QuickLookItemMenuItem(target: target)
         FocusedItemOrganiseButtons.reason(ItemVerbs.quickLookReason(target))
     }

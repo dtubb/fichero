@@ -19,6 +19,13 @@ enum RunAutomaticallySetting {
 
     /// The mode the switch sets: on is automatic (never `started`: that is the one-off verb), off pauses background work.
     static func mode(isOn: Bool) -> ActivityMode { isOn ? .automatic : .paused }
+
+    /// Project › Activity's two verbs for the background lane, worded so neither reads as a row's Pause or Continue.
+    static let pauseCommand = "Pause Automatic Work"
+    static let resumeCommand = "Resume Automatic Work"
+
+    /// Which of the two the mode offers: Pause while it runs (automatic or started), Resume while paused; nil, no project.
+    static func offersPause(_ mode: ActivityMode?) -> Bool? { mode.map(isOn) }
 }
 
 /// The one toggle, for Settings › General; a project's own copy (Use the app's setting / On / Off) follows.

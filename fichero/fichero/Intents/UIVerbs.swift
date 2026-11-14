@@ -106,7 +106,7 @@ enum UIPane: String, CaseIterable, AppEnum {
         self.init(rawValue: key == "reading" ? "reader" : key)
     }
 
-    /// The pane-list kind, for the panes that are one (Activity is a window; the Inspector a column).
+    /// The pane-list kind, for the panes that are one (the Inspector is a column).
     var paneKind: PaneKind? {
         switch self {
         case .library: .library
@@ -114,7 +114,8 @@ enum UIPane: String, CaseIterable, AppEnum {
         case .reader: .reading
         case .chat: .chat
         case .segments: .segments
-        case .inspector, .activity: nil
+        case .activity: .activity
+        case .inspector: nil
         }
     }
 

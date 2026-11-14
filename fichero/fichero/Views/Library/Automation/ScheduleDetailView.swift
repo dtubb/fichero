@@ -98,7 +98,7 @@ struct ScheduleDetailView: View {
             Button {
                 Task { await triggerNow() }
             } label: {
-                Label("Run Now", systemImage: "play.circle")
+                Label("Run Schedule Now", systemImage: "play.circle")
             }
             .buttonStyle(.borderedProminent)
         }

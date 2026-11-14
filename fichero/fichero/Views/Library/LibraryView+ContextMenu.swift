@@ -253,6 +253,7 @@ extension LibraryView {
         // Shared reveal policy (#4305): local engine + path resolves on this
         // machine; linked originals get the Finder-alias verb.
         RevealOriginalMenuItem(document: document)
+        if document.docType != .folder { ShowInActivityMenuItem(document: document) }
         // An original that moved (#5672): find it again.
         if let originals = activeLibraryReference?.originalsStore, originals.isMissing(document.id) {
             Button { originals.begin() } label: { Label("Locate Originals…", systemImage: "magnifyingglass") }

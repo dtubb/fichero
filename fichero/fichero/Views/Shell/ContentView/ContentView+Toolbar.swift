@@ -485,7 +485,8 @@ extension ContentView {
                         importProgress: importProgress,
                         libraryId: windowState.libraryId,
                         libraryName: searchChromeLibraryName,
-                        importError: $importError
+                        importError: $importError,
+                        revealActivityPane: revealActivityPane
                     )
                 }
                 .padding(.horizontal, 5)

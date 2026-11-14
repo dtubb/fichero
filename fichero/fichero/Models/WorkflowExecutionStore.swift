@@ -42,7 +42,7 @@ final class WorkflowExecutionStore {
 
     /// Bumped whenever a USER-INITIATED run control changes an entry (#4402).
     ///
-    /// `ActivityBrowserView` rebuilds its list from `ActivityStore.refreshToken`,
+    /// `ActivityPaneView` rebuilds its list from `ActivityStore.refreshToken`,
     /// which is driven by the activity SSE stream. That is the wrong and only
     /// trigger for a control outcome: when the engine is gone there is no
     /// stream, so no event arrives, so the list never rebuilt and a row the
