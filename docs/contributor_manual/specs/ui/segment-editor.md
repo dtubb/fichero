@@ -527,9 +527,12 @@ See section 7.2 below for what exists. The design:
   As and the Inspector's per-pass Export check the page first (`PageExportRunner.checkedBeforeExport`):
   problems show their count, each kind in words, with Export Anyway or Cancel, and the report then
   begins "Exported with N segment problems"; a check that fails does not block the export and the
-  report says the page was not checked. *Not built:* Fix (there is no lens to open yet; Cancel
-  stands in), MCP and CLI. *Tests:* `test_segments_validate.py`;
-  `fichero/Tests/Unit/general/PageExportTextTests.swift::problemsBeforeExport`.
+  report says the page was not checked. MCP (`fichero_segments_validate_document`) and the CLI
+  (`fichero segments validate-document`) are generated from the route and answer exactly what it answers.
+  *Not built:* Fix (there is no lens to open yet; Cancel stands in), the loss report naming what was
+  exported invalid beyond the count. *Tests:* `test_segments_validate.py`;
+  `fichero/Tests/Unit/general/PageExportTextTests.swift::problemsBeforeExport`;
+  `fichero-server/tests/unit/mcp/test_segment_validation_reaches_mcp_and_cli.py`.
 - `segment-editor.every-edit-lands-at-once` — **[PARTIAL]** (→ #4957; app + engine) there is no autosave because
   there is nothing unsaved: a gesture is local until it ends, and its end is one action the
   engine has written before the app draws the result. The app holds no dirty state; closing
