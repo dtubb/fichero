@@ -1,6 +1,6 @@
 """scripts/release_guard.py: each test reproduces one thing the 2026.11.14
-release needed a person for (spec: release-and-versioning.md, "The lane runs
-unattended"). No Apple, network, Messages or tmutil call is real here."""
+release needed a person for (docs/contributor_manual/specs/harness/release-and-versioning.md,
+"The lane runs unattended"). No Apple, network, Messages or tmutil call is real here."""
 
 from __future__ import annotations
 
