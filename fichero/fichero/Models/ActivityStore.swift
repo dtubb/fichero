@@ -111,6 +111,7 @@ final class ActivityStore: ChangeEventConsumer {
     // actually changes (no-wholesale-rerender): a steady 100%-idle poll never
     // invalidates the observing views.
     var backgroundJobs: [ActivityJob] = []
+    var archivedJobs: [ActivityJob] = []  // Show Archived's rows (`activity.pane.archive-old-runs`): read on request, never polled
     /// Counts the Find the Documents runs seen to end, a recipe's step among them (`finddocs.review.items`):
     /// Items and the Inspector read their proposals again when it moves.
     private(set) var findDocumentsRunsEnded = 0
@@ -139,8 +140,7 @@ final class ActivityStore: ChangeEventConsumer {
     /// began before it is older than that answer: its mode and pause are not
     /// applied, or a poll in flight while Pause All was chosen put "running" back.
     @ObservationIgnored var modeAnswers = 0
-    /// Runs Delete or Clear Failed removed: a live execution still held in the
-    /// app's memory does not bring its row back on the next rebuild (#5634).
+    /// Runs Delete or Archive Failed removed: a live execution still in memory does not bring its row back (#5634).
     @ObservationIgnored var deletedRunIds: Set<String> = []
 
     // MARK: - Run trees (#5415: the Activity table's run → step → page rows)
