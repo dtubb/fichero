@@ -97,6 +97,20 @@ extension ZoomableImagePreview {
         return true
     }
 
+    /// ⌫ on the shape point last pressed (`segment-editor.vertices`): that point goes, as an ⌥-click does, one reshape and
+    /// ⌘Z; a shape already at its fewest points keeps it and the page says why.
+    func removeSelectedShapePoint() {
+        guard let windowState, let ref = windowState.selectedShapePoint, let documentId, ref.documentId == documentId,
+              let store = segmentEditStore, let segment = shownSegment(at: ref.boxIndex, documentId, store),
+              let points = SegmentShapes.points(of: segment, ref.target) else { return }
+        guard let fewer = SegmentShapes.removing(points, index: ref.index, ref.target) else {
+            windowState.segmentNotice = "A shape keeps at least \(ref.target.minimumPoints) points"
+            return
+        }
+        windowState.selectedShapePoint = nil
+        reshapeSegment(index: ref.boxIndex, ref.target, to: fewer)
+    }
+
     /// Up/Down with segments selected move the selection through the page in reading order (#6457), everywhere at once
     /// through `InspectorPath.select`. False when nothing moves, so the arrow keeps its panning.
     func stepSegmentSelection(_ step: Int, extend: Bool) -> Bool {
