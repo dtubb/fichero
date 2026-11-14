@@ -372,6 +372,9 @@ What the memory check does for a local model's load (#5537), each pinned in
   four batches, ran the server out of memory mid-read. Pinned in
   `fichero-server/tests/unit/llm/test_reads_follow_memory_5537.py` with injected memory. The rule is
   set from that evidence, not a profile; the run's peak memory is how it is re-measured.
+  **SUPERSEDED in part (owner 2026-11-13 night, #6584):** cloud models no longer keep an unbounded parallelism: the one
+  cap per provider across every run holds them (`ui/activity-pane.md` `activity.limits.one-cap-per-kind-across-everything`,
+  3 at once by default); the test's cloud case now pins that cap.
   **[OK]** (#5654) the model lane runs that same number: in a project's work each call is a job on the
   model lane, which runs one job at a time, so the review read one page at a time while the plan said "reads
   4 pages at once" (2026-10-10 demo). Calls to the engine's own model server for the model the lane has
