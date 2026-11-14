@@ -225,6 +225,23 @@ def _build_merge(db, doc_id):
     }
 
 
+def _build_reparent(db, doc_id):
+    pass_row = _make_pass(db, doc_id)
+    region = _make_segment(db, document_id=doc_id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.5, 0.5])
+    line = _make_segment(db, document_id=doc_id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+    return "POST", "/api/segments/reparent", {
+        "segments": [{"segment_id": line.id, "expected_version": line.version}], "parent_segment_id": region.id,
+    }
+
+
+def _build_regenerate_outline(db, doc_id):
+    pass_row = _make_pass(db, doc_id)
+    line = _make_segment(db, document_id=doc_id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+    return "POST", "/api/segments/regenerate-outline", {
+        "segment_ids": [line.id], "expected_versions": {line.id: line.version},
+    }
+
+
 def _build_split(db, doc_id):
     pass_row = _make_pass(db, doc_id)
     seg = _make_segment(db, document_id=doc_id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.2, 0.2])
@@ -308,6 +325,8 @@ _WRITE_ROUTE_CHECKS: dict[tuple[str, str], object] = {
     ("POST", "/segments/matches/{match_id}/accept"): _build_match_accept,
     ("POST", "/segments/matches/{match_id}/reject"): _build_match_reject,
     ("POST", "/segments/merge"): _build_merge,
+    ("POST", "/segments/reparent"): _build_reparent,
+    ("POST", "/segments/regenerate-outline"): _build_regenerate_outline,
     ("POST", "/segments/split"): _build_split,
     ("POST", "/segments/carry"): _build_carry,
     ("PUT", "/segments/{segment_id}"): _build_update,
@@ -373,6 +392,10 @@ _READ_ONLY_ROUTES = {
     # A page's matches (#5165): read-only, and checked the same way -- `doc_id` in the path is the
     # read dependency's target (`authz.target_id_from_request`).
     ("GET", "/segments/document/{doc_id}/matches"),
+    # The segment editor's per-page reads (#6582), the same shape: `doc_id` in the path.
+    ("GET", "/segments/document/{doc_id}/validate"),
+    ("GET", "/segments/document/{doc_id}/simplify-preview"),
+    ("GET", "/segments/document/{doc_id}/on-rendition/{rendition_id}"),
     # The scoped listing takes MANY documents, so it does not refuse -- it withholds the ones
     # the caller may not read and counts them (#5135). Its checks are
     # `TestTheScopedListingWithholdsWhatTheCallerMayNotRead` below, not the 403 table.
