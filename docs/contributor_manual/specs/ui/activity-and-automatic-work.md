@@ -974,6 +974,8 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   — a mark that hides the row and keeps it — is ARCHIVE; Delete REMOVES the row from every list, Show Archived and Retry lists
   included (the record kept for the audit, `deleted_at`), with Undo in session. The route and `job.delete` keep their names until
   the archive routes land; a deleted row never reappears, not after a relaunch, not in a Retry list (owner, 23:30).
+  **Built (2026-11-13 night):** `deleted_at` beside `cleared_at`; Delete marks both, Retry refuses a deleted row, no list shows
+  it; Undo through `job.undelete` (`activity.pane.archive-old-runs`, `test_archive_old_runs_6583.py`).
 - `activity.window.started-by` — **[PARTIAL]** (#5354) a row says who or what started
   it: a person, the recipe, a schedule, a trigger, an assistant. Built: the engine sends `started_by` on every row and tree node, and the opened run's heading words it (`ActivityDetails.startedByWords`, `ActivityStartedByTests`). Not built: the same words on the window's table row.
 - `activity.window.one-surface` — **[GAP]** (#5354) ingest progress, the conversion

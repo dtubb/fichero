@@ -845,6 +845,7 @@ def _reads_committed(route):
 @_reads_committed
 async def list_background_jobs(
     db: Database = Depends(get_library_database),
+    archived: bool = Query(False, description="the ARCHIVED rows instead (Show Archived, `activity.pane.archive-old-runs`)"),
 ) -> BackgroundJobsResponse:
     """The SINGLE source of running background jobs, so every activity surface
     (toolbar popover AND full viewer) agrees (FIX 3). Merges:
@@ -948,7 +949,7 @@ async def list_background_jobs(
     from fichero_server.recipes import runner as recipe_runner
 
     # Once per poll: the summary reads this one too. Off the loop (#5843): the reads wait on the transaction gate.
-    listed = await asyncio.to_thread(job_queue.snapshot, db)
+    listed = await asyncio.to_thread(lambda: job_queue.snapshot(db, archived=archived))
     recipe_statuses: dict[str, dict[str, Any]] = {}  # each live recipe run's status, read once for the list and the summary
     for row in listed:
         state, reason = row["state"], row["reason"]
@@ -1642,15 +1643,106 @@ async def delete_jobs(
     return DeleteJobsResponse.model_validate(result.result)
 
 
-@action("job.delete", DeleteJobsParams, domains=["activity"], undoable=False)  # Undo comes with the archive/delete split (#6583)
+def _invert_job_delete(before: dict | None, after: dict | None, ctx: ActionContext):
+    return ("job.undelete", {"ids": list((after or {}).get("deleted_ids") or [])})
+
+
+@action("job.delete", DeleteJobsParams, domains=["activity"], undoable=True, invert=_invert_job_delete)
 def _action_job_delete(db: Database, params: DeleteJobsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.execution import jobs as job_queue
 
     deleted, skipped = job_queue.delete_jobs(db, params.ids, params.states)
-    return {"deleted_ids": deleted, "skipped_ids": skipped, "count": len(deleted)}, ChangeSpec(
+    result = {"deleted_ids": deleted, "skipped_ids": skipped, "count": len(deleted)}
+    return result, ChangeSpec(
         domains=["activity"], target_ids=deleted, before={"asked": params.ids, "states": params.states},
-        after={"deleted": len(deleted), "skipped": skipped}, emit_type="job.updated",
+        after=result, emit_type="job.updated",
     )
+
+
+class JobIdsParams(BaseModel):
+    ids: list[str]
+
+
+class JobIdsResponse(BaseModel):
+    ids: list[str] = Field(description="the rows the action reached")
+    count: int
+
+
+@router.post("/jobs/undelete", response_model=JobIdsResponse)
+async def undelete_jobs(
+    params: JobIdsParams,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> JobIdsResponse:
+    """Undo of Delete (`activity.pane.archive-old-runs`, #6583): the deleted rows come back in the state they had."""
+    result = registry.invoke(db, "job.undelete", params.model_dump(), ctx)
+    return JobIdsResponse.model_validate(result.result)
+
+
+@action("job.undelete", JobIdsParams, domains=["activity"], undoable=True,
+        invert=lambda before, after, ctx: ("job.delete", {"ids": list((after or {}).get("ids") or [])}))
+def _action_job_undelete(db: Database, params: JobIdsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.execution import jobs as job_queue
+
+    ids = job_queue.undelete_jobs(db, params.ids)
+    result = {"ids": ids, "count": len(ids)}
+    return result, ChangeSpec(domains=["activity"], target_ids=ids, before={"asked": params.ids}, after=result, emit_type="job.updated")
+
+
+class ArchiveJobsParams(BaseModel):
+    ids: list[str] = Field(default_factory=list, description="ended rows to archive")
+    states: Optional[list[str]] = Field(default=None, description="also every top-level ended job of its own in these states")
+    older_than_days: Optional[int] = Field(default=None, ge=0, description="with `states`: only rows that ended more than this many days ago")
+
+
+class ArchiveJobsResponse(BaseModel):
+    archived_ids: list[str]
+    skipped_ids: list[str] = Field(description="rows not archived: still waiting, paused or running, or unknown")
+    count: int
+
+
+@router.post("/jobs/archive", response_model=ArchiveJobsResponse)
+async def archive_jobs(
+    params: ArchiveJobsParams,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ArchiveJobsResponse:
+    """Archive (`activity.pane.archive-old-runs`, #6583): an ended row leaves the table and keeps everything; Show Archived
+    (`GET /api/activity/jobs?archived=true`) lists it; `POST …/unarchive` puts it back. A row still going is skipped and named."""
+    result = registry.invoke(db, "job.archive", params.model_dump(), ctx)
+    return ArchiveJobsResponse.model_validate(result.result)
+
+
+@action("job.archive", ArchiveJobsParams, domains=["activity"], undoable=True,
+        invert=lambda before, after, ctx: ("job.unarchive", {"ids": list((after or {}).get("archived_ids") or [])}))
+def _action_job_archive(db: Database, params: ArchiveJobsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.execution import jobs as job_queue
+
+    archived, skipped = job_queue.archive_jobs(db, params.ids, params.states, params.older_than_days)
+    result = {"archived_ids": archived, "skipped_ids": skipped, "count": len(archived)}
+    return result, ChangeSpec(domains=["activity"], target_ids=archived, before=params.model_dump(), after=result,
+                              emit_type="job.updated")
+
+
+@router.post("/jobs/unarchive", response_model=JobIdsResponse)
+async def unarchive_jobs(
+    params: JobIdsParams,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> JobIdsResponse:
+    """Put Back (`activity.pane.archive-old-runs`): the archived rows are listed again, unchanged."""
+    result = registry.invoke(db, "job.unarchive", params.model_dump(), ctx)
+    return JobIdsResponse.model_validate(result.result)
+
+
+@action("job.unarchive", JobIdsParams, domains=["activity"], undoable=True,
+        invert=lambda before, after, ctx: ("job.archive", {"ids": list((after or {}).get("ids") or [])}))
+def _action_job_unarchive(db: Database, params: JobIdsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.execution import jobs as job_queue
+
+    ids = job_queue.unarchive_jobs(db, params.ids)
+    result = {"ids": ids, "count": len(ids)}
+    return result, ChangeSpec(domains=["activity"], target_ids=ids, before={"asked": params.ids}, after=result, emit_type="job.updated")
 
 
 class StoppedAtQuitItem(BaseModel):

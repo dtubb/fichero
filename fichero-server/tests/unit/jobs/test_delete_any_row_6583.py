@@ -71,7 +71,8 @@ def test_delete_takes_a_failed_a_paused_a_done_row_and_a_whole_group__and_skips_
     assert failed not in {j["id"] for j in client.get("/api/activity/jobs").json()["jobs"]}
 
 
-def test_deleted_work_stays_gone_after_a_relaunch_and_a_retry_lists_it_again(held, client):
+def test_deleted_work_stays_gone_after_a_relaunch_and_refuses_retry(held, client):
+    # Owner 23:30: a deleted row is gone, including from Retry lists; Undo is the way back (`activity.pane.archive-old-runs`).
     failed = _row(held, KIND, "d:failed2", "failed", "the model is not downloaded")
     waiting = _row(held, KIND, "d:waiting2", "waiting")
     assert client.post("/api/activity/jobs/delete", json={"ids": [failed, waiting]}).json()["deleted_ids"]
@@ -81,8 +82,8 @@ def test_deleted_work_stays_gone_after_a_relaunch_and_a_retry_lists_it_again(hel
     listed = _listed(client)
     assert failed not in listed and waiting not in listed
     assert _state(held, waiting)[0] == "cancelled", "a deleted waiting job never comes back to run"
-    assert client.post(f"/api/activity/jobs/{failed}/retry").json()["state"] == "waiting"
-    assert _listed(client).get(failed) == "waiting", "a Retry asked of a deleted row lists it again"
+    assert client.post(f"/api/activity/jobs/{failed}/retry").status_code != 200, "a deleted row is in no Retry list"
+    assert failed not in _listed(client)
 
 
 def test_delete_takes_a_run_with_everything_under_it(held, client):

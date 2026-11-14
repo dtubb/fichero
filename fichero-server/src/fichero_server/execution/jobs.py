@@ -196,8 +196,12 @@ _ADDED_COLUMNS = (
     "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS run_after TIMESTAMP",
     # A person waits on it (`activity.throttle.watched-first`): first in its lane, at utility QoS.
     "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS watched BOOLEAN DEFAULT FALSE",
-    # A failed job the person cleared (`activity.window.clear-failed`, #5634): kept, no longer listed.
+    # A failed job the person cleared (`activity.window.clear-failed`, #5634): kept, no longer listed. Since 2026-11-13 the
+    # ARCHIVE mark (`activity.pane.archive-old-runs`): hidden from the table, listed under Show Archived, Put Back lifts it.
     "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS cleared_at TIMESTAMP",
+    # A row the person DELETED (`activity.pane.archive-old-runs`, #6583): in no list, not even the archive or a Retry; the
+    # record kept for the audit; Undo lifts it.
+    "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP",
     # What a running job is waiting for right now (a page for the lane, Kraken, memory): set when the wait starts,
     # cleared when it ends. Activity lists the row as waiting by this, never by the words of its reason (#5839).
     "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS waiting_on TEXT",
@@ -1294,6 +1298,18 @@ def _has_column(db: "Database", name: str) -> bool:
 def _has_cleared_at(db: "Database") -> bool:
     """The lists show every failed job when `cleared_at` is missing."""
     return _has_column(db, "cleared_at")
+
+
+def _has_deleted_at(db: "Database") -> bool:
+    return _has_column(db, "deleted_at")
+
+
+def _hidden_filter(db: "Database", *, archived: bool = False) -> str:
+    """The SQL that hides what no list shows: deleted rows always; archived rows unless the archive is asked for."""
+    out = " AND deleted_at IS NULL" if _has_deleted_at(db) else ""
+    if not archived and _has_cleared_at(db):
+        out += " AND cleared_at IS NULL"
+    return out
 
 
 def _clear_waiting_on(db: "Database") -> str:
@@ -2482,10 +2498,11 @@ def resume(db: "Database") -> None:
     )
     # Only work that was running at quit, and that nobody cancelled or deleted, carries on (owner 2026-11-13, #6584,
     # `activity.relaunch.only-running-work-resumes`). A row deleted in Activity (`cleared_at`) ends instead of coming back.
-    if _has_cleared_at(db):
+    mark = "deleted_at" if _has_deleted_at(db) else "cleared_at" if _has_cleared_at(db) else None
+    if mark:
         db.execute(
             f"UPDATE jobs SET state = 'cancelled', reason = 'Deleted by you', finished_at = COALESCE(finished_at, ?) "
-            f"WHERE state IN ('waiting', 'running', 'paused') AND cleared_at IS NOT NULL{not_live}",
+            f"WHERE state IN ('waiting', 'running', 'paused') AND {mark} IS NOT NULL{not_live}",
             [utc_now(), *live],
         )
     # A pause asked before the quit is still a pause: a recipe run's pause was held only in memory, so its row (running
@@ -3110,7 +3127,8 @@ def _retry_kind(db: "Database", kind: str) -> str:
     db.execute(
         "UPDATE jobs SET state = 'waiting', reason = 'Retried by you', attempts = 0, finished_at = NULL, run_after = NULL"
         f"{', cleared_at = NULL' if _has_cleared_at(db) else ''}{_clear_waiting_on(db)} "
-        f"WHERE kind = ? AND parent_id IS NULL AND (state = 'failed' OR (state = 'running'{not_live}))",
+        f"WHERE kind = ? AND parent_id IS NULL AND (state = 'failed' OR (state = 'running'{not_live}))"
+        f"{' AND deleted_at IS NULL' if _has_deleted_at(db) else ''}",
         [kind, *live],
     )
     key = _key(db)
@@ -3127,6 +3145,10 @@ def retry_job(db: "Database", job_id: str) -> str:
     returned unchanged."""
     if job_id.startswith("waiting:"):
         return _retry_kind(db, job_id.split(":", 1)[1])
+    if _has_deleted_at(db) and db.execute_fetchone(
+        "SELECT 1 FROM jobs WHERE id = ? AND deleted_at IS NOT NULL", [job_id]
+    ):
+        raise ValueError("This row was deleted; Undo the delete to run it again")  # `activity.pane.archive-old-runs`
     kind, state = _job_row(db, job_id)
     if kind not in KINDS:
         load_kinds()  # a project opened with nothing waiting: its kinds not yet registered by a lane (#5615)
@@ -3242,12 +3264,13 @@ def finished_seconds(db: "Database", model: str, *, limit: int = 200) -> list[fl
     return [float(r[0]) for r in rows if r[0] is not None and r[0] >= 0]
 
 
-def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
+def snapshot(db: "Database", *, failed_limit: int = 20, archived: bool = False) -> list[dict[str, Any]]:
     """The jobs worth showing: every running one, the waiting ones (one row per kind when more
     than one waits, with `count`: an import queues thousands), and the most recent failures, each
-    with the reason in words. Read by `/api/activity/jobs`."""
+    with the reason in words. Read by `/api/activity/jobs`. `archived`: the ARCHIVED top-level rows instead (Show
+    Archived, `activity.pane.archive-old-runs`), any ended state, newest first. A deleted row is in neither list."""
     _ensure(db)
-    cleared_filter = " AND cleared_at IS NULL" if _has_cleared_at(db) else ""
+    cleared_filter = _hidden_filter(db, archived=archived)
     waiting_on_col = (
         "waiting_on" if _has_column(db, "waiting_on") else "NULL AS waiting_on"
     )
@@ -3265,7 +3288,7 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
             f"FROM jobs WHERE state IN ('waiting', 'paused', 'running') AND {runs}{cleared_filter} GROUP BY g, kind",
             committed=True,
         )
-    }
+    } if not archived else {}
     # A deleted row (`cleared_at`, `activity.window.delete-any-row`) is listed in no state, and stands for no group.
     parts = [f"SELECT * FROM jobs WHERE state = 'running' AND {runs} AND NOT {queued}{cleared_filter}"]
     params: list[Any] = []
@@ -3296,6 +3319,10 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
         f"(SELECT * FROM jobs WHERE state = 'failed' AND {runs}{cleared_filter} ORDER BY finished_at DESC LIMIT ?)"
     )
     params.append(failed_limit)
+    if archived:
+        parts = [f"SELECT * FROM jobs WHERE cleared_at IS NOT NULL AND parent_id IS NULL AND {runs}{cleared_filter} "
+                 "ORDER BY finished_at DESC LIMIT ?"]
+        params = [failed_limit * 10]
     rows = db.execute_fetchall(
         "SELECT id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, "
         f"started_by, {waiting_on_col} FROM (" + " UNION ALL ".join(parts) + ") "
@@ -3510,7 +3537,7 @@ def clear_failed(db: "Database") -> list[str]:
         row[0]
         for row in db.execute_fetchall(
             "SELECT id FROM jobs WHERE state = 'failed' AND kind NOT IN ('workflow', 'workflow-step') "
-            "AND cleared_at IS NULL ORDER BY id"
+            f"AND cleared_at IS NULL{' AND deleted_at IS NULL' if _has_deleted_at(db) else ''} ORDER BY id"
         )
     ]
     if ids:
@@ -3534,6 +3561,99 @@ def _under(db: "Database", job_id: str) -> list[str]:
     return found
 
 
+#: The states a row may be archived in: ended ones (`activity.pane.archive-old-runs`); a waiting or paused row cannot.
+ARCHIVABLE_STATES = ("done", "failed", "cancelled")
+
+
+def _top_level_in(db: "Database", states: list[str], older_than_days: int | None, extra: str) -> list[str]:
+    """Every top-level job of its own in `states` (not a workflow run or batch), ended more than `older_than_days` ago."""
+    marks = ", ".join("?" for _ in states)
+    run_marks = ", ".join("?" for _ in RUN_KINDS)
+    params: list[Any] = [*states, *RUN_KINDS]
+    age = ""
+    if older_than_days is not None:
+        age = " AND finished_at IS NOT NULL AND finished_at < ?"
+        params.append(utc_now() - timedelta(days=older_than_days))
+    return [
+        r[0] for r in db.execute_fetchall(
+            f"SELECT id FROM jobs WHERE state IN ({marks}) AND parent_id IS NULL AND kind NOT IN ({run_marks}){extra}{age} "
+            "ORDER BY created_at, id",
+            params,
+        )
+    ]
+
+
+def archive_jobs(db: "Database", ids: list[str], states: list[str] | None = None,
+                 older_than_days: int | None = None) -> tuple[list[str], list[str]]:
+    """Archive (`activity.pane.archive-old-runs`, #6583): an ENDED row leaves the table and keeps everything (its rows, its
+    results, its cost); Show Archived lists it, Put Back (`unarchive_jobs`) restores it. `ids` are rows; `states` (with
+    `older_than_days`) every top-level ended job of its own. A row still waiting, paused or running is skipped and named; a
+    kind's row (`waiting:<kind>`) too. Returns (archived, skipped)."""
+    _ensure(db)
+    if not _has_cleared_at(db):
+        raise ValueError("This project's jobs table cannot mark archived rows; see the engine log")
+    asked = list(ids)
+    if states:
+        asked += [i for i in _top_level_in(db, states, older_than_days, _hidden_filter(db)) if i not in asked]
+    archived: list[str] = []
+    skipped: list[str] = []
+    now = utc_now()
+    for job_id in asked:
+        row = db.execute_fetchone(f"SELECT state FROM jobs WHERE id = ?{_hidden_filter(db)}", [job_id])
+        if row is None or row[0] not in ARCHIVABLE_STATES:
+            skipped.append(job_id)
+            continue
+        under = _under(db, job_id)
+        marks = ", ".join("?" for _ in under)
+        db.execute(f"UPDATE jobs SET cleared_at = ? WHERE id IN ({marks})", [now, *under])
+        archived.append(job_id)
+    return archived, skipped
+
+
+def unarchive_jobs(db: "Database", ids: list[str]) -> list[str]:
+    """Put Back: an archived row and everything under it are listed again, unchanged. Returns the ids put back."""
+    _ensure(db)
+    out: list[str] = []
+    for job_id in ids:
+        if db.execute_fetchone(
+            f"SELECT 1 FROM jobs WHERE id = ? AND cleared_at IS NOT NULL{' AND deleted_at IS NULL' if _has_deleted_at(db) else ''}",
+            [job_id],
+        ) is None:
+            continue
+        under = _under(db, job_id)
+        marks = ", ".join("?" for _ in under)
+        db.execute(f"UPDATE jobs SET cleared_at = NULL WHERE id IN ({marks})", [*under])
+        out.append(job_id)
+    return out
+
+
+def undelete_jobs(db: "Database", ids: list[str]) -> list[str]:
+    """Undo of Delete (`activity.pane.archive-old-runs`): a deleted row and everything under it come back in the state they
+    had (a row Delete stopped goes back to waiting or paused as it was). Returns the ids restored."""
+    _ensure(db)
+    if not _has_deleted_at(db):
+        return []
+    out: list[str] = []
+    for job_id in ids:
+        if db.execute_fetchone("SELECT 1 FROM jobs WHERE id = ? AND deleted_at IS NOT NULL", [job_id]) is None:
+            continue
+        under = _under(db, job_id)
+        for rid in under:
+            detail = json.loads(db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [rid])[0] or "{}")
+            before = detail.pop("deleted_from", None)
+            if before:
+                db.execute(
+                    "UPDATE jobs SET state = ?, reason = ?, finished_at = NULL, detail = ? WHERE id = ?",
+                    [before["state"], before.get("reason"), json.dumps(detail) if detail else None, rid],
+                )
+        marks = ", ".join("?" for _ in under)
+        db.execute(f"UPDATE jobs SET deleted_at = NULL, cleared_at = NULL WHERE id IN ({marks})", [*under])
+        out.append(job_id)
+    key = _key(db)
+    db.add_after_commit_hook(lambda: _scheduler.wake(key))
+    return out
+
+
 def delete_jobs(db: "Database", ids: list[str], states: list[str] | None = None) -> tuple[list[str], list[str]]:
     """Delete in Activity (`activity.window.delete-any-row`, #6583): each id a job row, or a kind's row
     (`waiting:<kind>`, `paused:<kind>`: every job of that kind not started); with `states`, every top-level job of its
@@ -3545,21 +3665,14 @@ def delete_jobs(db: "Database", ids: list[str], states: list[str] | None = None)
     _ensure(db)
     if not _has_cleared_at(db):
         raise ValueError("This project's jobs table cannot mark deleted rows; see the engine log")
+    has_deleted = _has_deleted_at(db)
     live = set(_scheduler.running_ids())
     deleted: list[str] = []
     skipped: list[str] = []
     now = utc_now()
     ids = list(ids)
     if states:
-        marks = ", ".join("?" for _ in states)
-        run_marks = ", ".join("?" for _ in RUN_KINDS)
-        ids += [
-            r[0] for r in db.execute_fetchall(
-                f"SELECT id FROM jobs WHERE state IN ({marks}) AND parent_id IS NULL AND cleared_at IS NULL "
-                f"AND kind NOT IN ({run_marks}) ORDER BY created_at, id",
-                [*states, *RUN_KINDS],
-            ) if r[0] not in ids
-        ]
+        ids += [i for i in _top_level_in(db, states, None, _hidden_filter(db, archived=True)) if i not in ids]
     for asked in ids:
         if asked.startswith(("waiting:", "paused:")):
             kind = asked.split(":", 1)[1]
@@ -3582,12 +3695,23 @@ def delete_jobs(db: "Database", ids: list[str], states: list[str] | None = None)
                 continue
             under = _under(db, job_id)
             marks = ", ".join("?" for _ in under)
+            # What Delete stops remembers its state, so Undo (`undelete_jobs`) puts it back as it was.
+            for rid, st, rs, detail in db.execute_fetchall(
+                f"SELECT id, state, reason, detail FROM jobs WHERE id IN ({marks}) AND state IN ('waiting', 'paused', 'running')",
+                [*under],
+            ):
+                kept = json.loads(detail or "{}")
+                kept["deleted_from"] = {"state": st, "reason": rs}
+                db.execute("UPDATE jobs SET detail = ? WHERE id = ?", [json.dumps(kept), rid])
             db.execute(
                 f"UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = COALESCE(finished_at, ?) "
                 f"WHERE id IN ({marks}) AND state IN ('waiting', 'paused', 'running')",
                 [DELETED_REASON, now, *under],
             )
-            db.execute(f"UPDATE jobs SET cleared_at = ? WHERE id IN ({marks})", [now, *under])
+            db.execute(
+                f"UPDATE jobs SET cleared_at = ?{', deleted_at = ?' if has_deleted else ''} WHERE id IN ({marks})",
+                [now, *([now] if has_deleted else []), *under],
+            )
             deleted.append(job_id)
     return deleted, skipped
 
@@ -3599,7 +3723,7 @@ def stopped_at_quit(db: "Database") -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for job_id, kind, subject, started_at in db.execute_fetchall(
         "SELECT id, kind, subject, started_at FROM jobs WHERE state = 'paused' AND reason = ? AND parent_id IS NULL "
-        f"{' AND cleared_at IS NULL' if _has_cleared_at(db) else ''} ORDER BY created_at, id",
+        f"{_hidden_filter(db)} ORDER BY created_at, id",
         [QUIT_REASON],
         committed=True,
     ):

@@ -630,12 +630,38 @@ def register_generated_openapi_commands(
     @target_app.command("list-background-jobs")
     def activity_list_background_jobs_get(
         ctx: typer.Context,
+        archived: Optional[bool] = typer.Option(None, '--archived/--no-archived', help='the ARCHIVED rows instead (Show Archived, `activity.pane.archive-old-runs`)'),
     ) -> None:
         """List Background Jobs (GET /api/activity/jobs)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/activity/jobs"
-            params = None
+            params = {
+                "archived": archived,
+            }
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("archive-jobs")
+    def activity_archive_jobs_post(
+        ctx: typer.Context,
+        ids: Optional[list[str]] = typer.Option(None, '--ids', help='ended rows to archive. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        older_than_days: Optional[int] = typer.Option(None, '--older-than-days', help='with `states`: only rows that ended more than this many days ago.'),
+        states: Optional[list[str]] = typer.Option(None, '--states', help='also every top-level ended job of its own in these states. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Archive Jobs (POST /api/activity/jobs/archive)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/jobs/archive"
+            params = None
+            payload = _build_json_payload({
+                "ids": ids,
+                "older_than_days": older_than_days,
+                "states": states,
+            }, {
+                "ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Ids', 'description': 'ended rows to archive', 'x-cli-required': False},
+                "older_than_days": {'type': 'integer', 'minimum': 0.0, 'nullable': True, 'title': 'Older Than Days', 'description': 'with `states`: only rows that ended more than this many days ago', 'x-cli-required': False},
+                "states": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'States', 'description': 'also every top-level ended job of its own in these states', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("clear-failed-jobs")
@@ -718,6 +744,40 @@ def register_generated_openapi_commands(
                 "paused": {'type': 'boolean', 'title': 'Paused', 'description': 'true pauses all background work; false resumes it', 'x-cli-required': True},
             }, required=True)
             return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("unarchive-jobs")
+    def activity_unarchive_jobs_post(
+        ctx: typer.Context,
+        ids: list[str] = typer.Option(..., '--ids', help='Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Unarchive Jobs (POST /api/activity/jobs/unarchive)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/jobs/unarchive"
+            params = None
+            payload = _build_json_payload({
+                "ids": ids,
+            }, {
+                "ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Ids', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("undelete-jobs")
+    def activity_undelete_jobs_post(
+        ctx: typer.Context,
+        ids: list[str] = typer.Option(..., '--ids', help='Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Undelete Jobs (POST /api/activity/jobs/undelete)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/jobs/undelete"
+            params = None
+            payload = _build_json_payload({
+                "ids": ids,
+            }, {
+                "ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Ids', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-job-tree")
