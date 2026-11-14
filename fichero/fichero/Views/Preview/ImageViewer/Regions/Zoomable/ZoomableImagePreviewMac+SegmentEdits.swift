@@ -374,9 +374,24 @@ extension ZoomableImagePreview {
     func cutWordsOnSelectedLines() {
         guard let documentId else { return }
         runSegmentEdit(SegmentEdit.cutWords(selectedSegments(documentId)), documentId: documentId, name: "Cut Words") { result in
-            windowState?.segmentNotice = SegmentEdit.cutWordsNotice(
+            let pairs = result.resultIdPairs["joinable"] ?? []
+            windowState?.brokenWords = pairs
+            windowState?.segmentNotice = SegmentEdit.brokenWordsNotice(pairs.count) ?? SegmentEdit.cutWordsNotice(
                 made: result.resultListCounts["segment_ids"] ?? 0, leftAlone: result.resultListCounts["left_alone"] ?? 0
             )
+        }
+    }
+
+    /// JOIN BROKEN WORDS: each word the last Cut Words found broken at a line's end becomes one word with both pieces'
+    /// shapes (`segment-editor.edge.word-across-lines`), one merge (and one ⌘Z) per word.
+    func joinBrokenWords() {
+        guard let windowState, let documentId, let store = segmentEditStore else { return }
+        let byId = Dictionary(store.segments(documentId: documentId).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let pairs = windowState.brokenWords
+        windowState.brokenWords = []
+        for pair in pairs {
+            guard pair.count == 2, let first = byId[pair[0]], let second = byId[pair[1]] else { continue }
+            runSegmentEdit(SegmentEdit.joinBrokenWord(first, second), documentId: documentId, name: "Join Broken Word")
         }
     }
 

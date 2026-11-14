@@ -523,6 +523,8 @@ extension ZoomableImagePreview {
             simplify: { simplifySelectedSegments() },
             cutWords: { cutWordsOnSelectedLines() },
             cutCharacters: { cutCharactersInSelectedWords() },
+            hasBrokenWords: windowState?.brokenWords.isEmpty == false,
+            joinBrokenWords: { joinBrokenWords() },
             addBaseline: { addBaselineToSelectedLines() },
             apply: { setSelectedSegments($0) }
         )

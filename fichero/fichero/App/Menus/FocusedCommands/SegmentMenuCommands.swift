@@ -26,6 +26,9 @@ struct SegmentMenuTarget {
     var cutWords: () -> Void = {}
     /// Cut Characters: the selected words cut into characters at their positions (`segment-editor.cut-characters`).
     var cutCharacters: () -> Void = {}
+    /// Whether the last Cut Words found words broken at a line's end, and Join Broken Words, which joins them.
+    var hasBrokenWords = false
+    var joinBrokenWords: () -> Void = {}
     /// Add Baseline: a proposed baseline on each selected line that has none.
     var addBaseline: () -> Void = {}
     let apply: (SegmentEdit.Attribute) -> Void
@@ -83,6 +86,8 @@ struct SegmentMenuContent: View {
             .disabled(count == 0 || target?.selectionHasBaselines != true)
         Button("Cut Characters") { target?.cutCharacters() }
             .disabled(count == 0)
+        Button("Join Broken Words") { target?.joinBrokenWords() }
+            .disabled(target?.hasBrokenWords != true)
         Divider()
         SegmentAttributeMenu.Items(apply: { target?.apply($0) })
             .disabled(count == 0)

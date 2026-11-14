@@ -808,8 +808,10 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
   `segment.cut_words` answers `joinable`, [the first line's last word, the next line's first word] for each line in
   page order whose reading ends with a hyphen (`-`, `¬`, `⸗`, `=`, a soft hyphen) and whose next cut line's reading
   starts with no space; `segment.merge` with `keep_shapes` (and `move_into_region`, the pieces being on two lines)
-  gives the kept word every member's outline as a polygon shape, one undo. *Not built:* the app's offer to join.
-  *Tests:* `fichero-server/tests/unit/api/test_segment_word_across_lines.py`.
+  gives the kept word every member's outline as a polygon shape, one undo. In the app, Cut Words says how many words
+  go on onto the next line and Edit › Segments ▸ Join Broken Words joins each (one merge and one undo per word,
+  `SegmentEdit.joinBrokenWord`). *Tests:* `fichero-server/tests/unit/api/test_segment_word_across_lines.py`;
+  `fichero/Tests/Unit/general/Views/Source/SegmentSimplifyTests.swift::brokenWords`.
 - `segment-editor.edge.knife-through-words` — **[PARTIAL]** (→ #4941; engine) a knife split of a line that already has
   words assigns each word to the part its centre falls in and splits a word the stroke crosses.
   *Built (2026-11-13):* words go with the part holding their centre, and undo puts them back

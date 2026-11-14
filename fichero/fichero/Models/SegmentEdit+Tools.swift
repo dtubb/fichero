@@ -146,6 +146,24 @@ extension SegmentEdit {
         ))
     }
 
+    /// JOIN a word broken at a line's end (`segment-editor.edge.word-across-lines`): its two pieces as ONE `segment.merge`
+    /// keeping both shapes, the first piece kept, the second moved into its line; one undo.
+    static func joinBrokenWord(_ first: Segment, _ second: Segment) -> Result<Call, Refusal> {
+        guard let versions = versions(of: [first, second]) else { return .failure(.versionUnknown) }
+        var request = SegmentMergeRequest(segmentIds: [first.id, second.id], keepId: first.id, expectedVersions: versions)
+        request.keepShapes = true
+        request.moveIntoRegion = true
+        return .success(Call(action: "segment.merge", params: .merge(request)))
+    }
+
+    /// The notice after Cut Words finds words broken at a line's end, or nil when it found none.
+    static func brokenWordsNotice(_ pairs: Int) -> String? {
+        guard pairs > 0 else { return nil }
+        return pairs == 1
+            ? "1 word goes on onto the next line: Edit › Segments ▸ Join Broken Words joins it"
+            : "\(pairs) words go on onto the next line: Edit › Segments ▸ Join Broken Words joins them"
+    }
+
     /// CUT CHARACTERS in the selected words (`segment-editor.cut-characters`): one `segment.cut_characters`, one undo.
     /// The engine cuts each word at its character positions and says which words it could not cut.
     static func cutCharacters(_ segments: [Segment]) -> Result<Call, Refusal> {
