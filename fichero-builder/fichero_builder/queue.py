@@ -846,13 +846,12 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
             if action == "approve" and lane is not None and ({s.get("approve_kind")} | set(s.get("approvals") or ())) & {"red-on-base", "weakened-tests", "approve_red", "approve_weakened"}:
                 # ladder.approve-is-fingerprinted (2026-11-14: a red-on-base approve was lost at every new head though the test file never
                 # changed): bound to each named test file's blob, so any later head with the same blobs is approved by itself
-                at = re.search(r"\bat ([0-9a-f]{7,40})\b", a.get("what", ""))
-                h, repo_ = s.get("head") or (at.group(1) if at else ""), s.get("land_tree") or lane["worktree"]
-                blobs = {f: b for f in re.findall(r"[\w./-]+\.py", said) if h and (b := blob_at(repo_, h, f))}
-                if blobs:
-                    s["approved_test_blobs"] = {**(s.get("approved_test_blobs") or {}), **blobs}
-                    s["approved_test_kinds"] = sorted(set(s.get("approved_test_kinds") or ()) | {
-                        "approve_weakened" if s.get("approve_kind") == "weakened-tests" or "approve_weakened" in (s.get("approvals") or ()) else "approve_red"})
+                at = re.search(r"\bat ([0-9a-f]{7,40})\b", a.get("what", ""))  # the head the alert judged first, never a newer step head (review)
+                h, repo_ = (at.group(1) if at else s.get("head", "")), s.get("land_tree") or lane["worktree"]
+                kind = "approve_weakened" if s.get("approve_kind") == "weakened-tests" or "approve_weakened" in (s.get("approvals") or ()) else "approve_red"
+                for f in re.findall(r"[\w./-]+\.py", said):
+                    if h and (fp := test_fingerprint(repo_, h, f)):
+                        s.setdefault("approved_test_blobs", {})[f] = {**fp, "kind": kind}
             if action == "approve" and s.get("approve_kind") in ("needs-maintainer", "weakened-tests", "pinned-new") and (pid := patch_id(a.get("evidence", ""))):
                 at = re.search(r"\bat ([0-9a-f]{7,40})\b", a.get("what", ""))  # a refused chain stores no head on a worker lane's step: the alert names it
                 s["approved_diff"], s["approved_diff_head"] = pid, at.group(1) if at else s.get("head", "")  # bound to the diff's content, not the head
@@ -1436,11 +1435,23 @@ def guard_data_for(step: dict | None, repo: str) -> tuple:
     return ()
 
 
-def content_approvals(step: dict | None, repo: str) -> dict:
+BASE_REF = "origin/integration"  # ponytail: the land branch the presubmit diffs against too; a project with another branch passes its own
+
+
+def test_fingerprint(repo: str, head: str, f: str, base_ref: str = BASE_REF) -> dict:
+    """{base, head}: the file's blob at the merge base of `head` with `base_ref` and at `head` ('' = absent there); {} when git cannot say.
+    Both, so a base that changed the file (new tests added upstream, the lane's copy kept) never matches an approve given before it."""
+    r = subprocess.run(["git", "-c", "safe.directory=*", "-C", repo, "merge-base", base_ref, head], capture_output=True, text=True)
+    base = r.stdout.strip()
+    return {"base": blob_at(repo, base, f), "head": blob_at(repo, head, f)} if r.returncode == 0 and base else {}
+
+
+def content_approvals(step: dict | None, repo: str, base_ref: str = BASE_REF) -> dict:
     """The red-on-base and weakened-tests approvals the ladder runs with (ladder.approve-is-fingerprinted): the approve given at this head,
-    or at any later head where every test file the approve named has the blob it had then (`approved_test_blobs`; one `auto` row
-    `approve-same-test-content`). A changed test file: the manager's call again. {approve_red: False | True | (files), approve_weakened:
-    False | True | (files)}; a tuple excuses only refusals naming those files."""
+    or, per file and per kind, at any later head where a test file the approve named has the same blob at its base and at head as when it
+    was approved (`approved_test_blobs`; one `auto` row `approve-same-test-content`). A file not named, or changed on either side: the
+    manager's call again, and its stale binding is dropped. {approve_red: False | True | (files), approve_weakened: likewise}; a tuple
+    excuses only refusals naming those files."""
     out: dict = {"approve_red": False, "approve_weakened": False}
     if not step:
         return out
@@ -1448,13 +1459,21 @@ def content_approvals(step: dict | None, repo: str) -> dict:
         out["approve_red"] = tuple(f for f in step.get("approved_tests") or () if f.endswith(".py")) or True
     if _approved(step, "approve_weakened"):
         out["approve_weakened"] = True
-    blobs, head = step.get("approved_test_blobs") or {}, step.get("head", "")
-    kinds = [k for k in step.get("approved_test_kinds") or () if not out.get(k)]
-    if blobs and head and kinds and all(blob_at(repo, head, f) == b for f, b in blobs.items()):
-        journal.append("auto", rule="approve-same-test-content", head=head, file=", ".join(sorted(blobs)),
-                       detail=f"{', '.join(kinds)} given at {step.get('approved_head', '')[:9]} holds: each named test file has the blob it had then")
-        for k in kinds:
-            out[k] = tuple(sorted(blobs))
+    bound, head = step.get("approved_test_blobs") or {}, step.get("head", "")
+    if not bound or not head:
+        return out
+    held: dict = {}
+    for f, fp in list(bound.items()):
+        now = test_fingerprint(repo, head, f, base_ref)
+        if now and now == {"base": fp.get("base"), "head": fp.get("head")}:
+            held.setdefault(fp.get("kind", "approve_red"), []).append(f)
+        elif now:
+            del bound[f]  # changed on the lane's side or the base's: never again by itself
+    for k, files in held.items():
+        if out.get(k) is not True:
+            out[k] = tuple(sorted({*(out[k] or ()), *files}))
+            journal.append("auto", rule="approve-same-test-content", head=head, file=", ".join(sorted(files)),
+                           detail=f"{k}: each named test file has the blob at its base and at head that it had when approved")
     return out
 
 
@@ -1505,7 +1524,7 @@ def real_procs(root) -> Procs:
         tree = (step or {}).get("land_tree") or lane["worktree"]  # an external lane's batch is taken from its land-<lane> snapshot
         return types.SimpleNamespace(worktree=tree, name=lane["id"], pinned=str(root), root=str(root), kind="claude", session="harness",
                                      tick=30.0, issues=step["issues"] if step else [], brief=brief, ids=[], repo=repo,
-                                     maintainer=_approved(step, "maintainer") or bool(lane.get("maintainer")), **content_approvals(step, tree),
+                                     maintainer=_approved(step, "maintainer") or bool(lane.get("maintainer")), **content_approvals(step, tree, f"origin/{branch}"),
                                      external=lane.get("kind") == "external",
                                      approve_pinned_new=_approved(step, "approve_pinned_new"),
                                      guard_data=guard_data_for(step, tree), retry=bool(step and step.get("retry_rungs")),
@@ -1674,7 +1693,7 @@ def presubmit(lane_id: str, sha: str, pinned=None) -> tuple[bool, str]:
         journal.append("presubmit", lane=lane_id, head=want, state="skipped", detail=f"the live rules could not be read by this code: {e}"[-300:])
         return True, f"presubmit skipped: the live rules could not be read by this code (update it): {e}"
     base_ref = cfg.base_ref or "origin/integration"
-    stricter = check_tool.stricter_files(wt, base_ref, want, cfg)  # allowlist entries only removed: head's copy judges, as in the ladder
+    stricter = check_tool.stricter_files(wt, base_ref, want, cfg, pinned)  # allowlist entries only removed: head's copy judges, as in the ladder
 
     def run(data: tuple = ()) -> tuple[bool, str]:
         tree = None
@@ -1732,7 +1751,7 @@ def precheck(root, worktree: str, head: str = "HEAD", pinned: str = "") -> tuple
     if not want or not base:
         return 2, f"REFUSED: {head} or its merge base with {cfg.base_ref or 'origin/integration'} is not in {worktree}"
     names = subprocess.run(g + ["diff", "--name-only", "--diff-filter=AM", base, want], capture_output=True, text=True).stdout.split()
-    stricter = check_tool.stricter_files(worktree, base, want, cfg)
+    stricter = check_tool.stricter_files(worktree, base, want, cfg, pinned)
     tree = check_tool._scratch_tree(worktree, want, pinned, cfg, stricter_from_head=stricter)
     try:
         rungs = [("guards", check_tool.guards(tree, cfg)), ("contract-current", check_tool.contract_current(tree, names, cfg)),

@@ -1409,7 +1409,7 @@ def test_a_red_on_base_approve_is_bound_to_the_test_files_blob_and_holds_at_ever
     assert cli.main(["alert", a["id"], "approve", "--state", str(state / "s")]) == 0
     lanes = queue.load()
     s = lanes[0]["steps"][0]
-    assert s["approved_test_blobs"] == {"tests/test_x.py": g(wt, "rev-parse", f"{head_a}:tests/test_x.py")}
+    assert s["approved_test_blobs"] == {"tests/test_x.py": {"base": "", "head": g(wt, "rev-parse", f"{head_a}:tests/test_x.py"), "kind": "approve_red"}}
     s["state"] = "checking"  # the chain is running when the lane's next done arrives: the new head supersedes it
     queue.save(lanes)
     (wt / "other").write_text("o")
@@ -1423,6 +1423,47 @@ def test_a_red_on_base_approve_is_bound_to_the_test_files_blob_and_holds_at_ever
     (wt / "tests" / "test_x.py").write_text("def test_x():\n    assert 1\n")
     g(wt, "add", "."), g(wt, "commit", "-qm", "the test changed")
     assert queue.content_approvals({**s, "head": g(wt, "rev-parse", "HEAD")}, str(wt))["approve_red"] is False, "changed test: asked again"
+
+
+def test_a_weakened_tests_approve_never_rides_a_head_whose_base_changed_the_file_and_never_covers_a_file_it_did_not_name(state, tmp_path):
+    """Review of 916d5422d4: bound to head's blob alone, an approve at H1 rode a later head whose base had added tests to the file while
+    the lane kept its copy, deleting base's new tests silently. The fingerprint is the blob at the base AND at head, per file and kind;
+    the head is the one the alert judged, never a newer step head; a weakened file the approve did not name is never excused."""
+    wt, g = _ext_repo(tmp_path, commits=0)
+    (wt / "tests").mkdir()
+    (wt / "tests" / "test_w.py").write_text("def test_a():\n    assert 1\n\ndef test_b():\n    assert 2\n")
+    (wt / "tests" / "test_y.py").write_text("def test_y():\n    assert 1\n")
+    g(wt, "add", "."), g(wt, "commit", "-qm", "tests"), g(wt, "push", "-q", "origin", "HEAD:integration"), g(wt, "fetch", "-q")
+    (wt / "tests" / "test_w.py").write_text("def test_a():\n    assert 1\n")
+    g(wt, "commit", "-qam", "drop test_b (an owner ruling)")
+    head_a = g(wt, "rev-parse", "HEAD")
+    queue.add("ext", str(wt), "batch-1", str(state / "b1.1"), [7], kind="external")
+    assert cli.main(["done", "ext", head_a, "--state", str(state / "s")]) == 0
+    fake = Fake(chains={"batch-1": [{"ok": False, "kind": "weakened-tests", "approvals": ["approve_weakened"], "evidence": "",
+                                     "why": f"pinned-checks at {head_a[:9]}: the diff deletes or weakens existing tests (tests/test_w.py)"}]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    (wt / "f").write_text("later"), g(wt, "add", "."), g(wt, "commit", "-qm", "later")
+    lanes = queue.load()
+    lanes[0]["steps"][0]["head"] = g(wt, "rev-parse", "HEAD")  # the step moved on before the manager answered
+    queue.save(lanes)
+    assert cli.main(["alert", a["id"], "approve", "--state", str(state / "s")]) == 0
+    s = queue.load()[0]["steps"][0]
+    fp = s["approved_test_blobs"]["tests/test_w.py"]
+    assert fp["head"] == g(wt, "rev-parse", f"{head_a}:tests/test_w.py") and fp["kind"] == "approve_weakened", "bound at the head the alert judged"
+    (wt / "tests" / "test_y.py").write_text("def other():\n    pass\n")
+    g(wt, "commit", "-qam", "weaken another file")
+    got = queue.content_approvals({**s, "head": g(wt, "rev-parse", "HEAD"), "approved_head": head_a}, str(wt))
+    assert got == {"approve_red": False, "approve_weakened": ("tests/test_w.py",)}, "only the file it named, never test_y.py"
+    other = tmp_path / "other"  # upstream adds a test to the same file; the lane keeps its own copy over the new base
+    g(tmp_path, "clone", "-q", str(tmp_path / "origin.git"), str(other))
+    (other / "tests" / "test_w.py").write_text("def test_a():\n    assert 1\n\ndef test_b():\n    assert 2\n\ndef test_c():\n    assert 3\n")
+    g(other, "commit", "-qam", "base adds test_c"), g(other, "push", "-q", "origin", "HEAD:integration")
+    g(wt, "fetch", "-q"), g(wt, "merge", "-q", "-s", "ours", "-m", "keep mine", "origin/integration")
+    assert g(wt, "rev-parse", "HEAD:tests/test_w.py") == fp["head"], "the lane's copy is unchanged"
+    got = queue.content_approvals({**s, "head": g(wt, "rev-parse", "HEAD"), "approved_head": head_a}, str(wt))
+    assert got["approve_weakened"] is False, "the base changed the file: base's new test would be lost, so the manager is asked again"
+    assert "tests/test_w.py" not in s["approved_test_blobs"], "the stale binding is dropped"
 
 
 def test_a_retry_keeps_the_steps_head_and_reruns_the_check_from_the_failed_rung_instead_of_a_fresh_session(state):
