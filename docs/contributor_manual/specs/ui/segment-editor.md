@@ -457,7 +457,11 @@ See section 7.2 below for what exists. The design:
   never duplicated. Only lines with a reading and positions are cut this way; the rest fall to
   the ink-gap fallback and say so. *Built (2026-11-13):* `segment.cut_words` (one action for the
   lines given, undo `segment.uncut_words`, redo through its own invert; a machine's earlier words
-  are replaced, a person's kept and not duplicated; the page's text is unchanged); it runs after
+  are replaced, a person's kept and not duplicated; the page's text is unchanged). A re-cut keeps
+  a person's word only where its outline lies, not its bounding box, so a slanted hand-drawn word
+  does not swallow the machine words beside it. Words a re-cut replaces (`segment.cut_words`,
+  `segment.cut_characters`) leave "deleted" forwarding notes, and `segment.uncut_words` leaves
+  "restored" notes, so a link to a replaced word still finds its way; it runs after
   every Kraken read-given-lines read on the lines with positions (`cut_words_after_read`, never
   failing the read); Edit › Segments ▸ Cut Words (⇧⌘W), which says how many lines it could not
   cut. *Not built:* the full-page read's hook, a word's own reading (the word carries its
