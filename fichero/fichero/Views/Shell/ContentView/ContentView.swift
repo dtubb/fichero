@@ -15,8 +15,8 @@ var textEditingHasKeyboard: Bool {
 
 enum PaneFocus: Hashable {
     case sidebar, content, preview, reading, chat, inspector
-    /// The Segments pane (#4942): a click in it claims command focus, so Split / Close act on it.
-    case segments
+    /// The Segments (#4942) and Activity (#6441) panes: a click in either claims command focus, so Split / Close act on it.
+    case segments, activity
 
     /// Where focus starts when a window opens (#5824): the sidebar, never a text field such as the reader's find field.
     static let launchDefault: PaneFocus = .sidebar
@@ -35,6 +35,7 @@ enum PaneFocus: Hashable {
         case .chat: return "Chat"
         case .inspector: return "Inspector"
         case .segments: return "Segments"
+        case .activity: return "Activity"
         }
     }
 
@@ -47,6 +48,7 @@ enum PaneFocus: Hashable {
         case .reading: .reading
         case .chat: .chat
         case .segments: .segments
+        case .activity: .activity
         case .sidebar, .inspector: nil
         }
     }

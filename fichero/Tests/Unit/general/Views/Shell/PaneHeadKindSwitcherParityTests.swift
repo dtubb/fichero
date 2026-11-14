@@ -24,7 +24,9 @@ struct PaneHeadKindSwitcherParityTests {
         "Views/Shell/ContentView/Layout/ContentView+PreviewPaneHead.swift",
         "Views/Reader/Page/ReadingPaneView.swift",
         // The Segments pane (#4942): a real leaf kind, switchable like the others.
-        "Views/Segments/SegmentsPaneView.swift"
+        "Views/Segments/SegmentsPaneView.swift",
+        // The Activity pane (#6441, `activity.pane.is-a-pane-kind`).
+        "Views/Activity/Pane/ActivityPaneView.swift"
     ]
 
     @Test("every real-leaf pane head mounts PaneKindSelector", arguments: realLeafPaneHeadFiles)

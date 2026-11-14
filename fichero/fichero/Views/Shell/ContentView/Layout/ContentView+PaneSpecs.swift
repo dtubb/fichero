@@ -64,6 +64,8 @@ extension ContentView {
             )
         case .segments:
             return segmentsPane(splitKey: splitKey, modelSplit: modelSplit, fixedWidth: spec.fixedWidth)
+        case .activity:
+            return activityPane(slotId: slotId, fixedWidth: spec.fixedWidth)
         case .chat:
             // Chat is no longer a centre pane — it lives beneath the sidebar
             // (spec panes.chat.below-sidebar). The kind stays in the enum so the
@@ -95,6 +97,19 @@ extension ContentView {
         )
     }
 
+    /// The Activity pane (#6441, `activity.pane.is-a-pane-kind`): the one table, scoped to this window's project; its
+    /// selection is the window's, which the Inspector shows (`activity.pane.inspector-shows-the-selected-row`).
+    private func activityPane(slotId: String, fixedWidth: CGFloat?) -> AnyView {
+        AnyView(
+            ActivityPaneView(libraryId: windowState.libraryId, showsHead: true, paneKey: "activity.\(slotId)",
+                             onSelect: { windowState.activityPick = $0 })
+                .frame(width: fixedWidth)
+                .frame(maxWidth: fixedWidth == nil ? .infinity : nil)
+                .clipped()
+                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .activity; paneFocusHint = .activity })
+        )
+    }
+
     // MARK: - The ONE renderer (spec §F7: one rendering path)
 
     /// Map the pure-model `PaneKind` to the view's `PaneSpec.Kind`. They carry the same four
@@ -107,6 +122,7 @@ extension ContentView {
         case .inspector: .inspector
         case .chat: .chat
         case .segments: .segments
+        case .activity: .activity
         }
     }
 
@@ -120,6 +136,7 @@ extension ContentView {
         case .inspector: .inspector
         case .chat: .chat
         case .segments: .segments
+        case .activity: .activity
         }
     }
 

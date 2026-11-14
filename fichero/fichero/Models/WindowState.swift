@@ -44,6 +44,10 @@ class WindowState {
     /// where the user is pointing at a specific row RIGHT NOW.
     var liveDocumentSelection: [String] = []
 
+    /// The Activity pane's selected row in this window (`activity.pane.inspector-shows-the-selected-row`, #6441): what the
+    /// Inspector's Activity section shows while the Activity pane holds the focus.
+    var activityPick: ActivityPaneSelection?
+
     /// Why the last drop onto a library folder cell failed, or nil (#4474).
     /// Rendered by `LibraryView`'s drop alert. The sidebar has the same surface
     /// in `SidebarState.dropErrorMessage`; the library pane had none at all, so
