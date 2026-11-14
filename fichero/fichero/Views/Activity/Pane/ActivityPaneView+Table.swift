@@ -41,6 +41,8 @@ extension ActivityPaneView {
                 .width(22).customizationID(ActivityPane.Column.source.rawValue)
             TableColumn(ActivityPane.Column.name.title, value: \.name) { row in nameCell(row) }
                 .width(min: 160, ideal: 260).customizationID(ActivityPane.Column.name.rawValue)
+                // Never hidden: a run row reads its tree when its Name cell is first drawn.
+                .disabledCustomizationBehavior(.visibility)
             TableColumn(ActivityPane.Column.state.title, value: \.stateRankKey) { row in stateCell(row) }
                 .width(min: 60, ideal: 160).customizationID(ActivityPane.Column.state.rawValue)
             TableColumn(ActivityPane.Column.trail.title) { row in textCell(ActivityPane.progressLine(row)) }
@@ -80,6 +82,11 @@ extension ActivityPaneView {
         #if os(macOS)
         .onDeleteCommand { requestDelete(rows(selection)) }
         #endif
+        // The menu bar acts on THIS pane only while its table has the focus: two Activity panes in a window, or the
+        // Activity window beside a main window, never take each other's verbs (a scene value: the last pane drawn won).
+        .focusedValue(\.activityRun, selectedRunTarget)
+        .focusedValue(\.activityVerbs, verbTarget)
+        .focusedValue(\.activityView, viewTarget)
         .accessibilityIdentifier("activity.table")
     }
 
