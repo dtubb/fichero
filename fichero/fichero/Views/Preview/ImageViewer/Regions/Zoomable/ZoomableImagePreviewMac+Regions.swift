@@ -492,9 +492,12 @@ extension ZoomableImagePreview {
         let marquees = windowState?.previewMarquees
         switch SegmentEditingMode.deleteKey(
             marqueePicked: marquees?.selectedIndex != nil,
-            selectionCount: regionSelection.count
+            selectionCount: regionSelection.count,
+            pointPressed: isEditingSegments && windowState?.selectedShapePoint?.documentId == documentId
+                && windowState?.selectedShapePoint != nil
         ) {
         case .removeMarquee: marquees?.removeSelected()
+        case .removePoint: removeSelectedShapePoint()
         case .deleteRegions: deleteSelectedRegions()
         case .nothing: break
         }

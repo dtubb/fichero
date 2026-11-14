@@ -41,6 +41,11 @@ struct SegmentEditingModeTests {
     /// A selection is the edit state (#6413): click a region, press ⌫, and it is deleted (one ⌘Z).
     @Test func deleteKeyDeletesTheSelectionWithNoModeFirst() {
         #expect(SegmentEditingMode.deleteKey(marqueePicked: false, selectionCount: 1) == .deleteRegions)
+        // `segment-editor.vertices`: ⌫ with a pressed point removes that point, not the segment it sits on.
+        #expect(SegmentEditingMode.deleteKey(marqueePicked: false, selectionCount: 1, pointPressed: true) == .removePoint)
+        #expect(SegmentEditingMode.deleteKey(marqueePicked: true, selectionCount: 1, pointPressed: true) == .removeMarquee)
+        #expect(SegmentShapes.removing([[0, 0], [1, 0], [1, 1], [0, 1]], index: 1, .polygon) == [[0, 0], [1, 1], [0, 1]])
+        #expect(SegmentShapes.removing([[0, 0], [1, 0], [1, 1]], index: 1, .polygon) == nil, "an outline keeps three")
         #expect(SegmentEditingMode.deleteKey(marqueePicked: false, selectionCount: 0) == .nothing)
     }
 

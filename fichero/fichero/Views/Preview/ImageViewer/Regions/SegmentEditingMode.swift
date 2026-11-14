@@ -18,6 +18,8 @@ enum SegmentDeleteKeyAction: Equatable {
     case removeMarquee
     /// The selected persisted regions go -- an audited edit with one ⌘Z, on the selection alone.
     case deleteRegions
+    /// The shape point last pressed in Edit Segments goes (`segment-editor.vertices`), one reshape, one ⌘Z.
+    case removePoint
     case nothing
 }
 
@@ -34,10 +36,12 @@ enum SegmentEditingMode {
         }
     }
 
-    /// ⌫: the most recent, most ephemeral thing first -- a picked marquee -- then the
+    /// ⌫: the most recent, most ephemeral thing first -- a picked marquee -- then a pressed shape point, then the
     /// selected regions.
-    static func deleteKey(marqueePicked: Bool, selectionCount: Int) -> SegmentDeleteKeyAction {
+    static func deleteKey(marqueePicked: Bool, selectionCount: Int, pointPressed: Bool = false) -> SegmentDeleteKeyAction {
         if marqueePicked { return .removeMarquee }
+        // A pressed point is smaller and more recent than the selection it sits on: it goes alone.
+        if pointPressed { return .removePoint }
         return selectionCount > 0 ? .deleteRegions : .nothing
     }
 

@@ -306,10 +306,13 @@ targets are at least 44 pt.
   Simplify's popover in the segment tools row, beside the shape tools (there is no Shape popover yet);
   while it is held the page draws, dashed, what the engine would make of the selection
   (`GET /api/segments/document/{doc_id}/simplify-preview`, the same computation the action writes,
-  writing nothing), and letting go sends one `segment.simplify` at that tolerance. *Not built:* ⌫ on
-  a pressed point, and the chord: ⌥⌘S is Star's in the markup row (`PreviewMarkupToolsRow`).
+  writing nothing), and letting go sends one `segment.simplify` at that tolerance; ⌫ with a pressed point
+  removes that point (before the selection; a shape at its fewest points keeps it and says so,
+  `SegmentEditingMode.deleteKey`). *Not built:* the chord: ⌥⌘S is Star's in the markup row
+  (`PreviewMarkupToolsRow`).
   *Tests:* `fichero-server/tests/unit/api/test_segment_simplify.py` (the preview);
-  `fichero/Tests/Unit/general/Views/Source/SegmentSimplifyTests.swift` (`theSlider`, `thePreviewPaths`).
+  `fichero/Tests/Unit/general/Views/Source/SegmentSimplifyTests.swift` (`theSlider`, `thePreviewPaths`);
+  `fichero/Tests/Unit/general/Views/Preview/SegmentEditingModeTests.swift` (⌫ on a pressed point).
 
 ### Drawing
 
