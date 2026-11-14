@@ -600,6 +600,10 @@ PAUSED_BETWEEN_STEPS = "Paused between steps"
 #: What the open gives every row the quit (or a crash) left unfinished: paused, for the person to continue
 #: (`activity.launch.nothing-starts-one-alert`, owner 2026-11-13).
 QUIT_REASON = "Stopped when Fichero quit"
+#: A synced folder's read queued by the open's rescan: held for the person like the rest (`activity.launch.nothing-starts-one-alert`).
+NEW_MATERIAL_REASON = "New files in a synced folder since Fichero last ran: Continue to bring them in"
+#: Every reason the open gives a row it held: the launch alert lists them (`stopped_at_quit`).
+HELD_AT_OPEN_REASONS = (QUIT_REASON, NEW_MATERIAL_REASON)
 STOPPING = "Stopping at its next step"
 #: A running page a person stopped: its result is dropped when it returns.
 STOPPING_PAGE = "Stopping: what it reads is not kept"
@@ -3717,14 +3721,15 @@ def delete_jobs(db: "Database", ids: list[str], states: list[str] | None = None)
 
 
 def stopped_at_quit(db: "Database") -> list[dict[str, Any]]:
-    """The top-level rows the open paused because the quit left them unfinished (`QUIT_REASON`), for the launch alert:
+    """The top-level rows the open held (`HELD_AT_OPEN_REASONS`: what the quit left unfinished, a synced folder's new files), for the launch alert:
     id, kind, name, subject, done/total when known, when they last started. Nothing a person paused, nothing failed."""
     _ensure(db)
     out: list[dict[str, Any]] = []
+    marks = ", ".join("?" for _ in HELD_AT_OPEN_REASONS)
     for job_id, kind, subject, started_at in db.execute_fetchall(
-        "SELECT id, kind, subject, started_at FROM jobs WHERE state = 'paused' AND reason = ? AND parent_id IS NULL "
+        f"SELECT id, kind, subject, started_at FROM jobs WHERE state = 'paused' AND reason IN ({marks}) AND parent_id IS NULL "
         f"{_hidden_filter(db)} ORDER BY created_at, id",
-        [QUIT_REASON],
+        [*HELD_AT_OPEN_REASONS],
         committed=True,
     ):
         out.append({"id": job_id, "kind": kind, "name": kind_name(kind), "subject": subject, "started_at": started_at})

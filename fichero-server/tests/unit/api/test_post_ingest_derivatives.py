@@ -312,10 +312,13 @@ class TestDeferredEmbedding:
 
         monkeypatch.setattr(type(db), "embed", exploding_embed)
 
-        generate_derivative(doc.id, test_package)
+        # Loud, never silent (owner 2026-11-13): the stage records the error AND ends its job failed in plain words.
+        from fichero_server.importers import derivatives as derivatives_module
+        with pytest.raises(derivatives_module.DerivativeFailed, match="Search could not index a.md"):
+            generate_derivative(doc.id, test_package)
 
         refreshed = db.get(Document, doc.id)
-        assert refreshed.status == Status.completed
+        assert refreshed.status == Status.completed, "the page is not stranded pending"
         assert "embeds failed" in refreshed.metadata["embedding_error"]
 
     def test_the_upload_import_path_defers_embedding_and_queues_the_stage(
