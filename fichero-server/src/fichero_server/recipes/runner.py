@@ -531,9 +531,11 @@ def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
         if awaited_state == "paused":
             # A person paused the step's run itself: Resume on the recipe resumes that run (the recipe adopts it when it is taken up).
             clear_pause(awaited)
+            from fichero_server.llm.retry import forget_rate_limit_pause
             from fichero_server.llm.spend import forget_cap_stop
 
             forget_cap_stop(awaited)
+            forget_rate_limit_pause(awaited)
             _resume_step_run(db, awaited, job_id)
             document_tree.release_waiting_job(db, job_id, clear_reason=True)
             jobs.wake_lane(db)
@@ -543,9 +545,11 @@ def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
     child = jobs.running_child(db, job_id)
     if child is not None:
         clear_pause(child)  # still winding down to its pause: let it go on
+        from fichero_server.llm.retry import forget_rate_limit_pause
         from fichero_server.llm.spend import forget_cap_stop
 
         forget_cap_stop(child)
+        forget_rate_limit_pause(child)
         if jobs._job_row(db, child)[1] == "paused":
             _resume_step_run(db, child, job_id)
     document_tree.clear_job_reason_if(db, job_id, (jobs.PAUSING, jobs.PAUSED_WITH_RUN))

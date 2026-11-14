@@ -182,7 +182,7 @@ else moves a row out of paused, failed or stopped: not the open, not automatic w
   today's lanes, the batch and fan-out semaphores folded onto this one. *Tests:*
   `fichero-server/tests/unit/llm/test_one_cap_per_provider_6584.py`; the existing
   `fichero-server/tests/unit/jobs/test_kraken_page_gate_two_at_once.py`, `fichero-server/tests/unit/jobs/test_throttle.py`.
-- `activity.limits.rate-limit-backs-off-then-pauses` — **[GAP]** (#6584, #6354, decision 16; consistent with `run-failure-alerts.md`
+- `activity.limits.rate-limit-backs-off-then-pauses` — **[PARTIAL]** (#6584, #6354, decision 16; consistent with `run-failure-alerts.md`
   decision 2 and its `rate-limited` kind; built in part: `circuit_breaker.call_with_breaker` backs off with jitter honouring
   Retry-After up to 120 s, `retry.py` marks the provider dead for 30 s; NOT built: the pause — today the page FAILS after the
   retries and the run ends failed or partial) a 429 or rate-limit answer backs off honouring Retry-After (exponential with jitter,
@@ -192,8 +192,16 @@ else moves a row out of paused, failed or stopped: not the open, not automatic w
   the person's) and the alert of `run.fail.alert-on-a-failed-run` for the `rate-limited` kind; never a tight loop (no two sends to
   a rate-limited provider less than Retry-After apart), never a silent requeue. Acceptance: a stub provider answering 429 with
   Retry-After 2 sees gaps of at least 2 s between sends, at most the cap in flight, and after three answers the run reads paused
-  with that line and that fix; the run continued after the provider recovers makes only the missing calls. *Tests:*
-  `test_rate_limit_backs_off_then_pauses_6584.py` (to write), the existing
+  with that line and that fix; the run continued after the provider recovers makes only the missing calls. **Built
+  (2026-11-13 night):** at the one retry layer (`llm/retry.resilient`) a slow-down whose bounded back-off is spent (the
+  provider's Retry-After the floor of every wait) asks the run this call belongs to to pause and records the cause
+  (`paused_for_rate_limit`); the run's paused record carries the `rate-limited` failure with the provider (`_finish_as_paused`),
+  whose words are now "<Provider> is limiting how fast Fichero can send" with the fix "Wait a few minutes, then continue
+  the run…" and a `resume` action; Continue on the recipe row clears the cause with the cap's (`forget_rate_limit_pause`); the
+  provider's fail-fast mark keeps its K-in-a-row rule (#950). Not built: the one automatic Continue after Retry-After (open
+  question 5); the row's inline fix button (`activity.pane.failure-with-its-fix-in-the-row`); the whole provider cap held
+  during a back-off (the slot is let go, as before). *Tests:*
+  `fichero-server/tests/unit/llm/test_rate_limit_backs_off_then_pauses_6584.py`; the existing
   `fichero-server/tests/unit/workflows/test_paused_at_cap_event_6349.py`.
 - `activity.limits.load-a-model-once` — **[GAP]** (#6584, decision 17; built in part: `local_inference` keeps the engine's model
   server's one loaded model and the lane's `loaded_model`/`loaded_used_at` (`activity.lane.group-by-model`); to verify for Kraken:

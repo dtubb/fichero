@@ -1578,6 +1578,14 @@ async def _run_workflow_body(
             from fichero_server.llm.failure import from_refusal
 
             paused_failure = from_refusal(refused.data, step=workflow.name).model_dump(mode="json")
+        else:
+            from fichero_server.llm import retry as llm_retry  # noqa: PLC0415
+
+            if limited := llm_retry.paused_for_rate_limit([thread_id]):  # paused because its provider is rate-limiting
+                from fichero_server.llm.failure import _build  # noqa: PLC0415
+
+                paused_failure = _build("rate-limited", None, None, "", step=workflow.name,
+                                        provider=limited["provider"]).model_dump(mode="json")
         activity_tracker.workflow_paused(
             workflow_id=workflow_id,
             thread_id=thread_id,
