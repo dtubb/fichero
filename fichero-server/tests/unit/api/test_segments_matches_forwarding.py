@@ -1698,6 +1698,17 @@ from tests.route_inventory import router_routes  # noqa: E402
 _ROUTE_ID_CHECKS: dict[tuple[str, str], list[tuple[str, Any]]] = {
     ("GET", "/segments/document/{doc_id}"): [],  # read-only seam, no provisional refusal here
     ("GET", "/segments/document/{doc_id}/matches"): [],  # read-only list of a page's matches (#5165)
+    ("GET", "/segments/document/{doc_id}/validate"): [],  # read-only: what is wrong before an export
+    ("GET", "/segments/document/{doc_id}/on-rendition/{rendition_id}"): [],  # read-only boxes on a rendition (#6420)
+    ("POST", "/segments/reparent"): [
+        ("segments[].segment_id", lambda doc_id, pass_id: (
+            "POST", "/api/segments/reparent", {"segments": [{"segment_id": "legacy:x", "expected_version": 1}]},
+        )),
+        ("parent_segment_id", lambda doc_id, pass_id: (
+            "POST", "/api/segments/reparent",
+            {"segments": [{"segment_id": "real", "expected_version": 1}], "parent_segment_id": "legacy:x"},
+        )),
+    ],
     ("GET", "/segments"): [],  # read-only scoped listing: real rows only, no provisional id to refuse
     ("PATCH", "/segments"): [
         ("updates[].segment_id", lambda doc_id, pass_id: (
