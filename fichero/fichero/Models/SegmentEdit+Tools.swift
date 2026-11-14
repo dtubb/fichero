@@ -118,6 +118,18 @@ extension SegmentEdit {
         ))
     }
 
+    /// ADD BASELINE to the selected lines that have none (`segment-editor.edge.no-baseline`): the engine proposes one
+    /// through each box in its direction, marked estimated, for the person to drag onto the ink. One undo.
+    static func addBaseline(_ lines: [Segment]) -> Result<Call, Refusal> {
+        let wanting = lines.filter { !hasBaseline($0) }
+        guard !wanting.isEmpty else { return .failure(.tooFew) }
+        guard let versions = versions(of: wanting) else { return .failure(.versionUnknown) }
+        return .success(Call(
+            action: "segment.add_baseline",
+            params: .addBaseline(SegmentCutWordsRequest(segmentIds: wanting.map(\.id), expectedVersions: versions))
+        ))
+    }
+
     /// What Cut Words says when it could not cut every line: how many it left, and that they need a reading or ink.
     static func cutWordsNotice(made: Int, leftAlone: Int) -> String? {
         guard leftAlone > 0 else { return nil }
