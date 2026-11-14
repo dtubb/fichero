@@ -14,8 +14,9 @@ import json
 import re
 import shlex
 
-ALLOWLIST_NAME = re.compile(r"KNOWN|ALLOW|BASELINE|EXEMPT|DEBT", re.I)  # ponytail: by name; a REQUIRED_* list never matches
-ALLOWLIST_JSON = re.compile(r"known|allow|baseline|debt|exempt", re.I)
+ALLOWLIST_NAME = re.compile(r"KNOWN|ALLOW|EXEMPT", re.I)  # ponytail: by name; a REQUIRED_* list or a ratchet BASELINE never matches
+# a JSON allowlist by its kind of file, never a name pattern (review: a release_size_baseline.json key removed reads as a first run, looser)
+ALLOWLIST_JSON = re.compile(r"(_known_gaps|_allowlist)\.json$")
 
 
 def _literal_items(node) -> list[tuple[str, str]] | None:
@@ -55,9 +56,9 @@ def _py_only_removed(before: str, after: str) -> bool:
 
 
 def _json_subset(new, old) -> bool:
-    """Every entry of `new` is in `old`; a kept text value may be reworded (spec: known-gaps-only-removed)."""
+    """Every entry of `new` is in `old` exactly (review: a reworded value at any depth was let through); nested containers too."""
     if isinstance(new, dict) and isinstance(old, dict):
-        return set(new) <= set(old) and all(_json_subset(new[k], old[k]) or (isinstance(new[k], str) and isinstance(old[k], str)) for k in new)
+        return set(new) <= set(old) and all(_json_subset(new[k], old[k]) for k in new)
     if isinstance(new, list) and isinstance(old, list):
         return all(e in old for e in new)
     return new == old
@@ -65,11 +66,11 @@ def _json_subset(new, old) -> bool:
 
 def allowlist_only_removed(path: str, before: str, after: str) -> bool:
     """`allowlist-entries-only-removed`: the file's only change is entries removed from an allowlist (a Python guard: top-level
-    literals assigned to a KNOWN/ALLOW/BASELINE/EXEMPT/DEBT name; a JSON whose name says known/allow/baseline/debt/exempt), none
-    added, every other statement identical. Comments are free (the AST ignores them)."""
+    literals assigned to a KNOWN/ALLOW/EXEMPT name; a `*_known_gaps.json` or `*_allowlist.json`), none added, every other statement
+    and every kept entry identical. Comments are free (the AST ignores them). `before` is the PINNED copy, never the lane's merge base."""
     if path.endswith(".py"):
         return _py_only_removed(before, after)
-    if path.endswith(".json") and ALLOWLIST_JSON.search(path.rsplit("/", 1)[-1]):
+    if path.endswith(".json") and ALLOWLIST_JSON.search(path):
         try:
             old, new = json.loads(before), json.loads(after)
         except ValueError:

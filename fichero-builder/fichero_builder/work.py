@@ -186,7 +186,7 @@ def regen(a, branch: str, before: str) -> str:
         return ""
     env = f"PYTHONPATH={q(':'.join(cfg.python_path))} FICHERO_PYTHON_BIN={q(cfg.python)}" if cfg.python else ""
     for line in cfg.regen:
-        r = as_worker(a, f"cd {wt} && {env} {line.replace('{python}', q(cfg.python or 'python3'))}")
+        r = as_worker(a, f"cd {wt} && {env} {line.replace('{python}', q(cfg.python))}")
         if r.returncode:
             journal.append("rebake", lane=a.name, branch=branch, files=[], detail=f"regen failed, the guards judge: {line}: {(r.stderr or r.stdout).strip()[-300:]}")
             as_worker(a, f"{g} -C {wt} checkout -q -- . ")  # a half-run regen never reaches a commit
@@ -590,8 +590,8 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                     # union at this head, never a plain red (manager 2026-11-11).
                     cfg_now = check_tool.load(a.pinned)
                     have = tuple(getattr(a, "guard_data", ()) or ())
-                    data = [f for f in files if f.endswith(".json") and f.startswith(tuple(cfg_now.check_paths))
-                            and f not in check_tool.stricter_files(repo, since_now, head, cfg_now)]  # only entries removed: judged by head's copy already
+                    stricter = check_tool.stricter_files(repo, since_now, head, cfg_now, a.pinned)  # only entries removed: judged by head's copy already
+                    data = [f for f in files if f.endswith(".json") and f.startswith(tuple(cfg_now.check_paths)) and f not in stricter]
                     more = [f for f in data if f not in have]
                     if more and "guard-data-added-routes" in cfg_now.auto and not any(check_tool.known_gaps_added_only(repo, since_now, head, f, cfg_now) for f in more):
                         for f in more:  # speed: the rule decides; head's copy of exactly these files under the pinned guards, then the ladder again

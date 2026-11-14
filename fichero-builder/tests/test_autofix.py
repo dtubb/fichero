@@ -85,7 +85,7 @@ def test_allowlist_only_removed_is_entries_dropped_from_a_named_literal_and_noth
     assert not autofix.allowlist_only_removed("scripts/check_x.py", base, base.replace(', "b": "y"', "").replace("3", "4")), "code changed too"
     assert not autofix.allowlist_only_removed("scripts/check_x.py", base, base), "no change is not a removal"
     gaps = '{"/a": "#1 a", "/b": "#2 b"}'
-    assert autofix.allowlist_only_removed("scripts/x_known_gaps.json", gaps, '{"/a": "#1 a, reworded"}')
+    assert autofix.allowlist_only_removed("scripts/x_known_gaps.json", gaps, '{"/a": "#1 a"}')
     assert not autofix.allowlist_only_removed("scripts/x_known_gaps.json", gaps, '{"/a": "#1 a", "/c": "#3"}')
     assert not autofix.allowlist_only_removed("scripts/routes.json", gaps, '{"/a": "#1 a"}'), "a JSON not named as an allowlist"
 
@@ -93,7 +93,7 @@ def test_allowlist_only_removed_is_entries_dropped_from_a_named_literal_and_noth
 def test_precheck_runs_the_pinned_guards_over_the_head_and_a_stale_entry_red_carries_the_exact_one_line_fix(world, capsys):
     """2026-11-14: a batch deleted b.swift; the base guard said 'drop from the set' and the batch's own copy (or the pinned copy run from
     its own dir) said nothing. The precheck judges head with the pinned guard and prints the sed that drops exactly that entry; once the
-    lane runs it, the edit (entries only removed) is judged with head's copy and is green, with one `auto` row."""
+    lane runs it, the edit (the pinned copy minus entries) is judged with head's copy and is green."""
     lane = world / "lane"
     (lane / "scripts" / "check_known.py").write_text(GUARD.replace("sys.exit(1 if stale or new else 0)", "sys.exit(0)"))  # the lane's own copy hides it
     _g(lane, "rm", "-q", "b.swift"), _g(lane, "commit", "-qam", "drop b")
@@ -108,7 +108,7 @@ def test_precheck_runs_the_pinned_guards_over_the_head_and_a_stale_entry_red_car
     _g(lane, "commit", "-qam", "drop the stale entry")
     rc, said = _precheck(world)
     assert rc == 0, said
-    assert [r["file"] for r in journal.read() if r.get("rule") == "allowlist-entries-only-removed"][-1] == "scripts/check_known.py"
+    assert check_tool.stricter_files(lane, "origin/integration", "HEAD", check_tool.load(world / "pinned"), world / "pinned") == ("scripts/check_known.py",)
     assert len(_g(lane, "worktree", "list").splitlines()) == 1, "the scratch tree is gone"
     assert cli.main(["precheck", str(lane), "--pinned", str(world / "pinned"), "--state", str(journal.STATE)]) == 0
     assert "all green" in capsys.readouterr().out
@@ -121,7 +121,7 @@ def test_a_pinned_guard_edit_that_is_not_only_removed_entries_is_still_judged_by
     _g(lane, "commit", "-qam", "swap the entry")
     rc, said = _precheck(world)
     assert rc == 1 and "drop from the set" in said
-    assert check_tool.stricter_files(lane, "origin/integration", "HEAD", check_tool.load(world / "pinned")) == ()
+    assert check_tool.stricter_files(lane, "origin/integration", "HEAD", check_tool.load(world / "pinned"), world / "pinned") == ()
 
 
 def test_a_missing_spec_change_trailer_and_a_stale_embed_list_each_carry_their_exact_command(world):
@@ -181,3 +181,35 @@ def test_the_chains_red_alert_carries_the_fix_for_a_stale_entry_read_at_the_chec
     assert work.hints(r, str(lane), head, check_tool.load(world / "pinned")) == [
         "scripts/check_known.py: stale allowlist entries b.swift: sed -i '' -e '6,8d' scripts/check_known.py"
         " (ruled allowlist-entries-only-removed: the ladder judges with that copy)"]
+
+
+def test_a_ratchet_baseline_json_or_a_reworded_entry_is_never_only_removed():
+    """Review of 916d5422d4: a key removed from scripts/release_size_baseline.json read as 'only removed', and the ratchet then treated
+    it as a first run (looser). Only known-gaps and allowlist files qualify, and every kept entry must be identical."""
+    sizes = '{"app": 10, "engine": 20}'
+    assert not autofix.allowlist_only_removed("scripts/release_size_baseline.json", sizes, '{"app": 10}')
+    assert not autofix.allowlist_only_removed("scripts/check_x.py", 'BASELINE = {"a": 1, "b": 2}\n', 'BASELINE = {"a": 1}\n')
+    gaps = '{"/a": "#1 a", "/b": "#2 b"}'
+    assert not autofix.allowlist_only_removed("scripts/x_known_gaps.json", gaps, '{"/a": "#1 reworded"}')
+
+
+def test_a_lane_copy_of_a_guard_older_than_the_pinned_one_never_replaces_it(world):
+    """Review of 916d5422d4: 'only removed' was judged against the lane's merge base, so a guard integration changed after the lane
+    branched was replaced by the lane's older copy minus an entry. It is judged against the PINNED copy; only the ladder writes the row."""
+    lane, pinned = world / "lane", world / "pinned"
+    _g(lane, "rm", "-q", "b.swift")
+    lines = (lane / "scripts" / "check_known.py").read_text().splitlines(keepends=True)
+    (lane / "scripts" / "check_known.py").write_text("".join(lines[:5] + lines[8:]))  # the b.swift entry's three lines
+    _g(lane, "commit", "-qam", "drop b and its entry")
+    cfg = check_tool.load(pinned)
+    assert check_tool.stricter_files(lane, "origin/integration", "HEAD", cfg, pinned) == ("scripts/check_known.py",)
+    guard = pinned / "scripts" / "check_known.py"
+    guard.write_text(guard.read_text().replace("sys.exit(1 if stale or new else 0)", "sys.exit(1 if stale or new or len(found) > 5 else 0)"))
+    assert check_tool.stricter_files(lane, "origin/integration", "HEAD", cfg, pinned) == (), "integration's newer guard is never replaced"
+    assert not [r for r in journal.read() if r.get("rule") == "allowlist-entries-only-removed"]
+
+
+def test_regen_without_a_python_is_refused_in_the_rules(tmp_path):
+    (tmp_path / "harness.toml").write_text('[check]\nregen = ["{python} x.py"]\n')
+    with pytest.raises(ValueError, match="regen needs"):
+        check_tool.load(tmp_path)

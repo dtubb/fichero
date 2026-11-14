@@ -108,6 +108,8 @@ def load(root) -> Config:
         raise ValueError(f"harness.toml [brief]: unknown keys {unknown}")
     if not isinstance(brief.get("rules", ""), str):
         raise ValueError("harness.toml [brief]: rules must be text")
+    if c.get("regen") and not c.get("python"):  # review: a regen line must never run whatever python3 is on the PATH
+        raise ValueError("harness.toml [check]: regen needs [check].python (the interpreter `{python}` names)")
     d = Config()
     return Config(
         python=c.get("python", d.python), python_path=tuple(c.get("python_path", d.python_path)),
@@ -1568,19 +1570,22 @@ def _scratch_tree(root, head: str, pinned, cfg: Config, overlay: bool = True, da
     return tree
 
 
-def stricter_files(root, since: str, head: str, cfg: Config) -> tuple:
+def stricter_files(root, since: str, head: str, cfg: Config, pinned, rows: bool = False) -> tuple:
     """`allowlist-entries-only-removed` (2026-11-14: a guard on base reported a stale entry, "drop from the set", and the lane could not
-    drop it: any edit to a pinned guard was a refusal and the pinned copy kept saying stale): the check-path files whose only change is
-    allowlist entries removed. Each is one `auto` row; the ladder lays head's copy of exactly these over the pinned ones."""
+    drop it: any edit to a pinned guard was a refusal and the pinned copy kept saying stale): the check-path files the diff changes
+    whose head copy is the PINNED copy with allowlist entries removed (review: compared with the lane's merge base, an older guard minus
+    an entry would have replaced a newer pinned one). The ladder lays head's copy of exactly these over the pinned ones; `rows`: one
+    `auto` row each (the ladder's call only, never the presubmit's or the precheck's)."""
     if "allowlist-entries-only-removed" not in cfg.auto:
         return ()
+    from fichero_builder import autofix
     out = []
     for _s, _m, f in _changes(root, since, head, "--diff-filter=M"):
-        if f.startswith(cfg.check_paths) and f.endswith((".py", ".json")):
-            from fichero_builder import autofix
-            before, after = ("\n".join(_lines(root, "show", f"{rev}:{f}") or []) for rev in (since, head))
-            if autofix.allowlist_only_removed(f, before, after):
-                journal.append("auto", rule="allowlist-entries-only-removed", head=head, file=f, detail="only allowlist entries removed: the guard is stricter; head's copy judges")
+        src = Path(pinned) / f
+        if f.startswith(cfg.check_paths) and f.endswith((".py", ".json")) and src.is_file() and not src.is_symlink():
+            if autofix.allowlist_only_removed(f, src.read_text(errors="replace"), "\n".join(_lines(root, "show", f"{head}:{f}") or [])):
+                if rows:
+                    journal.append("auto", rule="allowlist-entries-only-removed", head=head, file=f, detail="the pinned copy with only allowlist entries removed: the guard is stricter; head's copy judges")
                 out.append(f)
     return tuple(out)
 
@@ -1667,7 +1672,7 @@ RUNGS = ("ready", "diff-bound", "red-on-base", "guards", "contract-current", "si
 def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool | tuple = False,
                 approve_red: bool = False, approve_pinned_new: bool = False, guard_data: tuple = ()) -> dict:
     cfg = load(pinned)
-    stricter = stricter_files(root, since, head, cfg)
+    stricter = stricter_files(root, since, head, cfg, pinned, rows=True)
     bad = [b for b in pinned_violations(root, since, head, cfg, pinned) if b.split(": ", 1)[0] not in stricter]
     noted = ""
     if maintainer:  # only "a pinned check file was changed/deleted" is noted; a symlink, sitecustomize/.pth, .claude/, a new pinned-path file still refuse
