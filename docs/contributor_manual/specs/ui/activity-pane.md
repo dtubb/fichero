@@ -304,7 +304,7 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   not compiled here. Not built: the icon column and the filter tokens; cloud vs local needs the row's model. *Tests:*
   `fichero/Tests/Unit/general/Models/ActivityRowIconsTests.swift`; the existing
   `fichero/Tests/Unit/general/Models/ActivityRowStartedByTests.swift`.
-- `activity.pane.cost-per-row-and-totals` — **[PARTIAL]** (#6441, decision 20; `activity.window.cost-column` built the per-node
+- `activity.pane.cost-per-row-and-totals` — **[PARTIAL]** (#6598, #6441, decision 20; `activity.window.cost-column` built the per-node
   `cost_usd`; `ai/cloud-permission-and-spend.md` keeps the records) the Cost column (on by default, `activity.pane.default-columns`;
   shown in the Inspector always) shows per row the dollars SPENT so far and, while running, the ESTIMATE to finish ("$0.42 · ~$1.10
   more", from the plan's per-page estimate times the pages left, `spend.caps_now`'s basis); the run row totals its steps; the
@@ -459,7 +459,7 @@ sentence on four rows, after the fetch had failed; two rows showed raw text (the
 library …/fichero.duckdb was closed"). The owner restated the goal: a much simpler table, hierarchical, that shows what is
 working, on which files, and what blocks it; the engine smarter about work that cannot run; models that download.
 
-- `activity.pane.blocked-under-its-blocker` — **[GAP]** (#6588; the `blocked` state in the states table) work that cannot run
+- `activity.pane.blocked-under-its-blocker` — **[GAP]** (#6593, #6588; the `blocked` state in the states table) work that cannot run
   until something else exists is BLOCKED, not waiting: the engine records on the row WHAT blocks it (`blocked_by`: another job's
   id, or a typed need — a model `runtime:model`, a key for a provider, a folder) and the lane never picks a blocked row, so it
   does not spin, re-check or re-queue. The table shows ONE row for the blocker (the download, or a need row "Search model bge-m3
@@ -471,7 +471,7 @@ working, on which files, and what blocks it; the engine smarter about work that 
   queues its embeds blocked on the download; the lane picks none of them; the table has one download row with the embed rows
   under it; the download fails: the embeds stay blocked, zero model calls, the row offers Download Again; it succeeds: the
   embeds run. *Test:* not yet written: `test_blocked_work_waits_on_its_blocker_6588.py`, `ActivityBlockedRowsTests.swift`.
-- `activity.download.says-bytes-and-time-left` — **[GAP]** (#6588; supersedes "0 of 1" for a download) every model download, of
+- `activity.download.says-bytes-and-time-left` — **[GAP]** (#6592, #6588; supersedes "0 of 1" for a download) every model download, of
   every runtime (Kraken, MLX, embeddings, Whisper, spaCy, YOLO, the MLX runtime), reports its bytes at least every
   `PROGRESS_EVERY_SECONDS` (2) as typed fields on the row (`bytes_done`, `bytes_total`, never only words): through the library's
   callback where it has one, else by measuring the model's download folder as it grows against the catalogue's size. The row's
@@ -479,7 +479,7 @@ working, on which files, and what blocks it; the engine smarter about work that 
   the spinner and "Connecting"; a stall of `READ_TIMEOUT_SECONDS` says "No data for 20 s, trying again". Acceptance: a stub
   fetch for each runtime that writes 10 chunks reports at least 5 rising `bytes_done` values and the total; the row never reads
   "0 of 1". *Test:* not yet written: `test_every_download_reports_bytes_6588.py`.
-- `activity.download.installed-means-it-loads` — **[GAP]** (#6588; `runtime.spacy.pipelines-download-as-data`) a model is
+- `activity.download.installed-means-it-loads` — **[GAP]** (#6591, #6588; `runtime.spacy.pipelines-download-as-data`) a model is
   INSTALLED only once it LOADS: the download job ends by loading the model once (or the runtime's own check) and only then
   says `model.installed`; a model whose files are present but which does not load is `broken`, shown in Settings with the red X,
   one line ("bge-m3 could not be loaded") and **Download Again** (delete, fetch, check), never the green check; Settings' size
@@ -497,7 +497,7 @@ working, on which files, and what blocks it; the engine smarter about work that 
   import of a folder of 2,618 images lists one top-level row naming the folder and the count, three step children, and under
   the running step the files in flight by name. *Test:* not yet written: `ActivityNamesWhatItWorksOnTests.swift`, the engine's
   `test_row_says_what_ran_on_what_6441.py` extended.
-- `activity.failure.no-raw-text-ever` — **[GAP]** (#6588, #6354; `activity.pane.failure-with-its-fix-in-the-row`) the failure
+- `activity.failure.no-raw-text-ever` — **[GAP]** (#6597, #6588, #6354; `activity.pane.failure-with-its-fix-in-the-row`) the failure
   table gains the kinds the release showed bare: a model that will not load (`model-broken`: "bge-m3 could not be loaded" ·
   Download Again), a library closed under a running job (`library-closed`: the job is not failed but PAUSED, "Paused: the
   project closed", Continue on reopen), a kept export whose folder is gone ("The export folder is gone" · Choose Folder…). A row,
@@ -529,7 +529,7 @@ window drops Time, Cost and the trail first as it narrows):
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- `activity.pane.children-are-what-it-works-on` — **[PARTIAL]** (#6588; supersedes the "recipe › step › version ›
+- `activity.pane.children-are-what-it-works-on` — **[PARTIAL]** (#6599, #6588; supersedes the "recipe › step › version ›
   items" readings of decision 2 and `activity.pane.group-by-run-or-by-file`; built: a run's FILES, `ActivityPane.files(of:)`;
   not built: a job of its own's files, a blocker's rows) a row's disclosure holds WHAT IT WORKS ON and nothing else: a run's or
   a job's FILES (a job of its own — thumbnails, text, embed — lists the files in flight now, at most the lane's width, by name;
@@ -537,43 +537,43 @@ window drops Time, Cost and the trail first as it narrows):
   trail cell, versions the Inspector; there is no third level. By File, a file's children are the runs that touched it.
   Acceptance: a thumbnails job over 14 pages with two in flight opens to those two file rows; a run opens to its documents;
   no row has a step child. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityPaneOutlineTests.swift` extended.
-- `activity.pane.needs-you-first` — **[GAP]** (#6588; supersedes the plain "sorted by state then start" of
+- `activity.pane.needs-you-first` — **[GAP]** (#6599, #6588; supersedes the plain "sorted by state then start" of
   `activity.pane.one-outline-table`) the default order puts first what NEEDS THE PERSON: failed and partial rows, a row paused
   for a cause or stopped at quit, a blocker whose fix is a person's (newest first); then what runs; then what waits or is
   blocked (in the lane's order); then what ended done (newest first). A column header's sort replaces it until cleared. The
   status bar counts "N need you". Acceptance: the fixture with a failed, a running, a waiting and a done row lists them in
   that order; a blocker with Download Again sorts with the failed. *Test:* not yet written: `ActivityNeedsYouFirstTests.swift`.
-- `activity.pane.fix-button-has-words` — **[GAP]** (#6588; `activity.pane.error-row-shape`) the row's one button carries its
+- `activity.pane.fix-button-has-words` — **[GAP]** (#6599, #6588; `activity.pane.error-row-shape`) the row's one button carries its
   WORD ("Download Again", "Choose Folder…", "Add Key…", "Continue", "Retry"), never an icon alone; the fix comes from the
   failure's primary action as the engine names it, the app maps an action id to its word and its act, and an action id it does
   not know shows "Show Details" (the Inspector), never a gear. Acceptance: each action id in the engine's table maps to a word;
   an unknown id reads Show Details. *Test:* `fichero/Tests/Unit/general/Models/ActivityErrorRowTests.swift` extended.
-- `activity.pane.one-undo-per-action` — **[GAP]** (#6588, #6583; open question 7) ONE person's action is ONE step on the
+- `activity.pane.one-undo-per-action` — **[GAP]** (#6599, #6588, #6583; open question 7) ONE person's action is ONE step on the
   window's Undo stack, whatever it spans: rows of several projects, runs and jobs together, Archive Finished… and Archive
   Failed included; a run's Delete is undoable like a job's (`workflow_run.delete` gains `workflow_run.undelete`). Until a
   delete is undoable the confirmation says so. Acceptance: deleting a run and a job from two projects at once, then Undo once,
   lists all of them again in their states; Archive Finished… then Undo restores every row. *Test:* not yet written:
   `ActivityOneUndoTests.swift`, `test_delete_is_undoable_6583.py`.
-- `activity.pane.empty-says-one-line` — **[GAP]** (#6588; `activity.window.no-empty-prose`) a pane with nothing to list says
+- `activity.pane.empty-says-one-line` — **[GAP]** (#6599, #6588; `activity.window.no-empty-prose`) a pane with nothing to list says
   "Nothing running" in one line and keeps its status bar; a filter that hides everything says "No activity matches".
   *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityPaneFiltersTests.swift` extended.
-- `activity.pane.verbs-one-word-each` — **[GAP]** (#6588; `activity.pane.commands-through-the-table`) Retry is the one verb
+- `activity.pane.verbs-one-word-each` — **[GAP]** (#6599, #6588; `activity.pane.commands-through-the-table`) Retry is the one verb
   for running a failed row again; Read Again is the Inspector's verb on a failed PAGE only, not a Project › Activity item
   beside Retry. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityCommandsTests.swift` extended.
 
-**Known broken (the engine review, 2026-11-14, verified in code; each its own issue under #6588):**
+**Known broken (the engine review, 2026-11-14, verified in code; each its own issue: #6594, #6595, #6596):**
 
-- `activity.engine.undelete-running-is-a-phantom` — **[BROKEN]** (#6588) Undo of a Stop-then-Delete restores a row as
+- `activity.engine.undelete-running-is-a-phantom` — **[BROKEN]** (#6594, #6588) Undo of a Stop-then-Delete restores a row as
   `running` with no thread (`undelete_jobs` writes `deleted_from.state` back as is): a row Delete stopped comes back
   `paused` "Stopped by you", never `running`. *Test:* not yet written: `test_delete_is_undoable_6583.py`.
-- `activity.engine.deleted-stays-deleted` — **[BROKEN]** (#6588) a deleted row is never picked and never revived: the lane's
+- `activity.engine.deleted-stays-deleted` — **[BROKEN]** (#6594, #6588) a deleted row is never picked and never revived: the lane's
   end write for a deferred or out-of-reach job skips a row with `deleted_at` set; a second Delete of a deleted row is a no-op
   (it does not re-stamp `deleted_at`, so Undo still restores it). *Test:* not yet written: `test_deleted_stays_deleted_6588.py`.
-- `activity.engine.open-queues-nothing-twice` — **[BROKEN]** (#6588, #6584) the open's pending-derivative resume
+- `activity.engine.open-queues-nothing-twice` — **[BROKEN]** (#6595, #6588, #6584) the open's pending-derivative resume
   (`db/manager.py`) and every enqueue dedupe against a row of the same kind and subject that is waiting OR PAUSED (and not
   deleted), so a relaunch never adds a twin and a deleted row's page is not queued again by the open. *Test:* not yet
   written: `test_open_queues_nothing_twice_6588.py`.
-- `activity.engine.close-pauses-running-work` — **[BROKEN]** (#6588) closing a project PAUSES the work running in it
+- `activity.engine.close-pauses-running-work` — **[BROKEN]** (#6596, #6588) closing a project PAUSES the work running in it
   ("Paused: the project closed") and waits for it to let go of the connection before closing it; never a failure with the
   library's path in its words. *Test:* not yet written: `test_close_pauses_running_work_6588.py`.
 
