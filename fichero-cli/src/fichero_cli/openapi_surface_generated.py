@@ -883,6 +883,37 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("list-stopped-at-quit")
+    def activity_list_stopped_at_quit_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Stopped At Quit (GET /api/activity/stopped-at-quit)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/stopped-at-quit"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("continue-after-quit")
+    def activity_continue_after_quit_post(
+        ctx: typer.Context,
+        all: Optional[bool] = typer.Option(None, '--all/--no-all', help='All. Default: false.'),
+        ids: Optional[list[str]] = typer.Option(None, '--ids', help='the rows to continue; None with `all` for every one. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Continue After Quit (POST /api/activity/stopped-at-quit/continue)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/stopped-at-quit/continue"
+            params = None
+            payload = _build_json_payload({
+                "all": all,
+                "ids": ids,
+            }, {
+                "all": {'type': 'boolean', 'title': 'All', 'default': False, 'x-cli-required': False},
+                "ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Ids', 'description': 'the rows to continue; None with `all` for every one', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("get-workflow")
     def activity_get_workflow_get(
         ctx: typer.Context,

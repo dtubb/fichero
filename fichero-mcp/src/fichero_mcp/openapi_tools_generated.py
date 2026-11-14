@@ -400,6 +400,21 @@ def fichero_activity_get_stats(
     return _rt.call("GET", "/api/activity/stats", params={"hours": hours})
 
 
+def fichero_activity_list_stopped_at_quit(
+) -> Any:
+    'List Stopped At Quit\n\nWhat the quit left unfinished and the open paused (`activity.launch.nothing-starts-one-alert`, #6584): the job\nrows that read "Stopped when Fichero quit" and the workflow runs the quit paused. Nothing of it runs until\n`POST /api/activity/stopped-at-quit/continue`.\n\nRoute: GET /api/activity/stopped-at-quit (toolset `activity`; reads).'
+    return _rt.call("GET", "/api/activity/stopped-at-quit")
+
+
+def fichero_activity_continue_after_quit(
+    *,
+    all: Annotated[Optional[bool], Field(description='All. Default: false.')] = None,
+    ids: Annotated[Optional[list[Any]], Field(description='the rows to continue; None with `all` for every one.')] = None,
+) -> Any:
+    "Continue After Quit\n\nThe launch alert's Continue (`activity.launch.nothing-starts-one-alert`): the chosen rows the quit stopped are let\ngo; a workflow run the quit paused is resumed from its checkpoint. Nothing else is touched.\n\nRoute: POST /api/activity/stopped-at-quit/continue (toolset `activity`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/activity/stopped-at-quit/continue", json=_rt.body({"all": all, "ids": ids}))
+
+
 def fichero_activity_get_workflow(
     *,
     workflow_id: Annotated[str, Field(description='Workflow Id')],
@@ -9611,6 +9626,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_activity_get_metrics_summary", "activity", "GET", "/api/activity/metrics/summary", fichero_activity_get_metrics_summary),
     GeneratedTool("fichero_activity_get_recent_activities", "activity", "GET", "/api/activity/recent", fichero_activity_get_recent_activities),
     GeneratedTool("fichero_activity_get_stats", "activity", "GET", "/api/activity/stats", fichero_activity_get_stats),
+    GeneratedTool("fichero_activity_list_stopped_at_quit", "activity", "GET", "/api/activity/stopped-at-quit", fichero_activity_list_stopped_at_quit),
+    GeneratedTool("fichero_activity_continue_after_quit", "activity", "POST", "/api/activity/stopped-at-quit/continue", fichero_activity_continue_after_quit),
     GeneratedTool("fichero_activity_get_workflow", "activity", "GET", "/api/activity/workflow/{workflow_id}", fichero_activity_get_workflow),
     GeneratedTool("fichero_activity_delete", "activity", "DELETE", "/api/activity/{activity_id}", fichero_activity_delete),
     GeneratedTool("fichero_agent_memory_list_notes", "agent-memory", "GET", "/api/agent-memory", fichero_agent_memory_list_notes),

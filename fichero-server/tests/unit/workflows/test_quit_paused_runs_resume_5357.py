@@ -41,7 +41,8 @@ def test_quit_records_the_pause_with_its_reason(tmp_path, monkeypatch):
     assert (run.status, run.error) == ("paused", runner.QUIT_PAUSED_ERROR)
 
 
-def test_launch_resumes_only_the_runs_the_quit_paused(tmp_path, monkeypatch):
+def test_launch_resumes_nothing__continue_resumes_only_the_chosen_runs_the_quit_paused(tmp_path, monkeypatch):
+    """Owner 2026-11-13 (`activity.launch.nothing-starts-one-alert`): the launch resumes nothing; the person's Continue does."""
     db_path = str(tmp_path / "fichero.duckdb")
     store = ActivityStore(db_path)
     _save(store, "by-quit", error=runner.QUIT_PAUSED_ERROR)
@@ -52,7 +53,10 @@ def test_launch_resumes_only_the_runs_the_quit_paused(tmp_path, monkeypatch):
         resumed.append((thread_id, db))
 
     monkeypatch.setattr("fichero_server.api.routes.workflow_execution.core.resume_workflow", fake_resume)
-    assert asyncio.run(activity.resume_quit_paused_runs(store, "DB")) == ["by-quit"]
+    assert asyncio.run(activity.resume_quit_paused_runs(store, "DB")) == [], "the launch starts nothing"
+    assert resumed == []
+    assert asyncio.run(store.get_workflow_run("by-quit")).error == runner.QUIT_PAUSED_ERROR, "the marker stays for the alert"
+    assert asyncio.run(activity.resume_quit_paused_runs(store, "DB", ["by-quit", "by-person"])) == ["by-quit"]
     assert resumed == [("by-quit", "DB")]
     # the marker is cleared, so a later pause by the person is not taken for a quit
     assert asyncio.run(store.get_workflow_run("by-quit")).error != runner.QUIT_PAUSED_ERROR
@@ -67,7 +71,7 @@ def test_a_resume_that_fails_leaves_the_run_paused_and_says_why(tmp_path, monkey
         raise RuntimeError("no checkpoint")
 
     monkeypatch.setattr("fichero_server.api.routes.workflow_execution.core.resume_workflow", boom)
-    assert asyncio.run(activity.resume_quit_paused_runs(store, "DB")) == []
+    assert asyncio.run(activity.resume_quit_paused_runs(store, "DB", ["r"])) == []
     run = asyncio.run(store.get_workflow_run("r"))
     assert run.status == "paused" and "no checkpoint" in run.error
 
@@ -101,7 +105,7 @@ def test_a_pause_the_person_asked_for_before_the_quit_is_not_resumed(tmp_path, m
         raise AssertionError("a run the person paused must not be resumed")
 
     monkeypatch.setattr("fichero_server.api.routes.workflow_execution.core.resume_workflow", fake_resume)
-    assert asyncio.run(activity.resume_quit_paused_runs(store, "DB")) == []
+    assert asyncio.run(activity.resume_quit_paused_runs(store, "DB", ["r"])) == []
 
 
 def _running_with_checkpoint(tmp_path, monkeypatch):

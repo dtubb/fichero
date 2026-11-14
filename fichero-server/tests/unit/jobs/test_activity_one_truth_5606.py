@@ -95,9 +95,11 @@ def test_an_interrupted_then_resumed_recipe_run_reads_the_same_in_the_list_and_t
     job_id = jobs.enqueue(db, runner.KIND, "project", started_by="owner", detail=json.dumps(detail))
     db.execute("UPDATE jobs SET state = 'running', reason = 'Running step read' WHERE id = ?", [job_id])
 
-    jobs.resume(db)  # the engine starts again: the run was interrupted
-    assert db.execute_fetchone("SELECT state, reason FROM jobs WHERE id = ?", [job_id]) == (
-        "waiting", "Interrupted; carries on")
+    jobs.resume(db)  # the engine starts again: the run was interrupted, and waits for the person (owner 2026-11-13)
+    assert db.execute_fetchone("SELECT state, reason FROM jobs WHERE id = ?", [job_id]) == ("paused", jobs.QUIT_REASON)
+    listed, tree = _listed(client, job_id), _tree(client, job_id)
+    assert listed == tree == ("paused", jobs.QUIT_REASON)
+    jobs.continue_after_quit(db, None)  # Continue All on the launch alert (the lane's holder too)
     listed, tree = _listed(client, job_id), _tree(client, job_id)
     assert listed == tree == ("waiting", "Paused by you")
 

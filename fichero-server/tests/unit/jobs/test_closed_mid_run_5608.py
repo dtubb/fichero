@@ -141,7 +141,8 @@ def test_compute_run_interrupted_on_close__the_recipe_run_carries_on_when_the_pr
 
     account = _account(client, child)
     assert account["state"] == "interrupted" and account["reason"].startswith(CLOSED)
-    assert jobs.read_job(db, recipe)["state"] in ("waiting", "running"), jobs.read_job(db, recipe)
+    assert jobs.read_job(db, recipe)["state"] == "paused", jobs.read_job(db, recipe)  # for the person (owner 2026-11-13)
+    jobs.continue_after_quit(db, [recipe])  # Continue on the launch alert
 
     lane_held.set()  # the lane frees: the recipe run carries on
     assert _wait_for(lambda: jobs.read_job(db, recipe)["state"] in ("done", "failed", "cancelled"), 120), \

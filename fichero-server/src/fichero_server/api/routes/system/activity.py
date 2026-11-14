@@ -1625,6 +1625,67 @@ def _action_job_delete(db: Database, params: DeleteJobsParams, ctx: ActionContex
     )
 
 
+class StoppedAtQuitItem(BaseModel):
+    id: str
+    kind: str = Field(description="the engine's kind of work, or `workflow` for a workflow run")
+    name: str
+    subject: Optional[str] = None
+    started_at: Optional[datetime] = None
+
+
+class StoppedAtQuitResponse(BaseModel):
+    items: list[StoppedAtQuitItem]
+    count: int
+
+
+@router.get("/stopped-at-quit", response_model=StoppedAtQuitResponse)
+@_reads_committed
+async def list_stopped_at_quit(db: Database = Depends(get_library_database)) -> StoppedAtQuitResponse:
+    """What the quit left unfinished and the open paused (`activity.launch.nothing-starts-one-alert`, #6584): the job
+    rows that read "Stopped when Fichero quit" and the workflow runs the quit paused. Nothing of it runs until
+    `POST /api/activity/stopped-at-quit/continue`."""
+    from fichero_server.execution import jobs as job_queue
+    from fichero_server.execution.runner import QUIT_PAUSED_ERROR
+
+    items = [StoppedAtQuitItem(**row) for row in await asyncio.to_thread(job_queue.stopped_at_quit, db)]
+    store = get_activity_tracker(str(db.path)).store
+    for run in await store.list_workflow_runs(statuses=["paused"], limit=500):
+        if run.error == QUIT_PAUSED_ERROR:
+            items.append(StoppedAtQuitItem(id=run.thread_id, kind="workflow", name=run.workflow_name or "Workflow run",
+                                           started_at=_utc(run.started_at)))
+    return StoppedAtQuitResponse(items=items, count=len(items))
+
+
+class ContinueAfterQuitParams(BaseModel):
+    ids: Optional[list[str]] = Field(default=None, description="the rows to continue; None with `all` for every one")
+    all: bool = False
+
+
+class ContinueAfterQuitResponse(BaseModel):
+    continued_ids: list[str]
+    count: int
+
+
+@router.post("/stopped-at-quit/continue", response_model=ContinueAfterQuitResponse)
+async def continue_after_quit(
+    params: ContinueAfterQuitParams,
+    db: Database = Depends(get_library_database_for_write),
+) -> ContinueAfterQuitResponse:
+    """The launch alert's Continue (`activity.launch.nothing-starts-one-alert`): the chosen rows the quit stopped are let
+    go; a workflow run the quit paused is resumed from its checkpoint. Nothing else is touched."""
+    from fichero_server.execution import jobs as job_queue
+    from fichero_server.workflows.activity import resume_quit_paused_runs
+
+    if not params.all and not params.ids:
+        return ContinueAfterQuitResponse(continued_ids=[], count=0)
+    wanted = None if params.all else list(params.ids or [])
+    continued = await asyncio.to_thread(job_queue.continue_after_quit, db, wanted)
+    store = get_activity_tracker(str(db.path)).store
+    runs = [r.thread_id for r in await store.list_workflow_runs(statuses=["paused"], limit=500)]
+    continued += await resume_quit_paused_runs(store, db, runs if wanted is None else [i for i in wanted if i in runs])
+    return ContinueAfterQuitResponse(continued_ids=continued, count=len(continued))
+
+
 def _invert_job_pause(before: dict | None, after: dict | None, ctx: ActionContext):
     return ("job.pause", {"job_id": (after or {})["id"], "paused": (before or {}).get("state") == "paused"})
 

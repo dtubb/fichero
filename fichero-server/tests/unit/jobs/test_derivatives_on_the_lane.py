@@ -68,8 +68,10 @@ def test_an_imports_stages_survive_a_quit_and_run_on_the_next_open(test_package,
     monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())
     db = db_manager.get_database(test_package)
     assert sorted(db.execute_fetchall("SELECT kind, state FROM jobs")) == [
-        ("embed", "waiting"), ("embed", "waiting"), ("thumbnail", "waiting"), ("thumbnail", "waiting")]
+        ("embed", "paused"), ("embed", "paused"), ("thumbnail", "paused"), ("thumbnail", "paused")], \
+        "the open starts nothing by itself (owner 2026-11-13); the rows are kept"
 
+    jobs.continue_after_quit(db, None)  # Continue All on the launch alert
     jobs.set_paused(False)
     assert _wait_for(lambda: len(stages) == 4)
     assert sorted(stages) == sorted((stage, doc.id) for stage in ("thumbnail", "embed") for doc in docs)

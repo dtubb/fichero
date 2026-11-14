@@ -659,6 +659,26 @@
       },
       {
         "method": "GET",
+        "path": "/activity/stopped-at-quit",
+        "operation_id": "list_stopped_at_quit_api_activity_stopped_at_quit_get",
+        "summary": "List Stopped At Quit",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "StoppedAtQuitResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/activity/stopped-at-quit/continue",
+        "operation_id": "continue_after_quit_api_activity_stopped_at_quit_continue_post",
+        "summary": "Continue After Quit",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ContinueAfterQuitParams",
+        "response_model": "ContinueAfterQuitResponse"
+      },
+      {
+        "method": "GET",
         "path": "/activity/stream",
         "operation_id": "stream_activities_api_activity_stream_get",
         "summary": "Stream Activities",
