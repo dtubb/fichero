@@ -343,10 +343,7 @@ extension RegionInteractionLayer {
         // Edit Segments on ONE selected shape: Reshape takes the press, the drag and the release.
         // An armed Polygon or Baseline tool owns the click first (#6476): a point placed inside a selected region
         // was taken by Reshape and the region, not the drawing, got it.
-        if handleKnife(event) || handleMarker(event, in: size) || handlePaint(event, in: size) || handleBrush(event, in: size)
-            || handleDrawShape(event, in: size)
-            || handleReshape(event, in: size) { return }
-        if handleOrderClick(event, at: point, in: size) || handleLasso(event, at: point, in: size) { return }
+        if handleChosenTool(event, at: point, in: size) { return }
         switch event.phase {
         case .pressed:
             handlePress(at: point, clickCount: event.clickCount, in: size)
@@ -364,6 +361,15 @@ extension RegionInteractionLayer {
                 finishMove(drag, droppedAt: [event.point.x, event.point.y], command: event.command, in: size)
             }
         }
+    }
+
+    /// A chosen tool takes the pointer before anything else, then Reshape's handles, then the lasso: true when one did.
+    /// The Order tool's clicks come first, then the drawing tools (`segment-editor`'s tools).
+    private func handleChosenTool(_ event: PreviewPointerEvent, at point: CGPoint, in size: CGSize) -> Bool {
+        handleOrderClick(event, at: point, in: size)
+            || handleKnife(event) || handleMarker(event, in: size) || handlePaint(event, in: size)
+            || handleBrush(event, in: size) || handleDrawShape(event, in: size)
+            || handleReshape(event, in: size) || handleLasso(event, at: point, in: size)
     }
 
     /// Mouse-down decides the verb: double-click enters, the check tool
