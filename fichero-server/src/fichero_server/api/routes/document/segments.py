@@ -2632,6 +2632,8 @@ def _action_segment_restore_versions(
         db.save(row)
         after_versions.append({"segment_id": row.id, "version": row.version})
     entries_were = None if params.order_entries is None else _put_entries_back(db, params.order_entries)
+    # Entries put back move lines in `as-written`, which the page's text follows.
+    text_relevant = text_relevant or bool(params.order_entries)
 
     spec = ChangeSpec(
         audit_id=audit_id,
