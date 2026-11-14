@@ -265,20 +265,9 @@ struct ActivityJob: Identifiable, Equatable {
     var model: String?
     var costUsd: Double?
     var costEstimateUsd: Double?
-
-    /// One of a recipe run's stages, as the engine counts it: Set Up's order, its state and its pages.
-    struct Stage: Equatable {
-        let title: String
-        let state: String
-        let done: Int
-        let total: Int
-    }
-
-    struct RanOn: Equatable {
-        let kind: String
-        let count: Int
-        let name: String?
-    }
+    /// Why a failed (or paused-for-a-cause) row failed and what to do (`run.fail.run-carries-its-failure`,
+    /// `activity.pane.failure-with-its-fix-in-the-row`): the engine's one table, never a code.
+    var failure: Failure?
 
     struct Remote: Equatable {
         let target: String
@@ -312,6 +301,9 @@ struct ActivityJob: Identifiable, Equatable {
         self.model = job.model
         self.costUsd = job.costUsd
         self.costEstimateUsd = job.costEstimateUsd
+        self.failure = job.failure.map {
+            Failure(kind: $0.kind.rawValue, words: $0.words, fix: $0.fix, actions: $0.actions.map { $0.kind.rawValue })
+        }
     }
 
     /// Test/preview seam — construct without the generated schema.

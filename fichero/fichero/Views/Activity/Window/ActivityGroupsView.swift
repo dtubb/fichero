@@ -153,6 +153,11 @@ struct ActivityGroupsView: View {
                     ProgressView(value: Double(row.done), total: Double(row.total))
                 }
                 Text(subtitle(row)).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                if let failure = row.failure, row.phase == .failed || row.phase == .partial || row.phase == .paused {
+                    // The fix in the row (`activity.pane.failure-with-its-fix-in-the-row`): one plain sentence, never a code.
+                    Text(failure.fix).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                        .accessibilityIdentifier("activity.row.fix")
+                }
             }
             Spacer(minLength: 8)
             if !row.costText.isEmpty, row.costUsd != nil {
@@ -186,6 +191,7 @@ struct ActivityGroupsView: View {
         case .resume: "Resume"
         case .retry: "Retry"
         case .show: "Show"
+        case .fix: "Settings…"
         }
     }
 
@@ -195,6 +201,7 @@ struct ActivityGroupsView: View {
         case .resume: "play.fill"
         case .retry: "arrow.counterclockwise"
         case .show: "chevron.right"
+        case .fix: "gearshape"
         }
     }
 }
