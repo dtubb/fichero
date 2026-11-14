@@ -17,6 +17,7 @@ extension PreviewMarkupToolsRow {
             markerButton
             orderButton
             brushButton
+            paintButton
             labeled("Simplify") { SimplifySliderButton(windowState: windowState) }
         }
     }
@@ -103,6 +104,24 @@ extension PreviewMarkupToolsRow {
             .help("Brush — paint over segments to select them; ⌥ takes away, [ and ] change the size (hold B for one stroke)")
             .accessibilityLabel("Brush")
             .accessibilityIdentifier("segmentEditor.tool.brush")
+        }
+    }
+
+    /// The Paintbrush (`segment-editor.paintbrush`): paint along a line of ink to make it a line (P; `[` `]` width).
+    private var paintButton: some View {
+        let armed = windowState?.paintArmed == true
+        return labeled("Paintbrush") {
+            Button {
+                if !armed { windowState?.activeMarkupTool = .select }
+                windowState?.paintArmed = !armed
+            } label: {
+                Image(systemName: "paintbrush")
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(armed ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
+            .help("Paintbrush — paint along a line of ink to make it a line (P); [ and ] change the width")
+            .accessibilityLabel("Paintbrush")
+            .accessibilityIdentifier("segmentEditor.tool.paintbrush")
         }
     }
 

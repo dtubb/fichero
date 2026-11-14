@@ -50,6 +50,46 @@ extension RegionInteractionLayer {
         return true
     }
 
+    /// The Paintbrush in Edit Segments (`segment-editor.paintbrush`): while it is chosen a drag paints, and letting go
+    /// hands the stroke to the host with the brush's width in image pixels.
+    func handlePaint(_ event: PreviewPointerEvent, in size: CGSize) -> Bool {
+        guard let windowState, onPaintCommit != nil, drawsSegments else { return false }
+        guard windowState.paintArmed || !windowState.paintStroke.isEmpty else { return false }
+        let point = [Double(event.point.x), Double(event.point.y)]
+        switch event.phase {
+        case .pressed:
+            windowState.paintStroke = [point]
+        case .dragged:
+            guard !windowState.paintStroke.isEmpty else { return true }
+            windowState.paintStroke.append(point)
+        case .released:
+            let stroke = KnifeStroke.thinned(windowState.paintStroke + [point])
+            windowState.paintStroke = []
+            let width = PaintbrushStroke.pixels(
+                windowState.paintWidth, viewWidth: Double(size.width), visibleWidth: Double(visible.width),
+                imageWidth: Double(imagePixelSize?.width ?? 0)
+            )
+            if stroke.count >= 2, width > 0 { onPaintCommit?(stroke, width) }
+        }
+        return true
+    }
+
+    /// The paint so far, as wide as the brush.
+    @ViewBuilder
+    func livePaint(in size: CGSize) -> some View {
+        let stroke = windowState?.paintStroke ?? []
+        if stroke.count >= 2, visible.width > 0, visible.height > 0 {
+            Path { path in
+                path.addLines(stroke.map {
+                    CGPoint(x: ($0[0] - visible.minX) / visible.width * size.width,
+                            y: ($0[1] - visible.minY) / visible.height * size.height)
+                })
+            }
+            .stroke(Color.accentColor.opacity(0.35),
+                    style: StrokeStyle(lineWidth: windowState?.paintWidth ?? 20, lineCap: .round, lineJoin: .round))
+        }
+    }
+
     /// The segment editor's word about the edit just made, over the top of the page; it clears itself.
     @ViewBuilder
     func segmentNotice() -> some View {

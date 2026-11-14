@@ -83,6 +83,8 @@ struct ZoomableImagePreview: View {
     }
 
     static let logger = Logger(subsystem: "app.fichero.fichero", category: "ZoomableImagePreview")
+    /// The segment editor's tool keys (Knife, Marker, Order, Brush, Paintbrush, the brushes' `[` `]`).
+    static let segmentToolKeys: Set<KeyEquivalent> = ["k", "m", "o", "b", "p", "[", "]"]
 
     /// Document ids in the +/-`radius` window around `currentId`, excluding `currentId` itself.
     /// Static so it can be called in unit tests without a live view (#2469).
@@ -500,7 +502,7 @@ extension ZoomableImagePreview {
             .onKeyPress(.return, phases: .down) { _ in finishShapeDrawingFromKey() }
             // Hold K for the Knife, M for the Marker, one stroke; a tap chooses the tool (`segment-editor.split-knife`,
             // `segment-editor.marker`).
-            .onKeyPress(keys: [.init("k"), .init("m"), .init("o"), .init("b"), .init("["), .init("]")], phases: [.down, .up]) { press in holdSpringTool(press) }
+            .onKeyPress(keys: Self.segmentToolKeys, phases: [.down, .up]) { press in holdSpringTool(press) }
             // Daniel's ruling (2026-08-10, audit 3c): left/right mean
             // PREVIOUS/NEXT item, up/down pan the current image. ←/→ pan
             // only when the zoomed image can actually travel horizontally;

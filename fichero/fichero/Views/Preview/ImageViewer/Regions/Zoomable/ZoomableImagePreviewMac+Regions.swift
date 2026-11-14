@@ -184,6 +184,7 @@ extension ZoomableImagePreview {
                 onDrawShapeCommit: { kind, points in drawSegmentShape(kind, points: points) },
                 onKnifeCommit: { stroke in knifeCut(stroke) },
                 onMarkerCommit: { stroke, closed in drawMarkerStroke(stroke, closed: closed) },
+                onPaintCommit: { stroke, width in drawPaintStroke(stroke, widthPixels: width) },
                 lineDrop: { point, command in dropOfSelection(at: point, command: command) },
                 onReassignCommit: { target in reassignSelectedLines(into: target) },
                 selection: regionSelection
@@ -552,9 +553,20 @@ extension ZoomableImagePreview {
             return .handled
         }
         if press.key == KeyEquivalent("[") || press.key == KeyEquivalent("]") {
-            // The Brush's size (`segment-editor.select-brush`), while it is chosen or held.
-            guard press.phase == .down, windowState.brushArmed || windowState.brushHeld else { return .ignored }
-            windowState.resizeBrush(larger: press.key == KeyEquivalent("]"))
+            // The Brush's size (`segment-editor.select-brush`) or the Paintbrush's width, while either is chosen.
+            guard press.phase == .down else { return .ignored }
+            let larger = press.key == KeyEquivalent("]")
+            if windowState.paintArmed { windowState.resizePaint(larger: larger); return .handled }
+            guard windowState.brushArmed || windowState.brushHeld else { return .ignored }
+            windowState.resizeBrush(larger: larger)
+            return .handled
+        }
+        if press.key == KeyEquivalent("p") {
+            // The Paintbrush is a mode (`segment-editor.paintbrush`): P chooses it, P again puts it down.
+            guard press.phase == .down, isEditingSegments, press.modifiers.subtracting(.capsLock).isEmpty else { return .ignored }
+            let armed = windowState.paintArmed
+            if !armed { windowState.activeMarkupTool = .select }
+            windowState.paintArmed = !armed
             return .handled
         }
         if press.key == KeyEquivalent("b") {
@@ -595,12 +607,13 @@ extension ZoomableImagePreview {
         // Escape during a polygon or baseline drawing abandons just the drawing, nothing else.
         if windowState?.abandonDrawing() == true { return }
         // Then the Knife chosen by K or the tool row goes down, back to Select; the selection stays (one thing per press).
-        if windowState?.knifeArmed == true || windowState?.markerArmed == true || windowState?.orderArmed == true
-            || windowState?.brushArmed == true {
-            windowState?.knifeArmed = false
-            windowState?.markerArmed = false
-            windowState?.orderArmed = false
-            windowState?.brushArmed = false
+        if let windowState, windowState.knifeArmed || windowState.markerArmed || windowState.orderArmed
+            || windowState.brushArmed || windowState.paintArmed {
+            windowState.knifeArmed = false
+            windowState.markerArmed = false
+            windowState.orderArmed = false
+            windowState.brushArmed = false
+            windowState.paintArmed = false
             return
         }
         isAddingRegion = false
