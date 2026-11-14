@@ -43,6 +43,7 @@ class RunFailure(BaseModel):
     step: Optional[str] = None
     pages_done: Optional[int] = None
     pages_total: Optional[int] = None
+    row_words: str = Field(default="", description="the table row's words: at most eight, never a sentence cut short")
     exception_type: Optional[str] = Field(default=None, description="the exception's class name; never its message")
     detail: str = Field(default="", description="the error's first line, redacted")
     refusal: Optional[CloudRefusal] = Field(default=None, description="`cap-refused` and `images-refused`: the typed refusal")
@@ -189,6 +190,29 @@ def from_refusal(refusal: CloudRefusal | dict, **where: Any) -> RunFailure:
     return _build("images-refused" if refusal.kind == "images" else "cap-refused", refusal, None, "", **where)
 
 
+#: The table row's words per kind (`run.fail.kinds-table`'s row-words column, the review 2026-11-13): at most eight tokens, the
+#: provider or model by display name, never a sentence cut at a word boundary.
+_ROW_WORDS: dict[str, str] = {
+    "no-credit": "Out of credit at {name}",
+    "key-refused": "{name} refused the key",
+    "rate-limited": "{name} is limiting how fast you send",
+    "cap-refused": "Paused at the spend cap",
+    "images-refused": "Pages stay on this Mac",
+    "model-error": "{model} could not do this step",
+    "model-missing": "{model} is not downloaded",
+    "runtime-unavailable": "No runtime for this step",
+    "memory": "Not enough memory for {model}",
+    "network": "Could not reach {name}",
+    "files-unavailable": "Some pages' files could not be opened",
+    "unexpected": "Something went wrong in Fichero",
+}
+
+
+def row_words(kind: str, *, name: str = "the provider", model: str = "the model") -> str:
+    """The ≤ 8-word line a table row shows for a failure kind; an unknown kind reads as `unexpected`."""
+    return _ROW_WORDS.get(kind, _ROW_WORDS["unexpected"]).format(name=name, model=model)
+
+
 def _build(kind: str, refusal: CloudRefusal | None, exc: BaseException | None, text: str, *, step: str | None = None, provider: str | None = None,
            model: str | None = None, done: int | None = None, total: int | None = None) -> RunFailure:
     from fichero_server.workflows.circuit_breaker import provider_display, retry_after_seconds
@@ -211,8 +235,8 @@ def _build(kind: str, refusal: CloudRefusal | None, exc: BaseException | None, t
         wait = retry_after_seconds(exc) if exc is not None else None
         acts = [a.model_copy(update={"retry_after_seconds": wait}) if a.kind == "retry" else a for a in acts]
     return RunFailure(kind=kind, words=words, fix=fix, actions=acts, provider=prov, model=mdl, step=step, pages_done=done,
-                      pages_total=total, exception_type=type(exc).__name__ if exc is not None else None, detail=detail,
-                      refusal=refusal)
+                      pages_total=total, row_words=row_words(kind, name=name, model=shown_model),
+                      exception_type=type(exc).__name__ if exc is not None else None, detail=detail, refusal=refusal)
 
 
 def _a(kind: str, control: str | None = None) -> FailureAction:

@@ -24,6 +24,17 @@ def test_every_kind_in_the_table_has_words_and_a_fix():
         assert all(a.kind for a in acts), kind
 
 
+def test_every_kind_has_row_words_of_at_most_eight_tokens():
+    kinds = set(typing.get_args(failure.Kind))
+    assert kinds <= set(failure._ROW_WORDS), f"kinds with no row words: {kinds - set(failure._ROW_WORDS)}"
+    for kind in kinds:
+        words = failure.row_words(kind, name="OpenRouter", model="Qwen 2 VL")
+        assert 1 <= len(words.split()) <= 8, f"{kind}: {words!r}"
+        assert not words.endswith("."), f"{kind}: a row's words are not a sentence"
+    built = failure._build("no-credit", None, None, "", step="Read", provider="openrouter")
+    assert built.row_words == "Out of credit at OpenRouter"
+
+
 def test_the_words_name_no_code_status_or_exception_type():
     for kind, build in failure._WORDS.items():
         words, fix, _ = build(**_WHERE)

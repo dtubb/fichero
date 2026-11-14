@@ -122,8 +122,8 @@ from a run with the error, the run and the versions, and nothing private; CLI/MC
    provider's raw reason text; those are the bug report's and Copy Details' (`activity.pane.failure-with-its-fix-in-the-row`);
    `unexpected` says "Something went wrong in Fichero, not in your files." Every kind also has ROW WORDS of at most eight
    whitespace tokens for the table (the "row words" column below), never a sentence cut at a word boundary. Test:
-   `fichero-server/tests/unit/llm/test_every_failure_kind_has_a_fix_6354.py` (built; the row-words column and the no-raw-text
-   rule to add).
+   `fichero-server/tests/unit/llm/test_every_failure_kind_has_a_fix_6354.py` (built, with the row-words column: `RunFailure.row_words`,
+   `failure.row_words(kind)`, ≤ 8 tokens per kind; the no-raw-text rule for the provider's reason is still to add).
 
 ## The table (`run.fail.kinds-table`)
 
