@@ -197,6 +197,17 @@ def as_geometry(found: WorkingLines, width: float, height: float, *, provider: s
                                        **({"frame": found.frame} if found.frame else {})})
 
 
+#: The per-character facts a reader can give with a line (`segment-editor.char-positions-kept`), as kept on a box's
+#: metadata and on the reading.
+CHARACTER_FACT_KEYS = ("char_positions", "char_confidences")
+
+
+def character_facts(text: object) -> dict:
+    """What a reader said about each character of a line it read (a `kraken_runtime.ReadLine`'s positions and
+    certainties), keyed as the reading stores them; empty when it said nothing."""
+    return {key: list(value) for key in CHARACTER_FACT_KEYS if (value := getattr(text, key, None))}
+
+
 def write_readings(
     db: Any,
     *,
@@ -245,11 +256,16 @@ one) and `producer_tool` from `tool`, else from the workflow step now running (i
             continue
         if (segment_id, kind, text.strip(), artifact_id, level) in have:
             continue
+        # A fourth value, where given, is what the reader said about each character (`character_facts`), one entry
+        # per character of the text AS READ: cut to the characters the stripped text keeps, else dropped.
+        given = dict(certainty[1]) if len(certainty) > 1 and certainty[1] else {}
+        lead, kept = len(text) - len(text.lstrip()), len(text.strip())
+        facts = {key: list(value)[lead:lead + kept] for key, value in given.items() if len(value) == len(text)}
         made.append(registry.invoke(db, "representation.create", {
             "document_id": document_id, "segment_id": segment_id, "kind": kind, "content": text.strip(),
             "derived_from_artifact_id": artifact_id, "level": level,
             "machine_confidence": certainty[0] if certainty else None, "producer_model": model, "producer_tool": tool,
-            "derived_from_representation_id": (derived_from or {}).get(segment_id)}, ctx).result["id"])
+            "derived_from_representation_id": (derived_from or {}).get(segment_id), **facts}, ctx).result["id"])
     return made
 
 
