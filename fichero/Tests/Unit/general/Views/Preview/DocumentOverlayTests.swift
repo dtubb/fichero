@@ -77,4 +77,20 @@ struct DocumentOverlayTests {
         chosen.selectedMark = [0.1, 0.1, 0.2, 0.05]
         #expect(chosen != DocumentOverlay())
     }
+    /// `segment-editor.order-overlay` (docs/contributor_manual/specs/ui/segment-editor.md): with the order shown, an
+    /// arrow runs from each numbered line's start to the next number's, in number order, never across a gap.
+    @Test("the order arrows join each numbered line to the next, in number order")
+    func orderArrows() {
+        func line(_ number: Int?, _ top: Double) -> DocumentOverlay.Box {
+            var box = DocumentOverlay.Box(bbox: [0.1, top, 0.5, 0.04], confidence: nil)
+            box.orderNumber = number
+            return box
+        }
+        let shown = DocumentOverlay(boxes: [line(2, 0.3), line(nil, 0.0), line(1, 0.2), line(4, 0.6), line(3, 0.4)], selected: [])
+        let arrows = shown.orderArrows()
+        #expect(arrows.map(\.from) == [[0.1, 0.2], [0.1, 0.3], [0.1, 0.4]])
+        #expect(arrows.map(\.to) == [[0.1, 0.3], [0.1, 0.4], [0.1, 0.6]])
+        let gap = DocumentOverlay(boxes: [line(1, 0.2), line(3, 0.4)], selected: [])
+        #expect(gap.orderArrows().isEmpty, "no arrow across a missing number")
+    }
 }
